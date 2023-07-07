@@ -47,6 +47,9 @@ struct ocl_event_t final : compute::event_t {
     static const ocl_event_t &from(const compute::event_t &event) {
         return *utils::downcast<const ocl_event_t *>(&event);
     }
+    std::unique_ptr<compute::event_t> clone() const {
+        return std::unique_ptr<compute::event_t>(new ocl_event_t(*this));
+    }
 
     void append(const compute::event_t &event) {
         auto &other = *utils::downcast<const ocl_event_t *>(&event);

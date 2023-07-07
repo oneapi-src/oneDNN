@@ -45,6 +45,9 @@ struct sycl_event_t : public gpu::compute::event_t {
     static const sycl_event_t &from(const gpu::compute::event_t &event) {
         return *utils::downcast<const sycl_event_t *>(&event);
     }
+    std::unique_ptr<gpu::compute::event_t> clone() const {
+        return std::unique_ptr<gpu::compute::event_t>(new sycl_event_t(*this));
+    }
 
     void append(const gpu::compute::event_t &event) {
         auto &other = *utils::downcast<const sycl_event_t *>(&event);
