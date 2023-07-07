@@ -186,6 +186,13 @@ user-provided queue.
     dnnl::reset_profiling(stream);
 ~~~
 
+@warning
+- When the stream is created with enabled profiling capabilities it will
+  collect profiling data for each primitive execution. It is the user's
+  responsibility to reset the profiler's state to avoid consuming all
+  memory resources in the system.
+
+
 #### Limitations
 
 * Only GPU engines with OpenCL and SYCL runtimes are supported
