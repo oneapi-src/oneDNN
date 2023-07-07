@@ -428,8 +428,7 @@ status_t get_ocl_program_binary_size(
 void dump_kernel_binary(
         const compute::binary_t &binary, const std::string &name);
 void dump_kernel_binary(cl_kernel ocl_kernel);
-void dump_kernel_binary(
-        const engine_t *engine, const compute::kernel_t &binary_kernel);
+void dump_kernel_binary(const compute::kernel_t &binary_kernel);
 
 void debugdump_processed_source(const std::string &source,
         const std::string &options, const std::string &ocl_options);

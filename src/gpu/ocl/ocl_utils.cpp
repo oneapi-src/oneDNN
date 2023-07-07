@@ -374,15 +374,14 @@ void dump_kernel_binary(cl_kernel ocl_kernel) {
     dump_kernel_binary(binary, name);
 }
 
-void dump_kernel_binary(
-        const engine_t *engine, const compute::kernel_t &kernel) {
+void dump_kernel_binary(const compute::kernel_t &kernel) {
     if (!get_jit_dump()) return;
     auto *kernel_impl
             = utils::downcast<const ocl_gpu_kernel_t *>(kernel.impl());
     dump_kernel_binary(kernel_impl->ocl_kernel());
 }
 #else
-void dump_kernel_binary(const engine_t *, const compute::kernel_t &) {}
+void dump_kernel_binary(const compute::kernel_t &) {}
 void dump_kernel_binary(compute::binary_t binary, const std::string &name) {}
 void dump_kernel_binary(cl_kernel) {}
 #endif
