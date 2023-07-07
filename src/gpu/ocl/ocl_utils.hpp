@@ -419,7 +419,7 @@ cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
 status_t get_ocl_program_binary(
         cl_program program, cl_device_id device, compute::binary_t &binary);
 
-status_t get_ocl_program_binary(
+status_t get_ocl_kernel_binary(
         cl_kernel kernel, cl_device_id device, compute::binary_t &binary);
 
 status_t get_ocl_program_binary_size(

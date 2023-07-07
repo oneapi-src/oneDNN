@@ -119,7 +119,7 @@ ocl_gpu_kernel_t::~ocl_gpu_kernel_t() {
 status_t ocl_gpu_kernel_t::get_binary(
         const engine_t *engine, compute::binary_t &binary) const {
     auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
-    return get_ocl_program_binary(ocl_kernel(), ocl_engine->device(), binary);
+    return get_ocl_kernel_binary(ocl_kernel(), ocl_engine->device(), binary);
 }
 
 status_t ocl_gpu_kernel_t::get_binary_size(

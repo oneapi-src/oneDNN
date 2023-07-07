@@ -316,7 +316,7 @@ status_t get_ocl_program_binary(
     return status::success;
 }
 
-status_t get_ocl_program_binary(
+status_t get_ocl_kernel_binary(
         cl_kernel kernel, cl_device_id device, compute::binary_t &binary) {
     cl_int err;
 
