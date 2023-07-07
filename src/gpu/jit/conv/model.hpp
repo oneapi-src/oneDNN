@@ -375,13 +375,14 @@ struct conv_sample_t {
     tile_t iter;
     float sec = 0;
     float gops_sec = 0;
+    bool transpose;
 
     conv_sample_t() = default;
     conv_sample_t(const std::string &hw, const std::string &fma,
             const std::string &prop, const std::string &type_cfg,
             const std::string &desc, const std::string &loop,
             const std::string &tg, const std::string &iter, float sec,
-            float gops_sec)
+            float gops_sec, bool transpose = false)
         : prop(to_prop(prop))
         , src_type(to_src_type(type_cfg, this->prop))
         , dst_type(to_dst_type(type_cfg, this->prop))
@@ -391,7 +392,8 @@ struct conv_sample_t {
         , tg(parse_tile(tg))
         , iter(parse_tile(iter))
         , sec(sec)
-        , gops_sec(gops_sec) {
+        , gops_sec(gops_sec)
+        , transpose(transpose) {
         pad();
     }
 

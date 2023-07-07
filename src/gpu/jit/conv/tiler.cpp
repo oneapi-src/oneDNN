@@ -128,9 +128,12 @@ bool is_vectorized_dim(const conv_dim_t &d, const conv_problem_t &prb) {
     if (prb.is_dw) return d == conv_dims::g;
     bool transpose = prb.ab_swap_transpose;
     switch (prb.prop_kind()) {
-        case prop_kind::forward: return (transpose ? d == conv_dims::mb : d == conv_dims::oc);
-        case prop_kind::backward_data: return (transpose ? d == conv_dims::mb : d == conv_dims::ic);
-        case prop_kind::backward_weights: return (transpose ? d == conv_dims::ic : d == conv_dims::oc);
+        case prop_kind::forward:
+            return (transpose ? d == conv_dims::mb : d == conv_dims::oc);
+        case prop_kind::backward_data:
+            return (transpose ? d == conv_dims::mb : d == conv_dims::ic);
+        case prop_kind::backward_weights:
+            return (transpose ? d == conv_dims::ic : d == conv_dims::oc);
         default: ir_error_not_expected();
     }
     return false;
@@ -528,7 +531,8 @@ private:
         bool is_dpas = cfg.is_dp_fma();
         int rdims = 0;
         for (auto d : iter_) {
-            if (is_reduction_dim(d, prb.prop_kind(), prb.ab_swap_transpose)) rdims++;
+            if (is_reduction_dim(d, prb.prop_kind(), prb.ab_swap_transpose))
+                rdims++;
         }
         bool is_fused_reduction = (rdims > 1);
         for (auto d : iter_) {
@@ -568,7 +572,9 @@ private:
             // additional space for x8 -> s16 reorder.
             int min_m_iter_block_hint = 2;
             for (auto d : iter_) {
-                if (to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose) != gemm_dims::m) continue;
+                if (to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose)
+                        != gemm_dims::m)
+                    continue;
                 auto &info = tile_info(d);
                 int blk = std::min(info.min_iter_blk, min_m_iter_block_hint);
                 int pow2_blk = utils::rnd_up_pow2(blk);
@@ -583,7 +589,9 @@ private:
         conv_dim_t d0;
         conv_dim_t d1;
         for (auto d : iter_) {
-            if (!is_reduction_dim(d, cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose)) continue;
+            if (!is_reduction_dim(
+                        d, cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose))
+                continue;
             rdims++;
             (d0.is_undef() ? d0 : d1) = d;
         }
@@ -801,7 +809,8 @@ int grf_usage_bytes(fma_kind_t fma, int b_iter, int m_iter, int n_iter,
 
 int grf_usage_bytes(const conv_config_t &cfg, const conv_params_t &params) {
     auto &prb = cfg.prb();
-    auto iter = to_gemm(params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
+    auto iter = to_gemm(
+            params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
     int b_iter = iter.at(gemm_dims::b, 1);
     int m_iter = iter.at(gemm_dims::m, 1);
     int n_iter = iter.at(gemm_dims::n, 1);
@@ -839,8 +848,10 @@ int slm_usage_bytes(const conv_config_t &cfg, int b_tg, int m_tg, int n_tg,
 int slm_usage_bytes_for_params(
         const conv_config_t &cfg, const conv_params_t &params) {
     auto &prb = cfg.prb();
-    auto tg = to_gemm(params.blocking().thread_group(), prb.prop_kind(), prb.ab_swap_transpose);
-    auto iter = to_gemm(params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
+    auto tg = to_gemm(params.blocking().thread_group(), prb.prop_kind(),
+            prb.ab_swap_transpose);
+    auto iter = to_gemm(
+            params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
     int b_tg = tg.at(gemm_dims::b, 1);
     int m_tg = tg.at(gemm_dims::m, 1);
     int n_tg = tg.at(gemm_dims::n, 1);
@@ -858,7 +869,8 @@ public:
     blocking_checker_t(const conv_config_t &cfg) : cfg_(cfg) {
         init_checks();
         padded_shape_ = get_conv_shape(cfg, /*pad=*/true);
-        padded_gemm_shape_ = to_gemm(padded_shape_, cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose);
+        padded_gemm_shape_ = to_gemm(padded_shape_, cfg.prb().prop_kind(),
+                cfg.prb().ab_swap_transpose);
         max_tg_size_ = get_default_max_tg_size(
                 cfg.hw_cfg(), cfg.exec_cfg().regs(), cfg.simd());
     }
@@ -893,9 +905,12 @@ private:
     struct context_t {
         context_t(const blocking_t &blk, const conv_config_t &cfg) : blk(blk) {
             auto &prb = cfg.prb();
-            auto gemm_iter = to_gemm(blk.iter(), prb.prop_kind(), prb.ab_swap_transpose);
-            auto gemm_loop = to_gemm(blk.loop(), prb.prop_kind(), prb.ab_swap_transpose);
-            auto gemm_tg = to_gemm(blk.thread_group(), prb.prop_kind(), prb.ab_swap_transpose);
+            auto gemm_iter = to_gemm(
+                    blk.iter(), prb.prop_kind(), prb.ab_swap_transpose);
+            auto gemm_loop = to_gemm(
+                    blk.loop(), prb.prop_kind(), prb.ab_swap_transpose);
+            auto gemm_tg = to_gemm(
+                    blk.thread_group(), prb.prop_kind(), prb.ab_swap_transpose);
             b_iter = gemm_iter.at(gemm_dims::b, 1);
             m_iter = gemm_iter.at(gemm_dims::m, 1);
             n_iter = gemm_iter.at(gemm_dims::n, 1);
@@ -915,7 +930,9 @@ private:
             // Use 2x reduction when the reduction dimension is dense to avoid
             // partial cache line loads.
             for (auto d : blk.iter()) {
-                if (to_gemm(d, cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose) == gemm_dims::k) {
+                if (to_gemm(d, cfg.prb().prop_kind(),
+                            cfg.prb().ab_swap_transpose)
+                        == gemm_dims::k) {
                     if (is_inner_non_blocked(cfg, d)) return true;
                 }
             }
@@ -1183,7 +1200,8 @@ private:
         auto &prb = cfg_.prb();
         int max_blk = 1;
         for (auto d : ctx.blk.iter()) {
-            if (to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose) == gemm_dims::m) {
+            if (to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose)
+                    == gemm_dims::m) {
                 int d_blk = inner_block(cfg_, d);
                 max_blk = std::max(max_blk, d_blk);
             }
@@ -1281,11 +1299,10 @@ namespace conv_schemes {
 //   li   - loop dimension with unroll
 //   #dim - remove minimum block restriction (minimum is 1)
 blocking_scheme_t fwd_T_wo_I_noi("ls:[ic,kd,kh,kw],T:[oc,ow],i:[mb,oc,ic]");
-blocking_scheme_t fwd_T_w_I_wnoi("ls:[ic,kd,kh,kw],T:[ow],i:[ow,mb,oc,ic]");
 blocking_scheme_t fwd_T_no_I_noi("ls:[ic,kd,kh,kw],T:[oc,mb],i:[mb,oc,ic]");
-blocking_scheme_t fwd_T_n_I_wnoi("ls:[ic,kd,kh,kw],T:[mb],i:[ow,mb,oc,ic]");
 blocking_scheme_t fwd_T_wn_I_wnoi("ls:[ic,kd,kh,kw],T:[ow,mb],i:[ow,mb,oc,ic]");
 blocking_scheme_t fwd_T_i_I_noi("ls:[ic,kd,kh,kw],T:[ic],i:[mb,oc,ic]");
+blocking_scheme_t fwd_T_iw_I_wnoi("ls:[ic,kd,kh,kw],T:[ic,ow],i:[ow,mb,oc,ic]");
 blocking_scheme_t fwd_T_wo_I_woi("ls:[ic,kd,kh,kw],T:[oc,ow],i:[ow,oc,ic]");
 blocking_scheme_t fwd_T_i_I_woi("ls:[ic,kd,kh,kw],T:[ic],i:[ow,oc,ic]");
 blocking_scheme_t fwd_T_wo_I_woki("ls:[ic,kd,kh,kw],T:[oc,ow],i:[ow,oc,kw,ic]");
@@ -1401,19 +1418,19 @@ std::vector<blocking_scheme_t> get_blocking_schemes_bwd_w_dw(
 std::vector<blocking_scheme_t> get_blocking_schemes_fwd(
         const conv_config_t &cfg) {
     std::vector<blocking_scheme_t> ret;
-    auto m_iter_dim = cfg.prb().ab_swap_transpose ? conv_dims::oc : select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
+    auto m_iter_dim = cfg.prb().ab_swap_transpose
+            ? conv_dims::oc
+            : select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
     if (m_iter_dim == conv_dims::mb) {
         ret.push_back(conv_schemes::fwd_T_wo_I_noi);
         ret.push_back(conv_schemes::fwd_T_no_I_noi);
         if (cfg.hw() >= ngen::HW::XeLP)
             ret.push_back(conv_schemes::fwd_T_i_I_noi);
     } else if (m_iter_dim == conv_dims::oc) {
-        ret.push_back(conv_schemes::fwd_T_w_I_wnoi);
-        ret.push_back(conv_schemes::fwd_T_n_I_wnoi);
         ret.push_back(conv_schemes::fwd_T_wn_I_wnoi);
-        if (cfg.hw() >= ngen::HW::XeLP){
+        if (cfg.hw() >= ngen::HW::XeLP) {
             ret.push_back(conv_schemes::fwd_T_i_I_noi);
-            ret.push_back(conv_schemes::fwd_T_i_I_woi);
+            ret.push_back(conv_schemes::fwd_T_iw_I_wnoi);
         }
     } else {
         ret.push_back(conv_schemes::fwd_T_wo_I_woi);
@@ -1423,7 +1440,7 @@ std::vector<blocking_scheme_t> get_blocking_schemes_fwd(
     if (is_small_ic(cfg.prb()) && cfg.prb().kw > 1) {
         if (m_iter_dim == conv_dims::mb) {
             ret.push_back(conv_schemes::fwd_T_wo_I_noki);
-        } else if(m_iter_dim == conv_dims::oc) {
+        } else if (m_iter_dim == conv_dims::oc) {
             ret.push_back(conv_schemes::fwd_T_w_I_woki);
             ret.push_back(conv_schemes::fwd_T_w_I_noki);
         } else {
@@ -1436,7 +1453,9 @@ std::vector<blocking_scheme_t> get_blocking_schemes_fwd(
 std::vector<blocking_scheme_t> get_blocking_schemes_bwd_d(
         const conv_config_t &cfg) {
     std::vector<blocking_scheme_t> ret;
-    auto m_iter_dim = cfg.prb().ab_swap_transpose ? conv_dims::ic : select_iter_dim(cfg, {conv_dims::mb, conv_dims::iw});
+    auto m_iter_dim = cfg.prb().ab_swap_transpose
+            ? conv_dims::ic
+            : select_iter_dim(cfg, {conv_dims::mb, conv_dims::iw});
     if (m_iter_dim == conv_dims::mb) {
         ret.push_back(conv_schemes::bwd_d_T_ni_I_nio);
         ret.push_back(conv_schemes::bwd_d_T_wi_I_nio);
@@ -1951,7 +1970,8 @@ struct indexed_tile_t {
 };
 
 std::vector<std::vector<int>> to_indexed(
-        const std::vector<conv_params_t> &params_vec, prop_kind_t prop_kind, bool is_transpose) {
+        const std::vector<conv_params_t> &params_vec, prop_kind_t prop_kind,
+        bool is_transpose) {
     indexed_tile_t iter;
     indexed_tile_t tg;
     indexed_tile_t loop;
@@ -1969,7 +1989,8 @@ std::vector<std::vector<int>> to_indexed(
     for (auto &p : params_vec) {
         auto &b = p.blocking();
         auto v0 = iter.to_index(to_gemm(b.iter(), prop_kind, is_transpose));
-        auto v1 = tg.to_index(to_gemm(b.thread_group(), prop_kind, is_transpose));
+        auto v1 = tg.to_index(
+                to_gemm(b.thread_group(), prop_kind, is_transpose));
         auto v2 = loop.to_index(to_gemm(b.loop(), prop_kind, is_transpose));
         std::vector<int> v;
         v.insert(v.end(), v0.begin(), v0.end());
@@ -1992,7 +2013,8 @@ std::vector<std::vector<int>> to_indexed(
 class params_distance_t {
 public:
     params_distance_t() = default;
-    params_distance_t(const params_generator_t &g, prop_kind_t prop_kind, bool is_transpose) {
+    params_distance_t(const params_generator_t &g, prop_kind_t prop_kind,
+            bool is_transpose) {
         dists_ = to_indexed(g.params_vec(), prop_kind, is_transpose);
     }
 
@@ -2073,7 +2095,8 @@ public:
     conv_tuner_t(const conv_config_t &cfg)
         : conv_key_(cfg.key())
         , params_gen_(cfg)
-        , params_dist_(params_gen_, cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose)
+        , params_dist_(params_gen_, cfg.prb().prop_kind(),
+                  cfg.prb().ab_swap_transpose)
         , ops_(cfg.prb().ops()) {
         params_gen_.shuffle(conv_key_hash_t()(cfg.key()));
     }
@@ -2327,11 +2350,12 @@ private:
                 blocking_checker_t blocking_checker(cfg);
                 bool transposed = cfg.prb().ab_swap_transpose;
                 if (!params.is_empty()
-                        && (!transposed || blocking_checker.is_ok(params.blocking()))) {
-                    if(transposed){
-                    params_gen_ = params_generator_t(cfg, params);
-                    }else{
-                    params_gen_ = params_generator_t(params);
+                        && (!transposed
+                                || blocking_checker.is_ok(params.blocking()))) {
+                    if (transposed) {
+                        params_gen_ = params_generator_t(cfg, params);
+                    } else {
+                        params_gen_ = params_generator_t(params);
                     }
                 } else {
                     mode_ = tiler_mode_t::model;

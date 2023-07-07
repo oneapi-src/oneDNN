@@ -1536,7 +1536,7 @@ public:
                 blocks.push_back(vb);
                 continue;
             }
-            ir_assert(!seen);
+            if (seen) return layout_t();
             seen = true;
             for (int i = 0; i < tdim.nvargs(); i++) {
                 int vidx = tdim.vidx(i);
