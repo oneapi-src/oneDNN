@@ -503,6 +503,15 @@ static status_t init_conf_common(
     if (conf.inner_axis == 1 && 16 * conf.simd <= conf.read_block
             && (size_t)conf.read_block < conf.gws_d[2])
         return status::unimplemented;
+    if (conf.n_blocks && conf.write_block * conf.data_type_size == 1)
+        return status::unimplemented;
+    // In this band, this implementation underperforms against either
+    // (1) gen9 concat or (2) ref concat.
+    if (dst_md.dims[axis::inner] > (1l << 20) // (1)
+            && dst_md.dims[axis::inner] <= (1l << 24) // (2)
+            && dst_md.dims[axis::concat] != dst_md.padded_dims[axis::concat]
+            && dst_md.dims[axis::concat] < 8)
+        return status::unimplemented;
 
     compute::get_optimal_lws(
             conf.gws_d, conf.lws_d, 3, 0, device_info->gpu_arch());
