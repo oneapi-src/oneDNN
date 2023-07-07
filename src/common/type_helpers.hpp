@@ -368,6 +368,19 @@ inline void cvt_from_float(
     }
 }
 
+inline void cvt_to_float(
+        data_type_t dt, float *out, const void *inp, size_t nelems) {
+    switch (dt) {
+        case data_type::bf16:
+            cvt_to_float(out, (const bfloat16_t *)inp, nelems);
+            break;
+        case data_type::f16:
+            cvt_to_float(out, (const float16_t *)inp, nelems);
+            break;
+        default: assert(!"unimplemented");
+    }
+}
+
 } // namespace types
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {

@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/cpu_engine.hpp"
+#include "cpu/ncsp_group_normalization.hpp"
 #include "cpu/ref_group_normalization.hpp"
 
 namespace dnnl {
@@ -29,6 +30,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     // clang-format off
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_GNORM_P({
         {{forward}, {
+            CPU_INSTANCE(ncsp_group_normalization_fwd_t)
             CPU_INSTANCE(ref_group_normalization_fwd_t)
             nullptr,
         }},
