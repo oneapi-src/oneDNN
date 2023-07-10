@@ -90,8 +90,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_arg_scale(prb->attr, res);
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_binary);
 
-    // N.B: Adding this for gpu as cfg is not supported in POST-OPS
     if (is_gpu()) {
+        // N.B: Adding this for gpu as cfg is not supported in POST-OPS
         bool have_post_ops = !prb->attr.post_ops.is_def();
         bool is_bf16u8 = (dts[0] == dnnl_bf16 && dts[1] == dnnl_bf16
                 && dts[2] == dnnl_u8);
@@ -99,6 +99,13 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
             return;
         }
+
+        // gpu does not support s32
+        for (const auto &dt : dts)
+            if (dt == dnnl_s32) {
+                res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
+                return;
+            }
     }
 }
 
