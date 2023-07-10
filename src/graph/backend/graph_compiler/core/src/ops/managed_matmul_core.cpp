@@ -224,15 +224,25 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     auto p2bmp_a = A_format.format_code_.collect_p2b_mapping();
     // consider 2D*ND case, B_format is penetrated, which is always blocking
     auto p2bmp_b = B_format.format_code_.collect_p2b_mapping();
-
+    bool treat_as_static
+            = !get_owner_graph().attrs_.get_or_else("insert_reorder", true);
     for (auto &m_b : m_blk_candidates) { // M
         for (auto &n_b : blk_candidates) { // N
             for (auto &k_b : blk_candidates) { // K
                 for (auto A_isp : is_padding) { // A is_padding
                     for (auto B_isp : is_padding) { // B is_padding
-                        if (is_dynamic_dim(M)) { iim_block = m_b; }
-                        if (is_dynamic_dim(N)) { iin_block = n_b; }
-                        if (is_dynamic_dim(K)) { iik_block = k_b; }
+                        if (is_dynamic_dim(M)) {
+                            iim_block = m_b;
+                            if (treat_as_static) { iim_block = iim_block_; }
+                        }
+                        if (is_dynamic_dim(N)) {
+                            iin_block = n_b;
+                            if (treat_as_static) { iin_block = iin_block_; }
+                        }
+                        if (is_dynamic_dim(K)) {
+                            iik_block = k_b;
+                            if (treat_as_static) { iik_block = iik_block_; }
+                        }
                         if (A_dims.size() == 2) {
                             if (!dynamic && A_dtype == datatypes::bf16
                                     && A_format == sc_data_format_t::NK()) {

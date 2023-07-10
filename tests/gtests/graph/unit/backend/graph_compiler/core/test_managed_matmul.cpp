@@ -452,4 +452,8 @@ TEST(GCCore_CPU_managed_matmul_test, TestDynamicMATMUL2D_FUSED_SIGMOID) {
             {{-1, 912}, {-1, 1344}, {-1, 1344}, datatypes::f32, datatypes::f32,
                     false, {1136, 912}, {912, 1344}, {1136, 1344}},
             dummy_cfg, false, true);
+    check_managed_matmul({{-1, 4096}, {4096, 16384}, {-1, 16384},
+                                 datatypes::f32, datatypes::f32, false,
+                                 {4, 4096}, {4096, 16384}, {4, 16384}},
+            dummy_cfg, false, true);
 }

@@ -193,7 +193,11 @@ extern "C" void query_format_matmul_common_process(void *table, void *out,
     if (data_fmt_st->is_plain() || data_fmt_st->ndims() == data_ndims) {
         data_fmt_st->set_block1(M_blk);
         data_fmt_st->set_block2(K_blk);
-        if (!is_mmm && (M % M_blk || K % K_blk || !data_fmt_st->is_plain())) {
+        // todo: find the better way for s8 with amx process.
+        if ((!is_mmm && (M % M_blk || K % K_blk || !data_fmt_st->is_plain()))
+                || (is_mmm
+                        && data_dyn_tsr->dtype_ == uint32_t(sc_data_etype::S8)
+                        && K % K_blk)) {
             if (!data_fmt_st->is_plain()) {
                 for (int i = 0; i < data_ndims; i++) {
                     data_fmt_st->set(i, i);
