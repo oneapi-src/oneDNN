@@ -1919,7 +1919,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // TODO: optimize grouped convolutions with small ic
     const bool is_grouped_small_ic
             = jcp.prop_kind != prop_kind::backward_weights && with_groups
-            && jcp.ngroups > 1 && jcp.ic <= jcp.acc_simd_w
+            && jcp.isa != avx2 && jcp.ngroups > 1 && jcp.ic <= jcp.acc_simd_w
             && IMPLICATION(is_amx(jcp.isa),
                     jcp.ic < 16
                             && jcp.oc < 16
@@ -2064,7 +2064,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const bool is_real_3d = (jcp.ndims == 5
             && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1 || jcp.dilate_d > 0));
 
-    if (jcp.ic <= 4 && !is_real_3d
+    if (jcp.isa != avx2 && jcp.ic <= 4 && !is_real_3d
             && IMPLICATION(with_groups, is_groups_ok(jcp)))
         if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
