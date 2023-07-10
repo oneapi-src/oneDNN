@@ -22,6 +22,9 @@
 --ddt=u8 --sdt=u8:u8
 --batch=shapes_ci
 
+--ddt=s32 --sdt=s32:s32
+--batch=shapes_ci
+
 # A separate section with a single alg to avoid tons of same test cases
 --alg=ADD
 --attr-post-ops=, \
@@ -44,4 +47,7 @@
 --batch=shapes_ci
 
 --ddt=u8 --sdt=u8:u8
+--batch=shapes_ci
+
+--ddt=s32 --sdt=s32:s32
 --batch=shapes_ci
