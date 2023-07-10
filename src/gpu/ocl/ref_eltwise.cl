@@ -23,7 +23,7 @@
 #define DIFF_DATA_OFF(x0, x1, x2, x3, x4, x5) \
     OFF_MD(DIFF_DATA, x0, x1, x2, x3, x4, x5)
 
-#define GWS_GET_ID(index) (get_global_id(index) + offset.array[index])
+#define GWS_GET_THREAD_ID(index) (get_global_id(index) + offset.array[index])
 
 #if IS_FWD
 __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
