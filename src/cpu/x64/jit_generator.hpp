@@ -2128,8 +2128,8 @@ public:
     * memory instructions.
     */
     template <typename Vmm>
-    void load_bytes(
-            const Vmm &vmm, const Xbyak::Address &src_addr, int load_size) {
+    void load_bytes(const Vmm &vmm, const Xbyak::Address &src_addr,
+            int load_size, const bool zero_vmm = true) {
 
         constexpr bool is_vmm_supported = std::is_same<Vmm, Xbyak::Ymm>::value
                 || std::is_same<Vmm, Xbyak::Xmm>::value;
@@ -2143,12 +2143,12 @@ public:
                     + Xbyak::RegExp(bytes_offset * sizeof(int8_t))];
         };
 
-        helper_load_bytes(vmm, load_size, addr);
+        helper_load_bytes(vmm, load_size, addr, zero_vmm);
     }
 
     template <typename Vmm>
     void load_bytes(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
-            int load_size) {
+            int load_size, const bool zero_vmm = true) {
 
         constexpr bool is_vmm_supported = std::is_same<Vmm, Xbyak::Ymm>::value
                 || std::is_same<Vmm, Xbyak::Xmm>::value;
@@ -2164,13 +2164,13 @@ public:
             return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
         };
 
-        helper_load_bytes(vmm, load_size, addr);
+        helper_load_bytes(vmm, load_size, addr, zero_vmm);
     }
 
 private:
     template <typename Vmm, typename AddrFunc>
-    void helper_load_bytes(
-            const Vmm &vmm, int load_size, const AddrFunc &addr) {
+    void helper_load_bytes(const Vmm &vmm, int load_size, const AddrFunc &addr,
+            const bool zero_vmm = true) {
 
         constexpr bool is_xmm = std::is_same<Vmm, Xbyak::Xmm>::value;
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
@@ -2198,6 +2198,9 @@ private:
             vmovups(ymm, addr(0));
             return;
         }
+
+        // use clean execution sequence
+        if (zero_vmm) uni_vpxor(vmm, vmm, vmm);
 
         int start_bytes = 0;
         int bytes_to_load = load_size;
@@ -2425,16 +2428,18 @@ public:
     */
     template <typename Vmm>
     void load_bytes_to_dword_extension(const Vmm &vmm, const Xbyak::Reg64 &reg,
-            int64_t offset, bool is_signed, int load_size) {
+            int64_t offset, bool is_signed, int load_size,
+            const bool zero_vmm) {
         // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
         load_bytes_to_dword_extension(
-                vmm, ptr[reg + offset], is_signed, load_size);
+                vmm, ptr[reg + offset], is_signed, load_size, zero_vmm);
     }
 
     template <typename Vmm>
     void load_bytes_to_dword_extension(const Vmm &vmm,
-            const Xbyak::Address &src_addr, bool is_signed, int load_size) {
+            const Xbyak::Address &src_addr, bool is_signed, int load_size,
+            const bool zero_vmm = true) {
 
         constexpr bool is_vmm_supported = std::is_same<Vmm, Xbyak::Ymm>::value
                 || std::is_same<Vmm, Xbyak::Xmm>::value;
@@ -2474,7 +2479,7 @@ public:
             else
                 uni_vpmovzxbd(xmm, src_addr);
         } else {
-            load_bytes(vmm, src_addr, load_size);
+            load_bytes(vmm, src_addr, load_size, zero_vmm);
             if (is_signed)
                 uni_vpmovsxbd(vmm, vmm);
             else
@@ -2572,15 +2577,16 @@ public:
      */
     template <typename Vmm>
     void load_data(data_type_t type_in, const Vmm &vmm, const Xbyak::Reg64 &reg,
-            int64_t offset, int load_size) {
+            int64_t offset, int load_size, const bool zero_vmm = true) {
         // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
-        load_data(type_in, vmm, ptr[reg + offset], load_size);
+        load_data(type_in, vmm, ptr[reg + offset], load_size, zero_vmm);
     }
 
     template <typename Vmm>
     void load_data(data_type_t type_in, const Vmm &vmm,
-            const Xbyak::Address &src_addr, int load_size) {
+            const Xbyak::Address &src_addr, int load_size,
+            const bool zero_vmm = true) {
 
         assert(is_valid_isa(sse41)
                 && "routine is not supported for the current isa");
@@ -2588,20 +2594,23 @@ public:
         switch (type_in) {
             case data_type::f32:
             case data_type::s32:
-                load_bytes(vmm, src_addr, sizeof(int32_t) * load_size);
+                load_bytes(
+                        vmm, src_addr, sizeof(int32_t) * load_size, zero_vmm);
                 break;
             case data_type::s8:
             case data_type::u8:
-                load_bytes_to_dword_extension(
-                        vmm, src_addr, type_in == data_type::s8, load_size);
+                load_bytes_to_dword_extension(vmm, src_addr,
+                        type_in == data_type::s8, load_size, zero_vmm);
                 break;
             case data_type::bf16:
-                load_bytes(vmm, src_addr, sizeof(bfloat16_t) * load_size);
+                load_bytes(vmm, src_addr, sizeof(bfloat16_t) * load_size,
+                        zero_vmm);
                 uni_vpmovzxwd(vmm, vmm);
                 uni_vpslld(vmm, vmm, 16);
                 break;
             case data_type::f16:
-                load_bytes(vmm, src_addr, sizeof(float16_t) * load_size);
+                load_bytes(
+                        vmm, src_addr, sizeof(float16_t) * load_size, zero_vmm);
                 vcvtph2ps(vmm,
                         typename vreg_traits<Vmm>::Vmm_lower_t(vmm.getIdx()));
                 break;
