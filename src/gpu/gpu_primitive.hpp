@@ -281,11 +281,11 @@ protected:
 
         int64x3_t offset_arg = {};
         auto &offset = offset_arg.array;
-        for_(offset[2] = 0; offset[2] < global_range[2];
+        for_(offset[2] = 0; static_cast<size_t>(offset[2]) < global_range[2];
                 offset[2] += off_inc[2])
-        for_(offset[1] = 0; offset[1] < global_range[1];
+        for_(offset[1] = 0; static_cast<size_t>(offset[1]) < global_range[1];
                 offset[1] += off_inc[1])
-        for_(offset[0] = 0; offset[0] < global_range[0];
+        for_(offset[0] = 0; static_cast<size_t>(offset[0]) < global_range[0];
                 offset[0] += off_inc[0])
         {
             arg_list.set(offset_idx, offset_arg);
