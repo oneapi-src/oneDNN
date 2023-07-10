@@ -80,6 +80,7 @@ static bool data_type_supported(const data_type_t dtype, const cpu_isa_t isa) {
             return is_superset(isa, avx512_core_fp16)
                     || is_superset(isa, avx2_vnni_2);
         case f32:
+        case s32:
         case s8:
         case u8: return true;
         default: return false;
@@ -668,7 +669,7 @@ status_t jit_uni_binary_t::init(engine_t *engine) {
     CHECK(safe_ptr_assign(
             kernel_, create_binary_kernel(pd(), false /*tail_kernel*/)));
 
-    if (utils::one_of(pd()->dst_md(0)->data_type, f32, bf16, f16)) {
+    if (utils::one_of(pd()->dst_md(0)->data_type, f32, s32, bf16, f16)) {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
         const auto &simd_w = kernel_->simd_w();
         const auto oc = src0_d.ndims() >= 2 ? src0_d.dims()[1] : 1;

@@ -112,7 +112,7 @@ jit_uni_binary_kernel_t<isa, Vmm>::create_saturation_vmm_map() const {
 
     std::map<data_type_t, io::io_saturation_conf_t> saturation_map {};
 
-    if (conf_.is_i8)
+    if (conf_.is_i8 || conf_.dst_type == data_type::s32)
         saturation_map.emplace(conf_.dst_type,
                 io::io_saturation_conf_t {vreg_zero_.getIdx(),
                         vreg_saturation_ubound_.getIdx(), reg_tmp_});
@@ -554,7 +554,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::forward() {
 
     // if outer dims tail, do it outside outer dims loop
     if (!is_src1_outer_dims_tail_) {
-        if (conf_.is_i8) {
+        if (conf_.is_i8 || conf_.dst_type == data_type::s32) {
             uni_vpxor(vreg_zero_, vreg_zero_, vreg_zero_);
             io_.init_saturate_f32({conf_.dst_type});
             xor_(reg_offt_dst_, reg_offt_dst_); // offt_dst to get addr of dst
@@ -663,7 +663,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::forward_over_outer_dims() {
     const auto outer_dims_size
             = conf_.outer_dims * types::data_type_size(conf_.dst_type);
 
-    if (conf_.is_i8) {
+    if (conf_.is_i8 || conf_.dst_type == data_type::s32) {
         uni_vpxor(vreg_zero_, vreg_zero_, vreg_zero_);
         io_.init_saturate_f32({conf_.dst_type});
         xor_(reg_offt_dst_, reg_offt_dst_); // offt_dst to get addr of dst
