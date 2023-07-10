@@ -36,8 +36,7 @@ struct loop_info_t {
         var = loop.var;
         init_ = loop.init;
         bound_ = loop.bound;
-
-        auto e_size = simplify(bound_ - init_);
+        expr_t e_size = simplify(bound_ - init_);
         ir_assert(is_const(e_size));
         size_ = to_cpp<int>(e_size);
     }

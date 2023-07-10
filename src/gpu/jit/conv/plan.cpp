@@ -446,18 +446,23 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
             gemm_schedule.reorder({oc_tile.loop_idx(), kd, kh, kw});
             break;
         case bwd_d_optimize_kind_t::skip_strided_dhw:
-            gemm_schedule.set_skip_condition(kw, ow % prb_.sw != 0);
+            gemm_schedule.set_dynamic_bounds(
+                    kw, (iw_mapping(iw) + prb_.pw) % prb_.sw, prb_.sw);
         case bwd_d_optimize_kind_t::skip_strided_dh:
-            gemm_schedule.set_skip_condition(kd, od % prb_.sd != 0);
-            gemm_schedule.set_skip_condition(kh, oh % prb_.sh != 0);
+            gemm_schedule.set_dynamic_bounds(
+                    kd, (id + prb_.pd) % prb_.sd, prb_.sd);
+            gemm_schedule.set_dynamic_bounds(
+                    kh, (ih + prb_.ph) % prb_.sh, prb_.sh);
             // Put kd/kh/kw outermost to allow pipelining in oc loop.
             gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
             break;
         case bwd_d_optimize_kind_t::skip_out_of_bound_w:
-            gemm_schedule.set_skip_condition(
-                    kw, iw - kw * (1 + prb_.dw) + prb_.pw >= prb_.ow);
-            // Put kd/kh/kw outermost to allow pipelining in oc loop.
-            gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
+            gemm_schedule.set_dynamic_bounds(kw,
+                    binary_op_t::make(op_kind_t::_max,
+                            (iw_mapping(iw) + ((prb_.pw - prb_.ow) + 1))
+                                    / (1 + prb_.dw),
+                            0),
+                    expr_t(1));
             break;
         default: ir_error_not_expected();
     }

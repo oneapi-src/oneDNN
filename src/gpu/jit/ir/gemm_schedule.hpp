@@ -663,14 +663,16 @@ public:
         }
     }
 
-    // Adds a skip condition to the loop defined by `var`:
-    //   for (var = 0; var < bound; var++) {
-    //      if (cond) continue;
+    // Sets init and step for loop defined by `var`.
+    // Used to create loop that avoids skip conditions:
+    //   for (var = init ; var < bound; var += step) {
     //      ...
     //   }
-    void set_skip_condition(const expr_t &var, const expr_t &cond) {
+    void set_dynamic_bounds(
+            const expr_t &var, const expr_t &init, const expr_t &step) {
         ir_assert(find_loop(var).is_leaf()) << "Variable is non-leaf: " << var;
-        skip_conditions_[var] = expand(cond);
+        dynamic_inits_[var] = expand(init);
+        dynamic_steps_[var] = expand(step);
     }
 
     bool with_thread_group_k_slicing() const {
@@ -740,29 +742,29 @@ public:
     stmt_t create_loop_nest(const stmt_t &_body = stmt_t()) const {
         stmt_t body = _body;
         auto found_vars = find_unique_objects<var_t>(body);
-        auto skip_conds = skip_conditions_;
+        auto skip_inits = dynamic_inits_;
+        auto dynamic_steps = dynamic_steps_;
         for (auto it = vars_.rbegin(); it != vars_.rend(); it++) {
             auto &var = *it;
             auto &loop = find_loop(var);
             if (!loop.is_leaf() || loop.is_tensorized() || loop.is_bound())
                 continue;
             body = maybe_inject_let_for_fused_vars(body, loop);
-            auto cond_it = skip_conds.find(var);
-            if (cond_it != skip_conds.end()) {
-                auto skip_cond = cond_it->second;
-                cond_it->second = expr_t();
-                auto if_stmt = if_t::make(skip_cond, funcs::_continue());
-                body = if_stmt.append(body);
-            } else {
-                if (found_vars.count(var) == 0
-                        && to_cpp<int>(loop.bound()) == 1)
-                    continue;
-            }
+            auto init_it = skip_inits.find(var);
+            auto step_it = dynamic_steps.find(var);
+            bool with_dyn = init_it != dynamic_inits_.end();
+            auto init = with_dyn ? init_it->second : expr_t(0);
+            auto step = with_dyn ? step_it->second : expr_t(1);
+            ir_assert(!with_dyn || step_it != dynamic_steps.end());
+            if (found_vars.count(var) == 0 && to_cpp<int>(loop.bound()) == 1
+                    && !with_dyn)
+                continue;
             body = for_t::make(
-                    var, 0, loop.bound(), body, loop.unroll_factor());
+                    var, init, loop.bound(), body, step, loop.unroll_factor());
+            if (with_dyn) init_it->second = expr_t();
         }
 
-        for (auto &kv : skip_conds) {
+        for (auto &kv : skip_inits) {
             auto &c = kv.second;
             ir_assert(c.is_empty()) << "Skip condition is not injected: " << c;
         }
@@ -1100,7 +1102,8 @@ private:
 
     object_map_t<expr_t, loop_t> loops_;
 
-    object_map_t<expr_t, expr_t> skip_conditions_;
+    object_map_t<expr_t, expr_t> dynamic_inits_;
+    object_map_t<expr_t, expr_t> dynamic_steps_;
 
     bmnk_mapper_t bmnk_mapper_;
 

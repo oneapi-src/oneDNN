@@ -197,7 +197,8 @@ public:
     }
 
     object_t _mutate(const for_t &obj) override {
-        auto lo = to_cpp<int64_t>(obj.init);
+        // This relies on a non-negative dynamic init.
+        auto lo = is_const(obj.init) ? to_cpp<int64_t>(obj.init) : 0;
         auto hi = to_cpp<int64_t>(obj.bound) - 1;
         ctx_.bound_finder.set_var_bounds(obj.var, {lo, hi});
         return ir_mutator_t::_mutate(obj);

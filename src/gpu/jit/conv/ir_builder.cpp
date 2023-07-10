@@ -620,14 +620,14 @@ public:
     object_t _mutate(const for_t &obj) override {
         if (injected_) return obj;
 
-        bool found_continue = false;
+        bool found_dynamic_init = false;
         auto calls = find_objects<func_call_t>(obj);
-        for (auto &_c : calls) {
-            auto &c = _c.as<func_call_t>();
-            if (c.func.is_equal(funcs::continue_func())) found_continue = true;
+        auto loops = find_objects<for_t>(obj);
+        for (auto &_f : loops) {
+            auto &f = _f.as<for_t>();
+            if (!is_const(f.init)) found_dynamic_init = true;
         }
-
-        if (!found_continue) {
+        if (!found_dynamic_init) {
             injected_ = true;
             return stmt_group_t::make(stmt_label_t::compute_loop(), obj);
         }
