@@ -101,6 +101,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
     reset_gpu_profiling(((dnnl::stream)stream).get());
 
     bool is_first_loop = true;
+    size_t prim_num = 1;
     while (true) {
         for_(size_t i = 0; i < sz; i++)
         for (int j = 0; j < cur_batch_times; j++) {
@@ -121,9 +122,17 @@ inline int measure_perf_aggregate(timer::timer_t &t,
                         "WARNING: no counters were found during profiling.");
                 break;
             }
+            // Calculate the number of primitives in a batch
+            if (is_first_loop) { prim_num = nsecs.size() / cur_batch_times; }
 
-            for (size_t i = 0; i < nsecs.size(); i++) {
-                t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
+            for (int i = 0; i < cur_batch_times; i++) {
+                int64_t cycles_res = 0;
+                double nsecs_res = 0;
+                for (size_t j = 0; j < prim_num; j++) {
+                    cycles_res += cycles[i * prim_num + j];
+                    nsecs_res += nsecs[i * prim_num + j];
+                }
+                t.stop(1, cycles_res, nsecs_res / 1e6);
             }
         } else {
             t.stamp(cur_batch_times);
