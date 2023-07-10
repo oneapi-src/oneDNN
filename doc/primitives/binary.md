@@ -78,13 +78,13 @@ The following attributes are supported:
 
 ### Data Types Support
 
-The source and destination tensors may have `f32`, `bf16`, `f16` or `s8/u8`
+The source and destination tensors may have `f32`, `bf16`, `f16`, `s32` or `s8/u8`
 data types.
 The binary primitive supports the following combinations of data types:
 
-| Source 0 / 1           | Destination            |
-|:-----------------------|:-----------------------|
-| f32, bf16, f16, u8, s8 | f32, bf16, f16, u8, s8 |
+| Source 0 / 1                | Destination                 |
+|:----------------------------|:----------------------------|
+| f32, bf16, f16, s32, u8, s8 | f32, bf16, f16, s32, u8, s8 |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -106,6 +106,7 @@ meaning associated with any of tensors dimensions.
 
 2. **GPU**
    - Only tensors of 6 or fewer dimensions are supported.
+   - s32 data type is not supported.
 
 ## Performance Tips
 
