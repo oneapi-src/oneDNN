@@ -16,7 +16,7 @@
 
 #include <CL/cl.h>
 
-#include "common/guard_manager.hpp"
+#include "common/memory_map_manager.hpp"
 #include "gpu/ocl/ocl_usm_memory_storage.hpp"
 #include "gpu/ocl/ocl_usm_utils.hpp"
 
@@ -51,24 +51,29 @@ status_t ocl_usm_memory_storage_t::map_data(
     CHECK(stream->wait());
     leak_guard.release();
 
-    auto unmap_callback = [stream, host_ptr, size, this]() mutable {
-        usm::memcpy(stream, usm_ptr(), host_ptr, size, 0, nullptr, nullptr);
-        stream->wait();
-        usm::free(engine(), host_ptr);
-    };
+    auto *usm_ptr_for_unmap = usm_ptr();
+    auto unmap_callback
+            = [size, usm_ptr_for_unmap](stream_t *stream, void *mapped_ptr) {
+                  CHECK(usm::memcpy(stream, usm_ptr_for_unmap, mapped_ptr, size,
+                          0, nullptr, nullptr));
+                  CHECK(stream->wait());
+                  usm::free(stream->engine(), mapped_ptr);
+                  return status::success;
+              };
 
-    auto &guard_manager = guard_manager_t<map_usm_tag>::instance();
+    auto &map_manager = memory_map_manager_t<map_usm_tag>::instance();
 
     *mapped_ptr = host_ptr;
-    return guard_manager.enter(this, unmap_callback);
+    return map_manager.map(this, stream, *mapped_ptr, unmap_callback);
 }
 
 status_t ocl_usm_memory_storage_t::unmap_data(
         void *mapped_ptr, stream_t *stream) const {
     if (!mapped_ptr || is_host_accessible()) return status::success;
 
-    auto &guard_manager = guard_manager_t<map_usm_tag>::instance();
-    return guard_manager.exit(this);
+    if (!stream) CHECK(engine()->get_service_stream(stream));
+    auto &map_manager = memory_map_manager_t<map_usm_tag>::instance();
+    return map_manager.unmap(this, stream, mapped_ptr);
 }
 
 std::unique_ptr<memory_storage_t> ocl_usm_memory_storage_t::get_sub_storage(

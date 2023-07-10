@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 #include "sycl/sycl_usm_memory_storage.hpp"
 
-#include "common/guard_manager.hpp"
 #include "common/memory.hpp"
+#include "common/memory_map_manager.hpp"
 #include "common/utils.hpp"
 
 #include "sycl/sycl_engine_base.hpp"
@@ -66,22 +66,26 @@ status_t sycl_usm_memory_storage_t::map_data(
     sycl_queue.memcpy(host_ptr, usm_ptr, size).wait();
 
     *mapped_ptr = host_ptr;
-    auto unmap_callback = [=]() mutable {
+    auto unmap_callback = [usm_ptr, size](stream_t *stream, void *mapped_ptr) {
+        ::sycl::queue sycl_queue
+                = utils::downcast<sycl_stream_t *>(stream)->queue();
         sycl_queue.wait_and_throw();
-        sycl_queue.memcpy(usm_ptr, host_ptr, size).wait();
-        ::sycl::free(host_ptr, sycl_queue.get_context());
+        sycl_queue.memcpy(usm_ptr, mapped_ptr, size).wait();
+        ::sycl::free(mapped_ptr, sycl_queue.get_context());
+        return status::success;
     };
 
-    auto &guard_manager = guard_manager_t<map_usm_tag>::instance();
-    return guard_manager.enter(this, unmap_callback);
+    auto &map_manager = memory_map_manager_t<map_usm_tag>::instance();
+    return map_manager.map(this, stream, *mapped_ptr, unmap_callback);
 }
 
 status_t sycl_usm_memory_storage_t::unmap_data(
         void *mapped_ptr, stream_t *stream) const {
     if (!mapped_ptr || is_host_accessible()) return status::success;
 
-    auto &guard_manager = guard_manager_t<map_usm_tag>::instance();
-    return guard_manager.exit(this);
+    if (!stream) CHECK(engine()->get_service_stream(stream));
+    auto &map_manager = memory_map_manager_t<map_usm_tag>::instance();
+    return map_manager.unmap(this, stream, mapped_ptr);
 }
 
 gpu::sycl::sycl_in_memory_arg_t sycl_usm_memory_storage_t::get_in_memory_arg(

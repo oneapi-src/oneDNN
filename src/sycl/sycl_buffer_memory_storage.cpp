@@ -17,8 +17,8 @@
 #include "sycl/sycl_buffer_memory_storage.hpp"
 #include "sycl/sycl_engine_base.hpp"
 
-#include "common/guard_manager.hpp"
 #include "common/memory.hpp"
+#include "common/memory_map_manager.hpp"
 #include "common/utils.hpp"
 #include "sycl/sycl_stream.hpp"
 
@@ -58,21 +58,24 @@ status_t sycl_buffer_memory_storage_t::map_data(
         return status::success;
     }
 
-    auto &guard_manager = guard_manager_t<map_buffer_tag>::instance();
+    auto &map_manager = memory_map_manager_t<map_buffer_tag>::instance();
 
     auto acc = buffer_->get_host_access();
     auto *acc_ptr = new decltype(acc)(acc);
     *mapped_ptr = static_cast<void *>(acc_ptr->get_pointer());
-    auto unmap_callback = [=]() { delete acc_ptr; };
-    return guard_manager.enter(this, unmap_callback);
+    auto unmap_callback = [acc_ptr](stream_t *, void *) {
+        delete acc_ptr;
+        return status::success;
+    };
+    return map_manager.map(this, stream, *mapped_ptr, unmap_callback);
 }
 
 status_t sycl_buffer_memory_storage_t::unmap_data(
         void *mapped_ptr, stream_t *stream) const {
     if (!mapped_ptr) return status::success;
 
-    auto &guard_manager = guard_manager_t<map_buffer_tag>::instance();
-    return guard_manager.exit(this);
+    auto &map_manager = memory_map_manager_t<map_buffer_tag>::instance();
+    return map_manager.unmap(this, stream, mapped_ptr);
 }
 
 std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
