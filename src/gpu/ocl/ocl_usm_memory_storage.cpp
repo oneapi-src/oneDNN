@@ -51,7 +51,7 @@ status_t ocl_usm_memory_storage_t::map_data(
     CHECK(stream->wait());
     leak_guard.release();
 
-    auto unmap_callback = [&]() mutable {
+    auto unmap_callback = [stream, host_ptr, size, this]() mutable {
         usm::memcpy(stream, usm_ptr(), host_ptr, size, 0, nullptr, nullptr);
         stream->wait();
         usm::free(engine(), host_ptr);
