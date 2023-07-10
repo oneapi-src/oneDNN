@@ -1111,7 +1111,9 @@ int check_mem_size(const_dnnl_memory_desc_t md, res_t *res) {
     if (!mem_check) return OK;
 
     check_mem_size_args_t check_mem_size_args(nullptr, false, false);
-    check_mem_size_args.total_size_device = dnnl_memory_desc_get_size(md);
+    const auto md_size = dnnl_memory_desc_get_size(md);
+    check_mem_size_args.total_size_device = md_size;
+    check_mem_size_args.sizes.push_back(md_size);
 
     return check_total_size(check_mem_size_args, res);
 }
