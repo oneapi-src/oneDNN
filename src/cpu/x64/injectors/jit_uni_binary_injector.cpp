@@ -2086,7 +2086,6 @@ struct helper_bcast_tail_t<avx2_vnni_2, Vmm> {
         if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
             const auto tmp_lower_vmm =
                     typename vreg_traits<Vmm>::Vmm_lower_t(tmp_vmm.getIdx());
-            host->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
             host->load_bytes(
                     tmp_lower_vmm, rhs_addr, tail_size * sizeof(bfloat16_t));
             if (data_type == data_type::bf16) {
@@ -2384,7 +2383,6 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically_with_gpr(
             host_->load_data(data_type, x, reg_addr, 0, load_size);
     };
 
-    host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
     host_->runtime_tail_process<Vmm>(reg_tail_size, reg_tmp, runtime_tail_load);
 }
 
@@ -2408,7 +2406,6 @@ struct helper_load_tail_t<avx2, Vmm> {
                     data_type::s8, data_type::u8))
             assert(!"unsupported data type");
 
-        host->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
         host->load_data(data_type, tmp_vmm, rhs_addr_reg, 0, tail_size);
     }
 };
@@ -2422,7 +2419,6 @@ struct helper_load_tail_t<avx2_vnni_2, Vmm> {
         if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
             const auto tmp_lower_vmm =
                     typename vreg_traits<Vmm>::Vmm_lower_t(tmp_vmm.getIdx());
-            host->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
             host->load_bytes(tmp_lower_vmm, rhs_addr_reg, 0,
                     tail_size * sizeof(bfloat16_t));
             if (data_type == data_type::bf16) {
@@ -2567,7 +2563,6 @@ void jit_uni_binary_injector_t<sse41, Xbyak::Xmm>::load_rhs_tail_statically(
         assert(!"unsupported data type");
 
     const auto &tail_size = rhs_arg_static_params_.tail_size;
-    host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
     host_->load_data(data_type, tmp_vmm, rhs_arg_static_params_.rhs_addr_reg, 0,
             tail_size);
 }

@@ -267,7 +267,6 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
         }
         /* add to ymm_accum: compensation, zero_point, bias and permute */
         if (mask_flag) {
-            uni_vpxor(vmm_scale, vmm_scale, vmm_scale);
             load_data(data_type::s32, vmm_scale, reg_ptr_scales, scale_offset,
                     get_tail_size());
         } else {
@@ -445,7 +444,6 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
                 int aux_input_offset = input_offset2(ii, ci);
                 const Vmm vmm_inp_tmp = vmm_inp(ii, jcp.nb_ch_blocking);
 
-                uni_vpxor(vmm_inp_tmp, vmm_inp_tmp, vmm_inp_tmp);
                 load_data(data_type::u8, vmm_inp_tmp, aux_reg_inp,
                         aux_input_offset,
                         mask_flag ? get_tail_size() : get_blocking_size());

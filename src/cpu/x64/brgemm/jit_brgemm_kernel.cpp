@@ -565,7 +565,6 @@ void jit_brgemm_kernel_t<isa, Wmm>::cvt2ps(data_type_t type_in,
     if (IMPLICATION(has_tail, is_superset(brg.isa_impl, avx512_core))) {
         vmm = vmm_mask(vmm_in, mask_flag, store, ktail_mask);
     } else {
-        uni_vpxor(vmm_in, vmm_in, vmm_in);
         load_data(type_in, vmm_in, op.getAddress(), tail_size);
         if (types::is_integral_dt(type_in)) uni_vcvtdq2ps(vmm_in, vmm_in);
         return;
@@ -1746,7 +1745,6 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
     auto broadcast = [this, rd_tail_size](Vmm v1, size_t offset, bool is_tail,
                              data_type_t dt) {
         if (is_tail) {
-            uni_vpxor(v1, v1, v1);
             Xmm xmm_tmp = Xmm(v1.getIdx());
             load_bytes(
                     xmm_tmp, reg_aux_A, offset, rd_tail_size * brg.typesize_A);

@@ -262,7 +262,6 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::cvt2ps(data_type_t type_in,
             default: assert(!"unsupported data type");
         }
     } else {
-        uni_vpxor(vmm_in, vmm_in, vmm_in);
         load_data(type_in, vmm_in, op.getAddress(), tail_size);
     }
     if (types::is_integral_dt(type_in)) vcvtdq2ps(vmm_in, vmm_in);
@@ -397,7 +396,6 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
                 auto vmm_scale = vmm_tmp(0);
                 const auto addr = ptr[reg_aux_scales + scales_offset(n, v_i)];
                 if (brg.is_oc_scale) {
-                    uni_vpxor(vmm_scale, vmm_scale, vmm_scale);
                     load_data(data_type::f32, vmm_scale, addr, substep_simd);
                 } else {
                     vbroadcastss(vmm_scale, ptr[reg_aux_scales]);
@@ -706,7 +704,6 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::load_a(
                 vpmovzxbd(vmma, addr);
         }
     } else {
-        uni_vpxor(vmma, vmma, vmma);
         load_data(brg.dt_a, vmma, addr, substep_simd);
     }
 }

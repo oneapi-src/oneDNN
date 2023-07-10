@@ -211,7 +211,6 @@ template <>
 void jit_brgemm_matmul_copy_a_impl_t<Ymm>::load_tail(
         int k_tail, size_t offset) {
     const auto vmm_tail = get_vmm_copy(0);
-    uni_vpxor(vmm_tail, vmm_tail, vmm_tail);
     load_bytes(vmm_tail, reg_src, offset * typesize_, k_tail);
 }
 
@@ -1931,7 +1930,6 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
         auto load_addr = maybe_EVEX_compress_addr(
                 reg_src, k * src_stride + n * typesize);
         if (is_tail && !isa_has_masks(conf_->isa)) {
-            uni_vxorps(src_load, src_load, src_load);
             load_bytes(src_load, load_addr, columns_tail * tr_typesize);
         } else if (IMPLICATION(isa_has_masks(conf_->isa), conf_->is_bf32)) {
             uni_vmovups(src_load, load_addr);
@@ -2577,7 +2575,6 @@ void jit_brgemm_matmul_copy_b_transposed_t<Ymm>::copy_row_x_col(
             return;
         }
         if (columns_tail > 0) {
-            uni_vpxor(vmm_src, vmm_src, vmm_src);
             load_bytes(vmm_src, reg_src, i * src_stride_,
                     columns_tail * typesize_);
         } else

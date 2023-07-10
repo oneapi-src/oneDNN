@@ -697,7 +697,6 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::compute_ker(int ur_w,
                         if (jcp_.is_depthwise) {
                             if (tail_size != 0)
                                 assert(jcp_.nb_oc_blocking == 1);
-                            uni_vpxor(vmm_src, vmm_src, vmm_src);
                             const bool mask_flag
                                     = last_ic_block_flag != no_last_block
                                     && tail_size;

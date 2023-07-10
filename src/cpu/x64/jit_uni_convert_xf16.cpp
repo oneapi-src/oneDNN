@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -422,7 +422,6 @@ void jit_uni_cvt_xf16_to_ps_t<avx2_vnni_2>::cvt_tail() {
         store_data(data_type::f32, vmm_output, reg_output, 0, load_size);
     };
 
-    uni_vxorps(vmm_input, vmm_input, vmm_input);
     runtime_tail_process<Xbyak::Xmm>(
             reg_tail, reg_tmp, runtime_tail_load, data_type::f16);
     switch (input_dt_) {
