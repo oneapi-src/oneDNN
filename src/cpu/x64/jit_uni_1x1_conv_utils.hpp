@@ -344,7 +344,7 @@ struct rtus_driver_t : public jit_generator {
                 if (is_ymm)
                     load_bytes(Ymm(vreg.getIdx()), reg, offset, load_size);
                 else
-                    load_bytes(vreg, reg, offset, load_size);
+                    load_bytes(Xmm(vreg.getIdx()), reg, offset, load_size);
             }
         };
 
