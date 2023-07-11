@@ -141,7 +141,7 @@ TEST(GCCore_CPU_graph_batchwise_merge_cpp, TestGraphBatchWiseAggresiveShrink) {
     } else {
         expected_str
                 = R"(graph(v0: f32[64, 16, 384, 64], v1: f32[64, 16, 64, 384], v2: f32[64, 16, 384, 64], v3: f32[64, 1, 1, 384]) -> [v4: f32[64, 16, 384, 64]] {
-  [v5: f32[64, 16, 384, 384]] = matmul_core_add_tensor_view_exp_reduce_reciprocal_mul(v0, v1, v3)
+  [v5: f32[64, 16, 384, 384]] = matmul_core_add_tensor_view_reduce_sub_exp_reduce_reciprocal_mul(v0, v1, v3)
   [v6: f32[64, 16, 384, 384]] = tensor_view(v5)
   [v4: f32[64, 16, 384, 64]] = matmul_core(v6, v2)
 }

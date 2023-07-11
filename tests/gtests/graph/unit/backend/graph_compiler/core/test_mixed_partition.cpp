@@ -30,6 +30,7 @@
 #include <compiler/ir/transform/simplify.hpp>
 #include <compiler/ir/viewer.hpp>
 #include <compiler/jit/jit.hpp>
+#include <ops/convolution.hpp>
 #include <ops/fusible/padding.hpp>
 #include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
@@ -48,8 +49,9 @@ using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseOpPass) {
-    sc_graph_t graph;
+    SET_THREADS_OR_SKIP(28);
 
+    sc_graph_t graph;
     auto in_a = graph.make_input({graph_tensor::make(
             {28, 64, 16, 16}, sc_data_format_t::NCHWc(32))});
     auto in_2 = graph.make_input({graph_tensor::make(
@@ -75,12 +77,15 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseOpPass) {
 
     auto ctx = get_test_ctx();
 
+    ops::conv_fwd_config_t cfg = {32, 32, 1, 1, 1, 1, 0, 1};
+    conv->dyn_cast<ops::conv_fwd_core_op_t>()->set_config(
+            reflection::general_object_t::make(cfg));
     mixed_partition(graph, ctx);
     std::stringstream ss;
     print_graph(graph, ss, true);
     std::string expected_str
             = R"(graph(v0: f32[28, 2, 16, 16, 32], v1: f32[28, 2, 16, 16, 32], v2: f32[2, 2, 1, 1, 32, 32], v3: f32[1, 2, 16, 16, 32]) -> [v4: f32[1, 2, 16, 16, 32]] {
-  [v5: f32[28, 2, 16, 16, 32]] = outerloop_28X1X16_partition_conv_fwd_core_add_relu(v0, v2, v1)
+  [v5: f32[28, 2, 16, 16, 32]] = outerloop_28X2X16_partition_conv_fwd_core_add_relu(v0, v2, v1)
   [v6: f32[1, 2, 16, 16, 32]] = reduce(v5)
   [v4: f32[1, 2, 16, 16, 32]] = outerloop_1X2X16X16_partition_add_relu(v6, v3)
 }
