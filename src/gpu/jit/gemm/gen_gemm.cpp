@@ -32,16 +32,18 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c,
         const memory_storage_t *ao, const memory_storage_t *bo,
-        const memory_storage_t &co, int po_count,
-        const memory_storage_t **po_srcs, int64_t offset_a, int64_t offset_b,
-        int64_t offset_c, int32_t offset_co, int32_t *offset_po_src,
-        int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
-        int32_t k0, float alpha, float beta, int32_t cmask, bool last_k_block,
-        bool swapab, bool disable_hilbert) const {
+        const memory_storage_t &co, const memory_storage_t *c_temp,
+        int po_count, const memory_storage_t **po_srcs, int64_t offset_a,
+        int64_t offset_b, int64_t offset_c, int32_t offset_co,
+        int32_t *offset_po_src, int32_t lda, int32_t ldb, int32_t ldc,
+        int32_t m, int32_t n, int32_t k, int32_t k0, float alpha, float beta,
+        int32_t cmask, bool last_k_block, bool swapab,
+        bool disable_hilbert) const {
 
     uint32_t flags = 0;
-    bool k_parallel
-            = (nocopy_info()->kParallel() || nocopy_info()->kParallelLocal());
+    bool k_parallel_fixed
+            = (nocopy_info()->kParallel() || nocopy_info()->kParallelLocal())
+            && !nocopy_info()->kParallelVariable();
 
     auto problem = pd()->kernel_desc()->problem();
 
@@ -92,6 +94,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
             arg_list.set(argn++, ldco);
         }
     }
+    if (nocopy_info()->needsTempC()) arg_list.set(argn++, *c_temp);
     for (int i = 0; i < po_count; i++) {
         if (!po_srcs[i]) continue;
         arg_list.set(argn++, *po_srcs[i]);
@@ -101,7 +104,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
             arg_list.set(argn++, int32_t(pd()->ld_binary(i)));
     }
     arg_list.set(argn++, flags);
-    if (k_parallel) arg_list.set(argn++, k0);
+    if (k_parallel_fixed) arg_list.set(argn++, k0);
 
     std::unique_ptr<memory_storage_t> zeros;
     int zp_token = 0;
@@ -133,14 +136,17 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         arg_list.set(argn++, recipBatchSize1);
     }
 
+    auto lws_k = pd()->kernel_desc()->aux_params()->wgK;
+
     size_t gws[3] = {0, 0, 1};
 
     gws[0] = utils::div_up(m, nocopy_info()->unroll[LoopM]);
     gws[1] = utils::div_up(n, nocopy_info()->unroll[LoopN]);
-    gws[2] = k_parallel ? nstl::max(1, utils::div_up(k, k0)) : 1;
+    gws[2] = nocopy_info()->kParallel() ? nstl::max(1, utils::div_up(k, k0))
+                                        : lws_k;
 
-    size_t lws[3] = {size_t(nocopy_info()->wg[0]), size_t(nocopy_info()->wg[1]),
-            size_t(nocopy_info()->wg[2])};
+    size_t lws[3] = {size_t(nocopy_info()->wg[LoopM]),
+            size_t(nocopy_info()->wg[LoopN]), size_t(lws_k)};
 
     if (nocopy_info()->isNMK()) {
         std::swap(lws[0], lws[1]);
@@ -151,6 +157,9 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         gws[0] = utils::rnd_up(gws[0], 2);
 
     lws[2] = nstl::min(lws[2], gws[2]);
+
+    if (nocopy_info()->kParallel() && nocopy_info()->kPadding())
+        gws[2] += lws[2];
 
     int last_non_1 = 2;
     for (; last_non_1 >= 0 && (gws[last_non_1] == 1 || lws[last_non_1] == 1);
@@ -223,7 +232,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto beta = pd()->beta();
 
     bool k_parallel_global = nocopy_info()->kParallel();
-    bool k_parallel_local = nocopy_info()->kParallelLocal();
+    bool k_parallel_fixed
+            = (nocopy_info()->kParallel() || nocopy_info()->kParallelLocal())
+            && !nocopy_info()->kParallelVariable();
 
     auto &a = swapab ? GEMM_CTX_ARG_STORAGE(a) : GEMM_CTX_ARG_STORAGE(b);
     auto &b = swapab ? GEMM_CTX_ARG_STORAGE(b) : GEMM_CTX_ARG_STORAGE(a);
@@ -233,6 +244,12 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &sum_ab = GEMM_CTX_ARG_STORAGE(sum_ab);
     auto *co = &c_zp;
     memory_storage_t *ao = nullptr, *bo = nullptr;
+
+    std::unique_ptr<memory_storage_t> c_temp;
+    if (nocopy_info()->needsTempC()) {
+        c_temp = ctx.get_scratchpad_grantor().get_memory_storage(
+                memory_tracking::names::key_gemm_accumulator);
+    }
 
     const memory_storage_t *po_srcs[GEMM_MAX_PO];
 
@@ -330,29 +347,22 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             && pd()->post_ops()->entry_[0].kind != primitive_kind::sum)
         block_k = k;
 
-    if (k_parallel_global)
-        block_k = pd()->kernel_desc()->aux_params()->k0;
-    else if (k_parallel_local)
-        block_k = utils::div_up(k, nocopy_info()->wg[2]);
+    if (k_parallel_fixed) block_k = pd()->kernel_desc()->aux_params()->k0;
 
-    block_m = utils::rnd_up(
-            block_m, nocopy_info()->wg[0] * nocopy_info()->unroll[0]);
-    block_n = utils::rnd_up(
-            block_n, nocopy_info()->wg[1] * nocopy_info()->unroll[1]);
-    block_k = utils::rnd_up(block_k, nocopy_info()->unroll[2]);
-    block_k = nstl::max(block_k, 2 * nocopy_info()->unroll[2]);
+    block_m = utils::rnd_up(block_m, nocopy_info()->wgTile(LoopM));
+    block_n = utils::rnd_up(block_n, nocopy_info()->wgTile(LoopN));
 
     int32_t k0 = 1;
-    if (k_parallel_local || k_parallel_global) {
+    if (k_parallel_fixed) {
         k0 = block_k;
         block_k = nstl::max<dim_t>(k, 1);
 
         if (k_parallel_global && !nocopy_info()->fusedBeta() && beta != 1.0f
-                && (k > dim_t(k0) * nocopy_info()->wg[2])) {
+                && (k > dim_t(k0) * pd()->kernel_desc()->aux_params()->wgK)) {
             status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo, *co,
-                    po_count, po_srcs, off_a0, off_b0, off_c0, int32_t(off_co0),
-                    po_offsets0, lda, ldb, ldc, m, n, 0, 1, 1.0f, beta, 0,
-                    false, swapab, true);
+                    nullptr, po_count, po_srcs, off_a0, off_b0, off_c0,
+                    int32_t(off_co0), po_offsets0, lda, ldb, ldc, m, n, 0, 1,
+                    1.0f, beta, 0, false, swapab, true);
             if (status) return status;
             beta = 1.0f;
         }
@@ -405,10 +415,10 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
                 status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo,
-                        *co, po_count, po_srcs, off_a_src, off_b_src, off_c,
-                        off_co, po_offsets, lda, ldb, ldc, size_m, size_n,
-                        size_k, k0, alpha, eff_beta, cmask, last_k_block,
-                        swapab, disable_hilbert);
+                        *co, c_temp.get(), po_count, po_srcs, off_a_src,
+                        off_b_src, off_c, off_co, po_offsets, lda, ldb, ldc,
+                        size_m, size_n, size_k, k0, alpha, eff_beta, cmask,
+                        last_k_block, swapab, disable_hilbert);
 
                 if (status) return status;
             }

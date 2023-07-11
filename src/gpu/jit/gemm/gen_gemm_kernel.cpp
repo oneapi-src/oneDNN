@@ -68,6 +68,7 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     if (isPacked(problem_.A.layout) || isPacked(problem_.B.layout))
         strategy_.panelCheck |= (hw_ >= ngen::HW::XeHPC);
     adjustStrategy(hw_, problem_, strategy_);
+    modifyStrategy(strategy_, aux_params_);
 
     // Disable global k parallelization if it wouldn't be used.
     if (strategy_.kParallel && k_ >= 0) {
@@ -81,7 +82,8 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     }
 
     // Always use variable beta for global k-parallel kernels.
-    if (strategy_.kParallel) problem_.beta_real = Scalar<double>();
+    if (strategy_.kParallel && !strategy_.fuseBeta)
+        problem_.beta_real = Scalar<double>();
 
     // Omit periodic barriers when k is small.
     if (strategy_.barrierFreq > 0 && k_ >= 0 && k_ < 2 * strategy_.barrierFreq)
@@ -94,14 +96,20 @@ status_t gen_gemm_kernel_desc_t::finalize() {
         if (wg_tile_m > 0 && wg_tile_n > 0) {
             dim_t thread_count = dim_t(utils::div_up(m_, wg_tile_m))
                     * utils::div_up(n_, wg_tile_n) * strategy_.wg[LoopM]
-                    * strategy_.wg[LoopN] * std::max(strategy_.wg[LoopK], 1);
+                    * strategy_.wg[LoopN];
+            if (!strategy_.kParallelVariable)
+                thread_count *= std::max(strategy_.wg[LoopK], 1);
             dim_t thread_gpu = eu_count_
                     * compute::device_info_t::threads_per_eu(
                             arch_, strategy_.GRFs > 128);
             if (thread_count <= thread_gpu) {
                 if (strategy_.kParallelVariable)
                     strategy_.cWalkOrder = WalkOrder::SimpleLinear;
-                else {
+                else if (strategy_.kParallel
+                        && (strategy_.fuseBeta || strategy_.fusePostOps)) {
+                    strategy_.persistent = false;
+                    strategy_.cWalkOrder = WalkOrder::SimpleLinear;
+                } else {
                     strategy_.persistent = false;
                     strategy_.cWalkOrder = WalkOrder::HW2D;
                     strategy_.blocking[LoopM] = 16777216;
@@ -529,6 +537,9 @@ void gen_gemm_kernel_t::init_interface() {
         if (problem.cOffset == COffset::Pre)
             interface_.newArgument("ldco", DataType::d);
     }
+
+    if (strategy.needsTempC(problem))
+        interface_.newArgument("temp_C", ExternalArgumentType::GlobalPtr);
     for (int i = 0; i < problem.postOps.len(); i++) {
         if (problem.postOps.entry_[i].kind != primitive_kind::binary) continue;
         auto bname = "binary" + std::to_string(i);
@@ -538,7 +549,8 @@ void gen_gemm_kernel_t::init_interface() {
             interface_.newArgument("ld" + bname, DataType::d);
     }
     interface_.newArgument("flags", DataType::ud);
-    if (strategy.kParallel || strategy.kParallelLocal)
+    if ((strategy.kParallel || strategy.kParallelLocal)
+            && !strategy.kParallelVariable)
         interface_.newArgument("k0", DataType::d);
     if (problem.batch == BatchMode::Strided) {
         if (problem.batchDims > 1) {
@@ -567,6 +579,8 @@ void gen_gemm_kernel_t::init_interface() {
     if (strategy.fuseBeta || strategy.fusePostOps)
         interface_.newArgument("status", ExternalArgumentType::GlobalPtr,
                 GlobalAccessType::Stateless);
+    if (strategy.fuseBeta && strategy.kParallel)
+        interface_.newArgument("group_count_k", DataType::ud);
     if (strategy.linearOrder()) {
         interface_.newArgument("group_count_m", DataType::ud);
         interface_.newArgument("group_count_n", DataType::ud);

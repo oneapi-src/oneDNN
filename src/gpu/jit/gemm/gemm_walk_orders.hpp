@@ -35,6 +35,12 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
         int32_t n, int32_t k, bool disable_hilbert,
         const CommonDriverInfo &info, const EvaluateAuxOutput *aux,
         const compute::device_info_t *dev_info) {
+
+    if (info.kParallel() && info.fusedBeta()) {
+        auto groups_k = uint32_t(gws[2] / lws[2]);
+        arg_list.set(argn++, groups_k);
+    }
+
     if (!info.isLinearOrder()) return;
 
     int m_index = info.isNMK() ? 1 : 0;
@@ -148,7 +154,7 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
 
     if (info.kParallelVariable()) {
         uint32_t k_parallel_start = utils::rnd_dn(group_count, concurrent_tg);
-        if (aux && aux->k0 == 0)
+        if (aux && !aux->kParallelVariable)
             k_parallel_start
                     = group_count; /* disable variable k-slicing if indicated by kernel selector */
         if (k_parallel_start > 0 && k_parallel_start != group_count)

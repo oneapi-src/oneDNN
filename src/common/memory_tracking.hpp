@@ -224,6 +224,7 @@ enum {
     key_gemm_tmp_buffer,
     key_gemm_blocked_a,
     key_gemm_blocked_b,
+    key_gemm_accumulator,
     key_gnorm_cvt,
     key_gnorm_reduction,
     key_gnorm_tmp_mean,

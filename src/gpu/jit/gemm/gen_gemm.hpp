@@ -193,16 +193,19 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (status != status::success) return status;
 
-            // global k-parallel kernels don't support post-ops.
-            // use global k-parallel kernels only with f32 accumulation
-            bool k_parallel_global = kernel_desc_.driver_info()->kParallel();
-            bool with_eltwise = (post_ops_.find(eltwise) != -1);
+            // Global k-parallel kernels don't support post-ops or non-f32/s32
+            //   accumulation unless fusion is enabled.
+            if (kernel_desc_.driver_info()->kParallel()
+                    && !kernel_desc_.driver_info()->fusedPostOps()) {
+                bool with_eltwise = (post_ops_.find(eltwise) != -1);
 
-            ok &= IMPLICATION(k_parallel_global,
-                    !with_bias() && !with_eltwise && !with_binary
-                            && utils::one_of(d->c_type(), f32, s32));
+                ok &= !with_eltwise && !with_binary
+                        && utils::one_of(d->c_type(), f32, s32);
+            }
 
             if (!ok) return status::unimplemented;
+
+            init_scratchpad();
 
             return status::success;
         }
@@ -298,6 +301,21 @@ struct gen_gemm_t : public gpu_gemm_t {
             return gpu_gemm_pd_t::set_default_formats();
         }
 
+        void init_scratchpad() {
+            const auto *info = kernel_desc()->driver_info();
+            if (info->needsTempC()) {
+                auto scratchpad = scratchpad_registry().registrar();
+
+                int temp_c_sz = nstl::max(
+                        (int)types::data_type_size(desc()->c_type()), 4);
+                int temp_c_elems = max_k_sliced_groups() * info->wgTile(LoopM)
+                        * info->wgTile(LoopN);
+
+                scratchpad.book(memory_tracking::names::key_gemm_accumulator,
+                        temp_c_elems, temp_c_sz, 64, 65536);
+            }
+        }
+
         float alpha() const { return 1.0f; }
 
         float beta() const { return beta_; }
@@ -382,6 +400,17 @@ struct gen_gemm_t : public gpu_gemm_t {
             return &kernel_desc_;
         }
 
+        int max_k_sliced_groups() const {
+            const auto *info = kernel_desc()->driver_info();
+            bool large_grf_mode = (info->grfCount > 128);
+
+            auto groups = dev_info_->hw_threads(large_grf_mode)
+                    / (info->wg[LoopM] * info->wg[LoopN]);
+            if (info->kParallelVariable()) groups *= 2;
+
+            return groups;
+        }
+
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
@@ -411,33 +440,28 @@ struct gen_gemm_t : public gpu_gemm_t {
         CHECK(create_kernel(engine, nocopy_kernel_, "gemm_kernel", *kd));
 
         scalar_type_ = kd->scalar_type();
+        const auto *info = nocopy_info();
 
         if (get_verbose(verbose_t::debuginfo) >= 2) {
-            auto info = kd->driver_info();
             printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
                     info->unroll[LoopM], info->unroll[LoopN], info->wg[LoopM],
                     info->wg[LoopN], info->wg[LoopK]);
         }
 
-        const auto *info = nocopy_info();
         if (info->fusedBeta() || info->fusedPostOps()) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-
-            bool large_grf_mode = (info->grfCount > 128);
-            auto zero_groups = pd()->dev_info_->eu_count()
-                    * pd()->dev_info_->hw_threads(large_grf_mode)
-                    / (info->wg[LoopM] * info->wg[LoopN] * info->wg[LoopK]);
-            if (info->kParallelVariable()) zero_groups *= 2;
 
             int zg_cl = 0;
             if (info->fusedBeta()) zg_cl++;
             if (info->fusedPostOps()) zg_cl++;
 
-            zero_pool_bytes_ = zero_groups * 64 * zg_cl;
+            zero_pool_bytes_ = pd()->max_k_sliced_groups() * 64 * zg_cl;
 
-            CHECK(lookup_zero_pool(
-                    compute_engine, zero_pool_bytes_, &zero_pool_));
+            auto zg_max = pd()->dev_info_->hw_threads(false);
+            auto zg_bytes_max = zg_max * 2 * 2 * 64;
+
+            CHECK(lookup_zero_pool(compute_engine, zg_bytes_max, &zero_pool_));
 
             nocopy_kernel_.save_output_events();
         }
@@ -452,12 +476,13 @@ private:
             compute::compute_stream_t *s, const memory_storage_t &a,
             const memory_storage_t &b, const memory_storage_t &c,
             const memory_storage_t *ao, const memory_storage_t *bo,
-            const memory_storage_t &co, int po_count,
-            const memory_storage_t **po_src, int64_t offset_a, int64_t offset_b,
-            int64_t offset_c, int32_t offset_co, int32_t *offset_po_src,
-            int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n,
-            int32_t k, int32_t k0, float alpha, float beta, int32_t cmask,
-            bool last_k_block, bool swapab, bool disable_hilbert) const;
+            const memory_storage_t &co, const memory_storage_t *c_temp,
+            int po_count, const memory_storage_t **po_src, int64_t offset_a,
+            int64_t offset_b, int64_t offset_c, int32_t offset_co,
+            int32_t *offset_po_src, int32_t lda, int32_t ldb, int32_t ldc,
+            int32_t m, int32_t n, int32_t k, int32_t k0, float alpha,
+            float beta, int32_t cmask, bool last_k_block, bool swapab,
+            bool disable_hilbert) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const CommonDriverInfo *nocopy_info() const {
