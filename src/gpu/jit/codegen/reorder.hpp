@@ -515,7 +515,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             const auto align_boundary = grf_size / 2;
             auto tmp_offset = 2 * dst_type_size
                     * (d.getOffset() % (align_boundary / 2));
-            auto t1 = tmp1.subregister(s.getByteOffset(), tmp_type);
+            auto t1 = tmp1.subregister(
+                    (i * src_type_size * src_stride_bytes) % reg_size,
+                    tmp_type);
             plan(mov, esize, t1(2 * src_stride), s(src_stride));
             if (dst_stride == 1
                     && (s.getByteOffset() != tmp_offset || src_stride != 1)) {
