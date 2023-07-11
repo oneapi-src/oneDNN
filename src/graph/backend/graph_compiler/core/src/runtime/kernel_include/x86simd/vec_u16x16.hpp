@@ -20,6 +20,7 @@
 #include "common.hpp"
 #include "util/assert.hpp"
 class vec_u32x16;
+class vec_s32x16;
 class vec_f32x16;
 class vec_u16x16 {
 public:
@@ -42,6 +43,7 @@ public:
     }
     INLINE vec_u16x16(__m256i const &x) { v = x; }
     INLINE operator vec_u32x16() const;
+    INLINE operator vec_s32x16() const;
 
     static INLINE vec_u16x16 load(const uint16_t *p) {
         return _mm256_loadu_si256((const __m256i *)p);

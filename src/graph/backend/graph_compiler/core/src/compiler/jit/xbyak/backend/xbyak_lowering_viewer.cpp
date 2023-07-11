@@ -1075,6 +1075,8 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
         XBYAK_GEN(mov, X86_R32_RM, op_out, op_in); // zero extension
     } else if (out_dtype == datatypes::u32 && in_dtype == datatypes::u16) {
         XBYAK_GEN(movzx, X86_R_RM, op_out, op_in); // zero extension
+    } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::u16) {
+        XBYAK_GEN(movzx, X86_R_RM, op_out, op_in); // zero extension
     } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::s8) {
         XBYAK_GEN(movsx, X86_R_RM, op_out, op_in); // sign extension
     } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::index)
@@ -1095,6 +1097,8 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
     } else if (elem_cast_simd(sc_data_etype::S32, sc_data_etype::U8)) {
         XBYAK_GEN(vpmovzxbd, AVX_X_XM, op_out, op_in);
     } else if (elem_cast_simd(sc_data_etype::U32, sc_data_etype::U16)) {
+        XBYAK_GEN(vpmovzxwd, AVX_X_XM, op_out, op_in);
+    } else if (elem_cast_simd(sc_data_etype::S32, sc_data_etype::U16)) {
         XBYAK_GEN(vpmovzxwd, AVX_X_XM, op_out, op_in);
     } else if (elem_cast_simd(sc_data_etype::U16, sc_data_etype::U32)) {
         assert(cpu_flags_.fAVX512F);

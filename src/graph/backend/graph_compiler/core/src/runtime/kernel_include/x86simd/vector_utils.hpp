@@ -113,6 +113,9 @@ INLINE vec_u32x16::operator vec_u16x16() const {
 INLINE vec_u16x16::operator vec_u32x16() const {
     return _mm512_cvtepu16_epi32(v);
 }
+INLINE vec_u16x16::operator vec_s32x16() const {
+    return _mm512_cvtepu16_epi32(v);
+}
 INLINE vec_u32x4::operator vec_u16x4() const {
     return _mm_cvtepi32_epi16(v);
 }

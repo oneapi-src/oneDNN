@@ -1873,6 +1873,10 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
     TEST_OP(UNARY, EXACT, int8_t, int32_t, datatypes::s8, datatypes::s32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_S32,
             MAKE_CAST(datatypes::s32), DATASET_I3);
+    // data_type: uint_16
+    TEST_OP(UNARY, EXACT, uint16_t, int32_t, datatypes::u16, datatypes::s32,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_S32,
+            MAKE_CAST(datatypes::s32), DATASET_I1);
 #undef REF_CAST_TO_S32
     //-----------------------------
     // Cast to datatypes::f32
