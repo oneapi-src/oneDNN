@@ -93,6 +93,12 @@
 
 #define _DST_OFF(outer, inner) (outer) * INNER_DIM_SIZE + (inner)
 
+#if REDUCE_VECTOR
+#define FINAL_VEC_SIZE 1
+#else
+#define FINAL_VEC_SIZE VECT_DT_N
+#endif
+
 // Specifying wg size since larger work groups reduce performance.
 // TODO: Look into why this is the case
 __attribute__((reqd_work_group_size(LWS_SIZE, 1, 1))) // attr:no-format
@@ -125,7 +131,6 @@ combined_reduce(
             || sglid >= INNER_DIM_SIZE * inner_dims_per_sg)
         return;
 
-    const int dst_off = _DST_OFF(outer_idx, inner_idx);
     VECT_DEF_ACC_DATA_T acc = INIT_ACC;
 
     const int loop_stride = _SRC_OFF(
@@ -151,27 +156,23 @@ combined_reduce(
 
     // Potentially accumulate within the subgroup too
     // TODO: Change to tree-based reduce to help large inner_dims_per_sg cases
-    unroll_for(int i = 1; i < inner_dims_per_sg; i++) {
-        const VECT_DEF_ACC_DATA_T other
-                = intel_sub_group_shuffle_down(acc, INIT_ACC, INNER_DIM_SIZE);
-        if (get_sub_group_local_id() < INNER_DIM_SIZE) {
-            acc = ACCUMULATE_FURTHER(acc, other);
-        } else {
-            acc = other; // For further passing down
+    local VECT_DEF_ACC_DATA_T local_acc[LWS_SIZE];
+    const int local_idx = (sgid * SUBGROUP_SIZE + sglid) % LWS_SIZE;
+    local_acc[local_idx] = acc;
+    if (sglid < INNER_DIM_SIZE) {
+        unroll_for(int i = 1; i < inner_dims_per_sg; i++) {
+            acc = ACCUMULATE_FURTHER(
+                    acc, local_acc[local_idx + i * INNER_DIM_SIZE]);
         }
     }
 
-    // If the vector of results should be reduced as well, do it now.
-    // After this, the vector size will either be 1 or VECT_DT_N (stored in final_vect_size)
-    if (get_sub_group_local_id() < INNER_DIM_SIZE) {
+    if (sglid < INNER_DIM_SIZE) {
 #if REDUCE_VECTOR
-        const int final_vect_size = 1;
         DEF_ACC_DATA_T final_acc[1] = {INIT_ACC};
         for (int i = 0; i < VECT_DT_N; i++) {
             final_acc[0] = ACCUMULATE_FURTHER(acc[i], final_acc[0]);
         }
 #else
-        const int final_vect_size = VECT_DT_N;
         const DEF_ACC_DATA_T *final_acc = &acc;
 #endif // REDUCE_VECTOR
 
@@ -179,8 +180,9 @@ combined_reduce(
         // 1. (if IS_FINAL) finalize the result
         // 2. (if IS_FINAL) apply post-ops
         // 3. write to dst
-        for (int i = 0; i < final_vect_size; i++) {
-            const int dst_offi = dst_off + _DST_OFF(0, i * SUBGROUP_SIZE);
+        for (int i = 0; i < FINAL_VEC_SIZE; i++) {
+            const int dst_off
+                    = _DST_OFF(outer_idx, inner_idx + i * SUBGROUP_SIZE);
             // finalize the result
 #if IS_FINAL
             float res = FINALIZE(convert_float(final_acc[i]));
@@ -189,30 +191,30 @@ combined_reduce(
 #if WITH_POST_OP
             float dst_val;
 #if WITH_SUM
-            dst_val = DST_TO_REF(dst[dst_offi]);
+            dst_val = DST_TO_REF(dst[dst_off]);
 #endif // WITH_SUM
 
-            // Reconstruct MB/C/D/H/W indices from dst_offi
+            // Reconstruct MB/C/D/H/W indices from dst_off
             const int mb = (DST_S0 == 0)
                     ? 0
-                    : dst_offi / DST_S0 % div_up(DST_D0, DST_B0) * DST_B0
-                            + dst_offi / DST_SB0 % DST_B0;
+                    : dst_off / DST_S0 % div_up(DST_D0, DST_B0) * DST_B0
+                            + dst_off / DST_SB0 % DST_B0;
             const int c = (DST_S1 == 0)
                     ? 0
-                    : dst_offi / DST_S1 % div_up(DST_D1, DST_B1) * DST_B1
-                            + dst_offi / DST_SB1 % DST_B1;
+                    : dst_off / DST_S1 % div_up(DST_D1, DST_B1) * DST_B1
+                            + dst_off / DST_SB1 % DST_B1;
             const int d = (DST_S2 == 0)
                     ? 0
-                    : dst_offi / DST_S2 % div_up(DST_D2, DST_B2) * DST_B2
-                            + dst_offi / DST_SB2 % DST_B2;
+                    : dst_off / DST_S2 % div_up(DST_D2, DST_B2) * DST_B2
+                            + dst_off / DST_SB2 % DST_B2;
             const int h = (DST_S3 == 0)
                     ? 0
-                    : dst_offi / DST_S3 % div_up(DST_D3, DST_B3) * DST_B3
-                            + dst_offi / DST_SB3 % DST_B3;
+                    : dst_off / DST_S3 % div_up(DST_D3, DST_B3) * DST_B3
+                            + dst_off / DST_SB3 % DST_B3;
             const int w = (DST_S4 == 0)
                     ? 0
-                    : dst_offi / DST_S4 % div_up(DST_D4, DST_B4) * DST_B4
-                            + dst_offi / DST_SB4 % DST_B4;
+                    : dst_off / DST_S4 % div_up(DST_D4, DST_B4) * DST_B4
+                            + dst_off / DST_SB4 % DST_B4;
 
             // Only use post-ops on non-zero-padded elements
             if (mb < DST_D0 && c < DST_D1 && d < DST_D2 && h < DST_D3
@@ -226,7 +228,7 @@ combined_reduce(
 #endif // IS_FINAL
 
             // Write to dst
-            dst[dst_offi] = IS_FINAL ? TO_DST(res) : res;
+            dst[dst_off] = IS_FINAL ? TO_DST(res) : res;
         }
     }
 }
