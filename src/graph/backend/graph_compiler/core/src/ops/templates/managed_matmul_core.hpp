@@ -116,7 +116,7 @@ public:
     int dtype_block, fusion_manager *fusion, const expr &m_s, const expr &n_s,
     std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
     std::vector<int> &K_anchor_info, bool is_partial = false,
-    const expr &k_s = expr()) const;
+    const expr &k_s = expr(), bool is_dynamic = false) const;
 
   void dynamic_single_thread_matmul_call(
     const managed_matmul_core_config_t &config,

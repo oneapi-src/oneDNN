@@ -817,7 +817,8 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
   const expr &n_idx, const expr &k_idx, const expr &A, expr &B, const expr &C,
   int dtype_block, fusion_manager *fusion, const expr &m_s, const expr &n_s,
   std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
-  std::vector<int> &K_anchor_info, bool is_partial, const expr &k_s) const {
+  std::vector<int> &K_anchor_info, bool is_partial, const expr &k_s,
+  bool is_dynamic) const {
   expr M_sub_block = config.M_sub_block, N_sub_block = config.N_sub_block,
        K_sub_block = config.K_sub_block;
   if (config.im_loop_order == 0) {
@@ -1975,7 +1976,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               in_tensors_[1], out_tensors_[0], config, M_single_thr_size,
               N_single_thr_size, (int)utils::rnd_up(K, iik_block_), m_idx,
               n_idx, k_s, A, B, C, dtype_block, fusion, m_s, n_s, M_anchor_info,
-              N_anchor_info, K_anchor_info, false, k_s);
+              N_anchor_info, K_anchor_info, false, k_s, is_dynamic);
           } else if (!is_dynamic) {
             single_thread_matmul_call(ctx, graph, in_tensors_[0],
               in_tensors_[1], out_tensors_[0], config, M_single_thr_size,
