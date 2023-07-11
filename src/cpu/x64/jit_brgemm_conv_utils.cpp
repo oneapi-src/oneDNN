@@ -923,7 +923,8 @@ bool brg_blocking_t::fast_check_oc_block() const {
     const auto rnd_oc = rnd_up(oc, acc_simd_w);
     auto res = false;
     if (oc_block == 64) {
-        res = (rnd_oc % oc_block == 0 && rnd_oc * wei_dsz < 192 * 4);
+        res = one_of(src_dt, u8, s8)
+                || (rnd_oc % oc_block == 0 && rnd_oc * wei_dsz < 192 * 4);
     } else if (oc_block == 48) {
         const bool big_spatial
                 = id * ih * iw > 81 * stride_d * stride_h * stride_w;
