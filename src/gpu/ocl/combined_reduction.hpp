@@ -26,6 +26,18 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+struct reduction_phase_t {
+    data_type_t src_type, dst_type;
+    compute::nd_range_t nd_range;
+    compute::kernel_t kernel;
+    dim_t outer_dim_size, reduction_size, inner_dim_size;
+    int vect_size;
+    bool reduce_vector;
+    bool is_final, is_first;
+    int subgroup_size;
+};
+
 struct combined_reduction_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_reduction_pd_t {
@@ -55,10 +67,11 @@ struct combined_reduction_t : public gpu_primitive_t {
         void init_scratchpad();
 
         reduction_conf_t conf;
+        std::vector<reduction_phase_t> phases;
     };
 
     status_t init(engine_t *engine) override {
-        auto &phases = pd()->conf.phases;
+        auto &phases = pd()->phases;
 
         status_t status;
         for (auto &phase : phases) {

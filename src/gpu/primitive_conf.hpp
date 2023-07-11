@@ -573,16 +573,6 @@ struct binary_conf_t {
 };
 
 // Reduction
-struct reduction_phase_t {
-    data_type_t src_type, dst_type;
-    compute::nd_range_t nd_range;
-    compute::kernel_t kernel;
-    dim_t outer_dim_size, reduction_size, inner_dim_size;
-    int vect_size;
-    bool reduce_vector;
-    bool is_final, is_first;
-};
-
 struct reduction_conf_t {
     // Used by reference implementation
     alg_kind_t alg;
@@ -596,21 +586,6 @@ struct reduction_conf_t {
     compute::dispatch_t dispatch;
     offsets_t off;
     attr_info_t attr_info;
-
-    // Used by gen9 implementation
-    int initial_hwd_dim, initial_hwd_chunk_size;
-    int final_hwd_dim, final_hwd_chunk_size;
-    int initial_c_chunks, final_c_dim, final_c_chunk_size;
-    int initial_n_chunk_size, initial_n_chunks;
-    int final_n_dim, final_n_chunk_size;
-    bool skip_final_phase;
-    int c_block_size, n_block_size;
-    int vector_size;
-    int sub_group_size;
-    compute::dispatch_t finalize_dispatch;
-
-    // Used by combined implementation
-    std::vector<reduction_phase_t> phases;
 };
 
 // Reorder

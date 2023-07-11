@@ -39,7 +39,7 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
     phase.outer_dim_size = outer_dim_size;
     phase.reduction_size = reduction_size;
     phase.inner_dim_size = inner_dim_size;
-    const int subgroup_size
+    phase.subgroup_size
             = compute_engine->device_info()->max_subgroup_size();
     const int num_EU = compute_engine->device_info()->eu_count();
     const size_t max_wg_size = compute_engine->device_info()->max_wg_size();
@@ -49,12 +49,12 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
     // 1. packed into a single subgroup (small inner dim), or
     // 2. split among several subgroups (large inner dim)
     const int num_packed_inner_dims
-            = nstl::clamp(subgroup_size / phase.inner_dim_size, (dim_t)1,
+            = nstl::clamp(phase.subgroup_size / phase.inner_dim_size, (dim_t)1,
                     phase.reduction_size);
     const dim_t num_split_inner_dims
-            = utils::div_up(phase.inner_dim_size, subgroup_size); // S per I
-    const bool inner_dim_aligned = (subgroup_size % phase.inner_dim_size == 0
-            || phase.inner_dim_size % subgroup_size == 0);
+            = utils::div_up(phase.inner_dim_size, phase.subgroup_size); // S per I
+    const bool inner_dim_aligned = (phase.subgroup_size % phase.inner_dim_size == 0
+            || phase.inner_dim_size % phase.subgroup_size == 0);
 
     const dim_t num_horiz_reductions
             = phase.reduction_size / num_packed_inner_dims;
@@ -76,7 +76,7 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
     bool reduce_vec = false;
     if (reductions_aligned && inner_dim_aligned) {
         const size_t single_load_size
-                = types::data_type_size(src_type) * subgroup_size;
+                = types::data_type_size(src_type) * phase.subgroup_size;
         const int max_load_size = 256; // Set on ATS-M, may depend on arch
         const int max_vect_size
                 = static_cast<int>(max_load_size / single_load_size);
@@ -106,13 +106,13 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
     // close-to-cache-size problems with high parallelism
     const int max_threads = num_subgroups / num_EU;
     int threads_per_wg = nstl::clamp(
-            static_cast<int>(max_wg_size / subgroup_size), 1, max_threads);
+            static_cast<int>(max_wg_size / phase.subgroup_size), 1, max_threads);
     threads_per_wg = get_previous_factor(num_subgroups, threads_per_wg);
 
     // Compute the nd_range for this phase
     size_t gws[3] = {1, 1, 1}, lws[3] = {1, 1, 1};
-    gws[0] = num_subgroups * subgroup_size;
-    lws[0] = threads_per_wg * subgroup_size;
+    gws[0] = num_subgroups * phase.subgroup_size;
+    lws[0] = threads_per_wg * phase.subgroup_size;
     phase.nd_range = compute::nd_range_t(gws, lws);
 
     phase.src_type = src_type;
@@ -129,10 +129,10 @@ void combined_reduction_t::pd_t::init_scratchpad() {
             memory_tracking::names::key_reduction_1};
 
     auto scratchpad = scratchpad_registry().registrar();
-    const int num_phases = static_cast<int>(conf.phases.size());
+    const int num_phases = static_cast<int>(phases.size());
     const int num_scratchpads = std::min(num_phases - 1, 2);
     for (int i = 0; i < num_scratchpads; i++) {
-        const reduction_phase_t &phase = conf.phases[i];
+        const reduction_phase_t &phase = phases[i];
         const size_t sp_data_size = types::data_type_size(phase.dst_type);
         const int num_dst_elems = phase.outer_dim_size * phase.inner_dim_size;
         scratchpad.book(
@@ -141,9 +141,11 @@ void combined_reduction_t::pd_t::init_scratchpad() {
 }
 
 status_t set_reduction_phases(dim_t outer_elems, dim_t reduction_elems,
-        dim_t inner_elems, data_type_t accum_data_type, int subgroup_size,
+        dim_t inner_elems, data_type_t accum_data_type,
         const compute::compute_engine_t *compute_engine,
         std::vector<reduction_phase_t> &phases) {
+    const int subgroup_size
+            = compute_engine->device_info()->max_subgroup_size();
     // Recursive end condition: reduction_elems == 1
     if (reduction_elems == 1) return status::success;
 
@@ -177,7 +179,7 @@ status_t set_reduction_phases(dim_t outer_elems, dim_t reduction_elems,
             inner_elems, accum_data_type, accum_data_type, compute_engine));
 
     return set_reduction_phases(outer_elems, reduction_end, inner_elems,
-            accum_data_type, subgroup_size, compute_engine, phases);
+            accum_data_type, compute_engine, phases);
 }
 
 status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
@@ -270,7 +272,6 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     const compute::compute_engine_t *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine);
 
-    conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
     // Starting from the innermost dimension, find the reduction dimensions and group neighboring
     // ones to be reduced simultaneously.
     data_type_t accum_data_type = types::default_accum_data_type(
@@ -285,8 +286,8 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         } else {
             if (reduction_elems > 1) {
                 CHECK(set_reduction_phases(outer_elems, reduction_elems,
-                        inner_elems, accum_data_type, conf.sub_group_size,
-                        compute_engine, conf.phases));
+                        inner_elems, accum_data_type,
+                        compute_engine, phases));
                 reduction_elems = 1;
             }
             inner_elems *= src_blocks[i].block;
@@ -295,8 +296,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
     if (reduction_elems > 1) {
         CHECK(set_reduction_phases(outer_elems, reduction_elems, inner_elems,
-                accum_data_type, conf.sub_group_size, compute_engine,
-                conf.phases));
+                accum_data_type, compute_engine, phases));
     }
 
     // Compute div from basic mdw dims
@@ -312,11 +312,11 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     conf.attr_info = attr_info_t::create(attr());
 
     // Set variables that matter for first/last phases
-    conf.phases.front().is_first = true;
-    conf.phases.front().src_type = src_mdw.data_type();
+    phases.front().is_first = true;
+    phases.front().src_type = src_mdw.data_type();
 
-    conf.phases.back().is_final = true;
-    conf.phases.back().dst_type = dst_mdw.data_type();
+    phases.back().is_final = true;
+    phases.back().dst_type = dst_mdw.data_type();
 
     // Post-ops require a bit more information
     if (attr()->post_ops_.len() > 0) {
@@ -344,11 +344,11 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     // Used for packing small inner vectors into a subgroup
     const dim_t inner_dim_per_sg
-            = nstl::clamp(conf.sub_group_size / phase.inner_dim_size, (dim_t)1,
+            = nstl::clamp(phase.subgroup_size / phase.inner_dim_size, (dim_t)1,
                     phase.reduction_size);
     const dim_t num_horiz_reductions = phase.reduction_size / inner_dim_per_sg;
 
-    kernel_ctx.define_int("SUBGROUP_SIZE", conf.sub_group_size);
+    kernel_ctx.define_int("SUBGROUP_SIZE", phase.subgroup_size);
     kernel_ctx.define_int("LWS_SIZE", phase.nd_range.local_range()[0]);
 
     kernel_ctx.define_int("DIV", conf.div);
@@ -383,11 +383,11 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     const bool can_block_read_reduction = can_block_read(num_horiz_reductions,
             inner_dim_per_sg * phase.inner_dim_size, phase.src_type);
     const bool can_block_read_inner = can_block_read(
-            phase.inner_dim_size, conf.sub_group_size, phase.src_type);
+            phase.inner_dim_size, phase.subgroup_size, phase.src_type);
 
     //  2) All work items in a subgroup call the load function (inner dim and reduction sizes are coherent with subgroup size)
     const bool using_all_simd_channels
-            = (phase.inner_dim_size * inner_dim_per_sg % conf.sub_group_size
+            = (phase.inner_dim_size * inner_dim_per_sg % phase.subgroup_size
                     == 0);
     const bool aligned_reduction
             = (phase.reduction_size == num_horiz_reductions * inner_dim_per_sg);
@@ -453,12 +453,11 @@ status_t combined_reduction_t::execute_combined(const exec_ctx_t &ctx) const {
                        memory_tracking::names::key_reduction),
                     ctx.get_scratchpad_grantor().get_memory_storage(
                             memory_tracking::names::key_reduction_1)};
-    const auto &conf = pd()->conf;
 
     status_t status = status::success;
     for (size_t i = 0; i < kernels_.size(); i++) {
         auto &kernel = kernels_[i];
-        auto &phase = conf.phases[i];
+        auto &phase = pd()->phases[i];
         auto nd_range = phase.nd_range;
 
         // Set up the reduction arg list
