@@ -256,6 +256,30 @@ std::vector<int> get_factors(int n) {
     return ret;
 }
 
+std::vector<int> get_loop_blocks(int n) {
+    const int step = 4;
+    int steps = (int)(std::log((float)n) / std::log((float)step));
+    auto factors = get_factors(n);
+    if (factors.size() >= (size_t)steps) return factors;
+
+    std::vector<int> ret;
+    ret.reserve(steps);
+    for (int i = 1; i <= n; i *= step) {
+        int a = i;
+        int b = i * step;
+        bool found = false;
+        for (int j : factors) {
+            if (a <= j && j < b) {
+                found = true;
+                ret.push_back(j);
+                break;
+            }
+        }
+        if (!found) ret.push_back(i);
+    }
+    return ret;
+}
+
 bool block_ok(int size, int blk, int target_eff) {
     int size_padded = utils::rnd_up(size, blk);
     double eff = size / (double)size_padded;
@@ -345,7 +369,7 @@ struct tile_info_t {
             int blk = math::lcm(div_info.unroll_unit, iter_blk);
             return {blk / iter_blk};
         }
-        return get_factors(size);
+        return get_loop_blocks(size);
     }
 
     conv_dim_t dim;
