@@ -20,6 +20,7 @@
 #include "common/primitive.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
+#include "gpu/ocl/reduction_utils.h"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -27,11 +28,15 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct reduction_phase_t {
+class reduction_phase_conf : public reduction_subproblem {
+public:
+    reduction_phase_conf(const reduction_subproblem &subprb,
+            data_type_t src_type, data_type_t dst_type,
+            const compute::compute_engine_t *compute_engine);
+    bool can_use_block_reads();
     data_type_t src_type, dst_type;
     compute::nd_range_t nd_range;
-    compute::kernel_t kernel;
-    dim_t outer_dim_size, reduction_size, inner_dim_size;
+
     int vect_size;
     bool reduce_vector;
     bool is_final, is_first;
@@ -64,11 +69,11 @@ struct combined_reduction_t : public gpu_primitive_t {
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-                const reduction_phase_t &phase) const;
+                const reduction_phase_conf &phase) const;
         void init_scratchpad();
 
         reduction_conf_t conf;
-        std::vector<reduction_phase_t> phases;
+        std::vector<reduction_phase_conf> phases;
     };
 
     status_t init(engine_t *engine) override {
