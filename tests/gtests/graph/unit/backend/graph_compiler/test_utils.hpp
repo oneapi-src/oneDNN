@@ -2915,15 +2915,18 @@ static std::vector<graph::dim_t> extract_filter_info(
 inline graph::logical_tensor_t create_dyn_dequantize(
         utils::id_generator &id_gen, graph_t &agraph,
         const graph::logical_tensor_t &src, const std::string &qtype,
-        int64_t axis) {
+        int64_t axis, graph::dim_t channel_size = 1) {
     graph::op_t dq_op(
             id_gen.get_id(), graph::op_kind::DynamicDequantize, "dequantize");
     dq_op.set_attr<std::string>(op_attr::qtype, qtype);
     dq_op.set_attr<int64_t>(op_attr::axis, axis);
 
     auto dst = utils::logical_tensor_init(id_gen.get_id(), data_type::f32);
-    graph::logical_tensor_t scale_desc
-            = utils::logical_tensor_init(id_gen.get_id(), {1}, data_type::f32);
+    graph::logical_tensor_t scale_desc = utils::logical_tensor_init(
+            id_gen.get_id(),
+            qtype == "per_channel" ? std::vector<graph::dim_t> {channel_size}
+                                   : std::vector<graph::dim_t> {1},
+            data_type::f32);
     dq_op.add_input(src);
     dq_op.add_input(scale_desc);
     dq_op.add_output(dst);
@@ -2986,9 +2989,9 @@ inline graph::logical_tensor_t create_int8_convolution_dyn_quant(
                 id_gen.get_id(), wei_shape, data_type::s8);
         int8_wei.property = property_type::constant;
     }
-
+    int64_t channel_axis = (filter_format == "OIX") ? 0 : 3;
     auto dq_wei = create_dyn_dequantize(id_gen, agraph, int8_wei, "per_channel",
-            (filter_format == "OIX") ? 0 : 3);
+            channel_axis, wei_shape[channel_axis]);
 
     auto dst = utils::logical_tensor_init(id_gen.get_id(), dq_src.data_type);
 
