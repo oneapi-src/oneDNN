@@ -1460,10 +1460,16 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                         is_bs_tail, kernel_init, is_ic_tail, is_oc_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
 
-        if (kernel_init && (is_ic_tail || is_oc_tail))
+        if (kernel_init && (is_ic_tail || is_oc_tail)) {
+            // Due to big_ic_blk_ok optimization, the ic_block can be larger
+            // than simd_w. last_ic_chunk makes sure we do not overflow.
+            const int last_ic_chunk = nstl::min(
+                    jbgp.ic_block, rnd_up(jbgp.ic - ic, jbgp.simd_w));
             utils::array_set(get_wei_acc_ptr(ti, ocb, icb), 0,
-                    types::data_type_size(jbgp.acc_dt) * jbgp.ic_block
-                            * jbgp.oc_block);
+                    types::data_type_size(jbgp.acc_dt) * jbgp.oc_block
+                            * last_ic_chunk);
+        }
+
         if (nb_os_b > 0 && brg_kernel != nullptr) {
             brgemm_palettes_.maybe_tile_configure(
                     jbgp.is_amx, prev_ker_idx, brg_ker_idx);
@@ -1775,6 +1781,7 @@ template struct brgemm_inner_product_bwd_weights_t<avx512_core_fp16>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core_amx>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core>;
+template struct brgemm_inner_product_bwd_weights_t<avx2>;
 
 } // namespace x64
 } // namespace cpu

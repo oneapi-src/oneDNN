@@ -127,7 +127,9 @@ int jit_brgemm_ip_conf_t::get_os_block(
                 && (jbgp.os % amx_xf16_row) <= amx_xf16_half_row;
         return is_amx_xf16
                 ? (use_large_os_block ? amx_xf16_row : amx_xf16_half_row)
-                : 16;
+                : jbgp.isa == avx2 ? // taken from gemm impl for avx2
+                rnd_up(nstl::min(jbgp.os, 192), jbgp.simd_w)
+                                   : 16;
     } else
         assert(!"unsupported case");
 
@@ -1112,14 +1114,17 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
     const bool has_weights_buffer = jbgp.wei_dt != jbgp.acc_dt;
 
     const int amx_xf16_row = 64;
-    const bool big_ic_blk_ok
-            = is_f32 && jbgp.ic % (4 * jbgp.simd_w) == 0 && jbgp.mb <= 128;
-    jbgp.ic_block = big_ic_blk_ok && !is_amx_xf16 ? 4 * jbgp.simd_w
+    const bool big_ic_blk_ok = is_f32 && jbgp.ic % (4 * jbgp.simd_w) == 0
+            && (jbgp.mb <= 128
+                    || (jbgp.isa == avx2 && jbgp.oc <= 256 /*avx2 ncf model*/));
+    const int max_c_mult = is_superset(jbgp.isa, avx512_core) ? 4 : 3;
+    jbgp.ic_block = big_ic_blk_ok && !is_amx_xf16 ? max_c_mult * jbgp.simd_w
             : (is_amx_xf16 && has_weights_buffer) ? amx_xf16_row
                                                   : jbgp.simd_w;
     jbgp.ic_block_ext
-            = is_amx_xf16 || (jbgp.wei_dt == dnnl::impl::data_type::bf16) ? 32
-                                                                          : 16;
+            = is_amx_xf16 || (jbgp.wei_dt == dnnl::impl::data_type::bf16)
+            ? 32
+            : jbgp.simd_w;
 
     jbgp.oc_block
             = has_weights_buffer ? get_oc_block() : get_adjusted_oc_block();
@@ -1169,13 +1174,14 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
 
     jbgp.use_buffer_a = true;
     const bool is_oc_big_2_pow = jbgp.oc >= 512 && math::is_pow2(jbgp.oc);
-    const bool is_huge_oc = jbgp.oc >= 4 * 1024;
+    const bool is_huge_oc = jbgp.oc >= (jbgp.isa == avx2 ? 2 : 4) * 1024;
     jbgp.use_buffer_b = jbgp.dst_dt != f32 || is_oc_big_2_pow || is_huge_oc;
     const bool os_dim_dominating = jbgp.os >= 5 * (jbgp.ic + jbgp.oc);
     const int big_nb_os_threshold = is_amx_xf16 ? 64 : 256;
     jbgp.local_buffers_for_input_tensors
             = is_amx_xf16 && jbgp.nb_os >= big_nb_os_threshold;
-    jbgp.harness = os_dim_dominating && jbgp.nb_os >= big_nb_os_threshold
+    jbgp.harness = (jbgp.isa == avx2)
+                    || (os_dim_dominating && jbgp.nb_os >= big_nb_os_threshold)
             ? harness_mb_reduction
             : harness_2d_reduction;
 
@@ -1186,7 +1192,7 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
     thread_balance(nb_os_blocking, nb_oc_blocking, nb_ic_blocking, nthr,
             nthr_mb, nthr_oc, nthr_ic);
 
-    jbgp.nb_os_blocking = nb_os_blocking;
+    jbgp.nb_os_blocking = jbgp.isa == avx2 ? 1 : nb_os_blocking;
     jbgp.nb_oc_blocking = nb_oc_blocking;
     jbgp.nb_ic_blocking = nb_ic_blocking;
     jbgp.nthr = nthr;

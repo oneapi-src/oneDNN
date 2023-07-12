@@ -518,7 +518,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 db_desc.reduce_dim = (i_K) ? jbgp.K_tail : jbgp.K;
                 if (db_desc.reduce_dim > 0 && db_desc.load_dim > 0) {
                     CHECK(safe_ptr_assign(kernels_db_[i_K][i_N],
-                            new jit_brgemm_kernel_diff_bias_t(jbgp, db_desc)));
+                            new ker_diff_bias_t(jbgp, db_desc)));
                     CHECK(kernels_db_[i_K][i_N]->create_kernel());
                 }
             }
@@ -559,7 +559,9 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
 
 private:
     struct thread_info_t;
-    std::unique_ptr<jit_brgemm_kernel_diff_bias_t> kernels_db_[2][2];
+    using ker_diff_bias_t
+            = jit_brgemm_kernel_diff_bias_t<typename cpu_isa_traits<isa>::Vmm>;
+    std::unique_ptr<ker_diff_bias_t> kernels_db_[2][2];
     std::unique_ptr<brgemm_kernel_t>
             brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_trans_src_t> trans_A_kernel_;
