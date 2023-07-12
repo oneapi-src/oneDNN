@@ -87,16 +87,82 @@
     AS_VECT_DATA_T(VECT_BLOCK_READ((const __global BLOCK_DATA_T *)data_ptr))
 #define READ_DATA(val) WITH_BLOCK_READ ? BLOCK_READ_DATA_T(&val) : val
 
+// Zero-padding defines
+#if NUM_SRC_ZPAD > 2 || NUM_DST_ZPAD > 2
+#error "At most 2 zero pad patterns permitted"
+#endif
+
+bool is_dst_zero_padded(const dim_t dst_off) {
+    bool ret = false;
+#if NUM_DST_ZPAD >= 1
+    {
+        const dim_t outer_idx = (dst_off / DST_Z0_STRIDE1) % DST_Z0_SIZE1;
+        const dim_t inner_idx = (dst_off / DST_Z0_STRIDE0) % DST_Z0_SIZE0;
+        ret |= (outer_idx * DST_Z0_SIZE0 + inner_idx >= DST_Z0_SIZE);
+    }
+#endif
+#if NUM_DST_ZPAD >= 2
+    {
+        const dim_t outer_idx = (dst_off / DST_Z1_STRIDE1) % DST_Z1_SIZE1;
+        const dim_t inner_idx = (dst_off / DST_Z1_STRIDE0) % DST_Z1_SIZE0;
+        ret |= (outer_idx * DST_Z1_SIZE0 + inner_idx >= DST_Z1_SIZE);
+    }
+#endif
+    return ret;
+}
+
+// For dst zero-padding on reduced dimensions:
+// increase strides to skip over zeros
+dim_t dst_off_w_zero_padding(dim_t outer, dim_t inner) {
+    dim_t outer_stride = INNER_DIM_SIZE;
+
+#if NUM_DST_ZPAD >= 1 && DST_Z0_IS_REDUCED
+#if DST_Z0_SIZE1 != 1 || DST_Z0_SIZE != 1
+#error "Reduced zpad #1 doesn't match expected pattern!"
+#endif
+    // Increase to account for DST_Z0
+    outer_stride *= DST_Z0_SIZE0;
+
+    // In cases with split-reductions (i.e. aBx16b for 8x1024x32:8x1x32)
+    // the zero-padding is inserted in the middle (potentially) of the inner
+    // block, so we need to wrap inner indexing around it
+    const dim_t inside0 = inner % DST_Z0_STRIDE0;
+    const dim_t idx0 = inner / DST_Z0_STRIDE0;
+    inner = inside0 + idx0 * DST_Z0_SIZE0 * DST_Z0_STRIDE0;
+#endif
+#if NUM_DST_ZPAD >= 2 && DST_Z1_IS_REDUCED
+#if DST_Z1_SIZE1 != 1 || DST_Z1_SIZE != 1
+#error "Reduced zpad #2 doesn't match expected pattern!"
+#endif
+    // Increase to account for DST_Z1
+    outer_stride *= DST_Z1_SIZE0;
+    const dim_t inside1 = inner % DST_Z1_STRIDE0;
+    const dim_t idx1 = inner / DST_Z1_STRIDE0;
+    inner = inside1 + idx1 * DST_Z1_SIZE0 * DST_Z1_STRIDE0;
+#endif
+    return outer * outer_stride + inner;
+}
+
 #define _SRC_OFF(outer, reduction, inner) \
     (outer) * REDUCTION_SIZE *INNER_DIM_SIZE + (reduction)*INNER_DIM_SIZE \
             + (inner)
 
-#define _DST_OFF(outer, inner) (outer) * INNER_DIM_SIZE + (inner)
+#define _DST_OFF(outer, inner) dst_off_w_zero_padding(outer, inner)
 
 #if REDUCE_VECTOR
 #define FINAL_VEC_SIZE 1
 #else
 #define FINAL_VEC_SIZE VECT_DT_N
+#endif
+
+#if NUM_DST_ZPAD == 0
+#define PADDED_NELEMS OUTER_SIZE *INNER_DIM_SIZE
+#elif NUM_DST_ZPAD == 1
+#define PADDED_NELEMS OUTER_SIZE *INNER_DIM_SIZE *DST_Z0_SIZE0 *DST_Z0_SIZE1
+#elif NUM_DST_ZPAD == 2
+#define PADDED_NELEMS \
+    OUTER_SIZE *INNER_DIM_SIZE *DST_Z0_SIZE0 *DST_Z0_SIZE1 *DST_Z1_SIZE0 \
+            *DST_Z1_SIZE1
 #endif
 
 // Specifying wg size since larger work groups reduce performance.
@@ -132,7 +198,6 @@ combined_reduce(
         return;
 
     VECT_DEF_ACC_DATA_T acc = INIT_ACC;
-
     const int loop_stride = _SRC_OFF(
             0, inner_dims_per_sg * (REDUCE_VECTOR ? VECT_DT_N : 1), 0);
     int src_off = _SRC_OFF(outer_idx, WITH_BLOCK_READ ? 0 : red_off,
@@ -181,7 +246,7 @@ combined_reduce(
         // 2. (if IS_FINAL) apply post-ops
         // 3. write to dst
         for (int i = 0; i < FINAL_VEC_SIZE; i++) {
-            const int dst_off
+            const dim_t dst_off
                     = _DST_OFF(outer_idx, inner_idx + i * SUBGROUP_SIZE);
             // finalize the result
 #if IS_FINAL
@@ -224,11 +289,31 @@ combined_reduce(
             }
 #endif // WITH_POST_OP
 #else
-            const float res = final_acc[i];
+            float res = final_acc[i];
 #endif // IS_FINAL
 
             // Write to dst
+            if (is_dst_zero_padded(dst_off)) res = 0.0f;
             dst[dst_off] = IS_FINAL ? TO_DST(res) : res;
+
+            // Reduced + zero-padded dims need extra zeros written
+#if DST_Z0_IS_REDUCED && DST_Z1_IS_REDUCED
+            for (int i = 0; i < DST_Z0_SIZE0; i++) {
+                for (int j = 0; j < DST_Z1_SIZE0; j++) {
+                    if (i == 0 && j == 0) continue;
+                    dst[dst_off + i * DST_Z0_STRIDE0 + j * DST_Z1_STRIDE0]
+                            = TO_DST(0.0f);
+                }
+            }
+#elif DST_Z0_IS_REDUCED
+            for (int i = 1; i < DST_Z0_SIZE0; i++) {
+                dst[dst_off + i * DST_Z0_STRIDE0] = TO_DST(0.0f);
+            }
+#elif DST_Z1_IS_REDUCED
+            for (int j = 1; j < DST_Z1_SIZE0; j++) {
+                dst[dst_off + j * DST_Z1_STRIDE0] = TO_DST(0.0f);
+            }
+#endif
         }
     }
 }

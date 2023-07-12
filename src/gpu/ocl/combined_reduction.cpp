@@ -328,6 +328,31 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     return status::success;
 }
 
+void def_zero_pad(compute::kernel_ctx_t &kernel_ctx, const char *prefix,
+        const zero_padding &zpad, int idx) {
+    const std::string size_name = utils::format("%s_Z%d_SIZE", prefix, idx);
+    kernel_ctx.define_int(size_name, zpad.data_size);
+
+    // Inner block defines
+    {
+        const std::string padded_name
+                = utils::format("%s_Z%d_SIZE0", prefix, idx);
+        const std::string stride_name
+                = utils::format("%s_Z%d_STRIDE0", prefix, idx);
+        kernel_ctx.define_int(padded_name, zpad.inner_size);
+        kernel_ctx.define_int(stride_name, zpad.inner_stride);
+    }
+    // Outer block defines
+    {
+        const std::string padded_name
+                = utils::format("%s_Z%d_SIZE1", prefix, idx);
+        const std::string stride_name
+                = utils::format("%s_Z%d_STRIDE1", prefix, idx);
+        kernel_ctx.define_int(padded_name, zpad.outer_size);
+        kernel_ctx.define_int(stride_name, zpad.outer_stride);
+    }
+}
+
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const reduction_conf_t &conf, const reduction_phase_conf &phase) {
     using namespace alg_kind;
@@ -389,6 +414,20 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             kernel_ctx.define_int("IS_P_SUM", 1);
             break;
         default: return status::invalid_arguments;
+    }
+
+    // Def zero-padding variables
+    kernel_ctx.define_int("NUM_SRC_ZPAD", phase.src_zpads.size());
+    for (size_t i = 0; i < phase.src_zpads.size(); i++) {
+        def_zero_pad(kernel_ctx, "SRC", phase.src_zpads[i], i);
+    }
+    kernel_ctx.define_int("NUM_DST_ZPAD", phase.dst_zpads.size());
+    for (size_t i = 0; i < phase.dst_zpads.size(); i++) {
+        def_zero_pad(kernel_ctx, "DST", phase.dst_zpads[i], i);
+        const std::string is_reduced_name
+                = utils::format("DST_Z%d_IS_REDUCED", i);
+        kernel_ctx.define_int(is_reduced_name,
+                conf.is_reduction_dim[phase.dst_zpads[i].dim_idx]);
     }
 
     def_data_type(kernel_ctx, phase.src_type, "SRC");
