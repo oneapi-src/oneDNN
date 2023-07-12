@@ -68,8 +68,10 @@ typedef enum {
 
 typedef enum {
     brgemm_prf_default = 1,
+    brgemm_prf0,
     brgemm_prf1,
     brgemm_prf2,
+    brgemm_prfNTA,
 } brgemm_kernel_prefetching_t;
 
 typedef enum {
@@ -85,8 +87,10 @@ typedef enum {
 } brgemm_kernel_hint_nt_t;
 
 struct brgemm_prf_t {
-    int dist1 = -1;
-    int dist2 = -1;
+    int dist0 {-1};
+    int dist1 {-1};
+    int dist2 {-1};
+    int distNTA {-1};
 };
 
 struct brgemm_batch_element_t {

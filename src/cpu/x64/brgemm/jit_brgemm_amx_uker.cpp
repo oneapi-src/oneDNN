@@ -324,6 +324,12 @@ private:
         brgemm_kernel_prefetching_t pft = brgemm_prf_default;
         int dist = -1;
         int vec = 0;
+        void set(brgemm_kernel_prefetching_t pft_, int dist_) {
+            pft = pft_;
+            dist = dist_;
+            vec = 0;
+        }
+        void reset() { vec = 0; }
     };
 
     // iteration map
@@ -337,7 +343,8 @@ private:
     // current storing coordinates
     int ils_vec_ = 0, ils_bdb_ = 0, ils_ldb_ = 0, ils_bd_start_ = 0;
     int ils_bd_step_ = 3; // heuristic value
-    prf_t prf1A, prf2A, prf1B, prf2B, prf1C, prf2C;
+    prf_t prf0A, prf1A, prf2A, prfntaA, prf0B, prf1B, prf2B, prfntaB, prf0C,
+            prf1C;
 
     bool dt_requires_saturation_ = false;
 
@@ -406,7 +413,8 @@ private:
     bool bi_shift_B(
             brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi);
 
-    void uni_prefetch(const Address &addr, brgemm_kernel_prefetching_t pft);
+    void uni_prefetch(const Address &addr, brgemm_kernel_prefetching_t pft,
+            bool for_write);
     void prefetch_CD_range(brgemm_iteration_t &bi,
             brgemm_kernel_prefetching_t pft, int bd_start, int bd_finish,
             int bdb, int ldb);
@@ -976,11 +984,22 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
 }
 
 void jit_brgemm_amx_uker_base_t::uni_prefetch(
-        const Address &addr, brgemm_kernel_prefetching_t pft) {
-    if (pft == brgemm_kernel_prefetching_t::brgemm_prf1)
-        prefetcht1(addr);
-    else if (pft == brgemm_kernel_prefetching_t::brgemm_prf2)
-        prefetcht2(addr);
+        const Address &addr, brgemm_kernel_prefetching_t pft, bool for_write) {
+    if (for_write) {
+        switch (pft) {
+            case brgemm_prf0: prefetchw(addr); break;
+            case brgemm_prf1: prefetchwt1(addr); break;
+            default: break;
+        }
+    } else {
+        switch (pft) {
+            case brgemm_prf0: prefetcht0(addr); break;
+            case brgemm_prf1: prefetcht1(addr); break;
+            case brgemm_prf2: prefetcht2(addr); break;
+            case brgemm_prfNTA: prefetchnta(addr); break;
+            default: break;
+        }
+    }
 }
 
 void jit_brgemm_amx_uker_base_t::prefetch_CD_range(brgemm_iteration_t &bi,
@@ -992,15 +1011,15 @@ void jit_brgemm_amx_uker_base_t::prefetch_CD_range(brgemm_iteration_t &bi,
         if (bi.apply_postops) {
             const auto d_offset = D_offset(bi, bdb, bd, ldb_pos);
             auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
-            uni_prefetch(ptr_D, pft);
+            uni_prefetch(ptr_D, pft, true);
         } else if (are_post_ops_applicable_) {
             const auto c_offset = C_offset(bi, bdb, bd, ldb_pos);
             auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
-            uni_prefetch(ptr_C, pft);
+            uni_prefetch(ptr_C, pft, true);
         } else {
             const auto d_offset = D_offset(bi, bdb, bd, ldb_pos);
             auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
-            uni_prefetch(ptr_D, pft);
+            uni_prefetch(ptr_D, pft, true);
         }
     }
 }
@@ -1059,7 +1078,7 @@ void jit_brgemm_amx_uker_base_t::prefetch_A(brgemm_iteration_t &bi,
         //TODO: looks like we have to prefetch in each bs separately
         const auto ptr_A = EVEX_compress_addr(
                 reg_A, A_offset(pfo_bi, bdb) + bd * LDA_size_);
-        uni_prefetch(ptr_A, prf.pft);
+        uni_prefetch(ptr_A, prf.pft, false);
         prf.vec++;
     }
 }
@@ -1084,7 +1103,7 @@ void jit_brgemm_amx_uker_base_t::prefetch_B(brgemm_iteration_t &bi,
         const auto ptr_B = EVEX_compress_addr(
                 reg_B, B_offset(pfo_bi, ldb) + rb * LDB_size_);
 
-        uni_prefetch(ptr_B, prf.pft);
+        uni_prefetch(ptr_B, prf.pft, false);
         prf.vec++;
     }
 }
@@ -1094,52 +1113,47 @@ void jit_brgemm_amx_uker_base_t::prefetching(
     // for var_bs we do prefetch on last iteration by bs only
     if (brg.brgattr.var_bs && !bi.last_bsi) return;
     brgemm_iteration_t pfo_bi;
-    if (brg.prfC.dist1 >= 0) {
+    auto maybe_prefetch_C = [&](prf_t &prf) {
+        if (prf.dist < 0) return;
         bool is_pfo_bi = false;
         brgemm_iteration_t pfo_bi;
         if (actual_ils(bi.apply_postops, bi.skip_accumulation)) {
-            if (was_prev_bi_ && brg.prfC.dist1 == 0) {
+            if (was_prev_bi_ && prf.dist == 0) {
                 is_pfo_bi = true;
                 pfo_bi = prev_bi_;
-            } else if (brg.prfC.dist1 > 0) {
-                is_pfo_bi = bi_shift_output(bi, brg.prfC.dist1 - 1, pfo_bi);
+            } else if (prf.dist > 0) {
+                is_pfo_bi = bi_shift_output(bi, prf.dist - 1, pfo_bi);
             }
         } else {
-            is_pfo_bi = bi_shift_output(bi, brg.prfC.dist1, pfo_bi);
+            is_pfo_bi = bi_shift_output(bi, prf.dist, pfo_bi);
         }
-        if (is_pfo_bi) prefetch_CD(bi, pfo_bi, prf1C, prefetch_all);
-    }
-    if (brg.prfC.dist2 >= 0) {
-        bool is_pfo_bi = false;
-        brgemm_iteration_t pfo_bi;
-        if (actual_ils(bi.apply_postops, bi.skip_accumulation)) {
-            if (was_prev_bi_ && brg.prfC.dist2 == 0) {
-                is_pfo_bi = true;
-                pfo_bi = prev_bi_;
-            } else if (brg.prfC.dist2 > 0) {
-                is_pfo_bi = bi_shift_output(bi, brg.prfC.dist2 - 1, pfo_bi);
-            }
-        } else {
-            is_pfo_bi = bi_shift_output(bi, brg.prfC.dist2, pfo_bi);
-        }
-        if (is_pfo_bi) prefetch_CD(bi, pfo_bi, prf2C, prefetch_all);
-    }
-    if (brg.prfA.dist1 >= 0) {
-        if (bi_shift_A(bi, brg.prfA.dist1, pfo_bi))
-            prefetch_A(bi, pfo_bi, prf1A, prefetch_all);
-    }
-    if (brg.prfA.dist2 >= 0) {
-        if (bi_shift_A(bi, brg.prfA.dist2, pfo_bi))
-            prefetch_A(bi, pfo_bi, prf2A, prefetch_all);
-    }
-    if (brg.prfB.dist1 >= 0) {
-        if (bi_shift_B(bi, brg.prfB.dist1, pfo_bi))
-            prefetch_B(bi, pfo_bi, prf1B, prefetch_all);
-    }
-    if (brg.prfB.dist2 >= 0) {
-        if (bi_shift_B(bi, brg.prfB.dist2, pfo_bi))
-            prefetch_B(bi, pfo_bi, prf2B, prefetch_all);
-    }
+        if (is_pfo_bi) prefetch_CD(bi, pfo_bi, prf, prefetch_all);
+    };
+
+    auto maybe_prefetch_A = [&](prf_t &prf) {
+        if (prf.dist < 0) return;
+        if (bi_shift_A(bi, prf.dist, pfo_bi))
+            prefetch_A(bi, pfo_bi, prf, prefetch_all);
+    };
+
+    auto maybe_prefetch_B = [&](prf_t &prf) {
+        if (prf.dist < 0) return;
+        if (bi_shift_B(bi, prf.dist, pfo_bi))
+            prefetch_B(bi, pfo_bi, prf, prefetch_all);
+    };
+
+    maybe_prefetch_C(prf0C);
+    maybe_prefetch_C(prf1C);
+
+    maybe_prefetch_A(prf0A);
+    maybe_prefetch_A(prf1A);
+    maybe_prefetch_A(prf2A);
+    maybe_prefetch_A(prfntaA);
+
+    maybe_prefetch_B(prf0B);
+    maybe_prefetch_B(prf1B);
+    maybe_prefetch_B(prf2B);
+    maybe_prefetch_B(prfntaB);
 }
 
 void jit_brgemm_amx_uker_base_t::process_output_range(
@@ -1403,8 +1417,8 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
     ils_bdb_ = 0;
     ils_ldb_ = 0;
 
-    prf1C.vec = 0;
-    prf2C.vec = 0;
+    prf0C.reset();
+    prf1C.reset();
 
     const bool real_ils = actual_ils(bi.apply_postops, bi.skip_accumulation);
     if (store_by_vectors && !real_ils && !prepare_post_ops_registers_once_)
@@ -1786,10 +1800,14 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
 }
 
 void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
-    prf1A.vec = 0;
-    prf2A.vec = 0;
-    prf1B.vec = 0;
-    prf2B.vec = 0;
+    prf0A.reset();
+    prf1A.reset();
+    prf2A.reset();
+    prfntaA.reset();
+    prf0B.reset();
+    prf1B.reset();
+    prf2B.reset();
+    prfntaB.reset();
 
     const auto store_by_vectors = get_store_by_vectors(bi.apply_postops);
 
@@ -2266,18 +2284,18 @@ void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
     }
 
     if (bi.skip_accumulation) return;
-    prf1A.pft = brgemm_kernel_prefetching_t::brgemm_prf1;
-    prf1A.dist = brg.prfA.dist1;
-    prf2A.pft = brgemm_kernel_prefetching_t::brgemm_prf2;
-    prf2A.dist = brg.prfA.dist2;
-    prf1B.pft = brgemm_kernel_prefetching_t::brgemm_prf1;
-    prf1B.dist = brg.prfB.dist1;
-    prf2B.pft = brgemm_kernel_prefetching_t::brgemm_prf2;
-    prf2B.dist = brg.prfB.dist2;
-    prf1C.pft = brgemm_kernel_prefetching_t::brgemm_prf1;
-    prf1C.dist = brg.prfC.dist1;
-    prf2C.pft = brgemm_kernel_prefetching_t::brgemm_prf2;
-    prf2C.dist = brg.prfC.dist2;
+    prf0A.set(brgemm_prf0, brg.prfA.dist0);
+    prf1A.set(brgemm_prf1, brg.prfA.dist1);
+    prf2A.set(brgemm_prf2, brg.prfA.dist2);
+    prfntaA.set(brgemm_prfNTA, brg.prfA.distNTA);
+
+    prf0B.set(brgemm_prf0, brg.prfB.dist0);
+    prf1B.set(brgemm_prf1, brg.prfB.dist1);
+    prf2B.set(brgemm_prf2, brg.prfB.dist2);
+    prfntaB.set(brgemm_prfNTA, brg.prfB.distNTA);
+
+    prf0C.set(brgemm_prf0, brg.prfC.dist0);
+    prf1C.set(brgemm_prf1, brg.prfC.dist1);
 }
 
 void jit_brgemm_amx_uker_base_t::generate() {
