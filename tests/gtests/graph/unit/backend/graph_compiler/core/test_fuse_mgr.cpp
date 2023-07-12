@@ -554,13 +554,13 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestLeakyReluOP) {
 
     check_leaky_relu(datatypes::f32, 100, 200, 0.01);
     check_leaky_relu(datatypes::f32, 100, 256, 0.01);
-    check_leaky_relu(datatypes::f32, 100, 200, 0.5);
-    check_leaky_relu(datatypes::f32, 100, 256, 0.5);
+    check_leaky_relu(datatypes::f32, 100, 200, 0.5f);
+    check_leaky_relu(datatypes::f32, 100, 256, 0.5f);
 
     check_leaky_relu(datatypes::bf16, 100, 200, 0.01);
     check_leaky_relu(datatypes::bf16, 100, 256, 0.01);
-    check_leaky_relu(datatypes::bf16, 100, 200, 0.5);
-    check_leaky_relu(datatypes::bf16, 100, 256, 0.5);
+    check_leaky_relu(datatypes::bf16, 100, 200, 0.5f);
+    check_leaky_relu(datatypes::bf16, 100, 256, 0.5f);
 }
 
 TEST(GCCore_CPU_fuse_mgr_cpp, TestTanhOP) {
@@ -1528,11 +1528,12 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerCastBF16) {
             inbf16.data());
 
     for (unsigned i = 0; i < 20 * 259; i++) {
-        if (std::abs(outf32tobf16[i] - inbf16[i]) >= 1e-5) {
+        if (std::abs(outf32tobf16[i] - inbf16[i]) >= 1e-5f) {
             std::cout << outf32tobf16[i] << "\n";
         }
-        EXPECT_TRUE(std::abs(outf32tobf16[i] - float(bf16_t(inf32[i]))) < 1e-5);
-        EXPECT_TRUE(std::abs(outbf16tof32[i] - inbf16[i]) < 1e-5);
+        EXPECT_TRUE(
+                std::abs(outf32tobf16[i] - float(bf16_t(inf32[i]))) < 1e-5f);
+        EXPECT_TRUE(std::abs(outbf16tof32[i] - inbf16[i]) < 1e-5f);
     }
 }
 
@@ -2514,7 +2515,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestVecterizedClampOP) {
         test_utils::compare_data(out_buf, ref_out_buf, 1e-5f, 1e-5f);
     };
     // scalar version
-    // check_clamp(100, 200, false, 0.1, 0.5);
+    // check_clamp(100, 200, false, 0.1f, 0.5f);
 
     // vectorization version
     check_clamp(100, 256, true, 0.1f, 0.5f);
@@ -2746,16 +2747,16 @@ TEST(GCCore_CPU_fuse_mgr_cpp, BenchVectorizedClampOP) {
                   << " milliseconds\n";
     };
     // vectorization version
-    bench_clamp(100, 256, true, 0.1, 0.5);
+    bench_clamp(100, 256, true, 0.1f, 0.5f);
 
     // vectorization version
-    bench_clamp(100, 2560, true, 0.1, 0.5);
+    bench_clamp(100, 2560, true, 0.1f, 0.5f);
 
     // vectorization version
-    bench_clamp(100, 25600, true, 0.1, 0.5);
+    bench_clamp(100, 25600, true, 0.1f, 0.5f);
 
     // vectorization version
-    bench_clamp(100, 512000, true, 0.1, 0.5);
+    bench_clamp(100, 512000, true, 0.1f, 0.5f);
 }
 
 #endif

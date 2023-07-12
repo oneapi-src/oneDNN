@@ -381,7 +381,7 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Asym_Padding) {
             &padding_output[0], &weight_2_data[0],
             static_cast<float *>(nullptr), &ref_output[0], FWD_I);
 
-    test_utils::compare_data(sc_output, ref_output, 1e-3, 1e-3);
+    test_utils::compare_data(sc_output, ref_output, 1e-3f, 1e-3f);
 }
 
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Fuse) {

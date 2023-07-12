@@ -226,7 +226,7 @@ TEST(GCCore_CPU_bf16legalize_cpp, TestBF16Lower) {
     // MSVC will treat bf16_t differently with uint16_t when returning it
     c = bf16_t::from_storage(fptr->call<uint16_t>(a, b));
     fc = float(c);
-    EXPECT_TRUE(std::abs(fc - fc_ref) < 1e-5);
+    EXPECT_TRUE(std::abs(fc - fc_ref) < 1e-5f);
     // vector type
     auto ctx = get_default_context();
     int lanes = 8;

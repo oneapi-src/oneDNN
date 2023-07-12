@@ -77,7 +77,7 @@ private:
         any_map_t new_attrs = attrs;
         new_attrs.set("keep_stats", attrs.get_or_else("keep_stats", true));
         new_attrs.set("use_affine", attrs.get_or_else("use_affine", true));
-        new_attrs.set("epsilon", attrs.get_or_else("epsilon", float(1e-5)));
+        new_attrs.set("epsilon", attrs.get_or_else("epsilon", 1e-5f));
         if (attrs.has_key("begin_norm_axis")) { // oneDNN specification
             int begin_norm_axis = attrs.get<int>("begin_norm_axis");
             if (begin_norm_axis < 0) {

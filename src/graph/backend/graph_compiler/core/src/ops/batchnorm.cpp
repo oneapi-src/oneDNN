@@ -130,8 +130,8 @@ void batchnorm_forward_training_op::get_graph_impl(
     auto src_pass2 = inputs[0];
 
     auto epsilon = graph->make<constant_op_t>(
-            std::make_shared<static_data_t>(std::vector<float> {
-                    attrs_.get_or_else("epsilon", float(1e-5))}),
+            std::make_shared<static_data_t>(
+                    std::vector<float> {attrs_.get_or_else("epsilon", 1e-5f)}),
             datatypes::f32, sc_dims {1});
     if (is_src_bf16) {
         auto cast0 = graph->make(

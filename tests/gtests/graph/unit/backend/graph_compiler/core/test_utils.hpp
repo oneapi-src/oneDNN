@@ -392,8 +392,8 @@ static void fill_data(T *buf, size_t size, A val) {
 
 // without gtest interface so we can return count
 template <typename T>
-static int compare_data_count(T *dst, T *ref, size_t size, float rtol = 1e-4,
-        float atol = 1e-6, std::function<void()> on_error = nullptr) {
+static int compare_data_count(T *dst, T *ref, size_t size, float rtol = 1e-4f,
+        float atol = 1e-6f, std::function<void()> on_error = nullptr) {
     bool pass = true;
     std::atomic<int> count(0);
     parallel_nd(size, [&](size_t i) {
@@ -462,7 +462,7 @@ inline void compare_data_single(const bf16_t *dst, const bf16_t *ref, int i,
 
 template <typename T>
 inline void compare_data(const T *dst, const T *ref, size_t size,
-        float rtol = 1e-4, float atol = 1e-6,
+        float rtol = 1e-4f, float atol = 1e-6f,
         std::function<void()> on_error = nullptr) {
     bool pass = true;
     parallel_nd(size, [&](size_t i) {
@@ -487,11 +487,11 @@ struct is_vector_like<T, false> {
 
 // compares to vector like containers
 template <typename T1, typename T2>
-inline void compare_data(const T1 &dst, const T2 &ref, float rtol = 1e-4,
+inline void compare_data(const T1 &dst, const T2 &ref, float rtol = 1e-4f,
         typename std::enable_if<is_vector_like<T1>::value
                         && is_vector_like<T2>::value,
                 float>::type atol
-        = 1e-6,
+        = 1e-6f,
         std::function<void()> on_error = nullptr) {
     ASSERT_NE(ref.size(), 0u) << "The ref size is 0";
     ASSERT_EQ(dst.size(), ref.size())

@@ -1079,7 +1079,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy3) {
             &pass_output2_data[0]);
 
     // fix-me (xxx): a special iim_block=19 will be given in this ut, making it
-    // unable to converge with rtol=1e-4, atol=1e-5
+    // unable to converge with rtol=1e-4f, atol=1e-5f
     test_utils::compare_data(pass_output0_data, ori_output0_data, 5e-2f, 1e-4f);
     test_utils::compare_data(pass_output1_data, ori_output1_data, 5e-2f, 1e-4f);
     test_utils::compare_data(pass_output2_data, ori_output2_data, 5e-2f, 1e-4f);

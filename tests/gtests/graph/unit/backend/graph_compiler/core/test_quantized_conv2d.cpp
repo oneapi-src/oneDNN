@@ -149,7 +149,7 @@ void check_qconv(conv_fwd_config_t cfg, int N, int K, int C, int H, int W,
             &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I,
             nullptr, nullptr, false, 1, 1, 1, 0, 1, 1, dilation_h, dilation_w);
 
-    bool correctness = equal(sc_output, plain_output, 1e-3);
+    bool correctness = equal(sc_output, plain_output, 1e-3f);
     if (!correctness) {
         std::cout << "Check correctness FAIL." << std::endl;
         print_output(sc_output, plain_output, 100);
@@ -253,7 +253,7 @@ void check_nested_qconv(nested_conv_fwd_config_t cfg, int N, int K, int C,
             padding_h, padding_w, &plain_input[0], &plain_weight[0],
             &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I);
 
-    bool correctness = equal(sc_output, plain_output, 1e-3);
+    bool correctness = equal(sc_output, plain_output, 1e-3f);
     if (!correctness) {
         std::cout << "Check correctness FAIL." << std::endl;
         print_output(sc_output, plain_output, 100);
@@ -393,7 +393,7 @@ void check_dynamic_netsed_qconv(nested_conv_fwd_config_t cfg, int N, int K,
     compute_ref_direct_fwd(N, 1, K, C, H, W, P, Q, R, S, stride_h, stride_w,
             padding_h, padding_w, &plain_input[0], &plain_weight[0],
             &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I);
-    bool correctness = equal(sc_output, plain_output, 1e-3);
+    bool correctness = equal(sc_output, plain_output, 1e-3f);
     if (!correctness) {
         std::cout << "Check correctness FAIL." << std::endl;
         print_output(sc_output, plain_output, 100);
@@ -483,7 +483,7 @@ void check_rl_qconv(conv_fwd_rl_config_t cfg, int N, int K, int C, int H, int W,
             &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I,
             nullptr, nullptr, false, 1, 1, 1, 0, 1, 1, dilation_h, dilation_w);
 
-    bool correctness = equal(sc_output, plain_output, 1e-3);
+    bool correctness = equal(sc_output, plain_output, 1e-3f);
     if (!correctness) {
         std::cout << "Check correctness FAIL." << std::endl;
         print_output(sc_output, plain_output, 100);
