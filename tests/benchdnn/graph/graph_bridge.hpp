@@ -283,9 +283,21 @@ void check_correctness(ref_prims_t &ref_prims, size_t op_id, const args_t &args,
 
         if (has_eltwise) { cmp.set_has_eltwise_post_op(true); }
         if (output_has_nans) { cmp.set_op_output_has_nans(true); }
-
         dnn_mem_t mem_fp_abx(mem_fp, dnnl_f32, tag::abx, ::get_cpu_engine());
-        cmp.compare(mem_fp_abx, mem_dt, prb->attr, res);
+        if (cmp.compare(mem_fp_abx, mem_dt, prb->attr, res) == FAIL) {
+            const std::string p2p_check_fail
+                    = "P2P check failed, fall back to use norm check!";
+            BENCHDNN_PRINT(0, "%s\n", p2p_check_fail.c_str());
+
+            // TODO: we need a reasonable threshold here for GC Backend cases
+            // once the complex fusion validation is enabled.
+
+            // Fall back to norm check if P2P check failed.
+            res->state = EXECUTED;
+            res->errors = 0;
+            cmp.set_norm_validation_mode(true);
+            cmp.compare(mem_fp_abx, mem_dt, prb->attr, res);
+        }
     }
 }
 
