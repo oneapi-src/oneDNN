@@ -32,6 +32,39 @@ dim_t get_previous_factor(dim_t big_num, dim_t target) {
     return 1;
 }
 
+static bool can_block_read(dim_t upper_bound, dim_t stride, data_type_t dt) {
+    // If size-1 dimension, can always block read
+    if (upper_bound == 1) return true;
+
+    // Otherwise, the stride has to be 4-byte aligned
+    return (stride * types::data_type_size(dt) % 4 == 0);
+}
+
+bool can_use_block_reads(reduction_phase_t phase) {
+    const dim_t inner_dim_per_sg = nstl::clamp(
+            phase.subgroup_size / phase.inner_dim_size, (dim_t)1, phase.reduction_size);
+    const dim_t num_horiz_reductions = phase.reduction_size / inner_dim_per_sg;
+
+    // Block loading
+    // 2 requirements:
+    //  1) Pointer is 4-byte aligned (pointer has 3 access patterns, one for each dimension)
+    const bool can_block_read_outer = can_block_read(phase.outer_dim_size,
+            phase.reduction_size * phase.inner_dim_size, phase.src_type);
+    const bool can_block_read_reduction = can_block_read(num_horiz_reductions,
+            inner_dim_per_sg * phase.inner_dim_size, phase.src_type);
+    const bool can_block_read_inner
+            = can_block_read(phase.inner_dim_size, phase.subgroup_size, phase.src_type);
+
+    //  2) All work items in a subgroup call the load function (inner dim and reduction sizes are coherent with subgroup size)
+    const bool using_all_simd_channels
+            = (phase.inner_dim_size * inner_dim_per_sg % phase.subgroup_size == 0);
+    const bool aligned_reduction = (phase.reduction_size
+            == num_horiz_reductions * inner_dim_per_sg);
+
+    return can_block_read_outer && can_block_read_reduction
+            && can_block_read_inner && using_all_simd_channels
+            && aligned_reduction;
+}
 static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
         dim_t inner_dim_size, data_type_t src_type, data_type_t dst_type,
         const compute::compute_engine_t *compute_engine) {
@@ -44,6 +77,7 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
     const int num_EU = compute_engine->device_info()->eu_count();
     const size_t max_wg_size = compute_engine->device_info()->max_wg_size();
 
+    phase.with_block_reads = can_use_block_reads(phase);
     // Derive relevant constants defined by the problem's shape
     // inner_dim can either be:
     // 1. packed into a single subgroup (small inner dim), or
@@ -53,14 +87,11 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
                     phase.reduction_size);
     const dim_t num_split_inner_dims
             = utils::div_up(phase.inner_dim_size, phase.subgroup_size); // S per I
-    const bool inner_dim_aligned = (phase.subgroup_size % phase.inner_dim_size == 0
-            || phase.inner_dim_size % phase.subgroup_size == 0);
 
     const dim_t num_horiz_reductions
             = phase.reduction_size / num_packed_inner_dims;
     const int num_tail_reductions
             = phase.reduction_size % num_packed_inner_dims;
-    const bool reductions_aligned = (num_tail_reductions == 0);
 
     int num_subgroups = phase.outer_dim_size * num_split_inner_dims;
 
@@ -74,7 +105,7 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
     // 3. (heuristic) EUs should not become unsaturated due to vector size
     int nvec = 1;
     bool reduce_vec = false;
-    if (reductions_aligned && inner_dim_aligned) {
+    if (phase.with_block_reads) {
         const size_t single_load_size
                 = types::data_type_size(src_type) * phase.subgroup_size;
         const int max_load_size = 256; // Set on ATS-M, may depend on arch
@@ -191,21 +222,20 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     const dim_t *src_padded_dims = src_mdw.padded_dims();
     const dim_t *dst_dims = dst_mdw.dims();
 
-    dims_t is_dim_reduced;
     for (int i = 0; i < ndims; i++) {
         // Actually reduced dimensions
         if (src_dims[i] != dst_dims[i]) {
-            is_dim_reduced[i] = true;
+            conf.is_reduction_dim[i] = true;
             continue;
         }
 
         // Size-1 dims can be treated as reducible (at no cost):
         if (src_dims[i] == 1 && src_padded_dims[i] == 1) {
-            is_dim_reduced[i] = true;
+            conf.is_reduction_dim[i] = true;
             continue;
         }
 
-        is_dim_reduced[i] = false;
+        conf.is_reduction_dim[i] = false;
     }
 
     bool has_src_zero_padding = false;
@@ -216,7 +246,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
             needs_dst_zero_padding = true;
 
             // dst zero padding is not supported when dim is reduced
-            if (is_dim_reduced[i]) return status::unimplemented;
+            if (conf.is_reduction_dim[i]) return status::unimplemented;
         }
 
         if (src_mdw.padded_dims()[i] != src_mdw.dims()[i]) {
@@ -225,7 +255,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
             // src zero padding is treated like normal data, so it's only
             // supported for algs where the accumulation step is unaffected
             // by the presence of zeros (i.e. summation)
-            if (is_dim_reduced[i]
+            if (conf.is_reduction_dim[i]
                     && utils::one_of(desc()->alg_kind, reduction_min,
                             reduction_max, reduction_mul)) {
                 return status::unimplemented;
@@ -250,7 +280,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     std::vector<block_t> exp_dst_blocks;
     int stride = 1;
     for (auto block : src_blocks) {
-        if (!is_dim_reduced[block.dim_idx]) {
+        if (!conf.is_reduction_dim[block.dim_idx]) {
             exp_dst_blocks.push_back(block);
             exp_dst_blocks.back().stride = stride;
             stride *= block.block;
@@ -281,7 +311,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     dim_t inner_elems = 1;
     const size_t nblocks = src_blocks.size();
     for (size_t i = 0; i < nblocks; i++) {
-        if (is_dim_reduced[src_blocks[i].dim_idx]) {
+        if (conf.is_reduction_dim[src_blocks[i].dim_idx]) {
             reduction_elems *= src_blocks[i].block;
         } else {
             if (reduction_elems > 1) {
@@ -302,7 +332,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     // Compute div from basic mdw dims
     conf.div = 1;
     for (int i = 0; i < src_mdw.ndims(); i++) {
-        if (is_dim_reduced[i]) conf.div *= src_dims[i];
+        if (conf.is_reduction_dim[i]) conf.div *= src_dims[i];
     }
 
     // Set conf values
@@ -326,14 +356,6 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     return status::success;
-}
-
-static bool can_block_read(dim_t upper_bound, dim_t stride, data_type_t dt) {
-    // If size-1 dimension, can always block read
-    if (upper_bound == 1) return true;
-
-    // Otherwise, the stride has to be 4-byte aligned
-    return (stride * types::data_type_size(dt) % 4 == 0);
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
@@ -375,28 +397,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             (dim_t)1, max_unroll);
     kernel_ctx.define_int("UNROLL_FACTOR", unroll_factor);
 
-    // Block loading
-    // 2 requirements:
-    //  1) Pointer is 4-byte aligned (pointer has 3 access patterns, one for each dimension)
-    const bool can_block_read_outer = can_block_read(phase.outer_dim_size,
-            phase.reduction_size * phase.inner_dim_size, phase.src_type);
-    const bool can_block_read_reduction = can_block_read(num_horiz_reductions,
-            inner_dim_per_sg * phase.inner_dim_size, phase.src_type);
-    const bool can_block_read_inner = can_block_read(
-            phase.inner_dim_size, phase.subgroup_size, phase.src_type);
-
-    //  2) All work items in a subgroup call the load function (inner dim and reduction sizes are coherent with subgroup size)
-    const bool using_all_simd_channels
-            = (phase.inner_dim_size * inner_dim_per_sg % phase.subgroup_size
-                    == 0);
-    const bool aligned_reduction
-            = (phase.reduction_size == num_horiz_reductions * inner_dim_per_sg);
-
-    const bool can_use_block_reads = can_block_read_outer
-            && can_block_read_reduction && can_block_read_inner
-            && using_all_simd_channels && aligned_reduction;
-
-    kernel_ctx.define_int("WITH_BLOCK_READ", can_use_block_reads ? 1 : 0);
+    kernel_ctx.define_int("WITH_BLOCK_READ", phase.with_block_reads ? 1 : 0);
 
     switch (conf.alg) {
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
@@ -463,17 +464,12 @@ status_t combined_reduction_t::execute_combined(const exec_ctx_t &ctx) const {
         // Set up the reduction arg list
         compute::kernel_arg_list_t reduction_arg_list;
 
-        if (i == 0) {
-            reduction_arg_list.set(0, src);
-        } else {
-            reduction_arg_list.set(0, *sp_reduce[(i - 1) % 2]);
-        }
+        memory_storage_t &src_mem = (i == 0) ? src : *sp_reduce[(i - 1) % 2];
+        memory_storage_t &dst_mem
+                = (i == kernels_.size() - 1) ? dst : *sp_reduce[i % 2];
 
-        if (i == kernels_.size() - 1) {
-            reduction_arg_list.set(1, dst);
-        } else {
-            reduction_arg_list.set(1, *sp_reduce[i % 2]);
-        }
+        reduction_arg_list.set(0, src_mem);
+        reduction_arg_list.set(1, dst_mem);
 
         append_post_ops_to_arg_list(
                 ctx, reduction_arg_list, 2, pd()->attr()->post_ops_);

@@ -35,6 +35,7 @@ struct reduction_phase_t {
     int vect_size;
     bool reduce_vector;
     bool is_final, is_first;
+    bool with_block_reads;
     int subgroup_size;
 };
 
