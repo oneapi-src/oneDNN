@@ -350,7 +350,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerMultiInput) {
 }
 
 TEST(GCCore_CPU_fuse_mgr_cpp, TestConcatOP) {
-    REQUIRE_AVX2();
+    REQUIRE_AVX512(); // vec lane is 16 for s32 dtype
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput0 = fusion.make<input_op>(make_tsr({100, 200, 10}));
@@ -386,6 +386,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestConcatOP) {
     do_commit(fusion, {aaa->params_[3]}, {});
 
     ///// Expected func:
+    uint32_t lanes = 16; // for avx512 and s32 dtype
     _function_(datatypes::s32, bbb,
             _arg_("inp0", datatypes::s32, {100, 200, 10}),
             _arg_("inp1", datatypes::s32, {100, 300, 10}),
@@ -397,28 +398,36 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestConcatOP) {
         auto inp1_ptr = builder::tensor_ptr(inp1, {0, 0, 0}, {}, true);
         auto inp2_ptr = builder::tensor_ptr(inp2, {0, 0, 0}, {}, true);
         _for_(ii, 0, 10) {
-            _for_(jj, 0, 200) {
-                _for_(hh, 0, 6) {
-                    out0_ptr[{ii, jj + expr(0), hh}] = inp0_ptr[{ii, jj, hh}];
+            _for_(jj0, 0, 200) {
+                _for_(hh0, 0, 6, int(lanes)) {
+                    auto mask = last_dim_generate_mask(
+                            hh0, 0, 6, int(lanes), true);
+                    out0_ptr[span_t({ii, jj0 + expr(0), hh0}, lanes, mask)]
+                            = inp0_ptr[span_t({ii, jj0, hh0}, lanes, mask)];
                 }
             }
-            _for_(jj, 0, 300) {
-                _for_(hh, 0, 6) {
-                    out0_ptr[{ii, jj + (expr(0) + expr(200)), hh}]
-                            = inp1_ptr[{ii, jj, hh}];
+            _for_(jj1, 0, 300) {
+                _for_(hh1, 0, 6, int(lanes)) {
+                    auto mask = last_dim_generate_mask(
+                            hh1, 0, 6, int(lanes), true);
+                    out0_ptr[span_t({ii, jj1 + (expr(0) + expr(200)), hh1},
+                            lanes, mask)]
+                            = inp1_ptr[span_t({ii, jj1, hh1}, lanes, mask)];
                 }
             }
-            _for_(jj, 0, 400) {
-                _for_(hh, 0, 6) {
-                    out0_ptr[{ii, jj + (expr(0) + expr(200) + expr(300)), hh}]
-                            = inp2_ptr[{ii, jj, hh}];
+            _for_(jj2, 0, 400) {
+                _for_(hh2, 0, 6, int(lanes)) {
+                    auto mask = last_dim_generate_mask(
+                            hh2, 0, 6, int(lanes), true);
+                    out0_ptr[span_t(
+                            {ii, jj2 + (expr(0) + expr(200) + expr(300)), hh2},
+                            lanes, mask)]
+                            = inp2_ptr[span_t({ii, jj2, hh2}, lanes, mask)];
                 }
             }
         }
         _return_(123);
     }
-    auto aaa1 = ir_module_t::from_entry_func(get_default_context(), aaa);
-    auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(aaa1, false);
 
     ir_comparer cmper(true);
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));

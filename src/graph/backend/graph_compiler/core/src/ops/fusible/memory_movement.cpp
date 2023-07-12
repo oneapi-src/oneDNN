@@ -73,8 +73,9 @@ static void check_concat_validity(
     }
 }
 
-static void compute_block_concat(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, int64_t axis, size_t wkld = 0UL) {
+static void compute_block_concat(const context_ptr &ctx,
+        const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
+        int64_t axis, size_t wkld = 0UL) {
     // outer nested loop vars
     std::vector<expr> outer_iter(axis);
     // inner nested loop vars
@@ -110,26 +111,91 @@ static void compute_block_concat(const std::vector<const tensor_slice *> &src,
             }
         }
     }
-    expr indexed_target;
-    expr indexed_input;
+    expr indexed_dst;
+    expr indexed_src;
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
     std::vector<stmt> tcur;
     for (unsigned j = 0; j < src.size(); j++) {
-        indexed_target = builder::make_indexing(dst.tptr_, dst_idx[j]);
-        indexed_input = builder::make_indexing(src[j]->tptr_, src_idx[j]);
-        stmt cur = make_stmt<assign_node_t>(indexed_target, indexed_input);
-        cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
-        for (int64_t i = static_cast<int64_t>(dst.nslice_dims()) - 1; i >= axis;
-                i--) {
-            auto body = make_stmt<stmts_node_t>(
-                    std::vector<stmt> {std::move(cur)});
-            cur = make_stmt<for_loop_node_t>(inner_iter[i - axis][j], expr(0),
-                    src[j]->get_shape()[i], expr(1), std::move(body), true,
-                    for_type::NORMAL);
+        size_t last_axis = dst.nslice_dims() - 1;
+        auto slice_len = do_cast_and_fold(src[j]->get_shape().at(last_axis));
+        bool is_static = slice_len.isa<constant>();
+        if (is_static) { // static shape case
+            // for the inner-most axis, use vectorization
+            auto dtype = dst.get_base_dtype();
+            auto vec_lanes = vectorize_step(ctx, dtype.type_code_);
+            auto floor = do_cast_and_fold(slice_len / vec_lanes * vec_lanes);
+            auto tail = do_cast_and_fold(slice_len % vec_lanes);
+            int floor_int = get_expr_as_int(floor);
+            int tail_int = get_expr_as_int(tail);
+            COMPILE_ASSERT(
+                    (floor_int + tail_int), "Don't support shape len = 0.");
+            auto cur = builder::make_stmts_unattached({});
+            if (tail_int) { // tail part
+                auto tail_part = builder::make_stmts_unattached({});
+                auto mask = last_dim_generate_mask(
+                        inner_iter[last_axis - axis][j], floor, slice_len,
+                        vec_lanes, true);
+                indexed_dst = builder::make_indexing(
+                        dst.tptr_, dst_idx[j], vec_lanes, mask);
+                indexed_src = builder::make_indexing(
+                        src[j]->tptr_, src_idx[j], vec_lanes, mask);
+                tail_part.static_as<stmts>()->seq_.emplace_back(
+                        make_stmt<assign_node_t>(indexed_dst, indexed_src));
+                tail_part = make_stmt<for_loop_node_t>(
+                        inner_iter[last_axis - axis][j], floor,
+                        src[j]->get_shape()[last_axis], vec_lanes,
+                        std::move(tail_part), true, for_type::NORMAL);
+                cur.static_as<stmts>()->seq_.emplace_back(tail_part);
+            }
+
+            if (floor_int) { // divisible part
+                auto divisible_part = builder::make_stmts_unattached({});
+                indexed_dst = builder::make_indexing(
+                        dst.tptr_, dst_idx[j], vec_lanes);
+                indexed_src = builder::make_indexing(
+                        src[j]->tptr_, src_idx[j], vec_lanes);
+                divisible_part.static_as<stmts>()->seq_.emplace_back(
+                        make_stmt<assign_node_t>(indexed_dst, indexed_src));
+                divisible_part = make_stmt<for_loop_node_t>(
+                        inner_iter[last_axis - axis][j], expr(0), floor,
+                        vec_lanes, std::move(divisible_part), true,
+                        for_type::NORMAL);
+                cur.static_as<stmts>()->seq_.emplace_back(divisible_part);
+            }
+            cur->attr()[op_traits::workload_computable_t::workload_number]
+                    = wkld;
+
+            // for other inner axes
+            for (int64_t i = static_cast<int64_t>(dst.nslice_dims()) - 2;
+                    i >= axis; i--) {
+                auto body = cur.isa<stmts>()
+                        ? std::move(cur)
+                        : make_stmt<stmts_node_t>(
+                                std::vector<stmt> {std::move(cur)});
+                cur = make_stmt<for_loop_node_t>(inner_iter[i - axis][j],
+                        expr(0), src[j]->get_shape()[i], expr(1),
+                        std::move(body), true, for_type::NORMAL);
+            }
+            tcur.emplace_back(std::move(cur));
+        } else { // dynamic case, use step = 1
+            indexed_dst = builder::make_indexing(dst.tptr_, dst_idx[j]);
+            indexed_src = builder::make_indexing(src[j]->tptr_, src_idx[j]);
+            stmt cur = make_stmt<assign_node_t>(indexed_dst, indexed_src);
+            cur->attr()[op_traits::workload_computable_t::workload_number]
+                    = wkld;
+            for (int64_t i = static_cast<int64_t>(dst.nslice_dims()) - 1;
+                    i >= axis; i--) {
+                auto body = make_stmt<stmts_node_t>(
+                        std::vector<stmt> {std::move(cur)});
+                cur = make_stmt<for_loop_node_t>(inner_iter[i - axis][j],
+                        expr(0), src[j]->get_shape()[i], expr(1),
+                        std::move(body), true, for_type::NORMAL);
+            }
+            tcur.emplace_back(std::move(cur));
         }
-        tcur.emplace_back(std::move(cur));
     }
+
     if (axis) {
         stmt cur = make_stmt<stmts_node_t>(std::move(tcur));
         for (int i = axis - 1; i >= 0; i--) {
@@ -346,7 +412,7 @@ void concat_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
-    compute_block_concat(inputs, *dst[0], axis_, wkld);
+    compute_block_concat(ctx, inputs, *dst[0], axis_, wkld);
 }
 
 transpose_op_t::transpose_op_t(const std::vector<graph_tensor_ptr> &ins,

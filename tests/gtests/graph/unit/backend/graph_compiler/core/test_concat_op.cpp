@@ -475,3 +475,51 @@ TEST(GCCore_CPU_concat_op_t_cpp, ConcatPermuteConcat) {
                 expected_shape[i]);
     }
 }
+
+static sc_graph_t build_single_concat_graph(bool inner_most) {
+    sc_data_format_t input_format = inner_most
+            ? sc_data_format_t(format_kinds::ACDB)
+            : sc_data_format_t(format_kinds::ABCD);
+    int A = 112, B0 = 28, B1 = 56, B2 = 64, B3 = 112, C = 28, D = 56;
+    sc_graph_t graph0;
+    auto in0 = graph0.make_input(
+            {graph_tensor::make({A, B0, C, D}, input_format, datatypes::f32)});
+    auto in1 = graph0.make_input(
+            {graph_tensor::make({A, B1, C, D}, input_format, datatypes::f32)});
+    auto in2 = graph0.make_input(
+            {graph_tensor::make({A, B2, C, D}, input_format, datatypes::f32)});
+    auto in3 = graph0.make_input(
+            {graph_tensor::make({A, B3, C, D}, input_format, datatypes::f32)});
+
+    // concat at B-axis. If in plain format, concat axis is not the inner-most.
+    // If in permuted format, concat axis is the inner-most axis.
+    auto concat = graph0.make("concat",
+            {in0->get_outputs()[0], in1->get_outputs()[0],
+                    in2->get_outputs()[0], in3->get_outputs()[0]},
+            {}, {{"axis", 1}});
+    // concat output: (A, C, D, B0+B1+B2+B3) @ ACDB, if inner_most.
+    // concat output: (A, B0+B1+B2+B3, C, D) @ ABCD, if not inner_most.
+    auto out = graph0.make_output(concat->get_outputs());
+    graph0.attrs_["is_input_plain"] = !inner_most;
+    graph0.attrs_["is_output_plain"] = !inner_most;
+    return graph0;
+}
+
+// print IR to check if vectorization works when concat axis is/isnot
+// the inner-most.
+TEST(GCCore_CPU_concat_op_t_cpp, CheckVectorized) {
+    REQUIRE_AVX2();
+    SET_THREADS_OR_SKIP(16);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+
+    for (bool inner_most : std::vector<bool> {true, false}) {
+        sc_graph_t graph0 = build_single_concat_graph(inner_most);
+        graph_driver(graph0, ctx);
+        auto ir_mod = lower_graph(ctx, graph0,
+                {graph0.get_input_ops()[0], graph0.get_input_ops()[1],
+                        graph0.get_input_ops()[2], graph0.get_input_ops()[3],
+                        graph0.get_output_ops()[0]});
+        auto fptr = jit_engine_t::make(ctx)->get_entry_func(ir_mod);
+    }
+}
