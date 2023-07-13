@@ -270,32 +270,51 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
     const bool is_2d = jcp.ndims == 4;
     const bool is_3d = jcp.ndims == 5;
 
+#define BRGEMM_WEITAG(_OC_, _DIMS_, _IC_, _RDP_, _OCB_, _VNNIB_) \
+    { \
+        wei_tag = with_groups ? g##_OC_##_DIMS_##_IC_##_RDP_##_OCB_##_VNNIB_ \
+                              : _OC_##_DIMS_##_IC_##_RDP_##_OCB_##_VNNIB_; \
+    }
+
+#define BRGEMM_WEITAG_OC_RDP_OCB(_OC_, _RDP_, _OCB_) \
+    { \
+        if (is_3d) { \
+            switch (jcp.vnni_block) { \
+                case 1: BRGEMM_WEITAG(_OC_, dhw, i, , _OCB_, ) break; \
+                case 2: BRGEMM_WEITAG(_OC_, dhw, I, _RDP_, _OCB_, 2i) break; \
+                case 4: BRGEMM_WEITAG(_OC_, dhw, I, _RDP_, _OCB_, 4i) break; \
+                default: return status::unimplemented; \
+            } \
+        } else if (is_1d) { \
+            switch (jcp.vnni_block) { \
+                case 1: BRGEMM_WEITAG(_OC_, w, i, , _OCB_, ) break; \
+                case 2: BRGEMM_WEITAG(_OC_, w, I, _RDP_, _OCB_, 2i) break; \
+                case 4: BRGEMM_WEITAG(_OC_, w, I, _RDP_, _OCB_, 4i) break; \
+                default: return status::unimplemented; \
+            } \
+        } else { \
+            assert(is_2d); \
+            UNUSED(is_2d); \
+            switch (jcp.vnni_block) { \
+                case 1: BRGEMM_WEITAG(_OC_, hw, i, , _OCB_, ) break; \
+                case 2: BRGEMM_WEITAG(_OC_, hw, I, _RDP_, _OCB_, 2i) break; \
+                case 4: BRGEMM_WEITAG(_OC_, hw, I, _RDP_, _OCB_, 4i) break; \
+                default: return status::unimplemented; \
+            } \
+        } \
+    }
+
+#define BRGEMM_WEITAG_OCB(_OCB_) \
+    { \
+        if (jcp.is_rd_padded_to_block) \
+            BRGEMM_WEITAG_OC_RDP_OCB(O, 16i, _OCB_) \
+        else \
+            BRGEMM_WEITAG_OC_RDP_OCB(O, , _OCB_) \
+    }
+
     if (jcp.wei_plain) {
         jcp.LDB = jcp.oc_without_padding;
-        if (is_3d) {
-            switch (jcp.vnni_block) {
-                case 1: wei_tag = with_groups ? dhwigo : dhwio; break;
-                case 2: wei_tag = with_groups ? gdhwIo2i : dhwIo2i; break;
-                case 4: wei_tag = with_groups ? gdhwIo4i : dhwIo4i; break;
-                default: return status::unimplemented;
-            }
-        } else if (is_1d) {
-            switch (jcp.vnni_block) {
-                case 1: wei_tag = with_groups ? wigo : wio; break;
-                case 2: wei_tag = with_groups ? gwIo2i : wIo2i; break;
-                case 4: wei_tag = with_groups ? gwIo4i : wIo4i; break;
-                default: return status::unimplemented;
-            }
-        } else {
-            assert(is_2d);
-            UNUSED(is_2d);
-            switch (jcp.vnni_block) {
-                case 1: wei_tag = with_groups ? hwigo : hwio; break;
-                case 2: wei_tag = with_groups ? ghwIo2i : hwIo2i; break;
-                case 4: wei_tag = with_groups ? ghwIo4i : hwIo4i; break;
-                default: return status::unimplemented;
-            }
-        }
+        BRGEMM_WEITAG_OC_RDP_OCB(, , o);
     } else {
         if (jcp.is_relo && jcp.relo_conv_weights) {
             if (is_3d) {
@@ -303,373 +322,32 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 return status::unimplemented;
             } else if (jcp.relo_type == conv_brgemm_relo_type_t::whi) {
                 if (is_1d)
-                    wei_tag = with_groups ? gOwi16o : Owi16o;
+                    BRGEMM_WEITAG(O, w, i, , 16o, )
                 else
-                    wei_tag = with_groups ? gOwhi16o : Owhi16o;
+                    BRGEMM_WEITAG(O, wh, i, , 16o, )
             } else if (jcp.relo_type == conv_brgemm_relo_type_t::wi) {
-                {
-                    if (is_1d)
-                        wei_tag = with_groups ? gOwi16o : Owi16o;
-                    else
-                        wei_tag = with_groups ? gOhwi16o : Ohwi16o;
-                }
+                if (is_1d)
+                    BRGEMM_WEITAG(O, w, i, , 16o, )
+                else
+                    BRGEMM_WEITAG(O, hw, i, , 16o, )
             }
         } else {
             jcp.LDB = jcp.oc_block;
-            if (jcp.oc_block == 64) {
-                if (is_3d) {
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOdhwi64o : Odhwi64o;
-                            break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOdhwI16i64o2i
-                                                      : OdhwI16i64o2i;
-                            else
-                                wei_tag = with_groups ? gOdhwI64o2i
-                                                      : OdhwI64o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOdhwI16i64o4i
-                                                      : OdhwI16i64o4i;
-                            else
-                                wei_tag = with_groups ? gOdhwI64o4i
-                                                      : OdhwI64o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else if (is_1d) {
-                    switch (jcp.vnni_block) {
-                        case 1: wei_tag = with_groups ? gOwi64o : Owi64o; break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOwI16i64o2i
-                                                      : OwI16i64o2i;
-                            else
-                                wei_tag = with_groups ? gOwI64o2i : OwI64o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOwI16i64o4i
-                                                      : OwI16i64o4i;
-                            else
-                                wei_tag = with_groups ? gOwI64o4i : OwI64o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else {
-                    assert(is_2d);
-                    UNUSED(is_2d);
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOhwi64o : Ohwi64o;
-                            break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOhwI16i64o2i
-                                                      : OhwI16i64o2i;
-                            else
-                                wei_tag = with_groups ? gOhwI64o2i : OhwI64o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOhwI16i64o4i
-                                                      : OhwI16i64o4i;
-                            else
-                                wei_tag = with_groups ? gOhwI64o4i : OhwI64o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                }
-            } else if (jcp.oc_block == 48) {
-                if (is_3d) {
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOdhwi48o : Odhwi48o;
-                            break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOdhwI16i48o2i
-                                                      : OdhwI16i48o2i;
-                            else
-                                wei_tag = with_groups ? gOdhwI48o2i
-                                                      : OdhwI48o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOdhwI16i48o4i
-                                                      : OdhwI16i48o4i;
-                            else
-                                wei_tag = with_groups ? gOdhwI48o4i
-                                                      : OdhwI48o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else if (is_1d) {
-                    switch (jcp.vnni_block) {
-                        case 1: wei_tag = with_groups ? gOwi48o : Owi48o; break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOwI16i48o2i
-                                                      : OwI16i48o2i;
-                            else
-                                wei_tag = with_groups ? gOwI48o2i : OwI48o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOwI16i48o4i
-                                                      : OwI16i48o4i;
-                            else
-                                wei_tag = with_groups ? gOwI48o4i : OwI48o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else {
-                    assert(is_2d);
-                    UNUSED(is_2d);
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOhwi48o : Ohwi48o;
-                            break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOhwI16i48o2i
-                                                      : OhwI16i48o2i;
-                            else
-                                wei_tag = with_groups ? gOhwI48o2i : OhwI48o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOhwI16i48o4i
-                                                      : OhwI16i48o4i;
-                            else
-                                wei_tag = with_groups ? gOhwI48o4i : OhwI48o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                }
-            } else if (jcp.oc_block == 32) {
-                if (is_3d) {
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOdhwi32o : Odhwi32o;
-                            break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOdhwI16i32o2i
-                                                      : OdhwI16i32o2i;
-                            else
-                                wei_tag = with_groups ? gOdhwI32o2i
-                                                      : OdhwI32o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOdhwI16i32o4i
-                                                      : OdhwI16i32o4i;
-                            else
-                                wei_tag = with_groups ? gOdhwI32o4i
-                                                      : OdhwI32o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else if (is_1d) {
-                    switch (jcp.vnni_block) {
-                        case 1: wei_tag = with_groups ? gOwi32o : Owi32o; break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOwI16i32o2i
-                                                      : OwI16i32o2i;
-                            else
-                                wei_tag = with_groups ? gOwI32o2i : OwI32o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOwI16i32o4i
-                                                      : OwI16i32o4i;
-                            else
-                                wei_tag = with_groups ? gOwI32o4i : OwI32o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else {
-                    assert(is_2d);
-                    UNUSED(is_2d);
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOhwi32o : Ohwi32o;
-                            break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOhwI16i32o2i
-                                                      : OhwI16i32o2i;
-                            else
-                                wei_tag = with_groups ? gOhwI32o2i : OhwI32o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOhwI16i32o4i
-                                                      : OhwI16i32o4i;
-                            else
-                                wei_tag = with_groups ? gOhwI32o4i : OhwI32o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                }
-            } else if (jcp.oc_block == 24) {
-                if (is_3d) {
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOdhwi24o : Odhwi24o;
-                            break;
-                        case 2:
-                            wei_tag = with_groups ? gOdhwI24o2i : OdhwI24o2i;
-                            break;
-                        case 4:
-                            wei_tag = with_groups ? gOdhwI24o4i : OdhwI24o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else if (is_1d) {
-                    switch (jcp.vnni_block) {
-                        case 1: wei_tag = with_groups ? gOwi24o : Owi24o; break;
-                        case 2:
-                            wei_tag = with_groups ? gOwI24o2i : OwI24o2i;
-                            break;
-                        case 4:
-                            wei_tag = with_groups ? gOwI24o4i : OwI24o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else {
-                    assert(is_2d);
-                    UNUSED(is_2d);
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOhwi24o : Ohwi24o;
-                            break;
-                        case 2:
-                            wei_tag = with_groups ? gOhwI24o2i : OhwI24o2i;
-                            break;
-                        case 4:
-                            wei_tag = with_groups ? gOhwI24o4i : OhwI24o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                }
-            } else if (jcp.oc_block == 16) {
-                if (is_3d) {
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOdhwi16o : Odhwi16o;
-                            break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOdhwI16i16o2i
-                                                      : OdhwI16i16o2i;
-                            else
-                                wei_tag = with_groups ? gOdhwI16o2i
-                                                      : OdhwI16o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOdhwI16i16o4i
-                                                      : OdhwI16i16o4i;
-                            else
-                                wei_tag = with_groups ? gOdhwI16o4i
-                                                      : OdhwI16o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else if (is_1d) {
-                    switch (jcp.vnni_block) {
-                        case 1: wei_tag = with_groups ? gOwi16o : Owi16o; break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOwI16i16o2i
-                                                      : OwI16i16o2i;
-                            else
-                                wei_tag = with_groups ? gOwI16o2i : OwI16o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOwI16i16o4i
-                                                      : OwI16i16o4i;
-                            else
-                                wei_tag = with_groups ? gOwI16o4i : OwI16o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else {
-                    assert(is_2d);
-                    UNUSED(is_2d);
-
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOhwi16o : Ohwi16o;
-                            break;
-                        case 2:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOhwI16i16o2i
-                                                      : OhwI16i16o2i;
-                            else
-                                wei_tag = with_groups ? gOhwI16o2i : OhwI16o2i;
-                            break;
-                        case 4:
-                            if (jcp.is_rd_padded_to_block)
-                                wei_tag = with_groups ? gOhwI16i16o4i
-                                                      : OhwI16i16o4i;
-                            else
-                                wei_tag = with_groups ? gOhwI16o4i : OhwI16o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                }
-            } else if (jcp.oc_block == 8) {
-                if (is_3d) {
-                    switch (jcp.vnni_block) {
-                        case 1:
-                            wei_tag = with_groups ? gOdhwi8o : Odhwi8o;
-                            break;
-                        case 2:
-                            wei_tag = with_groups ? gOdhwI8o2i : OdhwI8o2i;
-                            break;
-                        case 4:
-                            wei_tag = with_groups ? gOdhwI8o4i : OdhwI8o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else if (is_1d) {
-                    switch (jcp.vnni_block) {
-                        case 1: wei_tag = with_groups ? gOwi8o : Owi8o; break;
-                        case 2:
-                            wei_tag = with_groups ? gOwI8o2i : OwI8o2i;
-                            break;
-                        case 4:
-                            wei_tag = with_groups ? gOwI8o4i : OwI8o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                } else {
-                    assert(is_2d);
-                    UNUSED(is_2d);
-                    switch (jcp.vnni_block) {
-                        case 1: wei_tag = with_groups ? gOhwi8o : Ohwi8o; break;
-                        case 2:
-                            wei_tag = with_groups ? gOhwI8o2i : OhwI8o2i;
-                            break;
-                        case 4:
-                            wei_tag = with_groups ? gOhwI8o4i : OhwI8o4i;
-                            break;
-                        default: return status::unimplemented;
-                    }
-                }
-            } else {
-                return status::unimplemented;
+            switch (jcp.oc_block) {
+                case 64: BRGEMM_WEITAG_OCB(64o) break;
+                case 48: BRGEMM_WEITAG_OCB(48o) break;
+                case 32: BRGEMM_WEITAG_OCB(32o) break;
+                case 24: BRGEMM_WEITAG_OC_RDP_OCB(O, , 24o) break;
+                case 16: BRGEMM_WEITAG_OCB(16o) break;
+                case 8: BRGEMM_WEITAG_OC_RDP_OCB(O, , 8o) break;
+                default: return status::unimplemented;
             }
         }
     }
+
+#undef BRGEMM_WEITAG_OCB
+#undef BRGEMM_WEITAG_OC_RDP_OCB
+#undef BRGEMM_WEITAG
 
     src_tag = dst_tag;
 
