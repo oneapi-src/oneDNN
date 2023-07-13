@@ -276,8 +276,17 @@ struct ip_convolution_bwd_data_t : public primitive_t {
             if (!it.is_initialized()) return status::out_of_memory;
             while (++it != it.end()) {
                 ip_pd_ = *it;
-                const bool ok = ip_pd_->weights_md()->extra.flags == 0;
-                if (ok) return status::success;
+
+                // Avoid dispatching reference for f16 data-type.
+                const bool is_f16 = weights_md_.data_type == data_type::f16;
+                if (is_f16) {
+                    const std::string impl_name(ip_pd_->name());
+                    if (std::string::npos != impl_name.find("ref"))
+                        return status::unimplemented;
+                } else {
+                    const bool ok = ip_pd_->weights_md()->extra.flags == 0;
+                    if (ok) return status::success;
+                }
             }
             return status::unimplemented;
         }
