@@ -244,9 +244,6 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     "expect num_threads <= given_num_threads, but got "
       << num_threads << " vs " << given_num_threads << ".");
 
-  _tensor_(aux_buf, input_dtype, {num_threads, aux_buf_size_});
-  builtin::mem_zero(aux_buf, num_threads * aux_buf_size_, input_dtype);
-
   auto mb_expr = input.checked_as<tensor>()->dims_[0];
   auto lanes = static_cast<int>(
     ctx->get_max_vector_lanes(in_tensors_[0].dtype_.type_code_));
@@ -291,7 +288,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     }
   }
 
-  auto init_aux_buf = [&](const expr &tid, const expr &n_o, const expr &q,
+  auto init_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &q,
                         const expr &init_idx) {
     // only need to copy the valid area as all the remaining padding
     // areas are already zero-out
@@ -303,14 +300,15 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     if (parallel_axis_ == WIDTH) {
       init_mask_expr = builder::make_cast(
         get_dtype(max_lanes), init_mask_tsr[q / (ow_ / num_threads)]);
-      cur_pl
-        = builder::make_min(kw_, builder::make_max(0, pl_ - init_idx * sw_));
+      cur_pl = builder::make_min(kw_,
+        builder::make_max(
+          0, pl_ - builder::make_cast(datatypes::s32, init_idx * sw_)));
       q_offset = builder::make_select(q > 0, pl_, 0);
     }
 
     _for_(ih, pt_, real_pb > 0 ? (pt_ + ih_) : actual_ih_) {
       aux_buf[span_t(
-        {tid, ih * kw_ * ic_ + cur_pl * ic_}, max_lanes, init_mask_expr)]
+        {ih * kw_ * ic_ + cur_pl * ic_}, max_lanes, init_mask_expr)]
         = input[span_t(
           {n_o, ih - pt_, q * sw_ - q_offset, 0}, max_lanes, init_mask_expr)];
     }
@@ -326,7 +324,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         if (copy_with_simd > 0) {
           _for_(wi, 0, copy_with_simd, lanes) {
             aux_buf[span_t(
-              {tid, (actual_ih_ - 1) * kw_ * ic_ + wi + pl * ic_}, lanes)]
+              {(actual_ih_ - 1) * kw_ * ic_ + wi + pl * ic_}, lanes)]
               = input[span_t({n_o, actual_ih_ - pt_ - 1,
                                wi / ic_ + init_idx * sw_ - q_offset, wi % ic_},
                 lanes)];
@@ -335,8 +333,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         if (remainder > 0) {
           auto remainder_mask = convert_int_to_mask(remainder);
           aux_buf[span_t(
-            {tid, (actual_ih_ - 1) * kw_ * ic_ + copy_with_simd + pl * ic_},
-            lanes, remainder_mask)]
+            {(actual_ih_ - 1) * kw_ * ic_ + copy_with_simd + pl * ic_}, lanes,
+            remainder_mask)]
             = input[span_t({n_o, actual_ih_ - pt_ - 1,
                              copy_with_simd / ic_ + init_idx * sw_ - q_offset,
                              copy_with_simd % ic_},
@@ -367,7 +365,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     }
   };
 
-  auto update_aux_buf = [&](const expr &tid, const expr &n_o, const expr &q,
+  auto update_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &q,
                           const expr &init_idx) {
     auto update_lanes = std::min(lanes, get_minimal_lanes(update_lanes_));
     expr update_mask_var
@@ -385,16 +383,15 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
 
         for (int ih = 1; ih < pt_ + 1; ++ih) {
           builtin::mem_zero(
-            tensor_ptr(aux_buf,
-              {tid, ((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
+            tensor_ptr(
+              aux_buf, {((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
             update_lanes_, get_input_dtype());
         }
 
         _for_(ih, pt_ + 1, real_pb > 0 ? (pt_ + ih_ + 1) : actual_ih_) {
           // copy input
           _if_(update_copy_mask > 0) {
-            aux_buf[span_t(
-              {tid, ((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
+            aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
               update_lanes, update_copy_mask)]
               = input[span_t({n_o, ih - 1 - pt_, (q - 1) * sw_ + kw_ - pl_, 0},
                 update_lanes, update_copy_mask)];
@@ -402,9 +399,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           // zero-out
           _if_(update_pad_lanes > 0) {
             builtin::mem_zero(tensor_ptr(aux_buf,
-                                {tid,
-                                  ((q - init_idx) - 1) * sw_ * ic_
-                                    + ih * kw_ * ic_ + update_copy_lanes}),
+                                {((q - init_idx) - 1) * sw_ * ic_
+                                  + ih * kw_ * ic_ + update_copy_lanes}),
               update_pad_lanes, get_input_dtype());
           }
         }
@@ -412,13 +408,12 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
       _else_ {
         for (int ih = 1; ih < pt_ + 1; ++ih) {
           builtin::mem_zero(
-            tensor_ptr(aux_buf,
-              {tid, ((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
+            tensor_ptr(
+              aux_buf, {((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
             update_lanes_, get_input_dtype());
         }
         _for_(ih, pt_ + 1, real_pb > 0 ? (pt_ + ih_ + 1) : actual_ih_) {
-          aux_buf[span_t(
-            {tid, ((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
+          aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
             update_lanes, update_mask_var)]
             = input[span_t({n_o, ih - pt_ - 1, (q - 1) * sw_ + kw_ - pl_, 0},
               update_lanes, update_mask_var)];
@@ -428,11 +423,11 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
       for (int ih = 1; ih < pt_ + 1; ++ih) {
         builtin::mem_zero(
           tensor_ptr(
-            aux_buf, {tid, ((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
+            aux_buf, {((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
           update_lanes_, get_input_dtype());
       }
       _for_(ih, pt_ + 1, actual_ih_) {
-        aux_buf[span_t({tid, ((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
+        aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
           update_lanes, update_mask_var)]
           = input[span_t({n_o, ih - pt_ - 1, (q - 1) * sw_ + kw_ - pl_, 0},
             update_lanes, update_mask_var)];
@@ -440,7 +435,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     }
   };
 
-  auto do_compute = [&](const expr &tid, const expr &n_o, const expr &q,
+  auto do_compute = [&](const expr &aux_buf, const expr &n_o, const expr &q,
                       const expr &init_idx) {
     _for_(p, 0, oh_ / config.brgemm_m) {
       _tensor_(A_list, datatypes::pointer, {num_brgemm_k_});
@@ -448,8 +443,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
       auto offset = (q - init_idx) * sw_ * ic_;
       for (int i = 0; i < num_brgemm_k_; ++i) {
         A_list[i] = tensor_ptr(aux_buf,
-          {tid,
-            offset + p * config.brgemm_m * sh_ * kw_ * ic_ + i * brgemm_k_});
+          {offset + p * config.brgemm_m * sh_ * kw_ * ic_ + i * brgemm_k_});
       }
 
       _for_(k_o, 0, K_num_block) {
@@ -497,11 +491,12 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     auto input_expr_dims = input.checked_as<tensor>()->dims_;
     auto mb_expr = input_expr_dims[0];
     _named_for_(ln, n_o, 0, mb_expr, 1, for_type::PARALLEL) {
-      expr tid = builtin::get_thread_id_func()();
+      _tensor_(aux_buf, input_dtype, {aux_buf_size_});
+      builtin::mem_zero(aux_buf, aux_buf_size_, input_dtype);
       _named_for_(lq, q, 0, ow_, 1) {
-        _if_(q == 0) { init_aux_buf(tid, n_o, q, 0); }
-        _else_ { update_aux_buf(tid, n_o, q, 0); }
-        do_compute(tid, n_o, q, 0);
+        _if_(q == 0) { init_aux_buf(aux_buf, n_o, q, 0); }
+        _else_ { update_aux_buf(aux_buf, n_o, q, 0); }
+        do_compute(aux_buf, n_o, q, 0);
         if (fusion) {
           // oh_ * oc_
           fusion->create_output_fusion_anchor(
@@ -520,17 +515,18 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     for_loop lt;
     expr start_idx, large_group, init_idx;
     _named_for_(lt, t, 0, num_threads, 1, for_type::PARALLEL) {
-      expr tid = builtin::get_thread_id_func()();
+      _tensor_(aux_buf, input_dtype, {aux_buf_size_});
       _var_init_(group_size, datatypes::s32,
-        get_balance211_length(ow_, num_threads, tid, start_idx, large_group));
+        get_balance211_length(ow_, num_threads, t, start_idx, large_group));
       ow_b = start_idx;
       ow_e = start_idx + group_size;
       init_idx = start_idx;
       _for_(n_o, 0, mb_, 1) {
+        builtin::mem_zero(aux_buf, aux_buf_size_, input_dtype);
         _for_(q, ow_b, ow_e, 1) {
-          _if_(q == init_idx) { init_aux_buf(tid, n_o, q, init_idx); }
-          _else_ { update_aux_buf(tid, n_o, q, init_idx); }
-          do_compute(tid, n_o, q, init_idx);
+          _if_(q == init_idx) { init_aux_buf(aux_buf, n_o, q, init_idx); }
+          _else_ { update_aux_buf(aux_buf, n_o, q, init_idx); }
+          do_compute(aux_buf, n_o, q, init_idx);
           if (fusion) {
             // oh_ * oc_
             fusion->create_output_fusion_anchor(
