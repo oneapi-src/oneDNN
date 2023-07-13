@@ -240,6 +240,30 @@ TEST(GCCore_CPU_binary_elementwise_test, TestCorrectnessBlocking) {
             sc_data_format_t(format_kinds::ABab, {4, 16}));
 }
 
+TEST(GCCore_CPU_binary_elementwise_test, TestConstInferShape) {
+    sc_graph_t graph;
+    std::vector<float> const_data(320);
+    auto const1 = graph.make("constant", {}, {},
+            {{"values", std::make_shared<static_data_t>(const_data)},
+                    {"dtype", datatypes::f32},
+                    {"plain_dims", sc_dims {1, 1, 1, 320}},
+                    {"format", sc_data_format_t()}});
+    auto input = graph.make_input({std::make_shared<graph_tensor>(
+            nullptr, sc_data_format_t(), sc_dims {1}, datatypes::f32)});
+    auto add = graph.make(
+            "add", {const1->get_outputs()[0], input->get_outputs()[0]}, {}, {});
+    auto output = graph.make_output(add->get_outputs());
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    constexpr const char *expected
+            = R"(graph(v0: f32[1]) -> [v1: f32[1, 1, 1, 320]] {
+  [v2: f32[1, 1, 1, 320]] = constant([1, 1, 1, 320])
+  [v1: f32[1, 1, 1, 320]] = add(v2, v0)
+}
+)";
+    EXPECT_EQ(ss.str(), expected);
+}
+
 template <typename T,
         typename dummy = typename std::enable_if<
                 std::is_same<typename std::decay<T>::type, float>::value

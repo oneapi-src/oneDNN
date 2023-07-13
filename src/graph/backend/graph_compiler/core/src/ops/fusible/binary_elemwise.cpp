@@ -205,15 +205,9 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
         // fixme: correctly infer the shape for broadcast
-        if (!lhs_const && rhs_const) {
-            info_.outputs_[0]->details_ = info_.inputs_[0]->details_;
-        } else if (lhs_const && !rhs_const) {
-            info_.outputs_[0]->details_ = info_.inputs_[1]->details_;
-        } else {
-            int bc_input_idx = get_broadcast_input();
-            int ref_idx = bc_input_idx < 0 ? 0 : 1 - bc_input_idx;
-            info_.outputs_[0]->details_ = info_.inputs_[ref_idx]->details_;
-        }
+        int bc_input_idx = get_broadcast_input();
+        int ref_idx = bc_input_idx < 0 ? 0 : 1 - bc_input_idx;
+        info_.outputs_[0]->details_ = info_.inputs_[ref_idx]->details_;
     } else {
         info_.outputs_ = outs;
     }
