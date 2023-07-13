@@ -1199,6 +1199,37 @@ std::vector<graph_tensor_ptr> get_sorted_inputs_by_layout_input(
     return ret;
 }
 
+variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code) {
+    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
+        return -std::numeric_limits<float>::infinity();
+    } else if (type_code == sc_data_etype::U8
+            || type_code == sc_data_etype::U32) {
+        return int64_t(0);
+    } else if (type_code == sc_data_etype::S8) {
+        return int64_t(-128);
+    } else if (type_code == sc_data_etype::S32) {
+        return int64_t(std::numeric_limits<int32_t>::min());
+    } else {
+        COMPILE_ASSERT(0, "unsupported data_etype");
+    }
+}
+
+variant<float, int64_t> numeric_limits_maximum(sc_data_etype type_code) {
+    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
+        return std::numeric_limits<float>::infinity();
+    } else if (type_code == sc_data_etype::S8) {
+        return int64_t(127);
+    } else if (type_code == sc_data_etype::S32) {
+        return int64_t(std::numeric_limits<int32_t>::max());
+    } else if (type_code == sc_data_etype::U8) {
+        return int64_t(255);
+    } else if (type_code == sc_data_etype::U32) {
+        return int64_t(std::numeric_limits<uint32_t>::max());
+    } else {
+        COMPILE_ASSERT(0, "unsupported data_etype");
+    }
+}
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

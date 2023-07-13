@@ -30,7 +30,6 @@
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
-#include <util/variant.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -41,37 +40,6 @@ static inline any_map_t add_key(const any_map_t &attrs, int rd_op_) {
     auto ret = attrs;
     ret["rd_op"] = rd_op_;
     return ret;
-}
-
-static variant<float, int64_t> numeric_limits_maximum(sc_data_etype type_code) {
-    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
-        return std::numeric_limits<float>::infinity();
-    } else if (type_code == sc_data_etype::S8) {
-        return int64_t(127);
-    } else if (type_code == sc_data_etype::S32) {
-        return int64_t(std::numeric_limits<int32_t>::max());
-    } else if (type_code == sc_data_etype::U8) {
-        return int64_t(255);
-    } else if (type_code == sc_data_etype::U32) {
-        return int64_t(std::numeric_limits<uint32_t>::max());
-    } else {
-        COMPILE_ASSERT(0, "unsupported data_etype");
-    }
-}
-
-static variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code) {
-    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
-        return -std::numeric_limits<float>::infinity();
-    } else if (type_code == sc_data_etype::U8
-            || type_code == sc_data_etype::U32) {
-        return int64_t(0);
-    } else if (type_code == sc_data_etype::S8) {
-        return int64_t(-128);
-    } else if (type_code == sc_data_etype::S32) {
-        return int64_t(std::numeric_limits<int32_t>::min());
-    } else {
-        COMPILE_ASSERT(0, "unsupported data_etype");
-    }
 }
 
 reduce_sum_op_t::reduce_sum_op_t(const std::vector<graph_tensor_ptr> &ins,

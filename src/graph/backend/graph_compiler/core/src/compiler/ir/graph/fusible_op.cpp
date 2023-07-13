@@ -207,7 +207,18 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
         return;
     }
 
-    commit_into_anchor(parti->lookup_anchor_map(this).get());
+    fuse_anchor_map_ptr committed_anchor = parti->lookup_anchor_map(this);
+    commit_into_anchor(committed_anchor.get());
+
+    // append op inner anchor into parti
+    if (attrs_.has_key(op_attr_key::fusible_inner_anchors)) {
+        auto op_inner_anchors = attrs_.get<std::vector<fuse_anchor_map_ptr>>(
+                op_attr_key::fusible_inner_anchors);
+        for (const fuse_anchor_map_ptr &op_inner_anchor : op_inner_anchors) {
+            op_inner_anchor->parent_ = committed_anchor;
+            parti->append_fusion_anchor(op_inner_anchor);
+        }
+    }
 }
 
 void fusible_op_t::search_anchor(mixed_parti_t *parti) {

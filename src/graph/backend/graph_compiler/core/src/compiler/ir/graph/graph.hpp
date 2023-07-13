@@ -199,6 +199,9 @@ constexpr const char *break_post_fuse = "break_post_fuse";
 constexpr const char *break_pre_fuse = "break_pre_fuse";
 // Fuse Anchor
 constexpr const char *inner_anchor = "inner_anchor";
+// Inner anchor created in fusible ops and will be add to mixed partition when
+// committing fusible op.
+constexpr const char *fusible_inner_anchors = "fusible_inner_anchors";
 // Batchwise fused
 constexpr const char *bwise_fuse = "bwise_fuse";
 constexpr const char *bwise_no_fuse = "bwise_no_fuse";

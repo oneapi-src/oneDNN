@@ -23,6 +23,7 @@
 #include <vector>
 #include "fusible_op.hpp"
 #include "fusion_data.hpp"
+#include "util/variant.hpp"
 #include <unordered_map>
 
 namespace dnnl {
@@ -182,6 +183,10 @@ bool slice_expr_equals(const expr &in1, const expr &in2);
 // others...]
 std::vector<graph_tensor_ptr> get_sorted_inputs_by_layout_input(
         const sc_op_ptr &op);
+
+variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code);
+variant<float, int64_t> numeric_limits_maximum(sc_data_etype type_code);
+
 } // namespace gc
 } // namespace graph
 } // namespace impl
