@@ -424,9 +424,12 @@ struct nc_block_t {
     // Ideally, this should only depend on data type, direction, mb, c, and g to
     // enable the same src/dst formats and avoid reorders between convolutions
     static nc_block_t get_default_blocking(ngen::HW hw, fma_kind_t fma,
-            type_t type, bool is_dw, int n, int c, int g) {
-        int c_block = (is_dw ? get_default_block(fma, type, g)
-                             : get_default_block(fma, type, c));
+            type_t type, bool is_dw, int n, int c, int g,
+            bool is_output = false) {
+        // Select dst layout to align with fma kind of following conv.
+        fma_kind_t tmp_fma = is_output ? get_default_fma(hw, type) : fma;
+        int c_block = (is_dw ? get_default_block(tmp_fma, type, g)
+                             : get_default_block(tmp_fma, type, c));
         if (g > 1 && !is_dw) {
             if (c % c_block != 0) c_block = 1;
             // Try to use the same layout between group/non-group convolution
@@ -613,9 +616,11 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     auto wei_compute_type = prb.is_bwd_w ? prb.c_data_type : prb.b_data_type;
 
     auto src_blk = nc_block_t::get_default_blocking(cfg.hw(), cfg.fma_kind(),
-            src_compute_type, prb.is_dw, prb.mb, prb.ic, prb.g);
+            src_compute_type, prb.is_dw, prb.mb, prb.ic, prb.g,
+            /*is_output=*/prb.is_bwd_d);
     auto dst_blk = nc_block_t::get_default_blocking(cfg.hw(), cfg.fma_kind(),
-            dst_compute_type, prb.is_dw, prb.mb, prb.oc, prb.g);
+            dst_compute_type, prb.is_dw, prb.mb, prb.oc, prb.g,
+            /*is_output=*/prb.is_fwd);
     auto wei_blk = goi_block_t::get_default_blocking(wei_compute_type,
             cfg.vec_size(), cfg.fma_kind(), prb.is_bwd_d, prb.g, prb.oc,
             prb.ic);
