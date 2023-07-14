@@ -270,9 +270,6 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,
  *                                         calls for_nd
  *  - parallel_nd_ext(dims..., f)        - creates a parallel section and then
  *                                         calls for_nd_ext
- *  - parallel_nd_in_omp(dims..., f)     - queries current nthr and ithr and
- *                                         then calls for_nd (mostly for
- *                                         convenience)
  */
 
 /* general parallelization */
@@ -653,21 +650,6 @@ static inline void parallel_nd(dim_t D0, dim_t D1, dim_t D2, dim_t D3, dim_t D4,
         parallel(nthr, [&](int ithr, int nthr) {
             for_nd(ithr, nthr, D0, D1, D2, D3, D4, D5, f);
         });
-}
-
-/* parallel_nd_in_omp section */
-
-template <typename... Args>
-void parallel_nd_in_omp(Args &&...args) {
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
-    for_nd(0, 1, utils::forward<Args>(args)...);
-#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
-    for_nd(omp_get_thread_num(), omp_get_num_threads(),
-            utils::forward<Args>(args)...);
-#elif (DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB \
-        || DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL)
-    assert(!"parallel_nd_in_omp() is not supported by this DNNL_CPU_RUNTIME");
-#endif
 }
 
 } // namespace impl
