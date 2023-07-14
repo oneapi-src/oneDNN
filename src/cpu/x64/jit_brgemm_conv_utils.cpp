@@ -517,8 +517,8 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     M_tail = brgM_tail = sp % sp_block;
     if (is_os_blocking) {
         if (!is_1x1) M_tail = (oh * ow) % sp_block;
-        oskip = (((reduce_kw ? 1 : ext_kw) - 1) / stride_w) * stride_h
-                + (stride_h - 1) * ow;
+        oskip = reduce_kw ? 0 : ((ext_kw - 1) / stride_w) * stride_h;
+        oskip += (stride_h - 1) * ow;
 
         brgM = M + oskip * (div_up(M, ow) - 1);
         brgM_tail = M_tail + oskip * div_up(M_tail, ow);

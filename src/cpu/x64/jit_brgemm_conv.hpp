@@ -139,6 +139,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
             return use_inversion ? K - 1 - k : k;
         };
 
+        // This method calculates the value of k_l
         void init_batch(int icc, const char *src_base, const char *wei_base,
                 int n_ic_blocks, int ic_block_s, int iid_b, int iih_b,
                 int iiw_b, const dim_t *const __restrict kw_top_vpads,

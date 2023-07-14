@@ -2013,7 +2013,7 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
     else
         vmovdqu8(zmm_idx, ptr[reg_tmp]);
 
-    const int vnni_width = is_bf16 ? 2 : 4;
+    const int vnni_width = data_type_vnni_granularity(jcp.wei_dt);
     const int r = jcp.kh * jcp.kw * jcp.ic_without_padding;
     const int nb_r = div_up(r, vnni_width);
     const int rtail = (r % vnni_width) * jcp.oc_block;
@@ -2026,8 +2026,9 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
     if (nb_r < nb_z) vpxord(zmm_zero, zmm_zero, zmm_zero);
 
     const int tile_size = jcp.amx_w * jcp.oc_block * jcp.wei_dsz;
-    const int ocb_src_step = r * jcp.oc_block * jcp.wei_dsz;
-    const int ocb_dst_step = rnd_up(ocb_src_step, tile_size);
+    const auto ocb_src_step
+            = static_cast<dim_t>(jcp.wei_dsz) * r * jcp.oc_block;
+    const auto ocb_dst_step = rnd_up(ocb_src_step, tile_size);
 
     // reorder from ~Owhi16o -> ~OR16oVr with r := whi and V := vnni_width
     for (int g = 0; g < jcp.ngroups; g++) {
