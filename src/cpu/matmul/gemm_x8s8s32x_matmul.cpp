@@ -21,6 +21,7 @@
 #include <math.h>
 
 #include "common/c_types_map.hpp"
+#include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/type_helpers.hpp"
@@ -280,13 +281,7 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         const dim_t acc_stride = gemm_based::get_scratchpad_block_elements(
                 batch, M, N, use_single_gemm_call, nthr);
 
-#if (defined __GNUC__) && (__GNUC__ <= 7) && (!defined(__INTEL_COMPILER)) \
-        && (!defined(__clang__major__))
-        // NOTE: inside lambda, type cast variables captured by reference using
-        // either c-like "(type)var" or functional "type(var)" notation in order
-        // to avoid gcc7 bug with c++14 standard
-        // (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=83204).
-        // Otherwise, capture by value.
+#ifdef GCC_WA_LAMBDA_C_CAST
         parallel(nthr, [=, &st](int ithr, int nthr) {
 #else
         parallel(nthr, [&](int ithr, int nthr) {

@@ -71,4 +71,14 @@
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 
+// Workaround 05: GCC
+//
+// NOTE: inside lambda, type cast variables captured by reference using
+// either c-like "(type)var" or functional "type(var)" notation in order
+// to avoid gcc7 bug with c++14 standard
+// (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=83204).
+#if (defined NEED_GCC_WA_CHECK) && (__GNUC__ <= 7)
+#define GCC_WA_LAMBDA_C_CAST
+#endif
+
 #endif // COMPILER_WORKAROUNDS_HPP
