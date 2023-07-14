@@ -39,7 +39,8 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, eltwise, (cond), status::unimplemented, msg, \
             ##__VA_ARGS__);
 
-namespace {
+namespace dnnl {
+namespace impl {
 status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
@@ -109,7 +110,8 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
     *eltwise_desc = ed;
     return success;
 }
-} // namespace
+} // namespace impl
+} // namespace dnnl
 
 status_t eltwise_attr_check(const eltwise_desc_t &desc, const engine_t *engine,
         const primitive_attr_t *attr) {
