@@ -260,7 +260,7 @@ public:
             ngen::HW hw, const type_t &a, const type_t &b, const type_t &c);
 
     static const int max_exec_size = 32;
-    static const int get_max_exec_size_bytes(ngen::HW hw) {
+    static int get_max_exec_size_bytes(ngen::HW hw) {
         return hw >= ngen::HW::XeHPC ? 128 : 64;
     }
     static int get_simd_size(
