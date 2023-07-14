@@ -1670,20 +1670,27 @@ void jit_copy_f32_t::copy_block(int nrows, int ncolumns) {
     const int nc_tail = ncolumns % column_step;
 
     auto get_zmm = [&](int i) { return Zmm(i % num_regs); };
-    auto get_ymm = [&](int i) { return Ymm(i % num_regs); };
+    auto get_ymm = [&](int i) {
+        const bool need_tail_vmm = nc_tail > 0;
+        return Ymm(i % (num_regs - need_tail_vmm));
+    };
 
     auto load = [&](int r, int cb) {
         const dim_t offset = r * src_stride + cb * col_shift;
+        const bool is_tail
+                = nc_tail > 0 && ncolumns - cb * column_step < column_step;
         if (is_superset(conf_->isa, avx512_core)) {
-            const bool is_tail
-                    = nc_tail > 0 && ncolumns - cb * column_step < column_step;
             auto src_reg = get_zmm(r * cb);
             auto src_load = is_tail ? src_reg | mask_tail | T_z : src_reg;
             auto addr = EVEX_compress_addr_safe(reg_src, offset, reg_long_offt);
             vmovups(src_load, addr);
         } else {
             auto src_reg = get_ymm(r * cb);
-            vmovups(src_reg, ptr[reg_src + offset]);
+            if (is_tail) {
+                assert(src_reg.getIdx() != ymm_tail_mask.getIdx());
+                vmaskmovps(src_reg, ymm_tail_mask, ptr[reg_src + offset]);
+            } else
+                vmovups(src_reg, ptr[reg_src + offset]);
         }
     };
 
