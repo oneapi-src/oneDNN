@@ -94,13 +94,7 @@ void timer_t::stamp(int add_times) {
 
 timer_t &timer_t::operator=(const timer_t &rhs) {
     if (this == &rhs) return *this;
-    times_ = rhs.times_;
-    for (int i = 0; i < n_modes; ++i)
-        ticks_[i] = rhs.ticks_[i];
-    ticks_start_ = rhs.ticks_start_;
-    for (int i = 0; i < n_modes; ++i)
-        ms_[i] = rhs.ms_[i];
-    ms_start_ = rhs.ms_start_;
+    *this = timer_t(rhs);
     return *this;
 }
 

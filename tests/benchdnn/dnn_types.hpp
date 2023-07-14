@@ -124,9 +124,6 @@ struct attr_t {
             entry_t(policy_t apolicy = COMMON, int avalue = 0)
                 : policy(apolicy), value(avalue) {}
 
-            entry_t(const entry_t &other)
-                : policy(other.policy), value(other.value) {}
-
             bool is_def() const { return policy == COMMON && value == 0; }
 
             policy_t policy = COMMON;

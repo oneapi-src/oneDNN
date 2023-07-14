@@ -63,7 +63,6 @@ struct stride_layout_t {
             , stride(stride)
             , can_overflow(can_overflow)
             , is_complex(is_complex) {}
-        stride_dim_t(const stride_dim_t &other) = default;
 
         dim_type_t dim;
         dim_t size = 0;

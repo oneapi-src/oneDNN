@@ -247,7 +247,6 @@ struct dnnl_memory_desc : public dnnl::impl::c_compatible {
         , format_kind(dnnl::impl::format_kind::undef)
         , format_desc {}
         , extra {} {}
-    dnnl_memory_desc(const dnnl_memory_desc &other) = default;
     // Number of dimensions
     int ndims;
     // Dimensions in the following order:

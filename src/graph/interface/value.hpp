@@ -115,8 +115,6 @@ public:
     public:
         consumer_t(op_t &op, size_t offset) : op_(&op), offset_(offset) {}
 
-        consumer_t(const consumer_t &c) = default;
-
         bool operator==(const consumer_t &c) const {
             return op_ == c.op_ && offset_ == c.offset_;
         };

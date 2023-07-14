@@ -77,7 +77,9 @@ struct timer_t {
         return ticks_[mode] / (mode == avg ? times() : 1);
     }
 
+    timer_t(const timer_t &rhs) = default;
     timer_t &operator=(const timer_t &rhs);
+    timer_t &operator=(timer_t &&rhs) = default;
 
     int times_;
     uint64_t ticks_[n_modes], ticks_start_;

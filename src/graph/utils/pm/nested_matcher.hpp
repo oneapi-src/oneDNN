@@ -108,8 +108,6 @@ class match_context_t {
 public:
     // create a inherited context
     match_context_t(match_context_t *p_parent_ctx, pb_node_t *p_graph);
-    // create a copied context
-    match_context_t(const match_context_t &other_ctx) = default;
     match_context_t *get_parent_context() { return parent_ctx; };
     pb_graph_t *get_graph() { return graph_; };
 
