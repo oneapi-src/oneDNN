@@ -309,13 +309,26 @@ inline bool is_integral_dt(data_type_t dt) {
 }
 
 template <typename data_t>
-inline void cvt_from_float(data_t *out, const float *inp, size_t nelems) {
-    assert(!"unimplemented");
-}
+inline void cvt_from_float(data_t *out, const float *inp, size_t nelems)
+        = delete;
 
 template <typename data_t>
-inline void cvt_to_float(float *out, const data_t *inp, size_t nelems) {
-    assert(!"unimplemented");
+inline void cvt_to_float(float *out, const data_t *inp, size_t nelems) = delete;
+
+template <>
+inline void cvt_from_float<float>(float *out, const float *inp, size_t nelems) {
+    // This operation should be avoided as it does nothing useful
+    assert(!"unexpected");
+    for (size_t i = 0; i < nelems; i++)
+        out[i] = inp[i];
+}
+
+template <>
+inline void cvt_to_float<float>(float *out, const float *inp, size_t nelems) {
+    // This operation should be avoided as it does nothing useful
+    assert(!"unexpected");
+    for (size_t i = 0; i < nelems; i++)
+        out[i] = inp[i];
 }
 
 template <>
