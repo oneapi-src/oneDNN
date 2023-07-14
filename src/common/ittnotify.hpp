@@ -18,7 +18,6 @@
 #define COMMON_ITTNOTIFY_HPP
 
 #include "c_types_map.hpp"
-#include "common/ittnotify/ittnotify.h"
 #include "dnnl.h"
 
 namespace dnnl {
@@ -38,10 +37,8 @@ struct itt_task_level_t {
 // one by env variable.
 bool get_itt(__itt_task_level level);
 void primitive_task_start(primitive_kind_t kind, const char *task_name);
-void primitive_task_start(
-        primitive_kind_t kind, __itt_string_handle *task_name);
 primitive_kind_t primitive_task_get_current_kind();
-__itt_string_handle *primitive_task_get_current_name();
+const char *primitive_task_get_current_name();
 void primitive_task_end();
 } // namespace itt
 } // namespace impl

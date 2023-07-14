@@ -43,7 +43,7 @@ bool get_itt(__itt_task_level level) {
 namespace {
 
 thread_local primitive_kind_t thread_primitive_kind;
-thread_local __itt_string_handle *thread_primitive_name;
+thread_local const char *thread_primitive_name;
 
 __itt_domain *itt_domain(primitive_kind_t kind) {
 #define CASE(x) __itt_domain_create("dnnl.execute." STRINGIFY(x))
@@ -89,23 +89,14 @@ void primitive_task_start(primitive_kind_t kind, const char *task_name) {
     __itt_string_handle *str_handle = __itt_string_handle_create(task_name);
     __itt_task_begin(itt_domain(kind), __itt_null, __itt_null, str_handle);
     thread_primitive_kind = kind;
-    thread_primitive_name = str_handle;
-}
-
-void primitive_task_start(
-        primitive_kind_t kind, __itt_string_handle *str_handle) {
-    if (kind == primitive_kind::undefined) return;
-
-    __itt_task_begin(itt_domain(kind), __itt_null, __itt_null, str_handle);
-    thread_primitive_kind = kind;
-    thread_primitive_name = str_handle;
+    thread_primitive_name = task_name;
 }
 
 primitive_kind_t primitive_task_get_current_kind() {
     return thread_primitive_kind;
 }
 
-__itt_string_handle *primitive_task_get_current_name() {
+const char *primitive_task_get_current_name() {
     return thread_primitive_name;
 }
 
