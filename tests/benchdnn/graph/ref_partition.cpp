@@ -33,14 +33,15 @@ public:
         handle_leading_op<::driver::settings_t, ::driver::prb_t>(leading_op, \
                 ::driver::init_pd, ::driver::supported_exec_args, \
                 ::driver::setup_cmp, map_off_to_dt, partition_mem_map, \
-                ref_eng, res); \
+                ::get_test_engine(), res); \
     } break
 
 #define CASE_HANDLE_OP(driver) \
     case dnnl_driver_t::driver: { \
         handle_op<::driver::settings_t, ::driver::prb_t>(par_op_ref, \
                 ::driver::init_pd, ::driver::supported_exec_args, \
-                ::driver::setup_cmp, partition_mem_map, ref_eng, res); \
+                ::driver::setup_cmp, partition_mem_map, ::get_test_engine(), \
+                res); \
     } break
 
 #define CASE_CORRECTNESS_CHECK(driver) \
@@ -211,8 +212,6 @@ void ref_partition_t::run(partition_mem_map_t &partition_mem_map, res_t *res) {
     for (const auto &par_op_ref : partition_ops_ref_) {
         const auto op_driver
                 = opkind2driver(opstr2kind(par_op_ref.get().kind_));
-        const auto &ref_eng = get_ref_engine();
-
         switch (op_driver) {
             CASE_HANDLE_OP(binary);
             CASE_HANDLE_OP(bnorm);
@@ -502,7 +501,6 @@ void ref_partition_t::handle_special_case_int8(
     is_quantized_ = get_leading_op_group(leading_ops_group);
     if (!is_quantized_) return;
 
-    const auto &ref_eng = get_ref_engine();
     for (const auto &leading_op : leading_ops_group) {
         // deal with single leading op
         std::unordered_map<size_t, const std::string> map_off_to_dt;
@@ -519,54 +517,6 @@ void ref_partition_t::handle_special_case_int8(
             default: assert(!"unexpected leading op kind"); break;
         }
     }
-}
-
-// Get engine used to run correctness ref path for testing.
-// To align with benchdnn, the graph driver always use cpu engine
-// for reference except several special cases. For the following 3
-// cases we will use gpu engine instead:
-// 1. the partition includes reduction op, and the rewrite for intermediate
-//    result from bf16 to f32 is not needed
-// 2. for logical tensors which use f16 data type
-// 3. if the data type is not supported by cpu, the driver will use gpu engine
-//    for ref path instead
-// TODO:
-// > To align with benchdnn, the graph driver always use cpu engine...
-// Graph driver is like no other driver. Not all the rules are applicable to it.
-// It seems logical to validate GPU Graph against GPU Primitives. The question
-// is what prevents to do it in a first place?
-const engine_t &ref_partition_t::get_ref_engine() const {
-
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    const bool has_cpu_bf16_support
-            = dnnl::impl::cpu::platform::has_data_type_support(dnnl_bf16);
-#else
-    const bool has_cpu_bf16_support = false;
-#endif
-    for (const auto &par_op_ref : partition_ops_ref_) {
-        const auto op_driver
-                = opkind2driver(opstr2kind(par_op_ref.get().kind_));
-        // case
-        if (op_driver == dnnl_driver_t::reduction
-                && !is_bf16_partition_support_f32_intermediate_result())
-            return ::get_test_engine();
-
-        // data type cases:
-        // 1. for f16 cases, use gpu engine
-        // 2. for platforms that does not support bf16 on cpu, use gpu ref
-        // engine instead
-        for (auto &in_lt : par_op_ref.get().in_lts_) {
-            if (in_lt.data_type_ == "f16"
-                    || (in_lt.data_type_ == "bf16" && !has_cpu_bf16_support))
-                return ::get_test_engine();
-        }
-        for (auto &out_lt : par_op_ref.get().out_lts_) {
-            if (out_lt.data_type_ == "f16"
-                    || (out_lt.data_type_ == "bf16" && !has_cpu_bf16_support))
-                return ::get_test_engine();
-        }
-    }
-    return ::get_cpu_engine();
 }
 
 } // namespace graph

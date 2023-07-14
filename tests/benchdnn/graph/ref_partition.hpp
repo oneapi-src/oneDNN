@@ -160,9 +160,6 @@ private:
     void handle_special_case_int8(
             partition_mem_map_t &partition_mem_map, res_t *res);
 
-    // Engine used to run correctness ref path for testing.
-    const engine_t &get_ref_engine() const;
-
     // Objects below are constructed.
     // OPs in the partition, which is Topo ordered
     op_ref_list_t partition_ops_ref_;
