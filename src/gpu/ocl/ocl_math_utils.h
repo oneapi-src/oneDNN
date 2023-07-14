@@ -17,6 +17,10 @@
 #ifndef GPU_OCL_OCL_MATH_UTILS_H
 #define GPU_OCL_OCL_MATH_UTILS_H
 
+#define CONCAt2(a, b) a##b
+#define CONCAT2(a, b) CONCAt2(a, b)
+#define CONCAT3(a, b, c) CONCAT2(CONCAT2(a, b), c)
+
 int div_up(int a, int b) {
     return (a + b - 1) / b;
 }
@@ -353,13 +357,20 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
 // Atomics
 #if __OPENCL_C_VERSION__ >= 200
 #ifdef cl_intel_global_float_atomics
-inline void atomic_add_global(
-        volatile global atomic_float *source, float operand) {
-    atomic_fetch_add_explicit(source, operand, memory_order_relaxed);
-}
+#define DECLARE_ATOMIC_OP(op, type) \
+    type __attribute__((overloadable)) CONCAT3(atomic_, op, _global)( \
+            volatile global CONCAT2(atomic_, type) * source, type operand) { \
+        return CONCAT3(atomic_fetch_, op, _explicit)( \
+                source, operand, memory_order_relaxed); \
+    }
+
+DECLARE_ATOMIC_OP(add, float)
+DECLARE_ATOMIC_OP(sub, float)
+DECLARE_ATOMIC_OP(min, float)
+DECLARE_ATOMIC_OP(max, float)
 
 #else // float atomics
-inline void atomic_add_global(
+inline float atomic_add_global(
         volatile __global atomic_float *source, float operand) {
     float old_val = atomic_load_explicit(
             source, memory_order_relaxed, memory_scope_device);
@@ -370,6 +381,7 @@ inline void atomic_add_global(
                 new_val, memory_order_acq_rel, memory_order_relaxed,
                 memory_scope_device);
     } while (!success);
+    return old_val;
 }
 #endif
 #endif
