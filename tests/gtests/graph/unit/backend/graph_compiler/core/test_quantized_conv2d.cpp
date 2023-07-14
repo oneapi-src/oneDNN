@@ -847,7 +847,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_1x1, ut3) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut1) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, 58, 58, 3, 3, {1, 1},
             {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 58,
@@ -855,7 +855,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut1) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut2) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
             {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 58,
@@ -863,21 +863,21 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut2) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut3) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
             {0, 0}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 69,
             /*real_W*/ 69);
 }
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut4) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
             {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 9,
             /*real_W*/ 9);
 }
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut5) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
             {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 6,
@@ -885,7 +885,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut5) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut6) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, 58, 58, 3, 3, {2, 2},
             {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 58,
@@ -893,7 +893,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut6) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut7) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {2, 2},
             {0, 0}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 69,
@@ -901,7 +901,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut7) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut8) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {3, 2},
             {0, 0}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 69,
@@ -909,7 +909,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut8) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut1) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, 56, 56, 3, 3, {1, 1},
             {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 56,
@@ -917,7 +917,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut1) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut2) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
             {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 56,
@@ -925,21 +925,21 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut2) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut3) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
             {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 67,
             /*real_W*/ 67);
 }
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut4) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
             {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 67,
             /*real_W*/ 56);
 }
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut5) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
             {2, 2}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 56,
@@ -947,7 +947,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut5) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut6) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
             {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 7,
@@ -955,7 +955,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut6) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut7) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {2, 2},
             {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 20,
@@ -963,7 +963,7 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut7) {
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut8) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
             nested_conv_fwd_config_t(), -1, 256, 256, 12, 12, 3, 3, {3, 3},
             {1, 1}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 12,
