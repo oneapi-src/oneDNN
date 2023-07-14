@@ -43,11 +43,20 @@ bool get_itt(__itt_task_level level) {
 namespace {
 
 thread_local primitive_kind_t thread_primitive_kind;
-thread_local const char *thread_primitive_name;
 
-__itt_domain *itt_domain(primitive_kind_t kind) {
-#define CASE(x) __itt_domain_create("dnnl.execute." STRINGIFY(x))
-    static __itt_domain *prim_kind_itt_domain[] = {
+__itt_domain *itt_domain() {
+    static __itt_domain *d = __itt_domain_create("dnnl::primitive::execute");
+    return d;
+}
+
+} // namespace
+
+void primitive_task_start(primitive_kind_t kind) {
+    if (kind == primitive_kind::undefined) return;
+
+#define CASE(x) \
+    __itt_string_handle_create(dnnl_prim_kind2str(primitive_kind::x))
+    static __itt_string_handle *prim_kind_itt_strings[] = {
             CASE(undefined),
             CASE(reorder),
             CASE(shuffle),
@@ -72,38 +81,22 @@ __itt_domain *itt_domain(primitive_kind_t kind) {
             CASE(group_normalization),
     };
 #undef CASE
-
     int kind_idx = (int)kind;
     assert(kind_idx >= 0);
     assert((size_t)kind_idx
-            < sizeof(prim_kind_itt_domain) / sizeof(prim_kind_itt_domain[0]));
-
-    return prim_kind_itt_domain[kind_idx];
-}
-
-} // namespace
-
-void primitive_task_start(primitive_kind_t kind, const char *task_name) {
-    if (kind == primitive_kind::undefined) return;
-
-    __itt_string_handle *str_handle = __itt_string_handle_create(task_name);
-    __itt_task_begin(itt_domain(kind), __itt_null, __itt_null, str_handle);
+            < sizeof(prim_kind_itt_strings) / sizeof(prim_kind_itt_strings[0]));
+    __itt_task_begin(itt_domain(), __itt_null, __itt_null,
+            prim_kind_itt_strings[kind_idx]);
     thread_primitive_kind = kind;
-    thread_primitive_name = task_name;
 }
 
 primitive_kind_t primitive_task_get_current_kind() {
     return thread_primitive_kind;
 }
 
-const char *primitive_task_get_current_name() {
-    return thread_primitive_name;
-}
-
 void primitive_task_end() {
     if (thread_primitive_kind != primitive_kind::undefined) {
-        __itt_task_end(itt_domain(thread_primitive_kind));
-        thread_primitive_name = nullptr;
+        __itt_task_end(itt_domain());
         thread_primitive_kind = primitive_kind::undefined;
     }
 }
