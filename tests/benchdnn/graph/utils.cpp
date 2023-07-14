@@ -78,7 +78,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
-    const int max_batch_times = 10000;
+    const int max_batch_times = 4096;
     // Nvidia/AMD don't support profiling.
     const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
     const dnnl::stream::flags flags = use_profiling
@@ -103,10 +103,10 @@ inline int measure_perf_aggregate(timer::timer_t &t,
     bool is_first_loop = true;
     size_t prim_num = 1;
     while (true) {
-        for_(size_t i = 0; i < sz; i++)
-        for (int j = 0; j < cur_batch_times; j++) {
+        for_(int i = 0; i < cur_batch_times; i++)
+        for (size_t j = 0; j < sz; j++) {
             DNN_GRAPH_SAFE(
-                    perf_func_v[i](stream, inputs_v[i], outputs_v[i]), WARN);
+                    perf_func_v[j](stream, inputs_v[j], outputs_v[j]), WARN);
         }
         DNN_GRAPH_SAFE(stream.wait(), WARN);
 
