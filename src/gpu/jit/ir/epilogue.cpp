@@ -634,7 +634,7 @@ int find_tile_size(const exec_config_t &exec_cfg,
         int c_f32_size = with_post_ops && !c_mem_view.type().is_f32()
                 ? elems * sizeof(float)
                 : 0;
-        int c_size = c_mul_size + 2 * c_f32_size;
+        int c_size = c_mul_size + c_f32_size;
         int po_size = 0;
 
         auto &infos = post_op_ctx.post_op_tensor_infos();
