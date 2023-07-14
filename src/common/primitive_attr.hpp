@@ -373,18 +373,20 @@ struct primitive_attr_item_t {
 struct dnnl_post_ops : public dnnl::impl::c_compatible {
     struct entry_t {
         entry_t() : kind(dnnl::impl::primitive_kind::undefined) {}
-        entry_t(const entry_t &other) { copy_from(other); }
 
-        void copy_from(const entry_t &other) { set(other); }
+        entry_t(const entry_t &other) = default;
 
         // TODO: This operator has to be deleted, and its usage has to be
         // replaced with copy_from() or copy/move constructors in order to
         // extract a status.
         entry_t &operator=(const entry_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            set(other);
+            *this = entry_t(other);
             return *this;
         }
+        entry_t &operator=(entry_t &&other) = default;
+
+        void copy_from(const entry_t &other) { *this = other; }
 
         struct eltwise_t {
             dnnl::impl::alg_kind_t alg;
@@ -515,20 +517,10 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         bool operator!=(const entry_t &rhs) const {
             return !this->operator==(rhs);
         }
-
-    private:
-        void set(const entry_t &other) {
-            // Copying by if (is_convolution()) {} else if(is_sum()) {}
-            // else if(is_relu()) {} seems to be unreliable. memcpying for now.
-            dnnl::impl::utils::array_copy(
-                    (char *)this, (char *)&other, sizeof(*this));
-        }
     };
 
     dnnl_post_ops() : entry_() {}
     ~dnnl_post_ops() = default;
-
-    dnnl_post_ops(const dnnl_post_ops &other) { copy_from(other); }
 
     dnnl::impl::status_t append_sum(float scale, int32_t zero_point = 0,
             dnnl::impl::data_type_t dt = dnnl_data_type_undef);
@@ -608,18 +600,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         return ret;
     }
 
-    void copy_from(const dnnl_post_ops &other) {
-        using namespace dnnl::impl;
-
-        for (int idx = 0; idx < other.len(); ++idx) {
-            if (len() > idx) {
-                if (entry_[idx] == other.entry_[idx]) continue;
-            } else {
-                entry_.emplace_back();
-            }
-            entry_[idx].copy_from(other.entry_[idx]);
-        }
-    }
+    void copy_from(const dnnl_post_ops &other) { *this = other; }
 
     bool is_initialized() const { return is_initialized_; }
 
