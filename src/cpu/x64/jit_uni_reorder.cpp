@@ -195,7 +195,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 && IMPLICATION(utils::one_of(bf16, p.itype, p.otype),
                         mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
                 && IMPLICATION(utils::one_of(f16, p.itype, p.otype),
-                        mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2))
+                        mayiuse(avx512_core_fp16) || mayiuse(avx2))
                 && IMPLICATION(!is_direct_copy(p), prb_has_small_strides(p));
         return ok;
     }
@@ -290,7 +290,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                                       vcvtph2psx(dst, src);
                                   else
                                       vcvtph2psx(dst, Xmm(src.getIdx()));
-                              } else if (is_superset(isa_, avx2_vnni_2)) {
+                              } else if (is_superset(isa_, avx2)) {
                                   if (src.isMEM())
                                       vcvtph2ps(dst, src);
                                   else
