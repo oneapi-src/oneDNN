@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/jit/conv/config_plan.hpp"
+#include "gpu/jit/conv/plan.hpp"
 
 #include <sstream>
 

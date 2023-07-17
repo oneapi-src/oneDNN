@@ -19,7 +19,7 @@
 #include <sstream>
 
 #include "gpu/jit/codegen/register_allocator.hpp"
-#include "gpu/jit/conv/config_plan.hpp"
+#include "gpu/jit/conv/plan.hpp"
 #include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/ir/reorder.hpp"
 

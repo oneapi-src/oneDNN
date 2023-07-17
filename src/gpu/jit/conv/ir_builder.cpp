@@ -27,9 +27,9 @@
 #include <unordered_map>
 
 #include "gpu/jit/conv/config.hpp"
-#include "gpu/jit/conv/config_plan.hpp"
 #include "gpu/jit/conv/normalization.hpp"
 #include "gpu/jit/conv/pipeline.hpp"
+#include "gpu/jit/conv/plan.hpp"
 #include "gpu/jit/ir/epilogue.hpp"
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
