@@ -139,6 +139,14 @@ void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
             int brgemm_k = 1;
             int extra_padding = 0;
             auto LDA = kw * ic * sw;
+
+            // TODO(ciyong): remove this constraint once LDX limitation is
+            // removed in oneDNN BRGEMM.
+            int max_col = data_dtype == datatypes::bf16 ? 32 : 64;
+            if ((ctx->flags_.kernel_optim_ == 1) && (LDA < max_col / 4)) {
+                return;
+            }
+
             query_accu_info_for_rl(ctx, data_dtype, kh, kw, ic, LDA,
                     num_brgemm_k, brgemm_k, extra_padding);
 
