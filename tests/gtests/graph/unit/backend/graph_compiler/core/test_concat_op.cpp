@@ -523,3 +523,141 @@ TEST(GCCore_CPU_concat_op_t_cpp, CheckVectorized) {
         auto fptr = jit_engine_t::make(ctx)->get_entry_func(ir_mod);
     }
 }
+
+TEST(GCCore_CPU_concat_op_t_cpp, DeqConv_Concat) {
+    REQUIRE_AMX();
+    SET_THREADS_OR_SKIP(16);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    sc_graph_t graph0;
+    // concat input
+    auto in0 = graph0.make_input({graph_tensor::make({1, 64, 56, 56},
+            sc_data_format_t(format_kinds::ABCD), datatypes::u8)});
+    // conv input feature
+    auto in1 = graph0.make_input({graph_tensor::make({1, 128, 56, 56},
+            sc_data_format_t(format_kinds::ABCD), datatypes::u8)});
+    // conv input weight
+    auto in2 = graph0.make_input({graph_tensor::make({32, 128, 3, 3},
+            sc_data_format_t(format_kinds::ABCD), datatypes::s8)});
+
+    auto dequant0 = graph0.make("dequantize", in1->get_outputs(), {},
+            {{"dtype", datatypes::f32}, {"scales", std::vector<float> {1.f}},
+                    {"zero_points", std::vector<int> {0}}});
+    auto dequant1 = graph0.make("dequantize", in2->get_outputs(), {},
+            {{"dtype", datatypes::f32}, {"scales", std::vector<float> {1.f}},
+                    {"zero_points", std::vector<int> {0}}});
+    sc_dims strides = {1, 1}, paddings = {1, 1};
+    auto conv = graph0.make("conv_fwd_core",
+            {dequant0->get_outputs()[0], dequant1->get_outputs()[0]}, {},
+            {{"strides", strides}, {"paddings", paddings}});
+    auto dequant2 = graph0.make("dequantize", in0->get_outputs(), {},
+            {{"dtype", datatypes::f32}, {"scales", std::vector<float> {1.f}},
+                    {"zero_points", std::vector<int> {0}}});
+    auto concat = graph0.make("concat",
+            {dequant2->get_outputs()[0], conv->get_outputs()[0]}, {},
+            {{"axis", 1}});
+    auto out0 = graph0.make_output(conv->get_outputs());
+    auto out1 = graph0.make_output(concat->get_outputs());
+
+    graph_driver(graph0, ctx);
+    std::stringstream ss;
+    print_graph(graph0, ss, true);
+    std::string expected_str
+            = R"(graph(v0: u8[1, 64, 56, 56], v1: u8[1, 128, 56, 56], v2: s8[32, 128, 3, 3]) -> [v3: f32[1, 32, 56, 56], v4: f32[1, 96, 56, 56]] {
+  [v5: s8[1, 1, 3, 3, 32, 32, 4]] = reorder(v2)
+  [v6: u8[1, 56, 56, 128]] = reorder(v1)
+  [v3: f32[1, 32, 56, 56], v4: f32[1, 96, 56, 56]] = partition_cast_quantized_conv_fwd_core_cast_reorder_concat_reorder(v6, v5, v0)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+
+    std::vector<float> input0_data(1 * 64 * 56 * 56);
+    test_utils::fill_data(&input0_data[0], 1 * 64 * 56 * 56);
+    std::vector<float> input1_data(1 * 128 * 56 * 56);
+    test_utils::fill_data(&input1_data[0], 1 * 128 * 56 * 56);
+    std::vector<float> weight0_data(32 * 128 * 3 * 3);
+    test_utils::fill_data(&weight0_data[0], 32 * 128 * 3 * 3);
+    std::vector<float> graph_output0_data(1 * 32 * 56 * 56);
+    std::vector<float> graph_output1_data(1 * (64 + 32) * 56 * 56);
+    auto ir_mod = lower_graph(ctx, graph0, {in0, in1, in2, out0, out1});
+    auto fptr0 = jit_engine_t::make(ctx)->get_entry_func(ir_mod);
+    fptr0->call_default(&input0_data[0], &input1_data[0], &weight0_data[0],
+            &graph_output0_data[0], &graph_output1_data[0]);
+}
+
+TEST(GCCore_CPU_concat_op_t_cpp, DeqConv_DeqConv_Concat) {
+    REQUIRE_AMX();
+    SET_THREADS_OR_SKIP(16);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+
+    sc_graph_t graph0;
+    // conv0 input feature
+    auto in0 = graph0.make_input({graph_tensor::make({1, 128, 56, 56},
+            sc_data_format_t(format_kinds::ABCD), datatypes::u8)});
+    // conv0 input weight
+    auto in1 = graph0.make_input({graph_tensor::make({32, 128, 3, 3},
+            sc_data_format_t(format_kinds::ABCD), datatypes::s8)});
+
+    // conv1 input feature
+    auto in2 = graph0.make_input({graph_tensor::make({1, 64, 56, 56},
+            sc_data_format_t(format_kinds::ABCD), datatypes::u8)});
+    // conv1 input weight
+    auto in3 = graph0.make_input({graph_tensor::make({16, 64, 3, 3},
+            sc_data_format_t(format_kinds::ABCD), datatypes::s8)});
+
+    auto dequant0 = graph0.make("dequantize", in0->get_outputs(), {},
+            {{"dtype", datatypes::f32}, {"scales", std::vector<float> {1.f}},
+                    {"zero_points", std::vector<int> {0}}});
+    auto dequant1 = graph0.make("dequantize", in1->get_outputs(), {},
+            {{"dtype", datatypes::f32}, {"scales", std::vector<float> {1.f}},
+                    {"zero_points", std::vector<int> {0}}});
+    sc_dims strides = {1, 1}, paddings = {1, 1};
+    auto conv0 = graph0.make("conv_fwd_core",
+            {dequant0->get_outputs()[0], dequant1->get_outputs()[0]}, {},
+            {{"strides", strides}, {"paddings", paddings}});
+
+    auto dequant2 = graph0.make("dequantize", in2->get_outputs(), {},
+            {{"dtype", datatypes::f32}, {"scales", std::vector<float> {1.f}},
+                    {"zero_points", std::vector<int> {0}}});
+    auto dequant3 = graph0.make("dequantize", in3->get_outputs(), {},
+            {{"dtype", datatypes::f32}, {"scales", std::vector<float> {1.f}},
+                    {"zero_points", std::vector<int> {0}}});
+    auto conv1 = graph0.make("conv_fwd_core",
+            {dequant2->get_outputs()[0], dequant3->get_outputs()[0]}, {},
+            {{"strides", strides}, {"paddings", paddings}});
+
+    auto concat = graph0.make("concat",
+            {conv0->get_outputs()[0], conv1->get_outputs()[0]}, {},
+            {{"axis", 1}});
+    auto out0 = graph0.make_output(concat->get_outputs());
+
+    graph_driver(graph0, ctx);
+    std::stringstream ss;
+    print_graph(graph0, ss, true);
+    std::string expected_str
+            = R"(graph(v0: u8[1, 128, 56, 56], v1: s8[32, 128, 3, 3], v2: u8[1, 64, 56, 56], v3: s8[16, 64, 3, 3]) -> [v4: f32[1, 48, 56, 56]] {
+  [v5: s8[1, 1, 3, 3, 16, 16, 4]] = reorder(v3)
+  [v6: u8[1, 56, 56, 64]] = reorder(v2)
+  [v7: f32[1, 16, 56, 56]] = partition_quantized_conv_fwd_core_cast_reorder(v6, v5)
+  [v8: s8[1, 1, 3, 3, 32, 32, 4]] = reorder(v1)
+  [v9: u8[1, 56, 56, 128]] = reorder(v0)
+  [v4: f32[1, 48, 56, 56]] = partition_quantized_conv_fwd_core_cast_reorder_concat(v9, v8, v7)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+
+    std::vector<float> input0_data(1 * 128 * 56 * 56);
+    test_utils::fill_data(&input0_data[0], 1 * 128 * 56 * 56);
+    std::vector<float> input1_data(32 * 128 * 3 * 3);
+    test_utils::fill_data(&input1_data[0], 32 * 128 * 3 * 3);
+    std::vector<float> input2_data(1 * 64 * 56 * 56);
+    test_utils::fill_data(&input2_data[0], 1 * 64 * 56 * 56);
+    std::vector<float> input3_data(16 * 64 * 3 * 3);
+    test_utils::fill_data(&input3_data[0], 16 * 64 * 3 * 3);
+    std::vector<float> graph_output0_data(1 * (32 + 16) * 56 * 56);
+    auto ir_mod = lower_graph(ctx, graph0, {in0, in1, in2, in3, out0});
+    auto fptr0 = jit_engine_t::make(ctx)->get_entry_func(ir_mod);
+    fptr0->call_default(&input0_data[0], &input1_data[0], &input2_data[0],
+            &input3_data[0], &graph_output0_data[0]);
+}

@@ -341,18 +341,6 @@ void concat_op_t::prepare_fusion_data(fdata_map &fdmap) {
     check_concat_validity(info_.inputs_, axis_);
 }
 
-// the slice range must be strictly full at axis, which means it starts from 0
-// and covers the full range
-static bool slice_range_full(
-        const slice_range &sr, const sc_dims &dims, int axis) {
-    auto offset = do_cast_and_fold(sr[axis].first);
-    auto range = do_cast_and_fold(sr[axis].second);
-    return offset.isa<constant>()
-            && get_const_as_int(offset.static_as<constant>()) == 0
-            && range.isa<constant>()
-            && get_const_as_int(range.static_as<constant>()) == dims[axis];
-}
-
 void concat_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     // search known ranges from any input of cur fusbile op
@@ -381,26 +369,28 @@ void concat_op_t::infer_slice_ranges(
 
     std::vector<int> required_axis = {int(axis_)};
     for (size_t n = 0; n < slice_size; n++) { // multi-slice index
-        // slice at concat dim should be full
-        if (!slice_range_full(sr[n],
+        // slice at concat axis should be full
+        if (!slice_full_on_axis(
                     info_.inputs_[known_id]->details_.get_blocking_dims(),
-                    axis_)) {
+                    sr[n], {int(axis_)})) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
 
-        // slice_ranges of inputs and output only differ at concat dim
+        // slice_ranges of inputs and output only differ at concat axis.
+        // Since we have already checked the slice_range is full, now we can
+        // safely set its offset to 0 and range to shape.
         for (size_t i = 0; i < get_inputs().size(); ++i) {
-            if (known_ranges_map.find(i) == known_ranges_map.end()) {
-                slice_range sr_i = sr[n];
-                sr_i[axis_].second = dim2unsigned(
-                        info_.inputs_[i]->details_.get_blocking_dims()[axis_]);
-                fsmap.get(get_inputs()[i]).at(n) = sr_i;
-            }
+            slice_range sr_i = sr[n];
+            sr_i[axis_].first = 0;
+            sr_i[axis_].second = int(dim2unsigned(
+                    info_.inputs_[i]->details_.get_blocking_dims()[axis_]));
+            fsmap.get(get_inputs()[i]).at(n) = sr_i;
         }
         slice_range sr_o = sr[n];
-        sr_o[axis_].second = dim2unsigned(
-                info_.outputs_[0]->details_.get_blocking_dims()[axis_]);
+        sr_o[axis_].first = 0;
+        sr_o[axis_].second = int(dim2unsigned(
+                info_.outputs_[0]->details_.get_blocking_dims()[axis_]));
         fsmap.get(get_outputs()[0]).at(n) = sr_o;
     }
 }

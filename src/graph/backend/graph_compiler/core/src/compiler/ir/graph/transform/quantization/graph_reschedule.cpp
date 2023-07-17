@@ -155,6 +155,7 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                     auto cur_parent = node;
                     while (cur_child.second
                                     ->dyn_cast<op_traits::may_quantize_t>()
+                            && !cur_child.second->isa<concat_op_t>()
                             // reserve dynamic version here for debug.
                             //     &&
                             //     !cur_child.second->isa<movement_op_t>())
@@ -177,11 +178,12 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                             : cur_parent->get_outputs()[0]->uses_;
                     // TODO(yifei): overcome the constraints here
                     for (const auto &use : cur_parent_uses) {
-                        COMPILE_ASSERT(!use.second->dyn_cast<
-                                               op_traits::may_quantize_t>(),
+                        COMPILE_ASSERT(use.second->isa<concat_op_t>()
+                                        || !use.second->dyn_cast<
+                                                op_traits::may_quantize_t>(),
                                 "may_quantize op with multiple consumers "
                                 "shouldn't have any of may_quantize "
-                                "consumers.");
+                                "consumers (except concat).");
                     }
                     sc_op_ptr dequantize_node;
                     if (is_dyn_quan) {

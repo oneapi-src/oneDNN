@@ -2434,6 +2434,7 @@ void mixed_parti_t::set_anchor_for_op(
         get_root()->set_anchor_for_op(op, fanchor_map);
         return;
     }
+
     auto iter = op_anchor_map_.find(op);
     // update op_anchor_map_
     if (iter != op_anchor_map_.end()) {
