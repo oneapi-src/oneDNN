@@ -329,25 +329,25 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 }
 
 void def_zero_pad(compute::kernel_ctx_t &kernel_ctx, const char *prefix,
-        const zero_padding &zpad, int idx) {
-    const std::string size_name = utils::format("%s_Z%d_SIZE", prefix, idx);
+        const zero_padding &zpad, size_t idx) {
+    const std::string size_name = utils::format("%s_Z%zu_SIZE", prefix, idx);
     kernel_ctx.define_int(size_name, zpad.data_size);
 
     // Inner block defines
     {
         const std::string padded_name
-                = utils::format("%s_Z%d_SIZE0", prefix, idx);
+                = utils::format("%s_Z%zu_SIZE0", prefix, idx);
         const std::string stride_name
-                = utils::format("%s_Z%d_STRIDE0", prefix, idx);
+                = utils::format("%s_Z%zu_STRIDE0", prefix, idx);
         kernel_ctx.define_int(padded_name, zpad.inner_size);
         kernel_ctx.define_int(stride_name, zpad.inner_stride);
     }
     // Outer block defines
     {
         const std::string padded_name
-                = utils::format("%s_Z%d_SIZE1", prefix, idx);
+                = utils::format("%s_Z%zu_SIZE1", prefix, idx);
         const std::string stride_name
-                = utils::format("%s_Z%d_STRIDE1", prefix, idx);
+                = utils::format("%s_Z%zu_STRIDE1", prefix, idx);
         kernel_ctx.define_int(padded_name, zpad.outer_size);
         kernel_ctx.define_int(stride_name, zpad.outer_stride);
     }
@@ -425,7 +425,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     for (size_t i = 0; i < phase.dst_zpads.size(); i++) {
         def_zero_pad(kernel_ctx, "DST", phase.dst_zpads[i], i);
         const std::string is_reduced_name
-                = utils::format("DST_Z%d_IS_REDUCED", i);
+                = utils::format("DST_Z%zu_IS_REDUCED", i);
         kernel_ctx.define_int(is_reduced_name,
                 conf.is_reduction_dim[phase.dst_zpads[i].dim_idx]);
     }
