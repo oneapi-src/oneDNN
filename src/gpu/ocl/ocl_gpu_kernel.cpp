@@ -225,9 +225,8 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     }
 
     if (stream.is_profiling_enabled()) {
-        auto ocl_event = utils::make_unique<ocl_event_t>(
-                std::vector<ocl_wrapper_t<cl_event>> {event});
-        ocl_stream->profiler().register_event(std::move(ocl_event));
+        ocl_stream->profiler().register_event(
+                utils::make_unique<ocl_event_t>(std::move(event)));
     }
 
     return status::success;

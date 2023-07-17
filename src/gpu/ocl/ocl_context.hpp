@@ -31,6 +31,9 @@ struct ocl_event_t final : compute::event_t {
         : events(events) {}
     ocl_event_t(std::vector<ocl_wrapper_t<cl_event>> &&events)
         : events(std::move(events)) {}
+    ocl_event_t(ocl_wrapper_t<cl_event> &&event) {
+        events.emplace_back(std::move(event));
+    }
 
     const ocl_wrapper_t<cl_event> &operator[](size_t i) const {
         return events[i];
