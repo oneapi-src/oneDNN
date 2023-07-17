@@ -502,7 +502,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         }
     }
 
-    notify_gpu_profiling_complete(stream);
+    if (use_profiling) notify_gpu_profiling_complete(stream);
 
     return OK;
 }
