@@ -64,7 +64,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
             }
 
             if (!attr()->post_ops_.has_default_values()) {
-                gemm_attr.post_ops_.copy_from(attr()->post_ops_);
+                gemm_attr.post_ops_ = attr()->post_ops_;
             }
 
             CHECK(gemm_attr.set_fpmath_mode(attr()->fpmath_mode_));

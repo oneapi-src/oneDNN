@@ -369,7 +369,7 @@ status_t primitive_attr_t::set_scratchpad_mode(
 }
 
 status_t primitive_attr_t::set_post_ops(const post_ops_t &post_ops) {
-    post_ops_.copy_from(post_ops);
+    post_ops_ = post_ops;
     return status::success;
 }
 

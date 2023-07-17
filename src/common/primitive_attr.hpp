@@ -376,17 +376,12 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
         entry_t(const entry_t &other) = default;
 
-        // TODO: This operator has to be deleted, and its usage has to be
-        // replaced with copy_from() or copy/move constructors in order to
-        // extract a status.
         entry_t &operator=(const entry_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             *this = entry_t(other);
             return *this;
         }
         entry_t &operator=(entry_t &&other) = default;
-
-        void copy_from(const entry_t &other) { *this = other; }
 
         struct eltwise_t {
             dnnl::impl::alg_kind_t alg;
@@ -600,8 +595,6 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         return ret;
     }
 
-    void copy_from(const dnnl_post_ops &other) { *this = other; }
-
     bool is_initialized() const { return is_initialized_; }
 
     std::vector<entry_t> entry_;
@@ -644,7 +637,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         zero_points_ = other.zero_points_;
         scratchpad_mode_ = other.scratchpad_mode_;
         fpmath_mode_ = other.fpmath_mode_;
-        post_ops_.copy_from(other.post_ops_);
+        post_ops_ = other.post_ops_;
         rnn_data_qparams_ = other.rnn_data_qparams_;
         CHECK(rnn_weights_qparams_.copy_from(other.rnn_weights_qparams_));
         CHECK(rnn_weights_projection_qparams_.copy_from(
