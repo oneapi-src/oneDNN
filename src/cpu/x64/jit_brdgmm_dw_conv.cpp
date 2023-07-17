@@ -692,9 +692,10 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
 
             int ch = chb * chb_step;
 
-            auto *ptr_A = src + n * src_mb_stride + id_s * src_d_stride
-                    + ih_s * src_h_stride + iw_s * src_w_stride
-                    + ch * src_ch_stride;
+            auto *ptr_A = src
+                    + static_cast<ptrdiff_t>(n * src_mb_stride
+                            + id_s * src_d_stride + ih_s * src_h_stride
+                            + iw_s * src_w_stride + ch * src_ch_stride);
             auto *ptr_B = weights + ch * wei_ch_stride;
             auto *ptr_C = dst + n * dst_mb_stride + od * dst_d_stride
                     + oh * dst_h_stride + ow * dst_w_stride
