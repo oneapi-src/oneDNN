@@ -78,7 +78,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
-    const int max_batch_times = 10000;
+    const int max_batch_times = 4096;
     // Nvidia/AMD don't support profiling.
     const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
     const dnnl::stream::flags flags = use_profiling
@@ -101,11 +101,12 @@ inline int measure_perf_aggregate(timer::timer_t &t,
     reset_gpu_profiling(((dnnl::stream)stream).get());
 
     bool is_first_loop = true;
+    size_t prim_num = 1;
     while (true) {
-        for_(size_t i = 0; i < sz; i++)
-        for (int j = 0; j < cur_batch_times; j++) {
+        for_(int i = 0; i < cur_batch_times; i++)
+        for (size_t j = 0; j < sz; j++) {
             DNN_GRAPH_SAFE(
-                    perf_func_v[i](stream, inputs_v[i], outputs_v[i]), WARN);
+                    perf_func_v[j](stream, inputs_v[j], outputs_v[j]), WARN);
         }
         DNN_GRAPH_SAFE(stream.wait(), WARN);
 
@@ -115,11 +116,23 @@ inline int measure_perf_aggregate(timer::timer_t &t,
             get_gpu_profiling_info(((dnnl::stream)stream).get(), nsecs, cycles);
             reset_gpu_profiling(((dnnl::stream)stream).get());
 
-            // Profiling should have information to stop the cycle.
-            if (nsecs.empty()) SAFE(FAIL, WARN);
+            // Profiling should have information to report, otherwise, stop.
+            if (nsecs.empty()) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "WARNING: no counters were found during profiling.");
+                break;
+            }
+            // Calculate the number of primitives in a batch
+            if (is_first_loop) { prim_num = nsecs.size() / cur_batch_times; }
 
-            for (size_t i = 0; i < nsecs.size(); i++) {
-                t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
+            for (int i = 0; i < cur_batch_times; i++) {
+                int64_t cycles_res = 0;
+                double nsecs_res = 0;
+                for (size_t j = 0; j < prim_num; j++) {
+                    cycles_res += cycles[i * prim_num + j];
+                    nsecs_res += nsecs[i * prim_num + j];
+                }
+                t.stop(1, cycles_res, nsecs_res / 1e6);
             }
         } else {
             t.stamp(cur_batch_times);
