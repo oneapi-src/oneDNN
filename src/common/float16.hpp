@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,13 +86,13 @@ inline float16_t &float16_t::operator=(float f) {
         mm = 0;
     } else {
         // Underflow.
-        float ff = fabsf(f) + 0.5;
+        float ff = fabsf(f) + 0.5f;
         uint32_t ii = utils::bit_cast<uint32_t>(ff);
         ee = 0;
         mm = ii & 0x7FF;
     }
 
-    this->raw = (ss << 15) | (ee << 10) | mm;
+    this->raw = static_cast<uint16_t>((ss << 15) | (ee << 10) | mm);
     return *this;
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,9 +72,10 @@ private:
     // Converts the 32 bits of a normal float or zero to the bits of a bfloat16.
     static constexpr uint16_t convert_bits_of_normal_or_zero(
             const uint32_t bits) {
-        return uint32_t {
-                       bits + uint32_t {0x7FFFU + (uint32_t {bits >> 16} & 1U)}}
-        >> 16;
+        return static_cast<uint16_t>(
+                uint32_t {bits
+                        + uint32_t {0x7FFFU + (uint32_t {bits >> 16} & 1U)}}
+                >> 16);
     }
 };
 
