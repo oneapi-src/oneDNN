@@ -102,9 +102,9 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
                         src_desc->ndims + 1),
             VERBOSE_INCONSISTENT_NDIMS, "src", "weights");
 
-    const int g = with_groups ? weights_desc->dims[0] : 1;
-    const int bias_dim = prop_kind == backward_data ? src_desc->dims[1]
-                                                    : dst_desc->dims[1];
+    const dim_t g = with_groups ? weights_desc->dims[0] : 1;
+    const dim_t bias_dim = prop_kind == backward_data ? src_desc->dims[1]
+                                                      : dst_desc->dims[1];
     VCHECK_CONV(
             IMPLICATION(with_bias,
                     bias_desc->ndims == 1 && bias_desc->dims[0] == bias_dim),
@@ -126,14 +126,14 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         utils::array_set(cd.dilates, 0, sp_dims);
 
     for (int i = 2; i < src_desc->ndims; ++i) {
-        int src = src_desc->dims[i];
-        int ker = weights_desc->dims[with_groups + i];
-        int dil = cd.dilates[i - 2];
-        int pad_l = padding_l[i - 2];
-        int pad_r = padding_r[i - 2];
-        int str = strides[i - 2];
-        int dst = dst_desc->dims[i];
-        int ker_range = 1 + (ker - 1) * (dil + 1);
+        dim_t src = src_desc->dims[i];
+        dim_t ker = weights_desc->dims[with_groups + i];
+        dim_t dil = cd.dilates[i - 2];
+        dim_t pad_l = padding_l[i - 2];
+        dim_t pad_r = padding_r[i - 2];
+        dim_t str = strides[i - 2];
+        dim_t dst = dst_desc->dims[i];
+        dim_t ker_range = 1 + (ker - 1) * (dil + 1);
         VCHECK_CONV(str > 0, VERBOSE_BAD_DIM, "strides", i - 2);
         VCHECK_CONV(dil >= 0 && pad_l >= 0 && pad_r + str > 0,
                 VERBOSE_INCONSISTENT_PRB);

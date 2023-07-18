@@ -67,7 +67,7 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
             !memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides(),
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
-    int concat_dim_sz = dims[concat_dim];
+    dim_t concat_dim_sz = dims[concat_dim];
     VCHECK_CONCAT(!memory_desc_wrapper(src_mds[0]).format_any(),
             VERBOSE_UNSUPPORTED_TAG_S, "src");
 

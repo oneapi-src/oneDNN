@@ -135,9 +135,9 @@ protected:
         }
 
         const int ndims = force_dst_md->ndims;
-        int current_concat_dim_offset = 0;
+        dim_t current_concat_dim_offset = 0;
         for (int i = 0; i < n_; ++i) {
-            const int dim = src_mds_[i].dims[concat_dim_];
+            const dim_t dim = src_mds_[i].dims[concat_dim_];
             dims_t dims, offsets = {};
             utils::array_copy(dims, force_dst_md->dims, ndims);
             dims[concat_dim_] = dim;

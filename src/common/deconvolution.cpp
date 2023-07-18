@@ -100,7 +100,7 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
     VCHECK_DECONV(dd.accum_data_type != data_type::undef,
             VERBOSE_INVALID_DATATYPE, "accumulation");
 
-    const int g = with_groups ? weights_desc->dims[0] : 1;
+    const dim_t g = with_groups ? weights_desc->dims[0] : 1;
     VCHECK_DECONV(src_desc->ndims == dst_desc->ndims,
             VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
     VCHECK_DECONV(utils::one_of(src_desc->ndims, 3, 4, 5), VERBOSE_BAD_NDIMS,
@@ -120,14 +120,14 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
     VCHECK_DECONV(dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0],
             VERBOSE_INCONSISTENT_DIM, "dst", 1, "weights", with_groups + 0);
     for (int i = 2; i < src_desc->ndims; ++i) {
-        int src = src_desc->dims[i];
-        int ker = weights_desc->dims[with_groups + i];
-        int dil = dd.dilates[i - 2];
-        int pad_l = padding_l[i - 2];
-        int pad_r = padding_r[i - 2];
-        int str = strides[i - 2];
-        int dst = dst_desc->dims[i];
-        int ker_range = 1 + (ker - 1) * (dil + 1);
+        dim_t src = src_desc->dims[i];
+        dim_t ker = weights_desc->dims[with_groups + i];
+        dim_t dil = dd.dilates[i - 2];
+        dim_t pad_l = padding_l[i - 2];
+        dim_t pad_r = padding_r[i - 2];
+        dim_t str = strides[i - 2];
+        dim_t dst = dst_desc->dims[i];
+        dim_t ker_range = 1 + (ker - 1) * (dil + 1);
 
         VCHECK_DECONV(str > 0, VERBOSE_BAD_DIM, "strides", i - 2);
         VCHECK_DECONV(dil >= 0 && pad_l >= 0 && pad_r + str > 0,

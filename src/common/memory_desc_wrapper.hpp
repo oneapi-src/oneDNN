@@ -413,7 +413,7 @@ struct memory_desc_wrapper : public c_compatible {
         if (blk.inner_nblks > 0) {
             dim_t blk_stride = 1;
             for (int iblk = blk.inner_nblks - 1; iblk >= 0; --iblk) {
-                const int d = blk.inner_idxs[iblk];
+                const dim_t d = blk.inner_idxs[iblk];
 
                 dim_t p;
                 /* switch to faster 32-bit division when possible.
