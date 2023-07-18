@@ -125,9 +125,18 @@ status_t ref_group_normalization_fwd_t::execute(const exec_ctx_t &ctx) const {
                 auto d_off = DATA_OFF(dst_d, n, c, d, h, w);
 
                 float s = io::load_float_value(src_d.data_type(), src, s_off);
-                float d = sm * (s - v_mean) + sv;
-                d *= src_scales[0] * dst_scales[0];
-                io::store_float_value(dst_d.data_type(), d, dst, d_off);
+                float val = sm * (s - v_mean) + sv;
+                val *= src_scales[0];
+
+                // post-ops
+                ref_post_ops_t::args_t args;
+                args.ctx = &ctx;
+                args.l_offset = n * C * D * H * W + c * D * H * W + d * H * W
+                        + h * W + w;
+                args.dst_md = pd()->dst_md();
+                ref_post_ops->execute(val, args);
+                val *= dst_scales[0];
+                io::store_float_value(dst_d.data_type(), val, dst, d_off);
             }
         }
 

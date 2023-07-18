@@ -143,7 +143,7 @@ status_t group_normalization_attr_check(const group_normalization_desc_t &desc,
         const data_type_t src_dt = desc.src_desc.data_type;
         const data_type_t dst_dt = desc.dst_desc.data_type;
 
-        auto fwd_attr_mask = smask_t::none;
+        auto fwd_attr_mask = smask_t::post_ops;
 
         const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8)
                 || utils::one_of(dst_dt, data_type::s8, data_type::u8);
@@ -160,6 +160,14 @@ status_t group_normalization_attr_check(const group_normalization_desc_t &desc,
 
             VCHECK_GNORM_UNIMPL(utils::everyone_is(0, mask_src, mask_dst),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
+        }
+
+        // Check post-ops
+        if (!attr->post_ops_.has_default_values()) {
+            const auto &po = attr->post_ops_;
+            using namespace primitive_kind;
+            VCHECK_GNORM_UNIMPL(po.has_default_values({binary, eltwise}),
+                    VERBOSE_UNSUPPORTED_POSTOP);
         }
     } else {
         VCHECK_GNORM_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
