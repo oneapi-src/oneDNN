@@ -5886,7 +5886,7 @@ TEST(ExecuteSubgraphInt8, ConvDepthwise) {
 
         int64_t zp_out = eng->kind() == graph::engine_kind::gpu ? 0 : 78;
 
-        size_t scale_size = wei_qtype == "per_tensor" ? 1 : 4;
+        size_t scale_size = wei_qtype == "per_tensor" ? 1 : 24;
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
