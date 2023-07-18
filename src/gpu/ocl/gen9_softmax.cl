@@ -227,10 +227,14 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
             + channel_id;
 
     const int local_off = local_id * THREAD_BUF_SIZE;
-    if (local_off >= SOFTMAX_AXIS_SIZE) return;
-    const int buf_reads = ((local_off + THREAD_BUF_SIZE) <= SOFTMAX_AXIS_SIZE)
-            ? THREAD_BUF_SIZE
-            : (SOFTMAX_AXIS_SIZE % THREAD_BUF_SIZE);
+    int buf_reads;
+    if (local_off >= SOFTMAX_AXIS_SIZE) {
+        buf_reads = 0;
+    } else {
+        buf_reads = ((local_off + THREAD_BUF_SIZE) <= SOFTMAX_AXIS_SIZE)
+                ? THREAD_BUF_SIZE
+                : (SOFTMAX_AXIS_SIZE % THREAD_BUF_SIZE);
+    }
 #endif
 
     COMMON_DATA_T d[THREAD_BUF_SIZE];
