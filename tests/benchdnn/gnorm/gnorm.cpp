@@ -24,6 +24,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "binary/binary.hpp"
 #include "bnorm/bnorm.hpp"
 #include "gnorm/gnorm.hpp"
 
@@ -338,8 +339,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->data_dims().data(), prb->dt[0], prb->tag[0]);
 
+    attr_args_t attr_args;
+    attr_args.prepare_post_ops_mds(
+            prb->attr, prb->ndims, prb->data_dims().data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args_t()));
+            create_dnnl_attr(prb->attr, attr_args));
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (prb->dir & FLAG_FWD) {
@@ -494,6 +498,12 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
                     SAFE(fill_scales(prb->attr, exec_src_arg, mem, ref_mem),
                             WARN);
+                }
+                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+                bool is_post_ops_arg = (exec_arg & post_ops_range);
+                if (is_post_ops_arg) {
+                    SAFE(binary::fill_mem(exec_arg, mem, ref_mem), WARN);
                 }
             } break;
         }

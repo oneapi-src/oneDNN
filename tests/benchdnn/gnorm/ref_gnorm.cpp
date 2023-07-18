@@ -39,7 +39,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
 
     const float src_scale_val = has_src_scale ? src_scale.get_elem(0) : 1.f;
     const float dst_scale_val = has_dst_scale ? dst_scale.get_elem(0) : 1.f;
-    const float output_scale = src_scale_val / dst_scale_val;
+    const float r_dst_scale_val = 1.0f / dst_scale_val;
 
     const int64_t MB = prb->mb;
     const int64_t G = prb->g;
@@ -48,6 +48,8 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const int64_t W = prb->iw;
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
+
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
 
     benchdnn_parallel_nd(MB, G, [&](int64_t n, int64_t g) {
         float smean = mean.get_elem(n * G + g);
@@ -64,7 +66,10 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
             float gamma = use_sc ? sc.get_elem(c) : 1.f;
             float beta = use_sh ? sh.get_elem(c) : 0.f;
             float res = gamma * x_hat + beta;
-            dst_ptr[off] = res * output_scale;
+            const auto v_po_vals = prepare_po_vals(dst, args, v_po_masks, off);
+            res *= src_scale_val;
+            maybe_post_ops(prb->attr, res, 0.f, v_po_vals);
+            dst_ptr[off] = res * r_dst_scale_val;
         }
     });
 }
