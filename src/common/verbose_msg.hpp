@@ -23,6 +23,9 @@
 #define VERBOSE_create "create"
 #define VERBOSE_create_nested "create_nested"
 #define VERBOSE_exec "exec"
+#define VERBOSE_graph "graph"
+#define VERBOSE_graph_exec "graph:exec"
+#define VERBOSE_graph_compile "graph:compile"
 
 // log subtypes strings
 #define VERBOSE_check ":check"
