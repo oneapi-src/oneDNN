@@ -91,6 +91,8 @@ namespace utils {
         fflush(stdout); \
     }
 
+void print_verbose_header();
+
 uint32_t get_graph_verbose(
         impl::verbose_t::flag_kind kind = impl::verbose_t::none);
 

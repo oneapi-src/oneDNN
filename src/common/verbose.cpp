@@ -99,6 +99,9 @@ void print_header() {
 #ifdef DNNL_WITH_SYCL
         sycl::print_verbose_header();
 #endif
+#ifdef ONEDNN_BUILD_GRAPH
+        graph::utils::print_verbose_header();
+#endif
 #ifdef DNNL_EXPERIMENTAL
         printf("onednn_verbose,info,experimental features are enabled\n");
         printf("onednn_verbose,info,use batch_normalization stats one pass is "
