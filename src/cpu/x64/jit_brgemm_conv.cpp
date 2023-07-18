@@ -1512,8 +1512,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::perform_outwork(
             = maybe_do_init && IMPLICATION(jcp.with_sum, jcp.use_buffer);
     if (!do_init && !do_postwork) return;
 
-    assert(!jcp.is_os_blocking);
-
     const bool is_ow_tail = (OW - ow < jcp.ow_block);
 
     const auto M = is_ow_tail ? jcp.M_tail : jcp.M;
