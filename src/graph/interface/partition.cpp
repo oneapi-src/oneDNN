@@ -199,8 +199,8 @@ status_t DNNL_API dnnl_graph_partition_compile(partition_t *partition,
         double duration_ms = dnnl::impl::get_msec() - start_ms;
 
         const char *cache_status = cp.second ? ":cache_hit" : ":cache_miss";
-        VPROF(start_ms, graph_compile, cache_status, compiled_partition->info(),
-                duration_ms);
+        VPROF(start_ms, graph, compile, cache_status,
+                compiled_partition->info(), duration_ms);
     } else {
         CHECK(partition->compile(cp, in, out, engine));
     }
@@ -322,7 +322,7 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
         CHECK(compiled_partition->execute(stream, ins, outs));
         stream->wait();
         double duration_ms = dnnl::impl::get_msec() - start_ms;
-        VFORMAT(start_ms, graph_exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
+        VFORMAT(start_ms, graph, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
                 compiled_partition->info(), duration_ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
                 monitor.get_total_persist_memory(),
@@ -338,8 +338,8 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
         CHECK(compiled_partition->execute(stream, ins, outs));
         stream->wait();
         double duration_ms = dnnl::impl::get_msec() - start_ms;
-        VPROF(start_ms, graph_exec, VERBOSE_profile, compiled_partition->info(),
-                duration_ms);
+        VPROF(start_ms, graph, exec, VERBOSE_profile,
+                compiled_partition->info(), duration_ms);
     } else {
         CHECK(compiled_partition->execute(stream, ins, outs));
     }
@@ -391,7 +391,7 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
         }
         stream->wait();
         double duration_ms = dnnl::impl::get_msec() - start_ms;
-        VFORMAT(start_ms, graph_exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
+        VFORMAT(start_ms, graph, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
                 compiled_partition->info(), duration_ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
                 monitor.get_total_persist_memory(),
@@ -414,8 +414,8 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
         }
         stream->wait();
         double duration_ms = dnnl::impl::get_msec() - start_ms;
-        VPROF(start_ms, graph_exec, VERBOSE_profile, compiled_partition->info(),
-                duration_ms);
+        VPROF(start_ms, graph, exec, VERBOSE_profile,
+                compiled_partition->info(), duration_ms);
     } else {
         if (deps != nullptr) {
             const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;

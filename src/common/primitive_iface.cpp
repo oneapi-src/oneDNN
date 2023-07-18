@@ -74,7 +74,8 @@ status_t primitive_create(primitive_iface_t **primitive_iface,
         const char *str = p_iface.second ? ":cache_hit" : ":cache_miss";
         if (cache_blob) str = ":from_cache_blob";
 
-        VPROF(start_ms, create, str, p_iface.first->pd()->info(), duration_ms);
+        VPROF(start_ms, primitive, create, str, p_iface.first->pd()->info(),
+                duration_ms);
     } else {
         CHECK(primitive_desc_iface->create_primitive_iface(
                 p_iface, cache_blob));
@@ -94,7 +95,7 @@ status_t primitive_execute(
 #endif
 
     if (get_verbose(verbose_t::exec_profile,
-                prim_kind2_comp_kind(pd->impl()->kind()))) {
+                prim_kind2_comp_kind(primitive_iface->pd()->impl()->kind()))) {
         stream->wait();
         double start_ms = get_msec();
         status = stream->enqueue_primitive(primitive_iface, ctx);
@@ -119,9 +120,10 @@ status_t primitive_execute(
 
             std::string info = primitive_iface->pd()->info_with_runtime_dims(
                     src_md, wei_md, bia_md, dst_md);
-            VPROF(start_ms, exec, VERBOSE_profile, info.c_str(), duration_ms);
+            VPROF(start_ms, primitive, exec, VERBOSE_profile, info.c_str(),
+                    duration_ms);
         } else {
-            VPROF(start_ms, exec, VERBOSE_profile,
+            VPROF(start_ms, primitive, exec, VERBOSE_profile,
                     primitive_iface->pd()->info(), duration_ms);
         }
     } else {

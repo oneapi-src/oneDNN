@@ -32,8 +32,9 @@
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 
 #define VCHECK_SOFTMAX(cond, msg, ...) \
-    VCONDCHECK(create, dispatch, softmax, (cond), status::unimplemented, \
-            "%s," msg, this->info(engine), ##__VA_ARGS__)
+    VCONDCHECK(primitive, create, dispatch, softmax, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

@@ -204,7 +204,7 @@ struct stack_checker_t {
             size_t soft_stack_limit_in_bytes
                     = get_soft_stack_limit() * get_page_size();
             if (stack_consumption > soft_stack_limit_in_bytes) {
-                VERROR(stack_checker,
+                VERROR(common, stack_checker,
                         "'%s' consumed %lu bytes of "
                         "stack while the limit is %lu bytes",
                         context_.c_str(), stack_consumption,
@@ -277,7 +277,7 @@ private:
         static const size_t stack_size
                 = getenv_int_user("SC_STACK_SIZE", 1024 * 1024 * 8);
         if (stack_size % get_page_size() != 0) {
-            VERROR(stack_checker,
+            VERROR(common, stack_checker,
                     "DNNL_SC_STACK_SIZE is expected to be "
                     "multiple of page size (%lu)",
                     get_page_size());

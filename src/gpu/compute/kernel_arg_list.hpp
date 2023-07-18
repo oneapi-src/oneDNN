@@ -302,7 +302,7 @@ inline status_t check_scalar_arguments(const kernel_arg_list_t &arg_list,
             }
 
             if (req_arg_type != arg.scalar_type()) {
-                VERROR(gpu,
+                VERROR(primitive, gpu,
                         "type of a scalar kernel argument #%d is "
                         "different from the type of the given scalar",
                         i);

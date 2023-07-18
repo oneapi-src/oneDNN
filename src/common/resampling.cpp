@@ -31,12 +31,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_RS(cond, msg, ...) \
-    VCONDCHECK(create, check, resampling, (cond), status::invalid_arguments, \
-            msg, ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, resampling, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_RS_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, resampling, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, resampling, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 namespace {
 status_t resampling_desc_init(resampling_desc_t *resampling_desc,

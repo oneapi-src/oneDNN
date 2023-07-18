@@ -507,22 +507,22 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         auto has_trivial_strides = [](const memory_desc_wrapper &md) {
             return md.is_dense(true);
         };
-        VCONDCHECK(create, dispatch, rnn,
+        VCONDCHECK(primitive, create, dispatch, rnn,
                 has_trivial_strides(this->desc()->src_layer_desc),
                 status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
-        VCONDCHECK(create, dispatch, rnn,
+        VCONDCHECK(primitive, create, dispatch, rnn,
                 has_trivial_strides(this->desc()->src_iter_desc),
                 status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
-        VCONDCHECK(create, dispatch, rnn,
+        VCONDCHECK(primitive, create, dispatch, rnn,
                 has_trivial_strides(this->desc()->src_iter_c_desc),
                 status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
-        VCONDCHECK(create, dispatch, rnn,
+        VCONDCHECK(primitive, create, dispatch, rnn,
                 has_trivial_strides(this->desc()->dst_layer_desc),
                 status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
-        VCONDCHECK(create, dispatch, rnn,
+        VCONDCHECK(primitive, create, dispatch, rnn,
                 has_trivial_strides(this->desc()->dst_iter_desc),
                 status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
-        VCONDCHECK(create, dispatch, rnn,
+        VCONDCHECK(primitive, create, dispatch, rnn,
                 has_trivial_strides(this->desc()->dst_iter_c_desc),
                 status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
     }

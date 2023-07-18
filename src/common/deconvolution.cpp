@@ -31,12 +31,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_DECONV(cond, msg, ...) \
-    VCONDCHECK(create, check, deconvolution, (cond), \
+    VCONDCHECK(primitive, create, check, deconvolution, (cond), \
             status::invalid_arguments, msg, ##__VA_ARGS__)
 
 #define VCHECK_DECONV_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, deconvolution, (cond), status::unimplemented, \
-            msg, ##__VA_ARGS__)
+    VCONDCHECK(primitive, create, check, deconvolution, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__)
 namespace {
 status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
@@ -75,7 +75,7 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
     if (with_bias)
         runtime_dims_or_strides = runtime_dims_or_strides
                 || memory_desc_wrapper(bias_desc).has_runtime_dims_or_strides();
-    VCONDCHECK(create, check, deconv, !runtime_dims_or_strides,
+    VCONDCHECK(primitive, create, check, deconv, !runtime_dims_or_strides,
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     (prop_kind == backward_data ? dd.diff_src_desc : dd.src_desc) = *src_desc;

@@ -177,7 +177,8 @@ cl_int maybe_print_debug_info(
     err = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, log_length,
             log_buf.data(), nullptr);
     assert(err == CL_SUCCESS);
-    VERROR(ocl, "Error during the build of OpenCL program. Build log:\n%s",
+    VERROR(common, ocl,
+            "Error during the build of OpenCL program. Build log:\n%s",
             log_buf.data());
     return err;
 };

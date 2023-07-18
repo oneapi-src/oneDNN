@@ -32,12 +32,12 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_PRELU(cond, msg, ...) \
-    VCONDCHECK(create, check, prelu, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__)
+    VCONDCHECK(primitive, create, check, prelu, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__)
 
 #define VCHECK_PRELU_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, prelu, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__)
+    VCONDCHECK(primitive, create, check, prelu, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__)
 
 namespace {
 status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
@@ -69,7 +69,7 @@ status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
                                 .has_runtime_dims_or_strides()
                         || memory_desc_wrapper(diff_weights_desc)
                                    .has_runtime_dims_or_strides());
-    VCONDCHECK(create, check, prelu, !runtime_dims_or_strides,
+    VCONDCHECK(primitive, create, check, prelu, !runtime_dims_or_strides,
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     auto pd = prelu_desc_t();

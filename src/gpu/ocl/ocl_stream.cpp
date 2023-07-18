@@ -74,7 +74,7 @@ status_t ocl_stream_t::init() {
         bool is_out_of_order
                 = (props & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) != 0;
         if (is_out_of_order) {
-            VERROR(ocl,
+            VERROR(common, ocl,
                     "OpenCL kernel profiling is not "
                     "supported with out-of-order queues");
             return status::invalid_arguments;

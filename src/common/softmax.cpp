@@ -31,12 +31,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_SOFTMAX(cond, msg, ...) \
-    VCONDCHECK(create, check, softmax, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, softmax, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_SOFTMAX_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, softmax, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, softmax, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 namespace {
 status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
@@ -72,7 +72,7 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
     }
-    VCONDCHECK(create, check, softmax, !runtime_dims_or_strides,
+    VCONDCHECK(primitive, create, check, softmax, !runtime_dims_or_strides,
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     auto sd = softmax_desc_t();

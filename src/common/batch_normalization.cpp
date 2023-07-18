@@ -31,12 +31,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_BNORM(cond, msg, ...) \
-    VCONDCHECK(create, check, bnorm, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, bnorm, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_BNORM_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, bnorm, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, bnorm, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
 
 namespace {
 status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
@@ -77,7 +77,7 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
     }
-    VCONDCHECK(create, check, bnorm, !runtime_dims_or_strides,
+    VCONDCHECK(primitive, create, check, bnorm, !runtime_dims_or_strides,
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     bd.src_desc = *src_desc;

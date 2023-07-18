@@ -80,7 +80,8 @@ status_t compute_stream_t::zero_pad(
         info << "gpu,zero_pad," << zero_pad_primitive->pd()->name() << ",undef,"
              << md2fmt_str(memory->md(), format_kind::undef) << ",,,"
              << md2dim_str(memory->md());
-        VPROF(start_ms, exec, VERBOSE_profile, info.str().c_str(), duration_ms);
+        VPROF(start_ms, primitive, exec, VERBOSE_profile, info.str().c_str(),
+                duration_ms);
 
         return status;
     } else {

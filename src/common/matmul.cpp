@@ -29,12 +29,12 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::types;
 
 #define VCHECK_MATMUL(cond, msg, ...) \
-    VCONDCHECK(create, check, matmul, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, matmul, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_MATMUL_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, matmul, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, matmul, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 namespace {
 status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,

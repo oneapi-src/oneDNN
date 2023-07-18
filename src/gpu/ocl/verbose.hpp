@@ -47,7 +47,7 @@ void print_verbose_header() {
                     (int)i, s_name.c_str(), s_ver.c_str(),
                     dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
         } catch (...) {
-            VERROR(ocl, VERBOSE_INVALID_DEVICE_ENV,
+            VERROR(common, ocl, VERBOSE_INVALID_DEVICE_ENV,
                     dnnl_engine_kind2str(engine_kind::gpu), i);
         }
     }

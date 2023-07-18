@@ -32,12 +32,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_ELTWISE(cond, msg, ...) \
-    VCONDCHECK(create, check, eltwise, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, eltwise, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_ELTWISE_IMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, eltwise, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, eltwise, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
@@ -72,7 +72,7 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
                            .has_runtime_dims_or_strides()
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
-    VCONDCHECK(create, check, eltwise, !runtime_dims_or_strides,
+    VCONDCHECK(primitive, create, check, eltwise, !runtime_dims_or_strides,
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     auto ed = eltwise_desc_t();

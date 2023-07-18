@@ -163,12 +163,12 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
 
 #define MAYBE_REPORT_ERROR(msg) \
     do { \
-        VERROR(gpu, msg); \
+        VERROR(primitive, gpu, msg); \
     } while (0)
 
 #define MAYBE_REPORT_OCL_ERROR(s) \
     do { \
-        VERROR(ocl, "errcode %d,%s,%s:%d", int(s), \
+        VERROR(primitive, ocl, "errcode %d,%s,%s:%d", int(s), \
                 gpu::ocl::convert_cl_int_to_str(s), __FILENAME__, __LINE__); \
     } while (0)
 

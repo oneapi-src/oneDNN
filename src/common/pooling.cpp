@@ -31,12 +31,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_POOLING(cond, msg, ...) \
-    VCONDCHECK(create, check, pooling, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, pooling, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_POOLING_IMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, pooling, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, pooling, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 namespace {
 status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
@@ -68,8 +68,8 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
     const bool rt_dims_or_strides
             = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
             || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
-    VCONDCHECK(create, check, pool, !rt_dims_or_strides, status::unimplemented,
-            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VCONDCHECK(primitive, create, check, pool, !rt_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     pd.diff_src_desc = pd.src_desc = zero_md();
     pd.diff_dst_desc = pd.dst_desc = zero_md();

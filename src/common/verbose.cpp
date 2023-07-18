@@ -115,14 +115,14 @@ void print_header() {
                "domain is enabled\n");
 #endif
 
-        printf("onednn_verbose,info,prim_template:");
+        printf("onednn_verbose,primitive,info,template:");
         printf("%soperation,engine,primitive,implementation,prop_"
                "kind,memory_descriptors,attributes,auxiliary,problem_desc,exec_"
                "time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
 
 #ifdef ONEDNN_BUILD_GRAPH
-        printf("onednn_verbose,info,graph_template:");
+        printf("onednn_verbose,graph,info,template:");
         printf("%soperation,engine,partition_id,partition_kind,op_names,"
                "data_formats,logical_tensors,fpmath_mode,backend,exec_"
                "time\n",

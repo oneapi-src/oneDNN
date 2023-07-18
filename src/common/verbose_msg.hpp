@@ -18,14 +18,17 @@
 #ifndef COMMON_VERBOSE_MSG_HPP
 #define COMMON_VERBOSE_MSG_HPP
 
+// api type strings
+#define VERBOSE_primitive "primitive"
+#define VERBOSE_graph "graph"
+#define VERBOSE_common "common"
+
 // log type strings
 #define VERBOSE_error "error"
 #define VERBOSE_create "create"
 #define VERBOSE_create_nested "create_nested"
 #define VERBOSE_exec "exec"
-#define VERBOSE_graph "graph"
-#define VERBOSE_graph_exec "graph:exec"
-#define VERBOSE_graph_compile "graph:compile"
+#define VERBOSE_compile "compile"
 
 // log subtypes strings
 #define VERBOSE_check ":check"

@@ -29,12 +29,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_GNORM(cond, msg, ...) \
-    VCONDCHECK(create, check, gnorm, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, gnorm, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_GNORM_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, gnorm, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, gnorm, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
 
 namespace {
 status_t group_normalization_desc_init(group_normalization_desc_t *desc,
@@ -80,7 +80,7 @@ status_t group_normalization_desc_init(group_normalization_desc_t *desc,
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
     }
-    VCONDCHECK(create, check, bnorm, !runtime_dims_or_strides,
+    VCONDCHECK(primitive, create, check, bnorm, !runtime_dims_or_strides,
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     gd.src_desc = *src_desc;

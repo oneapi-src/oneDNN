@@ -25,15 +25,15 @@
 #include "utils.hpp"
 
 #define VCHECK_RNN(f, msg, ...) \
-    VCHECK(create, check, rnn, (f), msg, ##__VA_ARGS__);
+    VCHECK(primitive, create, check, rnn, (f), msg, ##__VA_ARGS__);
 
 #define VCONDCHECK_RNN(cond, msg, ...) \
-    VCONDCHECK(create, check, rnn, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, rnn, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCONDCHECK_RNN_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, rnn, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, rnn, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {

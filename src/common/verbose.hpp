@@ -68,47 +68,50 @@ struct const_expr_value {
 // The string can contain format specifiers which are provided in VA_ARGS
 // Note: using ##__VAR_ARGS__ is necessary to avoid trailing comma in printf call
 
-#define VFORMAT(stamp, logtype, logsubtype, msg, ...) \
+#define VFORMAT(stamp, apitype, logtype, logsubtype, msg, ...) \
     do { \
         std::string stamp_; \
         if (dnnl::impl::get_verbose_timestamp()) \
             stamp_ = "," + std::to_string(stamp); \
-        printf("onednn_verbose%s," CONCAT2(VERBOSE_, logtype) "%s," msg "\n", \
+        printf("onednn_verbose%s," CONCAT2(VERBOSE_, apitype) "," CONCAT2( \
+                       VERBOSE_, logtype) "%s," msg "\n", \
                 stamp_.c_str(), logsubtype, ##__VA_ARGS__); \
     } while (0)
 
 // Logging info
-#define VINFO(logtype, logsubtype, component, msg, ...) \
+#define VINFO(apitype, logtype, logsubtype, component, msg, ...) \
     do { \
         if (dnnl::impl::get_verbose(verbose_t::logtype##_##logsubtype)) \
-            VFORMAT(get_msec(), logtype, VERBOSE_##logsubtype, \
+            VFORMAT(get_msec(), apitype, logtype, VERBOSE_##logsubtype, \
                     #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
                     __LINE__); \
     } while (0)
 
 // Macro for boolean checks
 #define VCONDCHECK( \
-        logtype, logsubtype, component, condition, status, msg, ...) \
+        apitype, logtype, logsubtype, component, condition, status, msg, ...) \
     do { \
         if (!(condition)) { \
-            VINFO(logtype, logsubtype, component, msg, ##__VA_ARGS__); \
+            VINFO(apitype, logtype, logsubtype, component, msg, \
+                    ##__VA_ARGS__); \
             return status; \
         } \
     } while (0)
 
 // Macro for status checks
-#define VCHECK(logtype, logsubtype, component, f, msg, ...) \
+#define VCHECK(apitype, logtype, logsubtype, component, f, msg, ...) \
     do { \
         status_t _status_ = (f); \
-        VCONDCHECK(logtype, logsubtype, component, \
+        VCONDCHECK(apitype, logtype, logsubtype, component, \
                 _status_ == status::success, _status_, msg, ##__VA_ARGS__); \
     } while (0)
 
 // Special syntactic sugar for error, plus flush of the output stream
-#define VERROR(component, msg, ...) \
+#define VERROR(apitype, component, msg, ...) \
     do { \
         if (dnnl::impl::get_verbose(verbose_t::error)) { \
-            VFORMAT(get_msec(), error, "", #component "," msg, ##__VA_ARGS__); \
+            VFORMAT(get_msec(), apitype, error, "", #component "," msg, \
+                    ##__VA_ARGS__); \
         } \
         fflush(stdout); \
     } while (0)
@@ -117,9 +120,9 @@ struct const_expr_value {
 // NOTE: the VPROF macro does not check for verbose flags, it is the
 // responsibility of the caller do check those (it should happen
 // anyway to condition collecting stamp/duration)
-#define VPROF(stamp, logtype, logsubtype, info, duration) \
+#define VPROF(stamp, apitype, logtype, logsubtype, info, duration) \
     { \
-        VFORMAT(stamp, logtype, logsubtype, "%s,%g", info, duration); \
+        VFORMAT(stamp, apitype, logtype, logsubtype, "%s,%g", info, duration); \
         fflush(stdout); \
     }
 

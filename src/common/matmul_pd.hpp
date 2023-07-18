@@ -26,8 +26,9 @@
 #include "utils.hpp"
 
 #define VDISPATCH_MATMUL(cond, msg, ...) \
-    VCONDCHECK(create, dispatch, matmul, (cond), status::unimplemented, \
-            "%s," msg, this->info(engine), ##__VA_ARGS__)
+    VCONDCHECK(primitive, create, dispatch, matmul, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

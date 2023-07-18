@@ -61,8 +61,9 @@ status_t sycl_hip_stream_t::init() {
             && (flags() & stream_flags::out_of_order) == 0)
         return status::invalid_arguments;
 
-    VCONDCHECK(create, check, stream, is_profiling_enabled() == false,
-            status::unimplemented, VERBOSE_PROFILING_UNSUPPORTED);
+    VCONDCHECK(primitive, create, check, stream,
+            is_profiling_enabled() == false, status::unimplemented,
+            VERBOSE_PROFILING_UNSUPPORTED);
 
     // If queue_ is not set then construct it
     auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine());

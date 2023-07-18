@@ -27,11 +27,11 @@
 
 // TODO add a method to print brgemm conf info
 #define VCONDCHECK_BG(cond, msg, ...) \
-    VCONDCHECK(create, dispatch, brgemm_matmul, (cond), status::unimplemented, \
-            msg, ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, dispatch, brgemm_matmul, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 #define VCHECK_BG(f, msg, ...) \
-    VCHECK(create, dispatch, brgemm_matmul, f, msg, ##__VA_ARGS__);
+    VCHECK(primitive, create, dispatch, brgemm_matmul, f, msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {

@@ -39,7 +39,7 @@ status_t sycl_engine_factory_t::engine_create(
                 try {
                     std::rethrow_exception(eptr);
                 } catch (const ::sycl::exception &e) {
-                    VERROR(sycl, "%s", e.what());
+                    VERROR(common, sycl, "%s", e.what());
                 }
             } else {
                 std::rethrow_exception(eptr);

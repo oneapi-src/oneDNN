@@ -88,7 +88,8 @@ std::string get_descriptor(dim_t M, dim_t N, dim_t K) {
         if (alpha != 1.f) ss << "attr-oscale:common:" << alpha << " "; \
         if (beta != 0.f) ss << "attr-post-ops:sum:" << beta << " "; \
         ss << ",," << get_descriptor(M, N, K); \
-        VPROF(start_ms, exec, VERBOSE_profile, ss.str().c_str(), duration_ms); \
+        VPROF(start_ms, primitive, exec, VERBOSE_profile, ss.str().c_str(), \
+                duration_ms); \
     } else { \
         status = __VA_ARGS__; \
     }

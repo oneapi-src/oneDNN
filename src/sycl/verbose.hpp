@@ -50,7 +50,7 @@ void print_verbose_header(engine_kind_t kind) {
                     s_engine_kind, (int)i, s_backend.c_str(), s_name.c_str(),
                     s_ver.c_str(), s_binary_kernels);
         } catch (...) {
-            VERROR(dpcpp, VERBOSE_INVALID_DEVICE_ENV,
+            VERROR(common, dpcpp, VERBOSE_INVALID_DEVICE_ENV,
                     dnnl_engine_kind2str(engine_kind::gpu), i);
         }
     }

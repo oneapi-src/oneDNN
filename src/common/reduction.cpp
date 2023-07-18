@@ -27,12 +27,12 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::alg_kind;
 
 #define VCHECK_RED(cond, msg, ...) \
-    VCONDCHECK(create, check, reduction, (cond), status::invalid_arguments, \
-            msg, ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, reduction, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_RED_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, reduction, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, reduction, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 namespace dnnl {
 namespace impl {
 

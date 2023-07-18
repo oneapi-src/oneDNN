@@ -46,8 +46,6 @@ namespace impl {
 namespace graph {
 namespace utils {
 
-static dnnl::impl::setting_t<uint32_t> verbose {0};
-
 void print_verbose_header() {
     std::vector<const backend_t *> &backends
             = backend_registry_t::get_singleton().get_registered_backends();
@@ -56,82 +54,6 @@ void print_verbose_header() {
         printf("onednn_verbose,info,graph,backend,%zu:%s\n", i,
                 bkd->get_name().c_str());
     }
-}
-
-void print_header() {
-    static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
-    if (!version_printed.test_and_set()) {
-        printf("onednn_graph_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
-                dnnl_version()->major, dnnl_version()->minor,
-                dnnl_version()->patch, dnnl_version()->hash);
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-        printf("onednn_graph_verbose,info,cpu,runtime:%s,nthr:%d\n",
-                dnnl_runtime2str(dnnl_version()->cpu_runtime),
-                dnnl_get_max_threads());
-        printf("onednn_graph_verbose,info,cpu,isa:%s\n",
-                cpu::platform::get_isa_info());
-#endif
-        printf("onednn_graph_verbose,info,gpu,runtime:%s\n",
-                dnnl_runtime2str(dnnl_version()->gpu_runtime));
-        std::vector<const backend_t *> &backends
-                = backend_registry_t::get_singleton().get_registered_backends();
-        for (size_t i = 0; i < backends.size() - 1; ++i) {
-            backend_t *bkd = const_cast<backend_t *>(backends[i]);
-            printf("onednn_graph_verbose,info,backend,%zu:%s\n", i,
-                    bkd->get_name().c_str());
-        }
-    }
-}
-
-// verbosity flag is a hint on when to print header so that we print
-// header only when something will effectively be logged
-uint32_t get_graph_verbose(impl::verbose_t::flag_kind verbosity_kind) {
-#if defined(DISABLE_VERBOSE)
-    return verbose_t::none;
-#else
-    if (!verbose.initialized()) {
-        // Assumes that all threads see the same environment
-        static std::string user_opt = getenv_string_user("GRAPH_VERBOSE");
-
-        auto update_kind = [&](const std::string &s, int &k) -> int {
-            // Legacy: we accept values 0,1,2
-            // 0 and none erase previously set flags, including error
-            if (s == "0" || s == "none") return k = impl::verbose_t::none;
-            if (s == "1") return k |= impl::verbose_t::exec_profile;
-            if (s == "2")
-                return k |= impl::verbose_t::exec_profile
-                        | impl::verbose_t::create_profile;
-            if (s == "all" || s == "-1") return k |= impl::verbose_t::all;
-            if (s == "error") return k |= impl::verbose_t::error;
-            if (s == "check")
-                return k |= impl::verbose_t::create_check
-                        | impl::verbose_t::exec_check;
-            if (s == "profile")
-                return k |= impl::verbose_t::create_profile
-                        | impl::verbose_t::exec_profile;
-            if (s == "profile_compile")
-                return k |= impl::verbose_t::create_profile;
-            if (s == "profile_exec") return k |= impl::verbose_t::exec_profile;
-
-            // Unknown option is ignored
-            // TODO: exit on unsupported or print a message?
-            return k;
-        };
-
-        // we always enable error by default
-        int val = impl::verbose_t::error;
-        for (auto &tok : utils::str_split(user_opt, ','))
-            update_kind(tok, val);
-
-        // We parse for explicit flags
-        verbose.set(val);
-    }
-
-    int result = verbose.get() & verbosity_kind;
-    if (result) print_header();
-
-    return result;
-#endif
 }
 
 #if defined(DISABLE_VERBOSE)

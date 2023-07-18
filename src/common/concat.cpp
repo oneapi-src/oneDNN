@@ -33,12 +33,12 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
 #define VCHECK_CONCAT(cond, msg, ...) \
-    VCONDCHECK(create, check, concat, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, concat, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_CONCAT_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, concat, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, concat, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 namespace dnnl {
 namespace impl {
 
@@ -63,7 +63,7 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
     const int ndims = src_mds[0]->ndims;
     const dims_t &dims = src_mds[0]->dims;
     const data_type_t dt = src_mds[0]->data_type;
-    VCONDCHECK(create, check, concat,
+    VCONDCHECK(primitive, create, check, concat,
             !memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides(),
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
@@ -78,7 +78,7 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
                 "src_0", SRC2STR(i));
         VCHECK_CONCAT(!memory_desc_wrapper(src_md).format_any(),
                 VERBOSE_UNSUPPORTED_TAG_S, SRC2STR(i));
-        VCONDCHECK(create, check, concat,
+        VCONDCHECK(primitive, create, check, concat,
                 !memory_desc_wrapper(src_md).has_runtime_dims_or_strides(),
                 status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 

@@ -55,7 +55,7 @@ namespace {
     do { \
         ze_result_t res_ = (f); \
         if (res_ != ZE_RESULT_SUCCESS) { \
-            VERROR(level_zero, "errcode %d", (int)(res_)); \
+            VERROR(common, level_zero, "errcode %d", (int)(res_)); \
             return retval; \
         } \
     } while (false)
@@ -72,7 +72,7 @@ void *find_ze_symbol(const char *symbol) {
             "ze_loader.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 #endif
     if (!handle) {
-        VERROR(level_zero, "cannot find loader library");
+        VERROR(common, level_zero, "cannot find loader library");
         assert(!"not expected");
         return nullptr;
     }
@@ -91,7 +91,7 @@ void *find_ze_symbol(const char *symbol) {
     ZE_CHECK_VP(ze_result);
 
     if (!f) {
-        VERROR(level_zero, "cannot find symbol: %s", symbol);
+        VERROR(common, level_zero, "cannot find symbol: %s", symbol);
         assert(!"not expected");
     }
     return f;

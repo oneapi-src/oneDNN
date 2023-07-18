@@ -73,7 +73,7 @@ public:
         } catch (std::runtime_error &err) {
             // If verbose is enabled, print the primitive case and rethrow the
             // exception.
-            VERROR(gpu, "%s,%s", pd->info(engine), err.what());
+            VERROR(primitive, gpu, "%s,%s", pd->info(engine), err.what());
             return status::runtime_error;
         }
     }
@@ -364,7 +364,8 @@ private:
     static bool handle_exception(const ExceptionT &err, T *primitive,
             engine_t *engine, int iter, int max_iters) {
         if (iter + 1 < max_iters) return false;
-        VERROR(gpu, "%s,%s", primitive->pd()->info(engine), err.what());
+        VERROR(primitive, gpu, "%s,%s", primitive->pd()->info(engine),
+                err.what());
         return true;
     }
 
