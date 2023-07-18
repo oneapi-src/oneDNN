@@ -243,8 +243,10 @@ private:
     }
 
     Vmm vmm_tmp(int i) {
-        assert(i >= 0
-                && i < max_effective_vregs - brg.bd_block * brg.ld_block2);
+        assert(IMPLICATION(!brg.is_tmm,
+                i >= 0
+                        && i < max_effective_vregs
+                                        - brg.bd_block * brg.ld_block2));
         return Vmm(i);
     }
 
