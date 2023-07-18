@@ -71,7 +71,8 @@ struct const_expr_value {
 #define VFORMAT(stamp, logtype, logsubtype, msg, ...) \
     do { \
         std::string stamp_; \
-        if (get_verbose_timestamp()) stamp_ = "," + std::to_string(stamp); \
+        if (dnnl::impl::get_verbose_timestamp()) \
+            stamp_ = "," + std::to_string(stamp); \
         printf("onednn_verbose%s," CONCAT2(VERBOSE_, logtype) "%s," msg "\n", \
                 stamp_.c_str(), logsubtype, ##__VA_ARGS__); \
     } while (0)
@@ -79,7 +80,7 @@ struct const_expr_value {
 // Logging info
 #define VINFO(logtype, logsubtype, component, msg, ...) \
     do { \
-        if (get_verbose(verbose_t::logtype##_##logsubtype)) \
+        if (dnnl::impl::get_verbose(verbose_t::logtype##_##logsubtype)) \
             VFORMAT(get_msec(), logtype, VERBOSE_##logsubtype, \
                     #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
                     __LINE__); \
@@ -106,7 +107,7 @@ struct const_expr_value {
 // Special syntactic sugar for error, plus flush of the output stream
 #define VERROR(component, msg, ...) \
     do { \
-        if (get_verbose(verbose_t::error)) { \
+        if (dnnl::impl::get_verbose(verbose_t::error)) { \
             VFORMAT(get_msec(), error, "", #component "," msg, ##__VA_ARGS__); \
         } \
         fflush(stdout); \
