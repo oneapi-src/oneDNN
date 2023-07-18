@@ -1412,7 +1412,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
     if (is_initialized_) return;
 
     std::call_once(initialization_flag_, [&] {
-// clang-format off
+    // clang-format off
 #define CASE(kind) \
     case primitive_kind::kind: \
         str_ = init_info_##kind(engine, (const kind##_pd_t *)pd); \

@@ -242,7 +242,7 @@ bool op_schema_t::verify_param_dtype(
         if (dtype_string == "any") continue;
         std::set<data_type_t> &expected_dtypes
                 = dtype_constraints[dtype_string];
-        VCONDCHECKGRAPH(create, check, op,
+        VCONDCHECK(create, check, add_op,
                 (expected_dtypes.find(lt.data_type) != expected_dtypes.end()),
                 false, "%s,given data type for input%zu is %s v.s. expected %s",
                 op_t::kind2str(op_schema_t::get_op_kind()).c_str(), i,
@@ -268,7 +268,7 @@ bool op_schema_t::verify_attributes(
         bool check_undefined_attrs) const {
     // check if required attributes are not provided
     for (const auto &elem : expected_attrs) {
-        VCONDCHECKGRAPH(create, check, op,
+        VCONDCHECK(create, check, add_op,
                 !(elem.second.required_ && actual_attrs.count(elem.first) == 0),
                 false, "%s,attribute %s is required but not set",
                 op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
@@ -278,7 +278,7 @@ bool op_schema_t::verify_attributes(
     for (const auto &elem : actual_attrs) {
         const op_attr_t attr_name = elem.first;
         if (expected_attrs.count(attr_name) == 0) continue;
-        VCONDCHECKGRAPH(create, check, op,
+        VCONDCHECK(create, check, add_op,
                 (elem.second.get_kind()
                         == expected_attrs.at(attr_name).attr_kind_),
                 false, "%s,attribute %s has invalid type",
@@ -289,7 +289,7 @@ bool op_schema_t::verify_attributes(
         const auto &candidates
                 = expected_attrs.find(attr_name)->second.candidates_;
         if (!candidates.empty()) {
-            VCONDCHECKGRAPH(create, check, op,
+            VCONDCHECK(create, check, add_op,
                     (std::find(
                              candidates.begin(), candidates.end(), elem.second)
                             != candidates.end()),
@@ -302,7 +302,7 @@ bool op_schema_t::verify_attributes(
     // check if user set undefined attributes
     if (check_undefined_attrs) {
         for (const auto &elem : actual_attrs) {
-            VCONDCHECKGRAPH(create, check, op,
+            VCONDCHECK(create, check, add_op,
                     (expected_attrs.count(elem.first) != 0), false,
                     "%s,attribute %s is not defined in spec",
                     op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
@@ -335,7 +335,7 @@ bool op_schema_t::verify(const op_t *l_op, bool check_undefined_attrs) const {
     std::set<size_t> expected_num_inputs = get_num_inputs();
     bool param_num_verify_result = verify_param_num(
             actual_num_inputs, expected_num_inputs, inputs_option);
-    VCONDCHECKGRAPH(create, check, op, (param_num_verify_result), false,
+    VCONDCHECK(create, check, add_op, (param_num_verify_result), false,
             "%s,given num inputs %zu v.s. expected %s",
             op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
             actual_num_inputs, utils::set2str(expected_num_inputs).c_str());
@@ -352,7 +352,7 @@ bool op_schema_t::verify(const op_t *l_op, bool check_undefined_attrs) const {
     std::set<size_t> expected_num_outputs = get_num_outputs();
     param_num_verify_result = verify_param_num(
             actual_num_outputs, expected_num_outputs, outputs_option);
-    VCONDCHECKGRAPH(create, check, op, (param_num_verify_result), false,
+    VCONDCHECK(create, check, add_op, (param_num_verify_result), false,
             "%s,given num outputs %zu v.s. expected %s",
             op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
             actual_num_outputs, utils::set2str(expected_num_outputs).c_str());
