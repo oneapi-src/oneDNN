@@ -295,11 +295,8 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                         shape, false);
                 old_input = parent_tsr;
             }
-            node_ptr_map buffer_map = {{old_input.impl, new_input.impl}};
-            // IR replace
-            mxp_replacer_t(buffer_map).replace_func(binded_mxp_->func_);
             // Buffer replace
-            replace_buffer(ins.get(), new_input);
+            replace_buffer(old_input, new_input);
         }
     }
 }
@@ -355,14 +352,16 @@ size_t mxp_buffer_allocator::get_real_buffer_usage() const {
             binded_mxp_->ctx_, get_real_mem_trace(), inplace_map_);
 }
 
-void mxp_buffer_allocator::replace_buffer(graph_tensor *gt, expr &new_buffer) {
+void mxp_buffer_allocator::replace_buffer(
+        const expr &old_buffer, const expr &new_buffer) {
     // assert new buffer
     COMPILE_ASSERT(b2g_map_.find(new_buffer) == b2g_map_.end(),
             "Currently, it is only expected to replace with new buffer which "
             "never appear in mixed IR, but got "
                     << new_buffer)
     // get old buffer
-    auto old_buffer = g2b_map_.get(gt);
+    COMPILE_ASSERT(old_buffer.isa<tensor>(),
+            "Replace target is expected to be Tensor node")
     if (tsr2anch_map_.find(old_buffer) != tsr2anch_map_.end()) {
         tsr2anch_map_.erase(old_buffer);
     }
@@ -411,7 +410,17 @@ void mxp_buffer_allocator::replace_buffer(graph_tensor *gt, expr &new_buffer) {
             iter++;
         }
     }
-    g2b_map_.get(gt) = new_buffer;
+    // replace g2b map
+    for (auto &g2b : g2b_map_.datamap_) {
+        auto &buf = g2b.second;
+        auto tsr = get_real_tensor(buf);
+        if (tsr.ptr_same(old_tsr.static_as<tensor>())) {
+            set_base_tensor(buf, new_buffer);
+        }
+    }
+    // TIR replace
+    node_ptr_map buffer_map = {{old_buffer.impl, new_buffer.impl}};
+    mxp_replacer_t(buffer_map).replace_func(binded_mxp_->func_);
 }
 
 std::tuple<std::vector<expr>, std::vector<expr>>

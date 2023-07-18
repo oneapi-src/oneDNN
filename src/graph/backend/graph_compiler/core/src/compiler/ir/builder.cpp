@@ -117,17 +117,26 @@ stmt get_common_parent_node(const stmt &node1, const stmt &node2) {
                          ->shared_from_this()};
 }
 
-tensor get_real_tensor(const expr &buffer) {
-    auto tsr = buffer;
-    while (!tsr.isa<tensor>()) {
+expr &get_base_tensor(expr &buffer) {
+    expr *tsr = &buffer;
+    while (!tsr->isa<tensor>()) {
         COMPILE_ASSERT(
-                tsr.isa<tensorptr>(), "Only tensor or tensorptr is accepted")
-        auto base = tsr.static_as<tensorptr>()->base_;
+                tsr->isa<tensorptr>(), "Only tensor or tensorptr is accepted")
+        auto base = tsr->static_as<tensorptr>()->base_;
         COMPILE_ASSERT(base.isa<indexing>(),
                 "tensor_ptr base should be indexing, but got: " << base);
-        tsr = base.static_as<indexing>()->ptr_;
+        tsr = &(base.static_as<indexing>()->ptr_);
     }
-    return tsr.static_as<tensor>();
+    return *tsr;
+}
+
+tensor get_real_tensor(const expr &buffer) {
+    auto buf = buffer;
+    return get_base_tensor(buf).checked_as<tensor>();
+}
+
+void set_base_tensor(expr &tptr, const expr &tsr) {
+    get_base_tensor(tptr) = tsr;
 }
 
 namespace builder {

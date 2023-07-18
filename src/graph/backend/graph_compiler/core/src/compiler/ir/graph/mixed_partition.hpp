@@ -189,7 +189,7 @@ public:
     // initilize tensor
     void tensor_initialize();
     // replace the specific buffer
-    void replace_buffer(graph_tensor *gt, expr &new_buffer);
+    void replace_buffer(const expr &old_buffer, const expr &new_buffer);
     // get real mem trace, taking consider of tensor shrink and ignore cut
     // buffer except for those in `keep_cut_set`
     std::vector<memory_optim::memory_alloc_trace_t> get_real_mem_trace(

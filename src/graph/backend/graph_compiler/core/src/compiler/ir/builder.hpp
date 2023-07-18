@@ -1104,7 +1104,10 @@ stmt copy_attr(const stmt_base_t &ths, stmt &&newstmt);
 func_t copy_attr(const func_base &ths, func_t &&newfunc);
 
 stmt get_parent_node(const stmt &node);
+// If buffer is tptr, return base tensor, If buffer is tensor, return itself
 tensor get_real_tensor(const expr &buffer);
+// set base tensor of `tptr` with `tsr`
+void set_base_tensor(expr &tptr, const expr &tsr);
 void add_parent_node(const stmt &s, const stmt &ret);
 stmt get_common_parent_node(const stmt &node1, const stmt &node2);
 
