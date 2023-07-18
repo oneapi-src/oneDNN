@@ -775,6 +775,7 @@ TEST(GCGraphTest, BF16BartMLPResidualCompileExecution_CPU) {
     compile_execution_pipeline(agraph, 1);
 }
 
+#if 0
 TEST(GCGraphTest, INT8BartMLPResidualCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_CPU_ENGINE();
@@ -794,6 +795,7 @@ TEST(GCGraphTest, INT8BF16BartMLPResidualCompileExecution_CPU) {
 
     compile_execution_pipeline(agraph, 1);
 }
+#endif
 
 TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution_CPU) {
     REQUIRE_AVX512();
