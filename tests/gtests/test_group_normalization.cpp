@@ -75,6 +75,11 @@ protected:
         if (get_test_engine_kind() == engine::kind::cpu && is_src_int8) {
             aa.scales = true;
         }
+        if (get_test_engine_kind() == engine::kind::cpu) {
+            aa.po_eltwise = true;
+            aa.po_binary = true;
+        }
+
         auto src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
         auto dst_md = memory::desc(p.dims, p.dst_dt, p.dst_tag);
 
