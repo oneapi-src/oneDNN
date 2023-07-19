@@ -256,7 +256,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         return status::unimplemented;
     if ((brg->dt_a == data_type::f32 && brg->dt_b == data_type::f32)
             && (!one_of(dt_d, data_type::f32))
-            && (!one_of(dt_bias, data_type::undef, data_type::f32)))
+            && (!one_of(dt_bias, data_type::undef, data_type::f32, dt_d)))
         return status::unimplemented;
     if (!IMPLICATION(brg->is_f16,
                 one_of(dt_d, data_type::f32, data_type::f16)
