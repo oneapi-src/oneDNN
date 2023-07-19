@@ -11,6 +11,12 @@
 16x128x4x64:16x128x1x1
 128x53x17:128x1x1
 
+# 3-dim reduction
+4x16x3x4:1x1x1x4
+4x16x3x4:1x1x3x1
+4x16x3x4:1x16x1x1
+4x16x3x4:4x1x1x1
+
 # Full reduction
 4192x17:1x1
 36x640x4:1x1x1
