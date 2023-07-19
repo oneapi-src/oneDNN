@@ -142,16 +142,16 @@ struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             const data_type_t wdt = weights_md_.data_type;
-            bool is_xf16_convolution = true
-                    && (utils::one_of(wdt, data_type::bf16, data_type::f16)
-                            && diff_dst_md_.data_type == wdt
-                            && utils::one_of(diff_src_md_.data_type,
-                                    data_type::f32, wdt))
-                    && attr()->has_default_values();
+            bool is_xf16_convolution
+                    = utils::one_of(wdt, data_type::bf16, data_type::f16)
+                    && diff_dst_md_.data_type == wdt
+                    && utils::one_of(
+                            diff_src_md_.data_type, data_type::f32, wdt);
 
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+            bool ok = desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && is_xf16_convolution && !has_zero_dim_memory();
+                    && is_xf16_convolution && !has_zero_dim_memory()
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_amx_bwd_data_kernel_t::init_conf(
