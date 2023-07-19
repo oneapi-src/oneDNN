@@ -68,12 +68,12 @@ void check_correctness(
     for (const auto &i_fpmath_mode : s.fpmath_mode) {
         auto attr = settings_t::get_attr(i_scratchpad_mode, i_fpmath_mode);
 
-        auto prb = std::shared_ptr<prb_t>(new prb_t(s.desc,
+        auto prb = std::make_shared<prb_t>(s.desc,
                 dt_conf_t::create(i_cfg, attr), i_prop, i_alg, i_with_peephole,
                 i_with_projection, i_direction, i_scale_policy,
                 i_scale_proj_policy, i_flags, i_activation, attr, i_ctx_init,
                 i_ctx_exe, s.alpha, s.beta, i_skip_nonlinear, i_trivial_strides,
-                i_n_layer, i_n_iter, i_mb));
+                i_n_layer, i_n_iter, i_mb);
 
         task_executor.submit(
                 std::move(prb), s.perf_template, createit, check_cacheit, doit);

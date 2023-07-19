@@ -174,7 +174,7 @@ bool ref_partition_t::get_leading_op_group(op_ref_list_t &leading_ops_group) {
         }
     }
 
-    if (leading_ops_group.size() == 0) return false;
+    if (leading_ops_group.empty()) return false;
     return true;
 }
 
