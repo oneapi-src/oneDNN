@@ -7737,7 +7737,7 @@ struct group_normalization_forward : public primitive {
         dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
 
         /// @copydoc dnnl::primitive_desc_base::get_group_size()const
-        int get_group_size() const { return base::get_group_size(); }
+        memory::dim get_group_size() const { return base::get_group_size(); }
 
         /// @copydoc dnnl::primitive_desc_base::get_epsilon()const
         float get_epsilon() const { return base::get_epsilon(); }
@@ -7880,7 +7880,7 @@ struct group_normalization_backward : public primitive {
         dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
 
         /// @copydoc dnnl::primitive_desc_base::get_group_size()const
-        int get_group_size() const { return base::get_group_size(); }
+        memory::dim get_group_size() const { return base::get_group_size(); }
 
         /// @copydoc dnnl::primitive_desc_base::get_epsilon()const
         float get_epsilon() const { return base::get_epsilon(); }
