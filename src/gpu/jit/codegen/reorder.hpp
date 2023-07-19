@@ -497,7 +497,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (src_f && dst_hf) {
         int step = get_step();
         const auto tmp_type = dst_type;
-        const int reg_size = step * 2 * src_stride * dst_type_size;
+        const int reg_size
+                = src.byte_offset() + step * 2 * src_stride * dst_type_size;
         const int nregs = utils::div_up(reg_size, grf_size);
         auto tmp1 = lex_scope.alloc_reg_buf_data(nregs);
         auto tmp2 = lex_scope.alloc_reg_buf_data(nregs);
@@ -521,8 +522,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto tmp_offset = 2 * dst_type_size
                     * (d.getOffset() % (align_boundary / 2));
             auto t1 = tmp1.subregister(
-                    (i * src_type_size * src_stride_bytes) % reg_size,
-                    tmp_type);
+                    s.getByteOffset() % (nregs * grf_size), tmp_type);
             plan(mov, esize, t1(2 * src_stride), s(src_stride));
             if (dst_stride == 1
                     && (s.getByteOffset() != tmp_offset || src_stride != 1)) {
