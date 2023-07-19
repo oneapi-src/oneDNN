@@ -187,7 +187,8 @@ private:
 
             // TODO: bf16 and f16 currently perform worse than tf32, this is
             // likely due to an extra reorder required on the b buffer.
-            bool use_matching_fpmath = dev_getenv("use_matching_fpmath", false);
+            bool use_matching_fpmath
+                    = gpu_utils::dev_getenv("use_matching_fpmath", false);
             if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::bf16)
                     && fma_kind::get_supported_kind(hw_cfg, data_type::bf16,

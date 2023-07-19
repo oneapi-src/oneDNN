@@ -34,8 +34,8 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
-#include "gpu/getenv_utils.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
+#include "gpu/utils.hpp"
 
 #define DPRINT(fmt, ...) \
     do { \
@@ -55,6 +55,7 @@ namespace gpu {
 namespace ocl {
 
 using namespace dnnl::impl::utils;
+using namespace dnnl::impl::gpu::gpu_utils;
 using namespace dnnl::impl::math;
 using namespace prop_kind;
 using namespace alg_kind;

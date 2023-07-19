@@ -1501,7 +1501,7 @@ struct conv_tiler_params_t {
 conv_tiler_params_t &tiler_params() {
     static conv_tiler_params_t params = []() {
         conv_tiler_params_t ret;
-        auto s_opts = dev_getenv("tiler", std::string());
+        auto s_opts = gpu_utils::dev_getenv("tiler", std::string());
         if (s_opts.empty()) return ret;
         auto opts = ir_utils::split(s_opts, ",");
         for (auto &opt : opts) {

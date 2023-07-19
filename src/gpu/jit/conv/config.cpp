@@ -896,7 +896,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
 
 void maybe_override_from_env(conv_config_t &cfg) {
 #ifdef DNNL_DEV_MODE
-    auto cfg_env = dev_getenv("cfg", std::string());
+    auto cfg_env = gpu_utils::dev_getenv("cfg", std::string());
     if (cfg_env.empty()) return;
     cfg.override_set(cfg_env, /*is_env=*/true);
 #else

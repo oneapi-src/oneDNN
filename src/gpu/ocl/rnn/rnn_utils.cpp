@@ -17,8 +17,8 @@
 #include "gpu/ocl/rnn/rnn_utils.hpp"
 
 #include "common/c_types_map.hpp"
-#include "gpu/getenv_utils.hpp"
 #include "gpu/ocl/rnn/ref_rnn.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,6 +27,7 @@ namespace ocl {
 #define AOC array_offset_calculator
 
 using namespace dnnl::impl::utils;
+using namespace dnnl::impl::gpu::gpu_utils;
 using namespace prop_kind;
 using namespace data_type;
 

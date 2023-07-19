@@ -15,11 +15,14 @@
 *******************************************************************************/
 
 #include "gpu/ocl/rnn/ref_rnn.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+using namespace dnnl::impl::gpu::gpu_utils;
 
 template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {

@@ -13,15 +13,83 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef GPU_OVERRIDE_UTILS_HPP
-#define GPU_OVERRIDE_UTILS_HPP
+#ifndef GPU_UTILS_HPP
+#define GPU_UTILS_HPP
+
+#include <iostream>
+#include <sstream>
 
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 
+// Uncomment this when aborting on ir_assert is desired:
+// #define GPU_ABORT_ON_ERROR
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace gpu_utils {
+
+class error_stream_t {
+public:
+    error_stream_t(const char *file, int line, const char *assert_msg)
+        : data_(new data_t(file, line, assert_msg)) {}
+
+    // This is to be able use a steam object in short-circuit evaluation with
+    // booleans, see below.
+    operator bool() const { return true; }
+
+    template <typename T>
+    error_stream_t &operator<<(const T &t) {
+        data_->out << t;
+        return *this;
+    }
+
+    ~error_stream_t() noexcept(false) {
+        if (data_ == nullptr) return;
+
+        std::cout << data_->out.str() << std::endl;
+#ifdef GPU_ABORT_ON_ERROR
+        std::abort();
+#else
+        auto err = std::runtime_error(data_->out.str());
+        delete data_;
+        data_ = nullptr;
+
+        // This is techincally unsafe. Since error_stream_t is only used in
+        // debug builds and since it is only used by ir_assert() which signals
+        // an ill-defined program state, nested throws is not a concern.
+        throw err; // NOLINT
+#endif
+    }
+
+private:
+    struct data_t {
+        data_t(const char *file, int line, const char *assert_msg)
+            : file(file), line(line) {
+            out << "Assertion " << assert_msg << " failed at " << file << ":"
+                << line << std::endl;
+        }
+
+        const char *file;
+        int line;
+        std::ostringstream out;
+    };
+
+    data_t *data_;
+};
+
+#if !defined(NDEBUG) || defined(DNNL_DEV_MODE)
+#define gpu_assert(cond) \
+    !(cond) \
+            && dnnl::impl::gpu::gpu_utils::error_stream_t( \
+                    __FILE__, __LINE__, #cond)
+#else
+#define gpu_assert(cond) \
+    (false) && !(cond) \
+            && dnnl::impl::gpu::gpu_utils::error_stream_t( \
+                    __FILE__, __LINE__, #cond)
+#endif
 
 inline int dev_getenv(const char *name, int default_value) {
 #ifdef DNNL_DEV_MODE
@@ -80,6 +148,7 @@ inline compute::gpu_arch_t dev_getenv(const char *s, compute::gpu_arch_t arch,
 #endif
 }
 
+} // namespace gpu_utils
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
