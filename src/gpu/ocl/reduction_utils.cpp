@@ -223,6 +223,12 @@ status_t generate_reduction_phases(const memory_desc_t *src,
         }
     }
 
+    // Sort dst zpadding by increasing inner stride
+    std::sort(last_subprb.dst_zpads.begin(), last_subprb.dst_zpads.end(),
+            [](zero_padding &first, zero_padding &last) -> bool {
+                return first.inner_stride < last.inner_stride;
+            });
+
     return status::success;
 }
 

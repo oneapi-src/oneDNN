@@ -113,6 +113,8 @@ bool is_dst_zero_padded(const dim_t dst_off) {
 
 // For dst zero-padding on reduced dimensions:
 // increase strides to skip over zeros
+// XXX: Relies on zero padding being sorted by inner stride
+// i.e. DST_Z0_STRIDE0 < DST_Z1_STRIDE0
 dim_t dst_off_w_zero_padding(dim_t outer, dim_t inner) {
     dim_t outer_stride = INNER_DIM_SIZE;
 
