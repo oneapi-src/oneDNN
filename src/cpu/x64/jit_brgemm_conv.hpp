@@ -79,61 +79,31 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         // batch sizes info for unrolled kernels
         int bs_c;
         // need custom hasher to use array as key in unordered_map
-        struct hasher {
-            size_t operator()(const std::array<int, 4> &a) const {
+        template <int asize>
+        struct ahasher {
+            size_t operator()(const std::array<int, asize> &a) const {
                 size_t seed = 0;
                 for (auto e : a)
                     seed = hash_combine(seed, e);
                 return seed;
             }
         };
-        std::unordered_map<std::array<int, 4>, int, hasher> batchsizes;
+        template <int asize>
+        using Arrmap = std::unordered_map<std::array<int, asize>, int,
+                ahasher<asize>>;
+
+        Arrmap<4> batchsizes;
+        int brg_indices_c {0};
+        Arrmap<8> brg_indices;
 
         void get_kw_range(int ow, int &kw_s, int &kw_full_s, int &kw_full_e,
                 int &kw_e) const;
         void get_ow_range(int ow, int kw, int &ow_s, int &ow_e) const;
 
-        inline size_t get_brg_idx(int m, bool do_initialization, bool is_N_tail,
-                bool is_K_tail, int kd_b, int kd_e, int kh_b, int kh_e) const {
-            int bs_idx = 0;
-            if (jcp_.use_uker) {
-                const auto bs = batchsizes.find({kd_b, kd_e, kh_b, kh_e});
-                if (bs == batchsizes.end()) {
-                    assert(!"unregistered batch size");
-                    return 0;
-                }
-                bs_idx = bs->second;
-            }
-            return (((m * bs_c + bs_idx) * 2
-                            + static_cast<int>(do_initialization))
-                                   * 2
-                           + static_cast<int>(is_N_tail))
-                    * 2
-                    + static_cast<int>(is_K_tail);
-        }
+        int get_brg_idx(int m, bool do_initialization, bool is_N_tail,
+                bool is_K_tail, int kd_b, int kd_e, int kh_b, int kh_e) const;
 
-        int get_any_brg_idx(bool is_N_tail, bool is_K_tail) const {
-            // return first defined brgemm_descriptor for specified parameters
-            const int M_end = nstl::max(jcp_.M, jcp_.M_tail);
-            const bool N_begin = (jcp_.N == jcp_.N_tail) ? false : is_N_tail;
-            const bool N_end = (jcp_.N == jcp_.N_tail) ? true : is_N_tail;
-            const bool K_begin = (jcp_.K == jcp_.K_tail) ? false : is_K_tail;
-            const bool K_end = (jcp_.K == jcp_.K_tail) ? true : is_K_tail;
-            for_(int m = 0; m < M_end; m++)
-            for_(bool i_init : {false, true})
-            for_(bool i_N_tail : {N_begin, N_end})
-            for_(bool i_K_tail : {K_begin, K_end})
-            for (const auto &key_value_pair : batchsizes) {
-                const int kd_b = key_value_pair.first[0];
-                const int kd_e = key_value_pair.first[1];
-                const int kh_b = key_value_pair.first[2];
-                const int kh_e = key_value_pair.first[3];
-                const auto brg_idx = get_brg_idx(
-                        m, i_init, i_N_tail, i_K_tail, kd_b, kd_e, kh_b, kh_e);
-                if ((*brgemm_descriptors_)[brg_idx]) return brg_idx;
-            }
-            return 0;
-        }
+        int get_any_brg_idx(bool is_N_tail, bool is_K_tail) const;
 
         inline int maybe_invert(int k, int K) const {
             return use_inversion ? K - 1 - k : k;
@@ -249,8 +219,7 @@ private:
 
     status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
     void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);
-    status_t add_brg_kernel(int M, int i_N, int i_K, int i_init, int kd_b,
-            int kd_e, int kh_b, int kh_e);
+    status_t add_brg_kernel(int brg_idx);
 
     status_t cal_compensation(const char *__restrict weights,
             int32_t *src_zp_buffer, int32_t *s8s8_comp_buffer) const;

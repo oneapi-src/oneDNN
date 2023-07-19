@@ -43,6 +43,39 @@ using namespace jit_uni_brgemm_conv_comp_pad_kernel;
     ((ndims == 5) ? (v5) : (ndims == 4) ? (v4) : (ndims == 3) ? (v3) : 0)
 
 template <cpu_isa_t isa, bool use_inversion>
+int brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::get_brg_idx(int m,
+        bool do_initialization, bool is_N_tail, bool is_K_tail, int kd_b,
+        int kd_e, int kh_b, int kh_e) const {
+    int bs_idx = 0;
+    if (jcp_.use_uker) {
+        const auto bs = batchsizes.find({kd_b, kd_e, kh_b, kh_e});
+        if (bs == batchsizes.end()) {
+            assert(!"unregistered batch size");
+            return 0;
+        }
+        bs_idx = bs->second;
+    }
+    return (((m * bs_c + bs_idx) * 2 + static_cast<int>(do_initialization)) * 2
+                   + static_cast<int>(is_N_tail))
+            * 2
+            + static_cast<int>(is_K_tail);
+}
+
+template <cpu_isa_t isa, bool use_inversion>
+int brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::get_any_brg_idx(
+        bool is_N_tail, bool is_K_tail) const {
+    // return first defined brgemm_descriptor for specified parameters
+    for (const auto &key_value_pair : brg_indices) {
+        const bool i_N = key_value_pair.first[1];
+        const bool i_K = key_value_pair.first[2];
+        if ((jcp_.N == jcp_.N_tail || is_N_tail == i_N)
+                && (jcp_.K == jcp_.K_tail || is_K_tail == i_K))
+            return key_value_pair.second;
+    }
+    return 0;
+}
+
+template <cpu_isa_t isa, bool use_inversion>
 void brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init_batch(int icc,
         const char *src_base, const char *wei_base, int n_ic_blocks,
         int ic_block_s, int iid_b, int iih_b, int iiw_b,
@@ -307,6 +340,13 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
 
     brgemm_descriptors_->insert(brg_idx, brg, bd_mask, stoffs);
 
+    const std::array<int, 8> key
+            = {vM, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e};
+    if (brg_indices.find(key) == brg_indices.end()) {
+        brg_indices.insert({key, brg_idx});
+        brg_indices_c++;
+    }
+
     return status::success;
 }
 
@@ -428,6 +468,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             jcp_.use_uker));
 
     bs_c = 0;
+    brg_indices_c = 0;
 
     KD = ndims_pick(jcp_.kd, 1, 1);
     KH = ndims_pick(jcp_.kh, jcp_.kh, 1);
@@ -695,18 +736,11 @@ brgemm_convolution_fwd_t<isa, use_inversion>::brgemm_convolution_fwd_t(
     : primitive_t(apd), bias_d(pd()->weights_md(1)) {}
 
 template <cpu_isa_t isa, bool use_inversion>
-status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_brg_kernel(int M,
-        int i_N, int i_K, int i_init, int kd_b, int kd_e, int kh_b, int kh_e) {
-    if (M <= 0) return status::success;
+status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_brg_kernel(
+        int brg_idx) {
     const auto _pd = pd();
-    const auto &jcp = _pd->jcp_;
     const auto &brgs = *(_pd->brgemm_descriptors_);
 
-    auto N = (i_N) ? jcp.N_tail : jcp.N;
-    auto K = (i_K) ? jcp.K_tail : jcp.K;
-    if (N <= 0 || K <= 0) return status::success;
-    auto brg_idx
-            = _pd->get_brg_idx(M - 1, i_init, i_N, i_K, kd_b, kd_e, kh_b, kh_e);
     auto brg = brgs[brg_idx];
     if (!brgemm_kernels_[brg_idx] && brg && brg->bcast_dim > 0
             && brg->load_dim > 0 && brg->reduce_dim > 0) {
@@ -911,23 +945,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     int M_end = (jcp.M_tail == jcp.M) ? 1 : 2;
     int N_begin = 0;
     int N_end = (jcp.N_tail == jcp.N) ? 1 : 2;
-    int K_begin = 0;
-    int K_end = (jcp.K_tail == 0) ? 1 : 2;
-    int i_init_begin = (IMPLICATION(jcp.K_tail != 0, jcp.K_tail == jcp.K)
-                               && jcp.exec_type == exec_trans
-                               && div_up(jcp.nb_ic, jcp.nb_ic_blocking) == 1
-                               && KD_BLOCK == KD && KH_BLOCK == KH)
-            ? 1
-            : 0;
-    int i_init_end = 2;
 
     int num_po_kernels = nstl::max(jcp.M, jcp.M_tail);
     kernels_po_.resize(num_po_kernels * 2 * 2);
-    for (int i = 0; i < num_po_kernels; i++) {
-        for_(int i_init = 0; i_init < 2; i_init++)
-        for (int i_N = 0; i_N < 2; i_N++)
-            kernels_po_[get_ker_po_idx(i, i_init, i_N)] = nullptr;
-    }
 
     if (jcp.exec_type == exec_trans) {
         CHECK(safe_ptr_assign(copy_to_pbuffer_,
@@ -1001,20 +1021,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
 
     is_amx = brgemm_convolution_utils::is_amx(isa);
 
-    for (const auto &key_value_pair : _pd->batchsizes) {
-        const int kd_b = key_value_pair.first[0];
-        const int kd_e = key_value_pair.first[1];
-        const int kh_b = key_value_pair.first[2];
-        const int kh_e = key_value_pair.first[3];
-
-        for_(int i_N = N_begin; i_N < N_end; i_N++)
-        for_(int i_M = M_begin; i_M < M_end; i_M++)
-        for_(int i_init = i_init_begin; i_init < i_init_end; i_init++)
-        for (int i_K = K_begin; i_K < K_end; i_K++) {
-            auto M = (i_M) ? jcp.M_tail : jcp.M;
-            if (M <= 0) continue;
-            add_brg_kernel(M, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e);
-        }
+    for (const auto &key_value_pair : _pd->brg_indices) {
+        const int brg_idx = key_value_pair.second;
+        add_brg_kernel(brg_idx);
     }
 
     for_(int i_N = N_begin; i_N < N_end; i_N++)
@@ -1043,26 +1052,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
                 ow_f {0};
         for (int ow = 0; ow < OW; ow += jcp.ow_block) {
             _pd->get_kw_range(ow, kw_s, kw_full_s, kw_full_f, kw_f);
-            for (int kw = kw_s; kw < kw_f; kw++) {
-                _pd->get_ow_range(ow, kw, ow_s, ow_f);
-                if (ow_f - ow_s <= 0) continue;
-
-                auto M = ow_f - ow_s;
-                if (M <= 0) continue;
-                for (const auto &key_value_pair : _pd->batchsizes) {
-                    const int kd_b = key_value_pair.first[0];
-                    const int kd_e = key_value_pair.first[1];
-                    const int kh_b = key_value_pair.first[2];
-                    const int kh_e = key_value_pair.first[3];
-                    for_(int i_init = 0; i_init < 2; i_init++)
-                    for_(int i_N = 0; i_N < 2; i_N++)
-                    for (int i_K = 0; i_K < 2; i_K++) {
-                        add_brg_kernel(
-                                M, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e);
-                    }
-                }
-            }
-
             bool is_ow_tail = (jcp.ow - ow < jcp.ow_block);
             for_(int i_N = 0; i_N < 2; i_N++)
             for (int i_side = 0; i_side < 2; i_side++) {
@@ -1083,25 +1072,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
         for (int ow = (jcp.nb_ow - 1) * jcp.ow_block; ow >= 0;
                 ow -= jcp.ow_block) {
             _pd->get_kw_range(ow, kw_s, kw_full_s, kw_full_f, kw_f);
-            for (int kw = kw_s; kw < kw_f; kw++) {
-                _pd->get_ow_range(ow, kw, ow_s, ow_f);
-                if (ow_f - ow_s <= 0) continue;
-
-                auto M = ow_f - ow_s;
-                if (M <= 0) continue;
-                for (const auto &key_value_pair : _pd->batchsizes) {
-                    const int kd_b = key_value_pair.first[0];
-                    const int kd_e = key_value_pair.first[1];
-                    const int kh_b = key_value_pair.first[2];
-                    const int kh_e = key_value_pair.first[3];
-                    for_(int i_init = 0; i_init < 2; i_init++)
-                    for_(int i_N = 0; i_N < 2; i_N++)
-                    for (int i_K = 0; i_K < 2; i_K++) {
-                        add_brg_kernel(
-                                M, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e);
-                    }
-                }
-            }
 
             bool is_ow_tail = (jcp.ow - ow < jcp.ow_block);
 
