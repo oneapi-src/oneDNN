@@ -327,6 +327,8 @@ static void compute_block_pooling(
      ***/
 
     auto vectorized_dtype = sc_data_type_t(dtype.type_code_, vx_info.lanes);
+    auto pool_buf_vectorized_dtype
+            = sc_data_type_t(dtype.type_code_, vx_info.lanes);
     // nested loop vars
     std::vector<expr> iter_vars, kernel_iter_vars;
 
@@ -375,15 +377,7 @@ static void compute_block_pooling(
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
 
-    // define pooling_buf_var and zero_var and kernel_size_var
-    auto pooling_buf_var = builder::make_var(vectorized_dtype, "pool_buf");
-    auto define_pool_buf_var
-            = make_stmt<define_node_t>(pooling_buf_var, linkage::local, expr());
-
-    auto kernel_size_var = builder::make_var(vectorized_dtype, "kernel_size");
-
     // assign init value
-    stmt pooling_buf_asnode;
     variant<float, int64_t> init_value;
     bool is_int = utils::is_one_of(dtype.type_code_, sc_data_etype::U8,
             sc_data_etype::U32, sc_data_etype::S8, sc_data_etype::S32);
@@ -426,22 +420,35 @@ static void compute_block_pooling(
         one_constant = make_expr<constant_node>(uint64_t(1), vectorized_dtype);
         kernel_size_constant = make_expr<constant_node>(
                 uint64_t(kernel_size), vectorized_dtype);
+        if (pooling_typ == pooling_type_t::avg)
+            pool_buf_vectorized_dtype
+                    = sc_data_type_t(sc_data_etype::U32, vx_info.lanes);
         pooling_buf_constant = make_expr<constant_node>(
-                uint64_t(init_value.get<int64_t>()), vectorized_dtype);
+                uint64_t(init_value.get<int64_t>()), pool_buf_vectorized_dtype);
     } else if (dtype.type_code_ == sc_data_etype::S8
             || dtype.type_code_ == sc_data_etype::S32) {
         zero_constant = make_expr<constant_node>(int64_t(0), vectorized_dtype);
         one_constant = make_expr<constant_node>(int64_t(1), vectorized_dtype);
         kernel_size_constant = make_expr<constant_node>(
                 int64_t(kernel_size), vectorized_dtype);
+        if (pooling_typ == pooling_type_t::avg)
+            pool_buf_vectorized_dtype
+                    = sc_data_type_t(sc_data_etype::S32, vx_info.lanes);
         pooling_buf_constant = make_expr<constant_node>(
-                init_value.get<int64_t>(), vectorized_dtype);
+                init_value.get<int64_t>(), pool_buf_vectorized_dtype);
 
     } else {
         COMPILE_ASSERT(0, "unsupported dtype.");
     }
-    pooling_buf_asnode
+
+    // define local vars
+    expr kernel_size_var = builder::make_var(vectorized_dtype, "kernel_size");
+    expr pooling_buf_var
+            = builder::make_var(pool_buf_vectorized_dtype, "pool_buf");
+    stmt pooling_buf_asnode
             = make_stmt<assign_node_t>(pooling_buf_var, pooling_buf_constant);
+    stmt define_pool_buf_var
+            = make_stmt<define_node_t>(pooling_buf_var, linkage::local, expr());
 
     // build inner kernel loop
     stmt cur, body;
@@ -509,8 +516,14 @@ static void compute_block_pooling(
             if (pooling_typ == pooling_type_t::avg) {
                 expr kernel_size_expr = kernel_size_constant;
                 if (exclude_pad) kernel_size_expr = kernel_size_var;
-                target_assign = make_stmt<assign_node_t>(indexed_target,
-                        builder::make_div(pooling_buf_var, kernel_size_expr));
+                expr pooling_result
+                        = builder::make_div(pooling_buf_var, kernel_size_expr);
+                if (vectorized_dtype.type_code_
+                        != pool_buf_vectorized_dtype.type_code_)
+                    pooling_result = builder::make_cast(
+                            vectorized_dtype, pooling_result);
+                target_assign = make_stmt<assign_node_t>(
+                        indexed_target, pooling_result);
             } else if (pooling_typ == pooling_type_t::max) {
                 target_assign = make_stmt<assign_node_t>(
                         indexed_target, pooling_buf_var);
