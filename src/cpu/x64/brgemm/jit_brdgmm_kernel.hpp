@@ -56,6 +56,10 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
             vmm_idx_count++;
             if (utils::one_of(brg.isa_impl, avx2_vnni, avx2_vnni_2))
                 vmm_idx_count++; // need extra vmm for src_zp broadcast
+        } else if (brg.with_sum && (!is_superset(brg.isa_impl, avx512_core))) {
+            const bool p_sum_scale_reg_set = brg.sum_scale != 1.f;
+            if (p_sum_scale_reg_set)
+                vmm_idx_count++; // need extra vmm for broadcast
         }
         return vmm_idx_count;
     }
@@ -141,7 +145,7 @@ private:
     int idx_vmm_permute_ = -1;
     int idx_vmm_shift_ = -1;
     int idx_vmm_zp_comp_ = -1;
-    int idx_vmm_zp_bcast_ = -1;
+    int idx_vmm_bcast_ = -1;
     int idx_vmm_s8s8_comp_ = -1;
     int vmm_idx_count_ = 0;
 
@@ -226,9 +230,9 @@ private:
         assert(idx_vmm_zp_comp_ >= 0);
         return Vmm(idx_vmm_zp_comp_);
     }
-    Vmm vmm_zp_bcast() {
-        assert(idx_vmm_zp_bcast_ >= 0);
-        return Vmm(idx_vmm_zp_bcast_);
+    Vmm vmm_bcast() {
+        assert(idx_vmm_bcast_ >= 0);
+        return Vmm(idx_vmm_bcast_);
     }
     Vmm vmm_tmp(int i) {
         const int idx

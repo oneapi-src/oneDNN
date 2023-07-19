@@ -93,7 +93,11 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
     if (compute_src_zp_) {
         idx_vmm_zp_comp_ = vmm_idx_count_++;
         if (!is_superset(brg.isa_impl, avx512_core))
-            idx_vmm_zp_bcast_ = vmm_idx_count_++;
+            idx_vmm_bcast_ = vmm_idx_count_++;
+    } else if (brg.with_sum && (!is_superset(brg.isa_impl, avx512_core))) {
+        const bool p_sum_scale_reg_set = brg.sum_scale != 1.f;
+        if (p_sum_scale_reg_set)
+            idx_vmm_bcast_ = vmm_idx_count_++; // need extra vmm for broadcast
     }
 }
 
@@ -356,7 +360,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
                 if (is_superset(brg.isa_impl, avx512_core)) {
                     vfmadd231ps(vmm, vmm_prev_dst, ptr_b[reg_ptr_sum_scale]);
                 } else {
-                    auto vmm_scale = vmm_tmp(2);
+                    auto vmm_scale = vmm_bcast();
                     uni_vpbroadcastd(vmm_scale, ptr[reg_ptr_sum_scale]);
                     uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_scale);
                 }
@@ -636,7 +640,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_int8_compensation(
         lea(reg_zp_compensation,
                 ptr[reg_zp_compensation + reg_aux_N * sizeof(int32_t)]);
         if (!is_superset(brg.isa_impl, avx512_core))
-            uni_vpbroadcastd(vmm_zp_bcast(), ptr[reg_src_zero_point]);
+            uni_vpbroadcastd(vmm_bcast(), ptr[reg_src_zero_point]);
     }
 
     for_(int v_i = 0; v_i < v_substep; ++v_i)
@@ -660,7 +664,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_int8_compensation(
                         maybe_EVEX_compress_addr(
                                 reg_src_zero_point, 0, src_zp_is_common));
             } else {
-                vpmulld(vmm_zp, vmm_zp, vmm_zp_bcast());
+                vpmulld(vmm_zp, vmm_zp, vmm_bcast());
             }
         }
         for (int m = 0; m < m_blocks; m++) {
@@ -818,8 +822,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::comp_dot_product(
                 vpmulld(vmm_zp_comp(), vmmb,
                         maybe_EVEX_compress_addr(reg_src_zero_point, 0, true));
             } else {
-                uni_vpbroadcastd(vmm_zp_bcast(), ptr[reg_src_zero_point]);
-                vpmulld(vmm_zp_comp(), vmmb, vmm_zp_bcast());
+                uni_vpbroadcastd(vmm_bcast(), ptr[reg_src_zero_point]);
+                vpmulld(vmm_zp_comp(), vmmb, vmm_bcast());
             }
             vpaddd(vmm_acc, vmm_acc, vmm_zp_comp());
             break;
