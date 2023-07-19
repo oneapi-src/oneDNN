@@ -131,8 +131,6 @@ private:
     std::unique_ptr<jit_avx512_core_amx_fwd_kernel_t> kernel_;
 };
 
-template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
-        impl::data_type_t diff_dst_type>
 struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -172,10 +170,6 @@ struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
 
     jit_avx512_core_amx_convolution_bwd_data_t(const pd_t *apd)
         : primitive_t(apd) {}
-
-    typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
