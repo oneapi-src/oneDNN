@@ -99,6 +99,7 @@ static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
             // use old cpu flags
             tm.cpu_flags_ = old_cpu_flags;
         } while (false);
+        tm.set_simd_length_and_max_cpu_threads(tm.cpu_flags_);
     }
     // double check amx by syscall
     if (tm.cpu_flags_.fAVX512AMXTILE
