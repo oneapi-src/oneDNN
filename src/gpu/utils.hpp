@@ -91,6 +91,23 @@ private:
                     __FILE__, __LINE__, #cond)
 #endif
 
+template <typename out_type, typename in_type>
+inline out_type into(in_type in) {
+    gpu_assert(in <= std::numeric_limits<out_type>::max())
+            << "Value " << in << " is too large to fit in "
+            << typeid(out_type).name();
+    gpu_assert(in >= std::numeric_limits<out_type>::lowest())
+            << "Value " << in << " is too small to fit in "
+            << typeid(out_type).name();
+    return static_cast<out_type>(in);
+}
+template <typename out_type>
+inline out_type into(bool b) {
+    static_assert(std::is_integral<out_type>::value,
+            "Only supports converting bool to an integral type");
+    return static_cast<out_type>(b);
+}
+
 inline int dev_getenv(const char *name, int default_value) {
 #ifdef DNNL_DEV_MODE
     return getenv_int(name, default_value);
