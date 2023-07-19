@@ -306,7 +306,8 @@ public:
     bool is_overridable() const override { return false; }
 };
 
-inline std::unordered_map<std::string, int> to_map(const std::string &s) {
+inline std::unordered_map<std::string, int> to_string_int_map(
+        const std::string &s) {
     std::unordered_map<std::string, int> ret;
     int name_beg = -1;
     int value_beg = -1;
@@ -327,37 +328,28 @@ inline std::unordered_map<std::string, int> to_map(const std::string &s) {
     return ret;
 }
 
-class map_param_t : public param_t {
+class tile_param_t : public param_t {
 public:
-    using value_t = std::unordered_map<std::string, int>;
+    using value_t = conv_tile_t;
 
-    const value_t &get() const { return map_; }
+    const value_t &get() const { return tile_; }
 
-    bool is_empty() const { return map_.empty(); }
+    bool is_empty() const { return tile_.is_empty(); }
 
-    int get(const std::string &name) const {
-        auto it = map_.find(name);
-        if (it == map_.end()) return 1;
-        return it->second;
-    }
+    int get(const conv_dim_t &dim) const { return tile_.at(dim, 1); }
 
-    int operator()(const std::string &name) const { return get(name); }
+    int operator()(const conv_dim_t &dim) const { return get(dim); }
 
     void set_from_str(const std::string &s) override {
-        map_.clear();
-        map_ = to_map(s);
-    }
-
-    void set(const std::string &name, int dim) {
-        auto it = map_.find(name);
-        if (dim == 1) {
-            if (it != map_.end()) map_.erase(it);
-            return;
+        tile_ = conv_tile_t();
+        for (auto &kv : to_string_int_map(s)) {
+            tile_[conv_dim_t::from_name(kv.first)] = kv.second;
         }
-        map_[name] = dim;
     }
 
-    void set(const value_t &value) { map_ = value; }
+    void set(const conv_dim_t &dim, int size) { tile_[dim] = size; }
+
+    void set(const value_t &value) { tile_ = value; }
 
     template <typename T>
     void set(const tile_generic_t<T> &tile) {
@@ -368,17 +360,14 @@ public:
 
     std::string str() const override {
         std::ostringstream oss;
-        oss << short_name() << "=";
-        for (auto &kv : map_) {
-            oss << kv.first << kv.second;
-        }
+        oss << short_name() << "=" << tile_.str();
         return oss.str();
     }
 
     IR_DEFINE_DUMP()
 
 private:
-    value_t map_;
+    value_t tile_;
 };
 
 // Parameters for kernel generation.
@@ -472,7 +461,7 @@ public:
     static const bwd_d_optimize_kind_t default_value;
 };
 
-class dims_param_t : public map_param_t {
+class dims_param_t : public tile_param_t {
 public:
     std::string name() const override { return "dims"; }
     std::string desc() const override { return "Problem dimensions."; }
@@ -508,7 +497,7 @@ public:
     bool is_overridable() const override { return false; }
 };
 
-class iter_dims_param_t : public map_param_t {
+class iter_dims_param_t : public tile_param_t {
 public:
     std::string name() const override { return "iter"; }
     std::string short_name() const override { return "i"; }
@@ -541,7 +530,7 @@ public:
     static const bool default_value;
 };
 
-class padded_dims_param_t : public map_param_t {
+class padded_dims_param_t : public tile_param_t {
 public:
     std::string name() const override { return "pad"; }
     std::string desc() const override {
@@ -780,7 +769,7 @@ public:
     void set_from_str(const std::string &s) override {
         a_ = 1;
         b_ = 1;
-        for (auto &kv : to_map(s)) {
+        for (auto &kv : to_string_int_map(s)) {
             if (kv.first == "a") {
                 a_ = kv.second;
             } else if (kv.first == "b") {
@@ -819,7 +808,7 @@ public:
     bool is_overridable() const override { return false; }
 };
 
-class thread_group_dims_param_t : public map_param_t {
+class thread_group_dims_param_t : public tile_param_t {
 public:
     std::string name() const override { return "tg"; }
     std::string short_name() const override { return "T"; }
@@ -830,7 +819,7 @@ public:
     bool is_default() const override { return false; }
 };
 
-class unroll_param_t : public map_param_t {
+class unroll_param_t : public tile_param_t {
 public:
     std::string name() const override { return "unroll"; }
     std::string short_name() const override { return "u"; }
@@ -914,18 +903,16 @@ public:
     conv_key_t key() const;
 
     // Helper methods.
-    int dim(const std::string &name) const { return dims()(name); }
+    int dim(const conv_dim_t &d) const { return dims()(d); }
 
-    int iter_dim(const std::string &name) const { return iter_dims()(name); }
+    int iter_dim(const conv_dim_t &d) const { return iter_dims()(d); }
 
-    int padded_dim(const std::string &name) const {
-        return padded_dims()(name);
-    }
+    int padded_dim(const conv_dim_t &d) const { return padded_dims()(d); }
 
-    int loop_dim(const std::string &name) const { return loop_dims()(name); }
+    int loop_dim(const conv_dim_t &d) const { return loop_dims()(d); }
 
-    int thread_group_dim(const std::string &name) const {
-        return thread_group_dims()(name);
+    int thread_group_dim(const conv_dim_t &d) const {
+        return thread_group_dims()(d);
     }
 
     // Blocks for padding. This is to comply with
@@ -934,9 +921,9 @@ public:
     // compute and store, we still need to pad 8 to 32 and
     // spawn more thread groups to ensure 32c block is
     // properly zero-padded.
-    int pad_block(const std::string &name) const;
+    int pad_block(const conv_dim_t &d) const;
 
-    int unroll(const std::string &name) const { return unroll()(name); }
+    int unroll(const conv_dim_t &d) const { return unroll()(d); }
 
     int reserved_regs() const;
 
@@ -980,14 +967,14 @@ public:
         return compute::nd_range_t(gws, lws);
     }
 
-    int grid_dim(const std::string &dim) const {
+    int grid_dim(const conv_dim_t &dim) const {
         return ir_utils::safe_divide(padded_dim(dim),
                 loop_dim(dim) * thread_group_dim(dim) * iter_dim(dim));
     }
 
-    int iter_dim(std::initializer_list<const char *> dims) const {
+    int iter_dim(std::initializer_list<conv_dim_t> dims) const {
         int ret = 1;
-        for (auto *dim : dims)
+        for (auto &dim : dims)
             ret *= iter_dim(dim);
         return ret;
     }
@@ -1060,103 +1047,25 @@ private:
 
 class bmnk_dim_helper_t {
 public:
-    bmnk_dim_helper_t(const conv_config_t &cfg) : prb_(cfg.prb()), cfg_(cfg) {}
-
-    int iter_dim(char bmnk) const {
-        int ret = 1;
-        for (auto &kv : cfg_.iter_dims().get()) {
-            if (to_bmnk(kv.first) != bmnk) continue;
-            ret *= kv.second;
-        }
-        return ret;
+    bmnk_dim_helper_t(const conv_config_t &cfg) {
+        gemm_iter_ = to_gemm(cfg.iter_dims().get(), cfg.prb().prop_kind()),
+        gemm_thread_group_
+                = to_gemm(cfg.thread_group_dims().get(), cfg.prb().prop_kind());
+        gemm_loop_ = to_gemm(cfg.loop_dims().get(), cfg.prb().prop_kind());
     }
 
-    int prb_iter_ndims(char bmnk) const {
-        int ret = 0;
-        for (auto &kv : cfg_.iter_dims().get()) {
-            if (to_bmnk(kv.first) != bmnk) continue;
-            if (kv.second == 1) continue;
-            ret++;
-        }
-        return ret;
+    int iter_dim(gemm_dim_t d) const { return gemm_iter_.at(d, 1); }
+
+    int thread_group_dim(gemm_dim_t d) const {
+        return gemm_thread_group_.at(d, 1);
     }
 
-    int thread_group_dim(char bmnk) const {
-        int ret = 1;
-        for (auto &kv : cfg_.thread_group_dims().get()) {
-            if (to_bmnk(kv.first) != bmnk) continue;
-            ret *= kv.second;
-        }
-        return ret;
-    }
-
-    int loop_dim(char bmnk) const {
-        int ret = 1;
-        for (auto &kv : cfg_.loop_dims().get()) {
-            if (to_bmnk(kv.first) != bmnk) continue;
-            ret *= kv.second;
-        }
-        return ret;
-    }
+    int loop_dim(gemm_dim_t d) const { return gemm_loop_.at(d, 1); }
 
 private:
-    static bool contains(const char **array, const std::string &s) {
-        for (const char **ptr = array; *ptr; ptr++) {
-            if (s == *ptr) return true;
-        }
-        return false;
-    }
-
-    char to_bmnk(const std::string &dim_name) const {
-        static const char *fwd_b_dims[] = {"g", nullptr};
-        static const char *fwd_m_dims[]
-                = {"mb", "osp", "od", "oh", "ow", nullptr};
-        static const char *fwd_n_dims[] = {"oc", nullptr};
-        static const char *fwd_k_dims[] = {"ic", "kd", "kh", "kw", nullptr};
-        static const char *bwd_d_b_dims[] = {"g", nullptr};
-        static const char *bwd_d_m_dims[] = {"mb", "id", "ih", "iw", nullptr};
-        static const char *bwd_d_n_dims[] = {"ic", nullptr};
-        static const char *bwd_d_k_dims[] = {"oc", "kd", "kh", "kw", nullptr};
-        static const char *bwd_w_b_dims[] = {"g", nullptr};
-        static const char *bwd_w_m_dims[] = {"ic", "kd", "kh", "kw", nullptr};
-        static const char *bwd_w_n_dims[] = {"oc", nullptr};
-        static const char *bwd_w_k_dims[] = {"mb", "od", "oh", "ow", nullptr};
-
-        // XXX: Do not use pick_by_dir() to work around MSVC compiler bug.
-        const char **b_dims = nullptr;
-        const char **m_dims = nullptr;
-        const char **n_dims = nullptr;
-        const char **k_dims = nullptr;
-        if (prb_.is_fwd) {
-            b_dims = fwd_b_dims;
-            m_dims = fwd_m_dims;
-            n_dims = fwd_n_dims;
-            k_dims = fwd_k_dims;
-        } else if (prb_.is_bwd_d) {
-            b_dims = bwd_d_b_dims;
-            m_dims = bwd_d_m_dims;
-            n_dims = bwd_d_n_dims;
-            k_dims = bwd_d_k_dims;
-        } else if (prb_.is_bwd_w) {
-            b_dims = bwd_w_b_dims;
-            m_dims = bwd_w_m_dims;
-            n_dims = bwd_w_n_dims;
-            k_dims = bwd_w_k_dims;
-        } else {
-            ir_error_not_expected();
-        }
-
-        if (contains(b_dims, dim_name)) return 'b';
-        if (contains(m_dims, dim_name)) return 'm';
-        if (contains(n_dims, dim_name)) return 'n';
-        if (contains(k_dims, dim_name)) return 'k';
-
-        ir_error_not_expected() << dim_name;
-        return ' ';
-    }
-
-    const conv_problem_t &prb_;
-    const conv_config_t &cfg_;
+    gemm_tile_t gemm_iter_;
+    gemm_tile_t gemm_thread_group_;
+    gemm_tile_t gemm_loop_;
 };
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
@@ -1167,8 +1076,9 @@ int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
         bool do_unroll);
 tensor_config_t get_tensor_config(const conv_config_t &cfg);
 int estimate_register_count(const conv_config_t &cfg);
-const char **get_kernel_grid_conv_dims(const conv_problem_t &prb, int idx);
-const char **get_thread_group_grid_conv_dims(
+const conv_tile_t *get_kernel_grid_conv_dims(
+        const conv_problem_t &prb, int idx);
+const conv_tile_t *get_thread_group_grid_conv_dims(
         const conv_problem_t &prb, int idx);
 
 } // namespace jit

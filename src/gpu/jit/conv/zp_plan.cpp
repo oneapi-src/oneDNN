@@ -777,7 +777,8 @@ private:
                 auto &vvar = a_view.vvar(vidx);
                 auto &name = vvar.as<var_t>().name;
                 if (utils::one_of(name, "g", "ic", "oc")) continue;
-                int padded = cfg.padded_dim(vvar.as<var_t>().name);
+                int padded = cfg.padded_dim(
+                        conv_dim_t::from_name(vvar.as<var_t>().name));
                 int dim = a_view.vdims()[vidx];
                 if (dim != padded) add_mask_desc(mask_descs_, vvar < dim);
                 continue;

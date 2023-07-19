@@ -26,6 +26,21 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+std::string to_string(gemm_dim_kind_t kind) {
+    std::ostringstream oss;
+    switch (kind) {
+#define CASE(name) \
+    case gemm_dim_kind_t::name: return #name
+        CASE(b);
+        CASE(m);
+        CASE(n);
+        CASE(k);
+#undef CASE
+        default: ir_error_not_expected();
+    }
+    return oss.str();
+}
+
 std::string to_string(conv_dim_kind_t kind) {
     std::ostringstream oss;
     switch (kind) {
@@ -50,6 +65,13 @@ std::string to_string(conv_dim_kind_t kind) {
     }
     return oss.str();
 }
+
+namespace gemm_dims {
+gemm_dim_t b(gemm_dim_kind_t::b);
+gemm_dim_t m(gemm_dim_kind_t::m);
+gemm_dim_t n(gemm_dim_kind_t::n);
+gemm_dim_t k(gemm_dim_kind_t::k);
+} // namespace gemm_dims
 
 namespace conv_dims {
 conv_dim_t g(conv_dim_kind_t::g);
@@ -130,7 +152,55 @@ void tile_generic_t<KeyT>::deserialize(std::istream &in) {
     }
 }
 
+template class tile_generic_t<gemm_dim_t>;
 template class tile_generic_t<conv_dim_t>;
+
+gemm_dim_t to_gemm(const conv_dim_t &d, prop_kind_t prop) {
+    bool is_fwd = (prop == prop_kind::forward);
+    bool is_bwd_d = (prop == prop_kind::backward_data);
+    bool is_bwd_w = (prop == prop_kind::backward_weights);
+    auto pick = [&](const gemm_dim_t &fwd, const gemm_dim_t &bwd_d,
+                        const gemm_dim_t &bwd_w) {
+        if (is_fwd) return fwd;
+        if (is_bwd_d) return bwd_d;
+        if (is_bwd_w) return bwd_w;
+        ir_error_not_expected();
+        return gemm_dim_t();
+    };
+    switch (d.kind()) {
+        case conv_dim_kind_t::g: return gemm_dims::b;
+        case conv_dim_kind_t::mb:
+            return pick(gemm_dims::m, gemm_dims::m, gemm_dims::k);
+        case conv_dim_kind_t::oc:
+            return pick(gemm_dims::n, gemm_dims::k, gemm_dims::n);
+        case conv_dim_kind_t::ic:
+            return pick(gemm_dims::k, gemm_dims::n, gemm_dims::m);
+        case conv_dim_kind_t::kd:
+        case conv_dim_kind_t::kh:
+        case conv_dim_kind_t::kw:
+            return pick(gemm_dims::k, gemm_dims::k, gemm_dims::m);
+        case conv_dim_kind_t::od:
+        case conv_dim_kind_t::oh:
+        case conv_dim_kind_t::ow:
+            return pick(gemm_dims::m, gemm_dim_t(), gemm_dims::k);
+        case conv_dim_kind_t::id:
+        case conv_dim_kind_t::ih:
+        case conv_dim_kind_t::iw:
+            return pick(gemm_dim_t(), gemm_dims::m, gemm_dim_t());
+        default: ir_error_not_expected();
+    }
+    return gemm_dim_t();
+}
+
+gemm_tile_t to_gemm(const conv_tile_t &t, prop_kind_t prop) {
+    gemm_tile_t ret;
+    for (auto d : t) {
+        auto gemm_d = to_gemm(d, prop);
+        if (!ret.has(gemm_d)) ret[gemm_d] = 1;
+        ret[gemm_d] *= t[d];
+    }
+    return ret;
+}
 
 void blocking_t::serialize(std::ostream &out) const {
     ir_utils::serialize(simd_, out);
@@ -169,7 +239,8 @@ conv_tile_t get_conv_shape(const conv_config_t &cfg, bool pad) {
     conv_tile_t ret;
 #define SET(name) \
     ret[conv_dims::name] \
-            = (pad ? utils::rnd_up(prb.name, cfg.pad_block(#name)) : prb.name)
+            = (pad ? utils::rnd_up(prb.name, cfg.pad_block(conv_dims::name)) \
+                   : prb.name)
     SET(mb);
     SET(g);
     SET(oc);
@@ -195,9 +266,9 @@ conv_params_t::conv_params_t(const conv_config_t &cfg) {
     if (cfg.slm()) bufs_ = cfg.slm().bufs();
     if (cfg.prefetch()) bufs_ = cfg.prefetch().bufs();
     for (auto &d : get_conv_dims(cfg.prb().prop_kind())) {
-        int loop = cfg.loop_dims()(d.name());
-        int tg = cfg.thread_group_dims()(d.name());
-        int iter = cfg.iter_dims()(d.name());
+        int loop = cfg.loop_dims()(d);
+        int tg = cfg.thread_group_dims()(d);
+        int iter = cfg.iter_dims()(d);
         if (loop != 1) blocking_.set_loop(d, loop);
         if (tg != 1) blocking_.set_thread_group(d, tg);
         if (iter != 1) blocking_.set_iter(d, iter);

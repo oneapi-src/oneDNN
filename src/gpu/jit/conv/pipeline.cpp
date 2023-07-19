@@ -1569,7 +1569,7 @@ public:
         };
 
         bmnk_dim_helper_t h(cfg_);
-        int k_iter_blk = h.iter_dim('k');
+        int k_iter_blk = h.iter_dim(gemm_dims::k);
         int reduce_iter_bytes = k_iter_blk * cfg_.prb().a_data_type_size;
         // Add periodic signal-wait thread group synchronization in some cases.
         // This is to ensure threads access close reduction blocks and able to

@@ -31,6 +31,17 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+enum class gemm_dim_kind_t {
+    undef = 0,
+    b,
+    m,
+    n,
+    k,
+    _max,
+};
+
+std::string to_string(gemm_dim_kind_t kind);
+
 enum class conv_dim_kind_t : int8_t {
     undef = 0,
     g,
@@ -91,7 +102,15 @@ private:
     KindT kind_ = KindT::undef;
 };
 
+using gemm_dim_t = tile_key_t<gemm_dim_kind_t>;
 using conv_dim_t = tile_key_t<conv_dim_kind_t>;
+
+namespace gemm_dims {
+extern gemm_dim_t b;
+extern gemm_dim_t m;
+extern gemm_dim_t n;
+extern gemm_dim_t k;
+} // namespace gemm_dims
 
 namespace conv_dims {
 extern conv_dim_t g;
@@ -154,6 +173,11 @@ public:
 
     tile_generic_t() {}
 
+    tile_generic_t(const std::initializer_list<KeyT> &keys) {
+        for (auto &k : keys)
+            operator[](k) = 1;
+    }
+
     bool has(const KeyT &key) const { return entries_[key.id()].index != -1; }
 
     iterator_t begin() const { return iterator_t(this); }
@@ -215,6 +239,14 @@ public:
     void serialize(std::ostream &out) const;
     void deserialize(std::istream &in);
 
+    std::unordered_map<std::string, int> to_map() const {
+        std::unordered_map<std::string, int> ret;
+        for (auto d : (*this)) {
+            ret[d.name()] = at(d);
+        }
+        return ret;
+    }
+
     std::string str() const {
         std::ostringstream oss;
         for (int i = 0; i < KeyT::max_id(); i++) {
@@ -237,7 +269,11 @@ private:
     int nkeys_ = 0;
 };
 
+using gemm_tile_t = tile_generic_t<gemm_dim_t>;
 using conv_tile_t = tile_generic_t<conv_dim_t>;
+
+gemm_dim_t to_gemm(const conv_dim_t &d, prop_kind_t prop);
+gemm_tile_t to_gemm(const conv_tile_t &t, prop_kind_t prop);
 
 class blocking_t {
 public:
