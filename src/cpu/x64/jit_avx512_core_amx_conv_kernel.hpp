@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -600,7 +600,7 @@ private:
     Xbyak::Zmm zmm_mask(
             const Xbyak::Zmm &zmm_in, bool mask_flag, bool store = false);
 
-    void store_output_vector_bf16(
+    void store_output_vector_xf16(
             const Xbyak::Zmm &zmm_out, int icb, int ihb, int iw);
     void store_output_vector_int8(
             const Xbyak::Zmm &zmm_out, int icb, int ihb, int iw);

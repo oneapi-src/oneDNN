@@ -2742,26 +2742,27 @@ void jit_avx512_core_amx_bwd_data_copy_kernel_t::copy_row(
         const bool is_masked) {
     assert(jcp.is_nspc && "no support for nChw16c in this copy kernel");
 
-    const bool is_bf16 = jcp.ddst_dt == data_type::bf16;
+    const bool is_xf16
+            = utils::one_of(jcp.ddst_dt, data_type::bf16, data_type::f16);
     const int inp_w_step
             = jcp.ngroups * jcp.oc_without_padding * jcp.typesize_in;
     const int inp_h_step = jcp.ow * inp_w_step;
     const int out_w_step = jcp.oc_block_int * jcp.typesize_in;
     const int out_h_step = jcp.owp * out_w_step;
 
-    auto zero_it = [this, is_bf16](reg64_t tmp_out_ptr, int offset) {
+    auto zero_it = [this, is_xf16](reg64_t tmp_out_ptr, int offset) {
         // no mask as output is a padded buffer
-        if (is_bf16)
+        if (is_xf16)
             vmovdqu16(ptr[tmp_out_ptr + offset], zmm_zero);
         else
             vmovdqu8(ptr[tmp_out_ptr + offset], zmm_zero);
     };
 
-    auto copy_it = [this, is_masked, is_bf16](reg64_t tmp_inp_ptr, int inp_off,
+    auto copy_it = [this, is_masked, is_xf16](reg64_t tmp_inp_ptr, int inp_off,
                            reg64_t tmp_out_ptr, int out_off) {
         Zmm zmm_load = is_masked ? zmm_tmp | ktail_mask | T_z : zmm_tmp;
         Zmm zmm_stor = zmm_tmp; // no mask as output is padded buffer
-        if (is_bf16) {
+        if (is_xf16) {
             vmovdqu16(zmm_load, ptr[tmp_inp_ptr + inp_off]);
             vmovdqu16(ptr[tmp_out_ptr + out_off], zmm_stor);
         } else {
@@ -3185,7 +3186,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::cvt2ps(data_type_t type_in,
     if (type_in != data_type::f32) vcvtdq2ps(zmm_in, zmm_in);
 }
 
-void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_bf16(
+void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_xf16(
         const Zmm &zmm_out, int icb, int h, int w) {
     const bool mask_flag = jcp.is_nspc && jcp.ic_without_padding != jcp.ic
             && icb == (jcp.nb_ic_blocking - 1);
@@ -3194,37 +3195,46 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_bf16(
 
     const auto &p = attr_.post_ops_;
 
+    auto load_and_add
+            = [&](const Zmm &zmm_in, const Zmm &zmm_out, const Address &addr) {
+                  const Zmm zmm_in_k = zmm_mask(zmm_in, mask_flag);
+                  switch (jcp.dsrc_dt) {
+                      case data_type::bf16:
+                          vpmovzxwd(zmm_in_k, addr);
+                          vpslld(zmm_in, zmm_in, 16);
+                          break;
+                      case data_type::f16: vcvtph2ps(zmm_in_k, addr); break;
+                      case data_type::f32: vaddps(zmm_in_k, addr); return;
+                      default: assert(!"Unsupported data type in xf16 conv");
+                  }
+                  vaddps(zmm_out, zmm_in);
+              };
+
     const int sum_idx = p.find(primitive_kind::sum);
-    if (sum_idx != -1) {
-        if (jcp.dsrc_dt == data_type::bf16) {
-            vpmovzxwd(zmm_mask(zmm_prev_dst, mask_flag), addr);
-            vpslld(zmm_prev_dst, zmm_prev_dst, 16);
-            vaddps(zmm_out, zmm_prev_dst);
-        } else {
-            vmovups(zmm_mask(zmm_prev_dst, mask_flag), addr);
-            vaddps(zmm_out, zmm_prev_dst);
-        }
-    }
+    if (sum_idx != -1) load_and_add(zmm_prev_dst, zmm_out, addr);
     if (jcp.with_bias) {
         int bias_offset = jcp.typesize_bia * icb * jcp.ic_block;
         auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
-        if (jcp.bia_dt == data_type::bf16) {
-            vpmovzxwd(zmm_mask(zmm_bias, mask_flag), bias_addr);
-            vpslld(zmm_bias, zmm_bias, 16);
-            vaddps(zmm_out, zmm_bias);
-        } else
-            vaddps(zmm_mask(zmm_out, mask_flag), bias_addr);
+        load_and_add(zmm_bias, zmm_out, bias_addr);
     }
 
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     if (eltwise_ind != -1) eltwise_injector_->compute_vector(zmm_out.getIdx());
 
-    if (jcp.dsrc_dt == data_type::bf16) {
-        Ymm ymm_out = Ymm(zmm_out.getIdx());
-        vcvtneps2bf16(ymm_out, zmm_out);
-        vmovdqu16(addr, ymm_mask(ymm_out, mask_flag, true));
-    } else {
-        vmovups(addr, zmm_mask(zmm_out, mask_flag, true));
+    const Ymm ymm_out = Ymm(zmm_out.getIdx());
+    const Ymm ymm_out_k = ymm_mask(ymm_out, mask_flag, true);
+    const Zmm zmm_out_k = zmm_mask(zmm_out, mask_flag, true);
+    switch (jcp.dsrc_dt) {
+        case data_type::bf16:
+            vcvtneps2bf16(ymm_out, zmm_out);
+            vmovdqu16(addr, ymm_out_k);
+            break;
+        case data_type::f16:
+            vcvtps2ph(ymm_out, zmm_out, _op_mxcsr);
+            vmovdqu16(addr, ymm_out_k);
+            break;
+        case data_type::f32: vmovups(addr, zmm_out_k); break;
+        default: assert(!"Unsupported data type in xf16 conv");
     }
 }
 
@@ -3313,8 +3323,8 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector(
         INT8: [N][D][H][W][NBIC][16IC]
         BF16: [N][D][H][W][NBIC][16IC] or [N][NBIC][D][H][W][16IC]
     */
-    if (jcp.ddst_dt == data_type::bf16) {
-        store_output_vector_bf16(zmm_out, icb, h, w);
+    if (utils::one_of(jcp.ddst_dt, data_type::bf16, data_type::f16)) {
+        store_output_vector_xf16(zmm_out, icb, h, w);
     } else {
         store_output_vector_int8(zmm_out, icb, h, w);
     }
@@ -3418,6 +3428,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::compute_ocb_loop(
         switch (jcp.ddst_dt) {
             using namespace data_type;
             case bf16: tdpbf16ps(x1, x2, x3); break;
+            case f16: tdpfp16ps(x1, x2, x3); break;
             case s8: tdpbssd(x1, x2, x3); break;
             case u8: tdpbusd(x1, x2, x3); break;
             default: assert(!"unsupported data type");
@@ -3618,12 +3629,13 @@ bool jit_avx512_core_amx_bwd_data_kernel_t::post_ops_ok(
         const jit_conv_conf_t &jcp, primitive_attr_t &attr) {
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
-    const bool is_bf16 = jcp.ddst_dt == data_type::bf16;
+    const bool is_xf16
+            = utils::one_of(jcp.ddst_dt, data_type::bf16, data_type::f16);
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
 
     auto is_sum = [&](int idx) {
-        if (is_bf16)
+        if (is_xf16)
             return p.entry_[idx].is_sum();
         else
             return p.contain(sum, idx);
@@ -3634,7 +3646,7 @@ bool jit_avx512_core_amx_bwd_data_kernel_t::post_ops_ok(
         case 1: return is_eltwise(0) || is_sum(0);
         case 2:
             return (is_sum(0) && is_eltwise(1))
-                    || (!is_bf16 && is_sum(1) && is_eltwise(0));
+                    || (!is_xf16 && is_sum(1) && is_eltwise(0));
         default: return false;
     }
 
@@ -3642,7 +3654,9 @@ bool jit_avx512_core_amx_bwd_data_kernel_t::post_ops_ok(
 }
 
 void jit_avx512_core_amx_bwd_data_kernel_t::tile_configure(char *tcfg_buff) {
-    const int vnni_width = jcp.ddst_dt == data_type::bf16 ? 2 : 4;
+    const int vnni_width
+            = utils::one_of(jcp.ddst_dt, data_type::bf16, data_type::f16) ? 2
+                                                                          : 4;
     // Input tile dimensions
     const int a_col = jcp.oc_block_int;
     const int a_row = jcp.tile_width;
@@ -3692,22 +3706,25 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     using namespace data_type;
     const bool is_deconv = cd.prop_kind != prop_kind::backward_data;
 
-    const bool is_bf16 = everyone_is(true, diff_dst_d.data_type() == bf16,
-            weights_d.data_type() == bf16,
-            one_of(diff_src_d.data_type(), bf16, f32));
-    const bool is_bf16_convolution = is_bf16 && !is_deconv;
-    const bool is_bf16_deconvolution = is_bf16 && is_deconv;
+    const data_type_t wdt = weights_d.data_type();
+    const bool is_f16 = f16 == wdt;
+    const bool is_xf16 = everyone_is(true, one_of(wdt, bf16, f16),
+            diff_dst_d.data_type() == wdt,
+            one_of(diff_src_d.data_type(), wdt, f32));
+    const bool is_xf16_convolution = is_xf16 && !is_deconv;
+    const bool is_xf16_deconvolution = is_xf16 && is_deconv;
     const bool is_int8_deconvolution = is_deconv
             && everyone_is(true, one_of(diff_dst_d.data_type(), s8, u8),
                     weights_d.data_type() == s8,
                     one_of(diff_src_d.data_type(), f32, s32, s8, u8));
 
-    bool supported
-            = mayiuse(avx512_core_amx) && (is_bf16 || is_int8_deconvolution);
+    bool supported = everyone_is(true, is_xf16 || is_int8_deconvolution,
+            mayiuse(avx512_core_amx),
+            IMPLICATION(is_f16, mayiuse(avx512_core_amx_fp16)));
     if (!supported) return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
-    jcp.isa = avx512_core_amx;
+    jcp.isa = is_f16 ? avx512_core_amx_fp16 : avx512_core_amx;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -3733,8 +3750,8 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.stride_h = !is_1d ? cd.strides[ndims - 4] : 1;
     jcp.stride_w = cd.strides[ndims - 3];
 
-    // No bias for bf16 case to simplify integration with ref_deconvolution
-    jcp.with_bias = bias_md && !is_bf16_convolution
+    // No bias for xf16 case to simplify integration with ref_deconvolution
+    jcp.with_bias = bias_md && !is_xf16_convolution
             && cd.bias_desc.format_kind != format_kind::undef;
 
     jcp.dilate_d = is_3d ? cd.dilates[ndims - 5] : 0;
@@ -3776,10 +3793,10 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
             format_tag::nChw16c, format_tag::nCdhw16c);
     format_tag_t dat_tag_nspc = pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
-    // To toggle the default data layout for BF16 between nChw16c and nhwc,
+    // To toggle the default data layout for xf16 between nChw16c and nhwc,
     // swap the following two variable definitions. Current choice: nhwc.
     format_tag_t dat_tag_opt = dat_tag_nspc;
-    format_tag_t dat_tag_alt = is_bf16 ? dat_tag_ncsp : dat_tag_nspc;
+    format_tag_t dat_tag_alt = is_xf16 ? dat_tag_ncsp : dat_tag_nspc;
 
     if (diff_src_d.format_kind() == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_src_md, dat_tag_opt));
@@ -3819,8 +3836,8 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     bool args_ok = jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0;
     if (!args_ok) return status::unimplemented;
 
-    const int vnni_width = is_bf16 ? 2 : 4;
-    jcp.oc_block_int = jcp.oc_block * vnni_width; // 32 for bf16, 64 for int8
+    const int vnni_width = is_xf16 ? 2 : 4;
+    jcp.oc_block_int = jcp.oc_block * vnni_width; // 32 for xf16, 64 for int8
 
     if (attr.set_default_formats(&diff_src_md) != status::success)
         return status::unimplemented;
@@ -3834,11 +3851,11 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     auto set_or_check_wei_format = [&]() {
         using namespace format_tag;
         format_tag_t wei_tag;
-        if (is_bf16_convolution)
+        if (is_xf16_convolution)
             wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16o16i2o,
                     gOIw16o16i2o, OIhw16o16i2o, gOIhw16o16i2o, OIdhw16o16i2o,
                     gOIdhw16o16i2o);
-        else if (is_bf16_deconvolution)
+        else if (is_xf16_deconvolution)
             wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16i16o2i,
                     gOIw16i16o2i, OIhw16i16o2i, gOIhw16i16o2i, OIdhw16i16o2i,
                     gOIdhw16i16o2i);
