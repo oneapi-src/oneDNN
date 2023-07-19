@@ -470,8 +470,7 @@ private:
 
     void build_c_store() {
         auto &gemm_schedule = plan_.gemm_schedule;
-        conv_post_op_view_mapper_t view_mapper(
-                gemm_schedule, cfg_.prb(), cfg_.fuse_spatial());
+        conv_post_op_view_mapper_t view_mapper(gemm_schedule, cfg_.prb());
         post_op_context_t post_op_ctx(*cfg_.prb().attr, cfg_.zp_cfg(),
                 gemm_schedule, kernel_info_, *cfg_.prb().conv_pd->dst_md(),
                 cfg_.prb().c_md(), view_mapper);

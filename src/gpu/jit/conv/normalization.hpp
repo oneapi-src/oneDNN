@@ -27,12 +27,11 @@ namespace jit {
 class conv_problem_t;
 class conv_post_op_view_mapper_t : public post_op_view_mapper_t {
 public:
-    conv_post_op_view_mapper_t(const gemm_schedule_t &schedule,
-            const conv_problem_t &prb, bool fuse_spatial)
+    conv_post_op_view_mapper_t(
+            const gemm_schedule_t &schedule, const conv_problem_t &prb)
         : post_op_view_mapper_t(schedule.c_view())
         , schedule_(schedule)
-        , prb_(prb)
-        , fuse_spatial_(fuse_spatial) {}
+        , prb_(prb) {}
 
     view_t create_view(const type_t &type, uint32_t mask) const override {
         return post_op_view_mapper_t::create_view(type, normalize_mask(mask));
@@ -61,13 +60,11 @@ private:
 
     const gemm_schedule_t &schedule_;
     const conv_problem_t &prb_;
-    const bool fuse_spatial_;
 };
 
 void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
         layout_t &dst_layout, layout_t &bia_layout, bool with_groups, int g,
-        int ic, int oc, bool is_dw, int reduced_dim, bool fuse_spatial,
-        bool add_groups);
+        int ic, int oc, bool is_dw, int reduced_dim, bool add_groups);
 
 } // namespace jit
 } // namespace gpu

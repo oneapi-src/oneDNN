@@ -756,12 +756,10 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     // spatial dimensions when applicable.
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, bia_layout,
             prb.with_groups, prb.g, prb.ic, prb.oc, prb.is_dw, prb.reduced_dim,
-            /*fuse_spatial=*/false,
             /*add_groups=*/true);
     normalize_conv_layouts(user_src_layout, user_wei_layout, user_dst_layout,
             user_bia_layout, prb.with_groups, prb.g, prb.ic, prb.oc, prb.is_dw,
             prb.reduced_dim,
-            /*fuse_spatial=*/false,
             /*add_groups=*/true);
 
     src.set_compute(src_layout);

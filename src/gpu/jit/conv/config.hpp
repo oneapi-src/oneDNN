@@ -992,8 +992,6 @@ public:
         return ret;
     }
 
-    bool fuse_spatial() const { return false; }
-
     void set_pd(const convolution_pd_t *pd) { prb_.set_pd(pd); }
 
     void set_regs(int regs) {

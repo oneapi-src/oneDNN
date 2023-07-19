@@ -146,43 +146,14 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto kw = var_t::make(type_t::s32(), "kw");
     auto g = var_t::make(type_t::s32(), "g");
 
-    expr_t ow, oh, od, osp;
+    expr_t ow, oh, od;
     bool check_od = false;
     bool check_oh = false;
     bool check_ow = false;
-    if (cfg_.fuse_spatial()) {
-        osp = var_t::make(type_t::s32(), "osp");
-        ow = osp;
-        oh = osp / prb_.ow;
-        od = osp / (prb_.oh * prb_.ow);
-
-        bool is_1d = (prb_.oh == 1 && prb_.od == 1);
-        bool is_2d = (prb_.oh != 1 && prb_.od == 1);
-        bool is_3d = !is_1d && !is_2d;
-
-        bool check_osp = (prb_.osp < cfg_.padded_dim("osp"));
-        check_ow = is_1d && check_osp;
-        check_oh = is_2d && check_osp;
-        check_od = is_3d && check_osp;
-
-        if (is_1d) {
-            oh = expr_t(0);
-            od = expr_t(0);
-        } else if (is_2d) {
-            ow %= prb_.ow;
-            od = expr_t(0);
-        } else if (is_3d) {
-            ow %= prb_.ow;
-            oh %= prb_.oh;
-        } else {
-            ir_error_not_expected();
-        }
-    } else {
-        od = var_t::make(type_t::s32(), "od");
-        oh = var_t::make(type_t::s32(), "oh");
-        ow = var_t::make(type_t::s32(), "ow");
-        check_ow = (prb_.ow < cfg_.padded_dim("ow"));
-    }
+    od = var_t::make(type_t::s32(), "od");
+    oh = var_t::make(type_t::s32(), "oh");
+    ow = var_t::make(type_t::s32(), "ow");
+    check_ow = (prb_.ow < cfg_.padded_dim("ow"));
 
     // Initialize masks.
     expr_t id_mask, ih_mask, iw_mask;
@@ -208,21 +179,13 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     if (check_ow) ow_mask = (x >= 0) & (x < prb_.ow);
 
     // Source.
-    if (cfg_.fuse_spatial()) {
-        src_view = view_t({mb, g, ic, osp, kd, kh, kw}, 6);
-    } else {
-        src_view = view_t({mb, g, ic, od, oh, ow, kd, kh, kw}, 6);
-    }
+    src_view = view_t({mb, g, ic, od, oh, ow, kd, kh, kw}, 6);
     src_view.set_vdim(mb, prb_.mb);
     src_view.set_vdim(g, prb_.g);
     src_view.set_vdim(ic, prb_.ic);
-    if (cfg_.fuse_spatial()) {
-        src_view.set_vdim(osp, prb_.osp);
-    } else {
-        src_view.set_vdim(od, prb_.od);
-        src_view.set_vdim(oh, prb_.oh);
-        src_view.set_vdim(ow, prb_.ow);
-    }
+    src_view.set_vdim(od, prb_.od);
+    src_view.set_vdim(oh, prb_.oh);
+    src_view.set_vdim(ow, prb_.ow);
     src_view.set_vdim(kd, prb_.kd);
     src_view.set_vdim(kh, prb_.kh);
     src_view.set_vdim(kw, prb_.kw);
@@ -253,21 +216,13 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     wei_view.set_tmasks(cfg_.padded_dims().get());
 
     // Destination.
-    if (cfg_.fuse_spatial()) {
-        dst_view = view_t({mb, g, oc, osp}, 6);
-    } else {
-        dst_view = view_t({mb, g, oc, od, oh, ow}, 6);
-    }
+    dst_view = view_t({mb, g, oc, od, oh, ow}, 6);
     dst_view.set_vdim(mb, prb_.mb);
     dst_view.set_vdim(g, prb_.g);
     dst_view.set_vdim(oc, prb_.oc);
-    if (cfg_.fuse_spatial()) {
-        dst_view.set_vdim(osp, prb_.osp);
-    } else {
-        dst_view.set_vdim(od, prb_.od);
-        dst_view.set_vdim(oh, prb_.oh);
-        dst_view.set_vdim(ow, prb_.ow);
-    }
+    dst_view.set_vdim(od, prb_.od);
+    dst_view.set_vdim(oh, prb_.oh);
+    dst_view.set_vdim(ow, prb_.ow);
     dst_view.set_tdim(0, mb);
     dst_view.set_tdim(1, g);
     dst_view.set_tdim(2, oc);
@@ -282,11 +237,7 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     gemm_schedule.set_b_view(wei_view);
     gemm_schedule.set_c_view(dst_view);
     gemm_schedule.set_b_vars({g});
-    if (cfg_.fuse_spatial()) {
-        gemm_schedule.set_m_vars({mb, osp});
-    } else {
-        gemm_schedule.set_m_vars({mb, od, oh, ow});
-    }
+    gemm_schedule.set_m_vars({mb, od, oh, ow});
     gemm_schedule.set_n_vars({oc});
     gemm_schedule.set_k_vars({ic, kd, kh, kw});
 
@@ -298,33 +249,30 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto g_tile = create_tile(gemm_schedule, cfg_, g);
     auto oc_tile = create_tile(gemm_schedule, cfg_, oc);
     auto mb_tile = create_tile(gemm_schedule, cfg_, mb);
-    auto osp_tile = create_tile(gemm_schedule, cfg_, osp.is_empty() ? ow : osp);
+    auto ow_tile = create_tile(gemm_schedule, cfg_, ow);
     auto ic_tile = create_tile(gemm_schedule, cfg_, ic);
     auto kw_tile = create_tile(gemm_schedule, cfg_, kw);
 
-    auto g_osp_grid_idx = cfg_.fuse_spatial()
-            ? gemm_schedule.fuse({g_tile.grid_idx(), osp_tile.grid_idx()})
-            : gemm_schedule.fuse(
-                    {g_tile.grid_idx(), od, oh, osp_tile.grid_idx()});
-    auto mb_osp_tg_idx
-            = gemm_schedule.fuse(mb_tile.tg_idx(), osp_tile.tg_idx());
+    auto g_ow_grid_idx = gemm_schedule.fuse(
+            {g_tile.grid_idx(), od, oh, ow_tile.grid_idx()});
+    auto mb_ow_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), ow_tile.tg_idx());
 
     gemm_schedule.bind(oc_tile.grid_idx(), cfg_.kernel_grid().idx(0));
-    gemm_schedule.bind(g_osp_grid_idx, cfg_.kernel_grid().idx(1));
+    gemm_schedule.bind(g_ow_grid_idx, cfg_.kernel_grid().idx(1));
     gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(2));
     gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
-    gemm_schedule.bind(mb_osp_tg_idx, cfg_.thread_group_grid().idx(1));
+    gemm_schedule.bind(mb_ow_tg_idx, cfg_.thread_group_grid().idx(1));
     gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(2));
 
     gemm_schedule.tensorize(g_tile.iter_idx());
     gemm_schedule.tensorize(oc_tile.iter_idx());
     gemm_schedule.tensorize(mb_tile.iter_idx());
-    gemm_schedule.tensorize(osp_tile.iter_idx());
+    gemm_schedule.tensorize(ow_tile.iter_idx());
     gemm_schedule.tensorize(kw_tile.iter_idx());
     gemm_schedule.tensorize(ic_tile.iter_idx());
 
     gemm_schedule.reorder({ic_tile.loop_idx(), kd, kh, kw_tile.loop_idx(),
-            oc_tile.tg_idx(), mb_osp_tg_idx, ic_tile.tg_idx()});
+            oc_tile.tg_idx(), mb_ow_tg_idx, ic_tile.tg_idx()});
 }
 
 void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
