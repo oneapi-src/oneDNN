@@ -448,7 +448,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
     if (brg.with_dst_scales) {
         mov(reg_aux_dst_scales, ptr[rsp + reg_dst_scales_offs_]);
         auto vmm_dst_scales = vmm_tmp(0);
-        vbroadcastss(vmm_dst_scales, ptr[reg_aux_dst_scales]);
+        if (!is_superset(brg.isa_impl, avx512_core))
+            vbroadcastss(vmm_dst_scales, ptr[reg_aux_dst_scales]);
 
         for_(int m = 0; m < m_blocks; m++)
         for_(int n = 0; n < n_blocks; n++)
@@ -459,9 +460,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
             if (is_superset(brg.isa_impl, avx512_core)) {
                 vmulps(vmm, vmm, ptr_b[reg_aux_dst_scales]);
             } else {
-                const Vmm vmm_scale = vmm_tmp(0);
-                vbroadcastss(vmm_scale, ptr[reg_aux_dst_scales]);
-                vmulps(vmm, vmm, vmm_scale);
+                vmulps(vmm, vmm, vmm_dst_scales);
             }
         }
     }
