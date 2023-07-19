@@ -32,7 +32,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
     data_type_t src_t = this->pd()->src_type;
 
-    cl_ulong cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
+    dim_t cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
             cell_wei_iter_offset, cell_ws_iter_offset2, cell_wei_iter_offset2,
             cell_scratch_offset2;
 
@@ -74,7 +74,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 scratch_dhG1, bias, tm_scales, diff_bias, PART_TWO));
 
     } else {
-        cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
+        dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off,
                 cell_scr_diff_iter_off, cell_scr_diff_lay_off,
                 cell_diff_wei_iter_off2;
 

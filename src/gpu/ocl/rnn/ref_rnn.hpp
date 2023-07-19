@@ -79,21 +79,22 @@ struct workspace_t {
                              conf.ws_grid_comp_offset, conf.ws_grid_comp_size)
                                                 : nullptr) {}
 
-    cl_ulong calc_off_ws_state(int i0, int i1, int i2, int i3, int i4) const {
+    dim_t calc_off_ws_state(
+            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4) const {
         return OFF5(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
                 conf_.n_iter + 1, i3, conf_.mb, i4, conf_.states_ws_ld);
     }
 
-    cl_ulong calc_off_ws_gates(
-            int i0, int i1, int i2, int i3, int i4, int i5) const {
+    dim_t calc_off_ws_gates(
+            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4, dim_t i5) const {
         return i0 * conf_.n_dir * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
                 + i1 * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
                 + i2 * conf_.mb * conf_.gates_ws_ld + i3 * conf_.gates_ws_ld
                 + i4 * conf_.dhc + i5;
     }
 
-    cl_ulong calc_off_ws_grid_offset(
-            int i0, int i1, int i2, int i3, int i4) const {
+    dim_t calc_off_ws_grid_offset(
+            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4) const {
         return OFF5(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
                 conf_.n_iter + 1, i3, conf_.mb, i4, conf_.dhc);
     }
@@ -102,14 +103,14 @@ struct workspace_t {
     const mst &gates() const { return rnn_utils::get_storage(gates_); }
     const mst &states() const { return rnn_utils::get_storage(states_); }
 
-    std::unique_ptr<mst> states(int layer, int dir, int time) const {
+    std::unique_ptr<mst> states(dim_t layer, dim_t dir, dim_t time) const {
         if (!states_) return nullptr;
         auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
                 * types::data_type_size(ocl_conf_.src_dt);
         return states_->get_sub_storage(off_, conf_.ws_states_cell_size);
     }
 
-    std::unique_ptr<mst> c_states(int layer, int dir, int time) const {
+    std::unique_ptr<mst> c_states(dim_t layer, dim_t dir, dim_t time) const {
         if (!c_states_) return nullptr;
         // conf_.aux_data_type is float for all datatypes except f16
         // so can be used for lstm_elemwise_u8s8 case as well
@@ -118,7 +119,7 @@ struct workspace_t {
         return c_states_->get_sub_storage(off_, conf_.ws_c_states_cell_size);
     }
 
-    std::unique_ptr<mst> gates(int layer, int dir, int time) const {
+    std::unique_ptr<mst> gates(dim_t layer, dim_t dir, dim_t time) const {
         if (!gates_) return nullptr;
 
         auto off_ = calc_off_ws_gates(layer, dir, time, 0, 0, 0)
@@ -126,7 +127,7 @@ struct workspace_t {
         return gates_->get_sub_storage(off_, conf_.ws_gates_cell_size);
     }
 
-    std::unique_ptr<mst> grid_comp(int layer, int dir, int time) const {
+    std::unique_ptr<mst> grid_comp(dim_t layer, dim_t dir, dim_t time) const {
         if (!grid_comp_) return nullptr;
 
         auto off_ = calc_off_ws_grid_offset(layer, dir, time, 0, 0)
@@ -210,7 +211,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> gemm_diff_wei_iter_2_pd_;
 
     private:
-        void init_scratchpad(size_t workspace_size) {
+        void init_scratchpad(dim_t workspace_size) {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
             scratchpad.book(key_rnn_space, workspace_size, 1,
@@ -276,13 +277,13 @@ private:
     status_t execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    compute::nd_range_t get_nd_range(std::vector<int> gws) const {
+    compute::nd_range_t get_nd_range(std::vector<dim_t> gws) const {
         // Try to schedule one local thread per eu
         int subgroup_size = pd()->ocl_conf.subgroup_size;
         int lws_max = pd()->max_eus_per_wg * subgroup_size;
-        std::vector<int> lws;
+        std::vector<dim_t> lws;
         lws.reserve(gws.size());
-        for (int i = 0; i < (int)gws.size(); i++) {
+        for (size_t i = 0; i < gws.size(); i++) {
             int l_dim = 2 * gws[i] <= lws_max ? utils::rnd_up_pow2(gws[i])
                                               : lws_max;
             if (i == 0 && l_dim < subgroup_size) l_dim = subgroup_size;
@@ -313,24 +314,24 @@ private:
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
     status_t bias_prepare(const exec_ctx_t &ctx,
-            compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-            int n_bias, int n_gates, int dhc, const memory_storage_t &ws_bias,
-            const memory_storage_t &scales, const memory_storage_t &wei_layer,
-            const memory_storage_t &wei_iter,
+            compute::compute_stream_t *compute_stream, dim_t n_layer,
+            dim_t n_dir, dim_t n_bias, dim_t n_gates, dim_t dhc,
+            const memory_storage_t &ws_bias, const memory_storage_t &scales,
+            const memory_storage_t &wei_layer, const memory_storage_t &wei_iter,
             const memory_storage_t &bias) const;
     status_t copy_init_layer(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, bool lr, bool rl,
-            int n_iter, int batch, int slc, int dhc, int n_layer, int n_dir,
-            int n_states, int states_ws_ld, int scratch_diff_states_ld,
-            const memory_storage_t &ws_states,
+            dim_t n_iter, dim_t batch, dim_t slc, dim_t dhc, dim_t n_layer,
+            dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
+            dim_t scratch_diff_states_ld, const memory_storage_t &ws_states,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
     status_t copy_init_iter(const exec_ctx_t &ctx,
-            compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-            int batch, int sic, int dhc, int n_iter, int n_states,
-            int states_ws_ld, int scratch_diff_states_ld, const workspace_t &ws,
-            const memory_storage_t &scratch_diff_states,
+            compute::compute_stream_t *compute_stream, dim_t n_layer,
+            dim_t n_dir, dim_t batch, dim_t sic, dim_t dhc, dim_t n_iter,
+            dim_t n_states, dim_t states_ws_ld, dim_t scratch_diff_states_ld,
+            const workspace_t &ws, const memory_storage_t &scratch_diff_states,
             const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
             const memory_storage_t &diff_dst_iter,
@@ -338,17 +339,18 @@ private:
             const float scale, const bool quantize) const;
     status_t copy_res_layer(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, bool lr, bool rl,
-            int n_iter, int batch, int slc, int dhc, int n_layer, int n_dir,
-            int n_states, int states_ws_ld, int scratch_diff_states_ld,
+            dim_t n_iter, dim_t batch, dim_t slc, dim_t dhc, dim_t n_layer,
+            dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
+            dim_t scratch_diff_states_ld,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &dst_last_layer,
             const memory_storage_t &diff_src_layer,
             const memory_storage_t &ws_states, const float shift,
             const float scale, const bool dequantize) const;
     status_t copy_res_iter(const exec_ctx_t &ctx,
-            compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-            int batch, int sic, int dhc, int n_iter, int n_states,
-            int states_ws_ld, int scratch_diff_states_ld,
+            compute::compute_stream_t *compute_stream, dim_t n_layer,
+            dim_t n_dir, dim_t batch, dim_t sic, dim_t dhc, dim_t n_iter,
+            dim_t n_states, dim_t states_ws_ld, dim_t scratch_diff_states_ld,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
@@ -357,8 +359,8 @@ private:
             const float shift, const float scale, const bool dequantize) const;
     status_t ws_set(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream,
-            const memory_storage_t &workspace, const cl_ulong ws_offset,
-            const int ws_part, const float val, const size_t size) const;
+            const memory_storage_t &workspace, const dim_t ws_offset,
+            const int ws_part, const float val, const dim_t size) const;
     status_t ws_print(const exec_ctx_t &ctx, compute::compute_stream_t *s,
             const workspace_t &workspace) const;
 
@@ -387,16 +389,16 @@ private:
 
     // offset variables set in workspace and used in offset calculations for
     // grid & cell execution and fwd & bwd kernel macros
-    cl_ulong ws_gates_offset_;
-    cl_ulong ws_states_offset_;
-    cl_ulong ws_c_states_offset_;
-    cl_ulong ws_grid_comp_offset_;
-    cl_ulong ws_bias_offset_;
+    dim_t ws_gates_offset_;
+    dim_t ws_states_offset_;
+    dim_t ws_c_states_offset_;
+    dim_t ws_grid_comp_offset_;
+    dim_t ws_bias_offset_;
 
     // ptrs for storing weight offsets which are pre-calculated in
     // in grid execution as weights_*_assing_func
-    size_t *wei_layer_offset_ptr;
-    size_t *wei_iter_offset_ptr;
+    dim_t *wei_layer_offset_ptr;
+    dim_t *wei_iter_offset_ptr;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;

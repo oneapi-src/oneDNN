@@ -25,23 +25,20 @@
 #include "gpu/serialization.hpp"
 
 #define OFF6(i0, d0, i1, d1, i2, d2, i3, d3, i4, d4, i5, d5) \
-    ((((((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2)) * (d3) \
-              + (i3)) * (d4) \
-             + (i4)) * (d5) \
+    ((((((i0) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3)) * (d4) + (i4)) \
+                    * (d5) \
             + (i5))
 #define OFF5(i0, d0, i1, d1, i2, d2, i3, d3, i4, d4) \
-    (((((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3)) \
-                    * (d4) \
-            + (i4))
+    (((((i0) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3)) * (d4) + (i4))
 #define OFF4(i0, d0, i1, d1, i2, d2, i3, d3) \
-    ((((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3))
-#define OFF3(i0, d0, i1, d1, i2, d2) \
-    (((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2))
-#define OFF2(i0, d0, i1, d1) ((static_cast<size_t>(i0)) * (d1) + (i1))
+    ((((i0) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3))
+#define OFF3(i0, d0, i1, d1, i2, d2) (((i0) * (d1) + (i1)) * (d2) + (i2))
+#define OFF2(i0, d0, i1, d1) ((i0) * (d1) + (i1))
 
 #define elemwise_sig(f) \
-    status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int batch, int bwd_batch_block, const workspace_t &workspace, \
+    status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
+            dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
+            const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
@@ -49,8 +46,9 @@
             const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru_lbr(f) \
-    status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int batch, int bwd_batch_block, const workspace_t &workspace, \
+    status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
+            dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
+            const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
@@ -58,8 +56,9 @@
             const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru(f) \
-    status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int batch, int bwd_batch_block, const workspace_t &workspace, \
+    status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
+            dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
+            const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
@@ -68,8 +67,8 @@
             const memory_storage_t &diff_bias, int part) const
 
 #define cell_execution_sig(f) \
-    status_t f(engine_t *engine, const exec_ctx_t &ctx, int dir, int lay, \
-            int iter, size_t *wei_layer_offset, size_t *wei_iter_offset, \
+    status_t f(engine_t *engine, const exec_ctx_t &ctx, dim_t dir, dim_t lay, \
+            dim_t iter, dim_t *wei_layer_offset, dim_t *wei_iter_offset, \
             const memory_storage_t &bias, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
@@ -98,16 +97,15 @@
 
 #define gemm_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, \
-            const memory_storage_t &a, size_t off_a, \
-            const memory_storage_t &b, size_t off_b, \
-            const memory_storage_t &c, size_t off_c, gemm_kind_t gemm_kind) \
-            const
+            const memory_storage_t &a, dim_t off_a, const memory_storage_t &b, \
+            dim_t off_b, const memory_storage_t &c, dim_t off_c, \
+            gemm_kind_t gemm_kind) const
 
 #define weights_assign_sig(f) \
     void f(const rnn_utils::conf_t &rnn, const memory_desc_t *md, \
-            size_t *weights_, int n_parts, const int *gates_per_part, \
-            const memory_storage_t &w_, int ld, int nld, data_type_t wei_t) \
-            const
+            dim_t *weights_, dim_t n_parts, const dim_t *gates_per_part, \
+            const memory_storage_t &w_, dim_t ld, dim_t nld, \
+            data_type_t wei_t) const
 
 static inline bool is_ws_print_enabled() {
     return get_verbose_dev_mode(dnnl::impl::verbose_t::debuginfo) >= 5;
@@ -262,60 +260,60 @@ struct ocl_conf_t {
 struct conf_t {
     execution_direction_t exec_dir;
     data_type_conf_t dt_conf;
-    int n_layer, n_iter, n_dir, n_gates, n_states;
-    int mb;
-    int slc, sic, dhc, dlc, wic;
+    dim_t n_layer, n_iter, n_dir, n_gates, n_states;
+    dim_t mb;
+    dim_t slc, sic, dhc, dlc, wic;
 
-    int gates_ld, gates_nld, gates_ws_ld, arch_ld;
+    dim_t gates_ld, gates_nld, gates_ws_ld, arch_ld;
 
-    int n_parts_weights_layer, parts_weights_layer[DNNL_RNN_MAX_N_PARTS];
-    int n_parts_weights_iter, parts_weights_iter[DNNL_RNN_MAX_N_PARTS];
-    int n_bias, n_parts_bias, parts_bias[DNNL_RNN_MAX_N_PARTS];
+    dim_t n_parts_weights_layer, parts_weights_layer[DNNL_RNN_MAX_N_PARTS];
+    dim_t n_parts_weights_iter, parts_weights_iter[DNNL_RNN_MAX_N_PARTS];
+    dim_t n_bias, n_parts_bias, parts_bias[DNNL_RNN_MAX_N_PARTS];
 
-    size_t part_weights_iter_pack_size[DNNL_RNN_MAX_N_PARTS],
+    dim_t part_weights_iter_pack_size[DNNL_RNN_MAX_N_PARTS],
             part_weights_layer_pack_size[DNNL_RNN_MAX_N_PARTS];
 
     // Size of packed data in bytes
-    size_t weights_layer_comp_offset, weights_layer_pack_size,
+    dim_t weights_layer_comp_offset, weights_layer_pack_size,
             weights_iter_comp_offset, weights_iter_pack_size;
 
     bool copy_bias;
-    int weights_layer_ld, weights_layer_nld;
-    int diff_weights_layer_ld, diff_weights_layer_nld;
-    int weights_iter_ld, weights_iter_nld;
-    int diff_weights_iter_ld, diff_weights_iter_nld;
-    int states_nld, states_ws_ld, scratch_diff_states_ld;
+    dim_t weights_layer_ld, weights_layer_nld;
+    dim_t diff_weights_layer_ld, diff_weights_layer_nld;
+    dim_t weights_iter_ld, weights_iter_nld;
+    dim_t diff_weights_iter_ld, diff_weights_iter_nld;
+    dim_t states_nld, states_ws_ld, scratch_diff_states_ld;
     bool is_fwd, is_training, is_lbr, is_int8, is_testmode, is_vanilla_gru;
     bool use_workspace;
 
     // for test mode (--skip_nonliner=true of benchdnn)
     float tm_cscale;
-    int tm_ngates;
+    dim_t tm_ngates;
 
     // Size of workspace for each tensor in bytes
-    size_t ws_states_cell_size, ws_c_states_cell_size, ws_gates_cell_size;
-    size_t ws_gates_size, ws_states_size, ws_c_states_size,
+    dim_t ws_states_cell_size, ws_c_states_cell_size, ws_gates_cell_size;
+    dim_t ws_gates_size, ws_states_size, ws_c_states_size,
             scratch_diff_states_size, scratch_cell_size, scratch_dhG1_size,
             ws_grid_comp_size, ws_per_cell, ws_bias_size;
 
-    size_t ws_gates_offset;
-    size_t ws_states_offset;
-    size_t ws_grid_comp_offset;
-    size_t ws_c_state_offset;
-    size_t ws_bias_offset;
+    dim_t ws_gates_offset;
+    dim_t ws_states_offset;
+    dim_t ws_grid_comp_offset;
+    dim_t ws_c_state_offset;
+    dim_t ws_bias_offset;
 
     bool merge_gemm_iter, merge_gemm_layer, use_gemm, use_layer_packed_gemm,
             use_iter_packed_gemm;
 
     // Element size of each workspace part in bytes
-    int ws_gates_elsz, ws_states_elsz, ws_grid_comp_elsz, ws_bias_elsz;
+    dim_t ws_gates_elsz, ws_states_elsz, ws_grid_comp_elsz, ws_bias_elsz;
 
-    size_t scratch_gates_size;
-    int n_iter_scratch_gates;
-    int scratch_gates_elsz, scratch_gates_ld;
+    dim_t scratch_gates_size;
+    dim_t n_iter_scratch_gates;
+    dim_t scratch_gates_elsz, scratch_gates_ld;
 
     data_type_t acc_data_type;
-    int acc_data_type_elsz;
+    dim_t acc_data_type_elsz;
     data_type_t aux_data_type;
     data_type_t input_data_type;
     data_type_t output_data_type;
@@ -325,7 +323,7 @@ struct conf_t {
 bool is_ldigo(const memory_desc_wrapper &md);
 bool is_ldgoi(const memory_desc_wrapper &md);
 
-int get_good_ld(int arch_ld, int dim, int sizeof_dt);
+dim_t get_good_ld(dim_t arch_ld, dim_t dim, dim_t sizeof_dt);
 void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
@@ -338,36 +336,37 @@ void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &diff_weights_layer_d,
         const memory_desc_wrapper &diff_weights_iter_d);
-size_t set_workspace_offsets(const conf_t &rnn, size_t &ws_gates_offset,
-        size_t &ws_h_state_offset, size_t &ws_c_state_offset,
-        size_t &ws_grid_comp_onfset, size_t &ws_bias_offset);
-void set_gru_offsets_part2(const conf_t &rnn, int iter, int dir, int lay,
-        data_type_t src_t, size_t *wei_iter_off_ptr,
-        const size_t &ws_states_offset_, size_t &cell_wei_iter_offset,
-        size_t &cell_scratch_offset, size_t &cell_ws_iter_offset);
-void set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,
-        data_type_t src_t, size_t *wei_layer_off_ptr,
-        const size_t &ws_states_offset_, size_t &grid_ws_lay_offset,
-        size_t &grid_wei_lay_offset, size_t &grid_ws_iter_offset);
-void set_offsets_fwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
-        data_type_t src_t, size_t *wei_iter_off_ptr,
-        const size_t &ws_states_offset_, size_t &cell_ws_iter_offset,
-        size_t &cell_ws_lay_offset, size_t &cell_scratch_offset,
-        size_t &cell_wei_iter_offset);
-void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
-        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
-        size_t &cell_scr_diff_lay_off, size_t &cell_scr_diff_iter_off);
-void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
-        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
-        size_t &cell_scr_diff_lay_off, size_t &cell_scr_diff_iter_off,
-        size_t &cell_diff_wei_iter_off2);
-void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
-        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
-        size_t &cell_scr_diff_lay_off);
-size_t get_workspace_size(const conf_t &rnn);
+dim_t set_workspace_offsets(const conf_t &rnn, dim_t &ws_gates_offset,
+        dim_t &ws_h_state_offset, dim_t &ws_c_state_offset,
+        dim_t &ws_grid_comp_onfset, dim_t &ws_bias_offset);
+void set_gru_offsets_part2(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
+        data_type_t src_t, dim_t *wei_iter_off_ptr,
+        const dim_t &ws_states_offset_, dim_t &cell_wei_iter_offset,
+        dim_t &cell_scratch_offset, dim_t &cell_ws_iter_offset);
+void set_offsets_fwd_gemm(const conf_t &rnn, dim_t dir, dim_t lay,
+        data_type_t src_t, dim_t *wei_layer_off_ptr,
+        const dim_t &ws_states_offset_, dim_t &grid_ws_lay_offset,
+        dim_t &grid_wei_lay_offset, dim_t &grid_ws_iter_offset);
+void set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
+        data_type_t src_t, dim_t *wei_iter_off_ptr,
+        const dim_t &ws_states_offset_, dim_t &cell_ws_iter_offset,
+        dim_t &cell_ws_lay_offset, dim_t &cell_scratch_offset,
+        dim_t &cell_wei_iter_offset);
+void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
+        dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
+        dim_t &cell_scr_diff_lay_off, dim_t &cell_scr_diff_iter_off);
+void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
+        dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
+        dim_t &cell_scr_diff_lay_off, dim_t &cell_scr_diff_iter_off,
+        dim_t &cell_diff_wei_iter_off2);
+void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
+        dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
+        dim_t &cell_scr_diff_lay_off);
+dim_t get_workspace_size(const conf_t &rnn);
 status_t set_expected_desc(
         conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
-status_t set_good_strides(int ld_, memory_desc_t &weights_md, format_tag_t tag);
+status_t set_good_strides(
+        dim_t ld_, memory_desc_t &weights_md, format_tag_t tag);
 memory_storage_t &get_storage(const std::unique_ptr<memory_storage_t> &storage);
 
 inline void append_strides(compute::kernel_arg_list_t &arg_list,
