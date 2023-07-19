@@ -484,7 +484,7 @@ private:
     }
 
     Telem *_base_ptr;
-    const int _dims[Tdims];
+    const dim_t _dims[Tdims];
 };
 
 template <typename derived_type, typename base_type>
