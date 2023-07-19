@@ -1051,6 +1051,10 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     bool is_small_shapes = bgmmc.is_amx && !runtime_dims;
 
+    // Disable 'small_shape' heuristic for amx_fp16 until it is validated with
+    // performance measurements.
+    is_small_shapes = is_small_shapes && (bgmmc.isa != avx512_core_amx_fp16);
+
     if (bm_conf_utils.is_bf16() || bm_conf_utils.is_f16()) {
         is_small_shapes = is_small_shapes
                 && amx_xf16_is_small_shape(
