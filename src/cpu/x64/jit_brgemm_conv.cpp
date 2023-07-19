@@ -46,19 +46,13 @@ template <cpu_isa_t isa, bool use_inversion>
 int brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::get_brg_idx(int m,
         bool do_initialization, bool is_N_tail, bool is_K_tail, int kd_b,
         int kd_e, int kh_b, int kh_e) const {
-    int bs_idx = 0;
-    if (jcp_.use_uker) {
-        const auto bs = batchsizes.find({kd_b, kd_e, kh_b, kh_e});
-        if (bs == batchsizes.end()) {
-            assert(!"unregistered batch size");
-            return 0;
-        }
-        bs_idx = bs->second;
-    }
-    return (((m * bs_c + bs_idx) * 2 + static_cast<int>(do_initialization)) * 2
-                   + static_cast<int>(is_N_tail))
-            * 2
-            + static_cast<int>(is_K_tail);
+    const auto brg_idx = jcp_.use_uker
+            ? brg_indices.find({m, is_N_tail, is_K_tail, do_initialization,
+                    kd_b, kd_e, kh_b, kh_e})
+            : brg_indices.find({m, is_N_tail, is_K_tail, do_initialization, 0,
+                    jcp_.kd, 0, jcp_.kh});
+    if (brg_idx == brg_indices.end()) return -1;
+    return brg_idx->second;
 }
 
 template <cpu_isa_t isa, bool use_inversion>
@@ -212,10 +206,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
                                  : vM;
     if (vN == 0 || vK == 0) return status::success;
 
-    auto brg_idx
-            = get_brg_idx(vM - 1, i_init, i_N, i_K, kd_b, kd_e, kh_b, kh_e);
+    auto brg_idx = get_brg_idx(vM, i_init, i_N, i_K, kd_b, kd_e, kh_b, kh_e);
     // if brgemm_t already created then skip this iteration
-    if ((*brgemm_descriptors_)[brg_idx] != nullptr) return status::success;
+    if (brg_idx != -1) return status::success;
 
     brgemm_attr_t brgattr;
     // if need post_ops and there are no intermediate calculations
@@ -341,7 +334,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     jcp_.amx_buf_size_per_thread = nstl::max(
             brg.get_wsp_buffer_size(), jcp_.amx_buf_size_per_thread);
 
-    brgemm_descriptors_->insert(brg_idx, brg, bd_mask, stoffs);
+    brg_idx = brgemm_descriptors_->insert(brg, bd_mask, stoffs);
 
     const std::array<int, 8> key
             = {vM, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e};
@@ -454,8 +447,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     CHECK(brgemm_convolution_utils::init_conf(jcp_, use_inversion, isa, *desc(),
             src_md_, weights_md_, dst_md_, bias_md_, attr_,
             dnnl_get_max_threads()));
-
-    const auto adj_M = nstl::max(jcp_.M, jcp_.M_tail);
 
     // 1. The unrolled kernel can be used for exec_trans and exec_base and for
     // amx only. For exec_base it makes sense to use unrolled kernel only if
@@ -614,7 +605,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
         bs_c++;
     }
 
-    brgs_sz_ = bs_c * adj_M * 2 * 2 * 2;
+    brgs_sz_ = 2 * 2 * 2 * 2;
     brgemm_descriptors_->resize(brgs_sz_);
 
     const auto &p = attr()->post_ops_;
@@ -722,6 +713,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             if (kw_f == jcp_.kw && kw_s == 0) break;
         }
     }
+    brgs_sz_ = brgemm_descriptors_->refs_size();
 
     brgemm_convolution_utils::set_amx_wsp_per_thread(jcp_);
     auto scratchpad = scratchpad_registry().registrar();
@@ -2055,26 +2047,17 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
             const auto comp_ker_offs = get_comp_offset(
                     btc.g, btc.ocb, 0, 0, kd_s, kd_f, kh_s, kh_f, kw_b, kw_e);
 
-            const auto ker_i = ow_l - 1;
-            int kernel_idx[2][2];
-            kernel_idx[false][false] = _pd->get_brg_idx(
-                    ker_i, false, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
-            kernel_idx[true][false] = _pd->get_brg_idx(
-                    ker_i, true, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
-            kernel_idx[false][true] = _pd->get_brg_idx(
-                    ker_i, false, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
-            kernel_idx[true][true] = _pd->get_brg_idx(
-                    ker_i, true, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
-
             if (nb_ic_b > 0) {
-                const auto brg_idx = kernel_idx[do_init][false];
+                const auto brg_idx = _pd->get_brg_idx(ow_l, do_init, is_oc_tail,
+                        false, kd_s, kd_f, kh_s, kh_f);
                 call_brgemm(brg_idx, 0, nb_ic_b, comp_ker_offs,
                         do_postwork && !is_ic_tail, do_only_comp);
             }
 
             if (is_ic_tail) {
                 const auto use_init_ker = (do_init && nb_ic_b == 0);
-                const auto brg_ic_tail_idx = kernel_idx[use_init_ker][true];
+                const auto brg_ic_tail_idx = _pd->get_brg_idx(ow_l,
+                        use_init_ker, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
                 call_brgemm(brg_ic_tail_idx, nb_ic_b, 1, comp_ker_offs,
                         do_postwork, do_only_comp);
             }
@@ -2181,7 +2164,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
     assert(0 <= ow_l && ow_l <= jcp.ow_block && 0 <= oh_l
             && oh_l <= jcp.oh_block);
 
-    const auto ker_i = (jcp.is_os_blocking ? oh_l * ow_l : ow_l) - 1;
+    const auto ker_i = (jcp.is_os_blocking ? oh_l * ow_l : ow_l);
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      int comp_ker_offs, bool do_postops) {
@@ -2218,16 +2201,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
                 && kh_e == kh_f;
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
-        int kernel_idx[2][2];
-        kernel_idx[false][false] = _pd->get_brg_idx(
-                ker_i, false, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
-        kernel_idx[true][false] = _pd->get_brg_idx(
-                ker_i, true, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
-        kernel_idx[false][true] = _pd->get_brg_idx(
-                ker_i, false, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
-        kernel_idx[true][true] = _pd->get_brg_idx(
-                ker_i, true, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
-
         const auto comp_kh_s
                 = jcp.is_os_blocking ? ndims_pick(kh_s_, kh_s_, 0) : kh_s;
         const auto comp_ker_offs = do_postwork
@@ -2236,14 +2209,17 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
                 : 0;
 
         if (nb_ic_b > 0) {
-            const auto brg_idx = kernel_idx[do_init][false];
+            const auto brg_idx = _pd->get_brg_idx(
+                    ker_i, do_init, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
             call_brgemm(brg_idx, 0, nb_ic_b, comp_ker_offs,
                     do_postwork && !is_ic_tail);
         }
 
         if (is_ic_tail) {
             const auto use_init_ker = (do_init && nb_ic_b == 0);
-            const auto brg_ic_tail_idx = kernel_idx[use_init_ker][true];
+            const auto brg_ic_tail_idx = _pd->get_brg_idx(ker_i, use_init_ker,
+                    is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
+
             call_brgemm(
                     brg_ic_tail_idx, nb_ic_b, 1, comp_ker_offs, do_postwork);
         }
@@ -2296,7 +2272,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 
     const auto ow_l = ow_e - ow_b;
     assert(0 <= ow_l && ow_l <= jcp.ow_block);
-    const auto ker_i = ow_l - 1;
     const dim_t *const __restrict kw_top_vpads
             = owb_kw_top_vpads.data() + btc.owb * KW;
     const dim_t *const __restrict kw_bottom_vpads
@@ -2326,28 +2301,21 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
-        int kernel_idx[2][2];
-        kernel_idx[false][false] = _pd->get_brg_idx(
-                ker_i, false, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
-        kernel_idx[true][false] = _pd->get_brg_idx(
-                ker_i, true, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
-        kernel_idx[false][true] = _pd->get_brg_idx(
-                ker_i, false, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
-        kernel_idx[true][true] = _pd->get_brg_idx(
-                ker_i, true, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
-
         const auto comp_offs = get_comp_offset(
                 btc.g, btc.ocb, 0, 0, kd_b, kd_e, kh_b, kh_e, 0, KW);
 
         if (nb_ic_b > 0) {
-            const auto brg_idx = kernel_idx[do_init][false];
+            const auto brg_idx = _pd->get_brg_idx(
+                    ow_l, do_init, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
             call_brgemm(
                     brg_idx, 0, nb_ic_b, comp_offs, do_postwork && !is_ic_tail);
         }
 
         if (is_ic_tail) {
             const auto use_init_ker = (do_init && nb_ic_b == 0);
-            const auto brg_ic_tail_idx = kernel_idx[use_init_ker][true];
+            const auto brg_ic_tail_idx = _pd->get_brg_idx(ow_l, use_init_ker,
+                    is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
+
             call_brgemm(brg_ic_tail_idx, nb_ic_b, 1, comp_offs, do_postwork);
         }
     };
