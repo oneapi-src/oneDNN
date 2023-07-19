@@ -129,6 +129,8 @@ public:
 
     bool is_empty() const { return !reg_buf_; }
 
+    bool with_permute() const { return reg_buf_->with_permute(); }
+
     ngen::HW hw() const { return reg_buf_->hw(); }
 
     ngen::DataType type() const { return rd_.getType(); }
