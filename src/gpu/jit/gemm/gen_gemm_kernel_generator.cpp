@@ -15398,6 +15398,8 @@ template <HW hw>
 bool gemm_kernel_generator_t<hw>::gemmUpdateC(
         GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state) {
 
+    auto Tc = problem.Tc;
+    auto Tco = problem.Tco;
     auto Ts = problem.Ts;
 
     status << "C update" << status_stream::endl;
@@ -15413,8 +15415,15 @@ bool gemm_kernel_generator_t<hw>::gemmUpdateC(
     }
 
     // C early offset.
-    if (problem.cOffset == COffset::Pre)
+    if (problem.cOffset == COffset::Pre) {
+        if (Tc.isInteger() && Tco.isFP() && Ts.isFP()) {
+            if (!gemmConvertC(Ts, problem, strategy, state)) return false;
+        } else if (Tc.isInteger() ^ Tco.isInteger()) {
+            // It's unclear what data type to accumulate in for this scenario.
+            stub();
+        }
         if (!gemmApplyCOffsetDispatch(problem, strategy, state)) return false;
+    }
 
     // Prepare legacy eltwise postop injector if configured.
     GRFRange postOpScratch;
