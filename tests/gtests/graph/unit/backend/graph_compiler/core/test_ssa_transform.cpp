@@ -185,6 +185,76 @@ TEST(GCCore_CPU_ssa_transform, TestSSATransformIfElse) {
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
+TEST(GCCore_CPU_ssa_transform, TestSSATransformAssignmentToCopy) {
+    builder::ir_builder_t builder;
+    _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
+        _bind_(A, a);
+        _var_(v, s32);
+        _var_(b, s32);
+        v = A[0];
+        b = a;
+        _if_(v < 10) { b = v; }
+        _return_(b);
+    }
+    ssa_transform_t s;
+    auto out = s(ccc);
+    _function_(s32, expected, _arg_("A", s32, {10000}), _arg_("a", s32)) {
+        _bind_(A, a);
+        _var_init_(t1, s32, 0);
+        _var_init_(v0, s32, A[t1]);
+        _var_init_(t2, s32, 10);
+        _var_init_(t3, datatypes::boolean, v0 < t2);
+        expr b1_;
+        _if_(t3) { _var_init_copy_(b1, s32, v0); }
+        _var_init_(bout, s32, builder::make_phi({a, b1_}));
+        _return_(bout);
+    }
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected));
+}
+
+TEST(GCCore_CPU_ssa_transform, TestSSATransformLoopPhiAfterIf) {
+    builder::ir_builder_t builder;
+    _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
+        _bind_(A, a);
+        _var_(v, s32);
+        _var_(b, datatypes::index);
+        b = UINT64_C(0);
+        _for_(i, 0, 100) {
+            _if_(i < 10) { b = i; }
+            _else_ { A[i] = i; }
+            A[i] = b;
+        }
+        _return_(0);
+    }
+    ssa_transform_t s;
+    auto out = s(ccc);
+    _function_(s32, expected, _arg_("A", s32, {10000}), _arg_("a", s32)) {
+        _bind_(A, a);
+        _var_init_(b0, datatypes::index, UINT64_C(0));
+        _var_init_(t1, s32, 0);
+        _var_init_(t2, s32, 100);
+        _var_init_(t3, s32, 1);
+        auto b3 = builder::make_var(datatypes::index, "b3");
+        _for_(i, t1, t2, t3) {
+            _var_init_(t4, s32, 10);
+            _var_init_(t5, datatypes::boolean, i < t4);
+            _var_init_(b2, datatypes::index, builder::make_phi({b0, b3}, true));
+            expr b1_;
+            _if_(t5) { _var_init_copy_(b1, datatypes::index, i); }
+            _else_ { A[i] = i; }
+            builder::get_current_builder()->push_var_tensor_def(
+                    b3, linkage::local, builder::make_phi({b1_, b2}));
+            A[i] = b3;
+        }
+        _var_init_(b4, datatypes::index, builder::make_phi({b0, b3}));
+        _var_init_(t10, s32, 0);
+        _return_(t10);
+    }
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected));
+}
+
 TEST(GCCore_CPU_ssa_transform, TestSSATransformForLoop) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
@@ -213,26 +283,29 @@ TEST(GCCore_CPU_ssa_transform, TestSSATransformForLoop) {
             _var_init_(t0, s32, 0);
             _var_init_(t1, s32, 100);
             _var_init_(t2, s32, 1);
-            auto v5 = builder::make_var(s32, "v5");
+            auto v6 = builder::make_var(s32, "v6");
+            auto b5 = builder::make_var(s32, "b5");
             expr b4_, b3_, v2_, c0_;
             _for_(i, t0, t1, t2) {
+                _var_init_(v1, s32, builder::make_phi({v, v6}, true));
                 _var_init_copy_(c0, s32, builder::make_phi({c}));
                 _var_init_(tcmp, datatypes::boolean, c0 == c0);
+                _var_init_copy_(b4, s32, builder::make_phi({a, b5}, true));
                 _if_(tcmp) {
-                    _var_init_(v1, s32, builder::make_phi({v, v5}, true));
                     _var_init_(t3, s32, 1);
                     _var_init_copy_(v2, s32, v1 + t3);
                     _var_init_(t4, s32, builder::make_cast(s32, i));
                     _var_init_copy_(b3, s32, v2 + t4);
                     A[v2] = b3;
                 }
-                _var_init_copy_(b4, s32, builder::make_phi({a, b3_}));
                 builder::get_current_builder()->push_var_tensor_def(
-                        v5, linkage::local, builder::make_phi({v, v2_}));
-                A[b4] = c0;
+                        b5, linkage::local, builder::make_phi({b4, b3_}));
+                builder::get_current_builder()->push_var_tensor_def(
+                        v6, linkage::local, builder::make_phi({v1, v2_}));
+                A[b5] = c0;
             }
-            _var_init_(b6, s32, builder::make_phi({a, b4_}));
-            if (!aftergc) { _var_init_(v7, s32, builder::make_phi({v, v5})); }
+            _var_init_(b6, s32, builder::make_phi({a, b5}));
+            if (!aftergc) { _var_init_(v7, s32, builder::make_phi({v, v6})); }
             _return_(b6);
         }
         return expected;
@@ -273,26 +346,25 @@ TEST(GCCore_CPU_ssa_transform, TestSSATransformForLoop2) {
             auto v6 = builder::make_var(s32, "v6");
             expr c0_;
             _for_(i, t0, a, t1) {
+                expr v5_;
+                _var_init_(v1, s32, builder::make_phi({v, v6}, true));
                 _var_init_copy_(c0, s32, builder::make_phi({c}));
                 _var_init_(t3, datatypes::boolean, c0 == c0);
-                expr v5_;
                 _if_(t3) {
                     _var_init_(t4, datatypes::boolean, c0 == c0);
                     expr v2_, v4_;
                     _if_(t4) {
-                        _var_init_(v1, s32, builder::make_phi({v, v6}, true));
                         _var_init_(t6, s32, 1);
                         _var_init_copy_(v2, s32, v1 + t6);
                     }
                     _else_ {
-                        _var_init_(v1, s32, builder::make_phi({v, v6}, true));
                         _var_init_(t6, s32, 2);
                         _var_init_copy_(v4, s32, v1 + t6);
                     }
                     _var_init_copy_(v5, s32, builder::make_phi({v2_, v4_}));
                 }
                 builder::get_current_builder()->push_var_tensor_def(
-                        v6, linkage::local, builder::make_phi({v, v5_}));
+                        v6, linkage::local, builder::make_phi({v1, v5_}));
             }
             _var_init_(v7, s32, builder::make_phi({v, v6}));
             _return_(v7);
@@ -300,7 +372,7 @@ TEST(GCCore_CPU_ssa_transform, TestSSATransformForLoop2) {
         return expected;
     };
     ir_comparer cmper {true};
-    ASSERT_TRUE(cmper.compare(out, get_expected(false)));
+    EXPECT_TRUE(cmper.compare(out, get_expected(false)));
     // find if GC works
     ssa_visitor_t ssa_gc;
     out = ssa_gc.top_level_dispatch(out);
@@ -378,7 +450,9 @@ TEST(GCCore_CPU_ssa_transform, TestMultiLevelForPHI) {
         _var_init_(a, datatypes::s32, 1);
         _for_(x, 0, 100, 1) {
             _for_(y, 0, 100, 1) {
-                _for_(i, 0, 100, 1) { A[i] = a; }
+                _for_(i, 0, 100, 1) {
+                    _if_(i == 0) { A[i] = a; }
+                }
                 _for_(j, 0, 100, 1) { a = a + 1; }
             }
         }
@@ -409,7 +483,9 @@ TEST(GCCore_CPU_ssa_transform, TestMultiLevelForPHI) {
                 _for_(i, t6, t7, t8) {
                     _var_init_(
                             a2, datatypes::s32, builder::make_phi({a1}, false));
-                    A[i] = a2;
+                    _var_init_(cmp0, datatypes::s32, 0);
+                    _var_init_(cmpv, datatypes::boolean, i == cmp0);
+                    _if_(cmpv) { A[i] = a2; }
                 }
                 _var_init_(t9, datatypes::s32, 0);
                 _var_init_(t10, datatypes::s32, 100);

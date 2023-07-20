@@ -331,10 +331,13 @@ TEST(GCCore_CPU_licm_transform, TestLICMTransformIfNodeHoist) {
         _var_init_(t10, s32, 1);
         _var_init_(t11, datatypes::boolean, true);
         _for_(i, t8, t9, t10) {
-            expr c_6_;
-            _if_(t11) { _var_init_copy_(c_6, s32, A[i]); }
-            _var_init_(c_7, s32, builder::make_phi({0, c_6_}));
-            A[c_7] = c_7;
+            expr c_6 = builder::make_var(s32, "c6");
+            _var_init_(c_5, s32, builder::make_phi({0, c_6}, true));
+            expr c_4_;
+            _if_(t11) { _var_init_copy_(c_4, s32, A[i]); }
+            builder::get_current_builder()->push_var_tensor_def(
+                    c_6, linkage::local, builder::make_phi({c_5, c_4_}));
+            A[c_6] = c_6;
         }
         //
         _var_init_(f, s32, 1);
@@ -344,11 +347,14 @@ TEST(GCCore_CPU_licm_transform, TestLICMTransformIfNodeHoist) {
         _var_init_(t18, s32, 0);
         _var_init_(t22, s32, 0);
         _for_(i, t15, t16, t17) {
+            expr f_10 = builder::make_var(s32, "f10");
             _var_init_(t19, datatypes::boolean, i == t18);
+            _var_init_(f_9, s32, builder::make_phi({f, f_10}, true));
             expr e_1_, e_2_, f_7_;
             _if_(t19) { _var_init_copy_(f_7, s32, 3); }
-            _var_init_(f_8, s32, builder::make_phi({f, f_7_}));
-            _var_init_(t23, datatypes::boolean, f_8 == t22);
+            builder::get_current_builder()->push_var_tensor_def(
+                    f_10, linkage::local, builder::make_phi({f_9, f_7_}));
+            _var_init_(t23, datatypes::boolean, f_10 == t22);
             _if_(t23) { _var_init_copy_(e_1, s32, 1); }
             _else_ { _var_init_copy_(e_2, s32, 2); }
             _var_init_(e_3, s32, builder::make_phi({e_1_, e_2_}));
@@ -419,6 +425,7 @@ TEST(GCCore_CPU_licm_transform, TestLICMTransformIfNodeHoist) {
     }
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
+    std::cout << cmper;
 }
 
 TEST(GCCore_CPU_licm_transform, TestLICMTransformIndexing) {
