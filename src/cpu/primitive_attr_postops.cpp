@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -257,7 +257,9 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
         switch (e.kind) {
             case primitive_kind::sum:
                 if (!skip_sum_) {
-                    res += e.sum.scale * (args.dst_val - e.sum.zero_point);
+                    res += e.sum.scale
+                            * (args.dst_val
+                                    - static_cast<float>(e.sum.zero_point));
                 }
                 break;
             case primitive_kind::eltwise:

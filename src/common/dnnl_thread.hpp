@@ -225,7 +225,7 @@ inline void balance211(T n, U team, U tid, T &n_start, T &n_end) {
         T n2 = n1 - 1;
         T T1 = n - n2 * (T)team;
         n_my = (T)tid < T1 ? n1 : n2;
-        n_start = (T)tid <= T1 ? tid * n1 : T1 * n1 + ((T)tid - T1) * n2;
+        n_start = (T)tid <= T1 ? (T)tid * n1 : T1 * n1 + ((T)tid - T1) * n2;
     }
 
     n_end += n_start;

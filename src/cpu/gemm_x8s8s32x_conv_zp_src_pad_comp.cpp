@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -142,22 +142,23 @@ void compute_zp_src_comp_pad(const conv_gemm_conf_t &jcp,
         const auto dilate_scale_h = jcp.dilate_h + 1;
         const auto dilate_scale_w = jcp.dilate_w + 1;
 
-        for (int it_kd = 0; it_kd < jcp.kd; it_kd++) {
-            const int filter_point_d = it_kd * dilate_scale_d;
-            const int filter_point_src_d = filter_corner_src_d + filter_point_d;
+        for (dim_t it_kd = 0; it_kd < jcp.kd; it_kd++) {
+            const auto filter_point_d = it_kd * dilate_scale_d;
+            const auto filter_point_src_d
+                    = filter_corner_src_d + filter_point_d;
             const bool filter_point_srd_d_pad
                     = filter_point_src_d < 0 || filter_point_src_d >= jcp.id;
 
-            for (int it_kh = 0; it_kh < jcp.kh; it_kh++) {
-                const int filter_point_h = it_kh * dilate_scale_h;
-                const int filter_point_src_h
+            for (dim_t it_kh = 0; it_kh < jcp.kh; it_kh++) {
+                const auto filter_point_h = it_kh * dilate_scale_h;
+                const auto filter_point_src_h
                         = filter_corner_src_h + filter_point_h;
                 const bool filter_point_srd_h_pad = filter_point_src_h < 0
                         || filter_point_src_h >= jcp.ih;
 
-                for (int it_kw = 0; it_kw < jcp.kw; it_kw++) {
-                    const int filter_point_w = it_kw * dilate_scale_w;
-                    const int filter_point_src_w
+                for (dim_t it_kw = 0; it_kw < jcp.kw; it_kw++) {
+                    const auto filter_point_w = it_kw * dilate_scale_w;
+                    const auto filter_point_src_w
                             = filter_corner_src_w + filter_point_w;
 
                     if (filter_point_srd_d_pad || filter_point_srd_h_pad
@@ -187,7 +188,7 @@ void compute_zp_src_comp_pad(const conv_gemm_conf_t &jcp,
                                           dim_t filter_corner_src_d,
                                           dim_t filter_corner_src_h,
                                           const dim_t oc_blk) {
-        const int filter_corner_src_w = calc_filter_corner_dim(it_zp_buf_w,
+        const auto filter_corner_src_w = calc_filter_corner_dim(it_zp_buf_w,
                 jcp.ow, jcp.l_pad, jcp.stride_w, jcp.zp.src_pad_comp.left_pad,
                 jcp.zp.src_pad_comp.mid_w, jcp.zp.src_pad_comp.right_pad);
         compute_zp_src_pad_buf(it_zp_buf_d, it_zp_buf_h, it_zp_buf_w,
@@ -211,7 +212,7 @@ void compute_zp_src_comp_pad(const conv_gemm_conf_t &jcp,
             jcp.zp.src_pad_comp.w, oc_blks,
             [&](const dim_t it_zp_buf_d, const dim_t it_zp_buf_h,
                     const dim_t it_zp_buf_w, const dim_t oc_blk) {
-                const int filter_corner_src_d
+                const auto filter_corner_src_d
                         = calc_filter_corner_dim(it_zp_buf_d, jcp.od, jcp.f_pad,
                                 jcp.stride_d, jcp.zp.src_pad_comp.front_pad,
                                 jcp.zp.src_pad_comp.mid_d,

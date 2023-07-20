@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 #ifndef CPU_RESAMPLING_UTILS_HPP
 #define CPU_RESAMPLING_UTILS_HPP
 
+#include <cmath>
+
 #include "common/c_types_map.hpp"
 
 #include "cpu/simple_q10n.hpp"
@@ -28,18 +30,24 @@ namespace cpu {
 namespace resampling_utils {
 
 static inline float linear_map(dim_t y, dim_t y_max, dim_t x_max) {
-    return ((y + 0.5f) * x_max / y_max) - 0.5f;
+    float y_f = static_cast<float>(y);
+    float x_max_f = static_cast<float>(x_max);
+    float y_max_f = static_cast<float>(y_max);
+    return ((y_f + 0.5f) * x_max_f / y_max_f) - 0.5f;
 }
 static inline dim_t nearest_idx(dim_t y, dim_t y_max, dim_t x_max) {
     return (dim_t)roundf(linear_map(y, y_max, x_max));
 }
-static inline dim_t ceil_idx(float x) {
-    if (x < 0) return (dim_t)0;
-    return (dim_t)x == x ? (dim_t)x : (dim_t)x + 1;
+static inline dim_t ceil_idx(float x_f) {
+    if (x_f < 0) return (dim_t)0;
+    dim_t x = static_cast<dim_t>(x_f);
+    bool x_is_exact = static_cast<float>(x) == x_f;
+    return x_is_exact ? x : x + 1;
 }
 static inline float linear_weight(int i, dim_t x, dim_t y_max, dim_t x_max) {
     float s = linear_map(x, y_max, x_max);
-    float w = nstl::abs(s - (dim_t)s);
+    float s_trunc = std::trunc(s);
+    float w = nstl::abs(s - s_trunc);
     return i == 0 ? 1.f - w : w;
 };
 
@@ -48,7 +56,7 @@ struct linear_coeffs_t {
         float s = linear_map(y, y_max, x_max);
         idx[0] = left(s);
         idx[1] = right(s, x_max);
-        wei[1] = nstl::abs(s - saturate<float>(idx[0]));
+        wei[1] = nstl::abs(s - static_cast<float>(saturate<float>(idx[0])));
         wei[0] = 1.f - wei[1];
     }
     // left and right index of source image used for interpolation

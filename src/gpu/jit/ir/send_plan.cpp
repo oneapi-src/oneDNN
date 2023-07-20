@@ -476,10 +476,10 @@ public:
         int factor = 1;
         if (tdim_.vidx(1) == -1) {
             factor = get_max_const_factor(base_, constraint_set_t());
-            factor = math::gcd(factor, a_ * tdim_.block());
-            factor = math::gcd(factor, b_ * tdim_.block());
+            factor = math::gcd(factor, static_cast<int>(a_ * tdim_.block()));
+            factor = math::gcd(factor, static_cast<int>(b_ * tdim_.block()));
             if (factor % tdim_.block() != 0)
-                factor = math::gcd(factor, tdim_.block());
+                factor = math::gcd(factor, static_cast<int>(tdim_.block()));
         }
         if (factor != tdim_.block()) {
             a_ = a_ * tdim_.block() / factor;

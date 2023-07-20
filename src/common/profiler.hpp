@@ -46,7 +46,8 @@ static double get_msec() {
 #else
     struct timeval time;
     gettimeofday(&time, nullptr);
-    return 1e+3 * time.tv_sec + 1e-3 * time.tv_usec;
+    return 1e+3 * static_cast<double>(time.tv_sec)
+            + 1e-3 * static_cast<double>(time.tv_usec);
 #endif
 }
 

@@ -58,7 +58,7 @@ inline float16_t &float16_t::operator=(float f) {
     uint32_t mm = m >> 13;
     uint32_t r = m & 0x1FFF;
     uint32_t ee = 0;
-    int32_t eee = (e - 127) + 15;
+    int32_t eee = static_cast<int32_t>((e - 127) + 15);
 
     if (e == 0) {
         // Denormal/zero floats all become zero.
@@ -70,7 +70,7 @@ inline float16_t &float16_t::operator=(float f) {
         if (m != 0 && mm == 0) mm = 1;
     } else if (eee > 0 && eee < 0x1F) {
         // Normal range. Perform round to even on mantissa.
-        ee = eee;
+        ee = static_cast<uint32_t>(eee);
         if (r > (0x1000 - (mm & 1))) {
             // Round up.
             mm++;

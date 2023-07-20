@@ -49,7 +49,7 @@ status_t fill_blocked(memory_desc_t &md, std::initializer_list<int> perm,
 
     iblk = 0;
     for (const auto &b : inner_blks) {
-        int dim = blk.inner_idxs[iblk];
+        dim_t dim = blk.inner_idxs[iblk];
         block_size *= b;
         blocks[dim] *= b;
         blk.inner_blks[iblk++] = b;
@@ -91,11 +91,11 @@ void memory_desc_wrapper::compute_strides_compat(dims_t *strides_compat) const {
     compute_blocks(blocks);
 
     int perm_idx = 0;
-    int inner_perm[DNNL_MAX_NDIMS] = {};
+    dims_t inner_perm {};
     bool seen[DNNL_MAX_NDIMS] = {};
 
     for (int i = 0; i < blk.inner_nblks; i++) {
-        int blk_idx = blk.inner_idxs[i];
+        dim_t blk_idx = blk.inner_idxs[i];
         if (seen[blk_idx]) continue;
 
         seen[blk_idx] = true;
@@ -112,8 +112,8 @@ void memory_desc_wrapper::compute_strides_compat(dims_t *strides_compat) const {
     dims_t inner_strides;
     inner_strides[inner_perm[ndims() - 1]] = 1;
     for (int d = 1; d < ndims(); ++d) {
-        const int prev_idx = inner_perm[ndims() - d];
-        const int curr_idx = inner_perm[ndims() - 1 - d];
+        const dim_t prev_idx = inner_perm[ndims() - d];
+        const dim_t curr_idx = inner_perm[ndims() - 1 - d];
 
         inner_strides[curr_idx] = blocks[curr_idx] == 0
                 ? 1

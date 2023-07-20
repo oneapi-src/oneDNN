@@ -99,11 +99,11 @@ inline std::string thread_id_to_str(std::thread::id id) {
 }
 
 inline int div_and_ceil(float x, float y) {
-    return std::ceil(x / y);
+    return static_cast<int>(std::ceil(x / y));
 }
 
 inline int div_and_floor(float x, float y) {
-    return std::floor(x / y);
+    return static_cast<int>(std::floor(x / y));
 }
 
 template <typename T, typename... Args>

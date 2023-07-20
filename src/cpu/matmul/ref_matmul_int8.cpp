@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -141,7 +141,7 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
         const size_t l_offset = mb * M * N + m * N + n;
         utils::l_dims_by_l_offset(dst_dims_idx, l_offset, dst_d.dims(), ndims);
         int acc = ker(dst_dims_idx, m, n);
-        float d = static_cast<int>(acc);
+        float d = static_cast<float>(acc);
         if (with_src_scales) d *= src_scales[0];
         if (with_wei_scales) d *= wei_scales[wei_scale_stride * n];
         if (bias) d += ker_bias(dst_dims_idx);
@@ -160,7 +160,7 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
             if (dst_zero_point) {
                 const int dst_zp = io::load_int_value(
                         data_type::s32, dst_zero_point, dst_zp_idx_mult * n);
-                d += dst_zp;
+                d += static_cast<float>(dst_zp);
             }
         }
         io::store_float_value(dst_d.data_type(), d, dst, dst_off);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,18 +28,19 @@ namespace dnnl {
 namespace impl {
 namespace math {
 
-inline int gcd(int a, int b) {
+template <typename T>
+inline T gcd(T a, T b) {
     a = impl::nstl::abs(a);
     b = impl::nstl::abs(b);
     if (a < b) {
-        int x = a;
+        T x = a;
         a = b;
         b = x;
     }
 
     if (b == 0) return a;
 
-    int r;
+    T r;
     while ((r = a % b) != 0) {
         a = b;
         b = r;

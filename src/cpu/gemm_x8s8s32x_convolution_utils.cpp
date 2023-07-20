@@ -123,7 +123,7 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
 
             // quantize data
             if (jcp_.with_dst_scale) data *= dst_scale;
-            if (jcp_.zp.dst_exists) data += zp_dst_val;
+            if (jcp_.zp.dst_exists) data += static_cast<float>(zp_dst_val);
 
             io::store_float_value(jcp_.dst_data_type, data, void_dst, dst_off);
         }

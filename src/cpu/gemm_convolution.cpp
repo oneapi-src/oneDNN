@@ -110,8 +110,8 @@ status_t gemm_convolution_fwd_t::execute_forward_thr_nspc(const exec_ctx_t &ctx,
             col[i] = 0.0f;
     }
     for (dim_t iwork = start; iwork < end; ++iwork) {
-        int oh = ohb * jcp.oh_block;
-        int ow = owb * jcp.ow_block;
+        dim_t oh = ohb * jcp.oh_block;
+        dim_t ow = owb * jcp.ow_block;
         const data_t *__restrict src
                 = src_base + n * src_mb_stride + g * src_g_stride;
         const data_t *__restrict wei = wei_base + g * wei_g_stride;

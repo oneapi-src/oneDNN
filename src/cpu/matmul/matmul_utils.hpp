@@ -153,7 +153,7 @@ private:
 
         // Note 3-4:
         for (int i = 0; i < batch_ndims; ++i) {
-            const int dim_idx = perm[i];
+            const dim_t dim_idx = perm[i];
             if (src_md_.blocking_desc().strides[dim_idx] != src_stride
                     || dst_md_.blocking_desc().strides[dim_idx] != dst_stride)
                 return false;

@@ -98,6 +98,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
 
     const dim_t N = pd()->across_axis();
     const dim_t C = pd()->norm_axis();
+    const float C_f = static_cast<float>(C);
     const dim_t C_padded = src_d.padded_dims()[pd()->ndims() - 1];
 
     const auto calculate_stats = !pd()->stats_are_src();
@@ -128,7 +129,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                             src_dt, src_ptr, c + C * offset);
                     v_mean += s;
                 }
-                v_mean /= C;
+                v_mean /= C_f;
 
                 PRAGMA_OMP_SIMD(reduction(+ : v_variance))
                 for (dim_t c = 0; c < C; ++c) {
@@ -137,7 +138,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     float src_sub_mean = s - v_mean;
                     v_variance += src_sub_mean * src_sub_mean;
                 }
-                v_variance /= C;
+                v_variance /= C_f;
             } else {
                 v_mean = mean_ptr[offset];
                 v_variance = var_ptr[offset];
@@ -261,6 +262,7 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
 
     const dim_t N = pd()->across_axis();
     const dim_t C = pd()->norm_axis();
+    const float C_f = static_cast<float>(C);
     const dim_t C_padded = src_d.padded_dims()[pd()->ndims() - 1];
 
     float *reduce = scratchpad.template get<float>(key_lnorm_reduction);
@@ -302,7 +304,7 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
         }
 
         for (size_t offset = 0; offset < block_size; offset++) {
-            inv_sqrtvar_ptr[offset] = 1. / sqrtf(var_ptr[offset] + eps);
+            inv_sqrtvar_ptr[offset] = 1.f / sqrtf(var_ptr[offset] + eps);
 
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C; c++) {
@@ -382,9 +384,9 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
                     float ds = dd * scale[c];
                     if (calculate_diff_stats) {
                         float s = io::load_float_value(src_dt, src_ptr, off);
-                        ds -= dd_gamma / C;
+                        ds -= dd_gamma / C_f;
                         ds -= (s - mean_ptr[offset]) * dd_gamma_x
-                                * inv_sqrtvar_ptr[offset] / C;
+                                * inv_sqrtvar_ptr[offset] / C_f;
                     }
                     ds *= inv_sqrtvar_ptr[offset];
                     io::store_float_value(diff_src_dt, ds, diff_src_ptr, off);
@@ -398,9 +400,9 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
                     float ds = dd;
                     if (calculate_diff_stats) {
                         float s = io::load_float_value(src_dt, src_ptr, off);
-                        ds -= dd_gamma / C;
+                        ds -= dd_gamma / C_f;
                         ds -= (s - mean_ptr[offset]) * dd_gamma_x
-                                * inv_sqrtvar_ptr[offset] / C;
+                                * inv_sqrtvar_ptr[offset] / C_f;
                     }
                     ds *= inv_sqrtvar_ptr[offset];
                     io::store_float_value(diff_src_dt, ds, diff_src_ptr, off);

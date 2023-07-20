@@ -273,7 +273,9 @@ private:
             uint64_t code_index;
         } c;
         c.id = 0; // JIT_CODE_LOAD
-        c.total_size = sizeof(c) + strlen(code_name) + 1 + code_size;
+        size_t total_size = sizeof(c) + strlen(code_name) + 1 + code_size;
+        c.total_size = static_cast<uint32_t>(total_size);
+        assert(c.total_size > code_size); // Catch potential overflow.
         c.timestamp = get_timestamp(use_tsc_);
         c.pid = getpid();
         c.tid = gettid();

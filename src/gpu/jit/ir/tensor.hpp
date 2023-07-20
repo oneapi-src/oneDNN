@@ -890,8 +890,8 @@ public:
                     return tensor_t();
                 }
             } else {
-                dim_t next_chunk
-                        = math::gcd(b.block, grid_splitter.cur_block());
+                dim_t next_chunk = math::gcd(
+                        b.block, static_cast<dim_t>(grid_splitter.cur_block()));
                 if (b.block == next_chunk) {
                     auto idx = grid_splitter.pop_block(next_chunk);
                     start[b.dim_idx] += idx * dims[b.dim_idx];

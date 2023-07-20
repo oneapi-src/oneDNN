@@ -99,8 +99,8 @@ static store_fn_t create_store(const data_type_t dst_dtype) {
     return create_store<f32>();
 }
 
-static dim_t get_offset(
-        const memory_desc_wrapper &data_d, int n, int c, int d, int h, int w) {
+static dim_t get_offset(const memory_desc_wrapper &data_d, dim_t n, dim_t c,
+        dim_t d, dim_t h, dim_t w) {
     if (data_d.ndims() == 5) return data_d.off(n, c, d, h, w);
     if (data_d.ndims() == 4) return data_d.off(n, c, h, w);
     return data_d.off(n, c, w);
@@ -128,14 +128,14 @@ void ref_resampling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     const auto alg = pd()->desc()->alg_kind;
 
-    const int MB = pd()->MB();
-    const int C = pd()->C();
-    const int ID = pd()->ID();
-    const int IH = pd()->IH();
-    const int IW = pd()->IW();
-    const int OD = pd()->OD();
-    const int OH = pd()->OH();
-    const int OW = pd()->OW();
+    const dim_t MB = pd()->MB();
+    const dim_t C = pd()->C();
+    const dim_t ID = pd()->ID();
+    const dim_t IH = pd()->IH();
+    const dim_t IW = pd()->IW();
+    const dim_t OD = pd()->OD();
+    const dim_t OH = pd()->OH();
+    const dim_t OW = pd()->OW();
 
     auto lin_interp = [&](float c0, float c1, float w) {
         return c0 * w + c1 * (1 - w);
@@ -225,31 +225,35 @@ void ref_resampling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
     const auto alg = pd()->desc()->alg_kind;
 
-    const int MB = pd()->MB();
-    const int C = pd()->C();
-    const int ID = pd()->ID();
-    const int IH = pd()->IH();
-    const int IW = pd()->IW();
-    const int OD = pd()->OD();
-    const int OH = pd()->OH();
-    const int OW = pd()->OW();
+    const dim_t MB = pd()->MB();
+    const dim_t C = pd()->C();
+    const dim_t ID = pd()->ID();
+    const dim_t IH = pd()->IH();
+    const dim_t IW = pd()->IW();
+    const dim_t OD = pd()->OD();
+    const dim_t OH = pd()->OH();
+    const dim_t OW = pd()->OW();
+
+    const float OD_to_ID = static_cast<float>(OD) / static_cast<float>(ID);
+    const float OH_to_IH = static_cast<float>(OH) / static_cast<float>(IH);
+    const float OW_to_IW = static_cast<float>(OW) / static_cast<float>(IW);
 
     if (alg == alg_kind::resampling_nearest) {
         parallel_nd(MB, C, ID, IH, IW,
                 [&](dim_t mb, dim_t ch, dim_t id, dim_t ih, dim_t iw) {
-                    const dim_t od_start
-                            = ceil_idx(((float)id * OD / ID) - 0.5f);
-                    const dim_t oh_start
-                            = ceil_idx(((float)ih * OH / IH) - 0.5f);
-                    const dim_t ow_start
-                            = ceil_idx(((float)iw * OW / IW) - 0.5f);
+                    float id_f = static_cast<float>(id) * OD_to_ID - 0.5f;
+                    float ih_f = static_cast<float>(ih) * OH_to_IH - 0.5f;
+                    float iw_f = static_cast<float>(iw) * OW_to_IW - 0.5f;
+                    const dim_t od_start = ceil_idx(id_f);
+                    const dim_t oh_start = ceil_idx(ih_f);
+                    const dim_t ow_start = ceil_idx(iw_f);
 
-                    const dim_t od_end
-                            = ceil_idx(((id + 1.f) * OD / ID) - 0.5f);
-                    const dim_t oh_end
-                            = ceil_idx(((ih + 1.f) * OH / IH) - 0.5f);
-                    const dim_t ow_end
-                            = ceil_idx(((iw + 1.f) * OW / IW) - 0.5f);
+                    id_f = (static_cast<float>(id) + 1.f) * OD_to_ID - 0.5f;
+                    ih_f = (static_cast<float>(ih) + 1.f) * OH_to_IH - 0.5f;
+                    iw_f = (static_cast<float>(iw) + 1.f) * OW_to_IW - 0.5f;
+                    const dim_t od_end = ceil_idx(id_f);
+                    const dim_t oh_end = ceil_idx(ih_f);
+                    const dim_t ow_end = ceil_idx(iw_f);
 
                     float ds = 0;
                     for_(dim_t od = od_start; od < od_end; od++)
