@@ -55,7 +55,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = is_fwd()
+            bool ok = is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(src_md()->data_type, f32, bf16, f16, s8)
                     && IMPLICATION(f16 == src_md()->data_type,
                             compute_engine->mayiuse(
@@ -210,7 +210,7 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
             using namespace data_type;
 
-            bool ok = !is_fwd()
+            bool ok = !is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(src_md()->data_type, f32, bf16, f16)
                     && IMPLICATION(f16 == src_md()->data_type,
                             compute_engine->mayiuse(
