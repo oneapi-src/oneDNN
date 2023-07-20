@@ -142,17 +142,20 @@ private:
 
     const reg64_t reg_zp_comp_a = rbx;
     const reg64_t reg_aux_zp_comp_a = rbx;
+    const reg64_t reg_zp_a_values = rbx;
     const reg64_t reg_zp_comp_b = rbx;
     const reg64_t reg_zp_c_values = rbx;
-    const reg64_t reg_ptr_sum_zp = rsi;
+    const reg64_t reg_ptr_sum_zp = rbx;
     const reg64_t reg_bf32_stride = rsi;
+    const reg64_t reg_zp_comp_pad_a = rsi;
 
     constexpr static int abi_param1_offs_ = 0;
     constexpr static int reg_zp_comp_a_offs_ = 8;
     constexpr static int reg_zp_comp_b_offs_ = 16;
     constexpr static int reg_zp_c_values_offs_ = 24;
     constexpr static int reg_iter_labels_list_offs_ = 32;
-    constexpr static int stack_space_needed_ = 40;
+    constexpr static int reg_zp_a_values_offs_ = 40;
+    constexpr static int stack_space_needed_ = 48;
 
     bool are_post_ops_applicable_ = false;
     bool need_to_apply_alpha_beta_ = false;
@@ -258,6 +261,7 @@ private:
         size_t A_shift {0};
         size_t C_shift {0};
         size_t D_shift {0};
+        size_t zp_comp_pad_a_shift {0};
         std::vector<char> bd_mask;
         std::vector<size_t> adj_bd_mask;
         bd_iteration_t *similar {nullptr};
@@ -266,7 +270,8 @@ private:
         virtual bool operator==(const bd_iteration_t &rhs) const {
             bool res = dim_iteration_t::operator==(rhs)
                     && A_shift == rhs.A_shift && C_shift == rhs.C_shift
-                    && D_shift == rhs.D_shift && bd_mask == rhs.bd_mask;
+                    && D_shift == rhs.D_shift && bd_mask == rhs.bd_mask
+                    && zp_comp_pad_a_shift == rhs.zp_comp_pad_a_shift;
             return res;
         }
     };
@@ -433,6 +438,8 @@ private:
     void store_vector_without_post_ops(
             int idx, const Address &addr, bool is_ld_tail);
     void store_vector(brgemm_iteration_t &bi, int bdb, int bd, int ldb);
+    void apply_comp_pad_to_vector(brgemm_iteration_t &bi, int bdb, int inp_bd,
+            int ldb, const int idx);
 
     void interleave_store(brgemm_iteration_t &bi, bool store_all);
 
@@ -504,6 +511,8 @@ private:
 
     size_t scales_offset(int ldb) const noexcept;
     size_t zp_comp_a_offset(int ldb) const noexcept;
+    size_t zp_comp_pad_a_offset(const brgemm_iteration_t &bi, int bdb,
+            int inp_bd, int ldb) const noexcept;
     size_t zp_comp_b_offset(int bd) const noexcept;
     size_t zp_c_values_offset(brgemm_iteration_t &bi, int ldb) const noexcept;
     bool is_out_bd(const bd_iteration_t *bdi, int bdb, int inp_bd) const;
@@ -689,6 +698,16 @@ size_t jit_brgemm_amx_uker_base_t::zp_comp_a_offset(int ldb) const noexcept {
     return ldb * ld_block_zp_size_;
 }
 
+size_t jit_brgemm_amx_uker_base_t::zp_comp_pad_a_offset(
+        const brgemm_iteration_t &bi, int bdb, int inp_bd,
+        int ldb) const noexcept {
+    const auto bi_bd_start = get_out_bd(bi.bdi, 0, 0);
+    const auto bd = get_out_bd(bi.bdi, bdb, inp_bd);
+    const auto bd_shift = bd - (ununroll_bd_loop ? bi_bd_start : 0);
+    return (size_t)bd_shift * brg.LDB * sizeof(int32_t)
+            + (size_t)ldb * ld_block_zp_size_;
+}
+
 size_t jit_brgemm_amx_uker_base_t::zp_comp_b_offset(int bd) const noexcept {
     return sizeof(int32_t) * bd;
 }
@@ -764,6 +783,11 @@ void jit_brgemm_amx_uker_base_t::read_params() {
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(reg_zp_comp_a, ptr[param1 + GET_OFF(a_zp_compensations)]);
         mov(ptr[rsp + reg_zp_comp_a_offs_], reg_zp_comp_a);
+        mov(reg_zp_a_values, ptr[param1 + GET_OFF(zp_a_val)]);
+        mov(ptr[rsp + reg_zp_a_values_offs_], reg_zp_a_values);
+
+        if (brg.req_cal_comp_pads)
+            mov(reg_zp_comp_pad_a, ptr[param1 + GET_OFF(a_zp_compensations)]);
     }
 
     if (brg.zp_type_b != brgemm_broadcast_t::none) {
@@ -879,14 +903,13 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(
         const bool p_sum_zp_reg_set = *p_sum_zp != 0;
 
         {
-            if (p_sum_scale_reg_set)
-                mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
-
             const auto &zmm_sum_zp = zmm_tmp_2();
             if (p_sum_zp_reg_set) {
                 mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
                 vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
             }
+            if (p_sum_scale_reg_set)
+                mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
 
             const auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
             const auto zmm_prev_dst = Xbyak::Zmm(0);
@@ -933,6 +956,10 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers_ldb(
     auto k_mask = (!bi.ldi->is_tail(ldb)) ? ld_full_mask : ld_tail_mask;
 
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
+        const auto zmm_zp_a_val = zmm_tmp_1();
+        mov(reg_zp_a_values, ptr[rsp + reg_zp_a_values_offs_]);
+        vpbroadcastd(zmm_zp_a_val, reg_zp_a_values.cvt32());
+        vcvtdq2ps(zmm_zp_a_val, zmm_zp_a_val);
         mov(reg_aux_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
 
         const auto zp_comp_a_off = zp_comp_a_offset(bi.ldi->pos(ldb));
@@ -940,6 +967,7 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers_ldb(
                 = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
         cvt2ps(data_type::s32, zmm_zp_comp_a, zp_comp_a_addr, true, false,
                 k_mask);
+        vmulps(zmm_zp_comp_a, zmm_zp_comp_a, zmm_zp_a_val);
     }
 
     if (brg.zp_type_c != brgemm_broadcast_t::none) {
@@ -1156,6 +1184,28 @@ void jit_brgemm_amx_uker_base_t::prefetching(
     maybe_prefetch_B(prfntaB);
 }
 
+void jit_brgemm_amx_uker_base_t::apply_comp_pad_to_vector(
+        brgemm_iteration_t &bi, int bdb, int inp_bd, int ldb, const int idx) {
+    const auto is_ld_tail = bi.ldi->is_tail(ldb);
+    auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
+    auto zmm = Zmm(idx);
+    auto zmm_masked = zmm | k_mask | T_z;
+    const auto zmm_zp_a_val = zmm_tmp_1();
+
+    mov(reg_zp_a_values, ptr[rsp + reg_zp_a_values_offs_]);
+    vpbroadcastd(zmm_zp_a_val, reg_zp_a_values.cvt32());
+    vcvtdq2ps(zmm_zp_a_val, zmm_zp_a_val);
+    mov(reg_aux_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
+    const auto comp_pad_offset
+            = zp_comp_pad_a_offset(bi, bdb, inp_bd, bi.ldi->pos(ldb));
+    const auto zp_comp_pad_a_addr
+            = EVEX_compress_addr(reg_zp_comp_pad_a, comp_pad_offset);
+    cvt2ps(data_type::s32, zmm_zp_comp_a, zp_comp_pad_a_addr, true, false,
+            k_mask);
+    vmulps(zmm_zp_comp_a, zmm_zp_comp_a, zmm_zp_a_val);
+    vaddps(zmm_masked, zmm, zmm_zp_comp_a);
+}
+
 void jit_brgemm_amx_uker_base_t::process_output_range(
         brgemm_iteration_t &bi, int bd_start, int bd_finish, int bdb, int ldb) {
 
@@ -1199,11 +1249,14 @@ void jit_brgemm_amx_uker_base_t::process_output_range(
         if (!bi.apply_postops) continue;
 
         if (dq2ps_required) vcvtdq2ps(zmm, zmm);
+
+        if (brg.req_cal_comp_pads)
+            apply_comp_pad_to_vector(bi, bdb, bd, ldb, zmm.getIdx());
     }
 
     if (!bi.apply_postops || !some_bd_mask) return;
 
-    if (brg.zp_type_a != brgemm_broadcast_t::none) {
+    if (brg.zp_type_a != brgemm_broadcast_t::none && !brg.req_cal_comp_pads) {
         for (auto bd = bd_start; bd < bd_finish; bd++) {
             if (!is_out_bd(bi.bdi, bdb, bd)) continue;
 
@@ -1887,6 +1940,8 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
         if (bi_shift != nullptr) {
             add(reg_C, bi_shift->bdi->C_shift);
             add(reg_D, bi_shift->bdi->D_shift);
+            if (brg.req_cal_comp_pads)
+                add(reg_zp_comp_pad_a, bi_shift->bdi->zp_comp_pad_a_shift);
         }
     }
 
@@ -2076,6 +2131,8 @@ void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
         // update reg_C and reg_D if they they were not updated yet
         add(reg_C, bi.bdi->C_shift);
         add(reg_D, bi.bdi->D_shift);
+        if (brg.req_cal_comp_pads)
+            add(reg_zp_comp_pad_a, bi.bdi->zp_comp_pad_a_shift);
     }
     interleave_store(bi, true);
 }
@@ -2133,6 +2190,7 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
                         = (get_out_bd(&bdi, 0, 0) - get_out_bd(prev_bdi, 0, 0));
                 bdi.C_shift = out_shift * LDC2_size_M_;
                 bdi.D_shift = out_shift * LDD_size_;
+                bdi.zp_comp_pad_a_shift = out_shift * brg.LDB * sizeof(int32_t);
             }
             tloop.bdis.push_back(bdi);
         }
