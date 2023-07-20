@@ -196,6 +196,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
         int vM, int i_N, int i_K, int i_init, int kd_b, int kd_e, int kh_b,
         int kh_e) {
 
+    if (i_init && i_K && jcp_.K > 0) return status::success;
+
     const auto src_type = src_md(0)->data_type;
     const auto wei_type = weights_md(0)->data_type;
     const auto is_amx = brgemm_convolution_utils::is_amx(isa);
@@ -208,11 +210,12 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
     auto vbrgM = jcp_.use_M_mask ? (vM == jcp_.M ? jcp_.brgM : jcp_.brgM_tail)
                                  : vM;
+    if (vN == 0 || vK == 0) return status::success;
+
     auto brg_idx
             = get_brg_idx(vM - 1, i_init, i_N, i_K, kd_b, kd_e, kh_b, kh_e);
     // if brgemm_t already created then skip this iteration
     if ((*brgemm_descriptors_)[brg_idx] != nullptr) return status::success;
-    if (vN == 0 || vK == 0) return status::success;
 
     brgemm_attr_t brgattr;
     // if need post_ops and there are no intermediate calculations
@@ -1038,8 +1041,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
         // input and filter.
         const bool dilate_no_overlap
                 = jcp.dilate_d >= jcp.id || jcp.dilate_h >= jcp.ih;
-        if (IMPLICATION(jcp.exec_type == exec_trans,
-                    filter_in_padding || dilate_no_overlap)) {
+        if (filter_in_padding || dilate_no_overlap) {
             auto M = (i_M) ? jcp.M_tail : jcp.M;
             add_po_kernels(i_N, M, M);
         }
