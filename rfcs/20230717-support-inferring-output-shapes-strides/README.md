@@ -3,7 +3,9 @@
 ## Motivation
 
 IPEX is changing the integration approach for oneDNN Graph API to better support
-PyTorch models with dynamic shapes. The new approach hits a PyTorch JIT limitation
+PyTorch models with dynamic shapes. The new integration approach re-compile the
+same partition with different concrete input shapes and cache them all.
+This new approach hits a PyTorch JIT limitation
 so that the integration bridge cannot provide concrete output shapes and strides
 information except the first set. Without the output shapes
 and strides information, the partition will generate dense contiguous output
