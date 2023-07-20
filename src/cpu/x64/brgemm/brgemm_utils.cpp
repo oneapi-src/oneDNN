@@ -51,8 +51,10 @@ void init_kernel_datatype(
     assert(dt_a != data_type::undef && dt_b != data_type::undef);
     brg->is_int8 = utils::one_of(dt_a, data_type::u8, data_type::s8)
             && utils::one_of(dt_b, data_type::u8, data_type::s8);
-    brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
-    brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
+    brg->is_bf16 = one_of(dt_a, data_type::bf16) &&
+                   one_of(dt_b, data_type::bf16, data_type::u8, data_type::nf4, data_type::s4, data_type::u4);
+    brg->is_f32 = one_of(dt_a, data_type::f32) &&
+                  one_of(dt_b, data_type::f32, data_type::u8, data_type::nf4, data_type::s4, data_type::u4);
     brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
     assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16);
 }
@@ -203,6 +205,10 @@ int calculate_max_bcast_block(brgemm_t *brg, const int adj_ld_block2) {
     // non-VNNI INT8 dot product required 2 temp vectors
     if (brg->is_int8 && !brg->has_int8_vnni) max_bcast_block -= 2;
 
+    if (one_of(brg->dt_b, data_type::nf4) && brg->isa_impl == avx2) max_bcast_block -= 5;
+    if (one_of(brg->dt_b, data_type::nf4) && brg->isa_impl != avx2) max_bcast_block -= 1;
+    if (brg->with_wei_decomp_zero_points && brg->wei_decomp_zero_points_stride == 0) max_bcast_block -= 1;
+
     max_bcast_block /= adj_ld_block2;
 
     return max_bcast_block;
@@ -259,11 +265,16 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->bdb = brg->bcast_dim / brg->bd_block;
         brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
-        const int rd_unroll = 4;
         const int vnni_granularity
                 = (brg->is_f16 && brg->isa_impl == avx512_core_fp16)
                 ? 1
                 : data_type_vnni_granularity(brg->dt_a);
+        int rd_unroll = one_of(brg->dt_b, data_type::nf4, data_type::u4, data_type::s4) ? 32 : 4;
+        if (brg->with_grouped_wei_decomp) {
+            rd_unroll = nstl::min(rd_unroll, brg->wei_decomp_scales_group_size / vnni_granularity);
+            rd_unroll = nstl::min(rd_unroll, brg->wei_decomp_scales_group_size / vnni_granularity);
+        }
+
         brg->rd_block = rd_unroll * vnni_granularity;
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
@@ -837,15 +848,17 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->bdb2 = 0;
     brg->bdb2_tail = 0;
 
-    const bool is_b_in_vnni_format = !(
-            brg->dt_b == data_type::f16 && brg->isa_impl == avx512_core_fp16);
+    const bool is_b_in_vnni_format = !(brg->dt_b == data_type::f16 && brg->isa_impl == avx512_core_fp16) &&
+                                     !(one_of(brg->dt_a, data_type::f32, data_type::bf16) && one_of(brg->dt_b, data_type::u8));
     brg->ld_step
             = is_b_in_vnni_format ? data_type_vnni_granularity(brg->dt_b) : 1;
 
     const bool has_no_vnni_compute_instruction
             = (brg->is_f16
                       && one_of(brg->isa_impl, avx2_vnni_2, avx512_core_fp16))
-            || (brg->is_bf16 && brg->isa_impl == avx2_vnni_2);
+            || (brg->is_bf16 && brg->isa_impl == avx2_vnni_2)
+            || (one_of(brg->dt_a, data_type::f32, data_type::bf16) &&
+                one_of(brg->dt_b, data_type::u8, data_type::nf4, data_type::s4, data_type::u4));
     brg->rd_step = has_no_vnni_compute_instruction
             ? 1
             : data_type_vnni_granularity(brg->dt_b);

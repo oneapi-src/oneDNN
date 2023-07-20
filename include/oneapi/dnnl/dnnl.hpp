@@ -871,7 +871,13 @@ struct memory : public handle<dnnl_memory_t> {
         /// 8-bit unsigned integer.
         u8 = dnnl_u8,
         /// 1-bit integer
-        bin = dnnl_bin
+        bin = dnnl_bin,
+        /// 4-bit normalized float.
+        nf4 = dnnl_nf4,
+        /// 4-bit signed integer.
+        s4 = dnnl_s4,
+        /// 4-bit unsigned integer.
+        u4 = dnnl_u4
     };
 
     /// Returns size of data type in bytes.
@@ -3895,6 +3901,10 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(dnnl_primitive_attr_set_scales_mask(get(), arg, mask),
                 "could not set scales primitive attribute");
     }
+    void set_scales_dims(int arg, const memory::dims& dims) {
+        error::wrap_c_api(dnnl_primitive_attr_set_scales_dims(get(), arg, dims.data(), dims.size()),
+                "could not set scales primitive attribute");
+    }
 
     /// Sets zero points for primitive operations for a given memory argument.
     /// The zero points must be passed at execution time as an argument with
@@ -3912,6 +3922,11 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_zero_points_mask(int arg, int mask) {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_zero_points_mask(get(), arg, mask),
+                "could not set zero points primitive attribute");
+    }
+    void set_zero_points_dims(int arg, const memory::dims& dims) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_zero_points_dims(get(), arg, dims.data(), dims.size()),
                 "could not set zero points primitive attribute");
     }
 

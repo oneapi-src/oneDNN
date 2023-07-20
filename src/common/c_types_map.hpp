@@ -169,6 +169,9 @@ const data_type_t data_type_max = dnnl_data_type_max;
 const data_type_t tf32 = static_cast<data_type_t>(1 << 8);
 
 const data_type_t bin = dnnl_bin;
+const data_type_t nf4 = dnnl_nf4;
+const data_type_t s4 = dnnl_s4;
+const data_type_t u4 = dnnl_u4;
 } // namespace data_type
 
 using fpmath_mode_t = dnnl_fpmath_mode_t;

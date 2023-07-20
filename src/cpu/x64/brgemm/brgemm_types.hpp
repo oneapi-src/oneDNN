@@ -283,6 +283,15 @@ struct brgemm_t {
     const primitive_attr_t *attr = nullptr;
     const memory_desc_t *dst_md = nullptr;
 
+    bool with_wei_decomp = false;
+    bool with_grouped_wei_decomp = false;
+    bool with_wei_decomp_scales = false;
+    bool with_wei_decomp_zero_points = false;
+    int wei_decomp_scales_stride = 0;
+    int wei_decomp_zero_points_stride = 0;
+    int wei_decomp_scales_group_size = 0;
+    int wei_decomp_zero_points_group_size = 0;
+
     bool is_row_major() const {
         assert(layout != brgemm_layout_undef);
         return layout == brgemm_row_major;
@@ -412,6 +421,10 @@ struct brgemm_kernel_params_t {
     size_t skip_accm = 0;
     int32_t zp_a_val = 1;
     const void *ptr_dst_scales = nullptr;
+
+    const void *ptr_wei_scales = nullptr;
+    const void *ptr_wei_zero_points = nullptr;
+    size_t ic;
 };
 
 template <cpu_isa_t isa, typename Vmm>

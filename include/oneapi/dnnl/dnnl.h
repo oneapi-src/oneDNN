@@ -334,6 +334,8 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_scratchpad_mode(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales_mask(
         dnnl_primitive_attr_t attr, int arg, int mask);
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales_dims(
+        dnnl_primitive_attr_t attr, int arg, const dnnl_dims_t dims, int ndims);
 
 /// Sets primitive attributes zero points for primitive operations for a given
 /// memory argument. The zero points must be passed at execution time
@@ -354,6 +356,8 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales_mask(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points_mask(
         dnnl_primitive_attr_t attr, int arg, int mask);
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points_dims(
+        dnnl_primitive_attr_t attr, int arg, const dnnl_dims_t dims, int ndims);
 
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_compensations(
         dnnl_primitive_attr_t attr, int count, int mask);

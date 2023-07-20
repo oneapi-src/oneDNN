@@ -39,7 +39,8 @@ using namespace data_type;
 using namespace brgemm_utils;
 
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
-        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch) {
+        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch,
+        const void *ptr_wei_scales, const void *ptr_wei_zero_points, size_t ic) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -53,6 +54,9 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.do_apply_comp = 0;
     brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
+    brgemm_p.ptr_wei_scales = ptr_wei_scales;
+    brgemm_p.ptr_wei_zero_points = ptr_wei_zero_points;
+    brgemm_p.ic = ic;
 
     assert(brg_kernel);
 
@@ -61,7 +65,8 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
-        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch) {
+        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch,
+        const void *ptr_wei_scales, const void *ptr_wei_zero_points, size_t ic) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -75,13 +80,18 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.do_apply_comp = 0;
     brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
+    brgemm_p.ptr_wei_scales = ptr_wei_scales;
+    brgemm_p.ptr_wei_zero_points = ptr_wei_zero_points;
+    brgemm_p.ic = ic;
+
     assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
 
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const brgemm_post_ops_data_t &post_ops_data, void *scratch) {
+        const brgemm_post_ops_data_t &post_ops_data, void *scratch,
+        const void *ptr_wei_scales, const void *ptr_wei_zero_points, size_t ic) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -108,6 +118,10 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
     brgemm_p.c_zp_values = post_ops_data.c_zp_values;
     brgemm_p.ptr_dst_scales = post_ops_data.dst_scales;
+    brgemm_p.ptr_wei_scales = ptr_wei_scales;
+    brgemm_p.ptr_wei_zero_points = ptr_wei_zero_points;
+    brgemm_p.ic = ic;
+
     assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
@@ -115,7 +129,8 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const brgemm_post_ops_data_t &post_ops_data, void *scratch) {
+        const brgemm_post_ops_data_t &post_ops_data, void *scratch,
+        const void *ptr_wei_scales, const void *ptr_wei_zero_points, size_t ic) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -142,6 +157,10 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
     brgemm_p.c_zp_values = post_ops_data.c_zp_values;
     brgemm_p.ptr_dst_scales = post_ops_data.dst_scales;
+    brgemm_p.ptr_wei_scales = ptr_wei_scales;
+    brgemm_p.ptr_wei_zero_points = ptr_wei_zero_points;
+    brgemm_p.ic = ic;
+
     assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
@@ -150,7 +169,8 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         brgemm_batch_kind_t type, impl::data_type_t dt_a,
         impl::data_type_t dt_b, bool transA, bool transB,
         brgemm_layout_t layout, float alpha, float beta, dim_t LDA, dim_t LDB,
-        dim_t LDC, dim_t M, dim_t N, dim_t K, const brgemm_strides_t *strides) {
+        dim_t LDC, dim_t M, dim_t N, dim_t K, const brgemm_strides_t *strides,
+        bool is_weights_decompression, const memory_desc_t *wei_md, const primitive_attr_t *attr) {
     /*
     m - number of rows of the matrix op(A) and number of rows of the matrix C
     n - number of columns of the matrix op(B) and number of columns of the matrix C
@@ -179,8 +199,31 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         return status::unimplemented;
 
     // Only avx512_core_amx kernel supports u8 weights.
-    if (!IMPLICATION(brg->dt_b == u8, brg->isa_impl == avx512_core_amx))
+    if (!is_weights_decompression && !IMPLICATION(brg->dt_b == u8, brg->isa_impl == avx512_core_amx))
         return status::unimplemented;
+
+    brg->with_wei_decomp = is_weights_decompression;
+    if (brg->with_wei_decomp) {
+        const memory_desc_wrapper wei_d(wei_md);
+        brg->with_grouped_wei_decomp = false;
+
+        auto wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
+        brg->with_wei_decomp_scales = !wei_scales.has_default_values();
+        if (brg->with_wei_decomp_scales) {
+            auto ld_dim = wei_scales.dims_[0];
+            brg->wei_decomp_scales_stride = ld_dim > 1 ? ld_dim : 0;
+            brg->wei_decomp_scales_group_size = wei_d.dims()[1] / wei_scales.dims_[1];
+            brg->with_grouped_wei_decomp |= wei_scales.dims_[1] != 1;
+        }
+
+        brg->with_wei_decomp_zero_points = !attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS);
+        if (brg->with_wei_decomp_zero_points) {
+            auto ld_dim = attr->zero_points_.get_dims(DNNL_ARG_WEIGHTS)[0];
+            brg->wei_decomp_zero_points_stride = ld_dim > 1 ? ld_dim : 0;
+            brg->wei_decomp_zero_points_group_size = wei_d.dims()[1] / attr->zero_points_.get_dims(DNNL_ARG_WEIGHTS)[1];
+            brg->with_grouped_wei_decomp |= attr->zero_points_.get_dims(DNNL_ARG_WEIGHTS)[1] != 1;
+        }
+    }
 
     CHECK(brgemm_blocking(brg));
 
@@ -218,7 +261,8 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 }
 
 status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
-        const memory_desc_t *dst_md, int LDD, impl::data_type_t dt_bias) {
+        const memory_desc_t *dst_md, int LDD, impl::data_type_t dt_bias,
+        bool is_weights_decompression) {
     if (!brg || !dst_md) return status::invalid_arguments;
 
     brg->attr = attr;
@@ -327,7 +371,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
     brg->with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values()
+            || (!wei_scales.has_default_values() && !is_weights_decompression)
             || brg->with_weights_scale_adjust;
     if (brg->with_scales) {
         // Note. the current version supports only two different output scale

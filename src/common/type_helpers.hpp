@@ -93,6 +93,9 @@ inline size_t data_type_size(data_type_t data_type) {
         case u8: return sizeof(prec_traits<u8>::type);
         case boolean: return sizeof(prec_traits<boolean>::type);
         case bin: return sizeof(prec_traits<u8>::type);
+        case nf4: return sizeof(prec_traits<u8>::type);
+        case u4: return sizeof(prec_traits<u8>::type);
+        case s4: return sizeof(prec_traits<u8>::type);
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
@@ -284,6 +287,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
 
     /* prop_kind doesn't matter */
     if (everyone_is(f32, src_dt, wei_dt)) return f32;
+    if (one_of(src_dt, f32, bf16) && one_of(wei_dt, u8, nf4, s4, u4)) return f32;
     if (everyone_is(f64, src_dt, wei_dt)) return f64;
 
     if (one_of(prop_kind, forward_training, forward_inference)) {
@@ -993,7 +997,7 @@ inline bool memory_desc_sanity_check(int ndims, const dims_t dims,
     if (ndims == 0) return true;
 
     bool ok = dims != nullptr && 0 < ndims && ndims <= DNNL_MAX_NDIMS
-            && utils::one_of(data_type, f16, bf16, f32, f64, s32, s8, u8, bin);
+            && utils::one_of(data_type, f16, bf16, f32, f64, s32, s8, u8, bin, nf4, s4, u4);
     if (!ok) return false;
 
     bool has_runtime_dims = false;

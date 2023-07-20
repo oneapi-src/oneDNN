@@ -20,6 +20,7 @@
 #include "primitive_attr.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include <iostream>
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::status;
@@ -114,6 +115,22 @@ status_t zero_points_t::set(int arg, int mask) {
         case DNNL_ARG_DST:
             is_set_dst = true;
             mask_dst = mask;
+            break;
+    }
+    return status::success;
+}
+
+status_t zero_points_t::set(int arg, const dims_t dims, int ndims) {
+    const bool supported_arg
+            = utils::one_of(arg, DNNL_ARG_WEIGHTS);
+    if (!supported_arg) return status::unimplemented;
+
+    switch (arg) {
+        case DNNL_ARG_WEIGHTS:
+            is_set_wei = true;
+            ndims_wei = ndims;
+            mask_wei = 1;
+            utils::array_copy(dims_wei, dims, ndims);
             break;
     }
     return status::success;
@@ -548,6 +565,13 @@ status_t dnnl_primitive_attr_set_scales_mask(
     if (!ok) return invalid_arguments;
     return attr->scales_.set(arg, mask);
 }
+status_t dnnl_primitive_attr_set_scales_dims(
+        primitive_attr_t *attr, int arg, const dims_t dims, int ndims) {
+    bool ok = attr && arg >= 0 && ndims > 0
+            && attr->output_scales_.has_default_values();
+    if (!ok) return invalid_arguments;
+    return attr->scales_.set(arg, dims, ndims);
+}
 
 status_t dnnl_primitive_attr_set_zero_points_mask(
         primitive_attr_t *attr, int arg, int mask) {
@@ -555,6 +579,13 @@ status_t dnnl_primitive_attr_set_zero_points_mask(
     if (!ok) return invalid_arguments;
 
     return attr->zero_points_.set(arg, mask);
+}
+status_t dnnl_primitive_attr_set_zero_points_dims(
+        primitive_attr_t *attr, int arg, const dims_t dims, int ndims) {
+    bool ok = attr && ndims > 0;
+    if (!ok) return invalid_arguments;
+
+    return attr->zero_points_.set(arg, dims, ndims);
 }
 
 status_t dnnl_primitive_attr_set_output_compensations(primitive_attr_t *attr,

@@ -81,6 +81,9 @@ extern const impl_list_map_t &regular_s32_impl_list_map();
 extern const impl_list_map_t &regular_s8_impl_list_map();
 extern const impl_list_map_t &regular_u8_impl_list_map();
 extern const impl_list_map_t &regular_bin_impl_list_map();
+extern const impl_list_map_t &regular_nf4_impl_list_map();
+extern const impl_list_map_t &regular_s4_impl_list_map();
+extern const impl_list_map_t &regular_u4_impl_list_map();
 
 /* conv reorders w/ compensation */
 extern const impl_list_map_t &comp_f32_s8_impl_list_map();

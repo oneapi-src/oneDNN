@@ -31,6 +31,7 @@
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/jit_brgemm_decompress_kernel.hpp"
+#include "cpu/x64/jit_brgemm_weights_decompression_kernel.hpp"
 #include "cpu/x64/jit_brgemm_inner_product_utils.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
 #include "cpu/x64/jit_brgemm_transpose_utils.hpp"
@@ -59,10 +60,16 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             auto dst_dt = invariant_dst_md()->data_type;
             auto wei_dt = invariant_wei_md()->data_type;
             const bool is_int8 = one_of(src_dt, u8, s8);
+            const bool is_wei_decomp = one_of(src_dt, f32, bf16) &&
+                                       one_of(wei_dt, u8, nf4, s4, u4);
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt;
             if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
+            if (is_wei_decomp) {
+                skip_mask |= skip_mask_t::scales_runtime;
+                skip_mask |= skip_mask_t::zero_points_runtime;
+            }
 
             bool ok = is_fwd() && mayiuse(isa)
                     && expect_data_types(src_dt, wei_dt, data_type::undef,
@@ -103,11 +110,13 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 brgemm_t &brg = brg_descs_[idx];
                 CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, jbgp_.src_dt,
                         jbgp_.wei_dt, false, false, brgemm_row_major, alpha,
-                        vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
+                        vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK,
+                        nullptr, is_wei_decomp && jbgp_.wei_decomp_algo == weights_decomp_kind_t::immediate,
+                        &weights_md_, attr()));
 
                 auto LDD = jbgp_.oc_without_padding;
                 CHECK(brgemm_desc_set_postops(
-                        &brg, attr(), &dst_md_, LDD, jbgp_.bia_dt));
+                        &brg, attr(), &dst_md_, LDD, jbgp_.bia_dt, is_wei_decomp));
 
                 brgemm_attr_t brgattr;
                 if (jbgp_.is_amx) {
@@ -200,6 +209,29 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     new jit_brgemm_decompress_kernel_t(&pd()->jbgp_)));
         }
 
+        if (pd()->jbgp_.weights_decompression && pd()->jbgp_.wei_decomp_algo == weights_decomp_kind_t::prepack) {
+            weights_decompression_compile_params_t jcp = {};
+            jcp.oc_size = pd()->jbgp_.oc_block;
+            jcp.ic_internal_size = pd()->jbgp_.wei_dt == data_type::bf16 ||
+                                   utils::one_of(pd()->jbgp_.orig_wei_dt, data_type::nf4, data_type::s4, data_type::u4) ? 2 : 1;
+            jcp.with_scales = !pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
+            jcp.broadcast_scales = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).dims_[0] == 1;
+            jcp.with_zero_points = !pd()->attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS);
+            jcp.broadcast_zero_points = pd()->attr()->zero_points_.get_dims(DNNL_ARG_WEIGHTS)[0] == 1;
+            jcp.weights_dt = pd()->jbgp_.orig_wei_dt;
+            jcp.decomp_buffer_dt = pd()->jbgp_.wei_dt;
+
+            if (is_superset(pd()->jbgp_.isa, avx512_core)) {
+                CHECK(safe_ptr_assign(brg_weights_decomp_kernel_,
+                        new jit_brgemm_weights_decompression_kernel_t<avx512_core>(jcp)));
+            } else if (is_superset(pd()->jbgp_.isa, avx2)) {
+                CHECK(safe_ptr_assign(brg_weights_decomp_kernel_,
+                        new jit_brgemm_weights_decompression_kernel_t<avx2>(jcp)));
+            } else {
+                return status::unimplemented;
+            }
+        }
+
         if (pd()->jbgp_.use_buffer_a)
             CHECK(create_brgemm_copy_to_coarse(copy_src_kernel_, &pd()->jbgp_));
         if (pd()->jbgp_.nthr_ic_b > 1) {
@@ -225,6 +257,7 @@ private:
     brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {
             brgemm_inner_product_utils::max_num_brg_kernels_ip};
     std::unique_ptr<jit_brgemm_decompress_kernel_t> brg_decomp_kernel_;
+    std::unique_ptr<jit_weights_decompression_kernel_t> brg_weights_decomp_kernel_;
 };
 
 template <cpu_isa_t isa>

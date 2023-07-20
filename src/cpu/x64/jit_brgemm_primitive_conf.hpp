@@ -25,6 +25,11 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+enum weights_decomp_kind_t {
+    immediate,
+    prepack,
+};
+
 struct jit_brgemm_primitive_conf_t {
     prop_kind_t prop_kind;
     conv_harness_t harness;
@@ -87,6 +92,15 @@ struct jit_brgemm_primitive_conf_t {
     brgemm_kernel_prefetching_t hint_prefetching
             = brgemm_kernel_prefetching_t::brgemm_prf_default;
     bool with_dst_scales;
+
+    data_type_t orig_wei_dt;
+    weights_decomp_kind_t wei_decomp_algo;
+    bool weights_decompression;
+    bool with_grouped_weights_decompression;
+    size_t wei_scales_ic_group_size;
+    size_t wei_zero_points_ic_group_size;
+    size_t wei_decomp_scales_buffer_size;
+    size_t wei_decomp_zero_points_buffer_size;
 };
 
 } // namespace x64
