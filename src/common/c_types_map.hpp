@@ -1902,7 +1902,7 @@ const stream_flags_t default_flags = dnnl_stream_default_flags;
 #ifdef DNNL_EXPERIMENTAL_PROFILING
 const stream_flags_t profiling = dnnl_stream_profiling;
 #else
-const stream_flags_t profiling = static_cast<stream_flags_t>(0x4U);
+const stream_flags_t profiling = static_cast<stream_flags_t>(1 << 2);
 #endif
 } // namespace stream_flags
 using stream_t = dnnl_stream;
