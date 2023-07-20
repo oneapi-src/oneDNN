@@ -28,15 +28,27 @@
 namespace {
 
 /// Set any layout according to the connection relationship of partitions
-///
+/// @param dg a deserialized graph
 /// @param partitions a list of partitions
 /// @param id_to_set_any_layout a set of ids of logical tensors with any layout
 ///     type
-void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
+void set_any_layout(const graph::deserialized_graph &dg,
+        const std::vector<dnnl::graph::partition> &partitions,
         std::unordered_set<size_t> &id_to_set_any_layout) {
     // mapping from output tensor id to the all supported flags of
     // supported partitions, we may only need outputs' supported flags
     std::unordered_map<size_t, std::vector<bool>> output_to_flag_map;
+    // record in & out of all Reoder ops in the current graph
+    std::unordered_set<size_t> reorder_in_out_ids;
+
+    for (const auto &aop : dg.ops_) {
+        if (aop.kind_ == "Reorder") {
+            // reorder only has one input and one output
+            reorder_in_out_ids.emplace(aop.out_lts_.front().id_);
+            reorder_in_out_ids.emplace(aop.in_lts_.front().id_);
+        }
+    }
+
     for (const auto &p : partitions) {
         for (const auto &out : p.get_output_ports()) {
             size_t id = out.get_id();
@@ -88,8 +100,12 @@ void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
                     flag_vec.begin(), flag_vec.end(), [](bool a) { return a; });
             if (!need_set_any) continue;
 
+            // if current id is not a input of Reorder or a output of Reorder
             // record the id of logical tensor that will be set to ANY layout
-            id_to_set_any_layout.insert(id);
+            auto iter_find = reorder_in_out_ids.find(id);
+            if (iter_find == reorder_in_out_ids.end()) {
+                id_to_set_any_layout.insert(id);
+            }
         }
     }
 }
@@ -461,7 +477,7 @@ int doit(const prb_t *prb, res_t *res) {
     // Mark partition outputs id to set as ANY layout. Used in perf mode only
     // to connect partitions in most optimized way avoiding extra reorder.
     if (has_bench_mode_bit(mode_bit_t::perf)) {
-        set_any_layout(partitions, id_to_set_any_layout);
+        set_any_layout(dg, partitions, id_to_set_any_layout);
     }
 
     // the index offset for current partition compared with the previous partition index
