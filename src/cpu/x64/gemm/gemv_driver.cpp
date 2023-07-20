@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -260,8 +260,9 @@ static inline int thread_checker(
             if (bandt == 0) {
                 return 1;
             } else {
-                return nstl::min(nstl::max(n * m / (2 * MN_MIN_N), dim_t(1)),
-                        dim_t(nthr));
+                return static_cast<int>(
+                        nstl::min(nstl::max(n * m / (2 * MN_MIN_N), dim_t(1)),
+                                dim_t(nthr)));
             }
         }
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
@@ -289,9 +290,11 @@ static inline int thread_checker(
 
     } else {
         if (trans) {
-            if (MIN_WIDTH * nthr > m) nthr = utils::div_up(m, MIN_WIDTH);
+            if (MIN_WIDTH * nthr > m)
+                nthr = static_cast<int>(utils::div_up(m, MIN_WIDTH));
         } else {
-            if (MIN_WIDTH * nthr > n) nthr = utils::div_up(n, MIN_WIDTH);
+            if (MIN_WIDTH * nthr > n)
+                nthr = static_cast<int>(utils::div_up(n, MIN_WIDTH));
         }
     }
 

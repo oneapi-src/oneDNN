@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,8 +53,9 @@ void compensation_init(const char *offsetC, int32_t *compensation, dim_t len,
 void compensation_compute(bool transa, dim_t m, dim_t k, float alpha,
         const int8_t *a, dim_t lda, int32_t *compensation) {
     if (!transa) {
-        const int L2_cache_size = platform::get_per_core_cache_size(2);
-        const int blocking_factor = nstl::min(k, L2_cache_size / lda + 1);
+        const auto L2_cache_size = platform::get_per_core_cache_size(2);
+        const int blocking_factor
+                = static_cast<int>(nstl::min(k, L2_cache_size / lda + 1));
         const dim_t npanels = k / blocking_factor;
         const bool has_tile = k % blocking_factor > 0;
 
@@ -115,7 +116,7 @@ void copy_and_shift_b(bool transb, dim_t k, dim_t n, uint8_t *b_u8,
         const int8_t *pb_s8 = b_s8 + j * ldb_s8;
 
         for (dim_t i = 0; i < b_rows; i++) {
-            (*pb_u8) = (*pb_s8) + 128;
+            (*pb_u8) = static_cast<uint8_t>((*pb_s8) + 128);
             pb_u8++;
             pb_s8++;
         }

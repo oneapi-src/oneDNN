@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,13 +35,13 @@ static inline std::tuple<int, int> calc_nthr_2d(int nthrs, dim_t m, dim_t n,
         dim_t block_m, dim_t block_n, dim_t small_m, dim_t small_n,
         dim_t &thread_m, dim_t &thread_n) {
 
-    int nthr_m = utils::div_up(m, block_m);
-    int nthr_n = utils::div_up(n, block_n);
+    int nthr_m = static_cast<int>(utils::div_up(m, block_m));
+    int nthr_n = static_cast<int>(utils::div_up(n, block_n));
 
     if (nthr_m < 1) nthr_m = 1;
     if (nthr_n < 1) nthr_n = 1;
 
-    float ratio_float = (float)nthr_m / nthr_n;
+    float ratio_float = static_cast<float>(nthr_m) / static_cast<float>(nthr_n);
 
     int ratio = 0;
     if (nthr_m > nthr_n)
@@ -106,7 +106,7 @@ static inline std::tuple<int, int> calc_nthr_2d(int nthrs, dim_t m, dim_t n,
         if (nthr_m <= nthr_n) {
             nthr_m = (int)sqrt((double)nthrs);
             if (nthr_m > utils::div_up(m, small_m))
-                nthr_m = utils::div_up(m, small_m);
+                nthr_m = static_cast<int>(utils::div_up(m, small_m));
             nthr_n = nthrs / nthr_m;
 
             while ((nthr_m > 1) && (nthr_m * nthr_n != nthrs)) {
@@ -116,7 +116,7 @@ static inline std::tuple<int, int> calc_nthr_2d(int nthrs, dim_t m, dim_t n,
         } else {
             nthr_n = (int)sqrt((double)nthrs);
             if (nthr_n > utils::div_up(n, small_n))
-                nthr_n = utils::div_up(n, small_n);
+                nthr_n = static_cast<int>(utils::div_up(n, small_n));
             nthr_m = nthrs / nthr_n;
 
             while ((nthr_n > 1) && (nthr_m * nthr_n != nthrs)) {
@@ -131,8 +131,10 @@ static inline std::tuple<int, int> calc_nthr_2d(int nthrs, dim_t m, dim_t n,
     thread_m -= thread_m % small_m;
     thread_n -= thread_n % small_n;
 
-    if (thread_m * nthr_m > m) nthr_m = utils::div_up(m, thread_m);
-    if (thread_n * nthr_n > n) nthr_n = utils::div_up(n, thread_n);
+    if (thread_m * nthr_m > m)
+        nthr_m = static_cast<int>(utils::div_up(m, thread_m));
+    if (thread_n * nthr_n > n)
+        nthr_n = static_cast<int>(utils::div_up(n, thread_n));
 
     return std::make_tuple(nthr_m, nthr_n);
 }
