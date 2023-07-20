@@ -50,12 +50,20 @@ jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::
                                                  : jcp_.icp * jcp_.oc_block))
     , inp_kh_sz_(static_cast<size_t>(jcp_.kw) * inp_kw_sz_)
     , inp_kd_sz_(static_cast<size_t>(jcp_.kh) * inp_kh_sz_)
+    , out_ow_sz_(static_cast<size_t>(out_dsz_)
+              * (jcp_.prop_kind == backward_data ? jcp_.ic_block
+                                                 : jcp_.oc_block))
+    , out_ker_sz_(static_cast<size_t>(out_ow_sz_)
+              * (jcp_.exec_type == exec_trans ? jcp_.prop_kind == backward_data
+                                      ? jcp_.iw
+                                      : jcp_.ow
+                                              : 1))
     , isa_max_regs(isa_num_vregs(jcp_.isa)) {}
 
 template <typename Vmm>
 size_t jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::out_oc_offset(
-        const int n) const {
-    return static_cast<size_t>(out_dsz_) * n * m_block2_;
+        const int n, const int w) const {
+    return static_cast<size_t>(out_dsz_) * n * m_block2_ + w * out_ow_sz_;
 }
 template <typename Vmm>
 size_t jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::inp_ic_offset(
@@ -71,14 +79,17 @@ Vmm jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::accum(
 
 template <typename Vmm>
 void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::store_accumulators(
-        const int m_block, const int n_block) {
+        const int m_block, const int n_block, const int ow_b, const int ow_e) {
     if (jcp_.src_zero_point) {
         for_(int m = 0; m < m_block; m++)
-        for (int n = 0; n < n_block; n++) {
+        for_(int n = 0; n < n_block; n++)
+        for (int w = ow_b; w < ow_e; w++) {
             auto vmm = accum(n_block, m, n);
             auto vmm_tmp = vmm_tmp_1();
-            const auto offset = out_oc_offset(n);
-            auto zp_addr = ptr[reg_zp_comp_out + offset];
+            const auto offset = out_oc_offset(n, w);
+            auto zp_addr = is_superset(jcp_.isa, avx512_core)
+                    ? EVEX_compress_addr(reg_zp_comp_out, offset)
+                    : ptr[reg_zp_comp_out + offset];
 
             uni_vpmulld(vmm_tmp, vmm, vmm_zp_shift);
             uni_vpaddd(vmm_tmp, vmm_tmp, zp_addr);
@@ -88,17 +99,72 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::store_accumulators(
 
     if (jcp_.s8s8_compensation_required) {
         for_(int m = 0; m < m_block; m++)
-        for (int n = 0; n < n_block; n++) {
+        for_(int n = 0; n < n_block; n++)
+        for (int w = ow_b; w < ow_e; w++) {
             auto vmm = accum(n_block, m, n);
             auto vmm_tmp = vmm_tmp_1();
-            const auto offset = out_oc_offset(n);
-            auto cp_addr = ptr[reg_comp_out + offset];
+            const auto offset = out_oc_offset(n, w);
+            auto cp_addr = is_superset(jcp_.isa, avx512_core)
+                    ? EVEX_compress_addr(reg_comp_out, offset)
+                    : ptr[reg_comp_out + offset];
 
             uni_vpmulld(vmm_tmp, vmm, vmm_cp_shift);
             uni_vpaddd(vmm_tmp, vmm_tmp, cp_addr);
             uni_vmovups(cp_addr, vmm_tmp);
         }
     }
+}
+
+template <typename Vmm>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::copy_ow_body(
+        const int n_block, const int ow_b, const int ow_e) {
+
+    if (jcp_.src_zero_point) {
+        for_(int w = ow_b; w < ow_e; w++)
+        for (int n = 0; n < n_block; n++) {
+            auto vmm_tmp = vmm_tmp_1();
+            const auto offset = out_oc_offset(n, w);
+            auto copy_zp_addr
+                    = maybe_EVEX_compress_addr(reg_zp_comp_out, offset);
+            auto zp_addr
+                    = maybe_EVEX_compress_addr(reg_aux_zp_comp_out, offset);
+            vmovups(vmm_tmp, copy_zp_addr);
+            vmovups(zp_addr, vmm_tmp);
+        }
+    }
+
+    if (jcp_.s8s8_compensation_required) {
+        for_(int w = ow_b; w < ow_e; w++)
+        for (int n = 0; n < n_block; n++) {
+            auto vmm_tmp = vmm_tmp_1();
+            const auto offset = out_oc_offset(n, w);
+            auto copy_cp_addr = maybe_EVEX_compress_addr(reg_comp_out, offset);
+            auto cp_addr = maybe_EVEX_compress_addr(reg_aux_comp_out, offset);
+            vmovups(vmm_tmp, copy_cp_addr);
+            vmovups(cp_addr, vmm_tmp);
+        }
+    }
+}
+
+template <typename Vmm>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::copy_ow(
+        const int m_block, const int n_block, const int ow_b, const int ow_e) {
+    mov(reg_ker_l, ptr[param1 + GET_OFF(ker_l)]);
+    mov(reg_aux_zp_comp_out, reg_zp_comp_out);
+    mov(reg_aux_comp_out, reg_comp_out);
+
+    Xbyak::Label label_ker_loop, label_ker_end;
+    L_aligned(label_ker_loop);
+    {
+        cmp(reg_ker_l, 1);
+        je(label_ker_end, T_NEAR);
+        if (jcp_.src_zero_point) add(reg_aux_zp_comp_out, out_ker_sz_);
+        if (jcp_.s8s8_compensation_required) add(reg_aux_comp_out, out_ker_sz_);
+        copy_ow_body(n_block, ow_b, ow_e);
+        dec(reg_ker_l);
+        jmp(label_ker_loop, T_NEAR);
+    }
+    L_aligned(label_ker_end);
 }
 
 template <typename Vmm>
@@ -145,7 +211,7 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::icb_loop(const int icb,
         const int mb_tail, const int n_block) {
     Xbyak::Label label_icb_loop, label_loop_end;
 
-    mov(reg_aux_in, reg_aux_kw_in);
+    mov(reg_aux_in, reg_aux_kh_in);
     mov(reg_icb, icb);
 
     L(label_icb_loop);
@@ -161,43 +227,105 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::icb_loop(const int icb,
 
     if (icb_tail) compute(ic_step, mb_tail, n_block, icb_tail, true);
 }
-
 template <typename Vmm>
-void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::khw_loop(const int icb,
+void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::kdh_loop(const int icb,
         const int icb_tail, const int ic_step, const int m_block,
         const int mb_tail, const int n_block) {
-    Xbyak::Label label_kw_loop, label_kw_end, label_kh_loop, label_kh_end;
-    mov(reg_kh_l, ptr[param1 + GET_OFF(kh_l)]);
-    mov(reg_aux_kh_in, reg_in);
+    Xbyak::Label label_kd_loop, label_kd_end, label_kh_loop, label_kh_end;
+    mov(reg_kd_l, ptr[param1 + GET_OFF(kd_l)]);
+    mov(reg_aux_kd_in, reg_in);
 
-    L_aligned(label_kh_loop);
+    L_aligned(label_kd_loop);
     {
-        cmp(reg_kh_l, 0);
-        je(label_kh_end, T_NEAR);
-        mov(reg_kw_l, ptr[param1 + GET_OFF(kw_l)]);
-        mov(reg_aux_kw_in, reg_aux_kh_in);
-        L_aligned(label_kw_loop);
+        cmp(reg_kd_l, 0);
+        je(label_kd_end, T_NEAR);
+        mov(reg_kh_l, ptr[param1 + GET_OFF(kh_l)]);
+        mov(reg_aux_kh_in, reg_aux_kd_in);
+        L_aligned(label_kh_loop);
         {
-            cmp(reg_kw_l, 0);
-            je(label_kw_end, T_NEAR);
+            cmp(reg_kh_l, 0);
+            je(label_kh_end, T_NEAR);
             icb_loop(icb, icb_tail, ic_step, m_block, mb_tail, n_block);
-            add(reg_aux_kw_in,
-                    jcp_.prop_kind == backward_data ? inp_kw_sz_ * jcp_.stride_w
-                                                    : inp_kw_sz_);
-            dec(reg_kw_l);
-            jmp(label_kw_loop, T_NEAR);
+            add(reg_aux_kh_in,
+                    jcp_.prop_kind == backward_data ? inp_kh_sz_ * jcp_.stride_h
+                                                    : inp_kh_sz_);
+            dec(reg_kh_l);
+            jmp(label_kh_loop, T_NEAR);
         }
-        L_aligned(label_kw_end);
+        L_aligned(label_kh_end);
 
-        add(reg_aux_kh_in,
-                jcp_.prop_kind == backward_data ? inp_kh_sz_ * jcp_.stride_h
-                                                : inp_kh_sz_);
-        dec(reg_kh_l);
-        jmp(label_kh_loop, T_NEAR);
+        add(reg_aux_kd_in,
+                jcp_.prop_kind == backward_data ? inp_kd_sz_ * jcp_.stride_d
+                                                : inp_kd_sz_);
+        dec(reg_kd_l);
+        jmp(label_kd_loop, T_NEAR);
     }
-    L_aligned(label_kh_end);
+    L_aligned(label_kd_end);
 }
 
+template <typename Vmm>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::kw_loop_trans(const int icb,
+        const int icb_tail, const int ic_step, const int m_block,
+        const int mb_tail, const int n_block, const bool use_inversion) {
+    vector<int> kw_ow_b(jcp_.kw, -1);
+    vector<int> kw_ow_e(jcp_.kw, -1);
+    const auto DW = jcp_.dilate_w + 1;
+
+    for (int ow = 0; ow < jcp_.ow; ow++) {
+        const auto iiw = ow * jcp_.stride_w - jcp_.l_pad;
+        const auto kw_s = div_up(max(0, -iiw), DW);
+        const auto kw_f = jcp_.kw
+                - div_up(nstl::max(0, iiw - jcp_.iw + (jcp_.kw - 1) * DW + 1),
+                        DW);
+        for (int kw = 0; kw < jcp_.kw; kw++) {
+            if (kw >= kw_s && kw < kw_f) {
+                const auto inv_kw = use_inversion ? jcp_.kw - 1 - kw : kw;
+                kw_ow_b[inv_kw] = kw_ow_b[inv_kw] == -1 ? ow : kw_ow_b[inv_kw];
+                kw_ow_e[inv_kw] = ow + 1;
+            }
+        }
+    }
+
+    for (int kw = 0; kw < jcp_.kw; kw++) {
+        const auto ow_b = kw_ow_b[kw];
+        const auto ow_e = kw_ow_e[kw];
+
+        if (ow_b < ow_e) {
+            zero_accumulators(m_block, n_block);
+            kdh_loop(icb, icb_tail, ic_step, m_block, mb_tail, n_block);
+            store_accumulators(m_block, n_block, ow_b, ow_e);
+        }
+        add(reg_in,
+                jcp_.prop_kind == backward_data ? inp_kw_sz_ * jcp_.stride_w
+                                                : inp_kw_sz_);
+    }
+
+    copy_ow(m_block, n_block, 0, jcp_.ow);
+}
+template <typename Vmm>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::kw_loop(const int icb,
+        const int icb_tail, const int ic_step, const int m_block,
+        const int mb_tail, const int n_block) {
+    Xbyak::Label label_kw_loop, label_loop_end;
+    mov(reg_kw_l, ptr[param1 + GET_OFF(kw_l)]);
+
+    zero_accumulators(m_block, n_block);
+
+    L_aligned(label_kw_loop);
+    {
+        cmp(reg_kw_l, 0);
+        je(label_loop_end, T_NEAR);
+        kdh_loop(icb, icb_tail, ic_step, m_block, mb_tail, n_block);
+        add(reg_in,
+                jcp_.prop_kind == backward_data ? inp_kw_sz_ * jcp_.stride_w
+                                                : inp_kw_sz_);
+        dec(reg_kw_l);
+        jmp(label_kw_loop, T_NEAR);
+    }
+    L_aligned(label_loop_end);
+
+    store_accumulators(m_block, n_block, 0, 1);
+}
 template <typename Vmm>
 void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::load_params() {
     mov(reg_in, ptr[param1 + GET_OFF(ptr_in)]);
@@ -285,26 +413,24 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::generate() {
     const auto icb = nb_ic_ / blocks;
     const auto icb_tail = nb_ic_ % blocks;
     const auto mb_tail = div_up(icb_tail, ic_step);
+    const auto maybe_use_inversion
+            = jcp_.use_uker && jcp_.exec_type == exec_trans;
 
-    Xbyak::Label label_kd_loop, label_loop_end;
-    mov(reg_kd_l, ptr[param1 + GET_OFF(kd_l)]);
+    Xbyak::Label label_kw_without_inversion, label_done;
 
-    zero_accumulators(m_block, n_block);
+    if (maybe_use_inversion) {
+        mov(reg_use_inversion, ptr[param1 + GET_OFF(use_inversion)]);
+        cmp(reg_use_inversion, 0);
+        jz(label_kw_without_inversion, T_NEAR);
+        kw_loop_trans(icb, icb_tail, ic_step, m_block, mb_tail, n_block, true);
+        jmp(label_done, T_NEAR);
 
-    L_aligned(label_kd_loop);
-    {
-        cmp(reg_kd_l, 0);
-        je(label_loop_end, T_NEAR);
-        khw_loop(icb, icb_tail, ic_step, m_block, mb_tail, n_block);
-        add(reg_in,
-                jcp_.prop_kind == backward_data ? inp_kd_sz_ * jcp_.stride_d
-                                                : inp_kd_sz_);
-        dec(reg_kd_l);
-        jmp(label_kd_loop, T_NEAR);
-    }
-    L_aligned(label_loop_end);
+        L_aligned(label_kw_without_inversion);
+        kw_loop_trans(icb, icb_tail, ic_step, m_block, mb_tail, n_block, false);
+    } else
+        kw_loop(icb, icb_tail, ic_step, m_block, mb_tail, n_block);
 
-    store_accumulators(m_block, n_block);
+    L_aligned(label_done);
 
     postamble();
 }
