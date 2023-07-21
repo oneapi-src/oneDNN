@@ -44,9 +44,10 @@
         dnnl_status_t status__ = f; \
         if (status__ != dnnl_success) { \
             if (s == CRIT || s == WARN) { \
-                BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                        __PRETTY_FUNCTION__, __LINE__, #f, \
-                        status2str(status__), (int)status__); \
+                BENCHDNN_PRINT(0, \
+                        "Error: Fuction '%s' at (%s:%d) returned '%s'\n", \
+                        __FUNCTION__, __FILE__, __LINE__, \
+                        status2str(status__)); \
                 fflush(0); \
                 if (s == CRIT) exit(2); \
             } \
@@ -58,9 +59,9 @@
     do { \
         dnnl_status_t status__ = f; \
         if (status__ != dnnl_success) { \
-            BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                    __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
-                    status2str(status__), (int)status__); \
+            BENCHDNN_PRINT(0, \
+                    "Error: Fuction '%s' at (%s:%d) returned '%s'\n", \
+                    __FUNCTION__, __FILE__, __LINE__, status2str(status__)); \
             fflush(0); \
             exit(2); \
         } \
@@ -420,7 +421,8 @@ int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
         } break;
         default: assert(!"unexpected");
     }
-    return FAIL;
+    DNN_SAFE(status, WARN);
+    return OK;
 }
 
 // `fetch_impl` is responsible to provide a valid `pd` under certain conditions:
