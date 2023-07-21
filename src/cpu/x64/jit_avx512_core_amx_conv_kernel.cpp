@@ -3195,27 +3195,27 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_xf16(
 
     const auto &p = attr_.post_ops_;
 
-    auto load_and_add
-            = [&](const Zmm &zmm_in, const Zmm &zmm_out, const Address &addr) {
-                  const Zmm zmm_in_k = zmm_mask(zmm_in, mask_flag);
-                  switch (jcp.dsrc_dt) {
-                      case data_type::bf16:
-                          vpmovzxwd(zmm_in_k, addr);
-                          vpslld(zmm_in, zmm_in, 16);
-                          break;
-                      case data_type::f16: vcvtph2ps(zmm_in_k, addr); break;
-                      case data_type::f32: vaddps(zmm_in_k, addr); return;
-                      default: assert(!"Unsupported data type in xf16 conv");
-                  }
-                  vaddps(zmm_out, zmm_in);
-              };
+    auto load_and_add = [&](data_type_t dt, const Zmm &zmm_in,
+                                const Zmm &zmm_out, const Address &addr) {
+        const Zmm zmm_in_k = zmm_mask(zmm_in, mask_flag);
+        switch (dt) {
+            case data_type::bf16:
+                vpmovzxwd(zmm_in_k, addr);
+                vpslld(zmm_in, zmm_in, 16);
+                break;
+            case data_type::f16: vcvtph2ps(zmm_in_k, addr); break;
+            case data_type::f32: vaddps(zmm_in_k, addr); return;
+            default: assert(!"Unsupported data type in xf16 conv");
+        }
+        vaddps(zmm_out, zmm_in);
+    };
 
     const int sum_idx = p.find(primitive_kind::sum);
-    if (sum_idx != -1) load_and_add(zmm_prev_dst, zmm_out, addr);
+    if (sum_idx != -1) load_and_add(jcp.dsrc_dt, zmm_prev_dst, zmm_out, addr);
     if (jcp.with_bias) {
         int bias_offset = jcp.typesize_bia * icb * jcp.ic_block;
         auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
-        load_and_add(zmm_bias, zmm_out, bias_addr);
+        load_and_add(jcp.bia_dt, zmm_bias, zmm_out, bias_addr);
     }
 
     const int eltwise_ind = p.find(primitive_kind::eltwise);
