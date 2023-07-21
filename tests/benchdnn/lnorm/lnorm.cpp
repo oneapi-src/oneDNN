@@ -40,6 +40,15 @@ namespace lnorm {
 static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &sc,
         const dnn_mem_t &sh, res_t *res) {
+    // Fast exit for zero channels as logic relies on it to be non-zero.
+    if (prb->c == 0) {
+        benchdnn_parallel_nd(prb->n, [&](int64_t n) {
+            mean.set_elem(n, 0);
+            var.set_elem(n, 0);
+        });
+        return OK;
+    }
+
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
      *
@@ -213,11 +222,6 @@ int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
 static int prepare_bwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &d_dst, const dnn_mem_t &mean, const dnn_mem_t &var,
         const dnn_mem_t &sc, res_t *res) {
-    if (prb->c < 2) {
-        res->state = UNTESTED;
-        return FAIL;
-    }
-
     const bool use_sc = prb->use_sc();
 
     // fill gamma
