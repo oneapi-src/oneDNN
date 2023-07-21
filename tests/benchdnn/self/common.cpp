@@ -214,6 +214,19 @@ void append_eltwise(attr_t::post_ops_t &po, pk_t akind, float aalpha = 0.f,
     po.entry.push_back(e);
 }
 
+void append_binary(attr_t::post_ops_t &po, pk_t akind, dnnl_data_type_t src_dt1,
+        attr_t::post_ops_t::entry_t::binary_t::mask_input_t mask_input,
+        int64_t mask, attr_t::policy_t policy, const std::string &tag) {
+    attr_t::post_ops_t::entry_t e(akind);
+    e.binary.alg = attr_t::post_ops_t::kind2dnnl_kind(akind);
+    e.binary.src1_dt = src_dt1;
+    e.binary.mask_input = mask_input;
+    e.binary.mask = mask;
+    e.binary.policy = policy;
+    e.binary.tag = tag;
+    po.entry.push_back(e);
+}
+
 static int check_post_ops2str() {
     attr_t::post_ops_t po;
     SELF_CHECK_EQ(po.is_def(), true);
@@ -244,6 +257,22 @@ static int check_post_ops2str() {
     SELF_CHECK_PRINT_EQ(po,
             "sum+relu+sum:2:1:s8+linear:5:10+dw_k3s1p1+dw_k3s2p1:s32:per_oc:"
             "2*");
+
+    {
+        using mi_t = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+        attr_t::post_ops_t bin_po_int_mask;
+        append_binary(bin_po_int_mask, pk_t::ADD, dnnl_f32, mi_t::mask, 13,
+                policy_t::COMMON, tag::abx);
+        SELF_CHECK_PRINT_EQ(bin_po_int_mask, "add:f32:13:abx");
+    }
+
+    {
+        using mi_t = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+        attr_t::post_ops_t bin_po_policy;
+        append_binary(bin_po_policy, pk_t::ADD, dnnl_f32, mi_t::policy, 13,
+                policy_t::COMMON, tag::any);
+        SELF_CHECK_PRINT_EQ(bin_po_policy, "add:f32:common");
+    }
 
     return OK;
 }

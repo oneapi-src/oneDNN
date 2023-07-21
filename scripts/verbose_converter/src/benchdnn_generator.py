@@ -611,13 +611,7 @@ def convert_zp_policy(value):
 
 def convert_post_ops(post_ops, prim_kind):
     def convert_binary_post_op(post_op):
-        masks = {0: "common", 2: "per_oc"}
-        mask = masks.get(int(post_op["mask"]))
-        if mask:
-            policy = mask
-        else:
-            policy = "per_tensor"
-        po = post_op["alg"] + ":" + post_op["dt"] + ":" + policy
+        po = post_op["alg"] + ":" + post_op["dt"] + ":" + post_op["mask"]
         if post_op["tag"] != None:
             po += ":" + post_op["tag"]
         return po

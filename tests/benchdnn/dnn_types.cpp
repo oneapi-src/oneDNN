@@ -488,18 +488,22 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks() const {
     std::vector<std::pair<int, int>> v_masks;
     for (int idx = 0; idx < len(); ++idx) {
         const auto &e = this->entry[idx];
-        policy_t policy = policy_t::COMMON;
+        int mask = -1;
         int arg = BENCHDNN_DNNL_ARG_UNDEF;
         if (e.is_binary_kind()) {
-            policy = e.binary.policy;
+            using mask_input_t = entry_t::binary_t::mask_input_t;
+            auto mask_input = e.binary.mask_input;
+            mask = mask_input == mask_input_t::mask
+                    ? e.binary.mask
+                    : attr_t::get_default_mask(e.binary.policy);
             arg = DNNL_ARG_SRC_1;
         } else if (e.is_prelu_kind()) {
-            policy = e.prelu.policy;
+            mask = attr_t::get_default_mask(e.prelu.policy);
             arg = DNNL_ARG_WEIGHTS;
         } else
             continue;
 
-        const auto mask = attr_t::get_default_mask(policy);
+        assert(mask >= 0);
         v_masks.emplace_back(std::make_pair(
                 DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg, mask));
     }
@@ -641,8 +645,17 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.eltwise.alpha;
         } else if (e.is_binary_kind()) {
             s << ":" << e.binary.src1_dt;
-            if (e.binary.policy != policy_t::COMMON || e.binary.tag != tag::any)
-                s << ":" << e.binary.policy;
+            using mask_input_t
+                    = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+            if (e.binary.mask_input != mask_input_t::none
+                    || e.binary.tag != tag::any) {
+                if (e.binary.mask_input == mask_input_t::mask) {
+                    s << ":" << e.binary.mask;
+                } else {
+                    assert(e.binary.mask_input == mask_input_t::policy);
+                    s << ":" << e.binary.policy;
+                }
+            }
             if (e.binary.tag != tag::any) s << ":" << e.binary.tag;
         } else if (e.is_prelu_kind()) {
             if (e.prelu.policy != policy_t::COMMON) {
@@ -818,7 +831,7 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
 
 struct post_ops_rhs_tensor_entry_t {
     dnnl_data_type_t dt;
-    policy_t policy;
+    int mask;
     std::string tag;
     int arg_attr_mask;
 };
@@ -829,10 +842,17 @@ post_ops_rhs_tensor_entry_t get_po_rhs_tensor_entry(
         const attr_t::post_ops_t::entry_t &entry) {
     if (entry.is_prelu_kind()) {
         const auto &prelu = entry.prelu;
-        return {dnnl_f32, prelu.policy, tag::axb, DNNL_ARG_WEIGHTS};
+        const int mask = attr_t::get_default_mask(prelu.policy);
+        return {dnnl_f32, mask, tag::axb, DNNL_ARG_WEIGHTS};
     } else if (entry.is_binary_kind()) {
         const auto &binary = entry.binary;
-        return {binary.src1_dt, binary.policy, binary.tag, DNNL_ARG_SRC_1};
+        using mask_input_t
+                = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+        assert(binary.mask_input != mask_input_t::none);
+        const int mask = binary.mask_input == mask_input_t::mask
+                ? binary.mask
+                : attr_t::get_default_mask(binary.policy);
+        return {binary.src1_dt, mask, binary.tag, DNNL_ARG_SRC_1};
     }
 
     return post_ops_rhs_tensor_entry_t {};
@@ -852,8 +872,7 @@ int attr_args_t::prepare_post_ops_mds(
         if (e.is_binary_kind() || e.is_prelu_kind()) {
 
             const auto po_rhs_tensor_entry = get_po_rhs_tensor_entry(e);
-            const int mask
-                    = attr_t::get_default_mask(po_rhs_tensor_entry.policy);
+            const int mask = po_rhs_tensor_entry.mask;
 
             // deduce binary, prelu dims based on input policy
             dnnl_dims_t rhs_tensor_dims = {};

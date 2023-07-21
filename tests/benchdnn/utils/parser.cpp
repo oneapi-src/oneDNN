@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <cctype>
 
 #include "utils/parser.hpp"
@@ -242,13 +243,32 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
             if (subs_pos == std::string::npos) continue;
             CATCH_DANGLING_SYMBOL;
 
-            const auto policy_str = get_substr(subs, subs_pos, ':');
-            e.binary.policy = attr_t::str2policy(policy_str);
-            if (e.binary.policy == attr_t::policy_t::POLICY_TOTAL) {
-                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
-                        "Error: binary post-op policy", policy_str.c_str(),
-                        "is not recognized.");
-                SAFE_V(FAIL);
+            const auto mask_input_str = get_substr(subs, subs_pos, ':');
+            // Check if `mask_input_str` consists of only digits.
+            const bool only_digits = std::all_of(
+                    mask_input_str.cbegin(), mask_input_str.cend(), [](int c) {
+                        assert(c < UINT8_MAX);
+                        return std::isdigit(c);
+                    });
+
+            using mask_input_t
+                    = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+            if (only_digits) {
+                // If digits only, then read it as integer value.
+                e.binary.mask = parser_utils::stoll_safe(mask_input_str);
+                e.binary.mask_input = mask_input_t::mask;
+            } else {
+                // Otherwise, re-direct to policy parsing.
+                e.binary.policy = attr_t::str2policy(mask_input_str);
+                if (e.binary.policy == attr_t::policy_t::POLICY_TOTAL) {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: binary post-op policy",
+                            mask_input_str.c_str(),
+                            "is not recognized. Input also is not consisted of "
+                            "only integers to process it as mask directly.");
+                    SAFE_V(FAIL);
+                }
+                e.binary.mask_input = mask_input_t::policy;
             }
             if (subs_pos == std::string::npos) continue;
             CATCH_DANGLING_SYMBOL;

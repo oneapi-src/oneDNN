@@ -9,7 +9,7 @@
     --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
                     ELTWISE[:ALPHA[:BETA[:SCALE]]]
                     DW:KkSsPp[:DST_DT[:WEI_SCALE[:DST_SCALE]]]
-                    BINARY:DT[:POLICY[:TAG]]
+                    BINARY:DT[:MASK_INPUT[:TAG]]
                     PRELU[:POLICY]
 ```
 
@@ -136,11 +136,15 @@ argument is not expected. It requires `WEI_SCALE` to be specified.
 `BINARY` post operation kind applies one of supported binary algorithms to the
 operation result and then stores it. It requires mandatory argument of `DT`
 specifying data type of second memory operand. It supports optional argument of
-`POLICY` giving a hint what are the dimensions for a second memory operand. In
-case `POLICY` value is `per_tensor`, additional optional argument `TAG` is
-supported, positioned after `POLICY`, to specify memory physical format. `TAG`
-values use same notation as in drivers. The default value of `TAG` is `any`.
-Refer to [tags](knobs_tag.md) for details.
+`MASK_INPUT` giving a hint what are the dimensions for a second memory operand.
+`MASK_INPUT` may be provided in two ways:
+* As plain integer value which will be process directly.
+* As a `POLICY` value (see above).
+In case `MASK_INPUT` value affects more than one dimension (e.g. `per_tensor`
+`POLICY` input or integer `15` input), additional optional argument `TAG` is
+supported, positioned after `MASK_INPUT`, to specify physical memory format.
+`TAG` values use same notation as in drivers. The default value of `TAG` is
+`any`. Refer to [tags](knobs_tag.md) for details.
 
 `PRELU` post operation kind applies forward algorithm to the operations result
 and then stores it. Weights `DT` is always implicitly f32. It supports an

@@ -327,10 +327,18 @@ struct attr_t {
                 arg_scales_t::entry_t wei_scale;
                 arg_scales_t::entry_t dst_scale;
             } convolution;
-            struct {
+            struct binary_t {
+                enum class mask_input_t {
+                    none,
+                    mask,
+                    policy,
+                };
+
                 dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
                 dnnl_data_type_t src1_dt = dnnl_data_type_undef;
                 policy_t policy = policy_t::COMMON;
+                int64_t mask = -1;
+                mask_input_t mask_input = mask_input_t::none;
                 std::string tag = tag::any;
             } binary;
             struct {
