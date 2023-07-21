@@ -235,10 +235,10 @@ int parse_value_and_runtime(float &value, const std::string &s) {
         value = std::stof(s, &scale_pos);
     } catch (const std::invalid_argument &) {
         BENCHDNN_PRINT(0, "%s\n%s \'%s\'; %s\n",
-                "Error: output scale or zero point input value is invalid.",
+                "Error: scale or zero point input value is invalid.",
                 "Given input:", s.c_str(),
                 "Expected input: \'VAL[*]\'. See help for proper syntax.");
-        exit(1);
+        SAFE_V(FAIL);
     }
     if (scale_pos + 1 < s.size()) return FAIL;
     if (scale_pos == s.size()) return OK;
@@ -286,10 +286,19 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     // process policy
-    this->policy = str2policy(parser::get_substr(s, start_pos, ':'));
-    if (this->policy == POLICY_TOTAL) return FAIL;
+    const auto policy_str = parser::get_substr(s, start_pos, ':');
+    this->policy = str2policy(policy_str);
+    if (this->policy == POLICY_TOTAL) {
+        BENCHDNN_PRINT(0, "%s \'%s\' %s\n", "Error: Scale entry policy",
+                policy_str.c_str(), "is not recognized.");
+        SAFE_V(FAIL);
+    }
     if (start_pos == std::string::npos) return OK;
-    if (start_pos >= s.size()) return FAIL; // to catch dangling ':'
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
 
     SAFE(parse_value_and_runtime(
                  this->scale, parser::get_substr(s, start_pos, ':')),
@@ -495,111 +504,6 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks() const {
                 DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg, mask));
     }
     return v_masks;
-}
-
-int attr_t::post_ops_t::from_str(const std::string &s) {
-    *this = post_ops_t();
-    if (s.empty()) return OK;
-
-    size_t start_pos = 0;
-    while (start_pos != std::string::npos) {
-        auto subs = parser::get_substr(s, start_pos, '+');
-        size_t subs_pos = 0;
-
-        auto kind = str2kind(parser::get_substr(subs, subs_pos, ':'));
-        if (kind == KIND_TOTAL) return FAIL;
-
-        entry.emplace_back(kind);
-        if (subs_pos == std::string::npos) continue;
-        if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-        auto &e = entry.back();
-        if (e.is_sum_kind()) {
-            e.sum.scale = std::stof(parser::get_substr(subs, subs_pos, ':'));
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            auto zp_str = parser::get_substr(subs, subs_pos, ':');
-            e.sum.zero_point = std::stoi(zp_str);
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-            if (std::to_string(e.sum.zero_point) != zp_str) return FAIL;
-
-            e.sum.dt = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
-            // sum dt, if specified, should be defined
-            if (e.sum.dt == dnnl_data_type_undef) return FAIL;
-        } else if (e.is_convolution_kind()) {
-            if (kind == DW) {
-                // `DW` has input of `dw:kXsYpZ`, while rest have `dw_k3sXp1`.
-                const auto str_dw_params
-                        = parser::get_substr(subs, subs_pos, ':');
-                size_t pos = 0, idx = 0;
-
-                pos += idx;
-                if (str_dw_params[pos] != 'k') return FAIL;
-                e.convolution.kernel = std::stoi(&str_dw_params[++pos], &idx);
-
-                pos += idx;
-                if (str_dw_params[pos] != 's') return FAIL;
-                e.convolution.stride = std::stoi(&str_dw_params[++pos], &idx);
-
-                pos += idx;
-                if (str_dw_params[pos] != 'p') return FAIL;
-                e.convolution.padding = std::stoi(&str_dw_params[++pos]);
-
-                if (subs_pos == std::string::npos) continue;
-            }
-
-            e.convolution.dst_dt
-                    = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
-            if (e.convolution.dst_dt == dnnl_data_type_undef) return FAIL;
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            auto scale_str = parser::get_substr(subs, subs_pos, '+');
-            SAFE(e.convolution.wei_scale.from_str(scale_str), WARN);
-            size_t dst_scale_pos = 0;
-            for (int i = 0; i < 2; ++i)
-                dst_scale_pos = scale_str.find(":", dst_scale_pos + 1);
-            if (dst_scale_pos != std::string::npos) {
-                auto dst_scale_str = scale_str.substr(dst_scale_pos + 1);
-                SAFE(e.convolution.dst_scale.from_str(dst_scale_str), WARN);
-            }
-        } else if (e.is_eltwise_kind()) {
-            e.eltwise.alpha
-                    = std::stof(parser::get_substr(subs, subs_pos, ':'));
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            e.eltwise.beta = std::stof(parser::get_substr(subs, subs_pos, ':'));
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-        } else if (e.is_binary_kind()) {
-            e.binary.src1_dt
-                    = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
-            if (e.binary.src1_dt == dnnl_data_type_undef) return FAIL;
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            e.binary.policy
-                    = str2policy(parser::get_substr(subs, subs_pos, ':'));
-            if (e.binary.policy == POLICY_TOTAL) return FAIL;
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            e.binary.tag = parser::get_substr(subs, subs_pos, ':');
-            SAFE(check_tag(e.binary.tag), WARN);
-        } else if (e.is_prelu_kind()) {
-            e.prelu.policy
-                    = str2policy(parser::get_substr(subs, subs_pos, ':'));
-            if (e.prelu.policy == POLICY_TOTAL) return FAIL;
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-        }
-        if (subs_pos == std::string::npos) continue;
-        if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-    }
-    return OK;
 }
 
 bool attr_t::is_def(bool skip_fpmath) const {

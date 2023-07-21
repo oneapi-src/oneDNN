@@ -43,6 +43,7 @@ void add_option_to_help(const std::string &option,
         const std::string &help_message, bool with_args = true);
 int64_t stoll_safe(const std::string &s);
 float stof_safe(const std::string &s);
+attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s);
 } // namespace parser_utils
 
 template <typename T, typename F>

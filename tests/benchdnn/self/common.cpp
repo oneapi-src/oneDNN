@@ -266,19 +266,21 @@ static int check_str2post_ops() {
         return OK;
     };
 
-    ops.from_str("");
+    using namespace parser::parser_utils;
+
+    ops = parse_attr_post_ops_func("");
     SELF_CHECK_EQ(ops.is_def(), true);
 
-    ops.from_str("sum:2");
+    ops = parse_attr_post_ops_func("sum:2");
     SELF_CHECK_EQ(quick(1), OK);
 
-    ops.from_str("sum:2+relu");
+    ops = parse_attr_post_ops_func("sum:2+relu");
     SELF_CHECK_EQ(quick(2), OK);
 
-    ops.from_str("sum:2+relu+sum:3");
+    ops = parse_attr_post_ops_func("sum:2+relu+sum:3");
     SELF_CHECK_EQ(quick(3), OK);
 
-    ops.from_str("sum:2+relu+sum:3+relu");
+    ops = parse_attr_post_ops_func("sum:2+relu+sum:3+relu");
     SELF_CHECK_EQ(quick(4), OK);
 
     return OK;

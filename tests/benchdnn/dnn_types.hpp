@@ -346,8 +346,6 @@ struct attr_t {
 
         post_ops_t() : entry() {}
 
-        int from_str(const std::string &s);
-
         int len() const { return (int)entry.size(); }
         bool is_def() const { return len() == 0; }
 

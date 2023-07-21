@@ -86,6 +86,196 @@ float stof_safe(const std::string &s) {
     }
     return value;
 }
+
+attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
+    attr_t::post_ops_t v;
+    if (s.empty()) return v;
+
+    size_t start_pos = 0;
+    while (start_pos != std::string::npos) {
+        auto subs = get_substr(s, start_pos, '+');
+        size_t subs_pos = 0;
+
+        auto kind
+                = attr_t::post_ops_t::str2kind(get_substr(subs, subs_pos, ':'));
+        if (kind == attr_t::post_ops_t::kind_t::KIND_TOTAL) SAFE_V(FAIL);
+
+#define CATCH_DANGLING_SYMBOL \
+    if (subs_pos >= subs.size()) { \
+        BENCHDNN_PRINT(0, "%s \'%s\'\n", \
+                "Error: dangling symbol at the end of input", subs.c_str()); \
+        SAFE_V(FAIL); \
+    }
+
+        v.entry.emplace_back(kind);
+        if (subs_pos == std::string::npos) {
+            if (kind != attr_t::post_ops_t::kind_t::DW) continue;
+
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: depthwise post-op entry didn't recognize 'k', 's', "
+                    "and 'p' values.");
+            SAFE_V(FAIL);
+        }
+        CATCH_DANGLING_SYMBOL;
+
+        auto &e = v.entry.back();
+        if (e.is_sum_kind()) {
+            e.sum.scale
+                    = parser_utils::stof_safe(get_substr(subs, subs_pos, ':'));
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            auto zp_str = get_substr(subs, subs_pos, ':');
+            e.sum.zero_point = parser_utils::stoll_safe(zp_str);
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            const auto dt_str = get_substr(subs, subs_pos, ':');
+            e.sum.dt = str2dt(dt_str.c_str());
+            // sum dt, if specified, should be defined
+            if (e.sum.dt == dnnl_data_type_undef) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: sum post-op data type", dt_str.c_str(),
+                        "is not recognized.");
+                SAFE_V(FAIL);
+            }
+        } else if (e.is_convolution_kind()) {
+            if (kind == attr_t::post_ops_t::kind_t::DW) {
+                // `DW` has input of `dw:kXsYpZ`, while rest have `dw_k3sXp1`.
+                // TODO: remove `dw_k3sXp1` version.
+                const auto str_dw_params = get_substr(subs, subs_pos, ':');
+                size_t pos = 0, idx = 0;
+
+                pos += idx;
+                if (str_dw_params[pos] != 'k') {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: depthwise post-op entry",
+                            &str_dw_params[pos], "is not 'k'.");
+                    SAFE_V(FAIL);
+                }
+                // TODO: some safe handling would help here
+                e.convolution.kernel = std::stoi(&str_dw_params[++pos], &idx);
+                if (e.convolution.kernel <= 0) {
+                    BENCHDNN_PRINT(0, "%s\n",
+                            "Error: depthwise post-op kernel must be greater "
+                            "than 0.");
+                    SAFE_V(FAIL);
+                }
+
+                pos += idx;
+                if (str_dw_params[pos] != 's') {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: depthwise post-op entry",
+                            &str_dw_params[pos], "is not 's'.");
+                    SAFE_V(FAIL);
+                }
+                e.convolution.stride = std::stoi(&str_dw_params[++pos], &idx);
+                if (e.convolution.stride <= 0) {
+                    BENCHDNN_PRINT(0, "%s\n",
+                            "Error: depthwise post-op stride must be greater "
+                            "than 0.");
+                    SAFE_V(FAIL);
+                }
+
+                pos += idx;
+                if (str_dw_params[pos] != 'p') {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: depthwise post-op entry",
+                            &str_dw_params[pos], "is not 'p'.");
+                    SAFE_V(FAIL);
+                }
+                e.convolution.padding = std::stoi(&str_dw_params[++pos]);
+
+                if (subs_pos == std::string::npos) continue;
+            }
+
+            const auto dt_str = get_substr(subs, subs_pos, ':');
+            e.convolution.dst_dt = str2dt(dt_str.c_str());
+            if (e.convolution.dst_dt == dnnl_data_type_undef) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: depthwise post-op data type", dt_str.c_str(),
+                        "is not recognized.");
+                SAFE_V(FAIL);
+            }
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            auto all_scales_str = get_substr(subs, subs_pos, '+');
+            if (e.convolution.wei_scale.from_str(all_scales_str) != OK) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: depthwise post-op weights scale",
+                        all_scales_str.c_str(), "is not recognized.");
+                SAFE_V(FAIL);
+            }
+
+            // TODO: is it legit and working at all?
+            size_t dst_scale_pos = 0;
+            for (int i = 0; i < 2; ++i)
+                dst_scale_pos = all_scales_str.find(":", dst_scale_pos + 1);
+            if (dst_scale_pos != std::string::npos) {
+                auto dst_scale_str = all_scales_str.substr(dst_scale_pos + 1);
+                if (e.convolution.dst_scale.from_str(dst_scale_str) != OK) {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: depthwise post-op scale",
+                            dst_scale_str.c_str(), "is not recognized.");
+                    SAFE_V(FAIL);
+                }
+            }
+        } else if (e.is_eltwise_kind()) {
+            e.eltwise.alpha
+                    = parser_utils::stof_safe(get_substr(subs, subs_pos, ':'));
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            e.eltwise.beta
+                    = parser_utils::stof_safe(get_substr(subs, subs_pos, ':'));
+            if (subs_pos == std::string::npos) continue;
+        } else if (e.is_binary_kind()) {
+            const auto dt_str = get_substr(subs, subs_pos, ':');
+            e.binary.src1_dt = str2dt(dt_str.c_str());
+            if (e.binary.src1_dt == dnnl_data_type_undef) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: binary post-op data type", dt_str.c_str(),
+                        "is not recognized.");
+                SAFE_V(FAIL);
+            }
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            const auto policy_str = get_substr(subs, subs_pos, ':');
+            e.binary.policy = attr_t::str2policy(policy_str);
+            if (e.binary.policy == attr_t::policy_t::POLICY_TOTAL) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: binary post-op policy", policy_str.c_str(),
+                        "is not recognized.");
+                SAFE_V(FAIL);
+            }
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            const auto tag_str = get_substr(subs, subs_pos, ':');
+            e.binary.tag = tag_str;
+            if (check_tag(e.binary.tag) != OK) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n", "Error: binary post-op tag",
+                        tag_str.c_str(), "is not recognized.");
+                SAFE_V(FAIL);
+            }
+        } else if (e.is_prelu_kind()) {
+            const auto policy_str = get_substr(subs, subs_pos, ':');
+            e.prelu.policy = attr_t::str2policy(policy_str);
+            if (e.prelu.policy == attr_t::policy_t::POLICY_TOTAL) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: prelu post-op policy", policy_str.c_str(),
+                        "is not recognized.");
+                SAFE_V(FAIL);
+            }
+        }
+        if (subs_pos == std::string::npos) continue;
+        CATCH_DANGLING_SYMBOL;
+    }
+
+    return v;
+}
 } // namespace parser_utils
 
 // vector types
@@ -215,7 +405,9 @@ bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
               "BINARY:DT[:POLICY[:TAG]]\n    More details at "
               "https://github.com/oneapi-src/oneDNN/blob/master/tests/benchdnn/"
               "doc/knobs_attr.md\n";
-    return parse_subattr(po, str, option_name, help);
+    std::vector<attr_t::post_ops_t> def {attr_t::post_ops_t()};
+    return parse_vector_option(po, def, parser_utils::parse_attr_post_ops_func,
+            str, option_name, help);
 }
 
 bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
@@ -427,7 +619,7 @@ void parse_prb_vdims(
         BENCHDNN_PRINT(0, "%s\n%s \'%s\'\n",
                 "ERROR: dims are expected to start with an integer value.",
                 "Given input:", str.c_str());
-        exit(1);
+        SAFE_V(FAIL);
     }
 
     std::string name;
