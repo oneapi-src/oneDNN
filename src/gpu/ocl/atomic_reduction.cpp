@@ -24,10 +24,11 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-atomic_reduction_conf::atomic_reduction_conf(const reduction_subproblem &subprb,
-        data_type_t src_type, data_type_t dst_type, bool is_first,
-        bool is_final, const compute::device_info_t &device_info)
-    : reduction_subproblem(subprb)
+atomic_reduction_conf_t::atomic_reduction_conf_t(
+        const reduction_subproblem_t &subprb, data_type_t src_type,
+        data_type_t dst_type, bool is_first, bool is_final,
+        const compute::device_info_t &device_info)
+    : reduction_subproblem_t(subprb)
     , src_type(src_type)
     , dst_type(dst_type)
     , is_first(is_first)
@@ -37,12 +38,13 @@ atomic_reduction_conf::atomic_reduction_conf(const reduction_subproblem &subprb,
     const int threads_per_eu = compute::device_info_t::threads_per_eu(arch);
     const size_t max_wg_size = device_info.max_wg_size();
     const int eu_count = device_info.eu_count();
-    const dim_t max_sg_per_wg = utils::div_up(max_wg_size, subgroup_size);
+    const size_t max_sg_per_wg = utils::div_up(max_wg_size, subgroup_size);
 
     // number of subgroups (threads) to saturate the GPU
     const int target_subgroups = eu_count * threads_per_eu;
 
-    const dim_t max_local_size = std::min(max_sg_per_wg, reduction_block.block);
+    const dim_t max_local_size = std::min(
+            static_cast<dim_t>(max_sg_per_wg), reduction_block.block);
     dim_t wg_per_inner = utils::div_up(inner_block.block, subgroup_size);
     const dim_t max_num_sg = max_local_size * wg_per_inner * outer_block.block;
 
@@ -54,20 +56,21 @@ atomic_reduction_conf::atomic_reduction_conf(const reduction_subproblem &subprb,
     const int sparsity_threshold = 16;
     dim_t local_size;
     if (target_subgroups / max_num_sg > sparsity_threshold) {
-        const dim_t target_per_phase = std::cbrt(reduction_block.block);
-        global_acc = (int)target_per_phase;
+        const int target_per_phase
+                = static_cast<int>(std::cbrt(reduction_block.block));
+        global_acc = target_per_phase;
         local_size = utils::rnd_up_pow2(target_per_phase);
     } else {
         global_acc = 1;
-        local_size
-                = utils::rnd_up_pow2((dim_t)std::sqrt(reduction_block.block));
+        local_size = utils::rnd_up_pow2(
+                static_cast<dim_t>(std::sqrt(reduction_block.block)));
     }
     if (local_size > reduction_block.block) local_size /= 2;
-    local_size = std::min(local_size, (dim_t)max_sg_per_wg);
+    local_size = std::min(local_size, static_cast<dim_t>(max_sg_per_wg));
 
     // Increase vector size to increase block size, without reducing saturation
     bool is_pre_xe_hp = arch < compute::gpu_arch_t::xe_hp;
-    const size_t max_load_size = is_pre_xe_hp ? 128 : 256;
+    const int max_load_size = is_pre_xe_hp ? 128 : 256;
     vect_size = 1;
     for (auto vec : {8, 4, 2}) {
         const dim_t num_sg = local_size * global_acc * wg_per_inner / vec
@@ -79,7 +82,8 @@ atomic_reduction_conf::atomic_reduction_conf(const reduction_subproblem &subprb,
         if (inner_block.block % (vec * subgroup_size) != 0) continue;
 
         // Limit maximum vector size based on max load size
-        if (vec * subgroup_size * types::data_type_size(src_type)
+        if (vec * subgroup_size
+                        * static_cast<int>(types::data_type_size(src_type))
                 > max_load_size) {
             continue;
         }
@@ -96,7 +100,8 @@ atomic_reduction_conf::atomic_reduction_conf(const reduction_subproblem &subprb,
     const size_t nglobal = static_cast<size_t>(global_acc);
 
     size_t lws[3] = {sgs, 1, tpw};
-    size_t gws[3] = {sgs, wgpi * outer_block.block, nglobal * tpw};
+    size_t gws[3] = {
+            sgs, wgpi * static_cast<size_t>(outer_block.block), nglobal * tpw};
 
     nd_range = compute::nd_range_t(gws, lws);
 }
@@ -108,16 +113,16 @@ void atomic_reduction_t::pd_t::init_scratchpad() {
             memory_tracking::names::key_reduction_1};
 
     // If we have to use a finalization kernel, we need another scratchpad
-    int num_phases = static_cast<int>(phases.size());
+    size_t num_phases = phases.size();
     if (needs_finalization) num_phases++;
 
     auto scratchpad = scratchpad_registry().registrar();
-    const int num_scratchpads = std::min(num_phases - 1, 2);
-    for (int i = 0; i < num_scratchpads; i++) {
-        const atomic_reduction_conf &phase = phases[i];
+    const size_t num_scratchpads = std::min(num_phases - 1, size_t {2});
+    for (size_t i = 0; i < num_scratchpads; i++) {
+        const atomic_reduction_conf_t &phase = phases[i];
         const size_t sp_data_size = types::data_type_size(phase.dst_type);
-        const int num_dst_elems
-                = phase.outer_block.block * phase.inner_block.block;
+        const size_t num_dst_elems = static_cast<size_t>(
+                phase.outer_block.block * phase.inner_block.block);
         scratchpad.book(
                 keys[i], num_dst_elems, sp_data_size, OCL_BUFFER_ALIGNMENT);
     }
@@ -147,11 +152,11 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
         conf.is_reduction_dim[i] = false;
     }
 
-    std::vector<reduction_subproblem> subprbs;
+    std::vector<reduction_subproblem_t> subprbs;
     CHECK(generate_reduction_phases(src_md(), dst_md(), subprbs));
 
     //DST zero-padding not supported on reduction dims
-    reduction_subproblem &last_subprb = subprbs.back();
+    reduction_subproblem_t &last_subprb = subprbs.back();
     for (const auto &zpad : last_subprb.dst_zpads) {
         if (conf.is_reduction_dim[zpad.dim_idx]) {
             return status::unimplemented;
@@ -170,7 +175,7 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     // SRC zero-padding on reduced dims is not supported if alg is affected by zeros.
-    reduction_subproblem &first_subprb = subprbs.front();
+    reduction_subproblem_t &first_subprb = subprbs.front();
     const bool alg_affected_by_zeros = utils::one_of(
             desc()->alg_kind, reduction_min, reduction_max, reduction_mul);
     for (const auto &zpad : first_subprb.src_zpads) {
@@ -192,13 +197,13 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
 
         phases.emplace_back(subprbs[i], src_dt, dst_dt, is_first, is_final,
                 *compute_engine->device_info());
-        atomic_reduction_conf &phase = phases.back();
+        atomic_reduction_conf_t &phase = phases.back();
         if (phase.inner_block.block % phase.subgroup_size != 0) {
             return status::unimplemented;
         }
     }
 
-    for (atomic_reduction_conf &phase : phases) {
+    for (atomic_reduction_conf_t &phase : phases) {
         if (phase.global_acc > 1) {
 
             // Due to hardware support and initialization logic, only
@@ -220,7 +225,7 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     // Set conf values
     conf.alg = desc()->alg_kind;
-    conf.power = desc()->p;
+    conf.power = static_cast<int>(desc()->p);
     conf.eps = desc()->eps;
     conf.attr_info = attr_info_t::create(attr());
 
@@ -245,30 +250,30 @@ status_t atomic_reduction_t::pd_t::init_finalization_pd(engine_t *engine) {
     if (conf.alg != alg_kind::reduction_mean) return status::unimplemented;
     CHECK(eltwise_desc_init(&eltwise_desc, prop_kind_t::dnnl_forward,
             alg_kind_t::dnnl_eltwise_linear, &eltwise_mem_desc,
-            &eltwise_mem_desc, nullptr, nullptr, 1.0f / conf.div, 0));
+            &eltwise_mem_desc, nullptr, nullptr,
+            1.0f / static_cast<float>(conf.div), 0));
 
     primitive_attr_t eltwise_attr(*attr());
     if (!eltwise_attr.is_initialized()) return status::out_of_memory;
-    primitive_desc_iterator_t it(
-            engine, (op_desc_t *)&eltwise_desc, &eltwise_attr, nullptr);
+    primitive_desc_iterator_t it(engine,
+            reinterpret_cast<op_desc_t *>(&eltwise_desc), &eltwise_attr,
+            nullptr);
     if (!it.is_initialized()) return status::invalid_arguments;
     eltwise_pd_ = *(++it);
-    if (eltwise_pd_)
-        return status::success;
-    else {
-        return status::invalid_arguments;
-    }
+
+    return eltwise_pd_ ? status::success : status::invalid_arguments;
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const reduction_conf_t &conf, const atomic_reduction_conf &phase) {
+        const reduction_conf_t &conf, const atomic_reduction_conf_t &phase) {
     using namespace alg_kind;
 
     kernel_ctx.set_data_type(phase.src_type);
 
     // All of the variables needed to compute strides
     kernel_ctx.define_int("SUBGROUP_SIZE", phase.subgroup_size);
-    kernel_ctx.define_int("LOCAL_SIZE", phase.nd_range.local_range()[2]);
+    kernel_ctx.define_int("LOCAL_SIZE",
+            static_cast<int64_t>(phase.nd_range.local_range()[2]));
     kernel_ctx.define_int("REDUCTION_SIZE", phase.reduction_block.block);
     kernel_ctx.define_int("INNER_DIM_SIZE", phase.inner_block.block);
     kernel_ctx.define_int("ATOMIC_REDUCTION_SIZE", phase.global_acc);
@@ -315,7 +320,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
 status_t atomic_reduction_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx,
-        const atomic_reduction_conf &phase) const {
+        const atomic_reduction_conf_t &phase) const {
     CHECK(init_kernel_ctx_common(kernel_ctx, conf, phase));
     return status::success;
 }
@@ -352,8 +357,8 @@ status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
             uint8_t pattern
                     = pd()->conf.alg == alg_kind::reduction_min ? 255 : 0;
             const size_t dst_data_size = types::data_type_size(phase.dst_type);
-            const int num_dst_elems
-                    = phase.outer_block.block * phase.inner_block.block;
+            const size_t num_dst_elems = static_cast<size_t>(
+                    phase.outer_block.block * phase.inner_block.block);
             size_t dst_size = num_dst_elems * dst_data_size;
             compute::compute_stream_t *compute_stream
                     = utils::downcast<compute::compute_stream_t *>(

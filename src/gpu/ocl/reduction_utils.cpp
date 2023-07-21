@@ -23,14 +23,14 @@ namespace ocl {
 
 // Convert a block structure + dims to a list of zero-padding structs
 // Note: Doesn't include blocking structures that don't require zero-padding.
-std::vector<zero_padding> calc_zero_padding(
+std::vector<zero_padding_t> calc_zero_padding(
         const std::vector<block_t> &blocks, const memory_desc_wrapper &mdw) {
-    std::vector<zero_padding> out;
+    std::vector<zero_padding_t> out;
     const blocking_desc_t &src_blocking = mdw.blocking_desc();
     const dim_t *dims = mdw.dims();
     for (int i = 0; i < src_blocking.inner_nblks; i++) {
         // Check if this needs zero-padding
-        const int dim_idx = src_blocking.inner_idxs[i];
+        const dim_t dim_idx = src_blocking.inner_idxs[i];
         const dim_t blk_size = src_blocking.inner_blks[i];
         if (dims[dim_idx] % blk_size != 0) {
             // Needs zero-padding: Find the 1 or 2 blocks related to this zero-padding
@@ -48,7 +48,8 @@ std::vector<zero_padding> calc_zero_padding(
                 }
             }
             assert(inner_block);
-            block_t default_outer = block_t(dim_idx, 1, mdw.strides()[dim_idx]);
+            block_t default_outer = block_t(
+                    static_cast<int>(dim_idx), 1, mdw.strides()[dim_idx]);
             if (!outer_block) outer_block = &default_outer;
             out.emplace_back(dims[dim_idx], *outer_block, *inner_block);
         }
@@ -56,9 +57,10 @@ std::vector<zero_padding> calc_zero_padding(
     return out;
 }
 
-block_t merge_blocks(std::vector<block_t> blocks, int start_idx, int end_idx) {
+block_t merge_blocks(
+        std::vector<block_t> blocks, size_t start_idx, size_t end_idx) {
     block_t ret = blocks[start_idx];
-    for (int i = start_idx + 1; i < end_idx; i++) {
+    for (size_t i = start_idx + 1; i < end_idx; i++) {
         block_t &next_block = blocks[i];
         // Assumes they're ordered by increasing stride
         assert(ret.stride * ret.block == next_block.stride);
@@ -68,13 +70,13 @@ block_t merge_blocks(std::vector<block_t> blocks, int start_idx, int end_idx) {
 }
 
 // Produce a subproblem needed to perform the reduction of red_block after a given subproblem
-reduction_subproblem chain_reductions(
-        const reduction_subproblem &prev_subprb, const block_t &red_block) {
+reduction_subproblem_t chain_reductions(
+        const reduction_subproblem_t &prev_subprb, const block_t &red_block) {
     // Copy shape/block layout to the next subproblem
     const dim_t outer_stride = red_block.stride * red_block.block;
     const dim_t nelems
             = prev_subprb.inner_block.block * prev_subprb.outer_block.block;
-    reduction_subproblem ret(
+    reduction_subproblem_t ret(
             red_block.stride, red_block.block, nelems / outer_stride);
 
     ret.src_zpads = prev_subprb.dst_zpads;
@@ -97,12 +99,13 @@ reduction_subproblem chain_reductions(
 //      src: (idx / 1) % 16 + [(idx / 256) % 2] * 16 < 30 aren't zeros
 //      dst: (idx / 1) % 16 + [(idx / 64) % 1] * 16 < 1 aren't zeros
 status_t generate_reduction_phases(const memory_desc_t *src,
-        const memory_desc_t *dst, std::vector<reduction_subproblem> &subprbs) {
+        const memory_desc_t *dst,
+        std::vector<reduction_subproblem_t> &subprbs) {
     int reduced_dim_mask
             = ~utils::get_dims_mask(src->dims, dst->dims, src->ndims)
             & ((1 << src->ndims) - 1);
     auto is_masked
-            = [](int mask, int dim_idx) { return mask & (1 << dim_idx); };
+            = [](int mask, dim_t dim_idx) { return mask & (1 << dim_idx); };
     memory_desc_wrapper src_mdw(src);
     memory_desc_wrapper dst_mdw(dst);
 
@@ -137,16 +140,16 @@ status_t generate_reduction_phases(const memory_desc_t *src,
     if (dst_blocks.size() != exp_dst_blocks.size()) {
         return status::unimplemented;
     }
-    for (int i = 0; i < (int)dst_blocks.size(); i++) {
+    for (size_t i = 0; i < dst_blocks.size(); i++) {
         const block_t dst_block = dst_blocks[i];
         const block_t exp_dst_block = exp_dst_blocks[i];
         if (dst_block != exp_dst_block) { return status::unimplemented; }
     }
 
     std::vector<block_t> reduction_blocks;
-    static constexpr int DIM_NOT_FOUND = -1;
-    int first_reduction_dim = DIM_NOT_FOUND;
-    for (int i = 0; i < (int)src_blocks.size(); i++) {
+    static constexpr size_t DIM_NOT_FOUND = std::numeric_limits<size_t>::max();
+    size_t first_reduction_dim = DIM_NOT_FOUND;
+    for (size_t i = 0; i < src_blocks.size(); i++) {
         block_t block = src_blocks[i];
         if (first_reduction_dim == DIM_NOT_FOUND
                 && is_masked(reduced_dim_mask, block.dim_idx)) {
@@ -160,19 +163,19 @@ status_t generate_reduction_phases(const memory_desc_t *src,
     }
     if (first_reduction_dim != DIM_NOT_FOUND) {
         reduction_blocks.push_back(merge_blocks(
-                src_blocks, first_reduction_dim, (int)src_blocks.size()));
+                src_blocks, first_reduction_dim, src_blocks.size()));
     }
 
     // Sequentially create subproblems after a partial reduction
     const dim_t nelems = src_mdw.nelems(true);
     subprbs.emplace_back(nelems, 1, 1);
-    reduction_subproblem &base_subprb = subprbs.back();
+    reduction_subproblem_t &base_subprb = subprbs.back();
 
     auto src_zpad_info = calc_zero_padding(src_blocks, src_mdw);
     base_subprb.dst_zpads = src_zpad_info;
 
     for (const auto &red_block : reduction_blocks) {
-        const reduction_subproblem &prev_subprb = subprbs.back();
+        const reduction_subproblem_t &prev_subprb = subprbs.back();
         subprbs.push_back(chain_reductions(prev_subprb, red_block));
 
         // Update the strides of all remaining reduction blocks after subproblem-i
@@ -187,10 +190,10 @@ status_t generate_reduction_phases(const memory_desc_t *src,
     subprbs.erase(subprbs.begin());
 
     // Step 7: Potentially add dst-zero-padding if needed for the final reduction dimensions.
-    reduction_subproblem &last_subprb = subprbs.back();
+    reduction_subproblem_t &last_subprb = subprbs.back();
     const auto &dst_blk = dst_mdw.blocking_desc();
-    for (int i = 0; i < dst_blk.inner_nblks; i++) {
-        const int dim_idx = dst_blk.inner_idxs[i];
+    for (size_t i = 0; i < static_cast<size_t>(dst_blk.inner_nblks); i++) {
+        const dim_t dim_idx = dst_blk.inner_idxs[i];
         const bool needs_zero_padding
                 = (dst_mdw.dims()[dim_idx] < dst_mdw.padded_dims()[dim_idx]);
         bool accounted_for = false;
@@ -201,7 +204,8 @@ status_t generate_reduction_phases(const memory_desc_t *src,
             }
         }
         if (needs_zero_padding && !accounted_for) {
-            const block_t default_outer(dim_idx, 1, dst_mdw.strides()[dim_idx]);
+            const block_t default_outer(
+                    static_cast<int>(dim_idx), 1, dst_mdw.strides()[dim_idx]);
 
             // Get the first (inner) and second (outer) block for this dim
             const block_t *inner = nullptr;
@@ -218,7 +222,7 @@ status_t generate_reduction_phases(const memory_desc_t *src,
             }
             assert(inner);
 
-            zero_padding zpad(dst_mdw.dims()[dim_idx], *outer, *inner);
+            zero_padding_t zpad(dst_mdw.dims()[dim_idx], *outer, *inner);
             last_subprb.dst_zpads.push_back(zpad);
         }
     }

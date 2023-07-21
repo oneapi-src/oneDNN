@@ -28,9 +28,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-class reduction_phase_conf : public reduction_subproblem {
-public:
-    reduction_phase_conf(const reduction_subproblem &subprb,
+struct reduction_phase_conf_t : public reduction_subproblem_t {
+    reduction_phase_conf_t(const reduction_subproblem_t &subprb,
             data_type_t src_type, data_type_t dst_type,
             const compute::compute_engine_t *compute_engine);
     bool can_use_block_reads();
@@ -40,8 +39,8 @@ public:
     int vect_size;
     bool reduce_vector;
     bool is_final, is_first;
-    bool with_block_reads;
     int subgroup_size;
+    bool with_block_reads;
 };
 
 struct combined_reduction_t : public gpu_primitive_t {
@@ -69,11 +68,11 @@ struct combined_reduction_t : public gpu_primitive_t {
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-                const reduction_phase_conf &phase) const;
+                const reduction_phase_conf_t &phase) const;
         void init_scratchpad();
 
         reduction_conf_t conf;
-        std::vector<reduction_phase_conf> phases;
+        std::vector<reduction_phase_conf_t> phases;
     };
 
     status_t init(engine_t *engine) override {
@@ -94,13 +93,15 @@ struct combined_reduction_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_combined(ctx);
     }
 
 private:
     status_t execute_combined(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const pd_t *pd() const {
+        return reinterpret_cast<const pd_t *>(primitive_t::pd().get());
+    }
 
     std::vector<compute::kernel_t> kernels_;
 };

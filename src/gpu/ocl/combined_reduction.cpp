@@ -37,12 +37,13 @@ static bool can_block_read(dim_t upper_bound, dim_t stride, data_type_t dt) {
     if (upper_bound == 1) return true;
 
     // Otherwise, the stride has to be 4-byte aligned
-    return (stride * types::data_type_size(dt) % 4 == 0);
+    return (stride * static_cast<dim_t>(types::data_type_size(dt)) % 4 == 0);
 }
 
-bool reduction_phase_conf::can_use_block_reads() {
-    const dim_t inner_dim_per_sg = nstl::clamp(
-            subgroup_size / inner_block.block, (dim_t)1, reduction_block.block);
+bool reduction_phase_conf_t::can_use_block_reads() {
+    const dim_t inner_dim_per_sg
+            = nstl::clamp(subgroup_size / inner_block.block, dim_t {1},
+                    reduction_block.block);
     const dim_t num_horiz_reductions = reduction_block.block / inner_dim_per_sg;
 
     // Block loading
@@ -66,31 +67,32 @@ bool reduction_phase_conf::can_use_block_reads() {
             && aligned_reduction;
 }
 
-reduction_phase_conf::reduction_phase_conf(const reduction_subproblem &subprb,
-        data_type_t src_type, data_type_t dst_type,
-        const compute::compute_engine_t *compute_engine)
-    : reduction_subproblem(subprb)
+reduction_phase_conf_t::reduction_phase_conf_t(
+        const reduction_subproblem_t &subprb, data_type_t src_type,
+        data_type_t dst_type, const compute::compute_engine_t *compute_engine)
+    : reduction_subproblem_t(subprb)
     , src_type(src_type)
     , dst_type(dst_type)
-    , subgroup_size(compute_engine->device_info()->max_subgroup_size()) {
+    , subgroup_size(compute_engine->device_info()->max_subgroup_size())
+    , with_block_reads(can_use_block_reads()) {
 
     const int num_EU = compute_engine->device_info()->eu_count();
-    const size_t max_wg_size = compute_engine->device_info()->max_wg_size();
-
-    with_block_reads = can_use_block_reads();
+    const int max_wg_size
+            = static_cast<int>(compute_engine->device_info()->max_wg_size());
 
     // inner_dim can either be:
     // 1. packed into a single subgroup (small inner dim), or
     // 2. split among several subgroups (large inner dim)
-    const int num_packed_inner_dims = nstl::clamp(
-            subgroup_size / inner_block.block, (dim_t)1, reduction_block.block);
+    const dim_t num_packed_inner_dims
+            = nstl::clamp(subgroup_size / inner_block.block, dim_t {1},
+                    reduction_block.block);
     const dim_t num_split_inner_dims
             = utils::div_up(inner_block.block, subgroup_size); // S per I
 
     const dim_t num_horiz_reductions
             = reduction_block.block / num_packed_inner_dims;
 
-    int num_subgroups = outer_block.block * num_split_inner_dims;
+    dim_t num_subgroups = outer_block.block * num_split_inner_dims;
 
     // We need to determine 2 variables according to some heuristic:
     // 1. Vector size (increases block load size)
@@ -103,8 +105,8 @@ reduction_phase_conf::reduction_phase_conf(const reduction_subproblem &subprb,
     int nvec = 1;
     bool reduce_vec = false;
     if (with_block_reads) {
-        const size_t single_load_size
-                = types::data_type_size(src_type) * subgroup_size;
+        const size_t single_load_size = types::data_type_size(src_type)
+                * static_cast<size_t>(subgroup_size);
         const int max_load_size = 256; // Set on ATS-M, may depend on arch
         const int max_vect_size
                 = static_cast<int>(max_load_size / single_load_size);
@@ -132,15 +134,16 @@ reduction_phase_conf::reduction_phase_conf(const reduction_subproblem &subprb,
     // Compute the number of threads per EU - this has no major impact
     // on average time, but can improve the best times on
     // close-to-cache-size problems with high parallelism
-    const int max_threads = num_subgroups / num_EU;
-    int threads_per_wg = nstl::clamp(
-            static_cast<int>(max_wg_size / subgroup_size), 1, max_threads);
+    const dim_t max_threads = num_subgroups / num_EU;
+    dim_t threads_per_wg
+            = nstl::clamp(static_cast<dim_t>(max_wg_size / subgroup_size),
+                    dim_t {1}, max_threads);
     threads_per_wg = get_previous_factor(num_subgroups, threads_per_wg);
 
     // Compute the nd_range for this phase
     size_t gws[3] = {1, 1, 1}, lws[3] = {1, 1, 1};
-    gws[0] = num_subgroups * subgroup_size;
-    lws[0] = threads_per_wg * subgroup_size;
+    gws[0] = static_cast<size_t>(num_subgroups * subgroup_size);
+    lws[0] = static_cast<size_t>(threads_per_wg * subgroup_size);
     nd_range = compute::nd_range_t(gws, lws);
 
     is_first = false;
@@ -154,44 +157,44 @@ void combined_reduction_t::pd_t::init_scratchpad() {
             memory_tracking::names::key_reduction_1};
 
     auto scratchpad = scratchpad_registry().registrar();
-    const int num_phases = static_cast<int>(phases.size());
-    const int num_scratchpads = std::min(num_phases - 1, 2);
-    for (int i = 0; i < num_scratchpads; i++) {
-        const reduction_phase_conf &phase = phases[i];
+    const size_t num_phases = phases.size();
+    const size_t num_scratchpads = std::min(num_phases - 1, size_t {2});
+    for (size_t i = 0; i < num_scratchpads; i++) {
+        const reduction_phase_conf_t &phase = phases[i];
         const size_t sp_data_size = types::data_type_size(phase.dst_type);
-        const int num_dst_elems
-                = phase.outer_block.block * phase.inner_block.block;
+        const size_t num_dst_elems = static_cast<size_t>(
+                phase.outer_block.block * phase.inner_block.block);
         scratchpad.book(
                 keys[i], num_dst_elems, sp_data_size, OCL_BUFFER_ALIGNMENT);
     }
 }
 
 // Further subdivides a subproblem, by applying part of the reduction
-std::array<reduction_subproblem, 2> subdivide_subproblem(
-        const reduction_subproblem &subprb, dim_t reduction_size) {
+std::array<reduction_subproblem_t, 2> subdivide_subproblem(
+        const reduction_subproblem_t &subprb, dim_t reduction_size) {
     const block_t &reduction_block = subprb.reduction_block;
     assert(reduction_block.block % reduction_size == 0);
     const dim_t remaining_reduction = reduction_block.block / reduction_size;
     const dim_t inner = subprb.inner_block.block;
     const dim_t outer = subprb.outer_block.block;
 
-    reduction_subproblem prb0(
+    reduction_subproblem_t prb0(
             inner, reduction_size, outer * remaining_reduction);
 
     block_t next_reduction(1, remaining_reduction, inner);
-    reduction_subproblem prb1(inner, remaining_reduction, outer);
+    reduction_subproblem_t prb1(inner, remaining_reduction, outer);
 
     prb0.src_zpads = subprb.src_zpads;
     prb1.dst_zpads = subprb.dst_zpads;
 
-    std::array<reduction_subproblem, 2> out = {prb0, prb1};
+    std::array<reduction_subproblem_t, 2> out = {prb0, prb1};
     return out;
 }
 
-status_t split_into_phases(const reduction_subproblem &subprb,
+status_t split_into_phases(const reduction_subproblem_t &subprb,
         data_type_t accum_data_type,
         const compute::compute_engine_t *compute_engine,
-        std::vector<reduction_phase_conf> &phases) {
+        std::vector<reduction_phase_conf_t> &phases) {
 
     const int subgroup_size
             = compute_engine->device_info()->max_subgroup_size();
@@ -200,7 +203,7 @@ status_t split_into_phases(const reduction_subproblem &subprb,
     const dim_t outer_elems = subprb.outer_block.block;
 
     const dim_t inner_dim_per_sg
-            = nstl::max((dim_t)1, subgroup_size / inner_elems);
+            = nstl::max(dim_t {1}, subgroup_size / inner_elems);
     const int num_EU = compute_engine->device_info()->eu_count();
     const dim_t num_sg_per_red_end
             = outer_elems * utils::div_up(inner_elems, subgroup_size);
@@ -212,15 +215,15 @@ status_t split_into_phases(const reduction_subproblem &subprb,
     const int single_phase_threshold = 128;
 
     // Estimate the number of phases remaining, and divide it up evenly around this target
-    int N = (int)std::ceil(std::log2(reduction_elems)
-            / std::log2(single_phase_threshold * inner_dim_per_sg));
+    int N = static_cast<int>(std::ceil(std::log2(reduction_elems)
+            / std::log2(single_phase_threshold * inner_dim_per_sg)));
     N = std::max(1, N); // N must be positive
-    dim_t reduction_end
-            = static_cast<dim_t>(std::pow(reduction_elems, (float)(N - 1) / N));
+    dim_t reduction_end = static_cast<dim_t>(
+            std::pow(reduction_elems, 1.0f - 1.0f / static_cast<float>(N)));
 
     // Reduce parallelism and finalize reduction_end
     reduction_end = nstl::clamp(
-            num_EU * EU_mult / num_sg_per_red_end, (dim_t)1, reduction_end);
+            num_EU * EU_mult / num_sg_per_red_end, dim_t {1}, reduction_end);
     reduction_end = get_previous_factor(reduction_elems, reduction_end);
 
     // Create the phase and recursively enter
@@ -266,7 +269,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     using namespace alg_kind;
-    std::vector<reduction_subproblem> subprbs;
+    std::vector<reduction_subproblem_t> subprbs;
     CHECK(generate_reduction_phases(src_md(), dst_md(), subprbs));
 
     // Heuristic: Checking for src zero padding in the reduction loop is slow.
@@ -307,7 +310,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     // Set conf values
     conf.alg = desc()->alg_kind;
-    conf.power = desc()->p;
+    conf.power = static_cast<int>(desc()->p);
     conf.eps = desc()->eps;
     conf.attr_info = attr_info_t::create(attr());
 
@@ -329,7 +332,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 }
 
 void def_zero_pad(compute::kernel_ctx_t &kernel_ctx, const char *prefix,
-        const zero_padding &zpad, size_t idx) {
+        const zero_padding_t &zpad, size_t idx) {
     const std::string size_name = utils::format("%s_Z%zu_SIZE", prefix, idx);
     kernel_ctx.define_int(size_name, zpad.data_size);
 
@@ -354,7 +357,7 @@ void def_zero_pad(compute::kernel_ctx_t &kernel_ctx, const char *prefix,
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const reduction_conf_t &conf, const reduction_phase_conf &phase) {
+        const reduction_conf_t &conf, const reduction_phase_conf_t &phase) {
     using namespace alg_kind;
 
     kernel_ctx.set_data_type(phase.src_type);
@@ -362,12 +365,13 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     // Used for packing small inner vectors into a subgroup
     const dim_t inner_dim_per_sg
             = nstl::clamp(phase.subgroup_size / phase.inner_block.block,
-                    (dim_t)1, phase.reduction_block.block);
+                    dim_t {1}, phase.reduction_block.block);
     const dim_t num_horiz_reductions
             = phase.reduction_block.block / inner_dim_per_sg;
 
     kernel_ctx.define_int("SUBGROUP_SIZE", phase.subgroup_size);
-    kernel_ctx.define_int("LWS_SIZE", phase.nd_range.local_range()[0]);
+    kernel_ctx.define_int(
+            "LWS_SIZE", static_cast<int64_t>(phase.nd_range.local_range()[0]));
 
     kernel_ctx.define_int("DIV", conf.div);
     kernel_ctx.define_int("POWER", conf.power);
@@ -390,7 +394,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     const dim_t max_unroll = 256;
     const dim_t unroll_factor = nstl::clamp(
             num_horiz_reductions / (phase.reduce_vector ? phase.vect_size : 1),
-            (dim_t)1, max_unroll);
+            dim_t {1}, max_unroll);
     kernel_ctx.define_int("UNROLL_FACTOR", unroll_factor);
 
     kernel_ctx.define_int("WITH_BLOCK_READ", phase.with_block_reads ? 1 : 0);
@@ -417,11 +421,13 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     }
 
     // Def zero-padding variables
-    kernel_ctx.define_int("NUM_SRC_ZPAD", phase.src_zpads.size());
+    kernel_ctx.define_int(
+            "NUM_SRC_ZPAD", static_cast<int64_t>(phase.src_zpads.size()));
     for (size_t i = 0; i < phase.src_zpads.size(); i++) {
         def_zero_pad(kernel_ctx, "SRC", phase.src_zpads[i], i);
     }
-    kernel_ctx.define_int("NUM_DST_ZPAD", phase.dst_zpads.size());
+    kernel_ctx.define_int(
+            "NUM_DST_ZPAD", static_cast<int64_t>(phase.dst_zpads.size()));
     for (size_t i = 0; i < phase.dst_zpads.size(); i++) {
         def_zero_pad(kernel_ctx, "DST", phase.dst_zpads[i], i);
         const std::string is_reduced_name
@@ -438,7 +444,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
 status_t combined_reduction_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx,
-        const reduction_phase_conf &phase) const {
+        const reduction_phase_conf_t &phase) const {
     status_t status = init_kernel_ctx_common(kernel_ctx, conf, phase);
     if (status != status_t::dnnl_success) return status;
 

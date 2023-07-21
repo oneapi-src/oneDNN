@@ -28,8 +28,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct atomic_reduction_conf : public reduction_subproblem {
-    atomic_reduction_conf(const reduction_subproblem &subprb,
+struct atomic_reduction_conf_t : public reduction_subproblem_t {
+    atomic_reduction_conf_t(const reduction_subproblem_t &subprb,
             data_type_t src_type, data_type_t dst_type, bool is_first,
             bool is_final, const compute::device_info_t &device_info);
     data_type_t src_type, dst_type;
@@ -65,12 +65,12 @@ struct atomic_reduction_t : public gpu_primitive_t {
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-                const atomic_reduction_conf &phase) const;
+                const atomic_reduction_conf_t &phase) const;
         status_t init_finalization_pd(engine_t *engine);
         void init_scratchpad();
 
         reduction_conf_t conf;
-        std::vector<atomic_reduction_conf> phases;
+        std::vector<atomic_reduction_conf_t> phases;
         bool needs_finalization;
         std::shared_ptr<primitive_desc_t> eltwise_pd_;
     };
@@ -98,13 +98,15 @@ struct atomic_reduction_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_atomic(ctx);
     }
 
 private:
     status_t execute_atomic(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const pd_t *pd() const {
+        return reinterpret_cast<const pd_t *>(primitive_t::pd().get());
+    }
 
     std::vector<compute::kernel_t> kernels_;
     std::shared_ptr<primitive_t> eltwise_p_;

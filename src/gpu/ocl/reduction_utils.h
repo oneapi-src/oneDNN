@@ -32,8 +32,8 @@ namespace ocl {
 // Zero padding splits one block into two, filling with
 // zeros. This is a kind of reorder that can be used
 // to short-circuit calculations to avoid reading/writing zeros.
-struct zero_padding {
-    zero_padding(const int dim_idx, const dim_t data_size,
+struct zero_padding_t {
+    zero_padding_t(const int dim_idx, const dim_t data_size,
             const dim_t outer_stride, const dim_t outer_size,
             const dim_t inner_stride, const dim_t inner_size)
         : dim_idx(dim_idx)
@@ -42,7 +42,7 @@ struct zero_padding {
         , outer_size(outer_size)
         , inner_stride(inner_stride)
         , inner_size(inner_size) {}
-    zero_padding(
+    zero_padding_t(
             const dim_t data_size, const block_t &outer, const block_t &inner)
         : data_size(data_size)
         , outer_stride(outer.stride)
@@ -56,7 +56,7 @@ struct zero_padding {
 
     // Prints the indexing this zero-padding enforces. e.g.:
     // (idx / 1) % 16 + [(idx / 256) % 2] * 16 < 30 (aren't zeros)
-    const std::string str() const {
+    std::string str() const {
         std::stringstream os;
         os << dim_idx << ": ";
         os << "(idx / " << inner_stride << ") % " << inner_size;
@@ -66,26 +66,26 @@ struct zero_padding {
         return os.str();
     }
 
-    int dim_idx;
+    dim_t dim_idx;
     dim_t data_size;
     dim_t outer_stride, outer_size;
     dim_t inner_stride, inner_size;
 };
 
-class reduction_subproblem {
+class reduction_subproblem_t {
 public:
-    reduction_subproblem(
+    reduction_subproblem_t(
             dim_t inner_size, dim_t reduction_size, dim_t outer_size)
         : inner_block(0, inner_size, 1)
         , reduction_block(1, reduction_size, inner_size)
         , outer_block(2, outer_size, inner_size * reduction_size) {}
 
-    reduction_subproblem(std::vector<block_t> blocks, int red_start_idx,
-            int red_end_idx, int reduced_mask)
+    reduction_subproblem_t(std::vector<block_t> blocks, size_t red_start_idx,
+            size_t red_end_idx, int reduced_mask)
         : inner_block(0, 1, 1)
         , reduction_block(1, 1, blocks[red_start_idx].stride)
         , outer_block(2, 1,
-                  red_end_idx == (int)blocks.size()
+                  red_end_idx == blocks.size()
                           ? blocks.back().stride * blocks.back().block
                           : blocks[red_end_idx].stride) {
 
@@ -93,7 +93,7 @@ public:
         // Assume that any reduced dims before red_start_idx have already
         // been reduced to 1 element (heuristic in how these problems are generated)
         dim_t ignored_inner_elems = 1;
-        for (int i = 0; i < (int)blocks.size(); i++) {
+        for (size_t i = 0; i < blocks.size(); i++) {
             dim_t block_size = blocks[i].block;
             if (i < red_start_idx) {
                 if (reduced_mask & (1 << blocks[i].dim_idx)) {
@@ -114,7 +114,7 @@ public:
         outer_block.stride /= ignored_inner_elems;
     }
 
-    const std::string str() const {
+    std::string str() const {
         std::stringstream os;
         os << "subproblem:" << std::endl;
         os << "outer: " << outer_block.str() << std::endl;
@@ -135,12 +135,12 @@ public:
     block_t reduction_block;
     block_t outer_block;
 
-    std::vector<zero_padding> src_zpads;
-    std::vector<zero_padding> dst_zpads;
+    std::vector<zero_padding_t> src_zpads;
+    std::vector<zero_padding_t> dst_zpads;
 };
 
 status_t generate_reduction_phases(const memory_desc_t *src,
-        const memory_desc_t *dst, std::vector<reduction_subproblem> &subprbs);
+        const memory_desc_t *dst, std::vector<reduction_subproblem_t> &subprbs);
 
 } // namespace ocl
 } // namespace gpu
