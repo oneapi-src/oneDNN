@@ -91,21 +91,34 @@ private:
                     __FILE__, __LINE__, #cond)
 #endif
 
-template <typename out_type, typename in_type>
-inline out_type into(in_type in) {
-    gpu_assert(in <= std::numeric_limits<out_type>::max())
-            << "Value " << in << " is too large to fit in "
-            << typeid(out_type).name();
-    gpu_assert(in >= std::numeric_limits<out_type>::lowest())
-            << "Value " << in << " is too small to fit in "
-            << typeid(out_type).name();
-    return static_cast<out_type>(in);
+template <typename out_type, typename in_type,
+        typename std::enable_if<!std::is_fundamental<out_type>::value
+                || !std::is_fundamental<in_type>::value>::type>
+inline bool validate_into(in_type in) {
+    return true;
+}
+template <typename out_type, typename in_type,
+        typename std::enable_if<std::is_fundamental<out_type>::value
+                && std::is_fundamental<in_type>::value>::type>
+inline bool validate_into(in_type in) {
+    const double in_compare = static_cast<double>(in);
+    const double out_max
+            = static_cast<double>(std::numeric_limits<out_type>::max());
+    const double out_lowest
+            = static_cast<double>(std::numeric_limits<out_type>::lowest());
+    return in_compare <= out_max && in_compare >= out_lowest;
 }
 template <typename out_type>
-inline out_type into(bool b) {
-    static_assert(std::is_integral<out_type>::value,
-            "Only supports converting bool to an integral type");
-    return static_cast<out_type>(b);
+inline bool validate_into(bool b) {
+    return std::is_integral<out_type>::value;
+}
+
+template <typename out_type, typename in_type>
+inline out_type into(in_type in) {
+    gpu_assert(validate_into<out_type>(in))
+            << "Value " << in << " cannot be converted into type "
+            << typeid(out_type).name();
+    return static_cast<out_type>(in);
 }
 
 inline int dev_getenv(const char *name, int default_value) {
