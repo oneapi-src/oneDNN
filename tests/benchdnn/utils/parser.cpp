@@ -47,6 +47,27 @@ void add_option_to_help(const std::string &option,
     help_ss << option_str << help_message << "\n";
     help_added.push_back(option);
 }
+
+// Covers all integer parsing routines: `atoi`, `atol, `atoll`, `stoi`, `stol`.
+int64_t stoll_safe(const std::string &s) {
+    int64_t value = 0;
+    try {
+        value = std::stoll(s);
+        if (std::to_string(value).size() != s.size()) {
+            BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                    "Error: Parsed value is expected to be an integer number, "
+                    "not",
+                    s.c_str());
+            SAFE_V(FAIL);
+        }
+    } catch (const std::invalid_argument &) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: Parsed value is expected to be an integer number, not",
+                s.c_str());
+        SAFE_V(FAIL);
+    }
+    return value;
+}
 } // namespace parser_utils
 
 // vector types
@@ -162,7 +183,8 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
             = "UINT    (Default: `0`)\n    Overrides mini-batch value "
               "specified in a problem descriptor with `UINT` value.\n    When "
               "set to `0`, takes no effect.\n";
-    return parse_vector_option(mb, def_mb, atoi, str, option_name, help);
+    return parse_vector_option(
+            mb, def_mb, parser_utils::stoll_safe, str, option_name, help);
 }
 
 bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
@@ -228,7 +250,8 @@ bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
     static const std::string help
             = "UINT    (Default: `1`)\n    Specifies axis dimension `UINT` for "
               "an operation.\n";
-    return parse_vector_option(axis, def_axis, atoi, str, option_name, help);
+    return parse_vector_option(
+            axis, def_axis, parser_utils::stoll_safe, str, option_name, help);
 }
 
 bool parse_test_pattern_match(const char *&match, const char *str,
@@ -276,7 +299,8 @@ bool parse_strides(std::vector<vdims_t> &strides,
             + doc_url + "driver_matmul.md\n";
     auto str2strides = [&](const char *str) -> vdims_t {
         vdims_t strides(STRIDES_SIZE);
-        parse_multivector_str(strides, vdims_t(), atoi, str, ':', 'x');
+        parse_multivector_str(
+                strides, vdims_t(), parser_utils::stoll_safe, str, ':', 'x');
         return strides;
     };
     return parse_vector_option(
@@ -377,6 +401,9 @@ void parse_prb_vdims(
     size_t start_pos = 0;
     // `n` is an indicator for a name supplied with dims_t object.
     std::string vdims_str = get_substr(str, start_pos, 'n');
+    // Potential trailing underscore before `n` shouldn't be parsed as dims.
+    if (vdims_str.back() == '_') vdims_str.pop_back();
+
     // Sanity check that dims start with a digit.
     if (!std::isdigit(vdims_str[0])) {
         BENCHDNN_PRINT(0, "%s\n%s \'%s\'\n",
@@ -389,7 +416,8 @@ void parse_prb_vdims(
     if (start_pos != eol) name = str.substr(start_pos);
 
     vdims_t vdims;
-    parse_multivector_str(vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
+    parse_multivector_str(
+            vdims, {dims_t()}, parser_utils::stoll_safe, vdims_str, ':', 'x');
     // Expect at least two inputs provided
     SAFE_V(vdims.size() >= min_inputs ? OK : FAIL);
 
@@ -400,20 +428,11 @@ void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str) {
     size_t start_pos = 0;
     // `n` is an indicator for a name supplied with dims_t object.
     std::string dims_str = get_substr(str, start_pos, 'n');
-    const auto atoi_except = [&](const char *s) {
-        std::string s_(s);
-        int64_t value = 0;
-        try {
-            value = std::stoll(s_);
-        } catch (const std::invalid_argument &) {
-            BENCHDNN_PRINT(0, "%s\n%s \'%s\'\n",
-                    "Error: dims value is expected to be an integer value.",
-                    "Given input:", s_.c_str());
-            exit(1);
-        }
-        return value;
-    };
-    parse_vector_str(prb_dims.dims, dims_t(), atoi_except, dims_str, 'x');
+    // Potential trailing underscore before `n` shouldn't be parsed as dims.
+    if (dims_str.back() == '_') dims_str.pop_back();
+
+    parse_vector_str(
+            prb_dims.dims, dims_t(), parser_utils::stoll_safe, dims_str, 'x');
 
     prb_dims.ndims = static_cast<int>(prb_dims.dims.size());
 
@@ -578,7 +597,8 @@ static bool parse_fix_times_per_prb(
               "is greater than `0`, the number of rounds criterion takes place "
               "over the time criterion.\n";
     bool parsed = parse_single_value_option(fix_times_per_prb,
-            default_fix_times_per_prb, atoi, str, option_name, help);
+            default_fix_times_per_prb, parser_utils::stoll_safe, str,
+            option_name, help);
     if (parsed) fix_times_per_prb = MAX2(0, fix_times_per_prb);
     return parsed;
 }
@@ -610,7 +630,8 @@ static bool parse_repeats_per_prb(
             = "N    (Default: `1`)\n    Specifies the number of times to "
               "repeat testing of the problem.\n";
     bool parsed = parse_single_value_option(repeats_per_prb,
-            default_repeats_per_prb, atoi, str, option_name, help);
+            default_repeats_per_prb, parser_utils::stoll_safe, str, option_name,
+            help);
     if (parsed) repeats_per_prb = MAX2(1, repeats_per_prb);
     return parsed;
 }
@@ -787,7 +808,7 @@ static bool parse_start(
               "`UINT` to start execution. All test cases up to `UINT` will be "
               "skipped.\n";
     return parse_single_value_option(
-            test_start, 0, atoi, str, option_name, help);
+            test_start, 0, parser_utils::stoll_safe, str, option_name, help);
 }
 
 static bool parse_verbose(
@@ -798,12 +819,12 @@ static bool parse_verbose(
               "details at "
             + doc_url + "knobs_verbose.md\n";
     bool parsed = parse_single_value_option(
-            verbose, 0, atoi, str, option_name, help);
+            verbose, 0, parser_utils::stoll_safe, str, option_name, help);
     if (parsed) return parsed;
 
     const std::string pattern("-v"); // check short option first
     if (pattern.find(str, 0, pattern.size()) != eol) {
-        verbose = atoi(str + pattern.size());
+        verbose = parser_utils::stoll_safe(str + pattern.size());
         return true;
     }
     return false;

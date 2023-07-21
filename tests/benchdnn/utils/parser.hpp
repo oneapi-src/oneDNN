@@ -41,6 +41,7 @@ namespace parser_utils {
 std::string get_pattern(const std::string &option_name, bool with_args = true);
 void add_option_to_help(const std::string &option,
         const std::string &help_message, bool with_args = true);
+int64_t stoll_safe(const std::string &s);
 } // namespace parser_utils
 
 template <typename T, typename F>
