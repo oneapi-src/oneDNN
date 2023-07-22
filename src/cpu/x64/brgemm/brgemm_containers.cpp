@@ -44,14 +44,43 @@ bool brgemm_desc_container_t::insert(int idx, brgemm_t &brg,
     static_offsets_list_.push_back(static_offsets);
     brg.brgattr.static_offsets = static_offsets_list_.back().data();
 
-    const auto ret = set_.insert(brg);
-    refs_[idx] = &(*ret.first);
+    const auto ret = map_.insert({brg, idx});
+    refs_[idx] = &(ret.first->first);
     // if there was no insertion then clean bd_mask and static_offsets
     if (!ret.second) {
         bd_mask_list_.pop_back();
         static_offsets_list_.pop_back();
     }
     return ret.second;
+}
+
+int brgemm_desc_container_t::insert(brgemm_t &brg,
+        const std::vector<char> &bd_mask,
+        const std::vector<brgemm_batch_element_t> &static_offsets) {
+    bd_mask_list_.push_back(bd_mask);
+    brg.brgattr.bd_mask = bd_mask_list_.back().data();
+
+    static_offsets_list_.push_back(static_offsets);
+    brg.brgattr.static_offsets = static_offsets_list_.back().data();
+    const int ref_size = refs_.size();
+    const auto ret = map_.insert({brg, -1});
+    if (!ret.second) {
+        // if there was no insertion then clean bd_mask and static_offsets
+        bd_mask_list_.pop_back();
+        static_offsets_list_.pop_back();
+        return ret.first->second;
+    }
+
+    int idx = map_.size() - 1;
+    if (idx > ref_size - 1) {
+        if (ref_size == 0)
+            refs_.resize(1);
+        else
+            refs_.resize(2 * ref_size);
+    }
+    refs_[idx] = &(ret.first->first);
+    ret.first->second = idx;
+    return idx;
 }
 
 bool brgemm_kernel_container_t::brgemm_kernel_cmp(
