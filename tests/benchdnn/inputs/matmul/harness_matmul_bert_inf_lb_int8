@@ -41,7 +41,7 @@
 --skip-impl=ref
 --dt=u8:s8:bf16 --stag=abcd --wtag=abdc --dtag=abcd
 --attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:0.025*
-#--attr-post-ops=add:bf16:per_dim_023
+#--attr-post-ops=add:bf16:13
 --attr-zero-points=dst:common:7*+wei:common:2*+src:common:3*
 56x16x384x64:56x16x64x384n"BERT:MM_4*24"
 

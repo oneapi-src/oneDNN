@@ -50,21 +50,6 @@ scale value. Supported values are:
   - `per_oc`         same as `per_dim_0` for non-grouped case of `WEI` argument,
                      same as `per_dim_01` for grouped case of `WEI` argument,
                      same as `per_dim_1` for arguments other than `WEI`.
-  - `per_dim_023`    corresponds to `mask = (1 << 0) + (1 << 2) + (1 << 3)` and
-                     means elements of dim0, dim2 and dim3 will be multiplied
-                     by scale factors different for {dim0, dim2, dim3} points.
-                     Number of scale factors is equal to
-                     dims[0] * dims[2] * dim[3]. Intended to use for 4D tensors.
-  - `per_dim_23`     corresponds to `mask = (1 << 2) + (1 << 3)` and means
-                     elements of dim2 and dim3 will be multiplied by scale
-                     factors different for {dim2, dim3} points. Number of scale
-                     factors is equal to dims[2] * dim[3]. Intended to use for
-                     4D tensors.
-  - `per_dim_03`     corresponds to `mask = (1 << 0) + (1 << 3)` and
-                     means elements of dim0 and dim3 will be multiplied by
-                     scale factors different for {dim0, dim3} points.
-                     Number of scale factors is equal to dims[0] * dims[3].
-                     Currently supported only in matmul primitive for 4D tensors.
   - `per_dim_2`      corresponds to `mask = 1 << 2` and means elements of dim3
                      will be multiplied by scale factors different for each
                      point. Number of scale factors is equal to dims[2].
