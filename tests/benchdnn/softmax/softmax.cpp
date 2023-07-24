@@ -195,11 +195,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-
-    if (is_gpu() && prb->attr.post_ops.len() != 0) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {

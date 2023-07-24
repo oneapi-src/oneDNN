@@ -132,7 +132,6 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
 
 2. **GPU**
    - Only tensors of 6 or fewer dimensions are supported.
-   - Post-ops are not supported.
 
 ## Performance Tips
 

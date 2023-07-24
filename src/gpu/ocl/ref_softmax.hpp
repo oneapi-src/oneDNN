@@ -40,6 +40,11 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
+        bool post_ops_ok() const {
+            return attr()->post_ops_.has_default_values(
+                    {primitive_kind::eltwise, primitive_kind::binary});
+        }
+
         status_t init(engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -64,9 +69,11 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                                     compute::device_ext_t::khr_fp64))
                     && compute_engine->mayiuse_sub_group(subgroup_size)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && attr()->has_default_values(skip_mask_t::scales_runtime)
-                    && attr_scales_ok()
-                    && set_default_formats() == status::success;
+                    && attr()->has_default_values(
+                            skip_mask_t::scales_runtime | skip_mask_t::post_ops)
+                    && attr_scales_ok() && post_ops_ok()
+                    && set_default_formats() == status::success
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             gws[0] = 1;
@@ -124,6 +131,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
+        using namespace dnnl::impl::format_tag;
         compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
@@ -147,6 +155,28 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         def_memory_desc_info(kernel_ctx, src_md_info, "SRC");
         kernel_ctx.set_data_type(dst_mdw.data_type());
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
+
+        const int ndims = pd()->dst_md()->ndims;
+        const dim_t OC = pd()->dst_md()->dims[1];
+        dim_t spatial_dims_size = 1;
+        for (int i = 2; i < ndims; i++) {
+            spatial_dims_size *= pd()->dst_md()->dims[i];
+        }
+        kernel_ctx.define_int("OC", OC);
+        kernel_ctx.define_int("SPATIAL_DIMS_SIZE", spatial_dims_size);
+        kernel_ctx.define_int("NDIMS", ndims);
+        kernel_ctx.define_int("SPATIAL_DIM_0", pd()->dst_md()->dims[2]);
+        if (ndims > 3) {
+            kernel_ctx.define_int("SPATIAL_DIM_1", pd()->dst_md()->dims[3]);
+        }
+        if (ndims > 4) {
+            kernel_ctx.define_int("SPATIAL_DIM_2", pd()->dst_md()->dims[4]);
+        }
+        kernel_ctx.define_int("IS_CHANNEL_LAST",
+                dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc));
+
+        CHECK(def_attr_info(kernel_ctx, attr_info_t::create(pd()->attr()),
+                pd()->attr()->post_ops_, dst_md_info.dims));
 
         for (int i = 0; i < 3; i++)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
