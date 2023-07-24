@@ -223,20 +223,50 @@ void ref_partition_t::init_ref(const bench_mode_t mode,
         const auto op_driver
                 = opkind2driver(opstr2kind(par_op_ref.get().kind_));
         switch (op_driver) {
-            CASE_INIT_OP(binary);
-            CASE_INIT_OP(bnorm);
-            CASE_INIT_OP(concat);
-            CASE_INIT_OP(conv);
-            CASE_INIT_OP(deconv);
-            CASE_INIT_OP(eltwise);
-            CASE_INIT_OP(lnorm);
-            CASE_INIT_OP(matmul);
-            CASE_INIT_OP(pool);
-            CASE_INIT_OP(prelu);
-            CASE_INIT_OP(reduction);
-            CASE_INIT_OP(reorder);
-            CASE_INIT_OP(resampling);
-            CASE_INIT_OP(softmax);
+            case dnnl_driver_t::custom: {
+                // since custom driver does not generate real primitive
+                // we need to skip the init primitve and execute primitve steps in handle_op
+                // we extract some implementation from handle_op which we must do
+                int op_id = static_cast<int>(par_op_ref.get().id_);
+                auto op_setting = ::graph::custom::get_setting(
+                        par_op_ref, bf16_to_f32_rewrite_lt_id_, res);
+                if (res->state == INVALID_ARGUMENTS) return;
+                auto pprb = std::make_shared<::custom::prb_t>(op_setting);
+                ::custom::prb_t *prb = pprb.get();
+                ref_prims_[op_id] = std::make_tuple(
+                        benchdnn_dnnl_wrapper_t<dnnl_primitive_t>(),
+                        dnn_mem_map_t(), dnn_mem_map_t(), args_t(), args_t(),
+                        std::make_shared<prb_wrapper_t<::custom::prb_t>>(pprb));
+                ::custom::init_memory_args(std::get<1>(ref_prims_[op_id]), prb,
+                        ::custom::supported_exec_args(prb));
+                ::custom::init_ref_memory_args(std::get<2>(ref_prims_[op_id]),
+                        std::get<1>(ref_prims_[op_id]), prb, res);
+
+                ::std::get<3>(ref_prims_[op_id])
+                        = args_t(std::get<1>(ref_prims_[op_id]));
+                ::std::get<4>(ref_prims_[op_id])
+                        = args_t(std::get<2>(ref_prims_[op_id]));
+
+                init_graph_memory_args(std::get<1>(ref_prims_[op_id]),
+                        partition_mem_map, partition_in_ids_,
+                        partition_out_ids_, par_op_ref, res);
+                link_args(par_op_ref, res);
+                break;
+            }
+                CASE_INIT_OP(binary);
+                CASE_INIT_OP(bnorm);
+                CASE_INIT_OP(concat);
+                CASE_INIT_OP(conv);
+                CASE_INIT_OP(deconv);
+                CASE_INIT_OP(eltwise);
+                CASE_INIT_OP(lnorm);
+                CASE_INIT_OP(matmul);
+                CASE_INIT_OP(pool);
+                CASE_INIT_OP(prelu);
+                CASE_INIT_OP(reduction);
+                CASE_INIT_OP(reorder);
+                CASE_INIT_OP(resampling);
+                CASE_INIT_OP(softmax);
             default: break;
         }
         // Initialze the rest ops if current status is UNTESTED or EXECUTED
@@ -265,20 +295,27 @@ void ref_partition_t::exec_ops(res_t *res) {
                 = opkind2driver(opstr2kind(par_op_ref.get().kind_));
 
         switch (op_driver) {
-            CASE_EXEC_OP(binary);
-            CASE_EXEC_OP(bnorm);
-            CASE_EXEC_OP(concat);
-            CASE_EXEC_OP(conv);
-            CASE_EXEC_OP(deconv);
-            CASE_EXEC_OP(eltwise);
-            CASE_EXEC_OP(lnorm);
-            CASE_EXEC_OP(matmul);
-            CASE_EXEC_OP(pool);
-            CASE_EXEC_OP(prelu);
-            CASE_EXEC_OP(reduction);
-            CASE_EXEC_OP(reorder);
-            CASE_EXEC_OP(resampling);
-            CASE_EXEC_OP(softmax);
+            case dnnl_driver_t::custom: {
+                int op_id = static_cast<int>(par_op_ref.get().id_);
+                const ::custom::prb_t *prb = std::get<5>(ref_prims_[op_id])
+                                                     ->get<::custom::prb_t>();
+                ::custom::execute(prb, ::std::get<3>(ref_prims_[op_id]), res);
+                break;
+            }
+                CASE_EXEC_OP(binary);
+                CASE_EXEC_OP(bnorm);
+                CASE_EXEC_OP(concat);
+                CASE_EXEC_OP(conv);
+                CASE_EXEC_OP(deconv);
+                CASE_EXEC_OP(eltwise);
+                CASE_EXEC_OP(lnorm);
+                CASE_EXEC_OP(matmul);
+                CASE_EXEC_OP(pool);
+                CASE_EXEC_OP(prelu);
+                CASE_EXEC_OP(reduction);
+                CASE_EXEC_OP(reorder);
+                CASE_EXEC_OP(resampling);
+                CASE_EXEC_OP(softmax);
             default: break;
         }
     }
@@ -467,6 +504,7 @@ void ref_partition_t::check_partition_correctness(
             CASE_CORRECTNESS_CHECK(bnorm);
             CASE_CORRECTNESS_CHECK(concat);
             CASE_CORRECTNESS_CHECK(conv);
+            CASE_CORRECTNESS_CHECK(custom);
             CASE_CORRECTNESS_CHECK(deconv);
             CASE_CORRECTNESS_CHECK(eltwise);
             CASE_CORRECTNESS_CHECK(lnorm);

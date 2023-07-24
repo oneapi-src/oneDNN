@@ -126,6 +126,7 @@ enum class dnnl_driver_t {
     bnorm,
     concat,
     conv,
+    custom,
     deconv,
     eltwise,
     lnorm,

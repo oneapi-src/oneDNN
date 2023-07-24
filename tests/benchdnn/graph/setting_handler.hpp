@@ -23,6 +23,7 @@
 #include "bnorm/bnorm.hpp"
 #include "concat/concat.hpp"
 #include "conv/conv.hpp"
+#include "custom_driver.hpp"
 #include "deconv/deconv.hpp"
 #include "eltwise/eltwise.hpp"
 #include "lnorm/lnorm.hpp"
@@ -54,6 +55,7 @@ DECLARE_GET_SETTING(binary);
 DECLARE_GET_SETTING(bnorm);
 DECLARE_GET_SETTING(concat);
 DECLARE_GET_SETTING(conv);
+DECLARE_GET_SETTING(custom);
 DECLARE_GET_SETTING(deconv);
 DECLARE_GET_SETTING(eltwise);
 DECLARE_GET_SETTING(lnorm);

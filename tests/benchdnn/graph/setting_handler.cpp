@@ -147,6 +147,49 @@ bool get_prb_dims(const deserialized_op &base_op_ref, prb_dims_t &prb_dims) {
     return true;
 }
 
+namespace custom {
+
+::custom::settings_t get_setting(const deserialized_op &base_op_ref,
+        const std::unordered_set<size_t> &rewrite_lt_ids, res_t *res) {
+    ::custom::settings_t op_setting;
+    auto opkind = opstr2kind(base_op_ref.kind_);
+    switch (opkind) {
+        default: assert(!"unknown alg"); return op_setting;
+    }
+    for (size_t i = 0; i < base_op_ref.in_lts_.size(); i++) {
+        auto arg = get_prim_arg_name_from_graph_op_input_offset(
+                opkind, static_cast<int>(i));
+        auto dim = base_op_ref.in_lts_[i].shape_;
+        auto dt = convert_dt(base_op_ref.in_lts_[i].get_data_type());
+        auto tag = strides2memory_tag(base_op_ref.in_lts_[i].stride_.size(),
+                base_op_ref.in_lts_[i].stride_, false);
+
+        // 0-dim means scalar input in graph, extend it to 1-dim to match behavior.
+        if (dim.size() == 0) {
+            dim.push_back(1);
+            tag = "a";
+        }
+        op_setting.arg_mds_[arg] = ::std::make_tuple(tag, dim, dt);
+    }
+    for (size_t i = 0; i < base_op_ref.out_lts_.size(); i++) {
+        auto arg = get_prim_arg_name_from_graph_op_output_offset(
+                opkind, static_cast<int>(i));
+        auto dim = base_op_ref.out_lts_[i].shape_;
+        auto dt = convert_dt(base_op_ref.out_lts_[i].get_data_type());
+        auto tag = strides2memory_tag(base_op_ref.out_lts_[i].stride_.size(),
+                base_op_ref.out_lts_[i].stride_, false);
+
+        if (dim.size() == 0) {
+            dim.push_back(1);
+            tag = "a";
+        }
+        op_setting.arg_mds_[arg] = ::std::make_tuple(tag, dim, dt);
+    }
+    return op_setting;
+}
+
+} // namespace custom
+
 namespace binary {
 bool get_binary_prb_vdims(
         const deserialized_op &base_op_ref, prb_vdims_t &prb_vdims) {
