@@ -120,7 +120,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("DIV", conf.div);
     kernel_ctx.define_int("NDIMS", conf.ndims);
-    kernel_ctx.define_int("POWER", conf.power);
+    kernel_ctx.define_float("POWER", conf.power);
     kernel_ctx.define_float("EPS", conf.eps);
 
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");

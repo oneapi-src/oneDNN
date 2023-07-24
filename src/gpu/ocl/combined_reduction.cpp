@@ -310,7 +310,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     // Set conf values
     conf.alg = desc()->alg_kind;
-    conf.power = static_cast<int>(desc()->p);
+    conf.power = desc()->p;
     conf.eps = desc()->eps;
     conf.attr_info = attr_info_t::create(attr());
 
@@ -374,7 +374,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             "LWS_SIZE", static_cast<int64_t>(phase.nd_range.local_range()[0]));
 
     kernel_ctx.define_int("DIV", conf.div);
-    kernel_ctx.define_int("POWER", conf.power);
+    kernel_ctx.define_float("POWER", conf.power);
     kernel_ctx.define_float("EPS", conf.eps);
 
     kernel_ctx.define_int("OUTER_DIM_SIZE", phase.outer_block.block);

@@ -576,8 +576,8 @@ struct binary_conf_t {
 struct reduction_conf_t {
     // Used by reference implementation
     alg_kind_t alg;
-    int ndims, power, div;
-    float eps;
+    int ndims, div;
+    float eps, power;
     dim_t src_dims[MAX_NDIMS], reduce_dims[MAX_NDIMS], dst_dims[MAX_NDIMS];
     bool is_reduction_dim[MAX_NDIMS];
     int hwd_reduction_size, hwd_size;
