@@ -74,6 +74,10 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             weights_md_, dst_md_, bias_md_, attr_, dnnl_get_max_threads()));
 
     brgs_ = std::make_shared<brgemm_containers::brgemm_desc_container_t>(16);
+    // Src zero point only supports unrolled kernel on AMX for now
+    assert(IMPLICATION(
+            jcp_.src_zero_point && brgemm_convolution_utils::is_amx(isa),
+            jcp_.use_uker));
 
     const float alpha = 1.0;
     const float beta = 1.0;

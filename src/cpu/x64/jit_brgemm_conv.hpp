@@ -254,9 +254,10 @@ private:
 
     status_t cal_compensation(const char *__restrict weights,
             int32_t *src_zp_buffer, int32_t *s8s8_comp_buffer) const;
+    int get_comp_oh(const int oh) const;
     int get_comp_ker_idx(const int kd_b, const int kd_e, const int kh_b,
-            const int kh_e, const int kw_b, const int kw_e) const;
-    int get_comp_offset(const int g, const int ocb, const int ow,
+            const int kh_e, const int kw_b, const int kw_e, const int oh) const;
+    int get_comp_offset(const int g, const int ocb, const int oh, const int ow,
             const int kd_b, const int kd_e, const int kh_b, const int kh_e,
             const int kw_b, const int kw_e) const;
     inline const pd_t *pd() const {
@@ -285,13 +286,14 @@ private:
     // pre - calculated values
     std::vector<dim_t> owb_kw_top_vpads;
     std::vector<dim_t> owb_kw_bottom_vpads;
-    std::vector<dim_t> kd_bs, kd_es, kh_bs, kh_es, kw_bs, kw_es;
+    std::vector<dim_t> kd_bs, kd_es, kh_bs, kh_es, kw_bs, kw_es, oh_kh_b,
+            oh_kh_e, comp_oh, comp_oh_kh_b, comp_oh_kh_e;
 
     int KD, KH, KW, EXT_KD, EXT_KH, EXT_KW, KS, KD_BLOCK, KH_BLOCK, KW_BLOCK,
             KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP, OD, OH, OW,
             SD, SH, SW, FP, TP, LP, DD, DH, DW;
     dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz;
-    dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz;
+    dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz, comp_ow_sz;
 
     bool need_compensation;
     bool is_amx;

@@ -231,18 +231,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
-    // AMX kernel only supports SRC zero points in unrolled kernel,
-    // and only for values of 0 or 1.
-    // Note: this check must be done here due to the fact that zero point value
-    // in brgemm API is a runtime argument.
-    // TODO: remove once AMX kernel fully supports zero points.
-    const bool is_amx = dnnl::mayiuse(dnnl_cpu_isa_avx512_core_amx);
-    const bool is_src_zp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
-    const int src_zp_value = prb->attr.zero_points.get(DNNL_ARG_SRC).value;
-    if (is_amx && is_src_zp && src_zp_value != 0 && src_zp_value != 1) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
     // Reorder does not support s8 and zp compensations for arbitrary shapes,
     // so skip unsupported cases.
     // Note: this check must be done here to avoid runtime error in benchdnn due

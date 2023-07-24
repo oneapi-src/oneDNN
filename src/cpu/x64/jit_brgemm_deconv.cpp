@@ -168,6 +168,14 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         }
     }
 
+    //TODO: Enable zero points support for bwd w/ stride on AMX
+    const bool has_strides_without_zero_point = has_strides_
+            && everyone_is(brgemm_broadcast_t::none, get_zp_type(DNNL_ARG_SRC),
+                    get_zp_type(DNNL_ARG_DST));
+    if (IMPLICATION(is_superset(isa, avx512_core_amx),
+                has_strides_without_zero_point))
+        return status::unimplemented;
+
     if (has_strides_) {
         CHECK(bwd_conv_desc_create(fwd_deconv_d, &conv_d));
         primitive_desc_iterator_t it(engine,
