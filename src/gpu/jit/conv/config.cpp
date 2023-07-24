@@ -426,8 +426,10 @@ struct nc_block_t {
     static nc_block_t get_default_blocking(ngen::HW hw, fma_kind_t fma,
             type_t type, bool is_dw, int n, int c, int g,
             bool is_output = false) {
-        // Select dst layout to align with fma kind of following conv.
-        fma_kind_t tmp_fma = is_output ? get_default_fma(hw, type) : fma;
+        // Select dst layout to align with fma kind of following conv
+        // for non-depthwise cases.
+        fma_kind_t tmp_fma
+                = (is_output && !is_dw) ? get_default_fma(hw, type) : fma;
         int c_block = (is_dw ? get_default_block(tmp_fma, type, g)
                              : get_default_block(tmp_fma, type, c));
         if (g > 1 && !is_dw) {
