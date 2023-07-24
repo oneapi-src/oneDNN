@@ -66,27 +66,6 @@ static void query_accu_info_for_rl(const context_ptr &ctx,
     auto total_padded_accu
             = utils::rnd_up(total_raw_accu, num_brgemm_k * vnni_blk);
     brgemm_k = total_padded_accu / num_brgemm_k;
-
-    // Note: to accommodate oneDNN BRGEMM's SW limitation
-    if ((ctx->flags_.kernel_optim_ == 1) && (brgemm_k > LDA)) {
-        assert(LDA >= vnni_blk);
-        SC_MODULE_WARN
-                << "split to smaller K due to oneDNN BRGEMM's limitation.";
-
-        brgemm_k = vnni_blk;
-        for (int k = LDA; k > 0; --k) {
-            if (k % vnni_blk == 0) {
-                brgemm_k = k;
-                break;
-            }
-        }
-        num_brgemm_k = utils::divide_and_ceil(total_raw_accu, brgemm_k);
-        total_padded_accu = num_brgemm_k * brgemm_k;
-        COMPILE_ASSERT(brgemm_k <= LDA,
-                "oneDNN BRGEMM requires K<=LDA, but got K="
-                        << brgemm_k << ", LDA=" << LDA << ".");
-    }
-
     extra_padding = total_padded_accu - total_raw_accu;
 }
 
@@ -139,13 +118,6 @@ void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
             int brgemm_k = 1;
             int extra_padding = 0;
             auto LDA = kw * ic * sw;
-
-            // TODO(ciyong): remove this constraint once LDX limitation is
-            // removed in oneDNN BRGEMM.
-            int max_col = data_dtype == datatypes::bf16 ? 32 : 64;
-            if ((ctx->flags_.kernel_optim_ == 1) && (LDA < max_col / 4)) {
-                return;
-            }
 
             query_accu_info_for_rl(ctx, data_dtype, kh, kw, ic, LDA,
                     num_brgemm_k, brgemm_k, extra_padding);
