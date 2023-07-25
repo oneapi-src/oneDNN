@@ -1993,10 +1993,10 @@ void jit_copy_f16_t::generate() {
 
 void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
 
-    const bool is_bf16 = jcp.wei_dt == data_type::bf16;
+    const bool is_16bit = one_of(jcp.wei_dt, data_type::bf16, data_type::f16);
 
     // required for use of VPERMB instruction
-    assert(IMPLICATION(!is_bf16, cpu().has(Xbyak::util::Cpu::tAVX512_VBMI)));
+    assert(IMPLICATION(!is_16bit, cpu().has(Xbyak::util::Cpu::tAVX512_VBMI)));
     assert(jcp.amx_w * jcp.wei_dsz == 64);
     assert(jcp.oc_block == 16);
 
@@ -2008,7 +2008,7 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
     // load permute indices from data section
     Label permute_index_table;
     mov(reg_tmp, permute_index_table);
-    if (is_bf16)
+    if (is_16bit)
         vmovdqu16(zmm_idx, ptr[reg_tmp]);
     else
         vmovdqu8(zmm_idx, ptr[reg_tmp]);
@@ -2039,7 +2039,7 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
                 auto zmm_src_tmp = (rtail > 0 && rb == nb_r - 1)
                         ? zmm_src | kmask_load | T_z
                         : zmm_src;
-                if (is_bf16) {
+                if (is_16bit) {
                     vmovdqu16(zmm_src_tmp, ptr[reg_src + offset]);
                     vpermw(zmm_dst, zmm_idx, zmm_src);
                     vmovdqu16(ptr[reg_dst + offset], zmm_dst);
@@ -2050,7 +2050,7 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
                 }
             }
             for (; rb < nb_z; offset += 64, rb++) {
-                if (is_bf16)
+                if (is_16bit)
                     vmovdqu16(ptr[reg_dst + offset], zmm_zero);
                 else
                     vmovdqu8(ptr[reg_dst + offset], zmm_zero);
@@ -2068,7 +2068,7 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
     for (uint8_t o = 0; o < no; ++o) {
         for (uint8_t r = 0; r < vnni_width; r++) {
             const uint8_t index = o + r * no;
-            if (is_bf16)
+            if (is_16bit)
                 dw(index);
             else
                 db(index);
