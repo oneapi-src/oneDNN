@@ -143,9 +143,7 @@ bool get_driver_axis(const deserialized_op &base_op_ref, int &axis) {
 }
 
 bool get_prb_dims(const deserialized_op &base_op_ref, prb_dims_t &prb_dims) {
-    bool from_output = base_op_ref.kind_ == "StaticTranspose" ? true : false;
-    prb_dims.dims = from_output ? base_op_ref.out_lts_.front().shape_
-                                : base_op_ref.in_lts_.front().shape_;
+    prb_dims.dims = base_op_ref.in_lts_.front().shape_;
     prb_dims.ndims = static_cast<int>(prb_dims.dims.size());
     return true;
 }
@@ -159,6 +157,10 @@ namespace custom {
     switch (opkind) {
         case ::graph::op::kind::Select:
             op_setting.alg = ::custom::alg_t::SELECT;
+            break;
+        case ::graph::op::kind::StaticTranspose:
+            op_setting.alg = ::custom::alg_t::TRANSPOSE;
+            base_op_ref.get_attr_s64_vector(op_setting.order, "order");
             break;
         default: assert(!"unknown alg"); return op_setting;
     }
@@ -1662,20 +1664,6 @@ bool get_reorder_stag_and_dtag(const deserialized_op &base_op_ref,
         //                -> [reshape_md] -> dst_lt_strides
         ret = get_driver_tag(base_op_ref, stag);
         dtag = "abx";
-    } else if (base_op_ref.kind_ == "StaticTranspose") {
-        // StaticTranspose: src_lt_strides -> [permute_md] ->permuted_src_lt_strides
-        //                  -> [reorder] -> dst_lt_strides
-        logical_tensor::dims input_strides = base_op_ref.in_lts_[0].stride_;
-        std::vector<int64_t> order;
-        bool has_order = base_op_ref.get_attr_s64_vector(order, "order");
-        if (!has_order) return false;
-        logical_tensor::dims permuted_strides(input_strides.size());
-        for (size_t d = 0; d < input_strides.size(); ++d) {
-            permuted_strides[d] = input_strides[order[d]];
-        }
-        stag = strides2memory_tag(
-                permuted_strides.size(), permuted_strides, true);
-        ret = get_driver_tag(base_op_ref, dtag, true);
     }
     return ret;
 }

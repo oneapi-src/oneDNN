@@ -98,6 +98,50 @@ int execute(const prb_t *prb, args_t args, res_t *res) {
 }
 } // namespace select
 
+namespace transpose {
+// TRANSPOSE OP
+// DNNL_ARG_SRC: src
+// DNNL_ARG_DST: dst
+// order attribute: a permutation defines how to transpose
+
+std::vector<int> exec_args = {
+        DNNL_ARG_SRC,
+        DNNL_ARG_DST,
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        const prb_t *prb, res_t *res) {
+
+    const auto &ref_engine = get_cpu_engine();
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second;
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC:
+                SAFE(::custom::fill_mem(mem, ref_mem, -32, 32), WARN);
+                break;
+            default: break;
+        }
+    }
+    return OK;
+}
+
+int execute(const prb_t *prb, args_t args, res_t *res) {
+    const auto &src = args.find(DNNL_ARG_SRC);
+    auto tag = ::std::get<0>(prb->arg_mds_.at(DNNL_ARG_SRC));
+    dnn_mem_t pad(src, src.dt(), tag, get_test_engine());
+    ::graph::permute_md(pad, prb->order);
+    const_cast<dnn_mem_t &>(args.find(DNNL_ARG_DST)).reorder(pad);
+    return OK;
+}
+} // namespace transpose
+
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     return dnnl_success;
 }
@@ -106,6 +150,7 @@ std::vector<int> supported_exec_args(const prb_t *prb) {
     std::vector<int> exec_args;
     switch (prb->alg) {
         case SELECT: return ::custom::select::exec_args;
+        case TRANSPOSE: return ::custom::transpose::exec_args;
         default: assert(!"unknown alg"); break;
     }
     return exec_args;
@@ -114,7 +159,8 @@ std::vector<int> supported_exec_args(const prb_t *prb) {
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     switch (prb->alg) {
-        case SELECT: cmp.set_zero_trust_percent(100.f); break;
+        case SELECT:
+        case TRANSPOSE: cmp.set_zero_trust_percent(100.f); break;
         default: assert(!"unknown alg"); break;
     }
     return;
@@ -168,6 +214,10 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             SAFE(::custom::select::init_ref_memory_args(
                          ref_mem_map, mem_map, prb, res),
                     WARN);
+        case TRANSPOSE:
+            SAFE(::custom::transpose::init_ref_memory_args(
+                         ref_mem_map, mem_map, prb, res),
+                    WARN);
             break;
         default: assert(!"unknown alg"); break;
     }
@@ -181,6 +231,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {}
 int execute(const prb_t *prb, args_t args, res_t *res) {
     switch (prb->alg) {
         case SELECT: ::custom::select::execute(prb, args, res); break;
+        case TRANSPOSE: ::custom::transpose::execute(prb, args, res); break;
         default: assert(!"unknown alg"); break;
     }
     return OK;

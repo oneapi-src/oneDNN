@@ -606,7 +606,7 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
                     {dnnl::graph::op::kind::StaticReshape,
                             dnnl_driver_t::reorder},
                     {dnnl::graph::op::kind::StaticTranspose,
-                            dnnl_driver_t::reorder},
+                            dnnl_driver_t::custom},
                     {dnnl::graph::op::kind::Subtract, dnnl_driver_t::binary},
                     {dnnl::graph::op::kind::Tanh, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::TanhBackward,

@@ -217,16 +217,6 @@ int execute_prim(ref_prims_t &ref_prims, const deserialized_op &base_op_ref,
     auto &args = std::get<3>(ref_prims[op_id]);
     const auto &op_kind = base_op_ref.kind_;
 
-    // Permute input md according to the order (StaticTranspose case)
-    std::vector<int64_t> order;
-    bool has_order = base_op_ref.get_attr_s64_vector(order, "order");
-    if (has_order) {
-        int prim_arg_name = get_prim_arg_name_from_graph_op_input_offset(
-                opstr2kind(op_kind), 0);
-        if (prim_arg_name == -1) return FAIL;
-        permute_md(mems[prim_arg_name], order);
-    }
-
     // Execute a primitive.
     SAFE(execute_and_wait(prim, args, res), WARN);
 

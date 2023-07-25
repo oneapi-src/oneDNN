@@ -29,6 +29,7 @@ namespace custom {
 
 enum alg_t {
     SELECT,
+    TRANSPOSE,
 };
 
 using arg_md_t = ::std::tuple<::std::string, dims_t, dnnl_data_type_t>;
@@ -38,6 +39,7 @@ struct settings_t {
     settings_t() = default;
 
     ::std::unordered_map<int, arg_md_t> arg_mds_;
+    ::std::vector<int64_t> order;
     alg_t alg;
 };
 
@@ -45,9 +47,13 @@ struct prb_t {
     prb_t(const settings_t &s) {
         arg_mds_ = s.arg_mds_;
         alg = s.alg;
+        switch (alg) {
+            case TRANSPOSE: order = s.order; break;
+            default: break;
+        }
     }
     ::std::unordered_map<int, arg_md_t> arg_mds_;
-
+    ::std::vector<int64_t> order;
     attr_t attr;
     alg_t alg;
 };
