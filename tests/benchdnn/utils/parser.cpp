@@ -68,6 +68,24 @@ int64_t stoll_safe(const std::string &s) {
     }
     return value;
 }
+
+// Covers all float parsing routines: `atof`.
+float stof_safe(const std::string &s) {
+    float value = 0;
+    try {
+        value = std::stof(s);
+        // Can't compare input with output same way. The only way is to check
+        // if input has `e`, `f` and digits. Seems an overkill, let function
+        // decide on parsed output.
+    } catch (const std::invalid_argument &) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: Parsed value is expected to be an floating-point "
+                "number, not",
+                s.c_str());
+        SAFE_V(FAIL);
+    }
+    return value;
+}
 } // namespace parser_utils
 
 // vector types
@@ -609,8 +627,9 @@ static bool parse_max_ms_per_prb(
             = "MS    (Default: `3000`)\n    Specifies the limit in `MS` "
               "milliseconds for performance benchmarking per problem.\n    "
               "`MS` is a positive integer in a range [10, 60000].\n";
-    bool parsed = parse_single_value_option(max_ms_per_prb,
-            default_max_ms_per_prb, atof, str, option_name, help);
+    bool parsed
+            = parse_single_value_option(max_ms_per_prb, default_max_ms_per_prb,
+                    parser_utils::stof_safe, str, option_name, help);
     if (parsed) {
         if (bench_mode == bench_mode_t::perf_fast) {
             BENCHDNN_PRINT(0, "%s\n",
