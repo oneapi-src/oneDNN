@@ -19,8 +19,8 @@
 namespace graph {
 
 dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
-        const deserialized_lt &lt, const bool should_use_graph_shape,
-        const bool is_op_input, const bool is_fake_output) {
+        const deserialized_lt &lt, const bool is_op_input,
+        const bool is_fake_output) {
 
     // Init memory for all inputs and outputs that needs comparison
     const auto &prim_dt = mem.dt();
@@ -42,7 +42,6 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     dims_t strides(mem.strides(), mem.strides() + ndims);
     std::string mtag = strides2memory_tag(ndims, strides);
 
-    use_graph_shape_ = should_use_graph_shape;
     graph_dims_ = lt.shape_;
     graph_strides_ = lt.stride_;
 
@@ -58,22 +57,18 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     // otherwise use shape & tag from ref path side
 
     // create memory for graph path
-    const auto &graph_mtag = strides2memory_tag(ndims, graph_strides_);
     const auto data_type = static_cast<dnnl::memory::data_type>(c_data_type);
     if (is_op_input) {
-        if (should_use_graph_shape) {
-            dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
-            mem_ = dnn_mem_t(md.get(), ::get_test_engine());
+        if (graph_dims_.size() == 0) graph_dims_.push_back(1);
+        if (graph_strides_.size() == 0) graph_strides_.push_back(1);
 
-            const void *prim_data_handle = static_cast<void *>(mem);
-            void *graph_data_handle = mem_.get_mapped_pointer<void>();
-            const auto &mem_size = mem.size();
-            std::memcpy(graph_data_handle, prim_data_handle, mem_size);
-        } else {
-            mem_ = dnn_mem_t(
-                    mem.md_, c_data_type, graph_mtag, ::get_test_engine());
-            mem_.reorder(mem);
-        }
+        dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
+        mem_ = dnn_mem_t(md.get(), ::get_test_engine());
+
+        const void *prim_data_handle = static_cast<void *>(mem);
+        void *graph_data_handle = mem_.get_mapped_pointer<void>();
+        const auto &mem_size = mem.size();
+        std::memcpy(graph_data_handle, prim_data_handle, mem_size);
     } else {
         if (is_fake_output) {
             dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
@@ -93,11 +88,6 @@ dnnl::graph::tensor dnn_graph_mem_t::make_graph_tensor(
     dnnl::graph::tensor ret(graph_lt, get_graph_engine(), data_handle);
 
     return ret;
-}
-
-const dnn_mem_t &dnn_graph_mem_t::reorder_back_mem() {
-    if (use_graph_shape_) { reshape_md(mem_, graph_dims_, graph_strides_); }
-    return mem_;
 }
 
 } // namespace graph

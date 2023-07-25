@@ -488,7 +488,7 @@ void ref_partition_t::check_partition_correctness(
             for (size_t i = 0; i < partition_out_ids_.size(); i++) {
                 if (out_lt_id == partition_out_ids_[i]) {
                     auto &graph_mem = partition_mem_map.at(out_lt_id);
-                    const auto &par_out_mem = graph_mem.reorder_back_mem();
+                    const auto &par_out_mem = graph_mem.get_mem();
                     output_args.set(out_arg, par_out_mem);
                     break;
                 }

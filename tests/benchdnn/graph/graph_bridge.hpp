@@ -204,16 +204,12 @@ int init_prim(ref_prims_t &ref_prims, const deserialized_op &base_op_ref,
     return OK;
 }
 
-// TODO: ref_prims cannot be constant here, which is a known issue.
-// ref_prims needs modifying here as pre and post operations are needed
-// for StaticReshape and StaticTranspose during execution stage.
-// The issue may be solved by the fake tensor feature in the future.
 template <typename prb_t>
-int execute_prim(ref_prims_t &ref_prims, const deserialized_op &base_op_ref,
-        const prb_t *prb, res_t *res) {
+int execute_prim(const ref_prims_t &ref_prims,
+        const deserialized_op &base_op_ref, const prb_t *prb, res_t *res) {
     int op_id = static_cast<int>(base_op_ref.id_);
-    auto &prim = std::get<0>(ref_prims[op_id]);
-    auto &args = std::get<3>(ref_prims[op_id]);
+    auto &prim = std::get<0>(ref_prims.at(op_id));
+    auto &args = std::get<3>(ref_prims.at(op_id));
 
     // Execute a primitive.
     SAFE(execute_and_wait(prim, args, res), WARN);

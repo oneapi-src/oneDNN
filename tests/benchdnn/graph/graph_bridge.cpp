@@ -17,39 +17,6 @@
 #include "graph_bridge.hpp"
 #include "graph_memory.hpp"
 
-namespace {
-
-bool use_graph_lt_shape_for_mem(
-        const graph::deserialized_op &base_op_ref, int arg) {
-    const auto &op_kind = base_op_ref.kind_;
-
-    if (base_op_ref.has_NXC_format() && graph::is_nxc_lt_arg(op_kind, arg))
-        return true;
-
-    bool t_a = false, t_b = false;
-    bool has_t_a = base_op_ref.get_attr_bool(t_a, "transpose_a");
-    bool has_t_b = base_op_ref.get_attr_bool(t_b, "transpose_b");
-    if ((has_t_a && t_a && arg == DNNL_ARG_SRC)
-            || (has_t_b && t_b && arg == DNNL_ARG_WEIGHTS))
-        return true;
-
-    int64_t groups;
-    bool has_group = base_op_ref.get_attr_s64(groups, "groups");
-    std::string f_fmt;
-    bool has_w_format = base_op_ref.get_attr_string(f_fmt, "weights_format");
-    if (op_kind == "Convolution" || op_kind == "ConvolutionBackwardData"
-            || op_kind == "ConvTranspose"
-            || op_kind == "ConvTransposeBackwardData") {
-        if (((has_group && groups > 1) || (has_w_format && f_fmt != "OIX"))
-                && arg == DNNL_ARG_WEIGHTS)
-            return true;
-    }
-
-    return false;
-}
-
-} // namespace
-
 namespace graph {
 
 const std::unordered_set<std::string> &get_special_backward_op_kind_set() {
@@ -121,11 +88,8 @@ int init_graph_memory_args(const dnn_mem_map_t &mems,
                 != partition_in_ids.end();
 
         if (is_par_input) {
-            bool should_use_graph_shape
-                    = use_graph_lt_shape_for_mem(base_op_ref, in_arg);
             graph_mem_map.emplace(in_lt.id_,
-                    dnn_graph_mem_t(mem, in_lt, should_use_graph_shape,
-                            /* is_op_input = */ true));
+                    dnn_graph_mem_t(mem, in_lt, /* is_op_input = */ true));
         }
     }
 
@@ -148,16 +112,12 @@ int init_graph_memory_args(const dnn_mem_map_t &mems,
                 return res->state = FAILED, FAIL;
             }
             const auto &mem = iter->second;
-            bool should_use_graph_shape
-                    = use_graph_lt_shape_for_mem(base_op_ref, out_arg);
-            graph_mem_map.emplace(out_lt.id_,
-                    dnn_graph_mem_t(mem, out_lt, should_use_graph_shape,
-                            /* is op input */ false));
+            graph_mem_map.emplace(
+                    out_lt.id_, dnn_graph_mem_t(mem, out_lt, false));
 
         } else if (is_par_output && out_arg == 0) {
             graph_mem_map.emplace(out_lt.id_,
                     dnn_graph_mem_t({}, out_lt,
-                            /* should use graph shape= */ false,
                             /* is op input */ false,
                             /* is fake output */ true));
         }
