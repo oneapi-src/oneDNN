@@ -153,6 +153,10 @@ std::string str2cfg(const char *str) {
 
 int handle_legacy_cfg(
         std::vector<dnnl_data_type_t> &dt, const std::string &cfg) {
+    BENCHDNN_PRINT(0, "%s\n",
+            "Warning: `--cfg=CFG` option is deprecated. Use `--dt=DT[:DT:DT] "
+            "instead.");
+
     if (cfg == "f32")
         dt = {dnnl_f32};
     else if (cfg == "bf16bf16bf16")
