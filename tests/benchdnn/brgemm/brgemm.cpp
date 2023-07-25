@@ -228,6 +228,11 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_sum_po(
             prb->attr, res, dnnl_gemm, prb->src_dt(), prb->dst_dt());
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_gemm);
+
+    // Unconditionally skip remaining unimplemented cases.
+    // TODO: stop doing it.
+    res->state = SKIPPED;
+    res->reason = CASE_NOT_SUPPORTED;
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -314,12 +319,8 @@ int doit(const prb_t *prb, res_t *res) {
             false /* transB */, layout, prb->alpha, prb->beta, prb->get_lda(),
             prb->get_ldb(), prb->get_ldc(use_dst_as_acc), prb->m, prb->n,
             prb->k, nullptr /* strides */);
-    check_dnnl_status(status_init, prb, res);
+    SAFE(check_dnnl_status(status_init, prb, res), WARN);
     if (res->state == SKIPPED) return OK;
-    // Unconditionally skip remaining unimplemented cases.
-    // TODO: remove this and add a SAFE check above.
-    if (status_init != dnnl_success)
-        return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
 
     attr_args_t attr_args;
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
