@@ -45,8 +45,6 @@ bool use_graph_lt_shape_for_mem(
             return true;
     }
 
-    if (op_kind == "StaticReshape") { return true; }
-
     return false;
 }
 

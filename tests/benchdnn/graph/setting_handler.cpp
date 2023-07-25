@@ -162,6 +162,9 @@ namespace custom {
             op_setting.alg = ::custom::alg_t::TRANSPOSE;
             base_op_ref.get_attr_s64_vector(op_setting.order, "order");
             break;
+        case ::graph::op::kind::StaticReshape:
+            op_setting.alg = ::custom::alg_t::RESHAPE;
+            break;
         default: assert(!"unknown alg"); return op_setting;
     }
     for (size_t i = 0; i < base_op_ref.in_lts_.size(); i++) {
@@ -1658,12 +1661,6 @@ bool get_reorder_stag_and_dtag(const deserialized_op &base_op_ref,
     if (!ret) return false;
     if (base_op_ref.kind_ == "Reorder") {
         ret = get_driver_tag(base_op_ref, dtag, true);
-    } else if (base_op_ref.kind_ == "StaticReshape") {
-        // StaticReshape needs to have abx tag for output
-        // StaticReshape: src_lt_strides -> [reorder] -> dense_src_lt_strides
-        //                -> [reshape_md] -> dst_lt_strides
-        ret = get_driver_tag(base_op_ref, stag);
-        dtag = "abx";
     }
     return ret;
 }
@@ -1736,15 +1733,6 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
 
     DNN_GRAPH_CHECK_SETTINGS(
             get_prb_dims(base_op_ref, op_setting.prb_dims), res);
-    if (base_op_ref.kind_ == "StaticReshape") {
-        bool special_zero = false;
-        std::vector<int64_t> shape {};
-        base_op_ref.get_attr_bool(special_zero, "special_zero");
-        base_op_ref.get_attr_s64_vector(shape, "shape");
-        auto it = std::find(shape.begin(), shape.end(), 0);
-        // empty tensor
-        if (it != shape.end() && !special_zero) return op_setting;
-    }
 
     DNN_GRAPH_CHECK_SETTINGS(
             reorder::get_reorder_dt(base_op_ref, op_setting.sdt.front(),

@@ -30,6 +30,7 @@ namespace custom {
 enum alg_t {
     SELECT,
     TRANSPOSE,
+    RESHAPE,
 };
 
 using arg_md_t = ::std::tuple<::std::string, dims_t, dnnl_data_type_t>;

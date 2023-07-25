@@ -26,6 +26,10 @@
 
 #include "custom_driver.hpp"
 
+extern "C" dnnl_status_t dnnl_memory_desc_create_with_string_tag(
+        dnnl_memory_desc_t *, int, const dnnl_dims_t, dnnl_data_type_t,
+        const char *);
+
 namespace custom {
 
 namespace select {
@@ -142,6 +146,53 @@ int execute(const prb_t *prb, args_t args, res_t *res) {
 }
 } // namespace transpose
 
+namespace reshape {
+// RESHAPE OP
+// DNNL_ARG_SRC: src
+// DNNL_ARG_DST: dst
+
+std::vector<int> exec_args = {
+        DNNL_ARG_SRC,
+        DNNL_ARG_DST,
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        const prb_t *prb, res_t *res) {
+
+    const auto &ref_engine = get_cpu_engine();
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second;
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC:
+                SAFE(::custom::fill_mem(mem, ref_mem, -32, 32), WARN);
+                break;
+            default: break;
+        }
+    }
+    return OK;
+}
+
+int execute(const prb_t *prb, args_t args, res_t *res) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    dnn_mem_t &dst = const_cast<dnn_mem_t &>(args.find(DNNL_ARG_DST));
+    // generate dense stride
+    dnn_mem_t pad(src.md_, src.dt(), tag::abx, get_test_engine());
+    pad.reorder(src);
+    // update output shape with dense stride
+    dnnl_memory_desc_create_with_string_tag(&pad.md_, dst.ndims(), dst.dims(),
+            dst.dt(), normalize_tag(tag::abx, dst.ndims()).c_str());
+    dst.reorder(pad);
+    return OK;
+}
+} // namespace reshape
+
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     return dnnl_success;
 }
@@ -151,6 +202,7 @@ std::vector<int> supported_exec_args(const prb_t *prb) {
     switch (prb->alg) {
         case SELECT: return ::custom::select::exec_args;
         case TRANSPOSE: return ::custom::transpose::exec_args;
+        case RESHAPE: return ::custom::reshape::exec_args;
         default: assert(!"unknown alg"); break;
     }
     return exec_args;
@@ -160,7 +212,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     switch (prb->alg) {
         case SELECT:
-        case TRANSPOSE: cmp.set_zero_trust_percent(100.f); break;
+        case TRANSPOSE:
+        case RESHAPE: cmp.set_zero_trust_percent(100.f); break;
         default: assert(!"unknown alg"); break;
     }
     return;
@@ -219,6 +272,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                          ref_mem_map, mem_map, prb, res),
                     WARN);
             break;
+        case RESHAPE:
+            SAFE(::custom::reshape::init_ref_memory_args(
+                         ref_mem_map, mem_map, prb, res),
+                    WARN);
+            break;
         default: assert(!"unknown alg"); break;
     }
     // Don't keep reference memory if it is not used further.
@@ -232,6 +290,7 @@ int execute(const prb_t *prb, args_t args, res_t *res) {
     switch (prb->alg) {
         case SELECT: ::custom::select::execute(prb, args, res); break;
         case TRANSPOSE: ::custom::transpose::execute(prb, args, res); break;
+        case RESHAPE: ::custom::reshape::execute(prb, args, res); break;
         default: assert(!"unknown alg"); break;
     }
     return OK;

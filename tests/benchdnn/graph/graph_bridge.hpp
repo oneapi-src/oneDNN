@@ -213,37 +213,10 @@ int execute_prim(ref_prims_t &ref_prims, const deserialized_op &base_op_ref,
         const prb_t *prb, res_t *res) {
     int op_id = static_cast<int>(base_op_ref.id_);
     auto &prim = std::get<0>(ref_prims[op_id]);
-    auto &mems = std::get<1>(ref_prims[op_id]);
     auto &args = std::get<3>(ref_prims[op_id]);
-    const auto &op_kind = base_op_ref.kind_;
 
     // Execute a primitive.
     SAFE(execute_and_wait(prim, args, res), WARN);
-
-    if (op_kind == "StaticReshape") {
-        int prim_arg_name = get_prim_arg_name_from_graph_op_output_offset(
-                opstr2kind(op_kind), 0);
-        if (prim_arg_name == -1) return FAIL;
-
-        dnn_mem_t &mem = mems[prim_arg_name];
-        const auto &graph_dims = base_op_ref.out_lts_[0].shape_;
-        const auto data_type = static_cast<dnnl::memory::data_type>(mem.dt());
-        const auto &graph_strides = base_op_ref.out_lts_[0].stride_;
-        dnnl::memory::desc md(graph_dims, data_type, graph_strides);
-        // create temp dnn_mem_t with graph dims and abx tag
-        dnn_mem_t tmp_mem
-                = dnn_mem_t(md.get(), mem.dt(), "abx", ::get_test_engine());
-
-        // copy primitive output to this temp mem, which may have different dims but same tag
-        void *prim_data_handle = static_cast<void *>(mem);
-        void *tmp_data_handle = tmp_mem.get_mapped_pointer<void>();
-        const auto &mem_size = mem.size();
-        memcpy(tmp_data_handle, prim_data_handle, mem_size);
-
-        // reshape primitive output md to StaticReshape output shape and conduct second reorder
-        reshape_md(mem, graph_dims, graph_strides);
-        mem.reorder(tmp_mem);
-    }
 
     return OK;
 }
