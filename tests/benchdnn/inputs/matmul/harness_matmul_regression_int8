@@ -19,4 +19,4 @@
 --reset
 --dt=s8:s8:s8
 --stag=ab,ba --wtag=ba --dtag=AB16b16a
-11x13:13x16:11x16
+11x13:13x16

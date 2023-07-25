@@ -2,10 +2,10 @@
 
 --dt=f32
 --stag=ab,ba --wtag=ba --dtag=AB16b16a
-11x13:13x16:11x16_n"zeropad_blocked_dtag"
+11x13:13x16_n"zeropad_blocked_dtag"
 
 --stag=ba --wtag=ab --dtag=ab
-13x262144:262144x1:13x1_n"long_acc_chain"
+13x262144:262144x1_n"long_acc_chain"
 
 # repeated sum with varying scale
 --reset --attr-post-ops=sum+relu+sum:2 64x64:64x64_n"multisum"

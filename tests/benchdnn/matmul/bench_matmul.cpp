@@ -138,6 +138,14 @@ int verify_input(const settings_t &s, const settings_t &def) {
         }
     }
 
+    static constexpr int n_vdims_inputs = 2;
+    if (s.prb_vdims.n_inputs() != n_vdims_inputs) {
+        BENCHDNN_PRINT(0,
+                "ERROR: Expected number of dims arguments is `%d`, provided "
+                "`%d`.\n",
+                n_vdims_inputs, s.prb_vdims.n_inputs());
+        SAFE_V(FAIL);
+    }
     return OK;
 }
 
