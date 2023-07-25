@@ -665,6 +665,15 @@ bool is_nxc_lt_arg(const std::string &kind, const int exec_arg) {
     }
 }
 
+// when length is 3, return "abc", when length is 5, return "abcde"
+std::string get_default_tag(size_t length) {
+    std::string mtag;
+    for (size_t i = 0; i < length; ++i) {
+        mtag += char('a' + i);
+    }
+    return mtag;
+}
+
 std::string strides2memory_tag(const size_t ndims,
         const dnnl::graph::logical_tensor::dims &strides, bool use_x_tag) {
     if (ndims == 0) return "";

@@ -102,6 +102,7 @@ struct deserialized_graph {
     std::map<size_t, logical_tensor::dims> graph_tensors_;
     // reorder logical tensor id to memory tag.
     // memory tag can be abx, axb, or other special tag
+    // need to maintain for further use
     std::map<size_t, std::string> lt_2_mtag_;
     std::vector<size_t> graph_inputs_with_mb_;
 

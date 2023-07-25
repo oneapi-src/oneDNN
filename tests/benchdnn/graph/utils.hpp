@@ -107,6 +107,7 @@ int measure_perf(timer::timer_t &t,
 dnnl::graph::op::kind opstr2kind(const std::string &kind);
 dnnl::graph::op::attr attrstr2kind(const std::string &attr_name);
 
+std::string get_default_tag(size_t length);
 std::string strides2memory_tag(const size_t ndims,
         const dnnl::graph::logical_tensor::dims &strides,
         bool use_x_tag = true);

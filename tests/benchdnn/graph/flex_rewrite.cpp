@@ -19,6 +19,7 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "utils/fill.hpp"
+#include "utils/parser.hpp" // get_substr()
 
 #include "flex_rewrite.hpp"
 #include "parser.hpp"
@@ -38,12 +39,13 @@ std::string shape_to_string(const dnnl::graph::logical_tensor::dims &shape) {
 namespace graph {
 
 void flex_rewrite::rewrite(deserialized_graph &dgraph) {
-    input_shape_rewrite(dgraph);
+    bool change_stride = false;
+    inports_shape_rewrite(dgraph, change_stride);
     if (!(op_attrs_.size() == 1 && op_attrs_.count(0)
                 && op_attrs_.at(0) == "default")) {
         op_attrs_rewrite(dgraph);
     }
-    infer_output_shape(dgraph);
+    infer_output_shape(dgraph, change_stride);
     quantized_graph_rewrite(dgraph);
 }
 
@@ -169,7 +171,8 @@ void flex_rewrite::cal_pads(dims_t &pads_begin, dims_t &pads_end,
     }
 }
 
-void flex_rewrite::infer_output_shape(deserialized_graph &dgraph) {
+void flex_rewrite::infer_output_shape(
+        deserialized_graph &dgraph, bool change_stride) {
     auto &gi = dgraph.graph_tensors_;
     for (auto &aop : dgraph.ops_) {
         auto kind = opstr2kind(aop.kind_);
@@ -674,15 +677,77 @@ void flex_rewrite::infer_output_shape(deserialized_graph &dgraph) {
             lt.stride_
                     = memory_tag2strides(gi[lt.id_], dgraph.lt_2_mtag_[lt.id_]);
         }
-        for (auto &lt : aop.out_lts_) {
-            lt.shape_ = gi[lt.id_];
-            lt.stride_
-                    = memory_tag2strides(gi[lt.id_], dgraph.lt_2_mtag_[lt.id_]);
-        }
+        // update outputs for the current op
+        update_output_info(aop, dgraph, change_stride);
     }
 }
 
-void flex_rewrite::input_shape_rewrite(deserialized_graph &dgraph) {
+/// @brief Get a new shape and new strides from CML. Re-written shapes and strides
+/// must pass compatibility check.
+/// @param in_shape String input from CML.
+/// @param shape Parsed updated shape.
+/// @param stride Parsed updated strides.
+/// @param msg Error message info when function returns `false` value.
+/// @return `true` if an inport info is valid and `false` otherwise. A message `msg`
+/// describes an error occurred.
+bool flex_rewrite::get_inport_shape_stride(const std::string &in_shape,
+        std::string &shape, std::string &stride, std::string &msg) {
+    assert(shape.empty() && stride.empty());
+    if (in_shape == "0" || in_shape == "-") {
+        shape = in_shape;
+        return true;
+    }
+    // valid stride: "acdb"
+    const auto all_letters = [](const std::string &ss) -> bool {
+        return std::all_of(ss.cbegin(), ss.cend(), [](int c) {
+            assert(c < UINT8_MAX);
+            return std::isalpha(c);
+        });
+    };
+    // valid shape: "2x32x4x4"
+    const auto all_digit_cross = [](const std::string &ss) -> bool {
+        return std::all_of(ss.cbegin(), ss.cend(), [](int c) {
+            assert(c < UINT8_MAX);
+            return std::isdigit(c) || c == 'x';
+        });
+    };
+
+    size_t in_length = in_shape.size();
+    size_t star_pos = in_shape.find('*');
+    const static std::string err_msg
+            = "Make sure shape is in the form of `NUMxNUMxNUM...`. And the tag "
+              "is only composed of letters. ";
+    // shape and stride are provided
+    if (star_pos != std::string::npos) {
+        // invalid CML info, e.g. "1x2x3*", "*abc"
+        if (star_pos == 0 || star_pos == in_length - 1) {
+            msg = "Please provide shape before `*` or tag after "
+                  "`*`, or remove `*` if you apply the default shape or stride";
+            return false;
+        }
+        shape = in_shape.substr(0, star_pos);
+        stride = in_shape.substr(star_pos + 1, in_length);
+
+        if (all_letters(stride) && all_digit_cross(shape)) {
+            return true;
+        } else {
+            msg = err_msg;
+            return false;
+        }
+    } else if (all_letters(in_shape)) { // user only provide a new stride
+        stride = in_shape;
+        return true;
+    } else if (all_digit_cross(in_shape)) { // user only provide a new shape
+        shape = in_shape;
+        return true;
+    } else { // a valid input info is rather strict, return false if the input info is none of the above
+        msg = err_msg;
+        return false;
+    }
+}
+
+void flex_rewrite::inports_shape_rewrite(
+        deserialized_graph &dgraph, bool &change_stride) {
     // reminder mb rewrite status
     if (mb_ != 0 && dgraph.graph_inputs_with_mb_.empty()) {
         BENCHDNN_PRINT(1,
@@ -698,8 +763,22 @@ void flex_rewrite::input_shape_rewrite(deserialized_graph &dgraph) {
         lt.stride_ = infer_dim;
     };
 
+    // check stride provided from cml, return false, if one is not a valid tag
+    // for example: when stride is "dcba", return true;
+    // when stride size is 4, "zcba" & "aabc" are all invalid stride
+    const auto is_valid_stride = [](const std::string &stride) -> bool {
+        assert(!stride.empty());
+        for (size_t i = 0; i < stride.size(); ++i) {
+            if (stride.find(char('a' + i)) == std::string::npos) {
+                return false;
+            }
+        }
+        return true;
+    };
+
     for_(auto &aop : dgraph.ops_)
     for (auto &lt : aop.in_lts_) {
+        // if 'lt' is not a inport, set default logical tensor info
         if (dgraph.graph_tensors_.find(lt.id_) == dgraph.graph_tensors_.end()) {
             set_default_deserialized_lt(lt);
             continue;
@@ -711,23 +790,100 @@ void flex_rewrite::input_shape_rewrite(deserialized_graph &dgraph) {
                         != dgraph.graph_inputs_with_mb_.end();
         if (in_shapes_.find(lt.id_) != in_shapes_.end()
                 && in_shapes_[lt.id_] != "default") {
-            auto temp_shape = string_to_shape(in_shapes_[lt.id_]);
-            // mb rewrite included in shape rewrite
-            if (has_mb_rewrite) { temp_shape[0] = mb_; }
-            size_t ndims = lt.shape_.size();
-            if (temp_shape.size() != ndims) {
+
+            std::string new_shape, new_stride, message;
+            bool result = get_inport_shape_stride(
+                    in_shapes_[lt.id_], new_shape, new_stride, message);
+            if (!result) {
                 BENCHDNN_PRINT(0,
-                        "graph: rewrite: driver does not support changing "
-                        "shape rank currently, please keep same with origin "
-                        "json input for tensor: "
-                        "%zd!\n",
-                        lt.id_);
-                exit(2);
+                        "graph: `--in-shapes` is not valid: \n%s\n"
+                        "Please check the CML\n",
+                        message.c_str());
+                SAFE_V(FAIL);
             }
-            lt.shape_ = temp_shape;
-            dgraph.graph_tensors_[lt.id_] = temp_shape;
+
+            // Rewrite logic covers the following scenarios:
+            // shape, stride: ["-", ""]
+            // shape, stride: ["1x32x4", ""] including ["0", ""]
+            // shape, stride: ["1x32x4", "abc"]
+            // shape, stride: ["", "abc"]
+            // and checks has been done accordingliy
+            size_t ndims = lt.shape_.size(); // the original rank from JSON
+            dims_t new_shape_dims;
+            // shape "-" means this logical tensor is 0 rank with shape: []
+            const bool zero_rank = new_shape == "-";
+            // if the current logical tensor is rewritten to rank-0
+            if (zero_rank) {
+                lt.shape_ = dims_t {};
+                lt.stride_ = dims_t {};
+                dgraph.graph_tensors_[lt.id_] = dims_t {};
+                dgraph.lt_2_mtag_[lt.id_] = "";
+                continue;
+            }
+            if (!new_shape.empty()) {
+                new_shape_dims = string_to_shape(new_shape);
+                if (!new_stride.empty()) {
+                    if (new_shape_dims.size() != new_stride.size()) {
+                        BENCHDNN_PRINT(0,
+                                "graph: Shape size is `%d`, stride size is "
+                                "`%d`, they are not of the same size, "
+                                "please check the CML\n",
+                                static_cast<int>(new_shape_dims.size()),
+                                static_cast<int>(new_stride.size()));
+                        SAFE_V(FAIL);
+                    }
+                    if (!is_valid_stride(new_stride)) {
+                        BENCHDNN_PRINT(0,
+                                "graph: Tag provided is not valid: `%s`, "
+                                "there exists unexpected letters, "
+                                "please check the CML\n",
+                                new_stride.c_str());
+                        SAFE_V(FAIL);
+                    }
+                }
+                if (has_mb_rewrite) { new_shape_dims[0] = mb_; }
+            }
+
+            // if rank change and no stride provided
+            if (new_shape_dims.size() != ndims && new_stride.empty()) {
+                change_stride = true;
+                // use default stride
+                dgraph.lt_2_mtag_[lt.id_]
+                        = get_default_tag(new_shape_dims.size());
+            }
+
+            // update new value to dgraph
+            if (!new_shape.empty()) {
+                lt.shape_ = new_shape_dims;
+                dgraph.graph_tensors_[lt.id_] = new_shape_dims;
+            }
+            if (!new_stride.empty()) {
+                // original 4d, no new shape and stride.size() != 4,
+                // this is not valid stride
+                if (new_shape.empty() && new_stride.size() != ndims) {
+                    BENCHDNN_PRINT(0,
+                            "graph: Tag provided is not valid: `%s`, "
+                            "tag size should be `%d`, "
+                            "please check the CML\n",
+                            new_stride.c_str(), static_cast<int>(ndims));
+                    SAFE_V(FAIL);
+                }
+                if (!is_valid_stride(new_stride)) {
+                    BENCHDNN_PRINT(0,
+                            "graph: Tag provided is not valid: `%s`, there "
+                            "exists unexpected letters, "
+                            "please check the CML\n",
+                            new_stride.c_str());
+                    SAFE_V(FAIL);
+                }
+                if (dgraph.lt_2_mtag_[lt.id_] != new_stride) {
+                    change_stride = true;
+                    dgraph.lt_2_mtag_[lt.id_] = new_stride;
+                }
+            }
             lt.stride_
                     = memory_tag2strides(lt.shape_, dgraph.lt_2_mtag_[lt.id_]);
+
         } else if (has_mb_rewrite) {
             lt.shape_[0] = mb_;
             dgraph.graph_tensors_[lt.id_] = lt.shape_;
@@ -834,6 +990,157 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
         }
         aop.attrs_["scales"].f32_vector_ = scales;
         aop.attrs_["zps"].s64_vector_ = zps;
+    }
+}
+
+/// @brief Update the output shape & stride & members after infer output shape
+/// @param aop The current op of the graph
+/// @param dgraph A deserialized graph
+/// @param change_stride A boolean value indicating whether the graph input strides
+/// have been changed.
+void flex_rewrite::update_output_info(
+        deserialized_op &aop, deserialized_graph &dgraph, bool change_stride) {
+    auto kind = opstr2kind(aop.kind_);
+    auto &gi = dgraph.graph_tensors_;
+    // if a input stride is not changed, the output stride should not be changed as well
+    if (!change_stride) {
+        for (auto &lt : aop.out_lts_) {
+            lt.shape_ = gi[lt.id_];
+            lt.stride_
+                    = memory_tag2strides(gi[lt.id_], dgraph.lt_2_mtag_[lt.id_]);
+        }
+        return;
+    }
+    // step1: get dominate stride info
+    // get the src stride, normally index 0 input tensor
+    std::string dominate_stride = dgraph.lt_2_mtag_[aop.in_lts_.front().id_];
+    // step2: determine out stride info
+    switch (kind) {
+        // category 1: all output lts have the same dim size
+        case dnnl::graph::op::kind::Abs:
+        case dnnl::graph::op::kind::AbsBackward:
+        case dnnl::graph::op::kind::Add:
+        case dnnl::graph::op::kind::AvgPool:
+        case dnnl::graph::op::kind::AvgPoolBackward:
+        case dnnl::graph::op::kind::BatchNormInference:
+        case dnnl::graph::op::kind::BiasAdd:
+        case dnnl::graph::op::kind::Clamp:
+        case dnnl::graph::op::kind::ClampBackward:
+        case dnnl::graph::op::kind::Concat:
+        case dnnl::graph::op::kind::Convolution:
+        case dnnl::graph::op::kind::ConvolutionBackwardData:
+        case dnnl::graph::op::kind::ConvolutionBackwardWeights:
+        case dnnl::graph::op::kind::ConvTranspose:
+        case dnnl::graph::op::kind::ConvTransposeBackwardData:
+        case dnnl::graph::op::kind::ConvTransposeBackwardWeights:
+        case dnnl::graph::op::kind::Dequantize:
+        case dnnl::graph::op::kind::Divide:
+        case dnnl::graph::op::kind::DynamicDequantize:
+        case dnnl::graph::op::kind::DynamicQuantize:
+        case dnnl::graph::op::kind::Elu:
+        case dnnl::graph::op::kind::EluBackward:
+        case dnnl::graph::op::kind::Exp:
+        case dnnl::graph::op::kind::GELU:
+        case dnnl::graph::op::kind::GELUBackward:
+        case dnnl::graph::op::kind::HardSigmoid:
+        case dnnl::graph::op::kind::HardSigmoidBackward:
+        case dnnl::graph::op::kind::HardSwish:
+        case dnnl::graph::op::kind::HardSwishBackward:
+        case dnnl::graph::op::kind::Interpolate:
+        case dnnl::graph::op::kind::InterpolateBackward:
+        case dnnl::graph::op::kind::LayerNorm:
+        case dnnl::graph::op::kind::LeakyReLU:
+        case dnnl::graph::op::kind::Log:
+        case dnnl::graph::op::kind::LogSoftmax:
+        case dnnl::graph::op::kind::LogSoftmaxBackward:
+        case dnnl::graph::op::kind::Maximum:
+        case dnnl::graph::op::kind::MatMul:
+        case dnnl::graph::op::kind::MaxPool:
+        case dnnl::graph::op::kind::MaxPoolBackward:
+        case dnnl::graph::op::kind::Minimum:
+        case dnnl::graph::op::kind::Mish:
+        case dnnl::graph::op::kind::MishBackward:
+        case dnnl::graph::op::kind::Multiply:
+        case dnnl::graph::op::kind::Pow:
+        case dnnl::graph::op::kind::PReLU:
+        case dnnl::graph::op::kind::PReLUBackward:
+        case dnnl::graph::op::kind::Quantize:
+        case dnnl::graph::op::kind::Reciprocal:
+        case dnnl::graph::op::kind::ReduceL1:
+        case dnnl::graph::op::kind::ReduceL2:
+        case dnnl::graph::op::kind::ReduceMax:
+        case dnnl::graph::op::kind::ReduceMean:
+        case dnnl::graph::op::kind::ReduceMin:
+        case dnnl::graph::op::kind::ReduceProd:
+        case dnnl::graph::op::kind::ReduceSum:
+        case dnnl::graph::op::kind::ReLU:
+        case dnnl::graph::op::kind::ReLUBackward:
+        case dnnl::graph::op::kind::Round:
+        case dnnl::graph::op::kind::Select:
+        case dnnl::graph::op::kind::Sigmoid:
+        case dnnl::graph::op::kind::SigmoidBackward:
+        case dnnl::graph::op::kind::SoftMax:
+        case dnnl::graph::op::kind::SoftMaxBackward:
+        case dnnl::graph::op::kind::SoftPlus:
+        case dnnl::graph::op::kind::SoftPlusBackward:
+        case dnnl::graph::op::kind::Sqrt:
+        case dnnl::graph::op::kind::Square:
+        case dnnl::graph::op::kind::SqrtBackward:
+        case dnnl::graph::op::kind::Subtract:
+        case dnnl::graph::op::kind::Tanh:
+        case dnnl::graph::op::kind::TanhBackward:
+        case dnnl::graph::op::kind::TypeCast: {
+            for (auto &lt : aop.out_lts_) {
+                // shape has been determined in 'gi' by infer_out_shape()
+                // so update shape in lt here
+                lt.shape_ = gi[lt.id_];
+                dgraph.lt_2_mtag_[lt.id_] = dominate_stride;
+                lt.stride_ = memory_tag2strides(gi[lt.id_], dominate_stride);
+            }
+            break;
+        }
+        // category 2: there exists logical tensors with output dimention size of 1
+        case dnnl::graph::op::kind::BatchNormForwardTraining:
+        case dnnl::graph::op::kind::BatchNormTrainingBackward:
+        case dnnl::graph::op::kind::LayerNormBackward: {
+            for (auto &lt : aop.out_lts_) {
+                lt.shape_ = gi[lt.id_];
+                if (lt.shape_.size() != 1) {
+                    dgraph.lt_2_mtag_[lt.id_] = dominate_stride;
+                    lt.stride_
+                            = memory_tag2strides(gi[lt.id_], dominate_stride);
+                } else {
+                    dgraph.lt_2_mtag_[lt.id_] = "a";
+                    lt.stride_ = memory_tag2strides(gi[lt.id_], "a");
+                }
+            }
+            break;
+        }
+        // category 3. special ops, set dst stride as "abcd...", as the purppose
+        // of those ops are modifing the input stride, and the output stride can
+        // not be specified via flex rewrite currently, therefore a default stride
+        // represented by "abcd..." is set to the output
+        case dnnl::graph::op::kind::Reorder:
+        case dnnl::graph::op::kind::StaticReshape:
+        case dnnl::graph::op::kind::StaticTranspose: {
+            assert(aop.out_lts_.size() == 1);
+            auto &lt = aop.out_lts_.front();
+            lt.shape_ = gi[lt.id_];
+            dgraph.lt_2_mtag_[lt.id_] = get_default_tag(lt.shape_.size());
+            lt.stride_
+                    = memory_tag2strides(gi[lt.id_], dgraph.lt_2_mtag_[lt.id_]);
+            break;
+        }
+        // catecory 4. no real cases for those ops or they are not supported, so
+        // just skip them
+        case dnnl::graph::op::kind::BiasAddBackward:
+        case dnnl::graph::op::kind::End:
+        case dnnl::graph::op::kind::SquaredDifference:
+        case dnnl::graph::op::kind::Wildcard: break;
+        default:
+            BENCHDNN_PRINT(0, "%s is not supported\n", aop.kind_.c_str());
+            SAFE_V(FAIL);
+            break;
     }
 }
 

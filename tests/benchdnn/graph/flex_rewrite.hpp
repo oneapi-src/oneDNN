@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,9 @@ struct flex_rewrite {
     void rewrite(deserialized_graph &dgraph);
 
 private:
+    // input shape info from CML
     std::map<size_t, std::string> in_shapes_;
+    // input attributes from CML
     std::map<size_t, std::string> op_attrs_;
     int64_t mb_;
 
@@ -47,10 +49,14 @@ private:
     void cal_pads(dims_t &pads_begin, dims_t &pads_end,
             const deserialized_op &aop, const dims_t &spatial_dims,
             const dims_t &strides, const dims_t &kernel, bool deconv) const;
-    void infer_output_shape(deserialized_graph &dgraph);
-    void input_shape_rewrite(deserialized_graph &dgraph);
+    void infer_output_shape(deserialized_graph &dgraph, bool change_stride);
+    void inports_shape_rewrite(deserialized_graph &dgraph, bool &change_stride);
+    bool get_inport_shape_stride(const std::string &in_shape,
+            std::string &shape, std::string &stride, std::string &msg);
     void op_attrs_rewrite(deserialized_graph &dgraph);
     void quantized_graph_rewrite(deserialized_graph &dgraph);
+    void update_output_info(deserialized_op &aop, deserialized_graph &dgraph,
+            bool change_stride);
 };
 
 } // namespace graph
