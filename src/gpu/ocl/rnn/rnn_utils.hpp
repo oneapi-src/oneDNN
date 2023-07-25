@@ -178,16 +178,16 @@ struct ocl_conf_t {
 #if __cplusplus >= 202002L
     bool operator==(const ocl_conf_t &) const = default;
 #endif
-    serialized_t<ocl_conf_t> serialize() const {
+    serialized_t serialize() const {
         assert_trivially_serializable(ocl_conf_t);
-        serialized_t<ocl_conf_t> s {};
+        serialized_t s {};
         // Explicitly maintain zero padding to keep the implementation simple and
         // robust
         s.append(*this);
         return s;
     }
 
-    static ocl_conf_t deserialize(const serialized_t<ocl_conf_t> &s) {
+    static ocl_conf_t deserialize(const serialized_t &s) {
         ocl_conf_t t {};
         deserializer_t d(s);
         d.pop(t);

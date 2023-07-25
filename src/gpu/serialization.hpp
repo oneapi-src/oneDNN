@@ -124,7 +124,8 @@ protected:
         const uint8_t *end = v + size;
         for (; v < end; v += sizeof(seed)) {
             size_t value = 0;
-            std::memcpy(&value, v, std::min((size_t)(end - v), sizeof(seed)));
+            std::memcpy(&value, v,
+                    std::min(static_cast<size_t>(end - v), sizeof(seed)));
             seed = hash_combine(seed, value);
         }
 
@@ -132,7 +133,6 @@ protected:
     };
 };
 
-template <typename T>
 struct serialized_t : public serialized_data_t {
     bool operator==(const serialized_t &other) const {
         return data == other.data;
@@ -157,7 +157,7 @@ template <typename T,
         typename = typename std::enable_if<
                 serialized_data_t::is_trivially_serialized<T>::value>::type>
 size_t get_hash(const T *t) {
-    serialized_t<T> s {};
+    serialized_t s {};
     s.append(t);
     return s.hash();
 }

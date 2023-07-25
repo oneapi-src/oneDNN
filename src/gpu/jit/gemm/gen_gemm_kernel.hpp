@@ -64,8 +64,8 @@ struct gen_gemm_kernel_desc_t {
     status_t create_generator(
             engine_t *engine, compute::compiled_kernel_t &generator) const;
 
-    serialized_t<gen_gemm_kernel_desc_t> serialize() const {
-        serialized_t<gen_gemm_kernel_desc_t> s {};
+    serialized_t serialize() const {
+        serialized_t s {};
         problem_.serialize(s);
         strategy_.serialize(s);
         return s;
