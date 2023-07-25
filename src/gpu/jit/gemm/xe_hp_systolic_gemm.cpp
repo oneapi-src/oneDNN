@@ -650,12 +650,10 @@ status_t xe_hp_systolic_gemm_t::launch_copy(const gemm_exec_ctx_t &ctx,
 
     auto elt_size = types::data_type_size(pd()->desc()->a_type());
     size_t r_threads = utils::div_up(utils::rnd_up(r, align_r),
-            copy_kernel_t::unroll_r(
-                    arch_, elt_size, pd()->unroll_n(), copyb, trans));
+            copy_kernel_t::unroll_r(arch_, elt_size, copyb));
     size_t c_threads = utils::div_up(utils::rnd_up(c, align_c),
-            copy_kernel_t::unroll_c(
-                    arch_, elt_size, pd()->unroll_n(), copyb, trans));
-    size_t sg = copy_kernel_t::subgroup_size(arch_, elt_size, copyb, trans);
+            copy_kernel_t::unroll_c(elt_size, pd()->unroll_n(), copyb));
+    size_t sg = copy_kernel_t::subgroup_size(arch_);
 
     size_t r_lsz = trans ? 1 : 16;
     size_t c_lsz = trans ? 16 : 1;
@@ -692,11 +690,10 @@ status_t xe_hp_systolic_gemm_t::launch_clear_sum(const gemm_exec_ctx_t &ctx,
     arg_list.set(3, offset_dst);
     arg_list.set(4, ld_dst);
 
-    auto elt_size = types::data_type_size(pd()->desc()->a_type());
     size_t threads = !copyb ? utils::div_up(r, pd()->unroll_m())
                             : utils::div_up(c, pd()->unroll_n());
     size_t sg = ocl::xe_systolic_gemm_copy_kernel_t::subgroup_size_clear_sum(
-            arch_, elt_size, copyb);
+            arch_);
 
     size_t gws[3] = {threads * sg, 1, 1};
     size_t lws[3] = {sg, 1, 1};

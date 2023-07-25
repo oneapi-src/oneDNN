@@ -92,29 +92,26 @@ struct xe_systolic_gemm_copy_kernel_t {
         }
     }
 
-    static constexpr int unroll_k(
-            compute::gpu_arch_t arch, size_t element_size) {
+    static constexpr int unroll_k(size_t element_size) {
         return 32 / int(element_size);
     }
 
-    static constexpr int unroll_r(compute::gpu_arch_t arch, size_t element_size,
-            int unroll_n, bool copyb, bool trans) {
+    static constexpr int unroll_r(
+            compute::gpu_arch_t arch, size_t element_size, bool copyb) {
         return !copyb ? ((arch == compute::gpu_arch_t::xe_hpc) ? 64 : 32)
-                      : unroll_k(arch, element_size);
+                      : unroll_k(element_size);
     }
 
-    static constexpr int unroll_c(compute::gpu_arch_t arch, size_t element_size,
-            int unroll_n, bool copyb, bool trans) {
-        return !copyb ? unroll_k(arch, element_size) : unroll_n;
+    static constexpr int unroll_c(
+            size_t element_size, int unroll_n, bool copyb) {
+        return !copyb ? unroll_k(element_size) : unroll_n;
     }
 
-    static constexpr int subgroup_size(compute::gpu_arch_t arch,
-            size_t element_size, bool copyb, bool trans) {
+    static constexpr int subgroup_size(compute::gpu_arch_t arch) {
         return (arch == compute::gpu_arch_t::xe_hpc) ? 16 : 8;
     }
 
-    static constexpr int subgroup_size_clear_sum(
-            compute::gpu_arch_t arch, size_t element_size, bool copyb) {
+    static constexpr int subgroup_size_clear_sum(compute::gpu_arch_t arch) {
         return (arch == compute::gpu_arch_t::xe_hpc) ? 16 : 8;
     }
 
@@ -122,14 +119,13 @@ struct xe_systolic_gemm_copy_kernel_t {
     bool operator==(const xe_systolic_gemm_copy_kernel_t &) const = default;
 #endif
 
-    serialized_t<xe_systolic_gemm_copy_kernel_t> serialize() const {
-        serialized_t<xe_systolic_gemm_copy_kernel_t> s;
+    serialized_t serialize() const {
+        serialized_t s;
         s.append(*this);
         return s;
     }
 
-    static xe_systolic_gemm_copy_kernel_t deserialize(
-            const serialized_t<xe_systolic_gemm_copy_kernel_t> &s) {
+    static xe_systolic_gemm_copy_kernel_t deserialize(const serialized_t &s) {
         xe_systolic_gemm_copy_kernel_t t {};
         deserializer_t d(s);
         d.pop(t);
