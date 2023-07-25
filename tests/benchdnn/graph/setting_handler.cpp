@@ -35,6 +35,9 @@ dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt) {
         case graph_dt::s32: return dnnl_s32;
         case graph_dt::s8: return dnnl_s8;
         case graph_dt::u8: return dnnl_u8;
+        // use u8 instead of boolean in the reference path
+        // dnn_graph_mem_t will use the data type from the logical tensor and the u8 data handle
+        case graph_dt::boolean: return dnnl_u8;
         case graph_dt::undef:
         default: return dnnl_data_type_undef;
     }
@@ -154,6 +157,9 @@ namespace custom {
     ::custom::settings_t op_setting;
     auto opkind = opstr2kind(base_op_ref.kind_);
     switch (opkind) {
+        case ::graph::op::kind::Select:
+            op_setting.alg = ::custom::alg_t::SELECT;
+            break;
         default: assert(!"unknown alg"); return op_setting;
     }
     for (size_t i = 0; i < base_op_ref.in_lts_.size(); i++) {

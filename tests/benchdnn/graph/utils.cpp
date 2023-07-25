@@ -587,6 +587,7 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
                             dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::Reorder, dnnl_driver_t::reorder},
                     {dnnl::graph::op::kind::Round, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Select, dnnl_driver_t::custom},
                     {dnnl::graph::op::kind::Sigmoid, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::SigmoidBackward,
                             dnnl_driver_t::eltwise},
@@ -1214,6 +1215,20 @@ int get_prim_arg_name_from_graph_op_input_offset(
                 return DNNL_ARG_ATTR_SCALES | DNNL_ARG_TO;
             else if (input_offset == 2)
                 return DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_TO;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::Select: {
+            if (input_offset == 0)
+                return DNNL_ARG_WEIGHTS;
+            else if (input_offset == 1)
+                return DNNL_ARG_SRC_0;
+            else if (input_offset == 2)
+                return DNNL_ARG_SRC_1;
             else {
                 BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
                         input_offset);
