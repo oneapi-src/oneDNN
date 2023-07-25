@@ -623,15 +623,9 @@ status_t memory_planner_t::prepare_subgraph_inplace_pairs(
             // TODO(qun) we didn't report inplace pair if two lts have different
             // layout type because of frontend users didn't process this
             // situation at this moment. In the future, we need to fix this for
-            // more inplace opportunities. Here the condition of alias_ins == 1
-            // is to disable the inplace option for src = conv(src) + src
+            // more inplace opportunities.
             ltw in_ltw(in_lt), out_ltw(out_lt);
-            size_t alias_ins = 0;
-            for (auto &tmp : sg->ins_) {
-                if (in_ltw.id() == tmp.id) alias_ins++;
-            }
-            bool can_share = alias_ins == 1
-                    && in_ltw.property_type() != property_type::constant
+            bool can_share = in_ltw.property_type() != property_type::constant
                     && in_ltw.layout_type() == out_ltw.layout_type();
             if (can_share)
                 inplace_pairs_.push_back({in_ltw.id(), out_ltw.id()});
