@@ -996,7 +996,8 @@ bool post_op_layouts_ok(const conv_problem_t &prb) {
 }
 
 bwd_d_optimize_kind_t bwd_d_optimize_kind_hint(const conv_problem_t &prb) {
-    if (!prb.is_bwd_d) return bwd_d_optimize_kind_t::none;
+    bool with_dilation = prb.dh || prb.dw || prb.dd;
+    if (!prb.is_bwd_d || with_dilation) return bwd_d_optimize_kind_t::none;
     if (prb.is_stride1()) {
         // Count how many out-of-bound iw updates are applied.
         int oob_updates = 0;
