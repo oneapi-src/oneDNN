@@ -37,19 +37,25 @@ constexpr const char *exclude_pad = "exclude_pad";
 constexpr const char *rounding_type = "rounding_type";
 constexpr const char *auto_pad = "auto_pad";
 constexpr const char *input_shape = "input_shape";
+constexpr const char *data_format = "data_format";
 } // namespace pooling_attr_key
 
 namespace auto_pad_options {
-constexpr const char *none = "none";
-constexpr const char *same_upper = "same_upper";
-constexpr const char *same_lower = "same_lower";
-constexpr const char *valid = "valid";
+constexpr const char *none = "None";
+constexpr const char *same_upper = "SAME_UPPER";
+constexpr const char *same_lower = "SAME_LOWER";
+constexpr const char *valid = "VALID";
 } // namespace auto_pad_options
 
 namespace rounding_type_options {
 constexpr const char *floor = "floor";
 constexpr const char *ceil = "ceil";
 } // namespace rounding_type_options
+
+namespace data_format_options {
+constexpr const char *NCX = "NCX";
+constexpr const char *NXC = "NXC";
+} // namespace data_format_options
 class pooling_op_t : public fusible_op_t, public op_traits::auto_copyable_t {
 public:
     pooling_type_t pooling_type_;
@@ -76,8 +82,9 @@ public:
             const std::vector<shape_dtype_pair> &) override;
 
 private:
-    sc_dims _calculate_output_dims(bool rounding_floor);
+    sc_dims _calculate_output_dims(bool rounding_floor, bool channel_last);
 
+    bool channel_last_;
     // use vectorized
     vectorized_info_t vx_info_;
 };
@@ -96,6 +103,7 @@ public:
      * exclude_pad Required
      * rounding_type Optional
      * auto_pad Optional
+     * data_format Optional
      */
     pooling_avg_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
@@ -113,6 +121,7 @@ public:
      * kernel Required
      * rounding_type Optional
      * auto_pad Optional
+     * data_format Optional
      */
     pooling_max_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
@@ -141,6 +150,7 @@ public:
             const std::vector<shape_dtype_pair> &) override;
 
 private:
+    bool channel_last_;
     // use vectorized
     vectorized_info_t vx_info_;
 };
@@ -158,6 +168,7 @@ public:
      * exclude_pad Required.
      * input_shape Required.
      * auto_pad Optional
+     * data_format Optional
      */
     pooling_avg_backprop_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
@@ -179,6 +190,7 @@ public:
      * pads_begin + pads_end  (or paddings)  Required
      * kernel Required
      * auto_pad Optional
+     * data_format Optional
      */
     pooling_max_backprop_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
