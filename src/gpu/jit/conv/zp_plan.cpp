@@ -1215,7 +1215,9 @@ int zp_plan_t::comp_reg_buf_size() const {
 
 stmt_t zp_plan_t::load_create_stmt(
         const expr_t &mem_buf, const expr_t &reg_buf, int subtile_idx) const {
-    return impl->load.create_stmt(mem_buf, reg_buf, subtile_idx);
+    return subtile_idx > 0
+            ? stmt_t()
+            : impl->load.create_stmt(mem_buf, reg_buf, subtile_idx);
 }
 
 stmt_t zp_plan_t::comp_init_create_stmt(buffer_manager_t &buf_mgr,
