@@ -646,8 +646,8 @@ void parse_prb_vdims(
     if (start_pos != eol) name = str.substr(start_pos);
 
     vdims_t vdims;
-    parse_multivector_str(
-            vdims, {dims_t()}, parser_utils::stoll_safe, vdims_str, ':', 'x');
+    parse_multivector_str(vdims, {dims_t()}, parser_utils::stoll_safe,
+            vdims_str, ':', 'x', /* allow_empty = */ false);
     // Expect at least two inputs provided
     SAFE_V(vdims.size() >= min_inputs ? OK : FAIL);
 

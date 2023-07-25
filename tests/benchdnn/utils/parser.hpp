@@ -46,17 +46,44 @@ float stof_safe(const std::string &s);
 attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s);
 } // namespace parser_utils
 
+// `parse_vector_str` is a heart parser routine which splits input string `str`
+// into "chunks" separated by `delimiter` and redirect a chunk into
+// `process_func` for further parsing.
+//
+// The content of `vec` output vector is flushed at the start of routine and
+// is updated with parsed objects from `process_func`.
+//
+// If `str` is empty, the `def` object is inserted into `vec` instead. This
+// rule doesn't apply for empty chunks - `process_func` should be responsible
+// to parse empty objects and return a proper output or throw an error.
+//
+// When `allow_empty` is set to `false`, a chunk passed to `process_func` can't
+// be empty. It saves from potential undesired user inputs in certain cases.
+//
+// Returns `true` if parsing and insertion completed successfully.
+//
+// Note: `T` type represents a vector: `T = std::vector<U>` - since `vec` is
+// treated as vector object. `process_func` should return an object of type `U`
+// in this notation.
 template <typename T, typename F>
 static bool parse_vector_str(T &vec, const T &def, F process_func,
-        const std::string &str, char delimeter = ',') {
-    const std::string s = str;
-    if (s.empty()) return vec = def, true;
+        const std::string &str, char delimiter = ',', bool allow_empty = true) {
+    if (str.empty()) return vec = def, true;
 
     vec.clear();
-    for (size_t pos_st = 0, pos_en = s.find_first_of(delimeter, pos_st); true;
-            pos_st = pos_en + 1, pos_en = s.find_first_of(delimeter, pos_st)) {
-        vec.push_back(process_func(s.substr(pos_st, pos_en - pos_st).c_str()));
+    int idx = 1;
+    for (size_t pos_st = 0, pos_en = str.find_first_of(delimiter, pos_st); true;
+            pos_st = pos_en + 1,
+                pos_en = str.find_first_of(delimiter, pos_st)) {
+        if (!allow_empty && str.size() == pos_st) {
+            BENCHDNN_PRINT(0, "%s %d %s \'%s\'\n", "Error: parsed entry", idx,
+                    "is not expected to be empty. Given input:", str.c_str());
+            SAFE_V(FAIL);
+        }
+        vec.push_back(
+                process_func(str.substr(pos_st, pos_en - pos_st).c_str()));
         if (pos_en == eol) break;
+        idx++;
     }
     return true;
 }
@@ -64,7 +91,8 @@ static bool parse_vector_str(T &vec, const T &def, F process_func,
 template <typename T, typename F>
 static bool parse_multivector_str(std::vector<T> &vec,
         const std::vector<T> &def, F process_func, const std::string &str,
-        char vector_delim = ',', char element_delim = ':') {
+        char vector_delim = ',', char element_delim = ':',
+        bool allow_empty = true) {
     auto process_subword = [&](const char *word) {
         T v, empty_def_v; // defualt value is not expected to be set here
         // parse vector elements separated by @p element_delim
@@ -73,7 +101,8 @@ static bool parse_multivector_str(std::vector<T> &vec,
     };
 
     // parse full vector separated by @p vector_delim
-    return parse_vector_str(vec, def, process_subword, str, vector_delim);
+    return parse_vector_str(
+            vec, def, process_subword, str, vector_delim, allow_empty);
 }
 
 template <typename T, typename F>
