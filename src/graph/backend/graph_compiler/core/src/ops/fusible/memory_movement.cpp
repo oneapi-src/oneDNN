@@ -89,8 +89,10 @@ static void compute_block_concat(const context_ptr &ctx,
     for (unsigned i = 0; i < dst.nslice_dims(); i++) {
         if (i < static_cast<unsigned>(axis)) { // outer loop
             // make the loop var for the for-loop
-            outer_iter[i] = builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx());
+            outer_iter[i] = range_from_outer_loop(dst.get_ranges()[i])
+                    ? expr(0)
+                    : builder::make_var(datatypes::index,
+                            std::string("_fuseiter") + fusion_create_idx());
             for (unsigned j = 0; j < src.size(); j++) {
                 src_idx[j].emplace_back(outer_iter[i]);
                 dst_idx[j].emplace_back(outer_iter[i]);
@@ -199,6 +201,8 @@ static void compute_block_concat(const context_ptr &ctx,
     if (axis) {
         stmt cur = make_stmt<stmts_node_t>(std::move(tcur));
         for (int i = axis - 1; i >= 0; i--) {
+            // Do not generate those dummy loops
+            if (!outer_iter[i].isa<var>()) continue;
             stmt body;
             if (cur.isa<for_loop>()) {
                 body = make_stmt<stmts_node_t>(

@@ -428,8 +428,11 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
     if (!output_loop) {
         std::vector<expr> in_indexes, loop_indexes;
         for (size_t i = 0; i < input_blocking_dims.size(); i++) {
-            iter_vars.emplace_back(builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx()));
+            iter_vars.emplace_back(range_from_outer_loop(src.get_ranges()[i])
+                            ? expr(0)
+                            : builder::make_var(datatypes::index,
+                                    std::string("_fuseiter")
+                                            + fusion_create_idx()));
             in_indexes.emplace_back((iter_vars[i] + src.get_offset()[i]));
             loop_indexes.emplace_back(iter_vars[i]);
         }
@@ -496,6 +499,8 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         // we can only divide iter_end_ rather than multiply step_
         for (int i = static_cast<int>(input_blocking_dims.size()) - 1; i >= 0;
                 i--) {
+            // Do not generate those dummy loops
+            if (!iter_vars.at(i).isa<var>()) continue;
             iter_end = src.get_shape()[i];
             expr cur_step = 1;
             if (!is_vnni_reorder) {
@@ -524,8 +529,11 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         std::vector<expr> out_indexes;
         // create iter variable, and make index
         for (size_t i = 0; i < output_blocking_dims.size(); i++) {
-            iter_vars.emplace_back(builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx()));
+            iter_vars.emplace_back(range_from_outer_loop(dst.get_ranges()[i])
+                            ? expr(0)
+                            : builder::make_var(datatypes::index,
+                                    std::string("_fuseiter")
+                                            + fusion_create_idx()));
             out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
         }
 
@@ -634,6 +642,8 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         // we can only divide iter_end_ rather than multiply step_
         for (int i = static_cast<int>(output_blocking_dims_expr.size()) - 1;
                 i >= 0; i--) {
+            // Do not generate those dummy loops
+            if (!iter_vars.at(i).isa<var>()) continue;
             // if the offset of dst is given(commit op)
             if (!is_padding || !dst.get_offset()[i].isa<constant>()) {
                 iter_end = dst.get_shape()[i];

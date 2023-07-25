@@ -213,8 +213,11 @@ void padding_op_t::compute_block(context_ptr ctx,
     const auto &pads_end = attrs_.get<sc_dims>("pads_end");
     const auto padding_axis = get_real_padding_axis();
     for (size_t i = 0; i < ndims; ++i) {
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(src[0]->get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + fusion_create_idx()));
         src_idx.emplace_back(iter_vars.back());
         dst_idx.emplace_back(iter_vars.back());
 
@@ -241,6 +244,8 @@ void padding_op_t::compute_block(context_ptr ctx,
     cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
 
     for (int64_t i = static_cast<int64_t>(ndims) - 1; i >= 0; --i) {
+        // Do not generate those dummy loops
+        if (!iter_vars.at(i).isa<var>()) continue;
         auto body = make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
         cur = make_stmt<for_loop_node_t>(std::move(iter_vars[i]), expr(0),
                 src[0]->get_shape()[i],

@@ -334,8 +334,10 @@ static void compute_block_pooling(
 
     // the indices for the output tensor
     for (unsigned i = 0; i < dst.nslice_dims(); i++) {
-        iter_vars.emplace_back(builder::make_var(
-                datatypes::index, std::string("_iter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(dst.get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_iter") + fusion_create_idx()));
     }
 
     // the indices dor the kernel inner loop
@@ -532,6 +534,9 @@ static void compute_block_pooling(
             inital_stmts.emplace_back(std::move(target_assign));
             cur = make_stmt<stmts_node_t>(std::move(inital_stmts));
         }
+        // Do not generate those dummy loops
+        if (!iter_vars.at(i).isa<var>()) continue;
+
         body = cur.isa<stmts>()
                 ? cur
                 : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
@@ -558,8 +563,9 @@ static void compute_block_pooling(
                 dst.get_shape()[i],
                 (i == int(iter_vars.size() - 1)) ? int(vx_info.lanes) : 1, body,
                 true, i == 0 ? for_type::PARALLEL : for_type::NORMAL);
-        cur->attr()[stmt_attr_key::merge_loop] = true;
     }
+
+    if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = true;
 
     bld->emit(cur);
     attrs[op_attr_key::fusible_inner_anchors] = inner_anchors;
@@ -883,8 +889,11 @@ static void compute_block_pooling_backward_avg(
 
     // the indices for the source delta
     for (unsigned i = 0; i < inputs[0]->nslice_dims(); i++) {
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(inputs[0]->get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + fusion_create_idx()));
     }
     expr indexed_src_delta = builder::make_indexing(
             inputs[0]->tptr_, iter_vars, vx_info.lanes);
@@ -1003,28 +1012,27 @@ static void compute_block_pooling_backward_avg(
     stmt target_assign;
     for (int i = iter_vars.size() - 1; i >= 0; i--) {
         if (i == int(iter_vars.size() - 1)) {
-            body = cur.isa<stmts>()
-                    ? cur
-                    : make_stmt<stmts_node_t>(std::vector<stmt> {
-                            kernel_size_asnode, std::move(cur)});
-        } else
-            body = cur.isa<stmts>() ? cur
-                                    : make_stmt<stmts_node_t>(
-                                            std::vector<stmt> {std::move(cur)});
+            cur = cur.isa<stmts>() ? cur
+                                   : make_stmt<stmts_node_t>(std::vector<stmt> {
+                                           kernel_size_asnode, std::move(cur)});
+        }
+        // Do not generate those dummy loops
+        if (!iter_vars.at(i).isa<var>()) continue;
+        body = cur.isa<stmts>()
+                ? cur
+                : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
 
         cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), 0,
                 inputs[0]->get_shape()[i],
                 (i == int(iter_vars.size() - 1)) ? int(vx_info.lanes) : 1,
                 std::move(body), true, for_type::NORMAL);
 
-        if (i == 0) {
-            cur->attr()[stmt_attr_key::merge_loop] = false;
-            cur = make_stmt<stmts_node_t>(
-                    std::vector<stmt> {define_kernel_size_var, std::move(cur)});
-        }
-
         cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
     }
+
+    if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = false;
+    cur = make_stmt<stmts_node_t>(
+            std::vector<stmt> {define_kernel_size_var, std::move(cur)});
 
     bld->emit(cur);
 }
@@ -1113,8 +1121,11 @@ static void compute_block_pooling_backward_max(
 
     // the indices for the source delta
     for (unsigned i = 0; i < inputs[0]->nslice_dims(); i++) {
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(inputs[0]->get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + fusion_create_idx()));
     }
     expr indexed_src_delta
             = builder::make_indexing(inputs[0]->tptr_, iter_vars);
@@ -1210,6 +1221,10 @@ static void compute_block_pooling_backward_max(
                     stmt()));
             cur = make_stmt<stmts_node_t>(std::move(kernel_body));
         }
+
+        // Do not generate those dummy loops
+        if (!iter_vars.at(i).isa<var>()) continue;
+
         body = cur.isa<stmts>()
                 ? cur
                 : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
@@ -1218,15 +1233,13 @@ static void compute_block_pooling_backward_max(
                 inputs[0]->get_shape()[i], 1, std::move(body), true,
                 for_type::NORMAL);
 
-        if (i == 0) {
-            cur->attr()[stmt_attr_key::merge_loop] = false;
-            std::vector<stmt> func_body = defines_of_max;
-            func_body.emplace_back(std::move(cur));
-            cur = make_stmt<stmts_node_t>(std::move(func_body));
-        }
-
         cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
     }
+
+    if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = false;
+    std::vector<stmt> func_body = defines_of_max;
+    func_body.emplace_back(std::move(cur));
+    cur = make_stmt<stmts_node_t>(std::move(func_body));
 
     bld->emit(cur);
 }

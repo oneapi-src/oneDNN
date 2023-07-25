@@ -566,8 +566,11 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
     }
 
     for (unsigned i = 0; i < src.at(0)->nslice_dims(); i++) {
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(src.at(0)->get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + fusion_create_idx()));
         src_idx.emplace_back(iter_vars.back());
     }
     // dst.ranges_ is equal to dst.tptr_->dims() in this case, because it
@@ -655,16 +658,19 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
             cur->attr()[op_traits::workload_computable_t::workload_number]
                     = wkld;
         }
-        body = cur.isa<stmts>()
-                ? cur
-                : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
-        // insert mask define.
-        cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), expr(0),
-                src.at(0)->get_shape().at(i),
-                i == static_cast<int>(src.at(0)->nslice_dims() - 1)
-                        ? expr(static_cast<int>(lanes))
-                        : expr(1),
-                std::move(body), true, for_type::NORMAL);
+        // Do not generate those dummy loops
+        if (iter_vars.at(i).isa<var>()) {
+            body = cur.isa<stmts>() ? cur
+                                    : make_stmt<stmts_node_t>(
+                                            std::vector<stmt> {std::move(cur)});
+            // insert mask define.
+            cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
+                    expr(0), src.at(0)->get_shape().at(i),
+                    i == static_cast<int>(src.at(0)->nslice_dims() - 1)
+                            ? expr(static_cast<int>(lanes))
+                            : expr(1),
+                    std::move(body), true, for_type::NORMAL);
+        }
         // the outer-most reduction axis
         if (i == rd_axis.front()) {
             cur = make_stmt<stmts_node_t>(

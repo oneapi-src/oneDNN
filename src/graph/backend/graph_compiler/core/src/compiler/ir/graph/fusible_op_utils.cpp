@@ -524,8 +524,12 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
     std::vector<expr> dst_idx_tail;
     for (unsigned i = 0; i < expand_loop_by->nslice_dims(); i++) {
         // make the loop var for the for-loop
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + std::to_string(idx++)));
+        iter_vars.emplace_back(
+                range_from_outer_loop(expand_loop_by->get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + std::to_string(idx++)));
         // for each input tensor
         for (size_t j = 0; j < src.size(); j++) {
             auto &src_idx_floor = src_indices_floor.at(j);
@@ -671,7 +675,8 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
                 create_fusible_output_anchor(
                         tcur, dst, iter_vars, {i}, vx_info, attrs);
             }
-        } else {
+        } else if (iter_vars.at(i).isa<var>()) {
+            // Do not generate those dummy loop
             if (!tcur.empty() && tcur[0].defined()) {
                 body = make_stmt<stmts_node_t>(std::move(tcur));
                 tcur.clear();
@@ -714,7 +719,6 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
         }
     }
     if (!tcur.empty() && tcur[0].defined()) {
-        assert(expand_loop_by->get_shape().size() == 1UL);
         // TODO(xxx): currenly we don't add merge_loop attribute for this
         // special case, need stronger loop analysis.
         for (auto &it : tcur) {
@@ -1077,6 +1081,11 @@ float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
     float cal_parallelism = ((stc_loops % run_threads) / float(run_threads));
     if (stc_loops < run_threads) { cal_parallelism += minor_dyn_parallelism; }
     return parallelism ? 1.0f : cal_parallelism;
+}
+
+bool range_from_outer_loop(const std::pair<expr, expr> &range) {
+    return !range.first.isa<constant>() && range.second.isa<constant>()
+            && get_expr_as_int(range.second) == 1;
 }
 
 bool slice_full_on_axis(const sc_dims &dim, const slice_range &ranges,

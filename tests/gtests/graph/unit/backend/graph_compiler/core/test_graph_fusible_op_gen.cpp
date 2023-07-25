@@ -564,8 +564,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
             _arg_("in", datatypes::f32, {1UL, 2UL, 32UL, 32UL})) {
         _bind_(out, in);
         _for_(fused, 0UL, 64UL, 1UL, for_type::PARALLEL) {
-            _for_(iter0, 0, 1) _for_(iter1, 0, 1) _for_(iter2, 0, 1)
-                    _for_(iter3, 0, UINT64_C(32), simd_len) {
+            _for_(iter3, 0, UINT64_C(32), simd_len) {
                 auto in_ptr = builder::tensor_ptr(in,
                         {fused / UINT64_C(64),
                                 fused / UINT64_C(32) % UINT64_C(2),
@@ -577,7 +576,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
                                 fused % UINT64_C(32), 0},
                         {}, true);
                 expr cur_idx = (iter3
-                        + (iter1 + fused / UINT64_C(32) % UINT64_C(2)) * 32);
+                        + (0 + fused / UINT64_C(32) % UINT64_C(2)) * 32);
                 expr offset = builder::make_min(
                         builder::make_max(35
                                         - builder::make_cast(
@@ -588,18 +587,16 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
                         builder::make_select(offset == simd_len, full_mask,
                                 full_mask >> builder::make_cast(
                                         mask_dtype, simd_len - offset)));
-                out_ptr[span_t({iter0, iter1, iter2, iter3}, simd_len)]
-                        = builder::make_exp(in_ptr[span_t(
-                                {iter0, iter1, iter2, iter3}, simd_len)]);
+                out_ptr[span_t({0, 0, 0, iter3}, simd_len)] = builder::make_exp(
+                        in_ptr[span_t({0, 0, 0, iter3}, simd_len)]);
                 _var_init_(mask_var, mask_dtype, mask_select);
-                out_ptr[span_t({iter0, iter1, iter2, iter3}, simd_len)]
+                out_ptr[span_t({0, 0, 0, iter3}, simd_len)]
                         = builder::make_select(mask_var,
-                                out_ptr[span_t({iter0, iter1, iter2, iter3},
-                                        simd_len)],
+                                out_ptr[span_t({0, 0, 0, iter3}, simd_len)],
                                 mask_zero);
             }
         }
         _return_(true);
     }
-    CMP_SIMPLIFIED_IR(expf2, bbb);
+    CMP_SIMPLIFIED_IR(expf2, constant_folder_t()(bbb));
 }

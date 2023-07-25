@@ -464,8 +464,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseBRGemmPreOpFusion) {
     auto ctx = get_test_ctx();
     mixed_partition(graph, ctx);
     mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
-    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
-
+    ASSERT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
     // Due to brgemm pre-op fusion, the number of outer loops is equal to what
     // is written in conv template
     EXPECT_EQ(fused_op->parti_list_[0]->get_outer_loops().size(), (size_t)3);
@@ -1110,8 +1109,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
     // split outmost and merge inners
     mixed_partition(graph, ctx);
     auto mixed_op = get_mixed_op_from_graph(graph);
-    COMPILE_ASSERT(mixed_op, "No mixed fused op is found, please check")
-
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
     auto body = mixed_op->parti_list_[0]
                         ->get_outer_loops()
                         .back()
@@ -1216,8 +1214,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint1) {
     mixed_partition(graph, ctx);
 
     mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
-    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
-
+    ASSERT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
     auto body = fused_op->parti_list_[0]
                         ->get_outer_loops()
                         .back()
@@ -1259,8 +1256,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint2) {
     mixed_partition(graph, ctx);
 
     mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
-    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
-
+    ASSERT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
     auto body = fused_op->parti_list_[0]
                         ->get_outer_loops()
                         .back()
@@ -1309,8 +1305,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint4) {
     mixed_partition(graph, ctx);
 
     mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
-    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
-
+    ASSERT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
     auto body = fused_op->parti_list_[0]
                         ->get_outer_loops()
                         .back()
@@ -1354,8 +1349,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint5) {
     mixed_partition(graph, ctx);
 
     mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
-    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
-
+    EXPECT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
     // get output buffer named `add_4_outs_0`
     auto output_buf = fused_op->parti_list_[0]->func_->params_[0];
     // the output buffer should not do inplace due to tensorptr found
@@ -1391,8 +1385,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint7) {
     mixed_partition(graph, ctx);
 
     mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
-    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
-
+    ASSERT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
     auto body = fused_op->parti_list_[0]
                         ->get_outer_loops()
                         .back()
@@ -1445,8 +1438,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint8) {
     mixed_partition(graph, ctx);
 
     mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
-    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
-
+    ASSERT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
     // get inplace map
     auto inplace_map = fused_op->parti_list_[0]->buf_alloc_.inplace_map_;
     // there is expected nothing in inplace map, due to `relu_4_outs_0 ==>
@@ -1888,7 +1880,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeAndNoBarrier) {
     // split outmost and merge inners
     mixed_partition(graph, ctx);
     auto mixed_op = get_mixed_op_from_graph(graph);
-    ASSERT_TRUE(mixed_op);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
     auto &body = mixed_op->parti_list_[0]->func_->body_;
     auto inner_loop = body.cast<stmts>()
                               .map([](const stmts &v) {
@@ -1978,7 +1970,53 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
     mixed_partition(graph, ctx);
     // The output buffer of `relu0` should be replaced by padding op
     auto mixed_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
     auto allocator = mixed_op->parti_list_[0]->buf_alloc_;
     auto relu_base_tsr = get_real_tensor(allocator.g2b_map_.get(relu0_out));
     ASSERT_TRUE(relu_base_tsr->name_ == "padding_6_outs_0");
+}
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop) {
+    SET_THREADS_OR_SKIP(28);
+    int BS = 28, H = 32, W = 32, C = 64;
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input(
+            {graph_tensor::make({BS, C, H, W}, sc_data_format_t::NCHW())});
+    auto input1 = graph.make_input({graph_tensor::make({1, 1, H, 1})});
+    // relu
+    auto relu0 = graph.make("relu", input0->get_outputs(), {}, {});
+    // add
+    auto add0 = graph.make(
+            "add", {relu0->get_outputs()[0], input1->get_outputs()[0]}, {}, {});
+    // reorder
+    auto reo0 = graph.make("reorder", add0->get_outputs(), {},
+            {{"out_format", sc_data_format_t::NCHWc(32)}});
+    graph.make_output({reo0->get_outputs()[0]});
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+    mixed_partition(graph, ctx);
+
+    auto mixed_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    auto func = mixed_op->parti_list_[0]->func_;
+    ASSERT_TRUE(func && func->body_.isa<stmts>());
+    auto body = func->body_.static_as<stmts>();
+    ASSERT_TRUE(body->seq_.size() == 1 && body->seq_[0].isa<for_loop>());
+    auto outer_loop = body->seq_[0].static_as<for_loop>();
+    ASSERT_TRUE(outer_loop->body_.isa<stmts>());
+    auto loop_body = outer_loop->body_.static_as<stmts>();
+    ASSERT_TRUE(loop_body->seq_.size() == 3 && loop_body->seq_[2].isa<stmts>());
+    auto second_anchor = loop_body->seq_[2].static_as<stmts>();
+    ASSERT_TRUE(second_anchor->seq_.size() == 1
+            && second_anchor->seq_[0].isa<for_loop>());
+    auto reo_inner_loop = second_anchor->seq_[0].static_as<for_loop>();
+    // The first inner loop of reorder op should have range of [0, 32] rather
+    // than [0, 1], and own `merge_loop` attr
+    ASSERT_TRUE(get_expr_as_int(reo_inner_loop->iter_end_) == 32
+            && reo_inner_loop->attr_
+            && reo_inner_loop->attr_->get_or_else(
+                    stmt_attr_key::merge_loop, false));
 }

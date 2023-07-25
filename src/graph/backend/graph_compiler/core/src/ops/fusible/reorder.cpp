@@ -1257,7 +1257,7 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
-        for (int i = 0; i < static_cast<int>(plain_dims.size()) - 2; i++) {
+        for (int i = 1; i < static_cast<int>(plain_dims.size()) - 2; i++) {
             loops[0].checked_as<for_loop>()->fuse(
                     loops[i].checked_as<for_loop>());
         }
@@ -1307,7 +1307,7 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
-        for (int i = 0; i < static_cast<int>(plain_dims.size()) - 2; i++) {
+        for (int i = 1; i < static_cast<int>(plain_dims.size()) - 2; i++) {
             loops[0].checked_as<for_loop>()->fuse(
                     loops[i].checked_as<for_loop>());
         }
@@ -1383,8 +1383,11 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
     std::vector<expr> in_indexes;
     std::vector<expr> loop_indexes;
     for (size_t i = 0; i < input_blocking_dims.size(); i++) {
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(src.get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + fusion_create_idx()));
         in_indexes.emplace_back(iter_vars[i] + src.get_offset()[i]);
         loop_indexes.emplace_back(iter_vars[i]);
     }
@@ -1427,6 +1430,8 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
     stmt body;
     for (int i = static_cast<int>(input_blocking_dims.size()) - 1; i >= 0;
             i--) {
+        // Do not generate those dummy loops
+        if (!iter_vars.at(i).isa<var>()) continue;
         body = cur.isa<stmts>()
                 ? cur
                 : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
@@ -1526,8 +1531,11 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
     if (!output_loop) {
         std::vector<expr> in_indexes;
         for (size_t i = 0; i < input_blocking_dims.size(); i++) {
-            iter_vars.emplace_back(builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx()));
+            iter_vars.emplace_back(range_from_outer_loop(src.get_ranges()[i])
+                            ? expr(0)
+                            : builder::make_var(datatypes::index,
+                                    std::string("_fuseiter")
+                                            + fusion_create_idx()));
             in_indexes.emplace_back(iter_vars[i] + src.get_offset()[i]);
             loop_indexes.emplace_back(iter_vars[i]);
         }
@@ -1551,6 +1559,8 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
         stmt body;
         for (int i = static_cast<int>(input_blocking_dims.size()) - 1; i >= 0;
                 i--) {
+            // Do not generate those dummy loops
+            if (!iter_vars.at(i).isa<var>()) continue;
             body = cur.isa<stmts>() ? cur
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
@@ -1567,8 +1577,11 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
     } else {
         std::vector<expr> out_indexes;
         for (size_t i = 0; i < output_blocking_dims.size(); i++) {
-            iter_vars.emplace_back(builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx()));
+            iter_vars.emplace_back(range_from_outer_loop(dst.get_ranges()[i])
+                            ? expr(0)
+                            : builder::make_var(datatypes::index,
+                                    std::string("_fuseiter")
+                                            + fusion_create_idx()));
             out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
         }
         expr condition;
@@ -1616,6 +1629,8 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
         //______________mask version
         for (int i = static_cast<int>(output_blocking_dims.size()) - 1; i >= 0;
                 i--) {
+            // Do not generate those dummy loops
+            if (!iter_vars.at(i).isa<var>()) continue;
             body = cur.isa<stmts>() ? cur
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
@@ -1714,8 +1729,11 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
         std::vector<expr> in_indexes;
         std::vector<expr> loop_indexes;
         for (size_t i = 0; i < input_blocking_dims.size(); i++) {
-            iter_vars.emplace_back(builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx()));
+            iter_vars.emplace_back(range_from_outer_loop(src.get_ranges()[i])
+                            ? expr(0)
+                            : builder::make_var(datatypes::index,
+                                    std::string("_fuseiter")
+                                            + fusion_create_idx()));
             in_indexes.emplace_back(iter_vars[i] + src.get_offset()[i]);
             loop_indexes.emplace_back(iter_vars[i]);
         }
@@ -1744,6 +1762,8 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
         stmt body;
         for (int i = static_cast<int>(input_blocking_dims.size()) - 1; i >= 0;
                 i--) {
+            // Do not generate those dummy loops
+            if (!iter_vars.at(i).isa<var>()) continue;
             body = cur.isa<stmts>() ? cur
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
@@ -1805,7 +1825,7 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
-        for (int i = 0; i < static_cast<int>(output_blocking_dims.size()) - 2;
+        for (int i = 1; i < static_cast<int>(output_blocking_dims.size()) - 2;
                 i++) {
             loops[0].checked_as<for_loop>()->fuse(
                     loops[i].checked_as<for_loop>());

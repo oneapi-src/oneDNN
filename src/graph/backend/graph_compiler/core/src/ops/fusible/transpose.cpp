@@ -654,7 +654,8 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                                  const int a_axis, const int b_axis,
                                  const tensor_slice &tsr) {
         for (int i = static_cast<int>(blocking_dims.size()) - 1; i >= 0; i--) {
-            if (utils::is_one_of(i, a_axis, b_axis)) {
+            if (utils::is_one_of(i, a_axis, b_axis)
+                    && iter_vars.at(i).isa<var>()) {
                 body = cur.isa<stmts>()
                         ? cur
                         : make_stmt<stmts_node_t>(
@@ -671,7 +672,8 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
             }
         }
         for (int i = static_cast<int>(blocking_dims.size()) - 1; i >= 0; i--) {
-            if (!utils::is_one_of(i, a_axis, b_axis)) {
+            if (!utils::is_one_of(i, a_axis, b_axis)
+                    && iter_vars.at(i).isa<var>()) {
                 body = cur.isa<stmts>()
                         ? cur
                         : make_stmt<stmts_node_t>(
@@ -689,8 +691,11 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
     if (!output_loop) {
         std::vector<expr> in_indexes, loop_indexes;
         for (size_t i = 0; i < input_blocking_dims_expr.size(); i++) {
-            iter_vars.emplace_back(builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx()));
+            iter_vars.emplace_back(range_from_outer_loop(src.get_ranges()[i])
+                            ? expr(0)
+                            : builder::make_var(datatypes::index,
+                                    std::string("_fuseiter")
+                                            + fusion_create_idx()));
             in_indexes.emplace_back(iter_vars[i] + src.get_offset()[i]);
             loop_indexes.emplace_back(iter_vars[i]);
         }
@@ -717,8 +722,11 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
     } else {
         std::vector<expr> out_indexes;
         for (size_t i = 0; i < output_blocking_dims_expr.size(); i++) {
-            iter_vars.emplace_back(builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx()));
+            iter_vars.emplace_back(range_from_outer_loop(dst.get_ranges()[i])
+                            ? expr(0)
+                            : builder::make_var(datatypes::index,
+                                    std::string("_fuseiter")
+                                            + fusion_create_idx()));
             out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
         }
         expr condition;

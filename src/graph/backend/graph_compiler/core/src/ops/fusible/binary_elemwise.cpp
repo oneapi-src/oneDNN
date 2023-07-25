@@ -739,8 +739,11 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
     // use src_indices.at(0) as default
     for (unsigned i = 0; i < dst.nslice_dims(); i++) {
         // make the loop var for the for-loop
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(dst.get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + fusion_create_idx()));
         in_idx.emplace_back(iter_vars.back());
         if (std::find(bc_axis.begin(), bc_axis.end(), i) != bc_axis.end()) {
             in_bc_idx.emplace_back(iter_vars.back());
@@ -919,7 +922,8 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
                         for_type::NORMAL);
                 tcur.emplace_back(cur);
             }
-        } else {
+        } else if (iter_vars.at(i).isa<var>()) {
+            // Do not generate those dummy loop
             if (!tcur.empty() && tcur[0].defined()) {
                 body = make_stmt<stmts_node_t>(std::move(tcur));
                 tcur.clear();
@@ -965,7 +969,6 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
         }
     }
     if (!tcur.empty() && tcur[0].defined()) {
-        assert(dst.get_shape().size() == 1UL);
         // TODO(xxx): currenly we don't add merge_loop attribute for this
         // special case, need stronger loop analysis.
         for (auto &it : tcur) {

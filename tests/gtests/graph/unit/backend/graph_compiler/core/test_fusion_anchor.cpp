@@ -111,30 +111,24 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestGroupedFusionAnchor) {
                             add_in_1, {m_o, n_o, 0, 0}, {}, true);
                     auto mul_in_1_tptr = builder::tensor_ptr(
                             mul_in_1, {m_o, n_o, 0, 0}, {}, true);
-                    _for_(i, 0, 1) {
-                        _for_(j, 0, 1) {
-                            _for_(ii, 0, 32) {
-                                _for_(jj, 0, 16, lanes) {
-                                    add_out_tptr[span_t({i, j, ii, jj}, lanes)]
-                                            = add_in_0_tptr[span_t(
-                                                      {i, j, ii, jj}, lanes)]
-                                            + add_in_1_tptr[span_t(
-                                                    {i, j, ii, jj}, lanes)];
-                                }
-                            }
+
+                    _for_(ii, 0, 32) {
+                        _for_(jj, 0, 16, lanes) {
+                            add_out_tptr[span_t({0, 0, ii, jj}, lanes)]
+                                    = add_in_0_tptr[span_t(
+                                              {0, 0, ii, jj}, lanes)]
+                                    + add_in_1_tptr[span_t(
+                                            {0, 0, ii, jj}, lanes)];
                         }
                     }
-                    _for_(i, 0, 1) {
-                        _for_(j, 0, 1) {
-                            _for_(ii, 0, 32) {
-                                _for_(jj, 0, 16, lanes) {
-                                    mul_out_tptr[span_t({i, j, ii, jj}, lanes)]
-                                            = add_out_tptr[span_t(
-                                                      {i, j, ii, jj}, lanes)]
-                                            * mul_in_1_tptr[span_t(
-                                                    {i, j, ii, jj}, lanes)];
-                                }
-                            }
+
+                    _for_(ii, 0, 32) {
+                        _for_(jj, 0, 16, lanes) {
+                            mul_out_tptr[span_t({0, 0, ii, jj}, lanes)]
+                                    = add_out_tptr[span_t(
+                                              {0, 0, ii, jj}, lanes)]
+                                    * mul_in_1_tptr[span_t(
+                                            {0, 0, ii, jj}, lanes)];
                         }
                     }
                 }
@@ -154,30 +148,24 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestGroupedFusionAnchor) {
                             add_in_1, {m_o, n_o, 0, 0}, {}, true);
                     auto mul_in_1_tptr = builder::tensor_ptr(
                             mul_in_1, {m_o, n_o, 0, 0}, {}, true);
-                    _for_(i, 0, 1) {
-                        _for_(j, 0, 1) {
-                            _for_(ii, 0, 32) {
-                                _for_(jj, 0, 16, lanes) {
-                                    add_out_tptr[span_t({i, j, ii, jj}, lanes)]
-                                            = add_in_0_tptr[span_t(
-                                                      {i, j, ii, jj}, lanes)]
-                                            + add_in_1_tptr[span_t(
-                                                    {i, j, ii, jj}, lanes)];
-                                }
-                            }
+
+                    _for_(ii, 0, 32) {
+                        _for_(jj, 0, 16, lanes) {
+                            add_out_tptr[span_t({0, 0, ii, jj}, lanes)]
+                                    = add_in_0_tptr[span_t(
+                                              {0, 0, ii, jj}, lanes)]
+                                    + add_in_1_tptr[span_t(
+                                            {0, 0, ii, jj}, lanes)];
                         }
                     }
-                    _for_(i, 0, 1) {
-                        _for_(j, 0, 1) {
-                            _for_(ii, 0, 32) {
-                                _for_(jj, 0, 16, lanes) {
-                                    mul_out_tptr[span_t({i, j, ii, jj}, lanes)]
-                                            = add_out_tptr[span_t(
-                                                      {i, j, ii, jj}, lanes)]
-                                            * mul_in_1_tptr[span_t(
-                                                    {i, j, ii, jj}, lanes)];
-                                }
-                            }
+
+                    _for_(ii, 0, 32) {
+                        _for_(jj, 0, 16, lanes) {
+                            mul_out_tptr[span_t({0, 0, ii, jj}, lanes)]
+                                    = add_out_tptr[span_t(
+                                              {0, 0, ii, jj}, lanes)]
+                                    * mul_in_1_tptr[span_t(
+                                            {0, 0, ii, jj}, lanes)];
                         }
                     }
                 }
@@ -246,24 +234,18 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestDynamicFusionAnchor) {
                         = builder::tensor_ptr(add_in_1, {m_o, 0, 0}, {}, true);
                 auto mul_in_1_tptr
                         = builder::tensor_ptr(mul_in_1, {m_o, 0, 0}, {}, true);
-                _for_(i, 0, 1) {
-                    _for_(j, 0, dyn_shape) {
-                        _for_(k, 0, 16, lanes) {
-                            add_out_tptr[span_t(
-                                    {i, j, k}, static_cast<int>(lanes))]
-                                    = add_in_0_tptr[span_t({i, j, k}, lanes)]
-                                    + add_in_1_tptr[span_t({i, j, k}, lanes)];
-                        }
+                _for_(j, 0, dyn_shape) {
+                    _for_(k, 0, 16, lanes) {
+                        add_out_tptr[span_t({0, j, k}, static_cast<int>(lanes))]
+                                = add_in_0_tptr[span_t({0, j, k}, lanes)]
+                                + add_in_1_tptr[span_t({0, j, k}, lanes)];
                     }
                 }
-                _for_(i, 0, 1) {
-                    _for_(j, 0, dyn_shape) {
-                        _for_(k, 0, 16, lanes) {
-                            mul_out_tptr[span_t(
-                                    {i, j, k}, static_cast<int>(lanes))]
-                                    = add_out_tptr[span_t({i, j, k}, lanes)]
-                                    * mul_in_1_tptr[span_t({i, j, k}, lanes)];
-                        }
+                _for_(j, 0, dyn_shape) {
+                    _for_(k, 0, 16, lanes) {
+                        mul_out_tptr[span_t({0, j, k}, static_cast<int>(lanes))]
+                                = add_out_tptr[span_t({0, j, k}, lanes)]
+                                * mul_in_1_tptr[span_t({0, j, k}, lanes)];
                     }
                 }
             }
