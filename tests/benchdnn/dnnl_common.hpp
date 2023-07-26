@@ -23,9 +23,6 @@
 #include <vector>
 
 #include "oneapi/dnnl/dnnl.h"
-#include "src/common/bfloat16.hpp"
-#include "src/common/float16.hpp"
-#include "src/common/nstl.hpp"
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -34,6 +31,7 @@
 #include "utils/compare.hpp"
 #include "utils/dims.hpp"
 #include "utils/dnnl_query.hpp"
+#include "utils/numeric.hpp"
 
 #include "tests/test_thread.hpp"
 
@@ -85,145 +83,6 @@ extern "C" dnnl_status_t dnnl_query_profiling_data(dnnl_stream_t stream,
 
 int check_pd_cache(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_primitive_cache(dnnl_primitive_t p, res_t *res);
-
-/* aux */
-using bfloat16_t = dnnl::impl::bfloat16_t;
-using float16_t = dnnl::impl::float16_t;
-template <dnnl_data_type_t>
-struct prec_traits;
-template <>
-struct prec_traits<dnnl_bf16> {
-    typedef bfloat16_t type;
-};
-template <>
-struct prec_traits<dnnl_f16> {
-    typedef float16_t type;
-};
-template <>
-struct prec_traits<dnnl_f32> {
-    typedef float type;
-};
-
-// XXX: benchdnn infra doesn't support double yet.
-// Use float's max/min/epsilon values to avoid following build warnings:
-// warning C4756: overflow in constant arithmetic.
-// This should be fixed once cpu reference in f64 is added.
-template <>
-struct prec_traits<dnnl_f64> {
-    typedef float type;
-};
-template <>
-struct prec_traits<dnnl_s32> {
-    typedef int32_t type;
-};
-template <>
-struct prec_traits<dnnl_s8> {
-    typedef int8_t type;
-};
-template <>
-struct prec_traits<dnnl_u8> {
-    typedef uint8_t type;
-};
-
-#define CASE_ALL(dt) \
-    switch (dt) { \
-        CASE(dnnl_bf16); \
-        CASE(dnnl_f16); \
-        CASE(dnnl_f32); \
-        CASE(dnnl_f64); \
-        CASE(dnnl_s32); \
-        CASE(dnnl_s8); \
-        CASE(dnnl_u8); \
-        default: assert(!"bad data_type"); \
-    }
-
-/* std::numeric_limits::digits functionality */
-inline int digits_dt(dnnl_data_type_t dt) {
-#define CASE(dt) \
-    case dt: \
-        return dnnl::impl::nstl::numeric_limits< \
-                typename prec_traits<dt>::type>::digits;
-
-    CASE_ALL(dt);
-
-#undef CASE
-    return 0;
-}
-
-inline float epsilon_dt(dnnl_data_type_t dt) {
-#define CASE(dt) \
-    case dt: \
-        return (float)dnnl::impl::nstl::numeric_limits< \
-                typename prec_traits<dt>::type>::epsilon();
-
-    CASE_ALL(dt);
-
-#undef CASE
-
-    return 0;
-}
-
-inline float lowest_dt(dnnl_data_type_t dt) {
-#define CASE(dt) \
-    case dt: \
-        return (float)dnnl::impl::nstl::numeric_limits< \
-                typename prec_traits<dt>::type>::lowest();
-
-    CASE_ALL(dt);
-
-#undef CASE
-
-    return 0;
-}
-
-inline float max_dt(dnnl_data_type_t dt) {
-#define CASE(dt) \
-    case dt: \
-        return (float)dnnl::impl::nstl::numeric_limits< \
-                typename prec_traits<dt>::type>::max();
-
-    CASE_ALL(dt);
-
-#undef CASE
-
-    return 0;
-}
-
-#undef CASE_ALL
-
-#define BENCHDNN_S32_TO_F32_SAT_CONST 2147483520.f
-
-template <dnnl_data_type_t dt>
-inline float saturate_and_round(float val) {
-    const float dt_max = max_dt(dt);
-    const float dt_min = (float)dnnl::impl::nstl::numeric_limits<
-            typename prec_traits<dt>::type>::lowest();
-    if (dt == dnnl_s32 && val >= max_dt(dnnl_s32)) return max_dt(dnnl_s32);
-    if (val > dt_max) val = dt_max;
-    if (val < dt_min) val = dt_min;
-    return mxcsr_cvt(val);
-}
-
-inline bool is_integral_dt(dnnl_data_type_t dt) {
-    return dt == dnnl_s32 || dt == dnnl_s8 || dt == dnnl_u8;
-}
-
-inline float maybe_saturate(dnnl_data_type_t dt, float value) {
-    if (!is_integral_dt(dt)) return value;
-
-    switch (dt) {
-#define CASE(dt) \
-    case dt: return saturate_and_round<dt>(value);
-        CASE(dnnl_s32);
-        CASE(dnnl_s8);
-        CASE(dnnl_u8);
-#undef CASE
-        default: assert(!"bad data_type");
-    }
-    return 0;
-}
-
-float round_to_nearest_representable(dnnl_data_type_t dt, float value);
 
 extern dnnl_engine_kind_t engine_tgt_kind;
 extern size_t engine_index;

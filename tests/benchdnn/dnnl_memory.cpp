@@ -181,8 +181,12 @@ float dnn_mem_t::get_elem(int64_t idx, int buffer_index) const {
         case dnnl_s32: elem = static_cast<int32_t *>(data)[idx]; break;
         case dnnl_f32: elem = static_cast<float *>(data)[idx]; break;
         case dnnl_f64: elem = static_cast<double *>(data)[idx]; break;
-        case dnnl_f16: elem = static_cast<float16_t *>(data)[idx]; break;
-        case dnnl_bf16: elem = static_cast<bfloat16_t *>(data)[idx]; break;
+        case dnnl_f16:
+            elem = static_cast<dnnl::impl::float16_t *>(data)[idx];
+            break;
+        case dnnl_bf16:
+            elem = static_cast<dnnl::impl::bfloat16_t *>(data)[idx];
+            break;
         default: assert(!"bad data type");
     }
     return elem;
@@ -197,8 +201,8 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
         case dnnl_s32: ((int32_t *)data)[idx] = value; break;
         case dnnl_f32: ((float *)data)[idx] = value; break;
         case dnnl_f64: ((double *)data)[idx] = value; break;
-        case dnnl_f16: ((float16_t *)data)[idx] = value; break;
-        case dnnl_bf16: ((bfloat16_t *)data)[idx] = value; break;
+        case dnnl_f16: ((dnnl::impl::float16_t *)data)[idx] = value; break;
+        case dnnl_bf16: ((dnnl::impl::bfloat16_t *)data)[idx] = value; break;
         default: assert(!"bad data type");
     }
 }
@@ -850,8 +854,8 @@ int check_zero_padding(
         case dnnl_data_type_undef:
             return OK;
 
-            CASE(dnnl_bf16, bfloat16_t);
-            CASE(dnnl_f16, float16_t);
+            CASE(dnnl_bf16, dnnl::impl::bfloat16_t);
+            CASE(dnnl_f16, dnnl::impl::float16_t);
             CASE(dnnl_f32, float);
             CASE(dnnl_f64, double);
             CASE(dnnl_s32, int32_t);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,8 +28,7 @@ void copy(int64_t dimc, int64_t dimr, int64_t ld_src, int64_t ld_dst,
     benchdnn_parallel_nd(dimc, [&](int64_t i) {
         for (int64_t j = 0; j < dimr; j++) {
             dst(i, j) = (action == action_sum ? dst(i, j) : 0) + src(i, j);
-            if (saturate_to_u8)
-                dst(i, j) = saturate_and_round<dnnl_u8>(dst(i, j));
+            if (saturate_to_u8) dst(i, j) = maybe_saturate(dnnl_u8, dst(i, j));
         }
     });
 }
@@ -39,8 +38,8 @@ void data_q10n(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_,
     AOC<float> src(src_, dimc, ld_src);
     benchdnn_parallel_nd(dimc, [&](int64_t i) {
         for (int64_t j = 0; j < dimr; j++)
-            src(i, j) = saturate_and_round<dnnl_u8>(
-                    data_scale * src(i, j) + data_shift);
+            src(i, j) = maybe_saturate(
+                    dnnl_u8, data_scale * src(i, j) + data_shift);
     });
 }
 

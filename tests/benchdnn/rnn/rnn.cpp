@@ -157,8 +157,8 @@ int check_s8s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             const float current_scale = scales[idx % nscales];
             float val_f32 = mem_fp.get_elem(idx);
-            int8_t val_s8 = saturate_and_round<dnnl_s8>(
-                    val_f32 * current_scale + shift);
+            int8_t val_s8
+                    = maybe_saturate(dnnl_s8, val_f32 * current_scale + shift);
             mem_s8_src.set_elem(idx, val_s8);
         }
     };
