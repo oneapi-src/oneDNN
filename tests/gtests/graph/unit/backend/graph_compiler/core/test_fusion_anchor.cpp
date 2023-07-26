@@ -257,3 +257,74 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestDynamicFusionAnchor) {
     ir_comparer cmper(true);
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
+
+TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor1) {
+    SET_THREADS_OR_SKIP(20);
+    sc_graph_t g;
+    // The last dim 35 could not be divided by max lanes, as the result, it
+    // should be auto split into grouped anchor in avoid of loop merge break
+    sc_dims input_dims = {20, 30, 55};
+    auto finput0 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput1 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput2 = g.make_input({graph_tensor::make(input_dims)});
+
+    auto fadd = g.make("add",
+            {finput0->get_outputs()[0], finput1->get_outputs()[0]}, {}, {});
+    auto fmul = g.make(
+            "mul", {fadd->get_outputs()[0], finput2->get_outputs()[0]}, {}, {});
+
+    auto fout = g.make_output(fmul->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+    do_mixed_partition(ctx, g);
+
+    auto mixed_op = get_mixed_op_from_graph(g);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    auto parti = mixed_op->parti_list_[0];
+    ASSERT_TRUE(parti->fanchors_.size() == 1);
+    auto fanchor = parti->fanchors_[0];
+    // grouped anchor is expected
+    auto grouped_anchor = fanchor->dyn_cast<fuse_grouped_anchor_map_t>();
+    ASSERT_TRUE(grouped_anchor);
+    // own two group size
+    ASSERT_TRUE(
+            grouped_anchor->anchor_position_.checked_as<stmts>()->seq_.size()
+            == 2);
+}
+
+TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor2) {
+    SET_THREADS_OR_SKIP(20);
+    sc_graph_t g;
+    // The last dim 35 could not be divided by max lanes, as the result, it
+    // should be auto split into grouped anchor in avoid of loop merge break
+    sc_dims input_dims = {20, 30, 55};
+    auto finput0 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput1 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput2 = g.make_input({graph_tensor::make(input_dims)});
+
+    auto fadd = g.make("add",
+            {finput0->get_outputs()[0], finput1->get_outputs()[0]}, {}, {});
+    auto fmul = g.make(
+            "mul", {fadd->get_outputs()[0], finput2->get_outputs()[0]}, {}, {});
+    // However, this reduce op would break split anchor optimization, which may
+    // drive reduce op to select larger fusion anchor than non-optimized version
+    auto freduce = g.make("reduce", fmul->get_outputs(), {},
+            {{"rd_axis", std::vector<int> {2}}, {"rd_op", 0}});
+    auto fout = g.make_output(freduce->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+    do_mixed_partition(ctx, g);
+
+    auto mixed_op = get_mixed_op_from_graph(g);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    auto parti = mixed_op->parti_list_[0];
+    ASSERT_TRUE(parti->fanchors_.size() == 1);
+    auto fanchor = parti->fanchors_[0];
+    // grouped anchor is not expected
+    auto grouped_anchor = fanchor->dyn_cast<fuse_grouped_anchor_map_t>();
+    ASSERT_FALSE(grouped_anchor);
+}

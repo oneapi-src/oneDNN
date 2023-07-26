@@ -402,6 +402,73 @@ void fusion_anchor_mgr_t::create_fusion_anchor(int group_id,
     }
 }
 
+fuse_anchor_map_ptr try_convert_anchor(
+        const context_ptr &ctx, const fuse_anchor_map_ptr &fanchor) {
+    // Currently, it only converts common anchor. When all kinds of fusion
+    // anchor supported, this method should become one of member function
+    auto &anchor_type = *fanchor;
+    if (typeid(anchor_type) != typeid(fuse_anchor_map_t)) return fanchor;
+
+    auto &datamap = fanchor->fsmap_.datamap_;
+    if (datamap.size() != 1 || datamap.begin()->second.size() != 1)
+        return fanchor;
+    sc_dim floor, tail;
+    auto &fs_pair = *datamap.begin();
+    auto base_gt = fs_pair.first;
+    // check attr to confirm all users of base gt agree to split
+    if (!std::all_of(base_gt->uses_.begin(), base_gt->uses_.end(),
+                [](const std::pair<int, dnnl::impl::graph::gc::sc_op_weak_ptr_t>
+                                &user) {
+                    return user.second->attrs_.get_or_else(
+                            mixed_partition_hint::split_anchor_op, false);
+                }))
+        return fanchor;
+    // if last lanes is non-dividable, auto split it to grouped anchor
+    if (!innermost_slice_with_non_dividable_lanes(
+                ctx, fs_pair.second[0], base_gt->details_.dtype_, floor, tail))
+        return fanchor;
+
+    auto &pos = fanchor->anchor_position_;
+    // get parent pos
+    auto parent_pos = get_parent_node(pos).checked_as<stmts>();
+    // remove old anchor pos
+    std::vector<stmt>::iterator anchor_iter
+            = std::find_if(parent_pos->seq_.begin(), parent_pos->seq_.end(),
+                    [pos](stmt &s) { return s.ptr_same(pos); });
+    COMPILE_ASSERT(anchor_iter != parent_pos->seq_.end(),
+            "Could not found anchor in current parent_pos stmts");
+    parent_pos->seq_.erase(anchor_iter);
+    // create grouped anchor fsmap
+    auto &value = datamap.begin()->second[0];
+
+    auto floor_slice = slice_range {value.begin(), value.end() - 1};
+    floor_slice.emplace_back(
+            std::make_pair(value.back().first, dim2unsigned(floor)));
+    auto tail_slice = slice_range {value.begin(), value.end() - 1};
+    tail_slice.emplace_back(std::make_pair(
+            value.back().first + dim2unsigned(floor), dim2unsigned(tail)));
+    datamap.begin()->second = slice_range_list {floor_slice, tail_slice};
+    // create grouped anchor pos
+    auto floor_pos = make_stmt<stmts_node_t>(std::vector<stmt> {});
+    auto tail_pos = make_stmt<stmts_node_t>(std::vector<stmt> {});
+    auto new_pos
+            = make_stmt<stmts_node_t>(std::vector<stmt> {floor_pos, tail_pos});
+    add_parent_node(floor_pos, new_pos);
+    add_parent_node(tail_pos, new_pos);
+    parent_pos->seq_.emplace_back(new_pos);
+    add_parent_node(new_pos, parent_pos);
+    // remove current fanchor from content map of praent anchor
+    auto parent_anchor = fanchor->parent_;
+    auto root = parent_anchor;
+    while (root) {
+        root->content_number_map_.erase(fanchor.get());
+        root = root->parent_;
+    }
+    // make gourped anchor
+    return std::make_shared<fuse_grouped_anchor_map_t>(new_pos,
+            fslice_map(datamap), parent_anchor, fanchor->is_input_anchor());
+}
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

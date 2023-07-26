@@ -374,6 +374,7 @@ anchor_loop_generator_t::anchor_loop_generator_t(
 
 std::vector<fuse_anchor_map_ptr>
 anchor_loop_generator_t::create_inner_anchor() {
+    COMPILE_ASSERT(parent_fanchor_, "parent anchor could not be null")
     if (parent_fanchor_->fsmap_.get(gt_).size() != 1) return {};
     auto bld = builder::get_current_builder();
     std::vector<expr> loop_vars;

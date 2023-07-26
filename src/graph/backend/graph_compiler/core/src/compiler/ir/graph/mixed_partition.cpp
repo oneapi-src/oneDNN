@@ -622,9 +622,13 @@ void mxp_buffer_allocator::copy_concat_memory_attrs_tsr2buf() {
     }
 }
 
+inline bool is_elementwise_op(const sc_op *op) {
+    return op->isa<unary_elementwise_op_t>()
+            || op->isa<binary_elementwise_op_t>();
+}
+
 inline bool is_elementwise_producer(const graph_tensor *gt) {
-    return gt->producer_owner_->isa<unary_elementwise_op_t>()
-            || gt->producer_owner_->isa<binary_elementwise_op_t>();
+    return is_elementwise_op(gt->producer_owner_);
 }
 
 // If last gt depends on all users of cur gt, return true
@@ -2494,14 +2498,25 @@ bool mixed_parti_t::add(const sc_op_ptr &op) {
     return true;
 }
 
-fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(sc_op *op) const {
+void mixed_parti_t::append_fusion_anchor(const fuse_anchor_map_ptr &fanchor) {
+    auto cur = try_convert_anchor(ctx_, fanchor);
+    cur->binded_mxp_ = this;
+    fanchors_.emplace_back(cur);
+}
+
+fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(
+        sc_op *op, bool throw_assert) const {
     if (merged_to) { return get_root()->lookup_anchor_map(op); }
     auto iter = op_anchor_map_.find(op);
-    COMPILE_ASSERT(iter != op_anchor_map_.end(),
-            "No dispatched fusion anchor map found for "
-                    << op->op_name_
-                    << " in this partition, please try to search it firstly");
-    return iter->second;
+    auto ret = (iter != op_anchor_map_.end()) ? iter->second : nullptr;
+    if (throw_assert) {
+        COMPILE_ASSERT(ret,
+                "No dispatched fusion anchor map found for "
+                        << op->op_name_
+                        << " in this partition, please try to search it "
+                           "firstly");
+    }
+    return ret;
 }
 
 fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(const stmts &ss) const {
@@ -2525,8 +2540,15 @@ std::vector<fuse_anchor_map_ptr> mixed_parti_t::lookup_sub_anchor_map(
 
 void mixed_parti_t::clear_fanchor(fuse_anchor_map_ptr &fanchor) {
     stmt anchor = fanchor->anchor_position_;
-    COMPILE_ASSERT(anchor.checked_as<stmts>()->seq_.empty(),
-            "Could not remove this fanchor, because it is not empty");
+    if (!fanchor->isa<fuse_grouped_anchor_map_t>()) {
+        COMPILE_ASSERT(anchor.checked_as<stmts>()->seq_.empty(),
+                "Could not remove this fanchor, because it is not empty");
+    } else {
+        for (auto &sub_group : anchor.checked_as<stmts>()->seq_) {
+            COMPILE_ASSERT(sub_group.checked_as<stmts>()->seq_.empty(),
+                    "Could not remove this fanchor, because it is not empty");
+        }
+    }
     stmt parent = get_parent_node(anchor);
     auto ss_parent = parent.checked_as<stmts>();
     // clear empty if_node outside iter anchor if necessary
@@ -2846,9 +2868,7 @@ bool mixed_parti_t::contain_tunable_op() const {
 bool mixed_parti_t::contain_elemwise_op_only() const {
     if (merged_to) { return get_root()->contain_elemwise_op_only(); }
     for (auto &op : ops) {
-        if (!op->isa<unary_elementwise_op_t>()
-                && !op->isa<binary_elementwise_op_t>())
-            return false;
+        if (!is_elementwise_op(op.get())) return false;
     }
     return true;
 }
@@ -3213,8 +3233,7 @@ bool mixed_parti_t::can_optimize_outer_loop(bool allow_tensorview) const {
                                 return false;
                             }
                         } else {
-                            return op->isa<unary_elementwise_op_t>()
-                                    || op->isa<binary_elementwise_op_t>()
+                            return is_elementwise_op(op.get())
                                     || op->isa<reduce_op_t>()
                                     || op->isa<reduce_collect_op_t>()
                                     || (op->isa<reduce_compute_op_t>()
@@ -3409,8 +3428,7 @@ static bool try_optimize_outer_loop(mixed_parti_t *parti, sc_graph_t &sub_graph,
     // optimize loop order
     if (parti->can_optimize_outer_loop()) {
         for (auto &op : ops) {
-            if (op->isa<unary_elementwise_op_t>()
-                    || op->isa<binary_elementwise_op_t>()
+            if (is_elementwise_op(op.get())
                     || op->isa<op_traits::maybe_split_optimized_t>()) {
                 // set optimized outer loop hint
                 op->attrs_.set(
@@ -3421,6 +3439,74 @@ static bool try_optimize_outer_loop(mixed_parti_t *parti, sc_graph_t &sub_graph,
     } else {
         return false;
     }
+}
+
+static bool try_optimize_fusion_anchor(mixed_parti_t *parti,
+        const std::unordered_map<sc_op_ptr, sc_op_ptr> &graph2orig_ops) {
+    // auto skip
+    if (parti->committed_ops_.size() < 2) return false;
+    auto ctx = parti->ctx_;
+    auto elem_op_with_last_dim_undividable = [&ctx](const sc_op_ptr &op) {
+        if (!is_elementwise_op(op.get())) return false;
+        auto gt = op->get_outputs()[0];
+        auto dtype = gt->details_.dtype_;
+        auto last_dim = gt->details_.get_blocking_dims().back();
+        // get max lanes
+        auto lanes = vectorize_step(ctx, dtype.type_code_);
+        return ((last_dim > lanes) && (last_dim % lanes != 0));
+    };
+
+    bool redo = false;
+    // orig-to-graph pair
+    std::pair<sc_op *, sc_op *> first_op_pair
+            = std::make_pair<sc_op *, sc_op *>(nullptr, nullptr);
+    // visit sorted commit ops
+    for (auto &op : parti->committed_ops_) {
+        if (!first_op_pair.first && elem_op_with_last_dim_undividable(op)) {
+            // lookup commited anchor
+            auto &committed_anchor = *parti->lookup_anchor_map(op.get());
+            if (typeid(committed_anchor) == typeid(fuse_anchor_map_t)) {
+                first_op_pair.first = op.get();
+                auto iter = std::find_if(graph2orig_ops.begin(),
+                        graph2orig_ops.end(),
+                        [&op](const std::pair<sc_op_ptr, sc_op_ptr> &kv) {
+                            return kv.second == op;
+                        });
+                COMPILE_ASSERT(iter != graph2orig_ops.end(),
+                        "Could not find mapping op")
+                first_op_pair.second = iter->first.get();
+            }
+        } else if (first_op_pair.first) {
+            // successive elementwise op and same anchor with first op
+            if (elem_op_with_last_dim_undividable(op)
+                    && (parti->lookup_anchor_map(first_op_pair.first)
+                            == parti->lookup_anchor_map(op.get()))) {
+                first_op_pair.second
+                        ->attrs_[mixed_partition_hint::split_anchor_op]
+                        = true;
+                continue;
+            } else if (parti->lookup_anchor_map(first_op_pair.first)
+                            == parti->lookup_anchor_map(op.get(), false)
+                    && first_op_pair.second->attrs_.has_key(
+                            mixed_partition_hint::split_anchor_op)) {
+                // remove marked attr
+                first_op_pair.second->attrs_.remove(
+                        mixed_partition_hint::split_anchor_op);
+            }
+            // double-check redo flag
+            redo |= first_op_pair.second->attrs_.get_or_else(
+                    mixed_partition_hint::split_anchor_op, false);
+            // reset first op
+            first_op_pair.first = nullptr;
+            first_op_pair.second = nullptr;
+        }
+    }
+    // if the first op still exists utils loop ends
+    if (first_op_pair.first) {
+        redo |= first_op_pair.second->attrs_.get_or_else(
+                mixed_partition_hint::split_anchor_op, false);
+    }
+    return redo;
 }
 
 bool try_optimize_parti(mixed_parti_t *parti, sc_graph_t &sub_graph,
@@ -3435,6 +3521,8 @@ bool try_optimize_parti(mixed_parti_t *parti, sc_graph_t &sub_graph,
     need_optimize |= try_optimize_concat(parti, sub_graph);
     // optimize loop order
     need_optimize |= try_optimize_outer_loop(parti, sub_graph, graph2orig_ops);
+    // optimize fusion anchor
+    need_optimize |= try_optimize_fusion_anchor(parti, graph2orig_ops);
 
     if (need_optimize) {
         sub_graph.attrs_.set(mixed_partition_hint::optimized_sub_graph, true);

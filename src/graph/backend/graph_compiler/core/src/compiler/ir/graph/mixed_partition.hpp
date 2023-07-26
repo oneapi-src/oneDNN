@@ -62,6 +62,8 @@ constexpr const char *first_prefetch_op = "first_prefetch_op";
 constexpr size_t small_op_workload_threshold = 1688UL;
 // Boolean: is the op which could not gather input partitions
 constexpr const char *no_gather_op = "no_gather_op";
+// Boolean: is the op which need to split common anchor into grouped anchor
+constexpr const char *split_anchor_op = "split_anchor_op";
 } // namespace mixed_partition_hint
 
 // different fusion policies prepared for dynamic shape, policies will be JIT
@@ -313,10 +315,7 @@ struct mixed_parti_t : fusion_partition_t {
     using ptr = std::shared_ptr<mixed_parti_t>;
 
     // append fusion anchor
-    void append_fusion_anchor(const fuse_anchor_map_ptr &fanchor) {
-        fanchor->binded_mxp_ = this;
-        fanchors_.emplace_back(fanchor);
-    }
+    void append_fusion_anchor(const fuse_anchor_map_ptr &fanchor);
 
     void append_fusion_anchor(
             const std::vector<fuse_anchor_map_ptr> &fanchors) {
@@ -389,7 +388,8 @@ struct mixed_parti_t : fusion_partition_t {
     bool ready_for_op(sc_op *op) const;
 
     // look up fanchor by op
-    fuse_anchor_map_ptr lookup_anchor_map(sc_op *op) const;
+    fuse_anchor_map_ptr lookup_anchor_map(
+            sc_op *op, bool throw_assert = true) const;
 
     // look up fanchor by stmts
     fuse_anchor_map_ptr lookup_anchor_map(const stmts &ss) const;

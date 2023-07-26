@@ -1164,6 +1164,25 @@ bool slice_larger_than_bound_on_axis(const slice_range &ranges,
     return true;
 }
 
+bool innermost_slice_with_non_dividable_lanes(const context_ptr &ctx,
+        const slice_range &slice, const sc_data_type_t &dtype, sc_dim &floor,
+        sc_dim &tail) {
+    if (is_dynamic_slice_range_list({slice})) return false;
+    auto shape = get_slice_shape(slice);
+    auto dims = get_expr_to_dims(shape);
+    auto last_dim = dims.back();
+    // check dims except last are all one
+    if (get_dims_product(dims) != (size_t)last_dim) return false;
+    // get max lanes
+    auto lanes = vectorize_step(ctx, dtype.type_code_);
+    if ((last_dim > lanes) && (last_dim % lanes != 0)) {
+        floor = last_dim / lanes * lanes;
+        tail = last_dim % lanes;
+        return true;
+    }
+    return false;
+}
+
 int get_slice_size(const slice_range &ranges, const int dtype_size) {
     auto total_size = dtype_size;
     for (auto &range : ranges) {

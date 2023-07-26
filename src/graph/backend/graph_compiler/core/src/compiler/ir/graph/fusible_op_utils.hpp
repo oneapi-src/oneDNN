@@ -186,6 +186,21 @@ bool slice_expr_equals(const expr &in1, const expr &in2);
 std::vector<graph_tensor_ptr> get_sorted_inputs_by_layout_input(
         const sc_op_ptr &op);
 
+/**
+ * @return Bool: return if given slice comes from the inner most anchor with non
+ * dividable lanes
+ * @param ctx: context, used to query max lanes
+ * @param slice: given slice range
+ * @param dtype: data type kind, used to query max lanes
+ * @param floor: if return is True, recording `floor` value for last dims
+ * divided by max lanes
+ * @param tail: if return is True, recording `tail` value for last dims divided
+ * by max lanes
+ * */
+bool innermost_slice_with_non_dividable_lanes(const context_ptr &ctx,
+        const slice_range &slice, const sc_data_type_t &dtype, sc_dim &floor,
+        sc_dim &tail);
+
 variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code);
 variant<float, int64_t> numeric_limits_maximum(sc_data_etype type_code);
 

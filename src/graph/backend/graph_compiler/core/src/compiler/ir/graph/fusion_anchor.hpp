@@ -444,6 +444,10 @@ public:
             bool is_input_anchor = false);
 };
 
+// split common anchor into grouped anchor
+fuse_anchor_map_ptr try_convert_anchor(
+        const context_ptr &ctx, const fuse_anchor_map_ptr &fanchor);
+
 } // namespace gc
 } // namespace graph
 } // namespace impl
