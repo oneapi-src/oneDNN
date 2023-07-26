@@ -24,6 +24,7 @@
 #include <compiler/ir/graph/driver.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/lowering.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
@@ -128,6 +129,38 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Graph) {
     std::stringstream ss;
     print_graph(g, ss, true);
     EXPECT_TRUE(ss.str().find("padding") != std::string::npos);
+}
+
+TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_NoInplace) {
+    SET_THREADS_OR_SKIP(32);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    sc_graph_t g;
+    auto input = g.make_input({graph_tensor::make(
+            {64, 56, 56}, sc_data_format_t(), datatypes::u8)});
+
+    auto relu0 = g.make("relu", input->get_outputs(), {}, {});
+    // used for query buffer later
+    auto cache_gt = relu0->get_outputs()[0];
+    // `relu0` is shared with `relu1`(marked as `break_pre_fuse`) and `tv0`, as
+    // the result, `padding0` could not inplace output buffer of `relu0` in
+    // avoid of potential `tensorptr` node occuring on function argument
+    auto relu1 = g.make("relu", relu0->get_outputs(), {},
+            {{op_attr_key::break_pre_fuse, true}});
+    auto out0 = g.make_output(relu1->get_outputs());
+    auto tv0 = g.make("tensor_view", relu0->get_outputs(), {},
+            {{"shape", sc_dims {32, 2, 56, 56}}});
+    auto padding0 = g.make("padding", tv0->get_outputs(), {},
+            {{"pads_begin", sc_dims {1, 1}}, {"pads_end", sc_dims {1, 1}}});
+    auto relu2 = g.make("relu", padding0->get_outputs(), {}, {});
+    auto out1 = g.make_output(relu2->get_outputs());
+    mixed_partition(g, ctx);
+    mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(g);
+    ASSERT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
+    auto parti = fused_op->parti_list_[0];
+    // The output buffer of `relu0` is expected to be a `tensor` node rather
+    // than `tensorptr`
+    EXPECT_TRUE(parti->buf_alloc_.g2b_map_.get(cache_gt).isa<tensor>());
 }
 
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {

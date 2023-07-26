@@ -274,6 +274,10 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                 || (old_input.isa<tensorptr>()
                         && ins->producer_owner_->isa<tensor_view_op_t>()
                         && ins->uses_.size() == 1
+                        && !ins->producer_owner_->get_inputs()[0]
+                                    ->attrs_.get_or_else(
+                                            mixed_partition_hint::no_inplace,
+                                            false)
                         && utils::is_one_of(
                                 old_input.static_as<tensorptr>()->base_->dtype_,
                                 sc_data_type_t::u8(), sc_data_type_t::s8()))) {
@@ -925,7 +929,7 @@ slice_range mxp_buffer_allocator::get_shrinked_info(const expr &buffer) const {
     auto anchor = get_real_anchor_for_buffer(buffer);
     if (!anchor) return {};
     COMPILE_ASSERT(b2g_map_.find(buffer) != b2g_map_.end(),
-            "Could not find " << buffer << " b2g map");
+            "Could not find " << buffer << " in b2g map");
     slice_range ret;
     auto range_list = anchor->fsmap_.get(b2g_map_.find(buffer)->second);
     if (range_list.size() != 1) {
