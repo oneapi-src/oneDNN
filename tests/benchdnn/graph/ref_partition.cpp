@@ -152,7 +152,7 @@ bool ref_partition_t::get_leading_op_group(op_ref_list_t &leading_ops_group) {
 
         if (iter != in_lt_2_ops_.end()) {
             auto &leading_ops = iter->second;
-            for (auto &leading_op : leading_ops) {
+            for (auto leading_op : leading_ops) {
                 if (leading_op.get().kind_ != "Dequantize") continue;
 
                 int leading_op_in_offset = 0;
@@ -297,28 +297,52 @@ void ref_partition_t::link_args(const deserialized_op &cur_op, res_t *res) {
         // find if current logical tensor is produced by
         // other ops inside the partition
         auto iter = out_lt_2_op_.find(cur_op_in_lt.id_);
-        if (iter == out_lt_2_op_.end()) continue;
 
-        const auto &prev_op = iter->second.get();
-        int prev_op_id = static_cast<int>(prev_op.id_);
-        size_t prev_op_out_offset = 0;
-        for (; prev_op_out_offset < prev_op.out_lts_.size();
-                prev_op_out_offset++) {
-            if (prev_op.out_lts_[prev_op_out_offset].id_ == cur_op_in_lt.id_)
-                break;
+        int prev_op_id, prev_op_arg;
+        if (iter == out_lt_2_op_.end()) {
+            // current logical tensor is partition input
+            // check whether it is a shared input
+            auto prev_op = this->in_lt_2_ops_[cur_op_in_lt.id_].front().get();
+            if (prev_op.id_ != cur_op.id_) {
+                // first handled op using this logical tensor is not current op
+                // need to replace the args from the first args
+                prev_op_id = static_cast<int>(prev_op.id_);
+                size_t prev_op_in_offset = 0;
+                for (; prev_op_in_offset < prev_op.in_lts_.size();
+                        prev_op_in_offset++) {
+                    if (prev_op.in_lts_[prev_op_in_offset].id_
+                            == cur_op_in_lt.id_)
+                        break;
+                }
+                prev_op_arg = get_prim_arg_name_from_graph_op_input_offset(
+                        opstr2kind(prev_op.kind_),
+                        static_cast<int>(prev_op_in_offset));
+            } else {
+                continue;
+            }
+        } else {
+            // current logical tensor is produced by
+            // other ops inside the partition
+            const auto &prev_op = iter->second.get();
+            prev_op_id = static_cast<int>(prev_op.id_);
+            size_t prev_op_out_offset = 0;
+            for (; prev_op_out_offset < prev_op.out_lts_.size();
+                    prev_op_out_offset++) {
+                if (prev_op.out_lts_[prev_op_out_offset].id_
+                        == cur_op_in_lt.id_)
+                    break;
+            }
+            prev_op_arg = get_prim_arg_name_from_graph_op_output_offset(
+                    opstr2kind(prev_op.kind_), prev_op_out_offset);
         }
-        int prev_op_out_arg = get_prim_arg_name_from_graph_op_output_offset(
-                opstr2kind(prev_op.kind_), prev_op_out_offset);
-        const dnn_mem_t &prev_op_dst_mem
-                = std::get<3>(ref_prims_[prev_op_id]).find(prev_op_out_arg);
-        const dnn_mem_t &prev_op_ref_dst_mem
-                = std::get<4>(ref_prims_[prev_op_id]).find(prev_op_out_arg);
-
-        // link previous op's dst mem to current op's src mem
-        std::get<3>(ref_prims_[cur_op_id])
-                .replace(cur_op_in_arg, &prev_op_dst_mem);
+        const dnn_mem_t &prev_op_mem
+                = std::get<3>(ref_prims_[prev_op_id]).find(prev_op_arg);
+        const dnn_mem_t &prev_op_ref_mem
+                = std::get<4>(ref_prims_[prev_op_id]).find(prev_op_arg);
+        // link previous op's mem to current op's mem
+        std::get<3>(ref_prims_[cur_op_id]).replace(cur_op_in_arg, &prev_op_mem);
         std::get<4>(ref_prims_[cur_op_id])
-                .replace(cur_op_in_arg, &prev_op_ref_dst_mem);
+                .replace(cur_op_in_arg, &prev_op_ref_mem);
     }
 }
 
