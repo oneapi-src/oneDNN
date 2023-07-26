@@ -687,9 +687,9 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
   };
 
   _named_for_(lpbs, pbs, 0, mb_expr_, 1, for_type::PARALLEL) {
-    _named_for_(lps, ps, 0, s_threads, 1) {
-      _named_for_(lpoc, poc, 0, oc_threads, 1) {
-        _named_for_(lpic, pic, 0, ic_threads, 1) {
+    _named_for_(lps, ps, 0, os_used_threads, 1) {
+      _named_for_(lpoc, poc, 0, oc_used_threads, 1) {
+        _named_for_(lpic, pic, 0, ic_used_threads, 1) {
           expr s_num_block = builder::make_select(ps < (os_used_threads - 1),
                  s_num_block_pt, s_tail_num_block_pt),
                oc_num_block = builder::make_select(poc < (oc_used_threads - 1),
@@ -705,130 +705,109 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
               shrink_tensor = true;
             }
           }
-          _if_(ps < os_used_threads && poc < oc_used_threads
-            && pic < ic_used_threads) {
-            // single core
-            expr ic_num_block
-              = builder::make_select(pic < (ic_used_threads - 1),
-                ic_num_block_pt, ic_tail_num_block_pt);
-            expr n = pbs;
-            _named_for_(los, o_s, 0, s_num_block_pt) {
-              _named_for_(looc, o_oc, 0, oc_num_block_pt) {
-                _named_for_(loic, o_ic, 0, ic_num_block_pt) {
-                  expr cond = o_s < s_num_block && o_oc < oc_num_block
-                    && o_ic < ic_num_block;
-                  _if_(cond) {
-                    _named_for_(lis, i_s, 0, s_block / im_s_block) {
-                      expr s = (ps * s_num_block_pt * s_block / im_s_block
-                                 + o_s * s_block / im_s_block + i_s)
-                        * im_s_block;
-                      _if_(s < os_) {
-                        _named_for_(lioc, i_oc, 0, oc_block / im_oc_block) {
-                          _tensor_(A_list, datatypes::pointer,
-                            {ic_block / im_ic_block});
-                          _tensor_(B_list, datatypes::pointer,
-                            {ic_block / im_ic_block});
+          // single core
+          expr ic_num_block = builder::make_select(
+            pic < (ic_used_threads - 1), ic_num_block_pt, ic_tail_num_block_pt);
+          expr n = pbs;
+          _named_for_(los, o_s, 0, s_num_block_pt) {
+            _named_for_(looc, o_oc, 0, oc_num_block_pt) {
+              _named_for_(loic, o_ic, 0, ic_num_block_pt) {
+                expr cond = o_s < s_num_block && o_oc < oc_num_block
+                  && o_ic < ic_num_block;
+                _if_(cond) {
+                  _named_for_(lis, i_s, 0, s_block / im_s_block) {
+                    expr s = (ps * s_num_block_pt * s_block / im_s_block
+                               + o_s * s_block / im_s_block + i_s)
+                      * im_s_block;
+                    _if_(s < os_) {
+                      _named_for_(lioc, i_oc, 0, oc_block / im_oc_block) {
+                        _tensor_(
+                          A_list, datatypes::pointer, {ic_block / im_ic_block});
+                        _tensor_(
+                          B_list, datatypes::pointer, {ic_block / im_ic_block});
 
-                          expr oc
-                            = poc * oc_num_block_pt * oc_block / im_oc_block
-                            + o_oc * oc_block / im_oc_block + i_oc;
-                          _if_(oc * im_oc_block < oc_) {
-                            if (sh_ > 1 || sw_ > 1) {
-                              if (shrink_tensor) {
-                                input_tmp
-                                  ->attr()[tensor_shrinker_attrs::should_shrink]
-                                  = tensor_shrinker_t::shrink_info_t {
-                                    /*base*/ {n, s,
-                                      (pic * ic_num_block_pt * ic_block
-                                          / im_ic_block
-                                        + o_ic * ic_block / im_ic_block)
-                                        * im_ic_block},
-                                    /*shape*/ {1, im_s_block, ic_block},
-                                    /*move def*/ stmts()};
-                              } else {
-                                input_tmp
-                                  ->attr()[tensor_shrinker_attrs::should_shrink]
-                                  = tensor_shrinker_t::shrink_info_t {
-                                    /*base*/ {pbs, 0, 0},
-                                    /*shape*/ {1, os_, ic_block},
-                                    /*move def*/ stmts()};
-                              }
+                        expr oc = poc * oc_num_block_pt * oc_block / im_oc_block
+                          + o_oc * oc_block / im_oc_block + i_oc;
+                        _if_(oc * im_oc_block < oc_) {
+                          if (sh_ > 1 || sw_ > 1) {
+                            if (shrink_tensor) {
+                              input_tmp
+                                ->attr()[tensor_shrinker_attrs::should_shrink]
+                                = tensor_shrinker_t::shrink_info_t {
+                                  /*base*/ {n, s,
+                                    (pic * ic_num_block_pt * ic_block
+                                        / im_ic_block
+                                      + o_ic * ic_block / im_ic_block)
+                                      * im_ic_block},
+                                  /*shape*/ {1, im_s_block, ic_block},
+                                  /*move def*/ stmts()};
+                            } else {
+                              input_tmp
+                                ->attr()[tensor_shrinker_attrs::should_shrink]
+                                = tensor_shrinker_t::shrink_info_t {
+                                  /*base*/ {pbs, 0, 0},
+                                  /*shape*/ {1, os_, ic_block},
+                                  /*move def*/ stmts()};
                             }
-                            _for_(i_c, 0, ic_block / im_ic_block) {
-                              expr ic
-                                = pic * ic_num_block_pt * ic_block / im_ic_block
-                                + o_ic * ic_block / im_ic_block + i_c;
-                              _if_(ic * im_ic_block < ic_) {
-                                std::vector<expr> input_pos
-                                  = std::vector<expr> {n, s, ic * im_ic_block};
-                                if (sh_ > 1 || sw_ > 1) {
-                                  int lanes = 1;
-                                  lanes = (uint32_t)(ctx->get_max_vector_lanes(
-                                    tinput.dtype_.type_code_));
-                                  if (im_ic_block % lanes != 0) { lanes = 1; }
-                                  _if_(
-                                    (o_oc == 0 && i_oc == 0) || shrink_tensor) {
-                                    _for_(ii_os, 0, im_s_block, 1) {
-                                      _for_(ii_ic, 0, im_ic_block, lanes) {
-                                        auto out_pos = input_pos;
-                                        out_pos[1] = out_pos[1] + ii_os;
-                                        out_pos[2] = out_pos[2] + ii_ic;
-                                        input_tmp[span_t(out_pos, lanes)]
-                                          = input[span_t(
-                                            infer_input_idx(out_pos), lanes)];
-                                      }
+                          }
+                          _for_(i_c, 0, ic_block / im_ic_block) {
+                            expr ic
+                              = pic * ic_num_block_pt * ic_block / im_ic_block
+                              + o_ic * ic_block / im_ic_block + i_c;
+                            _if_(ic * im_ic_block < ic_) {
+                              std::vector<expr> input_pos
+                                = std::vector<expr> {n, s, ic * im_ic_block};
+                              if (sh_ > 1 || sw_ > 1) {
+                                int lanes = 1;
+                                lanes = (uint32_t)(ctx->get_max_vector_lanes(
+                                  tinput.dtype_.type_code_));
+                                if (im_ic_block % lanes != 0) { lanes = 1; }
+                                _if_(
+                                  (o_oc == 0 && i_oc == 0) || shrink_tensor) {
+                                  _for_(ii_os, 0, im_s_block, 1) {
+                                    _for_(ii_ic, 0, im_ic_block, lanes) {
+                                      auto out_pos = input_pos;
+                                      out_pos[1] = out_pos[1] + ii_os;
+                                      out_pos[2] = out_pos[2] + ii_ic;
+                                      input_tmp[span_t(out_pos, lanes)]
+                                        = input[span_t(
+                                          infer_input_idx(out_pos), lanes)];
                                     }
                                   }
                                 }
-                                A_list[i_c] = tensor_ptr(input_tmp, input_pos);
-                                B_list[i_c] = tensor_ptr(weight,
-                                  kpack > 1
-                                    ? std::vector<expr> {oc, ic, 0, 0, 0, 0}
-                                    : std::vector<expr> {oc, ic, 0, 0, 0});
                               }
+                              A_list[i_c] = tensor_ptr(input_tmp, input_pos);
+                              B_list[i_c] = tensor_ptr(weight,
+                                kpack > 1
+                                  ? std::vector<expr> {oc, ic, 0, 0, 0, 0}
+                                  : std::vector<expr> {oc, ic, 0, 0, 0});
                             }
+                          }
 
-                            const auto hint_A_size = im_s_block * ic_block;
-                            const auto hint_B_size = im_oc_block * ic_block;
-                            const auto hint_C_size = im_s_block * im_oc_block;
-                            sc_brgemm_attrs_t brg_attrs {
-                              {brgemm::attr_key::max_bs,
-                                ic_block / im_ic_block},
-                              {brgemm::attr_key::hint_expected_A_size,
-                                hint_A_size},
-                              {brgemm::attr_key::hint_expected_B_size,
-                                hint_B_size},
-                              {brgemm::attr_key::hint_expected_C_size,
-                                hint_C_size},
-                              {brgemm::attr_key::use_interleave_stores, true},
-                              {brgemm::attr_key::use_uker, true}};
+                          const auto hint_A_size = im_s_block * ic_block;
+                          const auto hint_B_size = im_oc_block * ic_block;
+                          const auto hint_C_size = im_s_block * im_oc_block;
+                          sc_brgemm_attrs_t brg_attrs {
+                            {brgemm::attr_key::max_bs, ic_block / im_ic_block},
+                            {brgemm::attr_key::hint_expected_A_size,
+                              hint_A_size},
+                            {brgemm::attr_key::hint_expected_B_size,
+                              hint_B_size},
+                            {brgemm::attr_key::hint_expected_C_size,
+                              hint_C_size},
+                            {brgemm::attr_key::use_interleave_stores, true},
+                            {brgemm::attr_key::use_uker, true}};
 
-                            auto LDA = ic_;
-                            auto LDB = im_oc_block;
-                            auto LDC = oc_;
-                            auto stride_a = 1; /*useless*/
-                            auto stride_b = 1; /*useless*/
-                            auto stride_c = ic_block / im_ic_block;
-                            std::vector<expr> output_pos = std::vector<expr> {
-                              pic * mb_ + n, s, oc * im_oc_block};
-                            if (ic_num_block_pt > 1) {
-                              _if_(o_ic == 0) {
-                                builtin::brgemm_init_list_update(A_list, B_list,
-                                  tensor_ptr(output_tmp, output_pos), 1,
-                                  im_s_block, im_oc_block, im_ic_block, LDA,
-                                  LDB, LDC, stride_a, stride_b, stride_c,
-                                  get_input_dtype(), get_weight_dtype(),
-                                  brg_attrs);
-                              }
-                              _else_ {
-                                builtin::brgemm_list_update(A_list, B_list,
-                                  tensor_ptr(output_tmp, output_pos), 1,
-                                  im_s_block, im_oc_block, im_ic_block, LDA,
-                                  LDB, LDC, stride_a, stride_b, stride_c,
-                                  get_input_dtype(), get_weight_dtype(),
-                                  brg_attrs);
-                              }
-                            } else {
+                          auto LDA = ic_;
+                          auto LDB = im_oc_block;
+                          auto LDC = oc_;
+                          auto stride_a = 1; /*useless*/
+                          auto stride_b = 1; /*useless*/
+                          auto stride_c = ic_block / im_ic_block;
+                          std::vector<expr> output_pos = std::vector<expr> {
+                            pic * mb_ + n, s, oc * im_oc_block};
+                          if (ic_num_block_pt > 1) {
+                            _if_(o_ic == 0) {
                               builtin::brgemm_init_list_update(A_list, B_list,
                                 tensor_ptr(output_tmp, output_pos), 1,
                                 im_s_block, im_oc_block, im_ic_block, LDA, LDB,
@@ -836,69 +815,81 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                                 get_input_dtype(), get_weight_dtype(),
                                 brg_attrs);
                             }
-                            if (fusion && ic_used_threads == 1
-                              && ic_num_block_pt == 1) {
-                              _if_(o_ic == (ic_num_block - 1)) {
-                                fusion->create_output_fusion_anchor(
-                                  {tensor_slice(output,
-                                    std::vector<std::pair<expr, expr>> {
-                                      {n, 1UL}, {s, im_s_block},
-                                      {oc * im_oc_block, im_oc_block}})});
-                              }
+                            _else_ {
+                              builtin::brgemm_list_update(A_list, B_list,
+                                tensor_ptr(output_tmp, output_pos), 1,
+                                im_s_block, im_oc_block, im_ic_block, LDA, LDB,
+                                LDC, stride_a, stride_b, stride_c,
+                                get_input_dtype(), get_weight_dtype(),
+                                brg_attrs);
+                            }
+                          } else {
+                            builtin::brgemm_init_list_update(A_list, B_list,
+                              tensor_ptr(output_tmp, output_pos), 1, im_s_block,
+                              im_oc_block, im_ic_block, LDA, LDB, LDC, stride_a,
+                              stride_b, stride_c, get_input_dtype(),
+                              get_weight_dtype(), brg_attrs);
+                          }
+                          if (fusion && ic_used_threads == 1
+                            && ic_num_block_pt == 1) {
+                            _if_(o_ic == (ic_num_block - 1)) {
+                              fusion->create_output_fusion_anchor(
+                                {tensor_slice(output,
+                                  std::vector<std::pair<expr, expr>> {{n, 1UL},
+                                    {s, im_s_block},
+                                    {oc * im_oc_block, im_oc_block}})});
                             }
                           }
                         }
-                        if (fusion && ic_used_threads == 1
-                          && ic_num_block_pt == 1
-                          && oc_block * oc_used_threads == oc_) {
-                          _if_(o_ic == (ic_num_block - 1)) {
-                            fusion->create_output_fusion_anchor({tensor_slice(
-                              output,
+                      }
+                      if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                        && oc_block * oc_used_threads == oc_) {
+                        _if_(o_ic == (ic_num_block - 1)) {
+                          fusion->create_output_fusion_anchor(
+                            {tensor_slice(output,
                               std::vector<std::pair<expr, expr>> {{n, 1UL},
                                 {s, im_s_block},
                                 {(poc * oc_num_block_pt * oc_block / im_oc_block
                                    + o_oc * oc_block / im_oc_block)
                                     * im_oc_block,
                                   oc_block}})});
-                          }
                         }
                       }
                     }
-                    if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
-                      && oc_block * oc_used_threads == oc_
-                      && s_block * os_used_threads == os_) {
-                      _if_(o_ic == (ic_num_block - 1)) {
-                        fusion->create_output_fusion_anchor(
-                          {tensor_slice(output,
-                            std::vector<std::pair<expr, expr>> {{n, 1UL},
-                              {(ps * s_num_block_pt * s_block / im_s_block
-                                 + o_s * s_block / im_s_block)
-                                  * im_s_block,
-                                s_block},
-                              {(poc * oc_num_block_pt * oc_block / im_oc_block
-                                 + o_oc * oc_block / im_oc_block)
-                                  * im_oc_block,
-                                oc_block}})});
-                      }
+                  }
+                  if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                    && oc_block * oc_used_threads == oc_
+                    && s_block * os_used_threads == os_) {
+                    _if_(o_ic == (ic_num_block - 1)) {
+                      fusion->create_output_fusion_anchor({tensor_slice(output,
+                        std::vector<std::pair<expr, expr>> {{n, 1UL},
+                          {(ps * s_num_block_pt * s_block / im_s_block
+                             + o_s * s_block / im_s_block)
+                              * im_s_block,
+                            s_block},
+                          {(poc * oc_num_block_pt * oc_block / im_oc_block
+                             + o_oc * oc_block / im_oc_block)
+                              * im_oc_block,
+                            oc_block}})});
                     }
                   }
                 }
-                // TODO(zhicong): need to use iterated anchor to support more
-                // fusion opportunity
-                if (false && fusion && ic_used_threads == 1
-                  && oc_block * oc_used_threads == oc_
-                  && s_block * os_used_threads == os_) {
-                  fusion->create_output_fusion_anchor({tensor_slice(output,
-                    std::vector<std::pair<expr, expr>> {{n, 1UL},
-                      {(ps * s_num_block_pt * s_block / im_s_block
-                         + o_s * s_block / im_s_block)
-                          * im_s_block,
-                        s_block},
-                      {(poc * oc_num_block_pt * oc_block / im_oc_block
-                         + o_oc * oc_block / im_oc_block)
-                          * im_oc_block,
-                        oc_block}})});
-                }
+              }
+              // TODO(zhicong): need to use iterated anchor to support more
+              // fusion opportunity
+              if (false && fusion && ic_used_threads == 1
+                && oc_block * oc_used_threads == oc_
+                && s_block * os_used_threads == os_) {
+                fusion->create_output_fusion_anchor({tensor_slice(output,
+                  std::vector<std::pair<expr, expr>> {{n, 1UL},
+                    {(ps * s_num_block_pt * s_block / im_s_block
+                       + o_s * s_block / im_s_block)
+                        * im_s_block,
+                      s_block},
+                    {(poc * oc_num_block_pt * oc_block / im_oc_block
+                       + o_oc * oc_block / im_oc_block)
+                        * im_oc_block,
+                      oc_block}})});
               }
             }
           }
