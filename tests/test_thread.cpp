@@ -97,9 +97,12 @@ inline int read_num_threads_from_env() {
 
 #if defined(DNNL_TEST_THREADPOOL_USE_EIGEN)
 
+#include <atomic>
 #include <memory>
+#include <mutex>
 #include "Eigen/Core"
 #include "unsupported/Eigen/CXX11/ThreadPool"
+#include <condition_variable>
 
 #if EIGEN_WORLD_VERSION + 10 * EIGEN_MAJOR_VERSION < 33
 #define STR_(x) #x
@@ -118,6 +121,53 @@ using EigenThreadPool = Eigen::NonBlockingThreadPool;
 namespace dnnl {
 namespace testing {
 
+class BlockingCounter {
+public:
+    BlockingCounter(int initial_count)
+        : state_(initial_count << 1), notified_(false) {}
+
+    ~BlockingCounter() {}
+
+    inline void DecrementCount() {
+        unsigned int v = state_.fetch_sub(2, std::memory_order_acq_rel) - 2;
+        if (v != 1) { return; }
+
+        std::unique_lock l(mu_);
+        assert(notified_ == false);
+        notified_ = true;
+        l.unlock();
+        cond_var_.notify_all();
+    }
+
+    void Wait() {
+        unsigned int v = state_.fetch_or(1, std::memory_order_acq_rel);
+        if ((v >> 1) == 0) return;
+
+        std::unique_lock l(mu_);
+        while (!notified_) {
+            cond_var_.wait(l);
+        }
+    }
+
+private:
+    std::mutex mu_;
+    std::condition_variable cond_var_;
+    std::atomic<int> state_;
+    bool notified_;
+};
+
+inline void run_jobs(bool balance, int i, int n, int njobs,
+        const std::function<void(int, int)> &fn) {
+    if (balance) {
+        int start, end;
+        impl::balance211(n, njobs, i, start, end);
+        for (int j = start; j < end; j++)
+            fn(j, n);
+    } else {
+        fn(i, n);
+    }
+}
+
 class threadpool_t : public dnnl::threadpool_interop::threadpool_iface {
 private:
     std::unique_ptr<EigenThreadPool> tp_;
@@ -133,17 +183,47 @@ public:
     }
     uint64_t get_flags() const override { return ASYNCHRONOUS; }
     void parallel_for(int n, const std::function<void(int, int)> &fn) override {
+
+        // Should never happen (handled by DNNL)
+        if (n == 0) return;
+
+        // Should never happen (handled by DNNL)
+        if (n == 1) {
+            fn(0, 1);
+            return;
+        }
+
         int nthr = get_num_threads();
         int njobs = std::min(n, nthr);
+        bool balance = (nthr < n);
 
-        for (int i = 0; i < njobs; i++) {
-            tp_->Schedule([i, n, njobs, fn]() {
-                int start, end;
-                impl::balance211(n, njobs, i, start, end);
-                for (int j = start; j < end; j++)
-                    fn(j, n);
-            });
-        }
+        // If use_caller_thread, schedule njobs-1 jobs to thread pool and run last
+        // job directly.
+        const bool use_caller_thread = true; //in tensorflow it is enabled by TF_ONEDNN_THREADPOOL_USE_CALLER_THREAD
+        const int njobs_to_schedule = use_caller_thread ? njobs - 1 : njobs;
+
+        BlockingCounter counter(njobs_to_schedule);
+
+        std::function<void(int, int)> handle_range
+                = [=, &handle_range, &counter](int first, int last) {
+                      while (last - first > 1) {
+                          const auto mid = first + (last - first) / 2;
+                          tp_->ScheduleWithHint(
+                                  [=]() { handle_range(mid, last); }, mid,
+                                  mid + 1);
+                          last = mid;
+                      }
+
+                      counter.DecrementCount();
+                      run_jobs(balance, first, n, njobs, fn);
+                  };
+
+        tp_->ScheduleWithHint(
+                [=]() { handle_range(0, njobs_to_schedule); }, 0, 1);
+
+        if (use_caller_thread) { run_jobs(balance, njobs - 1, n, njobs, fn); }
+
+        counter.Wait();
     };
 };
 
