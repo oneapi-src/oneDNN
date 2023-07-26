@@ -37,6 +37,7 @@ struct brgemm_matmul_bcast_desc_t {
         : bcast_mask(0)
         , first_bcast_dim(-1)
         , last_bcast_dim(-1)
+        , bcast_across_all_batch_dims(false)
         , first_bcast_dim_to_last_batch_dim_prod(1)
         , bcast_dims_prod(1)
         , batch_dims {0}
@@ -63,12 +64,15 @@ struct brgemm_matmul_bcast_desc_t {
             if (first_bcast_dim == -1) // broadcast_dim > B0
                 first_bcast_dim_to_last_batch_dim_prod /= dst_d_dims[d];
         }
+        bcast_across_all_batch_dims = IMPLICATION(
+                batch > 1, bcast_mask > 0 && bcast_dims_prod == batch);
     }
 
     int bcast_mask; // sets bcast_dim = 1, non_bcast_dim = 0
 
     int first_bcast_dim;
     int last_bcast_dim;
+    bool bcast_across_all_batch_dims;
 
     dim_t first_bcast_dim_to_last_batch_dim_prod;
     dim_t bcast_dims_prod;

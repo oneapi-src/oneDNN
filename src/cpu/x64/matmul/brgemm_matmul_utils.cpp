@@ -258,11 +258,19 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
     } else {
         const bool xf16_avx2_vnni_2 = (this->is_bf16() || this->is_f16())
                 && bgmmc.isa == avx2_vnni_2;
+        const bool can_treat_transposed_A_as_plain = bgmmc.M == 1;
         bgmmc.src_tag = (this->is_bf16() || this->is_f32() || this->is_bf32()
                                 || this->is_f16())
                         && !xf16_avx2_vnni_2
                 ? memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, acbd, adbc)
+                // Enable support of int8 problems with formally transposed A
+                // layout which can be treated as plain.
+                // TODO: remove this extra code path after transposed A is
+                // supported for int8
+                : (this->is_int8() && can_treat_transposed_A_as_plain)
+                ? memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag,
+                        transposed_tensor_layout_tag, acbd)
                 : memory_desc_matches_one_of_tag(
                         A_md, plain_tensor_layout_tag, acbd);
     }
@@ -1088,7 +1096,11 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.blocked_B = bm_conf_utils.get_blocked_B();
     bgmmc.use_buffer_b = bm_conf_utils.use_buffer_b();
 
-    bgmmc.transposed_A = (bm_conf_utils.check_is_transposed(bgmmc.src_tag)
+    const bool transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
+    // if M == 1 we can still treat formally transposed A as plain
+    // and avoid copy routine creation/execution
+    const bool treat_transposed_A_as_plain = transposed_A && bgmmc.M == 1;
+    bgmmc.transposed_A = ((transposed_A && !treat_transposed_A_as_plain)
             || bgmmc.src_tag == adbc);
 
     // runtime A stride wrt M dimension is not acceptable

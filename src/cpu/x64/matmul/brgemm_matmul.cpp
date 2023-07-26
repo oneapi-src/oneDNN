@@ -277,6 +277,9 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
         int b {0}, mc {0}, nc {0};
         nd_iterator_init(
                 start, b, bgmmc.batch, mc, M_chunks, nc, bgmmc.N_chunks);
+        int mc_prev = -1;
+        int nc_prev = -1;
+        int b_prev = -1;
         while (start < end) {
             auto m_start = mc * M_chunk_size;
             const bool m_chunk_tail = mc == M_chunks - 1 && M_chunk_tail > 0;
@@ -284,17 +287,30 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             auto n_start = nc * bgmmc.N_chunk_size;
             auto n_end = nstl::min(
                     (nc + 1) * bgmmc.N_chunk_size, bgmmc.num_N_blocks);
+            int kc_prev = -1;
             for_(int kc = kc_start; kc < kc_end; kc++)
             for (int nb = n_start; nb < n_end; nb++) {
-                if (bgmmc.use_buffer_b)
+                const bool skip_copy_b = nc_prev == nc && kc_prev == kc
+                        && (b_prev == b
+                                || bgmmc.bcast_B_desc
+                                           .bcast_across_all_batch_dims);
+                if (bgmmc.use_buffer_b && !skip_copy_b)
                     copy_b_chunk_in_buffer(brgmm_ctx, ithr, b, nb, kc);
                 for (int mb = m_start; mb < m_end; mb++) {
-                    if (use_buffer_a && nb == n_start)
+                    const bool skip_copy_a = mc_prev == mc && kc_prev == kc
+                            && (b_prev == b
+                                    || bgmmc.bcast_A_desc
+                                               .bcast_across_all_batch_dims);
+                    if (use_buffer_a && nb == n_start && !skip_copy_a)
                         copy_a_chunk_in_buffer(brgmm_ctx, ithr, b, mb, kc);
                     compute_kernel(brgmm_ctx, ithr, b, mb, nb, kc,
                             kc == kc_start, prev_ker_idx);
                 }
+                kc_prev = kc;
             }
+            mc_prev = mc;
+            nc_prev = nc;
+            b_prev = b;
             ++start;
             nd_iterator_step(b, bgmmc.batch, mc, M_chunks, nc, bgmmc.N_chunks);
         }
@@ -913,6 +929,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     int get_bb_idx(int gb_idx, const brgemm_matmul_bcast_desc_t &bd) const {
         if (!bd.bcast_mask) // no broadcast
             return gb_idx;
+
+        if (bd.bcast_across_all_batch_dims) return 0;
 
         int gb_off_before_bcast = utils::rnd_dn(
                 gb_idx, bd.first_bcast_dim_to_last_batch_dim_prod);
