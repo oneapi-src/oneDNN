@@ -226,7 +226,7 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
         bool fuse_eleadd = false, bool default_cfg = false,
         bool force_blocking = false, bool force_channel_last = false) {
     check_conv_correctness_and_tuning_fwd(cfg, N, K, C, H, W, R, S, stride,
-            padding, padding, {1, 1}, fuse_bias, fuse_bn_relu, fuse_eleadd,
+            padding, padding, dilation, fuse_bias, fuse_bn_relu, fuse_eleadd,
             default_cfg, force_blocking, force_channel_last);
 }
 
