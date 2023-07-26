@@ -88,11 +88,12 @@ public:
                             = utils::one_of(s.byte_offset(), 0, grf_size / 2);
                     bool s_is_bf = src_type.is_bf16();
                     bool s_is_hf = src_type.is_f16();
+                    bool d_is_f = dst_type.is_f32();
 
                     if (src_stride != 1 || s_is_hf
                             || (s_is_bf && !s_half_grf_aligned)) {
                         auto tmp_type = src_type;
-                        if (s_is_hf
+                        if ((s_is_hf && d_is_f)
                                 || ((d.offset() != 0 || !s_half_grf_aligned)
                                         && (s_is_bf))) {
                             tmp_type = type_t::f32();
