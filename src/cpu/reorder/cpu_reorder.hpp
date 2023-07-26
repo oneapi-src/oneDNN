@@ -141,6 +141,12 @@ using aarch64_jit_uni_reorder_t = aarch64::jit_uni_reorder_t;
 #define REG_FAST_DIRECT_COPY_F32_F32
 #endif
 
+#if defined(DNNL_AARCH64) || defined(DNNL_ARM)
+#define REG_FAST_DIRECT_COPY_F16_F16 REG_SR_DIRECT_COPY(f16, f16)
+#else
+#define REG_FAST_DIRECT_COPY_F16_F16
+#endif
+
 #ifdef __INTEL_COMPILER
 /* direct copy for icc, which is faster than jitted code */
 #define REG_FAST_DIRECT_COPY(sdt, ddt) REG_SR_DIRECT_COPY(sdt, ddt)
