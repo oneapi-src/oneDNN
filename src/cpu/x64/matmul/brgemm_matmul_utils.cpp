@@ -93,7 +93,8 @@ int get_default_n_block(format_tag_t matrix_b_tag) {
 
 // TODO: add support of post-ops with multiple binary and eltwise execution
 bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
-        const memory_desc_wrapper &dst_d) {
+        const memory_desc_wrapper &dst_d,
+        bool limit_bcast_strategies_set = false) {
     using namespace injector;
 
     const auto &post_ops = attr.post_ops_;
@@ -119,20 +120,24 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
                     is_binary_po_per_mb_w_bcast, utils::one_of(ndims, 3, 4))
             && IMPLICATION(
                     is_binary_po_per_w_bcast, utils::one_of(ndims, 3, 4));
+    const bcast_set_t default_bcast_set = {broadcasting_strategy_t::per_oc,
+            broadcasting_strategy_t::per_oc_spatial,
+            broadcasting_strategy_t::scalar,
+            broadcasting_strategy_t::per_mb_spatial,
+            broadcasting_strategy_t::per_mb_w, broadcasting_strategy_t::per_w,
+            broadcasting_strategy_t::no_broadcast};
+    const bcast_set_t limited_bcast_set = {broadcasting_strategy_t::scalar,
+            broadcasting_strategy_t::no_broadcast};
+    const bcast_set_t bcast_set = limit_bcast_strategies_set
+            ? limited_bcast_set
+            : default_bcast_set;
     return supported_binary_bcast
             && injector::post_ops_ok(post_ops_ok_args_t(get_max_cpu_isa(),
                     {sum, eltwise, binary}, post_ops, &dst_d,
                     false /*sum_at_pos_0_only*/,
                     false /*sum_requires_scale_one*/,
                     false /*sum_requires_zp_zero*/,
-                    true /*sum_requires_same_params*/,
-                    {broadcasting_strategy_t::per_oc,
-                            broadcasting_strategy_t::per_oc_spatial,
-                            broadcasting_strategy_t::scalar,
-                            broadcasting_strategy_t::per_mb_spatial,
-                            broadcasting_strategy_t::per_mb_w,
-                            broadcasting_strategy_t::per_w,
-                            broadcasting_strategy_t::no_broadcast}));
+                    true /*sum_requires_same_params*/, bcast_set));
 }
 
 status_t check_isa_with_datatype(
@@ -1102,6 +1107,20 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const bool treat_transposed_A_as_plain = transposed_A && bgmmc.M == 1;
     bgmmc.transposed_A = ((transposed_A && !treat_transposed_A_as_plain)
             || bgmmc.src_tag == adbc);
+    // For batched problems with plain A and C and fully broadcasted across B
+    // we can merge all the batch dimensions into M if broadcast strategies
+    // set is limited for binary post-ops
+    const bool plain_A_layout = bm_conf_utils.check_is_plain(bgmmc.src_tag)
+            || treat_transposed_A_as_plain;
+    const bool merge_batch_dims_into_M = bgmmc.batch > 1
+            && bgmmc.bcast_B_desc.bcast_across_all_batch_dims
+            && bm_conf_utils.check_is_plain(bgmmc.dst_tag) && plain_A_layout
+            && post_ops_ok(
+                    bgmmc, attr, dst_d, true /* limit_bcast_strategies_set */);
+    if (merge_batch_dims_into_M) {
+        bgmmc.M *= bgmmc.batch;
+        bgmmc.batch = 1;
+    }
 
     // runtime A stride wrt M dimension is not acceptable
     if (is_runtime_value(helper.get_a_stride(bgmmc.ndims - 2)))
@@ -1149,6 +1168,12 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         bgmmc.B_strides[d]
                 = bgmmc.b_dt_sz * weights_d.blocking_desc().strides[dim];
         bgmmc.C_strides[d] = bgmmc.c_dt_sz * dst_d.blocking_desc().strides[dim];
+    }
+
+    // We need to correct A_strides if batched dimensions are merged in M and
+    // A layout is formally transposed but could be treated as plain
+    if (merge_batch_dims_into_M && treat_transposed_A_as_plain) {
+        bgmmc.A_strides[1] = bgmmc.A_strides[2];
     }
 
     // BF32 'Hint' Heuristic:
