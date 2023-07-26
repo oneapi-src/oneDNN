@@ -17,6 +17,7 @@
 #include <random>
 
 #include "utils/fill.hpp"
+#include "utils/numeric.hpp"
 #include "utils/parallel.hpp"
 
 int fill_scales(
@@ -102,6 +103,36 @@ int fill_zero_points(
             }
         });
     }
+
+    return OK;
+}
+
+int fill_random_real(dnn_mem_t &mem_dt) {
+    const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return OK;
+
+    /* Do fixed partitioning to have same filling for any number of threads */
+    static constexpr int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(nelems + idx_start + 1);
+        int_seed.discard(1);
+
+        std::uniform_real_distribution<> gen(-16, 16);
+
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            float val = gen(int_seed);
+            mem_dt.set_elem(
+                    idx, round_to_nearest_representable(mem_dt.dt(), val));
+        }
+    });
 
     return OK;
 }
