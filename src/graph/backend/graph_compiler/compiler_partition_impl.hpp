@@ -58,8 +58,9 @@ public:
         : graph::partition_impl_t(engine_kind, fpmath_mode, pkind)
         , is_init_(true)
         , pname_(pname) {
-        assertm(fpmath_mode == fpmath_mode::strict,
-                "Compiler backend only allows fpmath mode: strict.");
+        assertm(fpmath_mode == fpmath_mode::strict
+                        || fpmath_mode == fpmath_mode::bf16,
+                "Compiler backend only allows fpmath mode: strict, bf16.");
     }
 
     virtual ~compiler_partition_impl_t() = default;

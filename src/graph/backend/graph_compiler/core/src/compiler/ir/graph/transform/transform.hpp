@@ -118,6 +118,9 @@ SC_INTERNAL_API void quantize_inline(
         sc_graph_t &mgr, const context_ptr &ctx = get_default_context());
 } // namespace quantize
 
+SC_INTERNAL_API void fpmath_mode(
+        sc_graph_t &mgr, const context_ptr &ctx = get_default_context());
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

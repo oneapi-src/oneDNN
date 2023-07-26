@@ -437,6 +437,7 @@ public:
         // if false, when an input_op is plain format and has only one use, will
         // set the input's data format to the expected format of the use
         static constexpr const char *is_input_plain = "is_input_plain";
+        static constexpr const char *fpmath_mode = "fpmath_mode";
     };
 
     std::vector<sc_op_ptr> ops_;

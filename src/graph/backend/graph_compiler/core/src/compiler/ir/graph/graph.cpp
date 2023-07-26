@@ -536,6 +536,7 @@ sc_graph_t &sc_graph_t::operator=(sc_graph_t &&other) {
 
 size_t sc_graph_t::hash_contents() const {
     size_t seed = 0;
+    hash_combine(seed, attrs_.get_or_else("fpmath_mode", 0));
     op_visitor_t vis = op_visitor_t::bfs_topology_sort(this->ops_.size());
     vis.visit_graph(*this, [&](op_visitor_t *vis, const sc_op_ptr &op) {
         hash_combine(seed, op->hash_contents());
