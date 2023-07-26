@@ -834,6 +834,17 @@ int64_t bound_finder_base_t::find_bound_impl(
                 }
                 break;
             }
+            case op_kind_t::_min:
+            case op_kind_t::_max: {
+                auto a = find_bound_impl(binary->a, is_low);
+                auto b = find_bound_impl(binary->b, is_low);
+                if (!is_good_bound(a) || !is_good_bound(b)) return def_bound;
+                auto a_const = to_cpp<int64_t>(a);
+                auto b_const = to_cpp<int64_t>(a);
+                return binary->op_kind == op_kind_t::_min
+                        ? std::min(a_const, b_const)
+                        : std::max(a_const, b_const);
+            }
             default: break;
         }
     }
