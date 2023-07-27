@@ -1118,8 +1118,8 @@ void init_pipeline(conv_config_t &cfg) {
     cfg.pipeline().set(do_unroll, cfg.plan().reuse_headers);
 }
 
-send_pattern_t validate_blocking(
-        const conv_config_t &cfg, conv_stride_layout_t::input_tensor_t tensor) {
+send_pattern_t validate_blocking(const conv_config_t &cfg,
+        conv_stride_layout_t::input_tensor_t tensor, bool check_2d) {
     auto &prb = cfg.prb();
     const compute::gpu_arch_t arch
             = convert_ngen_arch_to_dnnl(cfg.hw_cfg().hw());
@@ -1153,6 +1153,7 @@ send_pattern_t validate_blocking(
     }();
 
     auto match_2d = [&]() {
+        if (!check_2d) return pattern_match_t(send_pattern_t(), {});
         for (const auto &load : get_uniform_2d_patterns(arch)) {
             uniform_2d_idiom_t<conv_dim_t> idiom(load);
             auto hints = idiom.get_hints(layout);
@@ -1175,25 +1176,6 @@ send_pattern_t validate_blocking(
         return pattern_match_t(send_pattern_t(), {});
     }();
 
-    // if (!match_blocked.hints.empty()) {
-    //     std::cout << "Best blocked hints: \n";
-    //     for (auto &hint : match_blocked.hints) {
-    //         std::cout << "\t" << hint.str() << "\n";
-    //     }
-    // } else {
-    //     std::cout << "No blocked matches found.\n";
-    // }
-    if (!match_2d.hints.empty()) {
-        ir_suggestion() << "Best 2d hints for " << tensor << ": " << layout
-                        << "\n";
-        for (auto &hint : match_2d.hints) {
-            ir_suggestion() << "\t" << hint.str() << "\n";
-        }
-    } else {
-        ir_suggestion() << "No 2d matches found for " << tensor << ": "
-                        << layout << ".\n";
-    }
-
     const pattern_match_t &best_match = [&]() {
         if (match_2d.hints.empty()) return match_blocked;
         if (match_blocked.hints.empty()) return match_2d;
@@ -1201,13 +1183,6 @@ send_pattern_t validate_blocking(
             return match_blocked;
         return match_2d;
     }();
-
-    if (best_match.hints.empty()) return send_pattern_t();
-
-    // ir_suggestion() << "Best Pattern:\n" << best_match.pattern;
-    // for (const auto &h : best_match.hints) {
-    //     ir_suggestion() << h << "\n";
-    // }
 
     for (const auto &h : best_match.hints) {
         if (is_match(h)) { return best_match.pattern; }
@@ -1218,6 +1193,12 @@ send_pattern_t validate_blocking(
                     << " tensor. Try a multiple of:\n";
     for (auto &hint : best_match.hints) {
         ir_suggestion() << "\t" << hint.str() << "\n";
+    }
+
+    if (best_match.pattern.is_uniform_2d() && !match_blocked.hints.empty()) {
+        for (const auto &h : match_blocked.hints) {
+            if (is_match(h)) { return match_blocked.pattern; }
+        }
     }
     return send_pattern_t();
 }
@@ -1471,21 +1452,23 @@ status_t check_plan(conv_config_t &cfg) {
     auto &prb = cfg.prb();
     send_pattern_t a_load_pattern;
     send_pattern_t b_load_pattern;
+    bool a_2d = plan.uses_2d_load(abc_kind_t::a);
+    bool b_2d = plan.uses_2d_load(abc_kind_t::b);
     if (prb.is_fwd) {
         a_load_pattern = validate_blocking(
-                cfg, conv_stride_layout_t::input_tensor_t::src);
+                cfg, conv_stride_layout_t::input_tensor_t::src, a_2d);
         b_load_pattern = validate_blocking(
-                cfg, conv_stride_layout_t::input_tensor_t::wei);
+                cfg, conv_stride_layout_t::input_tensor_t::wei, b_2d);
     } else if (prb.is_bwd_d) {
         a_load_pattern = validate_blocking(
-                cfg, conv_stride_layout_t::input_tensor_t::dst);
+                cfg, conv_stride_layout_t::input_tensor_t::dst, a_2d);
         b_load_pattern = validate_blocking(
-                cfg, conv_stride_layout_t::input_tensor_t::wei);
+                cfg, conv_stride_layout_t::input_tensor_t::wei, b_2d);
     } else if (prb.is_bwd_w) {
         a_load_pattern = validate_blocking(
-                cfg, conv_stride_layout_t::input_tensor_t::src);
+                cfg, conv_stride_layout_t::input_tensor_t::src, a_2d);
         b_load_pattern = validate_blocking(
-                cfg, conv_stride_layout_t::input_tensor_t::dst);
+                cfg, conv_stride_layout_t::input_tensor_t::dst, b_2d);
     }
     auto dummy_mem(var_t::make(type_t::byte_ptr(), "mem"));
     auto dummy_reg(var_t::make(type_t::byte_ptr(), "reg"));

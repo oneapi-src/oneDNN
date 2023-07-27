@@ -91,11 +91,44 @@ private:
     bool is_match_;
 };
 
+class uniform_2d_matcher_t : public ir_visitor_t {
+public:
+    static bool is_match(const send_pattern_t &pattern, const stmt_t &stmt) {
+        if (!pattern.is_uniform_2d()) return false;
+
+        uniform_2d_matcher_t matcher(pattern.as_uniform_2d());
+        matcher.visit(stmt);
+        return matcher.is_match_;
+    };
+
+    void _visit(const func_impl_t &obj) override {
+        if (!obj.is<send_t>()) return;
+
+        auto &s = obj.as<send_t>();
+
+        // Accept match with equal or greater utilization.
+        double s_utilization = static_cast<double>(s.access_size())
+                / (pattern.block_width * pattern.block_height);
+        if (s.is_2d() && s_utilization >= pattern.min_utilization) return;
+
+        is_match_ = false;
+    }
+
+private:
+    uniform_2d_matcher_t(const uniform_2d_pattern_t &pattern)
+        : pattern(pattern), is_match_(true) {}
+    uniform_2d_pattern_t pattern;
+    bool is_match_;
+};
+
 bool send_pattern_t::matches(const stmt_t &stmt) const {
     switch (type_id_) {
         case empty: return true;
         case uniform_blocked: {
             return uniform_blocked_matcher_t::is_match(*this, stmt);
+        }
+        case uniform_2d: {
+            return uniform_2d_matcher_t::is_match(*this, stmt);
         }
         default: return false;
     }

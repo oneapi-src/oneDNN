@@ -298,12 +298,13 @@ struct uniform_2d_pattern_t {
     }
 
     static const dim_t width_alignment = 4;
+    // Surface pitch?
     static const dim_t pitch_alignment = 8;
     static const dim_t surface_width_min_size = 64;
     static const dim_t surface_width_alignment = 4;
 
-    static const dim_t block_width = 64; // Blocked width in bytes
-    static const dim_t block_height = 32; // Rows of blocked width
+    static const dim_t block_width = 64; // Max blocked width in bytes
+    static const dim_t block_height = 32; // Max rows of blocked width
 
     double min_utilization;
 };
@@ -343,12 +344,14 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
         dim_t pitch = unknown;
     };
 
+    // Recursively iterate through stride_array, generating valid hints
     std::vector<hint_t> get_hints(const slayout_t &layout,
             typename slayout_t::stride_array_t::const_iterator i,
             const hint_t &hint, rem_t load_rem, surface_t surface) const {
         // Base case: whole layout has been processed and the hint satisfies
         // alignment checks.
         if (i == layout.strides_end()) {
+            // Utilization of max permitted 2d load block size.
             double utilization
                     = static_cast<double>(hint.size() * layout.type_size)
                     / (block_width() * block_height());
@@ -368,7 +371,6 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
             }
         }
 
-        ir_info() << "Processing " << i->dim << ": " << i->size << "\n";
         auto i_stride_bytes = i->stride * layout.type_size;
         auto width_stride = load_rem.block_width ? std::max(layout.type_size,
                                     block_width() / load_rem.block_width)
@@ -568,6 +570,7 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
             return std::vector<hint_t> {};
         }();
 
+        // Hint priority is 1. Width 2. Height 3.skip.
         use_width_hints.insert(use_width_hints.end(), use_height_hints.begin(),
                 use_height_hints.end());
         use_width_hints.insert(
@@ -583,13 +586,6 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
         hint_t hint;
         auto ret = get_hints(
                 layout, layout.strides.begin(), hint, rem, surface_t());
-        // if (!ret.empty()) {
-        //     std::cout << "Hints for: " << layout << "\n";
-        //     for (auto &h : ret) {
-        //         std::cout << h << "\n";
-        //     }
-        // } else
-        //     std::cout << "No hints for " << layout << "\n";
         return ret;
     }
 
