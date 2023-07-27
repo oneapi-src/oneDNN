@@ -602,9 +602,9 @@ void flex_rewrite::infer_output_shape(deserialized_graph &dgraph) {
                                 = keep_dims ? 1 : 0;
                     }
                     if (!keep_dims) {
-                        gi[out0].erase(
-                                std::remove_if(gi[out0].begin(), gi[out0].end(),
-                                        [](int64_t d) { return d == 0; }));
+                        gi[out0].erase(std::remove(gi[out0].begin(),
+                                               gi[out0].end(), 0),
+                                gi[out0].end());
                     }
                 }
                 break;
