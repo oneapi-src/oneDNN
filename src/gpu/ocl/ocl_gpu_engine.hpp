@@ -59,7 +59,6 @@ public:
             jit::jit_generator_base &jitter) const override;
 
     status_t create_binary_from_ocl_source(compute::binary_t &binary,
-            const std::vector<const char *> &kernel_names,
             const char *code_string,
             const compute::kernel_ctx_t &kernel_ctx) const;
 
