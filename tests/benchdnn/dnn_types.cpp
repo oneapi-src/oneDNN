@@ -839,10 +839,16 @@ post_ops_rhs_tensor_entry_t get_po_rhs_tensor_entry(
         const auto &binary = entry.binary;
         using mask_input_t
                 = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
-        assert(binary.mask_input != mask_input_t::none);
-        const int mask = binary.mask_input == mask_input_t::mask
-                ? binary.mask
-                : attr_t::get_default_mask(binary.policy);
+        int mask = -1;
+        switch (binary.mask_input) {
+            // `none` is treated as `policy_t::COMMON`.
+            case mask_input_t::none: mask = 0; break;
+            case mask_input_t::mask: mask = binary.mask; break;
+            case mask_input_t::policy:
+                mask = attr_t::get_default_mask(binary.policy);
+                break;
+            default: assert(!"unknown mask_input value"); break;
+        }
         return {binary.src1_dt, mask, binary.tag, DNNL_ARG_SRC_1};
     }
 
