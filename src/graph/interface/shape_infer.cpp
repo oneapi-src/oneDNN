@@ -1263,8 +1263,6 @@ status_t infer_reduce_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    // check if output shape is already known
-    if (!out0.is_shape_unknown()) return status::success;
 
     if (n->has_attr(op_attr::axes)) {
         auto axes = n->get_attr<dims>(op_attr::axes);
@@ -1298,7 +1296,11 @@ status_t infer_reduce_output_shape(op_t *n,
             shape.erase(std::remove_if(shape.begin(), shape.end(),
                                 [](int64_t d) { return d == 0; }),
                     shape.end());
-        if (shape.empty()) shape.push_back(1);
+        if (!out0.is_shape_unknown()) {
+            if (!validate(shape, out0.vdims())) {
+                return status::invalid_shape;
+            }
+        }
 
         set_shape_and_strides(*outputs[0], shape);
 

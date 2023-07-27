@@ -3245,7 +3245,7 @@ TEST(OpSchema, InferReduceOutputShapeFromAttributeWithoutKeepingDims) {
             op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
             op_kind::ReduceProd, op_kind::ReduceSum};
     const std::vector<int64_t> axes {0, 1, 2, 3};
-    const std::vector<int64_t> expected_out_shape = {1};
+    const std::vector<int64_t> expected_out_shape = {};
 
     for (auto op_kind_ : configs) {
         const op_schema_t *op_schema_
@@ -3265,6 +3265,9 @@ TEST(OpSchema, InferReduceOutputShapeFromAttributeWithoutKeepingDims) {
         const std::vector<int64_t> inferred_out_shape
                 = logical_tensor_wrapper_t(lt_out).vdims();
         EXPECT_EQ(inferred_out_shape, expected_out_shape);
+        lt_out = logical_tensor_init(2, {}, data_type::f32);
+        EXPECT_EQ(
+                op_schema_->shape_infer(&op_, in, out), graph::status::success);
     }
 }
 
