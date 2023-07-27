@@ -27,10 +27,154 @@ namespace gpu {
 namespace ocl {
 
 using namespace compute;
+using namespace dnnl::impl::format_tag;
+
+bool mayiuse_sg(const int sg_size, engine_t *engine) {
+    auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
+    return compute_engine->mayiuse_sub_group(sg_size)
+            && compute_engine->mayiuse_block_reads_writes_with_sub_group(
+                    sg_size);
+};
+
+bool is_fused_kernel_applicable(lnorm_conf_t &conf,
+        const layer_normalization_pd_t *pd, engine_t *engine) {
+    auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
+
+    auto gpu_arch = compute_engine->device_info()->gpu_arch();
+    memory_desc_wrapper src_mdw(pd->src_md());
+    memory_desc_wrapper dst_mdw(pd->src_md());
+    memory_desc_wrapper stat_mdw(pd->stat_md());
+    auto eu_count = compute_engine->device_info()->eu_count();
+    auto max_eus_per_wg = device_info_t::max_eus_per_wg(gpu_arch);
+    const int max_ss = utils::div_up(eu_count, max_eus_per_wg);
+    const size_t max_wg_size = compute_engine->device_info()->max_wg_size();
+    const size_t max_slm_size = device_info_t::max_slm_size(gpu_arch);
+
+    // Plain layout only
+    if (!(src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
+                && stat_mdw.matches_one_of_tag(a, ab)))
+        return false;
+
+    const int desired_sg_size = 16; // based on PVC performance data
+    conf.sub_group_size = mayiuse_sg(desired_sg_size, engine)
+                    && conf.norm_axis % desired_sg_size == 0
+            ? desired_sg_size
+            : 1;
+    if (conf.sub_group_size <= 1) return false;
+
+    conf.vect_size_fused = 4; // based on PVC performance data
+    while (conf.norm_axis % (conf.sub_group_size * conf.vect_size_fused) != 0) {
+        conf.vect_size_fused /= 2;
+    }
+
+    // Setup norm axis blocking
+    // Limit values experimentally selected, based on PVC perf data.
+    auto get_ss_utilization = [](const int num_wgs, const int max_ss) {
+        return (float)num_wgs / max_ss;
+    };
+    int min_num_c_blocks = 2;
+    int max_num_c_blocks = 32;
+    int max_ss_util = 32;
+    const int best_num_blocks = [=]() {
+        int num_blocks = 1;
+        int best_num = num_blocks;
+        float ss_util = get_ss_utilization(conf.across_axis, max_ss);
+        if (ss_util > max_ss_util) { return best_num; }
+        while (num_blocks <= max_num_c_blocks) {
+            if (conf.norm_axis
+                            % (conf.sub_group_size * conf.vect_size_fused
+                                    * num_blocks)
+                    == 0) {
+                best_num = num_blocks;
+            }
+            num_blocks++;
+        }
+        return best_num < min_num_c_blocks ? 1 : best_num;
+    }();
+    conf.num_norm_blocks_fused = best_num_blocks;
+    assert(conf.norm_axis % conf.num_norm_blocks_fused == 0);
+    conf.norm_block_fused = conf.norm_axis / conf.num_norm_blocks_fused;
+    if (conf.num_norm_blocks_fused == 1) return false;
+
+    // Setup across axis blocking
+    // based on number of blocks, number of threads, slm buffer and wg size
+    auto get_wg_size = [=](const int num_n_blocks) {
+        return conf.sub_group_size
+                * nstl::max(num_n_blocks, conf.num_norm_blocks_fused);
+    };
+    auto get_num_thrs = [=](const int num_n_blocks) {
+        return num_n_blocks * conf.num_norm_blocks_fused;
+    };
+    auto get_slm_size = [=](const int num_n_blocks) {
+        const size_t scale_shift_size
+                = 2 * num_n_blocks * conf.norm_block_fused * sizeof(float);
+        const size_t dd_gamma_size = conf.calculate_stats
+                ? 2 * conf.sub_group_size * conf.num_norm_blocks_fused
+                        * sizeof(float)
+                : 0;
+        return scale_shift_size + dd_gamma_size;
+    };
+    auto get_num_blocks = [=](const int n_block) {
+        return utils::div_up(conf.across_axis, n_block);
+    };
+    auto get_block = [=](const int num_blocks) {
+        return utils::div_up(conf.across_axis, num_blocks);
+    };
+    // Limit values experimentally selected, based on PVC perf data.
+    int min_n_block = 4;
+    int max_n_block = 12;
+    int min_num_thrs = 160;
+    const int best_n_block = [=]() {
+        int block = min_n_block;
+        int best_block = block;
+        while (block <= max_n_block) {
+            const int n_blocks = get_num_blocks(block);
+            if ((size_t)get_wg_size(n_blocks) <= max_wg_size
+                    && get_slm_size(n_blocks) <= max_slm_size
+                    && get_num_thrs(n_blocks) >= min_num_thrs) {
+                best_block = block;
+            } else {
+                break;
+            }
+            block++;
+        }
+        return best_block;
+    }();
+    conf.num_across_blocks = get_num_blocks(best_n_block);
+    conf.across_block = best_n_block;
+
+    // Setup dispatching
+    // scale/shift reduction requires:
+    //      LWS = SG, number of across blocks, 1
+    //      GWS = SG * num_norm_blocks, number of across blocks, 1
+    // diff_gamma reduction and update part requires:
+    //      LWS = SG, number of norm_blocks, 1
+    //      GWS = SG, across dim * num_norm_blocks, 1
+    // final dispatching as max:
+    //      LWS = SG, max(n_chunks,num_norm_blocks), 1
+    //      GWS = SG * num_norm_blocks, N * LWS1, 1
+
+    const size_t lws0 = conf.sub_group_size;
+    const size_t lws1
+            = nstl::max(conf.num_across_blocks, conf.num_norm_blocks_fused);
+    const size_t lws2 = 1;
+    if (lws0 * lws1 * lws2 > max_wg_size) return false;
+
+    const size_t gws0 = conf.sub_group_size * conf.num_norm_blocks_fused;
+    const size_t gws1 = conf.across_axis * lws1;
+
+    conf.dispatch_fused.define_dim("C_fused", gws0);
+    CHECK(conf.dispatch_fused.vectorize_dim("C_fused", conf.sub_group_size));
+    conf.dispatch_fused.define_dim("N_fused", gws1);
+    conf.dispatch_fused.set_kernel_attr_suffix("FUSED");
+    conf.dispatch_fused.generate();
+    const size_t tuned_lws[3] = {lws0, lws1, lws2};
+    conf.dispatch_fused.set_lws(tuned_lws);
+    return true;
+}
 
 static status_t init_conf_common(lnorm_conf_t &conf,
         const layer_normalization_pd_t *pd, engine_t *engine) {
-    using namespace dnnl::impl::format_tag;
 
     auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
@@ -84,6 +228,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.dispatch_scaleshift_finalize = compute_engine->create_dispatch();
     conf.dispatch = compute_engine->create_dispatch(
             conf.is_fwd ? dst_mdw.md_ : src_mdw.md_);
+    conf.dispatch_fused = compute_engine->create_dispatch(
+            conf.is_fwd ? dst_mdw.md_ : src_mdw.md_);
     const auto &dims = conf.is_fwd ? src_mdw.padded_dims() : dst_mdw.dims();
 
     auto eu_count = compute_engine->device_info()->eu_count();
@@ -117,20 +263,14 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             }
             if (src_buff_KB > buff_size_limit) return status::unimplemented;
         } else {
-            const int N_dim_limit = 64;
-            if (conf.across_axis < N_dim_limit) return status::unimplemented;
+            if (conf.across_axis < 4) return status::unimplemented;
         }
     }
 
     // DG2/ATSM optimization specifics - dont use private SRC buffer
     conf.use_src_buffer = gpu_arch >= gpu_arch_t::xe_hpc;
 
-    const int desired_sg_size = 32;
-    auto mayiuse_sg = [=](const int sg_size) {
-        return compute_engine->mayiuse_sub_group(sg_size)
-                && compute_engine->mayiuse_block_reads_writes_with_sub_group(
-                        sg_size);
-    };
+    const int desired_sg_size = conf.is_fwd ? 32 : 16;
 
     if (conf.is_fwd) {
         const int best_sg_size = [&]() {
@@ -139,7 +279,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                 const bool fit_to_shape = (conf.norm_axis % size == 0)
                         && (c_block == 1
                                 || (c_block % size == 0 && ndims == 2));
-                if (mayiuse_sg(size) && fit_to_shape) return size;
+                if (mayiuse_sg(size, engine) && fit_to_shape) return size;
                 size -= 16;
             }
             return size;
@@ -208,13 +348,20 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
     } else { // bwd
 
+        // Try first the fused kernel targeted to relatively small shapes
+        // and may get better performance because of host overheads reduction.
+        // The fused kernel does not support in-place operation.
+        // In-place operation can be recognized on execute phase only,
+        // so if it's applicable we should build kernels for both approaches.
+
+        conf.use_fused = is_fused_kernel_applicable(conf, pd, engine);
         const int best_sg_size = [&]() {
             int size = desired_sg_size;
             while (size > 1) {
                 const bool fit_to_shape = conf.norm_axis % size == 0
                         && (src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
                                 || (ndims == 2 && c_block % size == 0));
-                if (mayiuse_sg(size) && fit_to_shape) return size;
+                if (mayiuse_sg(size, engine) && fit_to_shape) return size;
                 size -= 16;
             }
             return size;
@@ -244,6 +391,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                         utils::format("X%d", i), md_hint_idx, dim);
             }
         }
+        conf.dispatch.generate();
 
         conf.n_chunk_size = 1;
         conf.vector_size_scaleshift = 1;
@@ -292,8 +440,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         conf.dispatch_scaleshift_finalize.generate();
         const size_t tuned_lws[3] = {n_finalize, 1, 1};
         conf.dispatch_scaleshift_finalize.set_lws(tuned_lws);
-    }
-    conf.dispatch.generate();
+    } // bwd
 
     return status::success;
 }
@@ -308,9 +455,14 @@ static status_t init_kernel_ctx_common(
     if (conf.is_fwd) kernel_ctx.add_option("-cl-intel-256-GRF-per-thread");
 
     kernel_ctx.define_int("C", conf.norm_axis);
+    kernel_ctx.define_int("N", conf.across_axis);
+    kernel_ctx.define_int("USE_FUSED", conf.use_fused);
     kernel_ctx.define_int("NORM_BLOCK", conf.norm_block);
     kernel_ctx.define_int("NUM_NORM_BLOCKS", conf.num_norm_blocks);
-    kernel_ctx.define_int("N", conf.across_axis);
+    kernel_ctx.define_int("NORM_BLOCK_FUSED", conf.norm_block_fused);
+    kernel_ctx.define_int("NUM_NORM_BLOCKS_FUSED", conf.num_norm_blocks_fused);
+    kernel_ctx.define_int("ACROSS_BLOCK", conf.across_block);
+    kernel_ctx.define_int("NUM_ACROSS_BLOCKS", conf.num_across_blocks);
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("USE_SCALE", conf.use_scale);
     kernel_ctx.define_int("USE_SHIFT", conf.use_shift);
@@ -320,6 +472,7 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("IS_BWD", !conf.is_fwd);
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("VECT_DT_N", conf.vect_dt_n);
+    kernel_ctx.define_int("VECT_SIZE_FUSED", conf.vect_size_fused);
     kernel_ctx.define_int(
             "VECTOR_SIZE_SCALESHIFT", conf.vector_size_scaleshift);
     kernel_ctx.define_int("N_CHUNK_SIZE", conf.n_chunk_size);
@@ -331,10 +484,13 @@ static status_t init_kernel_ctx_common(
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
     def_memory_desc_info(kernel_ctx, conf.stat_md_info, "STAT");
 
-    def_dispatch(kernel_ctx, conf.dispatch);
-    if (!conf.is_fwd) {
+    if (conf.is_fwd)
+        def_dispatch(kernel_ctx, conf.dispatch);
+    else {
+        if (conf.use_fused) { def_dispatch(kernel_ctx, conf.dispatch_fused); }
         def_dispatch(kernel_ctx, conf.dispatch_scaleshift);
         def_dispatch(kernel_ctx, conf.dispatch_scaleshift_finalize);
+        def_dispatch(kernel_ctx, conf.dispatch);
     }
 
     return status::success;
@@ -414,6 +570,26 @@ status_t vectorized_lnorm_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     CHECK(status);
     auto &diff_scale = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE);
     auto &diff_shift = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SHIFT);
+
+    bool in_place = diff_dst.data_handle() == diff_src.data_handle();
+
+    if (conf.use_fused && !in_place) {
+        std::unique_ptr<memory_storage_t> temp_reduce;
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, src);
+        arg_list.set(1, mean);
+        arg_list.set(2, variance);
+        arg_list.set(3, diff_dst);
+        arg_list.set(4, diff_scale);
+        arg_list.set(5, diff_shift);
+        arg_list.set(6, scale);
+        arg_list.set(7, diff_src);
+        arg_list.set(8, conf.eps);
+
+        auto nd_range = conf.dispatch_fused.nd_range();
+        status = parallel_for(ctx, nd_range, kernel_fused_, arg_list);
+        return status;
+    }
 
     if (conf.use_scale || conf.use_shift) {
         auto temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(

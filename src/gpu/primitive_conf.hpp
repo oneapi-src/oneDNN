@@ -504,6 +504,10 @@ struct lnorm_conf_t {
     int across_axis;
     int norm_block;
     int num_norm_blocks;
+    int norm_block_fused;
+    int num_norm_blocks_fused;
+    int across_block;
+    int num_across_blocks;
 
     memory_desc_info_t src_md_info;
     memory_desc_info_t dst_md_info;
@@ -511,6 +515,7 @@ struct lnorm_conf_t {
 
     bool use_scale;
     bool use_shift;
+    bool use_fused;
     bool calculate_stats;
     bool save_stats;
     bool vectorize_calc_stats;
@@ -519,6 +524,7 @@ struct lnorm_conf_t {
     float eps;
     int sub_group_size;
     int vect_dt_n;
+    int vect_size_fused;
     int shift_off;
     int n_chunk_size;
     int n_chunks;
@@ -528,6 +534,7 @@ struct lnorm_conf_t {
     compute::dispatch_t dispatch_scaleshift;
     compute::dispatch_t dispatch_scaleshift_finalize;
     compute::dispatch_t dispatch;
+    compute::dispatch_t dispatch_fused;
 };
 
 // Binary

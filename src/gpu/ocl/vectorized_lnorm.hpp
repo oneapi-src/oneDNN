@@ -145,6 +145,11 @@ struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
+        if (pd()->conf.use_fused) {
+            CHECK(create_kernel(engine, &kernel_fused_,
+                    "vectorized_lnorm_bwd_fused", kernel_ctx));
+            if (!kernel_fused_) return status::runtime_error;
+        }
         CHECK(create_kernel(
                 engine, &kernel_, "vectorized_lnorm_bwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
@@ -171,6 +176,7 @@ private:
     compute::kernel_t kernel_scaleshift_;
     compute::kernel_t kernel_scaleshift_finalize_;
     compute::kernel_t kernel_;
+    compute::kernel_t kernel_fused_;
 };
 
 } // namespace ocl
