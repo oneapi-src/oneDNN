@@ -2382,7 +2382,9 @@ void xbyak_lowering_viewer::handle_avx_blend(const operand &op_dst,
             case cpu_data_type::uint_8_x32:
             case cpu_data_type::sint_8_x32:
             case cpu_data_type::uint_8_x16:
-            case cpu_data_type::sint_8_x16: {
+            case cpu_data_type::sint_8_x16:
+            case cpu_data_type::uint_8_x8:
+            case cpu_data_type::sint_8_x8: {
                 XBYAK_GEN(vpblendmb, AVX_X_X_XM, op_dst.set_evex(op_cond),
                         op_lhs, op_rhs);
             } break;
@@ -2437,7 +2439,9 @@ void xbyak_lowering_viewer::handle_avx_mask_mov(const operand &op_dst,
             case cpu_data_type::uint_8_x32:
             case cpu_data_type::sint_8_x32:
             case cpu_data_type::uint_8_x16:
-            case cpu_data_type::sint_8_x16: {
+            case cpu_data_type::sint_8_x16:
+            case cpu_data_type::uint_8_x8:
+            case cpu_data_type::sint_8_x8: {
                 XBYAK_GEN(vmovdqu8, AVX_XM_XM, //
                         op_dst.set_evex(op_cond, zero), op_src);
             } break;
@@ -2616,13 +2620,15 @@ void xbyak_lowering_viewer::handle_avx_cmp_set(const operand &op_dst,
             } break;
             case cpu_data_type::uint_8_x64:
             case cpu_data_type::uint_8_x32:
-            case cpu_data_type::uint_8_x16: {
+            case cpu_data_type::uint_8_x16:
+            case cpu_data_type::uint_8_x8: {
                 XBYAK_GEN(vpcmpub, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, //
                         op_imm(code));
             } break;
             case cpu_data_type::sint_8_x64:
             case cpu_data_type::sint_8_x32:
-            case cpu_data_type::sint_8_x16: {
+            case cpu_data_type::sint_8_x16:
+            case cpu_data_type::sint_8_x8: {
                 XBYAK_GEN(vpcmpb, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, //
                         op_imm(code));
             } break;

@@ -58,11 +58,13 @@
 #include "x86simd/vec_f32x4.hpp"
 #include "x86simd/vec_s32x4.hpp"
 #include "x86simd/vec_s8x16.hpp"
+#include "x86simd/vec_s8x8.hpp"
 #include "x86simd/vec_u16x4.hpp"
 #include "x86simd/vec_u16x8.hpp"
 #include "x86simd/vec_u32x4.hpp"
 #include "x86simd/vec_u64x2.hpp"
 #include "x86simd/vec_u8x16.hpp"
+#include "x86simd/vec_u8x8.hpp"
 #endif
 
 #ifdef _IS_GCC_12_ABOVE

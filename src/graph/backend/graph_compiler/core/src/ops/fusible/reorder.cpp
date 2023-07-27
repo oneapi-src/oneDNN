@@ -1151,8 +1151,14 @@ static void set_const_fold_bypass(const context_ptr &ctx, const stmt &v) {
 
 constexpr const int byte = 8;
 constexpr const int avx_simd_length = 128;
+// inorder to vectorize u8s8x8
+constexpr const int u8s8_min_simd_length = 64;
 bool is_valid_step(int step) {
     return utils::is_one_of(step, 4, 8, 16, 32, 64);
+}
+static bool check_u8s8(sc_data_type_t dtype) {
+    return dtype.is_etype(sc_data_etype::S8)
+            || dtype.is_etype(sc_data_etype::U8);
 }
 void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
@@ -1203,9 +1209,11 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         step = utils::get_nearest_vector_step(step);
     }
 
+    bool is_u8s8 = check_u8s8(dtype);
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
-            && step * utils::get_sizeof_type(dtype) * byte >= avx_simd_length;
+            && step * utils::get_sizeof_type(dtype) * byte >= (uint64_t)(
+                       is_u8s8 ? u8s8_min_simd_length : avx_simd_length);
     if (!can_vectorize) {
         cannot_convert_warning(input_format, output_format, plain_dims);
     }
@@ -1362,11 +1370,13 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
             step = 2 * step;
         }
     }
+    bool is_u8s8 = check_u8s8(dtype);
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
             && input_blocking_dims[input_origin_axis_vectorized] % step == 0
             && is_valid_step(step)
-            && step * utils::get_sizeof_type(dtype) * byte >= avx_simd_length;
+            && step * utils::get_sizeof_type(dtype) * byte >= (uint64_t)(
+                       is_u8s8 ? u8s8_min_simd_length : avx_simd_length);
 
     bool no_padding = !is_dynamic
             && sc_data_format_t::get_padded_plain_shapes(
@@ -1503,12 +1513,13 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
             step = 2 * step;
         }
     }
-
+    bool is_u8s8 = check_u8s8(dtype);
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
             && output_blocking_dims[output_origin_axis_vectorized] % step == 0
             && is_valid_step(step)
-            && step * utils::get_sizeof_type(dtype) * byte >= avx_simd_length;
+            && step * utils::get_sizeof_type(dtype) * byte >= (uint64_t)(
+                       is_u8s8 ? u8s8_min_simd_length : avx_simd_length);
     // Usually use input loop means no padding in static, but not in dynamic, if
     // dynamic and use input loop, need to check the static dim with blocks.
     if (!output_loop && !is_dynamic_dim(input_blocking_dims.back())
@@ -1539,7 +1550,6 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
             in_indexes.emplace_back(iter_vars[i] + src.get_offset()[i]);
             loop_indexes.emplace_back(iter_vars[i]);
         }
-        expr condition;
         std::vector<expr> tmp_out_indexes = get_reorder_stride2stride_indexes(
                 in_indexes, input_format, input_format.to_plain(), plain_dims);
         std::vector<expr> out_indexes = get_reorder_plain2block_indexes(
@@ -1705,6 +1715,7 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
                     : static_cast<int>(
                             input_blocking_dims[input_origin_axis_vectorized]));
     step = utils::get_nearest_vector_step(step);
+    bool is_u8s8 = check_u8s8(dtype);
     bool can_vectorize = !is_innermost_dim_strided
             && input_block_axis == output_block_axis
             && output_blocking_dims[output_origin_axis_vectorized] % step == 0
@@ -1717,7 +1728,8 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
                                     [output_origin_axis_vectorized]
                     == 0
             && is_valid_step(step)
-            && step * utils::get_sizeof_type(dtype) * 8 >= 128;
+            && step * utils::get_sizeof_type(dtype) * 8 >= (uint64_t)(
+                       is_u8s8 ? u8s8_min_simd_length : avx_simd_length);
 
     if (!can_vectorize) {
         cannot_convert_warning(input_format, output_format, plain_dims);

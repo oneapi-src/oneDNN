@@ -2206,6 +2206,14 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestMaskMovx8) {
     const expr mask = make_constant({mask_val}, datatypes::u8);
 #define REF_MASK_MOV(IN, LANES, I) \
     ((mask_val & UINT64_C(1) << (I % LANES)) ? IN[0][I] : 0)
+    // data_type: sint_8
+    TEST_OP(UNARY, EXACT, int8_t, int8_t, datatypes::s8, datatypes::s8,
+            DATA_LEN_16, num_lanes, SKIP_SCALAR, TEST_SIMD, REF_MASK_MOV,
+            MAKE_MASK_MOV(mask), DATASET_I1);
+    // data_type: uint_8
+    TEST_OP(UNARY, EXACT, uint8_t, uint8_t, datatypes::u8, datatypes::u8,
+            DATA_LEN_16, num_lanes, SKIP_SCALAR, TEST_SIMD, REF_MASK_MOV,
+            MAKE_MASK_MOV(mask), DATASET_I1);
     // data_type: uint_16
     TEST_OP(UNARY, EXACT, uint16_t, uint16_t, datatypes::u16, datatypes::u16,
             DATA_LEN_16, num_lanes, SKIP_SCALAR, TEST_SIMD, REF_MASK_MOV,

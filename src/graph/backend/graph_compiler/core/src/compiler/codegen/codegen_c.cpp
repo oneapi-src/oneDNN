@@ -168,10 +168,12 @@ void codegen_c_vis::print_type(sc_data_type_t dtype) {
             case sc_data_type_t::u16(16): *os << "vec_u16x16"; break;
             case sc_data_type_t::u16(32): *os << "vec_u16x32"; break;
 
+            case sc_data_type_t::s8(8): *os << "vec_s8x8"; break;
             case sc_data_type_t::s8(16): *os << "vec_s8x16"; break;
             case sc_data_type_t::s8(32): *os << "vec_s8x32"; break;
             case sc_data_type_t::s8(64): *os << "vec_s8x64"; break;
 
+            case sc_data_type_t::u8(8): *os << "vec_u8x8"; break;
             case sc_data_type_t::u8(16): *os << "vec_u8x16"; break;
             case sc_data_type_t::u8(32): *os << "vec_u8x32"; break;
             case sc_data_type_t::u8(64): *os << "vec_u8x64"; break;
