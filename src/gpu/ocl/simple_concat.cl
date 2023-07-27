@@ -234,7 +234,7 @@ simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
         if (info.write) dst[info.idx] = src[i];
     }
 #else
-    const size_t lane = get_sub_group_local_id();
+    const size_t lane = get_sub_group_local_id() % SIMD;
     buffer_t buf;
 
 #if (READ_BLOCK * DATA_TYPE_SIZE % 4 != 0)
