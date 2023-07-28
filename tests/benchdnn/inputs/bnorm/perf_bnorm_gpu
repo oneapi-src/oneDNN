@@ -1,25 +1,2 @@
---reset
-
---mb=1
---dt=f32,s8
---tag=axb,aBx16b
---dir=FWD_I        --flags=GCHR       --batch=set_topologies_gpu
---dir=FWD_I        --flags=           --batch=set_topologies_gpu
-
---reset
-
---mb=16,32,64
---dt=f32,s8
---tag=axb,ABx16a16b
---dir=FWD_I
---flags=,GCHR
---batch=set_topologies_gpu
-
---reset
-
---mb=16,32,64
---dt=f32
---tag=axb,ABx16a16b
---dir=FWD_D        --flags=GCHR,CHR   --batch=set_topologies_gpu
---dir=FWD_D,BWD_DW --flags=CHR,GCH,CH --batch=set_topologies_gpu
---dir=BWD_DW       --flags=           --batch=set_topologies_gpu
+--reset --batch=option_set_fwks_key_gpu
+--reset --batch=option_set_fwks_ext_gpu
