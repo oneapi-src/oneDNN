@@ -122,6 +122,7 @@ endif()
 if(NOT SC_LLVM_ENABLED)
     file(GLOB_RECURSE SC_LLVM_SRC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/codegen/codegen_llvm.[ch]pp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/codegen/llvm/*
         ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/llvm/*
     )
     list(APPEND SC_LLVM_SRC ${CMAKE_CURRENT_SOURCE_DIR}/dummy)
@@ -199,13 +200,19 @@ endif()
 # Setting compiler flags
 ##########################
 
+if(${CMAKE_VERSION} VERSION_LESS "3.1.0") 
+    if(MSVC)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++${SC_CPP_VER}")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${SC_CPP_VER}")
+    endif()
+else()
+    set_property(TARGET ${SC_LIB_NAME} PROPERTY CXX_STANDARD ${SC_CPP_VER})
+endif()
+
 if(NOT MSVC OR CMAKE_BASE_NAME MATCHES "(icx|icpx)")
     if(NOT MSVC)
-        if(${CMAKE_VERSION} VERSION_LESS "3.1.0") 
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${SC_CPP_VER}")
-        else()
-            set_property(TARGET ${SC_LIB_NAME} PROPERTY CXX_STANDARD ${SC_CPP_VER})
-        endif()
+
     else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
         append_host_compiler_options(CMAKE_CXX_FLAGS "-Wno-deprecated-declarations")

@@ -95,7 +95,7 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestAddCast2bf16) {
         ref_fptr->call_default(&ref_output[0], &input_data0[0], &input_data1[0],
                 &input_data2[0]);
     }
-    test_utils::compare_data(sc_output, ref_output, 1e-2, 1e-2);
+    test_utils::compare_data(sc_output, ref_output, 1e-2f, 1e-2f);
 }
 
 TEST(GCCore_CPU_fpmath_mode_cpp, TestMatmulCast2bf16) {
@@ -173,7 +173,7 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestMatmulCast2bf16) {
     }
 
     auto rmse = test_utils::cal_rmse(sc_output, ref_output);
-    EXPECT_TRUE(rmse < 1e-2);
+    EXPECT_TRUE(rmse < 1e-2f);
 }
 
 TEST(GCCore_CPU_fpmath_mode_cpp, TestMLPInstanceNorm) {
@@ -299,7 +299,7 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestMLPInstanceNorm) {
     }
 
     auto rmse = test_utils::cal_rmse(sc_output, ref_output);
-    EXPECT_TRUE(rmse < 1e-2);
+    EXPECT_TRUE(rmse < 1e-2f);
 }
 
 TEST(GCCore_CPU_fpmath_mode_cpp, TestConvCast2bf16) {
@@ -408,5 +408,5 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestConvCast2bf16) {
     }
 
     auto rmse = test_utils::cal_rmse(sc_output, ref_output);
-    EXPECT_TRUE(rmse < 1e-2);
+    EXPECT_TRUE(rmse < 1e-2f);
 }
