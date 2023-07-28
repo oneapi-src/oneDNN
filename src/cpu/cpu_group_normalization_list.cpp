@@ -18,6 +18,11 @@
 #include "cpu/ncsp_group_normalization.hpp"
 #include "cpu/ref_group_normalization.hpp"
 
+#if DNNL_X64
+#include "cpu/x64/jit_uni_group_normalization.hpp"
+using namespace dnnl::impl::cpu::x64;
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -30,6 +35,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     // clang-format off
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_GNORM_P({
         {{forward}, {
+            CPU_INSTANCE_X64(jit_uni_group_normalization_fwd_t)
             CPU_INSTANCE(ncsp_group_normalization_fwd_t)
             CPU_INSTANCE(ref_group_normalization_fwd_t)
             nullptr,
