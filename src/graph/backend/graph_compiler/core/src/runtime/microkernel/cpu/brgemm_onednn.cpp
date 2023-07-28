@@ -718,12 +718,20 @@ void *do_get_amx_tile_buf(const char *palette, gc::runtime::stream_t *stream,
         bool &amx_exclusive, bool &need_config_amx) {
     void *tmp_amx_tile_buf = nullptr;
     auto &tls = gc::runtime::get_tls(stream);
-    amx_exclusive = false;
+    // if using managed thread pool, we can avoid re-config/release within
+    // the kernel
+    bool managed_thread_pool = tls.in_managed_thread_pool_;
+    amx_exclusive = managed_thread_pool;
     if (!amx_exclusive || tls.amx_buffer_.cur_palette != palette) {
         if (need_config_amx) {
             amx_tile_configure(palette);
         } else {
             need_config_amx = true;
+        }
+        if (managed_thread_pool) {
+            tls.amx_buffer_.cur_palette = palette;
+            // tell the thread pool to release amx tile
+            tls.amx_buffer_.need_release_tile_ = true;
         }
     }
 
