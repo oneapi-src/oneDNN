@@ -136,7 +136,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
             conf.dispatch_calc_stat
                     = compute_engine->create_dispatch(data_mdw.md_);
-            int calc_dims[5];
+            dim_t calc_dims[5];
             auto &dims = data_mdw.dims();
             calc_dims[0] = dims[0];
             calc_dims[1] = dims[1];

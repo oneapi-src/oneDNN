@@ -449,15 +449,17 @@ struct bnorm_conf_t {
     data_type_t data_type;
 
     int ndims;
-    int mb, ic, mb_block, ic_block;
-    int reduce_dim_idx, reduce_dim;
-    int id, ih, iw;
-    int nn, sp, sp_tail, vect_size;
+    dim_t mb, ic, id, ih, iw;
+    int mb_block, ic_block;
+    int reduce_dim_idx;
+    dim_t reduce_dim;
+    dim_t nn, sp;
+    int sp_tail, vect_size;
     int stat_sp_nblocks, stat_sp_tail, stat_sp_block;
     int update_sp_nblocks, update_sp_tail, update_sp_block;
     int reduce_stat_nblocks;
     bool with_relu, use_16mb_unroll, use_nhwc;
-    int stat_ic;
+    dim_t stat_ic;
     bool is_forward, is_backward;
     bool use_scale, use_shift, save_stats, is_training;
     bool calculate_stats, calculate_diff_stats;
