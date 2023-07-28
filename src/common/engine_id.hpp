@@ -113,11 +113,13 @@ inline runtime_kind_t engine_id_t::runtime_kind() const {
 } // namespace impl
 } // namespace dnnl
 
+namespace std {
 template <>
-struct std::hash<dnnl::impl::engine_id_t> {
+struct hash<dnnl::impl::engine_id_t> {
     std::size_t operator()(const dnnl::impl::engine_id_t &id) const {
         return id.hash();
     }
 };
+} // namespace std
 
 #endif
