@@ -862,6 +862,52 @@ static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
     return OK;
 }
 
+int get_cpu_cache_size(size_t &cache_size) {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    using namespace dnnl::impl::cpu::platform;
+    static const auto L2_size = get_per_core_cache_size(2);
+    static const auto L3_size = get_per_core_cache_size(3);
+    static const auto num_cores = get_num_cores();
+    static const auto total_cache_size = (L2_size + L3_size) * num_cores;
+#else
+    // If functions are not available, just use 150 MiB.
+    static const auto total_cache_size = 150 * 1024 * 1024;
+#endif
+    cache_size = total_cache_size;
+    return OK;
+}
+
+int get_gpu_cache_size(size_t &cache_size) {
+    if (!is_gpu()) return OK;
+
+    static size_t _cache_size = 0;
+    if (_cache_size > 0) {
+        cache_size = _cache_size;
+        return OK;
+    }
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    auto eng = dnnl::engine(get_test_engine(), true);
+    cl_int status = CL_SUCCESS;
+    cl_device_id ocl_device = dnnl::ocl_interop::get_device(eng);
+
+    cl_ulong cache_sz = 0;
+    status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
+            sizeof(cl_ulong), &cache_sz, nullptr);
+    if (status != CL_SUCCESS) return FAIL;
+
+    _cache_size = (size_t)cache_sz;
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+    auto eng = dnnl::engine(get_test_engine(), true);
+    auto sycl_dev = dnnl::sycl_interop::get_device(eng);
+    _cache_size
+            = (size_t)sycl_dev
+                      .get_info<::sycl::info::device::global_mem_cache_size>();
+#endif
+    cache_size = _cache_size;
+    return OK;
+}
+
 struct check_mem_size_args_t {
     check_mem_size_args_t(const_dnnl_primitive_desc_t pd, bool want_input,
             bool add_ref_size = false)

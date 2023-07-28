@@ -203,6 +203,9 @@ struct init_pd_args_t {
     const_dnnl_memory_desc_t src_md;
 };
 
+int get_cpu_cache_size(size_t &cache_size);
+int get_gpu_cache_size(size_t &cache_size);
+
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
