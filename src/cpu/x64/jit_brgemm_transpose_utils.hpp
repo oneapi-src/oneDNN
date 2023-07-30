@@ -178,25 +178,38 @@ struct jit_brgemm_trans_wei_t {
 };
 
 struct jit_brgemm_relo_copy_to_wbuffer_t : public jit_generator {
+    struct cfg_t {
+        data_type_t wei_dt {data_type_t::dnnl_data_type_undef};
+        int out_oc_block {0};
+        int inp_oc_block {0};
+        int rd {0};
+        bool is_rd_padded_to_block {false};
+        int inp_ocb_offs {0};
+        int last_occ_to_copy {0};
+    };
+
     struct ctx_t {
-        const void *src;
-        void *dst;
+        const char *src {nullptr};
+        char *dst {nullptr};
+        size_t last_ocb {0};
     };
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_relo_copy_to_wbuffer_t)
 
     using reg64_t = Xbyak::Reg64;
 
-    jit_brgemm_relo_copy_to_wbuffer_t(const jit_brgemm_conv_conf_t &ajcp)
+    jit_brgemm_relo_copy_to_wbuffer_t(const cfg_t &ajcp)
         : jit_generator(
                 jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
-        , jcp(ajcp) {}
+        , wjcp(ajcp) {}
 
 private:
-    jit_brgemm_conv_conf_t jcp;
+    cfg_t wjcp;
 
     const reg64_t reg_src = rax;
     const reg64_t reg_dst = rbx;
+    const reg64_t aux_reg_src = r10;
+    const reg64_t aux_reg_dst = r11;
     const reg64_t reg_tmp = rdx;
 
     const Xbyak::Opmask kmask_load = k2;

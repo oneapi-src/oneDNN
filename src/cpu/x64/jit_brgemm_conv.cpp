@@ -994,26 +994,22 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     }
 
     if (jcp.is_relo && jcp.relo_conv_weights) {
-        jit_brgemm_conv_conf_t wjcp;
-        wjcp.amx_w = jcp.amx_w;
+        jit_brgemm_relo_copy_to_wbuffer_t::cfg_t wjcp;
         wjcp.wei_dt = jcp.wei_dt;
-        wjcp.wei_dsz = jcp.wei_dsz;
-        wjcp.oc_block = 16;
-        wjcp.kw = jcp.vnni_block;
-        wjcp.ic_block = 1;
-        wjcp.ic_without_padding = 1;
-        wjcp.kh = 1;
-        wjcp.nb_oc = 1;
-        wjcp.ngroups = 1;
+        wjcp.out_oc_block = jcp.oc_block;
+        wjcp.inp_oc_block = 16;
+        wjcp.rd = jcp.kw * jcp.ic;
+        wjcp.is_rd_padded_to_block = jcp.is_rd_padded_to_block;
+        wjcp.inp_ocb_offs
+                = jcp.kh * jcp.kw * jcp.ic * wjcp.inp_oc_block * jcp.wei_dsz;
+
+        const auto oc_chunks = jcp.oc_block / wjcp.inp_oc_block;
+        const auto inp_nb_oc = div_up(jcp.oc, wjcp.inp_oc_block);
+        wjcp.last_occ_to_copy = inp_nb_oc - (jcp.nb_oc - 1) * oc_chunks;
+
         CHECK(safe_ptr_assign(copy_to_relo_wbuffer_,
                 new jit_brgemm_relo_copy_to_wbuffer_t(wjcp)));
         CHECK(copy_to_relo_wbuffer_->create_kernel());
-        if ((jcp.kw * jcp.ic) % jcp.vnni_block != 0) {
-            wjcp.kw = (jcp.kw * jcp.ic) % jcp.vnni_block;
-            CHECK(safe_ptr_assign(copy_to_relo_wbuffer_tail_,
-                    new jit_brgemm_relo_copy_to_wbuffer_t(wjcp)));
-            CHECK(copy_to_relo_wbuffer_tail_->create_kernel());
-        }
     }
 
     if (jcp.req_cal_comp_pad) {
@@ -1723,49 +1719,27 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_weights(
         auto nb_rd = div_up(rd, jcp.vnni_block);
         if (jcp.is_rd_padded_to_block) nb_rd = rnd_up(nb_rd, 16);
 
-        assert(jcp.oc_block % 16 == 0);
-        const auto oc_chunks = jcp.oc_block / 16;
-
         const auto inp_oc_block = 16; // this is oc block of inp weights layout
+
+        assert(jcp.oc_block % inp_oc_block == 0);
+        const auto oc_chunks = jcp.oc_block / inp_oc_block;
+
         const auto inp_nb_oc = div_up(jcp.oc, inp_oc_block);
-        const auto ikw_offs = jcp.ic * inp_oc_block;
-        const auto iocb_offs = jcp.kh * jcp.kw * ikw_offs;
+        const auto inp_kh_offs = jcp.kw * jcp.ic * inp_oc_block * jcp.wei_dsz;
+        const auto out_kh_offs
+                = nb_rd * jcp.oc_block * jcp.wei_dsz * jcp.vnni_block;
 
         parallel_nd(jcp.ngroups, jcp.nb_oc, jcp.kh,
                 [&](dim_t g, dim_t ocb, dim_t kh) {
-                    const auto odx_g = g * jcp.nb_oc;
-                    const auto idx_g = g * inp_nb_oc;
-                    const auto odx_ocb = (odx_g + ocb) * jcp.kh;
-                    const auto odx_kh = (odx_ocb + kh) * nb_rd;
-                    const auto idx_kh = kh * jcp.kw * jcp.ic * inp_oc_block;
-                    for (int rdb = 0; rdb < nb_rd; rdb++) {
-                        const auto odx_rdb = (odx_kh + rdb) * jcp.oc_block;
-                        for (int occ = 0; occ < oc_chunks; occ++) {
-                            const auto inp_ocb = ocb * oc_chunks + occ;
-                            auto p = jit_brgemm_relo_copy_to_wbuffer_t::ctx_t();
-
-                            p.src = input_weights
-                                    + jcp.wei_dsz
-                                            * ((idx_g + inp_ocb) * iocb_offs
-                                                    + idx_kh
-                                                    + rdb * inp_oc_block
-                                                            * jcp.vnni_block);
-                            p.dst = wei_buffer
-                                    + jcp.wei_dsz
-                                            * (odx_rdb * jcp.vnni_block
-                                                    + occ * inp_oc_block
-                                                            * jcp.vnni_block);
-                            if (rdb * jcp.vnni_block >= rd
-                                    || inp_ocb >= inp_nb_oc)
-                                std::memset(p.dst, 0,
-                                        jcp.wei_dsz * inp_oc_block
-                                                * jcp.vnni_block);
-                            else if ((rdb + 1) * jcp.vnni_block > rd)
-                                (*copy_to_relo_wbuffer_tail_)(&p);
-                            else
-                                (*copy_to_relo_wbuffer_)(&p);
-                        }
-                    }
+                    auto p = jit_brgemm_relo_copy_to_wbuffer_t::ctx_t();
+                    p.src = input_weights
+                            + ((g * inp_nb_oc + ocb * oc_chunks) * jcp.kh + kh)
+                                    * inp_kh_offs;
+                    p.dst = wei_buffer
+                            + ((g * jcp.nb_oc + ocb) * jcp.kh + kh)
+                                    * out_kh_offs;
+                    p.last_ocb = (ocb == jcp.nb_oc - 1);
+                    (*copy_to_relo_wbuffer_)(&p);
                 });
         wei = wei_buffer;
     }

@@ -243,8 +243,6 @@ private:
     std::unique_ptr<jit_avx512_core_amx_copy_to_pbuffer_t>
             copy_to_relo_pbuffer_;
     std::unique_ptr<jit_brgemm_relo_copy_to_wbuffer_t> copy_to_relo_wbuffer_;
-    std::unique_ptr<jit_brgemm_relo_copy_to_wbuffer_t>
-            copy_to_relo_wbuffer_tail_;
 
     std::unique_ptr<jit_generator> comp_vpad_pbuffer_;
 
