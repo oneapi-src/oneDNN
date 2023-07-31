@@ -9,16 +9,41 @@
 where *graph-knobs* are:
 
  - `--mb=INT` -- Override minibatch size specified in the JSON file default
-            case. When set to `0`, use minibatch size as defined by the
-            individual test case. The option doesn't take an effect for
-            operations that don't support `mb` concept. The default is `0`.
- - `--in-shapes=ID:SHAPE[+ID:SHAPE]` -- Override a shape of graph input tensor
-            with `ID` in a graph with `SHAPE` values. Multiple inputs may be
-            specified using `+` delimeter. If both `--mb` and `--in-shapes` were
-            set, the `--mb` takes precedence over `--in-shapes`. The shape of
-            internal tensor and graph output tensor will be inferred by graph
-            driver automatically. By default the option value is empty, meaning
-            values are taken from original graph.
+    case. When set to `0`, use minibatch size as defined by the
+    individual test case. The option doesn't take an effect for
+    operations that don't support `mb` concept. The default is `0`.
+
+ - `--in-shapes=ID:SHAPE[*TAG+ID:SHAPE*TAG+...]` -- Override a shape and
+    stride of graph input tensor with `ID` in a graph with `SHAPE` and
+    `TAG` values. `SHAPE` and `TAG` is separated by a `*`. Multiple
+    inputs may be specified using `+` delimiter.
+
+    If both `--mb` and `--in-shapes` were set, the `--mb` takes precedence
+    over `--in-shapes`.
+
+    The shape of internal tensors and graph output tensors will be inferred
+    by graph driver automatically. By default, the option value is empty,
+    meaning values are taken from original graph.
+
+    `TAG` means the memory layout of that tensor, represented by a string
+    starting with `a`. And the order may differ, different order means different
+    memory layout, users may provide according to their own needs. For instance,
+    a tensor with shape `[2,32,4]` & stride `[128,4,1]`, if users want to modify
+    stride to `[1,2,64]`, `TAG` should be provided as `cba`, and the stride values
+    will be calculated within Benchdnn-graph.
+
+    Below are several use options for `--in-shapes`:
+    1. Modify shape only: `--in-shapes=ID:SHAPE[+ID:SHAPE...]`. Users could modify
+            rank as while. Modifying shape to 1D tensor with shape `[0]` also included:
+            `--in-shapes=ID:0[+ID:0+...]`.
+    2. Modify stride only: `--in-shapes=ID:TAG[+ID:TAG...]`.
+    3. Modify shape and stride: `--in-shapes=ID:SHAPE[*TAG+ID:SHAPE*TAG+...]`.
+            Users could modify rank as while.
+    4. Modify rank to 0, that is, a scalar with shape [], which is represented by `-`
+            in cml: `--in-shapes=ID:-[+ID:-+...]`.
+
+    Examples are provided below.
+
  - `--op-attrs=ID:ATTR_STRING[+ID:ATTR_STRING]` -- Override a series attributes
             value of op with `ID` in the graph with `ATTR_STRING` values.
             `ATTR_STRING` is `ATTR_NAME:ATTR_VALUE[*ATTR_NAME:ATTR_VALUE]`.
@@ -57,7 +82,20 @@ path like below,
 Run the demo pattern with new input shapes by using `--in-shapes`:
 
 ```shell
-./benchdnn --mode=P --graph --in-shapes=0:2x64x112x112+1:32x64x2x2 --case=pattern/f32/conv_post_ops_fusion.json
+# rewrite input shape only
+./benchdnn --mode=C --graph --in-shapes=0:2x64x112x112+1:32x64x2x2 --case=pattern/f32/conv_post_ops_fusion.json
+# rewrite stride only
+./benchdnn --mode=C --graph --in-shapes=0:dcba+1:dcba --case=pattern/f32/conv_post_ops_fusion.json
+# rewrite shape and stride
+./benchdnn --mode=C --graph --in-shapes=0:2x64x112x112*dcba+1:32x64x2x2*dcba --case=pattern/f32/conv_post_ops_fusion.json
+# rewrite rank
+./benchdnn --mode=C --graph --in-shapes=0:2x64x112x112x112+1:32x64x2x2x2 --op-attrs=0:strides:1x1x1*pads_begin:0x0x0*pads_end:0x0x0*dilations:1x1x1 --case=pattern/f32/conv_post_ops_fusion.json
+# rewrite rank and stride
+./benchdnn --mode=C --graph --in-shapes=0:2x64x112x112x112*edcba+1:32x64x2x2x2*edcba --op-attrs=0:strides:1x1x1*pads_begin:0x0x0*pads_end:0x0x0*dilations:1x1x1 --case=pattern/f32/conv_post_ops_fusion.json
+# rewrite rank to 0 rank with shape []
+./benchdnn --mode=C --graph --in-shapes=0:- --case=op/f32/add.json
+# rewrite to 1D tensor with shape [0]
+./benchdnn --mode=C --graph --in-shapes=0:0+1:0 --case=op/f32/add.json
 ```
 
 Run the demo `conv` op
