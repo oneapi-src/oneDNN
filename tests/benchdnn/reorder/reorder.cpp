@@ -55,6 +55,8 @@ int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
             64.f,
     };
     const auto table_size = sizeof(gen) / sizeof(gen[0]);
+    // MIOpen doesn't work properly when tensors are filled with 0xFF.
+    const bool zero_out_wa = is_amd_gpu();
 
     benchdnn_parallel_nd(nelems, [&](int64_t i) {
         const int64_t table_idx = kind == SRC
@@ -62,8 +64,7 @@ int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
                 : ((i * (table_size + 1) / table_size) % table_size);
         mem_fp.set_elem(
                 i, round_to_nearest_representable(conf->dt, gen[table_idx]));
-        // MIOpen doesn't work properly when tensors are filled with 0xFF.
-        if (is_amd_gpu()) mem_dt.set_elem(i, 0);
+        if (zero_out_wa) mem_dt.set_elem(i, 0);
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
