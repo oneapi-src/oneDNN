@@ -255,9 +255,6 @@ static status_t get_number_devices(cl_program program, size_t *n_devices) {
 
 status_t get_ocl_program_binary_size(
         cl_kernel kernel, cl_device_id device, size_t *size) {
-    size_t device_idx = 0;
-    CHECK(get_ocl_device_index(&device_idx, device));
-
     cl_program program;
     cl_int err = clGetKernelInfo(
             kernel, CL_KERNEL_PROGRAM, sizeof(program), &program, nullptr);
@@ -270,6 +267,18 @@ status_t get_ocl_program_binary_size(
     err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
             sizeof(size_t) * n_devices, binary_sizes.data(), nullptr);
     OCL_CHECK(err);
+
+    // Identify local device index in the list of devices the program was
+    // compiled for. Using global indexing through `get_ocl_device_index` may
+    // fail due to presence of two or more physical devices in the system.
+    std::vector<cl_device_id> devices(n_devices);
+    err = clGetProgramInfo(program, CL_PROGRAM_DEVICES,
+            sizeof(cl_device_id) * n_devices, devices.data(), nullptr);
+    OCL_CHECK(err);
+
+    size_t device_idx = std::distance(
+            devices.begin(), std::find(devices.begin(), devices.end(), device));
+
     (*size) = binary_sizes[device_idx];
     return status::success;
 }
