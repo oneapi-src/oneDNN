@@ -21,6 +21,7 @@
 #include "deserialize.hpp"
 #include "dnnl_common.hpp"
 #include "graph_bridge.hpp"
+#include "input_displacer.hpp"
 #include <unordered_set>
 
 namespace graph {
@@ -123,11 +124,11 @@ protected:
         int op_id = static_cast<int>(cur_op.id_);
         auto &mems = std::get<1>(ref_prims_[op_id]);
 
+        size_t cur_op_in_lt_id = cur_op.in_lts_.front().id_;
         if (cur_op.kind_ == "Dequantize" && is_quantized_) {
             // move leading driver primitive's input memory to the
             // current primitive input
 
-            size_t cur_op_in_lt_id = cur_op.in_lts_.front().id_;
             bool is_partition_input
                     = std::find(partition_in_ids_.begin(),
                               partition_in_ids_.end(), cur_op_in_lt_id)
@@ -138,6 +139,17 @@ protected:
                 // not inputs of the partition
                 reverse_link_args(cur_op, res);
         }
+
+        // displace the input tensor
+        for (size_t i = 0; i < cur_op.in_lts_.size(); i++) {
+            const auto &in = cur_op.in_lts_[i];
+            int arg = get_prim_arg_name_from_graph_op_input_offset(
+                    opstr2kind(cur_op.kind_), static_cast<int>(i));
+            auto &mem = const_cast<dnn_mem_t &>(
+                    ::std::get<3>(ref_prims_[op_id]).find(arg));
+            data_displacer.displace_input_data(in.id_, mem, res);
+        }
+
         link_args(cur_op, res);
         init_graph_memory_args(mems, graph_mem_map, partition_in_ids_,
                 partition_out_ids_, cur_op, res);
@@ -180,11 +192,11 @@ private:
     // map of output logical tensor id to its producer op
     std::unordered_map<size_t, std::reference_wrapper<const deserialized_op>>
             out_lt_2_op_;
+    ::graph::partition_data_displacer_t data_displacer;
     // partition in logical tensors' ids
     std::vector<size_t> partition_in_ids_;
     // partition out logical tensors' ids
     std::vector<size_t> partition_out_ids_;
-
     // Objects below are modified at special bf16 and int8 cases.
     // IDs of logical tensors to replace bf16 data type with fp32.
     std::unordered_set<size_t> bf16_to_f32_rewrite_lt_id_;

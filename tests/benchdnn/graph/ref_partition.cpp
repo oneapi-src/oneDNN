@@ -86,7 +86,8 @@ std::unordered_set<dnnl_driver_t, driver_hash_t>
 ref_partition_t::ref_partition_t(const deserialized_graph &dg,
         const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &ins,
-        const std::vector<dnnl::graph::logical_tensor> &outs) {
+        const std::vector<dnnl::graph::logical_tensor> &outs)
+    : data_displacer(dg, par) {
     const auto &op_ids = par.get_ops();
     const std::unordered_set<size_t> op_ids_set(op_ids.begin(), op_ids.end());
 
@@ -247,10 +248,20 @@ void ref_partition_t::init_ref(const bench_mode_t mode,
                 ::std::get<4>(ref_prims_[op_id])
                         = args_t(std::get<2>(ref_prims_[op_id]));
 
+                // displace the input tensor
+                for (size_t i = 0; i < par_op_ref.get().in_lts_.size(); i++) {
+                    const auto &in = par_op_ref.get().in_lts_[i];
+                    int arg = get_prim_arg_name_from_graph_op_input_offset(
+                            opstr2kind(par_op_ref.get().kind_),
+                            static_cast<int>(i));
+                    auto &mem = const_cast<dnn_mem_t &>(
+                            ::std::get<3>(ref_prims_[op_id]).find(arg));
+                    data_displacer.displace_input_data(in.id_, mem, res);
+                }
+                link_args(par_op_ref, res);
                 init_graph_memory_args(std::get<1>(ref_prims_[op_id]),
                         partition_mem_map, partition_in_ids_,
                         partition_out_ids_, par_op_ref, res);
-                link_args(par_op_ref, res);
                 break;
             }
                 CASE_INIT_OP(binary);
