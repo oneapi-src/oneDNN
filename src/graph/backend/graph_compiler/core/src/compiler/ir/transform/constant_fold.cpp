@@ -761,8 +761,10 @@ std::pair<expr_c, expr_c> get_operand_from_binary(const expr_c &a) {
 }
 
 bool fold_special_consts(expr_c &orig, expr_c l, const constant_c &r) {
+    // does not fold pointer constant
+    if (r->dtype_.is_pointer()) { return false; }
     // todo: handle vector types with different value
-    if (r->value_.size() > 1) return false;
+    if (r->value_.size() > 1) { return false; }
     sc_expr_type op = orig->node_type_;
     if (r->dtype_.is_etype(sc_data_etype::BOOLEAN)) {
         bool val = r->value_[0].u64;
