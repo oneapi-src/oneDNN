@@ -742,7 +742,7 @@ public:
     stmt_t create_loop_nest(const stmt_t &_body = stmt_t()) const {
         stmt_t body = _body;
         auto found_vars = find_unique_objects<var_t>(body);
-        auto skip_inits = dynamic_inits_;
+        auto dynamic_inits = dynamic_inits_;
         auto dynamic_steps = dynamic_steps_;
         for (auto it = vars_.rbegin(); it != vars_.rend(); it++) {
             auto &var = *it;
@@ -750,9 +750,9 @@ public:
             if (!loop.is_leaf() || loop.is_tensorized() || loop.is_bound())
                 continue;
             body = maybe_inject_let_for_fused_vars(body, loop);
-            auto init_it = skip_inits.find(var);
+            auto init_it = dynamic_inits.find(var);
             auto step_it = dynamic_steps.find(var);
-            bool with_dyn = init_it != dynamic_inits_.end();
+            bool with_dyn = init_it != dynamic_inits.end();
             auto init = with_dyn ? init_it->second : expr_t(0);
             auto step = with_dyn ? step_it->second : expr_t(1);
             ir_assert(!with_dyn || step_it != dynamic_steps.end());
@@ -764,7 +764,7 @@ public:
             if (with_dyn) init_it->second = expr_t();
         }
 
-        for (auto &kv : skip_inits) {
+        for (auto &kv : dynamic_inits) {
             auto &c = kv.second;
             ir_assert(c.is_empty()) << "Skip condition is not injected: " << c;
         }
