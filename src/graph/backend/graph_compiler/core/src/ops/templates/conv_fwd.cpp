@@ -2746,8 +2746,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
       }
       // od_ *oh_ *ow_ *oc
       create_anchor(fusion, output, n, 1, outer_k * K_num_block / oc_split,
-        K_num_block / oc_split, 0, od_, 0, oh_, 0, ow_, config.K_block, oc_,
-        blocking_output_, is_3d_);
+        K_num_block / oc_split, 0, od_, 0, oh_, 0, ow_, config.K_block,
+        K_num_block / oc_split * config.K_block, blocking_output_, is_3d_);
     }
   }
 }
