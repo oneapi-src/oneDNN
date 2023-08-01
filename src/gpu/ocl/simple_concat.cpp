@@ -375,7 +375,8 @@ struct prb_info_t {
             return average_bytes > other_average_bytes;
         if (type_size * block != other.type_size * other.block)
             return type_size * block > other.type_size * other.block;
-        return other.simd == 1 || (simd != 1 && simd > other.simd);
+        if (simd != other.simd) return simd > other.simd;
+        return type_size > other.type_size;
     }
 };
 
