@@ -1660,9 +1660,7 @@ bool get_reorder_stag_and_dtag(const deserialized_op &base_op_ref,
         std::string &stag, std::string &dtag) {
     bool ret = get_driver_stag_and_dtag(base_op_ref, stag, dtag);
     if (!ret) return false;
-    if (base_op_ref.kind_ == "Reorder") {
-        ret = get_driver_tag(base_op_ref, dtag, true);
-    }
+    ret = get_driver_tag(base_op_ref, dtag, true);
     return ret;
 }
 
