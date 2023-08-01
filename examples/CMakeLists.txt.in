@@ -72,6 +72,16 @@ if(DNNL_WITH_SYCL)
     include("dpcpp_driver_check.cmake")
 endif()
 
+if(CMAKE_BASE_NAME MATCHES "^(icx|icpx)$")
+    # icx/icpx may issue a recommendation warning on using
+    # -qopenmp over -fopenmp to enable some additional optimizations.
+    # Suppress the warning to avoid breaking the build until we figure out
+    # whether it makes sense to enable those optimizations.
+    # Also, suppress a warning about unknown options as the older compiler
+    # versions may not support "-Wno-recommended-option".
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-recommended-option -Wno-unknown-warning-option")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-recommended-option -Wno-unknown-warning-option")
+endif()
 
 function(find_libm var)
     # This is to account for the linker cache in OSX11.  might work
