@@ -501,11 +501,17 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     dst_w_sz = static_cast<dim_t>(OW) * jcp_.oc_without_padding;
     dst_h_sz = OH * dst_w_sz;
     dst_d_sz = OD * dst_h_sz;
+    rd = jcp_.ic;
+    if (jcp_.relo_type == conv_brgemm_relo_type_t::wi)
+        rd *= jcp_.kw;
+    else if (jcp_.relo_type == conv_brgemm_relo_type_t::whi)
+        rd *= jcp_.kw * jcp_.kh;
 
-    if (jcp_.relo_type == conv_brgemm_relo_type_t::wi) {
-        auto rd = rnd_up(jcp_.kw * jcp_.ic, jcp_.vnni_block);
-        if (jcp_.is_rd_padded_to_block) rd = rnd_up(rd, 16 * jcp_.vnni_block);
-        wei_kw_stride = static_cast<dim_t>(rd)
+    if (jcp_.is_relo) {
+        auto adj_rd = rnd_up(rd, jcp_.vnni_block);
+        if (jcp_.is_rd_padded_to_block)
+            adj_rd = rnd_up(adj_rd, 16 * jcp_.vnni_block);
+        wei_kw_stride = static_cast<dim_t>(adj_rd)
                 * (jcp_.wei_plain ? jcp_.oc_without_padding : jcp_.oc_block);
         wei_kh_stride = wei_kw_stride;
     } else {
@@ -980,10 +986,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
         wjcp.wei_dt = jcp.wei_dt;
         wjcp.out_oc_block = jcp.oc_block;
         wjcp.inp_oc_block = 16;
-        wjcp.rd = jcp.kw * jcp.ic;
+        wjcp.rd = _pd->rd;
         wjcp.is_rd_padded_to_block = jcp.is_rd_padded_to_block;
-        wjcp.inp_ocb_offs
-                = jcp.kh * jcp.kw * jcp.ic * wjcp.inp_oc_block * jcp.wei_dsz;
+        wjcp.inp_ocb_offs = KH * KW * jcp.ic * wjcp.inp_oc_block * wei_dsz;
 
         const auto oc_chunks = jcp.oc_block / wjcp.inp_oc_block;
         const auto inp_nb_oc = div_up(jcp.oc, wjcp.inp_oc_block);
@@ -1694,8 +1699,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_weights(
         auto wei_buffer = ctx.get_scratchpad_grantor().template get<char>(
                 key_conv_amx_wei_buffer);
 
-        const auto rd = jcp.kw * jcp.ic;
-        auto nb_rd = div_up(rd, jcp.vnni_block);
+        auto nb_rd = div_up(_pd->rd, jcp.vnni_block);
         if (jcp.is_rd_padded_to_block) nb_rd = rnd_up(nb_rd, 16);
 
         const auto inp_oc_block = 16; // this is oc block of inp weights layout
@@ -1704,19 +1708,17 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_weights(
         const auto oc_chunks = jcp.oc_block / inp_oc_block;
 
         const auto inp_nb_oc = div_up(jcp.oc, inp_oc_block);
-        const auto inp_kh_offs = jcp.kw * jcp.ic * inp_oc_block * jcp.wei_dsz;
+        const auto inp_kh_offs = _pd->rd * inp_oc_block * wei_dsz;
         const auto out_kh_offs
-                = nb_rd * jcp.oc_block * jcp.wei_dsz * jcp.vnni_block;
+                = nb_rd * jcp.oc_block * wei_dsz * jcp.vnni_block;
 
-        parallel_nd(jcp.ngroups, jcp.nb_oc, jcp.kh,
-                [&](dim_t g, dim_t ocb, dim_t kh) {
+        parallel_nd(
+                jcp.ngroups, jcp.nb_oc, KH, [&](dim_t g, dim_t ocb, dim_t kh) {
                     auto p = jit_brgemm_relo_copy_to_wbuffer_t::ctx_t();
-                    p.src = input_weights
-                            + ((g * inp_nb_oc + ocb * oc_chunks) * jcp.kh + kh)
-                                    * inp_kh_offs;
-                    p.dst = wei_buffer
-                            + ((g * jcp.nb_oc + ocb) * jcp.kh + kh)
-                                    * out_kh_offs;
+                    const auto inp_ocb = g * inp_nb_oc + ocb * oc_chunks;
+                    const auto out_ocb = g * jcp.nb_oc + ocb;
+                    p.src = input_weights + (inp_ocb * KH + kh) * inp_kh_offs;
+                    p.dst = wei_buffer + (out_ocb * KH + kh) * out_kh_offs;
                     p.last_ocb = (ocb == jcp.nb_oc - 1);
                     (*copy_to_relo_wbuffer_)(&p);
                 });
@@ -1864,11 +1866,10 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
                 (*copy_to_pbuffer_)(&cp);
                 if (jcp.relo_type == conv_brgemm_relo_type_t::wi
                         && jcp.vnni_block > 1) {
-                    const auto rd_dim = jcp.kw * jcp.ic;
                     int size_to_sero = 0;
-                    if (rd_dim % jcp.vnni_block != 0)
+                    if (_pd->rd % jcp.vnni_block != 0)
                         size_to_sero = jcp.vnni_block;
-                    if (rd_dim > jcp.simd_w && rd_dim % jcp.simd_w != 0)
+                    if (_pd->rd > jcp.simd_w && _pd->rd % jcp.simd_w != 0)
                         size_to_sero = jcp.simd_w;
                     void *const __restrict p_zeroing = (char *)cp.dst
                             + src_dsz * cp.h_count * _pd->pbuf_w_sz;

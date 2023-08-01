@@ -75,6 +75,8 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         dim_t wei_g_stride, wei_ic_stride, wei_ocb_stride;
         dim_t wei_kw_stride, wei_kh_stride, wei_kd_stride;
         dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
+        int ndims {0};
+        int rd {0};
 
         // batch sizes info for unrolled kernels
         int bs_c;
@@ -135,8 +137,6 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
         status_t add_brg_descriptor(int M, bool is_N_tail, bool is_K_tail,
                 bool do_init, int kd_b, int kd_e, int kh_b, int kh_e);
-
-        int ndims = 0;
 
     protected:
         bool arg_scales_ok() const {
