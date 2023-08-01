@@ -92,7 +92,8 @@ inline void store_float_value(data_type_t dt, float val, void *ptr, dim_t idx) {
 namespace {
 template <typename T>
 using global_ptr
-        = ::sycl::multi_ptr<T, ::sycl::access::address_space::global_space>;
+        = ::sycl::multi_ptr<T, ::sycl::access::address_space::generic_space,
+                ::sycl::access::decorated::yes>;
 
 template <int width>
 inline ::sycl::vec<float, width> handle_bf16_load(void *ptr, dim_t offset) {
