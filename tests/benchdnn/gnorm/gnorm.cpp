@@ -131,11 +131,6 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
                     }
                     v += (s[sp] - m) * (s[sp] - m);
                 }
-
-                const float sc_value = 1.f / 8 * (1 << (c % 7));
-                const float sh_value = ((c % 3) - 1) * sc_value / 64;
-                if (use_sc) sc.set_elem(c, sc_value);
-                if (use_sh) sh.set_elem(c, sh_value);
             }
 
             ((float *)var)[mb * prb->g + g]
@@ -187,11 +182,6 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
 
                     s[sp] = val;
                     v += (s[sp] - m) * (s[sp] - m);
-
-                    const float sc_value = 1.f / 8 * (1 << (c % 7));
-                    const float sh_value = ((c % 3) - 1) * sc_value / 64;
-                    if (use_sc) sc.set_elem(c, sc_value);
-                    if (use_sh) sh.set_elem(c, sh_value);
                 }
 
                 ((float *)var)[mb * prb->g + g]
@@ -199,6 +189,13 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
             }
         });
     }
+
+    benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
+        const float sc_value = 1.f / 8 * (1 << (c % 7));
+        const float sh_value = ((c % 3) - 1) * sc_value / 64;
+        if (use_sc) sc.set_elem(c, sc_value);
+        if (use_sh) sh.set_elem(c, sh_value);
+    });
 
     return OK;
 }
