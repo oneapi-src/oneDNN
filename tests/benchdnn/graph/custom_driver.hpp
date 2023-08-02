@@ -75,7 +75,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 
-int execute(const prb_t *prb, args_t args, res_t *res);
+int execute(const prb_t *prb, const args_t &args, res_t *res);
 
 } // namespace custom
 #endif

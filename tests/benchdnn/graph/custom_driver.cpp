@@ -76,7 +76,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     return OK;
 }
 
-int execute(const prb_t *prb, args_t args, res_t *res) {
+int execute(const prb_t *prb, const args_t &args, res_t *res) {
     const dnn_mem_t &src0 = args.find(DNNL_ARG_SRC_0);
     const dnn_mem_t &src1 = args.find(DNNL_ARG_SRC_1);
     const dnn_mem_t &wei = args.find(DNNL_ARG_WEIGHTS);
@@ -136,7 +136,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     return OK;
 }
 
-int execute(const prb_t *prb, args_t args, res_t *res) {
+int execute(const prb_t *prb, const args_t &args, res_t *res) {
     const auto &src = args.find(DNNL_ARG_SRC);
     auto tag = ::std::get<0>(prb->arg_mds_.at(DNNL_ARG_SRC));
     dnn_mem_t pad(src, src.dt(), tag, get_test_engine());
@@ -179,7 +179,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     return OK;
 }
 
-int execute(const prb_t *prb, args_t args, res_t *res) {
+int execute(const prb_t *prb, const args_t &args, res_t *res) {
     const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
     dnn_mem_t &dst = const_cast<dnn_mem_t &>(args.find(DNNL_ARG_DST));
     // generate dense stride
@@ -216,7 +216,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         case RESHAPE: cmp.set_zero_trust_percent(100.f); break;
         default: assert(!"unknown alg"); break;
     }
-    return;
 }
 
 int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max) {
@@ -286,7 +285,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {}
 
-int execute(const prb_t *prb, args_t args, res_t *res) {
+int execute(const prb_t *prb, const args_t &args, res_t *res) {
     switch (prb->alg) {
         case SELECT: ::custom::select::execute(prb, args, res); break;
         case TRANSPOSE: ::custom::transpose::execute(prb, args, res); break;

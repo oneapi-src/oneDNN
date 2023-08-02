@@ -175,8 +175,8 @@ namespace custom {
         auto tag = strides2memory_tag(base_op_ref.in_lts_[i].stride_.size(),
                 base_op_ref.in_lts_[i].stride_, false);
 
-        // 0-dim means scalar input in graph, extend it to 1-dim to match behavior.
-        if (dim.size() == 0) {
+        // 0-dim means scalar input in graph, extend to 1-dim to match behavior.
+        if (dim.empty()) {
             dim.push_back(1);
             tag = "a";
         }
@@ -190,7 +190,8 @@ namespace custom {
         auto tag = strides2memory_tag(base_op_ref.out_lts_[i].stride_.size(),
                 base_op_ref.out_lts_[i].stride_, false);
 
-        if (dim.size() == 0) {
+        // 0-dim means scalar input in graph, extend to 1-dim to match behavior.
+        if (dim.empty()) {
             dim.push_back(1);
             tag = "a";
         }

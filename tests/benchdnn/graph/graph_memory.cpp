@@ -59,8 +59,8 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     // create memory for graph path
     const auto data_type = static_cast<dnnl::memory::data_type>(c_data_type);
     if (is_op_input) {
-        if (graph_dims_.size() == 0) graph_dims_.push_back(1);
-        if (graph_strides_.size() == 0) graph_strides_.push_back(1);
+        if (graph_dims_.empty()) graph_dims_.push_back(1);
+        if (graph_strides_.empty()) graph_strides_.push_back(1);
 
         dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
         mem_ = dnn_mem_t(md.get(), ::get_test_engine());
