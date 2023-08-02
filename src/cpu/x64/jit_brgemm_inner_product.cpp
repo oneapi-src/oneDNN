@@ -657,11 +657,10 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                     key_conv_amx_tile_buffer)
             : nullptr;
 
-    const int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
-
     const dim_t acc_dt_sz = types::data_type_size(jbgp.acc_dt);
     const dim_t src_dt_sz = types::data_type_size(jbgp.src_dt);
 
+    const int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
     const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     const int work_amount = jbgp.nb_ic * os_chunks;
     const int num_threads
@@ -889,8 +888,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             int max_ch_block = nstl::max(jbgp.ic_block, jbgp.oc_block);
             int ic_chunk_sz = max_ch_block / jbgp.ic_block;
             int oc_chunk_sz = max_ch_block / jbgp.oc_block;
-            int nc_ic = utils::div_up(jbgp.nb_ic, ic_chunk_sz);
-            int nc_oc = utils::div_up(jbgp.nb_oc, oc_chunk_sz);
+            int nc_ic = div_up(jbgp.nb_ic, ic_chunk_sz);
+            int nc_oc = div_up(jbgp.nb_oc, oc_chunk_sz);
             int transp_work_amount = nc_ic * nc_oc;
             balance211(transp_work_amount, nthr, ithr, start, end);
             int icc, occ;
@@ -942,11 +941,11 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         // For keeping track of last tile configuration used.
         int prev_ker_idx = -1;
 
-        int icb {0}, oss {0};
-        nd_iterator_init(start, oss, os_chunks, icb, jbgp.nb_ic);
+        int icb {0}, osc {0};
+        nd_iterator_init(start, osc, os_chunks, icb, jbgp.nb_ic);
         while (start < end) {
             const int nb_os_blocking
-                    = nstl::min(jbgp.nb_os - oss * jbgp.nb_os_blocking,
+                    = nstl::min(jbgp.nb_os - osc * jbgp.nb_os_blocking,
                             jbgp.nb_os_blocking);
             const int occ_work = occ_end - occ_start;
             const int loop_iteration = nb_os_blocking * occ_work;
@@ -960,13 +959,13 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                     occ += iter / nb_os_blocking;
                     osb += iter % nb_os_blocking;
                 }
-                int n = (oss * jbgp.nb_os_blocking + osb) * jbgp.os_block;
+                int n = (osc * jbgp.nb_os_blocking + osb) * jbgp.os_block;
                 ker(ithr_ic_mb, nthr_ic_mb, ithr_oc, nthr_oc, n, icb, occ,
                         occ == occ_start, osb == 0 || occ_work > 1,
                         prev_ker_idx);
             }
             ++start;
-            nd_iterator_step(oss, os_chunks, icb, jbgp.nb_ic);
+            nd_iterator_step(osc, os_chunks, icb, jbgp.nb_ic);
         }
         if (is_amx) amx_tile_release();
     });
@@ -987,7 +986,6 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                     = nstl::min(end * reduce_chunk_size, ddst_elems);
             if (reduce_finish <= reduce_start) return;
             const dim_t elems_to_reduce = reduce_finish - reduce_start;
-            const dim_t acc_dt_sz = types::data_type_size(jbgp.acc_dt);
 
             char *dsrc_reduced = diff_src + src_dt_sz * reduce_start;
             char *c_buffer_start = c_buffer_global + acc_dt_sz * reduce_start;
