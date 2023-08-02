@@ -383,8 +383,8 @@ void ref_partition_t::link_args(const deserialized_op &cur_op, res_t *res) {
     }
 }
 
-void ref_partition_t::reverse_link_args(const deserialized_op &cur_op,
-        partition_mem_map_t &graph_mem_map, res_t *res) {
+void ref_partition_t::reverse_link_args(
+        const deserialized_op &cur_op, res_t *res) {
     std::reference_wrapper<const deserialized_op> leading_op = std::ref(cur_op);
     int leading_op_in_offset = 0;
 
@@ -393,8 +393,6 @@ void ref_partition_t::reverse_link_args(const deserialized_op &cur_op,
     if (!st) return;
 
     int leading_op_id = static_cast<int>(leading_op.get().id_);
-    size_t leading_op_in_lt_id
-            = leading_op.get().in_lts_[leading_op_in_offset].id_;
     int leading_op_in_arg = get_prim_arg_name_from_graph_op_input_offset(
             opstr2kind(leading_op.get().kind_), leading_op_in_offset,
             eltwise::get_flag_use_dst_for_bwd_compute(cur_op));
@@ -403,17 +401,9 @@ void ref_partition_t::reverse_link_args(const deserialized_op &cur_op,
     const dnn_mem_t &leading_op_ref_input_mem
             = std::get<4>(ref_prims_[leading_op_id]).find(leading_op_in_arg);
 
-    if (graph_mem_map.find(leading_op_in_lt_id) == graph_mem_map.end()) {
-        res->state = FAILED;
-        return;
-    }
-    const dnn_graph_mem_t &leading_op_graph_input_mem
-            = graph_mem_map.at(leading_op_in_lt_id);
-
     // only need to update dq src
     int cur_op_in_arg = DNNL_ARG_SRC;
     int cur_op_id = static_cast<int>(cur_op.id_);
-    size_t cur_op_in_lt_id = cur_op.in_lts_.front().id_;
 
     // move leading op's input mem to current op's input mem
     auto &mems = std::get<1>(ref_prims_[cur_op_id]);
@@ -436,16 +426,6 @@ void ref_partition_t::reverse_link_args(const deserialized_op &cur_op,
     auto &ref_mem_map = std::get<4>(ref_prims_[cur_op_id]);
     ref_mem_map.clear();
     ref_mem_map = args_t(ref_mems);
-
-    // Update graph mem
-    if (graph_mem_map.find(cur_op_in_lt_id) == graph_mem_map.end()) {
-        res->state = FAILED;
-        return;
-    }
-    graph_mem_map.erase(cur_op_in_lt_id);
-    graph_mem_map.emplace(cur_op_in_lt_id,
-            std::move(
-                    const_cast<dnn_graph_mem_t &>(leading_op_graph_input_mem)));
 }
 
 void ref_partition_t::check_partition_correctness(

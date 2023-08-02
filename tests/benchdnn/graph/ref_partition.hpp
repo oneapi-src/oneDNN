@@ -50,8 +50,7 @@ public:
     void link_args(const deserialized_op &cur_op, res_t *res);
 
     // copy current primitive's args to previous primitive
-    void reverse_link_args(const deserialized_op &cur_op,
-            partition_mem_map_t &graph_mem_map, res_t *res);
+    void reverse_link_args(const deserialized_op &cur_op, res_t *res);
 
     // get the reference of ops of the partition
     const op_ref_list_t &get_partition_ops() const {
@@ -106,6 +105,14 @@ protected:
 
         auto pprb = std::make_shared<prb_t>(op_setting);
 
+        // Memory Preparation Flow:
+        // 1. Generate memory and data from primitive
+        // 2. Replace the data filling if needed
+        // 3. Replace memory from other OP in link_args
+        //      a. If the memory input is an output of other OP
+        //      b. If the memory input is a shared partition input with other OP
+        // 4. The data for execution is finalized and generate graph memory args.
+
         init_prim<prb_t>(ref_prims_, cur_op, init_pd, supported_exec_args,
                 setup_cmp, pprb, ref_eng, res);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return;
@@ -115,9 +122,6 @@ protected:
         // 2. maintain input and output tensors of the partition
         int op_id = static_cast<int>(cur_op.id_);
         auto &mems = std::get<1>(ref_prims_[op_id]);
-        init_graph_memory_args(mems, graph_mem_map, partition_in_ids_,
-                partition_out_ids_, cur_op, res);
-        if (res->state == FAILED) return;
 
         if (cur_op.kind_ == "Dequantize" && is_quantized_) {
             // move leading driver primitive's input memory to the
@@ -132,9 +136,11 @@ protected:
                 // for patterns like conv -> dq -> q -> conv, no need to
                 // implement link args reversing for dequantize that are
                 // not inputs of the partition
-                reverse_link_args(cur_op, graph_mem_map, res);
+                reverse_link_args(cur_op, res);
         }
         link_args(cur_op, res);
+        init_graph_memory_args(mems, graph_mem_map, partition_in_ids_,
+                partition_out_ids_, cur_op, res);
     }
 
     template <typename prb_t>
