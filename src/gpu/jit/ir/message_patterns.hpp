@@ -20,13 +20,22 @@
 #include <sstream>
 #include <string>
 
+#include "gpu/jit/ir/message_patterns.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/jit/utils/utils.hpp"
+#include "gpu/jit/ir/message.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
+
+// Tagged types
+enum type_id_t {
+    empty = 0,
+    uniform_blocked = 1,
+    uniform_2d = 2,
+};
 
 // Layout is represented as a sorted list of strides. Each entry corresponds to
 // a variable used for offset calculation. Naively, the setup is such that any
@@ -123,7 +132,8 @@ struct stride_layout_t {
 };
 
 template <typename dim_type_t>
-struct block_hint_t {
+struct send_hint_t {
+    send_hint_t() : type_id_(type_id_t::empty) {};
     static const dim_t unset = 0;
     const dim_t &operator[](dim_type_t i) const { return hint_[i.id()]; }
     dim_t &operator[](dim_type_t i) { return hint_[i.id()]; }
@@ -142,8 +152,8 @@ struct block_hint_t {
         return oss.str();
     }
 
-    block_hint_t lcm(const block_hint_t &other) {
-        block_hint_t ret;
+    send_hint_t lcm(const send_hint_t &other) {
+        send_hint_t ret;
         for (int i = 0; i < dim_type_t::NDIMS; i++) {
             if (hint_[i] == unset)
                 ret.hint_[i] = other.hint_[i];
@@ -154,268 +164,230 @@ struct block_hint_t {
         }
         return ret;
     }
+    enum dim_idx { block = 0, w = 1, h = 2 };
 
-    dim_t size() const {
-        int s = unset;
-        for (auto i : hint_) {
-            if (i != unset) s = (s == unset) ? i : s * i;
+    dim_t size(dim_idx dim = dim_idx::block) const {
+        assert((dim == dim_idx::block) || is_uniform_2d());
+        int s = 1;
+        for (size_t i = 0; i < hint_.size(); ++i) {
+            if (hint_[i] != unset
+                    && (dim == dim_idx::block || dim & w_dims_[i]))
+                s *= hint_[i];
         }
         return s;
     }
 
+    dim_t height_size() const {
+        assert(is_uniform_2d());
+        return size(dim_idx::h);
+    }
+
+    void set_w_dim(dim_type_t idx) { w_dims_[idx.id()] |= dim_idx::w; }
+    void set_h_dim(dim_type_t idx) { w_dims_[idx.id()] |= dim_idx::h; }
+    bool is_w_dim(dim_type_t idx) const {
+        return w_dims_[idx.id()] & dim_idx::w;
+    }
+    bool is_h_dim(dim_type_t idx) const {
+        return w_dims_[idx.id()] & dim_idx::h;
+    }
+
+    dim_t block_size(dim_t base) const { return size(); }
+
+    bool is_uniform_blocked() const { return type_id_ == uniform_blocked; }
+    bool is_uniform_2d() const { return type_id_ == uniform_2d; }
+    type_id_t get_type() const { return type_id_; }
+    void set_type(type_id_t type) { type_id_ = type; }
+
 private:
+    type_id_t type_id_;
     std::array<dim_t, dim_type_t::max_id()> hint_ = {0};
+    std::array<dim_t, dim_type_t::max_id()> w_dims_ = {0};
 };
 
 template <typename dim_type_t>
-struct send_idiom_t {
-    virtual std::vector<block_hint_t<dim_type_t>> get_hints(
-            const stride_layout_t<dim_type_t> &layout) const = 0;
-};
+struct uniform_send_idiom_t final {
+    uniform_send_idiom_t(dim_t block_min_size, double b, bool check_2d = false)
+        : size(block_min_size), min_utilization(b), check_2d(check_2d) {}
+    constexpr uniform_send_idiom_t(const uniform_send_idiom_t &) = default;
 
-// The uniform blocked pattern corresponds to a sequence blocked send
-// instructions which load a multiple of size data.
-struct uniform_blocked_pattern_t {
-    constexpr uniform_blocked_pattern_t(dim_t size, dim_t alignment)
-        : size(size), alignment(alignment) {}
-    constexpr uniform_blocked_pattern_t(const uniform_blocked_pattern_t &)
-            = default;
+    using hint_t = send_hint_t<dim_type_t>;
+    using slayout_t = stride_layout_t<dim_type_t>;
+
+    dim_t size;
+    double min_utilization;
+    bool check_2d;
+    static const dim_t block_alignment = 16;
+    static const dim_t width_alignment = 4;
+    static const dim_t pitch_alignment = 8;
+    static const dim_t surface_width_min_size = 64;
+    static const dim_t surface_width_alignment = 4;
+    static const dim_t block_width = 64; // Max blocked width in bytes
+    static const dim_t block_height = 32; // Max rows of blocked width
+
+    double utilization_2d(int size) const {
+        return 1.0 * size / (block_width * block_height);
+    }
 
     std::string str() const {
         std::ostringstream oss;
-        oss << "uniform " << size << " byte blocked";
+        oss << "uniform " << size << " byte send, util: " << min_utilization;
         return oss.str();
     }
-    dim_t size;
-    dim_t alignment;
-};
+    dim_t load_size() const { return size; }
 
-template <typename dim_type_t>
-struct uniform_blocked_idiom_t final : public send_idiom_t<dim_type_t> {
-    constexpr uniform_blocked_idiom_t(const uniform_blocked_pattern_t &data)
-        : data_(data) {}
-
-    using hint_t = block_hint_t<dim_type_t>;
-    using slayout_t = stride_layout_t<dim_type_t>;
-
-    dim_t load_size() const { return data_.size; }
-    dim_t alignment() const { return data_.alignment; }
+    dim_t ref_block_size(const slayout_t &layout) const {
+        return load_size() / layout.type_size;
+    }
+    dim_t ref_2d_width(const slayout_t &layout) const {
+        return block_width / layout.type_size;
+    }
+    dim_t ref_2d_height() const { return block_height; }
 
     std::vector<hint_t> get_hints(const slayout_t &layout,
             typename slayout_t::stride_array_t::const_iterator i,
-            const hint_t &hint, dim_t load_rem) const {
+            const hint_t &hint, bool valid_2d = true, bool valid_block = true) const {
+        // BASE CASE CHECK
+
+        if (hint.is_uniform_blocked() && !valid_block) return {};
+        if (hint.is_uniform_2d() && !valid_2d) return {};
+
+        auto block_rem = [&]() { return ref_block_size(layout) / hint.size(); };
+        auto width_rem
+                = [&]() { return ref_2d_width(layout) / hint.size(); };
+        auto height_rem = [&]() {
+            dim_t height = hint.size() / ref_2d_width(layout);
+            return !!height ? ref_2d_height() / height : height;
+        };
+        auto surface_pitch = [&](const slayout_t &layout) {
+            dim_t val = 0;
+            if (layout.strides.begin() == i) return val;
+            auto iter = layout.strides.begin();
+            while (iter != i) {
+                if (hint.is_h_dim(iter->dim)) val = iter->stride;
+                ++iter;
+            }
+            return val * layout.type_size;
+        };
+
+        auto surface_width = [&](const slayout_t &layout) {
+            dim_t val = 0;
+            if (layout.strides.begin() == i) return val;
+            auto iter = layout.strides.begin();
+            while (iter != i) {
+                if (hint.is_w_dim(iter->dim))
+                    val = hint[iter->dim] * iter->stride;
+                ++iter;
+            }
+            return val * layout.type_size;
+        };
+
         // Base case: whole layout has been processed and the hint satisfies
         // alignment checks.
         if (i == layout.strides_end()) {
-            if (load_rem)
-                return {};
-            else
+            bool valid_block_util
+                    = hint.is_uniform_blocked() && block_rem() <= 1;
+            bool valid_2d_util = hint.is_uniform_2d()
+                    && utilization_2d(hint.size() * layout.type_size)
+                            >= min_utilization;
+            if (valid_block_util || valid_2d_util)
                 return {hint};
+            else
+                return {};
         }
 
-        auto i_stride_bytes = i->stride * layout.type_size;
+        // INITIAL ALIGNMENT CHECKS
 
+        auto i_stride_bytes = i->stride * layout.type_size;
+        
         // The stride_layout_t structure is sorted by stride, therefore if the
         // stride exceeds the current load stride, it is impossible to pack any
         // more data into a blocked load instruction.
-        if (i_stride_bytes > load_size() && load_rem) { return {}; }
+        if (valid_block && i_stride_bytes > load_size() && block_rem() > 1)
+            valid_block = false;
+
+        auto width_stride = width_rem() > 1
+                ? std::max(layout.type_size, block_width / width_rem())
+                : block_width;
+
+        // Check hint is potentially valid
+        if (valid_2d && width_stride < i_stride_bytes
+                && min_utilization * width_rem() > 1) {
+            valid_2d = false;
+        }
+
+        if(!(valid_block || valid_2d))
+            return std::vector<hint_t>{};
+
+        // SKIP CURRENT DIM
 
         // Get hints which skip the current dimension
         std::vector<hint_t> skip_hints = [&] {
-            bool is_aligned = i_stride_bytes % alignment() == 0;
+            bool is_aligned_block
+                    = valid_block && i_stride_bytes % block_alignment == 0;
+            bool is_aligned_2d
+                    = valid_2d && i_stride_bytes % width_alignment == 0;
 
+            // The 2d send instruction zero extends any data outside the surface
+            // width and surface height, so always true for 2d.
             bool no_partial_overflow = !i->can_overflow
                     || (i_stride_bytes % load_size() == 0
                             && layout.buffer_size % load_size() == 0);
+            is_aligned_block &= no_partial_overflow;
 
             // Get all hints skipping this dimension
-            if (is_aligned && no_partial_overflow)
-                return get_hints(layout, i + 1, hint, load_rem);
+            if (is_aligned_block || is_aligned_2d)
+                return get_hints(layout, i + 1, hint, is_aligned_2d, is_aligned_block);
             else {
                 return std::vector<hint_t> {};
             }
         }();
 
+        // USE CURRENT DIM
+
         // Get hints which use the current dimension
         std::vector<hint_t> use_hints = [&] {
-            if (load_rem == 0) { return std::vector<hint_t> {}; }
+            if (block_rem() <= 1 || hint.is_uniform_2d() || !valid_block)
+                return std::vector<hint_t> {};
 
             // Check data is contiguous
-            auto stride = std::max(layout.type_size, load_size() / load_rem);
+            auto stride = std::max(layout.type_size, load_size() / block_rem());
             if (stride != i_stride_bytes || i->is_complex) {
                 return std::vector<hint_t> {};
             }
 
             // Alignment check is unnecessary as the loads stride enforces proper
             // alignment
-            if (i->size >= load_rem && i->size % load_rem == 0) {
+            if (i->size >= block_rem() && i->size % block_rem() == 0) {
                 // No masking means the final load block must be divisible by the
                 // load_size
                 hint_t new_hint = hint;
-                new_hint[i->dim] = load_rem;
-                return get_hints(layout, i + 1, new_hint, 0);
+                new_hint[i->dim] = block_rem();
+                new_hint.set_type(type_id_t::uniform_blocked);
+                return get_hints(layout, i + 1, new_hint, /*valid_2d=*/false,
+                        valid_block);
 
-            } else if (load_rem % i->size == 0) {
+            } else if (block_rem() % i->size == 0) {
                 // No masking means we cannot handle any overflow
                 hint_t new_hint = hint;
                 new_hint[i->dim] = i->size;
-                return get_hints(layout, i + 1, new_hint, load_rem / i->size);
+                new_hint.set_type(type_id_t::uniform_blocked);
+                return get_hints(layout, i + 1, new_hint, /*valid_2d=*/false,
+                        valid_block);
             } else {
                 // Dimension cannot be packed into a blocked load
                 return std::vector<hint_t> {};
             }
         }();
 
-        use_hints.insert(use_hints.end(), skip_hints.begin(), skip_hints.end());
-        return use_hints;
-    }
-
-    std::vector<hint_t> get_hints(const slayout_t &layout) const override {
-        dim_t size = load_size() / layout.type_size;
-        hint_t hint;
-        return get_hints(layout, layout.strides.begin(), hint, size);
-    }
-
-private:
-    uniform_blocked_pattern_t data_;
-};
-
-// The uniform blocked pattern corresponds to a sequence blocked send
-// instructions which load a multiple of size data.
-struct uniform_2d_pattern_t {
-    constexpr uniform_2d_pattern_t(double utilization)
-        : min_utilization(utilization) {};
-    constexpr uniform_2d_pattern_t(const uniform_2d_pattern_t &) = default;
-
-    std::string str() const {
-        std::ostringstream oss;
-        oss << "uniform (" << min_utilization << " utilization) 2d blocked";
-        return oss.str();
-    }
-
-    uniform_2d_pattern_t with_size(int size) const {
-        return uniform_2d_pattern_t(1.0 * size / (block_width * block_height));
-    }
-
-    static const dim_t width_alignment = 4;
-    // Surface pitch?
-    static const dim_t pitch_alignment = 8;
-    static const dim_t surface_width_min_size = 64;
-    static const dim_t surface_width_alignment = 4;
-
-    static const dim_t block_width = 64; // Max blocked width in bytes
-    static const dim_t block_height = 32; // Max rows of blocked width
-
-    double min_utilization;
-};
-
-template <typename dim_id_t>
-struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
-    constexpr uniform_2d_idiom_t(const uniform_2d_pattern_t &data)
-        : data_(data) {};
-
-    using hint_t = block_hint_t<dim_id_t>;
-    using slayout_t = stride_layout_t<dim_id_t>;
-
-    dim_t block_width() const { return data_.block_width; }
-    dim_t block_height() const { return data_.block_height; }
-    double min_utilization() const { return data_.min_utilization; }
-    dim_t width_alignment() const {
-        return uniform_2d_pattern_t::width_alignment;
-    }
-    dim_t surface_width_alignment() const {
-        return uniform_2d_pattern_t::surface_width_alignment;
-    }
-    dim_t surface_width_min_size() const {
-        return uniform_2d_pattern_t::surface_width_min_size;
-    }
-    dim_t pitch_alignment() const {
-        return uniform_2d_pattern_t::pitch_alignment;
-    }
-
-    struct rem_t {
-        dim_t block_width;
-        dim_t block_height;
-    };
-    struct surface_t {
-        static const dim_t unknown = 0;
-        dim_t width = unknown;
-        dim_t height = unknown;
-        dim_t pitch = unknown;
-    };
-
-    // Recursively iterate through stride_array, generating valid hints
-    std::vector<hint_t> get_hints(const slayout_t &layout,
-            typename slayout_t::stride_array_t::const_iterator i,
-            const hint_t &hint, rem_t load_rem, surface_t surface) const {
-        // Base case: whole layout has been processed and the hint satisfies
-        // alignment checks.
-        if (i == layout.strides_end()) {
-            // Utilization of max permitted 2d load block size.
-            double utilization
-                    = static_cast<double>(hint.size() * layout.type_size)
-                    / (block_width() * block_height());
-            // (static_cast<double>(surface.width)
-            //           / utils::rnd_up(surface.width, block_width()))
-            // * (static_cast<double>(surface.height)
-            //         / utils::rnd_up(surface.height, block_height()));
-            ir_info() << "Hint " << hint << " with size: " << hint.size()
-                      << " and utilization: " << utilization
-                      << " vs min_utilization " << min_utilization() << "  ";
-            if (utilization < min_utilization()) {
-                ir_info() << "Hint Failed\n";
-                return {};
-            } else {
-                ir_info() << "Hint Passed\n";
-                return {hint};
-            }
-        }
-
-        auto i_stride_bytes = i->stride * layout.type_size;
-        auto width_stride = load_rem.block_width ? std::max(layout.type_size,
-                                    block_width() / load_rem.block_width)
-                                                 : block_width();
-        ir_info() << "Processing " << i->dim << ": " << i->size << "*"
-                  << i_stride_bytes << "\n";
-
-        // Check hint is potentially valid
-        if (width_stride < i_stride_bytes
-                && min_utilization() * load_rem.block_width > 1) {
-            ir_info() << "Stopping search due to invalid width packing\n";
-            return std::vector<hint_t> {};
-        }
-
-        // Get hints which skip the current dimension
-        std::vector<hint_t> skip_hints = [&] {
-            ir_info() << "Skipping " << i->dim << " packing\n";
-            bool is_aligned = i_stride_bytes % width_alignment() == 0;
-
-            // The 2d send instruction zero extends any data outside the surface
-            // width and surface height
-            bool no_partial_overflow = true;
-
-            // Get all hints skipping this dimension
-            if (is_aligned && no_partial_overflow)
-                return get_hints(layout, i + 1, hint, load_rem, surface);
-            else {
-                ir_info() << "Cannot skip packing: " << i->dim << ": " << i->size
-                          << " due to alignment\n";
-                return std::vector<hint_t> {};
-            }
-        }();
-
-        auto pack_2d = [&](int size, rem_t new_rem, hint_t new_hint,
-                               surface_t new_surface) {
-            if (size >= load_rem.block_height) {
+        auto pack_2d = [&](int size, hint_t new_hint) {
+            new_hint.set_type(type_id_t::uniform_2d);
+            new_hint.set_h_dim(i->dim);
+            if (size >= height_rem()) {
                 new_hint[i->dim] = new_hint[i->dim] == hint_t::unset
-                        ? load_rem.block_height
-                        : new_hint[i->dim] * load_rem.block_height;
-                new_rem.block_height = 0;
-                new_surface.height = new_surface.height == surface_t::unknown
-                        ? size
-                        : new_surface.height * size;
-                auto ret = get_hints(
-                        layout, i + 1, new_hint, new_rem, new_surface);
+                        ? height_rem()
+                        : new_hint[i->dim] * height_rem();
+                auto ret = get_hints(layout, i + 1, new_hint, valid_2d,
+                        /*valid_block=*/false);
                 ir_info() << "Fully height packed " << i->dim << "Resulted in "
                           << ret.size() << " hints:\n";
                 for (auto &i : ret)
@@ -426,20 +398,8 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
                 new_hint[i->dim] = new_hint[i->dim] == hint_t::unset
                         ? size
                         : new_hint[i->dim] * size;
-                if (load_rem.block_height % size == 0) {
-                    new_rem.block_height = load_rem.block_height / size;
-                } else {
-                    // The 2d send instruction zero extends any data outside
-                    // the surface width and surface height
-                    new_rem.block_height = 0;
-                }
-                new_surface.height = new_surface.height == surface_t::unknown
-                        ? size
-                        : new_surface.height * size;
-                ir_info() << "new_rem.block_height: " << new_rem.block_height
-                          << "\n";
-                auto ret = get_hints(
-                        layout, i + 1, new_hint, new_rem, new_surface);
+                auto ret = get_hints(layout, i + 1, new_hint, valid_2d,
+                        /*valid_block=*/false);
                 ir_info() << "Fully height packed " << i->dim << "Resulted in "
                           << ret.size() << " hints:\n";
                 for (auto &i : ret)
@@ -451,29 +411,27 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
 
         std::vector<hint_t> use_height_hints = [&] {
             ir_info() << "Packing " << i->dim << " into height\n";
-            if (!load_rem.block_height
-                    || surface.width < surface_width_min_size()
+            if (!valid_2d || !(height_rem() > 1)
+                    || surface_width(layout) < surface_width_min_size
                     || i->is_complex) {
                 ir_info() << "Cannot pack into height: block_height: "
-                          << load_rem.block_height
-                          << " surface width: " << surface.width
+                          << height_rem()
+                          << " surface width: " << surface_width(layout)
                           << " is_complex: " << i->is_complex << "\n";
                 return std::vector<hint_t> {};
             }
 
             // Attempt to pack data into block_height
-            auto new_surface = surface;
-            if (surface.pitch == surface_t::unknown) {
-                if (i_stride_bytes % pitch_alignment() != 0
-                        || i_stride_bytes < surface.width) {
+            if (surface_pitch(layout) == 0) {
+                if (i_stride_bytes % pitch_alignment != 0
+                        || i_stride_bytes < surface_width(layout)) {
                     ir_info() << "Cannot pack height as data is not aligned\n";
                     return std::vector<hint_t> {};
                 }
-                new_surface.pitch = i_stride_bytes;
             } else {
                 // Check data is contiguous
-                auto stride = (block_height() / load_rem.block_height)
-                        * surface.pitch;
+                auto stride
+                        = (block_height / height_rem()) * surface_pitch(layout);
                 if (stride != i_stride_bytes) {
                     ir_info()
                             << "Cannot pack height as data is not contiguous\n";
@@ -481,54 +439,52 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
                 }
             }
 
-            return pack_2d(i->size, load_rem, hint, new_surface);
+            return pack_2d(i->size, hint);
         }();
 
-        // Get hints which use the current dimension
+        // Get hints which use the current dimension as Width
         std::vector<hint_t> use_width_hints = [&] {
             ir_info() << "Packing " << i->dim << " into width\n";
             // Cannot pack this dimension;
             if (i_stride_bytes != width_stride || i->is_complex
-                    || surface.pitch != surface_t::unknown
-                    || load_rem.block_width == 0) {
+                    || surface_pitch(layout) != 0 || width_rem() <= 1
+                    || !valid_2d) {
                 ir_info() << "Cannot pack width i_stride_bytes: "
-                          << i_stride_bytes << " pitch: " << surface.pitch
-                          << " load_rem.block_width: " << load_rem.block_width
-                          << "\n";
+                          << i_stride_bytes
+                          << " pitch: " << surface_pitch(layout)
+                          << " width_rem: " << width_rem() << "\n";
                 return std::vector<hint_t> {};
             }
+
+            // Width must be bound to innermost unit stride block
+            if (i->stride != 1) { return std::vector<hint_t> {}; }
 
             // No need to check block_width alignment, it is enforced by the
             // surface_pitch and fact block_width is loaded in power of 2
             // sizes.
-            if (i->size >= load_rem.block_width) {
+            if (i->size >= width_rem()) {
                 hint_t new_hint = hint;
-                rem_t new_rem = load_rem;
-                auto new_surface = surface;
-                new_hint[i->dim] = load_rem.block_width;
-                new_rem.block_width = 0;
+                new_hint.set_type(type_id_t::uniform_2d);
+                new_hint[i->dim] = width_rem();
+                new_hint.set_w_dim(i->dim);
                 ir_info() << "Fully Packing " << i->dim << " into width\n";
 
                 auto ret = [&]() {
                     // Get blocked load using 2d send
-                    if (i->size > load_rem.block_width
-                            && i->size % load_rem.block_width == 0) {
+                    if (i->size > width_rem()
+                            && i->size % width_rem() == 0) {
                         ir_info() << "Fully Packing " << i->dim
                                   << "height spillover\n";
-                        auto blocked_surface = surface;
-                        blocked_surface.pitch = block_width();
-                        blocked_surface.width = block_width();
-                        return pack_2d(i->size / load_rem.block_width, new_rem,
-                                new_hint, blocked_surface);
+                        return pack_2d(i->size / width_rem(), new_hint);
                     }
                     ir_info()
                             << "No height spillover to pack: size: " << i->size
-                            << "block_width: " << load_rem.block_width << "\n";
+                            << "block_width: " << width_rem() << "\n";
                     return std::vector<hint_t> {};
                 }();
 
-                new_surface.width = i->size * i_stride_bytes;
-                if (new_surface.width % surface_width_alignment()) {
+                int new_surface_width = i->size * i_stride_bytes;
+                if (new_surface_width % surface_width_alignment) {
                     // Surface width must be aligned to max(4,
                     // elem_size). The elem_size requirement is
                     // implicitly enforced by the stride.
@@ -539,7 +495,7 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
                 }
 
                 auto ret2 = get_hints(
-                        layout, i + 1, new_hint, new_rem, new_surface);
+                        layout, i + 1, new_hint, valid_2d, valid_block);
                 ret.insert(ret.end(), ret2.begin(), ret2.end());
                 ir_info() << "Fully width packed " << i->dim << "Resulted in "
                           << ret.size() << " hints:\n";
@@ -548,18 +504,21 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
                 ir_info() << "\n";
                 return ret;
 
-            } else if (load_rem.block_width % i->size == 0) {
+                // Accept correctly aligned send with w size < rem as long as
+                // long as surface width will be > min.
+            } else if (width_rem() % i->size == 0) {
                 // Cannot partially pack as we need surface_width >=
                 // surface_width_min_size() >= block_width
+                if (i->size * i_stride_bytes < surface_width_min_size) {
+                    return std::vector<hint_t> {};
+                }
                 hint_t new_hint = hint;
-                rem_t new_rem = load_rem;
-                auto new_surface = surface;
                 new_hint[i->dim] = i->size;
-                new_rem.block_width = load_rem.block_width / i->size;
-                new_surface.width = i->size * i_stride_bytes;
+                new_hint.set_type(type_id_t::uniform_2d);
+                new_hint.set_w_dim(i->dim);
 
                 auto ret = get_hints(
-                        layout, i + 1, new_hint, new_rem, new_surface);
+                        layout, i + 1, new_hint, valid_2d, valid_block);
                 ir_info() << "Sub width packed " << i->dim << "Resulted in "
                           << ret.size() << " hints:\n";
                 for (auto &i : ret)
@@ -570,80 +529,92 @@ struct uniform_2d_idiom_t final : public send_idiom_t<dim_id_t> {
             return std::vector<hint_t> {};
         }();
 
-        // Hint priority is 1. Width 2. Height 3.skip.
+        // Hint priority is 1. Width 2. Height 3. skip
         use_width_hints.insert(use_width_hints.end(), use_height_hints.begin(),
                 use_height_hints.end());
         use_width_hints.insert(
+                use_width_hints.end(), use_hints.begin(), use_hints.end());
+        use_width_hints.insert(
                 use_width_hints.end(), skip_hints.begin(), skip_hints.end());
+
         return use_width_hints;
     }
 
-    std::vector<hint_t> get_hints(const slayout_t &layout) const override {
+    std::vector<hint_t> get_hints(const slayout_t &layout) const {
         ir_info() << "Getting Hints for: " << layout << "\n";
-        rem_t rem;
-        rem.block_width = block_width() / layout.type_size;
-        rem.block_height = block_height();
         hint_t hint;
-        auto ret = get_hints(
-                layout, layout.strides.begin(), hint, rem, surface_t());
+        auto ret = get_hints(layout, layout.strides.begin(), hint, check_2d,
+                /*valid_block=*/true);
         return ret;
+    }
+};
+
+class stmt_t;
+template <typename dim_id_t>
+struct send_pattern_t;
+
+template <typename dim_id_t>
+class send_matcher_t : public ir_visitor_t {
+public:
+    static bool is_match(
+            const send_pattern_t<dim_id_t> &pattern, const stmt_t &stmt) {
+        send_matcher_t matcher(pattern);
+        matcher.visit(stmt);
+        return matcher.is_match_;
+    };
+
+    void _visit(const func_impl_t &obj) override {
+        if (!obj.is<send_t>()) return;
+
+        auto &s = obj.as<send_t>();
+
+        if (pattern.is_uniform_blocked()) {
+            // Larger blocked or 2D messages are a strict improvement
+            if ((s.is_block() || s.is_2d()) && s.access_size() >= pattern.data().size())
+                return;
+        } else {
+            if (s.is_2d() && s.access_size() >= pattern.data().size()) return;
+        }
+
+        is_match_ = false;
     }
 
 private:
-    uniform_2d_pattern_t data_;
+    send_matcher_t(const send_pattern_t<dim_id_t> &pattern)
+        : pattern(pattern), is_match_(true) {}
+    send_pattern_t<dim_id_t> pattern;
+    bool is_match_;
 };
-class stmt_t;
-// Tagged union for storing load patterns
+
+// Uniform wrapper for storing load patterns generalized from hint
+template <typename dim_id_t>
 struct send_pattern_t {
-    send_pattern_t() : type_id_(empty) {};
-    send_pattern_t(const uniform_blocked_pattern_t &data)
-        : type_id_(uniform_blocked), data_block_(data) {};
-    void operator=(const uniform_blocked_pattern_t &data) {
-        type_id_ = uniform_blocked;
-        data_block_ = data;
-    }
-    send_pattern_t(const uniform_2d_pattern_t &data)
-        : type_id_(uniform_2d), data_2d_(data) {};
-    void operator=(const uniform_2d_pattern_t &data) {
-        type_id_ = uniform_2d;
-        data_2d_ = data;
+    using hint_t = send_hint_t<dim_id_t>;
+    send_pattern_t() : type_id_(type_id_t::empty) {};
+    send_pattern_t(const hint_t &data)
+        : type_id_(data.get_type()), data_(data) {};
+    void operator=(const hint_t &data) {
+        type_id_ = data.get_type();
+        data_ = data;
     }
 
     bool is_empty() const { return type_id_ == empty; }
+    hint_t data() const { return data_; }
     bool is_uniform_blocked() const { return type_id_ == uniform_blocked; }
     bool is_uniform_2d() const { return type_id_ == uniform_2d; }
-    bool matches(const stmt_t &stmt) const;
-    const uniform_blocked_pattern_t &as_uniform_blocked() const {
-        return data_block_;
+    bool matches(const stmt_t &stmt) const{
+        return send_matcher_t<send_pattern_t::dim_type_>::is_match(*this, stmt);
     }
-    const uniform_2d_pattern_t &as_uniform_2d() const { return data_2d_; }
     std::string str() const {
-        switch (type_id_) {
-            case uniform_blocked: return data_block_.str();
-            case uniform_2d: return data_2d_.str();
-            default: return "(empty)";
-        }
+        return data_.str();
     }
 
 private:
-    // Tagged types
-    enum type_id_t {
-        empty = 0,
-        uniform_blocked = 1,
-        uniform_2d = 2,
-    };
-
+    using dim_type_ = dim_id_t;
     type_id_t type_id_;
-    union {
-        uniform_blocked_pattern_t data_block_;
-        uniform_2d_pattern_t data_2d_;
-    };
+    hint_t data_;
 };
 
-const std::vector<uniform_blocked_pattern_t> &get_uniform_blocked_patterns(
-        compute::gpu_arch_t arch);
-const std::vector<uniform_2d_pattern_t> &get_uniform_2d_patterns(
-        compute::gpu_arch_t arch);
 } // namespace jit
 } // namespace gpu
 } // namespace impl

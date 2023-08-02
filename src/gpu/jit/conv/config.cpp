@@ -1118,13 +1118,14 @@ void init_pipeline(conv_config_t &cfg) {
     cfg.pipeline().set(do_unroll, cfg.plan().reuse_headers);
 }
 
-send_pattern_t validate_blocking(const conv_config_t &cfg,
+send_pattern_t<conv_dim_t> validate_blocking(const conv_config_t &cfg,
         conv_stride_layout_t::input_tensor_t tensor, bool check_2d) {
-    auto &prb = cfg.prb();
+    using send_pattern = send_pattern_t<conv_dim_t>;
     const compute::gpu_arch_t arch
             = convert_ngen_arch_to_dnnl(cfg.hw_cfg().hw());
+    auto &prb = cfg.prb();
 
-    auto is_match = [&](const block_hint_t<conv_dim_t> &hint) {
+    auto is_match = [&](const send_hint_t<conv_dim_t> &hint) {
         for (auto dim : get_conv_dims(prb.prop_kind())) {
             if (hint[dim]) {
                 if (cfg.iter_dim(dim) % hint[dim]) return false;
@@ -1134,73 +1135,50 @@ send_pattern_t validate_blocking(const conv_config_t &cfg,
     };
 
     struct pattern_match_t {
-        pattern_match_t(send_pattern_t pattern,
-                std::vector<block_hint_t<conv_dim_t>> hints)
+        pattern_match_t(send_pattern pattern,
+                std::vector<send_hint_t<conv_dim_t>> hints)
             : pattern(pattern), hints(std::move(hints)) {};
-        send_pattern_t pattern;
-        std::vector<block_hint_t<conv_dim_t>> hints;
+        send_pattern pattern;
+        std::vector<send_hint_t<conv_dim_t>> hints;
     };
 
     auto layout = conv_stride_layout_t(cfg.prb(), tensor);
-    auto match_blocked = [&]() {
-        for (const auto &load : get_uniform_blocked_patterns(arch)) {
-            uniform_blocked_idiom_t<conv_dim_t> idiom(load);
-            auto hints = idiom.get_hints(layout);
 
-            if (!hints.empty()) return pattern_match_t(load, hints);
+    auto idiom = [&] {
+        switch (arch) {
+            case compute::gpu_arch_t::xe_hpc:
+                return uniform_send_idiom_t<conv_dim_t>(
+                        /*min_block_load=*/512, /*min_2d_util=*/0.125,
+                        check_2d);
+            case compute::gpu_arch_t::xe_hpg:
+                return uniform_send_idiom_t<conv_dim_t>(
+                        /*min_block_load=*/256, /*min_2d_util=*/0.125,
+                        check_2d);
+            default:
+                return uniform_send_idiom_t<conv_dim_t>(
+                        /*min_block_load=*/128, /*min_2d_util=*/0.125,
+                        check_2d);
         }
-        return pattern_match_t(send_pattern_t(), {});
     }();
 
-    auto match_2d = [&]() {
-        if (!check_2d) return pattern_match_t(send_pattern_t(), {});
-        for (const auto &load : get_uniform_2d_patterns(arch)) {
-            uniform_2d_idiom_t<conv_dim_t> idiom(load);
-            auto hints = idiom.get_hints(layout);
-
-            if (!hints.empty()) {
-                dim_t max = 0;
-                std::vector<block_hint_t<conv_dim_t>> max_hints = {};
-                for (auto &h : hints) {
-                    auto hint_size = h.size();
-                    if (max < hint_size) {
-                        max = hint_size;
-                        max_hints = {h};
-                    } else if (max == hint_size) {
-                        max_hints.emplace_back(h);
-                    }
-                }
-                return pattern_match_t(load.with_size(max), max_hints);
-            }
-        }
-        return pattern_match_t(send_pattern_t(), {});
-    }();
-
-    const pattern_match_t &best_match = [&]() {
-        if (match_2d.hints.empty()) return match_blocked;
-        if (match_blocked.hints.empty()) return match_2d;
-        if (match_blocked.hints[0].size() >= match_2d.hints[0].size())
-            return match_blocked;
-        return match_2d;
-    }();
-
-    for (const auto &h : best_match.hints) {
-        if (is_match(h)) { return best_match.pattern; }
+    auto hints = idiom.get_hints(layout);
+    if (hints.empty()) {
+        ir_suggestion() << "No hints generated! ";
+        return send_pattern();
     }
 
-    ir_suggestion() << "blocking disables " << best_match.pattern
+    for (const auto &h : hints) {
+        if (is_match(h)) { return send_pattern(h); }
+    }
+
+    ir_suggestion() << "blocking disables " << send_pattern(hints[0])
                     << " load of the " << tensor
                     << " tensor. Try a multiple of:\n";
-    for (auto &hint : best_match.hints) {
+    for (auto &hint : hints) {
         ir_suggestion() << "\t" << hint.str() << "\n";
     }
 
-    if (best_match.pattern.is_uniform_2d() && !match_blocked.hints.empty()) {
-        for (const auto &h : match_blocked.hints) {
-            if (is_match(h)) { return match_blocked.pattern; }
-        }
-    }
-    return send_pattern_t();
+    return send_pattern();
 }
 
 void init_params(conv_config_t &cfg) {
@@ -1450,8 +1428,9 @@ status_t check_plan(conv_config_t &cfg) {
 
 #ifdef DNNL_DEV_MODE
     auto &prb = cfg.prb();
-    send_pattern_t a_load_pattern;
-    send_pattern_t b_load_pattern;
+    using send_pattern = send_pattern_t<conv_dim_t>;
+    send_pattern a_load_pattern;
+    send_pattern b_load_pattern;
     bool a_2d = plan.uses_2d_load(abc_kind_t::a);
     bool b_2d = plan.uses_2d_load(abc_kind_t::b);
     if (prb.is_fwd) {
