@@ -121,7 +121,6 @@ static void check_select_correctness(const sc_dims &cond_plain_dims,
         sc_data_format_t else_format = sc_data_format_t(),
         sc_data_format_t then_format = sc_data_format_t()) {
     REQUIRE_AVX2(); // llvm stuck when SSE
-    BUILTIN_REQUIRE_AVX512(); // AVX2 acc fail and no int8 mask_mov
     sc_graph_t graph;
     auto input = graph.make_input({std::make_shared<graph_tensor>(nullptr,
                                            cond_format.to_plain(),
@@ -186,7 +185,6 @@ static void check_distill_bert_mha(const sc_dims &feature_plain_dims,
         sc_data_format_t feature2_format = sc_data_format_t(),
         bool use_then_as_else = false) {
     REQUIRE_AVX2(); // llvm stuck when SSE
-    BUILTIN_REQUIRE_AVX512(); // AVX2 no int16 mask_mov
     sc_graph_t graph;
     auto input = graph.make_input(
             {std::make_shared<graph_tensor>(nullptr, feature_format,

@@ -587,7 +587,9 @@ expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c,
 expr make_permutexvar(const expr_c &idx, const expr_c &v);
 
 /**
- * Insert the value into dst at the location specified by imm.
+ * Insert the value into dst at the location specified by imm. Note that if the
+ * data is more than 128bit, the first parameter needs to be twice the number of
+ * bits of the second parameter.
  *
  * ep: _mm512_inserti32x8
  * Operation
@@ -603,7 +605,19 @@ expr make_permutexvar(const expr_c &idx, const expr_c &v);
  * @param imm the location specified value, 0 or 1
  * @return the created node
  * */
-expr make_insert(const expr_c &v_a, const expr_c &v_b, int imm, int elem_bits);
+expr make_insert(const expr_c &v_a, const expr_c &v_b, const int imm);
+
+/**
+ * Extract the value from input specified by imm.
+ *
+ * dst[7:0] := (a[127:0] >> (imm[3:0] * 8))[7:0]
+ * dst[31:8] := 0
+
+ * @param v_a the input value
+ * @param imm the location specified value, 0 or 1
+ * @return the created node
+ * */
+expr make_extract(const expr_c &v_a, const int imm);
 
 /**
  * Makes an gather node

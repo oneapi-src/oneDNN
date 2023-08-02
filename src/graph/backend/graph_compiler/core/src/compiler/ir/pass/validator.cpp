@@ -414,19 +414,17 @@ void validate_impl_t::view(intrin_call_c v) {
         case intrin_type::insert:
             validate_type(v);
             COMPILE_ASSERT_POS(v->args_.size() == 2,
-                    "Trinary intrinsics take two parameters. Got " << v);
-            COMPILE_ASSERT_POS(v->args_[0]->dtype_.type_code_
-                            == v->args_[1]->dtype_.type_code_,
-                    "The type of the first args should be same with second args"
-                            << v->args_[0]->dtype_ << " v.s. "
-                            << v->args_[1]->dtype_);
-            COMPILE_ASSERT_POS(v->args_[0]->dtype_.lanes_
-                            == v->args_[1]->dtype_.lanes_ * 2,
-                    "The lanes of the first args should be 2x than second args"
-                            << v->args_[0]->dtype_.lanes_ << " v.s. "
-                            << v->args_[1]->dtype_.lanes_);
+                    "The intrinsics take two parameters. Got " << v);
             COMPILE_ASSERT_POS(
                     v->intrin_attrs_->get_or_null<int>("insert_imm") != nullptr,
+                    "Must specify intrin_attrs_.");
+            break;
+        case intrin_type::extract:
+            validate_type(v);
+            COMPILE_ASSERT_POS(v->args_.size() == 1,
+                    "The intrinsics take one parameter. Got " << v);
+            COMPILE_ASSERT_POS(v->intrin_attrs_->get_or_null<int>("extract_imm")
+                            != nullptr,
                     "Must specify intrin_attrs_.");
             break;
         case intrin_type::gather:

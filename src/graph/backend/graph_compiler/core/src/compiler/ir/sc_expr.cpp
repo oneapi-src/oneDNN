@@ -124,6 +124,7 @@ ostream &operator<<(ostream &os, intrin_type val) {
         HANDLE_CASE(permutex2var)
         HANDLE_CASE(permutexvar)
         HANDLE_CASE(insert)
+        HANDLE_CASE(extract)
         HANDLE_CASE(load_const_mem)
         HANDLE_CASE(brgemm)
         HANDLE_CASE(list_brgemm)
@@ -691,7 +692,7 @@ ssa_phi_node::ssa_phi_node(const std::vector<expr> &values, bool is_loop_phi)
     dtype_ = values_.begin()->get()->dtype_;
     for (auto &v : values_) {
         COMPILE_ASSERT(dtype_ == v->dtype_,
-                "Phi node expects exprs with the sanme type, got "
+                "Phi node expects exprs with the same type, got "
                         << dtype_ << " v.s. " << v->dtype_);
     }
 }

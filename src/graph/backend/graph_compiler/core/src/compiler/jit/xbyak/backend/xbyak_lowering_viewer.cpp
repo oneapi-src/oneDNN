@@ -788,6 +788,13 @@ void xbyak_lowering_viewer::handle_avx_intrisic(const expr_c &dst,
             auto op_elem_bits = GET_OPERAND(args[2]);
             handle_avx_insert(op_dst, op_b, op_imm, op_elem_bits);
         } break;
+        case xbyak_intrin_type::extract: {
+            auto op_dst = GET_OPERAND(dst);
+            auto op_b = GET_OPERAND(args[0]);
+            auto op_imm = GET_OPERAND(args[1]);
+            auto op_elem_bits = GET_OPERAND(args[2]);
+            handle_avx_extract(op_dst, op_b, op_imm, op_elem_bits);
+        } break;
         case xbyak_intrin_type::permutex2var: {
             auto op_dst = GET_OPERAND(dst);
             auto op_idx = GET_OPERAND(args[0]);
@@ -1050,8 +1057,10 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
         // At the lowered asm level, u64 and all pointers are basically
         // interchangable (assuming we're using 64-bit pointers).
         handle_x86_mov(op_out, op_in);
-    } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::s8
-                       || out_dtype == datatypes::u8)
+    } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::u32
+                       || out_dtype == datatypes::s8
+                       || out_dtype == datatypes::u8
+                       || out_dtype == datatypes::u16)
             && (in_dtype == datatypes::generic
                     || in_dtype == datatypes::index)) {
         handle_x86_mov(op_out, op_in);
@@ -1073,14 +1082,21 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
         XBYAK_GEN(movsxd, X86_R64_RM, op_out, op_in); // sign extension
     } else if (out_dtype == datatypes::index && in_dtype == datatypes::u32) {
         XBYAK_GEN(mov, X86_R32_RM, op_out, op_in); // zero extension
-    } else if (out_dtype == datatypes::u32 && in_dtype == datatypes::u16) {
+    } else if (out_dtype == datatypes::u32
+            && (in_dtype == datatypes::u16 || in_dtype == datatypes::bf16)) {
         XBYAK_GEN(movzx, X86_R_RM, op_out, op_in); // zero extension
     } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::u16) {
         XBYAK_GEN(movzx, X86_R_RM, op_out, op_in); // zero extension
-    } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::s8) {
+    } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::u16) {
+        XBYAK_GEN(movzx, X86_R_RM, op_out, op_in); // zero extension
+    } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::u16) {
+        XBYAK_GEN(movzx, X86_R_RM, op_out, op_in); // zero extension
+    } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::u32)
+            && in_dtype == datatypes::s8) {
         XBYAK_GEN(movsx, X86_R_RM, op_out, op_in); // sign extension
-    } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::index)
-            && in_dtype == datatypes::u8) {
+    } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::index
+                       || out_dtype == datatypes::u32)
+            && (in_dtype == datatypes::u8 || in_dtype == datatypes::u16)) {
         XBYAK_GEN(movzx, X86_R_RM, op_out, op_in); // zero extension
     } else if (out_dtype == datatypes::f32 && in_dtype == datatypes::generic) {
         XBYAK_GEN(vmovd, AVX_XMR32_XMR32, op_out, op_in);
@@ -1662,6 +1678,8 @@ void xbyak_lowering_viewer::handle_avx_bit_xor(const operand &op_dst,
         const x86_64::cpu_data_type &cpu_dtype) {
     auto gen_avx_bit_xor = [&]() {
         switch (cpu_dtype) {
+            case cpu_data_type::uint_8_x8:
+            case cpu_data_type::sint_8_x8:
             case cpu_data_type::uint_32_x8:
             case cpu_data_type::sint_32_x8: {
                 XBYAK_GEN(vpxor, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
@@ -2092,15 +2110,32 @@ void xbyak_lowering_viewer::handle_avx_gather(const operand &op_dst,
 void xbyak_lowering_viewer::handle_avx_insert(const operand &op_dst,
         const operand &op_b, const operand &op_imm,
         const operand &op_elem_bits) {
-    assert(cpu_flags_.fAVX512F);
     // Currently we assume that similar instructions do not use masks, and these
     // instructions only need to pay attention to how many bits are operated. So
     // we only need to use bits to choose instructions.
     auto elem_bits = op_elem_bits.get_imm();
     switch (elem_bits) {
+        case 8: {
+            XBYAK_GEN(vpinsrb, AVX_X_X_RM_I, op_dst, op_dst, op_b, op_imm);
+        } break;
+        case 16: {
+            XBYAK_GEN(vpinsrw, AVX_X_X_RM_I, op_dst, op_dst, op_b, op_imm);
+        } break;
+        case 32: {
+            XBYAK_GEN(vpinsrd, AVX_X_X_RM_I, op_dst, op_dst, op_b, op_imm);
+        } break;
+        case 64: {
+            XBYAK_GEN(vpinsrq, AVX_X_X_RM_I, op_dst, op_dst, op_b, op_imm);
+        } break;
         case 128: {
-            assert(cpu_flags_.fAVX512VL);
-            XBYAK_GEN(vinserti32x4, AVX_Y_Y_XM_I, op_dst, op_dst, op_b, op_imm);
+            if (simd_level_ == simd_level::avx512) {
+                assert(cpu_flags_.fAVX512VL);
+                XBYAK_GEN(vinserti32x4, AVX_Y_Y_XM_I, op_dst, op_dst, op_b,
+                        op_imm);
+            } else {
+                XBYAK_GEN(vinsertf128, AVX_Y_Y_YM_I, op_dst, op_dst, op_b,
+                        op_imm);
+            }
         } break;
         case 256: {
             assert(cpu_flags_.fAVX512DQ);
@@ -2109,7 +2144,45 @@ void xbyak_lowering_viewer::handle_avx_insert(const operand &op_dst,
         default:
             COMPILE_ASSERT(
                     false, FUNC_INFO << "Invalid elem_bits: " << elem_bits);
-    }
+    };
+}
+
+void xbyak_lowering_viewer::handle_avx_extract(const operand &op_dst,
+        const operand &op_b, const operand &op_imm,
+        const operand &op_elem_bits) {
+    // Currently we assume that similar instructions do not use masks, and these
+    // instructions only need to pay attention to how many bits are operated. So
+    // we only need to use bits to choose instructions.
+    auto elem_bits = op_elem_bits.get_imm();
+    switch (elem_bits) {
+        case 8: {
+            XBYAK_GEN(vpextrb, AVX_RM_X_I, op_dst, op_b, op_imm);
+        } break;
+        case 16: {
+            XBYAK_GEN(vpextrw, AVX_RM_X_I, op_dst, op_b, op_imm);
+        } break;
+        case 32: {
+            XBYAK_GEN(vpextrd, AVX_RM_X_I, op_dst, op_b, op_imm);
+        } break;
+        case 64: {
+            XBYAK_GEN(vpextrq, AVX_RM_X_I, op_dst, op_b, op_imm);
+        } break;
+        case 128: {
+            if (simd_level_ == simd_level::avx512) {
+                assert(cpu_flags_.fAVX512VL);
+                XBYAK_GEN(vextractf32x4, AVX_XM_Y_I, op_dst, op_b, op_imm);
+            } else {
+                XBYAK_GEN(vextractf128, AVX_XM_Y_I, op_dst, op_b, op_imm);
+            }
+        } break;
+        case 256: {
+            assert(cpu_flags_.fAVX512DQ);
+            XBYAK_GEN(vextractf32x8, AVX_YM_Z_I, op_dst, op_b, op_imm);
+        } break;
+        default:
+            COMPILE_ASSERT(
+                    false, FUNC_INFO << "Invalid elem_bits: " << elem_bits);
+    };
 }
 
 void xbyak_lowering_viewer::handle_avx_unpack_low(const operand &op_dst,
@@ -2661,6 +2734,8 @@ void xbyak_lowering_viewer::handle_avx_mov_mask(const operand &op_dst,
         case cpu_data_type::sint_32_x4: {
             XBYAK_GEN(vmovmskps, AVX_R64_X, op_dst, op_src);
         } break;
+        case cpu_data_type::uint_8_x8:
+        case cpu_data_type::sint_8_x8:
         case cpu_data_type::uint_8_x32:
         case cpu_data_type::uint_8_x16:
         case cpu_data_type::sint_8_x32:

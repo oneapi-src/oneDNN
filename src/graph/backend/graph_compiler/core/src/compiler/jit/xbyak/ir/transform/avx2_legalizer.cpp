@@ -38,6 +38,12 @@ public:
 
     avx2_legalizer_impl_t() = default;
 
+    bool is_u8s8_bf16(const sc_data_type_t &dtype) {
+        return dtype.type_code_ == datatypes::bf16.type_code_
+                || dtype.type_code_ == datatypes::u8.type_code_
+                || dtype.type_code_ == datatypes::s8.type_code_;
+    }
+
     expr_c visit(tensor_c v) override {
         // avoid dispatch into for loop index dependent tensor
         return v;
@@ -90,14 +96,254 @@ public:
         assert(vv.defined());
         auto dtype = vv->dtype_;
         if (vv->mask_.defined() && dtype != vv->mask_->dtype_) {
-            return builder::make_indexing(vv->ptr_, vv->idx_, dtype.lanes_,
-                    avx_mask_cast(vv->mask_, dtype));
+            // We process u8s8 and bf16 datatype one by one like llvm.
+            if (is_u8s8_bf16(dtype)) {
+                return vv;
+            } else {
+                return builder::make_indexing(vv->ptr_, vv->idx_, dtype.lanes_,
+                        avx_mask_cast(vv->mask_, dtype));
+            }
         } else {
             return vv;
         }
     }
 
+    void assign_var_stmt(expr &target_var, expr &data, const int imm,
+            const int elem_bits, indexing_c &vv,
+            std::vector<stmt_c> &then_block_list,
+            std::vector<expr> &tmp_offset) const {
+        // insert
+        if (INTRIN_TYPE == INSERT_INTRIN) {
+            then_block_list.emplace_back(builder::make_assign_unattached(
+                    target_var, builder::make_insert(target_var, data, imm)));
+        } else if (INTRIN_TYPE == EXTRACT_INTRIN) { // extract
+            then_block_list.emplace_back(builder::make_assign_unattached(
+                    builder::make_indexing(vv->ptr_, tmp_offset),
+                    builder::make_extract(data, imm)));
+        } else {
+            assert(false && "Expect insert or extract intrin type.");
+        }
+    }
+
+#define PARAM(X) X
+#define DEFINE_OFFSET_ITER_VAR() \
+    auto offset_var = builder::make_var( \
+            datatypes::index, "offset_var" + std::to_string(var_index++)); \
+    cur_list.emplace_back(builder::make_var_tensor_def_unattached(offset_var, \
+            linkage::local, builder::make_constant({0UL}, datatypes::index))); \
+    std::vector<expr> base = vv->idx_; \
+    std::vector<expr> tmp_offset(base); \
+    tmp_offset[tmp_offset.size() - 1] \
+            = tmp_offset[tmp_offset.size() - 1] + offset_var; \
+    expr iter_var = builder::make_var( \
+            datatypes::s32, "iter_var" + std::to_string(var_index++)); \
+    cur_list.emplace_back(builder::make_var_tensor_def_unattached( \
+            iter_var, linkage::local, 1)); \
+    auto mask = builder::make_var( \
+            datatypes::s32, "mask_var" + std::to_string(var_index++)); \
+    cur_list.emplace_back(builder::make_var_tensor_def_unattached(mask, \
+            linkage::local, builder::make_cast(datatypes::s32, vv->mask_)));
+
+#define INSERT_EXTRACT_DATA_TO_VAR(target_var, data, elembits, imm) \
+    assign_var_stmt(target_var, data, imm, elem_bits, vv, then_block_list, \
+            tmp_offset); \
+    then_block = builder::make_stmts_unattached(then_block_list); \
+    cur_list.emplace_back(builder::make_if_else_unattached( \
+            mask >= iter_var, then_block, stmt())); \
+    then_block_list.clear(); \
+    cur_list.emplace_back(builder::make_assign_unattached(offset_var, \
+            builder::make_add(offset_var, \
+                    builder::make_constant({1UL}, datatypes::index)))); \
+    cur_list.emplace_back(builder::make_assign_unattached( \
+            iter_var, builder::make_add(builder::make_shl(iter_var, 1), 1)));
+
+#define INSERT_EXTRACT_DATA_bf16(var_name, data) \
+    for (size_t di = 0; di < 8; di++) { \
+        INSERT_EXTRACT_DATA_TO_VAR(var_name, data, elem_bits, di) \
+    }
+
+#define INSERT_EXTRACT_DATA_u8s8(var_name, data) \
+    for (size_t di = 0; di < 16; di++) { \
+        INSERT_EXTRACT_DATA_TO_VAR(var_name, data, elem_bits, di) \
+    }
+
+    stmt_c insert_byte_by_byte(const expr &value, const expr &var) {
+        auto dtype = var->dtype_;
+        if (value.defined() && (value->node_type_ == sc_expr_type::indexing)) {
+            auto vv = value.static_as<indexing_c>();
+            if (vv->mask_.defined() && is_u8s8_bf16(dtype)) {
+                INTRIN_TYPE = INSERT_INTRIN;
+                std::vector<stmt_c> cur_list, body_list;
+                std::vector<stmt_c> then_block_list;
+                stmt then_block;
+                expr insert_var_1, insert_var_2;
+
+                const int lanes = dtype.lanes_;
+                bool is_s8 = dtype.is_etype(sc_data_etype::S8);
+                bool is_bf16 = dtype.is_etype(sc_data_etype::BF16);
+                const int elem_bits = is_bf16 ? 16 : 8;
+                const int type_bits = 128;
+                bool need_2_xmm = is_bf16 ? lanes > 8 : lanes > 16;
+                const int type_lanes = need_2_xmm ? lanes / 2 : lanes;
+                sc_data_type_t insert_type = is_bf16
+                        ? sc_data_type_t::bf16(type_lanes)
+                        : is_s8 ? sc_data_type_t::s8(type_lanes)
+                                : sc_data_type_t::u8(type_lanes);
+
+                // original defined var
+                cur_list.emplace_back(builder::make_var_tensor_def_unattached(
+                        var, linkage::local,
+                        builder::make_constant({0UL}, dtype)));
+
+                DEFINE_OFFSET_ITER_VAR();
+
+                auto data = builder::make_indexing(vv->ptr_, tmp_offset);
+
+                auto insert_kernel = [&](expr &insert_var, expr &data) {
+                    if (is_bf16) {
+                        INSERT_EXTRACT_DATA_bf16(insert_var, data);
+                    } else {
+                        INSERT_EXTRACT_DATA_u8s8(insert_var, data);
+                    }
+                };
+
+                auto make_insert_var = [&](expr &var) {
+                    var = builder::make_var(insert_type,
+                            "inser_var" + std::to_string(var_index++));
+                    cur_list.emplace_back(
+                            builder::make_var_tensor_def_unattached(var,
+                                    linkage::local,
+                                    builder::make_constant(
+                                            {0UL}, insert_type)));
+                };
+
+                make_insert_var(insert_var_1);
+                if (need_2_xmm) { make_insert_var(insert_var_2); }
+                insert_kernel(insert_var_1, data);
+                if (!need_2_xmm) {
+                    cur_list.emplace_back(
+                            builder::make_assign_unattached(var, insert_var_1));
+                } else {
+                    cur_list.emplace_back(builder::make_assign_unattached(
+                            var, builder::make_insert(var, insert_var_1, 0)));
+                    insert_kernel(insert_var_2, data);
+                    cur_list.emplace_back(builder::make_assign_unattached(
+                            var, builder::make_insert(var, insert_var_2, 1)));
+                }
+
+                auto cur_body = builder::make_stmts_unattached(cur_list);
+                return ir_visitor_t::dispatch(std::move(cur_body));
+            } else {
+                return stmt();
+            }
+        }
+        return stmt();
+    }
+
+    stmt_c extract_byte_by_byte(const expr &value, const expr &var) {
+        auto dtype = value->dtype_;
+        if (var.defined() && (var->node_type_ == sc_expr_type::indexing)) {
+            auto vv = var.static_as<indexing_c>();
+            if (vv->mask_.defined() && is_u8s8_bf16(dtype)) {
+                INTRIN_TYPE = EXTRACT_INTRIN;
+                const int extract_bits = 128;
+                std::vector<stmt_c> cur_list, body_list;
+                std::vector<stmt_c> then_block_list;
+                stmt then_block;
+                const int lanes = dtype.lanes_;
+                bool is_s8 = dtype.is_etype(sc_data_etype::S8);
+                bool is_bf16 = dtype.is_etype(sc_data_etype::BF16);
+                const int elem_bits = is_bf16 ? 16 : 8;
+                const int type_bits = 128;
+                bool need_2_xmm = is_bf16 ? lanes > 8 : lanes > 16;
+                const int type_lanes = need_2_xmm ? lanes / 2 : lanes;
+                sc_data_type_t extract_type = is_bf16
+                        ? sc_data_type_t::bf16(type_lanes)
+                        : is_s8 ? sc_data_type_t::s8(type_lanes)
+                                : sc_data_type_t::u8(type_lanes);
+                expr extract_var_1, extract_var_2;
+
+                auto make_extract_var = [&](expr &var, const int imm) {
+                    var = builder::make_var(extract_type,
+                            "extract_var" + std::to_string(var_index++));
+                    cur_list.emplace_back(
+                            builder::make_var_tensor_def_unattached(var));
+                    cur_list.emplace_back(builder::make_assign_unattached(
+                            var, builder::make_extract(value, imm)));
+                };
+
+                // We need to extract value to xmm register.
+                if (need_2_xmm) {
+                    make_extract_var(extract_var_1, 0);
+                    make_extract_var(extract_var_2, 1);
+                } else {
+                    extract_var_1 = builder::make_var(extract_type,
+                            "extract_var" + std::to_string(var_index++));
+                    cur_list.emplace_back(
+                            builder::make_var_tensor_def_unattached(
+                                    extract_var_1));
+                    cur_list.emplace_back(builder::make_assign_unattached(
+                            extract_var_1, value));
+                }
+
+                DEFINE_OFFSET_ITER_VAR();
+
+                if (is_bf16) {
+                    INSERT_EXTRACT_DATA_bf16(extract_var_1, extract_var_1);
+                    if (need_2_xmm) {
+                        INSERT_EXTRACT_DATA_bf16(extract_var_2, extract_var_2);
+                    }
+                } else {
+                    INSERT_EXTRACT_DATA_u8s8(extract_var_1, extract_var_1);
+                    if (need_2_xmm) {
+                        INSERT_EXTRACT_DATA_u8s8(extract_var_2, extract_var_2);
+                    }
+                }
+
+                auto cur_body = builder::make_stmts_unattached(cur_list);
+                return ir_visitor_t::dispatch(std::move(cur_body));
+            } else {
+                return stmt();
+            }
+        }
+        return stmt();
+    }
+
+    stmt_c visit(define_c v) override {
+        auto defined = ir_visitor_t::visit(std::move(v)).dyn_as<define_c>();
+        assert(defined.defined());
+        auto var = defined->var_;
+        auto value = defined->init_;
+        if (value.defined() && (value->node_type_ == sc_expr_type::indexing)) {
+            auto res = insert_byte_by_byte(value, var);
+            return res.defined() ? ir_visitor_t::dispatch(res) : defined;
+        }
+        return defined;
+    }
+
+    stmt_c visit(assign_c v) override {
+        auto assign = ir_visitor_t::visit(std::move(v)).dyn_as<assign_c>();
+        assert(assign.defined());
+        auto var = assign->var_;
+        auto value = assign->value_;
+        if (var.defined() && (var->node_type_ == sc_expr_type::indexing)) {
+            auto res = extract_byte_by_byte(value, var);
+            return res.defined() ? ir_visitor_t::dispatch(res) : assign;
+        } else if (value.defined()
+                && value->node_type_ == sc_expr_type::indexing) {
+            auto res = insert_byte_by_byte(value, var);
+            return res.defined() ? ir_visitor_t::dispatch(res) : assign;
+        }
+        return assign;
+    }
+
 protected:
+    // repeat var index
+    uint32_t var_index = 1;
+    const int INSERT_INTRIN = 0;
+    const int EXTRACT_INTRIN = 1;
+    int INTRIN_TYPE = -1;
+
     // Cast AVX2 mask
     expr avx_mask_cast(const expr &v, sc_data_type_t dtype) {
         auto nested = v.cast<low_level_intrin_c>().filter(

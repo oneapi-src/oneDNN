@@ -71,6 +71,24 @@ INLINE vec_f32x8 sc_gather(float const *a, vec_s32x8 const &b) {
     return _mm256_i32gather_ps(a, b.v, 4);
 #endif
 }
+#define sc_extract_vec_s8x8(a, imm) _mm_extract_epi8(a.v, imm);
+#define sc_extract_vec_u8x8(a, imm) _mm_extract_epi8(a.v, imm);
+#define sc_extract_vec_s8x16(a, imm) _mm_extract_epi8(a.v, imm);
+#define sc_extract_vec_u8x16(a, imm) _mm_extract_epi8(a.v, imm);
+#define sc_extract_vec_u16x8(a, imm) _mm_extract_epi16(a.v, imm);
+#define sc_extract_vec_s32x8(a, imm) _mm256_extract_epi32(a.v, imm);
+#define sc_insert_vec_s8x16(a, imm) _mm_insert_epi8(a.v, b.v, imm);
+#define sc_insert_vec_u8x16(a, imm) _mm_insert_epi8(a.v, b.v, imm);
+#define sc_insert_vec_u16x8(a, imm) _mm_insert_epi16(a.v, b.v, imm);
+#define sc_insert_vec_s32x8(a, imm) _mm256_insert_epi32(a.v, b.v, imm);
+#ifndef __AVX512F__
+#define sc_extract_vec_s8x32(a, imm) _mm256_extract_epi8(a.v, imm);
+#define sc_extract_vec_u8x32(a, imm) _mm256_extract_epi8(a.v, imm);
+#define sc_extract_vec_u16x16(a, imm) _mm256_extract_epi16(a.v, imm);
+#define sc_insert_vec_s8x32(a, imm) _mm256_insert_epi8(a.v, b.v, imm);
+#define sc_insert_vec_u8x32(a, imm) _mm256_insert_epi8(a.v, b.v, imm);
+#define sc_insert_vec_u16x16(a, imm) _mm256_insert_epi16(a.v, b.v, imm);
+#endif
 #endif
 
 #ifdef __AVX512F__
@@ -140,49 +158,18 @@ INLINE vec_u16x32::vec_u16x32(
     v = _mm512_mask_broadcast_i32x4(src.v, mask, x.v);
 }
 #ifdef __AVX512DQ__
-INLINE vec_u16x32 sc_insert(
-        vec_u16x32 const &a, vec_u16x16 const &b, const int imm) {
-    if (imm) {
-        return _mm512_inserti32x8(a.v, b.v, 1);
-    } else { // imm = 0
-        return _mm512_inserti32x8(a.v, b.v, 0);
-    }
-}
-INLINE vec_s8x64 sc_insert(
-        vec_s8x64 const &a, vec_s8x32 const &b, const int imm) {
-    if (imm) {
-        return _mm512_inserti32x8(a.v, b.v, 1);
-    } else { // imm = 0
-        return _mm512_inserti32x8(a.v, b.v, 0);
-    }
-}
-
-INLINE vec_u8x64 sc_insert(
-        vec_u8x64 const &a, vec_u8x32 const &b, const int imm) {
-    if (imm) {
-        return _mm512_inserti32x8(a.v, b.v, 1);
-    } else { // imm = 0
-        return _mm512_inserti32x8(a.v, b.v, 0);
-    }
-}
+#define sc_insert_vec_u16x32(a, b, imm) _mm512_inserti32x8(a.v, b.v, imm);
+#define sc_insert_vec_s8x64(a, b, imm) _mm512_inserti32x8(a.v, b.v, imm);
+#define sc_insert_vec_u8x64(a, b, imm) _mm512_inserti32x8(a.v, b.v, imm);
+#define sc_extract_vec_u16x32(a, imm) _mm512_extracti32x8_epi32(a.v, imm);
+#define sc_extract_vec_s8x64(a, imm) _mm512_extracti32x8_epi32(a.v, imm);
+#define sc_extract_vec_u8x64(a, imm) _mm512_extracti32x8_epi32(a.v, imm);
 #endif
 #ifdef __AVX512VL__
-INLINE vec_s8x32 sc_insert(
-        vec_s8x32 const &a, vec_s8x16 const &b, const int imm) {
-    if (imm) {
-        return _mm256_inserti32x4(a.v, b.v, 1);
-    } else { // imm = 0
-        return _mm256_inserti32x4(a.v, b.v, 0);
-    }
-}
-INLINE vec_u8x32 sc_insert(
-        vec_u8x32 const &a, vec_u8x16 const &b, const int imm) {
-    if (imm) {
-        return _mm256_inserti32x4(a.v, b.v, 1);
-    } else { // imm = 0
-        return _mm256_inserti32x4(a.v, b.v, 0);
-    }
-}
+#define sc_insert_vec_s8x32(a, b, imm) _mm256_inserti32x4(a.v, b.v, imm);
+#define sc_insert_vec_u8x32(a, b, imm) _mm256_inserti32x4(a.v, b.v, imm);
+#define sc_extract_vec_s8x32(a, imm) _mm256_extracti32x4_epi32(a.v, imm);
+#define sc_extract_vec_u8x32(a, imm) _mm256_extracti32x4_epi32(a.v, imm);
 #endif
 #ifdef __AVX512VBMI__
 INLINE vec_u8x64 sc_permutexvar(vec_u8x64 const &a, vec_u8x64 const &b) {

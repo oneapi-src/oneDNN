@@ -23,6 +23,7 @@
 #include <unordered_set>
 
 #include "shared_include.hpp"
+#include "util/utils.hpp"
 
 using namespace llvm;
 namespace dnnl {
@@ -806,29 +807,66 @@ void codegen_llvm_vis_t::view(intrin_call_c v) {
             auto val0 = generate_expr(v->args_[0]);
             auto val1 = generate_expr(v->args_[1]);
             unsigned index = v->intrin_attrs_->get<int>("insert_imm");
-            const unsigned elem_bits = v->intrin_attrs_->get<int>("elem_bits");
+            const unsigned elem_bits
+                    = utils::get_sizeof_type(v->args_[1]->dtype_) * 8;
             auto lanes = v->args_[0]->dtype_.lanes_;
             auto type_code = v->args_[0]->dtype_.type_code_;
-            unsigned dst_num_elts = lanes, src_num_elts = lanes / 2;
-            unsigned subvectors = dst_num_elts / src_num_elts;
-            index &= subvectors - 1;
-            index *= src_num_elts;
-            std::vector<shuffle_idx_t> indices(dst_num_elts);
-            for (unsigned i = 0; i != dst_num_elts; ++i) {
-                indices[i] = (i >= src_num_elts)
-                        ? src_num_elts + (i % src_num_elts)
-                        : i;
-            }
-            Value *op1 = builder_.CreateShuffleVector(val1, indices, "widen");
-            for (unsigned i = 0; i != dst_num_elts; ++i) {
-                if (i >= index && i < (index + src_num_elts)) {
-                    indices[i] = (i - index) + dst_num_elts;
-                } else {
-                    indices[i] = i;
+            if (ctx_->machine_.cpu_flags_.fAVX512F && elem_bits >= 128) {
+                // avx512 128bit insert can use this part.
+                unsigned dst_num_elts = lanes, src_num_elts = lanes / 2;
+                unsigned subvectors = dst_num_elts / src_num_elts;
+                index &= subvectors - 1;
+                index *= src_num_elts;
+                std::vector<shuffle_idx_t> indices(dst_num_elts);
+                for (unsigned i = 0; i != dst_num_elts; ++i) {
+                    indices[i] = (i >= src_num_elts)
+                            ? src_num_elts + (i % src_num_elts)
+                            : i;
                 }
+                Value *op1
+                        = builder_.CreateShuffleVector(val1, indices, "widen");
+                for (unsigned i = 0; i != dst_num_elts; ++i) {
+                    if (i >= index && i < (index + src_num_elts)) {
+                        indices[i] = (i - index) + dst_num_elts;
+                    } else {
+                        indices[i] = i;
+                    }
+                }
+                current_val_ = builder_.CreateShuffleVector(
+                        val0, op1, indices, "insert");
+            } else {
+                assert(elem_bits <= 128);
+                uint64_t idx = index;
+                idx &= lanes - 1;
+                current_val_ = builder_.CreateInsertElement(val0, val1, idx);
             }
-            current_val_ = builder_.CreateShuffleVector(
-                    val0, op1, indices, "insert");
+        } break;
+        case intrin_type::extract: {
+            auto val0 = generate_expr(v->args_[0]);
+            unsigned index = v->intrin_attrs_->get<int>("extract_imm");
+            const unsigned elem_bits = utils::get_sizeof_type(v->dtype_) * 8;
+            auto lanes = v->args_[0]->dtype_.lanes_;
+            auto type_code = v->args_[0]->dtype_.type_code_;
+            if (ctx_->machine_.cpu_flags_.fAVX512F && elem_bits >= 128) {
+                // avx512 128bit extract can use this part.
+                unsigned dst_num_elts
+                        = index / utils::get_sizeof_etype(v->dtype_.as_etype()),
+                        src_num_elts = lanes;
+                unsigned subvectors = src_num_elts / dst_num_elts;
+                index &= subvectors - 1;
+                index *= src_num_elts;
+
+                std::vector<shuffle_idx_t> indices(dst_num_elts);
+                for (unsigned i = 0; i != dst_num_elts; ++i)
+                    indices[i] = i + index;
+                current_val_ = builder_.CreateShuffleVector(
+                        val0, indices, "extract");
+            } else {
+                assert(elem_bits <= 128);
+                uint64_t idx = (uint64_t)index;
+                idx &= lanes - 1;
+                current_val_ = builder_.CreateExtractElement(val0, idx);
+            }
         } break;
         default: {
             std::stringstream ss;

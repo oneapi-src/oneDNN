@@ -1534,86 +1534,238 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicInsert) {
     REQUIRE_AVX512();
     ir_builder_t builder;
     const int simd_lanes = 32;
-    const int imm0 = 0;
-    const int imm1 = 1;
-    int test_number = 1;
-#define SET_INPUT_DATA(type) \
-    type host_in_1[simd_lanes] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, \
-            14, 15, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; \
-    type host_in_2[simd_lanes / 2] \
+#define INSERT_CMP_DATA(type, imm) \
+    type host_in_1[32] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, \
+            16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; \
+    type host_in_2[16] \
             = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; \
-    const type expected_out_1[simd_lanes] \
+    const type expected_out_1[32] \
             = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 1, 2, \
                     3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; \
-    const type expected_out_0[simd_lanes] \
-            = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 0, 0, \
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-#define FUNC_TEST(func_name, type, imm, elem_bits) \
-    _function_(datatypes::void_t, func_name, \
-            _arg_("tensor_in_1", datatypes::type, {simd_lanes}), \
-            _arg_("tensor_in_2", datatypes::type, {simd_lanes / 2}), ) { \
-        _bind_(tensor_in_1, tensor_in_2); \
-        _var_(local_temp_1, sc_data_type_t::type(simd_lanes)); \
-        local_temp_1->attr()["can_promote_to_f32"] = false; \
-        _var_(local_temp_2, sc_data_type_t::type(simd_lanes / 2)); \
-        local_temp_2->attr()["can_promote_to_f32"] = false; \
-        local_temp_1 = tensor_in_1[span_t({0}, simd_lanes)]; \
-        local_temp_2 = tensor_in_2[span_t({0}, simd_lanes / 2)]; \
-        tensor_in_1[span_t({0}, simd_lanes)] \
-                = make_insert(local_temp_1, local_temp_2, imm, elem_bits); \
-    }
-    ir_module_ptr ir_mod;
-#define TEST_CASE(imm, type, elem_bits) \
-    FUNC_TEST(foo, type, imm, elem_bits) \
-    ir_mod = std::make_shared<ir_module_t>( \
-            get_default_context(), vector<func_t> {foo}, 0);
-
-#define CONDITION_TEST(test_number, type, elem_bits) \
-    if (test_number & 1) { \
-        TEST_CASE(imm1, type, elem_bits) \
-    } else { \
-        TEST_CASE(imm0, type, elem_bits) \
-    }
-
-#define TEST_BODY() \
-    ostringstream err_context; \
-    const string &je_name = kv.first; \
-    err_context << "jit_engine_t class '" << je_name << "'"; \
-    SCOPED_TRACE(err_context.str()); \
-    shared_ptr<jit_engine_t> je = kv.second; \
-    EXPECT_NE(je, nullptr); \
-    if (!je) { continue; } \
-    shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true); \
-    EXPECT_NE(jm, nullptr); \
-    shared_ptr<jit_function_t> j_foo = jm->get_function("foo"); \
-    EXPECT_NE(j_foo, nullptr); \
-    if (!j_foo) { continue; } \
+    const type expected_out_0[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, \
+            13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; \
     generic_val generic_args[] = { \
             &host_in_1, \
             &host_in_2, \
     }; \
     j_foo->call_generic_default(generic_args); \
     for (int i = 0; i < simd_lanes; i++) { \
-        if (test_number & 1) { \
+        if ((imm)&1) { \
             EXPECT_EQ(host_in_1[i], expected_out_1[i]); \
         } else { \
             EXPECT_EQ(host_in_1[i], expected_out_0[i]); \
         } \
-    } \
-    test_number++;
-
-#define DO_TEST(type, ctype, elem_bits) \
-    for (auto &kv : test_jit_engines) { \
-        SET_INPUT_DATA(ctype) \
-        CONDITION_TEST(test_number, type, elem_bits) \
-        TEST_BODY() \
     }
 
-    DO_TEST(u8, uint8_t, 128) // insert imm = 1
-    DO_TEST(u8, uint8_t, 128) // insert imm = 0
-    DO_TEST(bf16, uint16_t, 256) // insert imm = 1
-    DO_TEST(bf16, uint16_t, 256) // insert imm = 0
+    auto test_func = [&](const sc_data_type_t &dtype, const int imm) {
+        _function_(datatypes::void_t, foo,
+                _arg_("tensor_in_1", dtype, {simd_lanes}),
+                _arg_("tensor_in_2", dtype, {simd_lanes / 2}), ) {
+            _bind_(tensor_in_1, tensor_in_2);
+            _var_(local_temp_1, sc_data_type_t(dtype.type_code_, simd_lanes));
+            local_temp_1->attr()["can_promote_to_f32"] = false;
+            _var_(local_temp_2,
+                    sc_data_type_t(dtype.type_code_, simd_lanes / 2));
+            local_temp_2->attr()["can_promote_to_f32"] = false;
+            local_temp_1 = tensor_in_1[span_t({0}, simd_lanes)];
+            local_temp_2 = tensor_in_2[span_t({0}, simd_lanes / 2)];
+            tensor_in_1[span_t({0}, simd_lanes)]
+                    = make_insert(local_temp_1, local_temp_2, imm);
+        }
+        for (auto &kv : test_jit_engines) {
+            ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+                    get_default_context(), vector<func_t> {foo}, 0);
+            ostringstream err_context;
+            const string &je_name = kv.first;
+            err_context << "jit_engine_t class '" << je_name << "'";
+            SCOPED_TRACE(err_context.str());
+            shared_ptr<jit_engine_t> je = kv.second;
+            EXPECT_NE(je, nullptr);
+            if (!je) { continue; }
+            shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+            EXPECT_NE(jm, nullptr);
+            shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+            EXPECT_NE(j_foo, nullptr);
+            if (!j_foo) { continue; }
+            switch (dtype.as_etype()) {
+                case sc_data_etype::U8: {
+                    INSERT_CMP_DATA(uint8_t, imm);
+                } break;
+                case sc_data_etype::S8: {
+                    INSERT_CMP_DATA(int8_t, imm);
+                } break;
+                case sc_data_etype::U16: {
+                    INSERT_CMP_DATA(uint16_t, imm);
+                } break;
+                case sc_data_etype::BF16: {
+                    INSERT_CMP_DATA(uint16_t, imm);
+                } break;
+                default: {
+                    assert(0 && "Do not support this type.");
+                } break;
+            }
+        }
+    };
+    test_func(datatypes::s8, 1); // insert imm = 1
+    test_func(datatypes::s8, 0); // insert imm = 0
+    test_func(datatypes::u8, 1); // insert imm = 1
+    test_func(datatypes::u8, 0); // insert imm = 0
+    test_func(datatypes::bf16, 1); // insert imm = 1
+    test_func(datatypes::bf16, 1); // insert imm = 0
+}
+
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicExtractAVX2) {
+    REQUIRE_AVX2();
+    ir_builder_t builder;
+    const int simd_lanes = 8;
+#define EXTRACT_CMP_DATA(type, imm) \
+    type host_in_1[8] = {1, 2, 3, 4, 5, 6, 7, 8}; \
+    type host_in_2[8] = {0}; \
+    const type expected_out_1 = 1; \
+    const type expected_out_2 = 2; \
+    generic_val generic_args[] = { \
+            &host_in_1, \
+            &host_in_2, \
+    }; \
+    j_foo->call_generic_default(generic_args); \
+    for (int i = 0; i < simd_lanes; i++) { \
+        if ((imm)&1) { \
+            EXPECT_EQ(host_in_2[i], expected_out_2); \
+        } else { \
+            EXPECT_EQ(host_in_2[i], expected_out_1); \
+        } \
+    }
+
+    auto test_func = [&](sc_data_type_t dtype, const int imm) {
+        _function_(datatypes::void_t, foo,
+                _arg_("tensor_in_1", dtype, {simd_lanes}),
+                _arg_("tensor_in_2", dtype, {simd_lanes})) {
+            _bind_(tensor_in_1, tensor_in_2);
+            _var_(local_temp_1, sc_data_type_t(dtype.type_code_, simd_lanes));
+            local_temp_1->attr()["can_promote_to_f32"] = false;
+            local_temp_1 = tensor_in_1[span_t({0}, simd_lanes)];
+            _for_(idx, 0, simd_lanes) {
+                tensor_in_2[span_t({idx}, 1)] = make_extract(local_temp_1, imm);
+            }
+        }
+        for (auto &kv : test_jit_engines) {
+            ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+                    get_default_context(), vector<func_t> {foo}, 0);
+            ostringstream err_context;
+            const string &je_name = kv.first;
+            err_context << "jit_engine_t class '" << je_name << "'";
+            SCOPED_TRACE(err_context.str());
+            shared_ptr<jit_engine_t> je = kv.second;
+            EXPECT_NE(je, nullptr);
+            if (!je) { continue; }
+            shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+            EXPECT_NE(jm, nullptr);
+            shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+            EXPECT_NE(j_foo, nullptr);
+            if (!j_foo) { continue; }
+            switch (dtype.as_etype()) {
+                case sc_data_etype::U8: {
+                    EXTRACT_CMP_DATA(uint8_t, imm);
+                } break;
+                case sc_data_etype::S8: {
+                    EXTRACT_CMP_DATA(int8_t, imm);
+                } break;
+                case sc_data_etype::U16: {
+                    EXTRACT_CMP_DATA(uint16_t, imm);
+                } break;
+                case sc_data_etype::BF16: {
+                    EXTRACT_CMP_DATA(uint16_t, imm);
+                } break;
+                default: {
+                    assert(0 && "Do not support this type.");
+                } break;
+            }
+        }
+    };
+
+    test_func(datatypes::u8, 1); // extract imm = 1
+    test_func(datatypes::u8, 0); // extract imm = 0
+    test_func(datatypes::u16, 1); // extract imm = 1
+    test_func(datatypes::u16, 0); // extract imm = 0
+    test_func(datatypes::bf16, 1); // extract imm = 1
+    test_func(datatypes::bf16, 0); // extract imm = 0
+}
+
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicInsertAVX2) {
+    REQUIRE_AVX2();
+    ir_builder_t builder;
+    const int simd_lanes = 8;
+#define INSERT_AVX2_CMP_DATA(type) \
+    type x = 1; \
+    type expected_result[8] = {0, 1, 2, 2, 2, 2, 0, 0}; \
+    type result[8] = {0}; \
+    generic_val generic_args[] = {x, &result}; \
+    jf->call_generic_default(generic_args); \
+    for (int i = 0; i < 8; i++) { \
+        ASSERT_EQ(result[i], expected_result[i]); \
+    }
+
+    auto test_func = [&](const sc_data_type_t &dtype) {
+        _function_(datatypes::void_t, foo, _arg_("x", dtype),
+                _arg_("result", dtype, {simd_lanes})) {
+            _bind_(x, result);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 1);
+            x = x + builder::make_cast(dtype, 1);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 2);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 3);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 4);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 5);
+        }
+
+        ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+                get_default_context(), vector<func_t> {foo}, 0);
+
+        for (auto &kv : test_jit_engines) {
+            const string &je_name = kv.first;
+            if (je_name != "xbyak_jit") continue;
+
+            ostringstream err_context;
+            err_context << "jit_engine_t class '" << je_name << "'";
+            SCOPED_TRACE(err_context.str());
+
+            shared_ptr<jit_engine_t> je = kv.second;
+            EXPECT_NE(je, nullptr);
+            if (!je) { continue; }
+
+            shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+            EXPECT_NE(jm, nullptr);
+
+            shared_ptr<jit_function_t> jf = jm->get_function("foo");
+
+            EXPECT_NE(jf, nullptr);
+            if (!jf) { continue; }
+            switch (dtype.as_etype()) {
+                case sc_data_etype::U8: {
+                    INSERT_AVX2_CMP_DATA(uint8_t);
+                } break;
+                case sc_data_etype::S8: {
+                    INSERT_AVX2_CMP_DATA(int8_t);
+                } break;
+                case sc_data_etype::U16: {
+                    INSERT_AVX2_CMP_DATA(uint16_t);
+                } break;
+                case sc_data_etype::BF16: {
+                    INSERT_AVX2_CMP_DATA(uint16_t);
+                } break;
+                default: {
+                    assert(0 && "Do not support this type.");
+                } break;
+            }
+        }
+    };
+    test_func(datatypes::s8);
+    test_func(datatypes::u8);
+    test_func(datatypes::u16);
 }
 
 TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBF16) {

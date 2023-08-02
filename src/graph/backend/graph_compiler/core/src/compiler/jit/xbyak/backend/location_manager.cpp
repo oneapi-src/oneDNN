@@ -1204,6 +1204,8 @@ void location_manager::load_reg_value_to_reg(const Xbyak::Reg &reg,
         case cpu_data_type::uint_8:
         case cpu_data_type::sint_8:
         case cpu_data_type::sint_32:
+        case cpu_data_type::uint_16:
+        case cpu_data_type::uint_32:
         case cpu_data_type::uint_64: {
             gen_.mov(to_reg64(reg), to_reg64(src));
         } break;

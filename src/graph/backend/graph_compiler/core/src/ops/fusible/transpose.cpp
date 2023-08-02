@@ -60,6 +60,7 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
     bool is_float = dtype.is_etype(sc_data_etype::F32);
     bool is_s8u8 = dtype.is_etype(sc_data_etype::S8)
             || dtype.is_etype(sc_data_etype::U8);
+    if (!ctx->machine_.cpu_flags_.fAVX512F && is_bf16) { return false; }
     inp_a_axis.clear();
     inp_b_axis.clear();
     out_a_axis.clear();

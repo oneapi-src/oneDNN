@@ -27,6 +27,7 @@
 #include <util/any_map.hpp>
 #include <util/array_ref.hpp>
 
+#include "util/utils.hpp"
 #include "x86_intrinsics_lowering.hpp"
 
 namespace dnnl {
@@ -339,14 +340,35 @@ public:
             } break;
             case intrin_type::insert: {
                 auto imm = intrin->intrin_attrs_->get<int>("insert_imm");
-                auto elem_bits = intrin->intrin_attrs_->get<int>("elem_bits");
+                auto elem_bits
+                        = utils::get_sizeof_type(intrin->args_[1]->dtype_) * 8;
+                bool need_to_reg32 = elem_bits < 32;
+                auto insert_val = builder::make_var(
+                        sc_data_type_t::u32(1), "insert_val_");
+                if (need_to_reg32) {
+                    // need reg32
+                    add_defination(insert_val, linkage::local);
+                    add_assignment(insert_val,
+                            builder::make_cast(
+                                    datatypes::u32, intrin->args_[1]));
+                }
                 transform(dst,
-                        {intrin->args_[0], intrin->args_[1],
+                        {intrin->args_[0],
+                                need_to_reg32 ? insert_val : intrin->args_[1],
                                 builder::make_constant(imm),
                                 builder::make_constant(elem_bits)},
                         dst->dtype_, //
                         transform_disabled("insert"),
                         transform_5a_to_4a(xbyak_intrin_type::insert));
+            } break;
+            case intrin_type::extract: {
+                auto imm = intrin->intrin_attrs_->get<int>("extract_imm");
+                auto elem_bits = utils::get_sizeof_type(intrin->dtype_) * 8;
+                transform(dst,
+                        {intrin->args_[0], builder::make_constant(imm),
+                                builder::make_constant(elem_bits)},
+                        intrin->args_[0]->dtype_, //
+                        transform_disabled("extract"), transform_extract());
             } break;
             case intrin_type::int_and: {
                 transform(dst, {intrin->args_[0], intrin->args_[1]},
@@ -602,6 +624,13 @@ public:
         return [this](const expr &dst, array_ref<expr> src,
                        sc_data_type_t dtype, xbyak_intrin_isa isa) {
             transform_gather(dst, src[0], src[1]);
+        };
+    }
+
+    transform_func transform_extract() {
+        return [this](const expr &dst, array_ref<expr> src,
+                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
+            transform_extract(dst, src[0], src[1], src[2]);
         };
     }
 
@@ -916,6 +945,13 @@ public:
                         xbyak_intrin_type::gather, xbyak_intrin_isa::avx,
                         xbyak_intrin_modifier(cond, false)));
         add_assignment(dst, xmm2);
+    }
+
+    void transform_extract(const expr &dst, const expr &src, const expr &imm,
+            const expr &elem_bits) {
+        add_assignment(dst,
+                make_xbyak_intrin(dst->dtype_, {src, imm, elem_bits},
+                        xbyak_intrin_type::extract, xbyak_intrin_isa::avx));
     }
 
     void transform_broadcast(

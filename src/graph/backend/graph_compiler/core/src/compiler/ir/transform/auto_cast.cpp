@@ -300,6 +300,7 @@ public:
             case intrin_type::permutex2var:
             case intrin_type::permutexvar:
             case intrin_type::insert:
+            case intrin_type::extract:
                 // do nothing
                 break;
             case intrin_type::brgemm:

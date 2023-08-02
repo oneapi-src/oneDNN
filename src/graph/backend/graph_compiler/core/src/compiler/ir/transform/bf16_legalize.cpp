@@ -194,6 +194,7 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::permutex2var:
         case intrin_type::permutexvar:
         case intrin_type::insert:
+        case intrin_type::extract:
         case intrin_type::read_struct:
         case intrin_type::write_struct:
         case intrin_type::get_group_id:

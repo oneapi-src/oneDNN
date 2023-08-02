@@ -103,6 +103,7 @@ enum class xbyak_intrin_type {
     permute,
     gather,
     insert,
+    extract,
     broadcast,
     reinterpret,
     unpack_low,

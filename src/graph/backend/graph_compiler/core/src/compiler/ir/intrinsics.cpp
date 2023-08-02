@@ -246,6 +246,14 @@ struct insert_handler_t : public trinary_intrinsic_handler_t {
     insert_handler_t() : trinary_intrinsic_handler_t("insert") {}
 };
 
+struct extract_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = sc_data_type_t(node.args_[0]->dtype_.type_code_);
+    }
+    extract_handler_t() : intrinsic_handler_t("extract") {}
+};
+
 struct gather_handler_t : public binary_intrinsic_handler_t {
     gather_handler_t() : binary_intrinsic_handler_t("gather") {}
     void on_initialize(intrin_call_node &node) override {
@@ -535,6 +543,7 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<permutex2var_handler_t>(),
         utils::make_unique<permutexvar_handler_t>(),
         utils::make_unique<insert_handler_t>(),
+        utils::make_unique<extract_handler_t>(),
         utils::make_unique<gather_handler_t>(),
         utils::make_unique<read_struct_handler_t>(),
         utils::make_unique<write_struct_handler_t>(),

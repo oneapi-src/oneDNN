@@ -1361,6 +1361,7 @@ enum class intrin_type {
     permutex2var,
     permutexvar,
     insert, // insert the value into dst at the location specified
+    extract, // extract the value from simd value
     gather, // gather elements from memory.
     read_struct, // read field from a struct
     write_struct, // write a field to a struct

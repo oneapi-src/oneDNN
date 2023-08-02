@@ -601,12 +601,23 @@ void codegen_c_vis::view(intrin_call_c v) {
             binary_func_codegen_c(v->args_, "sc_permutexvar");
             break;
         case intrin_type::insert:
-            *os << "sc_insert(";
+            *os << "sc_insert_";
+            print_type(v->dtype_);
+            *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";
             dispatch(v->args_[1]);
             *os << ", ";
             *os << v->intrin_attrs_->get<int>("insert_imm");
+            *os << ')';
+            break;
+        case intrin_type::extract:
+            *os << "sc_extract_";
+            print_type(v->args_[0]->dtype_);
+            *os << "(";
+            dispatch(v->args_[0]);
+            *os << ", ";
+            *os << v->intrin_attrs_->get<int>("extract_imm");
             *os << ')';
             break;
         default: assert(0 && "Unknown intrinsic!"); break;
