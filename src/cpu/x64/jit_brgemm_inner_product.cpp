@@ -709,18 +709,22 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             case OIdhw8i16o: fwd_oc_block = 16; break;
             default: fwd_oc_block = jbgp.simd_w;
         };
-        int fwd_icb = icb * jbgp.ic_block / fwd_ic_block;
-        int fwd_ocb = ocb * jbgp.oc_block / fwd_oc_block;
+        dim_t ic = icb * jbgp.ic_block;
+        dim_t oc = ocb * jbgp.oc_block;
+
+        int fwd_icb = ic / fwd_ic_block;
+        int fwd_ocb = oc / fwd_oc_block;
+        int fwd_icb_simd = ic % fwd_ic_block;
+        int fwd_ocb_simd = oc % fwd_oc_block;
+
         char *ptr_wei_local = weights
                 + get_blk_off(weights_d, jbgp.wei_dt, fwd_ocb, fwd_icb);
 
-        int fwd_ocb_simd = (ocb * jbgp.oc_block) % fwd_oc_block;
-        int fwd_icb_simd = (icb * jbgp.ic_block) % fwd_ic_block;
         int blk_sz = is_bf16 || (is_f16 && isa != avx512_core_fp16) ? 2 : 1;
 
         return ptr_wei_local
                 + wei_dt_size
-                * (fwd_icb_simd / blk_sz * blk_sz * fwd_oc_block
+                * (rnd_dn(fwd_icb_simd, blk_sz) * fwd_oc_block
                         + blk_sz * fwd_ocb_simd);
     };
 
