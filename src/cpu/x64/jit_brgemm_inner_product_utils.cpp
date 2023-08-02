@@ -1538,19 +1538,26 @@ void jit_brgemm_ip_bwd_w_conf_t::init_scratchpad(
 
     const auto &jbgp = *this;
 
+    const dim_t os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+    const dim_t oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
+    const dim_t ic_chunks = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
+
+    dim_t ic_chunks_per_thread = div_up(ic_chunks, jbgp.nthr_ic_b);
+    dim_t os_chunks_per_thread = div_up(os_chunks, jbgp.nthr_mb);
+    if (jbgp.local_buffers_for_input_tensors) {
+        ic_chunks_per_thread = 1;
+        os_chunks_per_thread = 1;
+    }
+
     if (jbgp.use_buffer) {
         size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
         if (jbgp.nthr_mb > 1 || jbgp.harness == harness_mb_reduction) {
             const size_t n_reduction_buffers = jbgp.nthr_mb > 1
                     ? jbgp.nthr_mb - (jbgp.wei_dt == f32)
                     : 1;
-            const size_t num_ic_chunks
-                    = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
-            const size_t num_oc_chunks
-                    = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
-            nelements = (size_t)n_reduction_buffers * num_ic_chunks
-                    * num_oc_chunks * jbgp.nb_ic_blocking * jbgp.nb_oc_blocking
-                    * jbgp.ic_block * jbgp.oc_block;
+            nelements = n_reduction_buffers * ic_chunks * oc_chunks
+                    * jbgp.nb_ic_blocking * jbgp.nb_oc_blocking * jbgp.ic_block
+                    * jbgp.oc_block;
         } else if (jbgp.nthr_mb == 1) {
             nelements = (size_t)jbgp.nthr * jbgp.nb_ic_blocking * jbgp.ic_block
                     * jbgp.nb_oc_blocking * jbgp.oc_block;
@@ -1560,32 +1567,19 @@ void jit_brgemm_ip_bwd_w_conf_t::init_scratchpad(
     }
 
     if (jbgp.use_buffer_a) {
-        const dim_t num_ic_chunks_per_thread
-                = jbgp.local_buffers_for_input_tensors
-                ? 1
-                : div_up(div_up(jbgp.nb_ic, jbgp.nb_ic_blocking),
-                        jbgp.nthr_ic_b);
-        const dim_t num_os_chunks_per_thread
-                = jbgp.local_buffers_for_input_tensors
-                ? 1
-                : div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
-        const dim_t num_elems_per_thread = num_ic_chunks_per_thread
-                * num_os_chunks_per_thread * jbgp.gemm_batch_size
-                * jbgp.os_block * jbgp.ic_block * jbgp.nb_ic_blocking;
+        const dim_t nelems_per_thread = ic_chunks_per_thread
+                * os_chunks_per_thread * jbgp.gemm_batch_size * jbgp.os_block
+                * jbgp.ic_block * jbgp.nb_ic_blocking;
         scratchpad.book(key_brgemm_primitive_buffer_a,
-                jbgp.nthr * num_elems_per_thread,
+                jbgp.nthr * nelems_per_thread,
                 buf_dt_size(jbgp.src_dt, jbgp.isa));
     }
 
     if (jbgp.use_buffer_b) {
-        int num_os_chunks_per_thread = jbgp.local_buffers_for_input_tensors
-                ? 1
-                : div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
-        const dim_t num_elems_per_thread
-                = static_cast<dim_t>(num_os_chunks_per_thread)
+        const dim_t nelems_per_thread = os_chunks_per_thread
                 * jbgp.gemm_batch_size * jbgp.os_block * jbgp.LDB;
         scratchpad.book(key_brgemm_primitive_buffer_b,
-                (size_t)jbgp.nthr * num_elems_per_thread,
+                (size_t)jbgp.nthr * nelems_per_thread,
                 buf_dt_size(jbgp.dst_dt, jbgp.isa));
     }
 
