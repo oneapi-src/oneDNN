@@ -103,6 +103,18 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         int get_brg_idx(int m, bool do_initialization, bool is_N_tail,
                 bool is_K_tail, int kd_b, int kd_e, int kh_b, int kh_e) const;
 
+        inline int get_bs(int kd_b, int kd_e, int kh_b, int kh_e) const {
+            const auto kd_l = nstl::min(KD_BLOCK, kd_e - kd_b);
+            const auto kh_l = nstl::min(KH_BLOCK, kh_e - kh_b);
+            const auto is_relo_whi
+                    = (jcp_.relo_type == conv_brgemm_relo_type_t::whi);
+            const auto is_relo_wi
+                    = (jcp_.relo_type == conv_brgemm_relo_type_t::wi);
+            const auto bs
+                    = kd_l * (is_relo_whi ? 1 : (kh_l * (is_relo_wi ? 1 : KW)));
+            return bs;
+        }
+
         int get_any_brg_idx(bool is_N_tail, bool is_K_tail) const;
 
         inline int maybe_invert(int k, int K) const {

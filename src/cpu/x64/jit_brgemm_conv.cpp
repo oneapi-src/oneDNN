@@ -266,15 +266,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
         if (k_l == 0) return status::success;
     }
 
-    const auto kd_l = nstl::min(KD_BLOCK, kd_e - kd_b);
-    const auto kh_l = nstl::min(KH_BLOCK, kh_e - kh_b);
-    const auto bs = kd_l
-            * (jcp_.relo_type == conv_brgemm_relo_type_t::whi
-                            ? 1
-                            : (kh_l
-                                    * (jcp_.relo_type == conv_brgemm_relo_type_t::wi
-                                                    ? 1
-                                                    : jcp_.kw)));
+    const auto bs = get_bs(kd_b, kd_e, kh_b, kh_e);
 
     brgemm_t brg;
     brgattr.bd_mask = bd_mask.data();
@@ -571,7 +563,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             const int kd_s = div_up(nstl::max(0, -iid), DD);
             const int kd_f = KD
                     - div_up(nstl::max(0, iid - ID + (KD - 1) * DD + 1), DD);
-            const auto kd_l = nstl::min(KD_BLOCK, kd_f - kd_s);
             for (int ioh = 0; ioh < jcp_.oh; ioh++) {
 
                 const auto iih = ioh * SH - TP;
@@ -581,16 +572,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                 const auto kh_f = KH
                         - div_up(
                                 nstl::max(0, iih - IH + (KH - 1) * DH + 1), DH);
-                const auto kh_l = nstl::min(KH_BLOCK, kh_f - kh_s);
-                const auto bs = kd_l
-                        * (jcp_.relo_type == conv_brgemm_relo_type_t::whi
-                                        ? 1
-                                        : (kh_l
-                                                * (jcp_.relo_type
-                                                                        == conv_brgemm_relo_type_t::
-                                                                                wi
-                                                                ? 1
-                                                                : jcp_.kw)));
+                const auto bs = get_bs(kd_s, kd_f, kh_s, kh_f);
                 if (bs <= 0) continue;
 
                 const std::array<int, 4> key = {kd_s, kd_f, kh_s, kh_f};
