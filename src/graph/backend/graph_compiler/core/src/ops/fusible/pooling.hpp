@@ -56,7 +56,9 @@ namespace data_format_options {
 constexpr const char *NCX = "NCX";
 constexpr const char *NXC = "NXC";
 } // namespace data_format_options
-class pooling_op_t : public fusible_op_t, public op_traits::auto_copyable_t {
+class pooling_op_t : public fusible_op_t,
+                     public op_traits::auto_copyable_t,
+                     public op_traits::may_quantize_t {
 public:
     pooling_type_t pooling_type_;
     sc_dims stride_;

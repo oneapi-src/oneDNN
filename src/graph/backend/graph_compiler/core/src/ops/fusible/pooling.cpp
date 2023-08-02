@@ -268,8 +268,7 @@ pooling_op_t::pooling_op_t(const std::vector<graph_tensor_ptr> &ins,
                 ins[0]->details_.dtype_));
     } else {
         COMPILE_ASSERT(outs.size() == 1, "pooling expect 1 output");
-        COMPILE_ASSERT(outs[0]->details_.get_plain_dims() == output_dims
-                        && outs[0]->details_.dtype_ == ins[0]->details_.dtype_,
+        COMPILE_ASSERT(outs[0]->details_.get_plain_dims() == output_dims,
                 "Bad output shape for pooling")
         info_.outputs_ = outs;
     }
@@ -333,7 +332,7 @@ static void compute_block_pooling(
         const tensor_slice &dst, pooling_type_t pooling_typ, sc_dims kernel,
         sc_dims stride, sc_dims pads_begin,
         const std::vector<int> &in_fmt_vector, const vectorized_info_t &vx_info,
-        sc_data_type_t dtype, any_map_t &attrs,
+        sc_data_type_t in_dtype, sc_data_type_t out_dtype, any_map_t &attrs,
         const graph_tensor_ptr &output_tensor = nullptr, size_t wkld = 0UL) {
     /*** The final IR may look like below:
      * _for_(_fuseiter_i, 0, I, 1)
@@ -359,9 +358,12 @@ static void compute_block_pooling(
      *          dst[dst_idx] = sum/num or sum;
      ***/
 
-    auto vectorized_dtype = sc_data_type_t(dtype.type_code_, vx_info.lanes);
+    auto in_vectorized_dtype
+            = sc_data_type_t(in_dtype.type_code_, vx_info.lanes);
+    auto out_vectorized_dtype
+            = sc_data_type_t(out_dtype.type_code_, vx_info.lanes);
     auto pool_buf_vectorized_dtype
-            = sc_data_type_t(dtype.type_code_, vx_info.lanes);
+            = sc_data_type_t(in_dtype.type_code_, vx_info.lanes);
     // nested loop vars
     std::vector<expr> iter_vars, kernel_iter_vars;
 
@@ -414,7 +416,7 @@ static void compute_block_pooling(
 
     // assign init value
     variant<float, int64_t> init_value;
-    bool is_int = utils::is_one_of(dtype.type_code_, sc_data_etype::U8,
+    bool is_int = utils::is_one_of(in_dtype.type_code_, sc_data_etype::U8,
             sc_data_etype::U32, sc_data_etype::S8, sc_data_etype::S32);
     if (pooling_typ == pooling_type_t::avg) {
         if (is_int) {
@@ -425,7 +427,7 @@ static void compute_block_pooling(
     } else {
         COMPILE_ASSERT(
                 pooling_typ == pooling_type_t::max, "wrong pooling type");
-        init_value = numeric_limits_minimum(dtype.type_code_);
+        init_value = numeric_limits_minimum(in_dtype.type_code_);
     }
 
     int kernel_size = 1;
@@ -441,43 +443,36 @@ static void compute_block_pooling(
     }
     expr zero_constant, one_constant, kernel_size_constant,
             pooling_buf_constant;
-    if (dtype.type_code_ == sc_data_etype::F32
-            || dtype.type_code_ == sc_data_etype::BF16) {
-        zero_constant = make_expr<constant_node>(0.f, vectorized_dtype);
-        one_constant = make_expr<constant_node>(1.f, vectorized_dtype);
+    if (in_dtype.type_code_ == sc_data_etype::F32
+            || in_dtype.type_code_ == sc_data_etype::BF16) {
+        zero_constant = make_expr<constant_node>(0.f, in_vectorized_dtype);
+        one_constant = make_expr<constant_node>(1.f, in_vectorized_dtype);
         kernel_size_constant = make_expr<constant_node>(
-                float(kernel_size), vectorized_dtype);
+                float(kernel_size), in_vectorized_dtype);
         pooling_buf_constant = make_expr<constant_node>(
-                init_value.get<float>(), vectorized_dtype);
-    } else if (dtype.type_code_ == sc_data_etype::U8
-            || dtype.type_code_ == sc_data_etype::U32) {
-        zero_constant = make_expr<constant_node>(uint64_t(0), vectorized_dtype);
-        one_constant = make_expr<constant_node>(uint64_t(1), vectorized_dtype);
-        kernel_size_constant = make_expr<constant_node>(
-                uint64_t(kernel_size), vectorized_dtype);
-        if (pooling_typ == pooling_type_t::avg)
-            pool_buf_vectorized_dtype
-                    = sc_data_type_t(sc_data_etype::U32, vx_info.lanes);
-        pooling_buf_constant = make_expr<constant_node>(
-                uint64_t(init_value.get<int64_t>()), pool_buf_vectorized_dtype);
-    } else if (dtype.type_code_ == sc_data_etype::S8
-            || dtype.type_code_ == sc_data_etype::S32) {
-        zero_constant = make_expr<constant_node>(int64_t(0), vectorized_dtype);
-        one_constant = make_expr<constant_node>(int64_t(1), vectorized_dtype);
-        kernel_size_constant = make_expr<constant_node>(
-                int64_t(kernel_size), vectorized_dtype);
+                init_value.get<float>(), in_vectorized_dtype);
+    } else if (in_dtype.type_code_ == sc_data_etype::U8
+            || in_dtype.type_code_ == sc_data_etype::U32
+            || in_dtype.type_code_ == sc_data_etype::S8
+            || in_dtype.type_code_ == sc_data_etype::S32) {
         if (pooling_typ == pooling_type_t::avg)
             pool_buf_vectorized_dtype
                     = sc_data_type_t(sc_data_etype::S32, vx_info.lanes);
+        zero_constant
+                = make_expr<constant_node>(int64_t(0), in_vectorized_dtype);
+        one_constant = make_expr<constant_node>(
+                int64_t(1), pool_buf_vectorized_dtype);
+        kernel_size_constant = make_expr<constant_node>(
+                int64_t(kernel_size), pool_buf_vectorized_dtype);
         pooling_buf_constant = make_expr<constant_node>(
-                init_value.get<int64_t>(), pool_buf_vectorized_dtype);
-
+                uint64_t(init_value.get<int64_t>()), pool_buf_vectorized_dtype);
     } else {
-        COMPILE_ASSERT(0, "unsupported dtype.");
+        COMPILE_ASSERT(0, "unsupported in_dtype.");
     }
 
     // define local vars
-    expr kernel_size_var = builder::make_var(vectorized_dtype, "kernel_size");
+    expr kernel_size_var
+            = builder::make_var(pool_buf_vectorized_dtype, "kernel_size");
     expr pooling_buf_var
             = builder::make_var(pool_buf_vectorized_dtype, "pool_buf");
     stmt pooling_buf_asnode
@@ -491,6 +486,10 @@ static void compute_block_pooling(
         stmt else_stmt, then_stmt, additional_assign;
         if (i == int(kernel_iter_vars.size() - 1)) {
             if (pooling_typ == pooling_type_t::avg) {
+                if (pool_buf_vectorized_dtype != in_vectorized_dtype) {
+                    indexed_input = builder::make_cast(
+                            pool_buf_vectorized_dtype, indexed_input);
+                }
                 then_stmt = make_stmt<assign_node_t>(pooling_buf_var,
                         builder::make_add(indexed_input, pooling_buf_var));
                 then_stmt->attr()
@@ -551,12 +550,13 @@ static void compute_block_pooling(
             if (pooling_typ == pooling_type_t::avg) {
                 expr kernel_size_expr = kernel_size_constant;
                 if (exclude_pad) kernel_size_expr = kernel_size_var;
-                expr pooling_result
-                        = builder::make_div(pooling_buf_var, kernel_size_expr);
-                if (vectorized_dtype.type_code_
+                expr pooling_result = builder::make_div(pooling_buf_var,
+                        builder::make_cast(
+                                pool_buf_vectorized_dtype, kernel_size_expr));
+                if (out_vectorized_dtype.type_code_
                         != pool_buf_vectorized_dtype.type_code_)
                     pooling_result = builder::make_cast(
-                            vectorized_dtype, pooling_result);
+                            out_vectorized_dtype, pooling_result);
                 target_assign = make_stmt<assign_node_t>(
                         indexed_target, pooling_result);
             } else if (pooling_typ == pooling_type_t::max) {
@@ -596,9 +596,8 @@ static void compute_block_pooling(
                 dst.get_shape()[i],
                 (i == int(iter_vars.size() - 1)) ? int(vx_info.lanes) : 1, body,
                 true, i == 0 ? for_type::PARALLEL : for_type::NORMAL);
+        if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = true;
     }
-
-    if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = true;
 
     bld->emit(cur);
     attrs[op_attr_key::fusible_inner_anchors] = inner_anchors;
@@ -628,14 +627,15 @@ void pooling_op_t::compute_block(context_ptr ctx,
             vx_info_.lanes = vector_lanes;
         }
     }
-    auto dtype = info_.inputs_[0]->details_.dtype_;
+    auto in_dtype = info_.inputs_[0]->details_.dtype_;
+    auto out_dtype = info_.outputs_[0]->details_.dtype_;
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
 
     compute_block_pooling(inputs, *dst[0], pooling_type_, kernel_, stride_,
             pads_begin_,
             get_ncx_formatcode_vector_form_tensor(
                     info_.inputs_[0], channel_last_),
-            vx_info_, dtype, attrs_, info_.outputs_[0], wkld);
+            vx_info_, in_dtype, out_dtype, attrs_, info_.outputs_[0], wkld);
 }
 
 void pooling_op_t::query_format(context_ptr ctx,
@@ -654,12 +654,12 @@ size_t pooling_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
         const std::vector<shape_dtype_pair> &outs) {
     auto &in_shape = ins[0].first;
     auto &out_shape = outs[0].first;
-    auto &dtype = ins[0].second;
+    auto &in_dtype = ins[0].second;
     auto real_compute_axis = get_real_pooling_axis_form_tensor(
             info_.inputs_[0], channel_last_);
 
-    size_t wkld = utils::get_sizeof_type(dtype) * read_weight;
-    size_t wkld_out = utils::get_sizeof_type(dtype) * write_weight;
+    size_t wkld = utils::get_sizeof_type(in_dtype) * read_weight;
+    size_t wkld_out = utils::get_sizeof_type(in_dtype) * write_weight;
     for (auto &compute_axis : real_compute_axis) {
         wkld *= in_shape[compute_axis];
         wkld_out *= out_shape[compute_axis];
@@ -863,9 +863,10 @@ void pooling_backprop_op_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {}
 
 static void pooling_backward_fill_zero_dst(const tensor_slice &dst,
-        pooling_type_t pooling_typ, sc_data_type_t dtype,
+        pooling_type_t pooling_typ, sc_data_type_t in_dtype,
         const vectorized_info_t &vx_info) {
-    auto vectorized_dtype = sc_data_type_t(dtype.type_code_, vx_info.lanes);
+    auto in_vectorized_dtype
+            = sc_data_type_t(in_dtype.type_code_, vx_info.lanes);
 
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
@@ -878,8 +879,8 @@ static void pooling_backward_fill_zero_dst(const tensor_slice &dst,
     // make assign node
     expr indexed_in_delta
             = builder::make_indexing(dst.tptr_, dst_idx, vx_info.lanes);
-    stmt indelta_zero_asnode = make_stmt<assign_node_t>(
-            indexed_in_delta, make_expr<constant_node>(0.f, vectorized_dtype));
+    stmt indelta_zero_asnode = make_stmt<assign_node_t>(indexed_in_delta,
+            make_expr<constant_node>(0.f, in_vectorized_dtype));
     // make loops
     stmt body, cur;
     for (int i = dst_idx.size() - 1; i >= 0; i--) {
@@ -898,7 +899,7 @@ static void compute_block_pooling_backward_avg(
         const std::vector<const tensor_slice *> &inputs,
         const tensor_slice &dst, sc_dims kernel, sc_dims stride,
         sc_dims pads_begin, const std::vector<int> &dst_fmt_vector,
-        const vectorized_info_t &vx_info, sc_data_type_t dtype,
+        const vectorized_info_t &vx_info, sc_data_type_t in_dtype,
         any_map_t &attrs, size_t wkld = 0UL) {
     /***The final IR may look like below:
      * _for_(_fuseiter_i, 0, I, 1)
@@ -922,9 +923,10 @@ static void compute_block_pooling_backward_avg(
      ***/
 
     // fill dst delta with 0
-    pooling_backward_fill_zero_dst(dst, pooling_type_t::avg, dtype, vx_info);
+    pooling_backward_fill_zero_dst(dst, pooling_type_t::avg, in_dtype, vx_info);
 
-    auto vectorized_dtype = sc_data_type_t(dtype.type_code_, vx_info.lanes);
+    auto in_vectorized_dtype
+            = sc_data_type_t(in_dtype.type_code_, vx_info.lanes);
     // builder
     auto bld = builder::get_current_builder();
 
@@ -948,7 +950,8 @@ static void compute_block_pooling_backward_avg(
                 std::string("_fuseiter") + fusion_create_idx()));
     }
 
-    auto kernel_size_var = builder::make_var(vectorized_dtype, "kernel_size");
+    auto kernel_size_var
+            = builder::make_var(in_vectorized_dtype, "kernel_size");
     auto define_kernel_size_var
             = make_stmt<define_node_t>(kernel_size_var, linkage::local, expr());
 
@@ -1014,19 +1017,19 @@ static void compute_block_pooling_backward_avg(
         kernel_size = kernel_size * int(kn);
 
     bool exclude_pad = attrs.get<bool>("exclude_pad");
-    if (dtype.type_code_ == sc_data_etype::F32
-            || dtype.type_code_ == sc_data_etype::BF16) {
+    if (in_dtype.type_code_ == sc_data_etype::F32
+            || in_dtype.type_code_ == sc_data_etype::BF16) {
         if (exclude_pad) {
             kernel_size_asnode = make_stmt<assign_node_t>(
                     kernel_size_var, kernel_size_multi_expr);
         } else {
             kernel_size_asnode = make_stmt<assign_node_t>(kernel_size_var,
                     make_expr<constant_node>(
-                            float(kernel_size), vectorized_dtype));
+                            float(kernel_size), in_vectorized_dtype));
         }
 
     } else {
-        COMPILE_ASSERT(0, "unsupported dtype.");
+        COMPILE_ASSERT(0, "unsupported in_dtype.");
     }
 
     // build inner kernel loop
@@ -1085,7 +1088,7 @@ static void compute_block_pooling_backward_max(
         const std::vector<const tensor_slice *> &inputs,
         const tensor_slice &dst, sc_dims kernel, sc_dims stride,
         sc_dims pads_begin, const std::vector<int> &dst_fmt_vector,
-        const vectorized_info_t &vx_info, sc_data_type_t dtype,
+        const vectorized_info_t &vx_info, sc_data_type_t in_dtype,
         any_map_t &attrs, size_t wkld = 0UL) {
     /***The final IR may look like below:
      * _for_(_fuseiter_i, 0, I, 1)
@@ -1122,7 +1125,7 @@ static void compute_block_pooling_backward_max(
      ***/
 
     // fill dst delta with 0
-    pooling_backward_fill_zero_dst(dst, pooling_type_t::avg, dtype, vx_info);
+    pooling_backward_fill_zero_dst(dst, pooling_type_t::avg, in_dtype, vx_info);
 
     // builder
     auto bld = builder::get_current_builder();
@@ -1135,7 +1138,7 @@ static void compute_block_pooling_backward_max(
     std::vector<stmt> defines_of_max;
     std::vector<stmt> assigns_of_max;
 
-    max_val = builder::make_var(dtype, "max_val");
+    max_val = builder::make_var(in_dtype, "max_val");
     defines_of_max.emplace_back(
             make_stmt<define_node_t>(max_val, linkage::local, expr()));
     std::string pos_name[] = {"i", "j", "k"};
@@ -1145,13 +1148,13 @@ static void compute_block_pooling_backward_max(
         defines_of_max.emplace_back(make_stmt<define_node_t>(
                 max_val_pos[i], linkage::local, expr()));
     }
-    if (dtype.type_code_ == sc_data_etype::F32
-            || dtype.type_code_ == sc_data_etype::BF16) {
+    if (in_dtype.type_code_ == sc_data_etype::F32
+            || in_dtype.type_code_ == sc_data_etype::BF16) {
         assigns_of_max.emplace_back(make_stmt<assign_node_t>(max_val,
                 make_expr<constant_node>(
-                        -std::numeric_limits<float>::infinity(), dtype)));
+                        -std::numeric_limits<float>::infinity(), in_dtype)));
     } else {
-        COMPILE_ASSERT(0, "unsupported dtype.");
+        COMPILE_ASSERT(0, "unsupported in_dtype.");
     }
 
     has_max = builder::make_var(datatypes::boolean, "has_max");
@@ -1232,7 +1235,7 @@ static void compute_block_pooling_backward_max(
             then_stmt = cur;
         }
 
-        expr zero_constant = make_expr<constant_node>(0.f, dtype);
+        expr zero_constant = make_expr<constant_node>(0.f, in_dtype);
         else_stmt = make_stmt<if_else_node_t>(max_val < zero_constant,
                 make_stmt<stmts_node_t>(std::vector<stmt> {
                         make_stmt<assign_node_t>(has_max, false),
@@ -1314,7 +1317,7 @@ void pooling_backprop_op_t::compute_block(context_ptr ctx,
             }
         }
     }
-    auto dtype = info_.inputs_[0]->details_.dtype_;
+    auto in_dtype = info_.inputs_[0]->details_.dtype_;
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
 
     if (pooling_type_ == pooling_type_t::avg)
@@ -1322,13 +1325,13 @@ void pooling_backprop_op_t::compute_block(context_ptr ctx,
                 pads_begin_,
                 get_ncx_formatcode_vector_form_tensor(
                         info_.inputs_[0], channel_last_),
-                vx_info_, dtype, attrs_);
+                vx_info_, in_dtype, attrs_);
     else
         compute_block_pooling_backward_max(inputs, *dst[0], kernel_, stride_,
                 pads_begin_,
                 get_ncx_formatcode_vector_form_tensor(
                         info_.inputs_[0], channel_last_),
-                vx_info_, dtype, attrs_);
+                vx_info_, in_dtype, attrs_);
 }
 
 size_t pooling_backprop_op_t::compute_workload(

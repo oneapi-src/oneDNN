@@ -25,6 +25,7 @@
 #include <compiler/ir/graph/visitor.hpp>
 #include <ops/convolution.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/pooling.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/reshape.hpp>
 #include <util/math_utils.hpp>
@@ -262,8 +263,13 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
             } else if (!reschedule_forbid_op(node)) {
                 // align output datatype with input
                 for (auto &out : node->get_outputs()) {
-                    out->details_.dtype_
-                            = node->get_inputs()[0]->details_.dtype_;
+                    if (node->isa<pooling_avg_op_t>()) {
+                        node->get_outputs()[0]->details_.dtype_.type_code_
+                                = sc_data_etype::S32;
+                    } else {
+                        out->details_.dtype_
+                                = node->get_inputs()[0]->details_.dtype_;
+                    }
                     // insert dequantize if last op of pattern is output op,
                     // for pattern like `qua->deq->reshape->output`
                     std::vector<std::pair<int, sc_op_weak_ptr_t>> uses
