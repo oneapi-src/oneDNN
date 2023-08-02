@@ -241,8 +241,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                             data_type::bf16, data_type::f16)
                     && wei_dt == diff_dst_dt
                     && utils::one_of(diff_src_dt, data_type::f32, diff_dst_dt)
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops);
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             memory_desc_t dummy_bias_md;
@@ -408,8 +407,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                             data_type::f16)
                     && diff_dst_type == src_dt
                     && utils::one_of(diff_wei_type, data_type::f32, src_dt)
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops);
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             CHECK(jbgp_.init_conf(isa, *desc(), src_md_, diff_weights_md_,
