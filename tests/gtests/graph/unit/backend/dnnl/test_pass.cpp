@@ -8379,7 +8379,7 @@ TEST(Pass, FuseToInt8Maxpool) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8_pool_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8508,7 +8508,7 @@ TEST(Pass, FuseToInt8Avgpool) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8_pool_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8617,12 +8617,10 @@ TEST(PassSystem, FuseToInt8PoolAdd) {
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
                     partition_kind_t::quantized_pooling_post_ops);
         } else {
-            ASSERT_EQ(agraph.get_num_partitions(), 4U);
+            ASSERT_EQ(agraph.get_num_partitions(), 2U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    partition_kind_t::pooling_post_ops);
+                    partition_kind_t::quantized_pooling_post_ops);
             ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-                    partition_kind_t::misc_post_ops);
-            ASSERT_EQ((agraph.get_partitions()[2])->get_kind(),
                     partition_kind_t::misc_post_ops);
         }
     }
@@ -14462,7 +14460,7 @@ TEST(Pass, Pool3Postops) {
 
         agraph.finalize();
 
-        pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
+        pass::pass_base_ptr apass = get_pass("fp_pool_post_ops");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 

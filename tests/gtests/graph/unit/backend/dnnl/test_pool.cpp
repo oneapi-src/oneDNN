@@ -186,8 +186,8 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_pool_binary_fusion_gpu"
-                                : "int8_pool_binary_fusion_cpu");
+                                ? "x8_pool_add_post_ops_gpu"
+                                : "x8_pool_add_post_ops_cpu");
         apass->run(g);
 
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -318,7 +318,7 @@ TEST(ExecuteSubgraphFp32, Pool3Postops) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("fp_pool_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -384,7 +384,7 @@ TEST(Execute, AvgPoolExcludePad) {
     g.add_op(&avg_pool_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("avg_pool_pass");
+    graph::pass::pass_base_ptr apass = get_pass("fp_avg_pool");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -447,7 +447,7 @@ TEST(Execute, AvgPoolIncludePad) {
     g.add_op(&avg_pool_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("avg_pool_pass");
+    graph::pass::pass_base_ptr apass = get_pass("fp_avg_pool");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -700,10 +700,7 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_pool_binary_fusion_gpu"
-                                : "int8_pool_binary_fusion_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8_pool_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1177,10 +1174,7 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_pool_binary_fusion_gpu"
-                                : "int8_pool_binary_fusion_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8_pool_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1294,10 +1288,7 @@ TEST(ExecuteSubgraphInt8, MaxpoolAsymmetric) {
             graph::status::success);
 
     // -------------------------case 2----------------------------------
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "int8_pool_binary_fusion_gpu"
-                            : "int8_pool_binary_fusion_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8_pool_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1413,7 +1404,7 @@ public:
             g.add_op(&binary_op);
             g.finalize();
 
-            graph::pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
+            graph::pass::pass_base_ptr apass = get_pass("fp_pool_post_ops");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
@@ -1606,9 +1597,7 @@ TEST(ExecuteSubgraphInt8, DequantizePoolReshapeQunatize) {
         graph::tensor_t case1_dst_s8_ts(
                 q_out_s8, engine, case1_dst_s8_data.data());
         graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_pool_binary_fusion_gpu"
-                                : "int8_pool_binary_fusion_cpu");
+                = get_pass("x8_pool_reshape_transpose");
         apass->run(g);
 
         ASSERT_EQ(g.get_num_partitions(), 1U);
