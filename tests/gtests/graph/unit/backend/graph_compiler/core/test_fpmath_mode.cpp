@@ -125,8 +125,8 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestMatmulCast2bf16) {
         auto out = g.make_output({reluout});
         return g;
     };
-    auto ctx = get_test_ctx();
-    ctx->flags_.mixed_fusion_ = 1;
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g = get_graph();
     g.attrs_["fpmath_mode"] = 1;
     graph_inline(g, ctx);
@@ -162,7 +162,7 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestMatmulCast2bf16) {
     }
     {
         g = get_graph();
-        auto ref_ctx = get_test_ctx();
+        auto &ref_ctx = ctx;
         graph_driver(g, ref_ctx);
         std::vector<sc_op_ptr> ins_out = g.get_input_ops();
         ins_out.insert(ins_out.begin(), g.get_output_ops()[0]);
@@ -221,8 +221,8 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestMLPInstanceNorm) {
         auto out = g.make_output({lnout});
         return g;
     };
-    auto ctx = get_test_ctx();
-    ctx->flags_.mixed_fusion_ = 1;
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g = get_graph();
     g.attrs_["fpmath_mode"] = 1;
     graph_inline(g, ctx);
@@ -288,7 +288,7 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestMLPInstanceNorm) {
     }
     {
         g = get_graph();
-        auto ref_ctx = get_test_ctx();
+        auto &ref_ctx = ctx;
         graph_driver(g, ref_ctx);
         std::vector<sc_op_ptr> ins_out = g.get_input_ops();
         ins_out.insert(ins_out.begin(), g.get_output_ops()[0]);
