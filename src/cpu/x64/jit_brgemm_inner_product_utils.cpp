@@ -677,15 +677,18 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     if (use_min_os_block) {
         // Get potential bd_block from main kernel.
         brgemm_t brg_desc;
-        CHECK(brgemm_desc_init(&brg_desc, isa, jbgp.brg_type, jbgp.src_dt,
-                jbgp.wei_dt, false, false, brgemm_row_major, 1.0f, 1.0f,
-                jbgp.ic_without_padding, jbgp.oc_block, jbgp.oc_without_padding,
-                jbgp.os_block, jbgp.oc_block, jbgp.K));
-        int bd_block = brg_desc.bd_block;
+        status_t st = brgemm_desc_init(&brg_desc, isa, jbgp.brg_type,
+                jbgp.src_dt, jbgp.wei_dt, false, false, brgemm_row_major, 1.0f,
+                1.0f, jbgp.ic_without_padding, jbgp.oc_block,
+                jbgp.oc_without_padding, jbgp.os_block, jbgp.oc_block, jbgp.K);
 
-        if (jbgp.oc_block == 64 && bd_block != 6) jbgp.os_block = 6;
-        if (jbgp.oc_block == 48 && bd_block != 8) jbgp.os_block = 8;
-        jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
+        if (st == success) {
+            int bd_block = brg_desc.bd_block;
+
+            if (jbgp.oc_block == 64 && bd_block != 6) jbgp.os_block = 6;
+            if (jbgp.oc_block == 48 && bd_block != 8) jbgp.os_block = 8;
+            jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
+        }
     }
 
     // Configure matrix sizes
