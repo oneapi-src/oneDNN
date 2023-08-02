@@ -1785,6 +1785,21 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     return status::success;
 }
 
+void adjust_nthr(jit_brgemm_conv_conf_t &jcp, const memory_desc_wrapper &src_d,
+        const memory_desc_wrapper &dst_d) {
+    /* adjust the thread decomposition
+     * to improve the perf for small size problem
+     * the threshold 8192 is empirical */
+    static constexpr size_t threshold = 8 * 1024; // 8 KB per tensor
+    const bool in_small = src_d.size() < threshold;
+    const bool out_small = dst_d.size() < threshold;
+    if (in_small && out_small && jcp.ngroups < jcp.nthr
+            && jcp.nb_oc < jcp.nthr) {
+        int nthr = nstl::max(jcp.ngroups, jcp.nb_oc);
+        jcp.nthr = nstl::min(jcp.nthr, nthr);
+    }
+}
+
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
         cpu_isa_t isa, const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
@@ -1840,7 +1855,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
         best_brgb.oc_block = min_oc_block;
         const int est_amx_job = div_up(jcp.mb * div_up(jcp.os, 4 * 16)
                         * jcp.ngroups * div_up(jcp.oc, 4 * 16),
-                nthreads);
+                jcp.nthr);
         const bool small_amx_job = est_amx_job < 64 || jcp.oc < 256;
         auto start_ocb
                 = (is_amx(isa) && jcp.is_os_blocking && small_amx_job) ? 2 : 4;
@@ -2027,6 +2042,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
     }
 
     if (try_exec_type_res == false) return status::unimplemented;
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    adjust_nthr(jcp, src_d, dst_d);
+#endif
 
     // ============ end blocking ===========================================
 
@@ -2255,7 +2274,12 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     }
     best_brgb.save_to_jcp(jcp);
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    adjust_nthr(jcp, src_d, dst_d);
+#endif
+
     // =============== end blocking =================================
+
     jcp.brg_stride_a = jcp.ic_block * jcp.src_dsz;
     jcp.brg_stride_b = jcp.ic_block * jcp.oc_without_padding * jcp.wei_dsz;
 
@@ -2286,7 +2310,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (is_amx(isa)) {
         // heuristic for small mb
-        const bool is_small_mb = nthreads > 1 && jcp.mb == 1
+        const bool is_small_mb = jcp.nthr > 1 && jcp.mb == 1
                 && jcp.ic * jcp.oh <= 28 * 1024 && jcp.oc * jcp.oh <= 14 * 1024;
         MAYBE_UNUSED(is_small_mb);
         // non-unrolled kernel does not support bf32, only dispatch unrolled
