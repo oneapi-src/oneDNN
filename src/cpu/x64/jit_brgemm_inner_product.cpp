@@ -816,18 +816,17 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         if (nb_oc_b > 0 && brg_kernel != nullptr) {
             brgemm_palettes_.maybe_tile_configure(
                     is_amx, prev_ker_idx, brg_ker_idx);
-            for (int oc_block = 0; oc_block < nb_oc_b; oc_block++) {
-                addr_batch[oc_block].ptr.A = jbgp.use_buffer_a ? a_buffer
-                                + oc_block * jbgp.oc_block
+            for (int b = 0; b < nb_oc_b; b++) {
+                addr_batch[b].ptr.A = jbgp.use_buffer_a ? a_buffer
+                                + b * jbgp.oc_block
                                         * types::data_type_size(jbgp.dst_dt)
-                                                               : diff_dst
+                                                        : diff_dst
                                 + get_blk_off(diff_dst_d, jbgp.dst_dt, n,
-                                        oc + oc_block * jbgp.oc_block);
-                addr_batch[oc_block].ptr.B
-                        = b_buffer + buf_dt_size * (oc_block * size_B);
+                                        oc + b * jbgp.oc_block);
+                addr_batch[b].ptr.B = b_buffer + buf_dt_size * (b * size_B);
                 if (!jbgp.global_b_transpose && do_b_transpose)
-                    transform_b_chunk((char *)addr_batch[oc_block].ptr.B,
-                            get_weights_ptr(icb, ocb + oc_block), 1,
+                    transform_b_chunk((char *)addr_batch[b].ptr.B,
+                            get_weights_ptr(icb, ocb + b), 1,
                             is_ic_tail ? jbgp.ic % jbgp.ic_block
                                        : jbgp.ic_block,
                             jbgp.oc_block);
