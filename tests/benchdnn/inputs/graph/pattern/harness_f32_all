@@ -50,6 +50,7 @@
 # pool
 --reset  --in-shapes=0:2x9x22x62x42+1:1x9x1x1x1+2:1x1x1x1x1+3:1x1x1x1x1 --op-attrs=9:strides:2x2x2*pads_begin:1x1x1*pads_end:-1x1x0*kernel:2x4x3*exclude_pad:1 --case=pattern/f32/avgpool_3d_chain_fusion.json
 --reset  --in-shapes=0:2x128x4x4+1:1x128x1x1+2:1x128x1x1+3:1x1x1x1 --op-attrs=9:strides:1x1*pads_begin:0x0*pads_end:0x0*kernel:3x3*dilations:1x1 --case=pattern/f32/maxpool_chain_fusion.json
+--reset --in-shapes=0:2x128x4x4+1:1x128x1x1 --op-attrs=9:strides:1x1*pads_begin:0x0*pads_end:0x0*kernel:3x3*dilations:1x1 --case=pattern/f32/maxpool_sum_relu_fusion.json
 # eltwise
 --reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_hardswish_fusion.json
 --reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_log_fusion.json

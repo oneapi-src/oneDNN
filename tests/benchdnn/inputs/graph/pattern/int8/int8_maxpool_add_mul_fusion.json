@@ -1,5 +1,5 @@
 {
-  "version": "3.0.0",
+  "version": "3.2.0",
   "engine_kind": "cpu",
   "fpmath_mode": "strict",
   "graph": [
@@ -301,6 +301,75 @@
       ]
     },
     {
+      "id": 4098,
+      "name": "BINARY_3",
+      "kind": "Multiply",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 170,
+          "dtype": "f32",
+          "shape": [
+            1,
+            64,
+            300,
+            300
+          ],
+          "stride": [
+            5760000,
+            90000,
+            300,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 4257,
+          "dtype": "f32",
+          "shape": [
+            1,
+            64,
+            1,
+            1
+          ],
+          "stride": [
+            64,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 4258,
+          "dtype": "f32",
+          "shape": [
+            1,
+            64,
+            300,
+            300
+          ],
+          "stride": [
+            5760000,
+            90000,
+            300,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
       "id": 8208,
       "name": "QUANTIZE_4",
       "kind": "Quantize",
@@ -328,7 +397,7 @@
       },
       "inputs": [
         {
-          "id": 4257,
+          "id": 4258,
           "dtype": "f32",
           "shape": [
             1,

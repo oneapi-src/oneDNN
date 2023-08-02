@@ -11,6 +11,8 @@
 --reset --case=pattern/int8/int8_matmul_sum_add_mul_relu.json
 --reset --case=pattern/int8/int8_bf16_matmul_add_mul_relu.json
 --reset --case=pattern/int8/int8_bf16_matmul_sum_add_mul_relu.json
+--reset --case=pattern/int8/int8_avgpool_reshape_fusion.json
+--reset --case=pattern/int8/int8_avgpool_transpose_fusion.json
 # conv
 --reset  --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_bias_relu_fusion.json
 --reset  --in-shapes=0:1x2048x14x14+1:2048x64x3x3+2:2048 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/int8/int8_conv_bias_mish_fusion.json
@@ -55,7 +57,7 @@
 --reset  --in-shapes=0:16x1024+1:1024x512+2:1x512+3:16x512  --case=pattern/int8/int8_matmul_bias_sum_fusion.json
 --reset  --in-shapes=0:16x479+1:479x1024+2:1x1024+3:16x1024  --case=pattern/int8/int8_matmul_bias_sum_fusion.json
 # pool
---reset  --in-shapes=0:1x64x600x600+1:1x64x1x1 --op-attrs=9:strides:2x2*pads_begin:1x1*pads_end:0x0*kernel:3x3*dilations:1x1 --case=pattern/int8/int8_maxpool_fusion.json
+--reset  --in-shapes=0:1x64x600x600+1:1x64x1x1 --op-attrs=9:strides:2x2*pads_begin:1x1*pads_end:0x0*kernel:3x3*dilations:1x1 --case=pattern/int8/int8_maxpool_add_mul_fusion.json
 # deconv
 --reset  --in-shapes=0:2x16x5x5+1:16x4x3x3 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:4 --case=pattern/int8/int8_convtranspose_post_ops_square_fusion.json
 --reset  --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x64x1x1 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_chain_fusion.json
