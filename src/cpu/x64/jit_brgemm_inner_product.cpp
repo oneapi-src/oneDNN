@@ -120,11 +120,6 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             ? reinterpret_cast<const int32_t *>(&weights[offset])
             : nullptr;
 
-    bool is_os_tail = (jbgp.mb < jbgp.os_block);
-    bool is_oc_tail = (jbgp.oc < jbgp.oc_block);
-    int base_brg_ker_idx = brgemm_inner_product_utils::
-            get_brg_kernel_index( // TODO: Can be calculated on initialization stage
-                    false, false, is_os_tail, is_oc_tail, false);
     const dims_t ic_dims = {0, jbgp.ic_block, 0, 0, 0};
     const auto wei_ic_stride
             = types::data_type_size(jbgp.wei_dt) * weights_d.off_v(ic_dims);
@@ -364,9 +359,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
         const auto order = jbgp.loop_order;
 
+        // For keeping track of last tile configuration used.
         int prev_ker_idx = -1;
-        brgemm_palettes_.maybe_tile_configure(
-                is_amx, prev_ker_idx, base_brg_ker_idx);
 
         int icc {0}, occ {0}, osc {0};
         int start {start_init};
@@ -668,13 +662,6 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     const dim_t acc_dt_sz = types::data_type_size(jbgp.acc_dt);
     const dim_t src_dt_sz = types::data_type_size(jbgp.src_dt);
 
-    bool is_os_tail = (jbgp.mb < jbgp.os_block);
-    bool is_ic_tail = (jbgp.ic < jbgp.ic_block);
-    bool is_oc_tail = (jbgp.oc < jbgp.oc_block) && !jbgp.use_buffer_a;
-    const int base_brg_ker_idx = brgemm_inner_product_utils::
-            get_brg_kernel_index( // TODO: Can be calculated on initialization stage
-                    false, false, is_os_tail, is_ic_tail, is_oc_tail);
-
     const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     const int work_amount = jbgp.nb_ic * os_chunks;
     const int num_threads
@@ -952,9 +939,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         if (nthr_oc > 1)
             balance211(oc_chunks, nthr_oc, ithr_oc, occ_start, occ_end);
 
+        // For keeping track of last tile configuration used.
         int prev_ker_idx = -1;
-        brgemm_palettes_.maybe_tile_configure(
-                is_amx, prev_ker_idx, base_brg_ker_idx);
 
         int icb {0}, oss {0};
         nd_iterator_init(start, oss, os_chunks, icb, jbgp.nb_ic);
