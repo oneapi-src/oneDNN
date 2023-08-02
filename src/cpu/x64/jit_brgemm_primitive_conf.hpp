@@ -30,12 +30,13 @@ struct jit_brgemm_primitive_conf_t {
     conv_harness_t harness;
     int simd_w;
     int ndims;
-    int mb;
+    int mb, os;
     int ngroups, ic, oc, oc_without_padding, ic_without_padding;
-    int id, ih, iw, od, oh, ow, os;
+    int id = 1, ih = 1, iw = 1;
+    int od = 1, oh = 1, ow = 1;
+    int kd = 1, kh = 1, kw = 1;
     int f_pad, l_pad, t_pad;
     int back_pad, r_pad, b_pad;
-    int kd, kh, kw;
     int stride_d, stride_h, stride_w;
     int dilate_d, dilate_h, dilate_w;
     format_tag_t src_tag, wei_tag, dst_tag; // temporary workaround
