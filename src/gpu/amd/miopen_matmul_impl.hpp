@@ -21,7 +21,7 @@
 #include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 #include "miopen/miopen.h"
-#include "rocblas.h"
+#include "rocblas/rocblas.h"
 
 namespace dnnl {
 namespace impl {
