@@ -1148,7 +1148,9 @@ status_t infer_bn_fwd_train_output_shape(op_t *n,
 
     const auto in = logical_tensor_wrapper_t(inputs[0]);
     cvec_int64 input_dims = in.vdims();
-    if (input_dims.size() < 4) return status::invalid_shape;
+    // Graph API supports 0d spatial input of batchnorm at minimum,
+    // of which the input dim size is 2
+    if (input_dims.size() < 2) return status::invalid_shape;
 
     std::string fmt = n->has_attr(op_attr::data_format)
             ? n->get_attr<std::string>(op_attr::data_format)
