@@ -940,4 +940,21 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
     }
 }
 
+// Drop "destination" memory for in-place case. `args` will take care of setting
+// proper pointers to make in-place mode happen.
+//
+// Placement handling should happen before fast exiting from `no_host_memory`,
+// otherwise, in-place mode will not be switched on.
+template <typename prb_t>
+void update_inplace_memory_args(
+        dnn_mem_map_t &mem_map, const prb_t *prb, dir_t dir) {
+    const bool inplace_fwd = prb->inplace && (prb->dir & FLAG_FWD);
+    const bool inplace_bwd = prb->inplace && (dir & FLAG_BWD);
+    if (inplace_fwd) {
+        mem_map[DNNL_ARG_DST] = dnn_mem_t();
+    } else if (inplace_bwd) {
+        mem_map[DNNL_ARG_DIFF_SRC] = dnn_mem_t();
+    }
+}
+
 #endif
