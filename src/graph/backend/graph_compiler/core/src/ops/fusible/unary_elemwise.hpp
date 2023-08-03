@@ -313,8 +313,8 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : unary_elementwise_op_impl_t("hardswish", ins, outs, attrs) {
         alg_kind_ = brgemm::eltwise_hardswish;
-        alpha_ = attrs.get<float>("alpha");
-        beta_ = attrs.get<float>("beta");
+        alpha_ = attrs.get_or_else<float>("alpha", 1.f / 6.f);
+        beta_ = attrs.get_or_else<float>("beta", 0.5f);
     }
     hardswish_op_t(graph_tensor_ptr v, float alpha = 1.f, float beta = 0.f)
         : unary_elementwise_op_impl_t(std::move(v), "hardswish")

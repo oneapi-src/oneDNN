@@ -65,7 +65,9 @@
     F(hardsigmoid); \
     F(clamp); \
     F(leaky_relu); \
-    F(duplicate);
+    F(duplicate); \
+    F(pooling_avg); \
+    F(pooling_max);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;
 
