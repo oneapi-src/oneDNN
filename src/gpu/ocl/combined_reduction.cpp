@@ -69,7 +69,8 @@ bool reduction_phase_conf_t::can_use_block_reads() {
 
 reduction_phase_conf_t::reduction_phase_conf_t(
         const reduction_subproblem_t &subprb, data_type_t src_type,
-        data_type_t dst_type, const compute::compute_engine_t *compute_engine)
+        data_type_t dst_type, const compute::compute_engine_t *compute_engine,
+        bool large_grf_mode)
     : reduction_subproblem_t(subprb)
     , src_type(src_type)
     , dst_type(dst_type)
@@ -77,8 +78,8 @@ reduction_phase_conf_t::reduction_phase_conf_t(
     , with_block_reads(can_use_block_reads()) {
 
     const int num_EU = compute_engine->device_info()->eu_count();
-    const int max_wg_size
-            = static_cast<int>(compute_engine->device_info()->max_wg_size());
+    const int max_wg_size = static_cast<int>(
+            compute_engine->device_info()->max_wg_size(large_grf_mode));
 
     // inner_dim can either be:
     // 1. packed into a single subgroup (small inner dim), or
@@ -194,7 +195,7 @@ std::array<reduction_subproblem_t, 2> subdivide_subproblem(
 status_t split_into_phases(const reduction_subproblem_t &subprb,
         data_type_t accum_data_type,
         const compute::compute_engine_t *compute_engine,
-        std::vector<reduction_phase_conf_t> &phases) {
+        std::vector<reduction_phase_conf_t> &phases, bool large_grf_mode) {
 
     const int subgroup_size
             = compute_engine->device_info()->max_subgroup_size();
@@ -230,16 +231,16 @@ status_t split_into_phases(const reduction_subproblem_t &subprb,
     dim_t reduction_size = reduction_elems / reduction_end;
 
     if (reduction_end == 1) {
-        phases.emplace_back(
-                subprb, accum_data_type, accum_data_type, compute_engine);
+        phases.emplace_back(subprb, accum_data_type, accum_data_type,
+                compute_engine, large_grf_mode);
         return status::success;
     } else {
         // Subdivide the subproblem by reducing by reduction_size first
         auto subdivided = subdivide_subproblem(subprb, reduction_size);
         phases.emplace_back(subdivided[0], accum_data_type, accum_data_type,
-                compute_engine);
-        return split_into_phases(
-                subdivided[1], accum_data_type, compute_engine, phases);
+                compute_engine, large_grf_mode);
+        return split_into_phases(subdivided[1], accum_data_type, compute_engine,
+                phases, large_grf_mode);
     }
 }
 
@@ -294,12 +295,15 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     const compute::compute_engine_t *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine);
 
+    auto *gpu_attr
+            = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
     // Further break up phases if needed, for parallelism
     data_type_t accum_data_type = types::default_accum_data_type(
             src_mdw.data_type(), data_type::undef);
     for (auto &subprb : subprbs) {
-        CHECK(split_into_phases(
-                subprb, accum_data_type, compute_engine, phases));
+        CHECK(split_into_phases(subprb, accum_data_type, compute_engine, phases,
+                large_grf_mode));
     }
 
     // Compute div from basic mdw dims

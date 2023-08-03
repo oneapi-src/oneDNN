@@ -27,7 +27,7 @@ namespace ocl {
 atomic_reduction_conf_t::atomic_reduction_conf_t(
         const reduction_subproblem_t &subprb, data_type_t src_type,
         data_type_t dst_type, bool is_first, bool is_final,
-        const compute::device_info_t &device_info)
+        const compute::device_info_t &device_info, bool large_grf_mode)
     : reduction_subproblem_t(subprb)
     , src_type(src_type)
     , dst_type(dst_type)
@@ -36,7 +36,7 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
     , subgroup_size(device_info.max_subgroup_size()) {
     auto arch = device_info.gpu_arch();
     const int threads_per_eu = compute::device_info_t::threads_per_eu(arch);
-    const size_t max_wg_size = device_info.max_wg_size();
+    const size_t max_wg_size = device_info.max_wg_size(large_grf_mode);
     const int eu_count = device_info.eu_count();
     const size_t max_sg_per_wg = utils::div_up(max_wg_size, subgroup_size);
 
@@ -186,6 +186,9 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     const compute::compute_engine_t *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine);
+    auto *gpu_attr
+            = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
 
     data_type_t accum_data_type = types::default_accum_data_type(
             src_mdw.data_type(), data_type::undef);
@@ -196,7 +199,7 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
         data_type_t dst_dt = is_final ? dst_mdw.data_type() : accum_data_type;
 
         phases.emplace_back(subprbs[i], src_dt, dst_dt, is_first, is_final,
-                *compute_engine->device_info());
+                *compute_engine->device_info(), large_grf_mode);
         atomic_reduction_conf_t &phase = phases.back();
         if (phase.inner_block.block % phase.subgroup_size != 0) {
             return status::unimplemented;

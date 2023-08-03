@@ -37,7 +37,8 @@ bool mayiuse_sg(const int sg_size, engine_t *engine) {
 };
 
 bool is_fused_kernel_applicable(lnorm_conf_t &conf,
-        const layer_normalization_pd_t *pd, engine_t *engine) {
+        const layer_normalization_pd_t *pd, engine_t *engine,
+        bool large_grf_mode) {
     auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
 
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
@@ -47,7 +48,8 @@ bool is_fused_kernel_applicable(lnorm_conf_t &conf,
     auto eu_count = compute_engine->device_info()->eu_count();
     auto max_eus_per_wg = device_info_t::max_eus_per_wg(gpu_arch);
     const int max_ss = utils::div_up(eu_count, max_eus_per_wg);
-    const size_t max_wg_size = compute_engine->device_info()->max_wg_size();
+    const size_t max_wg_size
+            = compute_engine->device_info()->max_wg_size(large_grf_mode);
     const size_t max_slm_size = device_info_t::max_slm_size(gpu_arch);
 
     // Plain layout only
@@ -232,11 +234,16 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             conf.is_fwd ? dst_mdw.md_ : src_mdw.md_);
     const auto &dims = conf.is_fwd ? src_mdw.padded_dims() : dst_mdw.dims();
 
+    auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+            pd->attr()->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
     auto eu_count = compute_engine->device_info()->eu_count();
-    auto threads_per_eu = device_info_t::threads_per_eu(gpu_arch, false);
+    auto threads_per_eu
+            = device_info_t::threads_per_eu(gpu_arch, large_grf_mode);
     auto max_eus_per_wg = device_info_t::max_eus_per_wg(gpu_arch);
     const int max_ss = utils::div_up(eu_count, max_eus_per_wg);
-    const size_t max_wg_size = compute_engine->device_info()->max_wg_size();
+    const size_t max_wg_size
+            = compute_engine->device_info()->max_wg_size(large_grf_mode);
 
     // Vectorized vs Reference heuristics.
     // PVC, FWD:
@@ -354,7 +361,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         // In-place operation can be recognized on execute phase only,
         // so if it's applicable we should build kernels for both approaches.
 
-        conf.use_fused = is_fused_kernel_applicable(conf, pd, engine);
+        conf.use_fused
+                = is_fused_kernel_applicable(conf, pd, engine, large_grf_mode);
         const int best_sg_size = [&]() {
             int size = desired_sg_size;
             while (size > 1) {

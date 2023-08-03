@@ -31,7 +31,8 @@ namespace ocl {
 struct atomic_reduction_conf_t : public reduction_subproblem_t {
     atomic_reduction_conf_t(const reduction_subproblem_t &subprb,
             data_type_t src_type, data_type_t dst_type, bool is_first,
-            bool is_final, const compute::device_info_t &device_info);
+            bool is_final, const compute::device_info_t &device_info,
+            bool large_grf_mode);
     data_type_t src_type, dst_type;
     compute::nd_range_t nd_range;
 

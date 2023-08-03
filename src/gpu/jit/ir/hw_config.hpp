@@ -52,7 +52,7 @@ class hw_config_t {
 public:
     hw_config_t() = default;
 
-    hw_config_t(const engine_t *engine) {
+    hw_config_t(const engine_t *engine, bool large_grf_mode) {
         using namespace compute;
         auto compute_engine = utils::downcast<const compute_engine_t *>(engine);
 
@@ -60,7 +60,8 @@ public:
         gpu_arch_t gpu_arch = device_info->gpu_arch();
         stepping_id_ = device_info->stepping_id();
         eu_count_ = device_info->eu_count();
-        max_wg_size_ = static_cast<int>(device_info->max_wg_size());
+        max_wg_size_
+                = static_cast<int>(device_info->max_wg_size(large_grf_mode));
         large_grf_support_ = compute_engine->mayiuse_large_grf_mode();
         systolic_support_ = device_info->mayiuse_systolic();
 

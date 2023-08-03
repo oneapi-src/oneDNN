@@ -93,10 +93,11 @@ inline float get_thr_utilization(
 }
 
 // Local group size adjustment.
-void adjust_lws_calc_kernel(bnorm_conf_t &conf, engine_t *engine) {
+void adjust_lws_calc_kernel(
+        bnorm_conf_t &conf, engine_t *engine, bool large_grf_mode) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto eu_count = compute_engine->device_info()->eu_count();
-    auto max_lws = compute_engine->device_info()->max_wg_size();
+    auto max_lws = compute_engine->device_info()->max_wg_size(large_grf_mode);
     auto eus_per_ss = compute_engine->device_info()->max_eus_per_wg();
     const int max_ss = utils::div_up(eu_count, eus_per_ss);
 
@@ -427,8 +428,12 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     CHECK(conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16));
     conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
     conf.dispatch_calc_stat.generate();
-    if (conf.use_fused_atomics_reduction)
-        adjust_lws_calc_kernel(conf, compute_engine);
+    if (conf.use_fused_atomics_reduction) {
+        auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+                pd->attr()->gpu_attr_.get());
+        bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
+        adjust_lws_calc_kernel(conf, compute_engine, large_grf_mode);
+    }
 
     conf.dispatch_reduce_stat = compute_engine->create_dispatch();
     int reduce_sub_group_count = 1;

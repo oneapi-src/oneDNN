@@ -115,7 +115,10 @@ status_t gen_reorder_t::pd_t::init(
     if (!check_layout(src_layout)) return status::unimplemented;
     if (!check_layout(dst_layout)) return status::unimplemented;
     if (!compute_engine->mayiuse_ngen_kernels()) return status::unimplemented;
-    exec_config_t exec_cfg(engine);
+    auto *gpu_attr
+            = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
+    exec_config_t exec_cfg(hw_config_t(engine, large_grf_mode));
     exec_cfg.set_regs(128);
     exec_cfg.set_simd(16);
     cfg = std::make_shared<reorder_config_t>(exec_cfg, src_layout, dst_layout);

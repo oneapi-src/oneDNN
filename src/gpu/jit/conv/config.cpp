@@ -194,8 +194,10 @@ status_t conv_problem_t::init(
     ksp = kd * kh * kw;
     isp = id * ih * iw;
     osp = od * oh * ow;
-
-    hw_config_t hw_cfg(engine);
+    auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+            conv_pd->attr()->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
+    hw_config_t hw_cfg(engine, large_grf_mode);
 
     CHECK(init_abc_data_types(hw_cfg));
     CHECK(init_acc_data_type());
@@ -1028,7 +1030,10 @@ void init_bwd_d_optimize(conv_config_t &cfg) {
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
         const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr) {
-    hw_config_t hw_cfg(engine);
+    auto *gpu_attr
+            = utils::downcast<gpu_primitive_attr_t *>(attr->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
+    hw_config_t hw_cfg(engine, large_grf_mode);
 
     if (!hw_ok(hw_cfg)) return status::unimplemented;
     if (!data_types_ok(prb, hw_cfg)) return status::unimplemented;

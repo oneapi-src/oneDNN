@@ -31,7 +31,8 @@ namespace ocl {
 struct reduction_phase_conf_t : public reduction_subproblem_t {
     reduction_phase_conf_t(const reduction_subproblem_t &subprb,
             data_type_t src_type, data_type_t dst_type,
-            const compute::compute_engine_t *compute_engine);
+            const compute::compute_engine_t *compute_engine,
+            bool large_grf_mode);
     bool can_use_block_reads();
     data_type_t src_type, dst_type;
     compute::nd_range_t nd_range;
