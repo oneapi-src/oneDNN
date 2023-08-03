@@ -572,7 +572,8 @@ static void compute_block_pooling(
 
         body = cur.isa<stmts>()
                 ? cur
-                : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
+                : make_stmt<stmts_node_t>(std::vector<stmt> {cur});
+        if (!body.ptr_same(cur)) add_parent_node(cur, body);
 
         if (output_tensor != nullptr) {
             // create output inner anchors for postop fusion
@@ -596,7 +597,8 @@ static void compute_block_pooling(
                 dst.get_shape()[i],
                 (i == int(iter_vars.size() - 1)) ? int(vx_info.lanes) : 1, body,
                 true, i == 0 ? for_type::PARALLEL : for_type::NORMAL);
-        if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = true;
+        cur->attr()[stmt_attr_key::merge_loop] = true;
+        add_parent_node(body, cur);
     }
 
     bld->emit(cur);
