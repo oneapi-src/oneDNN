@@ -98,12 +98,12 @@ void assign_dilation_val(bool has_h, bool has_d, int64_t &w, int64_t &h,
 void assign_shape_val(int64_t &c, int64_t &w, int64_t &h, int64_t &d,
         const std::vector<int64_t> &ncx_shape) {
     auto ndims = ncx_shape.size();
+    bool has_w = ndims > 2;
     bool has_h = ndims > 3;
     bool has_d = ndims > 4;
-    // shape includes { c, w, h, d }
     // NCDHW
     c = ncx_shape[1];
-    w = ncx_shape[ndims - 1];
+    w = has_w ? ncx_shape[ndims - 1] : 1;
     h = has_h ? ncx_shape[ndims - 2] : 1;
     d = has_d ? ncx_shape[2] : 1;
 };
