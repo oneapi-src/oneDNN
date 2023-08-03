@@ -45,6 +45,8 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "utils/cold_cache.hpp"
+
 extern "C" dnnl_status_t dnnl_impl_notify_profiling_complete(
         dnnl_stream_t stream);
 
@@ -413,8 +415,12 @@ void finalize() {
 
 inline int measure_perf_individual(timer::timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
+    cold_cache_t cold_cache(dnnl_args);
+
     t.reset();
     while (true) {
+        if (!cold_cache.update_dnnl_args(dnnl_args)) break;
+        t.start();
         DNN_SAFE(perf_func(stream, dnnl_args), WARN);
         t.stamp();
         if (should_stop(t)) break;
@@ -435,18 +441,20 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
     DNN_SAFE(perf_func(stream, dnnl_args), WARN);
     DNN_SAFE(dnnl_stream_wait(stream), CRIT);
 
+    cold_cache_t cold_cache(dnnl_args);
+
+    bool is_first_loop = true;
     int cur_batch_times
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
-
-    t.reset();
 
     // Nvidia/AMD don't support profiling.
     const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
     if (use_profiling) reset_gpu_profiling(stream);
 
-    bool is_first_loop = true;
+    t.reset();
     while (true) {
         for (int i = 0; i < cur_batch_times; i++) {
+            if (!cold_cache.update_dnnl_args(dnnl_args)) break;
             DNN_SAFE(perf_func(stream, dnnl_args), WARN);
         }
         DNN_SAFE(dnnl_stream_wait(stream), CRIT);
@@ -471,7 +479,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             t.stamp(cur_batch_times);
         }
 
-        if (should_stop(t)) break;
+        if (should_stop(t) || cold_cache.should_stop()) break;
 
         // Adjust cur_batch_times after the first batch run
         if (is_first_loop) {

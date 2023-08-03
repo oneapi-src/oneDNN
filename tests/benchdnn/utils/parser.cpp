@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cctype>
 
+#include "utils/cold_cache.hpp"
 #include "utils/parser.hpp"
 
 #include "dnnl_common.hpp"
@@ -705,6 +706,40 @@ static bool parse_canonical(
             canonical, false, str2bool, str, option_name, help);
 }
 
+static bool parse_cold_cache(
+        const char *str, const std::string &option_name = "cold-cache") {
+    static const std::string help
+            = "MODE    (Default: `none`)\n    Instructs the driver to enable a "
+              "cold cache for performance mode.\n    When set to `none` (the "
+              "default), cold cache is disabled.\n    When set to `wei`, cold "
+              "cache is enabled for weights argument only. Targets forward "
+              "propagation kind.\n    When set to `all`, cold cache is enabled "
+              "for each execution argument.\n    When set to `custom`, cold "
+              "cache is enabled for custom arguments which should be specified "
+              "directly in the code. Refer to doc for more details.\n";
+
+    const auto str2cold_cache_mode = [](const std::string &_str) {
+        cold_cache_mode_t cc_mode = default_cold_cache_mode;
+        if (_str == "none") {
+            cc_mode = cold_cache_mode_t::none;
+        } else if (_str == "wei") {
+            cc_mode = cold_cache_mode_t::wei;
+        } else if (_str == "all") {
+            cc_mode = cold_cache_mode_t::all;
+        } else if (_str == "custom") {
+            cc_mode = cold_cache_mode_t::custom;
+        } else {
+            BENCHDNN_PRINT(0, "%s \'%s\'\n%s", "Error: unknown cold cache mode",
+                    _str.c_str(), help.c_str());
+            SAFE_V(FAIL);
+        }
+        return cc_mode;
+    };
+
+    return parse_single_value_option(cold_cache_mode, cold_cache_mode_t::none,
+            str2cold_cache_mode, str, option_name, help);
+}
+
 static bool parse_cpu_isa_hints(
         const char *str, const std::string &option_name = "cpu-isa-hints") {
     static const std::string help
@@ -1077,10 +1112,11 @@ bool parse_bench_settings(const char *str) {
 
     bool parsed = parse_allow_enum_tags_only(str)
             || parse_attr_same_pd_check(str) || parse_canonical(str)
-            || parse_cpu_isa_hints(str) || parse_engine(str)
-            || parse_fast_ref_gpu(str) || parse_fix_times_per_prb(str)
-            || parse_max_ms_per_prb(str) || parse_repeats_per_prb(str)
-            || parse_mem_check(str) || parse_memory_kind(str) || parse_mode(str)
+            || parse_cold_cache(str) || parse_cpu_isa_hints(str)
+            || parse_engine(str) || parse_fast_ref_gpu(str)
+            || parse_fix_times_per_prb(str) || parse_max_ms_per_prb(str)
+            || parse_repeats_per_prb(str) || parse_mem_check(str)
+            || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_skip_impl(str)
             || parse_start(str) || parse_verbose(str);
 

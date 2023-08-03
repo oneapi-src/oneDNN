@@ -128,6 +128,17 @@ The following common options are applicable only for correctness mode:
 
 The following common options are applicable only for performance mode:
 
+* `--cold-cache=MODE` -- Instructs the driver to enable a cold cache measurement
+  mode. When `MODE` is set to `none` (the default), cold cache is disabled.
+  When `MODE` is set to `wei`, cold cache is enabled for weights argument
+  only. This mode targets forward and backward by data propagation kinds. When
+  `MODE` is set to `all`, cold cache is enabled for each execution argument.
+  This targets any propagation kind but mostly bandwidth-limited functionality
+  in order to emulate first access to data or branching cases. When `MODE` is
+  set to `custom`, cold cache is enabled for specified arguments, but it
+  requires manual code adjustments. Refer to [cold cache](cold_cache.md) for
+  more information.
+
 * `--fix-times-per-prb=N` -- Specifies the limit in rounds for performance
   benchmarking set per problem. `N` is a non-negative integer. When `N` is set
   to `0` (the default), time criterion is used for benchmarking instead. This
