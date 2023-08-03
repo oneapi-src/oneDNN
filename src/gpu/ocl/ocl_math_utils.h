@@ -356,7 +356,6 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
 
 // Atomics
 #if __OPENCL_C_VERSION__ >= 200
-#ifdef cl_intel_global_float_atomics
 #define DECLARE_ATOMIC_OP(op, type) \
     type __attribute__((overloadable)) CONCAT3(atomic_, op, _global)( \
             volatile global CONCAT2(atomic_, type) * source, type operand) { \
@@ -364,11 +363,11 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
                 source, operand, memory_order_relaxed); \
     }
 
+#if defined(cl_intel_global_float_atomics) \
+        || (defined(cl_ext_float_atomics) \
+                && defined(__opencl_c_ext_fp32_global_atomic_add))
 DECLARE_ATOMIC_OP(add, float)
 DECLARE_ATOMIC_OP(sub, float)
-DECLARE_ATOMIC_OP(min, float)
-DECLARE_ATOMIC_OP(max, float)
-
 #else // float atomics
 inline float atomic_add_global(
         volatile __global atomic_float *source, float operand) {
@@ -384,6 +383,14 @@ inline float atomic_add_global(
     return old_val;
 }
 #endif
+
+#if defined(cl_intel_global_float_atomics) \
+        || (defined(cl_ext_float_atomics) \
+                && defined(__opencl_c_ext_fp32_global_atomic_min_max))
+DECLARE_ATOMIC_OP(min, float)
+DECLARE_ATOMIC_OP(max, float)
+#endif
+
 #endif
 
 #endif
