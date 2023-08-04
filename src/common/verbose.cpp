@@ -120,6 +120,14 @@ void print_header() {
                "kind,memory_descriptors,attributes,auxiliary,problem_desc,exec_"
                "time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
+
+#ifdef ONEDNN_BUILD_GRAPH
+        printf("onednn_verbose,info,graph_template:");
+        printf("%soperation,engine,partition_id,partition_kind,op_names,"
+               "data_formats,logical_tensors,fpmath_mode,backend,exec_"
+               "time\n",
+                get_verbose_timestamp() ? "timestamp," : "");
+#endif
     }
 }
 
