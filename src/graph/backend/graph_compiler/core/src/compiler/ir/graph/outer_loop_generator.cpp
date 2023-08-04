@@ -29,6 +29,7 @@
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/pooling.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
@@ -104,7 +105,7 @@ outer_loop_generator_t::outer_loop_generator_t(
     , base_tsr_idx_(base_tsr_idx)
     , use_output_mode_(use_output_mode) {}
 
-typedef std::vector<int> (*loop_sort_rule_func)(
+typedef std::vector<int> (*loop_sort_rule_func)(const context_ptr &,
         const std::vector<int> &, sc_graph_t &, const tensor &);
 
 /**
@@ -156,7 +157,7 @@ static bool detect_loop_conflict(fusion_manager *fmgr) {
  * E.g. loop axis is {0, 1, 2, 3}, rd_axis is {1, 2}, after func, we get loop
  * axis {0, 3, 1, 2}
  * */
-static std::vector<int> move_reduce_axis_to_inner(
+static std::vector<int> move_reduce_axis_to_inner(const context_ptr &ctx,
         const std::vector<int> &in_axis, sc_graph_t &graph, const tensor &tsr) {
     if (graph.is_dynamic() && !axis_can_be_sort(graph)) { return in_axis; }
     auto run_threads = runtime_config_t::get().get_num_threads();
@@ -218,6 +219,66 @@ static std::vector<int> move_reduce_axis_to_inner(
 }
 
 /**
+ * Move last channel axis to outer if pooling format is NXC, in order to acheive
+ * better loop parallelism
+ * */
+static std::vector<int> move_pooling_axis_to_outer(const context_ptr &ctx,
+        const std::vector<int> &in_axis, sc_graph_t &graph, const tensor &tsr) {
+    if (graph.is_dynamic() && !axis_can_be_sort(graph)) { return in_axis; }
+
+    if (!is_optimized_sub_graph(graph)) return in_axis;
+    auto run_threads = runtime_config_t::get().get_num_threads();
+    // auto skip
+    if (run_threads == 1) return in_axis;
+    std::vector<int> out_axis(in_axis.begin(), in_axis.end());
+    bool use_vectorized = false;
+    if (std::any_of(graph.ops_.begin(), graph.ops_.end(),
+                [&ctx, &run_threads, &use_vectorized](const sc_op_ptr &node) {
+                    if (!node->isa<pooling_op_t>()) return false;
+                    auto &detail = node->get_inputs()[0]->details_;
+                    // skip if not a plain format
+                    if (detail.get_format().is_blocking()) return false;
+                    auto shape = detail.get_blocking_dims();
+                    auto pool = node->dyn_cast<pooling_op_t>();
+                    auto channel_axis = pool->get_channel_axis();
+                    COMPILE_ASSERT(channel_axis.size() == 1,
+                            "plain format is expected")
+                    // skip if not channel last
+                    if (pool->get_channel_axis()[0]
+                            != (static_cast<int>(shape.size()) - 1))
+                        return false;
+                    auto &last_dim = shape.back();
+                    auto vector_lanes
+                            = vectorize_step(ctx, detail.dtype_.type_code_);
+                    use_vectorized = (last_dim / vector_lanes
+                            && last_dim % vector_lanes == 0);
+                    if (use_vectorized) {
+                        shape.back() = std::max(
+                                (int64_t)1, shape.back() / vector_lanes);
+                    }
+                    auto pool_axis = pool->get_real_pooling_axis();
+                    int parallel_num = 1;
+                    // calculate possible parallelism
+                    for (int i = 0; i < static_cast<int>(shape.size()); i++) {
+                        if (std::find(pool_axis.begin(), pool_axis.end(), i)
+                                != pool_axis.end())
+                            continue;
+                        parallel_num *= shape[i];
+                    }
+                    // check parallel_num
+                    return parallel_num >= run_threads;
+                })) {
+        // move last channel axis to outer
+        auto &last_channel_ax = out_axis.back();
+        out_axis.insert(out_axis.begin() + 1, last_channel_ax);
+        if (!use_vectorized) out_axis.pop_back();
+        return out_axis;
+    } else {
+        return in_axis;
+    }
+}
+
+/**
  * Satisfy continuous access of input tensor include vectorization on last axis
  * and ensure size of each load is more than cache line.
  *
@@ -228,7 +289,7 @@ static std::vector<int> move_reduce_axis_to_inner(
  * IF input tensor(origin shape) is f32{32, 4, 16, 8, 8}, after func we get loop
  * axis = {1, 0, 2, 3, 4}
  * */
-static std::vector<int> continuous_access_satisfaction(
+static std::vector<int> continuous_access_satisfaction(const context_ptr &ctx,
         const std::vector<int> &in_axis, sc_graph_t &graph, const tensor &tsr) {
     assert(in_axis.size() == tsr->dims_.size());
     if (!axis_can_be_sort(graph)) { return in_axis; }
@@ -263,7 +324,8 @@ static std::vector<int> continuous_access_satisfaction(
 }
 
 static std::vector<loop_sort_rule_func> loop_sort_rules
-        = {move_reduce_axis_to_inner, continuous_access_satisfaction};
+        = {move_reduce_axis_to_inner, continuous_access_satisfaction,
+                move_pooling_axis_to_outer};
 bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
         fusion_manager *fusion, const std::vector<expr> &inputs,
         const std::vector<expr> &outputs, std::vector<for_loop> &loops) const {
@@ -306,7 +368,7 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
     }
     // sort loop axis with rules
     for (auto sort_rule : loop_sort_rules) {
-        loop_axis = sort_rule(loop_axis, fusion->get_graph(), base_tsr);
+        loop_axis = sort_rule(ctx, loop_axis, fusion->get_graph(), base_tsr);
         // check whether need to repartition
         if (fusion->get_graph().attrs_.get_or_else(
                     "temp.need_repartition", false)) {
@@ -317,6 +379,17 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
 
     // generate anchors from inner to outer
     if (numdims > 1) {
+        // get ax for last dim
+        int max_ax = *std::max_element(loop_axis.begin(), loop_axis.end());
+        // if duplicated ax found, it means that loop generator needs to split
+        // loop for last dim vectorization
+        bool need_split_loop
+                = (std::count(loop_axis.begin(), loop_axis.end(), max_ax) == 2);
+        // set last dim slice range for lanes
+        if (need_split_loop) {
+            cur_tsr_slice[max_ax]
+                    = std::make_pair(loop_vars[max_ax] * lanes, lanes);
+        }
         for (size_t i = 0; i < numdims - 1; i++) {
             // loop num is current dimension index
             auto loop_num = loop_axis[numdims - i - 1];
@@ -329,8 +402,10 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
                     {tensor_slice(base_tsr, slice_range(cur_tsr_slice))});
             auto body = bld->pop_scope();
             auto loop = bld->push_for_loop(loop_vars[upper_loop_num], 0,
-                    base_tsr->dims_[upper_loop_num], 1, body, true,
-                    for_type::NORMAL);
+                    (need_split_loop && upper_loop_num == max_ax)
+                            ? do_cast_and_fold(base_tsr->dims_[max_ax] / lanes)
+                            : base_tsr->dims_[upper_loop_num],
+                    1, body, true, for_type::NORMAL);
             loops.emplace_back(loop.checked_as<for_loop>());
         }
     } else {

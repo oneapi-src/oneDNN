@@ -59,6 +59,10 @@ static std::vector<int> get_real_pooling_axis_form_tensor(
     return real_required_axis;
 }
 
+std::vector<int> pooling_op_t::get_real_pooling_axis() const {
+    return get_real_pooling_axis_form_tensor(get_inputs()[0], channel_last_);
+}
+
 // will change format code from ncx/nxc -> ncx to help compute_block
 static std::vector<int> get_ncx_formatcode_vector_form_tensor(
         const graph_tensor_ptr &t, bool channal_last) {
@@ -81,6 +85,16 @@ static std::vector<int> get_ncx_formatcode_vector_form_tensor(
     }
 
     return out;
+}
+
+std::vector<int> pooling_op_t::get_channel_axis() const {
+    std::vector<int> ret;
+    auto ncx_fmt_vec = get_ncx_formatcode_vector_form_tensor(
+            get_inputs()[0], channel_last_);
+    for (int i = 0; i < static_cast<int>(ncx_fmt_vec.size()); i++) {
+        if (ncx_fmt_vec[i] == 1) ret.emplace_back(i);
+    }
+    return ret;
 }
 
 static void check_format(sc_data_format_t fmt, bool channel_last) {
@@ -226,7 +240,7 @@ static void check_and_set_kernel_strides_and_pooling_type(any_map_t &attrs,
 
 static bool check_data_format_channel_last(const any_map_t &attrs) {
     std::string data_format = attrs.get_or_else<std::string>(
-            pooling_attr_key::data_format, data_format_options::NCX);
+            pooling_attr_key::data_format, data_format_options::NXC);
     COMPILE_ASSERT(data_format == data_format_options::NXC
                     || data_format == data_format_options::NCX,
             "Error data_format:" + data_format);

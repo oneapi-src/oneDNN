@@ -83,6 +83,10 @@ public:
     size_t compute_workload(const std::vector<shape_dtype_pair> &,
             const std::vector<shape_dtype_pair> &) override;
 
+    std::vector<int> get_real_pooling_axis() const;
+
+    std::vector<int> get_channel_axis() const;
+
 private:
     sc_dims _calculate_output_dims(bool rounding_floor, bool channel_last);
 

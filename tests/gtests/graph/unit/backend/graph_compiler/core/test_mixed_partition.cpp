@@ -22,6 +22,7 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/driver.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
+#include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/lowering.hpp>
 #include <compiler/ir/graph/mixed_partition.hpp>
@@ -32,6 +33,7 @@
 #include <compiler/jit/jit.hpp>
 #include <ops/convolution.hpp>
 #include <ops/fusible/padding.hpp>
+#include <ops/fusible/pooling.hpp>
 #include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
 #include <ops/templates/conv_fwd.hpp>
@@ -2019,4 +2021,41 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop) {
             && reo_inner_loop->attr_
             && reo_inner_loop->attr_->get_or_else(
                     stmt_attr_key::merge_loop, false));
+}
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, PoolingLoopReSchedule) {
+    int num_threads = 4;
+    SET_THREADS_OR_SKIP(num_threads);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    auto dtype = sc_data_type_t::f32();
+    auto lanes = vectorize_step(ctx, dtype.as_etype());
+    int N = 1, H = 56, W = 56, C = num_threads * lanes;
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input(
+            {graph_tensor::make({N, H, W, C}, sc_data_format_t(), dtype)});
+    // pooling
+    auto pooling_out = graph.make("pooling_max", input0->get_outputs(), {},
+            {{pooling_attr_key::strides, sc_dims {1, 1}},
+                    {pooling_attr_key::pads_begin, sc_dims {0, 0}},
+                    {pooling_attr_key::pads_end, sc_dims {0, 0}},
+                    {pooling_attr_key::kernel, sc_dims {3, 3}},
+                    {pooling_attr_key::data_format, data_format_options::NXC}});
+    // relu
+    auto relu0 = graph.make("relu", pooling_out->get_outputs(), {}, {});
+    graph.make_output({relu0->get_outputs()[0]});
+
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+    layout_propagation(graph, ctx);
+    mixed_partition(graph, ctx);
+
+    auto mixed_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    auto parti = mixed_op->parti_list_[0];
+    ASSERT_TRUE(parti->get_outer_loops().size() == 1);
+    auto outer_loop = parti->get_outer_loops()[0].checked_as<for_loop>();
+    // pooling op should reschedule its outer loop to seek more parallelism
+    EXPECT_TRUE(outer_loop->kind_ == for_type::PARALLEL
+            && get_expr_as_int(outer_loop->iter_end_) == num_threads);
 }

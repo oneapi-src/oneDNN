@@ -40,6 +40,7 @@
 #include <ops/convolution.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/padding.hpp>
+#include <ops/fusible/pooling.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/managed_matmul_core.hpp>
 #include <runtime/config.hpp>
@@ -3221,8 +3222,7 @@ bool mixed_parti_t::can_optimize_outer_loop(bool allow_tensorview) const {
     if (merged_to) {
         return get_root()->can_optimize_outer_loop(allow_tensorview);
     }
-    return !is_optimized()
-            && contain_op_with_type<op_traits::maybe_split_optimized_t>()
+    bool for_reduce = contain_op_with_type<op_traits::maybe_split_optimized_t>()
             && std::all_of(ops.begin(), ops.end(),
                     [&](const sc_op_ptr &op) {
                         if (op->isa<movement_op_t>()) {
@@ -3273,6 +3273,12 @@ bool mixed_parti_t::can_optimize_outer_loop(bool allow_tensorview) const {
                    }
                    return false;
                });
+    bool for_pooling = contain_op_with_type<pooling_op_t>()
+            && std::all_of(ops.begin(), ops.end(), [&](const sc_op_ptr &op) {
+                   return (!op->isa<movement_op_t>() || op->isa<padding_op_t>())
+                           && !op->isa<tunable_op_t>();
+               });
+    return !is_optimized() && (for_reduce || for_pooling);
 }
 
 static bool try_optimize_reduce(mixed_parti_t *parti, sc_graph_t &sub_graph,
@@ -3433,7 +3439,8 @@ static bool try_optimize_outer_loop(mixed_parti_t *parti, sc_graph_t &sub_graph,
     if (parti->can_optimize_outer_loop()) {
         for (auto &op : ops) {
             if (is_elementwise_op(op.get())
-                    || op->isa<op_traits::maybe_split_optimized_t>()) {
+                    || op->isa<op_traits::maybe_split_optimized_t>()
+                    || op->isa<pooling_op_t>()) {
                 // set optimized outer loop hint
                 op->attrs_.set(
                         mixed_partition_hint::optimized_outer_loop, true);
