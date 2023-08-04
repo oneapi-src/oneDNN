@@ -333,18 +333,20 @@ class LogParser:
             if marker == "onednn_verbose":
                 if l_raw[1].split(".")[0].isdigit():
                     l_raw.pop(1)
-                event = l_raw[1].split(":")[0]
-                if event == "info":
-                    opt = l_raw[2]
-                    if opt == "prim_template":
-                        verbose_template = "onednn_verbose," + line.split(":")[1]
-                if event in ["exec", "create"]:
-                    l_converted = convert_primitive(
-                        l_raw, verbose_template + ",exec_time"
-                    )
-                    if l_converted:
-                        self.__data[i] = l_converted
-                        i = i + 1
+                if (l_raw[1] == "primitive"):
+                    l_raw.pop(1)
+                    event = l_raw[1].split(":")[0]
+                    if event == "info":
+                        opt = l_raw[2]
+                        if opt == "template":
+                            verbose_template = "onednn_verbose," + line.split(":")[1]
+                    if event in ["exec", "create"]:
+                        l_converted = convert_primitive(
+                            l_raw, verbose_template + ",exec_time"
+                        )
+                        if l_converted:
+                            self.__data[i] = l_converted
+                            i = i + 1
 
     def get_data(self):
         """

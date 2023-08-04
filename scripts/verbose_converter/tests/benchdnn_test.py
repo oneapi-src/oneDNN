@@ -65,10 +65,10 @@ def filter_verbose(benchdnn_verbose, driver):
             else:
                 # detect driver
                 l_s = l.split(",")
-                d = benchdnn_gen.convert_driver(l_s[3]) if len(l_s) > 3 else ""
-                if len(l_s) > 3 and l_s[0] == "onednn_verbose" and d == driver:
+                d = benchdnn_gen.convert_driver(l_s[4]) if len(l_s) > 4 else ""
+                if len(l_s) > 4 and l_s[0] == "onednn_verbose" and d == driver:
                     # filter out additional forward calls
-                    verbose_prop_kind = l_s[5]
+                    verbose_prop_kind = l_s[6]
                     if (
                         benchdnn_prop_kind != None
                         and verbose_prop_kind != benchdnn_prop_kind
