@@ -17380,30 +17380,47 @@ void gemm_kernel_generator_t<hw>::gemmOffsetBatchABC(const GEMMProblem &problem,
 
     // Strided batch support.
     if (problem.batch == BatchMode::Strided) {
+        Subregister bOffsetA[2], bOffsetB[2], bOffsetC[2];
+
         for (int b = 0; b < problem.batchDims; b++) {
-            emul(1, state.inputs.strideA[b], state.inputs.strideA[b],
-                    state.batchID[b], strategy, state);
-            emul(1, state.inputs.strideB[b], state.inputs.strideB[b],
-                    state.batchID[b], strategy, state);
-            emul(1, state.inputs.strideC[b], state.inputs.strideC[b],
-                    state.batchID[b], strategy, state);
+            bOffsetA[b] = state.inputs.strideA[b];
+            bOffsetB[b] = state.inputs.strideB[b];
+            bOffsetC[b] = state.inputs.strideC[b];
+            if (strategy.A.base.isStateless())
+                bOffsetA[b] = state.ra.alloc_sub<uint64_t>();
+            if (strategy.B.base.isStateless())
+                bOffsetB[b] = state.ra.alloc_sub<uint64_t>();
+            if (strategy.C.base.isStateless())
+                bOffsetC[b] = state.ra.alloc_sub<uint64_t>();
         }
 
         for (int b = 0; b < problem.batchDims; b++) {
-            eadd(1, state.offsetA, state.offsetA, state.inputs.strideA[b],
+            emul(1, bOffsetA[b], state.inputs.strideA[b], state.batchID[b],
                     strategy, state);
-            eadd(1, state.offsetB, state.offsetB, state.inputs.strideB[b],
+            emul(1, bOffsetB[b], state.inputs.strideB[b], state.batchID[b],
                     strategy, state);
+            emul(1, bOffsetC[b], state.inputs.strideC[b], state.batchID[b],
+                    strategy, state);
+        }
+
+        for (int b = 0; b < problem.batchDims; b++) {
+            eadd(1, state.offsetA, state.offsetA, bOffsetA[b], strategy, state);
+            eadd(1, state.offsetB, state.offsetB, bOffsetB[b], strategy, state);
             for (int q = 0; q < state.C_count; q++) {
                 auto offsetC = state.offsetC[q];
-                eadd(1, offsetC, offsetC, state.inputs.strideC[b], strategy,
-                        state);
+                eadd(1, offsetC, offsetC, bOffsetC[b], strategy, state);
             }
             if (!strategy.persistent) {
                 state.ra.safeRelease(state.inputs.strideA[b]);
                 state.ra.safeRelease(state.inputs.strideB[b]);
                 state.ra.safeRelease(state.inputs.strideC[b]);
             }
+            if (strategy.A.base.isStateless())
+                state.ra.safeRelease(bOffsetA[b]);
+            if (strategy.B.base.isStateless())
+                state.ra.safeRelease(bOffsetB[b]);
+            if (strategy.C.base.isStateless())
+                state.ra.safeRelease(bOffsetC[b]);
         }
     }
 
