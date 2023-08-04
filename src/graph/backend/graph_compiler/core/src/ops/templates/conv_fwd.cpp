@@ -1751,8 +1751,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                                 q_o * config.tile_q + interval, 0}),
                             1, *Q1.begin(), config.K_block, config.C_block,
                             sw_ * config.C_block, config.K_block,
-                            config.K_block, config.C_block,
-                            config.C_block * config.K_block, tmp,
+                            config.K_block, 1 /*useless*/, 1 /*useless*/, tmp,
                             get_input_dtype(), get_weight_dtype());
                         } else {
                           builtin::brgemm_list_update(A_list, B_list,
@@ -1761,8 +1760,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                                 q_o * config.tile_q + interval, 0}),
                             1, Q_tmp, config.K_block, config.C_block,
                             sw_ * config.C_block, config.K_block,
-                            config.K_block, config.C_block,
-                            config.C_block * config.K_block, tmp,
+                            config.K_block, 1 /*useless*/, 1 /*useless*/, tmp,
                             get_input_dtype(), get_weight_dtype());
                         }
                       }
@@ -1810,8 +1808,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                                   q_o * config.tile_q, 0}),
                               1, *Q2.begin(), config.K_block, config.C_block,
                               sw_ * config.C_block, config.K_block,
-                              config.K_block, config.C_block,
-                              config.C_block * config.K_block, tmp,
+                              config.K_block, 1 /*useless*/, 1 /*useless*/, tmp,
                               get_input_dtype(), get_weight_dtype());
                           } else {
                             builtin::brgemm_list_update(A_list, B_list,
@@ -1820,8 +1817,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                                   q_o * config.tile_q, 0}),
                               1, Q_tmp, config.K_block, config.C_block,
                               sw_ * config.C_block, config.K_block,
-                              config.K_block, config.C_block,
-                              config.C_block * config.K_block, tmp,
+                              config.K_block, 1 /*useless*/, 1 /*useless*/, tmp,
                               get_input_dtype(), get_weight_dtype());
                           }
                         }
@@ -1873,8 +1869,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                                   q_o * config.tile_q + interval, 0}),
                               1, *Q3.begin(), config.K_block, config.C_block,
                               sw_ * config.C_block, config.K_block,
-                              config.K_block, config.C_block,
-                              config.C_block * config.K_block, tmp,
+                              config.K_block, 1 /*useless*/, 1 /*useless*/, tmp,
                               get_input_dtype(), get_weight_dtype());
                           } else {
                             builtin::brgemm_list_update(A_list, B_list,
@@ -1883,8 +1878,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                                   q_o * config.tile_q + interval, 0}),
                               1, Q_tmp, config.K_block, config.C_block,
                               sw_ * config.C_block, config.K_block,
-                              config.K_block, config.C_block,
-                              config.C_block * config.K_block, tmp,
+                              config.K_block, 1 /*useless*/, 1 /*useless*/, tmp,
                               get_input_dtype(), get_weight_dtype());
                           }
                         }
@@ -1918,7 +1912,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                         0}),
                     cnt, config.tile_q, config.K_block, config.C_block,
                     sw_ * config.C_block, config.K_block, config.K_block,
-                    config.C_block, config.C_block * config.K_block, tmp,
+                    dw_ * config.C_block, config.C_block * config.K_block, tmp,
                     get_input_dtype(), get_weight_dtype());
                 }
               }

@@ -1030,6 +1030,9 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dilation) {
             {1, 256, 256, 28, 28, 2, 1, 2}, // deeplabv3_resnet101
             {1, 256, 256, 28, 28, 4, 1, 4}, // deeplabv3_resnet101
             {1, 1024, 512, 19, 19, 6, 1, 6}, // ssd300_vgg16
+            // tile_q != ow_
+            {1, 32, 32, 128, 128, 12, 1, 12},
+            {1, 256, 256, 128, 128, 2, 1, 2},
     }; // N, K, C, H, W, Dilation, Stride, Padding
 
     int R = 3, S = 3;
