@@ -250,7 +250,6 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
       bool pack_rows = (cfg.im_w_block > 0 && ow_ % cfg.im_w_block != 0);
       cfg.w_block = pack_rows ? adj_os_ : actual_os_;
       if (mb_ == 1 && num_threads == 4) {
-        cfg.im_w_block = utils::get_blocks(ow_, 1, 256).back();
         if (oc_ >= 512) {
           cfg.bs_threads = 1;
           cfg.h_threads = 1;

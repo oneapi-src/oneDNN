@@ -73,6 +73,7 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
                             || node->get_inputs()[1]->attrs_.get_or_else(
                                     "constant", const_kind::not_const);
                     if (!is_weight_constant) { return; }
+                    if (node->attrs_.get_or_else("use_rl", false)) return;
 
                     auto pads_begin = node->attrs_.has_key("pads_begin")
                             ? node->attrs_.get<sc_dims>("pads_begin")

@@ -47,8 +47,17 @@ static constexpr int cache_line_size = 64;
 config_ptr gen_conv_fwd_rl_t::get_default_config(context_ptr ctx) const {
   auto ret = reflection::general_object_t::make<conv_fwd_rl_config_t>();
   conv_fwd_rl_config_t &cfg = *ret.unchecked_get_as<conv_fwd_rl_config_t>();
-  cfg.brgemm_m = oh_ % 16 == 0 ? 16 : utils::get_blocks(oh_, 16).back();
+  cfg.brgemm_m = oh_;
+  std::vector<int> brgemm_m_candidates = {32, 16};
+  for (auto &c : brgemm_m_candidates) {
+    if (oh_ % c == 0) {
+      cfg.brgemm_m = c;
+      break;
+    }
+  }
+  if (cfg.brgemm_m == oh_) { cfg.brgemm_m = utils::get_blocks(oh_, 16).back(); }
   cfg.brgemm_n = utils::get_blocks(oc_, 16).back();
+
   return std::move(ret);
 }
 
@@ -77,14 +86,20 @@ static inline int get_minimal_lanes(const int val) {
     return 64;
   } else if (val > 16) {
     return 32;
-  } else {
+  } else if (val > 8) {
     return 16;
+  } else {
+    return 8;
   }
 }
 
 static inline sc_data_type_t get_dtype(const int lanes) {
   sc_data_type_t var_dtype;
   switch (lanes) {
+    case 8: {
+      var_dtype = datatypes::u8;
+      break;
+    }
     case 16: {
       var_dtype = datatypes::u16;
       break;
@@ -98,7 +113,8 @@ static inline sc_data_type_t get_dtype(const int lanes) {
       break;
     }
     default:
-      COMPILE_ASSERT(0, "expected lanes to be 16, 32, 64, but got " << lanes);
+      COMPILE_ASSERT(
+        0, "expected lanes to be 8, 16, 32, 64, but got " << lanes);
   }
   return var_dtype;
 }

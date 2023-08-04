@@ -268,8 +268,12 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   // tile q
   if (!is_1x1_conv_) {
     cfg.tile_q = tile_q_list.back();
-    if (large_spatial && !is_small_ic) {
-      cfg.tile_q = utils::get_blocks(ow_, 1, 32).back();
+    if (large_spatial) {
+      if (!is_small_ic) {
+        cfg.tile_q = utils::get_blocks(ow_, 1, 32).back();
+      } else {
+        cfg.tile_q = utils::get_blocks(ow_, 1, 64).back();
+      }
     }
   } else {
     // handle large M for gemm kernel: shrink M
