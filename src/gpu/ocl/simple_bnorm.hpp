@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_REF_BATCH_NORMALIZATION_HPP
-#define GPU_OCL_REF_BATCH_NORMALIZATION_HPP
+#ifndef GPU_OCL_SIMPLE_BNORM_HPP
+#define GPU_OCL_SIMPLE_BNORM_HPP
 
 #include <assert.h>
 
@@ -34,7 +34,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
+struct simple_batch_normalization_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_batch_normalization_fwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,
@@ -42,7 +42,7 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
             : gpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_fwd_t);
+        DECLARE_COMMON_PD_T("ocl:simple", simple_batch_normalization_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -74,14 +74,14 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
             if (is_training() && (fuse_norm_relu() || fuse_norm_add_relu()))
                 CHECK(init_default_ws(8));
 
-            init_conf(engine);
+            CHECK(init_conf(engine));
             init_scratchpad();
 
             return status::success;
         }
 
-        void init_conf(engine_t *engine);
-        void init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        status_t init_conf(engine_t *engine);
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
         bnorm_conf_t conf;
@@ -92,25 +92,16 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
         if (pd()->has_zero_dim_memory()) return status::success;
         compute::kernel_ctx_t kernel_ctx;
 
-        pd()->init_kernel_ctx(kernel_ctx);
+        CHECK(pd()->init_kernel_ctx(kernel_ctx));
 
         std::vector<const char *> kernel_names
-                = {"ref_bnorm_fwd", nullptr, nullptr, nullptr, nullptr};
-        if (pd()->conf.calculate_stats) {
-            kernel_names[1] = "calculate_mean";
-            kernel_names[2] = "calculate_variance";
-            kernel_names[3] = "reduce_mean";
-            kernel_names[4] = "reduce_variance";
-        }
+                = {"simple_bnorm_fwd", "simple_calculate_mean_variance"};
 
         std::vector<compute::kernel_t> kernels;
         CHECK(create_kernels(engine, &kernels, kernel_names, kernel_ctx));
 
         kernel_ = kernels[0];
-        calculate_mean_kernel_ = kernels[1];
-        calculate_variance_kernel_ = kernels[2];
-        reduce_mean_kernel_ = kernels[3];
-        reduce_variance_kernel_ = kernels[4];
+        calculate_mean_variance_kernel_ = kernels[1];
 
         return status::success;
     }
@@ -123,14 +114,10 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
-    compute::kernel_t calculate_mean_kernel_;
-    compute::kernel_t reduce_mean_kernel_;
-    compute::kernel_t calculate_variance_kernel_;
-    compute::kernel_t reduce_variance_kernel_;
     compute::kernel_t calculate_mean_variance_kernel_;
 };
 
-struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
+struct simple_batch_normalization_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_batch_normalization_bwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,
@@ -138,7 +125,7 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
             : gpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_bwd_t);
+        DECLARE_COMMON_PD_T("ocl:simple", simple_batch_normalization_bwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -164,14 +151,14 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
-            init_conf(engine);
+            CHECK(init_conf(engine));
             init_scratchpad();
 
             return status::success;
         }
 
-        void init_conf(engine_t *engine);
-        void init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        status_t init_conf(engine_t *engine);
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
         bnorm_conf_t conf;
@@ -182,7 +169,7 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
         if (pd()->has_zero_dim_memory()) return status::success;
         compute::kernel_ctx_t kernel_ctx;
 
-        pd()->init_kernel_ctx(kernel_ctx);
+        CHECK(pd()->init_kernel_ctx(kernel_ctx));
 
         std::vector<const char *> kernel_names
                 = {"ref_bnorm_bwd", "calculate_stats", "reduce_stats"};
