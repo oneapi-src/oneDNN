@@ -34,6 +34,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     static const bcast_set_t all_bcast_strategies {
             broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
+            broadcasting_strategy_t::per_oc_d,
             broadcasting_strategy_t::shared_axes,
             broadcasting_strategy_t::per_mb,
             broadcasting_strategy_t::per_mb_spatial,
@@ -164,6 +165,17 @@ bool is_spatial_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
 
     return spatial_bcast;
 }
+// Check if mask corresponds to per oc_d
+// true if dim == 4 and mask = [1, 0, 0, 1]
+bool is_per_oc_d_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
+        const memory_desc_t &rhs_arg_md, const memory_desc_wrapper &dst_d) {
+    const dims_t &rdims = rhs_arg_md.dims;
+    const dims_t &ddims = dst_d.dims();
+    if (rhs_arg_md.ndims != 4) return false;
+    if (!mask.test(0) || !mask.test(3)) return false;
+    if (rdims[1] != ddims[1] || rdims[2] != ddims[2]) return false;
+    return true;
+}
 
 bool bcast_strategy_enabled(const bcast_set_t &supported_strategy_set,
         const broadcasting_strategy_t &bcast) {
@@ -254,7 +266,10 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     else if (is_spatial_bcast(mask, dst_d)
             && is_enabled(broadcasting_strategy_t::spatial))
         bcast = broadcasting_strategy_t::spatial;
-    else if (is_enabled(broadcasting_strategy_t::shared_axes))
+    else if (is_per_oc_d_bcast(mask, rhs_arg_md, dst_d)
+            && is_enabled(broadcasting_strategy_t::per_oc_d)) {
+        bcast = broadcasting_strategy_t::per_oc_d;
+    } else if (is_enabled(broadcasting_strategy_t::shared_axes))
         bcast = broadcasting_strategy_t::shared_axes;
 
     return bcast;

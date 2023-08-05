@@ -34,6 +34,7 @@ enum class broadcasting_strategy_t {
     per_oc, // [1, c, 1, 1, 1] // Channel-wise
     per_oc_spatial, // [1, c, 1, 1, 1] specific case for binary kernel nchw format
     per_mb, // [n, 1, 1, 1, 1] // broadcast per batch
+    per_oc_d, // [a, b, c, d] -> [1, b, c, 1]; [n, g, oc/g, sp] --> [1, g, oc/g, 1] specific case for ncsp matmul reduction.
     per_mb_spatial, // [n, 1, d, h, w] // Broadcast only channel
     per_mb_w, // [n, 1, 1, 1, w] // Broadcast per batch and width
     per_w, // [1, 1, 1, 1, w] // Broadcast per width
