@@ -54,9 +54,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     std::vector<dnnl_memory_desc_t> src_d(
             src_d_wrappers.begin(), src_d_wrappers.end());
     init_pd_args.is_iterator_supported = false;
-    return dnnl_sum_primitive_desc_create(&init_pd_args.pd, init_pd_args.engine,
-            dst_d, prb->n_inputs(), prb->input_scales.data(), src_d.data(),
-            dnnl_attr);
+    DNN_SAFE_STATUS(dnnl_sum_primitive_desc_create(&init_pd_args.pd,
+            init_pd_args.engine, dst_d, prb->n_inputs(),
+            prb->input_scales.data(), src_d.data(), dnnl_attr));
+
+    return dnnl_success;
 }
 
 int fill_src(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
