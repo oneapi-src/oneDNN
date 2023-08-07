@@ -127,9 +127,13 @@ The expected behaviors when using max policy:
 
 ## Known issues
 
-1. DNNL backend will not support max partition policy in oneDNN v3.3 release.
-   So when running with a combination of max partition policy and DNNL backend,
-   max partition policy will fallback to fusion partition policy.
+1. For all backends that don't support max partition policy, they will fallback to
+   fusion partition policy implicitly.
+   Likewise, for all backends that don't support fusion partition policy, they
+   will fallback to debug partition policy implicitly.
+   For example, DNNL backend will not support max partition policy in oneDNN v3.3
+   release, so when running with a combination of max partition policy and DNNL
+   backend, max partition policy will fallback to fusion partition policy.
 1. The validation for max partition policy will not be landed in oneDNN v3.3
    release, so the implementation of max partition policy in Graph Compiler
    backend is a experimental feature.
