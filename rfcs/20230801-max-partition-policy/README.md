@@ -8,9 +8,15 @@ optimized implementations for complex computational graphs including multi-head
 attention (MHA), multi-layer perceptron (MLP), and convolution residual blocks
 over typical data types for both inference and training.
 
-To further boost performance and expose more aggressive optimizations to users,
-oneDNN Graph Compiler is requesting to add max partition
-policy to oneDNN Graph API.
+While the predefined patterns meet some user requirements, there is a growing
+interest in customized ops and patterns, which the current fixed patterns
+cannot fully accommodate. For instance, users may want to build RMSNorm with
+small ops and expect the library to provide optimizations for it.
+This is a frequent request for newly introduced activation or normalization.
+
+To address this need and provide users with more flexible and efficient options,
+oneDNN Graph Compiler is seeking to incorporate a max partition policy into oneDNN
+Graph API, enabling direct programming and unlocking further performance optimizations.
 
 ## Current Status
 
