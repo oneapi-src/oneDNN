@@ -82,13 +82,10 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init_batch(int icc,
     const auto &jcp = jcp_;
 
     assert(IMPLICATION(jcp.is_relo, kw_b == 0));
-    assert(IMPLICATION(
-            jcp.relo_type == conv_brgemm_relo_type_t::whi, kh_b == 0));
+    assert(IMPLICATION(is_relo_whi, kh_b == 0));
 
-    kw_e = (jcp.kw_sets > 1 || jcp.is_relo) ? kw_b + 1 : kw_e;
-    kh_e = (jcp.kh_sets > 1 || jcp.relo_type == conv_brgemm_relo_type_t::whi)
-            ? kh_b + 1
-            : kh_e;
+    kw_e = jcp.is_relo ? kw_b + 1 : kw_e;
+    kh_e = is_relo_whi ? kh_b + 1 : kh_e;
 
     k_l = (kd_e - kd_b) * (kh_e - kh_b) * (kw_e - kw_b);
     if (k_l == 0) return;
@@ -116,7 +113,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init_batch(int icc,
             const auto wei_kd = maybe_invert(kd, KD);
             const auto wei_base_kd = wei_base_ic + wei_kd * wei_kd_offset;
             for (int kh = kh_b; kh < kh_e; kh++) {
-                const auto ih = (jcp.exec_type == exec_trans && jcp.kh_sets > 1)
+                const auto ih = (jcp.exec_type == exec_trans && is_relo_whi)
                         ? iih_b
                         : (iih_b + kh * DH);
                 const auto src_base_kh = src_base_kd + ih * adj_src_h_offset;
@@ -174,8 +171,8 @@ inline void brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::get_A_B(int icc,
     const auto src_base_kd = src_base_ic + id * src_d_offset;
     const auto wei_kd = maybe_invert(kd_b, KD);
     const auto wei_base_kd = wei_base_ic + wei_kd * wei_kd_offset;
-    const auto has_kh_sets = (jcp_.exec_type == exec_trans && jcp_.kh_sets > 1);
-    const auto ih = iih_b + (has_kh_sets ? 0 : kh_b * DH);
+    const auto duplicate_kh = (jcp_.exec_type == exec_trans && is_relo_whi);
+    const auto ih = iih_b + (duplicate_kh ? 0 : kh_b * DH);
     const auto src_base_kh = src_base_kd + ih * adj_src_h_offset;
     const auto wei_kh = maybe_invert(kh_b, KH);
     const auto wei_base_kh = wei_base_kd + wei_kh * wei_kh_offset;
@@ -451,6 +448,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                     && one_of(jcp_.exec_type, exec_base, exec_trans)));
     assert(IMPLICATION(jcp_.use_interleave_stores, jcp_.use_uker));
 
+    is_relo_whi = jcp_.relo_type == conv_brgemm_relo_type_t::whi;
+
     bs_c = 0;
     brg_indices_c = 0;
 
@@ -504,7 +503,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     rd = jcp_.ic;
     if (jcp_.relo_type == conv_brgemm_relo_type_t::wi)
         rd *= jcp_.kw;
-    else if (jcp_.relo_type == conv_brgemm_relo_type_t::whi)
+    else if (is_relo_whi)
         rd *= jcp_.kw * jcp_.kh;
 
     if (jcp_.is_relo) {
@@ -523,9 +522,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     wei_ocb_stride = jcp_.wei_plain ? jcp_.oc_block : KD * wei_kd_stride;
     wei_g_stride = jcp_.wei_plain ? jcp_.oc : jcp_.nb_oc * wei_ocb_stride;
     wei_ic_stride = jcp_.wei_plain ? jcp_.oc_without_padding : jcp_.oc_block;
-
-    const auto KH_SETS = jcp_.kh_sets;
-    const auto KW_SETS = jcp_.kw_sets;
+    const auto kh_koef = is_relo_whi ? jcp_.kh : 1;
 
     if (jcp_.copy_block_only) {
         assert(jcp_.exec_type == exec_trans && "Missing copy kernel");
@@ -534,12 +531,12 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
         const auto ih_block = get_inp_size(IHP, jcp_.oh_block, KH, SH, DH - 1);
         const auto id_block = get_inp_size(IDP, jcp_.od_block, KD, SD, DD - 1);
 
-        pbuf_w_sz = (dim_t)jcp_.inp_ic_block * KH_SETS * KW_SETS * iw_block;
+        pbuf_w_sz = (dim_t)jcp_.inp_ic_block * kh_koef * iw_block;
         pbuf_h_sz = pbuf_w_sz * ih_block;
         pbuf_d_sz = pbuf_h_sz * id_block;
 
     } else {
-        pbuf_w_sz = (dim_t)jcp_.inp_ic_block * KH_SETS * KW_SETS * IWP;
+        pbuf_w_sz = (dim_t)jcp_.inp_ic_block * kh_koef * IWP;
         pbuf_h_sz = pbuf_w_sz * IHP;
         pbuf_d_sz = pbuf_h_sz * IDP;
     }
@@ -550,13 +547,13 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
 
     src_iw_offset = static_cast<dim_t>(src_dsz)
             * (jcp_.exec_type == exec_trans
-                            ? jcp_.inp_ic_block * jcp_.kh_sets * jcp_.kw_sets
+                            ? jcp_.inp_ic_block * kh_koef
                             : jcp_.ngroups * jcp_.ic_without_padding);
     src_d_offset = static_cast<dim_t>(src_dsz) * adj_src_h_sz;
     wei_ic_offset = static_cast<dim_t>(wei_dsz) * wei_ic_stride;
     wei_kd_offset = static_cast<dim_t>(wei_dsz) * wei_kd_stride;
     wei_kh_offset = static_cast<dim_t>(wei_dsz) * wei_kh_stride
-            * ((jcp_.exec_type == exec_trans && jcp_.kh_sets > 1) ? 0 : 1);
+            * ((jcp_.exec_type == exec_trans && is_relo_whi) ? 0 : 1);
     wei_kw_offset = static_cast<dim_t>(wei_dsz) * wei_kw_stride;
 
     if (jcp_.use_uker) {
@@ -954,7 +951,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
         CHECK(copy_to_pbuffer_->create_kernel());
     }
 
-    if (jcp.is_relo && jcp.relo_type == conv_brgemm_relo_type_t::whi) {
+    if (_pd->is_relo_whi) {
         jit_conv_conf_t ajcp;
         ajcp.is_relo = true;
         ajcp.nb_ic_int = 1;
@@ -1683,7 +1680,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_weights(
     wei = input_weights;
     if (!jcp.is_relo) return;
 
-    if (jcp.relo_type == conv_brgemm_relo_type_t::whi) {
+    if (_pd->is_relo_whi) {
         // reorder weights from (g)Owhi16o to (g)OR16r16o<vnni_granularity>r, where r := whi
         auto wei_buffer = ctx.get_scratchpad_grantor().template get<char>(
                 key_conv_amx_wei_buffer);
@@ -1814,19 +1811,20 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
     cp.ic = ic;
     const auto iw_buf = jcp.copy_block_only ? 0 : (ow * SW);
     dim_t inp_offset_start, out_offset_start;
+    const auto kh_koef = _pd->is_relo_whi ? jcp.kh : 1;
 
     const auto base_ih_buf = (jcp.copy_block_only ? 0 : ih_start) + TP;
     const auto base_out_offset_start
             = (jcp.copy_block_only ? 0
                                    : static_cast<dim_t>(icb) * _pd->pbuf_d_sz)
             + base_ih_buf * _pd->pbuf_w_sz
-            + iw_buf * jcp.inp_ic_block * jcp.kh_sets * jcp.kw_sets;
+            + iw_buf * jcp.inp_ic_block * kh_koef;
     const auto base_inp_offset_start = static_cast<dim_t>(btc.n) * src_d_sz
             + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
 
-    for (int kh = 0; kh < jcp.kh_sets; kh++) {
+    for (int kh = 0; kh < kh_koef; kh++) {
         int ih_s {0}, ih_f {0};
-        if (jcp.kh_sets > 1) {
+        if (_pd->is_relo_whi) {
             assert(!jcp.is_os_blocking);
             ih_s = nstl::max(0, TP - oh * SH - kh * DH);
             ih_f = nstl::max(
@@ -1836,8 +1834,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
             inp_offset_start = base_inp_offset_start
                     + nstl::max(ih_s, ih_start) * src_w_sz;
             // inp_buffer has physical padding
-            out_offset_start = base_out_offset_start
-                    + kh * jcp.kw_sets * jcp.inp_ic_block;
+            out_offset_start = base_out_offset_start + kh * jcp.inp_ic_block;
         } else {
             // For os_blocking:
             // We have to zero top and bottom padding now
@@ -1864,8 +1861,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
                 cp.src = src + src_dsz * inp_offset;
                 cp.dst = btc.inp_buffer + src_dsz * out_offset;
                 (*copy_to_pbuffer_)(&cp);
-                if (jcp.relo_type == conv_brgemm_relo_type_t::wi
-                        && jcp.vnni_block > 1) {
+                if (jcp.is_relo && jcp.vnni_block > 1) {
                     int size_to_sero = 0;
                     if (_pd->rd % jcp.vnni_block != 0)
                         size_to_sero = jcp.vnni_block;

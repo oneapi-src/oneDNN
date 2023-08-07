@@ -762,7 +762,6 @@ struct jit_brgemm_conv_conf_t {
     bool wei_plain;
     bool is_rd_padded_to_block {false}, is_rd_padded_to_vnni {false},
             is_oc_padded;
-    int kw_sets, kh_sets;
     bool copy_input {true};
     bool copy_block_only;
     bool amx_tile_load_xx;

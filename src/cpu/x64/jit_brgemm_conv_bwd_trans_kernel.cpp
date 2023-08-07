@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -176,9 +176,8 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::generate() {
         L(kh_tover_label);
         {
             // TODO: adjust step to improve zeroing efficiency for small oc
-            for_(dim_t ow = 0; ow < dst_w_block; ow++)
-            for (int kw = 0; kw < jcp.kw_sets; kw++)
-                zero_oc_block(is_oc_tail, ow * dst_w_offset + kw * oc_block_sz);
+            for (dim_t ow = 0; ow < dst_w_block; ow++)
+                zero_oc_block(is_oc_tail, ow * dst_w_offset);
             add(aux_dst_ptr, dst_h_offset);
 
             dec(kh_over);
@@ -210,9 +209,8 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::generate() {
         L(kh_bover_label);
         {
             // TODO: adjust step to improve zeroing efficiency for small oc
-            for_(dim_t ow = 0; ow < dst_w_block; ow++)
-            for (int kw = 0; kw < jcp.kw_sets; kw++)
-                zero_oc_block(is_oc_tail, ow * dst_w_offset + kw * oc_block_sz);
+            for (dim_t ow = 0; ow < dst_w_block; ow++)
+                zero_oc_block(is_oc_tail, ow * dst_w_offset);
             add(aux_dst_ptr, dst_h_offset);
 
             dec(reg_hc);

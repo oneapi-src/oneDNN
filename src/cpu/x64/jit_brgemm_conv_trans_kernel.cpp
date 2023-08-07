@@ -38,7 +38,9 @@ jit_avx512_core_brgemm_conv_trans_kernel_t::
     ic_block_sz = inp_dsz * jcp.inp_ic_block;
     dst_w_block = dst_w(jcp, jcp.ow_block);
     dst_stride = jcp.copy_block_only ? dst_w_block : jcp.iwp;
-    dst_w_offset = jcp.kh_sets * jcp.kw_sets * ic_block_sz;
+    const auto kh_stride
+            = (jcp.relo_type == conv_brgemm_relo_type_t::whi) ? jcp.kh : 1;
+    dst_w_offset = kh_stride * ic_block_sz;
     dst_h_offset = dst_stride * dst_w_offset;
     iw_size = inp_dsz * jcp.ngroups * jcp.ic_without_padding;
     VL = cpu_isa_traits<avx512_core>::vlen;
@@ -66,10 +68,7 @@ int jit_avx512_core_brgemm_conv_trans_kernel_t::inp_w(int out_w) const {
 int jit_avx512_core_brgemm_conv_trans_kernel_t::dst_w(
         const jit_brgemm_conv_conf_t &ajcp, int out_w) {
     int res = 0;
-    if (ajcp.kw_sets > 1)
-        res = get_inp_size(out_w, 1, 1, ajcp.dilate_w);
-    else
-        res = get_inp_size(out_w, ajcp.ext_kw, ajcp.stride_w, ajcp.dilate_w);
+    res = get_inp_size(out_w, ajcp.ext_kw, ajcp.stride_w, ajcp.dilate_w);
     if (ajcp.is_os_blocking) res = rnd_up(res, ajcp.stride_w);
     return res;
 }
@@ -194,9 +193,8 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
         L(kh_tover_label);
         {
             // TODO: adjust step to improve zeroing efficiency for small ic
-            for_(dim_t iw = 0; iw < dst_w_block; iw++)
-            for (int kw = 0; kw < jcp.kw_sets; kw++)
-                zero_ic_block(is_ic_tail, iw * dst_w_offset + kw * ic_block_sz);
+            for (dim_t iw = 0; iw < dst_w_block; iw++)
+                zero_ic_block(is_ic_tail, iw * dst_w_offset);
             add(aux_dst_ptr, dst_h_offset);
 
             dec(kh_over);
@@ -228,9 +226,8 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
         L(kh_bover_label);
         {
             // TODO: adjust step to improve zeroing efficiency for small ic
-            for_(dim_t iw = 0; iw < dst_w_block; iw++)
-            for (int kw = 0; kw < jcp.kw_sets; kw++)
-                zero_ic_block(is_ic_tail, iw * dst_w_offset + kw * ic_block_sz);
+            for (dim_t iw = 0; iw < dst_w_block; iw++)
+                zero_ic_block(is_ic_tail, iw * dst_w_offset);
             add(aux_dst_ptr, dst_h_offset);
 
             dec(reg_hc);
@@ -378,11 +375,9 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ow_block(
 void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ow_block_body(
         int lpad, int ow_len, int iw_len, bool is_ic_tail) {
     const auto dst_width = dst_w(jcp, ow_len);
-    const auto iw_stride = jcp.kw_sets > 1 ? jcp.stride_w : 1;
-    for_(int kw = 0; kw < jcp.kw_sets; kw++)
     for (dim_t ind_w = 0; ind_w < dst_width; ind_w++) {
-        auto iw_idx = ind_w * iw_stride - lpad + kw * (jcp.dilate_w + 1);
-        auto dst_off = ind_w * dst_w_offset + kw * ic_block_sz;
+        auto iw_idx = ind_w - lpad;
+        auto dst_off = ind_w * dst_w_offset;
         if (iw_idx < 0 || iw_idx >= iw_len) {
             // left or right padding
             zero_ic_block(is_ic_tail, dst_off);

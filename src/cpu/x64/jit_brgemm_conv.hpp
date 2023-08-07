@@ -77,6 +77,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
         int ndims {0};
         int rd {0};
+        bool is_relo_whi {false};
 
         // batch sizes info for unrolled kernels
         int bs_c;

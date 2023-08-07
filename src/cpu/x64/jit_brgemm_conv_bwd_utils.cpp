@@ -1588,8 +1588,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!params_ok) return status::unimplemented;
 
     jcp.nthr = nthreads;
-    jcp.kh_sets = 1;
-    jcp.kw_sets = 1;
     jcp.copy_block_only = false;
     jcp.amx_tile_load_xx = false;
     jcp.use_M_mask = 0;
@@ -1893,9 +1891,9 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const auto oc_padded_block
             = jcp.acc_simd_w * brg_blocking_t::last_oc_block_size;
     jcp.is_oc_padded = one_of(jcp.wei_dt, bf16, f16, s8)
-            && jcp.oc * jcp.kw_sets > oc_padded_block && is_amx(isa);
+            && jcp.oc > oc_padded_block && is_amx(isa);
 
-    if (is_amx(isa) && (/* heuristic */ jcp.kw_sets == 1 && jcp.iw < 256)) {
+    if (is_amx(isa) && /* heuristic */ jcp.iw < 256) {
         jcp.use_M_mask = 0;
 
         jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
