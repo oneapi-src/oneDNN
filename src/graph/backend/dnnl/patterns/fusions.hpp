@@ -28,7 +28,7 @@ namespace pattern {
     void register_##pattern_class_(graph::pass::pass_registry_t &registry);
 
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(conv_block_fusion)
-DNNL_BACKEND_REGISTER_PATTERN_DECLARE(conv_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DECLARE(conv_post_ops)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(matmul_post_ops)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(sdp)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(binary_fusion)

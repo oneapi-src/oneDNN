@@ -32,7 +32,7 @@ using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
 using FCreatePattern = graph::pass::FCreatePattern;
 
-DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(conv_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(conv_post_ops)
 
 // Conv: Currently DNNL backend doesn't support conv + depthwise conv
 // post-op fusion on GPU, while CPU supports. Check engine_kind == cpu
