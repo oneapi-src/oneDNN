@@ -315,7 +315,8 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
     if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
         allocator_t *alloc = reinterpret_cast<allocator_t *>(
                 compiled_partition->get_engine()->get_allocator());
-        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        allocator_t::monitor_t &monitor = alloc->get_monitor();
+        monitor.reset_peak_temp_memory();
         stream->wait();
         double start_ms = dnnl::impl::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
@@ -324,8 +325,8 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
         VFORMATGRAPH(start_ms, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
                 compiled_partition->info(), duration_ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
-                allocator_t::monitor_t::get_total_persist_memory(alloc),
-                allocator_t::monitor_t::get_peak_temp_memory(alloc));
+                monitor.get_total_persist_memory(),
+                monitor.get_peak_temp_memory());
     } else if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
 #else
     if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
@@ -373,7 +374,8 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
     if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
         allocator_t *alloc = reinterpret_cast<allocator_t *>(
                 compiled_partition->get_engine()->get_allocator());
-        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        allocator_t::monitor_t &monitor = alloc->get_monitor();
+        monitor.reset_peak_temp_memory();
         stream->wait();
         double start_ms = dnnl::impl::get_msec();
         if (deps != nullptr) {
@@ -389,8 +391,8 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
         VFORMATGRAPH(start_ms, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
                 compiled_partition->info(), duration_ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
-                allocator_t::monitor_t::get_total_persist_memory(alloc),
-                allocator_t::monitor_t::get_peak_temp_memory(alloc));
+                monitor.get_total_persist_memory(),
+                monitor.get_peak_temp_memory());
     } else if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
 #else
     if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {

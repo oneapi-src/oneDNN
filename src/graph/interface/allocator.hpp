@@ -136,52 +136,42 @@ public:
 
     struct monitor_t {
     private:
-        static std::unordered_map<const dnnl_graph_allocator *, size_t>
-                persist_mem_;
-        static std::unordered_map<const dnnl_graph_allocator *,
-                std::unordered_map<const void *, mem_info_t>>
-                persist_mem_infos_;
+        size_t persist_mem_;
 
-        static std::unordered_map<std::thread::id,
-                std::unordered_map<const dnnl_graph_allocator *, size_t>>
-                temp_mem_;
-        static std::unordered_map<std::thread::id,
-                std::unordered_map<const dnnl_graph_allocator *, size_t>>
-                peak_temp_mem_;
-        static std::unordered_map<std::thread::id,
-                std::unordered_map<const dnnl_graph_allocator *,
-                        std::unordered_map<const void *, mem_info_t>>>
+        std::unordered_map<const void *, mem_info_t> persist_mem_infos_;
+
+        std::unordered_map<std::thread::id, size_t> temp_mem_;
+        std::unordered_map<std::thread::id, size_t> peak_temp_mem_;
+        std::unordered_map<std::thread::id,
+                std::unordered_map<const void *, mem_info_t>>
                 temp_mem_infos_;
 
         // Since the memory operation will be performed from multiple threads,
         // so we use the rw lock to guarantee the thread safety of the global
         // persistent memory monitoring.
-        static dnnl::impl::utils::rw_mutex_t rw_mutex_;
+        dnnl::impl::utils::rw_mutex_t rw_mutex_;
 
     public:
-        static void record_allocate(const dnnl_graph_allocator *alloc,
-                const void *buf, size_t size, mem_type_t type);
+        void record_allocate(const void *buf, size_t size, mem_type_t type);
 
-        static void record_deallocate(
-                const dnnl_graph_allocator *alloc, const void *buf);
+        void record_deallocate(const void *buf);
 
-        static void reset_peak_temp_memory(const dnnl_graph_allocator *alloc);
+        void reset_peak_temp_memory();
 
-        static size_t get_peak_temp_memory(const dnnl_graph_allocator *alloc);
+        size_t get_peak_temp_memory();
 
-        static size_t get_total_persist_memory(
-                const dnnl_graph_allocator *alloc);
+        size_t get_total_persist_memory();
 
-        static void lock_write();
-        static void unlock_write();
+        void lock_write();
+        void unlock_write();
     };
 
     void *allocate(size_t size, mem_attr_t attr = {}) const {
 #ifndef NDEBUG
-        monitor_t::lock_write();
+        monitor_.lock_write();
         void *buffer = host_malloc_(size, attr.alignment_);
-        monitor_t::record_allocate(this, buffer, size, attr.type_);
-        monitor_t::unlock_write();
+        monitor_.record_allocate(buffer, size, attr.type_);
+        monitor_.unlock_write();
 #else
         void *buffer = host_malloc_(size, attr.alignment_);
 #endif
@@ -192,12 +182,12 @@ public:
     void *allocate(size_t size, const ::sycl::device &dev,
             const ::sycl::context &ctx, mem_attr_t attr = {}) const {
 #ifndef NDEBUG
-        monitor_t::lock_write();
+        monitor_.lock_write();
         void *buffer = sycl_malloc_(size, attr.alignment_,
                 static_cast<const void *>(&dev),
                 static_cast<const void *>(&ctx));
-        monitor_t::record_allocate(this, buffer, size, attr.type_);
-        monitor_t::unlock_write();
+        monitor_.record_allocate(buffer, size, attr.type_);
+        monitor_.unlock_write();
 #else
         void *buffer = sycl_malloc_(size, attr.alignment_,
                 static_cast<const void *>(&dev),
@@ -227,10 +217,10 @@ public:
     void deallocate(void *buffer) const {
         if (buffer) {
 #ifndef NDEBUG
-            monitor_t::lock_write();
-            monitor_t::record_deallocate(this, buffer);
+            monitor_.lock_write();
+            monitor_.record_deallocate(buffer);
             host_free_(buffer);
-            monitor_t::unlock_write();
+            monitor_.unlock_write();
 #else
             host_free_(buffer);
 #endif
@@ -242,12 +232,12 @@ public:
             const ::sycl::context &ctx, ::sycl::event deps) const {
         if (buffer) {
 #ifndef NDEBUG
-            monitor_t::lock_write();
-            monitor_t::record_deallocate(this, buffer);
+            monitor_.lock_write();
+            monitor_.record_deallocate(buffer);
             sycl_free_(buffer, static_cast<const void *>(&dev),
                     static_cast<const void *>(&ctx),
                     static_cast<void *>(&deps));
-            monitor_t::unlock_write();
+            monitor_.unlock_write();
 #else
             sycl_free_(buffer, static_cast<const void *>(&dev),
                     static_cast<const void *>(&ctx),
@@ -256,6 +246,7 @@ public:
         }
     }
 #endif
+    monitor_t &get_monitor() { return monitor_; }
 
 private:
     dnnl_graph_host_allocate_f host_malloc_ {
@@ -271,6 +262,7 @@ private:
 #endif
 
     std::atomic<int32_t> counter_ {1}; // align to oneDNN to use int32_t type
+    mutable monitor_t monitor_;
 };
 
 #endif

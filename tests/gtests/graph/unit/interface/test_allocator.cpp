@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ TEST(Allocator, Monitor) {
     const size_t temp_size = 1024, persist_size = 512;
 
     allocator_t *alloc = allocator_t::create();
+    allocator_t::monitor_t &monitor = alloc->get_monitor();
     std::vector<void *> persist_bufs;
     std::mutex m;
 
@@ -70,15 +71,14 @@ TEST(Allocator, Monitor) {
 
     // single thread
     for (size_t iter = 0; iter < 4; iter++) {
-        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0U);
+        monitor.reset_peak_temp_memory();
+        ASSERT_EQ(monitor.get_peak_temp_memory(), 0U);
 
         callee(); // call the callee to do memory operation
 
+        ASSERT_EQ(monitor.get_peak_temp_memory(), temp_size);
         ASSERT_EQ(
-                allocator_t::monitor_t::get_peak_temp_memory(alloc), temp_size);
-        ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(alloc),
-                persist_size * (iter + 1));
+                monitor.get_total_persist_memory(), persist_size * (iter + 1));
     }
 
     for (auto p_buf : persist_bufs) {
@@ -88,11 +88,10 @@ TEST(Allocator, Monitor) {
 
     // multiple threads
     auto thread_func = [&]() {
-        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0U);
+        monitor.reset_peak_temp_memory();
+        ASSERT_EQ(monitor.get_peak_temp_memory(), 0U);
         callee();
-        ASSERT_EQ(
-                allocator_t::monitor_t::get_peak_temp_memory(alloc), temp_size);
+        ASSERT_EQ(monitor.get_peak_temp_memory(), temp_size);
     };
 
     std::thread t1(thread_func);
@@ -102,8 +101,7 @@ TEST(Allocator, Monitor) {
     t2.join();
 
     // two threads allocated persist buffer
-    ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(alloc),
-            persist_size * 2);
+    ASSERT_EQ(monitor.get_total_persist_memory(), persist_size * 2);
 
     for (auto p_buf : persist_bufs) {
         alloc->deallocate(p_buf);
