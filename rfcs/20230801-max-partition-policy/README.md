@@ -100,6 +100,21 @@ The expected behaviors when using max policy:
   will be selected into one partition.
 - The pre-defined ops list and pre-defined rules are backend specific.
 
+## Validation
+
+- To validate the functionality of max partition policy, corresponding gtests will
+  be added.
+- To validate the correctness and performance of max partition policy, we will
+  utilize the benchdnn graph tool.
+  - To control which partition policy to use in `graph.get_partitions()` API,
+    new command line parameter or new environment variable needs to be added
+    to benchdnn graph.
+  - For correctness check, we can utilize the current implementation of the
+    reference path to validate the numarical results of max partition policy.
+  - For performance check, as currently there's no baseline for the performance of
+    max partititon policy, the first round of performance check will be set as
+    baseline for later performance check.
+
 ## Open questions
 
 1. Compared with fusion and debug policy, max policy gives the library more control
