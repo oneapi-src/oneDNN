@@ -491,7 +491,7 @@ TEST(Execute, Int8Mha) {
 
     ASSERT_EQ(g.get_ops().size(), 13U);
 
-    graph::pass::pass_base_ptr apass = get_pass("int8_MHA_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("int8_sdp_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -553,7 +553,7 @@ TEST(Execute, F32Mha) {
 
     ASSERT_EQ(g.get_ops().size(), 7U);
 
-    graph::pass::pass_base_ptr apass = get_pass("float_MHA_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -648,7 +648,7 @@ TEST(Execute, Bf16Mha) {
 
     ASSERT_EQ(g.get_ops().size(), 7U);
 
-    graph::pass::pass_base_ptr apass = get_pass("float_MHA_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -724,7 +724,7 @@ TEST(Execute, Int8Bf16Mha) {
 
     ASSERT_EQ(g.get_ops().size(), 19U);
 
-    graph::pass::pass_base_ptr apass = get_pass("int8_bf16_MHA_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("int8_bf16_sdp_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];

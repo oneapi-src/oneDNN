@@ -12607,7 +12607,7 @@ TEST(Pass, Int8MhaFusion) {
     agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 13U);
 
-    dnnl::impl::graph::pass::pass_base_ptr apass = get_pass("int8_MHA_fusion");
+    dnnl::impl::graph::pass::pass_base_ptr apass = get_pass("int8_sdp_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
@@ -12618,7 +12618,7 @@ TEST(Pass, F32MhaFusion) {
     agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 7U);
 
-    dnnl::impl::graph::pass::pass_base_ptr apass = get_pass("float_MHA_fusion");
+    dnnl::impl::graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }

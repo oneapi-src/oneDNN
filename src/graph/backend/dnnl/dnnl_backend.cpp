@@ -51,6 +51,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PATTERN_CALL(conv_post_ops_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(convtranspose_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(matmul_post_ops, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(sdp, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(single_op_pass, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(pool_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(eltwise_fusion, pass_registry_);
