@@ -534,12 +534,14 @@ sc_graph_t &sc_graph_t::operator=(sc_graph_t &&other) {
     return *this;
 }
 
-size_t sc_graph_t::hash_contents() const {
+size_t sc_graph_t::hash_contents(
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
     size_t seed = 0;
     hash_combine(seed, attrs_.get_or_else("fpmath_mode", 0));
     op_visitor_t vis = op_visitor_t::bfs_topology_sort(this->ops_.size());
     vis.visit_graph(*this, [&](op_visitor_t *vis, const sc_op_ptr &op) {
-        hash_combine(seed, op->hash_contents());
+        hash_combine(seed, op->hash_contents(filter));
     });
     return seed;
 }
@@ -792,12 +794,15 @@ bool sc_op::need_dynamic_internal_query() {
     return ret;
 }
 
-bool sc_op::compare_contents(const sc_op *other) const {
+bool sc_op::compare_contents(const sc_op *other, // NOLINT
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
     if (op_name_ != other->op_name_) { return false; }
     int numattrs = 0, othernumattrs = 0;
     auto &othermap = other->attrs_.as_map();
     for (auto &kv : attrs_.as_map()) {
         if (utils::string_startswith(kv.first, "temp.")) { continue; }
+        if (filter && !filter(this, kv.first)) { continue; }
         numattrs++;
         auto otherkv = othermap.find(kv.first);
         if (otherkv == othermap.end()) { return false; }
@@ -805,6 +810,7 @@ bool sc_op::compare_contents(const sc_op *other) const {
     }
     for (auto &kv : othermap) {
         if (utils::string_startswith(kv.first, "temp.")) { continue; }
+        if (filter && !filter(this, kv.first)) { continue; }
         othernumattrs++;
     }
     if (numattrs != othernumattrs) { return false; }
@@ -812,23 +818,31 @@ bool sc_op::compare_contents(const sc_op *other) const {
     return true;
 }
 
-size_t sc_op::hash_contents() const {
+size_t sc_op::standard_hash_contents(const sc_op *p,
+        const std::function<bool(const sc_op *, const std::string &)> &filter) {
     size_t seed = 0;
-    for (auto &in : info_.inputs_) {
+    for (auto &in : p->info_.inputs_) {
         hash_combine(seed, in->details_.hash());
     }
-    for (auto &out : info_.outputs_) {
+    for (auto &out : p->info_.outputs_) {
         hash_combine(seed, out->details_.hash());
     }
-    hash_combine(seed, this->op_name_);
-    for (auto &kv : attrs_.as_map()) {
+    hash_combine(seed, p->op_name_);
+    for (auto &kv : p->attrs_.as_map()) {
         if (utils::string_startswith(kv.first, "temp.")) { continue; }
+        if (filter && !filter(p, kv.first)) { continue; }
         // To hash unordered_map, use `XOR`, which satisfies commutative law.
         // Otherwise, for ordered containers (like arrays), use `hash_combine`
         // to distinguish result from the differnt sequence order.
         if (!kv.second.empty()) { seed ^= kv.second.hash(); }
     }
     return seed;
+}
+
+size_t sc_op::hash_contents( // NOLINT
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
+    return standard_hash_contents(this, filter);
 }
 
 static std::unordered_map<std::string, op_factory_func> &get_op_factory_map() {

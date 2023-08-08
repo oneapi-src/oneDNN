@@ -24,6 +24,7 @@
 #include "compiler/ir/graph/driver.hpp"
 #include "compiler/ir/graph/dynamic_utils.hpp"
 #include "compiler/ir/graph/pass/pass.hpp"
+#include "compiler/jit/compiler_driver.hpp"
 #include "compiler_partition_impl.hpp"
 
 #include "common/rw_mutex.hpp"
@@ -274,8 +275,6 @@ graph::status_t compiler_partition_impl_t::compile(
 
         ctx->engine_ = static_cast<gc::runtime::engine_t *>(graph_engine.get());
 
-        gc::graph_driver(backend_graph_obj, ctx);
-
         std::vector<gc::sc_op_ptr> args;
         for (auto &out_lt : outputs) {
             for (const auto &op : backend_graph_obj.get_output_ops()) {
@@ -297,11 +296,10 @@ graph::status_t compiler_partition_impl_t::compile(
                 }
             }
         }
-        gc::ir_module_ptr ir_mod
-                = gc::lower_graph(ctx, backend_graph_obj, args);
 
         std::shared_ptr<gc::jit_function_t> fptr
-                = gc::jit_engine_t::make(ctx)->get_entry_func(ir_mod, true);
+                = gc::compiler_driver(ctx, backend_graph_obj, args);
+
         auto pimpl = std::make_shared<compiler_compiled_partition_impl_t>(
                 *aengine, inputs, outputs, fptr, graph_engine,
                 std::move(dyn_inputs), std::move(dyn_outputs),

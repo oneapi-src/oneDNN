@@ -75,6 +75,9 @@ public:
         // bool, default=false. whether the addresses of global tensors and
         // variables will be hardcoded in the JIT'd code
         static constexpr const char *STATIC_GLOBALS = "static_globals";
+        // vector<shared_ptr<shared_const_wrapper>>. The list of base tensors
+        // for shared consts
+        static constexpr const char *SHARED_CONST_BASES = "shared_const_bases";
     };
 
     context_ptr ctx_;

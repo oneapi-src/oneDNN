@@ -230,8 +230,12 @@ public:
         return sc_data_format_t::get_blocking_shapes(
                 get_constant_plain_dims(), get_constant_format());
     }
-    bool compare_contents(const sc_op *other) const override;
-    size_t hash_contents() const override;
+    bool compare_contents(const sc_op *other,
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter) const override;
+    size_t hash_contents(
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter) const override;
 
     // if necessary, reset const_values according possible `var` from attrs
     void reset_const_values();

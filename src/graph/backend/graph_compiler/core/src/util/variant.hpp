@@ -82,6 +82,7 @@ struct helper<T, Args...> {
     }
 
     // use the name copyit instead of copy to make linter happy
+    template <typename T2 = T>
     static void copyit(size_t curid, const void *src, void *dst) {
         if (id == curid) {
             new (dst) T(*reinterpret_cast<const T *>(src));
@@ -179,12 +180,16 @@ struct copy_or_move_handler {
             "The variant does not include this type");
     static void call(variantT &ths, T &&src) {
         auto id = ths.template get_id_of_type<T>();
-        variantT::helper_t::move(id, &src, &ths.data_);
+        new (&ths.data_) T(std::move(src));
         ths.id_ = id;
     }
+
+    // using template to avoid instantiating the use of copy ctor when it is
+    // never used
+    template <typename T2 = variantT>
     static void call(variantT &ths, const T &src) {
         auto id = ths.template get_id_of_type<T>();
-        variantT::helper_t::copyit(id, &src, &ths.data_);
+        new (&ths.data_) T(src);
         ths.id_ = id;
     }
 };
@@ -196,6 +201,10 @@ struct copy_or_move_handler<variantT, variantT> {
         ths.id_ = other.id_;
         other.id_ = 0;
     }
+
+    // using template to avoid instantiating the use of copy ctor when it is
+    // never used
+    template <typename T2 = variantT>
     static void call(variantT &ths, const variantT &other) {
         variantT::helper_t::copyit(other.id_, &other.data_, &ths.data_);
         ths.id_ = other.id_;
@@ -242,25 +251,6 @@ public:
     // the variant is by default "empty". An empty variant has not any valid
     // data
     variant() = default;
-    variant(variant &&other) {
-        copy_or_move_handler<variant>::call(*this, std::move(other));
-    }
-
-    variant(const variant &other) {
-        copy_or_move_handler<variant>::call(*this, other);
-    }
-
-    variant &operator=(variant &&other) {
-        clear();
-        copy_or_move_handler<variant>::call(*this, std::move(other));
-        return *this;
-    }
-
-    variant &operator=(const variant &other) {
-        clear();
-        copy_or_move_handler<variant>::call(*this, other);
-        return *this;
-    }
 
     // copy/move from variant/candidate types
     template <typename T>
@@ -331,7 +321,8 @@ public:
     // it returns a pointer to X
     template <typename T>
     const T *as_or_null() const {
-        return helper_t::template as<typename std::decay<T>::type>(id_, &data_);
+        return helper_t::template as<typename std::decay<T>::type>(
+                id_, const_cast<buffer_t *>(&data_));
     }
 
     // get the stored object's pointer, if T is same as or base type of the
@@ -364,8 +355,7 @@ public:
     // the stored type can be converted to T. Otherwise, throw an error
     template <typename T>
     T cast() const {
-        return helper_t::template cast<typename std::decay<T>::type>(
-                id_, &data_);
+        return helper_t::template cast<T>(id_, &data_);
     }
 
     // Clear the variant. After calling this function, the variant object will

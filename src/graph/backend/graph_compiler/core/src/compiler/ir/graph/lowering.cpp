@@ -1493,6 +1493,10 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     if (graph_name != default_graph_name) {
         ret_mod->attr_[ir_module_t::attr_key_t::NAME] = graph_name;
     }
+    if (graph.attrs_.has_key("shared_const_bases")) {
+        ret_mod->attr_[ir_module_t::attr_key_t::SHARED_CONST_BASES]
+                = graph.attrs_["shared_const_bases"];
+    }
 
     if (ctx->flags_.graph_default_private_) {
         for (auto &f : ret_mod->get_contents()) {

@@ -184,6 +184,9 @@ TEST(GCCore_CPU_module_globals_resolver_t, TestGlobalSharedTensor) {
         E->attr()[attr_keys::shared_const] = graph_tsr5;
     }
     auto mod = ir_module_t::from_entry_func(get_default_context(), aaa);
+    mod->attr_[ir_module_t::attr_key_t::SHARED_CONST_BASES]
+            = std::vector<std::shared_ptr<runtime::const_cache_proxy>> {
+                    base1, base2, base3};
 
     auto out_mod = pass(mod);
     _function_(datatypes::void_t, expected, _arg_("stream", datatypes::pointer),

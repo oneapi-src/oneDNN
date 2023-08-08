@@ -17,6 +17,7 @@
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_HPP
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -362,20 +363,37 @@ public:
      * implementation only compares op_name and attrs. This function does not
      * check the op-tensor connections, which will be checked by the
      * graph_comparer.
+     * @param filter the filter for the attr name. If it returns false, the attr
+     * will be ignored. By default it only filters out keys starting with
+     * "temp."
      * @note we ingore the attrs with keys starting with "temp."
      * @return true if the contents (not including the op connections) are the
      * same
      * */
-    virtual bool compare_contents(const sc_op *other) const;
+    virtual bool compare_contents(const sc_op *other,
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter
+            = nullptr) const;
 
     /**
      * Hash the contents. The default implementation only hashs op_name and
      * attrs. The function can be used to make hash map. When hash conflict
      * happened, we can compare them with `compare_contents`.
+     * @param filter the filter for the attr name. If it returns false, the attr
+     * will be ignored. By default it only filters out keys starting with
+     * "temp."
      * @note we ingore the attrs with keys starting with "temp."
      * @return hash value with size_t datatype.
      * */
-    virtual size_t hash_contents() const;
+    virtual size_t hash_contents(
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter
+            = nullptr) const;
+
+    // the default implementation of hash_contents
+    static size_t standard_hash_contents(const sc_op *p,
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter);
 
     // constructor
     sc_op(const std::string &op_name,
@@ -471,10 +489,16 @@ public:
      * Hash the contents. The default implementation only hashs ops and
      * attrs. The function can be used to make hash map. When hash conflict
      * happened, we can compare them with `compare_graph`.
+     * @param filter the filter for the attr name. If it returns false, the attr
+     * will be ignored. By default it only filters out keys starting with
+     * "temp."
      * @note we ingore the attrs with keys starting with "temp."
      * @return hash value with size_t datatype.
      * */
-    size_t hash_contents() const;
+    size_t hash_contents(
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter
+            = nullptr) const;
 
     // This function removes the Ops with is_removed_=true. And it compresses
     // the ops_ array by removing the holes of removed ops. It finally resets

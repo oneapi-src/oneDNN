@@ -35,6 +35,9 @@ SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph) {
     op_visitor_t vis = op_visitor_t::bfs_topology_sort(graph.ops_.size());
     std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> old_new_lt_map;
     std::unordered_map<sc_op_ptr, int> op_id_map;
+    // the map from old op id to new op
+    std::vector<sc_op_ptr> old_id_2_new_op;
+    old_id_2_new_op.resize(graph.ops_.size());
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         sc_op_ptr new_node;
         if (node->dyn_cast<input_op>()) {
@@ -64,7 +67,23 @@ SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph) {
             old_new_lt_map[node->get_outputs()[i]] = new_node->get_outputs()[i];
         }
         op_id_map[new_node] = node->logical_op_id_;
+        old_id_2_new_op[node->logical_op_id_] = new_node;
     });
+    // update the uses order, it is important for checking equality of the
+    // copied graph
+    for (auto &newop : copied_graph.ops_) {
+        auto &mapped_old = graph.ops_[op_id_map[newop]];
+        auto &newouts = newop->get_outputs();
+        auto &oldouts = mapped_old->get_outputs();
+        for (size_t i = 0; i < newouts.size(); i++) {
+            // copy the old uses, and re-map to new ops
+            newouts[i]->uses_ = oldouts.at(i)->uses_;
+            for (auto &use : newouts[i]->uses_) {
+                auto old_id = use.second.lock()->logical_op_id_;
+                use.second = old_id_2_new_op[old_id];
+            }
+        }
+    }
     copied_graph.attrs_ = graph.attrs_;
     // deep copy here.
     if (graph.dyn_info_) {

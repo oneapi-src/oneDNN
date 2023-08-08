@@ -949,6 +949,7 @@ sc_op_ptr reduce_compute_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
     auto ret = mgr.make<reduce_compute_op_t>(ins.at(0), outs.at(0),
             real_rd_axis_, rd_op_, keep_dims_, local_mode_);
     ret->copy_dispatch_key_set_from_op(shared_from_this());
+    ret->attrs_ = attrs_;
     return ret;
 }
 
@@ -1100,6 +1101,7 @@ sc_op_ptr reduce_collect_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
     auto ret = mgr.make<reduce_collect_op_t>(
             ins.at(0), outs.at(0), real_rd_axis_, rd_op_, keep_dims_, op_);
     ret->copy_dispatch_key_set_from_op(shared_from_this());
+    ret->attrs_ = attrs_;
     return ret;
 }
 

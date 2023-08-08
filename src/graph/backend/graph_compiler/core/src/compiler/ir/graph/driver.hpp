@@ -114,6 +114,7 @@ struct graph_config;
  * default passes
  * @param post_tune_pass the graph passes after running tuner. if null, use
  * default passes
+ * @param allow_cache allow reusing cached code for the graph
  * */
 SC_API void graph_driver(sc_graph_t &graph,
         const context_ptr &ctx = get_default_context(),
@@ -121,13 +122,15 @@ SC_API void graph_driver(sc_graph_t &graph,
         int tuner_batch = 0, int repeat = 0, int64_t timeout = 0,
         tuner_creator *tune_creator = nullptr,
         std::vector<basic_graph_pass_ptr> *pre_tune_pass = nullptr,
-        std::vector<basic_graph_pass_ptr> *post_tune_pass = nullptr);
+        std::vector<basic_graph_pass_ptr> *post_tune_pass = nullptr,
+        bool allow_cache = false);
 
 // util function to create mapping of ops in the copied graph
 std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> create_op_map(
         sc_graph_t &lg, sc_graph_t &rg);
 void run_graph_passes(sc_graph_t &graph, const context_ptr &ctx,
-        const std::vector<basic_graph_pass_ptr> &passes);
+        const std::vector<basic_graph_pass_ptr> &passes,
+        bool allow_cache = false);
 
 // get graph driver result before fusion, usually used for unit test
 void graph_driver_before_fusion(sc_graph_t &graph, const context_ptr &ctx);

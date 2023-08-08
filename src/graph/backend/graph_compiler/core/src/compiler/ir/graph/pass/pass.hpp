@@ -17,10 +17,12 @@
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_PASS_PASS_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_PASS_PASS_HPP
 
+#include <functional>
 #include <ios>
 #include <string>
 #include "../graph.hpp"
 #include <unordered_map>
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -69,6 +71,10 @@ SC_INTERNAL_API void graph_constant_input_folding_and_share_constants(
 SC_INTERNAL_API void padded_mask_mark(
         sc_graph_t &graph, const context_ptr &ctx);
 
+// find the graph in cached code. If a matched graph is found, the
+// compiler_driver/graph_driver can skip the compilation and reuse the code
+SC_INTERNAL_API void graph_code_cache(sc_graph_t &mgr, const context_ptr &ctx);
+
 /**
  * Compares the graphs.
  * @param lhs the left hand side graph
@@ -77,11 +83,15 @@ SC_INTERNAL_API void padded_mask_mark(
  * @param first_diff_rhs outputs the first different RHS Op
  * @param lhs_rhs_input_mapping {the left graph input op id, the right graph
  * input op id} mapping
+ * @param filter the filter function for op attr, @see
+ * sc_graph_t::compare_contents
  * @return true if the the graphs are the same
  * */
 SC_INTERNAL_API bool compare_graph(sc_op_ptr &first_diff_lhs,
         sc_op_ptr &first_diff_rhs, const sc_graph_t &lhs, const sc_graph_t &rhs,
-        const std::unordered_map<int, int> &lhs_rhs_input_mapping = {});
+        const std::unordered_map<int, int> &lhs_rhs_input_mapping = {},
+        const std::function<bool(const sc_op *, const std::string &)> &filter
+        = nullptr);
 
 /**
  * Compares the graphs.
@@ -89,10 +99,14 @@ SC_INTERNAL_API bool compare_graph(sc_op_ptr &first_diff_lhs,
  * @param rhs the right hand side graph
  * @param lhs_rhs_input_mapping {the left graph input op id, the right graph
  * input op id} mapping
+ * @param filter the filter function for op attr, @see
+ * sc_graph_t::compare_contents
  * @return true if the the graphs are the same
  * */
 SC_INTERNAL_API bool compare_graph(const sc_graph_t &lhs, const sc_graph_t &rhs,
-        const std::unordered_map<int, int> &lhs_rhs_input_mapping = {});
+        const std::unordered_map<int, int> &lhs_rhs_input_mapping = {},
+        const std::function<bool(const sc_op *, const std::string &)> &filter
+        = nullptr);
 
 namespace runtime {
 struct dynamic_tensor_t;

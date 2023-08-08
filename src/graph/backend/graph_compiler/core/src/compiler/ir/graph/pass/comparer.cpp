@@ -27,7 +27,8 @@ namespace gc {
 
 bool compare_graph(sc_op_ptr &first_diff_lhs, sc_op_ptr &first_diff_rhs,
         const sc_graph_t &lhs, const sc_graph_t &rhs,
-        const std::unordered_map<int, int> &lhs_rhs_input_mapping) {
+        const std::unordered_map<int, int> &lhs_rhs_input_mapping,
+        const std::function<bool(const sc_op *, const std::string &)> &filter) {
     std::vector<int> op_id_map(lhs.ops_.size(), -1);
     std::unordered_map<graph_tensor *, graph_tensor *> tsr_map;
     if (lhs_rhs_input_mapping.empty()) {
@@ -70,7 +71,9 @@ bool compare_graph(sc_op_ptr &first_diff_lhs, sc_op_ptr &first_diff_rhs,
                 if (rhs_node_idx == -1) { DO_RETURN; }
                 rnode = rhs.ops_.at(rhs_node_idx);
                 // check the name and attrs
-                if (!lnode->compare_contents(rnode.get())) { DO_RETURN; }
+                if (!lnode->compare_contents(rnode.get(), filter)) {
+                    DO_RETURN;
+                }
                 // check the mapping of input tensors. because the input nodes
                 // are already visited (DAG_updater), we just need to check if
                 // the LHS tensor is correctly mapped to RHS tensor
@@ -141,10 +144,11 @@ bool compare_graph(sc_op_ptr &first_diff_lhs, sc_op_ptr &first_diff_rhs,
 }
 
 bool compare_graph(const sc_graph_t &lhs, const sc_graph_t &rhs,
-        const std::unordered_map<int, int> &lhs_rhs_input_mapping) {
+        const std::unordered_map<int, int> &lhs_rhs_input_mapping,
+        const std::function<bool(const sc_op *, const std::string &)> &filter) {
     sc_op_ptr first_diff_lhs, first_diff_rhs;
-    return compare_graph(
-            first_diff_lhs, first_diff_rhs, lhs, rhs, lhs_rhs_input_mapping);
+    return compare_graph(first_diff_lhs, first_diff_rhs, lhs, rhs,
+            lhs_rhs_input_mapping, filter);
 }
 
 } // namespace gc

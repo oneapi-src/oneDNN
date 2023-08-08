@@ -135,6 +135,8 @@ create_default_graph_flow(const context_ptr &ctx) {
     post_tune_passes.push_back(create_graph_pass("const_folding_and_share",
             graph_constant_input_folding_and_share_constants, {},
             pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("graph_code_cache",
+            graph_code_cache, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("inplace_transform",
             inplace_transform, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("padded_mask_mark",
@@ -181,7 +183,7 @@ get_graph_passes(const context_ptr &ctx) {
 }
 
 void run_graph_passes(sc_graph_t &graph, const context_ptr &ctx,
-        const std::vector<basic_graph_pass_ptr> &passes) {
+        const std::vector<basic_graph_pass_ptr> &passes, bool allow_cache) {
     bool need_time = utils::compiler_configs_t::get().print_pass_time_;
     bool need_result = utils::compiler_configs_t::get().print_pass_result_;
     for (auto &pass : passes) {
@@ -198,6 +200,10 @@ void run_graph_passes(sc_graph_t &graph, const context_ptr &ctx,
                                 << " us";
                     });
             pass->func_(graph, ctx);
+            if (allow_cache && pass->type_ == pass_type::post_tune
+                    && pass->name_ == "graph_code_cache") {
+                if (graph.attrs_.has_key("graph_code_cache")) { break; }
+            }
             if (need_result) {
                 std::string name
                         = std::string("graph.driver.debug.") + pass->name_;
@@ -235,7 +241,7 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         const graph_config *in_cfg, graph_config *out_cfg, int batch_size,
         int repeat, int64_t timeout, tuner_creator *tune_creator,
         std::vector<basic_graph_pass_ptr> *pre_tune_pass,
-        std::vector<basic_graph_pass_ptr> *post_tune_pass) {
+        std::vector<basic_graph_pass_ptr> *post_tune_pass, bool allow_cache) {
     bool need_tuning = timeout != 0;
     sc_graph_t graph_cpy;
 
@@ -253,10 +259,10 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
     const std::vector<basic_graph_pass_ptr> *postpass
             = post_tune_pass ? post_tune_pass : &std::get<1>(passes_tuple);
     // run pre_processing passes
-    run_graph_passes(graph, ctx, *prepass);
+    run_graph_passes(graph, ctx, *prepass, true);
 
     // run post tune passes
-    run_graph_passes(graph, ctx, *postpass);
+    run_graph_passes(graph, ctx, *postpass, true);
 }
 
 void graph_driver(

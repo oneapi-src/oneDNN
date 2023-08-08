@@ -101,6 +101,7 @@ public:
 };
 
 struct cached_const_graph_tensor;
+struct graph_code_cache_handle;
 
 // The executable code of compiling an ir_module_t
 class SC_INTERNAL_API jit_module_code {
@@ -109,10 +110,13 @@ public:
     runtime::dispatch_table_map_t op_tables_;
     // brgemm range handle vec
     std::vector<std::shared_ptr<brg_range_handle_t>> brg_handles_;
+    // the handle to the graph code cache, optional
+    std::shared_ptr<graph_code_cache_handle> graph_cache_handle_;
     // the unique id for a JIT module in a process scope
     size_t module_id_;
     // whether to use managed thread pool
     bool managed_thread_pool_;
+    std::string entry_func_name_;
     jit_module_code(bool managed_thread_pool);
     virtual void *get_address_of_symbol(const std::string &name) = 0;
     virtual void *get_function(const std::string &name, void *&wrapperfunc) = 0;

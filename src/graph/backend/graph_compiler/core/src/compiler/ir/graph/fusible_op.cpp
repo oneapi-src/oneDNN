@@ -394,28 +394,49 @@ void output_op::prepare_fusion_data(fdata_map &fdmap) {
     outdetail.need_alloc_ = false;
 }
 
-// special handling for union values
-bool constant_op_t::compare_contents(const sc_op *other) const {
-    if (other->op_name_ != op_name_) { return false; }
-    COMPILE_ASSERT(attrs_.has_key("values") && attrs_.has_key("dtype"),
-            "expecting values and dtype in attr");
-    COMPILE_ASSERT(
-            other->attrs_.has_key("values") && other->attrs_.has_key("dtype"),
-            "expecting values and dtype in attr");
-    auto dtype = attrs_.get<sc_data_type_t>("dtype");
-    if (other->attrs_.get<sc_data_type_t>("dtype") != dtype) { return false; }
-    if (attrs_.has_key("format")) {
-        if (!other->attrs_.has_key("format")) { return false; }
-        if (other->attrs_.get<sc_data_format_t>("format")
-                != attrs_.get<sc_data_format_t>("format")) {
-            return false;
-        }
+static void extract_const_op_data(const sc_op *ths,
+        const std::function<bool(const sc_op *, const std::string &)> &filter,
+        const std::shared_ptr<static_data_t> *&out_vales,
+        const sc_data_type_t *&out_dtype, const sc_data_format_t *&out_fmt) {
+    if (!filter || filter(ths, "values")) {
+        out_vales = ths->attrs_.get_or_null<std::shared_ptr<static_data_t>>(
+                "values");
+        COMPILE_ASSERT(out_vales, "expecting values");
     }
-    auto &vals = attrs_.get<std::shared_ptr<static_data_t>>("values");
-    auto &vals2 = other->attrs_.get<std::shared_ptr<static_data_t>>("values");
+    if (!filter || filter(ths, "dtype")) {
+        out_dtype = ths->attrs_.get_or_null<sc_data_type_t>("dtype");
+        COMPILE_ASSERT(out_dtype, "expecting dtype");
+    }
+    if (!filter || filter(ths, "format")) {
+        out_fmt = ths->attrs_.get_or_null<sc_data_format_t>("format");
+    }
+}
+
+// special handling for union values
+bool constant_op_t::compare_contents(const sc_op *other,
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
+    if (other->op_name_ != op_name_) { return false; }
+    const std::shared_ptr<static_data_t> *values = nullptr,
+                                         *other_values = nullptr;
+    const sc_data_type_t *dtype = nullptr, *other_dtype = nullptr;
+    const sc_data_format_t *fmt = nullptr, *other_fmt = nullptr;
+    extract_const_op_data(this, filter, values, dtype, fmt);
+    extract_const_op_data(other, filter, other_values, other_dtype, other_fmt);
+    if (dtype) {
+        if (!other_dtype || *dtype != *other_dtype) { return false; }
+    }
+    if (fmt) {
+        if (!other_fmt || *fmt != *other_fmt) { return false; }
+    }
+    if (!values) { return other_values == nullptr; }
+    // now values must be non-null
+    if (!other_values) { return false; }
+    auto &vals = *values;
+    auto &vals2 = *other_values;
     if (vals->size_ != vals2->size_) { return false; }
 
-    switch (get_type_category_nothrow(dtype)) {
+    switch (get_type_category_nothrow(*dtype)) {
         case CATE_FLOAT:
             for (size_t i = 0; i < vals->size_ / 4; i++) {
                 if (static_cast<float *>(vals->data_)[i]
@@ -440,14 +461,17 @@ bool constant_op_t::compare_contents(const sc_op *other) const {
     return true;
 }
 
-size_t constant_op_t::hash_contents() const {
+size_t constant_op_t::hash_contents(
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
     size_t seed = 0;
-    COMPILE_ASSERT(attrs_.has_key("values") && attrs_.has_key("dtype"),
-            "expecting values and dtype in attr");
-    if (attrs_.has_key("format")) {
-        hash_combine(seed, attrs_.get<sc_data_format_t>("format"));
-    }
-    auto &vals = attrs_.get<std::shared_ptr<static_data_t>>("values");
+    const std::shared_ptr<static_data_t> *values = nullptr;
+    const sc_data_type_t *dtype = nullptr;
+    const sc_data_format_t *fmt = nullptr;
+    extract_const_op_data(this, filter, values, dtype, fmt);
+    if (fmt) { hash_combine(seed, *fmt); }
+    if (!values) { return seed; }
+    auto &vals = *values;
 
     for (size_t i = 0; i < vals->size_; i++) {
         hash_combine(seed, static_cast<char *>(vals->data_)[i]);

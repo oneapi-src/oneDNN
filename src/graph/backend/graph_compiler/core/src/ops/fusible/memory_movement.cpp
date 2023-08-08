@@ -597,12 +597,16 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
                 = sc_data_format_t(sc_data_format_kind_t::get_plain_by_dims(
                         ins[0]->details_.get_plain_dims().size()));
     }
-    attrs_["cache_input_format"] = cache_input_format;
+    if (!attrs_.has_key("cache_input_format")) {
+        attrs_["cache_input_format"] = cache_input_format;
+    }
     if (format.is_any()) {
         format = sc_data_format_t(sc_data_format_kind_t::get_plain_by_dims(
                 info_.outputs_[0]->details_.get_plain_dims().size()));
+        attrs_["format"] = format;
+    } else if (!attrs_.has_key("format")) {
+        attrs_["format"] = format;
     }
-    attrs_["format"] = format;
     if (is_dynamic()
             && count_dynamic_dims(get_inputs()[0]->details_.get_plain_dims())
                     != count_dynamic_dims(

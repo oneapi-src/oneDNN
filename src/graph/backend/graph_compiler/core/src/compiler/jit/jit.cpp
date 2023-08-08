@@ -120,6 +120,9 @@ jit_module_code::jit_module_code(bool managed_thread_pool)
 void jit_module_code::postprocess(
         const const_ir_module_ptr &ir_mod, statics_table_t &globals) {
     update_runtime_data(ir_mod, globals);
+    if (ir_mod->get_entry_func()) {
+        entry_func_name_ = ir_mod->get_entry_func()->name_;
+    }
 }
 void jit_module_code::update_op_dispatch_table(
         const const_ir_module_ptr &ir_mod, statics_table_t &globals) {

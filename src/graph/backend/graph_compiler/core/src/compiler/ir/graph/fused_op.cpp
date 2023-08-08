@@ -677,15 +677,19 @@ void fused_op_t::collect_shrinked_axis_map(
     }
 }
 
-bool fused_op_t::compare_contents(const sc_op *other) const {
-    if (!sc_op::compare_contents(other)) { return false; }
+bool fused_op_t::compare_contents(const sc_op *other,
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
+    if (!sc_op::compare_contents(other, filter)) { return false; }
     if (auto other_fused = other->dyn_cast<const fused_op_t>()) {
         if (main_op_.empty() != other_fused->main_op_.empty()) { return false; }
         if (!main_op_.empty()) {
             auto mainop = dynamic_cast<sc_op *>(get_main_op());
             auto other_mainop
                     = dynamic_cast<sc_op *>(other_fused->get_main_op());
-            if (!mainop->compare_contents(other_mainop)) { return false; }
+            if (!mainop->compare_contents(other_mainop, filter)) {
+                return false;
+            }
         }
         return compare_graph(mgr_->get_graph(), other_fused->mgr_->get_graph());
     }
@@ -693,12 +697,14 @@ bool fused_op_t::compare_contents(const sc_op *other) const {
 }
 
 // may need refactor when enable graph hash
-size_t fused_op_t::hash_contents() const {
+size_t fused_op_t::hash_contents(
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
     size_t seed = 0;
-    hash_combine(seed, sc_op::hash_contents());
+    hash_combine(seed, sc_op::hash_contents(filter));
     if (!main_op_.empty()) {
         auto mainop = dynamic_cast<sc_op *>(get_main_op());
-        hash_combine(seed, mainop->hash_contents());
+        hash_combine(seed, mainop->hash_contents(filter));
     }
     return seed;
 }

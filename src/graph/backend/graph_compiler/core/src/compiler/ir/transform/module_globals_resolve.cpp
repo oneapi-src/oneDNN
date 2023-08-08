@@ -290,6 +290,26 @@ static std::vector<void *> process_shared_const_tensors(const ir_module_ptr &m,
     if (!mainf) { return {}; }
     std::vector<void *> collected_base;
     auto &seq = mainf->body_.checked_as<stmts>()->seq_;
+    auto bases = m->attr_.get_or_null<
+            std::vector<std::shared_ptr<runtime::const_cache_proxy>>>(
+            ir_module_t::attr_key_t::SHARED_CONST_BASES);
+    if (bases) {
+        out_base_tsr.reserve(bases->size());
+        for (auto &base : *bases) {
+            out_base_tsr.emplace_back(
+                    builder::make_tensor("__shared_const_base_"
+                                    + std::to_string(collected_base.size()),
+                            {base->size_}, datatypes::u8));
+            out_base_tsr.back()->attr()[attr_keys::shared_const_base_idx]
+                    = static_cast<size_t>(collected_base.size());
+            // collect the list of the buffer handle used. If the buffer is not
+            // lazy, then it will be never evicted. We can directly use the
+            // buffer pointer instead of the handle
+            void *handle = (base->is_lazy_) ? base.get()
+                                            : base->get_buffer_if_not_lazy();
+            collected_base.emplace_back(handle);
+        }
+    }
     for (auto &s : seq) {
         // if the stmt is a define node with cached_const_graph_tensor
         if (auto const_graph_tsr
@@ -306,28 +326,20 @@ static std::vector<void *> process_shared_const_tensors(const ir_module_ptr &m,
                           .get_or_else(nullptr)) {
             out_graph_tsr.emplace_back(const_graph_tsr);
             const auto &base = const_graph_tsr->buf_base_;
-            // collect the list of the buffer handle used. If the buffer is not
-            // lazy, then it will be never evicted. We can directly use the
-            // buffer pointer instead of the handle
+
             void *handle = (base->is_lazy_) ? base.get()
                                             : base->get_buffer_if_not_lazy();
-            auto itr = std::find(
-                    collected_base.begin(), collected_base.end(), handle);
-            if (itr != collected_base.end()) {
-                s->attr()["shared_const_handle_idx"]
-                        = static_cast<size_t>(itr - collected_base.begin());
-            } else {
-                out_base_tsr.emplace_back(
-                        builder::make_tensor("__shared_const_base_"
-                                        + std::to_string(collected_base.size()),
-                                {base->size_}, datatypes::u8));
-                collected_base.emplace_back(handle);
-                out_base_tsr.back()->attr()[attr_keys::shared_const_base_idx]
-                        = static_cast<size_t>(collected_base.size() - 1);
-                out_base_tsr.back()->attr()[attr_keys::shared_const]
+            COMPILE_ASSERT(
+                    bases, "Expecting SHARED_CONST_BASES attr in the module");
+            auto itr = std::find(bases->begin(), bases->end(), base);
+            COMPILE_ASSERT(itr != bases->end(),
+                    "Cannot find the shared const's base buffer in "
+                    "SHARED_CONST_BASES of the module");
+            auto idx = static_cast<size_t>(itr - bases->begin());
+            s->attr()["shared_const_handle_idx"] = idx;
+            if (!out_base_tsr[idx]->attr().has_key(attr_keys::shared_const)) {
+                out_base_tsr[idx]->attr()[attr_keys::shared_const]
                         = const_graph_tsr;
-                s->attr()["shared_const_handle_idx"]
-                        = static_cast<size_t>(collected_base.size() - 1);
             }
         }
     }
@@ -345,8 +357,8 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
     std::vector<expr> shared_const_base_tsr;
     auto base_cache_tsr = process_shared_const_tensors(
             ret, out_graph_tsr, shared_const_base_tsr);
-    // first, plan the memory layout for the static buffer to be used in an IR
-    // module:
+    // first, plan the memory layout for the static buffer to be used in an
+    // IR module:
     // ------------
     // global vars
     // ------------
@@ -433,9 +445,9 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
     ret->attr_[ir_module_t::attr_key_t::MODULE_DATA_BUFFERS]
             = std::move(sym_table);
     auto &funcs = ret->get_contents();
-    // second, pass the base pointer of the global buffer from "main entry" func
-    // to all IR functions. We also need to replace the call nodes and append a
-    // new parameter to pass down the global buffer pointer
+    // second, pass the base pointer of the global buffer from "main entry"
+    // func to all IR functions. We also need to replace the call nodes and
+    // append a new parameter to pass down the global buffer pointer
     std::unordered_map<std::string, func_t> replace_map;
     for (auto &f : funcs) {
         if (!f->body_.defined()) { continue; }
