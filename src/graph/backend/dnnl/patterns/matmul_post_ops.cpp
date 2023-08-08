@@ -33,16 +33,29 @@ using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
 using FCreatePattern = graph::pass::FCreatePattern;
 
-DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(matmul_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(matmul_post_ops)
 
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, matmul_post_ops_chain_fusion)
+/*
+              \   /
+              matmul
+                |
+             [bias]*
+                |
+            [BatchNorm]*
+                |
+        [unary/binary]*[0,3]
+                |
+*/
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_matmul_post_ops)
         .set_priority(8.8f)
         .set_kind(partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *pmatmul
                             = pgraph->append_op(graph::op_kind::MatMul);
-                    pmatmul->append_decision_function(check_input_num<2>);
+
+                    // Optional bias
+                    auto popt_bias = optional_bias_add(pgraph, pmatmul, false);
 
                     // Optional BN
                     auto popt_graph = std::make_shared<pb_graph_t>();
@@ -51,68 +64,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, matmul_post_ops_chain_fusion)
                     popt_graph->create_input_port(0, pbn, 0);
                     popt_graph->create_output_port(0, pbn, 0);
                     auto popt = pgraph->append_optional(
-                            popt_graph, {in_edge(0, pmatmul, 0)});
-
-                    auto alt_graph = std::make_shared<pb_graph_t>();
-                    auto palt = alt_graph->append_alternation(
-                            get_unary_binary_ops());
-                    palt->allow_internal_inputs();
-                    alt_graph->create_input_port(0, palt, 0);
-                    alt_graph->create_output_port(0, palt, 0);
-
-                    pgraph->append_repetition(alt_graph, {0, 0}, 0,
-                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)});
-                })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<float_matmul>();
-        });
-
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, matmul_bias_post_ops_chain_fusion)
-        .set_priority(8.9f)
-        .set_kind(partition_kind_t::matmul_post_ops)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *pmatmul
-                            = pgraph->append_op(graph::op_kind::MatMul);
-                    pmatmul->append_decision_function(check_input_num<2>);
-                    pm::pb_op_t *biasadd
-                            = pgraph->append_op(graph::op_kind::BiasAdd,
-                                    in_edges_t {in_edge(0, pmatmul, 0)});
-
-                    // Optional BN
-                    auto popt_graph = std::make_shared<pb_graph_t>();
-                    auto pbn = popt_graph->append_op(
-                            graph::op_kind::BatchNormInference);
-                    popt_graph->create_input_port(0, pbn, 0);
-                    popt_graph->create_output_port(0, pbn, 0);
-                    auto popt = pgraph->append_optional(
-                            popt_graph, {in_edge(0, biasadd, 0)});
-
-                    auto alt_graph = std::make_shared<pb_graph_t>();
-                    auto palt = alt_graph->append_alternation(
-                            get_unary_binary_ops());
-                    palt->allow_internal_inputs();
-                    alt_graph->create_input_port(0, palt, 0);
-                    alt_graph->create_output_port(0, palt, 0);
-
-                    pgraph->append_repetition(alt_graph, {0, 0}, 0,
-                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)});
-                })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *pmatmul
-                            = pgraph->append_op(graph::op_kind::MatMul);
-                    pmatmul->append_decision_function(check_input_num<3>);
-
-                    // Optional BN
-                    auto popt_graph = std::make_shared<pb_graph_t>();
-                    auto pbn = popt_graph->append_op(
-                            graph::op_kind::BatchNormInference);
-                    popt_graph->create_input_port(0, pbn, 0);
-                    popt_graph->create_output_port(0, pbn, 0);
-                    auto popt = pgraph->append_optional(
-                            popt_graph, {in_edge(0, pmatmul, 0)});
+                            popt_graph, {in_edge(0, popt_bias, 0)});
 
                     auto alt_graph = std::make_shared<pb_graph_t>();
                     auto palt = alt_graph->append_alternation(
@@ -843,7 +795,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     auto popt_post_ops
                             = pgraph->append_optional(other_postop_graph,
-                                    in_edges_t {in_edge(0, padd, 0)});
+                            in_edges_t {in_edge(0, padd, 0)});
 
                     // typecast_out + quant_out
                     pm::pb_op_t *ptc_out
@@ -924,7 +876,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     auto popt_post_ops
                             = pgraph->append_optional(other_postop_graph,
-                                    in_edges_t {in_edge(0, padd, 0)});
+                            in_edges_t {in_edge(0, padd, 0)});
 
                     // typecast_out + quant_out
                     pm::pb_op_t *ptc_out

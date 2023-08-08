@@ -968,7 +968,7 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
+    pass::pass_base_ptr apass = get_pass("fp_matmul_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
