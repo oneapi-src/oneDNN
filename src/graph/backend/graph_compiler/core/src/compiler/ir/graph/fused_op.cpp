@@ -1519,7 +1519,7 @@ ir_module_ptr horizontal_fused_op_t::get_func(context_ptr ctx) {
     auto modu = std::make_shared<ir_module_t>(ctx);
     std::vector<expr> ins, outs;
     auto func = graph::create_func_decl_for_op(this, ins, outs);
-    func_inliner_t inliner;
+    func_inliner_t inliner {false};
     builder::ir_builder_t bld;
     bld.push_scope();
     for (auto &ops_idx_pair : ops_idx_list_) {
@@ -2321,7 +2321,7 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
         }
     };
 
-    func_inliner_t inliner;
+    func_inliner_t inliner {false};
     stmt cur = builder::make_stmts_unattached({});
     declare_strided_tsr_ir(cur, strided_in_tsr_map);
     declare_strided_tsr_ir(cur, strided_out_tsr_map);

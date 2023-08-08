@@ -273,6 +273,11 @@ func_c index_flattener_t::operator()(func_c f) {
     return pass.dispatch(std::move(f));
 }
 
+stmt_c index_flattener_t::operator()(stmt_c f) {
+    index_flatten_t pass;
+    return pass.dispatch(std::move(f));
+}
+
 const_ir_module_ptr index_flattener_t::operator()(const_ir_module_ptr f) {
     index_flatten_t pass;
     return dispatch_module_on_visitor(&pass, f);
