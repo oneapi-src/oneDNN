@@ -362,6 +362,19 @@ private:
             const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
             std::size_t elem_size_bytes) const;
 
+    void append_oc_d_offset(
+            const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
+            const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
+            const std::map<int, size_t> &vmm_idx_to_out_elem_off_val,
+            int vmm_idx, const Xbyak::Reg64 &addr_reg,
+            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes,
+            bool is_first) const;
+    void calculate_oc_d_ncsp_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_oc_d_ncsp_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+
     void append_mb_sp_offset(
             const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
             const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
