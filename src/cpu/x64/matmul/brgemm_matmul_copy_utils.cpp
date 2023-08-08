@@ -1843,7 +1843,9 @@ struct jit_brgemm_matmul_copy_b_bf16_t : public jit_brgemm_matmul_copy_b_t,
         , typesize(conf->b_dt_sz)
         , tr_typesize(conf->tr_b_dt_sz)
         , src_stride(conf->copy_B_wei_stride)
-        , tr_src_stride(conf_->LDB * k_blk_step * tr_typesize) {}
+        , tr_src_stride(conf_->LDB * k_blk_step * tr_typesize)
+        , is_dynamic_stride(is_runtime_value(src_stride))
+        , is_dynamic_N(conf->is_runtime_N) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -1858,6 +1860,13 @@ private:
     enum { k_blk_step = 2, n_blk_step = 16 };
     const int typesize, tr_typesize;
     const dim_t src_stride, tr_src_stride;
+    const bool is_dynamic_stride;
+    const bool is_dynamic_N;
+
+    constexpr static int reg_src_offs = 0;
+
+    constexpr static int reg_tr_src_offs = 8;
+    constexpr static int stack_space_needed = 16;
 
     opmask_t kTail = k7;
     opmask_t kFFFF = k6;
@@ -1868,7 +1877,16 @@ private:
     reg64_t reg_K_iters = r8;
     reg64_t reg_N_blk = r9;
     reg64_t reg_K_start = r10;
+    reg64_t reg_src_stride = r11;
+    reg64_t reg_src_stride_x2 = r12;
+    reg64_t reg_src_load_0 = r13;
+    reg64_t reg_src_load_1 = r14;
     reg64_t reg_tmp = r15;
+
+    reg64_t reg_copy_block_n_shift = rsi;
+
+    reg64_t reg_dynamic_tail = rcx;
+    Xbyak::Reg8 reg8_mask_shift = reg_dynamic_tail.cvt8();
 
     Vmm vmm_zero = Vmm(0);
     Vmm vmm_permw = Vmm(1);
@@ -1877,7 +1895,12 @@ private:
     void kmovx(Opmask k, unsigned w) {
         if (!isa_has_masks(conf_->isa)) return;
         const auto regw_tmp = reg_tmp.cvt32();
-        mov(regw_tmp, w);
+        if (is_dynamic_N) {
+            mov(reg_tmp, 1);
+            shl(reg_tmp, reg8_mask_shift /* reg_dynamic_tail.cvt8() == cl */);
+            sub(reg_tmp, 1);
+        } else
+            mov(regw_tmp, w);
         if (conf_->is_bf32)
             jit_generator::kmovw(k, regw_tmp);
         else
@@ -1890,6 +1913,7 @@ private:
             return vmm;
         }
     }
+    void copy_block(int nrows, int ncolumns, bool n_tail);
     void copy_2x32(int nrows, int ncolumns);
     void init_masks();
     void generate() override;
@@ -1899,8 +1923,10 @@ template <typename Vmm>
 void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
 
     const int columns_tail = ncolumns % n_blk_step;
-    const auto tail_mask = (1 << columns_tail) - 1;
-    if (columns_tail < n_blk_step) kmovx(kTail, tail_mask);
+    if (columns_tail > 0 && columns_tail < n_blk_step) {
+        const auto tail_mask = (1 << columns_tail) - 1;
+        kmovx(kTail, tail_mask);
+    }
 
     static constexpr int blk_sz = k_blk_step;
     static constexpr int reserved_regs = 2;
@@ -1920,8 +1946,11 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
         auto src_reg = get_vmm(blk, k % k_blk_step);
         const bool is_tail = ncolumns - n < n_blk_step;
         auto src_load = maybe_mask(src_reg, is_tail);
-        auto load_addr = maybe_EVEX_compress_addr(
-                reg_src, k * src_stride + n * typesize);
+        const auto offset
+                = (is_dynamic_stride ? 0 : k * src_stride) + n * typesize;
+        const auto reg_src_load
+                = is_dynamic_stride && k % 2 != 0 ? reg_src_load_1 : reg_src;
+        auto load_addr = maybe_EVEX_compress_addr(reg_src_load, offset);
         if (is_tail && !isa_has_masks(conf_->isa)) {
             load_bytes(src_load, load_addr, columns_tail * tr_typesize);
         } else if (IMPLICATION(isa_has_masks(conf_->isa), conf_->is_bf32)) {
@@ -1933,7 +1962,8 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
 
     int iter = 0;
     for_(int k = 0; k < nrows; k += k_blk_step)
-    for (int n = 0; n < conf_->wei_n_blk; n += n_blk_step) {
+    for (int n = 0; n < (is_dynamic_N ? ncolumns : conf_->wei_n_blk);
+            n += n_blk_step) {
         const int k_blk = k / k_blk_step;
         const dim_t tr_src_off
                 = k_blk * tr_src_stride + n * k_blk_step * tr_typesize;
@@ -1945,6 +1975,15 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
         const auto src_vmm0 = get_vmm(blk_idx, 0);
         const auto src_zmm0 = zmm(src_vmm0.getIdx());
         const auto src_vmm1 = get_vmm(blk_idx, 1);
+        if (is_dynamic_stride && n == 0) {
+            if (k == 0) {
+                mov(reg_src_load_1, reg_src);
+                add(reg_src_load_1, reg_src_stride);
+            } else {
+                add(reg_src, reg_src_stride_x2);
+                add(reg_src_load_1, reg_src_stride_x2);
+            }
+        }
 
         if (ncolumns - n <= 0) {
             uni_vmovups(store_addr, vmm_zero);
@@ -1984,6 +2023,9 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
 
         iter++;
     }
+    if (is_dynamic_stride && nrows > 0) {
+        add(reg_src, nrows % 2 == 0 ? reg_src_stride_x2 : reg_src_stride);
+    }
 }
 
 template <typename Vmm>
@@ -2001,15 +2043,78 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::init_masks() {
 }
 
 template <typename Vmm>
+void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_block(
+        int nrows, int ncolumns, bool n_tail) {
+    if (!is_dynamic_N || !n_tail) {
+        copy_2x32(nrows, ncolumns);
+        return;
+    }
+
+    mov(reg_dynamic_tail, reg_N_blk);
+    // dynamic tail processing: main loop with ncolumns = n_blk_step and
+    // finally process tail < n_blk_step with dynamically computed mask
+    // NOTE: for dynamic_stride case copy_2x32() shifts reg_src pointer
+    // so we need to backup/restore its value for every iteration wrt n
+    // except the last one
+
+    mov(ptr[rsp + reg_tr_src_offs], reg_tr_src);
+    xor_(reg_copy_block_n_shift, reg_copy_block_n_shift);
+
+    Label loop_row_start, loop_row_tail, loop_row_done;
+    cmp(reg_dynamic_tail, n_blk_step);
+    jl(loop_row_tail, T_NEAR);
+    L(loop_row_start);
+    {
+        mov(ptr[rsp + reg_src_offs], reg_src);
+        add(reg_src, reg_copy_block_n_shift);
+        copy_2x32(nrows, n_blk_step);
+        add(reg_copy_block_n_shift, n_blk_step * typesize);
+        add(reg_src, n_blk_step * typesize);
+        add(reg_tr_src, n_blk_step * k_blk_step * tr_typesize);
+        sub(reg_dynamic_tail, n_blk_step);
+
+        cmp(reg_dynamic_tail, 0);
+        jle(loop_row_done, T_NEAR);
+
+        mov(reg_src, ptr[rsp + reg_src_offs]);
+
+        cmp(reg_dynamic_tail, n_blk_step);
+        jl(loop_row_tail, T_NEAR);
+
+        jmp(loop_row_start, T_NEAR);
+    }
+
+    L(loop_row_tail);
+    {
+        cmp(reg_dynamic_tail, 0);
+        jle(loop_row_done, T_NEAR);
+
+        add(reg_src, reg_copy_block_n_shift);
+        copy_2x32(nrows, 1 /* to force tail case */);
+    }
+    L(loop_row_done);
+
+    // restore pointers
+    sub(reg_src, reg_copy_block_n_shift);
+    mov(reg_tr_src, ptr[rsp + reg_tr_src_offs]);
+}
+
+template <typename Vmm>
 void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
     assert(tr_typesize == sizeof(bfloat16_t));
     preamble();
+    sub(rsp, stack_space_needed);
     uni_vxorps(vmm_zero, vmm_zero, vmm_zero);
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
     mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
     mov(reg_N_blk, ptr[param1 + GET_OFF(current_N_blk)]);
+    if (is_dynamic_stride) {
+        mov(reg_src_stride, ptr[param1 + GET_OFF(dynamic_src_stride)]);
+        mov(reg_src_stride_x2, ptr[param1 + GET_OFF(dynamic_src_stride)]);
+        shl(reg_src_stride_x2, 1);
+    }
 
     init_masks();
     auto compute_K_loop = [&](bool is_N_tail) {
@@ -2021,8 +2126,10 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
         jl(K_loop_single, T_NEAR);
 
         L(K_loop_unrolled);
-        copy_2x32(k_unroll * k_blk_step, ncolumns);
-        add(reg_src, k_unroll * k_blk_step * src_stride);
+        copy_block(k_unroll * k_blk_step, ncolumns, is_N_tail);
+
+        if (!is_dynamic_stride)
+            add(reg_src, k_unroll * k_blk_step * src_stride);
         add(reg_tr_src, k_unroll * tr_src_stride);
 
         sub(reg_K_iters, k_unroll * k_blk_step);
@@ -2033,8 +2140,8 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
         cmp(reg_K_iters, k_blk_step);
         jl(K_loop_tail_or_done, T_NEAR);
 
-        copy_2x32(k_blk_step, ncolumns);
-        add(reg_src, k_blk_step * src_stride);
+        copy_block(k_blk_step, ncolumns, is_N_tail);
+        if (!is_dynamic_stride) add(reg_src, k_blk_step * src_stride);
         add(reg_tr_src, tr_src_stride);
 
         sub(reg_K_iters, k_blk_step);
@@ -2048,26 +2155,30 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
             cmp(reg_K_iters, 0);
             jle(K_loop_done, T_NEAR);
 
-            copy_2x32(k_blk_tail, ncolumns);
+            copy_block(k_blk_tail, ncolumns, is_N_tail);
             sub(reg_K_iters, k_blk_tail);
             L(K_loop_done);
         }
     };
 
     Label done;
-    if (conf_->N_tail > 0) {
-        Label not_N_tail;
-        cmp(reg_N_blk, conf_->N_tail);
-        jne(not_N_tail, T_NEAR);
+    cmp(reg_N_blk, 0);
+    jle(done, T_NEAR);
+
+    if (conf_->N_tail > 0 || is_dynamic_N) {
+        Label main_N_blk;
+        cmp(reg_N_blk, conf_->N_blk);
+        je(main_N_blk, T_NEAR);
         compute_K_loop(true);
         jmp(done, T_NEAR);
 
-        L(not_N_tail);
+        L(main_N_blk);
     }
 
     compute_K_loop(false);
     L(done);
 
+    add(rsp, stack_space_needed);
     postamble();
 }
 
