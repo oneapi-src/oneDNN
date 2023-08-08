@@ -183,7 +183,8 @@ context_ptr get_default_context() {
         int opt_level = utils::getenv_int(env_names[SC_OPT_LEVEL], 3);
         check_within(
                 opt_level, 0, 3, 3, "Bad optimization level in SC_OPT_LEVEL: ");
-        flags.backend_opt_level = opt_level;
+        flags.opt_level_ = sc_opt_level(opt_level);
+
         if (opt_level == 0) {
             // disable opt passes
             flags.buffer_schedule_ = 0;

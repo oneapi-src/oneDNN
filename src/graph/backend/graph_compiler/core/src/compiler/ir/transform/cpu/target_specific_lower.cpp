@@ -217,6 +217,8 @@ static func_t create_exp_func(const ir_module_ptr &mod,
         const intrin_call_c &node, target_specific_lower_cpu_impl_t *visitor) {
     auto type = node->dtype_;
     uint32_t elements = type.lanes_;
+    bool numeric_stable
+            = !node->attr_ || node->attr_->get_or_else("numeric_stable", true);
 
     auto ZERO = gen_vec_const(elements, 0.0f);
     auto ln2 = gen_vec_const(elements, 0.693147181f);
@@ -230,13 +232,13 @@ static func_t create_exp_func(const ir_module_ptr &mod,
     builder::ir_builder_t builder;
     _function_(type, the_exp_func, make_args_by_intrinsic(node)) {
         assert(node->args_.size() == 1);
-        // to avoid underflow
         _bind_(inval);
-        expr l_min_mask = inval >= gen_vec_const(elements, -87.33f);
         // to avoid overflow
 
-        _var_(a_, type);
-        a_ = builder::make_min(inval, gen_vec_const(elements, 88.60f));
+        _var_init_(a_, type, inval);
+        if (numeric_stable) {
+            a_ = builder::make_min(inval, gen_vec_const(elements, 88.60f));
+        }
         // TODO(xxx): currenly clip the input if the value is larger than
         // the upper limit to prevent overflow
 
@@ -277,8 +279,14 @@ static func_t create_exp_func(const ir_module_ptr &mod,
 
         _var_(result, ty_epi_32);
         result = p + builder::make_reinterpret(Tn, ty_epi_32);
-        _return_(builder::make_select(
-                l_min_mask, builder::make_reinterpret(result, type), ZERO));
+        if (numeric_stable) {
+            // to avoid underflow
+            expr l_min_mask = inval >= gen_vec_const(elements, -87.33f);
+            _return_(builder::make_select(
+                    l_min_mask, builder::make_reinterpret(result, type), ZERO));
+        } else {
+            _return_(builder::make_reinterpret(result, type));
+        }
     }
     std::string fixed_name = get_exp_func_name(node);
     the_exp_func->name_ = fixed_name;

@@ -39,14 +39,16 @@ public:
     std::vector<std::string> requires_;
     pass_func func_;
     pass_type type_;
+    sc_opt_level opt_level_; // allowed minimum opt level.
     bool enabled_; // for debug and tuning
     basic_graph_pass_t(pass_func func, const std::string &name,
             const std::vector<std::string> &required, pass_type type,
-            bool enabled = true)
+            sc_opt_level opt_level = sc_opt_level::lv3, bool enabled = true)
         : name_(name)
         , requires_(required)
         , func_(func)
         , type_(type)
+        , opt_level_(opt_level)
         , enabled_(enabled) {}
 };
 
@@ -54,7 +56,7 @@ using basic_graph_pass_ptr = std::shared_ptr<basic_graph_pass_t>;
 
 basic_graph_pass_ptr create_graph_pass(const std::string &name, pass_func func,
         const std::vector<std::string> &required, pass_type type,
-        bool enabled = true);
+        sc_opt_level opt_level = sc_opt_level::lv3, bool enabled = true);
 
 // Return: std::vector<std::shared_ptr>, represents all passes run order.
 // 1. If adding a new pass, developer need to define this pass will be put which

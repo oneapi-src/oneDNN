@@ -644,9 +644,10 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   }
 }
 
-bool gen_managed_matmul_core_t::is_okay_to_prefetch(
+bool gen_managed_matmul_core_t::is_okay_to_prefetch(const context_ptr &ctx,
   const managed_matmul_core_config_t &config, bool is_global) {
   const int num_threads = runtime_config_t::get().get_num_threads();
+  if (ctx->flags_.opt_level_ < sc_opt_level::lv3) { return false; }
   if (!in_tensors_[1].get_format().is_blocking()) { return false; }
   return true;
 }

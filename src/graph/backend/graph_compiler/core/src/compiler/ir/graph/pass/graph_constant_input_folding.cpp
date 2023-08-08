@@ -253,8 +253,10 @@ SC_INTERNAL_API void graph_constant_input_folding_impl(
                                 "constant", const_kind::global_const);
                         edge_ops.emplace_back(parent_node);
                         if (parent_node->isa<tensor_view_op_t>()) {
-                            auto tv_in = parent_node->get_inputs()[0]
-                                                 ->producer_owner_;
+                            auto tv_in = parent_node;
+                            while (tv_in->isa<tensor_view_op_t>()) {
+                                tv_in = tv_in->get_inputs()[0]->producer_owner_;
+                            }
                             tv_in->attrs_.set(
                                     "constant", const_kind::global_const);
                             edge_ops.emplace_back(tv_in);

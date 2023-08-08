@@ -64,7 +64,7 @@ class SC_INTERNAL_API llvm_jit : public jit_engine_t {
 public:
     llvm_jit(context_ptr ctx = get_default_context())
         : jit_engine_t(std::move(ctx)) {
-        opt_level_ = context_->flags_.backend_opt_level;
+        opt_level_ = context_->flags_.backend_opt_level_;
     }
     unsigned opt_level_;
     std::shared_ptr<jit_module> make_jit_module(

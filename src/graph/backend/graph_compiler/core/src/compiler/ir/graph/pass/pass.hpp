@@ -70,6 +70,12 @@ SC_INTERNAL_API void graph_constant_input_folding_and_share_constants(
  */
 SC_INTERNAL_API void padded_mask_mark(
         sc_graph_t &graph, const context_ptr &ctx);
+/**
+ * Enable/Disable some latest optimizations like image-affinity according to the
+ * compiler opt level.
+ */
+SC_INTERNAL_API void intrusive_opt_level(
+        sc_graph_t &graph, const context_ptr &ctx);
 
 // find the graph in cached code. If a matched graph is found, the
 // compiler_driver/graph_driver can skip the compilation and reuse the code

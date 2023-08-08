@@ -28,8 +28,8 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-static void do_inline_graph(
-        sc_graph_t &full_graph, sc_op_ptr &cur_node, sc_graph_t &sub_graph) {
+static void do_inline_graph(const context_ptr &ctx, sc_graph_t &full_graph,
+        sc_op_ptr &cur_node, sc_graph_t &sub_graph) {
     std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> *tunable_op_map
             = full_graph.attrs_.get_or_null<
                     std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>>>(
@@ -50,7 +50,9 @@ static void do_inline_graph(
                     "cur_node " << cur_node->op_name_
                                 << " 's input size should be equal with its "
                                    "sub_graph input op 's output size");
-            if (cur_node->attrs_.get_or_else(op_attr_key::break_pre_fuse, false)
+            if (ctx->flags_.opt_level_ == sc_opt_level::lv1
+                    || cur_node->attrs_.get_or_else(
+                            op_attr_key::break_pre_fuse, false)
                     || cur_node->attrs_.get_or_else(
                             op_attr_key::no_fuse, false)) {
                 for (auto &cur : op->get_outputs()) {
@@ -80,8 +82,9 @@ static void do_inline_graph(
                     "cur_node " << cur_node->op_name_
                                 << " 's output size should be equal with its "
                                    "sub_graph output op's input size");
-            if (cur_node->attrs_.get_or_else(
-                        op_attr_key::break_post_fuse, false)
+            if (ctx->flags_.opt_level_ == sc_opt_level::lv1
+                    || cur_node->attrs_.get_or_else(
+                            op_attr_key::break_post_fuse, false)
                     || cur_node->attrs_.get_or_else(
                             op_attr_key::no_fuse, false)) {
                 for (auto &cur : op->get_inputs()) {
@@ -124,7 +127,7 @@ void graph_inline(sc_graph_t &graph, const context_ptr &ctx) {
                 if (blocked_list.find(node->op_name_) == blocked_list.end()) {
                     auto sub_graph = graph_node->get_graph();
                     vis->update_state_for_visited(node);
-                    do_inline_graph(graph, node, *sub_graph);
+                    do_inline_graph(ctx, graph, node, *sub_graph);
                     node->remove();
                 }
             }
@@ -150,7 +153,7 @@ void quantize_inline(sc_graph_t &graph, const context_ptr &ctx) {
         if (auto graph_node = node->dyn_cast<graph_op_t>()) {
             auto sub_graph = graph_node->get_graph();
             vis->update_state_for_visited(node);
-            do_inline_graph(graph, node, *sub_graph);
+            do_inline_graph(ctx, graph, node, *sub_graph);
             node->remove();
         }
     });

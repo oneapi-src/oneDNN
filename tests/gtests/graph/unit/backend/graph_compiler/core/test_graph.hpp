@@ -18,8 +18,10 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/visitor.hpp>
 #include <ops/templates/conv_fwd.hpp>
+#include <ops/templates/managed_matmul_core.hpp>
 #include <util/any_map.hpp>
 using namespace dnnl::impl::graph::gc;
 
@@ -236,6 +238,42 @@ inline sc_graph_t get_conv_bn_add_relu_graph(const sc_dims &src_dims,
     auto relu_out1 = graph.make(
             "relu", {add_out1->get_outputs()[0]}, {make_tensor(dst_dims)}, {});
     auto out = graph.make_output(relu_out1->get_outputs());
+    return graph;
+}
+
+inline sc_graph_t get_parallel_merge_mlp_graph(int M = 10752, int N = 1024,
+        int K = 1024,
+        const ops::managed_matmul_core_config_t mmm_cfg = {14, 2, 1, 1, 1, 1}) {
+    sc_graph_t graph;
+
+    auto input0 = graph.make_input(
+            {graph_tensor::make({M, K}, sc_data_format_t(format_kinds::MN))});
+    auto weight0 = graph.make_input(
+            {graph_tensor::make({K, N}, sc_data_format_t(format_kinds::KN))});
+    auto weight1 = graph.make_input(
+            {graph_tensor::make({K, N}, sc_data_format_t(format_kinds::KN))});
+    auto weight2 = graph.make_input(
+            {graph_tensor::make({K, N}, sc_data_format_t(format_kinds::KN))});
+    // mmm0
+    auto mmm0 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
+    mmm0->stc_cast<tunable_op_t>()->set_config(
+            reflection::general_object_t::make(mmm_cfg));
+    // mmm1
+    auto mmm1 = graph.make("managed_matmul_core",
+            {mmm0->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
+    mmm1->stc_cast<tunable_op_t>()->set_config(
+            reflection::general_object_t::make(mmm_cfg));
+    mmm1 = graph.make("gelu", {mmm1->get_outputs()[0]}, {}, {});
+
+    // mmm2
+    auto mmm2 = graph.make("managed_matmul_core",
+            {mmm1->get_outputs()[0], weight2->get_outputs()[0]}, {}, {});
+    mmm2->stc_cast<tunable_op_t>()->set_config(
+            reflection::general_object_t::make(mmm_cfg));
+    mmm2 = graph.make(
+            "add", {mmm1->get_outputs()[0], mmm2->get_outputs()[0]}, {}, {});
+    graph.make_output(mmm2->get_outputs());
     return graph;
 }
 

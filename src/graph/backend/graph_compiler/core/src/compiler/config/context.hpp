@@ -36,11 +36,14 @@ enum class jit_kind {
     xbyak,
 };
 
+enum class sc_opt_level : int { lv0 = 0, lv1, lv2, lv3 };
+
 struct scflags_t {
     enum class brgemm_t : int { dnnl = 0, max_num };
 
     jit_kind jit_kind_ = jit_kind::cfake;
-    int backend_opt_level = 3;
+    sc_opt_level opt_level_ = sc_opt_level::lv3;
+    int backend_opt_level_ = 3;
     bool tensor_inplace_ = true;
     bool bf16_fast_trunc_ = false;
     bool const_share_ = true;

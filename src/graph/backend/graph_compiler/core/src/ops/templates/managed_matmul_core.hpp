@@ -129,7 +129,7 @@ public:
     const std::vector<expr> &func_args, const std::vector<expr> &ins,
     const std::vector<int> &indices);
 
-  bool is_okay_to_prefetch(
+  bool is_okay_to_prefetch(const context_ptr &ctx,
     const managed_matmul_core_config_t &config, bool is_global);
 
   bool is_valid_config(const context_ptr &ctx,

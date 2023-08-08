@@ -2377,6 +2377,11 @@ static bool try_merge_mixed_parti_with_joint_op(const mixed_parti_t::ptr &A,
         default_lhs = A.get();
         default_rhs = B.get();
     }
+    auto &ctx = A->ctx_;
+    if (ctx->flags_.opt_level_ == sc_opt_level::lv1) {
+        return try_merge_mixed_parti_vertically(
+                default_lhs, default_rhs, joint_op);
+    }
     // if pre-op fusion succeed, skip vertical merge
     return try_merge_brgemm_and_preop_parti(default_lhs, default_rhs, joint_op)
             || try_merge_mixed_parti_vertically(
@@ -3004,11 +3009,15 @@ bool mixed_parti_t::contain_input_anchor() const {
             });
 }
 
-static mixed_parti_t::ptr try_execute_pre_op_fusion(const sc_op_ptr &op,
+static mixed_parti_t::ptr try_execute_pre_op_fusion(const context_ptr &ctx,
+        const sc_op_ptr &op,
         std::vector<mixed_parti_t::ptr> &avaliable_input_parti) {
     mixed_parti_t::ptr parent_partition = nullptr;
     // only suitable for tunable op
     if (!op->isa<tunable_op_t>()) return parent_partition;
+    if (ctx->flags_.opt_level_ == sc_opt_level::lv1) {
+        return parent_partition;
+    }
     // collect reorder parti
     std::vector<mixed_parti_t *> reo_parti;
     for (auto &inp_parti : avaliable_input_parti) {
@@ -3072,7 +3081,8 @@ static mixed_parti_t::ptr try_execute_pre_op_fusion(const sc_op_ptr &op,
     return parent_partition;
 }
 
-static mixed_parti_t::ptr try_execute_post_op_fusion(const sc_op_ptr &op,
+static mixed_parti_t::ptr try_execute_post_op_fusion(const context_ptr &ctx,
+        const sc_op_ptr &op,
         std::vector<mixed_parti_t::ptr> &avaliable_input_parti) {
     mixed_parti_t::ptr parent_partition = nullptr;
     // try to preop merge the partitons of all inputs in advance
@@ -3086,6 +3096,7 @@ static mixed_parti_t::ptr try_execute_post_op_fusion(const sc_op_ptr &op,
                     ->search_anchor(parent_partition.get());
             op->dyn_cast<op_traits::mixed_partition_acceptable>()
                     ->search_anchor(inp_parti.get());
+            if (ctx->flags_.opt_level_ == sc_opt_level::lv1) { continue; }
             if (parent_partition->ready_for_op(op.get())
                     && inp_parti->ready_for_op(op.get())) {
                 // the difference between later partition merge with
@@ -3166,12 +3177,12 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                     }
                 }
                 // try pre op fusion
-                parent_partition
-                        = try_execute_pre_op_fusion(op, avaliable_input_parti);
+                parent_partition = try_execute_pre_op_fusion(
+                        ctx, op, avaliable_input_parti);
                 if (!parent_partition) {
                     // try post op fusion
                     parent_partition = try_execute_post_op_fusion(
-                            op, avaliable_input_parti);
+                            ctx, op, avaliable_input_parti);
                 }
             } else {
                 SC_MODULE_INFO << op->op_name_ << "_" << op->logical_op_id_
@@ -3911,11 +3922,11 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
         }
     }
     graph.attrs_.set("temp.fusion_policy_condition", fusion_policy_condition);
-
-    std::vector<crossover_alg> algs
-            = {horizontal_crossover, parallel_crossover, vertical_crossover};
-    crossover_partition(op_2_partition, algs);
-
+    if (ctx->flags_.opt_level_ >= sc_opt_level::lv3) {
+        std::vector<crossover_alg> algs = {
+                horizontal_crossover, parallel_crossover, vertical_crossover};
+        crossover_partition(op_2_partition, algs);
+    }
     std::vector<sc_op_ptr> fused_ops;
     for (auto &parti : op_2_partition) {
         if (!parti || !parti->output_replace_map.empty() || parti->empty()

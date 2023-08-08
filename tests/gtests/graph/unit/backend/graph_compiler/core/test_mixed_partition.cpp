@@ -17,6 +17,7 @@
 #include <iostream>
 #include "context.hpp"
 #include "exception_util.hpp"
+#include "test_graph.hpp"
 #include "gtest/gtest.h"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>

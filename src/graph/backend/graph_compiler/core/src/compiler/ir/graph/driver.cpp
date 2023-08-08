@@ -43,115 +43,162 @@ SC_MODULE(graph.driver)
 
 basic_graph_pass_ptr create_graph_pass(const std::string &name,
         pass_func func_t, const std::vector<std::string> &required,
-        pass_type type, bool enabled) {
+        pass_type type, sc_opt_level opt_level, bool enabled) {
     return std::make_shared<basic_graph_pass_t>(
-            func_t, name, required, type, enabled);
+            func_t, name, required, type, opt_level, enabled);
+}
+
+static std::vector<basic_graph_pass_ptr> filter_passes_by_opt_level(
+        const std::vector<basic_graph_pass_ptr> &passes,
+        sc_opt_level opt_level) {
+    std::vector<basic_graph_pass_ptr> ret;
+    for (auto &p : passes) {
+        if (p->opt_level_ <= opt_level) { ret.emplace_back(p); }
+    }
+    return ret;
 }
 
 static std::tuple<std::vector<basic_graph_pass_ptr>,
         std::vector<basic_graph_pass_ptr>>
 create_default_graph_flow(const context_ptr &ctx) {
     std::vector<basic_graph_pass_ptr> pre_tune_passes, post_tune_passes;
-    pre_tune_passes.push_back(create_graph_pass("analysis_quantized",
-            analysis_quantized, {}, pass_type::analysis, true));
+    pre_tune_passes.push_back(
+            create_graph_pass("analysis_quantized", analysis_quantized, {},
+                    pass_type::analysis, sc_opt_level::lv0, true));
     pre_tune_passes.push_back(create_graph_pass("annotate_fusion_break",
-            quantize::annotate_fusion_break, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass(
-            "annotate_config", annotate_config, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass(
-            "graph_inline", graph_inline, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass("constant_optimization",
-            constant_optimization, {}, pass_type::pre_tune, true));
+            quantize::annotate_fusion_break, {}, pass_type::pre_tune,
+            sc_opt_level::lv2, true));
+    pre_tune_passes.push_back(create_graph_pass("annotate_config",
+            annotate_config, {}, pass_type::pre_tune, sc_opt_level::lv2, true));
+    pre_tune_passes.push_back(create_graph_pass("graph_inline", graph_inline,
+            {}, pass_type::pre_tune, sc_opt_level::lv0, true));
+    pre_tune_passes.push_back(
+            create_graph_pass("constant_optimization", constant_optimization,
+                    {}, pass_type::pre_tune, sc_opt_level::lv0, true));
     pre_tune_passes.push_back(create_graph_pass("quantized_info_propagation",
             quantize::quantize_info_propagation, {}, pass_type::pre_tune,
-            true));
+            sc_opt_level::lv0, true));
     pre_tune_passes.push_back(create_graph_pass("quantized_graph_reschedule",
-            quantize::graph_reschedule, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass(
-            "fpmath_mode", fpmath_mode, {}, pass_type::pre_tune, true));
+            quantize::graph_reschedule, {}, pass_type::pre_tune,
+            sc_opt_level::lv0, true));
+    pre_tune_passes.push_back(create_graph_pass("fpmath_mode", fpmath_mode, {},
+            pass_type::pre_tune, sc_opt_level::lv0, true));
     if (ctx->flags_.mixed_fusion_) {
         // should be executed after graph reschedule, and before quantize_inline
         pre_tune_passes.push_back(create_graph_pass("rl_conv_weight_transform",
-                rl_conv_weight_transform, {}, pass_type::pre_tune, true));
-        pre_tune_passes.push_back(create_graph_pass("const_folding",
-                graph_constant_input_folding, {}, pass_type::pre_tune, true));
-        pre_tune_passes.push_back(create_graph_pass(
-                "flatten_conv", flatten_conv, {}, pass_type::pre_tune, true));
+                rl_conv_weight_transform, {}, pass_type::pre_tune,
+                sc_opt_level::lv2, true));
+        pre_tune_passes.push_back(
+                create_graph_pass("const_folding", graph_constant_input_folding,
+                        {}, pass_type::pre_tune, sc_opt_level::lv2, true));
+        pre_tune_passes.push_back(
+                create_graph_pass("flatten_conv", flatten_conv, {},
+                        pass_type::pre_tune, sc_opt_level::lv2, true));
     }
     pre_tune_passes.push_back(create_graph_pass("dynamic_graph_transform",
-            dynamic_graph_transform, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass("quantize_inline",
-            quantize::quantize_inline, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass("elemtwise_bcast_swap",
-            elemwise_bcast_swap, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass("permute_propagation",
-            permute_propagation, {}, pass_type::pre_tune, true));
+            dynamic_graph_transform, {}, pass_type::pre_tune, sc_opt_level::lv2,
+            true));
+    pre_tune_passes.push_back(
+            create_graph_pass("quantize_inline", quantize::quantize_inline, {},
+                    pass_type::pre_tune, sc_opt_level::lv0, true));
+    pre_tune_passes.push_back(
+            create_graph_pass("elemtwise_bcast_swap", elemwise_bcast_swap, {},
+                    pass_type::pre_tune, sc_opt_level::lv1, true));
+    pre_tune_passes.push_back(
+            create_graph_pass("permute_propagation", permute_propagation, {},
+                    pass_type::pre_tune, sc_opt_level::lv0, true));
     pre_tune_passes.push_back(create_graph_pass("quantize_op_compensation",
             quantize::calculate_op_compensation, {}, pass_type::pre_tune,
-            true));
+            sc_opt_level::lv0, true));
     pre_tune_passes.push_back(create_graph_pass("elemwise_dimension_alignment",
-            elemwise_dimension_alignment, {}, pass_type::pre_tune, true));
+            elemwise_dimension_alignment, {}, pass_type::pre_tune,
+            sc_opt_level::lv0, true));
     pre_tune_passes.push_back(create_graph_pass("shape_relationship_binding",
-            shape_relationship_binding, {}, pass_type::pre_tune, true));
+            shape_relationship_binding, {}, pass_type::pre_tune,
+            sc_opt_level::lv0, true));
 
     // ------------------ post_tune -------------------------------------------
-    post_tune_passes.push_back(create_graph_pass("const_folding",
-            graph_constant_input_folding, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("div_bcast_transform",
-            div_bcast_transform, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(
+            create_graph_pass("const_folding", graph_constant_input_folding, {},
+                    pass_type::post_tune, sc_opt_level::lv0, true));
+    post_tune_passes.push_back(
+            create_graph_pass("div_bcast_transform", div_bcast_transform, {},
+                    pass_type::post_tune, sc_opt_level::lv2, true));
     if (ctx->flags_.mixed_fusion_) {
-        post_tune_passes.push_back(create_graph_pass(
-                "pre_padding", pre_padding, {}, pass_type::post_tune, true));
+        post_tune_passes.push_back(create_graph_pass("pre_padding", pre_padding,
+                {}, pass_type::post_tune, sc_opt_level::lv2, true));
     }
-    post_tune_passes.push_back(create_graph_pass("layout_propagation",
-            layout_propagation, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("tensor_view_transform",
-            tensor_view_transform, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("const_folding",
-            graph_constant_input_folding, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass(
-            "graph_simplify", graph_simplify, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("global_reschedule",
-            global_reschedule, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("partial_reduce_replace",
-            partial_reduce_replace, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(
+            create_graph_pass("layout_propagation", layout_propagation, {},
+                    pass_type::post_tune, sc_opt_level::lv0, true));
+    post_tune_passes.push_back(
+            create_graph_pass("tensor_view_transform", tensor_view_transform,
+                    {}, pass_type::post_tune, sc_opt_level::lv0, true));
+    post_tune_passes.push_back(
+            create_graph_pass("const_folding", graph_constant_input_folding, {},
+                    pass_type::post_tune, sc_opt_level::lv0, true));
+    post_tune_passes.push_back(create_graph_pass("graph_simplify",
+            graph_simplify, {}, pass_type::post_tune, sc_opt_level::lv2, true));
+    post_tune_passes.push_back(
+            create_graph_pass("global_reschedule", global_reschedule, {},
+                    pass_type::post_tune, sc_opt_level::lv1, true));
+    post_tune_passes.push_back(
+            create_graph_pass("intrusive_opt_level", intrusive_opt_level, {},
+                    pass_type::post_tune, sc_opt_level::lv0, true));
+    post_tune_passes.push_back(
+            create_graph_pass("partial_reduce_replace", partial_reduce_replace,
+                    {}, pass_type::post_tune, sc_opt_level::lv2, true));
     // fix-me(brgemm-fuse): recover the following when postop is fixed
 #if 0
     post_tune_passes.push_back(create_graph_pass("brgemm_fusion_transform",
             brgemm_fusion_transform, {}, pass_type::post_tune, true));
 #endif
-    post_tune_passes.push_back(create_graph_pass("const_folding",
-            graph_constant_input_folding, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(
+            create_graph_pass("const_folding", graph_constant_input_folding, {},
+                    pass_type::post_tune, sc_opt_level::lv0, true));
     if (ctx->flags_.concat_optimization_) {
-        post_tune_passes.push_back(create_graph_pass("merge_concats",
-                merge_concats, {}, pass_type::post_tune, true));
+        post_tune_passes.push_back(
+                create_graph_pass("merge_concats", merge_concats, {},
+                        pass_type::post_tune, sc_opt_level::lv2, true));
     }
     if (!ctx->flags_.mixed_fusion_) {
-        post_tune_passes.push_back(create_graph_pass(
-                "fuse_ops", fuse_ops, {}, pass_type::post_tune, true));
-        post_tune_passes.push_back(create_graph_pass("horizontal_merge",
-                horizontal_merge, {}, pass_type::post_tune, true));
+        post_tune_passes.push_back(create_graph_pass("fuse_ops", fuse_ops, {},
+                pass_type::post_tune, sc_opt_level::lv1, true));
+        post_tune_passes.push_back(
+                create_graph_pass("horizontal_merge", horizontal_merge, {},
+                        pass_type::post_tune, sc_opt_level::lv1, true));
     }
     post_tune_passes.push_back(create_graph_pass("const_folding_and_share",
             graph_constant_input_folding_and_share_constants, {},
-            pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("graph_code_cache",
-            graph_code_cache, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("inplace_transform",
-            inplace_transform, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("padded_mask_mark",
-            padded_mask_mark, {}, pass_type::post_tune, true));
+            pass_type::post_tune, sc_opt_level::lv1, true));
+    post_tune_passes.push_back(
+            create_graph_pass("graph_code_cache", graph_code_cache, {},
+                    pass_type::post_tune, sc_opt_level::lv1, true));
+    post_tune_passes.push_back(
+            create_graph_pass("inplace_transform", inplace_transform, {},
+                    pass_type::post_tune, sc_opt_level::lv0, true));
+    post_tune_passes.push_back(
+            create_graph_pass("padded_mask_mark", padded_mask_mark, {},
+                    pass_type::post_tune, sc_opt_level::lv0, true));
     if (!ctx->flags_.mixed_fusion_) {
-        post_tune_passes.push_back(create_graph_pass("batchwise_merge",
-                batchwise_merge, {}, pass_type::post_tune, true));
+        post_tune_passes.push_back(
+                create_graph_pass("batchwise_merge", batchwise_merge, {},
+                        pass_type::post_tune, sc_opt_level::lv1, true));
     } else {
-        post_tune_passes.push_back(create_graph_pass("mixed_partition",
-                mixed_partition, {}, pass_type::post_tune, true));
+        post_tune_passes.push_back(
+                create_graph_pass("mixed_partition", mixed_partition, {},
+                        pass_type::post_tune, sc_opt_level::lv1, true));
     }
     if (ctx->flags_.concat_optimization_) {
         post_tune_passes.push_back(create_graph_pass("graph_concat_optimize",
-                graph_concat_memory_planning, {}, pass_type::post_tune, true));
+                graph_concat_memory_planning, {}, pass_type::post_tune,
+                sc_opt_level::lv2, true));
     }
+    // filter passes by opt level
+    pre_tune_passes = filter_passes_by_opt_level(
+            pre_tune_passes, ctx->flags_.opt_level_);
+    post_tune_passes = filter_passes_by_opt_level(
+            post_tune_passes, ctx->flags_.opt_level_);
 
     // get passes map
     std::unordered_map<std::string, basic_graph_pass_ptr> passes_map;

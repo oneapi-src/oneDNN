@@ -269,7 +269,10 @@ expr sigmoid_op_t::compute_element(expr in) {
 }
 
 expr exp_op_t::compute_element(expr in) {
-    return builder::make_exp(in);
+    auto out = builder::make_exp(in);
+    out->attr().set(
+            "numeric_stable", attrs_.get_or_else("numeric_stable", true));
+    return out;
 }
 
 expr tanh_op_t::compute_element(expr in) {
