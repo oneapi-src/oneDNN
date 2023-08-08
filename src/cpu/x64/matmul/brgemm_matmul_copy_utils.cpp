@@ -1180,9 +1180,7 @@ struct jit_brgemm_matmul_copy_b_int8_t : public jit_brgemm_matmul_copy_b_t,
     jit_brgemm_matmul_copy_b_int8_t(const brgemm_matmul_conf_t *conf)
         : jit_brgemm_matmul_copy_b_t(conf)
         , jit_generator(jit_name())
-        , src_stride_(conf->wei_tag == format_tag::acbd
-                          ? conf->copy_B_wei_stride
-                          : conf->N * sizeof(int8_t))
+        , src_stride_(conf->copy_B_wei_stride)
         , tr_src_stride_(conf->LDB * k_blk_step_ * sizeof(int8_t))
         , is_amx_(mayiuse(avx512_core_amx))
         , do_compute_compensation_(
@@ -1225,8 +1223,7 @@ protected:
     reg64_t reg_K_iters = r8;
     reg64_t reg_N_blk = r9;
     reg64_t reg_K_start = r10;
-    reg64_t regq_tmp = r14;
-    reg64_t imm_addr64 = r15;
+    reg64_t reg_tmp = r15;
 
     // Required in every dot product for INT8 non-VNNI computation.
     Vmm vmm_ones_words = Vmm(24);
@@ -1247,8 +1244,8 @@ protected:
     Vmm get_vmm_oscale_comp_res(int i) { return Vmm(i); }
 
     inline void vmovdqa64(Vmm vmm, const void *addr) {
-        mov(imm_addr64, reinterpret_cast<size_t>(addr));
-        jit_generator::vmovdqa64(vmm, ptr[imm_addr64]);
+        mov(reg_tmp, reinterpret_cast<size_t>(addr));
+        jit_generator::vmovdqa64(vmm, ptr[reg_tmp]);
     }
 
     inline Vmm get_vmm(int blk, int idx) {
@@ -1286,8 +1283,8 @@ inline void jit_brgemm_matmul_copy_b_int8_t<Zmm>::load(
 
 template <>
 inline void jit_brgemm_matmul_copy_b_int8_t<Zmm>::kmovq(Opmask k, size_t q) {
-    mov(regq_tmp, q);
-    jit_generator::kmovq(k, regq_tmp);
+    mov(reg_tmp, q);
+    jit_generator::kmovq(k, reg_tmp);
 }
 
 template struct jit_brgemm_matmul_copy_b_int8_t<Zmm>;
@@ -1638,8 +1635,8 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
     preamble();
 
     if (avx512_core_dot_product_) {
-        mov(regq_tmp.cvt16(), 1);
-        vpbroadcastw(vmm_ones_words, regq_tmp.cvt16());
+        mov(reg_tmp.cvt16(), 1);
+        vpbroadcastw(vmm_ones_words, reg_tmp.cvt16());
     }
 
     uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
@@ -1654,8 +1651,8 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
         int n_iters = div_up(conf_->wei_n_blk, 16) * (is_ymm_ ? 2 : 1);
         for (int i = 0; i < n_iters; i++)
             uni_vpxor(get_comp_acc(i), get_comp_acc(i), get_comp_acc(i));
-        mov(imm_addr64, 1);
-        uni_vpbroadcastb(vmm_comp_mul, imm_addr64.cvt8());
+        mov(reg_tmp, 1);
+        uni_vpbroadcastb(vmm_comp_mul, reg_tmp.cvt8());
     }
 
     auto compute_K_loop = [&](bool is_N_tail) {
@@ -1775,12 +1772,12 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
             jl(store, T_NEAR);
 
             if (req_s8s8_comp) {
-                mov(imm_addr64, 0xffffffff);
+                mov(reg_tmp, 0xffffffff);
                 const auto vmm_all_bits_1 = vmm_comp_mul;
-                uni_vpbroadcastd(vmm_all_bits_1, imm_addr64.cvt32());
-                mov(imm_addr64, 0x1);
+                uni_vpbroadcastd(vmm_all_bits_1, reg_tmp.cvt32());
+                mov(reg_tmp, 0x1);
                 const auto vmm_one_s32 = vmm_zero;
-                uni_vpbroadcastd(vmm_one_s32, imm_addr64.cvt32());
+                uni_vpbroadcastd(vmm_one_s32, reg_tmp.cvt32());
 
                 for (int i = 0; i < n_iters; i++) {
                     const auto vmm_res = get_vmm_oscale_comp_res(i);
@@ -1845,11 +1842,7 @@ struct jit_brgemm_matmul_copy_b_bf16_t : public jit_brgemm_matmul_copy_b_t,
         , jit_generator(jit_name())
         , typesize(conf->b_dt_sz)
         , tr_typesize(conf->tr_b_dt_sz)
-        , src_stride(conf_->wei_tag == format_tag::acbd
-                          ? conf->copy_B_wei_stride
-                          : conf->req_wei_vnni_downconvert
-                          ? conf_->LDB * typesize
-                          : conf_->N * typesize)
+        , src_stride(conf->copy_B_wei_stride)
         , tr_src_stride(conf_->LDB * k_blk_step * tr_typesize) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
@@ -1875,8 +1868,7 @@ private:
     reg64_t reg_K_iters = r8;
     reg64_t reg_N_blk = r9;
     reg64_t reg_K_start = r10;
-    reg32_t regw_tmp = r14d;
-    reg64_t imm_addr64 = r15;
+    reg64_t reg_tmp = r15;
 
     Vmm vmm_zero = Vmm(0);
     Vmm vmm_permw = Vmm(1);
@@ -1884,6 +1876,7 @@ private:
 
     void kmovx(Opmask k, unsigned w) {
         if (!isa_has_masks(conf_->isa)) return;
+        const auto regw_tmp = reg_tmp.cvt32();
         mov(regw_tmp, w);
         if (conf_->is_bf32)
             jit_generator::kmovw(k, regw_tmp);
@@ -2002,8 +1995,8 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::init_masks() {
     if (is_superset(conf_->isa, avx512_core)) {
         kxnorw(kFFFF, kFFFF, kFFFF); // 1111 1111 1111 1111
 
-        mov(imm_addr64, reinterpret_cast<size_t>(bf16_vnni_permute));
-        vmovdqa64(vmm_permw, ptr[imm_addr64]);
+        mov(reg_tmp, reinterpret_cast<size_t>(bf16_vnni_permute));
+        vmovdqa64(vmm_permw, ptr[reg_tmp]);
     }
 }
 
@@ -2091,8 +2084,7 @@ struct jit_brgemm_matmul_copy_b_f32_t : public jit_brgemm_matmul_copy_b_t,
         , dt_in_(conf->isa == avx512_core_fp16 ? data_type::f16
                                                : data_type::f32)
         , typesize_in_(types::data_type_size(dt_in_))
-        , src_stride_(conf_->wei_tag == acbd ? conf_->copy_B_wei_stride
-                                             : conf_->N * typesize_in_)
+        , src_stride_(conf_->copy_B_wei_stride)
         , tr_src_stride_(conf_->LDB * typesize_out_) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
@@ -2119,8 +2111,7 @@ private:
     reg64_t reg_K_iters = r8;
     reg64_t reg_N_blk = r9;
     reg64_t reg_K_start = r10;
-    reg32_t regw_tmp = r14d;
-    reg64_t imm_addr64 = r15;
+    reg32_t regw_tmp = r15d;
 
     zmm zmm_permw = zmm30;
     zmm zmm_zero = zmm31;
@@ -2254,9 +2245,7 @@ struct jit_brgemm_matmul_copy_b_transposed_t
                   - (avx512_core_dot_product_
                                   ? 8
                                   : (do_compute_compensation_ ? 6 : 0)))
-        , src_stride_(conf_->wei_tag == format_tag::adbc
-                          ? conf_->copy_B_wei_stride
-                          : conf_->K * typesize_)
+        , src_stride_(conf_->copy_B_wei_stride)
         , tr_src_stride_(conf_->LDB * vnni_granularity_ * tr_typesize_) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
@@ -2861,9 +2850,6 @@ template struct jit_brgemm_matmul_copy_b_transposed_t<Ymm>;
 status_t create_brgemm_matmul_copy_b(
         std::unique_ptr<jit_brgemm_matmul_copy_b_t> &copy_ker,
         const brgemm_matmul_conf_t *conf) {
-    const bool is_B_transposed
-            = one_of(conf->wei_tag, ba, acb, abdc, adbc, abced, abcdfe, abcdegf,
-                    abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
     const bool is_bf16
             = everyone_is(data_type::bf16, conf->src_dt, conf->wei_dt);
     const bool is_f32 = everyone_is(data_type::f32, conf->src_dt, conf->wei_dt);
@@ -2871,7 +2857,7 @@ status_t create_brgemm_matmul_copy_b(
     // to imply upconverting. So, the assumption is `is_f1`6 below evaluates to
     // `false` on avx512_core_fp16.
     const bool is_f16 = everyone_is(data_type::f16, conf->src_dt, conf->wei_dt);
-    if (is_B_transposed) {
+    if (conf->transposed_B) {
         if (is_superset(conf->isa, avx512_core))
             CHECK(safe_ptr_assign(copy_ker,
                     new jit_brgemm_matmul_copy_b_transposed_t<Zmm>(conf)));

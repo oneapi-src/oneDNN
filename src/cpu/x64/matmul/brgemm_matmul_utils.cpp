@@ -1099,6 +1099,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.wei_n_blk = get_default_n_block(bgmmc.wei_tag);
 
     bgmmc.blocked_B = bm_conf_utils.get_blocked_B();
+    bgmmc.transposed_B = bm_conf_utils.check_is_transposed(bgmmc.wei_tag)
+            || bgmmc.wei_tag == adbc;
     bgmmc.use_buffer_b = bm_conf_utils.use_buffer_b();
 
     const bool transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
@@ -1299,6 +1301,12 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
                                   ? bcast_shift_b
                                   : wei_d.blocking_desc().strides[0])
                 * bgmmc.b_dt_sz;
+    } else if (bgmmc.transposed_B) {
+        bgmmc.copy_B_wei_stride = bgmmc.K * bgmmc.b_dt_sz;
+    } else {
+        const auto b_stride_elems
+                = bgmmc.req_wei_vnni_downconvert ? bgmmc.LDB : bgmmc.N;
+        bgmmc.copy_B_wei_stride = b_stride_elems * bgmmc.b_dt_sz;
     }
 
     bgmmc.C_ptr_shift_b = bgmmc.dst_tag == acbd

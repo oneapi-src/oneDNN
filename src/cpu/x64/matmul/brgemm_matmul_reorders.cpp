@@ -96,6 +96,9 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
             = types::data_type_size(matmul_conf_for_reorder_.src_dt);
     matmul_conf_for_reorder_.b_dt_sz = matmul_conf_for_reorder_.tr_b_dt_sz
             = types::data_type_size(matmul_conf_for_reorder_.wei_dt);
+    matmul_conf_for_reorder_.copy_B_wei_stride
+            = matmul_conf_for_reorder_.N * matmul_conf_for_reorder_.b_dt_sz;
+    matmul_conf_for_reorder_.transposed_B = false;
     matmul_conf_for_reorder_.s8s8_comp_b_str = utils::rnd_up(
             matmul_conf_for_reorder_.N, matmul_conf_for_reorder_.wei_n_blk);
     matmul_conf_for_reorder_.s8s8_comp_n_str
