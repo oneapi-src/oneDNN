@@ -80,8 +80,21 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_matmul_post_ops)
             return std::make_shared<float_matmul>();
         });
 
+/*
+              \   /
+              matmul
+                |
+             [bias]*
+                |
+            [Reshape]*
+                |
+            transpose
+                |
+            [Reshape]*
+                |
+*/
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, matmul_transpose_optional_reshape_fusion)
+        dnnl, fp_matmul_reshape_transpose_reshape)
         .set_priority(9.f)
         .set_kind(partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -754,8 +767,29 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
             return std::make_shared<quantized_matmul>();
         });
 
+/*
+                    [quant_weight]*
+        |                  |
+   dequant_data     dequant_weight
+        \_____       _____/
+              matmul
+                |
+             [bias]*
+                |
+            [Reshape]*
+                |
+            transpose
+                |
+            [Reshape]*
+                |
+            quant_out
+                |
+*/
+/*
+Note: This pattern also accepts fp32 as weight input
+*/
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_matmul_transpose_optional_reshape_fusion)
+        dnnl, x8x8x8_matmul_reshape_transpose_reshape)
         .set_priority(10.f)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -825,8 +859,33 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
             return std::make_shared<quantized_matmul>();
         });
 
+/*
+                    [quant_weight]*
+        |                  |
+   dequant_data     dequant_weight
+        |                  |
+   typecast_data    typecast_weight
+        \_____       _____/
+              matmul
+                |
+             [bias]*
+                |
+            [Reshape]*
+                |
+            transpose
+                |
+            [Reshape]*
+                |
+            typecast
+                |
+            quant_out
+                |
+*/
+/*
+Note: This pattern also accepts fp32 as weight input
+*/
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_matmul_transpose_optional_reshape_fusion)
+        dnnl, x8x8x8_tc_matmul_reshape_transpose_reshape)
         .set_priority(10.5f)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -914,8 +973,18 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
             return std::make_shared<quantized_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, matmul_transpose_reorder_fusion)
+/*
+               \  /
+              matmul
+                |
+             [bias]*
+                |
+            transpose
+                |
+             reorder
+                |
+*/
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_matmul_transpose_reorder)
         .set_priority(9.1f)
         .set_kind(partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -939,8 +1008,26 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
             return std::make_shared<float_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_matmul_transpose_reorder_fusion)
+/*
+                    [quant_weight]*
+        |                  |
+   dequant_data     dequant_weight
+        \_____       _____/
+              matmul
+                |
+             [bias]*
+                |
+            transpose
+                |
+             reorder
+                |
+           [quant_out]*
+                |
+*/
+/*
+Note: This pattern also accepts fp32 as weight input
+*/
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_matmul_transpose_reorder)
         .set_priority(10.f)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -991,8 +1078,29 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
             return std::make_shared<quantized_matmul>();
         });
 
+/*
+                    [quant_weight]*
+        |                  |
+   dequant_data     dequant_weight
+        |                  |
+   typecast_data    typecast_weight
+        \_____       _____/
+              matmul
+                |
+             [bias]*
+                |
+            transpose
+                |
+             reorder
+                |
+     [typecast-> quant_out]*
+                |
+*/
+/*
+Note: This pattern also accepts fp32 as weight input
+*/
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_matmul_transpose_reorder_fusion)
+        dnnl, x8x8x_tc_matmul_transpose_reorder)
         .set_priority(10.5f)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

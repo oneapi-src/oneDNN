@@ -4124,8 +4124,7 @@ TEST(Execute, MatmulTransposeReorder) {
     g.finalize();
 
     // -------------------------case 2----------------------------------
-    graph::pass::pass_base_ptr apass
-            = get_pass("matmul_transpose_reorder_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_matmul_transpose_reorder");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -4280,7 +4279,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasTransposeReorder) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("int8_matmul_transpose_reorder_fusion");
+            = get_pass("x8x8x_matmul_transpose_reorder");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -4453,7 +4452,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulTransposeReorder) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_transpose_reorder_fusion");
+            = get_pass("x8x8x_tc_matmul_transpose_reorder");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -6703,7 +6702,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReshapeTransposeQuantize) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("int8_matmul_transpose_optional_reshape_fusion");
+            = get_pass("x8x8x8_matmul_reshape_transpose_reshape");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -6862,7 +6861,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasTransposeReshapeQuantize) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("int8_matmul_transpose_optional_reshape_fusion");
+            = get_pass("x8x8x8_matmul_reshape_transpose_reshape");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -7061,7 +7060,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulBiasReshapeTransposeQuantize) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_transpose_optional_reshape_fusion");
+            = get_pass("x8x8x8_tc_matmul_reshape_transpose_reshape");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -7261,7 +7260,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_transpose_optional_reshape_fusion");
+            = get_pass("x8x8x8_tc_matmul_reshape_transpose_reshape");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -7363,7 +7362,7 @@ TEST(Execute, MatmulBiasReshapeTranspose) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("matmul_transpose_optional_reshape_fusion");
+            = get_pass("fp_matmul_reshape_transpose_reshape");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -7467,7 +7466,7 @@ TEST(Execute, MatmulBiasTransposeReshape) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("matmul_transpose_optional_reshape_fusion");
+            = get_pass("fp_matmul_reshape_transpose_reshape");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
