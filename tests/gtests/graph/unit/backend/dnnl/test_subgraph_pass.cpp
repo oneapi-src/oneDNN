@@ -1488,8 +1488,7 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulScaleAddPasses) {
 
         agraph.finalize();
 
-        pass::pass_base_ptr apass
-                = get_pass("int8_bf16_matmul_scale_add_fusion_cpu");
+        pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -1863,8 +1862,8 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
 
     pass::pass_base_ptr apass
             = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "int8_bf16_matmul_post_ops_fusion_gpu"
-                            : "int8_bf16_matmul_post_ops_fusion_cpu");
+                            ? "x8s8x_tc_matmul_post_ops_gpu"
+                            : "x8x8x_tc_matmul_post_ops_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
 

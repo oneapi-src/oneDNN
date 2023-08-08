@@ -446,94 +446,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         });
 
 /*
-MatMul: Currently DNNL Backend doesn't support Reorder with zero points
-(used in weight u8->s8) on GPU, while CPU supports.
-*/
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_matmul_scale_add_fusion_cpu)
-        .set_priority(10.5f)
-        .set_engine_kind(engine_kind::cpu)
-        .set_kind(partition_kind_t::quantized_matmul_post_ops)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *dequant_data
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    pm::pb_op_t *dequant_weight
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    pm::pb_op_t *typecast_data
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<graph::data_type::bf16>);
-
-                    pm::pb_op_t *typecast_weight
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<graph::data_type::bf16>);
-
-                    pm::pb_op_t *matmul
-                            = pgraph->append_op(graph::op_kind::MatMul,
-                                    in_edges_t {in_edge(0, typecast_data, 0),
-                                            in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op_t *scale = pgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(graph::op_kind::Add,
-                            in_edges_t {in_edge(0, scale, 0)});
-                })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_matmul>();
-        });
-
-/*
-MatMul: Currently DNNL Backend doesn't support Reorder with zero points
-(used in weight u8->s8) on GPU, while CPU supports.
-*/
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_matmul_scale_add_fusion_gpu)
-        .set_priority(10.5f)
-        .set_engine_kind(engine_kind::gpu)
-        .set_kind(partition_kind_t::quantized_matmul_post_ops)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *dequant_data
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    pm::pb_op_t *dequant_weight
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<graph::data_type::s8>);
-                    pm::pb_op_t *typecast_data
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<graph::data_type::bf16>);
-
-                    pm::pb_op_t *typecast_weight
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<graph::data_type::bf16>);
-
-                    pm::pb_op_t *matmul
-                            = pgraph->append_op(graph::op_kind::MatMul,
-                                    in_edges_t {in_edge(0, typecast_data, 0),
-                                            in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op_t *scale = pgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(graph::op_kind::Add,
-                            in_edges_t {in_edge(0, scale, 0)});
-                })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_matmul>();
-        });
-
-/*
                     [quant_weight]*
         |                  |
    dequant_data     dequant_weight
@@ -545,16 +457,17 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                 |   /
               [bias]*
                 |
- [ ReLU/GELU/Divide/Multiply/Add ]
+        [unary/binary]*[0,3]
                 |
   [typecast_out -> quant_out]*
 */
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
+
+Note: This pattern also accepts fp32 as weight input
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_matmul_post_ops_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops_cpu)
         .set_priority(10.4f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -598,15 +511,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     auto other_postop_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pop = other_postop_graph->append_alternation(
-                            {graph::op_kind::ReLU, graph::op_kind::GELU,
-                                    graph::op_kind::Divide,
-                                    graph::op_kind::Multiply,
-                                    graph::op_kind::Add});
+                            get_unary_binary_ops());
+                    pop->allow_internal_inputs();
                     other_postop_graph->create_input_port(0, pop, 0);
                     other_postop_graph->create_input_port(1, pop, 1);
                     other_postop_graph->create_output_port(0, pop, 0);
 
-                    auto prep = pgraph->append_optional(other_postop_graph,
+                    auto prep = pgraph->append_repetition(other_postop_graph,
+                            {0, 0}, 0, MAX_REPETITION,
                             in_edges_t {in_edge(0, popt_bias, 0)});
 
                     // Optional typecast_out + quant_out
@@ -628,9 +540,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
+
+Note: This pattern also accepts fp32 as weight input
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_matmul_post_ops_fusion_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_matmul_post_ops_gpu)
         .set_priority(10.4f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -676,15 +589,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     auto other_postop_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pop = other_postop_graph->append_alternation(
-                            {graph::op_kind::ReLU, graph::op_kind::GELU,
-                                    graph::op_kind::Divide,
-                                    graph::op_kind::Multiply,
-                                    graph::op_kind::Add});
+                            get_unary_binary_ops());
+                    pop->allow_internal_inputs();
                     other_postop_graph->create_input_port(0, pop, 0);
                     other_postop_graph->create_input_port(1, pop, 1);
                     other_postop_graph->create_output_port(0, pop, 0);
 
-                    auto prep = pgraph->append_optional(other_postop_graph,
+                    auto prep = pgraph->append_repetition(other_postop_graph,
+                            {0, 0}, 0, MAX_REPETITION,
                             in_edges_t {in_edge(0, popt_bias, 0)});
 
                     // Optional typecast_out + quant_out
@@ -719,6 +631,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                 |     /
                Add
                 |
+        [unary/binary]*[0,3]
+                |
           typecast_out
                 |
             quant_out
@@ -729,9 +643,11 @@ features on GPU:
 1. Reorder with zero points (used in weight u8->s8)
 2. Post-sum with zero points
 while CPU supports.
+
+Note: This pattern also accepts fp32 as weight input
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_matmul_add_post_ops_fusion_cpu)
+        dnnl, x8x8x8_tc_matmul_add_post_ops_cpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -785,16 +701,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     auto other_postop_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pop = other_postop_graph->append_alternation(
-                            {graph::op_kind::ReLU, graph::op_kind::GELU,
-                                    graph::op_kind::Divide,
-                                    graph::op_kind::Multiply,
-                                    graph::op_kind::Add});
+                            get_unary_binary_ops());
+                    pop->allow_internal_inputs();
                     other_postop_graph->create_input_port(0, pop, 0);
                     other_postop_graph->create_input_port(1, pop, 1);
                     other_postop_graph->create_output_port(0, pop, 0);
 
-                    auto popt_post_ops
-                            = pgraph->append_optional(other_postop_graph,
+                    auto popt_post_ops = pgraph->append_repetition(
+                            other_postop_graph, {0, 0}, 0, MAX_REPETITION,
                             in_edges_t {in_edge(0, padd, 0)});
 
                     // typecast_out + quant_out
@@ -808,8 +722,17 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
             return std::make_shared<quantized_matmul>();
         });
 
+/*
+MatMul: Currently DNNL Backend doesn't support below
+features on GPU:
+1. Reorder with zero points (used in weight u8->s8)
+2. Post-sum with zero points
+while CPU supports.
+
+Note: This pattern also accepts fp32 as weight input
+*/
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_matmul_add_post_ops_fusion_gpu)
+        dnnl, x8s8x8_tc_matmul_add_post_ops_gpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -866,16 +789,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     auto other_postop_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pop = other_postop_graph->append_alternation(
-                            {graph::op_kind::ReLU, graph::op_kind::GELU,
-                                    graph::op_kind::Divide,
-                                    graph::op_kind::Multiply,
-                                    graph::op_kind::Add});
+                            get_unary_binary_ops());
+                    pop->allow_internal_inputs();
                     other_postop_graph->create_input_port(0, pop, 0);
                     other_postop_graph->create_input_port(1, pop, 1);
                     other_postop_graph->create_output_port(0, pop, 0);
 
-                    auto popt_post_ops
-                            = pgraph->append_optional(other_postop_graph,
+                    auto popt_post_ops = pgraph->append_repetition(
+                            other_postop_graph, {0, 0}, 0, MAX_REPETITION,
                             in_edges_t {in_edge(0, padd, 0)});
 
                     // typecast_out + quant_out

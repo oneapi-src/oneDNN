@@ -642,8 +642,8 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
 
             graph::pass::pass_base_ptr apass
                     = get_pass(engine->kind() == graph::engine_kind::gpu
-                                    ? "int8_bf16_matmul_post_ops_fusion_gpu"
-                                    : "int8_bf16_matmul_post_ops_fusion_cpu");
+                                    ? "x8s8x_tc_matmul_post_ops_gpu"
+                                    : "x8x8x_tc_matmul_post_ops_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
@@ -801,8 +801,8 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
 
             graph::pass::pass_base_ptr apass
                     = get_pass(engine->kind() == graph::engine_kind::gpu
-                                    ? "int8_bf16_matmul_post_ops_fusion_gpu"
-                                    : "int8_bf16_matmul_post_ops_fusion_cpu");
+                                    ? "x8s8x_tc_matmul_post_ops_gpu"
+                                    : "x8x8x_tc_matmul_post_ops_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
@@ -968,7 +968,7 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
             g.finalize();
 
             graph::pass::pass_base_ptr apass
-                    = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
+                    = get_pass("x8x8x_tc_matmul_post_ops_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
@@ -1148,8 +1148,8 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
 
             graph::pass::pass_base_ptr apass
                     = get_pass(engine->kind() == graph::engine_kind::gpu
-                                    ? "int8_bf16_matmul_scale_add_fusion_gpu"
-                                    : "int8_bf16_matmul_scale_add_fusion_cpu");
+                                    ? "x8s8x_tc_matmul_post_ops_gpu"
+                                    : "x8x8x_tc_matmul_post_ops_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
