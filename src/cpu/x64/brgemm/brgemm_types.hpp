@@ -274,6 +274,10 @@ struct brgemm_t {
     int is_M_tail;
     bool interleave_tilestores_ = false;
     brgemm_prf_t prfA, prfB, prfC;
+    bool is_runtime_lda = false;
+    bool is_runtime_ldb = false;
+    bool is_runtime_ldc = false;
+    bool is_runtime_ldd = false;
 
     static constexpr int MAX_VPAD = 100;
     static constexpr int AMX_TILES_NUM = 8;
@@ -366,6 +370,18 @@ struct brgemm_t {
     bool operator<(const brgemm_t &rhs) const;
 };
 
+struct brgemm_dynamic_values_t {
+    dim_t dynamic_LDA = 0;
+    dim_t dynamic_LDB = 0;
+    dim_t dynamic_LDC = 0;
+    dim_t dynamic_LDD = 0;
+    brgemm_dynamic_values_t(dim_t LDA, dim_t LDB, dim_t LDC, dim_t LDD)
+        : dynamic_LDA(LDA)
+        , dynamic_LDB(LDB)
+        , dynamic_LDC(LDC)
+        , dynamic_LDD(LDD) {}
+};
+
 struct brgemm_kernel_params_t {
     const void *ptr_A;
     const void *ptr_B;
@@ -404,6 +420,10 @@ struct brgemm_kernel_params_t {
     size_t skip_accm = 0;
     int32_t zp_a_val = 1;
     const void *ptr_dst_scales = nullptr;
+    dim_t dynamic_LDA = 0;
+    dim_t dynamic_LDB = 0;
+    dim_t dynamic_LDC = 0;
+    dim_t dynamic_LDD = 0;
 };
 
 template <cpu_isa_t isa, typename Vmm>

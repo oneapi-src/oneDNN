@@ -39,7 +39,8 @@ using namespace data_type;
 using namespace brgemm_utils;
 
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
-        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch) {
+        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch,
+        const brgemm_dynamic_values_t *dynamic_values) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -53,6 +54,12 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.do_apply_comp = 0;
     brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
+    if (dynamic_values) {
+        brgemm_p.dynamic_LDA = dynamic_values->dynamic_LDA;
+        brgemm_p.dynamic_LDB = dynamic_values->dynamic_LDB;
+        brgemm_p.dynamic_LDC = dynamic_values->dynamic_LDC;
+        brgemm_p.dynamic_LDD = dynamic_values->dynamic_LDD;
+    }
 
     assert(brg_kernel);
 
@@ -61,7 +68,8 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
-        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch) {
+        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch,
+        const brgemm_dynamic_values_t *dynamic_values) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -75,13 +83,21 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.do_apply_comp = 0;
     brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
+    if (dynamic_values) {
+        brgemm_p.dynamic_LDA = dynamic_values->dynamic_LDA;
+        brgemm_p.dynamic_LDB = dynamic_values->dynamic_LDB;
+        brgemm_p.dynamic_LDC = dynamic_values->dynamic_LDC;
+        brgemm_p.dynamic_LDD = dynamic_values->dynamic_LDD;
+    }
+
     assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
 
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const brgemm_post_ops_data_t &post_ops_data, void *scratch) {
+        const brgemm_post_ops_data_t &post_ops_data, void *scratch,
+        const brgemm_dynamic_values_t *dynamic_values) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -108,6 +124,13 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
     brgemm_p.c_zp_values = post_ops_data.c_zp_values;
     brgemm_p.ptr_dst_scales = post_ops_data.dst_scales;
+    if (dynamic_values) {
+        brgemm_p.dynamic_LDA = dynamic_values->dynamic_LDA;
+        brgemm_p.dynamic_LDB = dynamic_values->dynamic_LDB;
+        brgemm_p.dynamic_LDC = dynamic_values->dynamic_LDC;
+        brgemm_p.dynamic_LDD = dynamic_values->dynamic_LDD;
+    }
+
     assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
@@ -115,7 +138,8 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const brgemm_post_ops_data_t &post_ops_data, void *scratch) {
+        const brgemm_post_ops_data_t &post_ops_data, void *scratch,
+        const brgemm_dynamic_values_t *dynamic_values) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -142,6 +166,13 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
     brgemm_p.c_zp_values = post_ops_data.c_zp_values;
     brgemm_p.ptr_dst_scales = post_ops_data.dst_scales;
+    if (dynamic_values) {
+        brgemm_p.dynamic_LDA = dynamic_values->dynamic_LDA;
+        brgemm_p.dynamic_LDB = dynamic_values->dynamic_LDB;
+        brgemm_p.dynamic_LDC = dynamic_values->dynamic_LDC;
+        brgemm_p.dynamic_LDD = dynamic_values->dynamic_LDD;
+    }
+
     assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
@@ -171,6 +202,9 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 
     brgemm_utils::init_brgemm_conf(brg, isa, type, dt_a, dt_b, layout, alpha,
             beta, LDA, LDB, LDC, M, N, K, strides);
+
+    if (utils::one_of(true, brg->is_runtime_lda, brg->is_runtime_ldb))
+        return status::unimplemented;
 
     if (M <= 0 || N <= 0 || K <= 0) return status::invalid_arguments;
 
@@ -218,7 +252,7 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 }
 
 status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
-        const memory_desc_t *dst_md, int LDD, impl::data_type_t dt_bias) {
+        const memory_desc_t *dst_md, dim_t LDD, impl::data_type_t dt_bias) {
     if (!brg || !dst_md) return status::invalid_arguments;
 
     brg->attr = attr;
@@ -231,6 +265,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
             : types::data_type_size(brg->dt_bias);
 
     brg->LDD = LDD;
+    brg->is_runtime_ldd = is_runtime_value(LDD);
     const auto dt_d = dst_md->data_type;
 
     // check that bias and output data type are supported by isa
