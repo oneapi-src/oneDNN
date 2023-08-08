@@ -46,16 +46,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         : kind_(kind)
         , runtime_kind_(runtime_kind)
         , index_(index)
-#ifdef ONEDNN_BUILD_GRAPH
-        , allocator_(nullptr)
-#endif
-        , counter_(1) {
-#ifdef ONEDNN_BUILD_GRAPH
-        // set the default allocator. Used by graph implementation.
-        allocator_.reset(dnnl::impl::graph::allocator_t::create(),
-                [](dnnl::impl::graph::allocator_t *a) { a->release(); });
-#endif
-    }
+        , counter_(1) {}
 
     /** get kind of the current engine */
     dnnl::impl::engine_kind_t kind() const { return kind_; }
@@ -133,10 +124,9 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
 #ifdef ONEDNN_BUILD_GRAPH
     /** only used in graph implementation **/
-    void *get_allocator() const { return allocator_.get(); };
+    void *get_allocator() const { return (void *)(&allocator_); };
     void set_allocator(dnnl::impl::graph::allocator_t *alloc) {
-        allocator_.reset(dnnl::impl::graph::allocator_t::create(alloc),
-                [](dnnl::impl::graph::allocator_t *a) { a->release(); });
+        allocator_ = *alloc;
     }
 #endif
 
@@ -153,7 +143,7 @@ protected:
 
 #ifdef ONEDNN_BUILD_GRAPH
     /** only used in graph implementation **/
-    std::shared_ptr<dnnl::impl::graph::allocator_t> allocator_ {nullptr};
+    dnnl::impl::graph::allocator_t allocator_;
 #endif
 
     virtual ~dnnl_engine() = default;

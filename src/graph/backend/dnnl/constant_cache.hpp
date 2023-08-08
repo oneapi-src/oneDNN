@@ -48,8 +48,7 @@ struct constant_buffer_t {
         : size_(size), p_engine_(p_engine), alc_(alc) {
         data_ = dnnl_allocator_t::malloc(
                 size, p_engine, alc, allocator_t::mem_type_t::persistent);
-        const_cast<allocator_t *>(alc)->retain();
-        const_cast<engine_t *>(p_engine.get())->retain();
+        const_cast<engine_t *>(p_engine_.get())->retain();
     }
 
     ~constant_buffer_t() {
@@ -58,7 +57,6 @@ struct constant_buffer_t {
 #else
         dnnl_allocator_t::free(data_, p_engine_, alc_);
 #endif
-        const_cast<allocator_t *>(alc_)->release();
         const_cast<engine_t *>(p_engine_.get())->release();
     }
 

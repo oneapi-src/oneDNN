@@ -26,15 +26,15 @@
 
 TEST(Allocator, DefaultCpuAllocator) {
     dnnl::impl::graph::allocator_t *alloc
-            = dnnl::impl::graph::allocator_t::create();
+            = new dnnl::impl::graph::allocator_t();
 
     void *mem_ptr = alloc->allocate(static_cast<size_t>(16));
     if (mem_ptr == nullptr) {
-        alloc->release();
+        delete alloc;
         ASSERT_TRUE(false);
     } else {
         alloc->deallocate(mem_ptr);
-        alloc->release();
+        delete alloc;
     }
 }
 
@@ -44,7 +44,7 @@ TEST(Allocator, Monitor) {
 
     const size_t temp_size = 1024, persist_size = 512;
 
-    allocator_t *alloc = allocator_t::create();
+    allocator_t *alloc = new allocator_t();
     allocator_t::monitor_t &monitor = alloc->get_monitor();
     std::vector<void *> persist_bufs;
     std::mutex m;
@@ -108,6 +108,6 @@ TEST(Allocator, Monitor) {
     }
     persist_bufs.clear();
 
-    alloc->release();
+    delete alloc;
 }
 #endif

@@ -31,7 +31,7 @@ TEST(TestAllocator, DefaultSyclAllocator) {
     SKIP_IF(kind == graph::engine_kind::cpu,
             "skip sycl api test for native cpu runtime.");
 #endif
-    graph::allocator_t &alloc = *graph::allocator_t::create();
+    graph::allocator_t &alloc = *(new graph::allocator_t());
     sycl::queue q = kind == graph::engine_kind::gpu
             ? sycl::queue {dnnl::impl::sycl::compat::gpu_selector_v,
                     sycl::property::queue::in_order {}}
@@ -45,12 +45,12 @@ TEST(TestAllocator, DefaultSyclAllocator) {
 
     if (mem_ptr == nullptr) {
         // release alloc before asserting.
-        alloc.release();
+        delete &alloc;
         ASSERT_NE(mem_ptr, nullptr);
     } else {
         sycl::event e;
         alloc.deallocate(mem_ptr, q.get_device(), q.get_context(), e);
-        alloc.release();
+        delete &alloc;
     }
 }
 
@@ -65,9 +65,9 @@ TEST(TestAllocator, SyclAllocator) {
     ASSERT_EQ(alloc_attr.type_, graph::allocator_t::mem_type_t::persistent);
 
     ASSERT_EQ(alloc_attr.alignment_, 1024U);
-    graph::allocator_t &sycl_alloc = *graph::allocator_t::create(
-            dnnl::graph::testing::sycl_malloc_wrapper,
-            dnnl::graph::testing::sycl_free_wrapper);
+    graph::allocator_t &sycl_alloc = *(
+            new graph::allocator_t(dnnl::graph::testing::sycl_malloc_wrapper,
+                    dnnl::graph::testing::sycl_free_wrapper));
     sycl::device sycl_dev = (kind == graph::engine_kind::gpu)
             ? sycl::device {dnnl::impl::sycl::compat::gpu_selector_v}
             : sycl::device {dnnl::impl::sycl::compat::cpu_selector_v};
@@ -78,11 +78,11 @@ TEST(TestAllocator, SyclAllocator) {
 
     if (mem_ptr == nullptr) {
         // release sycl_alloc before asserting.
-        sycl_alloc.release();
+        delete &sycl_alloc;
         ASSERT_NE(mem_ptr, nullptr);
     } else {
         sycl::event e;
         sycl_alloc.deallocate(mem_ptr, sycl_dev, sycl_ctx, e);
-        sycl_alloc.release();
+        delete &sycl_alloc;
     }
 }

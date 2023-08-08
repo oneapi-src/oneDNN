@@ -37,10 +37,7 @@
 #endif
 
 struct dnnl_graph_allocator final : public dnnl::impl::graph::utils::id_t {
-private:
-    // Make constructor and destructor private, so that users can only create
-    // and destroy allocator through the public static creator and release
-    // method.
+public:
     dnnl_graph_allocator() = default;
 
     dnnl_graph_allocator(dnnl_graph_host_allocate_f host_malloc,
@@ -55,49 +52,16 @@ private:
 
     ~dnnl_graph_allocator() = default;
 
-public:
-    // CAVEAT: The invocation number of release() should be exactly equal to the
-    // added invocation number of create() and retain(). Otherwise, error will
-    // occur!
-
-    // This function increments the reference count
-    void retain() { counter_.fetch_add(1, std::memory_order_relaxed); }
-
-    // This function decrements the reference count. If the reference count is
-    // decremented to zero, the object will be destroyed.
-    void release() {
-        if (counter_.fetch_sub(1, std::memory_order_relaxed) == 1) {
-            delete this;
-        }
-    }
-
-    // The following three static functions are used to create an allocator
-    // object. The initial reference count of created object is 1.
-    static dnnl_graph_allocator *create() {
-        return new dnnl_graph_allocator {};
-    }
-
-    static dnnl_graph_allocator *create(dnnl_graph_host_allocate_f host_malloc,
-            dnnl_graph_host_deallocate_f host_free) {
-        return new dnnl_graph_allocator {host_malloc, host_free};
-    }
-
-    static dnnl_graph_allocator *create(const dnnl_graph_allocator *alloc) {
+    void operator=(const dnnl_graph_allocator &alloc) {
 #ifdef DNNL_WITH_SYCL
-        return new dnnl_graph_allocator {
-                alloc->sycl_malloc_, alloc->sycl_free_};
+        sycl_malloc_ = alloc.sycl_malloc_;
+        sycl_free_ = alloc.sycl_free_;
 #else
-        return new dnnl_graph_allocator {
-                alloc->host_malloc_, alloc->host_free_};
+        host_malloc_ = alloc.host_malloc_;
+        host_free_ = alloc.host_free_;
 #endif
+        return;
     }
-
-#ifdef DNNL_WITH_SYCL
-    static dnnl_graph_allocator *create(dnnl_graph_sycl_allocate_f sycl_malloc,
-            dnnl_graph_sycl_deallocate_f sycl_free) {
-        return new dnnl_graph_allocator {sycl_malloc, sycl_free};
-    }
-#endif
 
     enum class mem_type_t {
         persistent = 0,
@@ -260,8 +224,6 @@ private:
     dnnl_graph_sycl_deallocate_f sycl_free_ {
             dnnl::impl::graph::utils::sycl_allocator_t::free};
 #endif
-
-    std::atomic<int32_t> counter_ {1}; // align to oneDNN to use int32_t type
     mutable monitor_t monitor_;
 };
 
