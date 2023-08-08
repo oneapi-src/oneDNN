@@ -73,7 +73,7 @@
 --reset --case=op/bf16/interpolate.json
 --reset --op-attrs=0:mode:bilinear --case=op/bf16/interpolate.json
 --reset --op-attrs=0:mode:trilinear --case=op/bf16/interpolate.json
---reset --in-shapes=0:0:2x7x14x17--op-attrs=0:data_format:NXC --case=op/bf16/interpolate.json
+--reset --in-shapes=0:0:2x7x14x17 --op-attrs=0:data_format:NXC --case=op/bf16/interpolate.json
 --reset --case=op/bf16/interpolate_bwd.json
 --reset --op-attrs=0:mode:bilinear --case=op/bf16/interpolate_bwd.json
 --reset --op-attrs=0:mode:trilinear --case=op/bf16/interpolate_bwd.json
@@ -163,11 +163,11 @@
 --reset  --in-shapes=0:64x512x7x7 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
 --reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
 --reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:1 --case=op/bf16/logsoftmax_3d.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax_3d.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:1 --case=op/bf16/logsoftmax_3d_2.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax_3d_2.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:2 --case=op/bf16/logsoftmax_3d_2.json
+--reset  --in-shapes=0:8x384x1024*abc --op-attrs=0:axis:1 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:8x384x1024*abc --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:8x384x1024*acb --op-attrs=0:axis:1 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:8x384x1024*acb --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:8x384x1024*acb --op-attrs=0:axis:2 --case=op/bf16/logsoftmax.json
 --reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=0:axis:1 --case=op/bf16/softmax_bwd_d_3d.json
 --reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=0:axis:0 --case=op/bf16/softmax_bwd_d_3d.json
 --reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=0:axis:2 --case=op/bf16/softmax_bwd_d_3d.json
@@ -191,9 +191,9 @@
 --reset  --in-shapes=0:64x512x7x7 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
 --reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
 --reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
---reset  --in-shapes=0:8x384x1024 --case=op/bf16/softmax_3d.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:2 --case=op/bf16/softmax_3d.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:1 --case=op/bf16/softmax_3d.json
+--reset  --in-shapes=0:8x384x1024*acb --case=op/bf16/softmax.json
+--reset  --in-shapes=0:8x384x1024*acb --op-attrs=0:axis:2 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:8x384x1024*acb --op-attrs=0:axis:1 --case=op/bf16/softmax.json
 # resampling
 --reset --in-shapes=0:2x16x3x11+1:2x16x5x11 --op-attrs=0:sizes:1.666667x1  --case=op/bf16/interpolate_bwd.json 
 --reset --in-shapes=0:2x16x5x11+1:2x16x3x11 --op-attrs=0:sizes:0.6x1  --case=op/bf16/interpolate_bwd.json
@@ -203,13 +203,13 @@
 --reset  --in-shapes=0:2x16x5x11+1:2x16x3x11 --op-attrs=0:scales:0.6x1  --case=op/bf16/interpolate_bwd_2d.json
 --reset  --in-shapes=0:2x17x6x12+1:2x17x7x14 --op-attrs=0:scales:1.166667x1.166667  --case=op/bf16/interpolate_bwd_2d.json
 --reset  --in-shapes=0:2x17x7x14+1:2x17x6x12 --op-attrs=0:scales:0.857143x0.857143  --case=op/bf16/interpolate_bwd_2d.json
---reset  --in-shapes=0:2x17x17+1:2x17x21 --op-attrs=0:scales:1.235294  --case=op/bf16/interpolate_bwd_1d.json
---reset  --in-shapes=0:2x17x21+1:2x17x17 --op-attrs=0:scales:0.809524  --case=op/bf16/interpolate_bwd_1d.json
---reset  --in-shapes=0:2x64x32+1:2x64x64 --op-attrs=0:scales:2  --case=op/bf16/interpolate_bwd_1d.json
---reset  --in-shapes=0:2x64x64+1:2x64x32 --op-attrs=0:scales:0.5  --case=op/bf16/interpolate_bwd_1d.json
---reset  --in-shapes=0:2x16x3x11 --op-attrs=0:sizes:5x11 --case=op/bf16/interpolate_2.json
---reset  --in-shapes=0:2x16x5x11 --op-attrs=0:sizes:3x11 --case=op/bf16/interpolate_2.json
---reset  --in-shapes=0:2x17x6x12 --op-attrs=0:sizes:7x14 --case=op/bf16/interpolate_2.json
---reset  --in-shapes=0:2x17x7x14 --op-attrs=0:sizes:6x12 --case=op/bf16/interpolate_2.json
+--reset  --in-shapes=0:2x17x17*acb+1:2x17x21*acb --op-attrs=0:scales:1.235294  --case=op/bf16/interpolate_bwd_2d.json
+--reset  --in-shapes=0:2x17x21*acb+1:2x17x17*acb --op-attrs=0:scales:0.809524  --case=op/bf16/interpolate_bwd_2d.json
+--reset  --in-shapes=0:2x64x32*acb+1:2x64x64*acb --op-attrs=0:scales:2  --case=op/bf16/interpolate_bwd_2d.json
+--reset  --in-shapes=0:2x64x64*acb+1:2x64x32*acb --op-attrs=0:scales:0.5  --case=op/bf16/interpolate_bwd_2d.json
+--reset  --in-shapes=0:2x16x3x11*acdb --op-attrs=0:sizes:5x11 --case=op/bf16/interpolate.json
+--reset  --in-shapes=0:2x16x5x11*acdb --op-attrs=0:sizes:3x11 --case=op/bf16/interpolate.json
+--reset  --in-shapes=0:2x17x6x12*acdb --op-attrs=0:sizes:7x14 --case=op/bf16/interpolate.json
+--reset  --in-shapes=0:2x17x7x14*acdb --op-attrs=0:sizes:6x12 --case=op/bf16/interpolate.json
 # pool
 --reset  --in-shapes=0:1x64x600x600 --op-attrs=0:strides:2x2*pads_begin:1x1*pads_end:0x0*kernel:3x3*dilations:1x1 --case=op/bf16/maxpool.json

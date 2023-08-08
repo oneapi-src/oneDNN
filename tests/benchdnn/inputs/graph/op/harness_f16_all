@@ -73,7 +73,7 @@
 --reset --case=op/f16/interpolate.json
 --reset --op-attrs=0:mode:bilinear --case=op/f16/interpolate.json
 --reset --op-attrs=0:mode:trilinear --case=op/f16/interpolate.json
---reset --in-shapes=0:0:2x7x14x17--op-attrs=0:data_format:NXC --case=op/f16/interpolate.json
+--reset --in-shapes=0:0:2x7x14x17 --op-attrs=0:data_format:NXC --case=op/f16/interpolate.json
 --reset --case=op/f16/interpolate_bwd.json
 --reset --op-attrs=0:mode:bilinear --case=op/f16/interpolate_bwd.json
 --reset --op-attrs=0:mode:trilinear --case=op/f16/interpolate_bwd.json

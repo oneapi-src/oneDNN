@@ -59,7 +59,7 @@
 --reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_square_fusion.json
 --reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_elu_fusion.json
 --reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_gelu_fusion.json
---reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_hardswish_fusion_2.json
+--reset  --in-shapes=0:64x512x28x28*abcd+1:1x1x1x1*abcd --case=pattern/f32/unary_post_ops_hardswish_fusion.json
 --reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_sqrt_fusion.json
 --reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_tanh_fusion.json
 # reduction
