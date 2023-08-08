@@ -7,6 +7,10 @@
 --reset --case=pattern/int8/int8_convtranspose_post_ops_fusion.json
 --reset --case=pattern/int8/int8_matmul_post_ops_fusion.json
 --reset --case=pattern/int8/int8_depthwise_conv_fusion.json
+--reset --case=pattern/int8/int8_matmul_add_mul_relu.json
+--reset --case=pattern/int8/int8_matmul_sum_add_mul_relu.json
+--reset --case=pattern/int8/int8_bf16_matmul_add_mul_relu.json
+--reset --case=pattern/int8/int8_bf16_matmul_sum_add_mul_relu.json
 # conv
 --reset  --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_bias_relu_fusion.json
 --reset  --in-shapes=0:1x2048x14x14+1:2048x64x3x3+2:2048 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/int8/int8_conv_bias_mish_fusion.json
