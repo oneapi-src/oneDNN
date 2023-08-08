@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,6 +62,13 @@ struct gemm_exec_ctx_t {
     stream_t *stream() const { return stream_; }
     const gemm_exec_args_t &args() const { return args_; }
     const gemm_desc_t *desc() const { return gemm_desc_; }
+
+    exec_ctx_t into_exec_ctx_t(exec_args_t &&args) const {
+        exec_ctx_t ctx(stream(), std::move(args));
+        ctx.set_scratchpad_grantor(scratchpad_grantor_);
+        ctx.set_resource_mapper(resource_mapper_);
+        return ctx;
+    };
 
     void set_scratchpad_grantor(
             const memory_tracking::grantor_t *scratchpad_grantor) {
