@@ -129,66 +129,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         });
 
 /*
-MatMul: Currently DNNL Backend doesn't support Reorder with zero points
-(used in weight u8->s8) on GPU, while CPU supports.
-*/
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_matmul_div_add_fusion_cpu)
-        .set_priority(10.5f)
-        .set_engine_kind(engine_kind::cpu)
-        .set_kind(partition_kind_t::quantized_matmul_post_ops)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *dequant_data
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    pm::pb_op_t *dequant_weight
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    pm::pb_op_t *matmul
-                            = pgraph->append_op(graph::op_kind::MatMul,
-                                    in_edges_t {in_edge(0, dequant_data, 0),
-                                            in_edge(1, dequant_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op_t *div = pgraph->append_op(graph::op_kind::Divide,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(graph::op_kind::Add,
-                            in_edges_t {in_edge(0, div, 0)});
-                })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_matmul>();
-        });
-
-/*
-MatMul: Currently DNNL Backend doesn't support Reorder with zero points
-(used in weight u8->s8) on GPU, while CPU supports.
-*/
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_matmul_div_add_fusion_gpu)
-        .set_priority(10.5f)
-        .set_engine_kind(engine_kind::gpu)
-        .set_kind(partition_kind_t::quantized_matmul_post_ops)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *dequant_data
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    pm::pb_op_t *dequant_weight
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<graph::data_type::s8>);
-                    pm::pb_op_t *matmul
-                            = pgraph->append_op(graph::op_kind::MatMul,
-                                    in_edges_t {in_edge(0, dequant_data, 0),
-                                            in_edge(1, dequant_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op_t *div = pgraph->append_op(graph::op_kind::Divide,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(graph::op_kind::Add,
-                            in_edges_t {in_edge(0, div, 0)});
-                })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_matmul>();
-        });
-
-/*
                     [quant_weight]*
         |                  |
    dequant_data     dequant_weight
@@ -197,9 +137,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_matmul_div_add_fusion_gpu)
                 |
               [bias]*
                 |
-        [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
-          ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
-          Divide/Subtract]*[0,3]
+        [unary/binary]*[0,3]
                 |
             [quant_out]*
                 |      
@@ -209,9 +147,10 @@ MatMul: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
+
+Note: This pattern also accepts fp32 as weight input
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_matmul_post_ops_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_matmul_post_ops_cpu)
         .set_priority(9.9f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -271,9 +210,10 @@ MatMul: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
+
+Note: This pattern also accepts fp32 as weight input
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_matmul_post_ops_fusion_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_matmul_post_ops_gpu)
         .set_priority(9.9f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -341,6 +281,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                 |       /
                add
                 |
+        [unary/binary]*[0,3]
+                |
             quant_out
                 |      
 */
@@ -350,9 +292,10 @@ features on GPU:
 1. Post-sum with zero points
 2. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
+
+Note: This pattern also accepts fp32 as weight input
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_matmul_add_post_ops_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_matmul_add_post_ops_cpu)
         .set_priority(10.f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -399,9 +342,10 @@ features on GPU:
 1. Post-sum with zero points
 2. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
+
+Note: This pattern also accepts fp32 as weight input
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_matmul_add_post_ops_fusion_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_matmul_add_post_ops_gpu)
         .set_priority(10.f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)

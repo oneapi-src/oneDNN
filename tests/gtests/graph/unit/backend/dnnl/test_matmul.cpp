@@ -966,8 +966,8 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1111,8 +1111,8 @@ TEST(ExecuteSubgraphInt8, MatmulU8U8) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1269,8 +1269,8 @@ TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
             // -------------------------case 2----------------------------------
             graph::pass::pass_base_ptr apass
                     = get_pass(engine->kind() == graph::engine_kind::gpu
-                                    ? "int8_matmul_post_ops_fusion_gpu"
-                                    : "int8_matmul_post_ops_fusion_cpu");
+                                    ? "x8s8x_matmul_post_ops_gpu"
+                                    : "x8x8x_matmul_post_ops_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
@@ -1440,8 +1440,8 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
             // -------------------------case 2----------------------------------
             graph::pass::pass_base_ptr apass
                     = get_pass(engine->kind() == graph::engine_kind::gpu
-                                    ? "int8_matmul_post_ops_fusion_gpu"
-                                    : "int8_matmul_post_ops_fusion_cpu");
+                                    ? "x8s8x_matmul_post_ops_gpu"
+                                    : "x8x8x_matmul_post_ops_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
@@ -1648,8 +1648,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_add_post_ops_fusion_gpu"
-                                : "int8_matmul_add_post_ops_fusion_cpu");
+                                ? "x8s8x8_matmul_add_post_ops_gpu"
+                                : "x8x8x8_matmul_add_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1832,8 +1832,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasBinary) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2059,8 +2059,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddMul) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_add_post_ops_fusion_gpu"
-                                : "int8_matmul_add_post_ops_fusion_cpu");
+                                ? "x8s8x8_matmul_add_post_ops_gpu"
+                                : "x8x8x8_matmul_add_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2202,8 +2202,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2334,8 +2334,8 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2482,8 +2482,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2715,8 +2715,8 @@ TEST(ExecuteSubgraphInt8, Matmul2dx3dWithTranspose) {
 
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2925,9 +2925,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
         g.finalize();
 
         graph::pass::pass_base_ptr apass1
-                = get_pass("int8_matmul_add_post_ops_fusion_cpu");
+                = get_pass("x8x8x8_matmul_add_post_ops_cpu");
         graph::pass::pass_base_ptr apass2
-                = get_pass("int8_matmul_post_ops_fusion_cpu");
+                = get_pass("x8x8x_matmul_post_ops_cpu");
         apass1->run(g);
         apass2->run(g);
         ASSERT_EQ(g.get_num_partitions(), 2U);
@@ -4738,8 +4738,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_add_post_ops_fusion_gpu"
-                                : "int8_matmul_add_post_ops_fusion_cpu");
+                                ? "x8s8x8_matmul_add_post_ops_gpu"
+                                : "x8x8x8_matmul_add_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4915,8 +4915,8 @@ TEST(ExecuteSubgraphInt8, U8S8U8MatmulAddF32) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -5103,8 +5103,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -5289,8 +5289,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -6541,8 +6541,8 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
             = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "int8_matmul_post_ops_fusion_gpu"
-                            : "int8_matmul_post_ops_fusion_cpu");
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];

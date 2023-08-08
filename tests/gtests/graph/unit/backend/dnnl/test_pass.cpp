@@ -7191,7 +7191,7 @@ TEST(Pass, FuseToInt8Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7343,7 +7343,7 @@ TEST(Pass, OptionalQuantForInt8Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7432,7 +7432,7 @@ TEST(Pass, OptionalQuantWith2ConsumersForInt8Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7525,8 +7525,7 @@ TEST(Pass, FuseToInt8MatMulBinary) {
 
             agraph.finalize();
 
-            pass::pass_base_ptr apass
-                    = get_pass("int8_matmul_post_ops_fusion_cpu");
+            pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7622,7 +7621,7 @@ TEST(Pass, FailToFuseToInt8MatMulDivOrSubtract) {
 
         agraph.finalize();
 
-        pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+        pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 3U);
@@ -7773,7 +7772,7 @@ TEST(Pass, FuseToInt8MatmulBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7913,7 +7912,7 @@ TEST(Pass, FuseToInt8MatmulRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8061,7 +8060,7 @@ TEST(Pass, FuseToInt8MatmulBiasRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8115,7 +8114,7 @@ TEST(Pass, FuseToX8s8f32Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8171,7 +8170,7 @@ TEST(Pass, FuseToX8s8f32MatmulBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8731,7 +8730,7 @@ TEST(Pass, FuseToInt8MatmulAdd) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_add_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x8_matmul_add_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
@@ -8821,7 +8820,7 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_add_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x8_matmul_add_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
@@ -8939,7 +8938,7 @@ TEST(Pass, FuseToX8x8f32MatmulDivAdd) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_div_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),

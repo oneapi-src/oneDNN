@@ -222,6 +222,7 @@ inline graph::utils::pm::repetition_t *post_quantized_add(
     auto postop_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
     graph::utils::pm::pb_op_t *pop
             = postop_graph->append_alternation(get_unary_binary_ops());
+    pop->allow_internal_inputs();
     postop_graph->create_input_port(0, pop, 0);
     postop_graph->create_input_port(1, pop, 1);
     postop_graph->create_output_port(0, pop, 0);

@@ -275,7 +275,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -847,7 +847,7 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
