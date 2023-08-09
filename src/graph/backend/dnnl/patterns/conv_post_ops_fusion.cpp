@@ -37,7 +37,14 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(conv_post_ops_fusion)
 // Conv: Currently DNNL backend doesn't support conv + depthwise conv
 // post-op fusion on GPU, while CPU supports. Check engine_kind == cpu
 // before matching
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, conv_depthwise_fusion_cpu)
+/*
+              \   /
+              conv
+                |
+         depthwise_conv
+                |
+*/
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_depthwise_cpu)
         .set_priority(10.2f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::convolution_post_ops)

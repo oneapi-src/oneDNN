@@ -2630,7 +2630,7 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
             graph::status::success);
 
     // -------------------------case 2----------------------------------
-    graph::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_depthwise_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
