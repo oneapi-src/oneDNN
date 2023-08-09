@@ -461,7 +461,7 @@ TEST(Compile, ConvBiasReluAdd) {
     g.finalize();
 
     // run pass
-    graph::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
 
     ASSERT_EQ(g.get_num_partitions(), 1U);

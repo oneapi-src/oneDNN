@@ -1916,7 +1916,7 @@ TEST(SubgraphPass, CheckUndefinedOpAttribute) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);

@@ -1034,7 +1034,7 @@ TEST(Compile, ConvAddSharedInputs) {
     g.finalize();
 
     // run pass
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1102,7 +1102,7 @@ TEST(Compile, ConvAddInplace) {
     g.finalize();
 
     // run pass
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1355,7 +1355,7 @@ TEST(Execute, ConvolutionBnFp32) {
             graph::status::success);
 
     // run fusion partition
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1466,7 +1466,7 @@ TEST(Compile, ConvBnSharedInputs) {
             graph::status::success);
 
     // run fusion partition
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1552,7 +1552,7 @@ TEST(Execute, ConvAdd) {
         g.add_op(&add_op);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1638,7 +1638,7 @@ TEST(Execute, ConvAddPerTensorBroadcast) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1720,7 +1720,7 @@ TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1803,7 +1803,7 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1886,7 +1886,7 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1966,7 +1966,7 @@ TEST(Compile, ConvAddBroadcast) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -2040,7 +2040,7 @@ TEST(Execute, ConvAddRelu) {
     g.add_op(&relu_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -2157,7 +2157,7 @@ TEST(Execute, ConvMultiplePostOps) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -2213,35 +2213,35 @@ TEST(Execute, ConvBiasEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param_t> params1 = {
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    {2.0, 1.5, 4.0, 0.5}, graph::op_kind::Abs, "Abs", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0}, {2.0, 1.5, 4.0, 0.5},
+                    graph::op_kind::Abs, "Abs", {}},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {static_cast<float>(exp(-2) - 1), 1.5, 4.0, 0.5},
                     graph::op_kind::Elu, "Elu", {{graph::op_attr::alpha, 1.f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     hardsigmoid_func({-2.0, 1.5, 4.0, 0.5}, 1.f / 6, 0.5f),
                     graph::op_kind::HardSigmoid, "HardSigmoid",
                     {{graph::op_attr::alpha, 1.f / 6},
                             {graph::op_attr::beta, 0.5f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {-0.04f, 1.5f, 4.0f, 0.5f}, graph::op_kind::LeakyReLU,
                     "LeakyReLU", {{graph::op_attr::alpha, 0.02f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     mish_func({-2.0, 1.5, 4.0, 0.5}), graph::op_kind::Mish,
                     "Mish", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    {0.0, 1.5, 3.0, 0.5}, graph::op_kind::Clamp, "Clamp",
+            eltwise_param_t {"fp_conv_post_ops", {-1.0}, {0.0, 1.5, 3.0, 0.5},
+                    graph::op_kind::Clamp, "Clamp",
                     {{graph::op_attr::min, 0.f}, {graph::op_attr::max, 3.f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     sigmoid_func({-2.0, 1.5, 4.0, 0.5}),
                     graph::op_kind::Sigmoid, "Sigmoid", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {4.0, 2.25, 16.0, 0.25}, graph::op_kind::Square, "Square",
                     {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     tanh_func({-2.0, 1.5, 4.0, 0.5}), graph::op_kind::Tanh,
                     "Tanh", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {1.0},
+            eltwise_param_t {"fp_conv_post_ops", {1.0},
                     sqrt_func({0.0, 3.5, 6.0, 2.5}), graph::op_kind::Sqrt,
                     "Sqrt", {}},
     };
@@ -2331,17 +2331,17 @@ TEST(Execute, ConvBiasAddEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param_t> params2 = {
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {static_cast<float>(exp(-4.0) - 1), 2.5, 3.0, 0.5},
                     graph::op_kind::Elu, "Elu", {{graph::op_attr::alpha, 1.f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {-0.08f, 2.5f, 3.0f, 0.5f}, graph::op_kind::LeakyReLU,
                     "LeakyReLU", {{graph::op_attr::alpha, 0.02f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     mish_func({-4.0f, 2.5f, 3.0f, 0.5f}), graph::op_kind::Mish,
                     "Mish", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {3.0},
-                    {0.0, 6.f, 6.f, 4.5}, graph::op_kind::Clamp, "ReLU6",
+            eltwise_param_t {"fp_conv_post_ops", {3.0}, {0.0, 6.f, 6.f, 4.5},
+                    graph::op_kind::Clamp, "ReLU6",
                     {{graph::op_attr::min, 0.f}, {graph::op_attr::max, 6.f}}},
     };
 
@@ -2457,17 +2457,17 @@ TEST(Execute, ConvAddEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param_t> params = {
-            eltwise_param_t {"conv_post_ops_fusion", {0.0},
+            eltwise_param_t {"fp_conv_post_ops", {0.0},
                     {static_cast<float>(exp(-3.0) - 1), 3.5, 4.0, 1.5},
                     graph::op_kind::Elu, "Elu", {{graph::op_attr::alpha, 1.f}}},
-            eltwise_param_t {"conv_post_ops_fusion", {0.0},
+            eltwise_param_t {"fp_conv_post_ops", {0.0},
                     {-0.06f, 3.5f, 4.0f, 1.5f}, graph::op_kind::LeakyReLU,
                     "LeakyReLU", {{graph::op_attr::alpha, 0.02f}}},
-            eltwise_param_t {"conv_post_ops_fusion", {0.0},
+            eltwise_param_t {"fp_conv_post_ops", {0.0},
                     mish_func({-3.0f, 3.5f, 4.0f, 1.5f}), graph::op_kind::Mish,
                     "Mish", {}},
-            eltwise_param_t {"conv_post_ops_fusion", {0.0},
-                    {0.0, 3.5, 4.f, 1.5}, graph::op_kind::Clamp, "ReLU6",
+            eltwise_param_t {"fp_conv_post_ops", {0.0}, {0.0, 3.5, 4.f, 1.5},
+                    graph::op_kind::Clamp, "ReLU6",
                     {{graph::op_attr::min, 0.f}, {graph::op_attr::max, 6.f}}},
     };
 
@@ -5265,7 +5265,7 @@ TEST(Execute, ConvolutionBf16InFp32Out) {
             graph::status::success);
 
     // run fusion partition
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
