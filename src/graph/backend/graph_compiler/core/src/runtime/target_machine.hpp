@@ -85,6 +85,11 @@ struct cpu_flags_t : public machine_flags_t {
     std::array<size_t, maxNumberCacheLevels> dataCacheSize_;
     size_t dataCacheLevels_ = 0;
 
+    // guess if the CPU model is spr, emr, gnr or later
+    bool is_spr_like() const { return fAVX512AMXTILE; }
+    // guess if the CPU model is skx, clx, cpx, icx: with AVX512 and without AMX
+    bool is_skx_like() const { return !fAVX512AMXTILE && fAVX512F; }
+
 public:
     size_t getDCacheSize(size_t cache_level) const {
         if (cache_level == 1) {

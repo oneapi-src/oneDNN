@@ -781,10 +781,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy0) {
   [v4: f32[512, 256], v3: f32[1024, 256]] = outerloop_8X2_partition_managed_matmul_core_relu_managed_matmul_core_relu(v2, v1, v0)
 }
 )";
-    bool is_scpi = ctx->machine_.cpu_flags_.family == 6
-            && (ctx->machine_.cpu_flags_.model == 106
-                    || ctx->machine_.cpu_flags_.model == 108
-                    || ctx->machine_.cpu_flags_.model == 85);
+    bool is_scpi = ctx->machine_.cpu_flags_.is_skx_like();
     if (is_scpi) {
         // managed matmul core will have different config under such machine
         // Only compare result in this case
@@ -954,10 +951,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy2) {
   [v3: f32[256, 512], v4: f32[256, 1024]] = outerloop_2_partition_managed_matmul_core_relu_managed_matmul_core_relu(v0, v1, v2)
 }
 )";
-    bool is_scpi = ctx->machine_.cpu_flags_.family == 6
-            && (ctx->machine_.cpu_flags_.model == 106
-                    || ctx->machine_.cpu_flags_.model == 108
-                    || ctx->machine_.cpu_flags_.model == 85);
+    bool is_scpi = ctx->machine_.cpu_flags_.is_skx_like();
     if (is_scpi) {
         // managed matmul core will have different config under such machine
         // Only compare result in this case
@@ -1119,10 +1113,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
                         ->body_.checked_as<stmts>()
                         ->seq_;
     auto mm0_out = body[0].checked_as<define>()->var_;
-    bool is_scpi = ctx->machine_.cpu_flags_.family == 6
-            && (ctx->machine_.cpu_flags_.model == 106
-                    || ctx->machine_.cpu_flags_.model == 108
-                    || ctx->machine_.cpu_flags_.model == 85);
+    bool is_scpi = ctx->machine_.cpu_flags_.is_skx_like();
     if (is_scpi) {
         // managed matmul core will have different config under such machine
         // Only compare result in this case
@@ -1638,8 +1629,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically2) {
   [v4: f32[4, 11008]] = outerloop_1X56X1X1X1_partition_managed_matmul_core_managed_matmul_core_sigmoid_reorder_add_reorder(v2, v3, v0, v1)
 }
 )";
-    bool is_special_fm = ctx->machine_.cpu_flags_.family == 6
-            && ctx->machine_.cpu_flags_.model == 143;
+    bool is_special_fm = ctx->machine_.cpu_flags_.is_spr_like();
     if (is_special_fm) {
         // managed matmul core will have different config under such machine
         // Only compare result in this case

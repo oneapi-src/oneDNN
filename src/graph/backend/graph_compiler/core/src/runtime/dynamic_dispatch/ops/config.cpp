@@ -80,13 +80,9 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
     float cost = std::numeric_limits<float>::max();
     int split_n = 1;
     // spr, emr, gnr
-    bool is_seg = tm.cpu_flags_.family == 6
-            && (tm.cpu_flags_.model == 143 || tm.cpu_flags_.model == 207
-                    || tm.cpu_flags_.model == 182);
+    bool is_seg = tm.cpu_flags_.is_spr_like();
     // skx, clx, cpx, icx
-    bool is_scpi = tm.cpu_flags_.family == 6
-            && (tm.cpu_flags_.model == 106 || tm.cpu_flags_.model == 108
-                    || tm.cpu_flags_.model == 85);
+    bool is_scpi = tm.cpu_flags_.is_skx_like();
     auto cal_cost = [&](int i) {
         int num_M_block
                 = utils::divide_and_ceil(M / iim_block, num_threads / i);

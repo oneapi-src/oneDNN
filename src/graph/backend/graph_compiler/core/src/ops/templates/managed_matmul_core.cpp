@@ -256,8 +256,7 @@ config_ptr gen_managed_matmul_core_t::get_default_post_rd_config(
     = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
   const int sizeofdtypeC
     = utils::get_sizeof_etype(out_tensors_[0].dtype_.as_etype());
-  bool is_special_fm = ctx->machine_.cpu_flags_.family == 6
-    && ctx->machine_.cpu_flags_.model == 143;
+  bool is_special_fm = ctx->machine_.cpu_flags_.is_spr_like();
 
   // should discuss int8 and f32
   if ((M < 4096 && !is_bf16) || M / iim_block_ < num_threads) {
@@ -555,19 +554,13 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   int64_t N_block_default = 64;
   int64_t K_block_default = 64;
   // if true, run on spr, emr, gnr
-  bool is_seg = get_default_context()->machine_.cpu_flags_.family == 6
-    && (get_default_context()->machine_.cpu_flags_.model == 143
-      || get_default_context()->machine_.cpu_flags_.model == 207
-      || get_default_context()->machine_.cpu_flags_.model == 182);
+  bool is_spr_like = get_default_context()->machine_.cpu_flags_.is_spr_like();
   // if true, run on skx, clx, cpx, icx
-  bool is_scpi = get_default_context()->machine_.cpu_flags_.family == 6
-    && (get_default_context()->machine_.cpu_flags_.model == 106
-      || get_default_context()->machine_.cpu_flags_.model == 108
-      || get_default_context()->machine_.cpu_flags_.model == 85);
+  bool is_skx_like = get_default_context()->machine_.cpu_flags_.is_skx_like();
   bool is_dynamic = is_dynamic_dim(plain_M) || is_dynamic_dim(plain_N)
     || is_dynamic_dim(plain_K);
   if (is_f32) {
-    if (is_seg) {
+    if (is_spr_like) {
       // prefer small blocks
       if (plain_M <= 4096) {
         M_block_default = 16;
@@ -604,7 +597,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   if (!is_dynamic) {
     if (plain_N <= 512 && plain_K <= 512) {
       iim_block_ = std::max(
-        (is_f32 && is_scpi && plain_M >= 64 && plain_M <= 128
+        (is_f32 && is_skx_like && plain_M >= 64 && plain_M <= 128
           && (plain_N >= 256 || plain_K >= 256))
           ? (int64_t)8
           : (int64_t)4,
@@ -624,7 +617,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   if (!is_dynamic) {
     if (is_f32) {
       // f32 small M with small even K prefers padding iik_block to align 16
-      if (plain_K < 16 && plain_K % 2 == 0 && plain_M <= 128 && is_scpi) {
+      if (plain_K < 16 && plain_K % 2 == 0 && plain_M <= 128 && is_skx_like) {
         iik_block_ = 16;
       } else {
         iik_block_ = suggest_aligned_block(plain_K, K_block_default, 1, 16);
