@@ -242,17 +242,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_post_ops_fusion)
                 |
               [bias]*
                 |           
-                |        
-                |                   
-        [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
-          Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
-          Divide/Subtract]*[0,3]
+        [unary/binary]*[0,3]
                 |
             [quant_out]*
                 | 
+
+This pattern is defined for itex orginally, the conv here is a depthwise 
+convolution.
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_depthwise_conv_reshape_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_reshape_post_ops)
         .set_priority(10.6f)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

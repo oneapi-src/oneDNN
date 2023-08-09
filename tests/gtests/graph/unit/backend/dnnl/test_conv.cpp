@@ -5985,7 +5985,7 @@ TEST(ExecuteSubgraphInt8, ConvDepthwise) {
 
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
-                = get_pass("int8_depthwise_conv_reshape_post_ops_fusion");
+                = get_pass("x8s8x_conv_reshape_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
 
