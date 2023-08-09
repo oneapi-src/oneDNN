@@ -100,9 +100,11 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         while (num_c_blocks % conf.vect_dt_n != 0) {
             conf.vect_dt_n /= 2;
         }
-        if ((conf.vect_dt_n < 8) && (conf.mb_padded % 4 == 0)) {
-            if (!conf.is_backward || conf.alg != pooling_avg_exclude_padding) {
-                conf.unroll_mb = true;
+        if (conf.vect_dt_n < 8) {
+            if (!conf.is_backward) {
+                if (conf.mb_padded % 2 == 0) { conf.unroll_mb_count = 2; }
+            } else if (conf.alg != pooling_avg_exclude_padding) {
+                if (conf.mb_padded % 4 == 0) { conf.unroll_mb_count = 4; }
             }
         }
         conf.nvect = 1;
@@ -126,7 +128,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
             = src_mdw.nelems() * src_mdw.data_type_size() / 1024 / 1024;
     // heuristics: use batching on ATS-M for certain shapes for better perf.
     if (!conf.is_backward && pd->attr()->post_ops_.has_default_values()
-            && !conf.unroll_mb && is_pre_xe_hpc
+            && !(conf.unroll_mb_count > 1) && is_pre_xe_hpc
             && (2 * input_sz_mb > (size_t)conf.mb)) {
         conf.num_batches = utils::div_up(conf.mb_padded, conf.mb_block_size);
     }
@@ -140,15 +142,8 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
                 nstl::min(conf.mb_block_size, conf.mb_padded),
                 conf.chunks_per_mb_block);
     } else {
-        if (conf.is_backward) {
-            conf.dispatch.define_dim("MB", 0,
-                    conf.unroll_mb ? conf.mb_padded / 4 : conf.mb_padded,
-                    conf.chunks_per_mb_block);
-        } else {
-            conf.dispatch.define_dim("MB", 0,
-                    conf.unroll_mb ? conf.mb_padded / 2 : conf.mb_padded,
-                    conf.chunks_per_mb_block);
-        }
+        conf.dispatch.define_dim("MB", 0, conf.mb_padded / conf.unroll_mb_count,
+                conf.chunks_per_mb_block);
     }
     conf.dispatch.define_dim("C", 1, c_padded, conf.chunks_per_c_block);
 
@@ -215,7 +210,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("USE_MB_C_BLOCK", conf.use_mb_c_block);
     kernel_ctx.define_int("CHUNKS_PER_C_BLOCK", conf.chunks_per_c_block);
     kernel_ctx.define_int("CHUNKS_PER_MB_BLOCK", conf.chunks_per_mb_block);
-    kernel_ctx.define_int("UNROLL_MB", conf.unroll_mb);
+    kernel_ctx.define_int("UNROLL_MB_COUNT", conf.unroll_mb_count);
 
     kernel_ctx.add_option("-Dcl_intel_subgroups_char");
 
