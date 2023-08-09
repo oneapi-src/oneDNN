@@ -185,6 +185,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder) {
 
 TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder2) {
     REQUIRE_AVX2();
+    SET_THREADS_OR_SKIP(32);
     sc_graph_t mgr;
     auto ins = mgr.make_input({graph_tensor::make(
             {2048, 32, 64, 16}, sc_data_format_t(format_kinds::ACBD))});
