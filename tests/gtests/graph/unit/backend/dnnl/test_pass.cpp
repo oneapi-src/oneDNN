@@ -6059,8 +6059,8 @@ TEST(Pass, FuseToInt8ConvBiasAdd) {
         agraph.finalize();
 
         pass::pass_base_ptr apass = get_pass(engine_kind == engine_kind::cpu
-                        ? "int8_conv_add_post_ops_fusion_cpu"
-                        : "int8_conv_add_post_ops_fusion_gpu");
+                        ? "x8s8x8_conv_add_post_ops_cpu"
+                        : "x8s8x8_conv_add_post_ops_gpu");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6372,7 +6372,7 @@ TEST(Pass, FuseToInt8ConvBiasAddRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_add_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8s8x8_conv_add_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6572,7 +6572,7 @@ TEST(Pass, FuseToInt8ConvBiasAddReluWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_add_post_ops_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("x8s8x8_conv_add_post_ops_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),

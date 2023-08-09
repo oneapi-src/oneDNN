@@ -75,9 +75,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_depthwise_cpu)
                 |  /
                add
                 |
-        [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
-          ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
-          Divide/Subtract]*[0,3]
+        [unary/binary]*[0,3]
                 |
             quant_out
                 |
@@ -87,8 +85,7 @@ Conv: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Post-sum with zero points
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_conv_add_post_ops_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
@@ -131,8 +128,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
             return std::make_shared<quantized_conv>();
         });
 
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_conv_add_post_ops_fusion_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
@@ -329,23 +325,20 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                 |          /
                 |  typecast_other
                 |  /
-               Add
+               Add   [typecast_binary]*
+                |        /
+        [unary/binary]*[0,3]
                 |
-  [ReLU, GELU, Divide, Multiply, Add]?
-                |
-            typecast_out
-                |
-             quant_out
+    [typecast_out -> quant_out]*
 
 Conv: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Post-sum with zero points
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_conv_add_post_ops_fusion_cpu)
-        .set_priority(10.5f)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
+        .set_priority(10.6f)
         .set_engine_kind(engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::quantized_matmul_post_ops)
+        .set_kind(graph::partition_kind_t::quantized_convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
@@ -396,36 +389,60 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                             in_edges_t {in_edge(0, popt_bias, 0),
                                     in_edge(1, typecast_add, 0)});
 
-                    auto other_postop_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *pop = other_postop_graph->append_alternation(
-                            {graph::op_kind::ReLU, graph::op_kind::GELU,
-                                    graph::op_kind::Divide,
-                                    graph::op_kind::Multiply,
-                                    graph::op_kind::Add});
-                    other_postop_graph->create_input_port(0, pop, 0);
-                    other_postop_graph->create_input_port(1, pop, 1);
-                    other_postop_graph->create_output_port(0, pop, 0);
+                    //post ops
+                    auto postop_with_tc_graph = std::make_shared<pb_graph_t>();
 
-                    auto popt_post_ops
-                            = pgraph->append_optional(other_postop_graph,
-                                    in_edges_t {in_edge(0, padd, 0)});
+                    auto popt_typecast_binary_graph
+                            = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *typecast_binary
+                            = popt_typecast_binary_graph->append_op(
+                                    graph::op_kind::TypeCast);
+                    popt_typecast_binary_graph->create_input_port(
+                            0, typecast_binary, 0);
+                    popt_typecast_binary_graph->create_output_port(
+                            0, typecast_binary, 0);
+                    auto popt_typecast_binary
+                            = postop_with_tc_graph->append_optional(
+                                    popt_typecast_binary_graph);
 
-                    // typecast_out + quant_out
-                    pm::pb_op_t *ptc_out
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, popt_post_ops, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    pm::pb_op_t *pop_with_tc
+                            = postop_with_tc_graph->append_alternation(
+                                    get_unary_binary_ops(),
+                                    in_edges_t {in_edge(
+                                            1, popt_typecast_binary, 0)});
+                    postop_with_tc_graph->create_input_port(0, pop_with_tc, 0);
+                    postop_with_tc_graph->create_input_port(
+                            1, popt_typecast_binary, 1);
+                    postop_with_tc_graph->create_output_port(0, pop_with_tc, 0);
+
+                    auto prep = pgraph->append_repetition(postop_with_tc_graph,
+                            {0, 0}, 0, MAX_REPETITION,
+                            in_edges_t {in_edge(0, padd, 0)});
+
+                    // Optional typecast_out + quant_out
+                    auto popt_tcout_qout_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *ptc_out = popt_tcout_qout_graph->append_op(
+                            graph::op_kind::TypeCast);
+                    ptc_out->append_decision_function(
+                            check_input_dtype<graph::data_type::bf16>);
+                    ptc_out->append_decision_function(
+                            check_output_dtype<graph::data_type::f32>);
+                    pm::pb_op_t *pquant_out = popt_tcout_qout_graph->append_op(
+                            graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, ptc_out, 0)});
+                    popt_tcout_qout_graph->create_input_port(0, ptc_out, 0);
+                    popt_tcout_qout_graph->create_output_port(0, pquant_out, 0);
+                    pgraph->append_optional(popt_tcout_qout_graph,
+                            in_edges_t {in_edge(0, prep, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
         });
 
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, int8_bf16_conv_add_post_ops_fusion_gpu)
-        .set_priority(10.5f)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
+        .set_priority(10.6f)
         .set_engine_kind(engine_kind::gpu)
-        .set_kind(graph::partition_kind_t::quantized_matmul_post_ops)
+        .set_kind(graph::partition_kind_t::quantized_convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
@@ -477,26 +494,51 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                             in_edges_t {in_edge(0, popt_bias, 0),
                                     in_edge(1, typecast_add, 0)});
 
-                    auto other_postop_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *pop = other_postop_graph->append_alternation(
-                            {graph::op_kind::ReLU, graph::op_kind::GELU,
-                                    graph::op_kind::Divide,
-                                    graph::op_kind::Multiply,
-                                    graph::op_kind::Add});
-                    other_postop_graph->create_input_port(0, pop, 0);
-                    other_postop_graph->create_input_port(1, pop, 1);
-                    other_postop_graph->create_output_port(0, pop, 0);
+                    //post ops
+                    auto postop_with_tc_graph = std::make_shared<pb_graph_t>();
 
-                    auto popt_post_ops
-                            = pgraph->append_optional(other_postop_graph,
-                                    in_edges_t {in_edge(0, padd, 0)});
+                    auto popt_typecast_binary_graph
+                            = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *typecast_binary
+                            = popt_typecast_binary_graph->append_op(
+                                    graph::op_kind::TypeCast);
+                    popt_typecast_binary_graph->create_input_port(
+                            0, typecast_binary, 0);
+                    popt_typecast_binary_graph->create_output_port(
+                            0, typecast_binary, 0);
+                    auto popt_typecast_binary
+                            = postop_with_tc_graph->append_optional(
+                                    popt_typecast_binary_graph);
 
-                    // typecast_out + quant_out
-                    pm::pb_op_t *ptc_out
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, popt_post_ops, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    pm::pb_op_t *pop_with_tc
+                            = postop_with_tc_graph->append_alternation(
+                                    get_unary_binary_ops(),
+                                    in_edges_t {in_edge(
+                                            1, popt_typecast_binary, 0)});
+                    postop_with_tc_graph->create_input_port(0, pop_with_tc, 0);
+                    postop_with_tc_graph->create_input_port(
+                            1, popt_typecast_binary, 1);
+                    postop_with_tc_graph->create_output_port(0, pop_with_tc, 0);
+
+                    auto prep = pgraph->append_repetition(postop_with_tc_graph,
+                            {0, 0}, 0, MAX_REPETITION,
+                            in_edges_t {in_edge(0, padd, 0)});
+
+                    // Optional typecast_out + quant_out
+                    auto popt_tcout_qout_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *ptc_out = popt_tcout_qout_graph->append_op(
+                            graph::op_kind::TypeCast);
+                    ptc_out->append_decision_function(
+                            check_input_dtype<graph::data_type::bf16>);
+                    ptc_out->append_decision_function(
+                            check_output_dtype<graph::data_type::f32>);
+                    pm::pb_op_t *pquant_out = popt_tcout_qout_graph->append_op(
+                            graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, ptc_out, 0)});
+                    popt_tcout_qout_graph->create_input_port(0, ptc_out, 0);
+                    popt_tcout_qout_graph->create_output_port(0, pquant_out, 0);
+                    pgraph->append_optional(popt_tcout_qout_graph,
+                            in_edges_t {in_edge(0, prep, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
