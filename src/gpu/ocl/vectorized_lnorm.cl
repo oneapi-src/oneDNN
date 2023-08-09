@@ -204,7 +204,7 @@ __kernel void vectorized_lnorm_bwd_scaleshift(__global DATA_T *src,
     const int c = GWS_GET_C() * VECT_DT_N;
     const int n_chunk_idx = GWS_GET_N();
     const int n_start = n_chunk_idx * N_CHUNK_SIZE;
-    const int n_end = n_start + N_CHUNK_SIZE;
+    const int n_end = min(n_start + N_CHUNK_SIZE, N);
 
     // diff_scale and diff_shift use the same tensor in scratchpad
     const int shift_off = N_CHUNKS * C;
@@ -249,8 +249,7 @@ __kernel void vectorized_lnorm_bwd_scaleshift_final(
         __global float *diff_shift) {
 
     const int c = GWS_GET_C_finalize();
-    const int wg_size = get_local_size(0);
-    const int n_chunk = N_CHUNKS / wg_size;
+    const int n_chunk = div_up(N_CHUNKS, FINALIZE_N_CHUNKS);
     const int n = GWS_GET_N_finalize() * n_chunk;
     const int lid = get_local_id(0);
 
@@ -262,8 +261,8 @@ __kernel void vectorized_lnorm_bwd_scaleshift_final(
     float diff_gamma = 0;
     float diff_beta = 0;
 
-    for (int n_chunk_idx = n; n_chunk_idx < n + n_chunk; n_chunk_idx++) {
-        const int result_off = n_chunk_idx * C + c;
+    for (int n_idx = n; n_idx < min(n + n_chunk, N_CHUNKS); n_idx++) {
+        const int result_off = n_idx * C + c;
         diff_gamma += tmp_diff_scale[result_off];
         diff_beta += tmp_diff_shift[result_off];
     }

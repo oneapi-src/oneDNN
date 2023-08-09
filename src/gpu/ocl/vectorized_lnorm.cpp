@@ -197,6 +197,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.ndims = ndims;
     conf.norm_axis = pd->norm_axis();
     conf.across_axis = pd->across_axis();
+
     conf.use_scale = pd->use_scale();
     conf.use_shift = pd->use_shift();
     conf.calculate_stats = !pd->stats_are_src();
@@ -363,6 +364,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
         conf.use_fused
                 = is_fused_kernel_applicable(conf, pd, engine, large_grf_mode);
+
         const int best_sg_size = [&]() {
             int size = desired_sg_size;
             while (size > 1) {
@@ -418,12 +420,16 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             return status::unimplemented;
 
         const int first_dim = ndims == 2 ? dims[0] : dims[1];
-        int desired_n_chunk_size = 16; // Experimentally selected values
-        while (first_dim % desired_n_chunk_size != 0) {
-            desired_n_chunk_size /= 2;
+        const int max_n_chunk_size = 16; // Experimentally selected values
+        const int min_n_chunk_size = 4;
+        int best_n_chunk_size = max_n_chunk_size;
+
+        while (first_dim % best_n_chunk_size != 0
+                && best_n_chunk_size > min_n_chunk_size) {
+            best_n_chunk_size--;
         }
-        conf.n_chunk_size = desired_n_chunk_size;
-        conf.n_chunks = first_dim / conf.n_chunk_size;
+        conf.n_chunk_size = best_n_chunk_size;
+        conf.n_chunks = utils::div_up(first_dim, conf.n_chunk_size);
 
         // Scaleshift kernel does partial reduction of N
         conf.dispatch_scaleshift.define_dim("N", conf.n_chunks);
@@ -437,16 +443,18 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         conf.dispatch_scaleshift_finalize.define_dim(
                 "C_finalize", conf.norm_axis);
         const int max_n_finalize = 256; // Experimentally selected values
-        size_t n_finalize = conf.n_chunks;
+
+        int n_finalize = conf.n_chunks;
         while (n_finalize > max_n_finalize) {
-            n_finalize /= 2;
+            n_finalize = utils::div_up(n_finalize, 2);
         }
+        conf.finalize_n_chunks = n_finalize;
         conf.dispatch_scaleshift_finalize.define_dim_with_nesting_level(
-                "N_finalize", 1, n_finalize);
+                "N_finalize", 1, conf.finalize_n_chunks);
         conf.dispatch_scaleshift_finalize.set_kernel_attr_suffix(
                 "SCALESHIFT_FINALIZE");
         conf.dispatch_scaleshift_finalize.generate();
-        const size_t tuned_lws[3] = {n_finalize, 1, 1};
+        const size_t tuned_lws[3] = {(size_t)conf.finalize_n_chunks, 1, 1};
         conf.dispatch_scaleshift_finalize.set_lws(tuned_lws);
     } // bwd
 
@@ -485,6 +493,7 @@ static status_t init_kernel_ctx_common(
             "VECTOR_SIZE_SCALESHIFT", conf.vector_size_scaleshift);
     kernel_ctx.define_int("N_CHUNK_SIZE", conf.n_chunk_size);
     kernel_ctx.define_int("N_CHUNKS", conf.n_chunks);
+    kernel_ctx.define_int("FINALIZE_N_CHUNKS", conf.finalize_n_chunks);
     kernel_ctx.define_int("USE_SRC_BUFFER", conf.use_src_buffer);
 
     kernel_ctx.add_option("-cl-std=CL2.0");

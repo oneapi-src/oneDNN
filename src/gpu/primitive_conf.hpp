@@ -527,6 +527,7 @@ struct lnorm_conf_t {
     int vect_size_fused;
     int shift_off;
     int n_chunk_size;
+    int finalize_n_chunks;
     int n_chunks;
     int vector_size_scaleshift;
     bool use_src_buffer;
