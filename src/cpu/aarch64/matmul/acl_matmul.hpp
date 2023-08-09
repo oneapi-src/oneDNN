@@ -30,7 +30,8 @@ namespace matmul {
 struct acl_resource_t : public resource_t {
     acl_resource_t() : acl_obj_(utils::make_unique<acl_matmul_obj_t>()) {}
 
-    status_t configure(const acl_matmul_conf_t &amp) {
+    status_t configure(const acl_matmul_conf_t &amp,
+            const dnnl::impl::format_kind_t weights_format_kind) {
         if (!acl_obj_) return status::out_of_memory;
         acl_obj_->src_tensor.allocator()->init(amp.src_tensor_info);
         acl_obj_->wei_tensor.allocator()->init(amp.wei_tensor_info);
@@ -40,6 +41,14 @@ struct acl_resource_t : public resource_t {
             acl_obj_->src_acc_tensor.allocator()->init(amp.src_acc_info);
             acl_obj_->transA.configure(
                     &acl_obj_->src_acc_tensor, &acl_obj_->src_tensor);
+        }
+
+        if (weights_format_kind != format_kind::any) {
+            if (amp.is_transB) {
+                acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
+                acl_obj_->transB.configure(
+                        &acl_obj_->wei_acc_tensor, &acl_obj_->wei_tensor);
+            }
         }
         // Configure GEMM
         acl_obj_->gemm.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
@@ -77,13 +86,14 @@ struct acl_matmul_t : public primitive_t {
                               weights_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(data_type::f16);
 
+            // we need to save this state as it can change inside set_default_formats()
+            weights_format_kind = weights_md_.format_kind;
+
             VDISPATCH_MATMUL(
                     is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
             VDISPATCH_MATMUL(utils::one_of(true, is_fp32_ok, is_fp16_ok),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
-            VDISPATCH_MATMUL(weights_md_.format_kind == format_kind::any,
-                    VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_MATMUL(attr()->has_default_values(
                                      smask_t::oscale | smask_t::post_ops),
@@ -92,8 +102,13 @@ struct acl_matmul_t : public primitive_t {
             VDISPATCH_MATMUL(!has_runtime_dims_or_strides(),
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
-            CHECK(acl_matmul_utils::init_conf_matmul(
-                    amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
+            if (weights_format_kind == format_kind::any) {
+                CHECK(acl_matmul_utils::init_conf_matmul_fixed_format(
+                        amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
+            } else {
+                CHECK(acl_matmul_utils::init_conf_matmul_non_fixed_format(
+                        amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
+            }
 
             arm_compute::ActivationLayerInfo act_info;
             CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_, act_info));
@@ -109,8 +124,8 @@ struct acl_matmul_t : public primitive_t {
         }
 
         acl_matmul_conf_t amp_;
-
         acl_post_ops_t post_ops;
+        dnnl::impl::format_kind_t weights_format_kind;
 
     protected:
         bool attr_oscale_ok() const {
@@ -128,7 +143,7 @@ struct acl_matmul_t : public primitive_t {
         if (!r) return status::out_of_memory;
 
         // Configure the resource based on information from primitive descriptor
-        CHECK(r->configure(pd()->amp_));
+        CHECK(r->configure(pd()->amp_, pd()->weights_format_kind));
         mapper.add(this, std::move(r));
 
         CHECK(pd()->post_ops.create_resource(engine, mapper));
@@ -139,13 +154,18 @@ struct acl_matmul_t : public primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        return execute_forward(ctx);
+        if (pd()->weights_format_kind == format_kind::any) {
+            return execute_forward_fixed_format(ctx);
+        } else {
+            return execute_forward_non_fixed_format(ctx);
+        }
     }
 
 private:
     // To guard the const execute_forward(), the mutex must be 'mutable'
     mutable std::mutex mtx;
-    status_t execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward_non_fixed_format(const exec_ctx_t &ctx) const;
+    status_t execute_forward_fixed_format(const exec_ctx_t &ctx) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 }; // acl_matmul_t
