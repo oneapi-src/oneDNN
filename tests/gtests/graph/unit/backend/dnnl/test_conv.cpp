@@ -2798,8 +2798,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2972,8 +2971,7 @@ static inline void quantized_conv2d_eltwise(
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -3798,8 +3796,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -3966,8 +3963,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4166,8 +4162,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
                 = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "x8s8x8_conv_add_post_ops_gpu"
                                 : "x8s8x8_conv_add_post_ops_cpu");
-        graph::pass::pass_base_ptr apass2
-                = get_pass("int8_conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass2 = get_pass("x8s8x_conv_post_ops");
 
         apass1->run(g);
         apass2->run(g);

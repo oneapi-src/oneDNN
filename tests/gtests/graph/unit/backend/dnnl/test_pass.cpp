@@ -5316,7 +5316,7 @@ TEST(Pass, FuseToInt8Fp32Conv) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5514,7 +5514,7 @@ TEST(Pass, FuseToInt8ConvBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5658,7 +5658,7 @@ TEST(Pass, FuseToInt8ConvRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5740,7 +5740,7 @@ TEST(Pass, FuseToInt8ConvSwish) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5890,7 +5890,7 @@ TEST(Pass, FuseToInt8ConvBiasRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6163,7 +6163,7 @@ TEST(Pass, FuseToInt8ConvBinary) {
 
             agraph.finalize();
 
-            pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+            pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6628,7 +6628,7 @@ TEST(Pass, FuseToX8s8f32Conv) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6685,7 +6685,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6748,7 +6748,7 @@ TEST(Pass, FuseToX8s8f32ConvReluWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6812,7 +6812,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),

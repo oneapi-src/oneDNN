@@ -172,7 +172,21 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
             return std::make_shared<quantized_conv>();
         });
 
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_post_ops_fusion)
+/*
+                    [quant_weight]*
+        |                  |
+   dequant_data     dequant_weight
+        \_____       _____/
+               conv
+                |
+              [bias]*
+                |
+        [unary/binary]*[0,3]
+                |
+            [quant_out]*
+                |
+*/
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_post_ops)
         .set_priority(10.5f)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
