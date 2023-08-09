@@ -95,13 +95,21 @@ struct conv_gemm_t : public gpu_gemm_t {
                 }
             };
 
-            // M x K x N -> mb x ic x oc
+            // Enable using blocked format, otherwise, prefer spatial dimensions
+            // as mb=1 is a more common optimization target than w=1.
+            bool use_spatial_m = gpu_utils::dev_getenv("use_spatial_m",
+                    !(gemm_a_desc->format_kind == format_kind::any
+                            && gemm_a_desc->dims[0] > 8));
+
+            // M x K x N -> use_spatial_m ? iw/ow x ic x oc : mb x ic x oc
             memory_desc_t src_desc = *gemm_a_desc, weights_desc = *gemm_b_desc,
                           dst_desc = *gemm_c_desc, bias_desc = *gemm_bias_desc;
             CHECK(add_width(src_desc));
+            if (use_spatial_m) transpose(src_desc, 0, 2);
             CHECK(add_width(weights_desc));
             transpose(weights_desc, 0, 1);
             CHECK(add_width(dst_desc));
+            if (use_spatial_m) transpose(dst_desc, 0, 2);
 
             if (with_bias) {
                 // GEMM Bias has dimensions mxn with broadcasting semantics, but
@@ -136,6 +144,7 @@ struct conv_gemm_t : public gpu_gemm_t {
             }
 
             desc_.a_desc = *conv_pd->src_md();
+            if (use_spatial_m) transpose(desc_.a_desc, 0, 2);
             desc_.a_desc.ndims = 2;
 
             desc_.b_desc = *conv_pd->weights_md();
@@ -143,6 +152,7 @@ struct conv_gemm_t : public gpu_gemm_t {
             transpose(desc_.b_desc, 0, 1);
 
             desc_.c_desc = *conv_pd->dst_md();
+            if (use_spatial_m) transpose(desc_.c_desc, 0, 2);
             desc_.c_desc.ndims = 2;
 
             if (with_bias) {
