@@ -9,7 +9,7 @@
 where *graph-knobs* are:
 
  - `--mb=INT` -- Override minibatch size specified in the JSON file default
-    case. When set to `0`, use minibatch size as defined by the
+    case. When set to `0`, use batch size as defined by the
     individual test case. The option doesn't take effect for
     operations that don't support the `mb` concept. The default is `0`.
 
@@ -25,8 +25,12 @@ where *graph-knobs* are:
     by the graph driver automatically. By default, the option value is empty,
     meaning values are taken from the original graph.
 
-    `TAG` means the memory layout of that tensor, represented by a string
-    starting with `a`. The order may differ; a different order means a different memory layout that users may provide according to their own needs. Assume, for instance, a tensor with shape `[2,32,4]` & stride `[128,4,1]`. If users want to modify stride to `[1,2,64]`, `TAG` should be provided as `cba`, and the stride values will be calculated within the Benchdnn-graph.
+    `TAG` means the memory layout of that tensor, represented by a string starting with `a`.
+    The order may differ; a different order means a different memory layout that users may
+    provide according to their own needs. Assume, for instance, a tensor with shape `[1,32,4,4]`
+    & stride `[512,16,4,1]`, the stride of which can be represented as a Tag `abcd`. If users
+    want to modify stride to `[128,1,128,32]`, `TAG` should be provided as `acdb`, and the
+    stride values will be calculated within the Benchdnn-graph.
 
     Below are several use options for `--in-shapes`:
     1. Modify shape only: `--in-shapes=ID:SHAPE[+ID:SHAPE...]`. Users can modify
