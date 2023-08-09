@@ -72,9 +72,11 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
         set_range_max(WEI, 2);
     }
 
-    BENCHDNN_PRINT(6, "%s SRC_%s=[%d;%d] : WEI_%s=[%d;%d]\n", "[FILL_CFG]",
+    BENCHDNN_PRINT(6,
+            "[FILL_CFG] SRC_%s=[%d;%d]; WEI_%s=[%d;%d]; DST_%s=[%d;%d];\n",
             dt2str(this->get_dt(SRC)), get_range_min(SRC), get_range_max(SRC),
-            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI));
+            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI),
+            dt2str(this->get_dt(DST)), get_range_min(DST), get_range_max(DST));
 }
 
 // Adjust density based on accumulation chain.
