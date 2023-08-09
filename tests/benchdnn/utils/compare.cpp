@@ -290,6 +290,14 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                     }
                 }
             }
+            // Nvidia backend with fpmath mode enabled returns not exact output
+            // values (presumably on conversion to fp32), thus, make sure they
+            // fit single ulp for a reduced data type.
+            if (!ok && is_nvidia_gpu()
+                    && attr.fpmath_mode != dnnl_fpmath_mode_strict) {
+                const auto deduced_src_dt = deduce_cfg_data_type(dt, attr, SRC);
+                ok = args.diff <= epsilon_dt(deduced_src_dt);
+            }
         }
         // Update compare stats.
         if (from_parallel && fabsf(args.got) == 0) zeros++;
