@@ -1970,6 +1970,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop) {
+    REQUIRE_AVX2();
     SET_THREADS_OR_SKIP(28);
     int BS = 28, H = 32, W = 32, C = 64;
 
