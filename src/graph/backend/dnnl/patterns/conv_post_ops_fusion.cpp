@@ -859,8 +859,13 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, conv_bias_post_ops_fusion)
             return std::make_shared<float_conv_fwd>();
         });
 
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, conv_bwd_weights_bwd_bias_fusion)
+/*
+                  wildcard
+              \   /      \
+      conv_bwd_weight  biasadd_bwd
+                |          |
+*/
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_bwd_weights_bwd_bias)
         .set_enable(false)
         .set_kind(partition_kind_t::convolution_backward_post_ops)
         .set_priority(9.7f)
