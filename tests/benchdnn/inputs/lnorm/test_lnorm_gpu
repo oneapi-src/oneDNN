@@ -48,4 +48,9 @@
 --flags=,GCH,CH
 --tag=ba,AB16b16a
 64x64
+--reset
+--dir=BWD_DW
+--flags=CH
+--tag=ab
+257x32
 

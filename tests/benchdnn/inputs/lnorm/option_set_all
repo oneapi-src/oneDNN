@@ -2,6 +2,7 @@
 --tag=abx     --stat_tag=any,undef,abx 30x300
                                        31x301
                                        256x768
+                                       257x768
                                        128x1024
                                        5120x1024
                                        64x30x512
