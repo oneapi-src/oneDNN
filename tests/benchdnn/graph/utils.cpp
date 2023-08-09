@@ -568,6 +568,7 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
                     {dnnl::graph::op::kind::PReLU, dnnl_driver_t::prelu},
                     {dnnl::graph::op::kind::PReLUBackward,
                             dnnl_driver_t::prelu},
+                    {dnnl::graph::op::kind::Pow, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::Quantize, dnnl_driver_t::reorder},
                     {dnnl::graph::op::kind::Reciprocal, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::ReduceL1, dnnl_driver_t::reduction},
