@@ -64,6 +64,7 @@ static sc_graph_t get_quantized_matmul_graph(const sc_dims &data_dims,
 
 TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel) {
     REQUIRE_VNNI();
+    SKIP_AMX();
     sc_dims data_dims = {16, 64}, weight_dims = {64, 256}, gamma_dims = {256},
             beta_dims = {256}, out_dims = {16, 256};
     test_buffer<uint8_t> data(test_utils::product(data_dims));
