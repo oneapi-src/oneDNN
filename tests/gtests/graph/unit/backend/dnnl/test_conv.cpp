@@ -4345,7 +4345,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4536,7 +4536,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4710,7 +4710,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4909,7 +4909,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -5067,8 +5067,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionAddU8s8u8MixBf16) {
     ASSERT_EQ(g.add_op(&tc_bias_op), graph::status::success);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];

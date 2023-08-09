@@ -10580,7 +10580,7 @@ TEST(Pass, MixInt8AndBf16ConvolutionBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -10687,6 +10687,88 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
+TEST(Pass, FailToFuseMixInt8AndBf16ConvolutionWithoutQuantAfterTypecast) {
+    /*
+        | (u8/s8)  | s8
+     dequant    dequant
+        | (f32)    | (f32)
+     typecast  typecast
+    (bf16) \     / (bf16)
+        convolution_with_bias
+             | (bf16)
+            Elu
+             | (bf16)
+           typecast
+             | (f32)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    float alpha_value = 1.0f;
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
+    op_t typecast1 {2, TypeCast, "typecast"};
+    op_t typecast2 {3, TypeCast, "typecast"};
+    op_t convolution {4, Convolution, "convolution"};
+    set_conv_common_attr(convolution);
+    op_t elu {5, Elu, "elu"};
+    elu.set_attr(op_attr::alpha, alpha_value);
+    op_t typecast3 {6, TypeCast, "typecast"};
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t bf16_data = logical_tensor_init(2, data_type::bf16);
+    typecast1.add_input(fp32_data);
+    typecast1.add_output(bf16_data);
+
+    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
+    dequant2.add_input(int8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t bf16_weight = logical_tensor_init(5, data_type::bf16);
+    typecast2.add_input(fp32_weight);
+    typecast2.add_output(bf16_weight);
+
+    logical_tensor_t bf16_bias = logical_tensor_init(10, data_type::bf16);
+    logical_tensor_t bf16_convolution_out
+            = logical_tensor_init(6, data_type::bf16);
+    convolution.add_input(bf16_data);
+    convolution.add_input(bf16_weight);
+    convolution.add_input(bf16_bias);
+    convolution.add_output(bf16_convolution_out);
+
+    logical_tensor_t bf16_elu_out = logical_tensor_init(7, data_type::bf16);
+    elu.add_input(bf16_convolution_out);
+    elu.add_output(bf16_elu_out);
+
+    logical_tensor_t fp32_typecast3_out
+            = logical_tensor_init(8, data_type::f32);
+    typecast3.add_input(bf16_elu_out);
+    typecast3.add_output(fp32_typecast3_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast1), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast2), status::success);
+    ASSERT_EQ(agraph.add_op(&convolution), status::success);
+    ASSERT_EQ(agraph.add_op(&elu), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast3), status::success);
+
+    agraph.finalize();
+
+    pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
+}
+
 TEST(Pass, MixInt8AndBf16ConvolutionBiasGelu) {
     /*
         | (u8/s8)  | s8
@@ -10752,13 +10834,13 @@ TEST(Pass, MixInt8AndBf16ConvolutionBiasGelu) {
     gelu.add_input(bf16_convolution_out);
     gelu.add_output(bf16_gelu_out);
 
-    logical_tensor_t fp32_convolution_out
+    logical_tensor_t fp32_typecast3_out
             = logical_tensor_init(8, data_type::f32);
     typecast3.add_input(bf16_gelu_out);
-    typecast3.add_output(fp32_convolution_out);
+    typecast3.add_output(fp32_typecast3_out);
 
     logical_tensor_t int8_dst = logical_tensor_init(9, data_type::u8);
-    quant.add_input(fp32_convolution_out);
+    quant.add_input(fp32_typecast3_out);
     quant.add_output(int8_dst);
 
     ASSERT_EQ(agraph.add_op(&dequant1), status::success);
@@ -10772,7 +10854,7 @@ TEST(Pass, MixInt8AndBf16ConvolutionBiasGelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+    pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
