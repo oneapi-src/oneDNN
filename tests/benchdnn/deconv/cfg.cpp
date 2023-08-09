@@ -50,9 +50,15 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
 
     // Wider ranges make Nvidia bf16 test cases to fail by accuracy, likely due
     // to internal dispatch into lower precision code.
-    if (is_nvidia_gpu() && this->get_dt(WEI) == dnnl_bf16) {
-        set_range_min(WEI, -2);
-        set_range_max(WEI, 2);
+    if (is_nvidia_gpu()
+            && (this->get_dt(WEI) == dnnl_bf16
+                    || this->get_dt(WEI) == dnnl_f16)) {
+        set_range_min(SRC, -2);
+        set_range_max(SRC, 2);
+        set_range_min(WEI, -1);
+        set_range_max(WEI, 1);
+        set_range_min(DST, -2);
+        set_range_max(DST, 2);
     }
 
     BENCHDNN_PRINT(6,
