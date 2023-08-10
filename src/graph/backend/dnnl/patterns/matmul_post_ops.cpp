@@ -482,9 +482,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops_cpu)
                     auto popt_qout_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *ptc_out = popt_qout_graph->append_op(
                             graph::op_kind::TypeCast);
-                    pm::pb_op_t *pquant_out = popt_qout_graph->append_op(
-                            graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, ptc_out, 0)});
+                    auto pquant_out
+                            = optional_smooth_quant(popt_qout_graph, ptc_out);
                     popt_qout_graph->create_input_port(0, ptc_out, 0);
                     popt_qout_graph->create_output_port(0, pquant_out, 0);
                     pgraph->append_optional(
@@ -560,9 +559,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_matmul_post_ops_gpu)
                     auto popt_qout_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *ptc_out = popt_qout_graph->append_op(
                             graph::op_kind::TypeCast);
-                    pm::pb_op_t *pquant_out = popt_qout_graph->append_op(
-                            graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, ptc_out, 0)});
+                    auto pquant_out
+                            = optional_smooth_quant(popt_qout_graph, ptc_out);
                     popt_qout_graph->create_input_port(0, ptc_out, 0);
                     popt_qout_graph->create_output_port(0, pquant_out, 0);
                     pgraph->append_optional(
@@ -672,8 +670,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *ptc_out
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, popt_post_ops, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, ptc_out, 0)});
+                    optional_smooth_quant(pgraph, ptc_out);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
@@ -760,8 +757,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *ptc_out
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, popt_post_ops, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, ptc_out, 0)});
+                    optional_smooth_quant(pgraph, ptc_out);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();

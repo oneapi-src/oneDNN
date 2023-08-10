@@ -105,14 +105,14 @@ status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg);
 ///          | (u8/s8)
 status_t fuse_post_typecast_to_matmul_or_conv(std::shared_ptr<subgraph_t> &sg);
 
-/// fuse post typecast(f32 <-> bf16/f16) to softmax or layernorm
+/// fuse post typecast(f32 <-> bf16/f16) to binary or softmax or layernorm
 ///
-///          |                  -->             |
-///   softmax/layernorm                  softmax/layernorm
-///          |                                  |
+///          |                  -->                 |
+/// binary/softmax/layernorm          eltwise/binary/softmax/layernorm
+///          |                                      |
 ///       typecast
 ///          |
-status_t fuse_post_typecast_to_softmax_or_layernorm(
+status_t fuse_post_typecast_to_eltwise_or_binary_or_softmax_or_layernorm(
         std::shared_ptr<subgraph_t> &sg);
 
 status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);

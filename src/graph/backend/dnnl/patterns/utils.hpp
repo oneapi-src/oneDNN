@@ -232,6 +232,27 @@ inline graph::utils::pm::repetition_t *post_quantized_add(
     return prep;
 }
 
+/*
+    [Multiply / Divide]*
+            |
+         Quantize
+*/
+inline graph::utils::pm::pb_op_t *optional_smooth_quant(
+        const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
+        graph::utils::pm::pb_node_t *input) {
+    auto optional_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
+    graph::utils::pm::pb_op_t *smooth_op = optional_graph->append_alternation(
+            {graph::op_kind::Multiply, graph::op_kind::Divide});
+    optional_graph->create_input_port(0, smooth_op, 0);
+    optional_graph->create_output_port(0, smooth_op, 0);
+    auto opt = pgraph->append_optional(optional_graph,
+            graph::utils::pm::in_edges_t {in_edge(0, input, 0)});
+    graph::utils::pm::pb_op_t *quant_out
+            = pgraph->append_op(graph::op_kind::Quantize,
+                    graph::utils::pm::in_edges_t {in_edge(0, opt, 0)});
+    return quant_out;
+}
+
 } // namespace pattern
 } // namespace dnnl_impl
 } // namespace graph
