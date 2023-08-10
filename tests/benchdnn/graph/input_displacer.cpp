@@ -24,14 +24,73 @@ partition_data_displacer_t::partition_data_displacer_t(
     const auto &op_ids = par.get_ops();
     const std::unordered_set<size_t> op_ids_set(op_ids.begin(), op_ids.end());
 
+    static const std::unordered_set<std::string> main_op_kind {"Convolution",
+            "ConvTranspose", "AvgPool", "MaxPool", "MatMul", "Add", "Divide",
+            "Maximum", "Minimum", "Multiply", "Substract"};
+
+    static const std::unordered_set<std::string> go_through_op_kind {
+            "StaticTranspose", "StaticReshape", "TypeCast", "Quantize",
+            "Dequantize"};
+
     // dg.ops_ needs make sure its Topo order to first idx, first executed.
     for (const auto &aop : dg.ops_) {
+        // Check whether current op is in the partition
         if (op_ids_set.find(aop.id_) == op_ids_set.end()) continue;
 
+        // maintain a map between output tensor id and op
         auto aop_ref = std::ref(aop);
         ops_ref_.emplace_back(aop_ref);
         for (const auto &out_lt : aop.out_lts_) {
             out_lt_2_op_.emplace(out_lt.id_, aop_ref);
+        }
+
+        // Try to address which the tensor need displaced and how it will be displaced.
+
+        // Here is how quantize filling work
+        //
+        //         partition input (lt)    /|
+        //                |                 | reverse op filling
+        //         [go through op]*         |
+        //                |
+        //                | <- quantize filling on this tensor (dq_lt)
+        //                |
+        //           dequantize <- The first dq we met (dq_found)
+        //                |
+        // [go through op except dq]*  (same as the first input)
+        //                 \          /
+        //                    main op
+
+        if (main_op_kind.find(aop.kind_) != main_op_kind.end()) {
+            // main op found
+
+            // search along the branch for each input of main op
+            for (size_t i = 0; i < aop.in_lts_.size(); i++) {
+                ::graph::deserialized_lt lt, dq_lt;
+                bool dq_found = false;
+
+                for (lt = aop.in_lts_[i];
+                        out_lt_2_op_.find(lt.id_) != out_lt_2_op_.end();
+                        lt = out_lt_2_op_.at(lt.id_).get().in_lts_[0]) {
+                    auto &op = out_lt_2_op_.at(lt.id_);
+                    if (op.get().kind_ == "Dequantize" && !dq_found) {
+                        // found the first dq
+                        dq_lt = op.get().in_lts_[0];
+                        dq_found = true;
+                    }
+                    if (go_through_op_kind.find(op.get().kind_)
+                            == go_through_op_kind.end()) {
+                        // blocked by other op and fail to continue the search work
+                        break;
+                    }
+                }
+
+                // the partition input found
+                if (dq_found
+                        && out_lt_2_op_.find(lt.id_) == out_lt_2_op_.end()) {
+                    quantize_displace.emplace(
+                            lt.id_, ::std::make_tuple(aop, i, dq_lt));
+                }
+            }
         }
     }
 }
@@ -168,9 +227,60 @@ int partition_data_displacer_t::displace_input_data(
     return OK;
 }
 
+#define CASE_QUANTIZE_FILLING(driver) \
+    case dnnl_driver_t::driver: { \
+        ::driver::settings_t setting \
+                = get_setting<::driver::settings_t>(op, empty_set, res); \
+        if (res->state == INVALID_ARGUMENTS) return FAIL; \
+        ::std::shared_ptr<::driver::prb_t> pprb \
+                = ::std::make_shared<::driver::prb_t>(setting); \
+        ::driver::prb_t *prb = pprb.get(); \
+        SAFE(create_primitive(prim, get_test_engine(), ::driver::init_pd, prb, \
+                     res, prb->dir, nullptr, false, nullptr), \
+                WARN); \
+        init_memory_args(mem_map, prb, prim, \
+                ::driver::supported_exec_args(prb->dir), get_test_engine()); \
+        SAFE(init_ref_memory_args( \
+                     ref_mem_map, mem_map, prim, prb, res, prb->dir), \
+                WARN); \
+    } break;
+
 int partition_data_displacer_t::gen_quantize_filling(
         const ::graph::deserialized_op &main_op, dnn_mem_map_t &mem_map,
         const ::std::string &dt, res_t *res) {
+    // clone a deserialized op object and modify to specified data type
+    ::graph::deserialized_op op = main_op;
+    auto driver = opkind2driver(opstr2kind(op.kind_));
+    op.in_lts_[0].data_type_ = dt;
+    if (op.in_lts_.size() > 1) {
+        // matmul/conv/deconv does not support u8u8, replace it with u8s8
+        op.in_lts_[1].data_type_
+                = ((op.kind_ == "MatMul" || op.kind_ == "Convolution"
+                           || op.kind_ == "ConvTranspose")
+                          && dt == "u8")
+                ? "s8"
+                : dt;
+    }
+    if (driver == dnnl_driver_t::pool) {
+        // pool does not support x8f32 on cpu
+        // replace it with x8x8
+        op.out_lts_[0].data_type_ = dt;
+    } else {
+        // set output as f32 to avoid the data type not support problem at this stage
+        op.out_lts_[0].data_type_ = "f32";
+    }
+    ::std::unordered_set<size_t> empty_set;
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    dnn_mem_map_t ref_mem_map;
+
+    switch (driver) {
+        CASE_QUANTIZE_FILLING(binary)
+        CASE_QUANTIZE_FILLING(conv)
+        CASE_QUANTIZE_FILLING(deconv)
+        CASE_QUANTIZE_FILLING(matmul)
+        CASE_QUANTIZE_FILLING(pool)
+        default: assert(!"unsupported driver"); break;
+    }
     return OK;
 }
 

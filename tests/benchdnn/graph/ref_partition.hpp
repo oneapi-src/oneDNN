@@ -50,49 +50,12 @@ public:
     // link previous primitive's args to current primitive
     void link_args(const deserialized_op &cur_op, res_t *res);
 
-    // copy current primitive's args to previous primitive
-    void reverse_link_args(const deserialized_op &cur_op, res_t *res);
-
     // get the reference of ops of the partition
     const op_ref_list_t &get_partition_ops() const {
         return partition_ops_ref_;
     }
 
 protected:
-    template <typename setting_t, typename prb_t, typename init_pd_func_t,
-            typename supported_exec_args_func_t, typename setup_cmp_func_t>
-    void handle_leading_op(const deserialized_op &cur_op,
-            const init_pd_func_t &init_pd,
-            const supported_exec_args_func_t &supported_exec_args,
-            const setup_cmp_func_t &setup_cmp,
-            const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-            partition_mem_map_t &graph_mem_map, const engine_t &ref_eng,
-            res_t *res) {
-        setting_t op_setting = get_setting<setting_t>(
-                cur_op, bf16_to_f32_rewrite_lt_id_, res);
-        if (res->state == INVALID_ARGUMENTS) return;
-
-        auto pprb = std::make_shared<prb_t>(op_setting);
-        prb_t *prb = pprb.get();
-
-        set_prb_cfg<prb_t>(prb, map_off_to_dt, res);
-
-        std::vector<size_t> par_in_and_leading_ids(
-                partition_in_ids_.begin(), partition_in_ids_.end());
-        for (const auto &lt : cur_op.in_lts_)
-            par_in_and_leading_ids.emplace_back(lt.id_);
-
-        init_prim<prb_t>(ref_prims_, cur_op, init_pd, supported_exec_args,
-                setup_cmp, pprb, ref_eng, res);
-        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return;
-
-        int op_id = static_cast<int>(cur_op.id_);
-        auto &mems = std::get<1>(ref_prims_[op_id]);
-        init_graph_memory_args(mems, graph_mem_map, par_in_and_leading_ids,
-                partition_out_ids_, cur_op, res);
-        if (res->state == FAILED) return;
-    }
-
     template <typename setting_t, typename prb_t, typename init_pd_func_t,
             typename supported_exec_args_func_t, typename setup_cmp_func_t>
     void init_op(const deserialized_op &cur_op, const init_pd_func_t &init_pd,
@@ -124,22 +87,6 @@ protected:
         int op_id = static_cast<int>(cur_op.id_);
         auto &mems = std::get<1>(ref_prims_[op_id]);
 
-        size_t cur_op_in_lt_id = cur_op.in_lts_.front().id_;
-        if (cur_op.kind_ == "Dequantize" && is_quantized_) {
-            // move leading driver primitive's input memory to the
-            // current primitive input
-
-            bool is_partition_input
-                    = std::find(partition_in_ids_.begin(),
-                              partition_in_ids_.end(), cur_op_in_lt_id)
-                    != partition_in_ids_.end();
-            if (is_partition_input)
-                // for patterns like conv -> dq -> q -> conv, no need to
-                // implement link args reversing for dequantize that are
-                // not inputs of the partition
-                reverse_link_args(cur_op, res);
-        }
-
         // displace the input tensor
         for (size_t i = 0; i < cur_op.in_lts_.size(); i++) {
             const auto &in = cur_op.in_lts_[i];
@@ -167,22 +114,10 @@ private:
     // check whether partition output ops support bf16-in-f32-out rewrite
     bool check_valid_bf16_out() const;
 
-    // find the partition leading op based on input lts
-    bool get_leading_op_group(op_ref_list_t &leading_ops_group);
-
-    void get_leading_op_input_offset_to_dt_map(
-            const deserialized_op &leading_op,
-            std::unordered_map<size_t, const std::string> &map_off_to_dt);
-
     bool is_bf16_partition_support_f32_intermediate_result() const;
 
     // bf16 cases:use f32 as intermediate tensor dt to improve accuracy
     void handle_special_case_bf16(res_t *res);
-
-    // int8 cases:special processing of data filling to prevent accumulate
-    // overflow
-    void handle_special_case_int8(
-            partition_mem_map_t &partition_mem_map, res_t *res);
 
     // Objects below are constructed.
     // OPs in the partition, which is Topo ordered
@@ -200,8 +135,6 @@ private:
     // Objects below are modified at special bf16 and int8 cases.
     // IDs of logical tensors to replace bf16 data type with fp32.
     std::unordered_set<size_t> bf16_to_f32_rewrite_lt_id_;
-    // is quantized partition
-    bool is_quantized_ {false};
 
     // Objects below are modified during run()
     // reference primitives for a single partition

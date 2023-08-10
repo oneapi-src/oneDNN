@@ -333,26 +333,6 @@ bool get_binary_alg(const deserialized_op &base_op_ref, ::binary::alg_t &alg) {
     return op_setting;
 }
 
-void set_s8u8_for_prb(::binary::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-
-    auto src0_dt = map_off_to_dt.find(0) == map_off_to_dt.end()
-            ? dnnl_s8
-            : convert_dt(get_data_type(map_off_to_dt.at(0)));
-    auto src1_dt = map_off_to_dt.find(1) == map_off_to_dt.end()
-            ? dnnl_s8
-            : convert_dt(get_data_type(map_off_to_dt.at(1)));
-
-    auto is_quantized_dt = [](dnnl_data_type_t &src_dt) {
-        return src_dt == dnnl_u8 || src_dt == dnnl_s8;
-    };
-
-    prb->sdt[0] = is_quantized_dt(src0_dt) ? src0_dt : src1_dt;
-    prb->sdt[1] = is_quantized_dt(src1_dt) ? src1_dt : src0_dt;
-    prb->ddt = prb->sdt[0];
-}
-
 } // namespace binary
 
 namespace bnorm {
@@ -683,16 +663,6 @@ bool get_conv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
     return op_setting;
 }
 
-void set_s8u8_for_prb(::conv::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
-        prb->dt[offset] = convert_dt(get_data_type(map_off_to_dt.at(offset)));
-    }
-    // add output datatype
-    prb->dt[2] = dnnl_f32;
-}
-
 } // namespace conv
 
 namespace deconv {
@@ -887,16 +857,6 @@ bool get_deconv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
             deconv::get_deconv_wtag(base_op_ref, op_setting.wtag.front()), res);
 
     return op_setting;
-}
-
-void set_s8u8_for_prb(::deconv::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
-        prb->dt[offset] = convert_dt(get_data_type(map_off_to_dt.at(offset)));
-    }
-    // add output datatype
-    prb->dt[2] = dnnl_f32;
 }
 
 } // namespace deconv
@@ -1288,21 +1248,6 @@ bool get_matmul_bia_dt_mask(const deserialized_op &base_op_ref,
     return op_setting;
 }
 
-void set_s8u8_for_prb(::matmul::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-    // The logic below covers cases when one of quantized matmul inputs is not
-    // int8, like u8:f32:dst or f32:s8:dst. Force successful primitive creation
-    // by making both data types of int8 type.
-    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
-        const auto &dt_str = map_off_to_dt.at(offset);
-        if (dt_str == "u8")
-            prb->dt[offset] = convert_dt(get_data_type(dt_str));
-        else
-            prb->dt[offset] = convert_dt(get_data_type("s8"));
-    }
-}
-
 } // namespace matmul
 
 namespace pool {
@@ -1446,13 +1391,6 @@ bool get_pool_alg(const deserialized_op &base_op_ref, ::pool::alg_t &alg) {
             get_driver_tag(base_op_ref, op_setting.tag.front()), res);
 
     return op_setting;
-}
-
-void set_s8u8_for_prb(::pool::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-    // since x8f32 is not support by cpu now and generate x8x8 primitive instead
-    prb->dt[0] = prb->dt[1] = convert_dt(get_data_type(map_off_to_dt.at(0)));
 }
 
 } //namespace pool

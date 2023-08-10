@@ -71,16 +71,6 @@ using op_ref_list_t = std::list<std::reference_wrapper<const deserialized_op>>;
 template <bool B>
 using req = typename std::enable_if<B, bool>::type;
 
-#define DECLARE_SET_PRB_CFG(driver) \
-    template <typename prb_t, \
-            req<std::is_same<prb_t, ::driver::prb_t>::value> = true> \
-    void set_prb_cfg(prb_t *prb, \
-            const std::unordered_map<size_t, const std::string> \
-                    &map_off_to_dt, \
-            res_t *res) { \
-        driver::set_s8u8_for_prb(prb, map_off_to_dt, res); \
-    }
-
 #define DECLARE_TEMPLATE_GET_SETTING(driver) \
     template <typename setting_t, \
             req<std::is_same<setting_t, ::driver::settings_t>::value> = true> \
@@ -101,12 +91,6 @@ using req = typename std::enable_if<B, bool>::type;
         } \
         return driver::get_setting(base_op, rewrite_lt_ids, res); \
     }
-
-DECLARE_SET_PRB_CFG(conv);
-DECLARE_SET_PRB_CFG(deconv);
-DECLARE_SET_PRB_CFG(matmul);
-DECLARE_SET_PRB_CFG(binary);
-DECLARE_SET_PRB_CFG(pool);
 
 // template to generate driver settings
 DECLARE_TEMPLATE_GET_SETTING(binary);

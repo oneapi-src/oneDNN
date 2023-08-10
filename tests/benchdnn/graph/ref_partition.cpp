@@ -28,14 +28,6 @@ public:
     }
 };
 
-#define CASE_HANDLE_LEADING_OP(driver) \
-    case dnnl_driver_t::driver: { \
-        handle_leading_op<::driver::settings_t, ::driver::prb_t>(leading_op, \
-                ::driver::init_pd, ::driver::supported_exec_args, \
-                ::driver::setup_cmp, map_off_to_dt, partition_mem_map, \
-                ::get_test_engine(), res); \
-    } break
-
 #define CASE_INIT_OP(driver) \
     case dnnl_driver_t::driver: { \
         init_op<::driver::settings_t, ::driver::prb_t>(par_op_ref, \
@@ -113,111 +105,11 @@ ref_partition_t::ref_partition_t(const deserialized_graph &dg,
     }
 };
 
-// find the successive leading op following the dequantize / typecast op
-bool get_consumer_leading_op(
-        std::reference_wrapper<const deserialized_op> &leading_op,
-        int &leading_op_in_offset,
-        std::unordered_map<size_t, op_ref_list_t> &in_lt_2_ops) {
-    // find leading OP; dq->[tc]->leading_op
-    while (leading_op.get().kind_ == "Dequantize"
-            || leading_op.get().kind_ == "TypeCast") {
-        // dq/tc only has one output
-        const auto &leading_op_out_lt = leading_op.get().out_lts_.front();
-        // assume dq only has one consumer
-        const auto iter = in_lt_2_ops.find(leading_op_out_lt.id_);
-        // only one dequant / dequant+typecast in the partition
-        if (iter == in_lt_2_ops.end()) return false;
-        leading_op = iter->second.front();
-
-        for (leading_op_in_offset = 0; leading_op_in_offset
-                < static_cast<int>(leading_op.get().in_lts_.size());
-                leading_op_in_offset++) {
-            if (leading_op.get().in_lts_[leading_op_in_offset].id_
-                    == leading_op_out_lt.id_)
-                break;
-        }
-    }
-    return true;
-}
-
-// find the partition leading op based on input lts
-bool ref_partition_t::get_leading_op_group(op_ref_list_t &leading_ops_group) {
-
-    std::unordered_set<size_t> leading_op_ids {};
-    const std::unordered_set<std::string> quantized_op {"Convolution",
-            "ConvTranspose", "AvgPool", "MaxPool", "MatMul", "Add", "Divide",
-            "Maximum", "Minimum", "Multiply", "Substract"};
-
-    for (auto in_id : partition_in_ids_) {
-        const auto iter = in_lt_2_ops_.find(in_id);
-
-        if (iter != in_lt_2_ops_.end()) {
-            auto &leading_ops = iter->second;
-            for (auto leading_op : leading_ops) {
-                if (leading_op.get().kind_ != "Dequantize") continue;
-
-                int leading_op_in_offset = 0;
-                auto res = get_consumer_leading_op(
-                        leading_op, leading_op_in_offset, in_lt_2_ops_);
-                // only one dequant or dequant+typecast in the partition
-                if (!res) return false;
-
-                if (quantized_op.find(leading_op.get().kind_)
-                        == quantized_op.end())
-                    return false;
-
-                if (leading_op_ids.find(leading_op.get().id_)
-                        != leading_op_ids.end())
-                    continue;
-                leading_ops_group.emplace_back(std::ref(leading_op));
-                leading_op_ids.emplace(leading_op.get().id_);
-            }
-        }
-    }
-
-    if (leading_ops_group.empty()) return false;
-    return true;
-}
-
-// find leading_op's input datatype and save it in map(key:input_offset, val:dt)
-void ref_partition_t::get_leading_op_input_offset_to_dt_map(
-        const deserialized_op &leading_op,
-        std::unordered_map<size_t, const std::string> &map_off_to_dt) {
-    size_t offset = 0;
-    for (const auto &in_lt_of_leading_op : leading_op.in_lts_) {
-        const auto it = out_lt_2_op_.find(in_lt_of_leading_op.id_);
-        if (it != out_lt_2_op_.end()) {
-            auto &input_op = it->second;
-            // Dequantize-->Leading Op
-            if (input_op.get().kind_ == "Dequantize") {
-                // Dequantize has only one input
-                map_off_to_dt.insert(
-                        {offset, input_op.get().in_lts_.front().data_type_});
-            }
-            // Dequantize-->TypeCast/StaticReshape-->Leading Op
-            else if (input_op.get().kind_ == "TypeCast"
-                    || input_op.get().kind_ == "StaticReshape") {
-                const auto &in_lc_of_tc = input_op.get().in_lts_.front();
-                const auto &in_op_of_tc
-                        = out_lt_2_op_.find(in_lc_of_tc.id_)->second;
-                map_off_to_dt.insert(
-                        {offset, in_op_of_tc.get().in_lts_.front().data_type_});
-            }
-            // non-int8 input
-            else {
-                map_off_to_dt.insert({offset, in_lt_of_leading_op.data_type_});
-            }
-        }
-        offset++;
-    }
-}
-
 void ref_partition_t::init_ref(const bench_mode_t mode,
         const std::vector<size_t> &graph_in_ports,
         partition_mem_map_t &partition_mem_map, res_t *res) {
 
     handle_special_case_bf16(res);
-    handle_special_case_int8(partition_mem_map, res);
     for (const auto &par_op_ref : partition_ops_ref_) {
         // res should be independent from op to op
         res->state = UNTESTED;
@@ -392,51 +284,6 @@ void ref_partition_t::link_args(const deserialized_op &cur_op, res_t *res) {
         std::get<4>(ref_prims_[cur_op_id])
                 .replace(cur_op_in_arg, &prev_op_ref_mem);
     }
-}
-
-void ref_partition_t::reverse_link_args(
-        const deserialized_op &cur_op, res_t *res) {
-    std::reference_wrapper<const deserialized_op> leading_op = std::ref(cur_op);
-    int leading_op_in_offset = 0;
-
-    auto st = get_consumer_leading_op(
-            leading_op, leading_op_in_offset, in_lt_2_ops_);
-    if (!st) return;
-
-    int leading_op_id = static_cast<int>(leading_op.get().id_);
-    int leading_op_in_arg = get_prim_arg_name_from_graph_op_input_offset(
-            opstr2kind(leading_op.get().kind_), leading_op_in_offset,
-            eltwise::get_flag_use_dst_for_bwd_compute(cur_op));
-    const dnn_mem_t &leading_op_input_mem
-            = std::get<3>(ref_prims_[leading_op_id]).find(leading_op_in_arg);
-    const dnn_mem_t &leading_op_ref_input_mem
-            = std::get<4>(ref_prims_[leading_op_id]).find(leading_op_in_arg);
-
-    // only need to update dq src
-    int cur_op_in_arg = DNNL_ARG_SRC;
-    int cur_op_id = static_cast<int>(cur_op.id_);
-
-    // move leading op's input mem to current op's input mem
-    auto &mems = std::get<1>(ref_prims_[cur_op_id]);
-    mems.erase(cur_op_in_arg);
-    mems.emplace(cur_op_in_arg,
-            std::move(const_cast<dnn_mem_t &>(leading_op_input_mem)));
-
-    // move leading op's input ref mem to current op's input ref mem
-    auto &ref_mems = std::get<2>(ref_prims_[cur_op_id]);
-    ref_mems.erase(cur_op_in_arg);
-    ref_mems.emplace(cur_op_in_arg,
-            std::move(const_cast<dnn_mem_t &>(leading_op_ref_input_mem)));
-
-    // Update args for primitive memories
-    auto &mem_map = std::get<3>(ref_prims_[cur_op_id]);
-    mem_map.clear();
-    mem_map = args_t(mems);
-
-    // Update args for reference memories
-    auto &ref_mem_map = std::get<4>(ref_prims_[cur_op_id]);
-    ref_mem_map.clear();
-    ref_mem_map = args_t(ref_mems);
 }
 
 void ref_partition_t::check_partition_correctness(
@@ -615,30 +462,6 @@ void ref_partition_t::handle_special_case_bf16(res_t *res) {
         if (iter_consumers != in_lt_2_ops_.end()) {
             // record the id of logical tensors that need rewriting
             bf16_to_f32_rewrite_lt_id_.insert(out_lt.id_);
-        }
-    }
-}
-
-void ref_partition_t::handle_special_case_int8(
-        partition_mem_map_t &partition_mem_map, res_t *res) {
-    op_ref_list_t leading_ops_group;
-    is_quantized_ = get_leading_op_group(leading_ops_group);
-    if (!is_quantized_) return;
-
-    for (const auto &leading_op : leading_ops_group) {
-        // deal with single leading op
-        std::unordered_map<size_t, const std::string> map_off_to_dt;
-        get_leading_op_input_offset_to_dt_map(leading_op.get(), map_off_to_dt);
-        const auto op_driver
-                = opkind2driver(opstr2kind(leading_op.get().kind_));
-
-        switch (op_driver) {
-            CASE_HANDLE_LEADING_OP(conv);
-            CASE_HANDLE_LEADING_OP(pool);
-            CASE_HANDLE_LEADING_OP(deconv);
-            CASE_HANDLE_LEADING_OP(matmul);
-            CASE_HANDLE_LEADING_OP(binary);
-            default: assert(!"unexpected leading op kind"); break;
         }
     }
 }
