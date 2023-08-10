@@ -562,7 +562,7 @@ void jit_uni_dw_conv_row_f32<isa>::generate() {
     this->preamble();
 
     std::size_t post_ops_pointers_count = 0;
-    for (int i = 0; i < p.len(); i++) {
+    for (int i = start_idx; i < p.len(); i++) {
         if (p.entry_[i].is_depthwise() || p.entry_[i].is_quantization()) {
             post_ops_pointers_count++;
         }
