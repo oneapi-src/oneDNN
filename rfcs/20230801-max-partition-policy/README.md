@@ -69,6 +69,22 @@ class partition {
 
 ## Proposal
 
+As mentioned in previous sessions, fusion policy relies on predefined fusion
+patterns to do partitioning, which may miss some optimization opportunities
+for customized ops and patterns that have not been predefined.
+To address this, max policy is proposed.
+
+The expected behaviors when using max policy:
+
+- Max policy relies on predefined ops list to do partitioning. Connected ops
+  that meet the conditions of predefined ops list (and predefined rules)
+  will be selected into one partition.
+- Max policy uses a smaller granularity (predefined ops) to do partitioning
+  compared to fusion policy, which relies on predefined patterns.
+  This results in larger partitions and is the reason behind the name `max`.
+- If not specified, the default partition policy remains to be fusion policy.
+- The predefined ops list (and predefined rules) for max policy is backend specific.
+
 The API to expose max policy to users is similar to fusion and debug policies.
 
 ```c
@@ -90,15 +106,6 @@ class partition {
     ...
 };
 ```
-
-The expected behaviors when using max policy:
-
-- If not specified, the default partition policy remains to be fusion policy.
-- Max policy returns partitions max in partition size. The criteria of partitioning
-  is based on pre-defined ops list and pre-defined rules. Connected ops
-  that meet the conditions of pre-defined ops list and pre-defined rules
-  will be selected into one partition.
-- The pre-defined ops list and pre-defined rules are backend specific.
 
 ## Validation
 
