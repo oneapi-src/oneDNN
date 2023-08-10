@@ -86,6 +86,16 @@ public:
         return mems_use_internal_persistent_;
     }
 
+    std::vector<dnnl::memory::desc> get_persistent_mem_desc_list() const {
+        std::vector<dnnl::memory::desc> mds;
+        mds.reserve(mems_use_internal_persistent_.size());
+        for (auto &mem_offkey : mems_use_internal_persistent_) {
+            auto md = mem_offkey.first.get_desc();
+            mds.emplace_back(md);
+        }
+        return mds;
+    }
+
     // adders
     void add_exec_args(const exec_args &args) {
         topo_ordered_exec_args_.emplace_back(args);

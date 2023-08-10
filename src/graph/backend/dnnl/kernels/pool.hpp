@@ -54,26 +54,18 @@ private:
 
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
-    constant_cache_t::key_t constant_key_
-            = reinterpret_cast<constant_cache_t::key_t>(this);
+    constant_cache_t::key_t constant_key_;
 
 public:
     pooling_fwd_t() {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.retain();
-
-        if (enabled_constant_cache()) get_global_constant_cache().retain();
     }
 
     ~pooling_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
         res_cache.release();
-
-        if (enabled_constant_cache()) {
-            get_global_constant_cache().remove_if_exist(constant_key_);
-            get_global_constant_cache().release();
-        }
     }
 
     status_t compile_impl(const dnnl_partition_impl_t *part,
@@ -167,6 +159,10 @@ public:
         resource_ctor_ = [this]() {
             return this->memory_planner_.get_exec_args_set().clone();
         };
+
+        constant_key_ = generate_constant_cache_key(part->id(),
+                memory_planner_.get_exec_args_set()
+                        .get_persistent_mem_desc_list());
 
         return status::success;
     }

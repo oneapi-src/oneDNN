@@ -60,9 +60,7 @@ protected:
 
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
-    // FIXME(qun) improve the cache key
-    constant_cache_t::key_t constant_key_
-            = reinterpret_cast<constant_cache_t::key_t>(this);
+    constant_cache_t::key_t constant_key_;
 
     std::once_flag once_flag_;
     subgraph_visualizer_t vis_;
@@ -72,19 +70,12 @@ public:
     larger_partition_kernel_t() {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.retain();
-
-        if (enabled_constant_cache()) get_global_constant_cache().retain();
     }
 
     ~larger_partition_kernel_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
         res_cache.release();
-
-        if (enabled_constant_cache()) {
-            get_global_constant_cache().remove_if_exist(constant_key_);
-            get_global_constant_cache().release();
-        }
     }
 
     static void setup_pipeline_stage1(pass_pipeline_t &pipeline) {
@@ -254,6 +245,10 @@ public:
         resource_ctor_ = [this]() {
             return this->memory_planner_.get_exec_args_set().clone();
         };
+
+        constant_key_ = generate_constant_cache_key(part->id(),
+                memory_planner_.get_exec_args_set()
+                        .get_persistent_mem_desc_list());
 
         return status::success;
     }
