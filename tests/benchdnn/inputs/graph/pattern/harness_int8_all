@@ -50,6 +50,8 @@
 --reset  --in-shapes=0:16x479+1:479x1024+2:1x1024  --case=pattern/int8/int8_matmul_bia_relu_fusion.json
 --reset  --in-shapes=0:16x512+1:512x256+2:1x256  --case=pattern/int8/int8_matmul_bia_relu_fusion.json
 --reset  --in-shapes=0:16x13+3:13x512+6208:16x512  --case=pattern/int8/int8_bf16_matmul_add_fusion.json
+--reset  --case=pattern/int8/int8_bf16_matmul_mul_w_smooth_quant_fusion.json
+--reset  --case=pattern/int8/int8_bf16_matmul_relu_w_smooth_quant_fusion.json
 --reset  --op-attrs=8209:zps:4  --case=pattern/int8/int8_bf16_matmul_add_fusion.json
 --reset  --in-shapes=0:16x13+1:13x512+2:1x1+3:1x1  --case=pattern/int8/int8_bf16_matmul_mul_add_fusion_2.json
 --reset  --in-shapes=0:16x512+1:512x256+2:1x1+3:1x1  --case=pattern/int8/int8_f32_matmul_mul_add_fusion.json
