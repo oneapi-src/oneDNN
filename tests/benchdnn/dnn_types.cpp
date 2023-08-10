@@ -1461,6 +1461,12 @@ void update_cpu_ref_attrs(attr_t &attr, dnnl_data_type_t new_dt) {
 
         e.binary.src1_dt = new_dt;
         e.binary.tag = tag::abx; // Hardcoded in local fill functions.
+        // Since tag is updated, it might get printed with policy, which means
+        // that mask_input should be specified.
+        using mask_input_t
+                = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+        if (e.binary.mask_input == mask_input_t::none)
+            e.binary.mask_input = mask_input_t::policy;
     }
 }
 
