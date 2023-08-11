@@ -1430,6 +1430,18 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
     CHECK(set_or_check_tags());
     CHECK(attr.set_default_formats(&dst_md));
 
+    // If ic-dim is not padded, spatial dimensions can be squashed with ic-dim.
+    const auto ic = weights_d.dims()[1];
+    const auto ic_padded = weights_d.padded_dims()[1];
+    const bool is_wei_ic_padded = ic != ic_padded;
+    if (!is_wei_ic_padded) {
+        jbgp.ic_without_padding *= jbgp.kd * jbgp.kh * jbgp.kw;
+        jbgp.ic = jbgp.ic_without_padding;
+        jbgp.id = jbgp.ih = jbgp.iw = 1;
+        jbgp.od = jbgp.oh = jbgp.ow = 1;
+        jbgp.kd = jbgp.kh = jbgp.kw = 1;
+    }
+
     return status::success;
 }
 
