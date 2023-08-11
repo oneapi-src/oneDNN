@@ -52,7 +52,7 @@ const conv_fwd_config_t cfg_fwd = {
         1 // loop_sched
 };
 
-graph_tensor_ptr make_tensor(const sc_dims &d, sc_data_type_t dtype) {
+static graph_tensor_ptr make_tensor(const sc_dims &d, sc_data_type_t dtype) {
     return graph_tensor::make(d, sc_data_format_t(), dtype);
 }
 
