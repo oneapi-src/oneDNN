@@ -19725,6 +19725,8 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem) {
     block2DCFull |= (Tc_ext.size() < 4);
     block2DCFull &= block2DCRemainder;
 
+    extendedAtomicFMA &= !problem.needsASums() && !problem.needsBSums();
+
     // Default SIMD setting.
     if (fmaSIMD == 0) {
         fmaSIMD = std::min(32,
