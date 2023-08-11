@@ -339,7 +339,11 @@ std::vector<expr> logical_tensor_t::get_strides_expr(sc_graph_t &g) const {
 sc_dims logical_tensor_t::compute_dense_stride(const sc_dims &dims) {
     sc_dims strides(dims.size(), 1);
     for (int i = dims.size() - 2; i >= 0; --i) {
-        strides[i] = dims[i + 1] * strides[i + 1];
+        if (dims[i + 1] == 0) {
+            strides[i] = strides[i + 1];
+        } else {
+            strides[i] = dims[i + 1] * strides[i + 1];
+        }
     }
     return strides;
 }

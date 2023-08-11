@@ -62,6 +62,9 @@ static std::tuple<std::vector<basic_graph_pass_ptr>,
         std::vector<basic_graph_pass_ptr>>
 create_default_graph_flow(const context_ptr &ctx) {
     std::vector<basic_graph_pass_ptr> pre_tune_passes, post_tune_passes;
+    pre_tune_passes.push_back(create_graph_pass("eliminate_zero_shaped_tensors",
+            eliminate_zero_shaped_tensors, {}, pass_type::pre_tune,
+            sc_opt_level::lv0, true));
     pre_tune_passes.push_back(
             create_graph_pass("analysis_quantized", analysis_quantized, {},
                     pass_type::analysis, sc_opt_level::lv0, true));

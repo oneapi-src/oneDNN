@@ -121,6 +121,9 @@ SC_INTERNAL_API void quantize_inline(
 SC_INTERNAL_API void fpmath_mode(
         sc_graph_t &mgr, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void eliminate_zero_shaped_tensors(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 } // namespace gc
 } // namespace graph
 } // namespace impl
