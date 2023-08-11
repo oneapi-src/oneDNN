@@ -2149,7 +2149,6 @@ private:
     void transpose_16x16(int nrows, int ncolumns);
     void transpose_8x8();
     void transpose(int nrows, int ncolumns);
-    int get_oc_block();
     void init_masks();
     void generate() override;
 };
@@ -2353,47 +2352,6 @@ void jit_brgemm_trans_wei_f32_t::transpose(int nrows, int ncolumns) {
     }
 }
 
-int jit_brgemm_trans_wei_f32_t::get_oc_block() {
-    switch (conf_->wei_tag) {
-        case OI16i64o:
-        case OIw16i64o:
-        case OwI16i64o:
-        case OIhw16i64o:
-        case OhwI16i64o:
-        case OIdhw16i64o:
-        case OdhwI16i64o: return 64;
-        case OI16i48o:
-        case OIw16i48o:
-        case OwI16i48o:
-        case OIhw16i48o:
-        case OhwI16i48o:
-        case OIdhw16i48o:
-        case OdhwI16i48o: return 48;
-        case OI16i32o:
-        case OIw16i32o:
-        case OwI16i32o:
-        case OIhw16i32o:
-        case OhwI16i32o:
-        case OIdhw16i32o:
-        case OdhwI16i32o: return 32;
-        case OI8i24o:
-        case OIw8i24o:
-        case OwI8i24o:
-        case OIhw8i24o:
-        case OhwI8i24o:
-        case OIdhw8i24o:
-        case OdhwI8i24o: return 24;
-        case OI8i16o:
-        case OIw8i16o:
-        case OwI8i16o:
-        case OIhw8i16o:
-        case OhwI8i16o:
-        case OIdhw8i16o:
-        case OdhwI8i16o: return 16;
-        default: return conf_->simd_w;
-    };
-}
-
 void jit_brgemm_trans_wei_f32_t::generate() {
     preamble();
 
@@ -2404,7 +2362,7 @@ void jit_brgemm_trans_wei_f32_t::generate() {
 
     assert(conf_->oc_block % transpose_size == 0);
     const dim_t fwd_ic_block = conf_->simd_w;
-    const dim_t fwd_oc_block = get_oc_block();
+    const dim_t fwd_oc_block = conf_->get_weights_oc_block();
 
     int oc_tail = conf_->K_tail % transpose_size;
     int ic_block = conf_->ic_block;
@@ -2605,53 +2563,7 @@ void jit_brgemm_trans_wei_bf16_t::transpose_16x16_vnni(
 
 void jit_brgemm_trans_wei_bf16_t::generate() {
     preamble();
-    int fwd_oc_block = 0;
-    switch (conf_->wei_tag) {
-        case OI16i64o:
-        case OIw16i64o:
-        case OwI16i64o:
-        case OIhw16i64o:
-        case OhwI16i64o:
-        case OIdhw16i64o:
-        case OdhwI16i64o:
-        case OI8i64o2i:
-        case OIw8i64o2i:
-        case OwI8i64o2i:
-        case OIhw8i64o2i:
-        case OhwI8i64o2i:
-        case OIdhw8i64o2i:
-        case OdhwI8i64o2i:
-        case OI16i64o2i:
-        case OIw16i64o2i:
-        case OwI16i64o2i:
-        case OIhw16i64o2i:
-        case OhwI16i64o2i:
-        case OIdhw16i64o2i:
-        case OdhwI16i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
-        case OI16i32o:
-        case OIw16i32o:
-        case OwI16i32o:
-        case OIhw16i32o:
-        case OhwI16i32o:
-        case OIdhw16i32o:
-        case OdhwI16i32o:
-        case OI8i32o2i:
-        case OIw8i32o2i:
-        case OwI8i32o2i:
-        case OIhw8i32o2i:
-        case OhwI8i32o2i:
-        case OIdhw8i32o2i:
-        case OdhwI8i32o2i:
-        case OI16i32o2i:
-        case OIw16i32o2i:
-        case OwI16i32o2i:
-        case OIhw16i32o2i:
-        case OhwI16i32o2i:
-        case OIdhw16i32o2i:
-        case OdhwI16i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
-        default: fwd_oc_block = conf_->simd_w;
-    };
-
+    int fwd_oc_block = conf_->get_weights_oc_block();
     int oc_tail = conf_->K_tail % transpose_size;
     int ic_block = conf_->ic_block;
     int ic_tail = conf_->N_tail % transpose_size;
@@ -2929,53 +2841,7 @@ void jit_brgemm_trans_wei_f16_t::generate() {
     preamble();
     assert(conf_->oc_block % transpose_size == 0);
     dim_t fwd_ic_block = conf_->simd_w;
-    dim_t fwd_oc_block = 0;
-    switch (conf_->wei_tag) {
-        case OI16i64o:
-        case OIw16i64o:
-        case OwI16i64o:
-        case OIhw16i64o:
-        case OhwI16i64o:
-        case OIdhw16i64o:
-        case OdhwI16i64o:
-        case OI8i64o2i:
-        case OIw8i64o2i:
-        case OwI8i64o2i:
-        case OIhw8i64o2i:
-        case OhwI8i64o2i:
-        case OIdhw8i64o2i:
-        case OdhwI8i64o2i:
-        case OI16i64o2i:
-        case OIw16i64o2i:
-        case OwI16i64o2i:
-        case OIhw16i64o2i:
-        case OhwI16i64o2i:
-        case OIdhw16i64o2i:
-        case OdhwI16i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
-        case OI16i32o:
-        case OIw16i32o:
-        case OwI16i32o:
-        case OIhw16i32o:
-        case OhwI16i32o:
-        case OIdhw16i32o:
-        case OdhwI16i32o:
-        case OI8i32o2i:
-        case OIw8i32o2i:
-        case OwI8i32o2i:
-        case OIhw8i32o2i:
-        case OhwI8i32o2i:
-        case OIdhw8i32o2i:
-        case OdhwI8i32o2i:
-        case OI16i32o2i:
-        case OIw16i32o2i:
-        case OwI16i32o2i:
-        case OIhw16i32o2i:
-        case OhwI16i32o2i:
-        case OIdhw16i32o2i:
-        case OdhwI16i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
-        default: fwd_oc_block = conf_->simd_w;
-    };
-
+    dim_t fwd_oc_block = conf_->get_weights_oc_block();
     int oc_tail = conf_->K_tail % transpose_size;
     int ic_block = conf_->ic_block;
     int ic_tail = conf_->N_tail % transpose_size;

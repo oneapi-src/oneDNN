@@ -86,7 +86,10 @@ struct jit_brgemm_primitive_conf_t {
     bool with_dst_scales;
 
     // Compute kernel-spatial dimension size.
-    int ks() const { return kd * kh * kw; }
+    int ks() const;
+
+    // Compute foward weights oc-block.
+    int get_weights_oc_block() const;
 };
 
 } // namespace x64

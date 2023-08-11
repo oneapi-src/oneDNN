@@ -696,73 +696,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                                          int kw = 0) {
         int fwd_ic_block
                 = (is_amx && !jbgp.is_bf32) ? 2 * jbgp.simd_w : jbgp.simd_w;
-        int fwd_oc_block = 0;
-        switch (jbgp.wei_tag) {
-            case OI16i64o:
-            case OIw16i64o:
-            case OwI16i64o:
-            case OIhw16i64o:
-            case OhwI16i64o:
-            case OIdhw16i64o:
-            case OdhwI16i64o:
-            case OI8i64o2i:
-            case OIw8i64o2i:
-            case OwI8i64o2i:
-            case OIhw8i64o2i:
-            case OhwI8i64o2i:
-            case OIdhw8i64o2i:
-            case OdhwI8i64o2i:
-            case OI16i64o2i:
-            case OIw16i64o2i:
-            case OwI16i64o2i:
-            case OIhw16i64o2i:
-            case OhwI16i64o2i:
-            case OIdhw16i64o2i:
-            case OdhwI16i64o2i: fwd_oc_block = 64; break;
-            case OI16i48o:
-            case OIw16i48o:
-            case OwI16i48o:
-            case OIhw16i48o:
-            case OhwI16i48o:
-            case OIdhw16i48o:
-            case OdhwI16i48o: fwd_oc_block = 48; break;
-            case OI16i32o:
-            case OIw16i32o:
-            case OwI16i32o:
-            case OIhw16i32o:
-            case OhwI16i32o:
-            case OIdhw16i32o:
-            case OdhwI16i32o:
-            case OI8i32o2i:
-            case OIw8i32o2i:
-            case OwI8i32o2i:
-            case OIhw8i32o2i:
-            case OhwI8i32o2i:
-            case OIdhw8i32o2i:
-            case OdhwI8i32o2i:
-            case OI16i32o2i:
-            case OIw16i32o2i:
-            case OwI16i32o2i:
-            case OIhw16i32o2i:
-            case OhwI16i32o2i:
-            case OIdhw16i32o2i:
-            case OdhwI16i32o2i: fwd_oc_block = 32; break;
-            case OI8i24o:
-            case OIw8i24o:
-            case OwI8i24o:
-            case OIhw8i24o:
-            case OhwI8i24o:
-            case OIdhw8i24o:
-            case OdhwI8i24o: fwd_oc_block = 24; break;
-            case OI8i16o:
-            case OIw8i16o:
-            case OwI8i16o:
-            case OIhw8i16o:
-            case OhwI8i16o:
-            case OIdhw8i16o:
-            case OdhwI8i16o: fwd_oc_block = 16; break;
-            default: fwd_oc_block = jbgp.simd_w;
-        };
+        int fwd_oc_block = jbgp.get_weights_oc_block();
         dim_t ic = icb * jbgp.ic_block;
         dim_t oc = ocb * jbgp.oc_block;
 
