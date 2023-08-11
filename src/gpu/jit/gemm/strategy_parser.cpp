@@ -517,7 +517,8 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy) {
                 = RemainderHandling::Split;
 
     // ... and always use split remainder handling on later GPUs when panel checks are active.
-    if (strategy.panelCheck && strategy.lateExit() && hw >= HW::XeHP) {
+    if (strategy.panelCheck && strategy.lateExit() && hw >= HW::XeHP
+            && !strategy.fixedSystolic) {
         if (isPacked(problem.A.layout))
             strategy.remHandling[LoopM] = RemainderHandling::Split;
         if (isPacked(problem.B.layout))

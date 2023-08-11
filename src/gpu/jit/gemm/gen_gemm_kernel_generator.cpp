@@ -8710,7 +8710,8 @@ bool gemm_kernel_generator_t<hw>::gemmBody(
     }
 
     // Out-of-bounds panel checks.
-    bool panelCheck = strategy.panelCheck && strategy.lateExit();
+    bool panelCheck = strategy.panelCheck && strategy.lateExit()
+            && !strategy.fixedSystolic;
     if (panelCheck && isPacked(problem.A.layout)
             && strategy.remHandling[LoopM] != RemainderHandling::Ignore) {
         state.panelMaskA = state.raVFlag.alloc();
@@ -18990,6 +18991,17 @@ void gemm_kernel_generator_t<hw>::gemm(
 
     // Compute base addresses for A, B, C.
     gemmOffsetABC(true, state.i0, state.j0, state.h0, problem, strategy, state);
+
+    // Fixed systolic kernels don't support checking for out-of-bounds panels.
+    // Instead, move A/B pointers for out-of-bounds panels back in bounds.
+    if (strategy.panelCheck && strategy.fixedSystolic) {
+        bool checkA = strategy.A.base.isStateless();
+        bool checkB = strategy.B.base.isStateless();
+        if (checkA) cmp(2 | ge | f0[1], state.i0, state.inputs.m);
+        if (checkB) cmp(2 | ge | f1[1], state.j0, state.inputs.n);
+        if (checkA) emov(1 | f0[1], state.offsetA, 0, strategy, state);
+        if (checkB) emov(1 | f1[1], state.offsetB, 0, strategy, state);
+    }
 
     gemmSetupABC(problem, strategy, state);
     gemmSubkernel(problem, strategy, state);
