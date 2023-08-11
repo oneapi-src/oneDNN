@@ -80,6 +80,7 @@ problem_bounds get_problem_bounds(alg_t alg, dnnl_data_type_t dt) {
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[0].data(), prb->sdt, prb->stag);
@@ -91,10 +92,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    DNN_SAFE_STATUS(dnnl_reduction_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, alg2alg_kind(prb->alg),
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_reduction_primitive_desc_create(
+            &init_pd_args.pd, init_pd_args.engine, alg2alg_kind(prb->alg),
             init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d, prb->p,
-            prb->eps, dnnl_attr));
+            prb->eps, dnnl_attr)));
 
     return dnnl_success;
 }

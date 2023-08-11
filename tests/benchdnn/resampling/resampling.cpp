@@ -62,6 +62,7 @@ int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     std::string src_tag = (prb->dir & FLAG_FWD) ? prb->tag : tag::any;
     std::string dst_tag = (prb->dir & FLAG_BWD) ? prb->tag : tag::any;
@@ -82,14 +83,15 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     if (prb->dir & FLAG_FWD) {
         auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
                                              : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_resampling_forward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_resampling_forward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, prop_kind, alg, nullptr,
                 init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
-                dnnl_attr));
+                dnnl_attr)));
     } else {
-        DNN_SAFE_STATUS(dnnl_resampling_backward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, alg, nullptr, src_d,
-                dst_d, init_pd_args.hint, dnnl_attr));
+        TIME_C_PD(
+                DNN_SAFE_STATUS(dnnl_resampling_backward_primitive_desc_create(
+                        &init_pd_args.pd, init_pd_args.engine, alg, nullptr,
+                        src_d, dst_d, init_pd_args.hint, dnnl_attr)));
     }
     return dnnl_success;
 }

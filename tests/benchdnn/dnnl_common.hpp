@@ -367,7 +367,7 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
         SAFE(check_mem_size(pdw, res), WARN);
     if (res->state == SKIPPED) return OK;
 
-    DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN);
+    TIME_C_PRIM(DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN));
     primw.reset(prim);
 
     return OK;

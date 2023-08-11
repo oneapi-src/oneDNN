@@ -32,6 +32,7 @@ namespace concat {
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     std::vector<benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> src_d_wrappers(
             prb->n_inputs());
@@ -54,9 +55,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     std::vector<dnnl_memory_desc_t> src_d(
             src_d_wrappers.begin(), src_d_wrappers.end());
     init_pd_args.is_iterator_supported = false;
-    DNN_SAFE_STATUS(dnnl_concat_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, dst_d, prb->n_inputs(), prb->axis,
-            src_d.data(), dnnl_attr));
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_concat_primitive_desc_create(
+            &init_pd_args.pd, init_pd_args.engine, dst_d, prb->n_inputs(),
+            prb->axis, src_d.data(), dnnl_attr)));
 
     return dnnl_success;
 }

@@ -59,6 +59,7 @@ int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto src0_d = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[0].data(), prb->sdt[0], prb->stag[0]);
@@ -76,10 +77,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    DNN_SAFE_STATUS(dnnl_binary_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, alg,
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_binary_primitive_desc_create(
+            &init_pd_args.pd, init_pd_args.engine, alg,
             init_pd_args.src_md ? init_pd_args.src_md : src0_d, src1_d, dst_d,
-            dnnl_attr));
+            dnnl_attr)));
 
     return dnnl_success;
 }

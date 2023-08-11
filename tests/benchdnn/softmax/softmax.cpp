@@ -37,6 +37,7 @@ namespace softmax {
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto dst_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->ddt, prb->dtag);
@@ -56,10 +57,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
 
-        DNN_SAFE_STATUS(dnnl_softmax_forward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_softmax_forward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, prop, alg_kind,
                 init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
-                prb->axis, dnnl_attr));
+                prb->axis, dnnl_attr)));
     } else {
         // Re-create dst_md with source tag if dst was not specified, immitating
         // default value.
@@ -73,9 +74,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto diff_dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->ddt, tag::any);
 
-        DNN_SAFE_STATUS(dnnl_softmax_backward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_softmax_backward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, alg_kind, diff_src_d,
-                diff_dst_d, dst_d, prb->axis, init_pd_args.hint, dnnl_attr));
+                diff_dst_d, dst_d, prb->axis, init_pd_args.hint, dnnl_attr)));
     }
 
     return dnnl_success;

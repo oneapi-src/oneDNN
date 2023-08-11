@@ -134,6 +134,7 @@ int compare_compensation(const prb_t *prb, dnn_mem_map_t &mem_map,
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto dims = prb->dims;
     for (int d = 0; d < prb->ndims; ++d)
@@ -183,9 +184,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args_t()));
 
     init_pd_args.is_iterator_supported = false;
-    DNN_SAFE_STATUS(dnnl_reorder_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.src_md ? init_pd_args.src_md : src_d, src_engine,
-            dst_d, dst_engine, dnnl_attr));
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_reorder_primitive_desc_create(
+            &init_pd_args.pd, init_pd_args.src_md ? init_pd_args.src_md : src_d,
+            src_engine, dst_d, dst_engine, dnnl_attr)));
 
     return dnnl_success;
 }

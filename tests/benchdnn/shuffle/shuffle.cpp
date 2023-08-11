@@ -57,6 +57,7 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
@@ -69,19 +70,19 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
         auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
                                              : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_shuffle_forward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_shuffle_forward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, prop_kind,
                 init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
-                prb->axis, prb->group, dnnl_attr));
+                prb->axis, prb->group, dnnl_attr)));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt, tag::any);
         auto diff_dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt, tag::any);
 
-        DNN_SAFE_STATUS(dnnl_shuffle_backward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_shuffle_backward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, diff_src_d, diff_dst_d,
-                prb->axis, prb->group, init_pd_args.hint, dnnl_attr));
+                prb->axis, prb->group, init_pd_args.hint, dnnl_attr)));
     }
     return dnnl_success;
 }

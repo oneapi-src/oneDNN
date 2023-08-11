@@ -203,6 +203,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
             prb->get_dt(SRC), normalize_tag(prb->stag, prb->ndims));
@@ -246,34 +247,36 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         case FWD_B:
         case FWD_I:
             if (prb->dir != FWD_B) bia_d.reset(nullptr);
-            DNN_SAFE_STATUS(dnnl_convolution_forward_primitive_desc_create(
-                    &init_pd_args.pd, init_pd_args.engine,
-                    prb->dir == FWD_I ? dnnl_forward_inference
-                                      : dnnl_forward_training,
-                    alg, init_pd_args.src_md ? init_pd_args.src_md : src_d,
-                    wei_d, bia_d, dst_d, prb->strides().data(),
-                    prb->dilations().data(), prb->padding().data(),
-                    prb->padding_r().data(), dnnl_attr));
+            TIME_C_PD(DNN_SAFE_STATUS(
+                    dnnl_convolution_forward_primitive_desc_create(
+                            &init_pd_args.pd, init_pd_args.engine,
+                            prb->dir == FWD_I ? dnnl_forward_inference
+                                              : dnnl_forward_training,
+                            alg,
+                            init_pd_args.src_md ? init_pd_args.src_md : src_d,
+                            wei_d, bia_d, dst_d, prb->strides().data(),
+                            prb->dilations().data(), prb->padding().data(),
+                            prb->padding_r().data(), dnnl_attr)));
             break;
         case BWD_D:
-            DNN_SAFE_STATUS(
+            TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_convolution_backward_data_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, src_d,
                             wei_d, dst_d, prb->strides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
-                            dnnl_attr));
+                            dnnl_attr)));
             break;
         case BWD_W:
         case BWD_WB:
             if (prb->dir == BWD_W) bia_d.reset(nullptr);
-            DNN_SAFE_STATUS(
+            TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_convolution_backward_weights_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, src_d,
                             wei_d, bia_d, dst_d, prb->strides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
-                            dnnl_attr));
+                            dnnl_attr)));
             break;
         default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
     }

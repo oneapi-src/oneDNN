@@ -109,6 +109,7 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto src_d = create_md(prb, SRC);
     auto wei_d = create_md(prb, WEI);
@@ -135,10 +136,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    DNN_SAFE_STATUS(dnnl_matmul_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine,
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_matmul_primitive_desc_create(
+            &init_pd_args.pd, init_pd_args.engine,
             init_pd_args.src_md ? init_pd_args.src_md : src_d, wei_d, bia_d,
-            dst_d, dnnl_attr));
+            dst_d, dnnl_attr)));
 
     return dnnl_success;
 }

@@ -525,6 +525,7 @@ void compute_ref(
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t &prb = *init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
+    res_t *res = init_pd_args.res;
 
     dnnl_prop_kind_t fwd_prop = dnnl_prop_kind_undef;
     switch (prb.prop) {
@@ -667,7 +668,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 prb, fwd_prop, src_layer_d, src_iter_d, src_iter_c_d,
                 attention_d, weights_layer_d, weights_iter_d,
                 weights_peephole_d, weights_projection_d, bias_d, dst_layer_d,
-                dst_iter_d, dst_iter_c_d, dnnl_attr));
+                dst_iter_d, dst_iter_c_d, dnnl_attr, res));
     } else {
         // TODO: add stride support for diff_* tensors
         auto diff_src_layer_d = dnn_mem_t::init_md(
@@ -717,7 +718,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 diff_weights_iter_d, diff_weights_peephole_d,
                 diff_weights_projection_d, diff_bias_d, diff_dst_layer_d,
                 diff_dst_iter_d, diff_dst_iter_c_d, init_pd_args.hint,
-                dnnl_attr));
+                dnnl_attr, res));
     }
 
     return dnnl_success;

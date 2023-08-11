@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,13 +44,20 @@ void base_perf_report_t::dump_engine(std::ostream &s) const {
 
 void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
         res_t *res, const char *prb_str) const {
+    // Note: ideally, there should be `unspecified` mode, but there's additional
+    // logic around `n_modes` involved which might be affected by adding new
+    // but non-functional mode. If such mode existed, there's no need in extra
+    // `user_mode` variable to identify if mode was specified or not.
+    // It helps to choose between different "default" timer modes for different
+    // options.
     timer::timer_t::mode_t mode = timer::timer_t::min;
-    (void)mode;
+    timer::timer_t::mode_t user_mode = timer::timer_t::n_modes;
     double unit = 1e0;
     char c = *option;
 
     if (c == '-' || c == '0' || c == '+') {
-        mode = modifier2mode(c);
+        user_mode = modifier2mode(c);
+        mode = user_mode;
         c = *(++option);
     }
 
@@ -72,6 +79,17 @@ void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
     auto get_freq = [&](const timer::timer_t &t) -> double {
         if (!t.sec(mode)) return 0;
         return t.ticks(mode) / t.sec(mode) / unit;
+    };
+
+    auto get_create_time = [&](const timer::timer_t &t) -> double {
+        // If user didn't ask for mode, choose the maximum one to return time
+        // for no-cache-hit creation.
+        // Cache-hit creation can be triggered by `min` mode.
+        auto create_mode = user_mode == timer::timer_t::n_modes
+                ? timer::timer_t::max
+                : mode;
+        if (!t.sec(create_mode)) return 0;
+        return t.ms(create_mode) / unit;
     };
 
     // Please update doc/knobs_perf_report.md in case of any new options!
@@ -118,12 +136,17 @@ void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
     HANDLE("prb", s << prb_str);
     HANDLE("freq", s << get_freq(res->timer_map.perf_timer()));
     HANDLE("ops", s << ops() / unit);
-    HANDLE("time", s << res->timer_map.perf_timer().ms(mode) / unit);
     HANDLE("impl", s << res->impl_name);
     HANDLE("ibytes", s << res->ibytes / unit);
     HANDLE("obytes", s << res->obytes / unit);
     HANDLE("iobytes", s << (res->ibytes + res->obytes) / unit);
     HANDLE("idx", s << benchdnn_stat.tests);
+    HANDLE("time", s << res->timer_map.perf_timer().ms(mode) / unit);
+    HANDLE("ctime",
+            s << get_create_time(res->timer_map.cp_timer())
+                            + get_create_time(res->timer_map.cpd_timer()));
+    HANDLE("cptime", s << get_create_time(res->timer_map.cp_timer()));
+    HANDLE("cpdtime", s << get_create_time(res->timer_map.cpd_timer()));
 
 #undef HANDLE
 

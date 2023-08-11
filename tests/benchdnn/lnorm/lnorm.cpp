@@ -310,6 +310,7 @@ int prepare_bwd(const prb_t *prb, dnn_mem_map_t &mem_map,
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
@@ -329,20 +330,22 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_layer_normalization_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop,
-                init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
-                stat_d, prb->eps, flags, dnnl_attr));
+        TIME_C_PD(DNN_SAFE_STATUS(
+                dnnl_layer_normalization_forward_primitive_desc_create(
+                        &init_pd_args.pd, init_pd_args.engine, prop,
+                        init_pd_args.src_md ? init_pd_args.src_md : src_d,
+                        dst_d, stat_d, prb->eps, flags, dnnl_attr)));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
         auto diff_dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
-        DNN_SAFE_STATUS(dnnl_layer_normalization_backward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop, diff_src_d,
-                diff_dst_d, src_d, stat_d, prb->eps, flags, init_pd_args.hint,
-                dnnl_attr));
+        TIME_C_PD(DNN_SAFE_STATUS(
+                dnnl_layer_normalization_backward_primitive_desc_create(
+                        &init_pd_args.pd, init_pd_args.engine, prop, diff_src_d,
+                        diff_dst_d, src_d, stat_d, prb->eps, flags,
+                        init_pd_args.hint, dnnl_attr)));
     }
 
     return dnnl_success;
