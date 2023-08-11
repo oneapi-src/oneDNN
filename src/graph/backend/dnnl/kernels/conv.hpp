@@ -276,8 +276,7 @@ public:
                     pipeline, lift_up_weight_reshape_for_depthwiseconv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
-            BACKEND_DNNL_ADD_PASS(
-                    pipeline, fuse_post_typecast_to_matmul_or_conv);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_predecessor);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_bias_to_f32);
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
@@ -295,7 +294,7 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_matmul_or_conv);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_predecessor);
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);

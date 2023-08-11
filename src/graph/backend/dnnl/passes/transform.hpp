@@ -90,30 +90,17 @@ status_t fuse_typecast_to_matmul_or_conv(std::shared_ptr<subgraph_t> &sg);
 ///              | (bf16)
 status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg);
 
-/// translate mixed int8/bf16 matmul/conv(+post_ops) subgraph to int8 subgraph
+/// fuse post typecast (f32<->bf16/f16) to matmul/conv/eltwise/binary/softmax/layernorm
 ///
-///     | (u8/s8)  | (u8/s8)               | (u8/s8)  | (u8/s8)
-///  dequant    dequant                 dequant    dequant
-///     \ (fp32)   / (fp32)     -->         \ (fp32)  / (fp32)
-///      matmul/conv                        matmul/conv
-///          | (bf16)                           | (f32)
+///          |                 -->              |
+///    matmul/conv/eltwise/              matmul/conv/eltwise/
+///  binary/softmax/layernorm          binary/softmax/layernorm
+///          |                                  |
 ///      (post_ops)                         (post_ops)
-///          | (bf16)                           | (f32)
-///       typecast                            quant
-///          | (fp32)                           | (u8/s8)
-///        quant
-///          | (u8/s8)
-status_t fuse_post_typecast_to_matmul_or_conv(std::shared_ptr<subgraph_t> &sg);
-
-/// fuse post typecast(f32 <-> bf16/f16) to binary or softmax or layernorm
-///
-///          |                  -->                 |
-/// binary/softmax/layernorm          eltwise/binary/softmax/layernorm
-///          |                                      |
+///          |                                  |
 ///       typecast
 ///          |
-status_t fuse_post_typecast_to_eltwise_or_binary_or_softmax_or_layernorm(
-        std::shared_ptr<subgraph_t> &sg);
+status_t fuse_post_typecast_to_predecessor(std::shared_ptr<subgraph_t> &sg);
 
 status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
