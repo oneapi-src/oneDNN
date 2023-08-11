@@ -14,11 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <float.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -87,6 +85,8 @@ int main(int argc, char **argv) {
     --argc;
     ++argv;
 
+    timer::timer_t total_time;
+
     if (parse_main_help(argv[0])) return 0;
 
     init_fp_mode();
@@ -148,6 +148,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "err: unknown driver\n");
     }
 
+    total_time.stamp();
+
     printf("tests:%d passed:%d skipped:%d mistrusted:%d unimplemented:%d "
            "invalid_arguments:%d failed:%d listed:%d\n",
             benchdnn_stat.tests, benchdnn_stat.passed, benchdnn_stat.skipped,
@@ -165,13 +167,23 @@ int main(int argc, char **argv) {
         }
     }
     if (has_bench_mode_bit(mode_bit_t::corr)) {
-        const auto &compute_ref_timer
-                = benchdnn_stat.ms.find(timer::names::ref_timer);
-        if (compute_ref_timer != benchdnn_stat.ms.end()) {
-            const auto &compute_ref_timer_stats = compute_ref_timer->second;
-            printf("total compute_ref: sum(s):%.2f\n",
-                    compute_ref_timer_stats[timer::timer_t::sum]);
+        const auto total_s = total_time.sec(timer::timer_t::sum);
+        const std::vector<std::pair<std::string, std::string>> aux_timers = {
+                {"compute_ref", timer::names::ref_timer},
+        };
+
+        printf("total: %.2fs;", total_s);
+        for (const auto &e : aux_timers) {
+            const auto &t = benchdnn_stat.ms.find(e.second);
+            if (t != benchdnn_stat.ms.end()) {
+                const auto &stats = t->second;
+                double s = stats[timer::timer_t::sum];
+                double r_s_to_total = 100.f * s / total_s;
+                printf(" %s: %.2fs (%.0f%%);", e.first.c_str(), s,
+                        r_s_to_total);
+            }
         }
+        printf("\n");
     }
 
     finalize();

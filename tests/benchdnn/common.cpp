@@ -154,9 +154,13 @@ void parse_result(res_t &res, const char *pstr) {
 
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         using bt = timer::timer_t;
-        const auto &t = res.timer_map.get_timer(timer::names::ref_timer);
-        bs.ms[timer::names::ref_timer][bt::mode_t::sum]
-                += t.sec(bt::mode_t::sum);
+        using namespace timer::names;
+
+        // Only summary time is populated to the highest level report.
+        for (const auto &t_name : {ref_timer}) {
+            const auto &t = res.timer_map.get_timer(t_name);
+            bs.ms[t_name][bt::mode_t::sum] += t.sec(bt::mode_t::sum);
+        }
     }
 }
 
