@@ -169,6 +169,7 @@ int main(int argc, char **argv) {
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         const auto total_s = total_time.sec(timer::timer_t::sum);
         const std::vector<std::pair<std::string, std::string>> aux_timers = {
+                {"fill", timer::names::fill_timer},
                 {"compute_ref", timer::names::ref_timer},
                 {"compare", timer::names::compare_timer},
         };

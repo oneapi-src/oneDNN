@@ -37,6 +37,8 @@
 #define TIME_C_PRIM(func) TIME_FUNC(func, res, timer::names::cp_timer)
 // Designated timer to calculate time spent on comparison with reference
 #define TIME_COMPARE(func) TIME_FUNC(func, res, timer::names::compare_timer)
+// Designated timer to calculate time spent on filling
+#define TIME_FILL(func) TIME_FUNC(func, res, timer::names::fill_timer)
 
 namespace timer {
 
@@ -95,6 +97,8 @@ const std::string cpd_timer = "create_pd_timer";
 const std::string cp_timer = "create_prim_timer";
 // Driver's comparison.
 const std::string compare_timer = "compare_timer";
+// Driver's memory filling.
+const std::string fill_timer = "fill_timer";
 } // namespace names
 
 struct timer_map_t {

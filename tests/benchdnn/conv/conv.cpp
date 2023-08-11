@@ -540,9 +540,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(
-                 ref_mem_map, mem_map, prim, prb, res, prb->dir, prim_ref),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res,
+                           prb->dir, prim_ref),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 
