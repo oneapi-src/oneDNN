@@ -65,6 +65,7 @@
         } \
     } while (0)
 
+// Unlike `DNN_SAFE` this one returns `dnnl_status_t`, not `OK/FAIL`.
 #define DNN_SAFE_STATUS(f) \
     do { \
         dnnl_status_t status__ = f; \
