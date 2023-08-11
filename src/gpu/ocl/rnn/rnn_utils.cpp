@@ -148,6 +148,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.merge_gemm_iter = dev_getenv("merge_gemm_iter",
             dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru));
 
+
     // Decide to copy bias
     rnn.copy_bias = rnn.is_int8;
 
@@ -234,9 +235,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
                                                        : sizeof(float);
     rnn.ws_states_elsz = types::data_type_size(rd.src_layer_desc.data_type);
 
-    // Different size required for forward and backward pass
-    bool need_scratch_gates = is_fwd;
-    rnn.scratch_gates_elsz = need_scratch_gates ? aux_elsz : 0;
+    rnn.scratch_gates_elsz = aux_elsz;
     rnn.scratch_diff_gates_elsz = is_bwd
             ? (rnn.dt_conf == all_bf16 ? sizeof(bfloat16_t) : aux_elsz)
             : 0;
@@ -251,9 +250,8 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(cl_float));
     rnn.scratch_diff_states_ld = get_good_ld(rnn.arch_ld,
             nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof(cl_float));
-    rnn.scratch_gates_ld = need_scratch_gates
-            ? get_good_ld(rnn.arch_ld, rnn.gates_ld, rnn.scratch_gates_elsz)
-            : 0;
+    rnn.scratch_gates_ld
+            = get_good_ld(rnn.arch_ld, rnn.gates_ld, rnn.scratch_gates_elsz);
     rnn.scratch_diff_gates_ld = is_bwd ? get_good_ld(rnn.arch_ld, rnn.gates_ld,
                                         rnn.scratch_diff_gates_elsz)
                                        : 0;
@@ -280,8 +278,26 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.ws_gates_size = rnn.is_training
             ? (rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.ws_gates_cell_size)
             : 0;
+
+    // Reduce workspace memory by recomputing gates for bwd
+    // TODO: Extend this optimization to other alg_kind.
+    bool supports_recompute_gates
+            = utils::one_of(rd.cell_kind, alg_kind::vanilla_lstm,
+                      alg_kind::vanilla_rnn)
+            && rnn.is_training;
+    bool prefer_recompute_gates = rnn.ws_gates_size >= 512 * 1024 * 1024;
+    rnn.recompute_gates = dev_getenv("recompute_gates", prefer_recompute_gates)
+            && supports_recompute_gates;
+    if (rnn.recompute_gates) rnn.ws_gates_size = 0;
+
     rnn.n_iter_scratch_gates
             = (rnn.merge_gemm_layer || rnn.merge_gemm_iter) ? rnn.n_iter : 1;
+
+    // To reduce memory usage, use scratch_diff_gates in place of scratch_gates
+    // when the layout is the same, i.e. they have the same data type size.
+    bool need_scratch_gates = is_fwd
+            || (rnn.recompute_gates
+                    && rnn.scratch_gates_elsz != rnn.scratch_diff_gates_elsz);
     rnn.scratch_gates_size = need_scratch_gates
             ? rnn.n_iter_scratch_gates * rnn.gates_nld * rnn.scratch_gates_ld
                     * rnn.scratch_gates_elsz
