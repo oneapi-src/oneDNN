@@ -170,6 +170,7 @@ int main(int argc, char **argv) {
         const auto total_s = total_time.sec(timer::timer_t::sum);
         const std::vector<std::pair<std::string, std::string>> aux_timers = {
                 {"compute_ref", timer::names::ref_timer},
+                {"compare", timer::names::compare_timer},
         };
 
         printf("total: %.2fs;", total_s);

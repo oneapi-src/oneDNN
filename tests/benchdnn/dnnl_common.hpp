@@ -555,7 +555,7 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         const auto &mem_dt = args.find(arg);
         const auto &mem_fp = ref_args.find(arg);
 
-        cmp.compare(mem_fp, mem_dt, prb->attr, res);
+        TIME_COMPARE(cmp.compare(mem_fp, mem_dt, prb->attr, res));
     }
 }
 
