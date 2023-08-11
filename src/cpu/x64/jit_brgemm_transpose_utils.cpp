@@ -2000,6 +2000,7 @@ void jit_copy_f16_t::generate() {
 void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
 
     const bool is_xf16 = one_of(wjcp.wei_dt, data_type::bf16, data_type::f16);
+    const bool is_f32 = wjcp.wei_dt == data_type::f32;
 
     // required for use of VPERMB instruction
     assert(IMPLICATION(!is_xf16, cpu().has(Xbyak::util::Cpu::tAVX512_VBMI)));
@@ -2024,6 +2025,9 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
             vmovdqu16(zmm_src_tmp, ptr[aux_reg_src]);
             vpermw(zmm_dst, zmm_idx, zmm_src);
             vmovdqu16(ptr[aux_reg_dst], zmm_dst);
+        } else if (is_f32) {
+            vmovdqu32(zmm_src_tmp, ptr[aux_reg_src]);
+            vmovdqu32(ptr[aux_reg_dst], zmm_src_tmp);
         } else {
             vmovdqu8(zmm_src_tmp, ptr[aux_reg_src]);
             vpermb(zmm_dst, zmm_idx, zmm_src);
@@ -2066,11 +2070,13 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
 
     // load permute indices from data section
     Label full_ocb_label, finish_label, permute_index_table;
-    mov(reg_tmp, permute_index_table);
-    if (is_xf16)
-        vmovdqu16(zmm_idx, ptr[reg_tmp]);
-    else
-        vmovdqu8(zmm_idx, ptr[reg_tmp]);
+    if (!is_f32) {
+        mov(reg_tmp, permute_index_table);
+        if (is_xf16)
+            vmovdqu16(zmm_idx, ptr[reg_tmp]);
+        else
+            vmovdqu8(zmm_idx, ptr[reg_tmp]);
+    }
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_dst, ptr[param1 + GET_OFF(dst)]);
@@ -2090,14 +2096,16 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
 
     align(64);
     L(permute_index_table);
-    const uint8_t no = 16; // 16o
-    for (uint8_t o = 0; o < no; ++o) {
-        for (uint8_t r = 0; r < vnni_width; r++) {
-            const uint8_t index = o + r * no;
-            if (is_xf16)
-                dw(index);
-            else
-                db(index);
+    if (!is_f32) {
+        const uint8_t no = 16; // 16o
+        for (uint8_t o = 0; o < no; ++o) {
+            for (uint8_t r = 0; r < vnni_width; r++) {
+                const uint8_t index = o + r * no;
+                if (is_xf16)
+                    dw(index);
+                else
+                    db(index);
+            }
         }
     }
 }
