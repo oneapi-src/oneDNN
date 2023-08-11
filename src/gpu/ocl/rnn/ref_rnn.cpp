@@ -109,6 +109,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.copy_bias = rnn.copy_bias;
     ocl_conf.is_int8 = rnn.is_int8;
     ocl_conf.is_training = rnn.is_training;
+    ocl_conf.recompute_gates = rnn.recompute_gates;
 
     off.src_layer = gpu::get_outer_strides(src_layer_d);
     ocl_conf.inner_layouts.src_layer = gpu::get_inner_layout(src_layer_d);
@@ -207,6 +208,7 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
 
     kernel_ctx.define_int("IS_FWD", is_fwd);
     kernel_ctx.define_int("IS_TRAINING", is_training);
+    kernel_ctx.define_int("RECOMPUTE_GATES", recompute_gates);
     kernel_ctx.define_int("WITH_BIAS", with_bias);
     kernel_ctx.define_int("WITH_SRC_ITER", with_src_iter);
     kernel_ctx.define_int("WITH_SRC_ITER_C", with_src_iter_c);
@@ -693,6 +695,18 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                         weights_type, src_type, rnn_conf.acc_data_type, false,
                         true, 1.0f));
             } else {
+                if (rnn_conf.recompute_gates) {
+                    CHECK(create_gemm_pd(gemm_layer_fwd_pd_, n_gates * dhc,
+                            layer_merged_size, slc, rnn_conf.weights_layer_ld,
+                            rnn_conf.states_ws_ld, rnn_conf.scratch_gates_ld,
+                            weights_type, src_type, rnn_conf.acc_data_type,
+                            true, false, 0.0));
+                    CHECK(create_gemm_pd(gemm_iter_fwd_pd_, n_gates * dhc,
+                            batch, sic, rnn_conf.weights_iter_ld,
+                            rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
+                            weights_type, src_type, rnn_conf.acc_data_type,
+                            true, false, gemm_iter_fwd_beta));
+                }
                 CHECK(create_gemm_pd(gemm_iter_bwd_pd_, sic, batch,
                         n_gates * dhc, rnn_conf.weights_iter_ld,
                         rnn_conf.scratch_diff_gates_ld,
@@ -784,16 +798,17 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     elemwise_bwd_kernel_ = kernels[7];
     if (is_ws_print_enabled()) ws_print_kernel_ = kernels[9];
 
-    bool gemm_ok = true;
-
+    bool gemm_ok = utils::everyone_is(status::success,
+            pd()->gemm_layer_fwd_pd_ ? create_nested_primitive(
+                    gemm_layer_fwd_, pd()->gemm_layer_fwd_pd_, engine)
+                                     : status::success,
+            pd()->gemm_iter_fwd_pd_ ? create_nested_primitive(
+                    gemm_iter_fwd_, pd()->gemm_iter_fwd_pd_, engine)
+                                    : status::success);
     switch (aprop) {
         case prop_kind::forward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            create_nested_primitive(gemm_layer_fwd_,
-                                    pd()->gemm_layer_fwd_pd_, engine),
-                            create_nested_primitive(gemm_iter_fwd_,
-                                    pd()->gemm_iter_fwd_pd_, engine),
                             rnn.is_vanilla_gru
                                     ? create_nested_primitive(gemm_iter_fwd_2_,
                                             pd()->gemm_iter_fwd_2_pd_, engine)
@@ -994,7 +1009,8 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                         offset_scratch_diff_lay);
             }
 
-            if (aprop == prop_kind::forward && rnn.merge_gemm_layer) {
+            if ((aprop == prop_kind::forward || rnn.recompute_gates)
+                    && rnn.merge_gemm_layer) {
                 CHECK(gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
                         *grid_layer, 0, *scratch_gates, 0, gemm_layer_fwd));
             }
@@ -1440,10 +1456,12 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     auto scratchpad_fwd_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
-    memory_storage_t *scratch_gates = scratchpad_fwd_gates.get();
     auto scratchpad_diff_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(
                     key_rnn_diff_gates);
+    memory_storage_t *scratch_gates = scratchpad_fwd_gates
+            ? scratchpad_fwd_gates.get()
+            : scratchpad_diff_gates.get();
     memory_storage_t *scratch_diff_gates = scratchpad_diff_gates.get();
 
     empty_memory_storage_t empty_mem;

@@ -259,7 +259,7 @@ struct ocl_conf_t {
     bool is_int8 = false;
     bool is_testmode = false;
     bool is_training = false;
-    uint8_t pad0[1] = {};
+    bool recompute_gates = false;
 };
 
 struct conf_t {
@@ -290,6 +290,7 @@ struct conf_t {
     dim_t states_nld, states_ws_ld, scratch_diff_states_ld;
     bool is_fwd, is_training, is_lbr, is_int8, is_testmode, is_vanilla_gru;
     bool use_workspace;
+    bool recompute_gates;
 
     // for test mode (--skip_nonliner=true of benchdnn)
     float tm_cscale;

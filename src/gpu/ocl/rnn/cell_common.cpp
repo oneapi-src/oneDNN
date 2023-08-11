@@ -38,7 +38,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     auto cell_layer = workspace.states(lay - 1, dir, iter);
     auto cell_iter = workspace.states(lay, dir, iter - 1);
 
-    if (aprop == prop_kind::forward) {
+    if (aprop == prop_kind::forward || rnn.recompute_gates) {
         if (!rnn.merge_gemm_layer) {
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
                     *cell_layer, 0, *scratch_gates, cell_scratch_offset,
@@ -48,7 +48,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
                 *cell_iter, 0, *scratch_gates, cell_scratch_offset,
                 gemm_iter_fwd));
+    }
 
+    if (aprop == prop_kind::forward) {
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
                 workspace, scratch_gates, scratch_diff_gates,
                 scratch_diff_states, scales, bias, tm_scales, diff_bias));
