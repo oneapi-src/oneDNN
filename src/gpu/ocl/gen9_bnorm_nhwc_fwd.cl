@@ -42,9 +42,9 @@ __kernel void gen9_calc_mean_var_nhwc(__global DATA_T *src,
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
 
-    const int ic_block_offset = (c / 16) * IC_BLOCK;
+    const int ic_block_offset = (c / SG_SIZE) * IC_BLOCK;
     const int group_c_offset
-            = REDUCE_STAT_NBLOCKS * ic_block_offset + sp_block_idx * 16;
+            = REDUCE_STAT_NBLOCKS * ic_block_offset + sp_block_idx * SG_SIZE;
     const int ver_offs = REDUCE_STAT_NBLOCKS * IC;
 
     const int src_off = ic_block_offset + sp_block_idx * STAT_SP_BLOCK * IC;
@@ -62,7 +62,8 @@ __kernel void gen9_calc_mean_var_nhwc(__global DATA_T *src,
 #endif
         // vectorized part
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-            VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg * 16 * VECT_SIZE]);
+            VECT_FLOAT_T s_vect
+                    = LOAD_VECT_DATA(&src[sg * SG_SIZE * VECT_SIZE]);
 
             for (int vect = 0; vect < VECT_SIZE; ++vect) {
                 const int sum_idx = sg * VECT_SIZE + vect;
@@ -80,7 +81,8 @@ __kernel void gen9_calc_mean_var_nhwc(__global DATA_T *src,
         // tails
         for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
             const int sg_idx = IC_VECT_SGROUPS + sg;
-            float s_tail = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * 16]);
+            float s_tail
+                    = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * SG_SIZE]);
             sum[sg_idx] = summation(s_tail, sum[sg_idx]);
             sum_sq[sg_idx] = summation(s_tail * s_tail, sum_sq[sg_idx]);
         }
@@ -95,7 +97,8 @@ __kernel void gen9_calc_mean_var_nhwc(__global DATA_T *src,
             sum_sq, local_sum, local_sum_sq);
 #else
     for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
-        const int reduce_off = group_c_offset + sg * 16 * REDUCE_STAT_NBLOCKS;
+        const int reduce_off
+                = group_c_offset + sg * SG_SIZE * REDUCE_STAT_NBLOCKS;
         STORE_FLOAT_1x16(&reduce_temp[reduce_off], sum[sg].s0);
         STORE_FLOAT_1x16(&reduce_temp[ver_offs + reduce_off], sum_sq[sg].s0);
     }
@@ -111,9 +114,9 @@ __kernel void gen9_calc_mean_nhwc(__global DATA_T *src,
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
-    const int ic_block_offset = (c / 16) * IC_BLOCK;
+    const int ic_block_offset = (c / SG_SIZE) * IC_BLOCK;
     const int group_c_offset
-            = REDUCE_STAT_NBLOCKS * ic_block_offset + sp_block_idx * 16;
+            = REDUCE_STAT_NBLOCKS * ic_block_offset + sp_block_idx * SG_SIZE;
 
     const int src_off = ic_block_offset + sp_block_idx * STAT_SP_BLOCK * IC;
     src += src_off;
@@ -128,7 +131,8 @@ __kernel void gen9_calc_mean_nhwc(__global DATA_T *src,
 #endif
         // vectorized part
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-            VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg * 16 * VECT_SIZE]);
+            VECT_FLOAT_T s_vect
+                    = LOAD_VECT_DATA(&src[sg * SG_SIZE * VECT_SIZE]);
             for (int vect = 0; vect < VECT_SIZE; ++vect) {
                 v_mean[sg * VECT_SIZE + vect]
 #if VECT_SIZE > 1
@@ -141,7 +145,8 @@ __kernel void gen9_calc_mean_nhwc(__global DATA_T *src,
 #if HAS_IC_VECT_TAIL
         // tails
         for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
-            float s_tail = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * 16]);
+            float s_tail
+                    = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * SG_SIZE]);
             v_mean[IC_VECT_SGROUPS + sg] += s_tail;
         }
 #endif // HAS_IC_VECT_TAIL
@@ -153,7 +158,8 @@ __kernel void gen9_calc_mean_nhwc(__global DATA_T *src,
     gen9_calc_fused_reduction(mean, ic_block_offset, v_mean, local_sum);
 #else
     for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
-        const int reduce_off = group_c_offset + sg * 16 * REDUCE_STAT_NBLOCKS;
+        const int reduce_off
+                = group_c_offset + sg * SG_SIZE * REDUCE_STAT_NBLOCKS;
         STORE_FLOAT_1x16(&reduce_temp[reduce_off], v_mean[sg]);
     }
 #endif
@@ -167,11 +173,11 @@ __kernel void gen9_calc_variance_nhwc(__global DATA_T *src,
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
-    const int ic_block_offset = (c / 16) * IC_BLOCK;
+    const int ic_block_offset = (c / SG_SIZE) * IC_BLOCK;
     const int group_c_offset
-            = REDUCE_STAT_NBLOCKS * ic_block_offset + sp_block_idx * 16;
+            = REDUCE_STAT_NBLOCKS * ic_block_offset + sp_block_idx * SG_SIZE;
 
-    reduce_temp += REDUCE_STAT_NBLOCKS * IC16;
+    reduce_temp += REDUCE_STAT_NBLOCKS * PADDED_IC;
     mean += ic_block_offset;
     const int src_off = ic_block_offset + sp_block_idx * STAT_SP_BLOCK * IC;
     src += src_off;
@@ -179,7 +185,7 @@ __kernel void gen9_calc_variance_nhwc(__global DATA_T *src,
     float v_mean[IC_BLOCK_SGROUPS];
     for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
         v_mean[sg] = as_float(intel_sub_group_block_read(
-                (const __global uint *)(&mean[(sg * 16)])));
+                (const __global uint *)(&mean[(sg * SG_SIZE)])));
     }
 
     float v_var[IC_BLOCK_SGROUPS] = {0.0f};
@@ -192,7 +198,8 @@ __kernel void gen9_calc_variance_nhwc(__global DATA_T *src,
     for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
 #endif
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-            VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg * 16 * VECT_SIZE]);
+            VECT_FLOAT_T s_vect
+                    = LOAD_VECT_DATA(&src[sg * SG_SIZE * VECT_SIZE]);
 
             for (int vect = 0; vect < VECT_SIZE; ++vect) {
                 int sg_idx = sg * VECT_SIZE + vect;
@@ -208,7 +215,8 @@ __kernel void gen9_calc_variance_nhwc(__global DATA_T *src,
         // tails
         for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
             const int sg_idx = IC_VECT_SGROUPS + sg;
-            float s_tail = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * 16]);
+            float s_tail
+                    = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * SG_SIZE]);
             v0[sg_idx] = s_tail - v_mean[sg_idx];
             v_var[sg_idx] = fma(v0[sg_idx], v0[sg_idx], v_var[sg_idx]);
         }
@@ -221,7 +229,8 @@ __kernel void gen9_calc_variance_nhwc(__global DATA_T *src,
     gen9_calc_fused_reduction(variance, ic_block_offset, v_var, local_sum);
 #else
     for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
-        const int reduce_off = group_c_offset + sg * 16 * REDUCE_STAT_NBLOCKS;
+        const int reduce_off
+                = group_c_offset + sg * SG_SIZE * REDUCE_STAT_NBLOCKS;
         STORE_FLOAT_1x16(&reduce_temp[reduce_off], v_var[sg]);
     }
 #endif
@@ -239,7 +248,7 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
     const int c = GWS_GET_IC();
     const int sp = GWS_GET_SP() * UPDATE_SP_BLOCK;
 
-    const int ic_block_offset = (c / 16) * IC_BLOCK;
+    const int ic_block_offset = (c / SG_SIZE) * IC_BLOCK;
     mean += ic_block_offset;
     variance += ic_block_offset;
     shift += ic_block_offset;
@@ -261,7 +270,7 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
             v_variance[IC_BLOCK_SGROUPS / VECT_SIZE],
             sqrt_variance[IC_BLOCK_SGROUPS / VECT_SIZE];
     for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-        const int sg_idx = sg * 16 * VECT_SIZE;
+        const int sg_idx = sg * SG_SIZE * VECT_SIZE;
 #if USE_SCALE == 1
         sm[sg] = LOAD_VECT_FLOAT(&scaleshift[sg_idx]);
 #else
@@ -282,7 +291,7 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
             v_mean_tail[IC_TAIL_SGROUPS], v_variance_tail[IC_TAIL_SGROUPS],
             sqrt_variance_tail[IC_TAIL_SGROUPS];
     for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
-        const int sg_idx = (IC_VECT_SGROUPS + sg) * 16;
+        const int sg_idx = (IC_VECT_SGROUPS + sg) * SG_SIZE;
 #if USE_SCALE == 1
         sm_tail[sg] = LOAD_FLOAT_1x16(&scaleshift[sg_idx]);
 #else
@@ -307,7 +316,7 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
 #endif
         // vectorized part
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-            const int sg_idx = sg * 16 * VECT_SIZE;
+            const int sg_idx = sg * SG_SIZE * VECT_SIZE;
 
             VECT_FLOAT_T s_vect[UPDATE_SP_UNROLL];
             unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
@@ -361,7 +370,7 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
 #if HAS_IC_VECT_TAIL
         // tails
         for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
-            const int sg_idx = (IC_VECT_SGROUPS + sg) * 16;
+            const int sg_idx = (IC_VECT_SGROUPS + sg) * SG_SIZE;
             float s_tail[UPDATE_SP_UNROLL], d_tail[UPDATE_SP_UNROLL];
             unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
                 s_tail[i] = LOAD_DATA_1x16(&src[sg_idx + IC * i]);

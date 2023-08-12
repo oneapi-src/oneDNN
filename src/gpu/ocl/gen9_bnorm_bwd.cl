@@ -236,13 +236,14 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
             &diff_beta, NULL, NULL, local_gamma, local_beta);
 #else
     // scratchpad layout:
-    // IC16 - diff_gamma reduction, wrote by gen9_reduce_stats kernel
-    // REDUCE_STAT_NBLOCKS * IC16 - diff_gamma stats calculated by this kernel
-    // IC16 - diff_beta reduction, wrote by gen9_reduce_stats kernel
-    // REDUCE_STAT_NBLOCKS * IC16 - diff_beta stats calculated by this kernel
-    STORE_FLOAT_1x16(&temp_reduce[IC16 + mb_sp_idx * 16], diff_gamma[0]);
-    STORE_FLOAT_1x16(&temp_reduce[2 * IC16 + REDUCE_STAT_NBLOCKS * IC16
-                             + mb_sp_idx * 16],
+    // PADDED_IC - diff_gamma reduction, wrote by gen9_reduce_stats kernel
+    // REDUCE_STAT_NBLOCKS * PADDED_IC - diff_gamma stats calculated by this kernel
+    // PADDED_IC - diff_beta reduction, wrote by gen9_reduce_stats kernel
+    // REDUCE_STAT_NBLOCKS * PADDED_IC - diff_beta stats calculated by this kernel
+    STORE_FLOAT_1x16(&temp_reduce[PADDED_IC + mb_sp_idx * 16], diff_gamma[0]);
+    STORE_FLOAT_1x16(
+            &temp_reduce[2 * PADDED_IC + REDUCE_STAT_NBLOCKS * PADDED_IC
+                    + mb_sp_idx * 16],
             diff_beta[0]);
 #endif // FUSED_ATOMICS_REDUCTION
 }
@@ -300,7 +301,7 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
     const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_shift, c);
 #else
     const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(
-            diff_shift, IC16 + REDUCE_STAT_NBLOCKS * IC16 + c);
+            diff_shift, PADDED_IC + REDUCE_STAT_NBLOCKS * PADDED_IC + c);
 #endif // #if DIFF_SHIFT == 1
 #endif // #if CALCULATE_DIFF_STATS == 1
 

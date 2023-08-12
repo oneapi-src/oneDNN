@@ -64,14 +64,14 @@ bool use_fused_atomics_reduction(bnorm_conf_t &conf, engine_t *engine) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     const size_t sp = conf.mb * conf.id * conf.ih * conf.iw;
-    return gpu_arch >= compute::gpu_arch_t::xe_hpc && conf.ic % 16 == 0
-            && sp / conf.ic > 40;
+    return gpu_arch >= compute::gpu_arch_t::xe_hpc
+            && conf.ic % conf.sub_group_size == 0 && sp / conf.ic > 40;
 }
 
 size_t get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
     // Returns size of SLM buffer of nhwc stat calculation kernels.
-    const size_t base_size
-            = utils::div_up(conf.ic_block, 16) * lws[0] * lws[1] * lws[2];
+    const size_t base_size = utils::div_up(conf.ic_block, conf.sub_group_size)
+            * lws[0] * lws[1] * lws[2];
     if (conf.use_stats_one_pass) {
         return 2 * base_size * 2 * sizeof(float);
     } else {
@@ -108,7 +108,7 @@ void adjust_lws_calc_kernel(
     const size_t *base_lws = generated_nd.local_range();
 
     size_t tuned_lws[3], curr_lws[3];
-    curr_lws[0] = tuned_lws[0] = 16; // Assuming IC is dim 0
+    curr_lws[0] = tuned_lws[0] = conf.sub_group_size; // Assuming IC is dim 0
     curr_lws[1] = tuned_lws[1] = base_lws[1];
     curr_lws[2] = tuned_lws[2] = base_lws[2];
 
@@ -142,9 +142,9 @@ void adjust_lws_calc_kernel(
     conf.dispatch_calc_stat.set_lws(tuned_lws);
 }
 
-int get_nhwc_ic_block(int ic, int max_ocl_vect_size = 8) {
-    const int nblocks = ic / (max_ocl_vect_size * 16);
-    return nblocks < 2 || (ic / nblocks) % 16 ? ic : ic / nblocks;
+int get_nhwc_ic_block(int ic, int sg_size, int max_ocl_vect_size = 8) {
+    const int nblocks = ic / (max_ocl_vect_size * sg_size);
+    return nblocks < 2 || (ic / nblocks) % sg_size ? ic : ic / nblocks;
 }
 
 int get_nhwc_vect_size(int ic, int max_vect_size, int simd = 16) {
@@ -315,6 +315,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     // TODO: remove it after fixing the issue
     conf.use_workaround = conf.data_type == data_type::f32
             && gpu_arch == compute::gpu_arch_t::xe_hpg;
+    conf.sub_group_size = 16;
 
     // Flags string for lookup table
     if (pd->use_scale()) conf.flags += 'C';
@@ -348,7 +349,9 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     if (conf.nhwc_optimized) {
         if (!conf.is_overrided_ic_block) {
-            conf.ic_block = get_nhwc_ic_block(utils::rnd_up(conf.ic, 16));
+            conf.ic_block = get_nhwc_ic_block(
+                    utils::rnd_up(conf.ic, conf.sub_group_size),
+                    conf.sub_group_size);
         }
     } else {
         conf.ic_block = 16;
@@ -374,20 +377,22 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         return status::unimplemented;
 
     conf.calc_stat_ic = conf.nhwc_optimized
-            ? utils::div_up(conf.ic, conf.ic_block) * 16
+            ? utils::div_up(conf.ic, conf.ic_block) * conf.sub_group_size
             : utils::rnd_up(conf.ic, 16);
 
     auto eu_count = compute_engine->device_info()->eu_count();
     auto threads_per_eu
             = compute::device_info_t::threads_per_eu(gpu_arch, false);
     const dim_t max_sp_block_size = get_block_size(conf.is_backward, eu_count,
-            conf.nn, utils::rnd_up(conf.ic, 16), conf.sp);
+            conf.nn, utils::rnd_up(conf.ic, conf.sub_group_size), conf.sp,
+            conf.sub_group_size);
 
     if (conf.nn == 1)
         if (conf.nhwc_optimized) {
             if (!conf.is_overrided_stat_sp_block) {
-                conf.stat_sp_block = get_nhwc_sp_block_size(
-                        conf.sp, conf.calc_stat_ic, eu_count, threads_per_eu);
+                conf.stat_sp_block
+                        = get_nhwc_sp_block_size(conf.sp, conf.calc_stat_ic,
+                                eu_count, threads_per_eu, conf.sub_group_size);
             }
         } else {
             conf.stat_sp_block = max_sp_block_size;
@@ -416,16 +421,17 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     conf.reduce_stat_nblocks = conf.nn * conf.stat_sp_nblocks;
 
-    conf.vect_size = conf.nhwc_optimized
-            ? get_nhwc_vect_size(conf.ic_block, conf.max_vect_size)
-            : 8;
+    conf.vect_size = conf.nhwc_optimized ? get_nhwc_vect_size(conf.ic_block,
+                             conf.max_vect_size, conf.sub_group_size)
+                                         : 8;
 
     conf.dispatch_calc_stat = compute_engine->create_dispatch();
     conf.dispatch_calc_stat.define_dim("STAT_MB", 0, conf.nn);
     conf.dispatch_calc_stat.define_dim("STAT_SP", 1, conf.stat_sp_nblocks);
     conf.dispatch_calc_stat.define_dim_with_nesting_level(
             "STAT_IC", 1024, conf.calc_stat_ic);
-    CHECK(conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16));
+    CHECK(conf.dispatch_calc_stat.vectorize_dim(
+            "STAT_IC", conf.sub_group_size));
     conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
     conf.dispatch_calc_stat.generate();
     if (conf.use_fused_atomics_reduction) {
@@ -438,14 +444,15 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch_reduce_stat = compute_engine->create_dispatch();
     int reduce_sub_group_count = 1;
     while (conf.reduce_stat_nblocks % (2 * reduce_sub_group_count) == 0
-            && 2 * reduce_sub_group_count * 16 <= 256) {
+            && 2 * reduce_sub_group_count * conf.sub_group_size <= 256) {
         reduce_sub_group_count = reduce_sub_group_count * 2;
     }
-    conf.stat_ic = reduce_sub_group_count * 16;
+    conf.stat_ic = reduce_sub_group_count * conf.sub_group_size;
     conf.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", 0, conf.stat_ic);
-    conf.dispatch_reduce_stat.define_dim(
-            "REDUCE_IC_GROUP", 1, utils::rnd_up(conf.ic, 16) / 16);
-    CHECK(conf.dispatch_reduce_stat.vectorize_dim("REDUCE_STAT_IC", 16));
+    conf.dispatch_reduce_stat.define_dim("REDUCE_IC_GROUP", 1,
+            utils::rnd_up(conf.ic, conf.sub_group_size) / conf.sub_group_size);
+    CHECK(conf.dispatch_reduce_stat.vectorize_dim(
+            "REDUCE_STAT_IC", conf.sub_group_size));
     conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
     conf.dispatch_reduce_stat.generate();
 
@@ -458,7 +465,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             conf.nhwc_optimized ? conf.update_sp_nblocks
                                 : sp_pad / conf.vect_size);
     conf.dispatch.define_dim_with_nesting_level("IC", 1024, conf.calc_stat_ic);
-    CHECK(conf.dispatch.vectorize_dim("IC", 16));
+    CHECK(conf.dispatch.vectorize_dim("IC", conf.sub_group_size));
     conf.dispatch.generate();
 
     conf.dispatch_reduce_aux = compute_engine->create_dispatch(data_mdw.md_);
@@ -476,7 +483,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("IC", conf.ic);
-    kernel_ctx.define_int("IC16", utils::rnd_up(conf.ic, 16));
+    kernel_ctx.define_int(
+            "PADDED_IC", utils::rnd_up(conf.ic, conf.sub_group_size));
     kernel_ctx.define_int("ID", conf.id);
     kernel_ctx.define_int("IH", conf.ih);
     kernel_ctx.define_int("IW", conf.iw);
@@ -513,9 +521,11 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("CALCULATE_DIFF_STATS", conf.calculate_diff_stats);
     kernel_ctx.define_int("DIFF_SCALE", conf.diff_scale);
     kernel_ctx.define_int("DIFF_SHIFT", conf.diff_shift);
-    kernel_ctx.define_int("REDUCE_IC_SUB_GROUPS", conf.stat_ic / 16);
+    kernel_ctx.define_int(
+            "REDUCE_IC_SUB_GROUPS", conf.stat_ic / conf.sub_group_size);
     kernel_ctx.define_int("USE_STATS_ONE_PASS", conf.use_stats_one_pass);
     kernel_ctx.define_int("NHWC_OPTIMIZED", conf.nhwc_optimized);
+    kernel_ctx.define_int("SG_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("UPDATE_SP_UNROLL", conf.update_sp_unroll);
     kernel_ctx.define_int(
             "FUSED_ATOMICS_REDUCTION", conf.use_fused_atomics_reduction);
@@ -548,7 +558,7 @@ void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     if (conf.calculate_stats) {
         size_t size_coeff = sizeof(double) / sizeof(float);
         size_t size = 2 * size_coeff * conf.reduce_stat_nblocks
-                * utils::rnd_up(conf.ic, 16);
+                * utils::rnd_up(conf.ic, conf.sub_group_size);
 
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(key_bnorm_reduction, size,
@@ -746,8 +756,8 @@ status_t gen9_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
 }
 
 void gen9_batch_normalization_bwd_t::pd_t::init_scratchpad() {
-    size_t size
-            = 2 * utils::rnd_up(conf.ic, 16) * (1 + conf.reduce_stat_nblocks);
+    size_t size = 2 * utils::rnd_up(conf.ic, conf.sub_group_size)
+            * (1 + conf.reduce_stat_nblocks);
     auto scratchpad = scratchpad_registry().registrar();
     scratchpad.book(key_bnorm_reduction, size,
             types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
