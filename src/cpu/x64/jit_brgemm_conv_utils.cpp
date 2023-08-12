@@ -1669,21 +1669,20 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         // [iw / k][kw / k][stride_w / k][ic * k]
         // TODO: check if it may go to kw lowering
         const bool pure_1d = (jcp.mb == 1 && jcp.id == 1 && jcp.ih == 1);
-        int w_koef = 1;
         auto w_koef_max = nstl::min(jcp.kw, nstl::min(jcp.stride_w, jcp.iw));
         for (int i = 1; i <= w_koef_max; i++) {
             if (IMPLICATION(!pure_1d, jcp.iw % i == 0)
                     && IMPLICATION(jcp.ic * i > jcp.simd_w,
                             (jcp.ic * i) % jcp.simd_w == 0)
                     && jcp.kw % i == 0 && jcp.stride_w % i == 0)
-                w_koef = i;
+                jcp.trans_dim_koef = i;
         }
-        if (w_koef > 1) {
-            jcp.ic_without_padding *= w_koef;
-            jcp.ic *= w_koef;
-            jcp.iw /= w_koef;
-            jcp.kw /= w_koef;
-            jcp.stride_w /= w_koef;
+        if (jcp.trans_dim_koef > 1) {
+            jcp.ic_without_padding *= jcp.trans_dim_koef;
+            jcp.ic *= jcp.trans_dim_koef;
+            jcp.iw /= jcp.trans_dim_koef;
+            jcp.kw /= jcp.trans_dim_koef;
+            jcp.stride_w /= jcp.trans_dim_koef;
             jcp.ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
             jcp.r_pad = calculate_end_padding(
                     jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, jcp.ext_kw);
@@ -1947,8 +1946,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
                             jcp.ic % jcp.simd_w == 0)))
         jcp.relo_conv_weights = false;
     //TODO: support all 3d cases
-    const bool relo_supported_shape
-            = IMPLICATION(jcp.id > 1, jcp.relo_conv_weights == false);
+    const bool relo_supported_shape = jcp.trans_dim_koef == 1
+            && IMPLICATION(jcp.id > 1, jcp.relo_conv_weights == false);
 
     const auto rnd_bd = (float)rnd_up(jcp.kw * jcp.ic, jcp.simd_w);
     const auto rnd_kwic = (float)jcp.kw * rnd_up(jcp.ic, jcp.simd_w);

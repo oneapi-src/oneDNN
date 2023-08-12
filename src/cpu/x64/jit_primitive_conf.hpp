@@ -800,6 +800,7 @@ struct jit_brgemm_conv_conf_t {
     bool tr_icb_chunk = false;
     int vnni_block {1};
     bool has_uneven_iw;
+    int trans_dim_koef {1};
 };
 
 struct jit_shuffle_conf_t {
