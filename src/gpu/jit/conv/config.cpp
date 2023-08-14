@@ -641,6 +641,8 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     auto user_dst_req = get_plain_user_tag(prb, dst_md, /*is_wei=*/false);
     bool src_axb = (user_src_req == "axb");
     bool dst_axb = (user_dst_req == "axb");
+    bool src_abx = (user_src_req == "abx");
+    bool dst_abx = (user_dst_req == "abx");
     bool src_matches = matches_tag(src_md, src_tag);
     bool dst_matches = matches_tag(dst_md, dst_tag);
     bool src_output = prb.is_bwd_d;
@@ -668,6 +670,8 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     if (user_src_tag.empty()) user_src_tag = src_tag;
     if (user_wei_tag.empty()) user_wei_tag = wei_tag;
     if (user_dst_tag.empty()) user_dst_tag = dst_tag;
+    if (src_abx && !src_matches) user_src_tag = "abx";
+    if (dst_abx && !dst_matches) user_dst_tag = "abx";
 }
 
 status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
