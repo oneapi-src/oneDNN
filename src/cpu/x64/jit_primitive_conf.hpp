@@ -689,9 +689,16 @@ struct jit_brgemm_conv_conf_t {
     int id_block, ih_block, nb_id, nb_ih;
     dim_t inp_buffer_size, inp_buffer_mask_size, out_buffer_size;
     conv_brgemm_exec_type_t exec_type;
-    bool is_relo {false};
+
     conv_brgemm_relo_type_t relo_type {conv_brgemm_relo_type_t::undefined};
     bool relo_conv_weights {true};
+    inline bool is_relo_whi() const {
+        return (relo_type == conv_brgemm_relo_type_t::whi);
+    }
+    inline bool is_relo_wi() const {
+        return (relo_type == conv_brgemm_relo_type_t::wi);
+    }
+    inline bool is_relo() const { return is_relo_whi() || is_relo_wi(); }
 
     int id, ih, iw, od, oh, ow, os, is, idp, ihp, iwp, icp, odp, ohp, owp, ocp;
     int f_pad, l_pad, t_pad;

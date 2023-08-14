@@ -326,8 +326,8 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             return status::unimplemented;
         }
     } else {
-        if (jcp.is_relo && jcp.relo_conv_weights) {
-            if (jcp.relo_type == conv_brgemm_relo_type_t::whi) {
+        if (jcp.is_relo() && jcp.relo_conv_weights) {
+            if (jcp.is_relo_whi()) {
                 if (is_1d)
                     BRGEMM_WEITAG(O, w, i, , 16o, )
                 else if (is_2d)
@@ -336,7 +336,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                     assert(!"3d not supported by relo whi");
                     return status::unimplemented;
                 }
-            } else if (jcp.relo_type == conv_brgemm_relo_type_t::wi) {
+            } else if (jcp.is_relo_wi()) {
                 if (is_1d)
                     BRGEMM_WEITAG(O, w, i, , 16o, )
                 else if (is_2d)
@@ -417,7 +417,7 @@ void brg_blocking_t::select_ic_block() {
     const auto padded_rd
             = vnni_block * (is_rd_padded_to_block ? acc_simd_w : 1);
     if (is_amx(isa)) {
-        const auto kw_koef = relo_type == conv_brgemm_relo_type_t::wi ? kw : 1;
+        const auto kw_koef = is_relo() ? kw : 1;
         if (kd * kh * ic * src_dsz > 8 * 1024) {
             // For huge ic try to split it by equal ic_blocks
             const auto max_ic_block
@@ -495,7 +495,7 @@ void brg_blocking_t::select_ic_block() {
                 exec_type == exec_trans ? rnd_up(ic, padded_rd) : ic,
                 simd_blocks * simd_w);
     }
-    if (relo_type == conv_brgemm_relo_type_t::wi) {
+    if (is_relo_wi()) {
         inp_ic_block = ic;
         if (ic_block < ic) ic_block = ic;
     } else
@@ -507,7 +507,7 @@ void brg_blocking_t::select_ic_block() {
 status_t brg_blocking_t::estimate_brgemm_ur() {
     // Simple simulation of brgemm_desc init
     if (sp_block <= 0) return status::invalid_arguments;
-    const auto kh_koef = relo_type == conv_brgemm_relo_type_t::whi ? kh : 1;
+    const auto kh_koef = is_relo_whi() ? kh : 1;
     LDA = is_rtus ? (inp_ic_block)
                   : kh_koef * stride_w
                     * (exec_type == exec_trans ? inp_ic_block
@@ -528,8 +528,9 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     M_tail = brgM_tail = sp % sp_block;
     if (is_os_blocking) {
         if (!is_1x1) M_tail = (oh * ow) % sp_block;
-        oskip = reduce_kw ? 0 : ((ext_kw - 1) / stride_w) * stride_h;
-        oskip += (stride_h - 1) * ow;
+        const auto adj_sh = is_relo_whi() ? 1 : stride_h;
+        oskip = reduce_kw ? 0 : ((ext_kw - 1) / stride_w) * adj_sh;
+        oskip += (adj_sh - 1) * ow;
 
         brgM = M + oskip * (div_up(M, ow) - 1);
         brgM_tail = M_tail + oskip * div_up(M_tail, ow);
@@ -564,7 +565,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     N = oc >= oc_block ? oc_block : 0;
     N_tail = oc % oc_block;
 
-    if (relo_type == conv_brgemm_relo_type_t::wi) {
+    if (is_relo_wi()) {
         K = rnd_up(kw * (ic >= ic_block ? inp_ic_block : 0), vnni_block);
         if (vnni_block > 1 && K > simd_w) K = rnd_up(K, simd_w);
 
@@ -1791,8 +1792,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     }
 
     const auto rd_padded_block = jcp.simd_w;
-    const auto kw_koef
-            = jcp.relo_type == conv_brgemm_relo_type_t::wi ? jcp.kw : 1;
+    const auto kw_koef = jcp.is_relo_wi() ? jcp.kw : 1;
 
     jcp.is_rd_padded_to_block = !jcp.is_1x1 && one_of(jcp.wei_dt, bf16, f16, s8)
             && jcp.ic * kw_koef > rd_padded_block && is_amx(isa);
@@ -1991,7 +1991,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
     if (try_exec_type_res == false && try_exec_trans) {
         jcp.exec_type = exec_trans;
         if (try_relo) {
-            jcp.is_relo = true;
             jcp.relo_type = conv_brgemm_relo_type_t::wi;
             jcp.max_batch = jcp.kd * jcp.kh;
         }
@@ -2003,8 +2002,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
         // keep it memory
         if (jcp.loop_order == loop_ndhwgc) { jcp.copy_block_only = true; }
 
-        const auto rd_ksize = (jcp.is_relo ? jcp.kw : 1)
-                * (jcp.relo_type == conv_brgemm_relo_type_t::whi ? jcp.kh : 1);
+        const auto rd_ksize = (jcp.is_relo() ? jcp.kw : 1)
+                * (jcp.is_relo_whi() ? jcp.kh : 1);
         jcp.is_rd_padded_to_block = one_of(jcp.wei_dt, bf16, f16, s8)
                 && jcp.ic * rd_ksize > rd_padded_block;
 
@@ -2013,7 +2012,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
                 && jcp.r_pad < jcp.kw && jcp.l_pad < jcp.kw;
 
         if (is_amx(isa)
-                && IMPLICATION(!jcp.is_relo,
+                && IMPLICATION(!jcp.is_relo(),
                         /* heuristic */ jcp.ow < 256)) {
             jcp.use_M_mask = jcp.is_os_blocking ? 2 : 0;
             jcp.use_uker = true;
@@ -2107,9 +2106,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
             hs = div_up(rnd_up(hs * jcp.iwp, jcp.brgM), jcp.iwp)
                     + jcp.kh * (jcp.dilate_h + 1);
 
-        jcp.inp_buffer_size = rnd_up(
-                (jcp.relo_type == conv_brgemm_relo_type_t::whi ? jcp.kh : 1)
-                        * ds * hs * jcp.iwp * jcp.ngroups * jcp.nb_ic * jcp.LDA,
+        jcp.inp_buffer_size = rnd_up((jcp.is_relo_whi() ? jcp.kh : 1) * ds * hs
+                        * jcp.iwp * jcp.ngroups * jcp.nb_ic * jcp.LDA,
                 P4K);
 
         jcp.inp_buffer_mask_size = rnd_up(static_cast<dim_t>(jcp.nb_od)
@@ -2147,7 +2145,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
             && !everyone_is(0, jcp.t_pad, jcp.back_pad, jcp.f_pad, jcp.b_pad,
                     jcp.l_pad, jcp.r_pad);
     //TODO: Enable src zp w/ padding when using relo_conv_weights
-    if (compensation_w_padding && jcp.is_relo && jcp.relo_conv_weights)
+    if (compensation_w_padding && jcp.is_relo() && jcp.relo_conv_weights)
         return status::unimplemented;
 
     // For padding shapes, we calculate the comp along with the computation
@@ -2403,7 +2401,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_conv_brgemm_inp_buffer_mask, inp_buffer_mask_size,
                 sizeof(uint8_t), 0, P4K);
     }
-    if (jcp.relo_type == conv_brgemm_relo_type_t::wi) {
+    if (jcp.is_relo_wi()) {
         const auto wei_buffer_size = rnd_up((size_t)jcp.ngroups * jcp.nb_oc
                         * jcp.kh
                         * rnd_up(jcp.kw * jcp.ic,

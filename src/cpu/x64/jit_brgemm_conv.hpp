@@ -77,7 +77,6 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
         int ndims {0};
         int rd {0};
-        bool is_relo_whi {false};
 
         // batch sizes info for unrolled kernels
         int bs_c;
@@ -109,12 +108,10 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         inline int get_bs(int kd_b, int kd_e, int kh_b, int kh_e) const {
             const auto kd_l = nstl::min(KD_BLOCK, kd_e - kd_b);
             const auto kh_l = nstl::min(KH_BLOCK, kh_e - kh_b);
-            const auto is_relo_whi
-                    = (jcp_.relo_type == conv_brgemm_relo_type_t::whi);
-            const auto is_relo_wi
-                    = (jcp_.relo_type == conv_brgemm_relo_type_t::wi);
-            const auto bs
-                    = kd_l * (is_relo_whi ? 1 : (kh_l * (is_relo_wi ? 1 : KW)));
+            const auto bs = kd_l
+                    * (jcp_.is_relo_whi()
+                                    ? 1
+                                    : (kh_l * (jcp_.is_relo_wi() ? 1 : KW)));
             return bs;
         }
 
