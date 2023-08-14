@@ -346,6 +346,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     typecast_data->append_decision_function(
                             check_output_dtype<graph::data_type::bf16>);
 
@@ -368,6 +370,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
                     pm::pb_op_t *typecast_weight
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_weight, 0)});
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     typecast_weight->append_decision_function(
                             check_output_dtype<graph::data_type::bf16>);
 
@@ -423,6 +427,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
                     auto popt_tcout_qout_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *ptc_out = popt_tcout_qout_graph->append_op(
                             graph::op_kind::TypeCast);
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     ptc_out->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     ptc_out->append_decision_function(
@@ -450,6 +456,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     typecast_data->append_decision_function(
                             check_output_dtype<graph::data_type::bf16>);
 
@@ -472,6 +480,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                     pm::pb_op_t *typecast_weight
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_weight, 0)});
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     typecast_weight->append_decision_function(
                             check_output_dtype<graph::data_type::bf16>);
 
@@ -528,6 +538,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                     auto popt_tcout_qout_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *ptc_out = popt_tcout_qout_graph->append_op(
                             graph::op_kind::TypeCast);
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     ptc_out->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     ptc_out->append_decision_function(
@@ -584,11 +596,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_post_ops)
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     typecast_data->append_decision_function(
                             check_output_dtype<graph::data_type::bf16>);
                     pm::pb_op_t *typecast_weight
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_weight, 0)});
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     typecast_weight->append_decision_function(
                             check_output_dtype<graph::data_type::bf16>);
                     pm::pb_op_t *convolution
@@ -632,6 +648,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_post_ops)
                     auto popt_tcout_qout_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *ptc_out = popt_tcout_qout_graph->append_op(
                             graph::op_kind::TypeCast);
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     ptc_out->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     ptc_out->append_decision_function(
@@ -697,6 +715,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_post_ops)
                     auto popt_tc_graph = std::make_shared<pb_graph_t>();
                     auto ptc = popt_tc_graph->append_op(
                             graph::op_kind::TypeCast);
+                    // TODO: remove bf16 datatype check when all float point
+                    // datatypes are enabled
                     ptc->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     ptc->append_decision_function(
