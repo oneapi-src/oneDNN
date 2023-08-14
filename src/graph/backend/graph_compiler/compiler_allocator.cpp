@@ -16,6 +16,7 @@
 #include <memory>
 
 #include "compiler_allocator.hpp"
+#include "runtime/runtime.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -28,13 +29,42 @@ using namespace gc::runtime;
 
 using sc_engine_t = gc::runtime::engine_t;
 
+compiler_graph_engine_t::compiler_graph_engine_t(
+        gc::runtime::engine_vtable_t *vtable, graph::engine_t *engine,
+        const std::shared_ptr<engine_ref_data> &engine_ref_data_ptr)
+    : gc::runtime::engine_t {vtable}
+    , engine_ {engine}
+    , engine_ref_data_ptr_ {engine_ref_data_ptr} {
+    engine_->retain();
+}
+
+compiler_graph_engine_t::~compiler_graph_engine_t() {
+    std::lock_guard<std::mutex> lock(engine_ref_data_ptr_->global_mutex);
+    gc::release_runtime_memory(this);
+    for (auto iter = engine_ref_data_ptr_->engine_map.begin();
+            iter != engine_ref_data_ptr_->engine_map.end();) {
+        if (iter->second.lock() == nullptr) {
+            iter = engine_ref_data_ptr_->engine_map.erase(iter);
+        } else {
+            ++iter;
+        }
+    }
+    engine_->release();
+}
+
 static void *compiler_graph_global_alloc(sc_engine_t *eng, size_t sz) {
-    return static_cast<compiler_graph_engine_t *>(eng)->allocator_->allocate(
+    allocator_t *alloc = static_cast<allocator_t *>(
+            static_cast<compiler_graph_engine_t *>(eng)
+                    ->engine_->get_allocator());
+    return alloc->allocate(
             sz, {allocator_t::mem_type_t::persistent, ALLOCATOR_ALIGNMENT});
 }
 
 static void compiler_graph_global_free(sc_engine_t *eng, void *p) {
-    static_cast<compiler_graph_engine_t *>(eng)->allocator_->deallocate(p);
+    allocator_t *alloc = static_cast<allocator_t *>(
+            static_cast<compiler_graph_engine_t *>(eng)
+                    ->engine_->get_allocator());
+    alloc->deallocate(p);
 }
 
 #if 0

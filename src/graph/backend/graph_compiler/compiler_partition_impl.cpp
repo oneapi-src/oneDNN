@@ -252,18 +252,20 @@ graph::status_t compiler_partition_impl_t::compile(
 
         COMPILE_ASSERT(aengine->kind() == graph::engine_kind_t::dnnl_cpu,
                 "Graph compiler backend only supports cpu engine");
-        gc::context_ptr ctx;
-        ctx = gc::get_default_context();
+        static gc::context_ptr ctx
+                = std::make_shared<gc::context_t>(*gc::get_default_context());
         std::shared_ptr<compiler_graph_engine_t> graph_engine;
         {
             std::lock_guard<std::mutex> lock(engine_ref_data_ptr->global_mutex);
             auto iter = engine_ref_data_ptr->engine_map.find(aengine);
             if (iter != engine_ref_data_ptr->engine_map.end()) {
-                graph_engine = iter->second;
-            } else {
+                graph_engine = iter->second.lock();
+            }
+            if (!graph_engine) {
                 graph_engine = std::make_shared<compiler_graph_engine_t>(
                         &graph_engine_vtable,
-                        static_cast<allocator_t *>(aengine->get_allocator()));
+                        const_cast<graph::engine_t *>(aengine),
+                        engine_ref_data_ptr);
                 engine_ref_data_ptr->engine_map[aengine] = graph_engine;
             }
         }
@@ -302,8 +304,7 @@ graph::status_t compiler_partition_impl_t::compile(
 
         auto pimpl = std::make_shared<compiler_compiled_partition_impl_t>(
                 *aengine, inputs, outputs, fptr, graph_engine,
-                std::move(dyn_inputs), std::move(dyn_outputs),
-                engine_ref_data_ptr);
+                std::move(dyn_inputs), std::move(dyn_outputs));
         compiled_partition->init(pimpl);
         return res;
     } catch (...) { return graph::status::unimplemented; }
@@ -333,39 +334,14 @@ compiler_compiled_partition_impl_t::compiler_compiled_partition_impl_t(
         const std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
                 &graph_engine,
         std::vector<gc::runtime::dynamic_tensor_t> &&dyn_inputs,
-        std::vector<gc::runtime::dynamic_tensor_t> &&dyn_outputs,
-        const std::shared_ptr<engine_ref_data> &engine_ref_data_ptr)
+        std::vector<gc::runtime::dynamic_tensor_t> &&dyn_outputs)
     : graph::compiled_partition_impl_t(engine, inputs, outputs, {})
     , jit_func_(jit_func)
     , graph_engine_(graph_engine)
     , dyn_inputs_(std::move(dyn_inputs))
-    , dyn_outputs_(std::move(dyn_outputs))
-    , engine_ref_data_ptr_(engine_ref_data_ptr) {
-    std::lock_guard<std::mutex> lock(engine_ref_data_ptr_->global_mutex);
-    engine_ref_data_ptr_->partition_count_map[graph_engine_]++;
-    graph_engine_->allocator_->retain();
-}
+    , dyn_outputs_(std::move(dyn_outputs)) {}
 
-compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
-    std::lock_guard<std::mutex> lock(engine_ref_data_ptr_->global_mutex);
-    auto itr = engine_ref_data_ptr_->partition_count_map.find(graph_engine_);
-    if (itr != engine_ref_data_ptr_->partition_count_map.end()) {
-        itr->second--;
-        if (itr->second == 0) {
-            gc::release_runtime_memory(graph_engine_.get());
-            for (auto iter = engine_ref_data_ptr_->engine_map.begin();
-                    iter != engine_ref_data_ptr_->engine_map.end();) {
-                if (iter->second == graph_engine_) {
-                    iter = engine_ref_data_ptr_->engine_map.erase(iter);
-                } else {
-                    ++iter;
-                }
-            }
-        }
-    }
-    jit_func_ = nullptr;
-    graph_engine_->allocator_->release();
-}
+compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {}
 
 graph::status_t compiler_compiled_partition_impl_t::execute(
         const graph::stream_t *astream,

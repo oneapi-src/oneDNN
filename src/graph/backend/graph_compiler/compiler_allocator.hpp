@@ -31,11 +31,23 @@ namespace impl {
 namespace graph {
 namespace compiler_impl {
 
+struct compiler_graph_engine_t;
+
+struct engine_ref_data {
+    std::unordered_map<const graph::engine_t *,
+            std::weak_ptr<graph::compiler_impl::compiler_graph_engine_t>>
+            engine_map;
+    std::mutex global_mutex;
+};
+
 struct compiler_graph_engine_t : public gc::runtime::engine_t {
-    allocator_t *allocator_;
-    compiler_graph_engine_t(
-            gc::runtime::engine_vtable_t *vtable, allocator_t *allocator)
-        : gc::runtime::engine_t {vtable}, allocator_ {allocator} {}
+    graph::engine_t *engine_;
+    std::shared_ptr<engine_ref_data> engine_ref_data_ptr_;
+    compiler_graph_engine_t(gc::runtime::engine_vtable_t *vtable,
+            graph::engine_t *engine,
+            const std::shared_ptr<engine_ref_data> &engine_ref_data_ptr);
+
+    ~compiler_graph_engine_t();
 };
 
 struct compiler_graph_stream_t : public gc::runtime::stream_t {

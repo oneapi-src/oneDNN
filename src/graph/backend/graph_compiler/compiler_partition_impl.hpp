@@ -38,16 +38,6 @@ namespace impl {
 namespace graph {
 namespace compiler_impl {
 
-struct engine_ref_data {
-    std::unordered_map<
-            std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>, int>
-            partition_count_map;
-    std::unordered_map<const graph::engine_t *,
-            std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>>
-            engine_map;
-    std::mutex global_mutex;
-};
-
 class compiler_partition_impl_t : public partition_impl_t {
     friend class compiler_backend_t;
 
@@ -136,8 +126,7 @@ public:
             const std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
                     &graph_engine,
             std::vector<gc::runtime::dynamic_tensor_t> &&dyn_inputs,
-            std::vector<gc::runtime::dynamic_tensor_t> &&dyn_outputs,
-            const std::shared_ptr<engine_ref_data> &engine_ref_data_ptr);
+            std::vector<gc::runtime::dynamic_tensor_t> &&dyn_outputs);
     virtual ~compiler_compiled_partition_impl_t();
     graph::status_t execute(const graph::stream_t *astream,
             const std::vector<graph::tensor_t> &inputs,
@@ -158,7 +147,6 @@ private:
     std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
             graph_engine_;
     std::vector<gc::runtime::dynamic_tensor_t> dyn_inputs_, dyn_outputs_;
-    const std::shared_ptr<engine_ref_data> engine_ref_data_ptr_;
 };
 
 } // namespace compiler_impl
