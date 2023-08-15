@@ -1413,7 +1413,11 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
 
         bool kernel_init = (osc == ti->os_c_start);
 
-        bool is_os_tail = jbgp.mb - n < jbgp.os_block * jbgp.nb_os_blocking;
+        auto nb_os_b
+                = nstl::min((jbgp.mb - n) / jbgp.os_block, jbgp.nb_os_blocking);
+
+        bool is_bs_tail = nb_os_b != jbgp.nb_os_blocking;
+        bool is_os_tail = is_bs_tail && (jbgp.mb - n) % jbgp.os_block != 0;
         bool is_ic_tail = jbgp.ic - ic < jbgp.ic_block;
         bool is_oc_tail = jbgp.oc - oc < jbgp.oc_block;
         const int oc_chunk_tail = jbgp.oc % oc_chunk_sz;
@@ -1439,10 +1443,6 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                 : jbgp.use_buffer_a
                         && ocb == ti->oc_c_start * jbgp.nb_oc_blocking;
 
-        auto nb_os_b = is_os_tail ? (jbgp.mb - n) / jbgp.os_block
-                                  : jbgp.nb_os_blocking;
-
-        auto is_bs_tail = (nb_os_b != jbgp.nb_os_blocking);
         const int brg_ker_idx
                 = brgemm_inner_product_utils::get_brg_kernel_index(
                         is_bs_tail, kernel_init, is_ic_tail, is_oc_tail, false);
