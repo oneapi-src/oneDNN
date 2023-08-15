@@ -406,7 +406,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     // create proper DST memory if it was dropped from original map.
     const bool inplace_fwd = prb->inplace && (prb->dir & FLAG_FWD);
     if (inplace_fwd) {
-        const auto &dst_md = ref_mem_map.at(DNNL_ARG_SRC).md_;
+        const auto &dst_md = mem_map.at(DNNL_ARG_SRC).md_;
         ref_mem_map[DNNL_ARG_DST]
                 = dnn_mem_t(dst_md, dnnl_f32, tag::abx, ref_engine);
     }
