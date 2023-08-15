@@ -432,13 +432,13 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     DEBUG({
         printf("init : ");
-        prb_dump(prb);
+        prb_dump(p);
     });
     // Sort the prb array in increasing sizes of the output stride
     prb_normalize(p);
     DEBUG({
         printf("norm : ");
-        prb_dump(prb);
+        prb_dump(p);
     });
 
     // compensation strides require prb_normalized
@@ -449,7 +449,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     prb_simplify(p);
     DEBUG({
         printf("smpl : ");
-        prb_dump(prb);
+        prb_dump(p);
     });
 
     return success;
