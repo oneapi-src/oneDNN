@@ -105,14 +105,13 @@ full dimension is along the `n`-axis:
 Run single precision batched matrix multiplication with strides so that `dst` tensor
 has non-dense memory layout:
 ``` sh
-    ./benchdnn --matmul --strides=8x4x1:24x6x1:21x7x1 3x2x4:3x4x6:3x2x6
+    ./benchdnn --matmul --strides=8x4x1:24x6x1:21x7x1 3x2x4:3x4x6
 ```
 
 or
 ``` sh
-    ./benchdnn --matmul \
-               --stag=bax --wtag=abx --strides=::8x4x1 \
-               2x2x3:2x3x2:2x2x2 # --dtag cannot be specified here
+    # --dtag cannot be specified here
+    ./benchdnn --matmul --stag=bax --wtag=abx --strides=::8x4x1 2x2x3:2x3x2
 ```
 
 More examples with different driver options can be found at
