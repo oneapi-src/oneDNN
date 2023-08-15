@@ -278,7 +278,7 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
         nd_iterator_init(
                 start, b, bgmmc.batch, mc, M_chunks, nc, bgmmc.N_chunks);
         int mc_prev = -1;
-        int nc_prev = -1;
+        int nb_prev = -1;
         int b_prev = -1;
         while (start < end) {
             auto m_start = mc * M_chunk_size;
@@ -290,7 +290,7 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             int kc_prev = -1;
             for_(int kc = kc_start; kc < kc_end; kc++)
             for (int nb = n_start; nb < n_end; nb++) {
-                const bool skip_copy_b = nc_prev == nc && kc_prev == kc
+                const bool skip_copy_b = nb_prev == nb && kc_prev == kc
                         && (b_prev == b
                                 || bgmmc.bcast_B_desc
                                            .bcast_across_all_batch_dims);
@@ -307,9 +307,9 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                             kc == kc_start, prev_ker_idx);
                 }
                 kc_prev = kc;
+                nb_prev = nb;
             }
             mc_prev = mc;
-            nc_prev = nc;
             b_prev = b;
             ++start;
             nd_iterator_step(b, bgmmc.batch, mc, M_chunks, nc, bgmmc.N_chunks);
