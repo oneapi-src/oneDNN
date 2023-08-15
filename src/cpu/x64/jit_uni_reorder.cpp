@@ -753,7 +753,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             // transposition on the fly
             const bool fast_return = prb_.src_scale_type != scale_type_t::MANY
                     && prb_.dst_scale_type != scale_type_t::MANY
-                    && prb_.beta == 0.f;
+                    && prb_.beta == 0.f && !prb_.req_src_zp && !prb_.req_dst_zp;
             if (fast_return) {
                 if (prb_.src_scale_type == scale_type_t::COMMON)
                     for (int ur = 0; ur < reg_unroll; ur += load_step)
