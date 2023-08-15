@@ -24,6 +24,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 using namespace bn_lookup_table;
+using namespace dnnl::impl::utils;
 
 // Gets bnorm parameters from BN_PARAMS env value
 // Only used during tuning procedure, BN_TUNING env var must be set
@@ -38,7 +39,7 @@ void maybe_override_bn_conf_params_env(bnorm_conf_t &conf) {
 // BN_TUNING env var must be unset or zero;
 void maybe_override_bn_conf_params_table(bnorm_conf_t &conf, engine_t *engine) {
     assert(!conf.bn_tuning);
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     static bnorm_lookup_table_t table;
     auto *s_params = table.find(conf, gpu_arch);
@@ -61,7 +62,7 @@ void maybe_override_bn_conf_params(bnorm_conf_t &conf, engine_t *engine) {
 bool use_fused_atomics_reduction(bnorm_conf_t &conf, engine_t *engine) {
     // Currently the fused atomics reduction is targeting to PVC only.
     // Heuristics experimentally selected, based on PVC perf data
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     const size_t sp = conf.mb * conf.id * conf.ih * conf.iw;
     return gpu_arch >= compute::gpu_arch_t::xe_hpc
@@ -70,8 +71,8 @@ bool use_fused_atomics_reduction(bnorm_conf_t &conf, engine_t *engine) {
 
 size_t get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
     // Returns size of SLM buffer of nhwc stat calculation kernels.
-    const size_t base_size = utils::div_up(conf.ic_block, conf.sub_group_size)
-            * lws[0] * lws[1] * lws[2];
+    const size_t base_size = div_up(conf.ic_block, conf.sub_group_size) * lws[0]
+            * lws[1] * lws[2];
     if (conf.use_stats_one_pass) {
         return 2 * base_size * 2 * sizeof(float);
     } else {
@@ -83,7 +84,7 @@ size_t get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
 inline float get_ss_utilization(int max_ss, const size_t *gws, size_t *lws) {
     const size_t gws_size = gws[0] * gws[1] * gws[2];
     const size_t lws_size = lws[0] * lws[1] * lws[2];
-    const size_t used_ss = utils::div_up(gws_size, lws_size);
+    const size_t used_ss = div_up(gws_size, lws_size);
     return (float)used_ss / max_ss;
 }
 inline float get_thr_utilization(
@@ -95,11 +96,11 @@ inline float get_thr_utilization(
 // Local group size adjustment.
 void adjust_lws_calc_kernel(
         bnorm_conf_t &conf, engine_t *engine, bool large_grf_mode) {
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto eu_count = compute_engine->device_info()->eu_count();
     auto max_lws = compute_engine->device_info()->max_wg_size(large_grf_mode);
     auto eus_per_ss = compute_engine->device_info()->max_eus_per_wg();
-    const int max_ss = utils::div_up(eu_count, eus_per_ss);
+    const int max_ss = div_up(eu_count, eus_per_ss);
 
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     const int max_slm_size = compute::device_info_t::max_slm_size(gpu_arch);
@@ -171,14 +172,14 @@ int get_nhwc_sp_block_size(
     // Higher priority for cases with peak EUs utilization.
     while (nthr_mul <= 32) {
         const int nthr = nthr_mul * eu_count;
-        curr_block_size = utils::div_up(sp * ic_nsg, nthr);
-        const int nblock = utils::div_up(sp, curr_block_size);
+        curr_block_size = div_up(sp * ic_nsg, nthr);
+        const int nblock = div_up(sp, curr_block_size);
         const int nthr_gen = nblock * ic_nsg;
 
         const float curr_efficiency_eus
-                = (float)nthr_gen / utils::rnd_up(nthr_gen, eu_count);
-        const float curr_efficiency_thr = (float)nthr_gen
-                / utils::rnd_up(nthr_gen, eu_count * threads_per_eu);
+                = (float)nthr_gen / rnd_up(nthr_gen, eu_count);
+        const float curr_efficiency_thr
+                = (float)nthr_gen / rnd_up(nthr_gen, eu_count * threads_per_eu);
 
         if (curr_efficiency_thr > efficiency_thr) {
             efficiency_thr = curr_efficiency_thr;
@@ -203,15 +204,14 @@ int get_block_size(bool is_backward, int hw_threads, int nn, int ic,
     const int align_size = is_backward ? 8 : 16;
     while (true) {
         const int nof_blocks
-                = nstl::max(utils::rnd_dn(hw_thread_mult * simd, ic) / ic, 1);
-        const int min_block_size
-                = utils::rnd_up(work_size, nof_blocks) / nof_blocks;
-        const int curr_block_size = utils::rnd_up(min_block_size, align_size);
+                = nstl::max(rnd_dn(hw_thread_mult * simd, ic) / ic, 1);
+        const int min_block_size = rnd_up(work_size, nof_blocks) / nof_blocks;
+        const int curr_block_size = rnd_up(min_block_size, align_size);
         const int nof_blocks_generated
-                = utils::rnd_up(work_size, curr_block_size) / curr_block_size;
+                = rnd_up(work_size, curr_block_size) / curr_block_size;
         const int threads_generated = nof_blocks_generated * ic / simd;
         const float curr_thread_efficiency = float(threads_generated * nn)
-                / float(utils::rnd_up(threads_generated * nn, hw_threads));
+                / float(rnd_up(threads_generated * nn, hw_threads));
         if (curr_thread_efficiency > thread_efficiency) {
             thread_efficiency = curr_thread_efficiency;
             block_size = curr_block_size;
@@ -260,7 +260,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     set_offsets(data_mdw, off.src_off);
 
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
 
     conf.mb_block = 1;
@@ -350,8 +350,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     if (conf.nhwc_optimized) {
         if (!conf.is_overrided_ic_block) {
             conf.ic_block = get_nhwc_ic_block(
-                    utils::rnd_up(conf.ic, conf.sub_group_size),
-                    conf.sub_group_size);
+                    rnd_up(conf.ic, conf.sub_group_size), conf.sub_group_size);
         }
     } else {
         conf.ic_block = 16;
@@ -377,14 +376,14 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         return status::unimplemented;
 
     conf.calc_stat_ic = conf.nhwc_optimized
-            ? utils::div_up(conf.ic, conf.ic_block) * conf.sub_group_size
-            : utils::rnd_up(conf.ic, 16);
+            ? div_up(conf.ic, conf.ic_block) * conf.sub_group_size
+            : rnd_up(conf.ic, 16);
 
     auto eu_count = compute_engine->device_info()->eu_count();
     auto threads_per_eu
             = compute::device_info_t::threads_per_eu(gpu_arch, false);
     const dim_t max_sp_block_size = get_block_size(conf.is_backward, eu_count,
-            conf.nn, utils::rnd_up(conf.ic, conf.sub_group_size), conf.sp,
+            conf.nn, rnd_up(conf.ic, conf.sub_group_size), conf.sp,
             conf.sub_group_size);
 
     if (conf.nn == 1)
@@ -398,8 +397,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             conf.stat_sp_block = max_sp_block_size;
         }
     else
-        conf.stat_sp_block
-                = nstl::min(utils::rnd_up(conf.sp, 16), max_sp_block_size);
+        conf.stat_sp_block = nstl::min(rnd_up(conf.sp, 16), max_sp_block_size);
 
     if (!conf.is_overrided_update_sp_block) {
         conf.update_sp_block = conf.stat_sp_block;
@@ -410,14 +408,14 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     assert((conf.sp % conf.update_sp_block) % conf.update_sp_unroll == 0);
 
     conf.stat_sp_nblocks
-            = utils::rnd_up(conf.sp, conf.stat_sp_block) / conf.stat_sp_block;
+            = rnd_up(conf.sp, conf.stat_sp_block) / conf.stat_sp_block;
     conf.stat_sp_tail
-            = utils::rnd_dn(conf.sp, conf.stat_sp_block) / conf.stat_sp_block;
+            = rnd_dn(conf.sp, conf.stat_sp_block) / conf.stat_sp_block;
 
-    conf.update_sp_nblocks = utils::rnd_up(conf.sp, conf.update_sp_block)
-            / conf.update_sp_block;
-    conf.update_sp_tail = utils::rnd_dn(conf.sp, conf.update_sp_block)
-            / conf.update_sp_block;
+    conf.update_sp_nblocks
+            = rnd_up(conf.sp, conf.update_sp_block) / conf.update_sp_block;
+    conf.update_sp_tail
+            = rnd_dn(conf.sp, conf.update_sp_block) / conf.update_sp_block;
 
     conf.reduce_stat_nblocks = conf.nn * conf.stat_sp_nblocks;
 
@@ -435,8 +433,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
     conf.dispatch_calc_stat.generate();
     if (conf.use_fused_atomics_reduction) {
-        auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
-                pd->attr()->gpu_attr_.get());
+        auto *gpu_attr
+                = downcast<gpu_primitive_attr_t *>(pd->attr()->gpu_attr_.get());
         bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
         adjust_lws_calc_kernel(conf, compute_engine, large_grf_mode);
     }
@@ -450,14 +448,14 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.stat_ic = reduce_sub_group_count * conf.sub_group_size;
     conf.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", 0, conf.stat_ic);
     conf.dispatch_reduce_stat.define_dim("REDUCE_IC_GROUP", 1,
-            utils::rnd_up(conf.ic, conf.sub_group_size) / conf.sub_group_size);
+            rnd_up(conf.ic, conf.sub_group_size) / conf.sub_group_size);
     CHECK(conf.dispatch_reduce_stat.vectorize_dim(
             "REDUCE_STAT_IC", conf.sub_group_size));
     conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
     conf.dispatch_reduce_stat.generate();
 
-    const int sp_pad = utils::rnd_up(conf.sp, conf.vect_size);
-    conf.sp_tail = utils::rnd_dn(conf.sp, conf.vect_size);
+    const int sp_pad = rnd_up(conf.sp, conf.vect_size);
+    conf.sp_tail = rnd_dn(conf.sp, conf.vect_size);
 
     conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
     conf.dispatch.define_dim("MB", 0, conf.nn);
@@ -483,8 +481,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("IC", conf.ic);
-    kernel_ctx.define_int(
-            "PADDED_IC", utils::rnd_up(conf.ic, conf.sub_group_size));
+    kernel_ctx.define_int("PADDED_IC", rnd_up(conf.ic, conf.sub_group_size));
     kernel_ctx.define_int("ID", conf.id);
     kernel_ctx.define_int("IH", conf.ih);
     kernel_ctx.define_int("IW", conf.iw);
@@ -558,7 +555,7 @@ void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     if (conf.calculate_stats) {
         size_t size_coeff = sizeof(double) / sizeof(float);
         size_t size = 2 * size_coeff * conf.reduce_stat_nblocks
-                * utils::rnd_up(conf.ic, conf.sub_group_size);
+                * rnd_up(conf.ic, conf.sub_group_size);
 
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(key_bnorm_reduction, size,
@@ -756,7 +753,7 @@ status_t gen9_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
 }
 
 void gen9_batch_normalization_bwd_t::pd_t::init_scratchpad() {
-    size_t size = 2 * utils::rnd_up(conf.ic, conf.sub_group_size)
+    size_t size = 2 * rnd_up(conf.ic, conf.sub_group_size)
             * (1 + conf.reduce_stat_nblocks);
     auto scratchpad = scratchpad_registry().registrar();
     scratchpad.book(key_bnorm_reduction, size,
