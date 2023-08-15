@@ -570,17 +570,19 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
 
         for (int iod = 0; iod < jcp_.od; iod++) {
             const int iid = iod * SD - FP;
-            const int kd_s = div_up(max(0, -iid), DD);
-            const int kd_f
-                    = KD - div_up(max(0, iid - ID + (KD - 1) * DD + 1), DD);
+            const int kd_s = div_up(nstl::max(0, -iid), DD);
+            const int kd_f = KD
+                    - div_up(nstl::max(0, iid - ID + (KD - 1) * DD + 1), DD);
             const auto kd_l = nstl::min(KD_BLOCK, kd_f - kd_s);
             for (int ioh = 0; ioh < jcp_.oh; ioh++) {
 
                 const auto iih = ioh * SH - TP;
-                const auto kh_s
-                        = jcp_.is_os_blocking ? 0 : div_up(max(0, -iih), DH);
-                const auto kh_f
-                        = KH - div_up(max(0, iih - IH + (KH - 1) * DH + 1), DH);
+                const auto kh_s = jcp_.is_os_blocking
+                        ? 0
+                        : div_up(nstl::max(0, -iih), DH);
+                const auto kh_f = KH
+                        - div_up(
+                                nstl::max(0, iih - IH + (KH - 1) * DH + 1), DH);
                 const auto kh_l = nstl::min(KH_BLOCK, kh_f - kh_s);
                 const auto bs = kd_l
                         * (jcp_.relo_type == conv_brgemm_relo_type_t::whi
@@ -1122,10 +1124,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
             const auto oh_end = nstl::min(OH, oh_begin + jcp.oh_block);
             for (int oh = oh_begin; oh < oh_end; oh++) {
                 const auto iih = ndims_pick(oh * SH - TP, oh * SH - TP, 0);
-                const auto kh_s_ = div_up(max(0, -iih), DH);
+                const auto kh_s_ = div_up(nstl::max(0, -iih), DH);
                 const auto kh_s = ndims_pick(kh_s_, kh_s_, 0);
-                const auto kh_f_
-                        = KH - div_up(max(0, iih - IH + (KH - 1) * DH + 1), DH);
+                const auto kh_f_ = KH
+                        - div_up(
+                                nstl::max(0, iih - IH + (KH - 1) * DH + 1), DH);
                 const auto kh_f = ndims_pick(kh_f_, kh_f_, 1);
                 oh_kh_b[oh] = kh_s;
                 oh_kh_e[oh] = kh_f;
@@ -1189,14 +1192,17 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
                 const int iid = ndims_pick(od * SD - FP, 0, 0);
                 const int kd_s
                         = ndims_pick(div_up(nstl::max(0, -iid), DD), 0, 0);
-                const int kd_f = ndims_pick(
-                        KD - div_up(max(0, iid - ID + (KD - 1) * DD + 1), DD),
+                const int kd_f = ndims_pick(KD
+                                - div_up(nstl::max(0,
+                                                 iid - ID + (KD - 1) * DD + 1),
+                                        DD),
                         1, 1);
                 const int iih = ndims_pick(oh * SH - TP, oh * SH - TP, 0);
-                const auto kh_s_ = div_up(max(0, -iih), DH);
+                const auto kh_s_ = div_up(nstl::max(0, -iih), DH);
                 const auto kh_s = ndims_pick(kh_s_, kh_s_, 0);
-                const auto kh_f_
-                        = KH - div_up(max(0, iih - IH + (KH - 1) * DH + 1), DH);
+                const auto kh_f_ = KH
+                        - div_up(
+                                nstl::max(0, iih - IH + (KH - 1) * DH + 1), DH);
                 const auto kh_f = ndims_pick(kh_f_, kh_f_, 1);
                 _pd->get_kw_range(ow, kw_s, kw_full_s, kw_full_f, kw_f);
                 if (kd_f > kd_s && kh_f > kh_s && kw_f > kw_s) {
@@ -1876,12 +1882,13 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
         int ih_s {0}, ih_f {0};
         if (jcp.kh_sets > 1) {
             assert(!jcp.is_os_blocking);
-            ih_s = max(0, TP - oh * SH - kh * DH);
-            ih_f = max(0, (oh + jcp.oh_block - 1) * SH + kh * DH - TP + 1 - IH);
+            ih_s = nstl::max(0, TP - oh * SH - kh * DH);
+            ih_f = nstl::max(
+                    0, (oh + jcp.oh_block - 1) * SH + kh * DH - TP + 1 - IH);
 
-            cp.h_count = max(0, jcp.oh_block);
-            inp_offset_start
-                    = base_inp_offset_start + max(ih_s, ih_start) * src_w_sz;
+            cp.h_count = nstl::max(0, jcp.oh_block);
+            inp_offset_start = base_inp_offset_start
+                    + nstl::max(ih_s, ih_start) * src_w_sz;
             // inp_buffer has physical padding
             out_offset_start = base_out_offset_start
                     + kh * jcp.kw_sets * jcp.inp_ic_block;
@@ -1892,10 +1899,10 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
             // TODO: extend M_mask (may be different for different kh) to avoid copying
             // top/bottom padded rows and avoid extra calculations in kernel
             // also for convolutions with pw == 0 the copy routine maybe not needed
-            ih_s = jcp.is_os_blocking ? max(0, -virt_ih_start) : 0;
-            ih_f = jcp.is_os_blocking ? max(0, virt_ih_end - IH) : 0;
+            ih_s = jcp.is_os_blocking ? nstl::max(0, -virt_ih_start) : 0;
+            ih_f = jcp.is_os_blocking ? nstl::max(0, virt_ih_end - IH) : 0;
 
-            cp.h_count = max(0, rows_to_copy) + ih_s + ih_f;
+            cp.h_count = nstl::max(0, rows_to_copy) + ih_s + ih_f;
             inp_offset_start = base_inp_offset_start + ih_start * src_w_sz;
             // inp_buffer has physical padding
             out_offset_start = base_out_offset_start - ih_s * _pd->pbuf_w_sz;
@@ -1946,14 +1953,16 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
     const int ow = btc.owb * jcp.ow_block; \
     const int oh = btc.ohb * jcp.oh_block; \
     const int iid = ndims_pick(btc.od * SD - FP, 0, 0); \
-    const int kd_s = ndims_pick(div_up(max(0, -iid), DD), 0, 0); \
+    const int kd_s = ndims_pick(div_up(nstl::max(0, -iid), DD), 0, 0); \
     const int kd_f = ndims_pick( \
-            KD - div_up(max(0, iid - ID + (KD - 1) * DD + 1), DD), 1, 1); \
+            KD - div_up(nstl::max(0, iid - ID + (KD - 1) * DD + 1), DD), 1, \
+            1); \
     const auto kd_l = kd_f - kd_s; \
     const auto iih = ndims_pick(btc.oh * SH - TP, btc.oh * SH - TP, 0); \
-    const auto kh_s_ = div_up(max(0, -iih), DH); \
+    const auto kh_s_ = div_up(nstl::max(0, -iih), DH); \
     const auto kh_s = jcp.is_os_blocking ? 0 : ndims_pick(kh_s_, kh_s_, 0); \
-    const auto kh_f_ = KH - div_up(max(0, iih - IH + (KH - 1) * DH + 1), DH); \
+    const auto kh_f_ \
+            = KH - div_up(nstl::max(0, iih - IH + (KH - 1) * DH + 1), DH); \
     const auto kh_f = ndims_pick(kh_f_, kh_f_, 1); \
     const auto kh_l = kh_f - kh_s; \
     const bool is_oc_tail = (jcp.oc - oc < jcp.oc_block); \

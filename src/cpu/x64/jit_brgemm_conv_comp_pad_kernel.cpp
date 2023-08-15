@@ -273,7 +273,7 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::kw_loop_trans(const int icb,
 
     for (int ow = 0; ow < jcp_.ow; ow++) {
         const auto iiw = ow * jcp_.stride_w - jcp_.l_pad;
-        const auto kw_s = div_up(max(0, -iiw), DW);
+        const auto kw_s = div_up(nstl::max(0, -iiw), DW);
         const auto kw_f = jcp_.kw
                 - div_up(nstl::max(0, iiw - jcp_.iw + (jcp_.kw - 1) * DW + 1),
                         DW);

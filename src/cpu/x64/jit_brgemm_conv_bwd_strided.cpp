@@ -1053,7 +1053,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::maybe_trans_inp(int ithr,
             / jcp.stride_d;
     od_end = od_start + jcp.od_block;
 
-    const auto rows_to_copy = min(jcp.oh, oh_end) - max(0, oh_start);
+    const auto rows_to_copy = min(jcp.oh, oh_end) - nstl::max(0, oh_start);
     cp.iwb = iwb;
     cp.oc = oc;
     const auto ow_buf = ow;
@@ -1061,16 +1061,16 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::maybe_trans_inp(int ithr,
 
     cp.t_pad = 0;
     cp.b_pad = 0;
-    cp.h_count = max(0, rows_to_copy);
+    cp.h_count = nstl::max(0, rows_to_copy);
 
-    const auto oh_buf = max(0, oh_start);
+    const auto oh_buf = nstl::max(0, oh_start);
 
     inp_offset_start = static_cast<dim_t>(n) * src_d_sz
-            + max(0, oh_start) * src_w_sz
-            + max(0, ow) * jcp.ngroups * jcp.oc_without_padding + g_oc;
+            + nstl::max(0, oh_start) * src_w_sz
+            + nstl::max(0, ow) * jcp.ngroups * jcp.oc_without_padding + g_oc;
     out_offset_start = oh_buf * pbuf_w_sz + ow_buf * jcp.oc_block;
 
-    for (int od = max(0, od_start); od < min(jcp.od, od_end); od++) {
+    for (int od = nstl::max(0, od_start); od < min(jcp.od, od_end); od++) {
         const auto inp_offset = inp_offset_start + od * src_h_sz;
         const auto od_buf = od;
         const auto out_offset = out_offset_start + od_buf * pbuf_h_sz;

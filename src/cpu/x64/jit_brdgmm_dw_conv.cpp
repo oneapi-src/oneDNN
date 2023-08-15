@@ -598,7 +598,7 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             jcp.id, jcp.od, jcp.kd, jcp.stride_d, jcp.f_pad, jcp.back_pad, 1);
     const int n_w_blks = w_blk_info.n_lpad_blks;
     const int n_h_blks = h_blk_info.n_lpad_blks
-            + max(0, jcp.oh - h_blk_info.rpad_blk_start_idx);
+            + nstl::max(0, jcp.oh - h_blk_info.rpad_blk_start_idx);
 
     const int w_shift = jcp.ow_block * jcp.stride_w;
     const int rpad_0

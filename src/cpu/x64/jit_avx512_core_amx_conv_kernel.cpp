@@ -1269,7 +1269,7 @@ int jit_avx512_core_amx_fwd_kernel_t::get_zp_index_offset(
         int index, int mid, int s_pad_output, int e_pad_output) {
     using namespace nstl;
     const int mid_end = e_pad_output - 1;
-    int zp_mid = min(mid, max(0, index - mid_end));
+    int zp_mid = nstl::min(mid, nstl::max(0, index - mid_end));
     int zp_pad_offset
             = accum_with_upper_bound(index, s_pad_output, e_pad_output);
     return zp_pad_offset + zp_mid;
@@ -1309,7 +1309,7 @@ size_t jit_avx512_core_amx_fwd_kernel_t::reduce_to_blocked_dims(
     int s_pad_area_blk = rnd_up(s_pad_limit, block_size);
 
     // middle (no padding)
-    int no_pad_area = max(
+    int no_pad_area = nstl::max(
             0, dim_size - rnd_up(s_pad_output, block_size) - e_pad_output);
     int no_pad_limit = (no_pad_area >= block_size ? block_size : 0);
 
@@ -1320,7 +1320,7 @@ size_t jit_avx512_core_amx_fwd_kernel_t::reduce_to_blocked_dims(
     // middle and end padding shift
     int e_pad_shift_limit
             = no_pad_area_shift + min(e_pad_output, e_pad_area_overlap);
-    int e_pad_area_blk = max(0, e_pad_output - e_pad_area_overlap);
+    int e_pad_area_blk = nstl::max(0, e_pad_output - e_pad_area_overlap);
     // full end padding block
     int e_pad_limit = reduce_to_block(block_size, e_pad_area_blk);
 
