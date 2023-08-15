@@ -55,10 +55,11 @@ struct reorder_impl_key_t {
     }
 
 private:
-    enum { MAX_DT_NUM = 10 };
     size_t value() const {
-        return ((size_t)ndims * MAX_DT_NUM + (size_t)src_dt) * MAX_DT_NUM
-                + (size_t)dst_dt;
+        const size_t dtm = data_type::data_type_max;
+        const size_t m1 = static_cast<size_t>(ndims) * dtm;
+        const size_t m2 = (m1 + static_cast<size_t>(src_dt)) * dtm;
+        return m2 + static_cast<size_t>(dst_dt);
     }
 };
 

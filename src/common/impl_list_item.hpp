@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,12 +34,12 @@ struct pk_dt_impl_key_t {
     }
 
 private:
-    enum { MAX_DT_NUM = 10 };
     size_t value() const {
-        return (((size_t)kind * MAX_DT_NUM + (size_t)src_dt) * MAX_DT_NUM
-                       + (size_t)wei_dt)
-                * MAX_DT_NUM
-                + (size_t)dst_dt;
+        const size_t dtm = data_type::data_type_max;
+        const size_t m1 = static_cast<size_t>(kind) * dtm;
+        const size_t m2 = (m1 + static_cast<size_t>(src_dt)) * dtm;
+        const size_t m3 = (m2 + static_cast<size_t>(wei_dt)) * dtm;
+        return m3 + static_cast<size_t>(dst_dt);
     }
 };
 

@@ -154,6 +154,7 @@ const data_type_t s32 = dnnl_s32;
 const data_type_t s8 = dnnl_s8;
 const data_type_t u8 = dnnl_u8;
 const data_type_t boolean = dnnl_boolean;
+const data_type_t data_type_max = dnnl_data_type_max;
 
 // Not exposed through API as all current uses are internal only
 const data_type_t tf32 = static_cast<data_type_t>(1 << 8);
