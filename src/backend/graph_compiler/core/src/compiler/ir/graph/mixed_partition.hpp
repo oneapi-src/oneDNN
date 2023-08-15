@@ -249,7 +249,8 @@ struct mixed_parti_t : fusion_partition_t {
     mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op,
             const dep_mat_ptr &dep_m);
 
-    bool is_ok_to_add(sc_op *op, const op_dep_matrix_t &g);
+    bool is_ok_to_add(
+            sc_op *op, const op_dep_matrix_t &g, const context_ptr &ctx);
 
     void add(const sc_op_ptr &op);
 

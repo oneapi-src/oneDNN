@@ -1941,8 +1941,9 @@ mixed_parti_t::mixed_parti_t(
     committed_ops_.emplace_back(op);
 }
 
-bool mixed_parti_t::is_ok_to_add(sc_op *op, const op_dep_matrix_t &g) {
-    if (merged_to) { return get_root()->is_ok_to_add(op, g); }
+bool mixed_parti_t::is_ok_to_add(
+        sc_op *op, const op_dep_matrix_t &g, const context_ptr &ctx) {
+    if (merged_to) { return get_root()->is_ok_to_add(op, g, ctx); }
     if (empty()) { return false; }
     if (!fusion_partition_t::is_ok_to_add(op, g)) {
         SC_MODULE_INFO << op->op_name_ << "_" << op->logical_op_id_
@@ -1953,7 +1954,8 @@ bool mixed_parti_t::is_ok_to_add(sc_op *op, const op_dep_matrix_t &g) {
     }
     // currently, disable tunable op commit into parallel for_loop.
     if (op->isa<tunable_op_t>()
-            && contain_op_with_type<ops::managed_matmul_core_op_t>())
+            && (contain_op_with_type<ops::managed_matmul_core_op_t>()
+                    || !ctx->flags_.coarse_grain_fusion_))
         return false;
     if (auto reo = op->dyn_cast<reorder_op_t>()) {
         if (reo->get_inputs()[0]->uses_.size() > 1) return false;
@@ -2408,7 +2410,7 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                 if (cur_in_partition
                         && !in->producer_owner_->attrs_.get_or_else(
                                 op_attr_key::break_post_fuse, false)
-                        && cur_in_partition->is_ok_to_add(op.get(), dep)
+                        && cur_in_partition->is_ok_to_add(op.get(), dep, ctx)
                         && in->producer_owner_->attrs_.get_or_else(
                                    "constant", const_kind::not_const)
                                 == const_kind::not_const) {
@@ -2959,8 +2961,10 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
         if (do_partition(ctx, graph, dep, op_2_partition)) break;
     }
 
-    std::vector<crossover_alg> algs
-            = {horizontal_crossover, parallel_crossover, vertical_crossover};
+    std::vector<crossover_alg> algs = ctx->flags_.coarse_grain_fusion_
+            ? std::vector<crossover_alg> {horizontal_crossover,
+                    parallel_crossover, vertical_crossover}
+            : std::vector<crossover_alg> {};
     crossover_partition(op_2_partition, algs);
 
     std::vector<sc_op_ptr> fused_ops;

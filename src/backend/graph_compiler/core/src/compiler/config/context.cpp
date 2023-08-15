@@ -208,6 +208,8 @@ context_ptr get_default_context() {
         parse_value(env_names[SC_INDEX2VAR], flags.index2var_);
         parse_value(env_names[SC_PRINT_IR], flags.print_ir_);
         parse_value(env_names[SC_MIXED_FUSION], flags.mixed_fusion_);
+        parse_value(
+                env_names[SC_COARSE_GRAIN_FUSION], flags.coarse_grain_fusion_);
         parse_value(env_names[SC_COST_MODEL], flags.use_cost_model_);
         parse_value(env_names[SC_SSA_PASSES], flags.ssa_passes_);
         parse_value(

@@ -54,6 +54,7 @@ struct scflags_t {
     std::string graph_dump_results_;
     bool value_check_ = false;
     bool mixed_fusion_ = true;
+    bool coarse_grain_fusion_ = true;
     bool use_cost_model_ = true;
     bool debug_info_ = false;
     bool xbyak_jit_save_obj_ = false;
