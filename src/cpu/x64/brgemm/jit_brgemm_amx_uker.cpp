@@ -802,8 +802,6 @@ void jit_brgemm_amx_uker_base_t::read_params() {
 }
 
 void jit_brgemm_amx_uker_base_t::load_accumulators(brgemm_iteration_t &bi) {
-    if (bi.skip_accumulation) return;
-
     size_t ils_shift = 0;
     if (may_load_accumulators_) {
         mov(reg_stride_ld_block, LDC_size_);
@@ -1903,14 +1901,12 @@ void jit_brgemm_amx_uker_base_t::rdb_loop(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::bs_loop_body(brgemm_iteration_t &bi) {
-    if (!bi.skip_accumulation) {
-        if (brg.brgattr.var_bs) {
-            set_A_B_matrices();
-            add(reg_aux1_batch, sizeof(brgemm_batch_element_t));
-            prefetcht0(ptr[reg_aux1_batch]);
-        } else {
-            set_A_B_matrices(bi.bsi->pos);
-        }
+    if (brg.brgattr.var_bs) {
+        set_A_B_matrices();
+        add(reg_aux1_batch, sizeof(brgemm_batch_element_t));
+        prefetcht0(ptr[reg_aux1_batch]);
+    } else {
+        set_A_B_matrices(bi.bsi->pos);
     }
 
     rdb_loop(bi);
@@ -1945,11 +1941,12 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
         }
     }
 
-    load_accumulators(bi);
     if (bi.skip_accumulation) {
         store_accumulators(bi);
         return;
     }
+
+    load_accumulators(bi);
 
     if (brg.brgattr.var_bs) {
         if (brg.alpha != 0.f) {
@@ -2257,11 +2254,12 @@ void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
             brg.bdb2
                     - (actual_ils(bi.apply_postops, bi.skip_accumulation) ? 1
                                                                           : 0));
-    ununroll_bd_loop = brg.brgattr.hint_ununroll_bd_loop
-            && (brg.brgattr.max_bs == 1 || brg.type == brgemm_static_offs)
-            && !brg.brgattr.var_bs && bdb2_to_unroll > 1 && bi.skip_accumulation
+    ununroll_bd_loop = brg.brgattr.hint_ununroll_bd_loop && bdb2_to_unroll > 1
             && (brg.innermost_loop == brgemm_ld_loop_innermost || brg.ldb2 == 1)
-            && get_store_by_vectors(bi.apply_postops);
+            && get_store_by_vectors(bi.apply_postops)
+            && IMPLICATION(!bi.skip_accumulation,
+                    (brg.brgattr.max_bs == 1 || brg.type == brgemm_static_offs)
+                            && !brg.brgattr.var_bs);
     if (brg.type == brgemm_static_offs && !bi.skip_accumulation) {
         if (brg.layout == brgemm_row_major) {
             mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
