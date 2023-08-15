@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2023 Intel Corporation
+* Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -359,11 +360,6 @@ using pooling_test_s8 = pooling_test_t<int8_t>;
 using pooling_test_u8 = pooling_test_t<uint8_t>;
 using pooling_test_s32 = pooling_test_t<int32_t>;
 using pool_test_params_float = pool_test_params_t;
-
-// Since ACL supports only forward, to avoid triggering workspace check which is not available.
-#if DNNL_AARCH64_USE_ACL
-#define forward_training forward_inference
-#endif
 
 // sizes with explicit opposite side paddings
 #define EXPAND_SIZES_3D_XPADD(...) \
