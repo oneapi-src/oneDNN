@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEN9_BATCH_NORMALIZATION_HPP
-#define GPU_OCL_GEN9_BATCH_NORMALIZATION_HPP
+#ifndef GPU_OCL_NHWC_BATCH_NORMALIZATION_HPP
+#define GPU_OCL_NHWC_BATCH_NORMALIZATION_HPP
 
 #include "common/experimental.hpp"
 #include "common/primitive.hpp"
@@ -31,7 +31,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
+struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_batch_normalization_fwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,
@@ -39,10 +39,10 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
             : gpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(impl_name(), gen9_batch_normalization_fwd_t);
+        DECLARE_COMMON_PD_T(impl_name(), nhwc_batch_normalization_fwd_t);
 
         const char *impl_name() const {
-            return conf.use_stats_one_pass ? "ocl:gen9:onepass" : "ocl:gen9";
+            return conf.use_stats_one_pass ? "ocl:nhwc:onepass" : "ocl:nhwc";
         }
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -98,11 +98,11 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         std::vector<const char *> kernel_names
                 = {nullptr, nullptr, nullptr, nullptr, nullptr};
 
-        kernel_names[0] = "gen9_bnorm_fwd";
+        kernel_names[0] = "gen9_bnorm_fwd_nhwc";
 
         if (pd()->conf.calculate_stats) {
             if (pd()->conf.use_stats_one_pass) {
-                kernel_names[1] = "gen9_calc_mean_var";
+                kernel_names[1] = "gen9_calc_mean_var_nhwc";
                 if (!pd()->conf.use_fused_atomics_reduction) {
                     kernel_names[2] = "gen9_reduce_mean_var";
                 } else {
@@ -110,8 +110,8 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
                     kernel_names[3] = "gen9_fused_reduce_final";
                 }
             } else { // regular algorithm
-                kernel_names[1] = "gen9_calc_mean";
-                kernel_names[2] = "gen9_calc_variance";
+                kernel_names[1] = "gen9_calc_mean_nhwc";
+                kernel_names[2] = "gen9_calc_variance_nhwc";
                 if (!pd()->conf.use_fused_atomics_reduction) {
                     kernel_names[3] = "gen9_reduce_mean";
                     kernel_names[4] = "gen9_reduce_variance";
@@ -168,7 +168,7 @@ private:
     compute::kernel_t reduce_final_kernel_;
 };
 
-struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
+struct nhwc_batch_normalization_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_batch_normalization_bwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,
@@ -176,9 +176,9 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
             : gpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(impl_name(), gen9_batch_normalization_bwd_t);
+        DECLARE_COMMON_PD_T(impl_name(), nhwc_batch_normalization_bwd_t);
 
-        const char *impl_name() const { return "ocl:blocked"; }
+        const char *impl_name() const { return "ocl:nhwc"; }
 
         status_t init(engine_t *engine) {
             auto *compute_engine
@@ -229,8 +229,8 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
         std::vector<const char *> kernel_names
                 = {nullptr, nullptr, nullptr, nullptr};
 
-        kernel_names[0] = "gen9_bnorm_bwd";
-        kernel_names[1] = "gen9_calculate_stats";
+        kernel_names[0] = "gen9_bnorm_bwd_nhwc";
+        kernel_names[1] = "gen9_calculate_stats_nhwc";
         if (pd()->conf.use_fused_atomics_reduction) {
             kernel_names[2] = "gen9_fused_reduce_init";
             kernel_names[3] = "gen9_fused_reduce_final";
@@ -272,4 +272,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_OCL_GEN9_BATCH_NORMALIZATION_HPP
+#endif // GPU_OCL_NHWC_BATCH_NORMALIZATION_HPP

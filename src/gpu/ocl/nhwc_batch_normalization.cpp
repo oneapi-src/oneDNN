@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/gen9_batch_normalization.hpp"
+#include "gpu/ocl/nhwc_batch_normalization.hpp"
 #include "gpu/ocl/batch_normalization_utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -49,7 +49,6 @@ static size_t get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
                                : 2 * base_size * sizeof(float);
     }
 }
-
 // Local group size adjustment.
 static void adjust_lws_calc_kernel(
         bnorm_conf_t &conf, engine_t *engine, bool large_grf_mode) {
@@ -100,30 +99,57 @@ static void adjust_lws_calc_kernel(
     conf.dispatch_calc_stat.set_lws(tuned_lws);
 }
 
-static int get_block_size(bool is_backward, int hw_threads, int nn, int ic,
-        int work_size, int simd = 16) {
-    int block_size = 256;
-    float thread_efficiency = 0;
-    int hw_thread_mult = hw_threads;
-    const int align_size = is_backward ? 8 : 16;
+static int get_nhwc_ic_block(int ic, int sg_size, int max_ocl_vect_size = 8) {
+    const int nblocks = ic / (max_ocl_vect_size * sg_size);
+    return nblocks < 2 || (ic / nblocks) % sg_size ? ic : ic / nblocks;
+}
+
+static int get_nhwc_vect_size(int ic, int max_vect_size, int simd = 16) {
+    int vect_size = max_vect_size;
     while (true) {
-        const int nof_blocks
-                = nstl::max(rnd_dn(hw_thread_mult * simd, ic) / ic, 1);
-        const int min_block_size = rnd_up(work_size, nof_blocks) / nof_blocks;
-        const int curr_block_size = rnd_up(min_block_size, align_size);
-        const int nof_blocks_generated
-                = rnd_up(work_size, curr_block_size) / curr_block_size;
-        const int threads_generated = nof_blocks_generated * ic / simd;
-        const float curr_thread_efficiency = float(threads_generated * nn)
-                / float(rnd_up(threads_generated * nn, hw_threads));
-        if (curr_thread_efficiency > thread_efficiency) {
-            thread_efficiency = curr_thread_efficiency;
-            block_size = curr_block_size;
-        }
-        if (curr_thread_efficiency == 1.0 || curr_block_size <= 256) { break; }
-        hw_thread_mult += hw_threads;
+        if (ic / (vect_size * simd)) return vect_size;
+        vect_size /= 2;
     }
-    return block_size;
+    return 1;
+}
+
+static int get_nhwc_sp_block_size(
+        int sp, int ic_dim, int eu_count, int threads_per_eu, int simd = 16) {
+
+    float efficiency_thr = 0.0f;
+    float efficiency_peak_eu_thr = 0.0f;
+    int block_size_thr = 1;
+    int block_size_peak_eu_thr = 1;
+    int curr_block_size = sp;
+    int nthr_mul = 1;
+    const int ic_nsg = ic_dim / simd; // number of subgroups by ic dim
+
+    // The search is based on threads wave efficiency.
+    // Higher priority for cases with peak EUs utilization.
+    while (nthr_mul <= 32) {
+        const int nthr = nthr_mul * eu_count;
+        curr_block_size = div_up(sp * ic_nsg, nthr);
+        const int nblock = div_up(sp, curr_block_size);
+        const int nthr_gen = nblock * ic_nsg;
+
+        const float curr_efficiency_eus
+                = (float)nthr_gen / rnd_up(nthr_gen, eu_count);
+        const float curr_efficiency_thr
+                = (float)nthr_gen / rnd_up(nthr_gen, eu_count * threads_per_eu);
+
+        if (curr_efficiency_thr > efficiency_thr) {
+            efficiency_thr = curr_efficiency_thr;
+            block_size_thr = curr_block_size;
+        }
+        if (curr_efficiency_eus == 1
+                && curr_efficiency_thr > efficiency_peak_eu_thr) {
+            efficiency_peak_eu_thr = curr_efficiency_thr;
+            block_size_peak_eu_thr = curr_block_size;
+        }
+        nthr_mul++;
+    }
+    if (efficiency_peak_eu_thr > 0.0f) return block_size_peak_eu_thr;
+    return block_size_thr;
 }
 
 static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
@@ -138,19 +164,17 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
 
-    conf.nhwc_optimized = false;
+    // nhwc-optimized implemntation does not support ic tail processing yet
+    // and was tuned for XeHPG+ only
+    conf.nhwc_optimized = conf.ic % 16 == 0
+            && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
+            && gpu_arch >= compute::gpu_arch_t::xe_hpg;
+    if (!conf.nhwc_optimized) return status::unimplemented;
 
     conf.mb_block = 1;
 
     const bool has_padding = !data_mdw.is_dense();
-    conf.is_blocked_16c
-            = data_mdw.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c);
-    conf.is_blocked_16n16c
-            = data_mdw.matches_one_of_tag(NCw16n16c, NChw16n16c, NCdhw16n16c);
-    conf.is_blocked_32n16c
-            = data_mdw.matches_one_of_tag(NCw32n16c, NChw32n16c, NCdhw32n16c);
-    conf.is_nhwc
-            = conf.ic % 8 == 0 && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc);
+    if (has_padding) return status::unimplemented;
 
     // Due to intel_sub_group_write_uc requires 16-bytes alignment,
     // IC div by 8 tail processing is not applicable to fuse_norm_relu
@@ -170,16 +194,10 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     if (conf.ic % 8 == 0 && conf.ic % 16 && conf.use_stats_one_pass)
         conf.use_stats_one_pass = false;
 
-    // Used in old universal kernels (blocked or nhwc layout)
-    // TODO: remove once IC tail processing is implemented for NHWC-optimized
-    // kernels and nhwc part is removed from universal kernels
-    conf.use_nhwc = conf.is_nhwc;
-
-    if (has_padding
-            || !(conf.is_blocked_16c || conf.is_blocked_16n16c
-                    || conf.is_blocked_32n16c || conf.is_nhwc))
-        return status::unimplemented;
-
+    // Compiler issue workaround
+    // TODO: remove it after fixing the issue
+    conf.use_workaround = conf.data_type == data_type::f32
+            && gpu_arch == compute::gpu_arch_t::xe_hpg;
     conf.sub_group_size = 16;
 
     init_flags_lookup_table(conf.flags, pd);
@@ -197,38 +215,24 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
                 = use_fused_atomics_reduction(conf, engine);
     }
 
-    conf.ic_block = 16;
-
-    conf.mb_block = conf.is_blocked_32n16c ? 32
-            : conf.is_blocked_16n16c       ? 16
-                                           : 1;
-
-    if (conf.is_nhwc) {
-        // reshape to xc
-        conf.nn = 1;
-        conf.sp = conf.mb * conf.id * conf.ih * conf.iw;
-    } else {
-        // reshape to nCx16c
-        conf.nn = conf.mb / conf.mb_block;
-        conf.sp = conf.id * conf.ih * conf.iw * conf.mb_block;
+    if (!conf.is_overrided_ic_block) {
+        conf.ic_block = get_nhwc_ic_block(
+                rnd_up(conf.ic, conf.sub_group_size), conf.sub_group_size);
     }
 
-    // The case IC==8 requires spacial dim to be even because of using one
-    // block read/write operation for 2 spacial rows at once
-    if (conf.is_nhwc && conf.ic == 8 && conf.sp % 2)
-        return status::unimplemented;
+    // reshape to xc
+    conf.sp = conf.mb * conf.id * conf.ih * conf.iw;
 
-    conf.calc_stat_ic = rnd_up(conf.ic, 16);
+    conf.calc_stat_ic = div_up(conf.ic, conf.ic_block) * conf.sub_group_size;
 
     auto eu_count = compute_engine->device_info()->eu_count();
-    const dim_t max_sp_block_size = get_block_size(conf.is_backward, eu_count,
-            conf.nn, rnd_up(conf.ic, conf.sub_group_size), conf.sp,
-            conf.sub_group_size);
+    auto threads_per_eu
+            = compute::device_info_t::threads_per_eu(gpu_arch, false);
 
-    if (conf.nn == 1)
-        conf.stat_sp_block = max_sp_block_size;
-    else
-        conf.stat_sp_block = nstl::min(rnd_up(conf.sp, 16), max_sp_block_size);
+    if (!conf.is_overrided_stat_sp_block) {
+        conf.stat_sp_block = get_nhwc_sp_block_size(conf.sp, conf.calc_stat_ic,
+                eu_count, threads_per_eu, conf.sub_group_size);
+    }
 
     if (!conf.is_overrided_update_sp_block) {
         conf.update_sp_block = conf.stat_sp_block;
@@ -248,12 +252,13 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.update_sp_tail
             = rnd_dn(conf.sp, conf.update_sp_block) / conf.update_sp_block;
 
-    conf.reduce_stat_nblocks = conf.nn * conf.stat_sp_nblocks;
+    conf.reduce_stat_nblocks = conf.stat_sp_nblocks;
 
-    conf.vect_size = 8;
+    conf.vect_size = get_nhwc_vect_size(
+            conf.ic_block, conf.max_vect_size, conf.sub_group_size);
 
     conf.dispatch_calc_stat = compute_engine->create_dispatch();
-    conf.dispatch_calc_stat.define_dim("STAT_MB", 0, conf.nn);
+    conf.dispatch_calc_stat.define_dim("STAT_MB", 0, 1);
     conf.dispatch_calc_stat.define_dim("STAT_SP", 1, conf.stat_sp_nblocks);
     conf.dispatch_calc_stat.define_dim_with_nesting_level(
             "STAT_IC", 1024, conf.calc_stat_ic);
@@ -283,12 +288,11 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
     conf.dispatch_reduce_stat.generate();
 
-    const int sp_pad = rnd_up(conf.sp, conf.vect_size);
     conf.sp_tail = rnd_dn(conf.sp, conf.vect_size);
 
     conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
-    conf.dispatch.define_dim("MB", 0, conf.nn);
-    conf.dispatch.define_dim("SP", 1, sp_pad / conf.vect_size);
+    conf.dispatch.define_dim("MB", 0, 1);
+    conf.dispatch.define_dim("SP", 1, conf.update_sp_nblocks);
     conf.dispatch.define_dim_with_nesting_level("IC", 1024, conf.calc_stat_ic);
     CHECK(conf.dispatch.vectorize_dim("IC", conf.sub_group_size));
     conf.dispatch.generate();
@@ -315,7 +319,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
 
-    kernel_ctx.define_int("USE_NHWC", conf.use_nhwc);
     kernel_ctx.define_int("SP", conf.sp);
     kernel_ctx.define_int("SP_TAIL", conf.sp_tail);
     kernel_ctx.define_int("VECT_SIZE", conf.vect_size);
@@ -353,6 +356,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("UPDATE_SP_UNROLL", conf.update_sp_unroll);
     kernel_ctx.define_int(
             "FUSED_ATOMICS_REDUCTION", conf.use_fused_atomics_reduction);
+    kernel_ctx.define_int("USE_WORKAROUND", conf.use_workaround);
 
     kernel_ctx.add_option("-cl-std=CL2.0");
     if (conf.data_type == data_type::s8)
@@ -368,16 +372,16 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-status_t gen9_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t nhwc_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
     return init_conf_common(conf, off, this, engine);
 }
 
-status_t gen9_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
+status_t nhwc_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     return init_kernel_ctx_common(kernel_ctx, conf, off);
 }
 
-void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
+void nhwc_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     if (conf.calculate_stats) {
         size_t size_coeff = sizeof(double) / sizeof(float);
         size_t size = 2 * size_coeff * conf.reduce_stat_nblocks
@@ -397,7 +401,7 @@ void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     }
 }
 
-status_t gen9_batch_normalization_fwd_t::execute_forward(
+status_t nhwc_batch_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
 
     status_t status = status::success;
@@ -569,16 +573,16 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
     return status;
 }
 
-status_t gen9_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t nhwc_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
     return init_conf_common(conf, off, this, engine);
 }
 
-status_t gen9_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
+status_t nhwc_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     return init_kernel_ctx_common(kernel_ctx, conf, off);
 }
 
-void gen9_batch_normalization_bwd_t::pd_t::init_scratchpad() {
+void nhwc_batch_normalization_bwd_t::pd_t::init_scratchpad() {
     size_t size = 2 * rnd_up(conf.ic, conf.sub_group_size)
             * (1 + conf.reduce_stat_nblocks);
     auto scratchpad = scratchpad_registry().registrar();
@@ -586,7 +590,7 @@ void gen9_batch_normalization_bwd_t::pd_t::init_scratchpad() {
             types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
 }
 
-status_t gen9_batch_normalization_bwd_t::execute_backward(
+status_t nhwc_batch_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
 
     status_t status = status::success;
