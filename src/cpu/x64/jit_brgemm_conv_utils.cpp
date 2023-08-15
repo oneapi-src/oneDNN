@@ -2563,8 +2563,8 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
         }
         nthr_ic_b = jcp.nthr / (nthr_mb * nthr_oc_b);
         nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
-    } else if (is_amx(jcp.isa) && jcp.mb <= jcp.nthr / 2 && jcp.oc >= 64
-            && jcp.ic >= 64 && jcp.ngroups == 1) {
+    } else if (is_amx(jcp.isa) && jcp.nthr < 16 && jcp.mb <= jcp.nthr / 2
+            && jcp.oc >= 64 && jcp.ic >= 64 && jcp.ngroups == 1) {
         // This heuristic is intended for usual convolutions if the minibatch
         // is much less than the number of threads: it tries to divide the
         // total amount of work into more-less 4-dimensional (by mb, g, oc, ic)
