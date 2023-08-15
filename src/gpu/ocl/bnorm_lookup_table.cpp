@@ -13,7 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include "gpu/ocl/gen9_bnorm_lookup_table.hpp"
+#include "gpu/ocl/bnorm_lookup_table.hpp"
 
 #include <string>
 #include <vector>
