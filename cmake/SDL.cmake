@@ -71,7 +71,8 @@ if(UNIX)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
         get_filename_component(CXX_CMD_NAME ${CMAKE_CXX_COMPILER} NAME)
         # Fujitsu CXX compiler does not support "-fstack-protector-all".
-        if(NOT CXX_CMD_NAME STREQUAL "FCC")
+        # The same applies to GPU targets (CUDA/HIP).
+        if(NOT (CXX_CMD_NAME STREQUAL "FCC" OR DNNL_SYCL_CUDA OR DNN_SYCL_HIP))
             append(CMAKE_CCXX_FLAGS "-fstack-protector-all")
         endif()
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
