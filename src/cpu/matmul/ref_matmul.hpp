@@ -50,23 +50,28 @@ struct ref_matmul_t : public primitive_t {
             const auto dst_type = dst_md(0)->data_type;
 
             bool ok = is_dense_format_kind()
-                    && utils::one_of(src_type, f32, bf16, f16)
-                    && utils::one_of(wei_type, f32, bf16, f16)
-                    && utils::one_of(dst_type, f32, bf16, f16)
+                    && utils::one_of(src_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
+                    && utils::one_of(wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
+                    && utils::one_of(dst_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
                     && src_type == wei_type
                     && IMPLICATION(src_type == f32, dst_type == f32)
                     && IMPLICATION(src_type == bf16,
                             utils::one_of(dst_type, f32, bf16))
                     && IMPLICATION(
                             src_type == f16, utils::one_of(dst_type, f32, f16))
+                    // TODO: any implication on allowed dst data type for fp8?
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16, f16)
+                            utils::one_of(
+                                    bia_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
                                     && IMPLICATION(
                                             src_type == f32, bia_type == f32)
                                     && IMPLICATION(src_type == f16,
                                             utils::one_of(bia_type, f32, f16))
                                     && IMPLICATION(src_type == bf16,
-                                            utils::one_of(bia_type, f32, bf16)))
+                                            utils::one_of(bia_type, f32, bf16))
+                            // TODO: any implication on allowed bias
+                            // data type for fp8?
+                            )
                     && platform::has_data_type_support(src_type)
                     && attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
