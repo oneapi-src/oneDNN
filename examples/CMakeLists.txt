@@ -61,6 +61,14 @@ if(DNNL_SYCL_CUDA)
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/shuffle.cpp)
 endif()
 
+# Remove examples for Graph API if graph component is not enabled
+if(NOT ONEDNN_BUILD_GRAPH)
+    list(REMOVE_ITEM sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_getting_started.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/sycl_getting_started.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_inference_int8.cpp)
+endif()
+
 if(DNNL_SYCL_HIP)
     # Build examples for supported primitives that support required features.
     set(sources)
