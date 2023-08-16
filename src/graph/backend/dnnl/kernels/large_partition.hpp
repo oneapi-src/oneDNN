@@ -94,7 +94,6 @@ public:
 
         BACKEND_DNNL_ADD_PASS(
                 pipeline, lift_up_weight_reshape_for_depthwiseconv);
-        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         // Fusion and canonicalization passes begin
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
@@ -110,6 +109,8 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_matmul_or_conv);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
 
         BACKEND_DNNL_ADD_PASS(pipeline, convert_bias_to_f32);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_pool);
