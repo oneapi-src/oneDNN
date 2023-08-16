@@ -38,6 +38,7 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     dnnl_data_type_t c_data_type
             = prim_dt == dnnl_s8 || prim_dt == dnnl_u8 ? prim_dt : graph_dt;
 
+    // Get memory tag of primitive memory
     int ndims = mem.ndims();
     dims_t strides(mem.strides(), mem.strides() + ndims);
     std::string mtag = strides2memory_tag(ndims, strides);
@@ -56,19 +57,31 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     // For outputs, use shape & tag from graph path for fake outputs,
     // otherwise use shape & tag from ref path side
 
-    // create memory for graph path
+    // Create memory for graph path
     const auto data_type = static_cast<dnnl::memory::data_type>(c_data_type);
     if (is_op_input) {
         if (graph_dims_.empty()) graph_dims_.push_back(1);
         if (graph_strides_.empty()) graph_strides_.push_back(1);
 
+        // create graph memory
         dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
         mem_ = dnn_mem_t(md.get(), ::get_test_engine());
 
-        const void *prim_data_handle = static_cast<void *>(mem);
-        void *graph_data_handle = mem_.get_mapped_pointer<void>();
-        const auto &mem_size = mem.size();
-        std::memcpy(graph_data_handle, prim_data_handle, mem_size);
+        const auto prim_to_graph_memcpy = [](dnn_mem_t &graph_mem,
+                                                  const dnn_mem_t &prim_mem) {
+            const void *prim_data_handle = static_cast<const void *>(prim_mem);
+            void *graph_data_handle = graph_mem.get_mapped_pointer<void>();
+            std::memcpy(graph_data_handle, prim_data_handle, graph_mem.size());
+        };
+
+        if (prim_dt != c_data_type) {
+            dnn_mem_t c_mem(
+                    ndims, mem.dims(), c_data_type, mtag, ::get_test_engine());
+            c_mem.reorder(mem);
+            prim_to_graph_memcpy(mem_, c_mem);
+        } else {
+            prim_to_graph_memcpy(mem_, mem);
+        }
     } else {
         if (is_fake_output) {
             dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
