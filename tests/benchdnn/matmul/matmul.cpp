@@ -477,6 +477,16 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+
+        // GPU doesn't support f8_e5m2/f8_e4m3.
+        const bool is_xf8 = (prb->src_dt() == dnnl_f8_e5m2
+                                    || prb->src_dt() == dnnl_f8_e4m3)
+                && (prb->wei_dt() == dnnl_f8_e5m2
+                        || prb->wei_dt() == dnnl_f8_e4m3);
+        if (is_xf8) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 }
 
