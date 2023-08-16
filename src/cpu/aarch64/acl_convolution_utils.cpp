@@ -351,7 +351,9 @@ status_t init_conf_depthwise(acl_conv_conf_t &acp, memory_desc_t &src_md,
     ACL_CHECK_VALID(arm_compute::NEDepthwiseConvolutionLayer::validate(
             &acp.src_tensor_info, &acp.wei_tensor_info,
             acp.with_bias ? &acp.bia_tensor_info : nullptr,
-            &acp.dst_tensor_info, acp.padstride_info));
+            &acp.dst_tensor_info, acp.padstride_info,
+            1, // depth multiplier default value
+            acp.act_info, acp.dilation_info));
 
     return status::success;
 }
