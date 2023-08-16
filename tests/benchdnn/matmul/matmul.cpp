@@ -423,6 +423,16 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 #endif
 
+    if (is_cpu()) {
+        // CPU doesn't support x8s8f16
+        const bool is_x8s8f16
+                = prb->wei_dt() == dnnl_s8 && prb->dst_dt() == dnnl_f16;
+        if (is_x8s8f16) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
     if (is_gpu()) {
         // GPU supports only single zero-point per tensor.
         if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
