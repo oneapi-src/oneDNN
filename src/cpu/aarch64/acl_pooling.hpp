@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,13 +28,17 @@ namespace aarch64 {
 struct acl_pooling_obj_t {
     arm_compute::NEPoolingLayer pool;
     arm_compute::Tensor src_tensor;
+    arm_compute::Tensor ws_tensor;
     arm_compute::Tensor dst_tensor;
+    bool use_ws;
 };
 
 struct acl_pooling_conf_t {
     arm_compute::PoolingLayerInfo pool_info;
     arm_compute::TensorInfo src_info;
+    arm_compute::TensorInfo ws_info;
     arm_compute::TensorInfo dst_info;
+    bool use_ws;
 };
 
 struct acl_pooling_resource_t : public resource_t {
@@ -48,8 +52,16 @@ struct acl_pooling_resource_t : public resource_t {
         acl_pooling_obj_->src_tensor.allocator()->init(app.src_info);
         acl_pooling_obj_->dst_tensor.allocator()->init(app.dst_info);
 
-        acl_pooling_obj_->pool.configure(&acl_pooling_obj_->src_tensor,
-                &acl_pooling_obj_->dst_tensor, app.pool_info);
+        if (app.use_ws) {
+            acl_pooling_obj_->ws_tensor.allocator()->init(app.ws_info);
+            acl_pooling_obj_->pool.configure(&acl_pooling_obj_->src_tensor,
+                    &acl_pooling_obj_->dst_tensor, app.pool_info,
+                    &acl_pooling_obj_->ws_tensor);
+            acl_pooling_obj_->use_ws = true;
+        } else {
+            acl_pooling_obj_->pool.configure(&acl_pooling_obj_->src_tensor,
+                    &acl_pooling_obj_->dst_tensor, app.pool_info);
+        }
 
         return status::success;
     }
@@ -92,25 +104,17 @@ struct acl_pooling_fwd_t : public primitive_t {
                     ? arm_compute::PoolingType::MAX
                     : arm_compute::PoolingType::AVG;
 
-            // Max forward training requires a worksace tensor.
-            // For this workspace tensor, oneDNN uses pool window coordinates,
-            // Whereas ACL uses absolute image coordinates.
-            // Due to this mismatch, reject max forward training cases
-            ACL_CHECK_SUPPORT(
-                    (is_max_pool
-                            && pod->prop_kind == prop_kind::forward_training),
-                    "ACL does not support training for max pooling in oneDNN");
+            // Check if workspace Tensor is needed
+            const bool ws_init = (is_max_pool
+                    && pod->prop_kind == prop_kind::forward_training);
+            app.use_ws = ws_init;
 
-            // When padding is larger than the kernel, infinite values are
-            // produced.
-            // ACL and oneDNN use different values to represent infinity
-            // which is difficult to account for, so return unimplemented.
-            // See https://github.com/oneapi-src/oneDNN/issues/1205
-            ACL_CHECK_SUPPORT(KH() <= padT() || KH() <= padB() || KW() <= padL()
-                            || KW() <= padR(),
-                    "ACL does not support pooling cases where padding >= kernel"
-                    " in oneDNN");
+            ACL_CHECK_SUPPORT(ws_init && src_md()->data_type != data_type::f32,
+                    "ACL Max pooling forward training only supports f32");
 
+            if (ws_init)
+                init_default_ws(
+                        data_type::s32); // ACL only supports U32/S32 no U8
             auto src_tag = memory_desc_matches_one_of_tag(
                     *src_md(), format_tag::nhwc, format_tag::nchw);
             auto dst_tag = memory_desc_matches_one_of_tag(
@@ -130,17 +134,32 @@ struct acl_pooling_fwd_t : public primitive_t {
             // Pooling window
             app.pool_info.pool_size = arm_compute::Size2D(KW(), KH());
             // Choose the data layout
-            bool is_nspc = utils::one_of(src_tag, format_tag::nhwc);
-            const auto acl_layout = is_nspc ? arm_compute::DataLayout::NHWC
+            bool is_nhwc = src_tag == format_tag::nhwc;
+            const auto acl_layout = is_nhwc ? arm_compute::DataLayout::NHWC
                                             : arm_compute::DataLayout::NCHW;
             app.pool_info.data_layout = acl_layout;
             const auto acl_data_t
                     = acl_utils::get_acl_data_t(src_d.data_type());
 
-            ACL_CHECK_SUPPORT(
-                    !use_acl_heuristic(MB() * IC() * OH() * OW() * KH() * KW(),
-                            dnnl_get_max_threads(), is_max_pool, is_nspc),
-                    "ACL is unoptimal in this case");
+            bool use_square_acl_kernel = !is_nhwc && KH() == KW()
+                    && (KH() == 2 || KH() == 3 || KH() == 7);
+            if (is_max_pool) {
+                ACL_CHECK_SUPPORT(
+                        !use_acl_max_pool_heuristic(
+                                MB() * IC() * OH() * OW() * KH() * KW(),
+                                dnnl_get_max_threads(), is_nhwc,
+                                use_square_acl_kernel,
+                                pod->prop_kind == prop_kind::forward_training),
+                        "ACL not used as profiling suggests that native oneDNN "
+                        "kernels are faster for this problem");
+            } else {
+                ACL_CHECK_SUPPORT(!use_acl_avg_pool_heuristic(MB() * IC() * OH()
+                                                  * OW() * KH() * KW(),
+                                          dnnl_get_max_threads(), is_nhwc,
+                                          use_square_acl_kernel),
+                        "ACL not used as profiling suggests that native oneDNN "
+                        "kernels are faster for this problem");
+            }
 
             app.pool_info.exclude_padding
                     = (alg == alg_kind::pooling_avg_exclude_padding);
@@ -149,42 +168,101 @@ struct acl_pooling_fwd_t : public primitive_t {
                     KSH(), padL(), padR(), padT(), padB(),
                     arm_compute::DimensionRoundingType::FLOOR);
 
-            app.src_info = arm_compute::TensorInfo(is_nspc
+            app.src_info = arm_compute::TensorInfo(is_nhwc
                             ? arm_compute::TensorShape(IC(), IW(), IH(), MB())
                             : arm_compute::TensorShape(IW(), IH(), IC(), MB()),
                     1, acl_data_t, acl_layout);
-            app.dst_info = arm_compute::TensorInfo(is_nspc
+            app.dst_info = arm_compute::TensorInfo(is_nhwc
                             ? arm_compute::TensorShape(OC(), OW(), OH(), MB())
                             : arm_compute::TensorShape(OW(), OH(), OC(), MB()),
                     1, acl_data_t, acl_layout);
 
-            ACL_CHECK_VALID(arm_compute::NEPoolingLayer::validate(
-                    &app.src_info, &app.dst_info, app.pool_info));
+            // Use datatype lowest property instead of using -INF
+            app.pool_info.use_inf_as_limit = false;
+
+            if (ws_init) {
+                app.ws_info = arm_compute::TensorInfo(is_nhwc
+                                ? arm_compute::TensorShape(
+                                        OC(), OW(), OH(), MB())
+                                : arm_compute::TensorShape(
+                                        OW(), OH(), OC(), MB()),
+                        1, arm_compute::DataType::U32, acl_layout);
+
+                // Return kernel indices instead of source indices.
+                app.pool_info.use_kernel_indices = true;
+                ACL_CHECK_VALID(
+                        arm_compute::NEPoolingLayer::validate(&app.src_info,
+                                &app.dst_info, app.pool_info, &app.ws_info));
+            } else {
+                ACL_CHECK_VALID(arm_compute::NEPoolingLayer::validate(
+                        &app.src_info, &app.dst_info, app.pool_info));
+            }
 
             return status::success;
         }
 
-        bool use_acl_heuristic(
-                int problem_size, int thread_count, bool is_max, bool is_nhwc) {
-            // For nhwc, ACL is faster above a certain problem size 'cutoff'
-            // This cutoff scales linearly with thread count (except 1 thread)
-            // So return true iff problem size is larger than this cutoff.
-            // Note: This rule is approximate, Not all problems follow this rule
+        // Generally, ACL is faster above a per thread problem size 'cutoff'.
+        // The value of this cutoff has been found empirically,
+        // through profiling on a Neoverse-N1 cpu.
+        // Note: This rule is approximate, Not all problems follow this rule.
+        //
+        // Parameters used in the heuristics:
+        // - problem_size: defined as mb * ic * oh * ow * kh * kw
+        // - thread_count
+        // - is_nhwc (as opposed to nchw)
+        // - use_square_acl_kernels: For nchw pooling, acl has faster kernels
+        //   for pooling window (kernel) sizes of 2x2, 3x3, or 7x7.
+        // - is_training: Max pooling training cases require a workspace tensor,
+        //   so these cases have been implemented in a seperate kernel in ACL.
+        bool use_acl_avg_pool_heuristic(int problem_size, int thread_count,
+                bool is_nhwc, bool use_square_acl_kernel) {
+            int cutoff;
             if (is_nhwc) {
-                if (is_max) {
+                if (thread_count == 1)
+                    cutoff = 200;
+                else
+                    cutoff = 4096;
+            } else {
+                if (use_square_acl_kernel) {
                     if (thread_count == 1)
-                        return problem_size > 512;
+                        cutoff = 100;
+                    else if (thread_count > 32)
+                        return false;
                     else
-                        return problem_size > 4096 * thread_count;
-                } else { // pooling_alg == avg_p || pooling_alg == avg_np
-                    if (thread_count == 1)
-                        return problem_size > 1024;
-                    else
-                        return problem_size > 8192 * thread_count;
-                }
-            } else { // memory_format == nchw
-                return false;
+                        cutoff = 2048;
+                } else
+                    return false;
             }
+            return problem_size > cutoff * thread_count;
+        }
+        bool use_acl_max_pool_heuristic(int problem_size, int thread_count,
+                bool is_nhwc, bool use_square_acl_kernel, bool is_training) {
+            int cutoff;
+            if (is_nhwc) {
+                if (thread_count == 1)
+                    cutoff = 200;
+                else {
+                    if (is_training)
+                        cutoff = 2048;
+                    else
+                        cutoff = 4096;
+                }
+            } else {
+                if (use_square_acl_kernel) {
+                    if (thread_count == 1)
+                        cutoff = 100;
+                    else
+                        cutoff = 1024;
+                } else {
+                    if (thread_count == 1)
+                        return true;
+                    else if (thread_count > 16)
+                        return false;
+                    else
+                        cutoff = 25000;
+                }
+            }
+            return problem_size > cutoff * thread_count;
         }
 
         acl_pooling_conf_t app;
