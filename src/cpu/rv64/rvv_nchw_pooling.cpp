@@ -35,7 +35,7 @@ void MaxPooling(const float *src, float *dst, const dim_t batch,
             [riscv_nchw_pooling_fwd_t<data_type::f32>::max_kernel_width];
     for (int i = 0;
             i < riscv_nchw_pooling_fwd_t<data_type::f32>::max_kernel_width; i++)
-        arr_flt_min[i] = __FLT_MIN__;
+        arr_flt_min[i] = -__FLT_MAX__;
 
     for (int mb = 0; mb < batch; mb++)
         for (int c = 0; c < channels; c++)
@@ -90,14 +90,14 @@ void MaxPooling(const float *src, float *dst, const dim_t batch,
                                 }
                             }
 
-                        vfloat32m1_t zero_scalar;
-                        float zero = 0.0f;
-                        zero_scalar = vle32_v_f32m1(&zero, 1);
+                        vfloat32m1_t min_scalar;
+                        float min = -__FLT_MAX__;
+                        min_scalar = vle32_v_f32m1(&min, 1);
 
                         cycleLength = vsetvl_e32m8(size);
                         vfloat32m1_t vred_res;
                         vred_res = vfredmax_vs_f32m8_f32m1(
-                                vred_res, vmax, zero_scalar, cycleLength);
+                                vred_res, vmax, min_scalar, cycleLength);
 
                         float red_res;
                         vse32_v_f32m1(&red_res, vred_res, 1);
