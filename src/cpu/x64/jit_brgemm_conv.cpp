@@ -2311,7 +2311,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
         const auto comp_offs = get_comp_offset(
-                btc.g, btc.ocb, 0, 0, kd_b, kd_e, kh_b, kh_e, 0, KW);
+                btc.g, btc.ocb, 0, 0, kd_s, kd_f, kh_s, kh_f, 0, KW);
 
         if (nb_ic_b > 0) {
             const auto brg_idx = _pd->get_brg_idx(
