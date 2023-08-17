@@ -72,8 +72,7 @@ status_t gen_gemm_kernel_desc_t::finalize() {
 
     // Disable global k parallelization if it wouldn't be used.
     if (strategy_.kParallel && k_ >= 0) {
-        auto k_min = aux_params_.k0;
-        if (strategy_.kParallelLocal) k_min *= strategy_.wg[LoopK];
+        auto k_min = aux_params_.k0 * aux_params_.wgK;
         if (k_ <= k_min) {
             strategy_.kParallel = false;
             strategy_.C.atomic = false;
