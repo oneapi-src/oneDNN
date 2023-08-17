@@ -65,6 +65,8 @@ static int get_im_s_block(const context_ptr &ctx, const int &os,
   auto origin_ow = dim2unsigned(attrs.get_or_else("origin_ow", sc_dim(os)));
   auto origin_oh = dim2unsigned(attrs.get_or_else("origin_oh", sc_dim(1)));
   auto s_default_block = default_block;
+  bool is_large_spatial = origin_oh > 64;
+  if (is_large_spatial) { return utils::get_blocks(origin_ow, 1, 32).back(); }
   if (origin_ow > 14) {
     auto L1_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(1);
     // not use L1_cache too full
@@ -79,6 +81,7 @@ static int get_im_s_block(const context_ptr &ctx, const int &os,
           || blk % (origin_oh * origin_ow) == 0);
       }),
     s_block_list.end());
+
   return s_block_list.back();
 }
 
@@ -188,7 +191,6 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   cfg.tile_os = -1;
   cfg.pack_input = (is_1x1_conv_ && (sd_ > 1 || sh_ > 1 || sw_ > 1)) ? 1 : -1;
   cfg.loop_sched = 0;
-  auto is_small_ic = ic_ < (64 / dtype_size);
   // C_block shall only relay to ic_
   int max_ic_block = -1;
   int max_oc_block = -1;
@@ -268,13 +270,6 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   // tile q
   if (!is_1x1_conv_) {
     cfg.tile_q = tile_q_list.back();
-    if (large_spatial) {
-      if (!is_small_ic) {
-        cfg.tile_q = utils::get_blocks(ow_, 1, 32).back();
-      } else {
-        cfg.tile_q = utils::get_blocks(ow_, 1, 64).back();
-      }
-    }
   } else {
     // handle large M for gemm kernel: shrink M
     if (sw_ > 1) {
@@ -290,7 +285,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     std::sort(os_choices.begin(), os_choices.end());
     if (ow_ <= 28 && ow_ % 16 != 0) {
       for (int i = os_choices.size() - 1; i >= 0; i--) {
-        if (nthreads <= adj_os_ / os_choices[i] * mb_) {
+        if (nthreads <= adj_os_ / os_choices[i] * mb_ * oc_ / 64) {
           cfg.tile_os = os_choices[i];
           break;
         }
@@ -314,10 +309,12 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     bool small_oc = oc_ <= 128;
     bool using_v2_template
       = has_pad && ((run_on_amx || is_3d_) && (kh_ - 1) * dh_ + 1 < ih_);
-    if (!run_on_amx || using_v2_template || small_oc) {
+    if ((!run_on_amx || using_v2_template || small_oc) && !large_spatial) {
       auto default_block
         = small_oc || using_v2_template ? 128 : 128 / dtype_size;
       cfg.K_block = utils::get_blocks(oc_, 16, default_block).back();
+    } else if (large_spatial) {
+      cfg.K_block = utils::get_blocks(oc_, 16, 256).back();
     } else {
       // config observation: small oc block could provide a good performance for
       // conv3x3 on amx no padding case
@@ -472,7 +469,11 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   default_im_block_ = dtype_block * 64;
   if (ic_ * oc_ < 512 * 512) { default_im_block_ /= 2; }
   if (mb_ == 1 && num_threads == 4) { default_im_block_ = 64; }
-  im_oc_block_ = utils::get_blocks(oc_, 1, default_im_block_).back();
+  bool is_small_oc_with_enough_parallel
+    = oc_ <= 512 && is_parallel_space_enough(mb_ * ow_ / 32, num_threads);
+  im_oc_block_ = utils::get_blocks(
+    oc_, 1, is_small_oc_with_enough_parallel ? oc_ : default_im_block_)
+                   .back();
   im_ic_block_ = utils::get_blocks(ic_, 1, default_im_block_).back();
   im_s_block_ = utils::get_blocks(ow_ * oh_, 1, default_im_block_).back();
 
@@ -514,8 +515,8 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   bool has_pad = (pd_b_ > 0) || (ph_b_ > 0) || (pw_b_ > 0) || (pd_e_ > 0)
     || (ph_e_ > 0) || (pw_e_ > 0);
   // TODO(zhicong): check whether to use os_blocking when sh > 1
-  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8
-    && ow_ <= 28 && sh_ == 1 && num_threads <= mb_;
+  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && ow_ <= 28
+    && sh_ == 1 && is_parallel_space_enough(mb_ * (oc_ / 64), num_threads);
   if (is_1d_) {
     use_conv1d = true;
     COMPILE_ASSERT((kw_ == 1 && pw_b_ == 0 && pw_e_ == 0),

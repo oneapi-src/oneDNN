@@ -193,7 +193,7 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
     auto dtype_block = is_int8 ? 4 : (is_bf16 ? 2 : 1);
     auto default_block = dtype_block * 32;
 
-    if (mb_ == 1 && num_threads == 4) { default_block = 128; };
+    if (mb_ == 1 && num_threads == 4) { default_block = 64; };
     bool has_pad = (pd_b_ > 0) || (ph_b_ > 0) || (pw_b_ > 0) || (pd_e_ > 0)
       || (ph_e_ > 0) || (pw_e_ > 0);
     if (has_pad) { default_block = (is_int8 || is_bf16) ? 128 : 64; }
@@ -240,17 +240,12 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
         cfg.im_w_block = utils::get_blocks(ow_, 1, 256).back();
       } else {
         auto os_blocks = get_os_blocks(ow_, adj_os_);
-        for (int i = os_blocks.size() - 1; i >= 0; i--) {
-          if (os_blocks[i] < 800) {
-            cfg.im_w_block = os_blocks[i];
-            break;
-          }
-        }
+        if (os_blocks.back() < 400) { cfg.im_w_block = os_blocks.back(); }
       }
       bool pack_rows = (cfg.im_w_block > 0 && ow_ % cfg.im_w_block != 0);
       cfg.w_block = pack_rows ? adj_os_ : actual_os_;
       if (mb_ == 1 && num_threads == 4) {
-        if (oc_ >= 512) {
+        if (oc_ >= 256) {
           cfg.bs_threads = 1;
           cfg.h_threads = 1;
           cfg.w_threads = 1;
