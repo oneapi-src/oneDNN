@@ -544,6 +544,7 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
     for (const auto &kind : kinds) {
         compare::compare_t cmp;
         cmp.set_data_kind(kind);
+        cmp.set_has_prim_ref(bool(prim_ref));
         setup_cmp_func(cmp, prb, kind, ref_args);
 
         int arg = 0;

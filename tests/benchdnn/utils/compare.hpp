@@ -50,6 +50,7 @@ struct compare_t {
     void set_data_kind(data_kind_t dk) { kind_ = dk; }
     void set_op_output_has_nans(bool ohn) { op_output_has_nans_ = ohn; }
     void set_has_eltwise_post_op(bool hepo) { has_eltwise_post_op_ = hepo; }
+    void set_has_prim_ref(bool hpr) { has_prim_ref_ = hpr; }
 
     // @param idx The index of compared element. Helps to obtain any element
     //     from any reference memory since it's in abx format.
@@ -87,6 +88,10 @@ private:
     // they may be relevant in specific cases. This is a hint to utilize
     // additional checks despite attributes are not set.
     bool has_eltwise_post_op_ = false;
+    // `fast_ref_gpu` enables optimized primitive to be used instead of
+    // reference. In this case `ref_mem` should also be reordered to a plain
+    // layout for proper comparison.
+    bool has_prim_ref_ = false;
 
     // Internal validation methods under `compare` interface.
     int compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
