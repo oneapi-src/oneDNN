@@ -178,7 +178,7 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T(impl_name(), gen9_batch_normalization_bwd_t);
 
-        const char *impl_name() const { return "ocl:blocked"; }
+        const char *impl_name() const { return "ocl:gen9"; }
 
         status_t init(engine_t *engine) {
             auto *compute_engine
