@@ -716,6 +716,10 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     if (brg->isa_impl == isa_undef) return status::unimplemented;
 
     const int max_vregs = isa_num_vregs(brg->isa_impl);
+
+    // Note: using avx512_core template, but calculation uses 'brg->isa_impl'
+    // which is dynamic i.e. uses values AVX2, AVX2_VNNI, etc. depending on the
+    // configuration.
     const int aux_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
             Xbyak::Zmm>::get_aux_vmm_count(*brg);
     const int bf16_emu_vregs = brg->is_bf16_emu * 4;

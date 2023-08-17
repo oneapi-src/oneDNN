@@ -181,7 +181,10 @@ private:
     inline int n_block2_tail() { return brg.ldb2_tail; }
 
     int tail_length() { return n_block1_tail() % simd_w_; }
-    bool is_fma_embd() { return brg.is_f32 && is_superset(isa, avx512_core); }
+    static bool is_fma_embd(const brgemm_t &brg) {
+        return brg.is_f32 && is_superset(brg.isa_impl, avx512_core);
+    }
+    bool is_fma_embd() { return is_fma_embd(brg); }
     bool is_fast_vnni_int8() { return is_fast_vnni_int8(brg); }
 
     bool req_vmm_reload() { return brg.is_bf16_emu; }
