@@ -15599,10 +15599,8 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
                     poSum + 1, problem.postOps.len(), problem, strategy, state);
         storeProblem.postOps = post_ops_t {};
 
-        if (problem.cOffset == COffset::Post) {
-            gemmConvertC(problem.Tc, problem, strategy, state);
+        if (problem.cOffset == COffset::Post)
             ok = ok && gemmApplyCOffsetDispatch(problem, strategy, state);
-        }
 
         ok = ok
                 && gemmAccessC(
