@@ -638,14 +638,33 @@ status_t memory_planner_t::prepare_subgraph_inplace_pairs(
 }
 
 status_t memory_planner_t::book_buffers(std::shared_ptr<subgraph_t> &sg) {
-    // collect all values into the set.
-    std::unordered_set<value_t *> to_be_booked;
+    // collect all values. Note: here we use vector to ensure that the collected
+    // values are in certain order. then we can book buffer from registrar in
+    // the certain order. Book buffer in uncertain order may lead to problems,
+    // for example:
+    //
+    // there are 2 persistent buffers: buf0[64], buf1[128] one possible buffer
+    // booking order:
+    // - book buf0[64] -> offset0 = 0
+    // - book buf1[128] -> offset1 = 64
+    //
+    // another possible buffer booking order:
+    // - book buf1[128] -> offset1 = 0
+    // - book buf0[64] -> offset0 = 128
+    //
+    // When two cps (cp0, cp1) compiled from same partition book these two
+    // buffers in different order, their persistent memory may have different
+    // offsets. In that case, if these two cps share same cached constant
+    // tensor, then cp1 will read cached buf0 from the offset 128, but cp0
+    // actually cache the buf0 to the offset 0. So, cp1 will read wrong data,
+    // and cause accuracy issue.
+    std::vector<value_t *> to_be_booked;
     topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
         for (auto &in : op->get_input_values()) {
-            to_be_booked.insert(in.get());
+            to_be_booked.emplace_back(in.get());
         }
         for (auto &out : op->get_output_values()) {
-            to_be_booked.insert(out.get());
+            to_be_booked.emplace_back(out.get());
         }
         return status::success;
     });

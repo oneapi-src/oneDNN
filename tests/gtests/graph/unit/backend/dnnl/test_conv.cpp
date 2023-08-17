@@ -6007,3 +6007,120 @@ TEST(ExecuteSubgraphInt8, ConvDepthwise) {
         strm->wait();
     }
 }
+
+TEST(ExecuteSubgraphInt8, ShareCachedWeights) {
+    using dims = graph::dnnl_impl::dims;
+
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    int64_t g = 1;
+    std::string wei_qtype = "per_channel";
+    std::string src_qtype = "symmetric";
+
+    float scale_src = 1 / 255.f;
+    int64_t zp_src = 0;
+    std::vector<int64_t> weight_shape {8, 8, 3, 3};
+
+    size_t scale_size = 8;
+    std::vector<float> scale_wei(scale_size, 1 / 127.f);
+    std::vector<int64_t> zp_wei(scale_size, 0);
+
+    graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
+    SET_Q_DQ_DATA_ATTR(dqdata_node)
+
+    graph::op_t dqweight_node(3, graph::op_kind::Dequantize, "dqweight_node");
+    SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
+
+    graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
+    SET_CONV_ATTR(conv_node, 2)
+
+    auto src_u8 = utils::logical_tensor_init(1, graph::data_type::u8);
+    auto src_f32_dq = utils::logical_tensor_init(2, graph::data_type::f32);
+    auto weight_s8
+            = utils::logical_tensor_init(4, weight_shape, graph::data_type::s8);
+    weight_s8.property = graph::property_type::constant;
+    auto weight_f32_dq = utils::logical_tensor_init(
+            5, weight_shape, graph::data_type::f32);
+    auto dst_f32 = utils::logical_tensor_init(7, graph::data_type::f32);
+
+    dqdata_node.add_input(src_u8);
+    dqdata_node.add_output(src_f32_dq);
+
+    dqweight_node.add_input(weight_s8);
+    dqweight_node.add_output(weight_f32_dq);
+
+    conv_node.add_input(src_f32_dq);
+    conv_node.add_input(weight_f32_dq);
+    conv_node.add_output(dst_f32);
+
+    graph::graph_t agraph(engine->kind());
+    agraph.add_op(&dqdata_node);
+    agraph.add_op(&dqweight_node);
+    agraph.add_op(&conv_node);
+    agraph.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
+    auto part = agraph.get_partitions()[0];
+
+    graph::partition_t p;
+    p.init(part);
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> u8_distribution(0.0f, 100.0f);
+    std::uniform_real_distribution<float> s8_distribution(-64.0f, 64.0f);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+
+    test::vector<int8_t> weight_s8_data(product(weight_shape));
+    std::generate(weight_s8_data.begin(), weight_s8_data.end(),
+            [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
+    graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+
+    std::vector<std::vector<int64_t>> src_shapes {
+            {1, 8, 12, 12}, {3, 8, 12, 12}};
+    std::vector<std::vector<int64_t>> dst_shapes {
+            {1, 8, 10, 10}, {3, 8, 10, 10}};
+    std::vector<std::shared_ptr<graph::compiled_partition_t>> cps;
+    for (size_t i = 0; i < src_shapes.size(); ++i) {
+        std::cout << "---------------\n";
+        std::vector<int64_t> src_shape = src_shapes[i];
+        std::vector<int64_t> dst_shape = dst_shapes[i];
+
+        src_u8 = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
+        dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::f32);
+
+        std::vector<const graph::logical_tensor_t *> lt_ins {
+                &src_u8, &weight_s8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_f32};
+
+        cps.push_back(std::make_shared<graph::compiled_partition_t>(p));
+        auto &cp = *cps.back();
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                graph::status::success);
+
+        test::vector<uint8_t> src_u8_data(product(src_shape));
+        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+
+        test::vector<float> dst_data(product(dst_shape));
+        graph::tensor_t dst_ts(dst_f32, engine, dst_data.data());
+
+        cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_ts});
+        strm->wait();
+
+        test::vector<float> ref_dst_data(product(dst_shape));
+        graph::tensor_t ref_dst_ts(dst_f32, engine, ref_dst_data.data());
+
+        ASSERT_EQ(run_graph(agraph, {src_u8_ts, weight_s8_ts}, {ref_dst_ts},
+                          *engine, *strm),
+                graph::status::success);
+
+        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.01f,
+                /*atol*/ 0.01f));
+    }
+}
