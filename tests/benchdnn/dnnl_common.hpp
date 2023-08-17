@@ -836,4 +836,8 @@ void update_inplace_memory_args(
     }
 }
 
+int update_ref_mem_map_from_prim(dnnl_primitive_t prim_ref,
+        const dnn_mem_t &library_mem, dnn_mem_map_t &ref_mem_map, int exec_arg,
+        dnnl_data_type_t swapped_dt);
+
 #endif

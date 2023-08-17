@@ -1367,3 +1367,68 @@ dnnl_data_type_t deduce_cfg_data_type(
 
     return dt_;
 }
+
+// This function handles cases when optimized CPU primitive is used as a
+// reference for a problem. Optimized primitive means custom memory formats
+// which require reorder to them. Since `ref_mem_map` is passed to optimized
+// primitive, it's required to replace correspondent memory objects and update
+// them with proper values to get the matched output.
+// The function also handles cases when a target primitive doesn't need a
+// scratchpad while the reference one does.
+// Note: the last argument `swapped_dt` is a property of `driver::cfg_t`. `cfg`
+// could be passed directly, but since it's tied to a `prb_t`, the function will
+// requires a template argument. If more members from `cfg` would be needed,
+// consider passing `cfg` directly.
+int update_ref_mem_map_from_prim(dnnl_primitive_t prim_ref,
+        const dnn_mem_t &library_mem, dnn_mem_map_t &ref_mem_map, int exec_arg,
+        dnnl_data_type_t swapped_dt) {
+    if (!prim_ref) return OK;
+
+    const auto &ref_mem = ref_mem_map.at(exec_arg);
+    const bool is_scratchpad = exec_arg == DNNL_ARG_SCRATCHPAD;
+
+    // If `ref_mem` is empty (unless scratchpad since GPU may not have one
+    // while CPU may), it means there's nothing to update.
+    if (!ref_mem && !is_scratchpad) return OK;
+
+    bool skip_replace = false;
+    auto const_ref_pd = query_pd(prim_ref);
+    const auto &ref_md = query_md(const_ref_pd, exec_arg);
+    const auto &ref_engine = get_cpu_engine();
+    dnn_mem_t prim_ref_mem(ref_md, ref_engine);
+
+    // When queried memory comes empty, it may be attributes as library doesn't
+    // have dedicated query mechanism for those. Process potential outcomes:
+    while (query_md_ndims(ref_md) == 0) {
+        bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
+        // Ref memory for scales is f32, the library expects it same data type.
+        // Skip replacement.
+        if (is_scales_arg) {
+            skip_replace = true;
+            break;
+        }
+
+        bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
+        // Ref memory for zps is f32, but the library expects it in s32. Update
+        // the memory and proceed to replacement.
+        if (is_zero_point_arg) {
+            prim_ref_mem = dnn_mem_t(
+                    library_mem.md_, dnnl_s32, tag::abx, ref_engine);
+            break;
+        }
+
+        // Rest arguments don't need special handling and should be
+        // skipped as empty.
+        skip_replace = true;
+        break;
+    }
+
+    // Avoid reordering on empty memories;
+    // Avoid replacing memories that have already been properly filled.
+    if (skip_replace) return OK;
+
+    if (!is_scratchpad) SAFE(prim_ref_mem.reorder(ref_mem, swapped_dt), WARN);
+    ref_mem_map[exec_arg] = std::move(prim_ref_mem);
+
+    return OK;
+}

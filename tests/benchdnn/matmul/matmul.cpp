@@ -623,15 +623,6 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
                 }
             } break;
-            case DNNL_ARG_SCRATCHPAD:
-                // Reference CPU impl may need a different size for scratchpad.
-                // Need to query it instead of replicating one from GPU.
-                if (prim_ref) {
-                    ref_mem_map[exec_arg] = dnn_mem_t(
-                            query_md(query_pd(prim_ref), DNNL_ARG_SCRATCHPAD),
-                            ref_engine);
-                }
-                break;
             default: { // Process all attributes here
                 int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
                         - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
@@ -659,6 +650,10 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 }
             } break;
         }
+
+        update_ref_mem_map_from_prim(prim_ref, mem, ref_mem_map, exec_arg,
+                cfg.get_swapped_dt(exec_arg2data_kind(exec_arg)));
+
         // Don't keep reference memory if it is not used further.
         if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();
     }
