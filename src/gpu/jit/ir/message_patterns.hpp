@@ -177,11 +177,6 @@ struct send_hint_t {
         return s;
     }
 
-    dim_t height_size() const {
-        assert(is_uniform_2d());
-        return size(dim_idx::h);
-    }
-
     void set_w_dim(dim_type_t idx) { w_dims_[idx.id()] |= dim_idx::w; }
     void set_h_dim(dim_type_t idx) { w_dims_[idx.id()] |= dim_idx::h; }
     bool is_w_dim(dim_type_t idx) const {
@@ -190,8 +185,6 @@ struct send_hint_t {
     bool is_h_dim(dim_type_t idx) const {
         return w_dims_[idx.id()] & dim_idx::h;
     }
-
-    dim_t block_size(dim_t base) const { return size(); }
 
     bool is_uniform_blocked() const { return type_id_ == uniform_blocked; }
     bool is_uniform_2d() const { return type_id_ == uniform_2d; }
@@ -545,7 +538,35 @@ struct uniform_send_idiom_t final {
         hint_t hint;
         auto ret = get_hints(layout, layout.strides.begin(), hint, check_2d,
                 /*valid_block=*/true);
-        return ret;
+        std::vector<hint_t> filtered_ret(ret.size());
+        auto it = std::copy_if(
+                ret.begin(), ret.end(), filtered_ret.begin(), [&](hint_t &h) {
+                    if (h.is_uniform_2d()) {
+                        bool w_dim_set = false, h_dim_set = false;
+                        for (auto &i : layout.strides) {
+                            // Currently send_plan permits 2d sends only when a
+                            // single dim is assigned each to h and w.
+                            if ((h.is_w_dim(i.dim) && w_dim_set)
+                                    || (h.is_h_dim(i.dim) && h_dim_set)
+                                    || (h.is_h_dim(i.dim) && h.is_w_dim(i.dim)))
+                                return false;
+                            w_dim_set |= h.is_w_dim(i.dim);
+                            h_dim_set |= h.is_h_dim(i.dim);
+                        }
+                    }
+                    return true;
+                });
+        filtered_ret.resize(std::distance(filtered_ret.begin(), it));
+        std::sort(filtered_ret.begin(), filtered_ret.end(),
+                [&](hint_t a, hint_t b) { return a.size() > b.size(); });
+        std::sort(ret.begin(), ret.end(),
+                [&](hint_t a, hint_t b) { return a.size() > b.size(); });
+        if (ret.size() && filtered_ret.size()
+                && ret[0].size() > filtered_ret[0].size())
+            ir_warning() << "Optimal send hint disabled: " << ret[0]
+                         << std::endl;
+
+        return filtered_ret;
     }
 };
 

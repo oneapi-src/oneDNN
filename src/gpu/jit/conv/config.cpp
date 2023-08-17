@@ -1161,7 +1161,24 @@ send_pattern_t<conv_dim_t> validate_blocking(const conv_config_t &cfg,
         }
     }();
 
-    auto hints = idiom.get_hints(layout);
+    auto hints = [&]() {
+        auto all_hints = idiom.get_hints(layout);
+        if (!all_hints.empty()) {
+            dim_t max = 0;
+            std::vector<send_hint_t<conv_dim_t>> max_hints = {};
+            for (auto &h : all_hints) {
+                auto hint_size = h.size();
+                if (max < hint_size) {
+                    max = hint_size;
+                    max_hints = {h};
+                } else if (max == hint_size) {
+                    max_hints.emplace_back(h);
+                }
+            }
+            return max_hints;
+        }
+        return all_hints;
+    }();
     if (hints.empty()) {
         ir_suggestion() << "No hints generated! ";
         return send_pattern();
