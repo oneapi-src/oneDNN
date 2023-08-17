@@ -46,22 +46,102 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
                 && brg.ldb_tail /*n_vlen_tail*/ == 0;
     }
 
-    static int get_aux_vmm_count(const brgemm_t &brg) {
-        // TODO: it would be nice to have a single code path between
-        // this index counting and the one from the constructor.
-        int vmm_idx_count = 0;
-        if (is_fast_vnni_int8(brg)) vmm_idx_count++;
-        if (brg.req_s8s8_compensation) vmm_idx_count++;
-        if (brg.zp_type_a != brgemm_broadcast_t::none) {
-            vmm_idx_count++;
-            if (utils::one_of(brg.isa_impl, avx2_vnni, avx2_vnni_2))
-                vmm_idx_count++; // need extra vmm for src_zp broadcast
-        } else if (brg.with_sum && (!is_superset(brg.isa_impl, avx512_core))) {
-            const bool p_sum_scale_reg_set = brg.sum_scale != 1.f;
-            if (p_sum_scale_reg_set)
-                vmm_idx_count++; // need extra vmm for broadcast
+    struct vmm_allocator_helper_t {
+        vmm_allocator_helper_t(const brgemm_t &brg)
+            : aux_vmm_count_(0)
+            , compute_vmm_base_idx_(-1)
+            , compute_vmm_count_(1
+                      + (!is_fma_embd(brg))
+                              * brg.ld_block2 /*n_block*/) // vmm_a + vmm_b
+            , idx_vmm_a_(-1)
+            , idx_vmm_b_(-1)
+            , idx_vmm_permute_(-1)
+            , idx_vmm_shift_(-1)
+            , idx_vmm_zp_comp_(-1)
+            , idx_vmm_bcast_(-1)
+            , idx_vmm_s8s8_comp_(-1) {
+
+            // assign aux vmms
+            if (is_fast_vnni_int8(brg)) idx_vmm_permute_ = aux_vmm_count_++;
+            if (brg.req_s8s8_compensation) {
+                idx_vmm_shift_ = aux_vmm_count_;
+                idx_vmm_s8s8_comp_ = aux_vmm_count_++;
+                assert(idx_vmm_shift_ == idx_vmm_s8s8_comp_);
+            }
+            const bool compute_src_zp
+                    = brg.zp_type_a != brgemm_broadcast_t::none;
+            if (compute_src_zp) {
+                idx_vmm_zp_comp_ = aux_vmm_count_++;
+                if (!is_superset(brg.isa_impl, avx512_core))
+                    idx_vmm_bcast_ = aux_vmm_count_++;
+            } else if (brg.with_sum
+                    && (!is_superset(brg.isa_impl, avx512_core))) {
+                const bool p_sum_scale_reg_set = brg.sum_scale != 1.f;
+                if (p_sum_scale_reg_set)
+                    idx_vmm_bcast_
+                            = aux_vmm_count_++; // need extra vmm for broadcast
+            }
+            compute_vmm_base_idx_ = aux_vmm_count_;
+
+            // assign compute vmms
+            idx_vmm_a_ = compute_vmm_base_idx_;
+            idx_vmm_b_ = compute_vmm_base_idx_ + !is_fma_embd(brg);
         }
-        return vmm_idx_count;
+        int get_compute_vmm_count() { return compute_vmm_count_; }
+        int get_aux_vmm_count() {
+            const int vmm_tmp_count = 2; // vmm_tmp(0) + vmm_tmp(1)
+            return nstl::max(vmm_tmp_count, aux_vmm_count_);
+        }
+        int get_idx_vmm_a() {
+            assert(idx_vmm_a_ >= 0);
+            return idx_vmm_a_;
+        }
+        int get_idx_vmm_b() {
+            assert(idx_vmm_b_ >= 0);
+            return idx_vmm_b_;
+        }
+        int get_idx_vmm_permute() {
+            assert(idx_vmm_permute_ >= 0);
+            return idx_vmm_permute_;
+        }
+        int get_idx_vmm_shift() {
+            assert(idx_vmm_shift_ >= 0);
+            return idx_vmm_shift_;
+        }
+        int get_idx_vmm_zp_comp() {
+            assert(idx_vmm_zp_comp_ >= 0);
+            return idx_vmm_zp_comp_;
+        }
+        int get_idx_vmm_bcast() {
+            assert(idx_vmm_bcast_ >= 0);
+            return idx_vmm_bcast_;
+        }
+        int get_idx_vmm_s8s8_comp() {
+            assert(idx_vmm_s8s8_comp_ >= 0);
+            return idx_vmm_s8s8_comp_;
+        }
+
+    private:
+        int aux_vmm_count_;
+        int compute_vmm_base_idx_;
+        int compute_vmm_count_;
+        int idx_vmm_a_;
+        int idx_vmm_b_;
+        int idx_vmm_permute_;
+        int idx_vmm_shift_;
+        int idx_vmm_zp_comp_;
+        int idx_vmm_bcast_;
+        int idx_vmm_s8s8_comp_;
+    };
+
+    static int get_aux_vmm_count(const brgemm_t &brg) {
+        auto vmm_alloc = vmm_allocator_helper_t(brg);
+        return vmm_alloc.get_aux_vmm_count();
+    }
+
+    static int get_compute_vmm_count(const brgemm_t &brg) {
+        auto vmm_alloc = vmm_allocator_helper_t(brg);
+        return vmm_alloc.get_compute_vmm_count();
     }
 
 private:
@@ -142,12 +222,7 @@ private:
     const bool has_bpad_; // batch pad is computed for the overlap between the
             // weights and input height padding
 
-    int idx_vmm_permute_ = -1;
-    int idx_vmm_shift_ = -1;
-    int idx_vmm_zp_comp_ = -1;
-    int idx_vmm_bcast_ = -1;
-    int idx_vmm_s8s8_comp_ = -1;
-    int vmm_idx_count_ = 0;
+    vmm_allocator_helper_t vmm_alloc;
 
     constexpr static int reg_batch0_addr_offs_ = 0;
     constexpr static int reg_bias_offs_ = 8;
@@ -202,10 +277,8 @@ private:
             return simd_w_;
         }
     }
-    Vmm vmm_a() { return Vmm(get_vmm_base_idx()); }
-    Vmm vmm_b(int bi = 0) {
-        return Vmm(get_vmm_base_idx() + !is_fma_embd() + bi);
-    }
+    Vmm vmm_a() { return Vmm(vmm_alloc.get_idx_vmm_a()); }
+    Vmm vmm_b(int bi = 0) { return Vmm(vmm_alloc.get_idx_vmm_b() + bi); }
     Vmm accm(int m_blocks, int n_blocks, int m, int n, int vnni_idx) {
         assert(m_blocks <= m_block2() && m < m_blocks);
         assert(n_blocks <= n_block2() && n < n_blocks);
@@ -216,27 +289,13 @@ private:
         assert(idx < max_vmms_ && idx > vmm_b(0).getIdx());
         return Vmm(idx);
     }
-    int get_vmm_base_idx() { return get_aux_vmm_count(brg); }
-    Vmm vmm_permute() {
-        assert(idx_vmm_permute_ >= 0);
-        return Vmm(idx_vmm_permute_);
-    }
+    Vmm vmm_permute() { return Vmm(vmm_alloc.get_idx_vmm_permute()); }
     Vmm vmm_shift() { // -128's
-        assert(idx_vmm_shift_ >= 0);
-        return Vmm(idx_vmm_shift_);
+        return Vmm(vmm_alloc.get_idx_vmm_shift());
     }
-    Vmm vmm_s8s8_comp() {
-        assert(idx_vmm_s8s8_comp_ >= 0);
-        return Vmm(idx_vmm_s8s8_comp_);
-    }
-    Vmm vmm_zp_comp() {
-        assert(idx_vmm_zp_comp_ >= 0);
-        return Vmm(idx_vmm_zp_comp_);
-    }
-    Vmm vmm_bcast() {
-        assert(idx_vmm_bcast_ >= 0);
-        return Vmm(idx_vmm_bcast_);
-    }
+    Vmm vmm_s8s8_comp() { return Vmm(vmm_alloc.get_idx_vmm_s8s8_comp()); }
+    Vmm vmm_zp_comp() { return Vmm(vmm_alloc.get_idx_vmm_zp_comp()); }
+    Vmm vmm_bcast() { return Vmm(vmm_alloc.get_idx_vmm_bcast()); }
     Vmm vmm_tmp(int i) {
         const int idx
                 = max_vmms_ - m_block2() * n_block2() * vnni_substep() - 1 - i;

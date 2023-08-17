@@ -722,10 +722,11 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     // configuration.
     const int aux_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
             Xbyak::Zmm>::get_aux_vmm_count(*brg);
+    const int compute_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
+            Xbyak::Zmm>::get_compute_vmm_count(*brg);
     const int bf16_emu_vregs = brg->is_bf16_emu * 4;
-    const int compute_vregs = 2; // b_vmm + a_vmm
     const int max_acc_vmms
-            = max_vregs - aux_vregs - nstl::max(compute_vregs, bf16_emu_vregs);
+            = max_vregs - nstl::max(compute_vregs + aux_vregs, bf16_emu_vregs);
 
     const int simd_w = isa_max_vlen(brg->isa_impl) / brg->typesize_C;
     const bool is_avx2_vnni_2_xf16

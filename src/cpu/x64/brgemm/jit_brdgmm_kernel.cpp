@@ -47,8 +47,8 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
     , compute_src_zp_(brg.zp_type_a != brgemm_broadcast_t::none)
     , compute_compensation_(compute_src_zp_ || brg.req_s8s8_compensation)
     , has_vpad_(brg.brgattr.max_top_vpad > 0 || brg.brgattr.max_bottom_vpad > 0)
-    , has_bpad_(
-              brg.brgattr.max_top_bpad > 0 || brg.brgattr.max_bottom_bpad > 0) {
+    , has_bpad_(brg.brgattr.max_top_bpad > 0 || brg.brgattr.max_bottom_bpad > 0)
+    , vmm_alloc(brg) {
 
     if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 
@@ -81,24 +81,6 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                 bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
                 bf16_emu_scratch, bf16_emu_reserv_4, bf16_emu_reserv_4);
-
-    // set vmm register indices
-    vmm_idx_count_ = 0;
-    if (is_fast_vnni_int8(brg)) idx_vmm_permute_ = vmm_idx_count_++;
-    if (brg.req_s8s8_compensation) {
-        idx_vmm_shift_ = vmm_idx_count_;
-        idx_vmm_s8s8_comp_ = vmm_idx_count_++;
-        assert(idx_vmm_shift_ == idx_vmm_s8s8_comp_);
-    }
-    if (compute_src_zp_) {
-        idx_vmm_zp_comp_ = vmm_idx_count_++;
-        if (!is_superset(brg.isa_impl, avx512_core))
-            idx_vmm_bcast_ = vmm_idx_count_++;
-    } else if (brg.with_sum && (!is_superset(brg.isa_impl, avx512_core))) {
-        const bool p_sum_scale_reg_set = brg.sum_scale != 1.f;
-        if (p_sum_scale_reg_set)
-            idx_vmm_bcast_ = vmm_idx_count_++; // need extra vmm for broadcast
-    }
 }
 
 template <cpu_isa_t isa, typename Wmm>
