@@ -233,24 +233,37 @@ inline graph::utils::pm::repetition_t *post_quantized_add(
 }
 
 /*
-    [Multiply / Divide]*
-            |
-         Quantize
+    if optional_qout is true:
+        pattern is [ [Multiply / Divide]* - Quantize]*
+    else:
+        pattern is [Multiply / Divide]* - Quantize
 */
-inline graph::utils::pm::pb_op_t *optional_smooth_quant(
+inline graph::utils::pm::pb_node_t *optional_smooth_quant(
         const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
-        graph::utils::pm::pb_node_t *input) {
+        graph::utils::pm::pb_node_t *input, bool optional_qout = false) {
     auto optional_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
     graph::utils::pm::pb_op_t *smooth_op = optional_graph->append_alternation(
             {graph::op_kind::Multiply, graph::op_kind::Divide});
     optional_graph->create_input_port(0, smooth_op, 0);
     optional_graph->create_output_port(0, smooth_op, 0);
-    auto opt = pgraph->append_optional(optional_graph,
-            graph::utils::pm::in_edges_t {in_edge(0, input, 0)});
+    auto popt_qout_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
+    auto p_curr_graph = optional_qout ? popt_qout_graph : pgraph;
+    auto opt = optional_qout
+            ? p_curr_graph->append_optional(optional_graph)
+            : p_curr_graph->append_optional(optional_graph,
+                    graph::utils::pm::in_edges_t {in_edge(0, input, 0)});
     graph::utils::pm::pb_op_t *quant_out
-            = pgraph->append_op(graph::op_kind::Quantize,
+            = p_curr_graph->append_op(graph::op_kind::Quantize,
                     graph::utils::pm::in_edges_t {in_edge(0, opt, 0)});
-    return quant_out;
+    if (optional_qout) {
+        p_curr_graph->create_input_port(0, opt, 0);
+        p_curr_graph->create_output_port(0, quant_out, 0);
+        auto opt_qout = pgraph->append_optional(p_curr_graph,
+                graph::utils::pm::in_edges_t {in_edge(0, input, 0)});
+        return opt_qout;
+    } else {
+        return quant_out;
+    }
 }
 
 } // namespace pattern

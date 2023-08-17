@@ -416,7 +416,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_matmul_add_post_ops_gpu)
                 |
         [unary/binary]*[0,4]
                 |
-  [typecast_out -> quant_out]*
+          [typecast_out]*
+                |
+           [quant_out]*
 */
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
@@ -478,16 +480,16 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops_cpu)
                             {0, 0}, 0, MAX_REPETITION,
                             in_edges_t {in_edge(0, popt_bias, 0)});
 
-                    // Optional typecast_out + quant_out
-                    auto popt_qout_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *ptc_out = popt_qout_graph->append_op(
+                    // Optional typecast_out
+                    auto popt_tc_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *ptc_out = popt_tc_graph->append_op(
                             graph::op_kind::TypeCast);
-                    auto pquant_out
-                            = optional_smooth_quant(popt_qout_graph, ptc_out);
-                    popt_qout_graph->create_input_port(0, ptc_out, 0);
-                    popt_qout_graph->create_output_port(0, pquant_out, 0);
-                    pgraph->append_optional(
-                            popt_qout_graph, in_edges_t {in_edge(0, prep, 0)});
+                    popt_tc_graph->create_input_port(0, ptc_out, 0);
+                    popt_tc_graph->create_output_port(0, ptc_out, 0);
+                    auto tc_out = pgraph->append_optional(
+                            popt_tc_graph, in_edges_t {in_edge(0, prep, 0)});
+
+                    optional_smooth_quant(pgraph, tc_out, true);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
@@ -555,16 +557,16 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_matmul_post_ops_gpu)
                             {0, 0}, 0, MAX_REPETITION,
                             in_edges_t {in_edge(0, popt_bias, 0)});
 
-                    // Optional typecast_out + quant_out
-                    auto popt_qout_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *ptc_out = popt_qout_graph->append_op(
+                    // Optional typecast_out
+                    auto popt_tc_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *ptc_out = popt_tc_graph->append_op(
                             graph::op_kind::TypeCast);
-                    auto pquant_out
-                            = optional_smooth_quant(popt_qout_graph, ptc_out);
-                    popt_qout_graph->create_input_port(0, ptc_out, 0);
-                    popt_qout_graph->create_output_port(0, pquant_out, 0);
-                    pgraph->append_optional(
-                            popt_qout_graph, in_edges_t {in_edge(0, prep, 0)});
+                    popt_tc_graph->create_input_port(0, ptc_out, 0);
+                    popt_tc_graph->create_output_port(0, ptc_out, 0);
+                    auto tc_out = pgraph->append_optional(
+                            popt_tc_graph, in_edges_t {in_edge(0, prep, 0)});
+
+                    optional_smooth_quant(pgraph, tc_out, true);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
@@ -670,7 +672,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *ptc_out
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, popt_post_ops, 0)});
-                    optional_smooth_quant(pgraph, ptc_out);
+                    optional_smooth_quant(pgraph, ptc_out, false);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
@@ -757,7 +759,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *ptc_out
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, popt_post_ops, 0)});
-                    optional_smooth_quant(pgraph, ptc_out);
+                    optional_smooth_quant(pgraph, ptc_out, false);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
