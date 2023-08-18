@@ -246,17 +246,14 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
     } else {
         const bool xf16_avx2_vnni_2 = (this->is_bf16() || this->is_f16())
                 && bgmmc.isa == avx2_vnni_2;
-        const bool can_treat_transposed_A_as_plain = bgmmc.M == 1;
+        const bool is_int8_avx512_core
+                = this->is_int8() && is_superset(bgmmc.isa, avx512_core);
         bgmmc.src_tag = (this->is_bf16() || this->is_f32() || this->is_bf32()
                                 || this->is_f16())
                         && !xf16_avx2_vnni_2
                 ? memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, acbd, adbc)
-                // Enable support of int8 problems with formally transposed A
-                // layout which can be treated as plain.
-                // TODO: remove this extra code path after transposed A is
-                // supported for int8
-                : (this->is_int8() && can_treat_transposed_A_as_plain)
+                : is_int8_avx512_core
                 ? memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, acbd)
                 : memory_desc_matches_one_of_tag(
