@@ -149,6 +149,8 @@ void ref_partition_t::init_ref(const bench_mode_t mode,
                     auto &mem = const_cast<dnn_mem_t &>(
                             ::std::get<3>(ref_prims_[op_id]).find(arg));
                     data_displacer.displace_input_data(in.id_, mem, res);
+                    if (res->state == SKIPPED || res->state == UNIMPLEMENTED)
+                        return;
                 }
                 link_args(par_op_ref, res);
                 init_graph_memory_args(std::get<1>(ref_prims_[op_id]),

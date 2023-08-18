@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "input_displacer.hpp"
+#include "dnnl_common.hpp"
 #include "ref_partition.hpp"
 
 namespace graph {
@@ -114,6 +115,7 @@ int partition_data_displacer_t::displace_input_data(
     dnn_mem_map_t mem_map;
 
     SAFE(gen_quantize_filling(main_op, mem_map, tensor.data_type_, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     auto &mem_replace = mem_map.at(main_op_arg);
 
     // do the reverse job
@@ -238,11 +240,13 @@ int partition_data_displacer_t::displace_input_data(
         SAFE(create_primitive(prim, get_test_engine(), ::driver::init_pd, prb, \
                      res, prb->dir, nullptr, false, nullptr), \
                 WARN); \
+        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK; \
         init_memory_args(mem_map, prb, prim, \
                 ::driver::supported_exec_args(prb->dir), get_test_engine()); \
         SAFE(init_ref_memory_args( \
                      ref_mem_map, mem_map, prim, prb, res, prb->dir), \
                 WARN); \
+        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK; \
     } break;
 
 int partition_data_displacer_t::gen_quantize_filling(
@@ -261,12 +265,14 @@ int partition_data_displacer_t::gen_quantize_filling(
                 ? "s8"
                 : dt;
     }
-    if (driver == dnnl_driver_t::pool) {
+    if (driver == dnnl_driver_t::pool || driver == dnnl_driver_t::binary) {
         // pool does not support x8f32 on cpu
-        // replace it with x8x8
+        // binary does not support x8x8bf16 on gpu
+        // replace output with x8
         op.out_lts_[0].data_type_ = dt;
-    } else {
+    } else if (op.out_lts_[0].data_type_ != "bf16") {
         // set output as f32 to avoid the data type not support problem at this stage
+        // x8x8bf16 or x8x8f32 is supported for conv/deconv/matmul driver
         op.out_lts_[0].data_type_ = "f32";
     }
     ::std::unordered_set<size_t> empty_set;

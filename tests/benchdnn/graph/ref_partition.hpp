@@ -95,6 +95,7 @@ protected:
             auto &mem = const_cast<dnn_mem_t &>(
                     ::std::get<3>(ref_prims_[op_id]).find(arg));
             data_displacer.displace_input_data(in.id_, mem, res);
+            if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return;
         }
 
         link_args(cur_op, res);
