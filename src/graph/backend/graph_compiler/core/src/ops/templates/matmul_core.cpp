@@ -658,45 +658,69 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   expr B = inputs[op_params_t::in_B];
   auto A_dims = A.as<tensor>()->dims_;
   auto B_dims = B.as<tensor>()->dims_;
+  auto C_dims = C.as<tensor>()->dims_;
 
-  std::vector<expr> batch_dims;
-  if (blocking_axis_.A_bs.size() > blocking_axis_.B_bs.size()) {
-    for (auto i : blocking_axis_.A_bs) {
-      batch_dims.emplace_back(A_dims[i]);
-    }
-  } else {
-    for (auto i : blocking_axis_.B_bs) {
-      batch_dims.emplace_back(B_dims[i]);
-    }
+  std::vector<expr> A_batch_dims; // the batch dims of A
+  for (auto i : blocking_axis_.A_bs) {
+    A_batch_dims.emplace_back(A_dims[i]);
   }
-  auto batch_dims_size = batch_dims.size();
-  auto small_batch_dims_size
-    = blocking_axis_.A_bs.size() > blocking_axis_.B_bs.size()
-    ? blocking_axis_.B_bs.size()
-    : blocking_axis_.A_bs.size();
-  std::vector<expr> idxs, idxs_small;
+  std::vector<expr> B_batch_dims; // the batch dims of B
+  for (auto i : blocking_axis_.B_bs) {
+    B_batch_dims.emplace_back(B_dims[i]);
+  }
+  std::vector<expr> C_batch_dims;
+  // the batch dims of output, long and broadcasted.
+  for (auto i : blocking_axis_.C_bs) {
+    C_batch_dims.emplace_back(C_dims[i]);
+  }
+  auto batch_dims_size = C_batch_dims.size();
+  auto A_batch_dims_long = A_batch_dims.size() >= B_batch_dims.size();
+  auto long_batch_dims = A_batch_dims_long ? A_batch_dims : B_batch_dims;
+  auto short_batch_dims = A_batch_dims_long ? B_batch_dims : A_batch_dims;
+  auto short_batch_dims_size = short_batch_dims.size();
+  std::vector<expr> idxs_long, idxs_short, idxs_C;
   std::vector<for_loop> batch_loops;
   std::vector<for_range_simulator_t> ranges;
-  idxs.resize(batch_dims_size);
-  idxs_small.resize(small_batch_dims_size);
+  idxs_long.resize(batch_dims_size);
+  idxs_short.resize(short_batch_dims_size);
+  idxs_C.resize(batch_dims_size);
   batch_loops.resize(batch_dims_size);
   ranges.reserve(batch_dims_size);
   for (size_t i = 0; i < batch_dims_size; i++) {
     ranges.emplace_back(builder::range(
-      batch_loops[i], expr(0), batch_dims[i], expr(1), for_type::PARALLEL));
+      batch_loops[i], expr(0), C_batch_dims[i], expr(1), for_type::PARALLEL));
   }
-  if (!batch_dims.empty()) {
+  if (!C_batch_dims.empty()) {
     _nested_for_(std::move(ranges)) {
       std::vector<std::pair<expr, expr>> batch_tensor_slice_ranges, fidx1,
         fidx2;
+      // index, slice and range at C
       for (size_t i = 0; i < batch_dims_size; i++) {
-        idxs[i] = _0_nested_for.get_var();
-        idxs[i].checked_as<var>()->name_
+        idxs_C[i] = _0_nested_for.get_var();
+        idxs_C[i].checked_as<var>()->name_
           = std::string("idx") + std::to_string(i);
-        batch_tensor_slice_ranges.emplace_back(idxs[i], 1);
+        batch_tensor_slice_ranges.emplace_back(idxs_C[i], 1);
       }
-      idxs_small
-        = {idxs.begin() + batch_dims_size - small_batch_dims_size, idxs.end()};
+      // index at the long dims
+      for (size_t i = 0; i < batch_dims_size; i++) {
+        if (long_batch_dims[i].isa<constant_c>()
+          && get_expr_as_int(long_batch_dims[i]) == 1) {
+          // broadcasted
+          idxs_long[i] = 0;
+        } else {
+          idxs_long[i] = idxs_C[i];
+        }
+      }
+      // index at the short dims
+      for (size_t i = 0; i < short_batch_dims_size; ++i) {
+        if (short_batch_dims[i].isa<constant_c>()
+          && get_expr_as_int(short_batch_dims[i]) == 1) {
+          // broadcasted
+          idxs_short[i] = 0;
+        } else {
+          idxs_short[i] = idxs_C[batch_dims_size - short_batch_dims_size + i];
+        }
+      }
 
       std::vector<std::pair<expr, expr>> fidx3
         = blocking_axis_.C_m.size() == 1 && blocking_axis_.C_n.size() == 1
@@ -708,19 +732,16 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
       _named_for_(lm_c, m_o, 0, M_num_blocks) {
         _named_for_(ln_c, n_o, 0, N_num_blocks) {
           std::vector<expr> aidx
-            = concat_vec(blocking_axis_.A_bs.size() > blocking_axis_.B_bs.size()
-                ? idxs
-                : idxs_small,
+            = concat_vec(A_batch_dims_long ? idxs_long : idxs_short,
               blocking_axis_.A_m.size() == 1 && blocking_axis_.A_k.size() == 1
                 ? std::vector<expr> {m_o * M_block, 0}
                 : std::vector<expr> {m_o, 0, 0, 0});
-          std::vector<expr> bidx = concat_vec(
-            blocking_axis_.A_bs.size() > blocking_axis_.B_bs.size() ? idxs_small
-                                                                    : idxs,
-            blocking_axis_.B_k.size() == 1 && blocking_axis_.B_n.size() == 1
-              ? std::vector<expr> {n_o * N_block, 0}
-              : std::vector<expr> {n_o, 0, 0, 0});
-          std::vector<expr> cidx = concat_vec(idxs,
+          std::vector<expr> bidx
+            = concat_vec(A_batch_dims_long ? idxs_short : idxs_long,
+              blocking_axis_.B_k.size() == 1 && blocking_axis_.B_n.size() == 1
+                ? std::vector<expr> {n_o * N_block, 0}
+                : std::vector<expr> {n_o, 0, 0, 0});
+          std::vector<expr> cidx = concat_vec(idxs_C,
             blocking_axis_.C_m.size() == 1 && blocking_axis_.C_n.size() == 1
               ? std::vector<expr> {m_o * M_block, n_o * N_block}
               : std::vector<expr> {m_o, n_o, 0, 0});

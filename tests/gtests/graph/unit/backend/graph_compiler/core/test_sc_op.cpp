@@ -204,13 +204,13 @@ TEST(GCCore_CPU_sc_op_test, add_template_op) {
     // using namespace llga_fake;
     llga_fake::node conv(0, "conv0", llga_fake::op_kind_t::kconv);
     llga_fake::logical_tensor_t conv_src {0, 4,
-            std::vector<int64_t> {3, 4, 64, 64}, llga_fake::data_type::f32,
+            std::vector<int64_t> {4, 5, 64, 64}, llga_fake::data_type::f32,
             llga_fake::layout_type::any};
     llga_fake::logical_tensor_t conv_weight {1, 4,
-            std::vector<int64_t> {4, 4, 1, 1}, llga_fake::data_type::f32,
+            std::vector<int64_t> {5, 5, 1, 1}, llga_fake::data_type::f32,
             llga_fake::layout_type::any};
     llga_fake::logical_tensor_t conv_dst {2, 4,
-            std::vector<int64_t> {3, 4, 64, 64}, llga_fake::data_type::f32,
+            std::vector<int64_t> {4, 5, 64, 64}, llga_fake::data_type::f32,
             llga_fake::layout_type::any};
     conv.add_input(conv_src);
     conv.add_input(conv_weight);
@@ -228,6 +228,7 @@ TEST(GCCore_CPU_sc_op_test, add_template_op) {
             std::vector<int64_t> {4, 5, 64, 64}, llga_fake::data_type::f32,
             llga_fake::layout_type::any};
 
+    // inputs should be matched or can be broadcasted.
     mm.set_input(0, conv, 0);
     mm.add_input(mm_src);
     mm.add_output(mm_dst);

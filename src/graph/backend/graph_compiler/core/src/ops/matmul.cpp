@@ -45,20 +45,29 @@ matmul_op::matmul_op(const std::vector<graph_tensor_ptr> &ins,
     bool is_int8 = utils::is_one_of(
             ins[0]->details_.dtype_, datatypes::u8, datatypes::s8);
     bool is_bf16 = ins[0]->details_.dtype_ == datatypes::bf16;
-    sc_dims expected_out_shape
-            = {merge_vec(matmul_core_op_t::get_batch_dims_impl(A_dims, B_dims),
-                    {A_dims[A_dims.size() - (trans_a ? 1 : 2)],
-                            B_dims[B_dims.size() - (trans_b ? 2 : 1)]})};
+
+    sc_dims output_shape;
+    if (!is_dynamic()) {
+        output_shape = {merge_vec(
+                matmul_core_op_t::get_batch_dims_with_bc_impl(A_dims, B_dims),
+                {A_dims[A_dims.size() - (trans_a ? 1 : 2)],
+                        B_dims[B_dims.size() - (trans_b ? 2 : 1)]})};
+    } else {
+        output_shape = {
+                merge_vec(matmul_core_op_t::get_batch_dims_impl(A_dims, B_dims),
+                        {A_dims[A_dims.size() - (trans_a ? 1 : 2)],
+                                B_dims[B_dims.size() - (trans_b ? 2 : 1)]})};
+    }
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this,
-                sc_data_format_t(), expected_out_shape,
+                sc_data_format_t(), output_shape,
                 is_int8 ? datatypes::s32
                         : (is_bf16 ? datatypes::bf16 : datatypes::f32)));
     } else {
         info_.outputs_ = outs;
         if (!is_dynamic()) {
             COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
-                            == expected_out_shape,
+                            == output_shape,
                     "Bad out dims");
         }
     }

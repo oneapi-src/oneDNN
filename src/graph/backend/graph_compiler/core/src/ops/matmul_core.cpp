@@ -90,7 +90,8 @@ matmul_core_op_t::matmul_core_op_t(const std::vector<graph_tensor_ptr> &ins,
     COMPILE_ASSERT(A_dims.size() >= 2 && B_dims.size() >= 2,
             "matmul_core expects each input size equal or bigger than 2 , but "
             "got " << A_dims.size());
-    sc_dims expected_out_shape = {merge_vec(get_batch_dims(),
+    batch_dims_ = get_batch_dims();
+    sc_dims expected_out_shape = {merge_vec(batch_dims_,
             {A_dims[A_dims.size() - 2], B_dims[B_dims.size() - 1]})};
 
     if (info_.outputs_.empty()) {
@@ -124,14 +125,59 @@ float matmul_core_op_t::get_gflop() {
 sc_dims matmul_core_op_t::get_batch_dims() const {
     auto &A_dims = info_.inputs_[0]->details_.get_plain_dims();
     auto &B_dims = info_.inputs_[1]->details_.get_plain_dims();
-    return get_batch_dims_impl(A_dims, B_dims);
+    if (is_dynamic()) {
+        return get_batch_dims_impl(A_dims, B_dims);
+    } else {
+        return get_batch_dims_with_bc_impl(A_dims, B_dims);
+    }
 }
 
+// directly use batch dims from A or B.
 sc_dims matmul_core_op_t::get_batch_dims_impl(
         const sc_dims &A_dims, const sc_dims &B_dims) {
     return A_dims.size() > B_dims.size()
             ? sc_dims {A_dims.begin(), A_dims.end() - 2}
             : sc_dims {B_dims.begin(), B_dims.end() - 2};
+}
+
+sc_dims matmul_core_op_t::get_batch_dims_with_bc_impl(
+        const sc_dims &A_plain_dims, const sc_dims &B_plain_dims) {
+    sc_dims C_batch_dims;
+    bool is_A_dims_long = A_plain_dims.size() >= B_plain_dims.size();
+    auto long_dims = is_A_dims_long ? A_plain_dims : B_plain_dims;
+    auto short_dims = is_A_dims_long ? B_plain_dims : A_plain_dims;
+    int num_dims = long_dims.size();
+    // In 2D case, no batch axis, C_batch_dims are empty, no broadcast
+    if (num_dims < 3) { return C_batch_dims; }
+
+    int dims_diff = long_dims.size() - short_dims.size();
+    C_batch_dims.insert(C_batch_dims.end(), long_dims.begin(),
+            long_dims.begin() + dims_diff);
+
+    if (std::equal(long_dims.begin() + dims_diff, long_dims.end() - 2,
+                short_dims.begin())) {
+        // all batch dims are equal, no broadcast
+        C_batch_dims.insert(C_batch_dims.end(), long_dims.begin() + dims_diff,
+                long_dims.end() - 2);
+        return C_batch_dims;
+    }
+
+    for (int i = dims_diff; i <= num_dims - 3; ++i) {
+        if (long_dims[i] == short_dims[i - dims_diff]) {
+            // no broadcasting at this dim
+            C_batch_dims.push_back(long_dims[i]);
+        } else { // long_dims[i] != short_dims[i - dims_diff]
+            if (long_dims[i] == 1 && short_dims[i - dims_diff] != 1) {
+                C_batch_dims.push_back(short_dims[i - dims_diff]);
+            } else if (long_dims[i] != 1 && short_dims[i - dims_diff] == 1) {
+                C_batch_dims.push_back(long_dims[i]);
+            } else { // both are not 1, invalid broadcast
+                COMPILE_ASSERT(
+                        false, "Can not broadcast in batch dims properly");
+            }
+        }
+    }
+    return C_batch_dims;
 }
 
 sc_data_type_t matmul_core_op_t::infer_out_dtype(
@@ -609,9 +655,9 @@ sc_op_ptr matmul_core_op_t::get_data_compensation(sc_graph_t &mgr) {
                         constant_node->get_outputs()[0]},
                 {}, {});
     }
-    if (data->details_.get_plain_dims().size() < get_batch_dims().size() + 2) {
-        sc_dims unsqueeze_shape(get_batch_dims().size() + 2
-                        - data->details_.get_plain_dims().size(),
+    if (data->details_.get_plain_dims().size() < batch_dims_.size() + 2) {
+        sc_dims unsqueeze_shape(
+                batch_dims_.size() + 2 - data->details_.get_plain_dims().size(),
                 1);
         sc_dims reshape_dest
                 = merge_vec(unsqueeze_shape, data->details_.get_plain_dims());
@@ -674,7 +720,7 @@ std::vector<sc_op_ptr> matmul_core_op_t::get_s8s8_and_weight_compensation(
                         "compensation yet");
                 auto data = info_.inputs_[0];
                 auto data_plain_dims = data->details_.get_plain_dims();
-                size_t bds = get_batch_dims().size();
+                size_t bds = batch_dims_.size();
                 assert(data_plain_dims[bds]
                         == static_cast<int64_t>(data_zero_points.size()));
                 const_plain_dims = {data_plain_dims[bds], 1};
@@ -690,9 +736,8 @@ std::vector<sc_op_ptr> matmul_core_op_t::get_s8s8_and_weight_compensation(
                             constant_node->get_outputs()[0]},
                     {}, {});
         }
-        if (weight->details_.get_plain_dims().size()
-                < get_batch_dims().size() + 2) {
-            sc_dims unsqueeze_shape(get_batch_dims().size() + 2
+        if (weight->details_.get_plain_dims().size() < batch_dims_.size() + 2) {
+            sc_dims unsqueeze_shape(batch_dims_.size() + 2
                             - weight->details_.get_plain_dims().size(),
                     1);
             sc_dims reshape_dest = merge_vec(
@@ -717,9 +762,8 @@ std::vector<sc_op_ptr> matmul_core_op_t::get_s8s8_and_weight_compensation(
                 {reduce_node->get_outputs()[0],
                         s8_constant_node->get_outputs()[0]},
                 {}, {});
-        if (weight->details_.get_plain_dims().size()
-                < get_batch_dims().size() + 2) {
-            sc_dims unsqueeze_shape(get_batch_dims().size() + 2
+        if (weight->details_.get_plain_dims().size() < batch_dims_.size() + 2) {
+            sc_dims unsqueeze_shape(batch_dims_.size() + 2
                             - weight->details_.get_plain_dims().size(),
                     1);
             sc_dims reshape_dest = merge_vec(
@@ -877,7 +921,7 @@ sc_dims matmul_core_op_t::get_bwise_fuse_shrink_dims() {
     auto out_fmt = info_.outputs_[0]->details_.get_format(),
          inp_fmt = info_.inputs_[0]->details_.get_format();
     auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
-    int bs_size = get_batch_dims().size();
+    int bs_size = batch_dims_.size();
 
     auto out_p2b_map = out_fmt.format_code_.collect_p2b_mapping(),
          inp_p2b_map = inp_fmt.format_code_.collect_p2b_mapping();
@@ -1019,7 +1063,7 @@ void matmul_core_op_t::infer_slice_ranges(
     auto out_dims_expr
             = get_outputs()[0]->details_.get_blocking_dims_expr(graph);
 
-    auto batch_dims_size = get_batch_dims().size();
+    auto batch_dims_size = batch_dims_.size();
 
     slice_range inp_slice, wei_slice, out_slice;
     blocking_axis_t blocking_axis
@@ -1036,8 +1080,7 @@ void matmul_core_op_t::infer_slice_ranges(
         if (get_inputs()[0]->details_.get_format().is_blocking()
                 && (blocking_axis.A_m.size() == blocking_axis.C_m.size())) {
             auto ctx = stat_map.get_context();
-            if (ctx && ctx->flags_.use_cost_model_
-                    && get_batch_dims().empty()) {
+            if (ctx && ctx->flags_.use_cost_model_ && batch_dims_.empty()) {
                 const int run_threads
                         = runtime_config_t::get().get_num_threads();
                 int prod = 1;

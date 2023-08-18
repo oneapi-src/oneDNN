@@ -44,6 +44,16 @@ public:
     float get_gflop() override;
     sc_dims get_batch_dims() const;
     static sc_dims get_batch_dims_impl(const sc_dims &, const sc_dims &);
+
+    // Various broadcasts are supported:
+    // (1, M, K) * (A, B, K, N) -> (A, B, M, K)
+    // (A, B, M, K) * (A, 1, K, N) -> (A, B, M, K)
+    // (A, B, M, K) * (1, B, K, N) -> (A, B, M, N)
+    // (1, B, M, K) * (A, 1, K, N) -> (A, B, M, N)
+    // (A, B, C, M, K) * (A, 1, C, K, N) -> (A, B, C, M, N).
+    static sc_dims get_batch_dims_with_bc_impl(
+            const sc_dims &, const sc_dims &);
+
     static sc_data_type_t infer_out_dtype(
             const std::vector<graph_tensor_ptr> &);
     sc_op_ptr do_compensations(
@@ -74,6 +84,8 @@ public:
     shape_rl_vec get_dynamic_shape_relations() const override;
     static shape_rl_vec get_shape_relations_impl(const sc_dims &data_plain_dims,
             const sc_dims &weight_plain_dims, const sc_dims &out_plain_dims);
+
+    sc_dims batch_dims_;
 };
 
 blocking_axis_t get_mm_blocking_axis(const logical_tensor_t &inp,
