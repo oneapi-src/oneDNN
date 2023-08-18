@@ -81,6 +81,9 @@ INLINE vec_f32x8 sc_gather(float const *a, vec_s32x8 const &b) {
 #define sc_insert_vec_u8x16(a, imm) _mm_insert_epi8(a.v, b.v, imm);
 #define sc_insert_vec_u16x8(a, imm) _mm_insert_epi16(a.v, b.v, imm);
 #define sc_insert_vec_s32x8(a, imm) _mm256_insert_epi32(a.v, b.v, imm);
+#define sc_permutexvar_vec_u8x32_64bits(idx, a) \
+    _mm256_permute4x64_epi64(a.v, idx);
+
 #ifndef __AVX512F__
 #define sc_extract_vec_s8x32(a, imm) _mm256_extract_epi8(a.v, imm);
 #define sc_extract_vec_u8x32(a, imm) _mm256_extract_epi8(a.v, imm);
@@ -88,6 +91,9 @@ INLINE vec_f32x8 sc_gather(float const *a, vec_s32x8 const &b) {
 #define sc_insert_vec_s8x32(a, imm) _mm256_insert_epi8(a.v, b.v, imm);
 #define sc_insert_vec_u8x32(a, imm) _mm256_insert_epi8(a.v, b.v, imm);
 #define sc_insert_vec_u16x16(a, imm) _mm256_insert_epi16(a.v, b.v, imm);
+#define sc_permutexvar_vec_u8x64_64bits(idx, a) \
+    _mm512_permutexvar_epi64(a.v, idx);
+
 #endif
 #endif
 
@@ -170,6 +176,7 @@ INLINE vec_u16x32::vec_u16x32(
 #define sc_insert_vec_u8x32(a, b, imm) _mm256_inserti32x4(a.v, b.v, imm);
 #define sc_extract_vec_s8x32(a, imm) _mm256_extracti32x4_epi32(a.v, imm);
 #define sc_extract_vec_u8x32(a, imm) _mm256_extracti32x4_epi32(a.v, imm);
+
 #endif
 #ifdef __AVX512VBMI__
 INLINE vec_u8x64 sc_permutexvar(vec_u8x64 const &a, vec_u8x64 const &b) {

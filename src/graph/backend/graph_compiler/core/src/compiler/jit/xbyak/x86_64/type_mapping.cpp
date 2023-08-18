@@ -62,6 +62,7 @@ cpu_data_type get_cpu_data_type(sc_data_type_t t) {
     } else if (t.lanes_ == 2) {
         switch (e) {
             case sc_data_etype::S32: return cpu_data_type::sint_32_x2;
+            case sc_data_etype::U32: return cpu_data_type::uint_32_x2;
             case sc_data_etype::F32: return cpu_data_type::float_32_x2;
             case sc_data_etype::INDEX: return cpu_data_type::uint_64_x2;
             default: // to prevent compiler warnings

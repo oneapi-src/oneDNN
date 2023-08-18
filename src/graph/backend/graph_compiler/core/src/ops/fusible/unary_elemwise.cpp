@@ -16,6 +16,7 @@
 
 #include <assert.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
@@ -78,6 +79,17 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     }
     vx_info_.lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
+    auto cur_cpu_flags = ctx->machine_.cpu_flags_;
+    if (!cur_cpu_flags.fAVX512F && cur_cpu_flags.fAVX2) {
+        // In avx2, bf16x16 can't cast to f32x16. Maximum lanes must be 8.
+        if (op_name_ == "cast") {
+            const sc_data_etype dst_etype
+                    = dst[0]->tptr_->base_->dtype_.type_code_;
+            const uint32_t avx2_max_lanes
+                    = 256 / utils::get_sizeof_etype(dst_etype) * 8;
+            vx_info_.lanes = std::min(avx2_max_lanes, vx_info_.lanes);
+        }
+    }
     auto func = [&](const std::vector<expr> &in,
                         std::vector<expr::lvalue_proxy_t> &out) -> stmt {
         return builder::make_assign_unattached(out[0], compute_element(in[0]));

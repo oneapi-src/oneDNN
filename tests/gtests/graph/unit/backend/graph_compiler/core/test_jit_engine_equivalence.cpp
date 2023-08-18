@@ -72,10 +72,12 @@ static uint16_t get_lanes(
     static context_ptr cptr = get_default_context();
     return std::min(data_lanes, cptr->get_max_vector_lanes(etype));
 }
+static bool use_cfake = true;
 
 //===========================================================================
 // Pre-defined dataset
 //===========================================================================
+#define DATA_LEN_8 8
 #define DATA_LEN_16 16
 #define DATA_LEN_64 64
 
@@ -85,6 +87,10 @@ static uint16_t get_lanes(
     { 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 }
 #define DATASET_I3 \
     { -16, -15, -14, -13, -12, -11, -10, -9, 8, 7, 6, 5, 4, 3, 2, 1 }
+#define DATASET_I1_8 \
+    { 1, 2, 3, 4, 5, 6, 7, 8 }
+#define DATASET_I1_4 \
+    { 1, 2, 3, 4 }
 #define DATASET_I1_64 \
     { \
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, \
@@ -261,6 +267,9 @@ void TEST_IR_OP(MAKE_EXPR_OP make_op, TYPE *out, TYPE *ref,
     // Run the test
     for (auto &kv : test_jit_engines) {
         const string &je_name = kv.first;
+        if (!use_cfake) {
+            if (je_name == "cfake_jit") continue;
+        }
         ostringstream err_context;
         err_context << "jit_engine_t class '" << je_name << "'";
         SCOPED_TRACE(err_context.str());
@@ -1475,16 +1484,21 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicPermutexvar) {
     const int simd_lanes = 64;
 
     _function_(datatypes::void_t, foo,
-            _arg_("tensor_in", datatypes::u8, {simd_lanes}), ) {
-        _bind_(tensor_in);
+            _arg_("tensor_in", datatypes::u8, {simd_lanes}),
+            _arg_("tensor_in_1", datatypes::u8, {simd_lanes / 2}), ) {
+        _bind_(tensor_in, tensor_in_1);
         _var_(local_temp, sc_data_type_t::u8(64));
+        _var_(local_temp_1, sc_data_type_t::u8(32));
         local_temp = tensor_in[span_t({0}, simd_lanes)];
+        local_temp_1 = tensor_in_1[span_t({0}, simd_lanes / 2)];
         reinterpret_attr[intrin_attr::out_dtype] = sc_data_type_t::u8(64);
         MAKE_IDX_NEW(0, 0x30201000, 0x31211101, 0x32221202, 0x33231303,
                 0x34241404, 0x35251505, 0x36261606, 0x37271707, 0x38281808,
                 0x39291909, 0x3a2a1a0a, 0x3b2b1b0b, 0x3c2c1c0c, 0x3d2d1d0d,
                 0x3e2e1e0e, 0x3f2f1f0f)
         tensor_in[span_t({0}, simd_lanes)] = make_permutexvar(idx0, local_temp);
+        tensor_in_1[span_t({0}, simd_lanes / 2)] = make_permutexvar(
+                builder::make_constant(UINT64_C(0b11011000)), local_temp_1, 8);
     }
 
     ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
@@ -1515,17 +1529,28 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicPermutexvar) {
                 host_in[i * cols + j] = init++;
             }
         }
+        uint8_t host_in_1[simd_lanes / 2] = {0};
+        init = 1;
+        for (int i = 0; i < simd_lanes / 2; i++) {
+            host_in_1[i] = init++;
+        }
         uint8_t expected_out[simd_lanes] = {1, 17, 33, 49, 2, 18, 34, 50, 3, 19,
                 35, 51, 4, 20, 36, 52, 5, 21, 37, 53, 6, 22, 38, 54, 7, 23, 39,
                 55, 8, 24, 40, 56, 9, 25, 41, 57, 10, 26, 42, 58, 11, 27, 43,
                 59, 12, 28, 44, 60, 13, 29, 45, 61, 14, 30, 46, 62, 15, 31, 47,
                 63, 16, 32, 48, 64};
+        uint8_t expected_out_1[simd_lanes / 2] = {1, 2, 3, 4, 5, 6, 7, 8, 17,
+                18, 19, 20, 21, 22, 23, 24, 9, 10, 11, 12, 13, 14, 15, 16, 25,
+                26, 27, 28, 29, 30, 31, 32};
 
-        generic_val generic_args[] = {&host_in};
+        generic_val generic_args[] = {&host_in, &host_in_1};
 
         j_foo->call_generic_default(generic_args);
         for (int i = 0; i < simd_lanes; i++) {
-            EXPECT_EQ(host_in[i], expected_out[i]);
+            EXPECT_EQ((int)host_in[i], (int)expected_out[i]);
+            if (i < simd_lanes / 2) {
+                EXPECT_EQ((int)host_in_1[i], (int)expected_out_1[i]);
+            }
         }
     }
 }
@@ -2061,6 +2086,26 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_CAST_TO_GENERIC,
             MAKE_CAST(datatypes::generic), DATASET_I3);
 #undef REF_CAST_TO_GENERIC
+}
+
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCastAVX2) {
+    REQUIRE_AVX2();
+    const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_8);
+    //-----------------------------
+    // Cast to datatypes::s8
+    //-----------------------------
+#define REF_CAST_TO_S8(IN, LANES, I) (static_cast<int8_t>(IN[0][I]))
+    use_cfake = false;
+    // data_type: sint_32
+    TEST_OP(UNARY, EXACT, int32_t, int8_t, datatypes::s32, datatypes::s8,
+            DATA_LEN_8, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_S8,
+            MAKE_CAST(datatypes::s8), DATASET_I1_8);
+    // data_type: float_32
+    TEST_OP(UNARY, EXACT, float, int8_t, datatypes::f32, datatypes::s8,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_S8,
+            MAKE_CAST(datatypes::s8), DATASET_I1_8);
+    use_cfake = true;
+#undef REF_CAST_TO_S8
 }
 
 TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpAdd) {

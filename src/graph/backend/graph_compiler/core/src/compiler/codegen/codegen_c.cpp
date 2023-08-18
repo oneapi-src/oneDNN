@@ -598,7 +598,25 @@ void codegen_c_vis::view(intrin_call_c v) {
             trinary_func_codegen_c(v->args_, "sc_permutex2var");
             break;
         case intrin_type::permutexvar:
-            binary_func_codegen_c(v->args_, "sc_permutexvar");
+            if (v->args_[0].isa<constant_c>()) {
+                // vpermq have two different invocation. If is imm, we need to
+                // do use these part.
+                int lanes = v->intrin_attrs_->get<int>("lanes");
+                int elem_bits = utils::get_sizeof_etype(
+                                        v->args_[1]->dtype_.type_code_)
+                        * 8 * lanes;
+                auto suffix = std::to_string(elem_bits) + "bits";
+                *os << "sc_permutexvar_";
+                print_type(v->args_[1]->dtype_);
+                *os << "_" + suffix;
+                *os << '(';
+                dispatch(v->args_[0]);
+                *os << ',';
+                dispatch(v->args_[1]);
+                *os << ')';
+            } else {
+                binary_func_codegen_c(v->args_, "sc_permutexvar");
+            }
             break;
         case intrin_type::insert:
             *os << "sc_insert_";

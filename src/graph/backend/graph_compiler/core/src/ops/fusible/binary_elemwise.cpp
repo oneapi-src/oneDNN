@@ -782,7 +782,8 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
     }
 
     auto last_axis = expr(floor + tail);
-    int last_axis_mask = -1;
+    const int INVALID_AXIS_MASK = -64;
+    int last_axis_mask = INVALID_AXIS_MASK;
     std::unordered_map<expr, std::pair<expr, expr>> conditions;
     std::unordered_map<expr, std::pair<expr, expr>> conditions_tail;
 
@@ -792,7 +793,7 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
                 info.inputs_[0]->details_.get_format(), iter_vars,
                 vx_info.lanes, conditions, last_axis_mask);
     }
-    if (last_axis_mask != -1 && floor_int > 0) {
+    if (last_axis_mask != INVALID_AXIS_MASK && floor_int > 0) {
         COMPILE_ASSERT(tail_int == 0,
                 "Currently we only support mask in vectorize compute not "
                 "tail.");
@@ -866,7 +867,7 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
                         expr::lvalue_proxy_t(indexed_target, false)};
                 auto cond_it = conditions.find(iter_vars[i]);
                 if (cond_it != conditions.end()) {
-                    assert(last_axis_mask != -1);
+                    assert(last_axis_mask != INVALID_AXIS_MASK);
                     cur = compute(
                             std::vector<expr> {indexed_input, indexed_bc_input},
                             target_vec, cond_it->second.first,

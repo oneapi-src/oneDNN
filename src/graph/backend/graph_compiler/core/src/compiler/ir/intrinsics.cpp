@@ -233,7 +233,7 @@ struct permutex2var_handler_t : public trinary_intrinsic_handler_t {
 struct permutexvar_handler_t : public binary_intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
         COMPILE_ASSERT(node.args_.size() == 2, "Expecting 2 args.");
-        node.dtype_ = node.args_[0]->dtype_;
+        node.dtype_ = node.args_[1]->dtype_;
     }
     permutexvar_handler_t() : binary_intrinsic_handler_t("permutexvar") {}
 };
@@ -250,6 +250,9 @@ struct extract_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
         assert(node.args_.size() == 1);
         node.dtype_ = sc_data_type_t(node.args_[0]->dtype_.type_code_);
+        if (node.intrin_attrs_->get<int>("lanes") > 1) {
+            node.dtype_.lanes_ = node.intrin_attrs_->get<int>("lanes");
+        }
     }
     extract_handler_t() : intrinsic_handler_t("extract") {}
 };

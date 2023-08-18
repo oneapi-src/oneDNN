@@ -125,6 +125,7 @@ static handler_table register_handlers() {
     REGISTER_INTRIN("X86_NEG", x86, neg, undefined, _1A_);
 
     REGISTER_INTRIN("X86_CMP_SET", x86, cmp_set, directed_dst_mem, _3A_);
+    REGISTER_INTRIN("X86_BMI_PEXT", x86, bmi_pext, directed_all_reg, _3A_);
 
     //---------------
     // AVX Intrinsic
@@ -186,7 +187,7 @@ static handler_table register_handlers() {
     REGISTER_INTRIN(
             "AVX_PERMUTEX2VAR", avx, permutex2var, directed_end_mem, _3A_);
     REGISTER_INTRIN(
-            "AVX_PERMUTEXVAR", avx, permutexvar, directed_end_mem, _3A_);
+            "AVX_PERMUTEXVAR", avx, permutexvar, directed_end_mem, _4A_);
 
     // Finalize table
     return intrin_handlers;

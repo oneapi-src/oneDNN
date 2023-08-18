@@ -401,17 +401,58 @@ void codegen_llvm_vis_t::view(intrin_call_c v) {
                     "need two args in permutexvar instructions.");
             auto inval1 = generate_expr(v->args_[0]);
             auto inval2 = generate_expr(v->args_[1]);
-            switch (v->args_[1]->dtype_.type_code_) {
-                case sc_data_etype::BF16: {
+            int lanes = v->intrin_attrs_->get<int>("lanes");
+            auto elem_bits
+                    = utils::get_sizeof_etype(v->args_[1]->dtype_.type_code_)
+                    * 8 * lanes;
+            switch (elem_bits) {
+                case 8: {
+                    current_val_ = builder_.CreateIntrinsic(
+                            Intrinsic::x86_avx512_permvar_qi_512, {},
+                            {inval2, inval1});
+                } break;
+                case 16: {
                     current_val_ = builder_.CreateIntrinsic(
                             Intrinsic::x86_avx512_permvar_hi_512, {},
                             {inval2, inval1});
                 } break;
-                case sc_data_etype::S8:
-                case sc_data_etype::U8: {
-                    current_val_ = builder_.CreateIntrinsic(
-                            Intrinsic::x86_avx512_permvar_qi_512, {},
-                            {inval2, inval1});
+                case 64: {
+                    // Because there are two forms of invocation of the
+                    // vpermq instruction. One is such as
+                    // _mm256_permutexvar_epi64 (__m256i idx, __m256i a) and
+                    // _mm256_permute4x64_epi64 (__m256i a, const int imm8). The
+                    // corresponding code construction shufflevector of these
+                    // two forms in llvm is different, and we are consistent
+                    // with the source code of llvm.
+                    if (v->args_[0].isa<constant_c>()) {
+                        unsigned imm = get_expr_as_int(v->args_[0]);
+                        assert(v->args_[0].isa<constant_c>() || elem_bits > 0);
+                        bool is_avx512
+                                = utils::get_sizeof_type(v->args_[1]->dtype_)
+                                        * 8
+                                == 512;
+                        auto target_type = is_avx512
+                                ? get_type(sc_data_type_t::index(8))
+                                : get_type(sc_data_type_t::index(4));
+                        unsigned numelts = is_avx512 ? 8 : 4;
+                        auto outtype = get_type(v->args_[1]->dtype_);
+                        auto tmp1 = builder_.CreateBitCast(inval2, target_type);
+                        // These intrinsics operate on 256-bit lanes of four
+                        // 64-bit elements.
+                        std::vector<shuffle_idx_t> indices(numelts);
+                        for (unsigned l = 0; l != numelts; l += 4)
+                            for (unsigned i = 0; i != 4; ++i)
+                                indices[l + i] = l + ((imm >> (2 * i)) & 0x3);
+
+                        auto ret = builder_.CreateShuffleVector(
+                                tmp1, indices, "perm");
+                        current_val_ = builder_.CreateBitCast(ret, outtype);
+                    } else {
+                        COMPILE_ASSERT(false,
+                                "Currently we do not need "
+                                "_mm512_permutexvar_epi64 (__m512i idx, "
+                                "__m512i a)");
+                    }
                 } break;
                 default: {
                     COMPILE_ASSERT(false,

@@ -582,9 +582,12 @@ expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c,
 
  * @param idx the correspoding index
  * @param v the input value
+ * @param lanes specify the lanes for permutex data. For example: if datatype
+ is u8 and specify lanes is 8, which means you want to permutex 64bit data in
+ v.
  * @return the created node
  * */
-expr make_permutexvar(const expr_c &idx, const expr_c &v);
+expr make_permutexvar(const expr_c &idx, const expr_c &v, const int lanes = 1);
 
 /**
  * Insert the value into dst at the location specified by imm. Note that if the
@@ -615,9 +618,12 @@ expr make_insert(const expr_c &v_a, const expr_c &v_b, const int imm);
 
  * @param v_a the input value
  * @param imm the location specified value, 0 or 1
+ * @param lanes specify the lanes for extracting data. For example: if datatype
+ is u8 and specify lanes is 8, which means you want to extract 64bit data from
+ v_a.
  * @return the created node
  * */
-expr make_extract(const expr_c &v_a, const int imm);
+expr make_extract(const expr_c &v_a, const int imm, const int lanes = 1);
 
 /**
  * Makes an gather node

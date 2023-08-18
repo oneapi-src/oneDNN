@@ -131,13 +131,6 @@ static expr_c create_cast_f32_to_bf16(const context_ptr &ctx, const cast_c &v) {
                                 uint32_v >> count),
                         sc_data_type_t::bf16(in->dtype_.lanes_)));
     }
-    // non-fast trunc
-    if (in->dtype_.lanes_ > 1) {
-        COMPILE_ASSERT(ctx->machine_.device_type_
-                                == runtime::target_machine_t::type::cpu
-                        && ctx->machine_.cpu_flags_.fAVX512F,
-                "bf16 only support in avx512.");
-    }
     if (ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu
             && ctx->machine_.cpu_flags_.fAVX512BF16) {
         /* todo: add it to instrinsic for special tag */

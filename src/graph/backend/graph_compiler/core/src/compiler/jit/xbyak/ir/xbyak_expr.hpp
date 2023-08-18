@@ -104,6 +104,7 @@ enum class xbyak_intrin_type {
     gather,
     insert,
     extract,
+    bmi_pext,
     broadcast,
     reinterpret,
     unpack_low,

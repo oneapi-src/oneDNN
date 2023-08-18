@@ -500,10 +500,10 @@ expr make_permutex2var(
             any_map_t());
 }
 
-expr make_permutexvar(const expr_c &idx, const expr_c &v) {
+expr make_permutexvar(const expr_c &idx, const expr_c &v, const int lanes) {
     return make_expr<intrin_call_node>(intrin_type::permutexvar,
             std::vector<expr> {idx.remove_const(), v.remove_const()},
-            any_map_t());
+            any_map_t {{"lanes", lanes}});
 }
 
 expr make_insert(const expr_c &v_a, const expr_c &v_b, const int imm) {
@@ -512,10 +512,10 @@ expr make_insert(const expr_c &v_a, const expr_c &v_b, const int imm) {
             any_map_t {{"insert_imm", imm}});
 }
 
-expr make_extract(const expr_c &v_a, const int imm) {
+expr make_extract(const expr_c &v_a, const int imm, const int lanes) {
     return make_expr<intrin_call_node>(intrin_type::extract,
             std::vector<expr> {v_a.remove_const()},
-            any_map_t {{"extract_imm", imm}});
+            any_map_t {{"extract_imm", imm}, {"lanes", lanes}});
 }
 
 expr make_read_struct(const expr_c &in, const std::string &struct_name,

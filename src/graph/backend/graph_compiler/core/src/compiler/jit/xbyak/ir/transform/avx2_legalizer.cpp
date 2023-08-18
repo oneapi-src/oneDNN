@@ -49,6 +49,77 @@ public:
         return v;
     }
 
+    expr_c visit(cast_c v) override {
+        auto vv = ir_visitor_t::visit(std::move(v)).dyn_as<cast_c>();
+        assert(vv.defined());
+        auto src = vv->in_;
+        const auto src_dtype = src->dtype_;
+        const auto dst_dtype = vv->dtype_;
+        auto is_32bit_avx2_cast = [&](const sc_data_etype &cmp_dst_type,
+                                          const sc_data_etype &cmp_src_type) {
+            return src_dtype.lanes_ > 1
+                    && (dst_dtype.type_code_ == cmp_dst_type)
+                    && (src_dtype.type_code_ == cmp_src_type);
+        };
+        auto s32_smid_cast = [&](bool is_u16 = false) {
+            expr cast_u16 = builder::make_cast(
+                    sc_data_type_t::u16(src_dtype.lanes_ * 2), src);
+            expr permutexvar_expr = builder::make_permutexvar(
+                    builder::make_constant(UINT64_C(0b11011000)), cast_u16, 4);
+            expr extract_u16_expr = builder::make_extract(
+                    permutexvar_expr, 0, src_dtype.lanes_);
+            if (is_u16) { return extract_u16_expr; }
+            expr cast_dst = builder::make_cast(
+                    sc_data_type_t(dst_dtype.type_code_, src_dtype.lanes_ * 2),
+                    extract_u16_expr);
+            // must cast to index, inorder to use reg64 in extract instruction
+            expr reinpt_1 = builder::make_reinterpret(
+                    cast_dst, sc_data_type_t(sc_data_etype::INDEX, 2));
+            expr extract_64bit = builder::make_extract(reinpt_1, 0);
+            expr reinpt_2 = builder::make_reinterpret(extract_64bit, dst_dtype);
+            return reinpt_2;
+        };
+        if ((is_32bit_avx2_cast(sc_data_etype::U8, sc_data_etype::S32)
+                    || is_32bit_avx2_cast(sc_data_etype::S8, sc_data_etype::S32)
+                    || is_32bit_avx2_cast(sc_data_etype::S8, sc_data_etype::U32)
+                    || is_32bit_avx2_cast(
+                            sc_data_etype::U8, sc_data_etype::U32))) {
+            return s32_smid_cast();
+        } else if ((is_32bit_avx2_cast(sc_data_etype::U16, sc_data_etype::U32)
+                           || is_32bit_avx2_cast(
+                                   sc_data_etype::U16, sc_data_etype::S32))) {
+            return s32_smid_cast(true);
+        }
+        return vv;
+    }
+
+    expr_c visit(intrin_call_c v) override {
+        auto vv = ir_visitor_t::visit(std::move(v)).static_as<intrin_call_c>();
+        auto dst_dtype = vv->dtype_;
+        switch (vv->type_) {
+            case intrin_type::rsqrt: {
+                if (dst_dtype.is_etype(sc_data_etype::F32)) {
+                    // AVX2 rsqrt have low precision. Do as llvm
+                    // (rcpps(sqrtps)), 1/sqrt.
+                    std::vector<union_val> init_val(dst_dtype.lanes_, 1.f);
+                    return builder::make_constant(init_val, dst_dtype)
+                            / builder::make_sqrt(vv->args_[0]);
+                }
+            } break;
+            case intrin_type::saturated_cast: {
+                // Currently our project just need u32s32 to u8s8 or u16.
+                assert(utils::is_one_of(dst_dtype.type_code_, sc_data_etype::S8,
+                        sc_data_etype::U16, sc_data_etype::U8));
+                assert(utils::is_one_of(vv->args_[0]->dtype_.type_code_,
+                        sc_data_etype::S32, sc_data_etype::U32));
+                // In avx2, cast is saturated cast.
+                return builder::make_cast(dst_dtype, vv->args_[0]);
+            }; break;
+            default: break;
+        }
+        return vv;
+    }
+
     expr_c visit(cmp_c v) override {
         auto vv = ir_visitor_t::visit(std::move(v)).dyn_as<cmp_c>();
         assert(vv.defined());

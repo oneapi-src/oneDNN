@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdlib.h>
+#include "context.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
@@ -68,6 +69,8 @@ static std::vector<std::unique_ptr<jit_engine_t>> get_engines() {
 #endif
     return ret;
 }
+
+static bool use_cfake = true;
 
 TEST(GCCore_CPU_jit_cpp, TestJIT) {
     ir_builder_t builder;
@@ -803,10 +806,10 @@ TEST(GCCore_CPU_jit_cpp, TestJITVectorLoad) {
     }
 }
 
-#ifdef __AVX512F__
 TEST(GCCore_CPU_jit_cpp, TestJITCondition) {
+    REQUIRE_AVX2()
     builder::ir_builder_t builder;
-
+    auto is_avx512 = get_test_ctx()->machine_.cpu_flags_.fAVX512F;
 #define TEST_FUNC( \
         test_type, test_step, test_dtype, test_const_type, test_func_name) \
     auto test_func_name = [](const int step, sc_data_type_t dtype_sc, \
@@ -827,6 +830,7 @@ TEST(GCCore_CPU_jit_cpp, TestJITCondition) {
             } \
         } \
         auto engines = get_engines(); \
+        if (!use_cfake) { engines.erase(engines.begin()); } \
         for (auto &engine : engines) { \
             SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine)); \
             auto fptr = engine->get_entry_func( \
@@ -877,26 +881,31 @@ TEST(GCCore_CPU_jit_cpp, TestJITCondition) {
         } \
     }; \
     test_func_name(test_step, test_dtype, test_const_type);
-
+    if (is_avx512) {
+        TEST_FUNC(float, 16, datatypes::f32, datatypes::u16, test_floatx16)
+        TEST_FUNC(int32_t, 16, datatypes::s32, datatypes::u16, test_s32x16)
+        TEST_FUNC(uint32_t, 16, datatypes::u32, datatypes::u16, test_u32x16)
+        TEST_FUNC(uint16_t, 32, datatypes::u16, datatypes::u32, test_u16x32)
+        TEST_FUNC(uint8_t, 64, datatypes::u8, datatypes::index, test_u8x64)
+        TEST_FUNC(int8_t, 64, datatypes::s8, datatypes::index, test_s8x64)
+    }
+    // todo our cfake need avx2 refactor
+    if (!is_avx512) { use_cfake = false; }
     TEST_FUNC(float, 8, datatypes::f32, datatypes::u8, test_floatx8)
-    TEST_FUNC(float, 16, datatypes::f32, datatypes::u16, test_floatx16)
     TEST_FUNC(int32_t, 8, datatypes::s32, datatypes::u8, test_s32x8)
-    TEST_FUNC(int32_t, 16, datatypes::s32, datatypes::u16, test_s32x16)
     TEST_FUNC(uint32_t, 8, datatypes::u32, datatypes::u8, test_u32x8)
-    TEST_FUNC(uint32_t, 16, datatypes::u32, datatypes::u16, test_u32x16)
     TEST_FUNC(uint16_t, 8, datatypes::u16, datatypes::u8, test_u16x8)
     TEST_FUNC(uint16_t, 16, datatypes::u16, datatypes::u16, test_u16x16)
-    TEST_FUNC(uint16_t, 32, datatypes::u16, datatypes::u32, test_u16x32)
     TEST_FUNC(uint8_t, 8, datatypes::u8, datatypes::u8, test_u8x8)
     TEST_FUNC(uint8_t, 16, datatypes::u8, datatypes::u16, test_u8x16)
     TEST_FUNC(uint8_t, 32, datatypes::u8, datatypes::u32, test_u8x32)
-    TEST_FUNC(uint8_t, 64, datatypes::u8, datatypes::index, test_u8x64)
     TEST_FUNC(int8_t, 8, datatypes::s8, datatypes::u8, test_s8x8)
     TEST_FUNC(int8_t, 16, datatypes::s8, datatypes::u16, test_s8x16)
     TEST_FUNC(int8_t, 32, datatypes::s8, datatypes::u32, test_s8x32)
-    TEST_FUNC(int8_t, 64, datatypes::s8, datatypes::index, test_s8x64)
+    if (!is_avx512) { use_cfake = true; }
 }
 
+#ifdef __AVX512F__
 TEST(GCCore_CPU_jit_cpp, TestJITVectorUnpackElemLanes) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::u16, {1024}),

@@ -402,7 +402,12 @@ public:
                         transform_4a_to_3a(xbyak_intrin_type::permutex2var));
             } break;
             case intrin_type::permutexvar: {
-                transform(dst, {intrin->args_[0], intrin->args_[1]},
+                const int elem_bits
+                        = intrin->intrin_attrs_->get_or_else("lanes", 1)
+                        * utils::get_sizeof_etype(dst->dtype_.type_code_) * 8;
+                transform(dst,
+                        {intrin->args_[0], intrin->args_[1],
+                                builder::make_constant(elem_bits)},
                         dst->dtype_, //
                         transform_disabled("permutexvar"),
                         transform_intrin(xbyak_intrin_type::permutexvar));
@@ -992,6 +997,15 @@ public:
                             xbyak_intrin_type::mov_mask, //
                             xbyak_intrin_isa::avx, //
                             xbyak_intrin_modifier(src->dtype_)));
+            if (src->dtype_.is_etype(sc_data_etype::BF16)
+                    || src->dtype_.is_etype(sc_data_etype::U16)) {
+                assert(cpu_flags_.fBMI2);
+                add_assignment(dst,
+                        make_xbyak_intrin(dst->dtype_,
+                                {dst, builder::make_constant(0x5555)},
+                                xbyak_intrin_type::bmi_pext,
+                                xbyak_intrin_isa::x86));
+            }
         } else {
             COMPILE_ASSERT(false, "Invalid avx_mask_cast!");
         }

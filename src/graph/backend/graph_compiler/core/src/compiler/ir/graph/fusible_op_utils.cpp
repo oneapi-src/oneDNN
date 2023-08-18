@@ -564,8 +564,8 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
         tail_int = get_expr_as_int(tail);
         COMPILE_ASSERT((floor_int + tail_int), "Don't support shape len = 0.");
     }
-
-    int last_axis_mask = -1;
+    const int INVALID_AXIS_MASK = -64;
+    int last_axis_mask = INVALID_AXIS_MASK;
     std::unordered_map<expr, std::pair<expr, expr>> conditions;
     if (use_mask) {
         compute_mask_and_generate_condition(graph, src,
@@ -573,7 +573,7 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
                 info.inputs_[0]->details_.get_format(), iter_vars,
                 vx_info.lanes, conditions, last_axis_mask);
     }
-    if (last_axis_mask != -1 && floor_int > 0) {
+    if (last_axis_mask != INVALID_AXIS_MASK && floor_int > 0) {
         COMPILE_ASSERT(tail_int == 0,
                 "Currently we only support mask in vectorize compute not "
                 "tail.");
@@ -609,7 +609,7 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
                         = {expr::lvalue_proxy_t(indexed_target_floor, false)};
                 auto cond_it = conditions.find(iter_vars[i]);
                 if (cond_it != conditions.end()) {
-                    assert(last_axis_mask != -1);
+                    assert(last_axis_mask != INVALID_AXIS_MASK);
                     cur = compute_lanes(indexed_input_floor, target_floor,
                             cond_it->second.first, cond_it->second.second,
                             vx_info.lanes);
