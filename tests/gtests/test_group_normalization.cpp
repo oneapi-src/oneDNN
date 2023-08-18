@@ -52,9 +52,6 @@ protected:
         SKIP_IF(unsupported_data_type(p.src_dt, p.dst_dt),
                 "Engine does not support this data type.");
 
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
-                "GPU engine is not supported");
-
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -72,9 +69,8 @@ protected:
         const bool is_src_int8 = p.src_dt == memory::data_type::s8
                 || p.src_dt == memory::data_type::u8;
         auto aa = allows_attr_t {false};
-        if (get_test_engine_kind() == engine::kind::cpu && is_src_int8) {
-            aa.scales = true;
-        }
+
+        if (is_src_int8) aa.scales = true;
         if (get_test_engine_kind() == engine::kind::cpu) {
             aa.po_eltwise = true;
             aa.po_binary = true;
