@@ -1914,7 +1914,9 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
     // Try to use os_blocking for cases with ow and kw == 1
     // TODO: maybe extend this approach for other cases with small kw and ow
     if (is_superset(isa, avx512_core) && jcp.od == 1 && jcp.kw == 1
-            && jcp.ow == 1) {
+            && jcp.ow == 1
+            && IMPLICATION(jcp.s8s8_compensation_required,
+                    jcp.t_pad == 0 && jcp.b_pad == 0)) {
         try_exec_vpad = false;
         try_exec_trans = true;
     }
