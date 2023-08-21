@@ -145,7 +145,45 @@ struct verbose_t {
     static uint32_t get_debuginfo(uint32_t flag) { return flag >> 24; }
 };
 
-uint32_t get_verbose(verbose_t::flag_kind kind = verbose_t::none);
+struct component_t {
+    enum flag_kind : uint32_t {
+        none = 0,
+        primitive = 1 << 0,
+        // keep the same order with dnnl_primitive_kind_t
+        reorder = 1 << 1,
+        shuffle = 1 << 2,
+        concat = 1 << 3,
+        sum = 1 << 4,
+        convolution = 1 << 5,
+        deconvolution = 1 << 6,
+        eltwise = 1 << 7,
+        lrn = 1 << 8,
+        batch_normalization = 1 << 9,
+        inner_product = 1 << 10,
+        rnn = 1 << 11,
+        gemm = 1 << 12,
+        binary = 1 << 13,
+        matmul = 1 << 14,
+        resampling = 1 << 15,
+        pooling = 1 << 16,
+        reduction = 1 << 17,
+        prelu = 1 << 18,
+        softmax = 1 << 19,
+        layer_normalization = 1 << 20,
+        group_normalization = 1 << 21,
+        graph = 1 << 22,
+        gemm_api = 1 << 23,
+        all = (uint32_t)-1,
+    };
+};
+
+inline component_t::flag_kind prim_kind2_comp_kind(
+        const primitive_kind_t prim_kind) {
+    return static_cast<component_t::flag_kind>(1 << prim_kind | 1 << 0);
+}
+
+uint32_t get_verbose(verbose_t::flag_kind kind = verbose_t::none,
+        component_t::flag_kind filter_kind = component_t::all);
 
 // Helper to avoid #ifdefs for DNNL_DEV_MODE related logging
 static inline uint32_t get_verbose_dev_mode(

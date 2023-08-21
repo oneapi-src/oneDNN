@@ -121,10 +121,13 @@ void print_header() {
 }
 
 // hint parameter is the kind of verbose we are querying for
-uint32_t get_verbose(verbose_t::flag_kind verbosity_kind) {
+uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
+        component_t::flag_kind filter_kind) {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #else
+    // we print all verbose by default
+    static int flags = component_t::all;
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
         static std::string user_opt = getenv_string_user("VERBOSE");
@@ -158,10 +161,84 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind) {
             return k;
         };
 
+        auto update_filter = [&](const std::string &s, int &k) -> int {
+            std::regex regexp(s);
+            if (std::regex_search("primitive", regexp)) {
+                k |= component_t::primitive;
+            }
+            if (std::regex_search("reorder", regexp)) {
+                k |= component_t::reorder;
+            }
+            if (std::regex_search("shuffle", regexp)) {
+                k |= component_t::shuffle;
+            }
+            if (std::regex_search("concat", regexp)) {
+                k |= component_t::concat;
+            }
+            if (std::regex_search("sum", regexp)) { k |= component_t::sum; }
+            if (std::regex_search("convolution", regexp)) {
+                k |= component_t::convolution;
+            }
+            if (std::regex_search("deconvolution", regexp)) {
+                k |= component_t::deconvolution;
+            }
+            if (std::regex_search("eltwise", regexp)) {
+                k |= component_t::eltwise;
+            }
+            if (std::regex_search("lrn", regexp)) { k |= component_t::lrn; }
+            if (std::regex_search("batch_normalization", regexp)) {
+                k |= component_t::batch_normalization;
+            }
+            if (std::regex_search("inner_product", regexp)) {
+                k |= component_t::inner_product;
+            }
+            if (std::regex_search("rnn", regexp)) { k |= component_t::rnn; }
+            if (std::regex_search("binary", regexp)) {
+                k |= component_t::binary;
+            }
+            if (std::regex_search("matmul", regexp)) {
+                k |= component_t::matmul;
+            }
+            if (std::regex_search("resampling", regexp)) {
+                k |= component_t::resampling;
+            }
+            if (std::regex_search("pooling", regexp)) {
+                k |= component_t::pooling;
+            }
+            if (std::regex_search("reduction", regexp)) {
+                k |= component_t::reduction;
+            }
+            if (std::regex_search("prelu", regexp)) { k |= component_t::prelu; }
+            if (std::regex_search("softmax", regexp)) {
+                k |= component_t::softmax;
+            }
+            if (std::regex_search("layer_normalization", regexp)) {
+                k |= component_t::layer_normalization;
+            }
+            if (std::regex_search("group_normalization", regexp)) {
+                k |= component_t::group_normalization;
+            }
+            if (std::regex_search("graph", regexp)) { k |= component_t::graph; }
+            if (std::regex_search("gemm_api", regexp)) {
+                k |= component_t::gemm_api;
+            }
+            return k;
+        };
+
         // we always enable error by default
         int val = verbose_t::error;
-        for (auto &tok : utils::str_split(user_opt, ','))
+        for (auto &tok : utils::str_split(user_opt, ',')) {
+            // update verbose flags
             update_kind(tok, val);
+            // update filter flags
+            if (tok.rfind("filter=", 0) == 0) {
+                auto filter_str = tok.substr(7);
+                if (!filter_str.empty()) {
+                    flags = component_t::none;
+                    update_filter(filter_str, flags);
+                }
+            }
+        }
 
         // We parse for explicit flags
         verbose.set(val);
@@ -171,7 +248,8 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind) {
     if (verbosity_kind == verbose_t::debuginfo)
         result = verbose_t::get_debuginfo(verbose.get());
     if (result) print_header();
-    return result;
+    bool filter_result = flags & filter_kind;
+    return result && filter_result;
 #endif
 }
 
