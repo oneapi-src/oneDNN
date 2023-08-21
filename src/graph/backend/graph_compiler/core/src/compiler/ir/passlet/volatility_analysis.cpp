@@ -18,6 +18,7 @@
 #include <functional>
 #include <utility>
 #include <vector>
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/ssa_data.hpp>
@@ -38,8 +39,15 @@ static volatility_result_t::state_t merge_state(
     return volatility_result_t::UNDEF;
 }
 
+static bool is_tensor_read_only(const expr_base *s) {
+    return (s->node_type_ == sc_expr_type::tensor)
+            && any_map_t::fetch_or_else(
+                    s->attr_.get(), attr_keys::read_only_tensor, false);
+}
+
 static bool expr_can_hoist(const expr_base *s) {
-    return non_volatile_expr(s) || is_pure_func_call(s->node_ptr_from_this());
+    return non_volatile_expr(s) || is_pure_func_call(s->node_ptr_from_this())
+            || is_tensor_read_only(s);
 }
 
 void volatility_analysis_t::view(const define_c &v, pass_phase phase) {
@@ -62,7 +70,7 @@ void volatility_analysis_t::view(const define_c &v, pass_phase phase) {
                         break;
                     }
                     if (val->ssa_data_->is_param_) { continue; }
-                    if (val.isa<constant>()) { continue; }
+                    if (val.isa<constant>() || val.isa<tensor>()) { continue; }
                     assert(val->ssa_data_->has_owner());
                     auto owner = val->ssa_data_->get_owner();
                     if (owner.isa<for_loop>()) {

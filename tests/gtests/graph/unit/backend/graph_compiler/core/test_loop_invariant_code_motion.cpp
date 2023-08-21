@@ -18,10 +18,12 @@
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/ssa_visitor.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/loop_invariant_code_motion.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
+#include <compiler/jit/xbyak/ir/transform/indexing_transform.hpp>
 #include <util/any_map.hpp>
 
 #include <iostream>
@@ -721,6 +723,71 @@ TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
         _var_init_(t20, s32, 0);
         _return_(t20);
     }
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
+
+TEST(GCCore_CPU_licm_transform, TestIndexingTransformLICM) {
+    builder::ir_builder_t builder;
+    _function_(datatypes::void_t, original, _arg_("A", f32, {65536UL}),
+            _arg_("B", f32, {65536UL}), _arg_("C", f32, {65536UL})) {
+        _bind_(A, B, C);
+        _for_(idx1, 0UL, 128UL, 1UL) {
+            _for_(idx2, 0UL, 512UL, 1UL) {
+                _var_init_(a, f32, A[(UINT64_C(512) * idx1) + idx2]);
+                _var_init_(b, f32, B[(UINT64_C(512) * idx1) + idx2]);
+                C[(UINT64_C(512) * idx1) + idx2] = a + b;
+            }
+        }
+    }
+
+    constant_folder_t c1(false);
+    auto out = c1(original);
+    xbyak::indexing_transform_t t;
+    out = t(out);
+    constant_folder_t c2(false);
+    out = c2(out);
+    ssa_transform_t s;
+    out = s(out);
+    loop_invariant_code_motion_t licm;
+    out = licm(out);
+
+    auto f32_ptr = f32.get_pointerof();
+    _function_(datatypes::void_t, expected, _arg_("A", f32, {65536UL}),
+            _arg_("B", f32, {65536UL}), _arg_("C", f32, {65536UL})) {
+        _bind_(A, B, C);
+        _var_init_(t0, idx, 0UL);
+        _var_init_(t1, idx, 128UL);
+        _var_init_(t2, idx, 1UL);
+        _var_init_(t3, idx, 0UL);
+        _var_init_(t4, idx, 512UL);
+        _var_init_(t5, idx, 1UL);
+        _var_init_(t6, idx, builder::make_cast(idx, A));
+        _var_init_(t8, idx, 2048UL);
+        _var_init_(t12, idx, builder::make_cast(idx, B));
+        _var_init_(t13, idx, 2048UL);
+        _var_init_(t17, idx, builder::make_cast(idx, C));
+        _var_init_(t18, idx, 2048UL);
+        _for_(idx1, t0, t1, t2) {
+            _var_init_(i1, idx, builder::make_phi({idx1}));
+            _var_init_(t9, idx, (i1 * t8));
+            _var_init_(t10, idx, (t6 + t9));
+            _var_init_(ptr_a, f32_ptr, builder::make_cast(f32_ptr, t10));
+            _var_init_(t14, idx, (i1 * t13));
+            _var_init_(t15, idx, (t12 + t14));
+            _var_init_(ptr_b, f32_ptr, builder::make_cast(f32_ptr, t15));
+            _var_init_(t19, idx, (i1 * t18));
+            _var_init_(t20, idx, (t17 + t19));
+            _var_init_(ptr_c, f32_ptr, builder::make_cast(f32_ptr, t20));
+            _for_(idx2, t3, t4, t5) {
+                _var_init_(a, f32, ptr_a[idx2]);
+                _var_init_(b, f32, ptr_b[idx2]);
+                _var_init_(t22, f32, (a + b));
+                ptr_c[idx2] = t22;
+            }
+        }
+    }
+
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }

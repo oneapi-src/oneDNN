@@ -33,6 +33,7 @@
 #include <util/utils.hpp>
 
 #include <compiler/codegen/precodegen_passes.hpp>
+#include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/dessa_transform.hpp>
 #include <compiler/ir/transform/loop_function_motion.hpp>
@@ -47,6 +48,7 @@
 #include <compiler/jit/xbyak/ir/transform/avx2_legalizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
+#include <compiler/jit/xbyak/ir/transform/indexing_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/intrinsics_combine.hpp>
 #include <compiler/jit/xbyak/ir/transform/low_level_legalizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/module_var_resolver.hpp>
@@ -67,8 +69,10 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
         const context_ptr &ctx, const x86_64::target_profile_t &profile) {
     std::vector<module_pass_ptr> ret;
 
-    ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<module_var_resolver_t>());
+    ret.emplace_back(module_function_pass_t::make<indexing_transform_t>());
+    ret.emplace_back(utils::make_unique<constant_folder_t>(false));
+    ret.emplace_back(utils::make_unique<auto_caster_t>());
     ret.emplace_back(
             module_function_pass_t::make<low_level_legalizer_t>(ctx->machine_));
     ret.emplace_back(module_function_pass_t::make<constant_optimizer_t>());

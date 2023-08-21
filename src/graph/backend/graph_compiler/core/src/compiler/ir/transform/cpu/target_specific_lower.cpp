@@ -944,10 +944,10 @@ static func_t create_erf_func(const ir_module_ptr &mod,
                     builder::make_div(
                             ONE_f, builder::make_fmadd(const_p, temp, ONE_f)));
             _var_init_(result, sc_data_type_t::f32(elements), const_a5);
-            _var_init_(sign, sc_data_type_t::u32(elements),
+            _var_init_(sign, sc_data_type_t::s32(elements),
                     builder::make_int_and(
                             builder::make_reinterpret(
-                                    inval, sc_data_type_t::u32(elements)),
+                                    inval, sc_data_type_t::s32(elements)),
                             sign_mask));
             temp = builder::make_mul(Q, t);
             result = builder::make_fmadd(result, t, const_a4);
@@ -958,7 +958,7 @@ static func_t create_erf_func(const ir_module_ptr &mod,
             result = builder::make_reinterpret(
                     builder::make_int_xor(sign,
                             builder::make_reinterpret(
-                                    result, sc_data_type_t::u32(elements))),
+                                    result, sc_data_type_t::s32(elements))),
                     sc_data_type_t::f32(elements));
             _return_(result);
         }

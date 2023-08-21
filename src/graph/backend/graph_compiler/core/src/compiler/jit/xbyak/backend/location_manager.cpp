@@ -820,7 +820,7 @@ operand location_manager::get_operand_indexing(const indexing_c &v) {
     // Get the index value
     expr_c idx = v->idx_.back();
     // Get the tensor buffer's base address
-    const tensor_c ptr = v->ptr_.dyn_as<tensor_c>();
+    expr_c ptr = v->ptr_;
     assert(ptr.defined());
     // get ptr and idx locations
     auto ptr_location = get_location(ptr);
@@ -843,7 +843,8 @@ operand location_manager::get_operand_indexing(const indexing_c &v) {
         addr_exp = Xbyak::RegExp(ptr_location.get_reg());
     }
     // Get scale for indexing
-    auto scale = get_data_type_size(get_cpu_data_type(ptr->elem_dtype_));
+    auto elem_type = ptr->dtype_.get_pointer_element();
+    auto scale = get_data_type_size(get_cpu_data_type(elem_type));
     // Get RegExp for idx
     if (idx_loc_type == expr_location::type::imm) {
         // addr_exp += s*i

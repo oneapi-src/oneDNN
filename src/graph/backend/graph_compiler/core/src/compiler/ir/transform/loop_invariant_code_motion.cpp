@@ -41,7 +41,7 @@ struct licm_analysis_data_t {
     const stmt_base_t *parent_;
     // if the var is global or volatile
     bool volatile_ = false;
-    // The loop vars stmt depends on
+    // The loop vars stmt depending on
     std::unordered_set<expr_c> dep_vars_;
     std::unordered_set<expr_c> dep_tensors_;
 
@@ -72,20 +72,47 @@ static bool stmt_can_hoist(const stmt_c &s) {
             || s.isa<stmts_c>();
 }
 
+struct tensor_analysis_data_t {
+    // The base tensor vars depends on
+    std::unordered_set<expr_c> base_tensors_;
+};
+#define BASE_TENSORS(V) \
+    (V)->temp_data().get<tensor_analysis_data_t>().base_tensors_
+
 // Analyze call and tensor volatility in loops for licm promotion assessment
 struct loop_analysis_viewer_t : public ssa_viewer_t {
     using ssa_viewer_t::dispatch;
     using ssa_viewer_t::view;
-    // non-volatile tensor criteria: load data form indexing
-    bool non_volatile_tensor_ = false;
+    const stmt_base_t *current_ = nullptr;
     std::vector<expr_c> cur_loop_vars_;
+    std::vector<std::unordered_set<expr_c>> cur_loop_ptrs_;
     std::unordered_map<expr_c, bool> call_volatile_map_;
+    std::unordered_map<expr_c, std::unordered_set<expr_c>> base_tensor_map_;
     std::unordered_map<expr_c, std::unordered_set<expr_c>> tensor_volatile_map_;
     std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
             alias_map_;
 
+    expr_c dispatch(expr_c s) override {
+        if (!s->get_temp_data().isa<tensor_analysis_data_t>()) {
+            s->temp_data() = tensor_analysis_data_t();
+        }
+        return ssa_viewer_t::dispatch(std::move(s));
+    }
+
+    stmt_c dispatch(stmt_c s) override {
+        if (!s->get_temp_data().isa<tensor_analysis_data_t>()) {
+            s->temp_data() = tensor_analysis_data_t();
+        }
+        auto old = current_;
+        current_ = s.get();
+        auto ret = ssa_viewer_t::dispatch(std::move(s));
+        current_ = old;
+        return ret;
+    }
+
     void view(for_loop_c v) override {
         cur_loop_vars_.emplace_back(v->var_);
+        cur_loop_ptrs_.emplace_back(std::unordered_set<expr_c>());
         call_volatile_map_[v->var_] = false;
         tensor_volatile_map_[v->var_] = std::unordered_set<expr_c>();
         ssa_viewer_t::view(v);
@@ -112,50 +139,116 @@ struct loop_analysis_viewer_t : public ssa_viewer_t {
                 }
             }
         }
-        cur_loop_vars_.pop_back();
-    }
-
-    // If loop contain call, mark this loop as call volatile
-    void view(call_c v) override {
-        ssa_viewer_t::view(v);
-        if (!cur_loop_vars_.empty()) {
-            call_volatile_map_[cur_loop_vars_.back()] = true;
-        }
-    }
-
-    // If loop contain volatile tensor, mark this loop and
-    // outer nested loops with this volatile tensor
-    void view(tensor_c v) override {
-        if (!cur_loop_vars_.empty() && !non_volatile_tensor_) {
-            for (const auto &loop_var : cur_loop_vars_) {
-                tensor_volatile_map_[loop_var].insert(v);
+        // for each volatile base tensor, filter loop volatile pointers
+        // mark all volatile pointers
+        std::unordered_set<expr_c> volatile_ptrs;
+        const auto &cur_loop_ptrs = cur_loop_ptrs_.back();
+        for (const auto &tsr : cur_tensor_volatile_map) {
+            auto iter = base_tensor_map_.find(tsr);
+            if (iter != base_tensor_map_.end()) {
+                auto &alias = iter->second;
+                // only pointer used inside loop will be considered
+                // avoiding marking other loop's volatile pointers
+                for (const auto &a : alias) {
+                    if (cur_loop_ptrs.find(a) != cur_loop_ptrs.end()) {
+                        volatile_ptrs.insert(a);
+                    }
+                }
             }
         }
-        // Prepare for tensor alias analysis
-        if (v.isa<tensor>()) {
-            auto alias = alias_info::get_alias_info(*v);
-            if (alias) { alias_map_[alias] = v; }
+        cur_tensor_volatile_map.insert(
+                volatile_ptrs.begin(), volatile_ptrs.end());
+        // end of loop scope
+        cur_loop_vars_.pop_back();
+        cur_loop_ptrs_.pop_back();
+    }
+
+    void view(var_c v) override {
+        // Prepare for volatile pointer filter
+        if (v->dtype_.is_pointer() && !cur_loop_ptrs_.empty()) {
+            for (auto &loop_ptrs : cur_loop_ptrs_) {
+                loop_ptrs.insert(v);
+            }
         }
+    }
+
+    void view(tensor_c v) override {
+        // Prepare for tensor alias analysis
+        auto alias = alias_info::get_alias_info(*v);
+        if (alias) { alias_map_[alias] = v; }
+        // Prepare for base tensor analysis
+        BASE_TENSORS(v).insert(v);
+    }
+
+    void view(cast_c v) override {
+        ssa_viewer_t::view(v);
+        // Prepare for base tensor analysis
+        auto &st_base = BASE_TENSORS(current_);
+        auto &vi_base = BASE_TENSORS(v->in_);
+        st_base.insert(vi_base.begin(), vi_base.end());
+    }
+
+    void view(binary_c v) override {
+        ssa_viewer_t::view(v);
+        // Prepare for base tensor analysis
+        auto &st_base = BASE_TENSORS(current_);
+        auto &vl_base = BASE_TENSORS(v->l_);
+        auto &vr_base = BASE_TENSORS(v->r_);
+        st_base.insert(vl_base.begin(), vl_base.end());
+        st_base.insert(vr_base.begin(), vr_base.end());
     }
 
     void view(define_c v) override {
-        // In x = A[i], A considered non-volatile
-        if (v->init_.defined() && v->init_.isa<indexing>()) {
-            assert(v->var_.isa<var>());
-            non_volatile_tensor_ = true;
-        }
         ssa_viewer_t::view(v);
-        non_volatile_tensor_ = false;
+        if (v->var_.isa<var>()) {
+            auto &st_base = BASE_TENSORS(current_);
+            auto &va_base = BASE_TENSORS(v->var_);
+            va_base.insert(st_base.begin(), st_base.end());
+            if (v->var_->dtype_.is_pointer()) {
+                for (const auto &tsr : va_base) {
+                    base_tensor_map_[tsr].insert(v->var_);
+                }
+            }
+        } else if (v->var_.isa<tensor>()) {
+            for (const auto &loop_var : cur_loop_vars_) {
+                auto &volatile_map = tensor_volatile_map_[loop_var];
+                volatile_map.insert(v->var_);
+            }
+        }
+    }
+
+    void view(call_c v) override {
+        ssa_viewer_t::view(v);
+        // If loop contain call, mark this loop as call volatile
+        if (!cur_loop_vars_.empty()) {
+            call_volatile_map_[cur_loop_vars_.back()] = true;
+        }
+        // If loop contain volatile tensor, mark this loop and
+        // outer nested loops with this volatile tensor
+        // In call(&A[i]), A considered volatile
+        if (!cur_loop_vars_.empty()) {
+            for (const auto &arg : v->args_) {
+                auto &base = BASE_TENSORS(arg);
+                for (const auto &loop_var : cur_loop_vars_) {
+                    auto &volatile_map = tensor_volatile_map_[loop_var];
+                    volatile_map.insert(base.begin(), base.end());
+                }
+            }
+        }
     }
 
     void view(assign_c v) override {
-        // In x = A[i], A considered non-volatile
-        if (v->value_.isa<indexing>()) {
-            assert(v->var_.isa<var>());
-            non_volatile_tensor_ = true;
-        }
         ssa_viewer_t::view(v);
-        non_volatile_tensor_ = false;
+        // If loop contain volatile tensor, mark this loop and
+        // outer nested loops with this volatile tensor
+        // In A[i] = x, A considered volatile
+        if (v->var_.isa<indexing>() && !cur_loop_vars_.empty()) {
+            auto &base = BASE_TENSORS(v->var_.static_as<indexing>()->ptr_);
+            for (const auto &loop_var : cur_loop_vars_) {
+                auto &volatile_map = tensor_volatile_map_[loop_var];
+                volatile_map.insert(base.begin(), base.end());
+            }
+        }
     }
 };
 
@@ -380,6 +473,10 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
             auto &var_data = v->var_->temp_data().get<licm_analysis_data_t>();
             var_data = st_data;
             if_scope_var_map_[cur_if_scopes_.back()].insert(v->var_);
+        } else if (v->var_.isa<tensor>() && !cur_loop_vars_.empty()) {
+            auto &var_data = v->var_->temp_data().get<licm_analysis_data_t>();
+            var_data.dep_vars_.insert(cur_loop_vars_.back());
+            st_data.volatile_ = true;
         }
     }
     void view(if_else_c v) override {
@@ -452,13 +549,17 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
         }
         auto &st_data = current_->temp_data().get<licm_analysis_data_t>();
         auto &var_data = v->temp_data().get<licm_analysis_data_t>();
+        st_data.dep_vars_.insert(
+                var_data.dep_vars_.begin(), var_data.dep_vars_.end());
         if (var_data.volatile_) {
             st_data.volatile_ = true;
             return;
         }
-        // param can be considered as invariant.
-        // if a var is used before defined, treat it as volatile.
-        st_data.dep_tensors_.insert(v);
+    }
+    void view(indexing_c v) override {
+        ssa_viewer_t::view(v);
+        auto &st_data = current_->temp_data().get<licm_analysis_data_t>();
+        st_data.dep_tensors_.insert(v->ptr_);
     }
     void view(ssa_phi_c v) override {
         ssa_viewer_t::view(v);

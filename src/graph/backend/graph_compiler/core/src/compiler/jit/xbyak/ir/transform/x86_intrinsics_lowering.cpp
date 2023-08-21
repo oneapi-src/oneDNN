@@ -742,10 +742,21 @@ public:
 
     void transform_3a_to_2a(const expr &dst, const expr &lhs, const expr &rhs,
             xbyak_intrin_type intrin, xbyak_intrin_isa isa) {
+        // x86 operations only support up to 32 bit imm
+        auto load_if_imm_64_bit = [&](const expr &v) -> expr {
+            if (isa == xbyak_intrin_isa::x86 && const_exceed_32bit(v)) {
+                auto imm = builder::make_var(v->dtype_, "__64_bit_imm");
+                add_defination(imm, linkage::local);
+                add_assignment(imm, v);
+                return imm;
+            } else {
+                return v;
+            }
+        };
         // dst = lhs
         add_assignment(dst, lhs);
         // dst = 2a(rhs)
-        transform_intrin(dst, {rhs}, intrin, isa);
+        transform_intrin(dst, {load_if_imm_64_bit(rhs)}, intrin, isa);
     }
 
     void transform_4a_to_3a(const expr &dst, const expr &a, const expr &b,

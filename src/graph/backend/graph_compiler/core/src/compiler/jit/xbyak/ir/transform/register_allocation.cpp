@@ -444,7 +444,8 @@ protected:
                           .remove_const()
                           .static_as<define>();
         if (is_spilled(vv->var_) && vv->init_.defined()) {
-            if (vv->var_.isa<tensor>() && vv->init_.isa<tensorptr>()) {
+            if (vv->var_.isa<tensor>()
+                    && (vv->init_.isa<cast>() || vv->init_.isa<tensorptr>())) {
                 // load tensor_ptr using lea needs dst be reg
                 vv->init_ = insert_load(std::move(vv->init_), cur_index_);
             } else if (const_exceed_32bit(vv->init_)) {
