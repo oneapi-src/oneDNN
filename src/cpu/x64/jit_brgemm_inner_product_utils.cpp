@@ -65,8 +65,14 @@ int jit_brgemm_ip_conf_t::get_os_block(
         bool try_to_adjust, bool is_adjustment) const {
     const auto &jbgp = *this;
 
-    const bool is_amx_int8 = jbgp.is_amx && one_of(jbgp.wei_dt, s8, u8);
-    const bool is_xf16 = one_of(jbgp.wei_dt, bf16, f16) || jbgp.is_bf32;
+    const bool is_fwd
+            = one_of(jbgp.prop_kind, forward_training, forward_inference);
+    const bool is_bwd_d = jbgp.prop_kind == backward_data;
+    const bool is_bwd_w = jbgp.prop_kind == backward_weights;
+
+    const data_type_t b_dt = is_bwd_w ? jbgp.dst_dt : jbgp.wei_dt;
+    const bool is_amx_int8 = jbgp.is_amx && one_of(b_dt, s8, u8);
+    const bool is_xf16 = one_of(b_dt, bf16, f16) || jbgp.is_bf32;
     const bool is_amx_xf16 = jbgp.is_amx && is_xf16;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
     const bool is_avx512 = jbgp.isa == avx512_core;
@@ -76,8 +82,7 @@ int jit_brgemm_ip_conf_t::get_os_block(
     int max_os_block = 0;
     int min_os_block = 0;
 
-    if (try_to_adjust
-            || one_of(jbgp.prop_kind, forward_training, forward_inference)) {
+    if (try_to_adjust || is_fwd) {
         min_os_block = (is_amx_int8 || is_amx_xf16) ? 16 : 6;
         // Currently gigantic flag is used to separate out transformer_lt and
         // alexnet shapes for which larger os_block gives better performance.
@@ -107,7 +112,7 @@ int jit_brgemm_ip_conf_t::get_os_block(
                 max_os_block = saturate(16, max_os_block,
                         div_up(jbgp.os * jbgp.nb_oc, 2 * jbgp.nthr));
         }
-    } else if (jbgp.prop_kind == backward_data) {
+    } else if (is_bwd_d) {
         int plat_max_os_block = 0;
         if (is_amx_xf16) {
             plat_max_os_block
@@ -119,11 +124,9 @@ int jit_brgemm_ip_conf_t::get_os_block(
         }
         max_os_block = nstl::min(plat_max_os_block, jbgp.os);
         min_os_block = is_amx_xf16 ? 16 : is_avx512 ? 6 : 4;
-        if (jbgp.isa == avx2 && jbgp.prop_kind == backward_data
-                && jbgp.os * jbgp.oc > 512 * 1024)
-            return jbgp.os;
+        if (jbgp.isa == avx2 && jbgp.os * jbgp.oc > 512 * 1024) return jbgp.os;
 
-    } else if (jbgp.prop_kind == backward_weights) {
+    } else if (is_bwd_w) {
         constexpr int amx_xf16_row = 64;
         constexpr int amx_xf16_half_row = amx_xf16_row / 2;
         // ensure that os_tail <= amx_xf16_half_row
