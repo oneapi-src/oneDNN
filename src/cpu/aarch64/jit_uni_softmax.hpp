@@ -51,7 +51,6 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             auto is_dense = [&]() {
                 const memory_desc_wrapper src_d(src_md());
                 const auto &bd = src_d.blocking_desc();
-
                 if (!src_d.is_dense(true) || !src_d.only_padded_dim(axis()))
                     return false;
 
@@ -75,7 +74,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             const auto dst_dt = dst_md()->data_type;
             bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(src_dt, f32, s8, u8)
-                    && utils::one_of(dst_dt, f32, s8, u8) && mayiuse(sve_512)
+                    && utils::one_of(dst_dt, f32, s8, u8) && mayiuse(sve_256)
                     && attr()->has_default_values(skip_mask_t::scales_runtime)
                     && attr_scales_ok()
                     && set_default_formats() == status::success;
@@ -154,7 +153,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                     && utils::one_of(dst_md()->data_type, f32)
                     && utils::one_of(diff_dst_md()->data_type, f32)
                     && utils::one_of(diff_src_md()->data_type, f32)
-                    && mayiuse(sve_512) && attr()->has_default_values()
+                    && mayiuse(sve_256) && attr()->has_default_values()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
 

@@ -316,7 +316,7 @@ struct jit_softmax_base_t : public jit_generator {
     }
 
     void prepare_mask() {
-        if (isa == sve_512) {
+        if (isa == sve_256) {
             sub_imm(X_TRANSLATOR_STACK, X_TRANSLATOR_STACK, 64 * 2, X_TMP_0);
             str(p_shuff0, ptr(X_TRANSLATOR_STACK, 0, MUL_VL));
             str(p_shuff1, ptr(X_TRANSLATOR_STACK, 1, MUL_VL));
@@ -328,7 +328,7 @@ struct jit_softmax_base_t : public jit_generator {
     }
 
     void restore_mask() {
-        assert(isa == sve_512);
+        assert(isa == sve_256);
 
         ldr(p_shuff0, ptr(X_TRANSLATOR_STACK, 0, MUL_VL));
         ldr(p_shuff1, ptr(X_TRANSLATOR_STACK, 1, MUL_VL));
@@ -386,7 +386,7 @@ template <cpu_isa_t isa>
 struct jit_softmax_t;
 
 template <>
-struct jit_softmax_t<sve_512> : public jit_softmax_base_t<sve_512> {
+struct jit_softmax_t<sve_256> : public jit_softmax_base_t<sve_256> {
     PReg tail_opmask = p2;
 
     void store(const XReg &addr, const ZReg &vmm, data_type_t dt,
@@ -810,8 +810,8 @@ private:
 } // namespace softmax_impl
 
 /* struct instantiation */
-template struct jit_uni_softmax_fwd_t<sve_512>;
-template struct jit_uni_softmax_bwd_t<sve_512>;
+template struct jit_uni_softmax_fwd_t<sve_256>;
+template struct jit_uni_softmax_bwd_t<sve_256>;
 
 } // namespace aarch64
 } // namespace cpu
