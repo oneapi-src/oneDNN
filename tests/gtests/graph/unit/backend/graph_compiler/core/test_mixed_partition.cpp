@@ -2051,3 +2051,46 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, PoolingLoopReSchedule) {
     EXPECT_TRUE(outer_loop->kind_ == for_type::PARALLEL
             && get_expr_as_int(outer_loop->iter_end_) == num_threads);
 }
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, ComplexTensorViewInferSlice) {
+    SET_THREADS_OR_SKIP(4);
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input({graph_tensor::make(
+            {224, 256}, sc_data_format_t(format_kinds::MK))});
+    auto weight0 = graph.make_input({graph_tensor::make(
+            {256, 256}, sc_data_format_t(format_kinds::KN))});
+
+    // mmm0
+    auto mmm0 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
+    ops::managed_matmul_core_config_t cfg = {4, 1, 1, 1, 1, 0};
+    mmm0->dyn_cast<op_traits::configurable_t>()->set_config(
+            reflection::general_object_t::make(cfg));
+    auto relu0 = graph.make("relu", {mmm0->get_outputs()[0]}, {}, {});
+    auto tv0 = graph.make("tensor_view", {relu0->get_outputs()[0]}, {},
+            {{"shape", sc_dims {4, 56, 256}}});
+    auto relu1 = graph.make("relu", {tv0->get_outputs()[0]}, {}, {});
+    auto radd0 = graph.make("reduce", relu1->get_outputs(), {},
+            {{"rd_axis", std::vector<int> {2}}, {"rd_op", 0}});
+    auto relu2 = graph.make("relu", {radd0->get_outputs()[0]}, {}, {});
+    graph.make_output({relu2->get_outputs()[0]});
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+
+    graph_driver_before_fusion(graph, ctx);
+    // split outmost and merge inners, outerloop_8X2
+    mixed_partition(graph, ctx);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    // The reduce op could not find suitable anchor to commit, because of fusion
+    // flow was breaked by tensorview op
+    std::string expected_str
+            = R"(graph(v0: f32[224, 256], v1: f32[256, 256]) -> [v2: f32[4, 56, 1]] {
+  [v3: f32[4, 56, 256]] = outerloop_4X1X1X1X1_partition_managed_matmul_core_relu_tensor_view_relu(v0, v1)
+  [v2: f32[4, 56, 1]] = outerloop_4X56_partition_reduce_compute_reduce_collect_relu(v3)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+}

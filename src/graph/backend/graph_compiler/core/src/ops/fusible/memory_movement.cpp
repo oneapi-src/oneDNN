@@ -840,10 +840,11 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
         expr acc_src_dim_expr = 1;
         const int dyn_len = -2;
         for (int i = src_dims.size() - 1; i >= 0; i--) {
+            auto slice_expr = known_ranges[i].second;
             if (slice_stop) {
                 // check whether slice is full on last several dims
-                if (!known_ranges[i].second.isa<constant_c>()
-                        || get_expr_as_int(known_ranges[i].second) != 1)
+                if (!slice_expr.isa<constant_c>()
+                        || get_expr_as_int(slice_expr) != 1)
                     // if tensor_view deals with inconsequence slice, it will
                     // return empty slice range list to tell fusion manager not
                     // to fuse it
@@ -852,12 +853,29 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
             auto src_expr = src_dims[i];
             if (!(known_ranges[i].first.isa<constant_c>()
                         && get_expr_as_int(known_ranges[i].first) == 0
-                        && slice_expr_equals(
-                                known_ranges[i].second, src_expr))) {
+                        && slice_expr_equals(slice_expr, src_expr))) {
+                // if the last dim is already non-full
+                if (i == static_cast<int>(src_dims.size()) - 1) {
+                    // last dim of dst
+                    auto dst_expr = dst_dims.back();
+                    // double-check legality
+                    if (slice_expr.isa<constant>()
+                            && dst_expr.isa<constant>()) {
+                        auto slice_int = get_expr_as_int(slice_expr);
+                        auto dst_int = get_expr_as_int(dst_expr);
+                        // skip too complex cases to analyze tensorview slice
+                        // range mapping relationship
+                        if ((slice_int > dst_int && slice_int % dst_int != 0)
+                                || (dst_int > slice_int
+                                        && dst_int % slice_int != 0)) {
+                            return slice_range_list {};
+                        }
+                    }
+                }
                 slice_stop = true;
             }
-            if (known_ranges[i].second.isa<constant_c>()) {
-                total_len *= get_expr_as_int(known_ranges[i].second);
+            if (slice_expr.isa<constant_c>()) {
+                total_len *= get_expr_as_int(slice_expr);
             } else {
                 total_len *= dyn_len;
             }
