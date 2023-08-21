@@ -62,6 +62,7 @@ static std::unordered_set<std::shared_ptr<cached_const_graph_tensor>> to_set(
 }
 
 TEST(GCCore_CPU_compiler_driver, TestCodeReuse) {
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.const_share_ = true;
     ctx->flags_.mixed_fusion_ = true;
