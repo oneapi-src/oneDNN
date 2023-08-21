@@ -440,20 +440,21 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Move cfg out of filling since its creation is not free.
     cfg_t cfg(prb, {SRC, WEI, BIA, DST});
-    SAFE(fill_data(SRC, prb, cfg, src_dt, src_fp, res), WARN);
-    SAFE(fill_data(WEI, prb, cfg, wei_dt, wei_fp, res), WARN);
+    TIME_FILL(SAFE(fill_data(SRC, prb, cfg, src_dt, src_fp, res), WARN));
+    TIME_FILL(SAFE(fill_data(WEI, prb, cfg, wei_dt, wei_fp, res), WARN));
     const int sum_idx = prb->attr.post_ops.find(attr_t::post_ops_t::SUM);
     if ((prb->beta != 0) || brgemm_attr.generate_skip_accumulation) {
-        SAFE(fill_data(DST, prb, cfg, acc_dt, acc_fp, res), WARN);
+        TIME_FILL(SAFE(fill_data(DST, prb, cfg, acc_dt, acc_fp, res), WARN));
         // Beta requires same values for reference and the kernel.
         if (use_dst_as_acc) {
             dst_fp.reorder(acc_fp);
             dst_dt.reorder(dst_fp);
         }
     }
-    if (sum_idx >= 0) SAFE(fill_data(DST, prb, cfg, dst_dt, dst_fp, res), WARN);
+    if (sum_idx >= 0)
+        TIME_FILL(SAFE(fill_data(DST, prb, cfg, dst_dt, dst_fp, res), WARN));
     if (prb->bia_dt != dnnl_data_type_undef)
-        SAFE(fill_data(BIA, prb, cfg, bia_dt, bia_fp, res), WARN);
+        TIME_FILL(SAFE(fill_data(BIA, prb, cfg, bia_dt, bia_fp, res), WARN));
 
     // "Library" args are needed to get dst for comparison.
     // "Reference" are used as usual.
