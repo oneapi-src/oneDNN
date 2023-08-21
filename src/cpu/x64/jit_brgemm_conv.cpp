@@ -281,8 +281,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     brgemm_strides_t brg_strides;
     brg_strides.stride_a = jcp_.brg_stride_a;
     brg_strides.stride_b = jcp_.brg_stride_b;
-    brg.req_cal_comp_pads = jcp_.req_brg_comp_pad
-            && (jcp_.src_zero_point || jcp_.s8s8_compensation_required);
+    brg.req_cal_comp_pads = jcp_.req_brg_comp_pad;
+    brg.req_comp_pads_with_bd
+            = jcp_.req_cal_comp_pad && jcp_.exec_type != exec_vpad;
     const auto strides_ptr
             = (jcp_.brg_type == brgemm_strd) ? &brg_strides : nullptr;
     CHECK(brgemm_desc_init(&brg, isa, jcp_.brg_type, src_type, wei_type, false,
