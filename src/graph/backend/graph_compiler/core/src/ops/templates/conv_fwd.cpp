@@ -1989,7 +1989,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
 
   const int work_amount = mb_ * K_num_block * ow_ / config.tile_q;
   bool reuse_sub_tensor = sh_ < (dh_ * (kh_ - 1) + 1) && C_num_block == 1
-    && is_parallel_space_enough(work_amount, num_threads);
+    && is_parallel_space_enough(work_amount, num_threads) && dh_ == 1;
   bool use_var_bs = attrs_.get_or_else("use_var_bs", true);
 
   // TODO(xxx): fix inverse filter correctness issue when use_var_bs==true
@@ -2360,12 +2360,12 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                               A_idx = builder::make_cast(datatypes::u32,
                                 di * kh_ * kw_ + sub_tsr_idx * kw_ + wi);
                               A_list[A_idx] = tensor_ptr(
-                                g_sub_tensor, {tid, di, hi, wi, 0});
+                                g_sub_tensor, {tid, di, hi, wi * dw_, 0});
                             } else {
                               A_idx = builder::make_cast(
                                 datatypes::u32, sub_tsr_idx * kw_ + wi);
-                              A_list[A_idx]
-                                = tensor_ptr(g_sub_tensor, {tid, hi, wi, 0});
+                              A_list[A_idx] = tensor_ptr(
+                                g_sub_tensor, {tid, hi, wi * dw_, 0});
                             }
                           }
                         }

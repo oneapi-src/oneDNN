@@ -595,6 +595,8 @@ TEST(GCCore_CPU_qconv2d, Test_2DConv_3x3_with_dilation_int8) {
             {1, 256, 256, 28, 28, 2, 1, 2}, // deeplabv3_resnet101
             {1, 256, 256, 28, 28, 4, 1, 4}, // deeplabv3_resnet101
             {1, 1024, 512, 19, 19, 6, 1, 6}, // ssd300_vgg16
+            {7, 1024, 32, 19, 19, 6, 1, 6},
+            {7, 1024, 4, 6, 6, 2, 1, 2},
     }; // N, K, C, H, W, Dilation, Stride, Padding
     int R = 3, S = 3;
     for (auto workload : workload_list) {
@@ -616,7 +618,37 @@ TEST(GCCore_CPU_qconv2d, Test_2DConv_3x3_with_dilation_int8) {
     }
     return;
 }
-
+TEST(GCCore_CPU_qconv2d, Test_2DConv_3x3_with_asymmetric_dilation_int8) {
+    REQUIRE_AMX();
+    SET_THREADS_OR_SKIP(56);
+    std::vector<std::vector<int>> workload_list = {
+            {7, 1024, 32, 19, 19, 1, 6, 1, 6},
+            {7, 1024, 4, 6, 6, 1, 2, 1, 2},
+    }; // N, K, C, H, W, Dilation_H, Dilation_W, Stride, Padding
+    int R = 3, S = 3;
+    for (auto workload : workload_list) {
+        auto N = workload[0];
+        auto K = workload[1];
+        auto C = workload[2];
+        auto H = workload[3];
+        auto W = workload[4];
+        auto dilation_h = workload[5];
+        auto dilation_w = workload[6];
+        auto stride = workload[7];
+        auto padding = workload[8];
+        if ((dilation_h * 2 + 1 > H + 2 * padding)
+                || (dilation_w * 2 + 1 > W + 2 * padding)) {
+            continue;
+        }
+        check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), N, K, C, H,
+                W, R, S, {stride, stride}, {dilation_h, dilation_w},
+                {padding, padding}, false, true, false, true);
+        check_qconv<int8_t, int8_t, int32_t>(conv_fwd_config_t(), N, K, C, H, W,
+                R, S, {stride, stride}, {dilation_h, dilation_w},
+                {padding, padding}, false, true, false, true);
+    }
+    return;
+}
 TEST(GCCore_CPU_qconv2d_u8s8s32_1x1, no_padding_1_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 128, 64, 64, 56, 56, 1, 1,
