@@ -59,7 +59,8 @@ void softmax_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         fexpinp = fsub->get_outputs()[0];
     }
     // exp(x)
-    auto fexp = graph->make("exp", {fexpinp}, {}, {{"numeric_stable", false}});
+    auto fexp = graph->make(
+            "exp", {fexpinp}, {}, {{"overflow_check", !numeric_stable}});
 
     // sum(exp(x))
     auto freduce = graph->make("reduce", {fexp->get_outputs()[0]}, {},

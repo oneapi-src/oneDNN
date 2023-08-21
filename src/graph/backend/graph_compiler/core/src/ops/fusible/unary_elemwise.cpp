@@ -283,7 +283,7 @@ expr sigmoid_op_t::compute_element(expr in) {
 expr exp_op_t::compute_element(expr in) {
     auto out = builder::make_exp(in);
     out->attr().set(
-            "numeric_stable", attrs_.get_or_else("numeric_stable", true));
+            "overflow_check", attrs_.get_or_else("overflow_check", true));
     return out;
 }
 
