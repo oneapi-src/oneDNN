@@ -520,8 +520,8 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         dnnl_primitive_t prim_ref = nullptr) {
 
     for (int i = 0; i < args.size(); ++i) {
-        check_zero_padding(args.dnn_mem(i), args.arg(i), res);
-        check_buffer_overwrite(args.dnn_mem(i), args.arg(i), res);
+        TIME_COMPARE(check_zero_padding(args.dnn_mem(i), args.arg(i), res));
+        TIME_COMPARE(check_buffer_overwrite(args.dnn_mem(i), args.arg(i), res));
     }
 
     TIME_REF(compute_ref(prb, ref_args, prim_ref));
