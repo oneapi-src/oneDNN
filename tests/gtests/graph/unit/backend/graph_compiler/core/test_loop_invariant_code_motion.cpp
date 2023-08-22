@@ -23,8 +23,12 @@
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
-#include <compiler/jit/xbyak/ir/transform/indexing_transform.hpp>
 #include <util/any_map.hpp>
+#include <util/def.hpp>
+
+#if SC_BUILTIN_JIT_ENABLED
+#include <compiler/jit/xbyak/ir/transform/indexing_transform.hpp>
+#endif
 
 #include <iostream>
 #include "gtest/gtest.h"
@@ -727,6 +731,7 @@ TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
+#if SC_BUILTIN_JIT_ENABLED
 TEST(GCCore_CPU_licm_transform, TestIndexingTransformLICM) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, original, _arg_("A", f32, {65536UL}),
@@ -791,3 +796,4 @@ TEST(GCCore_CPU_licm_transform, TestIndexingTransformLICM) {
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
+#endif
