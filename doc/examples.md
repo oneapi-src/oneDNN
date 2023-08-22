@@ -18,3 +18,6 @@ Examples {#dev_guide_examples}
 |                | CPU     |                                      | @ref cpu_cnn_training_f32_c |
 |                | CPU/GPU | @ref rnn_training_f32_cpp            |                             |
 | bf16 training  | CPU/GPU | @ref cnn_training_bf16_cpp           |                             |
+| Graph API      | CPU     | @ref graph_cpu_getting_started_cpp   |                             |
+|                | CPU     | @ref graph_cpu_inference_int8_cpp    |                             |
+|                | CPU/GPU | @ref graph_sycl_getting_started_cpp  |                             |

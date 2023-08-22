@@ -71,6 +71,19 @@ Examples
      - CPU/GPU
      - :ref:`doxid-cnn_training_bf16_cpp`
      -
+   * - Graph API
+     - CPU
+     - :ref:`doxid-graph_cpu_getting_started_cpp`
+     -
+   * - 
+     - CPU
+     - :ref:`doxid-graph_cpu_inference_int8_cpp`
+     -
+   * - 
+     - CPU/GPU
+     - :ref:`doxid-graph_sycl_getting_started_cpp`
+     -
+
 
 
 
