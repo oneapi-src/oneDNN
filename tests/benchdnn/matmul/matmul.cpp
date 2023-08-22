@@ -285,8 +285,8 @@ int fill_csr_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
     cfg_t cfg(prb, {SRC, WEI, BIA, DST});
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nnz, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nnz, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
@@ -329,8 +329,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     const auto density = cfg.get_density(density_args);
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;

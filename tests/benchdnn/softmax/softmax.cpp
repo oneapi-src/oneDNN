@@ -83,6 +83,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 }
 
 int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
     int64_t outer_size = 0, inner_size = 0, axis_size = 0;
     get_sizes(prb, outer_size, inner_size, axis_size);
 
@@ -99,8 +102,8 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     // log(sum(x_j)) won't be close to zero as in case of single top-1 value.
 
     // Do fixed partitioning to have same filling for any number of threads.
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(outer_size, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;

@@ -200,8 +200,8 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     if (nelems == 0) return OK;
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
     const bool is_log = prb->alg == alg_t::LOG;
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
