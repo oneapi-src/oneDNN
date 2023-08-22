@@ -120,11 +120,13 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::zero_ic_block(
         store(ptr[last_dst_off] | kblock_tail_mask | T_z, zmm_zero);
 }
 
-void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ic_block(bool is_ic_tail,
-        dim_t inp_off = 0, dim_t dst_off = 0, bool do_load = true) {
+void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ic_block(dim_t zidx,
+        bool is_ic_tail, dim_t inp_off = 0, dim_t dst_off = 0,
+        bool do_load = true) {
     bool has_block_tail = (jcp.inp_ic_block % jcp.simd_w);
 
     // TODO: use Xmm or Ymm moves for better small ic efficiency
+    Xbyak::Zmm zmm_tmp = get_zmm(zidx);
     auto nvec = is_ic_tail ? n_tail_vec : n_vec;
     for (int iv = 0; iv < nvec; iv++) {
         if (do_load) load(zmm_tmp, ptr[aux_inp_ptr + inp_off + iv * VL]);
@@ -177,31 +179,33 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
 
     auto icb_loop_body = [&](bool is_ic_tail) {
         Xbyak::Label kh_label, no_kh_label;
-        Xbyak::Label kh_tover_label, kh_bover_label;
-        Xbyak::Label no_kh_tover_label, no_kh_bover_label;
+        Xbyak::Label finish_label;
 
         mov(aux_inp_ptr, inp_ptr);
         mov(aux_dst_ptr, dst_ptr);
 
         cmp(reg_hc, 0);
-        jle(no_kh_bover_label, T_NEAR); // nothing to do
+        jle(finish_label, T_NEAR); // nothing to do
 
-        cmp(reg_t_pad, 0);
-        jle(no_kh_tover_label, T_NEAR);
+        if (jcp.t_pad > 0) {
+            Xbyak::Label kh_tover_label, no_kh_tover_label;
+            cmp(reg_t_pad, 0);
+            jle(no_kh_tover_label, T_NEAR);
 
-        mov(kh_over, reg_t_pad);
-        L(kh_tover_label);
-        {
-            // TODO: adjust step to improve zeroing efficiency for small ic
-            for (dim_t iw = 0; iw < dst_w_block; iw++)
-                zero_ic_block(is_ic_tail, iw * dst_w_offset);
-            add(aux_dst_ptr, dst_h_offset);
+            mov(kh_over, reg_t_pad);
+            L(kh_tover_label);
+            {
+                // TODO: adjust step to improve zeroing efficiency for small ic
+                for (dim_t iw = 0; iw < dst_w_block; iw++)
+                    zero_ic_block(is_ic_tail, iw * dst_w_offset);
+                add(aux_dst_ptr, dst_h_offset);
 
-            dec(kh_over);
-            jnz(kh_tover_label, T_NEAR);
+                dec(kh_over);
+                jnz(kh_tover_label, T_NEAR);
+            }
+            sub(reg_hc, reg_t_pad);
+            L(no_kh_tover_label);
         }
-        sub(reg_hc, reg_t_pad);
-        L(no_kh_tover_label);
 
         cmp(reg_hc, reg_b_pad);
         jle(no_kh_label, T_NEAR);
@@ -220,20 +224,27 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
         }
         L(no_kh_label);
 
-        cmp(reg_hc, 0);
-        jle(no_kh_bover_label, T_NEAR);
-
-        L(kh_bover_label);
         {
-            // TODO: adjust step to improve zeroing efficiency for small ic
-            for (dim_t iw = 0; iw < dst_w_block; iw++)
-                zero_ic_block(is_ic_tail, iw * dst_w_offset);
-            add(aux_dst_ptr, dst_h_offset);
+            // even if jcp.b_pad == 0 it is possible that b_pad passed as
+            // parameter is not equal to 0 (e.g. for cases with tail by oh)
+            Xbyak::Label kh_bover_label, no_kh_bover_label;
+            cmp(reg_hc, 0);
+            jle(no_kh_bover_label, T_NEAR);
 
-            dec(reg_hc);
-            jnz(kh_bover_label, T_NEAR);
+            L(kh_bover_label);
+            {
+                // TODO: adjust step to improve zeroing efficiency for small ic
+                for (dim_t iw = 0; iw < dst_w_block; iw++)
+                    zero_ic_block(is_ic_tail, iw * dst_w_offset);
+                add(aux_dst_ptr, dst_h_offset);
+
+                dec(reg_hc);
+                jnz(kh_bover_label, T_NEAR);
+            }
+            L(no_kh_bover_label);
         }
-        L(no_kh_bover_label);
+
+        L(finish_label);
 
         // End IC Loop
         auto inp_cb_offset = ic_block_sz;
@@ -383,7 +394,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ow_block_body(
             zero_ic_block(is_ic_tail, dst_off);
         } else {
             auto inp_off = iw_idx * iw_size;
-            copy_ic_block(is_ic_tail, inp_off, dst_off, true);
+            copy_ic_block(ind_w, is_ic_tail, inp_off, dst_off, true);
         }
     }
 }
@@ -435,7 +446,7 @@ void jit_avx512_core_brgemm_conv_rtus_kernel_t::generate() {
         jle(label_kwp_end, T_NEAR);
         L(label_kwp_begin);
         {
-            copy_ic_block(is_ic_tail);
+            copy_ic_block(0, is_ic_tail);
 
             auto inp_w_step = jcp.stride_w * iw_size;
             auto out_w_step = ic_block_sz;
@@ -456,7 +467,7 @@ void jit_avx512_core_brgemm_conv_rtus_kernel_t::generate() {
             for (int ow = 0; ow < jcp.ow; ow++) {
                 auto inp_w_off = ow * jcp.stride_w * iw_size;
                 auto out_w_off = ow * ic_block_sz;
-                copy_ic_block(is_ic_tail, inp_w_off, out_w_off);
+                copy_ic_block(0, is_ic_tail, inp_w_off, out_w_off);
             }
 
             auto inp_h_step = jcp.stride_h * jcp.iw * iw_size;

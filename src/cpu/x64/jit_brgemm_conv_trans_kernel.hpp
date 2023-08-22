@@ -74,16 +74,16 @@ protected:
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblock_tail_mask = Xbyak::Opmask(3);
 
-    const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(0);
-    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(1);
+    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(0);
 
     void load(const Xbyak::Xmm &x, const Xbyak::Address &addr);
 
     void store(const Xbyak::Address &addr, const Xbyak::Xmm &x);
 
     void zero_ic_block(bool is_ic_tail, dim_t dst_off);
-    void copy_ic_block(
-            bool is_ic_tail, dim_t inp_off, dim_t dst_off, bool do_load);
+    void copy_ic_block(dim_t zidx, bool is_ic_tail, dim_t inp_off,
+            dim_t dst_off, bool do_load);
+    Xbyak::Zmm get_zmm(dim_t idx) const { return Xbyak::Zmm(1 + (idx % 31)); }
     void generate() override;
     void copy_ow_block(bool is_ic_tail);
     void copy_ow_block_body(int lpad, int ow_len, int iw_len, bool is_ic_tail);
