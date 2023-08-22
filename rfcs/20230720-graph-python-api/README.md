@@ -44,10 +44,10 @@ allows it to be modified and redistributed.
 
 As the proposal is focusing on the python binding of oneDNN graph API, it is
 suggested to place pybind11 source code and the binding implementation into
-src/graph/ folder. A new folder src/graph/python/ will be created for the
+`src/graph/` folder. A new folder `src/graph/python/` will be created for the
 purpose.
 
-Test cases implemented with python API will be placed in tests/python/.
+Test cases implemented with python API will be placed in `tests/python/`.
 
 ## Implementation
 
@@ -61,8 +61,8 @@ will be defined and exposed to control the feature at the library build stage.
 The new option will take effect only when the existing ONEDNN_BUILD_GRAPH option
 is enabled.
 
-With ONEDNN_BUILD_GRAPH_PYTHON_BINDING=ON, the binding code will be built and a
-python package wheel will be generated in the build directory of oneDNN.
+With `ONEDNN_BUILD_GRAPH_PYTHON_BINDING=ON`, the binding code will be built and
+a .so file will be generated in the build directory of oneDNN.
 
 | CMake option                      | Value               | Description |
 | ---                               | ---                 | ---         |
@@ -70,21 +70,37 @@ python package wheel will be generated in the build directory of oneDNN.
 
 ## Installation
 
-The users will need to install the python package wheel by themselves by
-executing, for example:
+There is no extra change for cmake building command except for setting
+`ONEDNN_BUILD_GRAPH_PYTHON_BINDING` to `ON`.
 
 ```bash
-# The name dnng is just for demonstration and can be changed in implementation.
- pip install dnng-0.2.0-cp37-cp37m-linux_x86_64.whl
+cmake -DONEDNN_BUILD_GRAPH=ON -DONEDNN_BUILD_GRAPH_PYTHON_BINDING=ON ..
+make -j
+```
+
+After building finished, an auto-generated file `setup.py` will be put
+under `${ONEDNN_ROOT}/dnnl_graph` folder.
+
+The users will need to build and install the python package wheel by themselves
+by executing commands, for example:
+
+```bash
+cd ${ONEDNN_ROOT}/dnnl_graph
+
+# or directly install via `python setup.py install`
+python setup.py bdist_wheel
+
+# The generated wheel file will be located at dist/ folder
+cd dist
+pip install dnnl_graph-3.2.0-cp310-cp310-linux_x86_64.whl
 ```
 
 After the installation, one can import the package in the corresponding python
 interpreter by:
 
 ```python
-import dnng
-# or,
-from dnng import *
+# or from dnnl_graph import *
+import dnnl_graph
 ```
 
 ## Low level python API
@@ -101,7 +117,7 @@ modules can be added when the request emerges.
 The python code example for creating op and logical tensors as follows:
 
 ```python
-from dnng import *
+from dnnl_graph import *
 
 # init op
 matmul0 = op(0, op.MatMul, "matmul0")
