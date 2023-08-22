@@ -166,27 +166,24 @@ int main(int argc, char **argv) {
                     perf_timer_stats[timer::timer_t::avg]);
         }
     }
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
-        const auto total_s = total_time.sec(timer::timer_t::sum);
-        const std::vector<std::pair<std::string, std::string>> aux_timers = {
-                {"fill", timer::names::fill_timer},
-                {"compute_ref", timer::names::ref_timer},
-                {"compare", timer::names::compare_timer},
-        };
 
-        printf("total: %.2fs;", total_s);
-        for (const auto &e : aux_timers) {
-            const auto &t = benchdnn_stat.ms.find(e.second);
-            if (t != benchdnn_stat.ms.end()) {
-                const auto &stats = t->second;
-                double s = stats[timer::timer_t::sum];
-                double r_s_to_total = 100.f * s / total_s;
-                printf(" %s: %.2fs (%.0f%%);", e.first.c_str(), s,
-                        r_s_to_total);
-            }
-        }
-        printf("\n");
+    const auto total_s = total_time.sec(timer::timer_t::sum);
+    printf("total: %.2fs;", total_s);
+    for (const auto &e : timer::get_global_service_timers()) {
+        const auto &supported_mode_bit = std::get<1>(e);
+        if (!has_bench_mode_bit(supported_mode_bit)) continue;
+
+        const auto &t_name = std::get<2>(e);
+        const auto &t = benchdnn_stat.ms.find(t_name);
+        if (t == benchdnn_stat.ms.end()) continue;
+
+        const auto &stats = t->second;
+        const auto &t_print_name = std::get<0>(e);
+        double s = stats[timer::timer_t::sum];
+        double r_s_to_total = 100.f * s / total_s;
+        printf(" %s: %.2fs (%.0f%%);", t_print_name.c_str(), s, r_s_to_total);
     }
+    printf("\n");
 
     finalize();
 

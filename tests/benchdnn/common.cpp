@@ -145,22 +145,23 @@ void parse_result(res_t &res, const char *pstr) {
     assert(bs.tests
             == bs.passed + bs.skipped + bs.mistrusted + bs.failed + bs.listed);
 
+    using bt = timer::timer_t;
+    using namespace timer::names;
+
     if (has_bench_mode_bit(mode_bit_t::perf)) {
-        using bt = timer::timer_t;
         const auto &t = res.timer_map.perf_timer();
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)
-            bs.ms[timer::names::perf_timer][mode] += t.ms((bt::mode_t)mode);
+            bs.ms[perf_timer][mode] += t.ms((bt::mode_t)mode);
     }
 
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
-        using bt = timer::timer_t;
-        using namespace timer::names;
+    for (const auto &e : timer::get_global_service_timers()) {
+        const auto &supported_mode_bit = std::get<1>(e);
+        if (!has_bench_mode_bit(supported_mode_bit)) continue;
 
+        const auto &t_name = std::get<2>(e);
+        const auto &t = res.timer_map.get_timer(t_name);
         // Only summary time is populated to the highest level report.
-        for (const auto &t_name : {ref_timer, compare_timer, fill_timer}) {
-            const auto &t = res.timer_map.get_timer(t_name);
-            bs.ms[t_name][bt::mode_t::sum] += t.sec(bt::mode_t::sum);
-        }
+        bs.ms[t_name][bt::mode_t::sum] += t.sec(bt::mode_t::sum);
     }
 }
 

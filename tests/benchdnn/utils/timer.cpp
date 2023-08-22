@@ -112,4 +112,20 @@ timer_t &timer_map_t::get_timer(const std::string &name) {
     return res.first->second;
 }
 
+const std::vector<service_timers_entry_t> &get_global_service_timers() {
+    // `service_timers_entry_t` type for each entry is needed for old GCC 4.8.5,
+    // otherwise, it reports "error: converting to ‘std::tuple<...>’ from
+    // initializer list would use explicit constructor
+    // ‘constexpr std::tuple<...>’.
+    static const std::vector<service_timers_entry_t> global_service_timers = {
+            service_timers_entry_t {
+                    "fill", mode_bit_t::exec, timer::names::fill_timer},
+            service_timers_entry_t {
+                    "compute_ref", mode_bit_t::corr, timer::names::ref_timer},
+            service_timers_entry_t {
+                    "compare", mode_bit_t::corr, timer::names::compare_timer},
+    };
+    return global_service_timers;
+}
+
 } // namespace timer

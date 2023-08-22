@@ -111,6 +111,15 @@ struct timer_map_t {
     std::unordered_map<std::string, timer_t> timers;
 };
 
+// Note: in case the tuple below get extended, add enum that will control fields
+// and replace std::get<N> to stg::get<enum::value> to change mapping between
+// type and variable in a single place and not all over the code.
+using service_timers_entry_t = std::tuple</* timer print name = */ std::string,
+        /* supported mode = */ mode_bit_t,
+        /* timer bench name = */ std::string>;
+
+const std::vector<service_timers_entry_t> &get_global_service_timers();
+
 } // namespace timer
 
 #endif
