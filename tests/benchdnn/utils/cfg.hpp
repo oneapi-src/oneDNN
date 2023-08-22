@@ -153,7 +153,13 @@ protected:
     }
 
     bool is_int8(data_kind_t dk = WEI) const {
-        return dnnl_data_type_size(cfg_entry_.at(dk).get_dt()) == 1;
+        // This function is designed to bump density for int8 cases to trigger
+        // saturation and rounding. However, with s32 output data type bumped
+        // density can exceed safe f32 reference output value and lead to
+        // mismatching results. Thus, remove x8s8s32 configuration from int8
+        // definition.
+        return dnnl_data_type_size(cfg_entry_.at(dk).get_dt()) == 1
+                && cfg_entry_.at(output_data_kind_).get_dt() != dnnl_s32;
     }
 
     // Find the number of accumulators safe to use with the following equations:
