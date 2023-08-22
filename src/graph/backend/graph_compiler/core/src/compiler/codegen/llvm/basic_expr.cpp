@@ -23,6 +23,7 @@
 #include <unordered_set>
 
 #include "shared_include.hpp"
+#include "util/fp16.hpp"
 
 using namespace llvm;
 namespace dnnl {
@@ -124,6 +125,7 @@ void codegen_llvm_vis_t::view(constant_c v) {
     vals.reserve(v->value_.size());
     auto cate = get_etype_category_nothrow(v->dtype_.type_code_);
     bool is_bf16 = v->dtype_.type_code_ == sc_data_etype::BF16;
+    bool is_f16 = v->dtype_.type_code_ == sc_data_etype::F16;
     sc_data_type_t base_type = v->dtype_;
     base_type.lanes_ = 1;
     auto llvm_base_type = get_type(base_type);
@@ -134,6 +136,10 @@ void codegen_llvm_vis_t::view(constant_c v) {
                     uint64_t val_u64 = bf16_t(val.f32).storage_;
                     vals.push_back(
                             ConstantInt::get(llvm_base_type, val_u64, false));
+                } else if (is_f16) {
+                    uint16_t val_u16 = fp16_t(val.f32).storage_;
+                    vals.push_back(ConstantFP::get(llvm_base_type,
+                            APFloat(APFloat::IEEEhalf(), APInt(16, val_u16))));
                 } else {
                     vals.push_back(
                             ConstantFP::get(llvm_base_type, APFloat(val.f32)));

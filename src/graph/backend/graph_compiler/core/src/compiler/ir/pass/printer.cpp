@@ -14,10 +14,12 @@
  * limitations under the License.
  *******************************************************************************/
 #include "printer.hpp"
+#include <algorithm>
 #include <limits>
 #include <string>
 #include <vector>
 #include "../viewer.hpp"
+#include "util/fp16.hpp"
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/ir_module.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_expr.hpp>
@@ -35,6 +37,10 @@ void ir_printer_t::view(constant_c v) {
         switch (v->dtype_.type_code_) {
             case sc_data_etype::BF16: {
                 os_ << bf16_t(v->value_[i].f32).storage_ << "UL";
+            } break;
+            case sc_data_etype::F16: {
+                os_ << "(_Float16)"
+                    << std::min(std::max(v->value_[i].f32, -65504.f), 65504.f);
             } break;
             case sc_data_etype::F32: {
                 if (v->value_[i].f32 - static_cast<int>(v->value_[i].f32)

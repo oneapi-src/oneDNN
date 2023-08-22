@@ -78,6 +78,12 @@
         GTEST_SKIP(); \
     }
 
+#define REQUIRE_AVX512FP16() \
+    if (!::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512FP16) { \
+        GTEST_SKIP(); \
+    }
+
 #define REQUIRE_AVX2() \
     if (!::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX2) { \

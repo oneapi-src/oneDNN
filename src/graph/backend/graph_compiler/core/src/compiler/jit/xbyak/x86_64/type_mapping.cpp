@@ -45,6 +45,7 @@ cpu_data_type get_cpu_data_type(sc_data_type_t t) {
             case sc_data_etype::U32: return cpu_data_type::uint_32;
             case sc_data_etype::S32: return cpu_data_type::sint_32;
             case sc_data_etype::BF16: return cpu_data_type::uint_16;
+            case sc_data_etype::F16: return cpu_data_type::float_16;
             case sc_data_etype::F32: return cpu_data_type::float_32;
             case sc_data_etype::INDEX: return cpu_data_type::uint_64;
 
@@ -75,6 +76,7 @@ cpu_data_type get_cpu_data_type(sc_data_type_t t) {
             case sc_data_etype::U16: return cpu_data_type::uint_16_x4;
             case sc_data_etype::U32: return cpu_data_type::uint_32_x4;
             case sc_data_etype::S32: return cpu_data_type::sint_32_x4;
+            case sc_data_etype::F16: return cpu_data_type::float_16_x4;
             case sc_data_etype::F32: return cpu_data_type::float_32_x4;
             case sc_data_etype::INDEX: return cpu_data_type::uint_64_x4;
             default: // to prevent compiler warnings
@@ -89,6 +91,7 @@ cpu_data_type get_cpu_data_type(sc_data_type_t t) {
             case sc_data_etype::U16: return cpu_data_type::uint_16_x8;
             case sc_data_etype::U32: return cpu_data_type::uint_32_x8;
             case sc_data_etype::S32: return cpu_data_type::sint_32_x8;
+            case sc_data_etype::F16: return cpu_data_type::float_16_x8;
             case sc_data_etype::F32: return cpu_data_type::float_32_x8;
             case sc_data_etype::INDEX: return cpu_data_type::uint_64_x8;
             default: // to prevent compiler warnings
@@ -103,6 +106,7 @@ cpu_data_type get_cpu_data_type(sc_data_type_t t) {
             case sc_data_etype::U32: return cpu_data_type::uint_32_x16;
             case sc_data_etype::S32: return cpu_data_type::sint_32_x16;
             case sc_data_etype::BF16: return cpu_data_type::uint_16_x16;
+            case sc_data_etype::F16: return cpu_data_type::float_16_x16;
             case sc_data_etype::F32: return cpu_data_type::float_32_x16;
             default: // to prevent compiler warnings
                 break;
@@ -111,6 +115,7 @@ cpu_data_type get_cpu_data_type(sc_data_type_t t) {
         switch (e) {
             case sc_data_etype::BOOLEAN: return cpu_data_type::mask_x32;
             case sc_data_etype::BF16: return cpu_data_type::uint_16_x32;
+            case sc_data_etype::F16: return cpu_data_type::float_16_x32;
             case sc_data_etype::U16: return cpu_data_type::uint_16_x32;
             case sc_data_etype::U8: return cpu_data_type::uint_8_x32;
             case sc_data_etype::S8: return cpu_data_type::sint_8_x32;

@@ -50,7 +50,7 @@ static std::string get_closure_wrapper_name(const std::string &name) {
 static void print_cpp_etype(ostream &os, sc_data_etype t) {
     switch (t) {
         case sc_data_etype::UNDEF: assert(0 && "Met undef"); break;
-        case sc_data_etype::F16: os << "uint16_t"; break;
+        case sc_data_etype::F16: os << "_Float16"; break;
         case sc_data_etype::BF16: os << "uint16_t"; break;
         case sc_data_etype::U16: os << "uint16_t"; break;
         case sc_data_etype::F32: os << "float"; break;
@@ -147,6 +147,11 @@ void codegen_c_vis::print_type(sc_data_type_t dtype) {
             case sc_data_type_t::bf16(8): *os << "vec_u16x8"; break;
             case sc_data_type_t::bf16(16): *os << "vec_u16x16"; break;
             case sc_data_type_t::bf16(32): *os << "vec_u16x32"; break;
+
+            case sc_data_type_t::f16(4): *os << "vec_f16x4"; break;
+            case sc_data_type_t::f16(8): *os << "vec_f16x8"; break;
+            case sc_data_type_t::f16(16): *os << "vec_f16x16"; break;
+            case sc_data_type_t::f16(32): *os << "vec_f16x32"; break;
 
             case sc_data_type_t::f32(4): *os << "vec_f32x4"; break;
             case sc_data_type_t::f32(8): *os << "vec_f32x8"; break;
@@ -291,7 +296,12 @@ void codegen_c_vis::view(constant_c v) {
         print_type(v->dtype_);
         (*os) << ')' << v->value_.at(0).u64 << ')';
     } else {
-        v->to_string(*os);
+        if (v->dtype_.is_etype(sc_data_etype::F16)) {
+            (*os) << "(_Float16)";
+            v->to_string(*os);
+        } else {
+            v->to_string(*os);
+        }
     }
 }
 
@@ -339,6 +349,14 @@ void codegen_c_vis::view(cast_c v) {
             *os << "tobf16(";
             dispatch(v->in_);
             *os << ')';
+        } else if (v->in_->dtype_.is_etype(sc_data_etype::F16)
+                && v->dtype_.is_etype(sc_data_etype::F32)) {
+            *os << "(float)";
+            dispatch(v->in_);
+        } else if (v->in_->dtype_.is_etype(sc_data_etype::F32)
+                && v->dtype_.is_etype(sc_data_etype::F16)) {
+            *os << "(_Float16)";
+            dispatch(v->in_);
         } else {
             *os << '(';
             print_cpp_type(*os, v->dtype_) << ')';

@@ -74,7 +74,8 @@ public:
                 // float and bf16
                 if (dst_dtype.is_etype(sc_data_etype::F32)) {
                     return transform_fabs(vv->args_[0], UINT64_C(0x7FFFFFFF));
-                } else if (dst_dtype.is_etype(sc_data_etype::BF16)) {
+                } else if (dst_dtype.is_etype(sc_data_etype::BF16)
+                        || dst_dtype.is_etype(sc_data_etype::F16)) {
                     return transform_fabs(vv->args_[0], UINT64_C(0x7FFF));
                 }
             } break;
@@ -141,12 +142,32 @@ public:
                            || type_dst.type_code_ == sc_data_etype::S8)
                     && type_src.type_code_ == sc_data_etype::F32;
         };
+        const auto is_f16_scalar_cast
+                = [](const sc_data_type_t &type_dst,
+                          const sc_data_type_t &type_src) {
+                      return (type_dst.type_code_ == sc_data_etype::F16)
+                              && (utils::is_one_of(type_src.type_code_,
+                                      sc_data_etype::U16, sc_data_etype::U32,
+                                      sc_data_etype::S8, sc_data_etype::U8,
+                                      sc_data_etype::INDEX))
+                              && type_dst.lanes_ == 1;
+                  };
+        const auto convert_s32_transform
+                = [](const sc_data_type_t &dst_dtype,
+                          const sc_data_type_t &src_dtype, const expr &src) {
+                      return builder::make_cast(dst_dtype,
+                              builder::make_cast(
+                                      sc_data_type_t::s32(src_dtype.lanes_),
+                                      src));
+                  };
         if (is_f32_int8_cast(dst_dtype, src_dtype)
                 || is_f32_int8_cast(src_dtype, dst_dtype)) {
             // int8 to f32 must cast to s32 first
-            return builder::make_cast(dst_dtype,
-                    builder::make_cast(
-                            sc_data_type_t::s32(src_dtype.lanes_), src));
+            return convert_s32_transform(dst_dtype, src_dtype, src);
+        } else if (is_f16_scalar_cast(dst_dtype, src_dtype)
+                || is_f16_scalar_cast(src_dtype, dst_dtype)) {
+            // f16 to other dtype must cast to s32 first
+            return convert_s32_transform(dst_dtype, src_dtype, src);
         } else {
             return builder::make_cast(dst_dtype, src);
         }

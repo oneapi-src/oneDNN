@@ -76,6 +76,7 @@ struct cpu_flags_t : public machine_flags_t {
     bool fAVX512AMXINT8 = false; // AVX512 Advanced Matrix Extension for int8
     bool fAVX512VBMI = false; //  AVX512 Vector Byte Manipulation Instructions
     bool fAVX512BF16 = false; //  AVX512 BF16 Instructions
+    bool fAVX512FP16 = false; // AVX512 FP16 Instructions
 
     uint8_t family = 0;
     uint8_t model = 0;

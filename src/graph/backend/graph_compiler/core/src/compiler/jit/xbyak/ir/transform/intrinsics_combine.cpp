@@ -113,7 +113,8 @@ public:
                     })
                     .get_or_else(expr());
         };
-        if (v->dtype_.is_etype(sc_data_etype::F32)) {
+        if (v->dtype_.is_etype(sc_data_etype::F32)
+                || v->dtype_.is_etype(sc_data_etype::F16)) {
             expr node;
             node = combine_to_fmadd(v->l_, v->r_);
             if (node.defined()) { return node; }

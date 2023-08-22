@@ -329,6 +329,7 @@ get_compiler_flag_map() {
             {"__AVX512IFMA__", foffset(fAVX512IFMA)},
             {"__AVX512VBMI__", foffset(fAVX512VBMI)},
             {"__AVX512BF16__", foffset(fAVX512BF16)},
+            {"__AVX512FP16__", foffset(fAVX512FP16)},
 
             {"__AMX_BF16__", foffset(fAVX512AMXBF16)},
             {"__AMX_INT8__", foffset(fAVX512AMXTILE)},

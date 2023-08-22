@@ -64,6 +64,11 @@ const cpu_data_type_table &get_cpu_data_types() {
         { cpu_data_type::uint_64_x2   ,   16 ,        16 ,        16 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::uint_64_x4   ,   32 ,        32 ,        32 ,          32 ,        32 ,          32 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::uint_64_x8   ,   64 ,        64 ,        64 ,          64 ,        64 ,          64 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::float_16     ,    2 ,         2 ,         2 ,          16 ,         8 ,           8 , avk::SSE          },  // NOLINT
+        { cpu_data_type::float_16_x4   ,   8 ,         8 ,         8 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::float_16_x8   ,  16 ,        16 ,        16 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::float_16_x16  ,  32 ,        32 ,        32 ,          32 ,        32 ,          32 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::float_16_x32  ,  64 ,        64 ,        64 ,          64 ,        64 ,          64 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::float_32     ,    4 ,         4 ,         1 ,          16 ,         8 ,           8 , avk::SSE          },  // NOLINT
         { cpu_data_type::float_32_x2  ,    8 ,         8 ,         8 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::float_32_x4  ,   16 ,        16 ,        16 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
@@ -114,6 +119,10 @@ std::ostream &operator<<(std::ostream &os, const cpu_data_type t) {
         HANDLE_CASE(sint_32_x8)
         HANDLE_CASE(sint_32_x16)
         HANDLE_CASE(uint_64)
+        HANDLE_CASE(float_16)
+        HANDLE_CASE(float_16_x4)
+        HANDLE_CASE(float_16_x8)
+        HANDLE_CASE(float_16_x16)
         HANDLE_CASE(float_32)
         HANDLE_CASE(float_32_x2)
         HANDLE_CASE(float_32_x4)

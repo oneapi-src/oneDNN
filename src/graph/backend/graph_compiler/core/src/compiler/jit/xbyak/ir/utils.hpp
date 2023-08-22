@@ -37,7 +37,9 @@ namespace xbyak {
  * If datatype is a x86 simd register type
  * */
 SC_INTERNAL_API inline bool is_x86_simd(const sc_data_type_t &t) {
-    return !t.is_tile() && (t.type_code_ == sc_data_etype::F32 || t.lanes_ > 1);
+    return !t.is_tile()
+            && (t.type_code_ == sc_data_etype::F32
+                    || t.type_code_ == sc_data_etype::F16 || t.lanes_ > 1);
 }
 
 /**

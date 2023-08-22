@@ -152,6 +152,23 @@ INLINE vec_u32x8::operator vec_u16x8() const {
 INLINE vec_u16x8::operator vec_u32x8() const {
     return _mm256_cvtepu16_epi32(v);
 }
+#ifdef __AVX512FP16__
+INLINE vec_f16x16::operator vec_u16x16() const {
+    return _mm256_cvtph_epu16(v);
+}
+INLINE vec_f16x16::operator vec_f32x16() const {
+    return _mm512_cvtph_ps(v256);
+}
+INLINE vec_f16x16::operator vec_u32x16() const {
+    return _mm512_cvtph_epu32(v);
+}
+INLINE vec_f16x16::operator vec_s32x16() const {
+    return _mm512_cvtph_epi32(v);
+}
+INLINE vec_f32x16::operator vec_f16x16() const {
+    return _mm512_cvtxps_ph(v);
+}
+#endif
 
 INLINE vec_u16x32::vec_u16x32(vec_u16x8 const &x) {
     v = _mm512_broadcast_i32x4(x.v);
