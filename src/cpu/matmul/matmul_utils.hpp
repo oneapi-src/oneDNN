@@ -72,7 +72,17 @@ struct matmul_helper_t {
         return strides[transB() == 'N' ? 0 : 1];
     }
 
+    dim_t get_b_stride(int dim) const {
+        if (dim >= ndims() || dim < 0) return 0;
+        return weights_md_.blocking_desc().strides[dim];
+    }
+
     dim_t ldc() const { return dst_md_.blocking_desc().strides[ndims() - 2]; }
+
+    dim_t get_c_stride(int dim) const {
+        if (dim >= ndims() || dim < 0) return 0;
+        return dst_md_.blocking_desc().strides[dim];
+    }
 
     bool use_single_gemm_call_optimization(const post_ops_t &post_ops) {
         using namespace binary_injector_utils;
