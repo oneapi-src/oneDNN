@@ -6054,7 +6054,7 @@ TEST(ExecuteSubgraphInt8, ShareCachedWeights) {
     agraph.add_op(&conv_node);
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     auto part = agraph.get_partitions()[0];
