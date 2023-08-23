@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
 * Copyright 2020-2023 FUJITSU LIMITED
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,11 +163,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         bool ok = true && p.ndims > 0
                 && utils::one_of(p.itype, f32, s32, data_type::s8, u8)
-                && utils::one_of(p.otype, f32, s32, data_type::s8, u8)
+                && utils::one_of(p.otype, f32, bf16, s32, data_type::s8, u8)
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
-                && simple_impl_desc_init(p, nullptr)
-                && prb_has_small_strides(p);
+                && simple_impl_desc_init(p, nullptr) && prb_has_small_strides(p)
+                && ((p.otype != bf16) || (p.itype == f32 && mayiuse_bf16()));
 
         return ok;
     }
@@ -647,6 +647,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     if (idt == f32 || idt == s32)
                         cvt_v_s32_u8(startIdx, regNum);
                     if (idt == data_type::s8) cvt_v_s8_u8(startIdx, regNum);
+                    break;
+                case bf16:
+                    if (idt == f32) cvt_v_f32_bf16(startIdx, regNum);
                     break;
                 default: assert(!"unreachable");
             }
@@ -1675,6 +1678,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     void cvt_v_f32_s32(const size_t startIdx, const size_t regNum) {
         UNROLL_INST(frinti, VReg4S, tmp, tmp);
         UNROLL_INST(fcvtzs, VReg4S, tmp, tmp);
+    }
+
+    void cvt_v_f32_bf16(const size_t startIdx, const size_t regNum) {
+        UNROLL_INST2(bfcvtn, VReg4H(i), VReg4S(i));
     }
 
     void cvt_z_s8_s32(const size_t startIdx, const size_t regNum) {
