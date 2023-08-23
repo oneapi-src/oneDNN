@@ -272,16 +272,21 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
         auto ins = op->get_inputs()[0];
         auto old_input = g2b_map_.get(ins);
         if (old_input.isa<tensor>()
-                || (old_input.isa<tensorptr>()
-                        && ins->producer_owner_->isa<tensor_view_op_t>()
-                        && ins->uses_.size() == 1
-                        && !ins->producer_owner_->get_inputs()[0]
-                                    ->attrs_.get_or_else(
-                                            mixed_partition_hint::no_inplace,
-                                            false)
+                || (old_input.isa<tensorptr>() && ins->uses_.size() == 1
                         && utils::is_one_of(
                                 old_input.static_as<tensorptr>()->base_->dtype_,
                                 sc_data_type_t::u8(), sc_data_type_t::s8()))) {
+            if (old_input.isa<tensorptr>()) {
+                auto &producer = ins->producer_owner_;
+                if (!producer->isa<tensor_view_op_t>()) return;
+                auto &tv_inp = producer->get_inputs()[0];
+                if (tv_inp->attrs_.get_or_else(
+                            mixed_partition_hint::no_inplace, false))
+                    return;
+                if (producer->share_gt_with_op<tensor_view_op_t>(tv_inp)
+                        || producer->share_gt_with_op<tunable_op_t>(tv_inp))
+                    return;
+            }
             op->attrs_.set<bool>(
                     mixed_partition_hint::inplace_optimized_op, true);
             auto pad_op = op->dyn_cast<padding_op_t>();
@@ -2104,9 +2109,10 @@ static bool try_merge_mixed_parti_horizontally(
     auto_caster_t ac;
     for (size_t i = 1; i < loops.size(); i++) {
         loops[0]->parallel_merge(body, loops[i]);
-        add_parent_node(loops[i]->body_, loops[0]->body_);
         loops[0]->iter_end_ = cf(ac(loops[0]->iter_end_)).remove_const();
     }
+
+    add_parent_node(loops[0], stmt());
 
     A->func_->name_ += "_horizontal_merge_" + B->func_->name_;
 

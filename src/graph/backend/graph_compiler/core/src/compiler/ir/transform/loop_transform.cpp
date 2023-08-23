@@ -681,9 +681,14 @@ void for_loop_node_t::parallel_merge(const stmt &parent, const for_loop &ax) {
     body2->seq_.insert(body2->seq_.begin(),
             builder::make_var_tensor_def_unattached(ax->var_, linkage::local,
                     var_ - iter_end_ + ax->iter_begin_));
-    auto if_else = builder::make_if_else_unattached(
-            var_ < iter_end_, std::move(body1), std::move(body2));
-    body_ = builder::make_stmts_unattached({std::move(if_else)});
+    auto if_else
+            = builder::make_if_else_unattached(var_ < iter_end_, body1, body2);
+    body_ = builder::make_stmts_unattached({if_else});
+    // set parent node
+    add_parent_node(body1, if_else);
+    add_parent_node(body2, if_else);
+    add_parent_node(if_else, body_);
+    add_parent_node(body_, node_ptr_from_this());
     iter_end_ = iter_end_ + ax->iter_end_ - ax->iter_begin_;
     ax->var_ = expr();
 }

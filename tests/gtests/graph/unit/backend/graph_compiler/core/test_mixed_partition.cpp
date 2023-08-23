@@ -1933,40 +1933,68 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeNotAppendInputAnchor) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp,
         ReplaceBufferForTensorviewPaddingPattern) {
     SET_THREADS_OR_SKIP(4);
-    int BS = 1, H = 46, W = 46, C = 16;
 
-    sc_graph_t graph;
-    auto input0 = graph.make_input({graph_tensor::make(
-            {BS, H, W, C}, sc_data_format_t(), sc_data_type_t::u8())});
-    // relu
-    auto relu0 = graph.make("relu", input0->get_outputs(), {}, {});
-    // cache output of relu0
-    auto relu0_out = relu0->get_outputs()[0];
-    // tensorview0
-    auto tv0 = graph.make("tensor_view", {relu0->get_outputs()[0]}, {},
-            {{"shape", sc_dims {BS, H, W, C}}});
-    auto relu1 = graph.make("relu", tv0->get_outputs(), {}, {});
-    graph.make_output({relu1->get_outputs()[0]});
-    // tensorview1
-    auto tv1 = graph.make("tensor_view", {relu0->get_outputs()[0]}, {},
-            {{"shape", sc_dims {BS, H, W, C}}});
-    // padding
-    auto padding0 = graph.make("padding", {tv1->get_outputs()[0]}, {},
-            {{"pads_begin", sc_dims {1, 1}}, {"pads_end", sc_dims {1, 1}}});
-    // relu
-    auto relu2 = graph.make("relu", padding0->get_outputs(), {}, {});
-    graph.make_output({relu2->get_outputs()[0]});
+    // cached gt
+    graph_tensor_ptr relu0_out;
+
+    auto make_test_graph = [&relu0_out](bool shared_with_tv = false) {
+        int BS = 1, H = 46, W = 46, C = 16;
+        sc_graph_t graph;
+        auto input0 = graph.make_input({graph_tensor::make(
+                {BS, H, W, C}, sc_data_format_t(), sc_data_type_t::u8())});
+        // relu
+        auto relu0 = graph.make("relu", input0->get_outputs(), {}, {});
+        // cache output of relu0
+        relu0_out = relu0->get_outputs()[0];
+        sc_op_ptr tv0 = nullptr;
+        if (shared_with_tv) {
+            // tensorview0
+            tv0 = graph.make("tensor_view", {relu0->get_outputs()[0]}, {},
+                    {{"shape", sc_dims {BS, H, W, C}}});
+        }
+        auto relu1 = graph.make("relu",
+                tv0 ? tv0->get_outputs() : relu0->get_outputs(), {}, {});
+        graph.make_output({relu1->get_outputs()[0]});
+        // tensorview1
+        auto tv1 = graph.make("tensor_view", {relu0->get_outputs()[0]}, {},
+                {{"shape", sc_dims {BS, H, W, C}}});
+        // padding
+        auto padding0 = graph.make("padding", {tv1->get_outputs()[0]}, {},
+                {{"pads_begin", sc_dims {1, 1}}, {"pads_end", sc_dims {1, 1}}});
+        // relu
+        auto relu2 = graph.make("relu", padding0->get_outputs(), {}, {});
+        graph.make_output({relu2->get_outputs()[0]});
+        return graph;
+    };
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
-    mixed_partition(graph, ctx);
-    // The output buffer of `relu0` should be replaced by padding op
-    auto mixed_op = get_mixed_op_from_graph(graph);
-    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
-    auto allocator = mixed_op->parti_list_[0]->buf_alloc_;
-    auto relu_base_tsr = get_real_tensor(allocator.g2b_map_.get(relu0_out));
-    ASSERT_TRUE(relu_base_tsr->name_ == "padding_6_outs_0");
+
+    // Case 1
+    {
+        auto graph = make_test_graph(false);
+        mixed_partition(graph, ctx);
+        // The output buffer of `relu0` should be replaced by padding op
+        auto mixed_op = get_mixed_op_from_graph(graph);
+        ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+        auto allocator = mixed_op->parti_list_[0]->buf_alloc_;
+        auto relu_base_tsr = get_real_tensor(allocator.g2b_map_.get(relu0_out));
+        ASSERT_TRUE(relu_base_tsr->name_ == "padding_5_outs_0");
+    }
+
+    // Case 2
+    {
+        auto graph = make_test_graph(true);
+        mixed_partition(graph, ctx);
+        // The output buffer of `relu0` should not be replaced by padding op
+        // because it is shared with another tensorview op
+        auto mixed_op = get_mixed_op_from_graph(graph);
+        ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+        auto allocator = mixed_op->parti_list_[0]->buf_alloc_;
+        auto relu_base_tsr = get_real_tensor(allocator.g2b_map_.get(relu0_out));
+        ASSERT_TRUE(relu_base_tsr->name_ == "relu_1_outs_0");
+    }
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop) {

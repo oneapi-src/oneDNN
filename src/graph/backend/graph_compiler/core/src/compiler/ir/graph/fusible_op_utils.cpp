@@ -1005,7 +1005,8 @@ expr transform_tsr2stsr_with_range(const expr &tsr, const slice_range &range) {
         t = tsr.static_as<tensor>();
         new_strides = t->strides_;
     } else {
-        COMPILE_ASSERT(is_reshaped_tensor(tsr), "reshaped tensor is expected");
+        COMPILE_ASSERT(is_reshaped_tensor(tsr),
+                "reshaped tensor is expected, but got " << tsr);
         t = tsr.static_as<tensorptr>()
                     ->base_.static_as<indexing>()
                     ->ptr_.static_as<tensor>();
