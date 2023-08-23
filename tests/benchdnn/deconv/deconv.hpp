@@ -175,7 +175,11 @@ struct prb_t : public desc_t {
     double ops;
 
     void count_ops();
-    int64_t count_n_acc() const { return kd * kh * kw * oc / g; }
+    int64_t count_n_acc() const {
+        return (dir & FLAG_FWD)    ? kd * kh * kw * ic / g
+                : (dir & FLAG_WEI) ? od * oh * ow * mb
+                                   : kd * kh * kw * oc / g;
+    }
 
     dnnl_data_type_t src_dt() const { return dt[0]; }
     dnnl_data_type_t wei_dt() const { return dt[1]; }
