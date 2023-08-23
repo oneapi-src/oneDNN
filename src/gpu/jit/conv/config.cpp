@@ -1148,16 +1148,10 @@ send_pattern_t<conv_dim_t> validate_blocking(const conv_config_t &cfg,
         switch (arch) {
             case compute::gpu_arch_t::xe_hpc:
                 return uniform_send_idiom_t<conv_dim_t>(
-                        /*min_block_load=*/512, /*min_2d_util=*/0.125,
-                        check_2d);
-            case compute::gpu_arch_t::xe_hpg:
-                return uniform_send_idiom_t<conv_dim_t>(
-                        /*min_block_load=*/256, /*min_2d_util=*/0.125,
-                        check_2d);
+                        /*min_bytes=*/256, check_2d);
             default:
                 return uniform_send_idiom_t<conv_dim_t>(
-                        /*min_block_load=*/128, /*min_2d_util=*/0.125,
-                        check_2d);
+                        /*min_bytes=*/128, check_2d);
         }
     }();
 

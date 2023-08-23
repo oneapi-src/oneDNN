@@ -253,17 +253,14 @@ private:
 
 template <typename dim_type_t>
 struct uniform_send_idiom_t final {
-    uniform_send_idiom_t(dim_t block_min_size, double b, bool check_2d = false)
-        : block_min_size(block_min_size)
-        , min_utilization(b)
-        , check_2d(check_2d) {}
+    uniform_send_idiom_t(dim_t min_size, bool check_2d = false)
+        : min_size(min_size), check_2d(check_2d) {}
     constexpr uniform_send_idiom_t(const uniform_send_idiom_t &) = default;
 
     using hint_t = send_hint_t<dim_type_t>;
     using slayout_t = stride_layout_t<dim_type_t>;
 
-    dim_t block_min_size;
-    double min_utilization;
+    dim_t min_size;
     bool check_2d;
     static const dim_t block_alignment = 16;
     static const dim_t width_alignment = 4;
@@ -273,17 +270,13 @@ struct uniform_send_idiom_t final {
     dim_t ref_block_size(const slayout_t &layout) const {
         return block_load_min_size() / layout.type_size;
     }
-    double utilization_2d(int size) const {
-        return 1.0 * size / (hint_t::block_width * hint_t::block_height);
-    }
 
     std::string str() const {
         std::ostringstream oss;
-        oss << "uniform " << block_min_size
-            << " byte send, util: " << min_utilization;
+        oss << "uniform " << min_size << " byte send ";
         return oss.str();
     }
-    dim_t block_load_min_size() const { return block_min_size; }
+    dim_t block_load_min_size() const { return min_size; }
 
     std::vector<hint_t> get_hints(const slayout_t &layout,
             typename slayout_t::stride_array_t::const_iterator i,
@@ -300,8 +293,7 @@ struct uniform_send_idiom_t final {
             bool valid_block_util
                     = hint.is_uniform_blocked() && hint.block_rem() <= 1;
             bool valid_2d_util = hint.is_uniform_2d()
-                    && utilization_2d(hint.size() * layout.type_size)
-                            >= min_utilization;
+                    && (hint.size() * layout.type_size) >= min_size;
             if (valid_block_util || valid_2d_util)
                 return {hint};
             else
@@ -324,8 +316,7 @@ struct uniform_send_idiom_t final {
                                                  : hint_t::block_width;
 
         // Check hint is potentially valid
-        if (valid_2d && width_stride < i_stride_bytes
-                && min_utilization * hint.width_rem() > 1) {
+        if (valid_2d && width_stride < i_stride_bytes && hint.width_rem() > 8) {
             valid_2d = false;
         }
 
