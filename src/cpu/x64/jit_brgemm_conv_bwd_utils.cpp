@@ -1977,16 +1977,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         jcp.is_ic_scale = wei_scales.mask_ != 0;
     }
 
-    // Calculate the comp along with the computation inside brgemm kernel when
-    // output size is small to get optimal perf
-    // Otherwise we calculate the comp using brgemm_comp_pad kernel
-    const auto output_sz = static_cast<dim_t>(jcp.mb) * jcp.ngroups * jcp.ic
-            * jcp.id * jcp.ih * jcp.iw;
-    const auto need_compensation
-            = jcp.src_zero_point || jcp.s8s8_compensation_required;
-    jcp.req_brg_comp_pad
-            = need_compensation && output_sz <= 8192 && jcp.ic < 512;
-    jcp.req_cal_comp_pad = need_compensation && !jcp.req_brg_comp_pad;
+    jcp.req_brg_comp_pad = false;
+    jcp.req_cal_comp_pad = jcp.src_zero_point || jcp.s8s8_compensation_required;
 
     if (jcp.req_cal_comp_pad) {
         jcp.ker_ranges_size = precalculate_comp_pad_kernels(jcp);

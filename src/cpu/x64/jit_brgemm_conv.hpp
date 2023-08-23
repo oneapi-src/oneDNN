@@ -202,12 +202,12 @@ private:
     void perform_outwork(const brgemm_thread_ctx_t &btc, char *dst_base,
             const char *bias_w, int ow, int g_oc, bool is_oc_tail, int ker_ow_s,
             int ker_ow_f, int kd_l, int kh_l, bool maybe_do_init,
-            bool do_postwork, bool do_post_comp) const;
+            bool do_postwork, size_t comp_ker_offs, bool do_post_comp) const;
 
     void call_brgemm_kernel(const brgemm_thread_ctx_t &btc,
             const brgemm_kernel_t *brg_ker, int batch_size, char *ptr_C,
             char *ptr_D, const char *bias_w, int g_oc, bool do_postops,
-            int comp_ker_offs, bool do_only_comp) const;
+            size_t comp_ker_offs, bool do_only_comp) const;
 
     void maybe_conv_inp(brgemm_thread_ctx_t &btc,
             const brgemm_thread_ctx_t &last_btc,

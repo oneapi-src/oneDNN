@@ -342,10 +342,10 @@ private:
 
     int compensations_offset(int ld, bool is_tail = false) const noexcept;
     int bdb_compensation_offset(int bd_block2) const noexcept;
-    int compensation_vpad_offset(int ld, int bd) const noexcept;
+    int bd_compensation_offset(int ld, int bd) const noexcept;
     int scales_offset(int ld, bool is_tail = false) const noexcept;
     int zp_comp_a_offset(int ld, bool is_tail = false) const noexcept;
-    int zp_comp_a_vpad_offset(int ld, int bd) const noexcept;
+    int bd_zp_comp_a_offset(int ld, int bd) const noexcept;
     int bdb_zp_comp_a_offset(int bd_block2) const noexcept;
     int zp_comp_b_offset(int bd) const noexcept;
     int bdb_zp_comp_b_offset(int bd_block2) const noexcept;
@@ -479,7 +479,7 @@ int jit_brgemm_kernel_t<isa, Wmm>::bdb_compensation_offset(
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::compensation_vpad_offset(
+int jit_brgemm_kernel_t<isa, Wmm>::bd_compensation_offset(
         int ld, int bd) const noexcept {
     return sizeof(int32_t) * (ld * brg.ld_block + bd * brg.LDB);
 }
@@ -505,7 +505,7 @@ int jit_brgemm_kernel_t<isa, Wmm>::bdb_zp_comp_a_offset(
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::zp_comp_a_vpad_offset(
+int jit_brgemm_kernel_t<isa, Wmm>::bd_zp_comp_a_offset(
         int ld, int bd) const noexcept {
     return sizeof(int32_t) * (ld * brg.ld_block + bd * brg.LDB);
 }
@@ -641,6 +641,12 @@ void jit_brgemm_kernel_t<isa, Wmm>::advance_bdb_post_op_regs(int adj_bd_block) {
         add(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(1));
         mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_aux_zp_comp_b);
     }
+    if (brg.req_comp_pads_with_bd
+            && brg.zp_type_a != brgemm_broadcast_t::none) {
+        mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
+        add(reg_aux_zp_comp_a, bdb_compensation_offset(1));
+        mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_aux_zp_comp_a);
+    }
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -652,6 +658,12 @@ void jit_brgemm_kernel_t<isa, Wmm>::restore_bdb_post_op_regs(int bd_block2) {
             mov(reg_aux_zp_comp_b, ptr[rsp + reg_aux_zp_comp_b_offs_]);
             sub(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(bd_block2 - 1));
             mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_aux_zp_comp_b);
+        }
+        if (brg.req_comp_pads_with_bd
+                && brg.zp_type_a != brgemm_broadcast_t::none) {
+            mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
+            sub(reg_aux_zp_comp_a, bdb_compensation_offset(bd_block2 - 1));
+            mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_aux_zp_comp_a);
         }
     }
     if (post_processed) mov(reg_buf, ptr[rsp + reg_buf_offs_]);
@@ -706,6 +718,19 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_regs_shift(
 template <cpu_isa_t isa, typename Wmm>
 void jit_brgemm_kernel_t<isa, Wmm>::advance_bd_block2_post_op_regs(
         int bd_block2) {
+    if (brg.req_comp_pads_with_bd && brg.req_s8s8_compensation) {
+        mov(reg_compensation, ptr[rsp + reg_comp_offs_]);
+        add(reg_compensation, bdb_compensation_offset(bd_block2));
+        mov(ptr[rsp + reg_comp_offs_], reg_compensation);
+    }
+
+    if (brg.req_comp_pads_with_bd
+            && brg.zp_type_a != brgemm_broadcast_t::none) {
+        mov(reg_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
+        add(reg_zp_comp_a, bdb_zp_comp_a_offset(bd_block2));
+        mov(ptr[rsp + reg_zp_comp_a_offs_], reg_zp_comp_a);
+    }
+
     if (brg.zp_type_b != brgemm_broadcast_t::none) {
         mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
         add(reg_zp_comp_b, bdb_zp_comp_b_offset(bd_block2));
@@ -1190,26 +1215,25 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
         uni_vpbroadcastd(vmm_zp_a_val, reg_zp_a_val.cvt32());
 
         mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
+        const auto vmm_zp_comp_a = vmm_tmp(0);
         for (int ld = 0; ld < ld_block2; ld++) {
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
-            auto vmm_zp_comp_a = vmm_tmp(0);
-            int zp_comp_a_off = zp_comp_a_offset(ld);
-            // apply src zero points value to the accumulated values
-            if (IMPLICATION(is_tail, isa_has_masks(brg.isa_impl))) {
-                auto zp_comp_a_addr
-                        = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
-                auto vmm_zp_comp_a_masked
-                        = vmm_mask(vmm_zp_comp_a, is_tail, false, k_mask);
-                uni_vmovups(vmm_zp_comp_a_masked, zp_comp_a_addr);
-            } else {
-                // cannot use vmaskmovps as vmm_zp_a_val clashes with
-                // vmm_tail_mask
-                load_data(data_type::s32, vmm_zp_comp_a,
-                        ptr[reg_aux_zp_comp_a + zp_comp_a_off], brg.ldb_tail);
-            }
-            uni_vpmulld(vmm_zp_comp_a, vmm_zp_comp_a, vmm_zp_a_val);
-
             for (int bd = 0; bd < bd_block; bd++) {
+                if (IMPLICATION(!brg.req_comp_pads_with_bd, bd == 0)) {
+                    const auto zp_comp_a_addr = ptr[reg_aux_zp_comp_a
+                            + bd_zp_comp_a_offset(ld, bd)];
+                    if (IMPLICATION(is_tail, isa_has_masks(brg.isa_impl))) {
+                        auto vmm_zp_comp_a_masked = vmm_mask(
+                                vmm_zp_comp_a, is_tail, false, k_mask);
+                        uni_vmovups(vmm_zp_comp_a_masked, zp_comp_a_addr);
+                    } else {
+                        // cannot use vmaskmovps as vmm_zp_a_val clashes with
+                        // vmm_tail_mask
+                        load_data(data_type::s32, vmm_zp_comp_a, zp_comp_a_addr,
+                                brg.ldb_tail);
+                    }
+                    uni_vpmulld(vmm_zp_comp_a, vmm_zp_comp_a, vmm_zp_a_val);
+                }
                 auto vmm = accm(ld_block2, bd, ld);
                 uni_vpaddd(vmm, vmm, vmm_zp_comp_a);
             }
@@ -1239,20 +1263,21 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
 
     if (!brg.req_cal_comp_pads && brg.req_s8s8_compensation) {
         mov(reg_aux_compensation, ptr[rsp + reg_aux_comp_offs_]);
+        auto vmm_comp = vmm_tmp(0);
         for (int ld = 0; ld < ld_block2; ld++) {
-            auto vmm_comp = vmm_tmp(0);
-            int comp_offset = compensations_offset(ld);
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
-            if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
-                auto comp_addr = maybe_EVEX_compress_addr(
-                        reg_aux_compensation, comp_offset);
-                vmm_comp = vmm_mask(vmm_comp, is_tail, false, k_mask);
-                uni_vmovups(vmm_comp, comp_addr);
-            } else
-                vmaskmovps(vmm_comp, vmm_tail_mask(),
-                        ptr[reg_aux_compensation + comp_offset]);
-
             for (int bd = 0; bd < bd_block; bd++) {
+                if (IMPLICATION(!brg.req_comp_pads_with_bd, bd == 0)) {
+                    const auto comp_addr = ptr[reg_aux_compensation
+                            + bd_compensation_offset(ld, bd)];
+                    if (IMPLICATION(is_tail,
+                                is_superset(brg.isa_impl, avx512_core))) {
+                        auto vmm_comp_masked
+                                = vmm_mask(vmm_comp, is_tail, false, k_mask);
+                        uni_vmovups(vmm_comp_masked, comp_addr);
+                    } else
+                        vmaskmovps(vmm_comp, vmm_tail_mask(), comp_addr);
+                }
                 auto vmm = accm(ld_block2, bd, ld);
                 uni_vpaddd(vmm, vmm, vmm_comp);
             }

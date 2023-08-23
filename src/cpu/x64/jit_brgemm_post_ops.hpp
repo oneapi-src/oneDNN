@@ -652,55 +652,56 @@ private:
     void apply_comp(int m_block, int n_block, int tail = 0) {
         auto k_mask = (tail == 0) ? k_full_mask : k_tail_mask;
         const bool has_tail = tail > 0;
-
         if (brg.zp_type_a != brgemm_broadcast_t::none) {
             auto vmm_zp_a_val = vmm_tmp(1);
             mov(reg_zp_a_val, ptr[rsp + reg_zp_a_val_offs_]);
             uni_vpbroadcastd(vmm_zp_a_val, reg_zp_a_val.cvt32());
 
             mov(aux_reg_zp_a_comp, ptr[rsp + aux_reg_zp_a_comp_offs_]);
+            const auto vmm_zp_comp_a = vmm_tmp(0);
+            for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
-                auto vmm_zp_comp_a = vmm_tmp(0);
                 const size_t zp_comp_offset
-                        = sizeof(int32_t) * (n * brg.ld_block);
+                        = sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
                 auto zp_comp_a_addr = is_superset(isa, avx512_core)
                         ? EVEX_compress_addr(aux_reg_zp_a_comp, zp_comp_offset)
                         : ptr[aux_reg_zp_a_comp + zp_comp_offset];
                 if (IMPLICATION(has_tail, isa_has_masks(isa))) {
-                    vmm_zp_comp_a = maybe_mask(
+                    auto vmm_zp_comp_a_masked = maybe_mask(
                             vmm_zp_comp_a, has_tail, false, k_mask);
-                    vmovups(vmm_zp_comp_a, zp_comp_a_addr);
+                    vmovups(vmm_zp_comp_a_masked, zp_comp_a_addr);
                 } else {
-                    load_data(data_type::f32, vmm_zp_comp_a, zp_comp_a_addr,
+                    load_data(data_type::s32, vmm_zp_comp_a, zp_comp_a_addr,
                             tail);
                 }
                 uni_vpmulld(vmm_zp_comp_a, vmm_zp_a_val, zp_comp_a_addr);
-                for (int m = 0; m < m_block; m++) {
-                    auto vmm = vector(m, n, n_block);
-                    uni_vpaddd(vmm, vmm, vmm_zp_comp_a);
-                }
+
+                auto vmm = vector(m, n, n_block);
+                uni_vpaddd(vmm, vmm, vmm_zp_comp_a);
             }
         }
 
         if (brg.req_s8s8_compensation) {
             mov(aux_reg_s8s8_comp, ptr[rsp + aux_reg_s8s8_comp_offs_]);
+            const auto vmm_comp = vmm_tmp(0);
+            for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
-                auto vmm_comp = vmm_tmp(0);
                 const size_t s8s8_comp_offset
-                        = sizeof(int32_t) * (n * brg.ld_block);
+                        = sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
+
                 auto comp_addr = is_superset(isa, avx512_core)
                         ? EVEX_compress_addr(
                                 aux_reg_s8s8_comp, s8s8_comp_offset)
                         : ptr[aux_reg_s8s8_comp + s8s8_comp_offset];
                 if (IMPLICATION(tail > 0, isa_has_masks(isa))) {
-                    vmm_comp = maybe_mask(vmm_comp, tail > 0, false, k_mask);
-                    vmovups(vmm_comp, comp_addr);
+                    auto vmm_comp_masked
+                            = maybe_mask(vmm_comp, tail > 0, false, k_mask);
+                    vmovups(vmm_comp_masked, comp_addr);
                 } else
-                    load_data(data_type::f32, vmm_comp, comp_addr, tail);
-                for (int m = 0; m < m_block; m++) {
-                    auto vmm = vector(m, n, n_block);
-                    uni_vpaddd(vmm, vmm, vmm_comp);
-                }
+                    load_data(data_type::s32, vmm_comp, comp_addr, tail);
+
+                auto vmm = vector(m, n, n_block);
+                uni_vpaddd(vmm, vmm, vmm_comp);
             }
         }
     }
@@ -1068,6 +1069,18 @@ private:
 
             if (brg.alpha != 0)
                 add(reg_in, inp_typesize_ * (m_block * brg.LDC));
+            if (brg.beta != 0) {
+                if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                    mov(reg_zp_a_comp, ptr[rsp + reg_zp_a_comp_offs_]);
+                    add(reg_zp_a_comp, mb_zp_comp_a_offset(m_block));
+                    mov(ptr[rsp + reg_zp_a_comp_offs_], reg_zp_a_comp);
+                }
+                if (brg.req_s8s8_compensation) {
+                    mov(reg_s8s8_comp, ptr[rsp + reg_s8s8_comp_offs_]);
+                    add(reg_s8s8_comp, mb_compensation_offset(m_block));
+                    mov(ptr[rsp + reg_s8s8_comp_offs_], reg_s8s8_comp);
+                }
+            }
             add(reg_out, out_typesize_ * (m_block * LDD_));
         }
         if (mb_tail > 0) loop_by_N(mb_tail, nb2, nb2_tail, nb_tail);

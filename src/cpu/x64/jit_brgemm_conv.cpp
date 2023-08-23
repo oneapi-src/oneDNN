@@ -453,14 +453,10 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     // amx only. For exec_base it makes sense to use unrolled kernel only if
     // there is no padding by width.
     // 2. For exec_trans block by kw is always KW
-    // 3. Src zero point only supports unrolled kernel on AMX for now
     assert(IMPLICATION(jcp_.use_uker,
             brgemm_convolution_utils::is_amx(isa)
                     && one_of(jcp_.exec_type, exec_base, exec_trans)));
     assert(IMPLICATION(jcp_.use_interleave_stores, jcp_.use_uker));
-    assert(IMPLICATION(
-            jcp_.src_zero_point && brgemm_convolution_utils::is_amx(isa),
-            jcp_.use_uker));
 
     bs_c = 0;
     brg_indices_c = 0;
@@ -862,7 +858,6 @@ inline int brgemm_convolution_fwd_t<isa, use_inversion>::get_comp_offset(
     const auto comp_idx
             = get_comp_ker_idx(kd_b, kd_e, kh_b, kh_e, kw_b, kw_e, cur_comp_oh);
     assert(IMPLICATION(jcp.req_cal_comp_pad, comp_idx >= 0));
-
     return jcp.req_cal_comp_pad ? g * comp_ocb_sz + ocb * comp_ker_sz
                     + comp_idx * comp_kw_sz + ow * comp_ow_sz
                                 : (g * jcp.nb_oc + ocb) * jcp.oc_block;
@@ -925,7 +920,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     dst_h_sz = OH * dst_w_sz;
     dst_d_sz = OD * dst_h_sz;
 
-    const auto comp_buffer_os = jcp.use_uker ? jcp.ow : 1;
+    const auto comp_buffer_os = jcp.exec_type != exec_vpad ? jcp.ow : 1;
     comp_ow_sz = static_cast<dim_t>(jcp.oc_block);
     comp_kw_sz = comp_buffer_os * comp_ow_sz;
     comp_ker_sz = jcp.ker_ranges_size * comp_kw_sz;
@@ -1207,36 +1202,14 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
                 const auto kh_f = ndims_pick(kh_f_, kh_f_, 1);
                 _pd->get_kw_range(ow, kw_s, kw_full_s, kw_full_f, kw_f);
                 if (kd_f > kd_s && kh_f > kh_s && kw_f > kw_s) {
-                    if (jcp.exec_type == exec_vpad) {
+                    if (jcp.exec_type != exec_trans) {
                         update_kernels(kd_s, kd_f, kh_s, kh_f, 0, KW);
-                    } else if (jcp.exec_type == exec_trans) {
+                    } else {
                         const auto comp_oh_idx = jcp.is_os_blocking
                                 ? get_comp_oh(oh_begin) + oh - oh_begin
                                 : get_comp_oh(oh);
                         update_kernels(
                                 kd_s, kd_f, kh_s, kh_f, 0, KW, comp_oh_idx);
-                    } else if (jcp.exec_type == exec_base) {
-                        if (kw_s < kw_full_s) {
-                            for (auto kw = kw_s; kw < kw_full_s; kw++) {
-                                update_kernels(
-                                        kd_s, kd_f, kh_s, kh_f, kw, kw + 1);
-                            }
-                        }
-                        if (kw_full_s < kw_full_f) {
-                            for (auto kw = kw_full_s; kw < kw_full_f;
-                                    kw += KW_BLOCK) {
-                                const auto kw_e
-                                        = nstl::min(kw_full_f, kw + KW_BLOCK);
-                                update_kernels(
-                                        kd_s, kd_f, kh_s, kh_f, kw, kw_e);
-                            }
-                        }
-                        if (kw_full_f < kw_f) {
-                            for (auto kw = kw_full_f; kw < kw_f; kw++) {
-                                update_kernels(
-                                        kd_s, kd_f, kh_s, kh_f, kw, kw + 1);
-                            }
-                        }
                     }
                 }
             }
@@ -1506,8 +1479,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
     }
 
     const int max_ker_sz = adjusted_k.size();
-    const auto comp_buffer_ow
-            = jcp.exec_type == exec_trans && jcp.use_uker ? jcp.ow : 1;
+    const auto comp_buffer_ow = jcp.exec_type != exec_vpad ? jcp.ow : 1;
     const auto work_amount
             = static_cast<dim_t>(jcp.ngroups) * jcp.nb_oc * max_ker_sz;
     const auto is_small_shape = work_amount <= jcp.nthr
@@ -1573,7 +1545,7 @@ template <cpu_isa_t isa, bool use_inversion>
 void brgemm_convolution_fwd_t<isa, use_inversion>::perform_outwork(
         const brgemm_thread_ctx_t &btc, char *dst_base, const char *bias_w,
         int ow, int g_oc, bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l,
-        int kh_l, bool maybe_do_init, bool do_postwork,
+        int kh_l, bool maybe_do_init, bool do_postwork, size_t comp_ker_offs,
         bool do_post_comp) const {
 
     const auto _pd = pd();
@@ -1611,10 +1583,10 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::perform_outwork(
         if (is_postwork) {
             p.apply_comp = has_postcomp;
             p.a_zp_compensation = has_postcomp && jcp.src_zero_point
-                    ? &btc.src_zp_comp_ptr[ow_pw_s * jcp.LDB]
+                    ? &btc.src_zp_comp_ptr[comp_ker_offs + ow_pw_s * comp_ow_sz]
                     : btc.src_zp_comp_ptr;
             p.s8s8_compensation = has_postcomp && jcp.s8s8_compensation_required
-                    ? &btc.s8s8_comp_ptr[ow_pw_s * jcp.LDB]
+                    ? &btc.s8s8_comp_ptr[comp_ker_offs + ow_pw_s * comp_ow_sz]
                     : btc.s8s8_comp_ptr;
 
             p.ptr_out = dst_base
@@ -1656,7 +1628,7 @@ template <cpu_isa_t isa, bool use_inversion>
 inline void brgemm_convolution_fwd_t<isa, use_inversion>::call_brgemm_kernel(
         const brgemm_thread_ctx_t &btc, const brgemm_kernel_t *brg_ker,
         int batch_size, char *ptr_C, char *ptr_D, const char *bias_w, int g_oc,
-        bool do_postops, int comp_ker_offs, bool do_only_comp) const {
+        bool do_postops, size_t comp_ker_offs, bool do_only_comp) const {
 
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
@@ -2004,7 +1976,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                             + btc.ocb * _pd->wei_ocb_stride);
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
-                                     int comp_ker_offs, bool do_postops,
+                                     size_t comp_ker_offs, bool do_postops,
                                      bool do_only_comp) {
         const auto brg_ker = brgemm_kernels_[brg_idx];
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
@@ -2021,7 +1993,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                     kh_b, kh_e, kw_b, kw_e, k_l, btc.brg_batch);
             if (k_l <= 0) return;
         }
-
         call_brgemm_kernel(btc, brg_ker, k_l * n_ic_blocks, ptr_C, ptr_D,
                 bias_w, g_oc, do_postops, comp_ker_offs, do_only_comp);
     };
@@ -2030,15 +2001,12 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
         if (kw_e - kw_b <= 0) return;
         int ow_b {0}, ow_e {0};
         _pd->get_ow_range(ow, kw_b, ow_b, ow_e);
-
         const auto do_init
                 = btc.icc == 0 && kd_b == kd_s && kh_b == kh_s && kw_b == kw_s;
         const auto do_postwork = _pd->need_postwork
                 && btc.icc == (_pd->ic_chunks - 1) && kd_e == kd_f
                 && kh_e == kh_f && kw_e == kw_f;
-        const auto do_only_comp = need_compensation && kd_e == kd_f
-                && kh_e == kh_f && kw_e != kw_f
-                && btc.icc == (_pd->ic_chunks - 1);
+        const auto do_post_comp = do_postwork && need_compensation;
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
         iiw_b = ow_b * SW - LP;
@@ -2054,14 +2022,16 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
         assert(0 <= ow_l && ow_l <= jcp.ow_block);
 
         if (ow_l > 0) {
-            const auto comp_ker_offs = get_comp_offset(
-                    btc.g, btc.ocb, 0, 0, kd_s, kd_f, kh_s, kh_f, kw_b, kw_e);
+            const size_t comp_ker_offs = do_postwork
+                    ? get_comp_offset(btc.g, btc.ocb, 0, ow_b, kd_s, kd_f, kh_s,
+                            kh_f, 0, KW)
+                    : 0;
 
             if (nb_ic_b > 0) {
                 const auto brg_idx = _pd->get_brg_idx(ow_l, do_init, is_oc_tail,
                         false, kd_s, kd_f, kh_s, kh_f);
                 call_brgemm(brg_idx, 0, nb_ic_b, comp_ker_offs,
-                        do_postwork && !is_ic_tail, do_only_comp);
+                        do_postwork && !is_ic_tail, false);
             }
 
             if (is_ic_tail) {
@@ -2069,12 +2039,15 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                 const auto brg_ic_tail_idx = _pd->get_brg_idx(ow_l,
                         use_init_ker, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
                 call_brgemm(brg_ic_tail_idx, nb_ic_b, 1, comp_ker_offs,
-                        do_postwork, do_only_comp);
+                        do_postwork, false);
             }
         }
 
+        const auto post_comp_ker_offs = get_comp_offset(
+                btc.g, btc.ocb, 0, 0, kd_s, kd_f, kh_s, kh_f, 0, KW);
         perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow_b, ow_e,
-                kd_l, kh_l, do_init, do_postwork, false);
+                kd_l, kh_l, do_init, do_postwork, post_comp_ker_offs,
+                do_post_comp);
     };
 
     if (kd_f > kd_s && kh_f > kh_s && kw_f > kw_s) {
@@ -2126,7 +2099,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
         const auto do_postwork
                 = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
         perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow, ow,
-                kd_l, kh_l, do_init, do_postwork, false);
+                kd_l, kh_l, do_init, do_postwork, 0, false);
     }
 }
 
@@ -2177,7 +2150,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
     const auto ker_i = (jcp.is_os_blocking ? oh_l * ow_l : ow_l);
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
-                                     int comp_ker_offs, bool do_postops) {
+                                     size_t comp_ker_offs, bool do_postops) {
         const auto brg_ker = brgemm_kernels_[brg_idx];
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
 
@@ -2249,7 +2222,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
         const auto do_postwork
                 = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
         perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow, ow,
-                kd_l, kh_l, do_init, do_postwork, false);
+                kd_l, kh_l, do_init, do_postwork, 0, false);
     }
 }
 
@@ -2288,7 +2261,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
             = owb_kw_bottom_vpads.data() + btc.owb * KW;
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
-                                     int comp_ker_offs, bool do_postops) {
+                                     size_t comp_ker_offs, bool do_postops) {
         const auto brg_ker = brgemm_kernels_[brg_idx];
 
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
@@ -2344,7 +2317,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
         const auto do_postwork
                 = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
         perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow, ow,
-                kd_l, kh_l, do_init, do_postwork, false);
+                kd_l, kh_l, do_init, do_postwork, 0, false);
     }
 }
 

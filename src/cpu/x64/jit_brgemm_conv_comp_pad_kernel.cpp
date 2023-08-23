@@ -414,7 +414,7 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::generate() {
     const auto icb_tail = nb_ic_ % blocks;
     const auto mb_tail = div_up(icb_tail, ic_step);
     const auto maybe_use_inversion
-            = jcp_.use_uker && jcp_.exec_type == exec_trans;
+            = jcp_.prop_kind != backward_data && jcp_.exec_type != exec_vpad;
 
     Xbyak::Label label_kw_without_inversion, label_done;
 

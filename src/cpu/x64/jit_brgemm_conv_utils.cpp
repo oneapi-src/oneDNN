@@ -1736,7 +1736,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = get_zp_type(attr, DNNL_ARG_DST) != brgemm_broadcast_t::none;
 
     // Only common zero points for the whole output tensor is supported now
-    // TODO: Extend zero points support to AMX
     const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
     const bool params_ok
             = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
@@ -2101,13 +2100,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
                 P4K);
     }
 
-    // TODO: Extend src zero points support to AMX for non-unrolled kernel
-    if (!IMPLICATION(jcp.src_zero_point && is_amx(jcp.isa), jcp.use_uker))
-        return status::unimplemented;
-
-    const bool with_pad = jcp.f_pad > 0 || jcp.back_pad > 0 || jcp.t_pad > 0
-            || jcp.b_pad > 0;
-
     if (jcp.s8s8_compensation_required) {
         weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
         weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
@@ -2133,48 +2125,36 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
             || jcp.scale_adjust_factor != 1.0f;
     jcp.is_oc_scale = wei_scales.mask_ != 0;
 
+    const bool compensation_w_padding
+            = (jcp.s8s8_compensation_required || jcp.src_zero_point)
+            && !everyone_is(0, jcp.t_pad, jcp.back_pad, jcp.f_pad, jcp.b_pad,
+                    jcp.l_pad, jcp.r_pad);
+    //TODO: Enable src zp w/ padding when using relo_conv_weights
+    if (compensation_w_padding && jcp.is_relo && jcp.relo_conv_weights)
+        return status::unimplemented;
+
     // For padding shapes, we calculate the comp along with the computation
     // inside brgemm kernel when output size is small to get optimal perf
     // Or we calculate the comp using brgemm_coomp_pad kernel
     const auto output_sz = static_cast<dim_t>(jcp.mb) * jcp.ngroups * jcp.oc
             * jcp.od * jcp.oh * jcp.ow;
-    const auto comp_with_pads
-            = (jcp.src_zero_point || jcp.s8s8_compensation_required)
-            && IMPLICATION(jcp.exec_type == exec_vpad, with_pad);
-    if (jcp.use_uker) {
-        const bool src_zp_w_pad = jcp.src_zero_point
-                && !everyone_is(false, with_pad, jcp.l_pad > 0, jcp.r_pad > 0);
-        //TODO: Enable src zp w/ padding when using relo_conv_weights
-        if (jcp.is_relo && jcp.relo_conv_weights && src_zp_w_pad)
-            return status::unimplemented;
-
-        jcp.req_brg_comp_pad
-                = comp_with_pads && jcp.exec_type == exec_trans && src_zp_w_pad;
-        jcp.req_cal_comp_pad = comp_with_pads && src_zp_w_pad;
-    } else {
-        jcp.req_brg_comp_pad = comp_with_pads
-                && IMPLICATION(!jcp.relo_conv_weights,
-                        output_sz <= 8192 && jcp.oc < 512);
-        jcp.req_cal_comp_pad = comp_with_pads && !jcp.req_brg_comp_pad;
-    }
+    jcp.req_brg_comp_pad = compensation_w_padding && jcp.exec_type != exec_trans
+            && IMPLICATION(
+                    !jcp.relo_conv_weights, output_sz <= 8192 && jcp.oc < 512);
+    jcp.req_cal_comp_pad = compensation_w_padding && !jcp.req_brg_comp_pad
+            && IMPLICATION(jcp.exec_type == exec_vpad,
+                    jcp.t_pad > 0 || jcp.b_pad > 0 || jcp.f_pad > 0
+                            || jcp.back_pad > 0);
 
     // estimate the number of kernel range combination for compensation
     const auto kd_cnt = 1 + utils::div_up(abs(jcp.f_pad), jcp.dilate_d + 1)
             + utils::div_up(abs(jcp.back_pad), jcp.dilate_d + 1);
     const auto kh_cnt = 1 + utils::div_up(abs(jcp.t_pad), jcp.dilate_h + 1)
             + utils::div_up(abs(jcp.b_pad), jcp.dilate_h + 1);
-    const auto kw_cnt
-            = (1
-                      + (utils::div_up(abs(jcp.l_pad), jcp.dilate_w + 1)
-                              + utils::div_up(
-                                      abs(jcp.r_pad), jcp.dilate_w + 1)))
-            * 2;
-
-    jcp.ker_ranges_size = jcp.exec_type == exec_base ? kd_cnt * kh_cnt * kw_cnt
-            : jcp.exec_type == exec_trans
+    jcp.ker_ranges_size = jcp.exec_type == exec_trans
             ? kd_cnt * nstl::min(jcp.oh, jcp.oh_block + kh_cnt)
             : kd_cnt * kh_cnt;
-    const auto comp_buffer_ow = jcp.use_uker ? jcp.ow : 1;
+    const auto comp_buffer_ow = jcp.exec_type != exec_vpad ? jcp.ow : 1;
     jcp.comp_a_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.ker_ranges_size
             * comp_buffer_ow * jcp.oc_block;
 
@@ -2332,10 +2312,6 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
-
-    //TODO: Extend src zero points support to AMX for non-unrolled kernel
-    if (!IMPLICATION(jcp.src_zero_point && is_amx(jcp.isa), jcp.use_uker))
-        return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
