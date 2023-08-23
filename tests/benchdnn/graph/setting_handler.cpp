@@ -1136,6 +1136,9 @@ bool get_matmul_prb_vdims(
 
     ::graph::extend_dims(base_op.in_lts_[0], ndims);
     ::graph::extend_dims(base_op.in_lts_[1], ndims);
+    if (base_op.in_lts_.size() > 2) {
+        ::graph::extend_dims(base_op.in_lts_[2], ndims);
+    }
 
     // transpose
     bool transpose_a = false, transpose_b = false;
