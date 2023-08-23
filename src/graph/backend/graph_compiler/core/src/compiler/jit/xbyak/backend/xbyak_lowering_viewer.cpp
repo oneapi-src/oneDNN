@@ -28,7 +28,7 @@
 #include <compiler/jit/xbyak/debug/debug_info_mgr.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
-#include <compiler/jit/xbyak/ir/utils.hpp>
+#include <compiler/jit/xbyak/ir/util/utils.hpp>
 #include <compiler/jit/xbyak/x86_64/type_mapping.hpp>
 #include <compiler/jit/xbyak/xbyak_jit.hpp>
 #include <util/optional.hpp>
@@ -559,6 +559,23 @@ void xbyak_lowering_viewer::handle_x86_intrisic(const expr_c &dst,
             auto op_lhs = GET_OPERAND(args[0]);
             auto op_rhs = GET_OPERAND(args[1]);
             XBYAK_GEN(imul, X86_R_RM_I, op_dst, op_lhs, op_rhs);
+        } break;
+        case xbyak_intrin_type::mulhl: {
+            // %rdx:%rax = mulhl([0]%rax, [1]src)
+            auto op_dst = GET_OPERAND(dst);
+            auto op_rax = GET_OPERAND(args[0]);
+            auto op_src = GET_OPERAND(args[1]);
+            assert(op_dst == operand(regs::rdx));
+            assert(op_rax == operand(regs::rax));
+            switch (get_type_category(dst->dtype_)) {
+                case type_category::CATE_INT: {
+                    XBYAK_GEN(imul, X86_RM, op_src);
+                } break;
+                case type_category::CATE_UINT: {
+                    XBYAK_GEN(mul, X86_RM, op_src);
+                } break;
+                default: COMPILE_ASSERT(false, "x86 mulhl type error");
+            }
         } break;
         case xbyak_intrin_type::sign_ext: {
             // %rdx = x86_sign_ext([0]%rax)

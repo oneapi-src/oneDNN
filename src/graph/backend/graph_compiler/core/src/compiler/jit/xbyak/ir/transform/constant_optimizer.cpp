@@ -19,15 +19,11 @@
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <compiler/jit/xbyak/ir/utils.hpp>
+#include <compiler/jit/xbyak/ir/util/utils.hpp>
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
 #include "constant_optimizer.hpp"
-
-#ifdef _MSC_VER
-#define __builtin_ctzl(VAL) _tzcnt_u64(VAL)
-#endif
 
 #define HAS_KEY_ENCODE(EXPR) \
     ((EXPR)->attr_ && (EXPR)->attr_->has_key(attr_keys::force_simd_encode))
@@ -229,7 +225,7 @@ public:
         if (utils::is_one_of(dtype, datatypes::u8, datatypes::u16,
                     datatypes::u32, datatypes::index)) {
             uint64_t val = v->value_[0].u64;
-            return (val > 1) && ((val & (val - 1)) == 0);
+            return utils::is_power_of_2(val);
         }
         return false;
     }
@@ -237,8 +233,7 @@ public:
     expr power_of_2_exponent(const constant_c &v) {
         // Calculate integer log2(2^n)
         uint64_t val = v->value_[0].u64;
-        return builder::make_constant(
-                {uint64_t(__builtin_ctzl(val))}, v->dtype_);
+        return builder::make_constant({uint64_t(utils::ctz(val))}, v->dtype_);
     }
 
     expr power_of_2_minus_1(const constant_c &v) {

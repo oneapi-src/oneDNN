@@ -114,6 +114,7 @@ static handler_table register_handlers() {
 
     REGISTER_INTRIN("X86_MUL", x86, mul, compound_dst_reg, _2A_);
     REGISTER_INTRIN("X86_MULI", x86, muli, directed_dst_reg, _3A_);
+    REGISTER_INTRIN("X86_MULHL", x86, mulhl, directed_dst_reg, _3A_);
 
     REGISTER_INTRIN("X86_MIN", x86, min, compound_dst_reg, _2A_);
     REGISTER_INTRIN("X86_MAX", x86, max, compound_dst_reg, _2A_);

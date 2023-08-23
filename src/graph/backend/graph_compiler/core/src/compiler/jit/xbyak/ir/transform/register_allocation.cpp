@@ -29,7 +29,7 @@
 #include <compiler/ir/ir_module.hpp>
 #include <compiler/jit/xbyak/ir/reg_allocation/reg_allocator.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
-#include <compiler/jit/xbyak/ir/utils.hpp>
+#include <compiler/jit/xbyak/ir/util/utils.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
 #include <compiler/jit/xbyak/x86_64/abi_function_interface.hpp>
 

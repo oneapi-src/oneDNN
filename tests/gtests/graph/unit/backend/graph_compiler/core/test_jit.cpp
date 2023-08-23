@@ -27,6 +27,7 @@
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #if SC_BUILTIN_JIT_ENABLED
+#include <compiler/jit/xbyak/ir/util/invariant_int.hpp>
 #include <compiler/jit/xbyak/xbyak_jit.hpp>
 #endif
 #if SC_CFAKE_JIT_ENABLED
@@ -42,6 +43,7 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <runtime/config.hpp>
+#include <util/uint128.hpp>
 
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
@@ -1056,6 +1058,38 @@ TEST(GCCore_CPU_jit_cpp, TestJITDispatchTable) {
                 ccc_runtime_table.get());
     }
 }
+
+#if SC_BUILTIN_JIT_ENABLED
+TEST(GCCore_CPU_jit_cpp, TestDivisionInvariantInteger) {
+    // Test 64 bit unsigned division by invariant integer
+    const auto mulh = [](const uint64_t n, const uint64_t m) {
+        return uint64_t((utils::uint128_t(n) * utils::uint128_t(m)) >> 64);
+    };
+    // use random 64 bit numbers to test
+    std::random_device rd;
+    std::mt19937_64 e2(rd());
+    std::uniform_int_distribution<uint64_t> dist;
+    for (int i = 0; i < 1024; i++) {
+        uint64_t result;
+        uint64_t x = dist(e2);
+        uint64_t y = dist(e2) % INT_MAX + 2;
+        // get multiplier
+        const auto mult = xbyak::invariant_int::UintDivMultiplier(y, 64);
+        // use multiplier to div
+        if (mult.power_of_2_) {
+            result = x >> mult.sft_pre_;
+        } else if (mult.compensate_) {
+            uint64_t t = mulh(x, mult.magic_);
+            result = (((x - t) >> mult.sft_pre_) + t) >> mult.sft_post_;
+        } else {
+            uint64_t t = mulh(x >> mult.sft_pre_, mult.magic_);
+            result = t >> mult.sft_post_;
+        }
+        // compare result
+        EXPECT_EQ(result, x / y);
+    }
+}
+#endif
 
 #if 0
 

@@ -1701,6 +1701,10 @@ public:
                 auto c = cond.static_as<constant_c>();
                 bool is_false = is_const_equal_to(c, 0);
                 return is_false ? node->r_ : node->l_;
+            } else if (node->l_.ptr_same(node->r_)
+                    || (node->l_.isa<constant>()
+                            && node->l_->equals(node->r_))) {
+                return node->l_;
             }
         }
         return ret;

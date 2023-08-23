@@ -14,9 +14,10 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_UTILS_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_UTILS_HPP
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_UTIL_UTILS_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_UTIL_UTILS_HPP
 
+#include <assert.h>
 #include <memory>
 #include <string>
 #include <utility>

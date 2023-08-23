@@ -19,7 +19,7 @@
 
 #include <compiler/ir/sc_data_type.hpp>
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
-#include <compiler/jit/xbyak/ir/utils.hpp>
+#include <compiler/jit/xbyak/ir/util/utils.hpp>
 #include <util/utils.hpp>
 
 #include "live_range.hpp"

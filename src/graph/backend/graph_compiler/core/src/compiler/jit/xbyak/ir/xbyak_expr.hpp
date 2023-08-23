@@ -77,8 +77,9 @@ enum class xbyak_intrin_type {
     movd, // reinterpret dword f32 <-> int32
     add,
     sub,
-    mul,
-    muli, // special intrin to represent x86 3-address imul(r, r/m, i)
+    mul, // x86: represent low result 2-address mul(r, r/m)
+    muli, // x86: represent low result 3-address mul(r, r/m, i)
+    mulhl, // x86: represent high/low result rdx:rax = mul(r/rm)~rax
     div,
     mod,
     shl,

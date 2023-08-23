@@ -15,7 +15,10 @@
  *******************************************************************************/
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_SIMPLE_MATH_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_SIMPLE_MATH_HPP
+#include <cstdint>
+#include <immintrin.h>
 #include <stddef.h>
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -32,6 +35,45 @@ static constexpr size_t rnd_up(const size_t a, const size_t b) {
 static constexpr size_t rnd_dn(const size_t a, const size_t b) {
     return (a / b) * b;
 }
+
+inline bool is_power_of_2(const uint64_t val) {
+    return (val > 0) && ((val & (val - 1)) == 0);
+}
+
+// get leading zeros
+inline int clz(const uint32_t val) {
+#ifdef _MSC_VER
+    return _lzcnt_u32(val);
+#else
+    return __builtin_clz(val);
+#endif
+}
+
+inline int clz(const uint64_t val) {
+#ifdef _MSC_VER
+    return _lzcnt_u64(val);
+#else
+    return __builtin_clzll(val);
+#endif
+}
+
+// get trailing zeros
+inline int ctz(const uint32_t val) {
+#ifdef _MSC_VER
+    return _tzcnt_u32(val);
+#else
+    return __builtin_ctz(val);
+#endif
+}
+
+inline int ctz(const uint64_t val) {
+#ifdef _MSC_VER
+    return _tzcnt_u64(val);
+#else
+    return __builtin_ctzll(val);
+#endif
+}
+
 } // namespace utils
 } // namespace gc
 } // namespace graph

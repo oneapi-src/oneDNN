@@ -21,7 +21,8 @@
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
-#include <compiler/jit/xbyak/ir/utils.hpp>
+#include <compiler/jit/xbyak/ir/util/invariant_int.hpp>
+#include <compiler/jit/xbyak/ir/util/utils.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
 #include <compiler/jit/xbyak/x86_64/registers.hpp>
 #include <util/any_map.hpp>
@@ -892,23 +893,103 @@ public:
         auto rdx = make_physical_reg(dtype, x86_64::regs::rdx);
         add_defination(rax, linkage::local);
         add_defination(rdx, linkage::local);
-        // mov %rax, lhs
-        auto mov_rax = make_stmt<assign_node_t>(rax, lhs);
-        transform_seq_.emplace_back(mov_rax);
-        // unsigned [xor %rdx, %rdx] or signed [CWD/CDQ/CQO]
-        auto sign_ext_rdx = make_stmt<assign_node_t>(rdx,
-                make_xbyak_intrin(
-                        dst->dtype_, {rax}, xbyak_intrin_type::sign_ext));
-        transform_seq_.emplace_back(sign_ext_rdx);
-        // div rhs
-        // mov dst, %rax(div)/%rdx(mod)
-        // Add %rax, %rdx to xbyak_intrin args so, liveness updates
-        // TODO(XXX): if transform normal div constant (not unsigned 2^n) is
-        // worthy
-        auto tmp = load_when_imm(rhs, "__div_imm_tmp");
-        add_assignment(dst,
-                make_xbyak_intrin(dst->dtype_, {tmp, rax, rdx}, intrin,
-                        xbyak_intrin_isa::x86));
+        if (rhs.isa<constant>() && rhs->dtype_ == datatypes::index) {
+            // Get multiplier
+            const auto dtype = dst->dtype_;
+            const auto divisor = rhs.static_as<constant>()->value_[0].u64;
+            const auto mult = invariant_int::UintDivMultiplier(divisor, 64);
+            // gen code for div
+            if (mult.compensate_) {
+                // %rdx = mulh([magic]~%rax, lhs)
+                // %rax = lhs - %rdx
+                // %rax >> [1]
+                // %rdx = %rdx + %rax
+                // %rdx >> [sh_post]
+                // dst = %rdx
+                add_assignment(rax, builder::make_constant(mult.magic_));
+                add_assignment(rdx,
+                        make_xbyak_intrin(dtype, {rax, lhs},
+                                xbyak_intrin_type::mulhl,
+                                xbyak_intrin_isa::x86));
+                add_assignment(rax, lhs);
+                add_assignment(rax,
+                        make_xbyak_intrin(dtype, {rdx}, xbyak_intrin_type::sub,
+                                xbyak_intrin_isa::x86));
+                assert(mult.sft_pre_ == 1);
+                add_assignment(rax,
+                        make_xbyak_intrin(dtype,
+                                {builder::make_constant(mult.sft_pre_)},
+                                xbyak_intrin_type::shr, xbyak_intrin_isa::x86));
+                add_assignment(rdx,
+                        make_xbyak_intrin(dtype, {rax}, xbyak_intrin_type::add,
+                                xbyak_intrin_isa::x86));
+                if (mult.sft_post_ > 0) {
+                    add_assignment(rdx,
+                            make_xbyak_intrin(dtype,
+                                    {builder::make_constant(mult.sft_post_)},
+                                    xbyak_intrin_type::shr,
+                                    xbyak_intrin_isa::x86));
+                }
+            } else {
+                // %rdx = lhs
+                // %rdx >> [sh_pre]
+                // %rdx = mulh([magic]~%rax, %rdx)
+                // %rdx >> [sh_post]
+                add_assignment(rdx, lhs);
+                if (mult.sft_pre_ > 0) {
+                    add_assignment(rdx,
+                            make_xbyak_intrin(dtype,
+                                    {builder::make_constant(mult.sft_pre_)},
+                                    xbyak_intrin_type::shr,
+                                    xbyak_intrin_isa::x86));
+                }
+                add_assignment(rax, builder::make_constant(mult.magic_));
+                add_assignment(rdx,
+                        make_xbyak_intrin(dtype, {rax, rdx},
+                                xbyak_intrin_type::mulhl,
+                                xbyak_intrin_isa::x86));
+                if (mult.sft_post_ > 0) {
+                    add_assignment(rdx,
+                            make_xbyak_intrin(dtype,
+                                    {builder::make_constant(mult.sft_post_)},
+                                    xbyak_intrin_type::shr,
+                                    xbyak_intrin_isa::x86));
+                }
+            }
+            // gen addtional code for mod
+            if (intrin == xbyak_intrin_type::mod) {
+                // %rdx = %rdx * rhs
+                // dst = lhs - %rdx
+                add_assignment(rdx,
+                        make_xbyak_intrin(dtype,
+                                {rdx, builder::make_constant(divisor)},
+                                xbyak_intrin_type::muli,
+                                xbyak_intrin_isa::x86));
+                add_assignment(dst, lhs);
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {rdx}, xbyak_intrin_type::sub,
+                                xbyak_intrin_isa::x86));
+            } else {
+                // dst = %rdx
+                add_assignment(dst, rdx);
+            }
+        } else {
+            // mov %rax, lhs
+            auto mov_rax = make_stmt<assign_node_t>(rax, lhs);
+            transform_seq_.emplace_back(mov_rax);
+            // unsigned [xor %rdx, %rdx] or signed [CWD/CDQ/CQO]
+            auto sign_ext_rdx = make_stmt<assign_node_t>(rdx,
+                    make_xbyak_intrin(
+                            dst->dtype_, {rax}, xbyak_intrin_type::sign_ext));
+            transform_seq_.emplace_back(sign_ext_rdx);
+            // div rhs
+            // mov dst, %rax(div)/%rdx(mod)
+            // Add %rax, %rdx to xbyak_intrin args so liveness updates
+            auto tmp = load_when_imm(rhs, "__div_imm_tmp");
+            add_assignment(dst,
+                    make_xbyak_intrin(dst->dtype_, {tmp, rax, rdx}, intrin,
+                            xbyak_intrin_isa::x86));
+        }
     }
 
     void transform_simd_reduce_seq(const expr &dst, const expr &src,
