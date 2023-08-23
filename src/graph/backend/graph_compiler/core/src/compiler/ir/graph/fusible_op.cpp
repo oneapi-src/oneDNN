@@ -436,27 +436,29 @@ bool constant_op_t::compare_contents(const sc_op *other,
     auto &vals2 = *other_values;
     if (vals->size_ != vals2->size_) { return false; }
 
-    switch (get_type_category_nothrow(*dtype)) {
-        case CATE_FLOAT:
-            for (size_t i = 0; i < vals->size_ / 4; i++) {
-                if (static_cast<float *>(vals->data_)[i]
-                        != static_cast<float *>(vals2->data_)[i]) {
-                    return false;
+    if (dtype) {
+        switch (get_type_category_nothrow(*dtype)) {
+            case CATE_FLOAT:
+                for (size_t i = 0; i < vals->size_ / 4; i++) {
+                    if (static_cast<float *>(vals->data_)[i]
+                            != static_cast<float *>(vals2->data_)[i]) {
+                        return false;
+                    }
                 }
-            }
-            break;
-        case CATE_INT:
-        case CATE_UINT:
-            for (size_t i = 0; i < vals->size_ / 4; i++) {
-                if (static_cast<uint32_t *>(vals->data_)[i]
-                        != static_cast<uint32_t *>(vals2->data_)[i]) {
-                    return false;
+                break;
+            case CATE_INT:
+            case CATE_UINT:
+                for (size_t i = 0; i < vals->size_ / 4; i++) {
+                    if (static_cast<uint32_t *>(vals->data_)[i]
+                            != static_cast<uint32_t *>(vals2->data_)[i]) {
+                        return false;
+                    }
                 }
-            }
-            break;
-        default:
-            throw std::runtime_error("Met unexpected dtype for constant");
-            break;
+                break;
+            default:
+                throw std::runtime_error("Met unexpected dtype for constant");
+                break;
+        }
     }
     return true;
 }

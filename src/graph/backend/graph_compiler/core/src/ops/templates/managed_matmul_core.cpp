@@ -282,9 +282,8 @@ config_ptr gen_managed_matmul_core_t::get_default_post_rd_config(
     cfg.K_sub_block = (is_bf16 || is_int8 || K <= 1024)
       ? 1
       : utils::divide_and_ceil(single_K, single_K_threshold);
-    while (K / iik_block_ < cfg.K_sub_block) {
-      cfg.K_sub_block--;
-    }
+    cfg.K_sub_block = std::min(K / iik_block_, cfg.K_sub_block);
+    // K is rounded up by iik_block_, so K / iik_block_ is always non-zero
     int L2_K = utils::divide_and_ceil(
                  utils::divide_and_ceil(single_K, iik_block), cfg.K_sub_block)
       * iik_block;

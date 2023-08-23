@@ -473,19 +473,8 @@ extern "C" void query_format_conv_fwd_core_op(void *table, void *out,
                                    : out_dyn_tsr->dims_[data_ndims - 3];
     int64_t OW = weight_ndims == 4 ? out_dyn_tsr->dims_[data_ndims - 1]
                                    : out_dyn_tsr->dims_[data_ndims - 2];
-    // bs mask
-    uint8_t bs_mask = (data_dyn_tsr->dyn_mask_ & (1 << (data_ndims - 1)))
-            | ~(1 << (data_ndims - 1));
-    out_dyn_tsr->dyn_mask_ &= bs_mask;
-    // ih mask
-    uint8_t ih_mask = (data_dyn_tsr->dyn_mask_ & (1 << 1)) | ~(1 << 1);
-    out_dyn_tsr->dyn_mask_ &= ih_mask;
-    // iw mask
-    uint8_t iw_mask = (data_dyn_tsr->dyn_mask_ & 1) | ~(1 << 1);
-    out_dyn_tsr->dyn_mask_ &= ih_mask;
     // update dyn_mask
-    out_dyn_tsr->dyn_mask_
-            = data_dyn_tsr->dyn_mask_ | weight_dyn_tsr->dyn_mask_;
+    out_dyn_tsr->dyn_mask_ = data_dyn_tsr->dyn_mask_;
     // query format
     bool is_BS_dynamic = data_dyn_tsr->dyn_mask_ & 1;
     bool is_IH_dynamic = data_dyn_tsr->dyn_mask_ & (1 << 2);

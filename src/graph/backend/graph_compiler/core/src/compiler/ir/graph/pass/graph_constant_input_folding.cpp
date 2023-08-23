@@ -281,8 +281,6 @@ SC_INTERNAL_API void graph_constant_input_folding_impl(
                     }
                 }
             }
-        } else if (cur_const_state == const_kind::global_const) {
-            edge_ops.emplace_back(node.get());
         }
     });
     if (share_constants && !edge_ops.empty() && ctx->flags_.const_share_) {

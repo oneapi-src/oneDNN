@@ -273,10 +273,6 @@ bool compiler_graph_impl_t::is_supported_op(op_kind_t name) {
     return compiler_backend_op.find(name) != compiler_backend_op.end();
 }
 
-void compiler_graph_impl_t::set_partition_kind(partition_kind_t pkind) {
-    pkind_ = pkind;
-}
-
 } // namespace compiler_impl
 } // namespace graph
 } // namespace impl

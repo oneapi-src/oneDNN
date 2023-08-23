@@ -1003,10 +1003,10 @@ std::vector<memory_optim::memory_alloc_trace_t> merge_mem_trace(
     auto ret = mem_trace1;
     for (auto &trace : mem_trace2) {
         auto tsr = ((expr_base *)trace.buffer_id_)->node_ptr_from_this();
-        bool is_replaced = buffer_map.find(tsr) != buffer_map.end();
-        auto buf_id = is_replaced
-                ? (uintptr_t)(buffer_map.find(tsr)->second.get())
-                : trace.buffer_id_;
+        auto trace_itr = buffer_map.find(tsr);
+        bool is_replaced = trace_itr != buffer_map.end();
+        auto buf_id = is_replaced ? (uintptr_t)(trace_itr->second.get())
+                                  : trace.buffer_id_;
         if (trace.size_ > 0) {
             auto last_use = std::find_if(ret.begin(), ret.end(),
                     [&buf_id](const memory_optim::memory_alloc_trace_t &tr) {

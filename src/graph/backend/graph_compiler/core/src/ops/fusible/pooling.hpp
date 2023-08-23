@@ -98,7 +98,6 @@ private:
 class pooling_avg_op_t : public pooling_op_t {
 public:
     using parent = pooling_op_t;
-    bool exclude_pad;
     /*
      * Inputs:
      * 1: input - input tensor. Required.

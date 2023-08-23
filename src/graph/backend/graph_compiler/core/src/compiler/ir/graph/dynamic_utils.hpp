@@ -93,7 +93,7 @@ struct op_dispatch_tables_t {
          * already lowered to TIR in the current IR module
          */
         op_func_info(const std::string &name_or_postfix)
-            : name_or_postfix_(name_or_postfix) {}
+            : name_or_postfix_(name_or_postfix), internal_(false) {}
         bool already_compiled() { return graph_ == nullptr; }
     };
     // config table: configs of tunable_op => impl kind
