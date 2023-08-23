@@ -189,6 +189,22 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
         int out_y = get_expr_as_int(dst.shape_[oy]);
 
         if (out_x % inp_x != 0 || out_y % inp_y != 0) { return false; }
+        // example: ABCD4c16d2c -> ACBD8c16d, Note that the
+        // block format has been reconstructed in this example due to the
+        // multiple blocks and is not suitable for transpose. The number of data
+        // in the input and output format blocks should be the same, otherwise
+        // the data position may cause errors due to format changes.
+        auto input_block_axis = input_format.get_blocked_axis();
+        auto output_block_axis = output_format.get_blocked_axis();
+        for (auto iter = input_block_axis.begin();
+                iter != input_block_axis.end(); iter++) {
+            size_t block_count_inp = iter->second.size();
+            size_t block_count_out = output_block_axis[iter->first].size();
+            if ((block_count_inp > 1 || block_count_out > 1)
+                    && iter->second[0] != output_block_axis[iter->first][0]) {
+                return false;
+            }
+        }
     }
     auto satisfy_dim_lanes = [&]() {
         int trans_lanes1 = is_bf16 ? trans_lanes_bf16x8

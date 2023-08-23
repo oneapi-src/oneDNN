@@ -520,6 +520,39 @@ T ABC2ABCabc(T &input, int A, int B, int C, int a, int b, int c, int origin_A,
 }
 
 template <typename T>
+T ABaba2ABab(T &input, int A, int B, int a0, int b0, int a1, int output_A,
+        int output_B, int output_a, int output_b) {
+    T output(test_utils::product({output_A, output_B, output_a, output_b}));
+    int dim4 = B * a1 * b0 * a1, dim3 = a1 * b0 * a1, dim2 = b0 * a1, dim1 = a1;
+    for (auto a_o = 0; a_o < A; ++a_o) {
+        for (auto b_o = 0; b_o < B; ++b_o) {
+            for (auto a_i = 0; a_i < a1; ++a_i) {
+                for (auto b_i = 0; b_i < b0; ++b_i) {
+                    for (auto a_i_i = 0; a_i_i < a1; ++a_i_i) {
+                        auto total_a = (a_i_i + a_i * a1 + a_o * (a0 * a1));
+                        auto total_b = (b_i + b_o * b0);
+                        auto output_idx = (total_a / output_a)
+                                        * (output_B * output_a * output_b)
+                                + (total_b / output_b) * (output_a * output_b)
+                                + (total_a % output_a) * (output_b)
+                                + (total_b % output_b);
+                        if ((total_b < output_B * output_b)
+                                && (total_a < output_A * output_a)) {
+                            auto input_idx = a_o * dim4 + b_o * dim3
+                                    + a_i * dim2 + b_i * dim1 + a_i_i;
+                            output[output_idx] = input[input_idx];
+                        } else {
+                            output[output_idx] = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return output;
+}
+
+template <typename T>
 T ACBDcd2ABCDcd(T &input, int A, int B, int C, int D, int c, int d,
         int origin_A, int origin_C, int origin_B, int origin_D, int origin_c,
         int origin_d) {
