@@ -1400,10 +1400,12 @@ TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_2) {
     check_conv_correctness_and_tuning_bwd_d(28, 256, 128, 28, 28, 3, 3, 2, 0);
 }
 TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_3) {
+    REQUIRE_AVX512();
     SET_THREADS_OR_SKIP(28);
     check_conv_correctness_and_tuning_bwd_d(28, 256, 128, 28, 28, 3, 3, 1, 1);
 }
 TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_4) {
+    REQUIRE_AVX512();
     SET_THREADS_OR_SKIP(28);
     check_conv_correctness_and_tuning_bwd_d(28, 64, 64, 28, 28, 3, 3, 2, 1);
 }
@@ -1454,10 +1456,12 @@ TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_4) {
     check_conv_correctness_and_tuning_bwd_w(28, 64, 64, 56, 56, 3, 3, 2, 1);
 }
 TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_5) {
+    REQUIRE_AVX512();
     SET_THREADS_OR_SKIP(28);
     check_conv_correctness_and_tuning_bwd_w(32, 32, 32, 28, 28, 3, 3, 1, 1);
 }
 TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_6) {
+    REQUIRE_AVX512();
     SET_THREADS_OR_SKIP(28);
     check_conv_correctness_and_tuning_bwd_w(32, 32, 32, 56, 56, 3, 3, 2, 1);
 }
