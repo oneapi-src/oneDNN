@@ -218,6 +218,9 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
 
     jcp.s8s8_compensation_required = jcp.src_dt == s8 && !isa_has_s8s8(jcp.isa);
+    if (jcp.s8s8_compensation_required
+            && cd.weights_desc.format_kind != format_kind::any)
+        return unimplemented;
 
     const auto &src_scales = attr_.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr_.scales_.get(DNNL_ARG_WEIGHTS);
@@ -228,6 +231,23 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const bool scales_ok
             = attr_scales_ok({DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST});
     if (!scales_ok) return status::unimplemented;
+
+    const auto zp_attr = attr()->zero_points_;
+    jcp.src_zero_point = !zp_attr.has_default_values(DNNL_ARG_SRC);
+    jcp.dst_zero_point = !zp_attr.has_default_values(DNNL_ARG_DST);
+
+    // Only common zero points for the whole output tensor is supported now
+    const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
+    const bool params_ok
+            = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
+            && IMPLICATION(jcp.src_zero_point,
+                    attr()->zero_points_.common(DNNL_ARG_SRC))
+            && IMPLICATION(jcp.dst_zero_point,
+                    attr()->zero_points_.common(DNNL_ARG_DST));
+    if (!params_ok) return status::unimplemented;
+
+    if (jcp.src_zero_point && cd.weights_desc.format_kind != format_kind::any)
+        return unimplemented;
 
     // strd is only feasible for 1D (i.e., height dim is one)
     // and if there are no tails (for calculating matrix_B strides).
@@ -422,20 +442,6 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
                 = 0 | memory_extra_flags::compensation_conv_s8s8;
         weights_md_.extra.compensation_mask = 0x1;
     }
-
-    const auto zp_attr = attr()->zero_points_;
-    jcp.src_zero_point = !zp_attr.has_default_values(DNNL_ARG_SRC);
-    jcp.dst_zero_point = !zp_attr.has_default_values(DNNL_ARG_DST);
-
-    // Only common zero points for the whole output tensor is supported now
-    const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
-    const bool params_ok
-            = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
-            && IMPLICATION(jcp.src_zero_point,
-                    attr()->zero_points_.common(DNNL_ARG_SRC))
-            && IMPLICATION(jcp.dst_zero_point,
-                    attr()->zero_points_.common(DNNL_ARG_DST));
-    if (!params_ok) return status::unimplemented;
 
     if (jcp.src_zero_point) {
         weights_md_.extra.flags
