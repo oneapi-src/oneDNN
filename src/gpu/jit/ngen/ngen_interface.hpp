@@ -320,8 +320,8 @@ void InterfaceHandler::generateDummyCL(std::ostream &stream) const
         if (!firstArg) stream << ", ";
 
         switch (assignment.exttype) {
-            case ExternalArgumentType::GlobalPtr: stream << "global void *"; break;
-            case ExternalArgumentType::LocalPtr: stream << "local void *"; break;
+            case ExternalArgumentType::GlobalPtr: stream << "global uint *"; break;
+            case ExternalArgumentType::LocalPtr: stream << "local uint *"; break;
             case ExternalArgumentType::Scalar: stream << getCLDataType(assignment.type) << ' '; break;
             default: break;
         }
