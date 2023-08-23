@@ -154,6 +154,9 @@ struct dummy_impl_t : public op_executable_t {
             const std::vector<::sycl::event> &deps = {}) const override {
         UNUSED(stream);
 
+        // Fast path: if no event, return an immediate event.
+        if (deps.empty()) return {};
+
         // Fast path: if only one event, return it.
         if (deps.size() == 1) return deps[0];
 
