@@ -84,6 +84,11 @@ cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
             {{dnnl_s8}, {-8, 8}},
             {{dnnl_u8}, {0, 8}},
             {{dnnl_s32}, {-8, 8}},
+            // Bias can be empty, which is expressed through undefined dt.
+            // This entry allows to modify a bias range in general path without
+            // branching whether bias is present or not.
+            // Applicable for graph driver data displacer.
+            {{dnnl_data_type_undef}, {0, 0}},
     };
 
     static const cfg_t::cfg_entry_t::cfg_map_t dst_cfg_map = {
