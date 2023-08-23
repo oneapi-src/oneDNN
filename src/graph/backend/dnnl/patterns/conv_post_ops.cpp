@@ -75,7 +75,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_depthwise_cpu)
                 |  /
                add
                 |
-        [unary/binary]*[0,3]
+        [unary/binary]*[0,4]
                 |
             quant_out
                 |
@@ -181,7 +181,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
                 |
               [bias]*
                 |
-        [unary/binary]*[0,3]
+        [unary/binary]*[0,4]
                 |
             [quant_out]*
                 |
@@ -256,7 +256,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_post_ops)
                 |
               [bias]*
                 |           
-        [unary/binary]*[0,3]
+        [unary/binary]*[0,4]
                 |
             [quant_out]*
                 | 
@@ -339,7 +339,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_reshape_post_ops)
                 |  /
                Add   [typecast_binary]*
                 |        /
-        [unary/binary]*[0,3]
+        [unary/binary]*[0,4]
                 |
     [typecast_out -> quant_out]*
 
@@ -580,7 +580,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                 |   /
               [bias]*  [typecast_binary]*
                 |           /
-        [unary/binary]*[0,3]
+        [unary/binary]*[0,4]
                 |
     [typecast_out -> quant_out]*
                 |
@@ -686,7 +686,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_post_ops)
                 |
               [BN]*
                 |
-        [unary/binary]*[0,3]
+        [unary/binary]*[0,4]
                 |
            [TypeCast]*
                 |
@@ -717,11 +717,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_post_ops)
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
-                    // here using `MAX_REPETITION + 1` to cover previous swish
-                    // (sigmoid + mul) pattern
                     auto prep = pgraph->append_repetition(alt_graph, {0, 0}, 0,
-                            MAX_REPETITION + 1,
-                            in_edges_t {in_edge(0, popt, 0)});
+                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)});
 
                     // Optional typecast
                     auto popt_tc_graph = std::make_shared<pb_graph_t>();

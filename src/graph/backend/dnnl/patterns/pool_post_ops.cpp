@@ -58,7 +58,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_avg_pool)
                         |
                  [AvgPool/MaxPool]
                         |
-                [unary/binary]*[0,3]
+                [unary/binary]*[0,4]
                         |
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_pool_post_ops)
@@ -131,7 +131,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_reshape_transpose)
                         |
                 [AvgPool/MaxPool]
                         |
-                [unary/binary]*[0,3]
+                [unary/binary]*[0,4]
                         |
                      Quantize
 */
@@ -182,7 +182,7 @@ matched pattern:
                            \         /
                                Add
                                 |
-                        [unary/binary]*[0,3]
+                        [unary/binary]*[0,4]
                                 |
                               Quantize
 */
@@ -225,7 +225,7 @@ matched pattern:
                            \         /
                                Add
                                 |
-                        [unary/binary]*[0,3]
+                        [unary/binary]*[0,4]
                                 |
                               Quantize
 */

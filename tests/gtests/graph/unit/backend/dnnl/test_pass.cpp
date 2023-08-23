@@ -2899,7 +2899,7 @@ TEST(Pass, FuseConvBiasBnSumRelu) {
 }
 
 TEST(Pass, FuseConvBiasPostOpsChain) {
-    size_t max_num_post_ops = 3;
+    size_t max_num_post_ops = 4;
     const std::vector<op_kind_t> two_inputs_ops {
             op_kind::Multiply,
             op_kind::Add,

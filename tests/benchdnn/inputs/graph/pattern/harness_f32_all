@@ -2,6 +2,7 @@
 --reset --case=pattern/f32/bn_bwd_relu_bwd_fusion.json
 --reset --case=pattern/f32/bn_relu_fusion.json
 --reset --case=pattern/f32/conv_bias_post_ops_fusion.json
+--reset --case=pattern/f32/conv_add_sigmoid_multiply_relu_fusion.json
 # This fusion pattern is not support on GPU engine for now, will split into 2
 # partitions with GPU engine
 --reset --case=pattern/f32/conv_depthwise_fusion_cpu.json
