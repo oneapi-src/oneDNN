@@ -162,36 +162,47 @@ int init_prim_ref(
 
     // Create a new copy of prb to avoid potentially corrupting the test by
     // modifying prb in place.
-    const auto cpu_bia_dt = prb->bia_dt == dnnl_data_type_undef
-            ? dnnl_data_type_undef
-            : dnnl_f32;
-    const auto cpu_bia_mask
-            = prb->bia_dt == dnnl_data_type_undef ? 0 : prb->bia_mask;
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
-    prb_t prb_cpu {*prb, {dnnl_f32}, tag::abx, tag::abx, tag::abx,
-            {vdims_t(STRIDES_SIZE)}, cpu_bia_dt, cpu_bia_mask, {0, 0, 0},
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-            sparse_options_t(),
-#endif
-            cpu_attr, prb->ctx_init, prb->ctx_exe};
-
-    init_pd_args_t<prb_t> init_pd_args(
-            /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
-            /* hint = */ nullptr, /* src_md = */ nullptr);
-    init_pd(init_pd_args);
-
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-    fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
-            /* is_service_prim = */ true);
-
+    std::vector<std::vector<dnnl_data_type_t>> prim_ref_dt {
+            prb->dt, {dnnl_f32}};
+    // If there's no bias, undef data type should be used for prim_ref as well.
+    dnnl_data_type_t cpu_bia_dt
+            = prb->bia_dt == dnnl_data_type_undef ? prb->bia_dt : dnnl_f32;
+    std::vector<dnnl_data_type_t> prim_ref_bia_dt {prb->bia_dt, cpu_bia_dt};
     dnnl_primitive_t prim_ref_ {};
-    if (pdw) {
-        if (query_impl_info(pdw) == "ref:any") return OK;
-        DNN_SAFE(dnnl_primitive_create(&prim_ref_, pdw), WARN);
-        BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
-                query_impl_info(pdw).c_str());
+
+    for_(const auto &prim_ref_dt_i : prim_ref_dt)
+    for (const auto &prim_ref_bia_dt_i : prim_ref_bia_dt) {
+        prb_t prb_cpu {*prb, prim_ref_dt_i, tag::any, tag::any, tag::any,
+                {vdims_t(STRIDES_SIZE)}, prim_ref_bia_dt_i, prb->bia_mask,
+                {0, 0, 0},
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+                sparse_options_t(),
+#endif
+                cpu_attr, prb->ctx_init, prb->ctx_exe};
+
+        init_pd_args_t<prb_t> init_pd_args(
+                /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
+                /* hint = */ nullptr, /* src_md = */ nullptr);
+        init_pd(init_pd_args);
+
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
+        fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
+                /* is_service_prim = */ true);
+
+        if (pdw) {
+            if (query_impl_info(pdw) == "ref:any") return OK;
+
+            auto st = dnnl_primitive_create(&prim_ref_, pdw);
+            if (st != dnnl_success) continue;
+
+            BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
+                    query_impl_info(pdw).c_str());
+            break;
+        }
     }
+
     prim_ref.reset(prim_ref_);
     return OK;
 }

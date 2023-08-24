@@ -97,25 +97,35 @@ int init_prim_ref(
     // modifying prb in place.
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
-    prb_t prb_cpu {*prb, prb->mb, prb->dir, {dnnl_f32}, tag::abx, tag::abx,
-            tag::abx, cpu_attr, prb->ctx_init, prb->ctx_exe};
-
-    init_pd_args_t<prb_t> init_pd_args(
-            /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
-            /* hint = */ nullptr, /* src_md = */ nullptr);
-    init_pd(init_pd_args);
-
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-    fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
-            /* is_service_prim = */ true);
-
+    std::vector<std::vector<dnnl_data_type_t>> prim_ref_dt {
+            prb->dt, {dnnl_f32}};
     dnnl_primitive_t prim_ref_ {};
-    if (pdw) {
-        if (query_impl_info(pdw) == "ref:any") return OK;
-        DNN_SAFE(dnnl_primitive_create(&prim_ref_, pdw), WARN);
-        BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
-                query_impl_info(pdw).c_str());
+
+    for (const auto &prim_ref_dt_i : prim_ref_dt) {
+        prb_t prb_cpu {*prb, prb->mb, prb->dir, prim_ref_dt_i, tag::any,
+                tag::any, tag::any, cpu_attr, prb->ctx_init, prb->ctx_exe};
+
+        init_pd_args_t<prb_t> init_pd_args(
+                /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
+                /* hint = */ nullptr, /* src_md = */ nullptr);
+        init_pd(init_pd_args);
+
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
+        fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
+                /* is_service_prim = */ true);
+
+        if (pdw) {
+            if (query_impl_info(pdw) == "ref:any") return OK;
+
+            auto st = dnnl_primitive_create(&prim_ref_, pdw);
+            if (st != dnnl_success) continue;
+
+            BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
+                    query_impl_info(pdw).c_str());
+            break;
+        }
     }
+
     prim_ref.reset(prim_ref_);
     return OK;
 }
