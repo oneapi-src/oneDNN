@@ -306,8 +306,12 @@ struct gen_gemm_t : public gpu_gemm_t {
 
                 int temp_c_sz = nstl::max(
                         (int)types::data_type_size(desc()->c_type()), 4);
-                int temp_c_elems = max_k_sliced_groups() * info->wgTile(LoopM)
-                        * info->wgTile(LoopN);
+                int temp_c_elems = info->wgTile(LoopM) * info->wgTile(LoopN);
+                if (with_sum_ab())
+                    temp_c_elems += nstl::max(
+                            info->wgTile(LoopM), info->wgTile(LoopN));
+                temp_c_elems = utils::rnd_up(temp_c_elems, 64);
+                temp_c_elems *= max_k_sliced_groups();
 
                 scratchpad.book(memory_tracking::names::key_gemm_accumulator,
                         temp_c_elems, temp_c_sz, 64, 65536);
