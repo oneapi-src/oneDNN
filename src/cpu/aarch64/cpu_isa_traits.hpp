@@ -215,6 +215,8 @@ static inline bool mayiuse_atomic() {
 static inline bool mayiuse_bf16() {
     using namespace Xbyak_aarch64::util;
     return cpu().isBf16Supported();
+}
+
 } // namespace
 
 /* whatever is required to generate string literals... */
