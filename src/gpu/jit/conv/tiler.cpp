@@ -1044,7 +1044,8 @@ private:
         if (!cfg_.is_dp_fma()) return true;
         int ab_size = cfg_.prb().a_data_type_size;
         int dpas_k = dpas_reduce_bytes_ / ab_size;
-        return ctx.k_iter % dpas_k == 0;
+        return cfg_.prb().ab_swap_transpose ? ctx.n_iter % cfg_.simd() == 0
+                                            : ctx.k_iter % dpas_k == 0;
     }
 
     bool check_grf_usage_ok(const context_t &ctx) const {

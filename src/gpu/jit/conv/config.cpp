@@ -529,10 +529,12 @@ struct goi_block_t {
             // in small reduction cases it may result in excessive zero
             // padding. In such cases fused reduction can be used. E.g. in
             // non-1x1 small-ic fwd convolution kw and ic can be fused.
-            if (ab_transpose) {
-                y_block *= 8;
-            } else {
-                if (y * type.size() >= 32) y_block_outer = 8;
+            if (y * type.size() >= 32) {
+                if (ab_transpose) {
+                    y_block *= 8;
+                } else {
+                    y_block_outer = 8;
+                }
             }
         }
     }
