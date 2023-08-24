@@ -350,7 +350,9 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
         total_buffer_size += compiler_backend_ptr.get_mem_size(lt);
     }
     for (auto &lt : partition_outputs) {
-        total_buffer_size += compiler_backend_ptr.get_mem_size(lt);
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt.id, &compiled_output);
+        total_buffer_size += compiler_backend_ptr.get_mem_size(compiled_output);
     }
 
     int thread_num = 8;
@@ -368,9 +370,12 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
             size += compiler_backend_ptr.get_mem_size(lt);
         }
         for (auto &lt : partition_outputs) {
-            impl::tensor_t placeholder(lt, engine, data.data() + size);
+            graph::logical_tensor_t compiled_output;
+            cp.query_logical_tensor(lt.id, &compiled_output);
+            graph::tensor_t placeholder(
+                    compiled_output, engine, data.data() + size);
             execution_outputs.push_back(placeholder);
-            size += compiler_backend_ptr.get_mem_size(lt);
+            size += compiler_backend_ptr.get_mem_size(compiled_output);
         }
         impl::stream_t &strm = *get_stream();
         ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
@@ -751,7 +756,6 @@ TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution2_CPU) {
 
 TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_AVX512();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -766,7 +770,6 @@ TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_AVX512();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -781,7 +784,6 @@ TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -796,7 +798,6 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -812,7 +813,6 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC_CPU) {
 
 TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -901,7 +901,6 @@ TEST(GCGraphTest, BF16ConvolutionalBottleneckTrainingCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -919,7 +918,6 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionDynamicQuantize_CPU) {
 TEST(GCGraphTest,
         INT8IdenticalBottleneckCompileExecutionDynamicQuantizeNXC_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -937,7 +935,6 @@ TEST(GCGraphTest,
 TEST(GCGraphTest,
         INT8ConvolutionalBottleneckCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
