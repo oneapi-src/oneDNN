@@ -224,7 +224,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         return OK;
     }
 
-    res->total = nelems;
+    res->total += nelems;
 
     dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
     const auto dt = got_mem.dt();
@@ -254,83 +254,95 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // may implement NaN fp32 -> int32 conversion in a different manner.
             ok = true;
         }
-        // If fast check failed, go through all of them.
-        if (!ok) {
-            // Standard check for relative diff is under set threshold...
+
+        for (int z = 0; !ok && z < 1; z++) {
+            // Standard check for relative diff is under set threshold.
             ok = (fabsf(args.exp) > 1e-5f ? args.rel_diff : args.diff) <= trh_;
-            // If not, when NaNs or infinity are allowed for the driver, check
-            // that both exp and got are NaNs or infinity with same sign...
-            if (!ok && output_has_nans)
-                ok = compare::compare_extreme_values(args.exp, args.got);
-            // If not, use hack to check not fully correct s32 saturation on
-            // cpu...
-            if (!ok && is_cpu() && dt == dnnl_s32
-                    && args.exp == max_dt(dnnl_s32))
-                ok = args.got >= BENCHDNN_S32_TO_F32_SAT_CONST
-                        && args.got < max_dt(dnnl_s32);
-            // If not, check driver additional checks if set...
-            if (!ok && driver_check_func_) ok = driver_check_func_(args);
-            // If not, check if there are eltwise post-ops, use very relaxed
+            if (ok) break;
+
+            // When NaNs or infinity are allowed for the driver, check
+            // that both exp and got are NaNs or infinity with same sign.
+            ok = output_has_nans
+                    && compare::compare_extreme_values(args.exp, args.got);
+            if (ok) break;
+
+            // Use hack to check not fully correct s32 saturation on CPU.
+            ok = is_cpu() && dt == dnnl_s32 && args.exp == max_dt(dnnl_s32)
+                    && args.got >= BENCHDNN_S32_TO_F32_SAT_CONST
+                    && args.got < max_dt(dnnl_s32);
+            if (ok) break;
+
+            // Check driver's additional checks, if set.
+            ok = driver_check_func_ && driver_check_func_(args);
+            if (ok) break;
+
+            // Check if there are eltwise post-ops, use very relaxed
             // comparison since we can't control inputs for each driver finely
             // or validate if the output value from operation satisfies the
             // check for catastrophic cancellation (see eltwise additional check
             // function). We rely on validation of pure eltwise and let some
             // big rdiff errors slip away hoping that absolute error is good
             // enough.
-            if (!ok && has_eltwise) {
-                const float experimental_tolerated_trh
-                        = std::max(epsilon_dt(dt), 2e-5f);
-                ok = args.diff <= experimental_tolerated_trh;
-            }
+            const float experimental_eltwise_trh
+                    = std::max(epsilon_dt(dt), 2e-5f);
+            ok = has_eltwise && args.diff <= experimental_eltwise_trh;
+            if (ok) break;
+
             // For eltwise it also may happen that threshold is really small,
             // but absolute difference is really big. Also exponent is a special
             // transcendental post-op that has accuracy issues with older isa.
-            if (!ok && has_eltwise
-                    && (fabsf(args.exp) > 1e+5f || has_exp_eltwise)) {
-                ok = args.rel_diff <= std::max(epsilon_dt(dt), 5e-6f);
-            }
+            ok = has_eltwise && (fabsf(args.exp) > 1e+5f || has_exp_eltwise)
+                    && args.rel_diff <= std::max(epsilon_dt(dt), 5e-6f);
+            if (ok) break;
+
             // Attr dst scale is used as a divisor to quantize data to dt.
             // Implementation might decide to pre-compute inverse value and
             // multiply on it in kernel. This difference might result in a
             // slight error comparing to a division operation.
-            if (!ok && has_dst_scale) {
-                const float experimental_tolerated_trh
-                        = std::max(epsilon_dt(dt), 1e-5f);
-                ok = args.rel_diff <= experimental_tolerated_trh;
-            }
+            const float experimental_dst_scale_trh
+                    = std::max(epsilon_dt(dt), 1e-5f);
+            ok = has_dst_scale && args.rel_diff <= experimental_dst_scale_trh;
+            if (ok) break;
+
             // Binary MAX, MIN and comparison operations post-ops may return
             // different results for different backends when NaN is one of
             // inputs. Depending on its position and implementation, either
             // first or second operand may be returned.
-            if (!ok && has_binary_comparison_po(attr) && output_has_nans)
-                ok = true;
+            ok = has_binary_comparison_po(attr) && output_has_nans;
+            if (ok) break;
+
             // Some drivers (like pooling or resampling) on integer data types
             // may result in sporadic order of operations. This may cause a
             // difference around `x.5f` value, and can be rounded either way to
             // `x` or `x + 1` which can't be fixed by filling.
-            if (!ok && is_integral_dt(args.dt)) {
+            const auto is_int8_round_good = [args]() -> bool {
                 // Check that original value is close to x.5f.
                 static constexpr float small_eps = 9e-6f;
                 const float floor_val = floorf(args.exp_f32);
                 const float ceil_val = ceilf(args.exp_f32);
-                if (fabsf((floor_val + 0.5f) - args.exp_f32) < small_eps) {
-                    // If it is, check exp and got values are on opposite sides.
-                    if (args.exp == floor_val) {
-                        ok = args.got == ceil_val;
-                    } else if (args.exp == ceil_val) {
-                        ok = args.got == floor_val;
-                    }
+                if (fabsf((floor_val + 0.5f) - args.exp_f32) >= small_eps)
+                    return false;
+
+                // If it is, check exp and got values are on opposite sides.
+                if (args.exp == floor_val) {
+                    return args.got == ceil_val;
+                } else if (args.exp == ceil_val) {
+                    return args.got == floor_val;
                 }
-            }
+                return false;
+            };
+            ok = is_integral_dt(args.dt) && is_int8_round_good();
+            if (ok) break;
+
             // Nvidia backend with fpmath mode enabled returns not exact output
             // values (presumably on conversion to fp32), thus, make sure they
             // fit single ulp for a reduced data type.
-            if (!ok && is_nvidia_gpu()
-                    && attr.fpmath_mode != dnnl_fpmath_mode_strict) {
-                const auto deduced_src_dt = deduce_cfg_data_type(dt, attr, SRC);
-                ok = args.diff <= epsilon_dt(deduced_src_dt);
-            }
+            ok = is_nvidia_gpu() && attr.fpmath_mode != dnnl_fpmath_mode_strict
+                    && args.diff
+                            <= epsilon_dt(deduce_cfg_data_type(dt, attr, SRC));
+            if (ok) break;
         }
+
         // Update compare stats.
         if (from_parallel && fabsf(args.got) == 0) zeros++;
         if (from_parallel && verbose >= 6) {
@@ -349,7 +361,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     };
 
     // parallel comparison to speed up the process
-    benchdnn_parallel_nd(nelems, compare_point_values);
+    if (!need_dump) benchdnn_parallel_nd(nelems, compare_point_values);
 
     // serial comparison with enabled dumping when needed for nicer output.
     if (!all_ok || need_dump) {
