@@ -65,19 +65,6 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
         }
     }
 
-    // Wider ranges make Nvidia bf16 test cases to fail by accuracy, likely due
-    // to internal dispatch into lower precision code.
-    if (is_nvidia_gpu()
-            && (this->get_dt(WEI) == dnnl_bf16
-                    || this->get_dt(WEI) == dnnl_f16)) {
-        set_range_min(SRC, -2);
-        set_range_max(SRC, 2);
-        set_range_min(WEI, -1);
-        set_range_max(WEI, 1);
-        set_range_min(DST, -2);
-        set_range_max(DST, 2);
-    }
-
     BENCHDNN_PRINT(6,
             "[FILL_CFG] SRC_%s=[%d;%d]; WEI_%s=[%d;%d]; DST_%s=[%d;%d];\n",
             dt2str(this->get_dt(SRC)), get_range_min(SRC), get_range_max(SRC),
@@ -88,23 +75,27 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
 // Adjust density based on accumulation chain.
 float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     float density = 1.f;
-    // BWD_D will always use dense tensors. It's fine as long as accumulators
-    // stay in f32 "safe digit" space, otherwise potential result mismatch may
-    // happen.
-    if (!has_bench_mode_bit(mode_bit_t::corr) || density_args.data_kind != SRC)
-        return density;
+    std::string safe_n_acc_str = "N/A";
 
-    const auto safe_n_acc = get_safe_n_acc();
-    assert(safe_n_acc > 0);
+    const data_kind_t allowed_non_dense_kind
+            = output_data_kind_ == DST ? SRC : DST;
 
-    // Bump density for some empiric value for int8 validation to hit saturation
-    // bound.
-    float safe_density = (float)safe_n_acc / density_args.n_acc;
-    if (is_int8()) safe_density *= 3.f;
-    density = MIN2(density, safe_density);
+    if (has_bench_mode_bit(mode_bit_t::corr)
+            && density_args.data_kind == allowed_non_dense_kind) {
+        int64_t safe_n_acc = get_safe_n_acc();
+        assert(safe_n_acc > 0);
+        safe_n_acc_str = std::to_string(safe_n_acc);
 
-    BENCHDNN_PRINT(6, "%s safe_n_acc=%d density=%f\n", "[FILL_CFG]",
-            (int)safe_n_acc, density);
+        // Bump density for some empiric value for int8 validation to hit
+        // saturation bound.
+        float safe_density = (float)safe_n_acc / density_args.n_acc;
+        if (is_int8()) safe_density *= 3.f;
+        density = MIN2(density, safe_density);
+    }
+
+    BENCHDNN_PRINT(6, "[FILL_CFG][%s] n_acc=%lld safe_n_acc=%s; density=%f\n",
+            data_kind2str(density_args.data_kind),
+            (long long)density_args.n_acc, safe_n_acc_str.c_str(), density);
 
     return density;
 }
@@ -140,7 +131,7 @@ cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
     static const cfg_t::cfg_entry_t::cfg_map_t dst_cfg_map = {
             {{dnnl_f64}, {-8, 8}},
             {{dnnl_f32}, {-8, 8}},
-            {{dnnl_bf16}, {-8, 8}},
+            {{dnnl_bf16}, {-4, 4}},
             {{dnnl_f16}, {-4, 4}},
             {{dnnl_s8}, {-4, 4}},
             {{dnnl_u8}, {0, 160}},
