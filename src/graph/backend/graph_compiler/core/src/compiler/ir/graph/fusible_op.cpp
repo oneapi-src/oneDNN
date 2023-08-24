@@ -203,11 +203,12 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
     // update output buffer info after inner anchor created
     parti->buf_alloc_.update_output_buffer_info(this);
 
+    fuse_anchor_map_ptr committed_anchor = parti->lookup_anchor_map(this);
     if (attrs_.get_or_else(mixed_partition_hint::inplace_optimized_op, false)) {
+        // commit content id to anchor
+        committed_anchor->append_content(static_cast<sc_op *>(this));
         return;
     }
-
-    fuse_anchor_map_ptr committed_anchor = parti->lookup_anchor_map(this);
     commit_into_anchor(committed_anchor.get());
 
     // append op inner anchor into parti

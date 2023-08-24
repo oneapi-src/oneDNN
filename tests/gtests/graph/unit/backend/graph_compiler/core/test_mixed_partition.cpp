@@ -1997,6 +1997,68 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
     }
 }
 
+TEST(GCCore_CPU_graph_mixed_partition_cpp, CommitPaddingToContentOfAnchor) {
+    REQUIRE_AVX2();
+    SET_THREADS_OR_SKIP(4);
+
+    int BS = 4, H = 46, W = 46, C = 16, K = 16;
+    sc_graph_t graph;
+    auto input0 = graph.make_input({graph_tensor::make(
+            {BS, C, H, W}, sc_data_format_t::NCHW(), sc_data_type_t::s8())});
+    auto weight0 = graph.make_input({graph_tensor::make(
+            {K, C, 1, 1}, sc_data_format_t::KCRS(), sc_data_type_t::s8())});
+    weight0->attrs_.set("constant", const_kind::local_const);
+    auto weight1 = graph.make_input({graph_tensor::make(
+            {K, C, 1, 1}, sc_data_format_t::KCRS(), sc_data_type_t::f32())});
+    weight1->attrs_.set("constant", const_kind::local_const);
+
+    // conv0
+    auto conv0 = graph.make("conv_fwd_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {},
+            {{"strides", sc_dims {1, 1}}, {"paddings", sc_dims {0, 0}}});
+    // relu0
+    auto relu0 = graph.make("relu", conv0->get_outputs(), {}, {});
+    // padding0
+    auto padding0 = graph.make("padding", {relu0->get_outputs()[0]}, {},
+            {{"pads_begin", sc_dims {1, 1}}, {"pads_end", sc_dims {1, 1}}});
+    // cast0
+    auto cast0 = graph.make("cast", {padding0->get_outputs()[0]}, {},
+            {{"dtype", datatypes::f32}});
+    // conv1
+    auto conv1 = graph.make("conv_fwd_core",
+            {cast0->get_outputs()[0], weight1->get_outputs()[0]}, {},
+            {{"strides", sc_dims {1, 1}}, {"paddings", sc_dims {0, 0}}});
+    // relu1
+    auto relu1 = graph.make("relu", padding0->get_outputs(), {},
+            {{op_attr_key::break_pre_fuse, true}});
+    // relu2
+    auto relu2 = graph.make("relu", relu1->get_outputs(), {}, {});
+    // relu3
+    auto relu3 = graph.make("relu", conv1->get_outputs(), {}, {});
+    // add0
+    auto addd0 = graph.make(
+            "add", {relu3->get_outputs()[0], relu2->get_outputs()[0]}, {}, {});
+    graph.make_output(addd0->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+
+    graph_driver_before_fusion(graph, ctx);
+    mixed_partition(graph, ctx);
+
+    auto mixed_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    ASSERT_TRUE(padding0);
+    auto &op_anchor_map = mixed_op->parti_list_[0]->op_anchor_map_;
+    auto iter = op_anchor_map.find(padding0.get());
+    ASSERT_TRUE(iter != op_anchor_map.end());
+    auto &content_number_map = iter->second->content_number_map_;
+    // padding0 shoud be committed to content number map of committed anchor
+    ASSERT_TRUE(content_number_map.find(padding0.get())
+            != content_number_map.end());
+}
+
 TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop) {
     REQUIRE_AVX2();
     SET_THREADS_OR_SKIP(28);
