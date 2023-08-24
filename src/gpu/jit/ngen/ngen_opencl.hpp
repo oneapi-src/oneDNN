@@ -122,6 +122,14 @@ inline bool tryZebinFirst(cl_device_id device, bool setDefault = false, bool new
     return hint;
 }
 
+inline bool verifiedZebin(bool setVerified = false, bool newVerified = false)
+{
+    static std::atomic<bool> verified(false);
+    if (setVerified) verified = newVerified;
+
+    return verified;
+}
+
 }; /* namespace detail */
 
 template <HW hw>
@@ -162,11 +170,30 @@ std::vector<uint8_t> OpenCLCodeGenerator<hw>::getBinary(cl_context context, cl_d
                 (void) detail::tryZebinFirst(device, true, true);
                 continue;
             }
+        } else if (!detail::verifiedZebin()) {
+            cl_int status = CL_SUCCESS;
+            auto binary = super::getBinary(code);
+            const auto *binaryPtr = binary.data();
+            size_t binarySize = binary.size();
+            auto program = clCreateProgramWithBinary(context, 1, &device, &binarySize, &binaryPtr, nullptr, &status);
+            if (status == CL_SUCCESS) {
+                status = clBuildProgram(program, 1, &device, options.c_str(), nullptr, nullptr);
+                detail::handleCL(clReleaseProgram(program));
+            }
+
+            if (status == CL_SUCCESS)
+                detail::verifiedZebin(true, true);
+            else {
+                (void) detail::tryZebinFirst(device, true, false);
+                continue;
+            }
+
+            return binary;
         } else
             return super::getBinary(code);
     }
 
-    return std::vector<uint8_t>();      // Unreachable.
+    return std::vector<uint8_t>();
 }
 
 template <HW hw>

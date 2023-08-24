@@ -55,7 +55,8 @@ inline void RegData::outputText(std::ostream &str, PrintDetail detail, LabelMana
                 str << getARFBase();
         }
     } else if (isIndirect()) {
-        str << "r[a" << getIndirectBase() << '.' << getIndirectOff();
+        str << "r[";
+        getIndirectReg().outputText(str, PrintDetail::sub_no_type, man);
         if (getOffset())
             str << ',' << getOffset();
         str << ']';
@@ -133,6 +134,11 @@ inline void Align16Operand::outputText(std::ostream &str, PrintDetail detail, La
 #endif
 }
 
+inline void GRFRange::outputText(std::ostream &str, PrintDetail detail, LabelManager &man) const
+{
+    str << 'r' << int(base) << ':' << int(len);
+}
+
 inline void Label::outputText(std::ostream &str, PrintDetail detail, LabelManager &man) {
     str << 'L' << getID(man);
 }
@@ -182,7 +188,7 @@ struct AsmOperand {
                 clone.outputText(str, detail, man);
                 break;
             }
-            case Type::range:   break;  /* not used for output */
+            case Type::range:   range.outputText(str, detail, man); break;
         }
     }
 };
@@ -192,13 +198,15 @@ struct AsmInstruction {
     uint16_t ext;
     uint32_t inum;
     InstructionModifier mod;
-    AsmOperand dst, src[4];
+    AsmOperand dst, src[5];
     LabelManager *labelManager;
     std::string comment;
 
-    AsmInstruction(Opcode op_, uint16_t ext_, uint32_t inum_, InstructionModifier mod_, AsmOperand dst_,
-        AsmOperand src0, AsmOperand src1, AsmOperand src2, AsmOperand src3, LabelManager *man)
-            : op(op_), ext(ext_), inum(inum_), mod(mod_), dst(dst_), src{src0, src1, src2, src3}, labelManager{man}, comment{} {}
+    AsmInstruction(Opcode op_, uint16_t ext_, uint32_t inum_, InstructionModifier mod_, LabelManager *man,
+        AsmOperand dst_ = NoOperand(), AsmOperand src0 = NoOperand(), AsmOperand src1 = NoOperand(),
+        AsmOperand src2 = NoOperand(), AsmOperand src3 = NoOperand(), AsmOperand src4 = NoOperand())
+            : op(op_), ext(ext_), inum(inum_), mod(mod_), dst(dst_), src{src0, src1, src2, src3, src4}, labelManager{man}, comment{} {}
+
     explicit AsmInstruction(uint32_t inum_, const std::string &comment_)
             : op(Opcode::illegal), ext(0), inum(inum_), mod{}, dst{}, src{}, labelManager{nullptr}, comment{comment_} {}
     inline AsmInstruction(const autoswsb::SyncInsertion &si);
@@ -234,7 +242,7 @@ struct AsmInstruction {
         } else
             return false;
     }
-    bool getARFType(ARFType &arfType, int opNum) const {
+    bool getARFType(ARFType &arfType, int opNum, HW hw) const {
         auto &opd = (opNum < 0) ? dst : src[opNum];
         if (opd.type == AsmOperand::Type::reg && opd.reg.isARF()) {
             arfType = opd.reg.getARFType();
@@ -430,7 +438,7 @@ protected:
 
             man.setTarget(id, buffer.size());
             labels.push_back(id);
-            buffer.emplace_back(Opcode::illegal, 0, 0, InstructionModifier(), label, NoOperand(), NoOperand(), NoOperand(), NoOperand(), &man);
+            buffer.emplace_back(Opcode::illegal, 0, 0, InstructionModifier(), &man, label);
         }
 
         void append(InstructionStream &other, LabelManager &man) {
@@ -499,8 +507,13 @@ private:
 
     template <typename S1, typename ED, typename D>
     void opSend(Opcode op, const InstructionModifier &mod, SharedFunction sf, RegData dst, RegData src0, S1 src1, ED exdesc, D desc) {
-        auto &i = streamStack.back()->append(op, static_cast<uint8_t>(sf), mod | defaultModifier, dst, src0, src1, exdesc, desc, &labelManager);
-        if (i.src[2].type == AsmOperand::Type::imm) {
+        if (src1.emptyOp && (isGen12 || op == Opcode::sends || op == Opcode::sendsc)) {
+            opSend(op, mod, sf, dst, src0, null, exdesc, desc);
+            return;
+        }
+
+        auto &i = streamStack.back()->append(op, static_cast<uint8_t>(sf), mod | defaultModifier, &labelManager, dst, src0, src1, exdesc, desc);
+        if (i.src[2].type == AsmOperand::Type::imm && i.src[1].type != AsmOperand::Type::none) {
             uint32_t exdesc = static_cast<uint64_t>(i.src[2].imm);
             if (isGen12) {
                 if (hardware >= HW::XeHPG) {
@@ -513,16 +526,16 @@ private:
         }
     }
     void opDpas(Opcode op, const InstructionModifier &mod, int sdepth, int rcount, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &src2) {
-        (void) streamStack.back()->append(op, (sdepth << 8) | rcount, mod | defaultModifier, dst, src0, src1, src2, NoOperand(), &labelManager);
+        (void) streamStack.back()->append(op, (sdepth << 8) | rcount, mod | defaultModifier, &labelManager, dst, src0, src1, src2);
     }
     template <typename D, typename S0> void opCall(Opcode op, const InstructionModifier &mod, D dst, S0 src0) {
-        (void) streamStack.back()->append(op, 0, mod | defaultModifier | NoMask, dst, src0, NoOperand(), NoOperand(), NoOperand(), &labelManager);
+        (void) streamStack.back()->append(op, 0, mod | defaultModifier | NoMask, &labelManager, dst, src0);
     }
     template <typename S1> void opJmpi(Opcode op, const InstructionModifier &mod, S1 src1) {
-        (void) streamStack.back()->append(op, 0, mod | defaultModifier | NoMask, NoOperand(), src1, NoOperand(), NoOperand(), NoOperand(), &labelManager);
+        (void) streamStack.back()->append(op, 0, mod | defaultModifier | NoMask, &labelManager, NoOperand(), src1);
     }
     template <typename S0> void opSync(Opcode op, SyncFunction fc, const InstructionModifier &mod, S0 src0) {
-        (void) streamStack.back()->append(op, static_cast<uint8_t>(fc), mod | defaultModifier, NoOperand(), src0, NoOperand(), NoOperand(), NoOperand(), &labelManager);
+        (void) streamStack.back()->append(op, static_cast<uint8_t>(fc), mod | defaultModifier, &labelManager, NoOperand(), src0);
     }
 
     inline void finalize();
@@ -1177,11 +1190,29 @@ protected:
     void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, uint32_t desc) {
         opSend(isGen12 ? Opcode::send : Opcode::sends, mod, sf, dst, src0, src1, exdesc, Immediate::ud(desc));
     }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const GRFRange &src1, const RegData &exdesc, uint32_t desc) {
+        opSend(isGen12 ? Opcode::send : Opcode::sends, mod, sf, dst, src0, src1, exdesc, Immediate::ud(desc));
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, uint32_t exdesc, uint32_t desc) {
+        opSend(isGen12 ? Opcode::send : Opcode::sends, mod, sf, dst, src0, NoOperand(), Immediate::ud(exdesc), Immediate::ud(desc));
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &exdesc, uint32_t desc) {
+        opSend(isGen12 ? Opcode::send : Opcode::sends, mod, sf, dst, src0, NoOperand(), exdesc, Immediate::ud(desc));
+    }
     void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, const RegData &desc) {
         opSend(isGen12 ? Opcode::send : Opcode::sends, mod, sf, dst, src0, src1, Immediate::ud(exdesc), desc);
     }
     void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, const RegData &desc) {
         opSend(isGen12 ? Opcode::send : Opcode::sends, mod, sf, dst, src0, src1, exdesc, desc);
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const GRFRange &src1, const RegData &exdesc, const RegData &desc) {
+        opSend(isGen12 ? Opcode::send : Opcode::sends, mod, sf, dst, src0, src1, exdesc, desc);
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, uint32_t exdesc, const RegData &desc) {
+        opSend(isGen12 ? Opcode::send : Opcode::sends, mod, sf, dst, src0, NoOperand(), Immediate::ud(exdesc), desc);
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &exdesc, const RegData &desc) {
+        opSend(isGen12 ? Opcode::send : Opcode::sends, mod, sf, dst, src0, NoOperand(), exdesc, desc);
     }
     void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, uint32_t desc) {
         opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, src1, Immediate::ud(exdesc), Immediate::ud(desc));
@@ -1189,11 +1220,29 @@ protected:
     void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, uint32_t desc) {
         opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, src1, exdesc, Immediate::ud(desc));
     }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const GRFRange &src1, const RegData &exdesc, uint32_t desc) {
+        opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, src1, exdesc, Immediate::ud(desc));
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, uint32_t exdesc, uint32_t desc) {
+        opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, NoOperand(), Immediate::ud(exdesc), Immediate::ud(desc));
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &exdesc, uint32_t desc) {
+        opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, NoOperand(), exdesc, Immediate::ud(desc));
+    }
     void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, const RegData &desc) {
         opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, src1, Immediate::ud(exdesc), desc);
     }
     void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, const RegData &desc) {
         opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, src1, exdesc, desc);
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const GRFRange &src1, const RegData &exdesc, const RegData &desc) {
+        opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, src1, exdesc, desc);
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, uint32_t exdesc, const RegData &desc) {
+        opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, NoOperand(), Immediate::ud(exdesc), desc);
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &exdesc, const RegData &desc) {
+        opSend(isGen12 ? Opcode::sendc : Opcode::sendsc, mod, sf, dst, src0, NoOperand(), exdesc, desc);
     }
     template <typename T1, typename T2> void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, NoOperand src1, T1 exdesc, T2 desc) {
         opSend(Opcode::send, mod, sf, dst, src0, src1, exdesc, desc);
@@ -1705,7 +1754,7 @@ void AsmCodeGenerator::opX(Opcode op, DataType defaultType, const InstructionMod
     src1.fixup(hardware, esize, defaultType, 1, arity);
     src2.fixup(hardware, esize, defaultType, 2, arity);
 
-    streamStack.back()->append(op, ext, emod, dst, src0, src1, src2, NoOperand{}, &labelManager);
+    streamStack.back()->append(op, ext, emod, &labelManager, dst, src0, src1, src2);
 }
 
 void AsmCodeGenerator::outX(std::ostream &out, const AsmInstruction &i, int lineNo)
@@ -1713,7 +1762,7 @@ void AsmCodeGenerator::outX(std::ostream &out, const AsmInstruction &i, int line
     bool ternary = (i.src[2].type != AsmOperand::Type::none);
     PrintDetail ddst = PrintDetail::hs;
     PrintDetail dsrc01 = ternary ? PrintDetail::vs_hs : PrintDetail::full;
-    PrintDetail dsrc[4] = {dsrc01, dsrc01, PrintDetail::hs, PrintDetail::base};
+    PrintDetail dsrc[5] = {dsrc01, dsrc01, PrintDetail::hs, PrintDetail::base, PrintDetail::base};
 
     switch (i.op) {
         case Opcode::send:
@@ -1758,9 +1807,14 @@ void AsmCodeGenerator::outX(std::ostream &out, const AsmInstruction &i, int line
     outMods(out, i.mod, i.op, ModPlacementType::Mid);
 
     i.dst.outputText(out, ddst, labelManager); out << '\t';
-    for (int n = 0; n < 4; n++) {
+    for (int n = 0; n <= 4; n++) {
         i.src[n].outputText(out, dsrc[n], labelManager);
-        if (hardware >= HW::XeHPG && n == 1 && (i.op == Opcode::send || i.op == Opcode::sendc) && (i.ext & 0x80))
+        bool showLen = false;
+        if (i.ext & 0x80) {
+            showLen |= (n == 1 && (i.op == Opcode::send || i.op == Opcode::sendc) && hardware >= HW::XeHPG);
+        }
+
+        if (showLen)
             out << ':' << (i.ext >> 8);
         out << '\t';
     }
@@ -1871,6 +1925,7 @@ void AsmCodeGenerator::outMods(std::ostream &out,const InstructionModifier &mod,
             if (mod.isBreakpoint())                                       printPostMod("Breakpoint");
             if (mod.isSerialized())                                       printPostMod("Serialize");
             if (mod.isEOT())                                              printPostMod("EOT");
+            if (mod.isExBSO())                                            printPostMod("ExBSO");
 
             if (havePostMod) out << '}';
         }

@@ -58,6 +58,8 @@ static inline GlobalAccessType operator|(GlobalAccessType access1, GlobalAccessT
     return static_cast<GlobalAccessType>(static_cast<int>(access1) | static_cast<int>(access2));
 }
 
+enum class ThreadArbitrationMode { Default, OldestFirst, RoundRobin, RoundRobinOnStall };
+
 class InterfaceHandler
 {
     template <HW hw> friend class OpenCLCodeGenerator;
@@ -71,9 +73,9 @@ public:
     inline void externalName(const std::string &name)   { kernelName = name; }
 
     template <typename DT>
-    inline void newArgument(std::string name)           { newArgument(name, getDataType<DT>()); }
-    inline void newArgument(std::string name, DataType type, ExternalArgumentType exttype = ExternalArgumentType::Scalar, GlobalAccessType access = GlobalAccessType::Default);
-    inline void newArgument(std::string name, ExternalArgumentType exttype, GlobalAccessType access = GlobalAccessType::Default);
+    inline void newArgument(const std::string &name)    { newArgument(name, getDataType<DT>()); }
+    inline void newArgument(const std::string &name, DataType type, ExternalArgumentType exttype = ExternalArgumentType::Scalar, GlobalAccessType access = GlobalAccessType::Default);
+    inline void newArgument(const std::string &name, ExternalArgumentType exttype, GlobalAccessType access = GlobalAccessType::Default);
 
     inline Subregister getArgument(const std::string &name) const;
     inline Subregister getArgumentIfExists(const std::string &name) const;
@@ -89,6 +91,7 @@ public:
     size_t getSLMSize() const                            { return slmSize; }
 
     void require32BitBuffers()                           { allow64BitBuffers = false; }
+    void requireArbitrationMode(ThreadArbitrationMode m) { arbitrationMode = m; }
     void requireBarrier()                                { barrierCount = 1; }
     void requireBarriers(int nBarriers)                  { barrierCount = nBarriers; }
     void requireDPAS()                                   { needDPAS = true; }
@@ -153,6 +156,7 @@ protected:
     bool finalized = false;
 
     bool allow64BitBuffers = 0;
+    ThreadArbitrationMode arbitrationMode = ThreadArbitrationMode::Default;
     int barrierCount = 0;
     bool needDPAS = false;
     bool needGlobalAtomics = false;
@@ -185,7 +189,7 @@ protected:
 
 using NEOInterfaceHandler = InterfaceHandler;
 
-void InterfaceHandler::newArgument(std::string name, DataType type, ExternalArgumentType exttype, GlobalAccessType access)
+void InterfaceHandler::newArgument(const std::string &name, DataType type, ExternalArgumentType exttype, GlobalAccessType access)
 {
     if (exttype != ExternalArgumentType::GlobalPtr)
         access = GlobalAccessType::None;
@@ -194,7 +198,7 @@ void InterfaceHandler::newArgument(std::string name, DataType type, ExternalArgu
     assignments.push_back({name, type, exttype, access, Subregister{}, noSurface, nextArgIndex++});
 }
 
-void InterfaceHandler::newArgument(std::string name, ExternalArgumentType exttype, GlobalAccessType access)
+void InterfaceHandler::newArgument(const std::string &name, ExternalArgumentType exttype, GlobalAccessType access)
 {
     DataType type = DataType::invalid;
 
@@ -557,6 +561,15 @@ std::string InterfaceHandler::generateZeInfo() const
         md << "      has_no_stateless_write: true\n";
     if (needNoPreemption)
         md << "      disable_mid_thread_preemption: true\n";
+    if (arbitrationMode != ThreadArbitrationMode::Default) {
+        md << "      thread_scheduling_mode: ";
+        switch (arbitrationMode) {
+            case ThreadArbitrationMode::OldestFirst:       md << "age_based\n";         break;
+            case ThreadArbitrationMode::RoundRobin:        md << "round_robin\n";       break;
+            case ThreadArbitrationMode::RoundRobinOnStall: md << "round_robin_stall\n"; break;
+            default: break;
+        }
+    }
     if (inlineGRFs > 0)
         md << "      inline_data_payload_size: " << inlineGRFs * GRF::bytes(hw) << "\n";
     if (!assignments.empty()) {

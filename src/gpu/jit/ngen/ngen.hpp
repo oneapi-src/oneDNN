@@ -236,11 +236,11 @@ private:
     void opDpas(Opcode op, DataType defaultType, const InstructionModifier &mod, int sdepth, int rcount, RegData dst, RegData src0, RegData src1, RegData src2);
 
     template <typename D, HW hw_ = hw>
-    typename std::enable_if<hwLT(hw_, HW::Gen12LP)>::type opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, D desc);
+    typename std::enable_if<hwLT(hw_, HW::Gen12LP)>::type opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, int src1Length, uint32_t exdesc, D desc);
     template <typename D, HW hw_ = hw>
-    typename std::enable_if<hwLT(hw_, HW::Gen12LP)>::type opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, D desc);
+    typename std::enable_if<hwLT(hw_, HW::Gen12LP)>::type opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, int src1Length, const RegData &exdesc, D desc);
     template <typename ED, typename D, HW hw_ = hw>
-    typename std::enable_if<hwGE(hw_, HW::Gen12LP)>::type opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, ED exdesc, D desc);
+    typename std::enable_if<hwGE(hw_, HW::Gen12LP)>::type opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, int src1Length, ED exdesc, D desc);
 
     template <HW hw_ = hw>
     typename std::enable_if<hwLT(hw_, HW::Gen12LP)>::type opSend(Opcode op, const InstructionModifier &mod, const RegData &dst, const RegData &src0, uint32_t exdesc, uint32_t desc);
@@ -1019,28 +1019,64 @@ protected:
 
     /* Gen12-style sends */
     void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, uint32_t desc) {
-        opSend(Opcode::send, mod, sf, dst, src0, src1, exdesc, desc);
+        opSend(Opcode::send, mod, sf, dst, src0, src1, -1, exdesc, desc);
     }
     void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, uint32_t desc) {
-        opSend(Opcode::send, mod, sf, dst, src0, src1, exdesc, desc);
+        opSend(Opcode::send, mod, sf, dst, src0, src1, -1, exdesc, desc);
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const GRFRange &src1, const RegData &exdesc, uint32_t desc) {
+        opSend(Opcode::send, mod, sf, dst, src0, src1[0], src1.getLen(), exdesc, desc);
     }
     void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, const RegData &desc) {
-        opSend(Opcode::send, mod, sf, dst, src0, src1, exdesc, desc);
+        opSend(Opcode::send, mod, sf, dst, src0, src1, -1, exdesc, desc);
     }
     void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, const RegData &desc) {
-        opSend(Opcode::send, mod, sf, dst, src0, src1, exdesc, desc);
+        opSend(Opcode::send, mod, sf, dst, src0, src1, -1, exdesc, desc);
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const GRFRange &src1, const RegData &exdesc, const RegData &desc) {
+        opSend(Opcode::send, mod, sf, dst, src0, src1[0], src1.getLen(), exdesc, desc);
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, uint32_t exdesc, uint32_t desc) {
+        opSend(Opcode::send, mod, sf, dst, src0, NullRegister(), 0, exdesc, desc);
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &exdesc, uint32_t desc) {
+        opSend(Opcode::send, mod, sf, dst, src0, NullRegister(), 0, exdesc, desc);
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, uint32_t exdesc, const RegData &desc) {
+        opSend(Opcode::send, mod, sf, dst, src0, NullRegister(), 0, exdesc, desc);
+    }
+    void send(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &exdesc, const RegData &desc) {
+        opSend(Opcode::send, mod, sf, dst, src0, NullRegister(), 0, exdesc, desc);
     }
     void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, uint32_t desc) {
-        opSend(Opcode::sendc, mod, sf, dst, src0, src1, exdesc, desc);
+        opSend(Opcode::sendc, mod, sf, dst, src0, src1, -1, exdesc, desc);
     }
     void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, uint32_t desc) {
-        opSend(Opcode::sendc, mod, sf, dst, src0, src1, exdesc, desc);
+        opSend(Opcode::sendc, mod, sf, dst, src0, src1, -1, exdesc, desc);
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const GRFRange &src1, const RegData &exdesc, uint32_t desc) {
+        opSend(Opcode::sendc, mod, sf, dst, src0, src1[0], src1.getLen(), exdesc, desc);
     }
     void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, const RegData &desc) {
-        opSend(Opcode::sendc, mod, sf, dst, src0, src1, exdesc, desc);
+        opSend(Opcode::sendc, mod, sf, dst, src0, src1, -1, exdesc, desc);
     }
     void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, const RegData &desc) {
-        opSend(Opcode::sendc, mod, sf, dst, src0, src1, exdesc, desc);
+        opSend(Opcode::sendc, mod, sf, dst, src0, src1, -1, exdesc, desc);
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const GRFRange &src1, const RegData &exdesc, const RegData &desc) {
+        opSend(Opcode::sendc, mod, sf, dst, src0, src1[0], src1.getLen(), exdesc, desc);
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, uint32_t exdesc, uint32_t desc) {
+        opSend(Opcode::sendc, mod, sf, dst, src0, NullRegister(), 0, exdesc, desc);
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &exdesc, uint32_t desc) {
+        opSend(Opcode::sendc, mod, sf, dst, src0, NullRegister(), 0, exdesc, desc);
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, uint32_t exdesc, const RegData &desc) {
+        opSend(Opcode::sendc, mod, sf, dst, src0, NullRegister(), 0, exdesc, desc);
+    }
+    void sendc(const InstructionModifier &mod, SharedFunction sf, const RegData &dst, const RegData &src0, const RegData &exdesc, const RegData &desc) {
+        opSend(Opcode::sendc, mod, sf, dst, src0, NullRegister(), 0, exdesc, desc);
     }
     /* Pre-Gen12-style sends; also supported on Gen12. */
     void send(const InstructionModifier &mod, const RegData &dst, const RegData &src0, uint32_t exdesc, uint32_t desc) {
@@ -1655,6 +1691,7 @@ using ngen::BinaryCodeGenerator<hw>::fc0; using ngen::BinaryCodeGenerator<hw>::f
 using ngen::BinaryCodeGenerator<hw>::NoDDClr; using ngen::BinaryCodeGenerator<hw>::NoDDChk; \
 using ngen::BinaryCodeGenerator<hw>::AccWrEn; using ngen::BinaryCodeGenerator<hw>::NoSrcDepSet; using ngen::BinaryCodeGenerator<hw>::Breakpoint; using ngen::BinaryCodeGenerator<hw>::sat; \
 using ngen::BinaryCodeGenerator<hw>::NoMask; \
+using ngen::BinaryCodeGenerator<hw>::ExBSO; \
 using ngen::BinaryCodeGenerator<hw>::Serialize; using ngen::BinaryCodeGenerator<hw>::EOT; \
 using ngen::BinaryCodeGenerator<hw>::Atomic; using ngen::BinaryCodeGenerator<hw>::Switch; using ngen::BinaryCodeGenerator<hw>::NoPreempt; \
 using ngen::BinaryCodeGenerator<hw>::anyv; using ngen::BinaryCodeGenerator<hw>::allv; using ngen::BinaryCodeGenerator<hw>::any2h; using ngen::BinaryCodeGenerator<hw>::all2h; \
@@ -1731,7 +1768,8 @@ using ngen::BinaryCodeGenerator<hw>::sb24; using ngen::BinaryCodeGenerator<hw>::
 using ngen::BinaryCodeGenerator<hw>::sb28; using ngen::BinaryCodeGenerator<hw>::sb29; using ngen::BinaryCodeGenerator<hw>::sb30; using ngen::BinaryCodeGenerator<hw>::sb31; \
 using ngen::BinaryCodeGenerator<hw>::NoAccSBSet; \
 using ngen::BinaryCodeGenerator<hw>::vnni;
-#define NGEN_FORWARD_REGISTERS NGEN_FORWARD_REGISTERS_BASE NGEN_FORWARD_REGISTERS_EXTRA1 NGEN_FORWARD_REGISTERS_EXTRA2 NGEN_FORWARD_REGISTERS_EXTRA3
+#define NGEN_FORWARD_REGISTERS_EXTRA4
+#define NGEN_FORWARD_REGISTERS NGEN_FORWARD_REGISTERS_BASE NGEN_FORWARD_REGISTERS_EXTRA1 NGEN_FORWARD_REGISTERS_EXTRA2 NGEN_FORWARD_REGISTERS_EXTRA3 NGEN_FORWARD_REGISTERS_EXTRA4
 #endif
 
 template <HW hw>
@@ -2302,7 +2340,7 @@ void BinaryCodeGenerator<hw>::opDpas(Opcode op, DataType defaultType, const Inst
 template <HW hw>
 template <typename D, HW hw_>
 typename std::enable_if<hwLT(hw_, HW::Gen12LP)>::type
-BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, D desc)
+BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, int src1Length, uint32_t exdesc, D desc)
 {
     exdesc |= uint32_t(static_cast<uint8_t>(sfid));
     opSends(static_cast<Opcode>(static_cast<uint8_t>(op) | 2), mod, dst, src0, src1, exdesc, desc);
@@ -2311,7 +2349,7 @@ BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, Share
 template <HW hw>
 template <typename D, HW hw_>
 typename std::enable_if<hwLT(hw_, HW::Gen12LP)>::type
-BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &exdesc, D desc)
+BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, int src1Length, const RegData &exdesc, D desc)
 {
     opSends(static_cast<Opcode>(static_cast<uint8_t>(op) | 2), mod, dst, src0, src1, exdesc, desc);
 }
@@ -2319,11 +2357,13 @@ BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, Share
 template <HW hw>
 template <typename ED, typename D, HW hw_>
 typename std::enable_if<hwGE(hw_, HW::Gen12LP)>::type
-BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0, const RegData &src1, ED exdesc, D desc)
+BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, SharedFunction sfid, const RegData &dst, const RegData &src0_, const RegData &src1, int src1Length, ED exdesc, D desc)
 {
     typename EncodingTag12Dispatch<hw>::tag tag;
     Instruction12 i{};
     InstructionModifier emod = mod | defaultModifier;
+
+    auto src0 = src0_;
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -2339,8 +2379,11 @@ BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, Share
 
     i.send.sfid = static_cast<int>(sfid) & 0xF;
 
+    if (src1.isNull())
+        src1Length = 0;
+
     encodeSendDesc(i, desc);
-    encodeSendExDesc(i, exdesc);
+    encodeSendExDesc(i, exdesc, mod, src1Length, hw);
 
     db(i);
 }
@@ -2466,7 +2509,7 @@ typename std::enable_if<hwGE(hw_, HW::Gen12LP)>::type
 BinaryCodeGenerator<hw>::opSends(Opcode op, const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1, uint32_t exdesc, D desc)
 {
     Opcode mop = static_cast<Opcode>(static_cast<int>(op) & ~2);
-    opSend(mop, mod, static_cast<SharedFunction>(exdesc & 0x1F), dst, src0, src1, exdesc, desc);
+    opSend(mop, mod, static_cast<SharedFunction>(exdesc & 0x1F), dst, src0, src1, -1, exdesc, desc);
 }
 
 template <HW hw>

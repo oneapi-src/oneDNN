@@ -399,7 +399,8 @@ struct Instruction12 {
         } send;
         struct {
             unsigned : 32;
-            unsigned : 8;
+            unsigned : 7;
+            unsigned exBSO : 1;
             unsigned exDescReg : 3;
             unsigned : 21;
             unsigned : 32;
@@ -432,15 +433,15 @@ struct Instruction12 {
     unsigned dstTypecode() const  { return binary.dstType; }
     unsigned src0Typecode() const { return srcTypecode(0); }
     unsigned src1Typecode() const { return srcTypecode(1); }
-    void shiftJIP(int32_t shift) { branches.jip += shift * sizeof(Instruction12); }
-    void shiftUIP(int32_t shift) { branches.uip += shift * sizeof(Instruction12); }
+    void shiftJIP(int32_t shift)  { branches.jip += shift * sizeof(Instruction12); }
+    void shiftUIP(int32_t shift)  { branches.uip += shift * sizeof(Instruction12); }
 
     inline autoswsb::DestinationMask destinations(int &jip, int &uip) const;
     template <bool xeHPC = false>
     inline bool getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const;
     inline bool getImm32(uint32_t &imm) const;
     inline bool getSendDesc(MessageDescriptor &desc) const;
-    inline bool getARFType(ARFType &arfType, int opNum) const;
+    inline bool getARFType(ARFType &arfType, int opNum, HW hw) const;
 
     bool isMathMacro() const {
         if (opcode() != Opcode::math) return false;
@@ -739,7 +740,7 @@ static inline void encodeTernarySrc2(Instruction12 &i, const Immediate &src2, Ta
     i.ternary.src2 = static_cast<uint64_t>(src2);
 }
 
-static inline void encodeSendExDesc(Instruction12 &i, uint32_t exdesc)
+static inline void encodeSendExDesc(Instruction12 &i, uint32_t exdesc, InstructionModifier mod, int src1Length, HW hw)
 {
     i.send.eot = (exdesc >> 5);
     i.send.exDesc6_10 = (exdesc >> 6);
@@ -749,14 +750,23 @@ static inline void encodeSendExDesc(Instruction12 &i, uint32_t exdesc)
     i.send.exDesc28_31 = (exdesc >> 28);
 }
 
-static inline void encodeSendExDesc(Instruction12 &i, RegData exdesc)
+static inline void encodeSendExDesc(Instruction12 &i, RegData exdesc, InstructionModifier mod, int src1Length, HW hw)
 {
+    bool encodeSrc1Length = mod.isExBSO();
+    bool recordExBSO = mod.isExBSO();
+
 #ifdef NGEN_SAFE
     // Only a0.x:ud is allowed for extended descriptor.
     if (!exdesc.isARF() || exdesc.getARFType() != ARFType::a || exdesc.getARFBase() != 0 || exdesc.getType() != DataType::ud)
         throw invalid_arf_exception();
+    if (encodeSrc1Length && src1Length < 0)
+        throw missing_src1_length_exception();
 #endif
+
+    i.sendIndirect.exBSO = recordExBSO;
     i.sendIndirect.exDescReg = exdesc.getOffset();
+    if (encodeSrc1Length)
+        i.send.exDesc6_10 = src1Length;
     i.send.exDescIsReg = true;
 }
 
@@ -797,6 +807,11 @@ static inline DataType decodeRegTypecode12(unsigned dt)
 static inline int decodeDPASTypecodeBytes12(unsigned dt)
 {
     return (1 << (dt & 3));
+}
+
+inline ARFType normalizeARFType(ARFType type, HW hw)
+{
+    return type;
 }
 
 template <bool xeHPC>
@@ -937,7 +952,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
 
             if (o.direct.regFile == RegFileARF) {
                 rd.setARF(true);
-                if (!autoswsb::trackableARF(rd.getARFType()))
+                if (!autoswsb::trackableARF(normalizeARFType(rd.getARFType(), hw)))
                     return false;
             }
             break;
@@ -978,7 +993,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
 
             if (o.direct.regFile == RegFileARF) {
                 rd.setARF(true);
-                if (!autoswsb::trackableARF(rd.getARFType()))
+                if (!autoswsb::trackableARF(normalizeARFType(rd.getARFType(), hw)))
                     return false;
             }
             break;
@@ -1046,7 +1061,7 @@ bool Instruction12::getSendDesc(MessageDescriptor &desc) const
     return !send.descIsReg;
 }
 
-bool Instruction12::getARFType(ARFType &arfType, int opNum) const
+bool Instruction12::getARFType(ARFType &arfType, int opNum, HW hw) const
 {
     if (opNum > 1) return false;
 
@@ -1085,7 +1100,7 @@ bool Instruction12::getARFType(ARFType &arfType, int opNum) const
             }
             if (o.direct.addrMode) return false;
             if (o.direct.regFile != RegFileARF) return false;
-            arfType = static_cast<ARFType>(o.direct.regNum >> 4);
+            arfType = normalizeARFType(static_cast<ARFType>(o.direct.regNum >> 4), hw);
             return true;
         }
     }

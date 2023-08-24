@@ -160,6 +160,10 @@ class missing_type_exception : public std::runtime_error {
 public:
     missing_type_exception() : std::runtime_error("Operand is missing its type") {}
 };
+class missing_src1_length_exception : public std::runtime_error {
+public:
+    missing_src1_length_exception() : std::runtime_error("src1 length must be specified") {}
+};
 class read_only_exception : public std::runtime_error {
 public:
     read_only_exception() : std::runtime_error("Memory model is read-only") {}
@@ -494,8 +498,9 @@ enum class ARFType : uint8_t {
 #ifdef NGEN_ASM
 static inline std::ostream &operator<<(std::ostream &str, ARFType type)
 {
-    static const char *names[16] = {"null", "a", "acc", "f", "ce", "msg", "sp", "sr", "cr", "n", "ip", "tdr", "tm", "fc", "", "dbg"};
-    str << names[static_cast<uint8_t>(type) & 0xF];
+    static const char *names[32] = {"null", "a", "acc", "f", "ce", "msg", "sp", "sr", "cr", "n", "ip", "tdr", "tm", "fc", "", "dbg",
+                                    ""    , "" , "",    "",  "",   "",    "",   "",   "",   "",  "",   "",    "",   "",   "", ""};
+    str << names[static_cast<uint8_t>(type) & 0x1F];
     return str;
 }
 
@@ -586,13 +591,12 @@ static inline bool operator!=(const RegData &r1, const RegData &r2);
 // with source modifiers.
 class RegData {
 protected:
-    unsigned base : 8;
+    unsigned base : 9;
     unsigned arf : 1;
       signed off : 11;
     unsigned mods : 2;
     unsigned type : 8;
     unsigned indirect : 1;
-    unsigned _pad1 : 1;
     unsigned vs : 7;
     unsigned width : 5;
     unsigned hs : 6;
@@ -600,7 +604,7 @@ protected:
     unsigned invalid : 1;
 
     constexpr RegData(int base_, bool arf_, int off_, bool indirect_, DataType type_, int vs_, int width_, int hs_)
-        : base(base_), arf(arf_), off(off_), mods(0), type(static_cast<int>(type_)), indirect(indirect_), _pad1(0), vs(vs_), width(width_), hs(hs_), _pad2(0), invalid(0) {}
+        : base(base_), arf(arf_), off(off_), mods(0), type(static_cast<int>(type_)), indirect(indirect_), vs(vs_), width(width_), hs(hs_), _pad2(0), invalid(0) {}
 
 public:
 #ifdef NGEN_ASM
@@ -608,7 +612,7 @@ public:
 #endif
 
     constexpr RegData()
-        : base(0), arf(0), off(0), mods(0), type(0), indirect(0), _pad1(0), vs(0), width(0), hs(0), _pad2(0), invalid(1) {}
+        : base(0), arf(0), off(0), mods(0), type(0), indirect(0), vs(0), width(0), hs(0), _pad2(0), invalid(1) {}
 
     constexpr int getBase()          const { return base; }
     constexpr bool isARF()           const { return arf; }
@@ -616,8 +620,7 @@ public:
     constexpr ARFType getARFType()   const { return static_cast<ARFType>(base >> 4); }
     constexpr bool isIndirect()      const { return indirect; }
     constexpr bool isVxIndirect()    const { return indirect && (vs == 0x7F); }
-    constexpr int getIndirectBase()  const { return base >> 4; }
-    constexpr int getIndirectOff()   const { return base & 0xF; }
+    constexpr int getIndirectOff()   const { return base & 0xFF; }
     constexpr bool isNull()          const { return isARF() && (getARFType() == ARFType::null); }
     constexpr bool isInvalid()       const { return invalid; }
     constexpr bool isValid()         const { return !invalid; }
@@ -634,6 +637,8 @@ public:
     constexpr int getBytes()         const { return ngen::getBytes(getType()); }
     constexpr14 int getDwords()      const { return ngen::getDwords(getType()); }
     constexpr bool isScalar()        const { return hs == 0 && vs == 0 && width == 1; }
+
+    inline constexpr14 RegData getIndirectReg() const;
 
     constexpr14 RegData &setBase(int base_)                      { base = base_; return *this; }
     constexpr14 RegData &setOffset(int off_)                     { off = off_; return *this; }
@@ -1095,6 +1100,11 @@ public:
     SpecialAccumulatorRegister &operator=(const Invalid &i) { this->invalidate(); return *this; }
 };
 
+constexpr14 RegData RegData::getIndirectReg() const {
+    auto type = ARFType::a;
+    return ARF(type, 0)[getIndirectOff()];
+}
+
 // An "extended register" is a combination of a regular GRF and some extra accumulator bits, used for math macro operations.
 class ExtendedReg {
     RegData base;
@@ -1268,7 +1278,7 @@ inline Subregister Subregister::reinterpret(int offset, DataType type_) const
 // Indirect register and frames for making them.
 class IndirectRegister : public Register {
 protected:
-    explicit constexpr14 IndirectRegister(const RegData &reg) : Register((reg.getARFBase() << 4) | reg.getOffset(), false) {
+    explicit constexpr14 IndirectRegister(const RegData &reg) : Register(reg.getOffset(), false) {
         indirect = true;
     }
     friend class IndirectRegisterFrame;
@@ -1323,6 +1333,11 @@ public:
     inline Subregister sub(HW hw, int offset, DataType type) const;
 
     void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) {}
+
+#ifdef NGEN_ASM
+    static const bool emptyOp = false;
+    inline void outputText(std::ostream &str, PrintDetail detail, LabelManager &man) const;
+#endif
 };
 
 static inline GRFRange operator-(const GRF &reg1, const GRF &reg2)
@@ -1581,10 +1596,10 @@ static const char *getMnemonic(Opcode op, HW hw)
     const char *mnemonic = names[static_cast<int>(op) & 0x7F];
 
     if (hw < HW::Gen12LP) switch (op) {
-        case Opcode::mov:   mnemonic = "mov";   break;
-        case Opcode::line:  mnemonic = "line";  break;
-        case Opcode::pln:   mnemonic = "pln";   break;
-        case Opcode::dp4:   mnemonic = "dp4";   break;
+        case Opcode::mov:    mnemonic = "mov";    break;
+        case Opcode::line:   mnemonic = "line";   break;
+        case Opcode::pln:    mnemonic = "pln";    break;
+        case Opcode::dp4:    mnemonic = "dp4";    break;
         default: break;
     }
 
@@ -1702,7 +1717,8 @@ protected:
             unsigned flagSubRegNum : 1;
             unsigned flagRegNum : 1;
             unsigned maskCtrl : 1;
-            unsigned _zeros_: 9;
+            unsigned exBSO : 1;
+            unsigned _zeros_: 8;
             unsigned flagRegNum1 : 1;
             unsigned autoSWSB : 1;
             unsigned fusionCtrl : 1;        // Gen12
@@ -1735,6 +1751,7 @@ public:
     constexpr bool isSaturate()            const { return parts.saturate; }
     constexpr14 FlagRegister getFlagReg()  const { return FlagRegister((parts.flagRegNum1 << 1) | parts.flagRegNum, parts.flagSubRegNum); }
     constexpr bool isWrEn()                const { return parts.maskCtrl; }
+    constexpr bool isExBSO()               const { return parts.exBSO; }
     constexpr bool isAutoSWSB()            const { return parts.autoSWSB; }
     constexpr bool isSerialized()          const { return parts.fusionCtrl; }
     constexpr bool isEOT()                 const { return parts.eot; }
@@ -1774,44 +1791,47 @@ public:
 
 protected:
     constexpr InstructionModifier(bool accessMode_, bool noDDClr_, bool noDDChk_, unsigned chanOff_, bool accWrCtrl_,
-                                  bool debugCtrl_, bool saturate_, bool maskCtrl_, bool autoSWSB_, bool fusionCtrl_, bool eot_)
+                                  bool debugCtrl_, bool saturate_, bool maskCtrl_, bool exBSO_, bool autoSWSB_, bool fusionCtrl_, bool eot_)
         : all{(uint64_t(accessMode_) << 8) | (uint64_t(noDDClr_) << 9) | (uint64_t(noDDChk_) << 10) | (uint64_t(chanOff_ >> 2) << 11)
-            | (uint64_t(accWrCtrl_) << 28) | (uint64_t(debugCtrl_) << 30) | (uint64_t(saturate_) << 31)
-            | (uint64_t(maskCtrl_) << 34) | (uint64_t(autoSWSB_) << 45) | (uint64_t(fusionCtrl_) << 46) | (uint64_t(eot_) << 47)} {}
+            | (uint64_t(accWrCtrl_) << 28) | (uint64_t(debugCtrl_) << 30) | (uint64_t(saturate_) << 31) | (uint64_t(maskCtrl_) << 34)
+            | (uint64_t(exBSO_) << 35) | (uint64_t(autoSWSB_) << 45) | (uint64_t(fusionCtrl_) << 46) | (uint64_t(eot_) << 47)} {}
 
 public:
     static constexpr InstructionModifier createAccessMode(int accessMode_) {
-        return InstructionModifier(accessMode_, false, false, 0, false, false, false, false, false, false, false);
+        return InstructionModifier(accessMode_, false, false, 0, false, false, false, false, false, false, false, false);
     }
     static constexpr InstructionModifier createNoDDClr() {
-        return InstructionModifier(false, true, false, 0, false, false, false, false, false, false, false);
+        return InstructionModifier(false, true, false, 0, false, false, false, false, false, false, false, false);
     }
     static constexpr InstructionModifier createNoDDChk() {
-        return InstructionModifier(false, false, true, 0, false, false, false, false, false, false, false);
+        return InstructionModifier(false, false, true, 0, false, false, false, false, false, false, false, false);
     }
     static constexpr InstructionModifier createChanOff(int offset) {
-        return InstructionModifier(false, false, false, offset, false, false, false, false, false, false, false);
+        return InstructionModifier(false, false, false, offset, false, false, false, false, false, false, false, false);
     }
     static constexpr InstructionModifier createAccWrCtrl() {
-        return InstructionModifier(false, false, false, 0, true, false, false, false, false, false, false);
+        return InstructionModifier(false, false, false, 0, true, false, false, false, false, false, false, false);
     }
     static constexpr InstructionModifier createDebugCtrl() {
-        return InstructionModifier(false, false, false, 0, false, true, false, false, false, false, false);
+        return InstructionModifier(false, false, false, 0, false, true, false, false, false, false, false, false);
     }
     static constexpr InstructionModifier createSaturate() {
-        return InstructionModifier(false, false, false, 0, false, false, true, false, false, false, false);
+        return InstructionModifier(false, false, false, 0, false, false, true, false, false, false, false, false);
     }
     static constexpr InstructionModifier createMaskCtrl(bool maskCtrl_) {
-        return InstructionModifier(false, false, false, 0, false, false, false, maskCtrl_, false, false, false);
+        return InstructionModifier(false, false, false, 0, false, false, false, maskCtrl_, false, false, false, false);
+    }
+    static constexpr InstructionModifier createExBSO() {
+        return InstructionModifier(false, false, false, 0, false, false, false, false, true, false, false, false);
     }
     static constexpr InstructionModifier createAutoSWSB() {
-        return InstructionModifier(false, false, false, 0, false, false, false, false, true, false, false);
+        return InstructionModifier(false, false, false, 0, false, false, false, false, false, true, false, false);
     }
     static constexpr InstructionModifier createSerialized() {
-        return InstructionModifier(false, false, false, 0, false, false, false, false, false, true, false);
+        return InstructionModifier(false, false, false, 0, false, false, false, false, false, false, true, false);
     }
     static constexpr InstructionModifier createEOT() {
-        return InstructionModifier(false, false, false, 0, false, false, false, false, false, false, true);
+        return InstructionModifier(false, false, false, 0, false, false, false, false, false, false, false, true);
     }
 
     friend constexpr14 InstructionModifier operator|(const InstructionModifier &mod1, const InstructionModifier &mod2);
@@ -2166,8 +2186,7 @@ union MessageDescriptor {
         unsigned dataSize : 3;
         unsigned vectSize : 3;
         unsigned transpose : 1;
-        unsigned : 1;
-        unsigned cache : 3;
+        unsigned cache : 4;
         unsigned : 9;
         unsigned model : 2;
         unsigned : 1;
@@ -2740,9 +2759,13 @@ public:
 /********************************************************************/
 enum class LSCOpcode : uint8_t {
     load = 0,
+    load_block = 1,
     load_cmask = 2,
+    load_2dblock = 3,
     store = 4,
+    store_block = 5,
     store_cmask = 6,
+    store_2dblock = 7,
     atomic_inc = 8,
     atomic_dec = 9,
     atomic_load = 0xA,
@@ -2767,10 +2790,6 @@ enum class LSCOpcode : uint8_t {
     ccs_update = 0x1D,
     rsi = 0x1E,
     fence = 0x1F,
-    load_block = 1,
-    load_2dblock = 3,
-    store_block = 5,
-    store_2dblock = 7,
 };
 
 enum class DataSizeLSC : uint16_t {
@@ -2788,13 +2807,13 @@ static inline constexpr unsigned getRegisterWidth(DataSizeLSC dsize) {
 
 enum class CacheSettingsLSC : uint8_t {
     Default   = 0,
-    L1UC_L3UC = 1,
-    L1UC_L3C  = 2,    L1UC_L3WB = 2,
-    L1C_L3UC  = 3,    L1WT_L3UC = 3,
-    L1C_L3C   = 4,    L1WT_L3WB = 4,
-    L1S_L3UC  = 5,
-    L1S_L3C   = 6,    L1S_L3WB  = 6,
-    L1IAR_L3C = 7,    L1WB_L3WB = 7,
+    L1UC_L3UC = 2,
+    L1UC_L3C  = 4,    L1UC_L3WB = 4,
+    L1C_L3UC  = 6,    L1WT_L3UC = 6,
+    L1C_L3C   = 8,    L1WT_L3WB = 8,
+    L1S_L3UC  = 10,
+    L1S_L3C   = 12,   L1S_L3WB  = 12,
+    L1IAR_L3C = 14,   L1WB_L3WB = 14,
 };
 
 enum FenceScopeLSC : uint8_t {
@@ -2980,6 +2999,7 @@ static inline void encodeAtomicDescriptors(HW hw, MessageDescriptor &desc, Exten
     if (dst.isNull())
         desc.parts.responseLen = 0;
 }
+
 
 } /* namespace ngen */
 
