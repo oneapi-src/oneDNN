@@ -368,6 +368,13 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.cWalkOrder = WalkOrder::SimpleLinear;
         else if (mod == "pt")
             strategy.persistent = true;
+        else if (mod == "of")
+            strategy.arbitrationMode = ngen::ThreadArbitrationMode::OldestFirst;
+        else if (mod == "rr")
+            strategy.arbitrationMode = ngen::ThreadArbitrationMode::RoundRobin;
+        else if (mod == "rrs")
+            strategy.arbitrationMode
+                    = ngen::ThreadArbitrationMode::RoundRobinOnStall;
         else if (mod == "nq") {
             strategy.A.noExtraPad = strategy.A_prefetch.noExtraPad = true;
             strategy.B.noExtraPad = strategy.B_prefetch.noExtraPad = true;

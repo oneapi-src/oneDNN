@@ -55,6 +55,7 @@ struct Restrictions {
 };
 
 enum RestrictionTags : char {
+    ReqAlignFallback = '#',
     ReqBlock2DA = 'A',
     ReqNoBlock2DA = 'a',
     ReqBlock2DB = 'B',
@@ -158,6 +159,9 @@ enum : int {
     ParamE_Fr0, // FMA count at which frequency starts dropping.
     ParamE_Fr1, // FMA count at which frequency stops dropping.
     ParamECount,
+
+    ParamE_Cp0
+    = ParamE_Cb1, // Fused post-op overhead per partial wave, constant coefficient
 
     // Maximum possible parameter count
     MaxParamCount = ParamECount,

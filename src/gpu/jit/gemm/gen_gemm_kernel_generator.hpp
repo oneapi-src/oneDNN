@@ -161,6 +161,52 @@ static inline MatrixLayout transposeLayout(MatrixLayout l) {
     return static_cast<MatrixLayout>(static_cast<uint8_t>(l) ^ 0x1);
 }
 
+// Information on scalar arguments (alpha/beta)
+class Scalar {
+public:
+    enum ScalarType { Fixed, Variable, Pointer, RealPointer };
+
+private:
+    int value;
+    ScalarType type;
+
+public:
+    Scalar() : Scalar(Variable) {}
+    explicit Scalar(ScalarType type_) : value(0), type(type_) {}
+    explicit Scalar(int value_) : value(value_), type(Fixed) {}
+
+    Scalar &operator=(int value_) {
+        type = Fixed;
+        value = value_;
+        return *this;
+    }
+    Scalar &operator=(ScalarType type_) {
+        type = type_;
+        value = 0;
+        return *this;
+    }
+
+    template <typename U>
+    bool operator==(U value_) const {
+        return fixed() && (value == value_);
+    }
+    bool operator==(ScalarType type_) const { return (type == type_); }
+    template <typename U>
+    bool operator!=(U value_) const {
+        return !operator==(value_);
+    }
+
+    operator int() const {
+        if (!fixed()) throw std::runtime_error("Scalar is not fixed.");
+        return value;
+    }
+    operator double() const { return int(*this); }
+
+    bool fixed() const { return (type == Fixed); }
+    bool pointer() const { return (type == Pointer) || (type == RealPointer); }
+    ScalarType getType() const { return type; }
+};
+
 enum class AccessType : uint8_t {
     Scattered, // Use scattered accesses
     ChannelScattered, // Use untyped surface reads
@@ -334,84 +380,6 @@ public:
         copy.negative = !copy.negative;
         return copy;
     }
-};
-
-template <typename T>
-class Scalar {
-protected:
-    bool fixed_value;
-    union {
-        SubregisterPair subs;
-        T value;
-    };
-
-public:
-    Scalar() : Scalar(ngen::Subregister()) {}
-    explicit Scalar(T value_) : fixed_value(true), value(value_) {}
-    Scalar(ngen::Subregister reg0, ngen::Subregister reg1)
-        : fixed_value(false), subs {reg0, reg1} {}
-    explicit Scalar(ngen::Subregister reg) : Scalar(reg, reg) {}
-
-    Scalar &operator=(T value_) {
-        fixed_value = true;
-        value = value_;
-        return *this;
-    }
-    Scalar &operator=(ngen::Subregister reg) {
-        fixed_value = false;
-        subs = reg;
-        return *this;
-    }
-    void serialize(serialized_data_t &s) const {
-        s.append(fixed_value);
-        if (fixed_value)
-            s.append(value);
-        else
-            s.append_complex(subs);
-    }
-
-    template <typename U>
-    friend inline bool operator==(const Scalar<T> &scalar, const U &val) {
-        return scalar.fixed_value && (val == scalar.value);
-    }
-    template <typename U>
-    friend inline bool operator==(const U &val, const Scalar<T> &scalar) {
-        return scalar == val;
-    }
-
-    template <typename U>
-    friend inline bool operator!=(const Scalar<T> &scalar, const U &val) {
-        return !(scalar == val);
-    }
-    template <typename U>
-    friend inline bool operator!=(const U &val, const Scalar<T> &scalar) {
-        return !(scalar == val);
-    }
-
-    operator T() const {
-        if (!fixed_value) throw std::runtime_error("Scalar is not fixed.");
-        return value;
-    }
-
-    operator SubregisterPair() const {
-        if (fixed_value) throw std::runtime_error("Scalar is fixed.");
-        return subs;
-    }
-
-    SubregisterPair &getPair() {
-        if (fixed_value) throw std::runtime_error("Scalar is fixed.");
-        return subs;
-    }
-
-    bool fixed() const { return fixed_value; }
-
-    ngen::Subregister getReg(int idx) const {
-        return SubregisterPair(*this).getReg(idx);
-    }
-    ngen::Subregister getRegAvoiding(
-            ngen::HW hw, const ngen::RegData &rd) const {
-        return SubregisterPair(*this).getRegAvoiding(hw, rd);
-    };
 };
 
 class MultishiftSubregister {
@@ -659,6 +627,7 @@ public:
 
     VirtualFlag allocVirtual(int n = 1);
     ngen::FlagRegister alloc(int n = 1);
+    ngen::FlagRegister allocSubreg0();
     ngen::FlagRegister tryAlloc(int n = 1);
 
     void claim(VirtualFlag vflag) { free &= ~mask(vflag); }
@@ -814,6 +783,8 @@ struct CommonStrategy {
     uint8_t pad2[2] = {};
     ngen::HW raHW = ngen::HW::
             Unknown; // Pretend to be a different GPU for register allocation purposes.
+    ngen::ThreadArbitrationMode arbitrationMode = ngen::ThreadArbitrationMode::
+            Default; // Thread arbitration policy to use.
 
     EmulationStrategy emulate;
     uint8_t pad3[2] = {};
@@ -854,12 +825,10 @@ enum class BinaryOp { Add, Sub, Mul, Div, Min, Max };
 
 // GEMM kernel problem description.
 struct GEMMProblem : public CommonProblem {
-
     Type Ta, Tb, Tc, Tco, Ts; // Types for A/B/C/C offsets/scalars in registers.
     Type Ta_ext, Tb_ext, Tc_ext; // Types for A/B/C data in memory.
 
-    Scalar<double> alpha_real, alpha_imag; // Alpha value, if fixed.
-    Scalar<double> beta_real, beta_imag; // Beta value, if fixed.
+    Scalar alpha, beta; // Scaling factors for A*B and C, respectively.
     MatrixAddressing A, B, C, CO; // Addressing information for matrices.
     bool checkBeta0 = true; // If true, check for beta = 0 and handle specially.
     ABOffset abOffset = ABOffset::None; // A/B offset mode.
@@ -907,27 +876,10 @@ struct GEMMProblem : public CommonProblem {
         }
     }
 
-    bool beta0() const {
-        return (beta_real == 0) && (!Tc.isComplex() || (beta_imag == 0));
-    }
-    bool beta1() const {
-        return (beta_real == 1) && (!Tc.isComplex() || (beta_imag == 0));
-    }
-    bool alpha1() const {
-        return (alpha_real == 1) && (!Tc.isComplex() || (alpha_imag == 0));
-    }
-    bool alphaM1() const {
-        return (alpha_real == -1) && (!Tc.isComplex() || (alpha_imag == 0));
-    }
-
-    void setAlpha(double v) {
-        alpha_real = v;
-        alpha_imag = 0;
-    }
-    void setBeta(double v) {
-        beta_real = v;
-        beta_imag = 0;
-    }
+    bool beta0() const { return (beta == 0); }
+    bool beta1() const { return (beta == 1); }
+    bool alpha1() const { return (alpha == 1); }
+    bool alphaM1() const { return (alpha == -1); }
 
     bool needsTsConvert() const {
         if (!(alpha1() || alphaM1())) return true;
@@ -949,8 +901,8 @@ struct GEMMProblem : public CommonProblem {
     void serialize(serialized_data_t &s) const {
         s.append(Ta, Tb, Tc, Tco, Ts);
         s.append(Ta_ext, Tb_ext, Tc_ext);
-        s.append_complex(alpha_real, alpha_imag);
-        s.append_complex(beta_real, beta_imag);
+        s.append(alpha);
+        s.append(beta);
         s.append(A, B, C, CO);
         s.append(checkBeta0);
         s.append(abOffset);
@@ -1080,7 +1032,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool altFusedBeta
             = false; //   Enable alternate beta fusion implementation? (requires sequential dispatch)
     int kPadding
-            = 32; //   Pad k dimension when load balancing (kParallelVariable)
+            = 32; //   Pad k dimension when load balancing (kParallel/kParallelVariable)
     bool doubleWA
             = false; // Use explicit double broadcast instructions? (Gen9 only)
     uint8_t pad8[3] = {};
@@ -1271,8 +1223,8 @@ struct GEMMState : public CommonState {
         ngen::Subregister offsetCO; // d
         ngen::Subregister lda, ldb, ldc[2], ldco; // d
         ngen::Subregister m, n, k, k0; // d
-        ngen::Subregister alpha_real, alpha_imag; // T_real
-        ngen::Subregister beta_real, beta_imag; // T_real
+        SubregisterPair alpha_real, alpha_imag; // T_real
+        SubregisterPair beta_real, beta_imag; // T_real
         ngen::Subregister alphaPtr, betaPtr; // q
         ngen::Subregister groupIDM, groupIDN, groupIDK; // ud
         ngen::Subregister groupIDMN; // ud
@@ -1496,7 +1448,7 @@ struct GEMMSuperkernelState : public GEMMState {
 // Copy kernel problem description: D <- alpha*S
 struct CopyProblem : public CommonProblem {
     Type Ts, Td, Tsum;
-    Scalar<double> alpha_real, alpha_imag;
+    Scalar alpha;
     MatrixAddressing S, D;
     bool conjugate = false;
     bool lower;
@@ -1550,8 +1502,8 @@ struct CopyState : public CommonState {
         ngen::Subregister offsetS, offsetD; // q
         ngen::Subregister lds, ldd; // d
         ngen::Subregister m, n; // d
-        ngen::Subregister alpha_real; // T_real
-        ngen::Subregister alpha_imag; // T_real
+        SubregisterPair alpha_real; // T_real
+        SubregisterPair alpha_imag; // T_real
         ngen::Subregister groupIDW, groupIDZ; // ud
         ngen::GRF localIDW, localIDZ; // uw
         ngen::Subregister localSizeW, localSizeZ; // ud
@@ -1924,8 +1876,6 @@ protected:
 
     void duplicateScalar(SubregisterPair &val, CommonState &state);
     void deduplicateScalar(SubregisterPair &val, CommonState &state);
-    template <typename T>
-    void duplicateScalar(Scalar<T> &val, CommonState &state);
     MultishiftSubregister multishift(const ngen::Subregister &reg,
             unsigned shifts, const CommonStrategy &strategy, CommonState &state,
             ngen::Bundle hint = ngen::Bundle());
@@ -2730,8 +2680,8 @@ protected:
             const std::vector<RegisterBlock> &layoutSrc,
             const std::vector<RegisterBlock> &layoutDst,
             const GRFMultirange &src, const GRFMultirange &dst, int dOffR,
-            int dOffC, const Scalar<double> &alpha_real,
-            const Scalar<double> &alpha_imag, bool conjugate,
+            int dOffC, const Scalar &alpha, const SubregisterPair &alpha_real,
+            const SubregisterPair &alpha_imag, bool conjugate,
             const CommonStrategy &strategy, CommonState &state,
             bool preserveSrc = false);
 
@@ -2758,6 +2708,8 @@ protected:
     void prologue(const GEMMStrategy &strategy, GEMMState &state);
     void epilogue(const CommonStrategy &strategy, CommonState &state);
     void padding();
+    void initInterface(const CommonProblem &problem,
+            const CommonStrategy &strategy, CommonState &state);
     void initState(const CommonProblem &problem, const CommonStrategy &strategy,
             CommonState &state);
 };

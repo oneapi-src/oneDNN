@@ -81,8 +81,7 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     }
 
     // Always use variable beta for global k-parallel kernels.
-    if (strategy_.kParallel && !strategy_.fuseBeta)
-        problem_.beta_real = Scalar<double>();
+    if (strategy_.kParallel && !strategy_.fuseBeta) problem_.beta = Scalar();
 
     // Omit periodic barriers when k is small.
     if (strategy_.barrierFreq > 0 && k_ >= 0 && k_ < 2 * strategy_.barrierFreq)
@@ -261,8 +260,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
-    if (alpha == 1.0f) problem_.alpha_real = alpha;
-    if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
+    if (alpha == 1.0f) problem_.alpha = alpha;
+    if (beta == 0.0f || beta == 1.0f) problem_.beta = beta;
 
     auto status = transfer_post_ops(post_ops, swap_ab);
     if (status != status::success) return status;
@@ -342,8 +341,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     }
 
     auto block_k = entry_->driverInfo.blocking[LoopK];
-    if (block_k > 0 && k > block_k && beta != 1.0f)
-        problem_.beta_real = Scalar<double>();
+    if (block_k > 0 && k > block_k && beta != 1.0f) problem_.beta = Scalar();
 
     return finalize();
 }
@@ -405,8 +403,8 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     if (a_offset || b_offset) problem_.abOffset = ABOffset::Load;
     if (a_offset) problem_.aoPtrDims = 0;
     if (b_offset) problem_.boPtrDims = 0;
-    if (alpha == 1.0f) problem_.alpha_real = alpha;
-    if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
+    if (alpha == 1.0f) problem_.alpha = alpha;
+    if (beta == 0.0f || beta == 1.0f) problem_.beta = beta;
 
     auto status = transfer_post_ops(post_ops);
     if (status != status::success) return status;

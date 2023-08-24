@@ -283,7 +283,15 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     }
 
     if (aux.kParallel || aux.kParallelVariable) {
-        if (e.driverInfo.fusedBeta() && (dp.beta != 1.)) {
+        bool withFusedPO
+                = (e.driverInfo.fusedPostOps() && (dp.postOps || dp.cConvert));
+        if (withFusedPO) {
+            if (e.driverInfo.altFusedBeta())
+                C0 += PARAM(Cp0);
+            else
+                Mc += PARAM(Mcu);
+        }
+        if (e.driverInfo.fusedBeta() && (dp.beta != 1. || withFusedPO)) {
             if (e.driverInfo.altFusedBeta())
                 C0 += PARAM(Cb0);
             else {
@@ -292,8 +300,6 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
                 Mc += PARAM(Mc);
             }
         }
-        if (e.driverInfo.fusedPostOps() && (dp.postOps || dp.cConvert))
-            Mc += PARAM(Mcu);
     }
 
     if (e.driverInfo.kParallelVariable()) {

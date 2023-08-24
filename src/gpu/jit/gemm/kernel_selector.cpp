@@ -130,6 +130,15 @@ bool matches(const kcatalog::Entry &e, const MatchParams &pattern) {
     return ok;
 }
 
+bool lessAligned(int alignA1, int alignB1, int alignA2, int alignB2) {
+    alignA1 = std::max(alignA1, 4);
+    alignA2 = std::max(alignA2, 4);
+    alignB1 = std::max(alignB1, 4);
+    alignB2 = std::max(alignB2, 4);
+    return (alignA1 <= alignA2) && (alignB1 <= alignB2)
+            && (alignA1 + alignB1 < alignB1 + alignB2);
+}
+
 const kcatalog::Entry *select(const kcatalog::Catalog &catalog,
         const MatchParams &pattern, const EvaluateParams &eparams,
         EvaluateAuxOutput &aux) {
@@ -142,6 +151,8 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
     double bestScore = std::numeric_limits<double>::infinity();
     const kcatalog::Entry *bestEntry = nullptr;
     int bestIPattern = -1;
+    bool bestIsFallback = false;
+    int bestAlignA = 0, bestAlignB = 0;
 
     bool verbose = (get_verbose(verbose_t::debuginfo) >= 5);
 
@@ -149,11 +160,29 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
     for (int ipattern = 0; ipattern < npatterns; ipattern++) {
         for (auto it = match(catalog, patterns[ipattern]); it; it++) {
             EvaluateAuxOutput thisAux;
+
+            bool fallback
+                    = (it->restrictions.tags[0] == kcatalog::ReqAlignFallback);
+            int alignA = std::max(it->restrictions.alignment[0], 4);
+            int alignB = std::max(it->restrictions.alignment[1], 4);
+
+            if (fallback && lessAligned(alignA, alignB, bestAlignA, bestAlignB))
+                continue;
+
             double score = evaluate(*it, eparams, thisAux);
-            if (score < bestScore) {
+
+            bool better = (score < bestScore)
+                    | (bestIsFallback
+                            && lessAligned(
+                                    bestAlignA, bestAlignB, alignA, alignB));
+
+            if (better) {
                 bestEntry = &*it;
                 bestScore = score;
                 bestIPattern = ipattern;
+                bestAlignA = alignA;
+                bestAlignB = alignB;
+                bestIsFallback = fallback;
                 aux = thisAux;
             }
             if (verbose) {
