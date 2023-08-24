@@ -65,6 +65,7 @@ void run_single_bmm(const sc_dims &A_dims, const sc_dims &B_dims,
 }
 
 TEST(GCCore_CPU_test_bmm_broadcast, Case1) {
+    REQUIRE_AVX2();
     sc_dims A_dims {1, 16, 16, 128}, B_dims {1, 1, 128, 16},
             out_dims {1, 16, 16, 16};
     sc_dims B_bc_dims {1, 16, 128, 16};
@@ -91,6 +92,7 @@ TEST(GCCore_CPU_test_bmm_broadcast, Case1) {
 }
 
 TEST(GCCore_CPU_test_bmm_broadcast, Case2) {
+    REQUIRE_AVX2();
     sc_dims A_dims {8, 16, 16, 128}, B_dims {8, 1, 128, 16},
             out_dims {8, 16, 16, 16};
     sc_dims B_bc_dims {8, 16, 128, 16};
@@ -120,6 +122,7 @@ TEST(GCCore_CPU_test_bmm_broadcast, Case2) {
 }
 
 TEST(GCCore_CPU_test_bmm_broadcast, Case3) {
+    REQUIRE_AVX2();
     sc_dims A_dims {8, 16, 16, 128}, B_dims {1, 16, 128, 16},
             out_dims {8, 16, 16, 16};
     sc_dims B_bc_dims {8, 16, 128, 16};
@@ -146,6 +149,7 @@ TEST(GCCore_CPU_test_bmm_broadcast, Case3) {
 }
 
 TEST(GCCore_CPU_test_bmm_broadcast, Case4) {
+    REQUIRE_AVX2();
     sc_dims A_dims {8, 16, 16, 128}, B_dims {1, 1, 128, 16},
             out_dims {8, 16, 16, 16};
     sc_dims B_bc_dims {8, 16, 128, 16};
@@ -174,6 +178,7 @@ TEST(GCCore_CPU_test_bmm_broadcast, Case4) {
 }
 
 TEST(GCCore_CPU_test_bmm_broadcast, Case5) {
+    REQUIRE_AVX2();
     sc_dims A_dims {1, 16, 16, 128}, B_dims {8, 1, 128, 16},
             out_dims {8, 16, 16, 16};
     sc_dims A_bc_dims {8, 16, 16, 128}, B_bc_dims {8, 16, 128, 16};
@@ -211,6 +216,7 @@ TEST(GCCore_CPU_test_bmm_broadcast, Case5) {
 }
 
 TEST(GCCore_CPU_test_bmm_broadcast, Case6) {
+    REQUIRE_AVX2();
     sc_dims A_dims {8, 1, 16, 128}, B_dims {1, 16, 128, 16},
             out_dims {8, 16, 16, 16};
     sc_dims A_bc_dims {8, 16, 16, 128}, B_bc_dims {8, 16, 128, 16};
@@ -248,6 +254,7 @@ TEST(GCCore_CPU_test_bmm_broadcast, Case6) {
 }
 
 TEST(GCCore_CPU_test_bmm_broadcast, Case7) {
+    REQUIRE_AVX2();
     sc_dims A_dims {1, 16, 16, 128}, B_dims {32, 8, 1, 128, 16},
             out_dims {32, 8, 16, 16, 16};
     sc_dims A_bc_dims {32, 8, 16, 16, 128}, B_bc_dims {32, 8, 16, 128, 16};
@@ -291,6 +298,7 @@ TEST(GCCore_CPU_test_bmm_broadcast, Case7) {
 }
 
 TEST(GCCore_CPU_test_bmm_broadcast, Case8) {
+    REQUIRE_AVX2();
     sc_dims A_dims {1, 16, 128}, B_dims {8, 16, 128, 16},
             out_dims {8, 16, 16, 16};
     sc_dims A_bc_dims {8, 16, 16, 128};
