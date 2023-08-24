@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <mutex>
 #include <sstream>
 #include <string>
 
@@ -141,14 +142,27 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         return OK;
     }
 
-    res->total = nelems;
+    res->total = 1;
 
     dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
     const auto dt = got_mem.dt();
 
+    // Idea is to pad nelems to mimic uniform load between available threads.
+    // It allows to make a clear assumption when the last element is processed
+    // and do a sync with global diff_norm object.
+    // The better alternative is to expose `parallel` interface.
+    const auto nthreads = benchdnn_get_max_threads();
+    const auto nelems_per_thread = div_up(nelems, nthreads);
+    const auto nelems_pad = nelems_per_thread * nthreads;
+
     diff_norm_t diff_norm;
     const bool need_dump = verbose >= 99;
-    for (int64_t i = 0; i < nelems; ++i) {
+
+    const auto compare_norm_values = [&](int64_t i) {
+        if (i >= nelems) return;
+
+        // Specifiers to keep data accumulated over several `i`.
+        static thread_local diff_norm_t diff_norm_ithr;
         driver_check_func_args_t args(exp_mem, got_f32, i, dt, trh_);
 
         if ((std::isnan(args.exp_f32) && is_integral_dt(dt))
@@ -163,14 +177,32 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // it irrelevant for validation.
             ;
         } else {
-            diff_norm.update(args.exp, args.got);
+            diff_norm_ithr.update(args.exp, args.got);
         }
 
-        if (need_dump)
+        // Synchronization point, exchange to main diff_norm and reset thread's
+        // diff_norm_ithr object.
+        if (((i + 1) % nelems_per_thread == 0) || (i == nelems - 1)) {
+            static std::mutex m;
+            std::lock_guard<std::mutex> guard(m);
+            diff_norm.update(diff_norm_ithr);
+            diff_norm_ithr = diff_norm_t();
+        }
+    };
+
+    // Parallel norm computation to speed up the process.
+    benchdnn_parallel_nd(nelems_pad, compare_norm_values);
+
+    diff_norm.done();
+
+    // Serial point dump with enabled dumping when needed for nicer output.
+    if (need_dump) {
+        for (int64_t i = 0; i < nelems; ++i) {
+            driver_check_func_args_t args(exp_mem, got_f32, i, dt, trh_);
             dump_point_values(got_mem.md_, get_kind_str(), i, args.exp_f32,
                     args.exp, args.got, args.diff, args.rel_diff);
+        }
     }
-    diff_norm.done();
 
     bool ok = diff_norm.rel_diff(norm_t::L2) <= trh_;
     if (!ok) res->errors = 1;
