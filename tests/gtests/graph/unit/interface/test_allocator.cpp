@@ -38,6 +38,25 @@ TEST(Allocator, DefaultCpuAllocator) {
     }
 }
 
+TEST(Engine, AllocatorEarlyDestory) {
+    dnnl::impl::graph::allocator_t *alloc
+            = new dnnl::impl::graph::allocator_t();
+    graph::engine_t *eng;
+    dnnl_engine_create(&eng, dnnl_engine_kind_t::dnnl_cpu, 0);
+    eng->set_allocator(alloc);
+    delete alloc;
+    dnnl::impl::graph::allocator_t *engine_alloc
+            = reinterpret_cast<dnnl::impl::graph::allocator_t *>(
+                    eng->get_allocator());
+    void *mem_ptr = engine_alloc->allocate(static_cast<size_t>(16));
+    if (mem_ptr == nullptr) {
+        ASSERT_TRUE(false);
+    } else {
+        engine_alloc->deallocate(mem_ptr);
+    }
+    eng->release();
+}
+
 #ifndef NDEBUG
 TEST(Allocator, Monitor) {
     using namespace dnnl::impl::graph;
