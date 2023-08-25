@@ -34,6 +34,8 @@ struct concat_pd_t : public primitive_desc_t {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
+    ~concat_pd_t() = default;
+
     arg_usage_t arg_usage(int arg) const override {
         if (arg >= DNNL_ARG_MULTIPLE_SRC
                 && arg < DNNL_ARG_MULTIPLE_SRC + n_inputs())
@@ -110,6 +112,19 @@ protected:
         src_image_mds_ = other.src_image_mds_;
 
         init_desc();
+    }
+
+    concat_pd_t &operator=(const concat_pd_t &other) {
+        DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+        n_ = other.n_;
+        concat_dim_ = other.concat_dim_;
+        dst_md_ = other.dst_md_;
+        original_dst_ = other.original_dst_;
+        src_mds_ = other.src_mds_;
+        src_image_mds_ = other.src_image_mds_;
+
+        init_desc();
+        return *this;
     }
 
     /* inits src_image_mds_ and dst_md_ in simple cases. It is possible to

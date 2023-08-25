@@ -526,6 +526,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
     };
 
     dnnl_post_ops() : entry_() {}
+    ~dnnl_post_ops() = default;
 
     dnnl_post_ops(const dnnl_post_ops &other) { copy_from(other); }
 
@@ -643,6 +644,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl_primitive_attr()
         : scratchpad_mode_(dnnl::impl::scratchpad_mode::library)
         , fpmath_mode_(dnnl::impl::get_fpmath_mode()) {}
+    ~dnnl_primitive_attr() = default;
 
     dnnl_primitive_attr *clone() const {
         return new dnnl_primitive_attr(*this);

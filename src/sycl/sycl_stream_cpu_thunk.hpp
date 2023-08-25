@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ namespace impl {
 namespace sycl {
 
 struct submit_ctx_t {
-    stream_t *stream;
-    const primitive_iface_t *prim_iface;
+    stream_t *stream = nullptr;
+    const primitive_iface_t *prim_iface = nullptr;
     exec_ctx_t exec_ctx;
     std::vector<const memory_storage_t *> sycl_mem_storages;
 

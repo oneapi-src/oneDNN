@@ -166,6 +166,7 @@ struct pd_info_t {
         str_ = rhs.str_;
         return *this;
     }
+    ~pd_info_t() = default;
 
     const char *c_str() const { return str_.c_str(); }
     bool is_initialized() const { return is_initialized_; }

@@ -63,6 +63,8 @@ struct memory_map_manager_t : public c_compatible {
     }
 
 private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(memory_map_manager_t);
+
     struct entry_t {
         entry_t() = default;
         entry_t(stream_t *stream, void *mapped_ptr,
