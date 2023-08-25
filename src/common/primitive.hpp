@@ -115,7 +115,7 @@ protected:
     }
 
     std::shared_ptr<primitive_desc_t> pd_;
-    bool use_global_scratchpad_;
+    bool use_global_scratchpad_ = false;
     cache_blob_t cache_blob_;
 
 private:
