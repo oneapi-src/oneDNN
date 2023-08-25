@@ -39,6 +39,8 @@
 #include "test_thread.hpp"
 #endif
 
+#include "tests/gtests/dnnl_test_macros.hpp"
+
 #ifdef DNNL_WITH_SYCL
 ::sycl::device &get_device();
 ::sycl::context &get_context();

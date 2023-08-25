@@ -43,14 +43,6 @@ namespace utils {
 #define EXPECT_SUCCESS(expression) \
     EXPECT_EQ((expression), dnnl::impl::graph::status::success)
 
-#define SKIP_IF(cond, msg) \
-    do { \
-        if (cond) { \
-            std::cout << "[  SKIPPED ] " << (msg) << std::endl; \
-            GTEST_SKIP(); \
-        } \
-    } while (0)
-
 #define ASSERT_EQ_SAFE(val1, val2, ...) \
     do { \
         auto result = (val1); \

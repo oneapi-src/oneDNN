@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#include "tests/gtests/dnnl_test_macros.hpp"
+
 #ifdef DNNL_WITH_SYCL
 #include "sycl/sycl_compat.hpp"
 #if __has_include(<sycl/sycl.hpp>)
@@ -45,14 +47,6 @@
 
 using dim_t = int64_t;
 using dims_t = std::vector<dim_t>;
-
-#define SKIP_IF(cond, msg) \
-    do { \
-        if (cond) { \
-            std::cout << "[  SKIPPED ] " << (msg) << std::endl; \
-            GTEST_SKIP(); \
-        } \
-    } while (0)
 
 struct conv_attr_name_t {
     conv_attr_name_t()
