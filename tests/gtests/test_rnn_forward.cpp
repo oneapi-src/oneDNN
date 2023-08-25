@@ -303,13 +303,13 @@ protected:
         auto dst_iter_md_ref = ref_pd.dst_iter_desc();
         auto dst_iter_c_md_ref = queryDstIterC(ref_pd);
 
-        if (skipTest(weights_layer_md_ref == weights_layer_md_tgt,
-                    weights_iter_md_ref == weights_iter_md_tgt,
-                    bias_md_ref == bias_md_tgt,
-                    src_layer_md_ref == src_layer_md_tgt,
+        if (skipTest(src_layer_md_ref == src_layer_md_tgt,
                     augru_attention_md_ref == augru_attention_md_tgt,
                     src_iter_md_ref == src_iter_md_tgt,
                     src_iter_c_md_ref == src_iter_c_md_tgt,
+                    weights_layer_md_ref == weights_layer_md_tgt,
+                    weights_iter_md_ref == weights_iter_md_tgt,
+                    bias_md_ref == bias_md_tgt,
                     dst_layer_md_ref == dst_layer_md_tgt,
                     dst_iter_md_ref == dst_iter_md_tgt,
                     dst_iter_c_md_ref == dst_iter_c_md_tgt))
