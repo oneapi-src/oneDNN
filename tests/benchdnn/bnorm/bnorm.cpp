@@ -112,7 +112,7 @@ static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
         return FAIL;
     }
 
-    const int64_t flex_mask = (1 << flex_bits) - 1;
+    const int64_t flex_mask = (static_cast<int64_t>(1) << flex_bits) - 1;
 
     /* density: (exact_bits - log_2(L * density)) / 2 >= flex_bits */
     const float density = alg == ALG_0

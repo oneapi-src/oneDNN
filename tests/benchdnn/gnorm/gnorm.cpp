@@ -81,7 +81,7 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
     const bool use_sh = prb->use_sh();
 
     if ((alg == ALG_0 || alg == ALG_1) && !is_integral_dt(prb->dt[0])) {
-        const int64_t flex_mask = (1 << flex_bits) - 1;
+        const int64_t flex_mask = (static_cast<int64_t>(1) << flex_bits) - 1;
 
         /* density: (exact_bits - log_2(L * density)) / 2 >= flex_bits */
         const float density = alg == ALG_0
@@ -394,8 +394,9 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_norm_validation_mode(compare_with_norm);
 
     const auto dt = prb->dir & FLAG_FWD ? prb->dt[1] : prb->dt[0];
-    const int f32_mant_digits = 24;
-    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(dt)));
+    // Get safe from digits exceeding digits_f32.
+    const int safe_digits = MAX2(0, digits_dt(dnnl_f32) - digits_dt(dt));
+    const float trh_coeff = (1 << safe_digits);
     float trh = trh_coeff * ((kind == SRC || kind == DST) ? 6e-7 : 0);
     if ((kind == SC || kind == SH) && prb->dir & FLAG_BWD)
         trh = trh_coeff * 5e-6;

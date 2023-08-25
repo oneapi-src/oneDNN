@@ -451,6 +451,7 @@ int batch(const char *fname, bench_f bench) {
 
         // shell style line break
         if (continued_line) {
+            if (opts.empty()) SAFE_V(FAIL);
             // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             str = opts.back() + str; // update current line with previous
             opts.pop_back(); // take previous line out

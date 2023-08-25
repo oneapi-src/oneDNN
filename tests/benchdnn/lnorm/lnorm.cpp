@@ -91,7 +91,7 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
     if (exact_bits / 2 == flex_bits) alg = ALG_2;
 
     if ((alg == ALG_0 || alg == ALG_1) && !is_integral_dt(prb->dt[0])) {
-        const int64_t flex_mask = (1 << flex_bits) - 1;
+        const int64_t flex_mask = (static_cast<int64_t>(1) << flex_bits) - 1;
 
         /* density: (exact_bits - log_2(L * density)) / 2 >= flex_bits */
         const float density = alg == ALG_0

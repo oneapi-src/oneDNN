@@ -162,7 +162,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     // Leave hard coded until supported mask is 0 only.
                     ref_mem.set_elem(
                             0, prb->attr.scales.get(exec_src_arg).scale);
-                    mem.reorder(ref_mem);
+                    SAFE(mem.reorder(ref_mem), WARN);
                 }
                 break;
         }

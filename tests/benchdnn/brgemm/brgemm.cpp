@@ -447,8 +447,8 @@ int doit(const prb_t *prb, res_t *res) {
         TIME_FILL(SAFE(fill_data(DST, prb, cfg, acc_dt, acc_fp, res), WARN));
         // Beta requires same values for reference and the kernel.
         if (use_dst_as_acc) {
-            dst_fp.reorder(acc_fp);
-            dst_dt.reorder(dst_fp);
+            SAFE(dst_fp.reorder(acc_fp), WARN);
+            SAFE(dst_dt.reorder(dst_fp), WARN);
         }
     }
     if (sum_idx >= 0)
@@ -578,7 +578,7 @@ int doit(const prb_t *prb, res_t *res) {
     brgemm_kernel_execute_postops(brgemm_kernel, prb->batch_size,
             v_batch_element.data(), acc_ptr, dst_ptr, post_ops_data,
             scratchpad_ptr);
-    if (res) res->state = EXECUTED;
+    res->state = EXECUTED;
 
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         ref_args.set(DNNL_ARG_SRC, src_fp);

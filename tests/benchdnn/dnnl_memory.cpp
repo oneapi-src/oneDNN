@@ -90,7 +90,12 @@ dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
 dnn_mem_t::dnn_mem_t(const dnn_mem_t &rhs, dnnl_data_type_t dt,
         const std::string &tag, dnnl_engine_t engine)
     : dnn_mem_t(rhs.md_, dt, tag, engine) {
-    if (active_) reorder(rhs);
+    if (active_) {
+        int status = reorder(rhs);
+        if (status != OK) {
+            BENCHDNN_PRINT(0, "%s\n", "Reorder in memory constructor failed.");
+        }
+    }
 }
 
 int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,

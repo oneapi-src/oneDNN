@@ -272,6 +272,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             SAFE(::custom::select::init_ref_memory_args(
                          ref_mem_map, mem_map, prb, res),
                     WARN);
+            break;
         case TRANSPOSE:
             SAFE(::custom::transpose::init_ref_memory_args(
                          ref_mem_map, mem_map, prb, res),

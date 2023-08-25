@@ -119,7 +119,7 @@ struct prb_t : public prb_vdims_t {
         zfree(dst_zp);
     }
 
-    int m, n, k;
+    int64_t m, n, k;
     // brgemm does not have any propagation kind. Treat as forward inference to
     // have correct check for data type support.
     dir_t dir = FWD_I;
@@ -128,7 +128,7 @@ struct prb_t : public prb_vdims_t {
     std::vector<int64_t> ld;
     dnnl_data_type_t bia_dt;
     float alpha, beta;
-    int batch_size;
+    int64_t batch_size;
     std::string brgemm_attr;
 
     attr_t attr;

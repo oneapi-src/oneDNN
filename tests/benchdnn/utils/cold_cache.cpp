@@ -32,6 +32,8 @@ int get_arg_idx(const std::vector<dnnl_exec_arg_t> &dnnl_args, int arg) {
 
 size_t get_arg_size(const std::vector<dnnl_exec_arg_t> &dnnl_args, int arg) {
     const int arg_idx = get_arg_idx(dnnl_args, arg);
+    if (arg_idx <= 0) return 0; // `arg` was not found, return empty size.
+
     const auto &mem = dnnl_args[arg_idx].memory;
     return dnnl_memory_desc_get_size(query_md(mem));
 }

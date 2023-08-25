@@ -78,12 +78,18 @@ struct base_cfg_t {
 
         void set_range_min(int new_value) {
             auto it = cfg_map_.find(data_type_);
-            if (it == cfg_map_.end()) { assert(!"entry was not found!"); }
+            if (it == cfg_map_.end()) {
+                assert(!"entry was not found!");
+                return;
+            }
             (*it).second.range_min = new_value;
         }
         void set_range_max(int new_value) {
             auto it = cfg_map_.find(data_type_);
-            if (it == cfg_map_.end()) { assert(!"entry was not found!"); }
+            if (it == cfg_map_.end()) {
+                assert(!"entry was not found!");
+                return;
+            }
             (*it).second.range_max = new_value;
         }
 
@@ -191,7 +197,8 @@ protected:
         while (safe_n_acc < 1) {
             set_range_min(cur_kind, get_range_min(cur_kind) / 2);
             set_range_max(cur_kind, get_range_max(cur_kind) / 2);
-            int64_t max_value = cfg_entry_.at(SRC).get_range_abs_max()
+            int64_t max_value = static_cast<int64_t>(
+                                        cfg_entry_.at(SRC).get_range_abs_max())
                     * cfg_entry_.at(WEI).get_range_abs_max();
             safe_n_acc = (1LL << get_safe_digits()) / max_value;
             cur_kind = cur_kind == SRC ? WEI : SRC;

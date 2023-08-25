@@ -95,6 +95,8 @@ void compute_ref(
     const auto nelems_s8_comp = s8_comp.nelems();
     const auto nelems_zp_comp = zp_comp.nelems();
     const auto nelems_comp = MAX2(nelems_s8_comp, nelems_zp_comp);
+    if (nelems_comp == 0) SAFE_V(FAIL);
+
     const auto &ndims = src.ndims();
     assert(nelems_comp > 0);
     assert(IMPLICATION(
