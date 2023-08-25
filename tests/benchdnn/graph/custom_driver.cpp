@@ -219,18 +219,24 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 }
 
 int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max) {
+
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
     const auto dt = mem_dt.dt();
     f_min = (dt == dnnl_u8 && f_min < 0) ? 0 : f_min;
-    std::minstd_rand int_seed(mem_dt.dt() * nelems + 1);
-    benchdnn_parallel_nd(nelems, [&](int64_t i) {
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        std::minstd_rand int_seed(mem_dt.dt() * nelems + idx_start + 1);
         std::uniform_int_distribution<> gen(f_min, f_max);
         float value = gen(int_seed);
-        mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            mem_fp.set_elem(idx, round_to_nearest_representable(dt, value));
+        }
     });
-
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
