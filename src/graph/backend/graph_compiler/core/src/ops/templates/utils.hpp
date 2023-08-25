@@ -93,8 +93,9 @@ inline std::vector<expr> dims_to_expr(const sc_dims &dim) {
 }
 
 inline bool is_parallel_space_enough(int work_amount, int nthreads) {
-  return (work_amount % nthreads == 0
-    || utils::divide_and_ceil(work_amount, nthreads) >= 4);
+  return (work_amount > 0
+    && (work_amount % nthreads == 0
+      || utils::divide_and_ceil(work_amount, nthreads) >= 4));
 }
 
 /**

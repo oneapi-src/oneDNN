@@ -88,7 +88,8 @@ static int get_im_s_block(const context_ptr &ctx, const int &os,
 void gen_conv_fwd_t::validate_conv_fwd_default_config(
   const context_ptr &ctx, conv_fwd_config_t &cfg) const {
   bool dtype_f32 = get_input_dtype() == datatypes::f32;
-  bool use_os_blocking = try_os_blocking_ && ctx->use_amx();
+  const bool use_os_blocking
+    = try_os_blocking_ && ops::is_amx_dtype(ctx, get_input_dtype());
   auto K_block_list = utils::get_blocks(oc_, 16);
   auto C_block_list = utils::get_blocks(ic_, 16);
   auto tile_d_list = utils::get_factors(od_);
@@ -278,7 +279,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       cfg.tile_q = tile_q_list.back();
     }
   }
-  if (try_os_blocking_ && ctx->use_amx()) {
+  if (try_os_blocking_ && ops::is_amx_dtype(ctx, get_input_dtype())) {
     // if use os blocking override tile p and tile q above
     cfg.tile_os = cfg.tile_q;
     auto os_choices = get_os_blocks(ow_, adj_os_);
@@ -516,7 +517,8 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
     || (ph_e_ > 0) || (pw_e_ > 0);
   // TODO(zhicong): check whether to use os_blocking when sh > 1
   try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && ow_ <= 28
-    && sh_ == 1 && is_parallel_space_enough(mb_ * (oc_ / 64), num_threads);
+    && sh_ == 1 && (is_int8 || is_bf16)
+    && is_parallel_space_enough(mb_ * (oc_ / 64), num_threads);
   if (is_1d_) {
     use_conv1d = true;
     COMPILE_ASSERT((kw_ == 1 && pw_b_ == 0 && pw_e_ == 0),
@@ -2847,27 +2849,6 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
   int loop_sched = config.loop_sched;
   int K_num_block = oc_ / K_block;
   int C_num_block = ic_ / C_block;
-  const bool use_os_blocking = try_os_blocking_ && ctx->use_amx();
-  const bool pack_rows = use_os_blocking && (tile_os > 0 && ow_ % tile_os != 0);
-  int os = actual_os_;
-  if (use_conv1d) {
-    COMPILE_ASSERT(im_oc_block_ && (oc_ % im_oc_block_ == 0),
-      "oc should be dividable by K_block, but got oc=" << oc_ << " K_block="
-                                                       << im_oc_block_ << ".");
-    COMPILE_ASSERT(im_ic_block_ && (ic_ % im_ic_block_ == 0),
-      "ic should be dividable by C_block, but got ic=" << ic_ << " C_block="
-                                                       << im_ic_block_ << ".");
-  } else {
-    COMPILE_ASSERT(K_block && (oc_ % K_block == 0),
-      "oc should be dividable by K_block, but got oc=" << oc_ << " K_block="
-                                                       << K_block << ".");
-    COMPILE_ASSERT(C_block && (ic_ % C_block == 0),
-      "ic should be dividable by C_block, but got ic=" << ic_ << " C_block="
-                                                       << C_block << ".");
-    COMPILE_ASSERT(tile_d && (od_ % tile_d == 0),
-      "od should be dividable by tile_d, but got od=" << od_ << " tile_d="
-                                                      << tile_d << ".");
-  }
 
   // kpack is used to determine the vnni block format
   //  +----+--------------+
@@ -2897,6 +2878,29 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
       "Output should be s32 when data and weights are in "
       "s8/u8.");
     kpack = 4;
+  }
+
+  const bool use_os_blocking
+    = try_os_blocking_ && ops::is_amx_dtype(ctx, dtype_input);
+  const bool pack_rows = use_os_blocking && (tile_os > 0 && ow_ % tile_os != 0);
+  int os = actual_os_;
+  if (use_conv1d) {
+    COMPILE_ASSERT(im_oc_block_ && (oc_ % im_oc_block_ == 0),
+      "oc should be dividable by K_block, but got oc=" << oc_ << " K_block="
+                                                       << im_oc_block_ << ".");
+    COMPILE_ASSERT(im_ic_block_ && (ic_ % im_ic_block_ == 0),
+      "ic should be dividable by C_block, but got ic=" << ic_ << " C_block="
+                                                       << im_ic_block_ << ".");
+  } else {
+    COMPILE_ASSERT(K_block && (oc_ % K_block == 0),
+      "oc should be dividable by K_block, but got oc=" << oc_ << " K_block="
+                                                       << K_block << ".");
+    COMPILE_ASSERT(C_block && (ic_ % C_block == 0),
+      "ic should be dividable by C_block, but got ic=" << ic_ << " C_block="
+                                                       << C_block << ".");
+    COMPILE_ASSERT(tile_d && (od_ % tile_d == 0),
+      "od should be dividable by tile_d, but got od=" << od_ << " tile_d="
+                                                      << tile_d << ".");
   }
 
   std::vector<char> os_mask = {};

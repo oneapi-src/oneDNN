@@ -620,6 +620,11 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_2_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 28,
             28, 3, 3, 1, 0, false, false, false, true, false, true);
 }
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_2_NCX_single_thread) {
+    SET_THREADS_OR_SKIP(1);
+    check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 28,
+            28, 3, 3, 1, 0, false, false, false, true, true, false);
+}
 TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_3_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 28,
             28, 3, 3, 2, 3, false, false, false, true, true, false);
