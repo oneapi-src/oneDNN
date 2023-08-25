@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ struct gemm_desc_t {
     inline bool is_batched() const { return c_desc.ndims >= 3; }
 
     // Simplified accessors that comply to GEMM API
-    transpose_t get_trans(memory_desc_t md) const {
+    transpose_t get_trans(const memory_desc_t &md) const {
         return md.format_desc.blocking.strides[md.ndims - 1] != 1
                 ? transpose::trans
                 : transpose::notrans;
