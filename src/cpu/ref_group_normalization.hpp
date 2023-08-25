@@ -102,18 +102,17 @@ struct ref_group_normalization_bwd_t : public primitive_t {
 
             VDISPATCH_GNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
 
-            VDISPATCH_GNORM(
-                    utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8)
+            VDISPATCH_GNORM(utils::one_of(src_md()->data_type, f32, bf16, f16)
                             && platform::has_data_type_support(
                                     src_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_GNORM(utils::one_of(diff_dst_md()->data_type, f32, bf16,
-                                    f16, s8, u8)
+            VDISPATCH_GNORM(
+                    utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
                             && platform::has_data_type_support(
                                     diff_dst_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_GNORM(utils::one_of(diff_src_md()->data_type, f32, bf16,
-                                    f16, s8, u8)
+            VDISPATCH_GNORM(
+                    utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
                             && platform::has_data_type_support(
                                     diff_src_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
