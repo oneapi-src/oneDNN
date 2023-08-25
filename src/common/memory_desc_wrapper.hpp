@@ -77,9 +77,8 @@ struct memory_desc_wrapper : public c_compatible {
     }
 
     const blocking_desc_t &blocking_desc() const {
-        assert(is_blocking_or_sparse_packed_desc());
-        if (!is_sparse_desc()) return md_->format_desc.blocking;
-        return sparse_desc().packed_desc;
+        assert(is_blocking_desc());
+        return md_->format_desc.blocking;
     }
     const wino_desc_t &wino_desc() const {
         assert(is_wino_desc());
@@ -535,7 +534,11 @@ struct memory_desc_wrapper : public c_compatible {
      * user responsibility to adjust the result to get offset within blocks */
     template <typename... Args>
     dim_t blk_off(Args... args) const {
-        return _blk_off<sizeof...(args), Args...>(args...);
+        assert(is_blocking_or_sparse_packed_desc());
+        if (is_blocking_desc()) {
+            return _blk_off<sizeof...(args), Args...>(args...);
+        }
+        return _blk_off_sparse<sizeof...(args), Args...>(args...);
     }
 
     template <bool skip_first, typename T, typename... Args>
@@ -574,19 +577,23 @@ private:
         return offset0();
     }
 
+    template <int ORIG_LEN, typename... Void>
+    dim_t _blk_off_sparse() const {
+        return offset0();
+    }
+
     template <int ORIG_LEN, typename T, typename... Args>
     dim_t _blk_off(T xc, Args... args) const {
-        assert(is_blocking_or_sparse_packed_desc());
+        assert(is_blocking_desc());
         constexpr int dc = ORIG_LEN - sizeof...(args) - 1;
+        return xc * blocking_desc().strides[dc] + _blk_off<ORIG_LEN, Args...>(args...);
+    }
 
-        const blocking_desc_t &blk = [&]() {
-            if (is_blocking_desc())
-                return blocking_desc();
-            else
-                return sparse_desc().packed_desc;
-        }();
-
-        return xc * blk.strides[dc] + _blk_off<ORIG_LEN, Args...>(args...);
+    template <int ORIG_LEN, typename T, typename... Args>
+    dim_t _blk_off_sparse(T xc, Args... args) const {
+        assert(is_sparse_desc());
+        constexpr int dc = ORIG_LEN - sizeof...(args) - 1;
+        return xc * sparse_desc().packed_desc.strides[dc] + _blk_off_sparse<ORIG_LEN, Args...>(args...);
     }
 };
 
