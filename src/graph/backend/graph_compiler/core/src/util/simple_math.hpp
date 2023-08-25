@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <immintrin.h>
 #include <stddef.h>
+#include <util/compiler_macros.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -42,7 +43,7 @@ inline bool is_power_of_2(const uint64_t val) {
 
 // get leading zeros
 inline int clz(const uint32_t val) {
-#ifdef _MSC_VER
+#if SC_IS_MSVC()
     return _lzcnt_u32(val);
 #else
     return __builtin_clz(val);
@@ -50,7 +51,7 @@ inline int clz(const uint32_t val) {
 }
 
 inline int clz(const uint64_t val) {
-#ifdef _MSC_VER
+#if SC_IS_MSVC()
     return _lzcnt_u64(val);
 #else
     return __builtin_clzll(val);
@@ -59,7 +60,7 @@ inline int clz(const uint64_t val) {
 
 // get trailing zeros
 inline int ctz(const uint32_t val) {
-#ifdef _MSC_VER
+#if SC_IS_MSVC()
     return _tzcnt_u32(val);
 #else
     return __builtin_ctz(val);
@@ -67,7 +68,7 @@ inline int ctz(const uint32_t val) {
 }
 
 inline int ctz(const uint64_t val) {
-#ifdef _MSC_VER
+#if SC_IS_MSVC()
     return _tzcnt_u64(val);
 #else
     return __builtin_ctzll(val);

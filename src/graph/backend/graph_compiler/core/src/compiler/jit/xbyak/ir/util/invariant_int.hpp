@@ -18,9 +18,16 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_UTIL_INVARIANT_INT_HPP
 
 #include <assert.h>
+#include <util/compiler_macros.hpp>
 #include <util/utils.hpp>
-#ifndef __SIZEOF_INT128__
+// if the compiler has not defined uint128, we need to implement
+// it on our own. Also, the uint128 implementation is incomplete on OSS
+// dpcpp.
+#if !defined(__SIZEOF_INT128__) || (SC_IS_CLANG() && defined(_MSC_VER))
 #include <util/uint128.hpp>
+#define HAS_BUILTIN_INT128 0
+#else
+#define HAS_BUILTIN_INT128 1
 #endif
 
 namespace dnnl {
@@ -31,11 +38,12 @@ namespace xbyak {
 namespace invariant_int {
 
 // If __uint128_t not defined by compiler, use own implementation
-#ifdef __SIZEOF_INT128__
+#if HAS_BUILTIN_INT128
 using uint128_t = __uint128_t;
 #else
 using uint128_t = utils::uint128_t;
 #endif
+#undef HAS_BUILTIN_INT128
 
 // uint128 pow of 2
 inline uint128_t u128_pow_2(const int n) {
@@ -64,7 +72,7 @@ struct ChooseMultiplier {
         m_low_ = _2_pow_N_l / uint128_t(d);
         m_hig_ = (_2_pow_N_l + _2_pow_N_lp) / uint128_t(d);
 
-        while ((m_low_ >> 1 < m_hig_ >> 1) && (sft_ > 0)) {
+        while (((m_low_ >> 1) < (m_hig_ >> 1)) && (sft_ > 0)) {
             m_low_ = m_low_ >> 1;
             m_hig_ = m_hig_ >> 1;
             sft_--;
