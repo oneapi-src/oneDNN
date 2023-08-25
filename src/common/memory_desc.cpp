@@ -53,9 +53,7 @@ status_t memory_desc_init_by_tag(memory_desc_t &memory_desc, int ndims,
     md.format_kind = format_kind;
 
     status_t status = success;
-    if (tag == format_tag::undef) {
-        status = invalid_arguments;
-    } else if (tag == format_tag::any) {
+    if (tag == format_tag::any) {
         // nop
     } else if (format_kind == format_kind::blocked) {
         status = memory_desc_wrapper::compute_blocking(md, tag);
