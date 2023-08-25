@@ -1147,8 +1147,12 @@ public:
     // non-fast mode
     bool var_rvalue_changed_ = false;
     bool fast_;
+    bool skip_mod_expand_;
 
-    constant_fold_t(bool fast) : cmper(false, true, true, false), fast_(fast) {}
+    constant_fold_t(bool fast, bool skip_mod_expand = false)
+        : cmper(false, true, true, false)
+        , fast_(fast)
+        , skip_mod_expand_(skip_mod_expand) {}
     expr_c dispatch(expr_c v) override {
         if (v.isa<var>() || v.isa<constant>()) { return v; }
         auto ana = get_analysis(v.get(), run_idx_);
@@ -1428,36 +1432,44 @@ public:
                     break;
                 } else {
                     constant_c rv = l_r.second.checked_as<constant_c>();
-                    switch (l_r.first->node_type_) {
-                        case sc_expr_type::add:
-                        case sc_expr_type::sub: {
-                            // TODO(xxx): special case for distribution law of
-                            // Integer division
-                            if (parent->node_type_ == sc_expr_type::div) {
-                                auto l_r = get_operand_from_binary(parent);
+                    //
+                    auto expand_add_sub = [&](bool skip) {
+                        if (skip) {
+                            return builder::remake_binary(
+                                    expand_polynomial(l_r.first),
+                                    expand_polynomial(l_r.second), parent);
+                        } else {
+                            auto next_lr = get_operand_from_binary(l_r.first);
+                            auto new_parent = builder::remake_binary(
+                                    expand_polynomial(builder::remake_binary(
+                                            next_lr.first, rv, parent)),
+                                    expand_polynomial(builder::remake_binary(
+                                            next_lr.second, rv, parent)),
+                                    l_r.first);
+                            if (parent->node_type_ == sc_expr_type::mod)
                                 return builder::remake_binary(
-                                        expand_polynomial(l_r.first),
-                                        expand_polynomial(l_r.second), parent);
-                            } else {
-                                auto next_lr
-                                        = get_operand_from_binary(l_r.first);
-                                auto new_parent = builder::remake_binary(
-                                        expand_polynomial(
-                                                builder::remake_binary(
-                                                        next_lr.first, rv,
-                                                        parent)),
-                                        expand_polynomial(
-                                                builder::remake_binary(
-                                                        next_lr.second, rv,
-                                                        parent)),
-                                        l_r.first);
-                                if (parent->node_type_ == sc_expr_type::mod)
-                                    return builder::remake_binary(
-                                            new_parent, l_r.second, parent);
-                                else {
-                                    return new_parent;
-                                }
+                                        new_parent, l_r.second, parent);
+                            else {
+                                return new_parent;
                             }
+                        }
+                    };
+                    switch (l_r.first->node_type_) {
+                        // TODO(xxx): special case for distribution law of
+                        // Integer division and modulo
+                        case sc_expr_type::add: {
+                            bool skip = parent->node_type_ == sc_expr_type::div
+                                    || (parent->node_type_ == sc_expr_type::mod
+                                            && skip_mod_expand_);
+                            return expand_add_sub(skip);
+                        }
+                        case sc_expr_type::sub: {
+                            auto is_uint = get_type_category(l_r.second->dtype_)
+                                    == CATE_UINT;
+                            bool skip = parent->node_type_ == sc_expr_type::div
+                                    || (parent->node_type_ == sc_expr_type::mod
+                                            && (skip_mod_expand_ || is_uint));
+                            return expand_add_sub(skip);
                         }
                         case sc_expr_type::mul:
                         case sc_expr_type::div:
@@ -1902,16 +1914,18 @@ expr_c constant_folder_t::operator()(expr_c f) const {
  *  this feature to constant folding pass
  *  @param f: original polynomial expr.
  *  @param max_iter: maximum iteration time, default is one.
+ *  @param skip_mod: skip int mod expand.
  * */
-expr_c constant_folder_t::expand_polynomial(expr_c f, int max_iter) {
-    constant_fold_t pass {true};
+expr_c constant_folder_t::expand_polynomial(
+        expr_c f, int max_iter, bool skip_mod) {
+    constant_fold_t pass {true, skip_mod};
     auto ret = pass.dispatch(std::move(f));
     for (int i = 0; i < max_iter; i++) {
         auto old = ret;
         ret = pass.expand_polynomial(old);
         if (ret.ptr_same(old)) { break; }
     }
-    constant_fold_t pass2 {true};
+    constant_fold_t pass2 {true, skip_mod};
     return pass2.dispatch(ret);
 }
 

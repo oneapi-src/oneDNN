@@ -448,6 +448,10 @@ TEST(GCCore_CPU_const_fold_cpp, TestConstFoldwithPolynomialExpansion) {
     var va = make_expr<var_node>(datatypes::s32, "a");
     var vb = make_expr<var_node>(datatypes::s32, "b");
     var vd = make_expr<var_node>(datatypes::s32, "d");
+    var iva = make_expr<var_node>(datatypes::index, "a");
+    var ivb = make_expr<var_node>(datatypes::index, "b");
+    var ivd = make_expr<var_node>(datatypes::index, "d");
+    //
     constant_folder_t f {false};
     ir_comparer cmper(false, true, true);
     expr tmp;
@@ -456,6 +460,40 @@ TEST(GCCore_CPU_const_fold_cpp, TestConstFoldwithPolynomialExpansion) {
     EXPECT_TRUE(cmper.compare(
             f.expand_polynomial(((va + vb) * expr(20) + vd) * expr(30), 2),
             va * expr(600) + vb * expr(600) + vd * expr(30)));
+    // (a + 5) / 10 = (a + 5) / 10 (sint div remain same)
+    EXPECT_TRUE(cmper.compare(
+            f.expand_polynomial(((va + expr(5)) / expr(10)), 2), //
+            ((va + expr(5)) / expr(10))));
+    // (a - 26) % 3 = ((a % 3) - 2) % 3
+    EXPECT_TRUE(cmper.compare(
+            f.expand_polynomial(((va - expr(26)) % expr(3)), 2), //
+            ((va % expr(3) - expr(2)) % expr(3))));
+    // (a - 26) % 3 = (a - 26) % 3 (skip sint mod expand)
+    EXPECT_TRUE(cmper.compare(
+            f.expand_polynomial(((va - expr(26)) % expr(3)), 2, true), //
+            ((va - expr(26)) % expr(3))));
+
+    // ((ia+ib)*20+id)*30 = ia*600+ib*600+id*30
+    EXPECT_TRUE(cmper.compare(
+            f.expand_polynomial(
+                    ((iva + ivb) * expr(20UL) + ivd) * expr(30UL), 2, true),
+            iva * expr(600UL) + ivb * expr(600UL) + ivd * expr(30UL)));
+    // (ia + 5) / 10 = (ia + 5) / 10 (uint div remain same)
+    EXPECT_TRUE(cmper.compare(
+            f.expand_polynomial(((iva + expr(5UL)) / expr(10UL)), 2), //
+            ((iva + expr(5UL)) / expr(10UL))));
+    // (ia - 26) % 3 = (ia - 26) % 3 (uint mod remain same)
+    EXPECT_TRUE(cmper.compare(
+            f.expand_polynomial(((iva - expr(26UL)) % expr(3UL)), 2), //
+            ((iva - expr(26UL)) % expr(3UL))));
+    // (ia + 26) % 3 = ((a % 3) + 2) % 3
+    EXPECT_TRUE(cmper.compare(
+            f.expand_polynomial(((iva + expr(26UL)) % expr(3UL)), 2), //
+            (((iva % expr(3UL)) + expr(2UL)) % expr(3UL))));
+    // (ia + 26) % 3 = (ia + 26) % 3 (skip uint mod expand)
+    EXPECT_TRUE(cmper.compare(
+            f.expand_polynomial(((iva + expr(26UL)) % expr(3UL)), 2, true), //
+            ((iva + expr(26UL)) % expr(3UL))));
 }
 
 TEST(GCCore_CPU_const_fold_cpp, TestConstFoldSuccessiveDiv) {

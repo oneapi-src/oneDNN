@@ -57,6 +57,10 @@ public:
                 && (info == nullptr || info->has_no_alias());
     }
 
+    expr_c expand_polynomial_offset(expr_c f) {
+        return constant_folder_.expand_polynomial(std::move(f), 1, true);
+    }
+
     expr_c visit(indexing_c v) override {
         auto vv = ir_visitor_t::visit(std::move(v)).checked_as<indexing_c>();
         auto &ptr = vv->ptr_;
@@ -80,7 +84,7 @@ public:
             // The right add op must be most inner var
             auto node = idx.static_as<add>();
             auto scale = builder::make_constant({elem_size}, idx_type);
-            auto offset = constant_folder_.expand_polynomial(scale * node->l_);
+            auto offset = expand_polynomial_offset(scale * node->l_);
             auto new_ptr = builder::make_cast(
                     ptr->dtype_, builder::make_cast(idx_type, ptr) + offset);
             // transform A[l + r] to (A + (s * l))[r]
@@ -89,7 +93,7 @@ public:
                     new_ptr, new_idx, vv->dtype_.lanes_, vv->mask_);
         } else {
             auto scale = builder::make_constant({elem_size}, idx_type);
-            auto offset = constant_folder_.expand_polynomial(scale * idx);
+            auto offset = expand_polynomial_offset(scale * idx);
             auto new_ptr = builder::make_cast(
                     ptr->dtype_, builder::make_cast(idx_type, ptr) + offset);
             // transform A[i] to (A + (s * i))[0]
@@ -113,7 +117,7 @@ public:
             return builder::make_cast(v->dtype_, ptr);
         } else {
             auto scale = builder::make_constant({elem_size}, idx->dtype_);
-            auto offset = constant_folder_.expand_polynomial(scale * idx);
+            auto offset = expand_polynomial_offset(scale * idx);
             return builder::make_cast(v->dtype_,
                     builder::make_cast(datatypes::index, ptr) + offset);
         }
