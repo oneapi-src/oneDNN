@@ -433,11 +433,7 @@ static void compute_block_pooling(
     bool is_int = utils::is_one_of(in_dtype.type_code_, sc_data_etype::U8,
             sc_data_etype::U32, sc_data_etype::S8, sc_data_etype::S32);
     if (pooling_typ == pooling_type_t::avg) {
-        if (is_int) {
-            init_value = int64_t(0);
-        } else {
-            init_value = 0.f;
-        }
+        init_value = 0.f;
     } else {
         COMPILE_ASSERT(
                 pooling_typ == pooling_type_t::max, "wrong pooling type");
@@ -469,17 +465,22 @@ static void compute_block_pooling(
             || in_dtype.type_code_ == sc_data_etype::U32
             || in_dtype.type_code_ == sc_data_etype::S8
             || in_dtype.type_code_ == sc_data_etype::S32) {
-        if (pooling_typ == pooling_type_t::avg)
+        zero_constant = make_expr<constant_node>(0.f, in_vectorized_dtype);
+        one_constant = make_expr<constant_node>(1.f, in_vectorized_dtype);
+        if (pooling_typ == pooling_type_t::avg) {
             pool_buf_vectorized_dtype
-                    = sc_data_type_t(sc_data_etype::S32, vx_info.lanes);
-        zero_constant
-                = make_expr<constant_node>(int64_t(0), in_vectorized_dtype);
-        one_constant = make_expr<constant_node>(
-                int64_t(1), pool_buf_vectorized_dtype);
-        kernel_size_constant = make_expr<constant_node>(
-                int64_t(kernel_size), pool_buf_vectorized_dtype);
-        pooling_buf_constant = make_expr<constant_node>(
-                uint64_t(init_value.get<int64_t>()), pool_buf_vectorized_dtype);
+                    = sc_data_type_t(sc_data_etype::F32, vx_info.lanes);
+            kernel_size_constant = make_expr<constant_node>(
+                    float(kernel_size), pool_buf_vectorized_dtype);
+            pooling_buf_constant = make_expr<constant_node>(
+                    init_value.get<float>(), pool_buf_vectorized_dtype);
+        } else {
+            kernel_size_constant = make_expr<constant_node>(
+                    int64_t(kernel_size), pool_buf_vectorized_dtype);
+            pooling_buf_constant = make_expr<constant_node>(
+                    uint64_t(init_value.get<int64_t>()),
+                    pool_buf_vectorized_dtype);
+        }
     } else {
         COMPILE_ASSERT(0, "unsupported in_dtype.");
     }

@@ -265,7 +265,7 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                 for (auto &out : node->get_outputs()) {
                     if (node->isa<pooling_avg_op_t>()) {
                         node->get_outputs()[0]->details_.dtype_.type_code_
-                                = sc_data_etype::S32;
+                                = sc_data_etype::F32;
                     } else {
                         out->details_.dtype_
                                 = node->get_inputs()[0]->details_.dtype_;
