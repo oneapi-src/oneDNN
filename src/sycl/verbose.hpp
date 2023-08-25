@@ -41,12 +41,14 @@ void print_verbose_header(engine_kind_t kind) {
             auto s_name = dev_info ? dev_info->name() : "unknown";
             auto s_ver
                     = dev_info ? dev_info->runtime_version().str() : "unknown";
+            auto s_binary_kernels = dev_info
+                    ? dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled"
+                    : "unknown";
 
             printf("onednn_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
                    "version:%s,binary_kernels:%s\n",
                     s_engine_kind, (int)i, s_backend.c_str(), s_name.c_str(),
-                    s_ver.c_str(),
-                    dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
+                    s_ver.c_str(), s_binary_kernels);
         } catch (...) {
             VERROR(dpcpp, VERBOSE_INVALID_DEVICE_ENV,
                     dnnl_engine_kind2str(engine_kind::gpu), i);
