@@ -488,7 +488,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
         recalc_ld_block(brg->ld_block);
         recalc_ld_block2(brg->ld_block2);
 
-        if (brg->brgattr.use_uker) {
+        if (can_dispatch_uker(brg)) {
             // Blocking heuristics for some shapes
             // TODO: Review these criterias
             size_t eff_K
