@@ -66,7 +66,7 @@ TEST(OpExecutable, DummyImpl) {
     // test empty input events
     auto returned_event0 = op_exec->execute_sycl(p_stream, {}, {});
     const auto &event_list0 = returned_event0.get_wait_list();
-    ASSERT_EQ(event_list0.size(), 0);
+    ASSERT_EQ(event_list0.size(), 0U);
     ASSERT_EQ(
             returned_event0
                     .get_info<::sycl::info::event::command_execution_status>(),
@@ -86,7 +86,7 @@ TEST(OpExecutable, DummyImpl) {
     auto returned_event2
             = op_exec->execute_sycl(p_stream, {}, {input_event0, input_event1});
     const auto &event_list2 = returned_event2.get_wait_list();
-    ASSERT_GT(event_list2.size(), 0);
+    ASSERT_GT(event_list2.size(), 0U);
     returned_event2.wait();
     ASSERT_EQ(
             returned_event2
