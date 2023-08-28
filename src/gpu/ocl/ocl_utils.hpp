@@ -193,6 +193,7 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
 #define UNUSED_OCL_RESULT(x) \
     do { \
         cl_int s = x; \
+        if (s != CL_SUCCESS) { MAYBE_REPORT_OCL_ERROR(s); } \
         assert(s == CL_SUCCESS); \
         MAYBE_UNUSED(s); \
     } while (false)
