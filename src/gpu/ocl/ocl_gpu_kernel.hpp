@@ -54,6 +54,8 @@ public:
 
     void save_output_events() override { save_events_ = true; }
 
+    bool is_on(const gpu::compute::compute_engine_t &engine) const override;
+
 private:
     cl_kernel ocl_kernel_;
     std::vector<gpu::compute::scalar_type_t> arg_types_;

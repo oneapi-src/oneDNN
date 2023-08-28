@@ -156,6 +156,13 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
     return status::success;
 }
 
+bool sycl_interop_gpu_kernel_t::is_on(
+        const gpu::compute::compute_engine_t &engine) const {
+    if (engine.runtime_kind() != runtime_kind::sycl) return false;
+    auto &sycl_engine = *utils::downcast<const sycl_gpu_engine_t *>(&engine);
+    return sycl_kernel().get_context() == sycl_engine.context();
+}
+
 } // namespace sycl
 } // namespace gpu
 } // namespace impl

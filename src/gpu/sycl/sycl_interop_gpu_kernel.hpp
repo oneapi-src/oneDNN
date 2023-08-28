@@ -47,6 +47,8 @@ public:
         return arg_types_;
     }
 
+    bool is_on(const gpu::compute::compute_engine_t &engine) const override;
+
 private:
     std::unique_ptr<::sycl::kernel> sycl_kernel_;
     std::vector<gpu::compute::scalar_type_t> arg_types_;

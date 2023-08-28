@@ -233,6 +233,16 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     return status::success;
 }
 
+bool ocl_gpu_kernel_t::is_on(
+        const gpu::compute::compute_engine_t &engine) const {
+    if (engine.runtime_kind() != runtime_kind::ocl) return false;
+    auto &ocl_engine = *utils::downcast<const ocl_gpu_engine_t *>(&engine);
+    cl_context ctx = {};
+    UNUSED_OCL_RESULT(clGetKernelInfo(
+            ocl_kernel(), CL_KERNEL_CONTEXT, sizeof(ctx), &ctx, nullptr));
+    return ctx == ocl_engine.context();
+}
+
 } // namespace ocl
 } // namespace gpu
 } // namespace impl

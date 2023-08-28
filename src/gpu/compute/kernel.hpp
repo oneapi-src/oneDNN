@@ -30,6 +30,7 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
+class compute_engine_t;
 class kernel_impl_t;
 
 class kernel_t {
@@ -64,6 +65,8 @@ public:
     const std::vector<scalar_type_t> &arg_types() const;
 
     void save_output_events();
+
+    bool is_on(const compute_engine_t &) const;
 
 private:
     std::shared_ptr<kernel_impl_t> impl_;
@@ -107,6 +110,8 @@ public:
     }
 
     virtual void save_output_events() {}
+
+    virtual bool is_on(const compute_engine_t &) const = 0;
 };
 
 inline status_t kernel_t::parallel_for(stream_t &stream,
@@ -135,6 +140,10 @@ inline const std::vector<scalar_type_t> &kernel_t::arg_types() const {
 
 inline void kernel_t::save_output_events() {
     return impl_->save_output_events();
+}
+
+inline bool kernel_t::is_on(const compute_engine_t &engine) const {
+    return impl_->is_on(engine);
 }
 
 } // namespace compute
