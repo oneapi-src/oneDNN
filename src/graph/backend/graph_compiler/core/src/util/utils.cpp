@@ -87,6 +87,12 @@ uint32_t get_sizeof_etype(sc_data_etype etype) {
     }
 }
 
+std::string etype_to_string(sc_data_etype edtype) {
+    std::stringstream os;
+    os << edtype;
+    return os.str();
+}
+
 uint64_t get_sizeof_type(sc_data_type_t dtype) {
     return get_sizeof_etype(dtype.type_code_) * dtype.lanes_;
 }

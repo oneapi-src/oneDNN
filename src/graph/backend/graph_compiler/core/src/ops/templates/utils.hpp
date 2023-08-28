@@ -84,6 +84,22 @@ inline bool is_amx_dtype(const context_ptr &ctx, const sc_data_type_t &dtype) {
   return ret;
 }
 
+inline bool is_vnni_low_fp(
+  const context_ptr &ctx, const sc_data_type_t &dtype) {
+  return dtype == datatypes::bf16
+    || (ctx->machine_.cpu_flags_.fAVX512AMXFP16 && dtype == datatypes::f16);
+}
+
+inline bool no_vnni_low_fp(
+  const context_ptr &ctx, const sc_data_type_t &dtype) {
+  return ctx->machine_.cpu_flags_.fAVX512FP16 && dtype == datatypes::f16;
+}
+
+inline bool no_vnni(const context_ptr &ctx, const sc_data_type_t &dtype) {
+  return dtype == datatypes::f32
+    || (ctx->machine_.cpu_flags_.fAVX512FP16 && dtype == datatypes::f16);
+}
+
 inline std::vector<expr> dims_to_expr(const sc_dims &dim) {
   std::vector<expr> ret;
   for (auto i : dim) {
@@ -232,7 +248,7 @@ inline int get_lanes(
     } else if (C_block / 16 && C_block % 16 == 0) {
       lanes = vectorize_step(ctx, dtype.type_code_, 16);
     }
-  } else if (dtype == datatypes::bf16) {
+  } else if (is_vnni_low_fp(ctx, dtype)) {
     if (C_block / 32 && C_block % 32 == 0) {
       lanes = vectorize_step(ctx, dtype.type_code_, 32);
     } else if (C_block / 16 && C_block % 16 == 0) {

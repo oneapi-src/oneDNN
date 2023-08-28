@@ -67,7 +67,8 @@ static void inline validate_cfg(
   matmul_core_config_t &cfg, bool is_amx, sc_data_type_t dtype) {
   if (!is_amx) return;
   if (is_dynamic_dim(cfg.K_block)) { return; }
-  int rd_block = dtype == datatypes::bf16                   ? 32
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(get_default_context(), dtype);
+  int rd_block = is_vnni_low_fp                             ? 32
     : utils::is_one_of(dtype, datatypes::u8, datatypes::s8) ? 64
                                                             : -1;
   if (rd_block == -1) return;
@@ -133,7 +134,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
   const bool is_amx = ctx->use_amx();
   const bool is_int8
     = utils::is_one_of(get_in_dtypes(0), datatypes::u8, datatypes::s8);
-  const bool is_bf16 = get_in_dtypes(0) == datatypes::bf16;
+  const bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, get_in_dtypes(0));
   const int max_block = 64;
   const int min_block = 32;
   const auto A_plain_dims = get_mma_plain_dims();
@@ -153,7 +154,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
     if (K < 32) { cfg.K_block = K; }
   } else {
     if (A_plain_dims[1] < 64) {
-      cfg.K_block = utils::rnd_up(A_plain_dims[1], is_bf16 ? 2 : 4);
+      cfg.K_block = utils::rnd_up(A_plain_dims[1], is_vnni_low_fp ? 2 : 4);
     }
   }
   bool is_cfg_set = false;
@@ -245,7 +246,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
             int pad64_M = ceil64_M - M;
             int pad48_M = ceil48_M - M;
             int pad32_M = ceil32_M - M;
-            if (!(is_amx && is_bf16)) {
+            if (!(is_amx && is_vnni_low_fp)) {
               cfg.M_block = pad48_M >= pad64_M ? (pad64_M > pad32_M ? 32 : 64)
                                                : (pad48_M >= pad32_M ? 32 : 48);
             } else {
@@ -278,7 +279,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
       int pad64_N = ceil64_N - N;
       int pad48_N = ceil48_N - N;
       int pad32_N = ceil32_N - N;
-      if (!(is_amx && is_bf16)) {
+      if (!(is_amx && is_vnni_low_fp)) {
         cfg.N_block = pad48_N >= pad64_N ? (pad64_N > pad32_N ? 32 : 64)
                                          : (pad48_N >= pad32_N ? 32 : 48);
       } else {
@@ -342,15 +343,20 @@ void gen_matmul_core_t::get_and_check_blocks(sc_graph_t &graph,
   if (blocking_axis_.B_k.size() == 1) {
     assert(blocking_axis_.B_n.size() == 1);
     COMPILE_ASSERT(is_config_set, "config must be set with plain input.");
-    COMPILE_ASSERT(inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32,
-      "the datatype of B must be f32 when B is plain.");
+    bool is_avx512f16 = inputs[1].as<tensor>()->elem_dtype_ == datatypes::f16
+      && get_default_context()->machine_.cpu_flags_.fAVX512FP16;
+    COMPILE_ASSERT(
+      inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32 || is_avx512f16,
+      "the datatype of B must be f32 or AVX512_f16 when B is plain.");
     N_block = config.N_block;
   } else {
     N_block = get_expr_as_int(B_dims[blocking_axis_.B_n.back()]);
-    if (utils::is_one_of(inputs[1].as<tensor>()->elem_dtype_, datatypes::u8,
-          datatypes::s8, datatypes::bf16)) {
-      int dtype_block
-        = inputs[1].as<tensor>()->elem_dtype_ == datatypes::bf16 ? 2 : 4;
+    bool is_vnni_low_fp = ops::is_vnni_low_fp(
+      get_default_context(), inputs[1].as<tensor>()->elem_dtype_);
+    if (utils::is_one_of(
+          inputs[1].as<tensor>()->elem_dtype_, datatypes::u8, datatypes::s8)
+      || is_vnni_low_fp) {
+      int dtype_block = is_vnni_low_fp ? 2 : 4;
       if (in_tensors_[1].get_plain_dims().back() % K_block == 0) {
         // padding because of big K_block
         if (K_block < 4 && dtype_block == 4) {
@@ -512,8 +518,11 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(sc_graph_t &graph,
   // update bidx and stride_b according to the format of tensor B
   if (!update_b) {
     if (blocking_axis_.B_k.size() == 1 && blocking_axis_.B_n.size() == 1) {
-      COMPILE_ASSERT(inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32,
-        "the datatype of B must be f32 when B is plain.");
+      bool is_avx512f16 = inputs[1].as<tensor>()->elem_dtype_ == datatypes::f16
+        && get_default_context()->machine_.cpu_flags_.fAVX512FP16;
+      COMPILE_ASSERT(
+        inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32 || is_avx512f16,
+        "the datatype of B must be f32 or AVX512_f16 when B is plain.");
       LDB = 1;
       stride_b = K_block;
       int flag_l_idx = 0, flag_s_idx = 0;
@@ -637,12 +646,13 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   auto A_dtype = get_A_dtype(), B_dtype = get_B_dtype();
   int M_block = 0, K_block = 0, N_block = 0;
   expr M_num_blocks, N_num_blocks, K_num_blocks, B_K_num_blocks;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, B_dtype);
 
   get_and_check_blocks(graph, inputs, config, M_num_blocks, K_num_blocks,
     M_block, K_block, N_block, B_K_num_blocks, N_num_blocks);
 
   int dtype_block = 1;
-  if (B_dtype == datatypes::bf16) {
+  if (is_vnni_low_fp) {
     dtype_block = 2;
   } else if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
     dtype_block = 4;

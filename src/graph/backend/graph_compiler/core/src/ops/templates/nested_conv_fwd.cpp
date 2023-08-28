@@ -188,15 +188,15 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
 
     bool is_int8
       = utils::is_one_of(get_input_dtype(), datatypes::u8, datatypes::s8);
-    bool is_bf16 = get_input_dtype() == datatypes::bf16;
+    bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, get_input_dtype());
 
-    auto dtype_block = is_int8 ? 4 : (is_bf16 ? 2 : 1);
+    auto dtype_block = is_int8 ? 4 : (is_vnni_low_fp ? 2 : 1);
     auto default_block = dtype_block * 32;
 
     if (mb_ == 1 && num_threads == 4) { default_block = 64; };
     bool has_pad = (pd_b_ > 0) || (ph_b_ > 0) || (pw_b_ > 0) || (pd_e_ > 0)
       || (ph_e_ > 0) || (pw_e_ > 0);
-    if (has_pad) { default_block = (is_int8 || is_bf16) ? 128 : 64; }
+    if (has_pad) { default_block = (is_int8 || is_vnni_low_fp) ? 128 : 64; }
 
     cfg.im_oc_block = utils::get_blocks(oc_, 1, default_block).back();
     cfg.im_ic_block = utils::get_blocks(ic_, 1, default_block).back();
@@ -4351,6 +4351,14 @@ bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
     COMPILE_ASSERT((dtypeOutput == datatypes::f32),
       "Output should be f32 when data and weights are in bf16.");
     kpack = 2;
+  }
+  if (dtypeInput == datatypes::f16) {
+    COMPILE_ASSERT((dtypeWeight == datatypes::f16),
+      "Weights should be f16 as "
+      "data, the mixed datatypes is not supported yet!");
+    COMPILE_ASSERT((dtypeOutput == datatypes::f32),
+      "Output should be f32 when data and weights are in f16.");
+    kpack = ctx->machine_.cpu_flags_.fAVX512AMXFP16 ? 2 : 1;
   }
   if (utils::is_one_of(dtypeInput, datatypes::s8, datatypes::u8)) {
     COMPILE_ASSERT((dtypeWeight == datatypes::s8),

@@ -111,12 +111,13 @@ gen_nested_convNxN_backprop_data_t::gen_nested_convNxN_backprop_data_t(
     in_tensors_.size() == 2, "input logical tensor size should be two.");
   COMPILE_ASSERT(
     out_tensors_.size() == 1, "output logical tensor size should be one.");
-  bool is_bf16 = get_A_dtype() == datatypes::bf16;
+  bool is_vnni_low_fp
+    = ops::is_vnni_low_fp(get_default_context(), get_A_dtype());
   ndims_ = get_output_grad_dims().size();
   int OW = get_output_grad_dims()[3];
   int OC = get_output_grad_dims()[1];
   // TODO(yifei): enhance default values to deal with more flexible configs
-  if (is_bf16) {
+  if (is_vnni_low_fp) {
     im_oc_block_ = OC;
     im_ic_block_ = 32;
     im_ow_block_ = OW;
@@ -362,7 +363,8 @@ bool gen_nested_convNxN_backprop_data_t::generate(context_ptr ctx,
 
   // other template related pre-compute values
   auto dtype = get_A_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
   int ic_single_core = IC / ic_threads;
   int ih_single_core = IH / ih_threads;
   expr bs_single_core_size, ih_single_core_size;

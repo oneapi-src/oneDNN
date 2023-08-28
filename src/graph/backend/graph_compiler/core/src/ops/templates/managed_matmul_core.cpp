@@ -211,6 +211,7 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   const int iik_block = iik_block_;
   bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
   bool is_f32 = get_A_dtype() == datatypes::f32;
+  bool no_vnni_low_fp = ops::no_vnni_low_fp(ctx, get_A_dtype());
   const int M
     = utils::divide_and_ceil(
         static_cast<int>(in_tensors_[0].get_plain_dims()[0]), iim_block)
@@ -230,7 +231,7 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   get_managed_matmul_config(ctx->machine_, cfg.M_split_num, cfg.N_split_num,
     cfg.M_sub_block, cfg.N_sub_block, cfg.K_sub_block, cfg.im_loop_order, M, N,
     K, iim_block, iin_block, iik_block, sizeofdtypeA, sizeofdtypeC, is_int8,
-    is_f32, owner_->is_dynamic());
+    is_f32 || no_vnni_low_fp, owner_->is_dynamic());
   return std::move(ret);
 }
 
@@ -251,7 +252,7 @@ config_ptr gen_managed_matmul_core_t::get_default_post_rd_config(
   const int N = utils::rnd_up(ori_N, iin_block);
   const int K = utils::rnd_up(ori_K, iik_block);
   bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
-  bool is_bf16 = get_A_dtype() == datatypes::bf16;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, get_A_dtype());
   const int sizeofdtypeA
     = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
   const int sizeofdtypeC
@@ -259,7 +260,7 @@ config_ptr gen_managed_matmul_core_t::get_default_post_rd_config(
   bool is_special_fm = ctx->machine_.cpu_flags_.is_spr_like();
 
   // should discuss int8 and f32
-  if ((M < 4096 && !is_bf16) || M / iim_block_ < num_threads) {
+  if ((M < 4096 && !is_vnni_low_fp) || M / iim_block_ < num_threads) {
     return get_default_config(ctx);
   }
 
@@ -279,7 +280,7 @@ config_ptr gen_managed_matmul_core_t::get_default_post_rd_config(
     = (single_M * single_N * sizeofdtypeA < L2_size ? 2048 : 4096)
     / sizeofdtypeA;
   if (single_K >= single_K_threshold) {
-    cfg.K_sub_block = (is_bf16 || is_int8 || K <= 1024)
+    cfg.K_sub_block = (is_vnni_low_fp || is_int8 || K <= 1024)
       ? 1
       : utils::divide_and_ceil(single_K, single_K_threshold);
     cfg.K_sub_block = std::min(K / iik_block_, cfg.K_sub_block);
@@ -545,8 +546,10 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   const int64_t plain_K = get_mma_plain_dims()[1];
   const int64_t plain_N = get_mmb_plain_dims()[1];
   const int num_threads = runtime_config_t::get().get_num_threads();
-
-  bool is_bf16 = get_A_dtype() == datatypes::bf16;
+  bool is_vnni_low_fp
+    = ops::is_vnni_low_fp(get_default_context(), get_A_dtype());
+  bool no_vnni_low_fp
+    = ops::no_vnni_low_fp(get_default_context(), get_A_dtype());
   bool is_f32 = get_A_dtype() == datatypes::f32;
   bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
   int64_t M_block_default = 64;
@@ -558,7 +561,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   bool is_skx_like = get_default_context()->machine_.cpu_flags_.is_skx_like();
   bool is_dynamic = is_dynamic_dim(plain_M) || is_dynamic_dim(plain_N)
     || is_dynamic_dim(plain_K);
-  if (is_f32) {
+  if (is_f32 || no_vnni_low_fp) {
     if (is_spr_like) {
       // prefer small blocks
       if (plain_M <= 4096) {
@@ -569,7 +572,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     } else {
       if (plain_M <= 256) { M_block_default = 32; }
     }
-  } else if (is_bf16) {
+  } else if (is_vnni_low_fp) {
     if (plain_M > 4096 && plain_N >= 768 && plain_K >= 768) {
       M_block_default = get_bf16_M_block_default(plain_M, num_threads);
       N_block_default = get_bf16_N_block_default(plain_N);
@@ -596,8 +599,8 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   if (!is_dynamic) {
     if (plain_N <= 512 && plain_K <= 512) {
       iim_block_ = std::max(
-        (is_f32 && is_skx_like && plain_M >= 64 && plain_M <= 128
-          && (plain_N >= 256 || plain_K >= 256))
+        ((is_f32 || no_vnni_low_fp) && is_skx_like && plain_M >= 64
+          && plain_M <= 128 && (plain_N >= 256 || plain_K >= 256))
           ? (int64_t)8
           : (int64_t)4,
         std::min(M_block_default,
@@ -614,7 +617,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     iin_block_ = get_matmul_dyn_cfg_single(plain_N);
   }
   if (!is_dynamic) {
-    if (is_f32) {
+    if (is_f32 || no_vnni_low_fp) {
       // f32 small M with small even K prefers padding iik_block to align 16
       if (plain_K < 16 && plain_K % 2 == 0 && plain_M <= 128 && is_skx_like) {
         iik_block_ = 16;
@@ -653,7 +656,7 @@ void gen_managed_matmul_core_t::generate_prefetcher_body_for_tensor(
   auto tid = func_args[2];
   bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
   uint64_t sizeof_dtype = utils::get_sizeof_type(get_A_dtype());
-  bool is_bf16 = get_A_dtype() == datatypes::bf16;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, get_A_dtype());
   int N = static_cast<int>(
         utils::rnd_up(in_tensors_[1].get_plain_dims()[1], iin_block_)),
       K = static_cast<int>(
@@ -1471,7 +1474,8 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
     !is_dynamic_dim(ori_K), "Currently we don't support dynamic on K");
   int dtype_block = 1;
   auto B_dtype = get_B_dtype();
-  if (B_dtype == datatypes::bf16) {
+  bool is_B_vnni_low_fp = ops::is_vnni_low_fp(ctx, B_dtype);
+  if (is_B_vnni_low_fp) {
     dtype_block = 2;
   } else if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
     dtype_block = 4;
@@ -1835,7 +1839,9 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   auto B_dtype = get_B_dtype();
   const int sizeofdtypeA
     = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
-  if (B_dtype == datatypes::bf16) {
+  bool is_A_vnni_low_fp = ops::is_vnni_low_fp(ctx, A_dtype);
+  bool is_B_vnni_low_fp = ops::is_vnni_low_fp(ctx, B_dtype);
+  if (is_B_vnni_low_fp) {
     dtype_block = 2;
   } else if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
     dtype_block = 4;
@@ -1898,7 +1904,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                   {0, K / iik_block_}, {0, iim_block_}, {0, iik_block_}})});
             }
             if (in_tensors_[0].get_format() == sc_data_format_t::NK()
-              && A_dtype == datatypes::bf16) {
+              && is_A_vnni_low_fp) {
               trace_guard_t tg(ctx, "transpose_A");
               expr A_trans_tensor;
               _tensor_(A_trans, get_A_dtype(),
@@ -1920,7 +1926,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                        utils::divide_and_ceil(length_M, iim_block_)},
                       {0, K / iik_block_}, {0, iim_block_}, {0, iik_block_}})},
                   {graph_tensor::make(in_tensors_[0].get_plain_dims(),
-                    sc_data_format_t::NK(), datatypes::bf16)},
+                    sc_data_format_t::NK(), A_dtype)},
                   {},
                   {{"out_format",
                     sc_data_format_t::MKmk(iim_block_, iik_block_)}});
@@ -1964,7 +1970,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           if (!is_dynamic
             && utils::is_one_of(in_tensors_[1].get_format(),
               sc_data_format_t::MK(), sc_data_format_t::NK())
-            && B_dtype == datatypes::bf16) {
+            && is_B_vnni_low_fp) {
             single_thread_reorder_matmul_call(ctx, in_tensors_[0],
               in_tensors_[1], out_tensors_[0], config, M_single_thr_size,
               N_single_thr_size, (int)utils::rnd_up(K, iik_block_), m_idx,
@@ -2194,7 +2200,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                   {0, iim_block_}, {0, iik_block_}})});
             }
             if (in_tensors_[0].get_format() == sc_data_format_t::NK()
-              && A_dtype == datatypes::bf16) {
+              && is_A_vnni_low_fp) {
               trace_guard_t tg(ctx, "transpose_A");
               expr A_trans_tensor;
               _tensor_(A_trans, get_A_dtype(),
@@ -2217,7 +2223,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                         utils::divide_and_ceil(length_K, iik_block_)},
                       {0, iim_block_}, {0, iik_block_}})},
                   {graph_tensor::make(in_tensors_[0].get_plain_dims(),
-                    sc_data_format_t::NK(), datatypes::bf16)},
+                    sc_data_format_t::NK(), A_dtype)},
                   {},
                   {{"out_format",
                     sc_data_format_t::MKmk(iim_block_, iik_block_)}});
@@ -2334,7 +2340,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           if (!is_dynamic
             && utils::is_one_of(in_tensors_[1].get_format(),
               sc_data_format_t::MK(), sc_data_format_t::NK())
-            && B_dtype == datatypes::bf16) {
+            && is_B_vnni_low_fp) {
             single_thread_reorder_matmul_call(ctx, in_tensors_[0],
               in_tensors_[1], out_tensors_[0], config, M_single_thr_size,
               N_single_thr_size, K_single_thr_size, m_idx, n_idx, k_idx, A, B,

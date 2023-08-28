@@ -118,7 +118,8 @@ bool gen_convNxN_backprop_data::generate(context_ptr ctx,
       C_num_block = utils::divide_and_ceil(C, C_block);
   bool loop_sched = config.loop_sched;
   auto dtype = get_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
   int padded_K_block
     = utils::divide_and_ceil(K_block, dtype_block) * dtype_block;
   COMPILE_ASSERT(

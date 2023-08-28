@@ -153,6 +153,8 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     sc_data_type_t B_dtype = info_.inputs_[1]->details_.dtype_;
     sc_data_format_t A_format = info_.inputs_[0]->details_.get_format();
     sc_data_format_t B_format = info_.inputs_[1]->details_.get_format();
+    bool is_A_vnni_low_fp = ops::is_vnni_low_fp(ctx, A_dtype);
+    bool is_B_vnni_low_fp = ops::is_vnni_low_fp(ctx, B_dtype);
     auto gen_ptr = create_generator();
     auto gen = static_cast<gen_managed_matmul_core_t *>(gen_ptr.get());
     int iim_block = gen->iim_block_;
@@ -246,7 +248,7 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                             if (treat_as_static) { iik_block = iik_block_; }
                         }
                         if (A_dims.size() == 2) {
-                            if (!dynamic && A_dtype == datatypes::bf16
+                            if (!dynamic && is_A_vnni_low_fp
                                     && A_format == sc_data_format_t::NK()) {
                                 in_formats.push_back({sc_data_format_t::NK()});
                             } else {
@@ -286,7 +288,7 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                         datatypes::s8)) {
                                 ret_B_format = sc_data_format_t::NKkn4k(
                                         iik_block, iin_block);
-                            } else if (B_dtype == datatypes::bf16) {
+                            } else if (is_B_vnni_low_fp) {
                                 // do vnni reorder in template for
                                 // transposed matmul
                                 bool special_b

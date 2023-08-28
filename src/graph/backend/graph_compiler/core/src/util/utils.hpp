@@ -214,6 +214,11 @@ SC_INTERNAL_API std::string get_dyn_lib_path(void *addr);
  */
 SC_INTERNAL_API int get_nearest_vector_step(int step);
 
+/**
+ * Get the string of etype.
+ */
+SC_INTERNAL_API std::string etype_to_string(sc_data_etype edtype);
+
 struct SC_INTERNAL_API compiler_configs_t {
     bool print_gen_code_;
     std::string dump_gen_code_;

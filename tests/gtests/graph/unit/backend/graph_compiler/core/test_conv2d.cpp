@@ -319,11 +319,11 @@ void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
     auto in_data = mgr.make_input({graph_tensor::make({N, C, H, W})});
     auto in_diff_dst = mgr.make_input({graph_tensor::make({N, K, P, Q})});
     auto conv_in_data = in_data, conv_in_diff_dst = in_diff_dst;
-    if (dtype == datatypes::bf16) {
-        auto cast_data = mgr.make("cast", in_data->get_outputs(), {},
-                {{"dtype", datatypes::bf16}});
-        auto cast_diff_dst = mgr.make("cast", in_diff_dst->get_outputs(), {},
-                {{"dtype", datatypes::bf16}});
+    if (utils::is_one_of(dtype, datatypes::bf16)) {
+        auto cast_data = mgr.make(
+                "cast", in_data->get_outputs(), {}, {{"dtype", dtype}});
+        auto cast_diff_dst = mgr.make(
+                "cast", in_diff_dst->get_outputs(), {}, {{"dtype", dtype}});
         conv_in_data = cast_data;
         conv_in_diff_dst = cast_diff_dst;
     }
@@ -362,7 +362,7 @@ void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
             padding, padding, &mkldnn_data[0], &mkldnn_grad_weight[0],
             &mkldnn_grad[0]);
 
-    if (dtype == datatypes::bf16) {
+    if (utils::is_one_of(dtype, datatypes::bf16, datatypes::f16)) {
         test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-1f, 5e-1f);
     } else {
         test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3f, 5e-3f);
@@ -1435,6 +1435,16 @@ TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_6) {
     check_conv_correctness_and_tuning_bwd_w(
             1, 64, 64, 56, 56, 1, 1, 2, 0, datatypes::bf16);
 }
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_5_f16) {
+    REQUIRE_FP16();
+    check_conv_correctness_and_tuning_bwd_w(
+            1, 64, 64, 56, 56, 1, 1, 1, 0, datatypes::f16);
+}
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_6_f16) {
+    REQUIRE_FP16();
+    check_conv_correctness_and_tuning_bwd_w(
+            1, 64, 64, 56, 56, 1, 1, 2, 0, datatypes::f16);
+}
 
 TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_1) {
     check_conv_correctness_and_tuning_bwd_w(28, 256, 128, 28, 28, 3, 3, 1, 0);
@@ -1467,6 +1477,16 @@ TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_8) {
     REQUIRE_BF16();
     check_conv_correctness_and_tuning_bwd_w(
             1, 64, 64, 56, 56, 3, 3, 2, 1, datatypes::bf16);
+}
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_7_f16) {
+    REQUIRE_FP16();
+    check_conv_correctness_and_tuning_bwd_w(
+            1, 64, 64, 56, 56, 3, 3, 1, 1, datatypes::f16);
+}
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_8_f16) {
+    REQUIRE_FP16();
+    check_conv_correctness_and_tuning_bwd_w(
+            1, 64, 64, 56, 56, 3, 3, 2, 1, datatypes::f16);
 }
 
 TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_1_NXC) {

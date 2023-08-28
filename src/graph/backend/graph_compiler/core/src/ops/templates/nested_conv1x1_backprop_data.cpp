@@ -240,16 +240,16 @@ gen_nested_conv1x1_backprop_data_t::gen_nested_conv1x1_backprop_data_t(
   const int BS = get_input_dims()[0];
   const int OS = D * H * W;
 
-  bool is_bf16 = get_dtype() == datatypes::bf16;
-  bool is_f32 = get_dtype() == datatypes::f32;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(get_default_context(), get_dtype());
+  bool no_vnni = ops::no_vnni(get_default_context(), get_dtype());
   bool has_stride = stride_d > 1 || stride_h > 1 || stride_w > 1;
 
   int64_t IC_block_default = 32;
   int64_t OC_block_default = 32;
-  if (is_f32) {
+  if (no_vnni) {
     IC_block_default = 16;
     OC_block_default = 16;
-  } else if (is_bf16) {
+  } else if (is_vnni_low_fp) {
     IC_block_default = 32;
     OC_block_default = 32;
   } else {
@@ -602,7 +602,8 @@ bool gen_nested_conv1x1_backprop_data_t::generate(context_ptr ctx,
 
   bool is_out_blocking = out_tensors_[0].get_format().is_blocking();
   auto dtype = get_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
 
   if (is_3d) {
     COMPILE_ASSERT(get_weight_dims()[2] == 1 && get_weight_dims()[3] == 1

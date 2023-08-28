@@ -61,6 +61,7 @@ static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
         do {
             // amx fp16
             if (max_isa == "AVX512_CORE_AMX_FP16") { break; }
+            tm.cpu_flags_.fAVX512AMXFP16 = false;
             // amx
             if (max_isa == "AVX512_CORE_AMX") { break; }
             tm.cpu_flags_.fAVX512AMXTILE = false;
@@ -68,6 +69,7 @@ static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
             tm.cpu_flags_.fAVX512AMXBF16 = false;
             // avx512 fp16
             if (max_isa == "AVX512_CORE_FP16") { break; }
+            tm.cpu_flags_.fAVX512FP16 = false;
             // avx512 bf16
             if (max_isa == "AVX512_CORE_BF16") { break; }
             tm.cpu_flags_.fAVX512BF16 = false;

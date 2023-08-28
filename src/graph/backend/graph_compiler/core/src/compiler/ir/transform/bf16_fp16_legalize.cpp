@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#include "bf16_legalize.hpp"
 #include <vector>
 #include "../builder.hpp"
+#include "bf16_fp16_legalize.hpp"
 #include <compiler/ir/pass_dep_util.hpp>
 #include <util/utils.hpp>
 
@@ -24,14 +24,20 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-SC_DECL_PASS_INFO(bf16_legalizer, SC_PASS_DEPENDS_ON(auto_caster),
+SC_DECL_PASS_INFO(bf16_fp16_legalizer, SC_PASS_DEPENDS_ON(auto_caster),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
-SC_DECL_PASS_INFO(bf16_eliminator,
-        SC_PASS_DEPENDS_ON(constant_folder, bf16_legalizer, index2var),
+SC_DECL_PASS_INFO(bf16_fp16_eliminator,
+        SC_PASS_DEPENDS_ON(constant_folder, bf16_fp16_legalizer, index2var),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
+
+sc_data_type_t get_etype(
+        const sc_data_type_t &dtype, const uint16_t lanes = 1) {
+    return dtype.is_etype(sc_data_etype::BF16) ? sc_data_type_t::bf16(lanes)
+                                               : sc_data_type_t::f16(lanes);
+}
 
 static bool check_ref_more_than_one(
         std::unordered_map<expr_c, int> &m, const expr &a) {
@@ -42,50 +48,72 @@ static bool check_ref_more_than_one(
 }
 
 static bool define_can_promote(const context_ptr &ctx, const define_c &v) {
-    return v->var_.isa<var>() && v->var_->dtype_.is_etype(sc_data_etype::BF16)
-            && v->var_->dtype_.lanes_
-            <= ctx->get_max_vector_lanes(sc_data_etype::F32)
-            && v->var_->attr().get_or_else("can_promote_to_f32", true);
+    if (v->var_.isa<var>()) {
+        if (v->var_->dtype_.is_etype(sc_data_etype::BF16)) {
+            return v->var_->dtype_.lanes_
+                    <= ctx->get_max_vector_lanes(sc_data_etype::F32)
+                    && any_map_t::fetch_or_else(
+                            v->var_->attr_.get(), "can_promote_to_f32", true);
+        } else if (v->var_->dtype_.is_etype(sc_data_etype::F16)) {
+            COMPILE_ASSERT(ctx->machine_.cpu_flags_.fAVX512FP16
+                            || ctx->machine_.cpu_flags_.fAVX512AMXFP16,
+                    "current cpu does not support fp16 data type.");
+            // Only amxfp16 needs to do legalization.
+            return ctx->machine_.cpu_flags_.fAVX512AMXFP16
+                    && v->var_->dtype_.lanes_
+                    <= ctx->get_max_vector_lanes(sc_data_etype::F32)
+                    && any_map_t::fetch_or_else(
+                            v->var_->attr_.get(), "can_promote_to_f32", true);
+        }
+    }
+    return false;
 }
 
-std::tuple<expr_c, expr_c> bf16_promote_impl_t::docast(
-        const expr &orig_a, const expr &orig_b, bool *is_bfloat16) {
+std::tuple<expr_c, expr_c> bf16_fp16_promote_impl_t::docast(
+        const expr &orig_a, const expr &orig_b, bool *is_low_precision_fp) {
     auto a = dispatch(orig_a);
     auto b = dispatch(orig_b);
-    *is_bfloat16 = false;
-    if (a->dtype_.is_etype(sc_data_etype::BF16)) {
+    *is_low_precision_fp = false;
+    if (utils::is_one_of(a->dtype_.type_code_, sc_data_etype::BF16,
+                sc_data_etype::F16)) {
         COMPILE_ASSERT(utils::is_one_of(b->dtype_.type_code_,
-                               sc_data_etype::BF16, sc_data_etype::F32),
-                "bfloat16 should be calculated with bfloat16/f32");
-        *is_bfloat16 = true;
-    } else if (b->dtype_.is_etype(sc_data_etype::BF16)) {
+                               a->dtype_.type_code_, sc_data_etype::F32),
+                "low precision floating point should be calculated with "
+                "low_precision_fp/f32");
+        *is_low_precision_fp = true;
+    } else if (utils::is_one_of(b->dtype_.type_code_, sc_data_etype::BF16,
+                       sc_data_etype::F16)) {
         COMPILE_ASSERT(utils::is_one_of(a->dtype_.type_code_,
-                               sc_data_etype::BF16, sc_data_etype::F32),
-                "bfloat16 should be calculated with bfloat16");
-        *is_bfloat16 = true;
+                               b->dtype_.type_code_, sc_data_etype::F32),
+                "low precision floating point should be calculated with low "
+                "precision floating point");
+        *is_low_precision_fp = true;
     }
-    if (*is_bfloat16) {
+    if (*is_low_precision_fp) {
         sc_data_type_t fp32ty = sc_data_type_t::f32(a->dtype_.lanes_);
-        a = a->dtype_.is_etype(sc_data_etype::BF16)
+        a = utils::is_one_of(a->dtype_.type_code_, sc_data_etype::BF16,
+                    sc_data_etype::F16)
                 ? builder::make_cast(fp32ty, a)
                 : a;
-        b = b->dtype_.is_etype(sc_data_etype::BF16)
+        b = utils::is_one_of(b->dtype_.type_code_, sc_data_etype::BF16,
+                    sc_data_etype::F16)
                 ? builder::make_cast(fp32ty, b)
                 : b;
     }
     return std::make_tuple(a, b);
 }
 
-expr_c bf16_promote_impl_t::visit(binary_c v) {
+expr_c bf16_fp16_promote_impl_t::visit(binary_c v) {
     expr_c a, b;
-    bool is_bfloat16 = false;
-    std::tie(a, b) = docast(v->l_, v->r_, &is_bfloat16);
-    bool changed = !a.ptr_same(v->l_) || !b.ptr_same(v->r_) || is_bfloat16;
+    bool is_low_precision_fp = false;
+    std::tie(a, b) = docast(v->l_, v->r_, &is_low_precision_fp);
+    bool changed
+            = !a.ptr_same(v->l_) || !b.ptr_same(v->r_) || is_low_precision_fp;
     if (changed) {
-        if (is_bfloat16) {
+        if (is_low_precision_fp) {
             return copy_attr(*v,
                     builder::make_cast(
-                            sc_data_type_t::bf16(v->l_->dtype_.lanes_),
+                            get_etype(v->l_->dtype_, v->l_->dtype_.lanes_),
                             builder::remake_binary(a, b, v)));
         }
         return copy_attr(*v, builder::remake_binary(a, b, v));
@@ -94,11 +122,12 @@ expr_c bf16_promote_impl_t::visit(binary_c v) {
     }
 }
 
-expr_c bf16_promote_impl_t::visit(cmp_c v) {
+expr_c bf16_fp16_promote_impl_t::visit(cmp_c v) {
     expr_c a, b;
-    bool is_bfloat16 = false;
-    std::tie(a, b) = docast(v->l_, v->r_, &is_bfloat16);
-    bool changed = !a.ptr_same(v->l_) || !b.ptr_same(v->r_) || is_bfloat16;
+    bool is_low_precision_fp = false;
+    std::tie(a, b) = docast(v->l_, v->r_, &is_low_precision_fp);
+    bool changed
+            = !a.ptr_same(v->l_) || !b.ptr_same(v->r_) || is_low_precision_fp;
     if (changed) {
         return copy_attr(*v, builder::remake_binary(a, b, v));
     } else {
@@ -106,31 +135,34 @@ expr_c bf16_promote_impl_t::visit(cmp_c v) {
     }
 }
 
-expr_c bf16_promote_impl_t::visit(select_c v) {
+expr_c bf16_fp16_promote_impl_t::visit(select_c v) {
     if (v->l_->dtype_.is_etype(sc_data_etype::BF16)
             && v->l_->dtype_.lanes_
                     > ctx_->get_max_vector_lanes(sc_data_etype::F32)) {
         return v;
     }
     expr_c a, b;
-    bool is_bfloat16 = false;
-    std::tie(a, b) = docast(v->l_, v->r_, &is_bfloat16);
+    bool is_low_precision_fp = false;
+    std::tie(a, b) = docast(v->l_, v->r_, &is_low_precision_fp);
     auto cond = dispatch(v->cond_);
     bool changed = !a.ptr_same(v->l_) || !b.ptr_same(v->r_)
-            || !cond.ptr_same(v->cond_) || is_bfloat16;
+            || !cond.ptr_same(v->cond_) || is_low_precision_fp;
     if (changed) {
         return copy_attr(*v,
-                builder::make_cast(sc_data_type_t::bf16(v->l_->dtype_.lanes_),
+                builder::make_cast(
+                        get_etype(v->l_->dtype_, v->l_->dtype_.lanes_),
                         builder::make_select(cond, a, b)));
     } else {
         return v;
     }
 }
 
-expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
+expr_c bf16_fp16_promote_impl_t::visit(intrin_call_c v) {
     std::vector<expr> args;
-    bool is_bfloat16 = false;
+    bool is_low_precision_fp = false;
     bool changed = false;
+    assert(v->args_.size() > 0);
+    auto raw_dtype = v->args_[0]->dtype_;
     switch (v->type_) {
         case intrin_type::min:
         case intrin_type::max:
@@ -152,18 +184,20 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
             for (size_t i = 0; i < v->args_.size(); i++) {
                 auto in = dispatch(v->args_[i]);
                 changed = changed || !in.ptr_same(v->args_[i]);
-                if (in->dtype_.is_etype(sc_data_etype::BF16)) {
+                if (utils::is_one_of(in->dtype_.type_code_, sc_data_etype::BF16,
+                            sc_data_etype::F16)) {
                     in = builder::make_cast(
                             sc_data_type_t::f32(in->dtype_.lanes_), in);
-                    is_bfloat16 = true;
+                    is_low_precision_fp = true;
                 }
                 args.emplace_back(in.remove_const());
             }
-            if (is_bfloat16) {
+            if (is_low_precision_fp) {
                 for (size_t i = 0; i < args.size(); i++) {
                     COMPILE_ASSERT(
-                            !args[i]->dtype_.is_etype(sc_data_etype::BF16),
-                            "All input args should be f32 from bf16.");
+                            !utils::is_one_of(args[i]->dtype_.type_code_,
+                                    sc_data_etype::BF16, sc_data_etype::F16),
+                            "All input args should be f32 from bf16 / f16.");
                 }
             }
             break;
@@ -203,22 +237,23 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::set_thread_idle_func:
         case intrin_type::reinterpret: break;
         default:
-            COMPILE_ASSERT(false, "Unsupport BF16 intrin type: " << v->type_);
+            COMPILE_ASSERT(
+                    false, "Unsupport BF16 / FP16 intrin type: " << v->type_);
     }
 
-    changed = changed || is_bfloat16;
+    changed = changed || is_low_precision_fp;
     if (changed) {
-        if (is_bfloat16) {
+        if (is_low_precision_fp) {
             if (utils::is_one_of(v->type_, intrin_type::reduce_add,
                         intrin_type::reduce_mul, intrin_type::reduce_max,
                         intrin_type::reduce_min)) {
                 return copy_attr(*v,
-                        builder::make_cast(sc_data_type_t::bf16(),
+                        builder::make_cast(get_etype(raw_dtype),
                                 builder::remake_intrin_call(v, args)));
             } else {
                 return copy_attr(*v,
                         builder::make_cast(
-                                sc_data_type_t::bf16(args[0]->dtype_.lanes_),
+                                get_etype(raw_dtype, raw_dtype.lanes_),
                                 builder::remake_intrin_call(v, args)));
             }
         } else {
@@ -229,21 +264,21 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
     }
 }
 
-void bf16_elimination_analyzer_t::view(var_c v) {
+void bf16_fp16_elimination_analyzer_t::view(var_c v) {
     auto var_it = var_use_cnt_.find(v);
     // if the var is used in non-assignment statement, increase its valid count
     // by 1.
     if (var_it != var_use_cnt_.end()) { var_it->second++; }
 }
-void bf16_elimination_analyzer_t::view(assign_c v) {
+void bf16_fp16_elimination_analyzer_t::view(assign_c v) {
     auto var_it = var_use_cnt_.find(v->var_);
     auto val_it = var_use_cnt_.find(v->value_);
     if (var_it != var_use_cnt_.end()) { var_it->second++; }
-    // If value is not the bf16 var, dispatch it.
+    // If value is not the bf16 / fp16 var, dispatch it.
     // If it is, hold its valid usage count.
     if (val_it == var_use_cnt_.end()) { dispatch(v->value_); }
 }
-void bf16_elimination_analyzer_t::view(define_c v) {
+void bf16_fp16_elimination_analyzer_t::view(define_c v) {
     if (define_can_promote(ctx_, v)) {
         // initial count is 0
         int count = 0;
@@ -252,7 +287,7 @@ void bf16_elimination_analyzer_t::view(define_c v) {
         var_use_cnt_[v->var_] = count;
     }
 }
-void bf16_elimination_analyzer_t::view(intrin_call_c v) {
+void bf16_fp16_elimination_analyzer_t::view(intrin_call_c v) {
     switch (v->type_) {
         case intrin_type::unpack_low:
         case intrin_type::unpack_high:
@@ -260,7 +295,7 @@ void bf16_elimination_analyzer_t::view(intrin_call_c v) {
         case intrin_type::permute:
         case intrin_type::broadcast:
         case intrin_type::reinterpret:
-            // If an arg is not the bf16 var, dispatch it.
+            // If an arg is not the bf16 / fp16 var, dispatch it.
             // If it is, hold its valid usage count.
             for (size_t i = 0; i < v->args_.size(); i++) {
                 auto it = var_use_cnt_.find(v->args_[i]);
@@ -271,12 +306,13 @@ void bf16_elimination_analyzer_t::view(intrin_call_c v) {
     }
 }
 
-expr_c bf16_cast_elimination_impl_t::visit(cast_c v) {
+expr_c bf16_fp16_cast_elimination_impl_t::visit(cast_c v) {
     auto in = dispatch(v->in_);
     if (v->dtype_.is_etype(sc_data_etype::F32)) {
         if (in.isa<cast_c>()) {
             auto inin = in.static_as<cast_c>();
-            if (inin->dtype_.is_etype(sc_data_etype::BF16)
+            if (utils::is_one_of(inin->dtype_.type_code_, sc_data_etype::BF16,
+                        sc_data_etype::F16)
                     && inin->in_->dtype_.is_etype(sc_data_etype::F32)) {
                 return inin->in_;
             }
@@ -290,20 +326,19 @@ expr_c bf16_cast_elimination_impl_t::visit(cast_c v) {
     }
 }
 
-expr_c bf16_cast_elimination_impl_t::visit(var_c v) {
+expr_c bf16_fp16_cast_elimination_impl_t::visit(var_c v) {
     auto it = cvt_map_.find(v);
-    // If we find the bf16 old var, we should replace it with bf16(newv) for
-    // most ir node.
-    // If the var occurs singlely in define/assign node, directly use the newv
-    // instead(processed in define/assign node).
+    // If we find the bf16 / fp16 old var, we should replace it with bf16 /
+    // fp16 (newv) for most ir node. If the var occurs singlely in define/assign
+    // node, directly use the newv instead(processed in define/assign node).
     if (it != cvt_map_.end()) {
         return builder::make_cast(
-                sc_data_type_t::bf16(v->dtype_.lanes_), it->second);
+                get_etype(v->dtype_, v->dtype_.lanes_), it->second);
     }
     return v;
 }
 
-stmt_c bf16_cast_elimination_impl_t::visit(define_c v) {
+stmt_c bf16_fp16_cast_elimination_impl_t::visit(define_c v) {
     // if the var is only used for once, e.g. assignment in reorder, we do not
     // promote it.
     if (define_can_promote(ctx_, v)
@@ -337,7 +372,7 @@ stmt_c bf16_cast_elimination_impl_t::visit(define_c v) {
     return ir_visitor_t::visit(std::move(v));
 }
 
-stmt_c bf16_cast_elimination_impl_t::visit(assign_c v) {
+stmt_c bf16_fp16_cast_elimination_impl_t::visit(assign_c v) {
     expr_c var, val;
     auto varit = cvt_map_.find(v->var_);
     // single var directly replace
@@ -357,6 +392,7 @@ stmt_c bf16_cast_elimination_impl_t::visit(assign_c v) {
     //  + b2
     if (varit != cvt_map_.end()) {
         assert(v->var_->dtype_.is_etype(sc_data_etype::BF16)
+                || v->var_->dtype_.is_etype(sc_data_etype::F16)
                 || v->var_->dtype_.is_etype(sc_data_etype::U16));
         assert(var.ptr_same(varit->second));
         if (val.isa<cast_c>()) {
@@ -368,7 +404,7 @@ stmt_c bf16_cast_elimination_impl_t::visit(assign_c v) {
         changed = true;
     } else if (valit != cvt_map_.end()) {
         val = builder::make_cast(
-                sc_data_type_t::bf16(v->value_->dtype_.lanes_), val);
+                get_etype(v->value_->dtype_, v->value_->dtype_.lanes_), val);
         changed = true;
     }
     if (changed) {
@@ -377,55 +413,55 @@ stmt_c bf16_cast_elimination_impl_t::visit(assign_c v) {
     return v;
 }
 
-stmt_c bf16_cast_elimination_impl_t::visit(returns_c v) {
+stmt_c bf16_fp16_cast_elimination_impl_t::visit(returns_c v) {
     if (v->value_.isa<var>()) {
         COMPILE_ASSERT(cvt_map_.find(v->value_) == cvt_map_.end(),
-                "Not support return a bf16 local buffer now");
+                "Not support return a bf16 / fp16 local buffer now");
     }
     return ir_visitor_t::visit(v);
 }
 
-func_c bf16_legalizer_t::operator()(func_c f) {
-    bf16_promote_impl_t promote_pass(ctx_);
+func_c bf16_fp16_legalizer_t::operator()(func_c f) {
+    bf16_fp16_promote_impl_t promote_pass(ctx_);
     f = promote_pass.dispatch(f);
     return f;
 }
 
-stmt_c bf16_legalizer_t::operator()(stmt_c f) {
-    bf16_promote_impl_t promote_pass(ctx_);
+stmt_c bf16_fp16_legalizer_t::operator()(stmt_c f) {
+    bf16_fp16_promote_impl_t promote_pass(ctx_);
     f = promote_pass.dispatch(f);
     return f;
 }
 
-expr_c bf16_legalizer_t::operator()(expr_c f) {
-    bf16_promote_impl_t promote_pass(ctx_);
+expr_c bf16_fp16_legalizer_t::operator()(expr_c f) {
+    bf16_fp16_promote_impl_t promote_pass(ctx_);
     f = promote_pass.dispatch(f);
     return f;
 }
 
-func_c bf16_eliminator_t::operator()(func_c f) {
+func_c bf16_fp16_eliminator_t::operator()(func_c f) {
     if (f->attr_ && f->attr_->get_or_else(function_attrs::low_level, false)) {
         return f;
     }
-    bf16_elimination_analyzer_t analyzer(ctx_);
+    bf16_fp16_elimination_analyzer_t analyzer(ctx_);
     analyzer.dispatch(f);
-    bf16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);
+    bf16_fp16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);
     f = pass.dispatch(f);
     return f;
 }
 
-stmt_c bf16_eliminator_t::operator()(stmt_c f) {
-    bf16_elimination_analyzer_t analyzer(ctx_);
+stmt_c bf16_fp16_eliminator_t::operator()(stmt_c f) {
+    bf16_fp16_elimination_analyzer_t analyzer(ctx_);
     analyzer.dispatch(f);
-    bf16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);
+    bf16_fp16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);
     f = pass.dispatch(f);
     return f;
 }
 
-expr_c bf16_eliminator_t::operator()(expr_c f) {
-    bf16_elimination_analyzer_t analyzer(ctx_);
+expr_c bf16_fp16_eliminator_t::operator()(expr_c f) {
+    bf16_fp16_elimination_analyzer_t analyzer(ctx_);
     analyzer.dispatch(f);
-    bf16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);
+    bf16_fp16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);
     f = pass.dispatch(f);
     return f;
 }

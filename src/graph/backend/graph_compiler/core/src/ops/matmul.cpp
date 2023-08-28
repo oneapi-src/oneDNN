@@ -45,7 +45,8 @@ matmul_op::matmul_op(const std::vector<graph_tensor_ptr> &ins,
     bool is_int8 = utils::is_one_of(
             ins[0]->details_.dtype_, datatypes::u8, datatypes::s8);
     bool is_bf16 = ins[0]->details_.dtype_ == datatypes::bf16;
-
+    bool is_low_precision_fp = utils::is_one_of(
+            ins[0]->details_.dtype_, datatypes::bf16, datatypes::f16);
     sc_dims output_shape;
     if (!is_dynamic()) {
         output_shape = {merge_vec(
@@ -62,7 +63,9 @@ matmul_op::matmul_op(const std::vector<graph_tensor_ptr> &ins,
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this,
                 sc_data_format_t(), output_shape,
                 is_int8 ? datatypes::s32
-                        : (is_bf16 ? datatypes::bf16 : datatypes::f32)));
+                        : (is_low_precision_fp ? (
+                                   is_bf16 ? datatypes::bf16 : datatypes::f16)
+                                               : datatypes::f32)));
     } else {
         info_.outputs_ = outs;
         if (!is_dynamic()) {
@@ -152,6 +155,17 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                         && outputs[0]->details_.dtype_ == datatypes::bf16,
                 "All inputs should have same data type.")
         is_bf16 = true;
+    }
+
+    bool is_f16 = false;
+    if (inputs[0]->details_.dtype_ == datatypes::f16
+            || inputs[1]->details_.dtype_ == datatypes::f16
+            || outputs[0]->details_.dtype_ == datatypes::f16) {
+        COMPILE_ASSERT(inputs[0]->details_.dtype_ == datatypes::f16
+                        && inputs[1]->details_.dtype_ == datatypes::f16
+                        && outputs[0]->details_.dtype_ == datatypes::f16,
+                "All inputs should have same data type.")
+        is_f16 = true;
     }
 
     // For Nd*2d and 2d*Nd non-dynamic cases, ND input will be reshaped into 2D
@@ -256,18 +270,19 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                     {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
         }
     }
-    if (is_bf16) {
+    if (is_bf16 || is_f16) {
         matmul = graph->make("cast", matmul->get_outputs(), {},
-                {{"dtype", datatypes::bf16}});
+                {{"dtype", inputs[0]->details_.dtype_}});
     }
 
     // check optional input lotgical tensor: bias
     if (info_.inputs_.size() == 3) {
         // create bias op by using broadcast op
-        // considering: {bs0, bs1, .., M, N} and {M,N}, for bias, it shape is
-        // equal with N.
-        if (is_bf16) {
-            COMPILE_ASSERT(inputs[2]->details_.dtype_ == datatypes::bf16,
+        // considering: {bs0, bs1, .., M, N} and {M,N}, for bias, it shape
+        // is equal with N.
+        if (is_bf16 || is_f16) {
+            COMPILE_ASSERT(
+                    inputs[2]->details_.dtype_ == inputs[0]->details_.dtype_,
                     "All inputs should have same data type.")
         }
         int last_axis = outputs[0]->details_.get_plain_dims().size() - 1;

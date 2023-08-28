@@ -26,6 +26,7 @@
 #include <checked_ptr.hpp>
 #include <runtime/aligned_ptr.hpp>
 #include <util/bf16.hpp>
+#include <util/fp16.hpp>
 #include <util/parallel.hpp>
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 #include <omp.h>
@@ -66,6 +67,12 @@ inline double rand_for_test<double>(uint32_t &seed, double a, double b) {
 // rand number in [-1,1]
 template <>
 inline bf16_t rand_for_test<bf16_t>(uint32_t &seed, bf16_t a, bf16_t b) {
+    return rand_for_test<float>(seed, a, b);
+}
+
+// rand number in [-1,1]
+template <>
+inline fp16_t rand_for_test<fp16_t>(uint32_t &seed, fp16_t a, fp16_t b) {
     return rand_for_test<float>(seed, a, b);
 }
 

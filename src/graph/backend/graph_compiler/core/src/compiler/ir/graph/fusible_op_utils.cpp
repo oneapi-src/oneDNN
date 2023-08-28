@@ -1231,6 +1231,8 @@ std::vector<graph_tensor_ptr> get_sorted_inputs_by_layout_input(
 variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code) {
     if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
         return -std::numeric_limits<float>::infinity();
+    } else if (type_code == sc_data_etype::F16) {
+        return (float)-65504;
     } else if (type_code == sc_data_etype::U8
             || type_code == sc_data_etype::U32) {
         return int64_t(0);
@@ -1246,6 +1248,8 @@ variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code) {
 variant<float, int64_t> numeric_limits_maximum(sc_data_etype type_code) {
     if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
         return std::numeric_limits<float>::infinity();
+    } else if (type_code == sc_data_etype::F16) {
+        return (float)65504;
     } else if (type_code == sc_data_etype::S8) {
         return int64_t(127);
     } else if (type_code == sc_data_etype::S32) {

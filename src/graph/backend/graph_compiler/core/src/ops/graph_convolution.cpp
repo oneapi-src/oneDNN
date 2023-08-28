@@ -78,6 +78,11 @@ static sc_data_type_t check_and_infer_out_dtype(
                 "wei_dtype expected to be bf16 when src_dtype is bf16, but got "
                         << wei_dtype << ".");
         return datatypes::bf16;
+    } else if (src_dtype == datatypes::f16) {
+        COMPILE_ASSERT(wei_dtype == datatypes::f16,
+                "wei_dtype expected to be f16 when src_dtype is f16, but got "
+                        << wei_dtype << ".");
+        return datatypes::f16;
     } else {
         COMPILE_ASSERT(
                 src_dtype == datatypes::f32 && wei_dtype == datatypes::f32,
@@ -189,7 +194,8 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     sc_op_ptr conv, graph_out;
     graph_tensor_ptr input = inputs[0], filter = inputs[1];
 
-    bool is_bf16 = input->details_.dtype_ == datatypes::bf16;
+    bool is_low_precision_fp = utils::is_one_of(
+            input->details_.dtype_, datatypes::bf16, datatypes::f16);
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
@@ -234,17 +240,17 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                                       : sc_data_format_t::NHWC()}});
     }
 
-    if (is_bf16) {
-        conv = graph->make(
-                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+    if (is_low_precision_fp) {
+        conv = graph->make("cast", conv->get_outputs(), {},
+                {{"dtype", input->details_.dtype_}});
     }
 
     // add bias
     if (info_.inputs_.size() == 3) {
         COMPILE_ASSERT(inputs[2]->details_.get_plain_dims().size() == 1,
                 "Convolution op's bias shall be 1D tensor.")
-        if (is_bf16) {
-            COMPILE_ASSERT(inputs[2]->details_.dtype_ == datatypes::bf16,
+        if (is_low_precision_fp) {
+            COMPILE_ASSERT(inputs[2]->details_.dtype_ == input->details_.dtype_,
                     "Bias should have the same data type as input and "
                     "filter.")
         }
@@ -305,7 +311,8 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     sc_op_ptr conv, graph_out;
     graph_tensor_ptr output_delta = inputs[0], filter = inputs[1];
 
-    bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
+    bool is_low_precision_fp = utils::is_one_of(
+            inputs[0]->details_.dtype_, datatypes::bf16, datatypes::f16);
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
@@ -374,9 +381,9 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                 "conv_bwd_data_core", {output_delta, filter}, {}, attrs);
     }
 
-    if (is_bf16) {
-        conv = graph->make(
-                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+    if (is_low_precision_fp) {
+        conv = graph->make("cast", conv->get_outputs(), {},
+                {{"dtype", inputs[0]->details_.dtype_}});
     }
 
     if (data_format == "NXC") {
@@ -433,7 +440,8 @@ void conv_bwd_weight_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     sc_op_ptr conv, graph_out;
     graph_tensor_ptr input = inputs[0], output_delta = inputs[1];
 
-    bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
+    bool is_low_precision_fp = utils::is_one_of(
+            inputs[0]->details_.dtype_, datatypes::bf16, datatypes::f16);
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
@@ -467,9 +475,9 @@ void conv_bwd_weight_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     conv = graph->make(
             "conv_bwd_weight_core", {input, output_delta}, {}, attrs);
 
-    if (is_bf16) {
-        conv = graph->make(
-                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+    if (is_low_precision_fp) {
+        conv = graph->make("cast", conv->get_outputs(), {},
+                {{"dtype", inputs[0]->details_.dtype_}});
     }
     // insert transpose for output: OIX to XIO
     if (filter_format == "XIO") {

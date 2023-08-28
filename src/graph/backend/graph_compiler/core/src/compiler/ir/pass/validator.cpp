@@ -160,6 +160,10 @@ static bool validate_brgemm_dtype(sc_data_type_t dtype_A,
             || (dtype_A == datatypes::bf16 && dtype_B == datatypes::bf16
                     && (has_postop ? utils::is_one_of(
                                 dtype_C, datatypes::f32, datatypes::bf16)
+                                   : dtype_C == datatypes::f32))
+            || (dtype_A == datatypes::f16 && dtype_B == datatypes::f16
+                    && (has_postop ? utils::is_one_of(
+                                dtype_C, datatypes::f32, datatypes::f16)
                                    : dtype_C == datatypes::f32))) {
         return true;
     }

@@ -71,6 +71,7 @@ struct cpu_flags_t : public machine_flags_t {
     bool fAVX512DQ = false; //  AVX512 Doubleword + Quadword
     bool fAVX512IFMA = false; //  AVX512 Integer 52-bit Fused Multiply-Add
     bool fAVX512VNNI = false; //  AVX512 Vector Neural Network Instructions
+    bool fAVX512AMXFP16 = false; // AVX512 Advanced Matrix Extension for f16
     bool fAVX512AMXBF16 = false; // AVX512 Advanced Matrix Extension for bf16
     bool fAVX512AMXTILE = false; // AVX512 Advanced Matrix Extension for tile
     bool fAVX512AMXINT8 = false; // AVX512 Advanced Matrix Extension for int8

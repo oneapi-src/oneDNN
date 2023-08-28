@@ -47,7 +47,7 @@ enum pass_id {
 
     FUNCTION_PASS_START,
     tensor_shrinker = FUNCTION_PASS_START,
-    bf16_legalizer,
+    bf16_fp16_legalizer,
     buffer_rescheduling_tensor_hoisting,
     nested_parallel_flattener,
     func_inliner,
@@ -58,7 +58,7 @@ enum pass_id {
     simple_loop_invariant_code_motion,
     simple_loop_function_motion,
     index2var,
-    bf16_eliminator,
+    bf16_fp16_eliminator,
     loop_unroller,
     dead_write_eliminator,
     tensor2var,

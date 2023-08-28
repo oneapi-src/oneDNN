@@ -57,12 +57,12 @@ static void query_accu_info_for_rl(const context_ptr &ctx,
         const sc_data_type_t &dtype, const int kh, const int kw, const int ic,
         const int LDA, int &num_brgemm_k, int &brgemm_k, int &extra_padding) {
     assert(ops::is_amx_dtype(ctx, dtype));
-    bool is_bf16 = (dtype == datatypes::bf16);
-    int max_col = is_bf16 ? 32 : 64;
+    bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+    int max_col = is_vnni_low_fp ? 32 : 64;
     auto total_raw_accu = kw * kh * ic;
     num_brgemm_k = utils::divide_and_ceil(total_raw_accu, max_col);
 
-    auto vnni_blk = is_bf16 ? 2 : 4;
+    auto vnni_blk = is_vnni_low_fp ? 2 : 4;
     auto total_padded_accu
             = utils::rnd_up(total_raw_accu, num_brgemm_k * vnni_blk);
     brgemm_k = total_padded_accu / num_brgemm_k;

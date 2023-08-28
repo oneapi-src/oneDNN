@@ -83,8 +83,10 @@ void annotate_config(sc_graph_t &graph, const context_ptr &ctx) {
                                     : math_utils::get_dims_product(data_dims)
                                             / data_dims.back();
                             if (((K >= 640 && K < 4096) || M < 12288)
-                                    && node->get_inputs()[0]->details_.dtype_
-                                            == datatypes::bf16
+                                    && utils::is_one_of(
+                                            node->get_inputs()[0]
+                                                    ->details_.dtype_,
+                                            datatypes::bf16, datatypes::f16)
                                     && !is_int8) {
                                 next_node->attrs_.set(
                                         op_attr_key::break_pre_fuse, true);

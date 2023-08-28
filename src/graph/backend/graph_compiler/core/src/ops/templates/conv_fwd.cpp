@@ -185,9 +185,9 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
 
   auto tile_p_list = utils::get_factors(oh_);
   auto tile_q_list = utils::get_factors(ow_);
-  auto dtype_size = get_weight_dtype() == datatypes::f32
-    ? 4
-    : (get_weight_dtype() == datatypes::bf16 ? 2 : 1);
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, get_weight_dtype());
+  bool no_vnni = ops::no_vnni(ctx, get_weight_dtype());
+  auto dtype_size = no_vnni ? 4 : (is_vnni_low_fp ? 2 : 1);
   cfg.tile_d = 1;
   cfg.tile_os = -1;
   cfg.pack_input = (is_1x1_conv_ && (sd_ > 1 || sh_ > 1 || sw_ > 1)) ? 1 : -1;
@@ -2877,6 +2877,14 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
       "data, the mixed datatypes is not supported yet!");
     COMPILE_ASSERT((dtype_output == datatypes::f32),
       "Output should be f32 when data and weights are in bf16.");
+    kpack = 2;
+  }
+  if (dtype_input == datatypes::f16) {
+    COMPILE_ASSERT((dtype_weight == datatypes::f16),
+      "Weights should be f16 as "
+      "data, the mixed datatypes is not supported yet!");
+    COMPILE_ASSERT((dtype_output == datatypes::f32),
+      "Output should be f32 when data and weights are in f16.");
     kpack = 2;
   }
   if (utils::is_one_of(dtype_input, datatypes::s8, datatypes::u8)) {

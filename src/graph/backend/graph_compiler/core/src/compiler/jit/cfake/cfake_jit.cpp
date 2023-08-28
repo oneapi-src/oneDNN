@@ -331,6 +331,7 @@ get_compiler_flag_map() {
             {"__AVX512BF16__", foffset(fAVX512BF16)},
             {"__AVX512FP16__", foffset(fAVX512FP16)},
 
+            {"__AMX_FP16__", foffset(fAVX512AMXFP16)},
             {"__AMX_BF16__", foffset(fAVX512AMXBF16)},
             {"__AMX_INT8__", foffset(fAVX512AMXTILE)},
             {"__AMX_TILE__", foffset(fAVX512AMXINT8)},
@@ -401,12 +402,16 @@ void cfake_jit::set_target_machine(target_machine_t &tm) {
     }
 
     bool vnni_enabled = tm.cpu_flags_.fAVX512VNNI;
+    bool avx512_f16_enabled = tm.cpu_flags_.fAVX512FP16;
+    bool amx_f16_enabled = tm.cpu_flags_.fAVX512AMXFP16;
     bool amx_bf16_enabled = tm.cpu_flags_.fAVX512AMXBF16;
     bool amx_tile_enabled = tm.cpu_flags_.fAVX512AMXTILE;
     bool amx_int8_enabled = tm.cpu_flags_.fAVX512AMXINT8;
     tm.cpu_flags_ = f;
     tm.cpu_flags_.fAVX512VNNI = vnni_enabled;
     tm.cpu_flags_.fAVX512AMXBF16 = amx_bf16_enabled;
+    tm.cpu_flags_.fAVX512FP16 = avx512_f16_enabled;
+    tm.cpu_flags_.fAVX512AMXFP16 = amx_f16_enabled;
     tm.cpu_flags_.fAVX512AMXTILE = amx_tile_enabled;
     tm.cpu_flags_.fAVX512AMXINT8 = amx_int8_enabled;
 }

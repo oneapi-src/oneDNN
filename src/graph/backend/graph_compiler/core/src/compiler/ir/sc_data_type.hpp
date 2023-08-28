@@ -261,6 +261,12 @@ template <>
 struct sc_data_traits_t<bf16_t> {
     static constexpr sc_data_type_t type() { return datatypes::bf16; }
 };
+
+struct fp16_t;
+template <>
+struct sc_data_traits_t<fp16_t> {
+    static constexpr sc_data_type_t type() { return datatypes::f16; }
+};
 } // namespace gc
 } // namespace graph
 } // namespace impl

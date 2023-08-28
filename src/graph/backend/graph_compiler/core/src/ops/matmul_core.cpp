@@ -221,7 +221,7 @@ void matmul_core_op_t::query_format(context_ptr ctx,
     sc_data_type_t B_dtype = info_.inputs_[1]->details_.dtype_;
     sc_data_format_t A_format = info_.inputs_[0]->details_.get_format();
     sc_data_format_t B_format = info_.inputs_[1]->details_.get_format();
-
+    bool is_B_vnni_low_fp = ops::is_vnni_low_fp(ctx, B_dtype);
     // constant check
     bool constant_A = false, constant_B = false;
     bool block_A = attrs_.get_or_else("block_A", false);
@@ -388,7 +388,7 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                                             true),
                                             {B_k_blk, B_n_blk, 4});
                                 }
-                            } else if (B_dtype == datatypes::bf16) {
+                            } else if (is_B_vnni_low_fp) {
                                 if (B_dims.size() == 2) {
                                     ret_B_format = sc_data_format_t::NKkn2k(
                                             B_k_blk, B_n_blk);

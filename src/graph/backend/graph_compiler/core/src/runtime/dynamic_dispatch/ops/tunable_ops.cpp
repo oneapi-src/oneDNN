@@ -17,6 +17,7 @@
 #include "config.hpp"
 #include "impl_type.hpp"
 #include "util.hpp"
+#include <compiler/config/context.hpp>
 #include <runtime/config.hpp>
 #include <runtime/data_type.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
@@ -71,6 +72,8 @@ static int check_and_set_managed_matmul_core_impl(
     bool is_int8 = utils::is_one_of(sc_data_etype(data_dyn_tsr->dtype_),
             sc_data_etype::U8, sc_data_etype::S8);
     bool is_f32 = sc_data_etype(data_dyn_tsr->dtype_) == sc_data_etype::F32;
+    bool no_vnni_f16 = get_default_context()->machine_.cpu_flags_.fAVX512FP16
+            && sc_data_etype(data_dyn_tsr->dtype_) == sc_data_etype::F16;
     const int M = utils::divide_and_ceil(data_dyn_tsr->dims_[0], M_blk) * M_blk;
     const int N
             = utils::divide_and_ceil(weight_dyn_tsr->dims_[1], N_blk) * N_blk;
@@ -82,7 +85,7 @@ static int check_and_set_managed_matmul_core_impl(
     get_managed_matmul_config(runtime::get_runtime_target_machine(),
             M_split_num, N_split_num, M_sub_block, N_sub_block, K_sub_block,
             im_loop_order, M, N, K, M_blk, N_blk, K_blk, sizeofdtypeA,
-            sizeofdtypeC, is_int8, is_f32,
+            sizeofdtypeC, is_int8, is_f32 || no_vnni_f16,
             /*is_dynamic*/ true);
     uint64_t keys[6] = {static_cast<uint64_t>(M_split_num),
             static_cast<uint64_t>(N_split_num),
@@ -493,9 +496,11 @@ extern "C" void query_format_conv_fwd_core_op(void *table, void *out,
     bool has_pad = info.pads_begin_h > 0 || info.pads_begin_w > 0
             || info.pads_begin_d > 0;
     bool is_f32 = sc_data_etype(data_dyn_tsr->dtype_) == sc_data_etype::F32;
+    bool no_vnni_f16 = get_default_context()->machine_.cpu_flags_.fAVX512FP16
+            && sc_data_etype(data_dyn_tsr->dtype_) == sc_data_etype::F16;
     auto default_block = get_dyn_conv_default_block(is_conv_1x1,
             utils::get_sizeof_etype(sc_data_etype(data_dyn_tsr->dtype_)),
-            has_pad, is_f32);
+            has_pad, is_f32 || no_vnni_f16);
     int k_block = utils::get_blocks(OC, 1, default_block).back();
     int c_block = utils::get_blocks(IC, 1, default_block).back();
     auto &format_table = op_table->format_table_;

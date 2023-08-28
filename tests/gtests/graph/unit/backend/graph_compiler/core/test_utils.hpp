@@ -52,11 +52,44 @@
         return; \
     }
 
+#define SKIP_F16(dtype) \
+    if (dtype == datatypes::f16 \
+            && !::dnnl::impl::graph::gc::get_default_context() \
+                        ->machine_.cpu_flags_.fAVX512AMXFP16 \
+            && !::dnnl::impl::graph::gc::get_default_context() \
+                        ->machine_.cpu_flags_.fAVX512FP16) { \
+        return; \
+    }
+
+#define SKIP_BF16_FP16(dtype) \
+    if ((dtype == datatypes::f16 \
+                && !::dnnl::impl::graph::gc::get_default_context() \
+                            ->machine_.cpu_flags_.fAVX512AMXFP16 \
+                && !::dnnl::impl::graph::gc::get_default_context() \
+                            ->machine_.cpu_flags_.fAVX512FP16) \
+            || (dtype == datatypes::bf16 \
+                    && !::dnnl::impl::graph::gc::get_default_context() \
+                                ->machine_.cpu_flags_.fAVX512AMXBF16 \
+                    && !::dnnl::impl::graph::gc::get_default_context() \
+                                ->machine_.cpu_flags_.fAVX512BF16)) { \
+        return; \
+    }
+
 #define REQUIRE_BF16() \
     if (!::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512AMXBF16 \
             && !::dnnl::impl::graph::gc::get_default_context() \
                         ->machine_.cpu_flags_.fAVX512BF16) { \
+        GTEST_SKIP(); \
+    }
+
+#define REQUIRE_FP16() \
+    if (!(::dnnl::impl::graph::gc::get_default_context() \
+                        ->machine_.cpu_flags_.fAVX512FP16 \
+                || (::dnnl::impl::graph::gc::get_default_context() \
+                                ->machine_.cpu_flags_.fAVX512AMXFP16 \
+                        && ::dnnl::impl::graph::gc::get_default_context() \
+                                   ->machine_.cpu_flags_.fAVX512VNNI))) { \
         GTEST_SKIP(); \
     }
 
@@ -81,6 +114,12 @@
 #define REQUIRE_AVX512FP16() \
     if (!::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512FP16) { \
+        GTEST_SKIP(); \
+    }
+
+#define REQUIRE_AVX512AMXFP16() \
+    if (!::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512AMXFP16) { \
         GTEST_SKIP(); \
     }
 

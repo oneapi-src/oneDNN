@@ -233,6 +233,13 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     COMPILE_ASSERT((output_dtype == datatypes::f32),
       "Output should be f32 when data and weights are in bf16.");
   }
+  if (input_dtype == datatypes::f16) {
+    COMPILE_ASSERT((weight_dtype == datatypes::f16),
+      "Weights should be f16 as "
+      "data, the mixed datatypes is not supported yet!");
+    COMPILE_ASSERT((output_dtype == datatypes::f32),
+      "Output should be f32 when data and weights are in f16.");
+  }
   if (utils::is_one_of(input_dtype, datatypes::s8, datatypes::u8)) {
     COMPILE_ASSERT((weight_dtype == datatypes::s8),
       "Weights should be s8 when \

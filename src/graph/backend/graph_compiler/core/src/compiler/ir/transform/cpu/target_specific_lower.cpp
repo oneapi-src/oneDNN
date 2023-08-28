@@ -48,8 +48,8 @@ namespace graph {
 namespace gc {
 
 SC_DECL_PASS_INFO(target_specific_lowering_cpu,
-        SC_PASS_DEPENDS_ON(bf16_legalizer, bf16_eliminator, func_inliner,
-                dyn_tensor_transformer),
+        SC_PASS_DEPENDS_ON(bf16_fp16_legalizer, bf16_fp16_eliminator,
+                func_inliner, dyn_tensor_transformer),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(FUNC_INLINED));
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_BF16_LEGALIZE_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_BF16_LEGALIZE_HPP
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_BF16_FP16_LEGALIZE_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_BF16_FP16_LEGALIZE_HPP
 
 #include <tuple>
 #include <utility>
@@ -31,12 +31,12 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-class bf16_promote_impl_t : public ir_visitor_t {
+class bf16_fp16_promote_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
     context_ptr ctx_;
-    bf16_promote_impl_t(context_ptr ctx = get_default_context())
+    bf16_fp16_promote_impl_t(context_ptr ctx = get_default_context())
         : ctx_(std::move(ctx)) {}
     std::tuple<expr_c, expr_c> docast(
             const expr &orig_a, const expr &orig_b, bool *is_bfloat16);
@@ -47,26 +47,26 @@ public:
 };
 
 // An analyzer viewer runs before elimination to count the valid usage number of
-// bf16 vars, to decide whether they need to be promoted to f32.
-class bf16_elimination_analyzer_t : public ir_viewer_t {
+// bf16 / fp16 vars, to decide whether they need to be promoted to f32.
+class bf16_fp16_elimination_analyzer_t : public ir_viewer_t {
 public:
     using ir_viewer_t::dispatch;
     using ir_viewer_t::view;
     context_ptr ctx_;
     std::unordered_map<expr_c, int> var_use_cnt_;
-    bf16_elimination_analyzer_t(context_ptr ctx) : ctx_(std::move(ctx)) {}
+    bf16_fp16_elimination_analyzer_t(context_ptr ctx) : ctx_(std::move(ctx)) {}
     void view(var_c v) override;
     void view(assign_c v) override;
     void view(define_c v) override;
     void view(intrin_call_c v) override;
 };
 
-class bf16_cast_elimination_impl_t : public ir_visitor_t {
+class bf16_fp16_cast_elimination_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
     context_ptr ctx_;
-    // need to convert bf16 var to f32
+    // need to convert bf16 / fp16 var to f32
     std::unordered_map<expr_c, expr_c> cvt_map_;
     // inherit from analyzer
     std::unordered_map<expr_c, int> &var_use_cnt_;
@@ -75,22 +75,22 @@ public:
     stmt_c visit(define_c v) final;
     stmt_c visit(assign_c v) final;
     stmt_c visit(returns_c v) final;
-    bf16_cast_elimination_impl_t(
+    bf16_fp16_cast_elimination_impl_t(
             context_ptr ctx, std::unordered_map<expr_c, int> &var_use_cnt)
         : ctx_(ctx), var_use_cnt_(var_use_cnt) {}
 };
 
 /**
- * bfloat16 legalize pass.
+ * bfloat16 and floating point16 legalize pass.
  *
  * It will do the following (a, b as bfloat16 input, c as bfloat16 output, "+"
  * as example):
  * c = a + b => c = bf16(float(a)+float(b))
  * c = a + neg(b) => c = bf16(float(a), neg(float(b)))
  * */
-class bf16_legalizer_t : public function_pass_t {
+class bf16_fp16_legalizer_t : public function_pass_t {
 public:
-    bf16_legalizer_t(context_ptr ctx = get_default_context())
+    bf16_fp16_legalizer_t(context_ptr ctx = get_default_context())
         : ctx_(std::move(ctx)) {}
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f);
@@ -102,18 +102,18 @@ private:
 };
 
 /**
- * bfloat16 elimination pass.
+ * bfloat16 and floating point16 elimination pass.
  *
- * The pass should be evaluated after bf16_legalize and recommended after
+ * The pass should be evaluated after bf16_fp16_legalize and recommended after
  * index2var.
  * It will do the two elimination:
  * 1. Eliminate consecutive bf16 transformations, e.g. f32(bf16(f32(a))) =>
  * f32(a)
  * 2. Promote consecutive bf16 calculation stmt of var to f32(only for var).
  */
-class bf16_eliminator_t : public function_pass_t {
+class bf16_fp16_eliminator_t : public function_pass_t {
 public:
-    bf16_eliminator_t(context_ptr ctx) : ctx_(std::move(ctx)) {}
+    bf16_fp16_eliminator_t(context_ptr ctx) : ctx_(std::move(ctx)) {}
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f);
     expr_c operator()(expr_c f);

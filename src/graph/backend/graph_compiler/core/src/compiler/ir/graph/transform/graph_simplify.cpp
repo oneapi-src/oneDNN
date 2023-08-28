@@ -27,6 +27,7 @@
 #include <ops/fusible/unary_elemwise.hpp>
 #include <unordered_map>
 #include <util/bf16.hpp>
+#include <util/fp16.hpp>
 
 SC_MODULE(graph.simplify)
 
@@ -257,6 +258,14 @@ static bool can_simplify(
         if ((constant_val == bf16_t(0)
                     && (node->isa<add_op_t>() || node->isa<sub_op_t>()))
                 || (constant_val == bf16_t(1)
+                        && (node->isa<mul_op_t>() || node->isa<div_op_t>())))
+            return true;
+    } else if (const_dtype == datatypes::f16) {
+        fp16_t constant_val = reinterpret_cast<fp16_t *>(
+                in_const_op->get_constant_values()->data_)[0];
+        if ((constant_val == fp16_t(0)
+                    && (node->isa<add_op_t>() || node->isa<sub_op_t>()))
+                || (constant_val == fp16_t(1)
                         && (node->isa<mul_op_t>() || node->isa<div_op_t>())))
             return true;
     }

@@ -50,19 +50,21 @@ static dnnl_data_type_t convert_dnnl_dtype(int dtype) {
     switch (sc_dtype(dtype)) {
         case sc_dtype::F32: return dnnl_f32;
         case sc_dtype::S32: return dnnl_s32;
+        case sc_dtype::F16: return dnnl_f16;
         case sc_dtype::BF16: return dnnl_bf16;
         case sc_dtype::S8: return dnnl_s8;
         case sc_dtype::U8: return dnnl_u8;
         default:
             throw std::runtime_error(
                     "convert_dnnl_dtype error, currently only support datatype "
-                    "f32/s32/bf16/s8/u8");
+                    "f32/s32/f16/bf16/s8/u8");
     }
 }
 
 static size_t get_dtype_sizeof(int dtype) {
     switch (sc_dtype(dtype)) {
         case sc_dtype::F32: return sizeof(float);
+        case sc_dtype::F16: return sizeof(uint16_t);
         case sc_dtype::S32: return sizeof(int32_t);
         case sc_dtype::BF16: return sizeof(uint16_t);
         case sc_dtype::S8: return sizeof(int8_t);
@@ -70,7 +72,7 @@ static size_t get_dtype_sizeof(int dtype) {
         default:
             throw std::runtime_error(
                     "Get dtype size error, currently only support datatype "
-                    "f32/s32/bf16/s8/u8");
+                    "f32/s32/f16/bf16/s8/u8");
     }
 }
 
