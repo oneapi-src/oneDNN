@@ -255,69 +255,6 @@ status_t ocl_gpu_engine_t::create_binary_from_ocl_source(
     return status::success;
 }
 
-status_t ocl_gpu_engine_t::create_compiled_bundle(
-        compute::compiled_bundle_t &generator,
-        const std::vector<const char *> &kernel_names,
-        const compute::kernel_ctx_t &kernel_ctx) const {
-
-    const char *source = ocl::get_kernel_source(kernel_names[0]);
-    for (const auto &kernel_name : kernel_names) {
-        assert(ocl::get_kernel_source(kernel_name) == source);
-        MAYBE_UNUSED(kernel_name);
-    }
-
-    compute::binary_t kernel_binary {};
-    CHECK(create_binary_from_ocl_source(kernel_binary, source, kernel_ctx));
-    generator = compute::compiled_bundle_t(kernel_binary);
-    return status::success;
-};
-
-status_t ocl_gpu_engine_t::create_compiled_kernel(
-        compute::compiled_kernel_t &generator,
-        jit::jit_generator_base &jitter) const {
-    auto &ocl_engine = *utils::downcast<const ocl_gpu_engine_t *>(this);
-    generator = compute::compiled_kernel_t(
-            jitter.get_binary(ocl_engine.context(), ocl_engine.device()),
-            jitter.kernel_name());
-    return status::success;
-}
-
-status_t ocl_gpu_engine_t::create_kernels_from_bundle(
-        std::vector<compute::kernel_t> &kernels,
-        const std::vector<const char *> &kernel_names,
-        const compute::compiled_bundle_t &generator) const {
-
-    auto dev = this->device();
-    auto ctx = this->context();
-    cl_int err = CL_SUCCESS;
-
-    auto &binary = generator.binary();
-    const uint8_t *binary_data = binary.data();
-    size_t binary_size = binary.size();
-    auto program = make_ocl_wrapper(clCreateProgramWithBinary(
-            ctx, 1, &dev, &binary_size, &binary_data, nullptr, &err));
-    OCL_CHECK(err);
-
-    err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
-    OCL_CHECK(err);
-
-    kernels = std::vector<compute::kernel_t>(kernel_names.size());
-    for (size_t i = 0; i < kernel_names.size(); ++i) {
-        ocl_wrapper_t<cl_kernel> ocl_kernel
-                = clCreateKernel(program, kernel_names[i], &err);
-        OCL_CHECK(err);
-        std::vector<gpu::compute::scalar_type_t> arg_types;
-        CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
-
-        std::shared_ptr<compute::kernel_impl_t> kernel_impl
-                = std::make_shared<ocl_gpu_kernel_t>(ocl_kernel, arg_types);
-        kernels[i] = std::move(kernel_impl);
-        dump_kernel_binary(kernels[i]);
-    }
-
-    return status::success;
-}
-
 status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
         const compute::binary_t &binary, const char *kernel_name) const {
     ocl_wrapper_t<cl_program> program;

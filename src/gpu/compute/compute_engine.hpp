@@ -32,7 +32,6 @@
 #include "gpu/compute/dispatch.hpp"
 #include "gpu/compute/kernel.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
-#include "gpu/compute/kernel_generator.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
 
 namespace dnnl {
@@ -50,13 +49,6 @@ public:
     status_t init(const std::vector<uint8_t> &cache_blob);
 
     const device_info_t *device_info() const { return device_info_.get(); }
-
-    virtual status_t create_compiled_bundle(compiled_bundle_t &generator,
-            const std::vector<const char *> &kernel_names,
-            const kernel_ctx_t &kernel_ctx) const = 0;
-
-    virtual status_t create_compiled_kernel(compiled_kernel_t &generator,
-            jit::jit_generator_base &jitter) const = 0;
 
     virtual status_t create_kernel(compute::kernel_t *kernel,
             jit::jit_generator_base *jitter,
@@ -86,11 +78,6 @@ public:
         assert(!"unexpected");
         return status::success;
     };
-
-    virtual status_t create_kernels_from_bundle(
-            std::vector<compute::kernel_t> &kernels,
-            const std::vector<const char *> &kernel_names,
-            const compiled_bundle_t &generator) const = 0;
 
     virtual status_t create_kernel_from_binary(compute::kernel_t &kernel,
             const compute::binary_t &binary, const char *kernel_name) const = 0;

@@ -34,12 +34,10 @@ namespace gpu {
 namespace ocl {
 
 struct gen9_eltwise_jit_params_t {
-    status_t create_generator(
-            engine_t *engine, compute::compiled_bundle_t &generator) const {
-
-        auto status = compute::compiled_bundle_t::create(
-                generator, engine, get_kernel_names(), get_kernel_ctx());
-        return status;
+    status_t create_generator(const compute::compute_engine_t &engine,
+            compute::kernel_bundle_t &bundle) const {
+        return engine.create_kernel_bundle(
+                bundle, get_kernel_names(), get_kernel_ctx());
     }
 
     const std::vector<const char *> &get_kernel_names() const {

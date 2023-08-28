@@ -148,14 +148,13 @@ enum ws_part_t {
 };
 
 struct ocl_conf_t {
-    status_t create_generator(
-            engine_t *engine, compute::compiled_bundle_t &generator) const {
+    status_t create_generator(const compute::compute_engine_t &engine,
+            compute::kernel_bundle_t &bundle) const {
 
         compute::kernel_ctx_t kernel_ctx;
         CHECK(init_kernel_ctx(kernel_ctx));
-        auto status = compute::compiled_bundle_t::create(
-                generator, engine, get_kernel_names(), kernel_ctx);
-        return status;
+        return engine.create_kernel_bundle(
+                bundle, get_kernel_names(), kernel_ctx);
     }
     const std::vector<const char *> &get_kernel_names() const {
         if (!is_ws_print_enabled()) {

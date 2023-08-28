@@ -52,13 +52,12 @@ struct trivial_key_validator_t {
 template <typename T>
 struct trivial_key_t : public T {
     trivial_key_t() = delete;
-    trivial_key_t(const T &t, compute::gpu_arch_t arch) : T(t), arch_(arch) {}
+    trivial_key_t(const T &t, const engine_id_t &id) : T(t), id_(id) {}
     bool operator==(const trivial_key_t &other) const {
-        return this->serialize() == other.serialize()
-                && this->arch_ == other.arch_;
+        return this->serialize() == other.serialize() && id_ == other.id_;
     }
     size_t hash() const {
-        return hash_combine(T::serialize().hash(), static_cast<int>(arch_));
+        return hash_combine(T::serialize().hash(), id_.hash());
     }
 
     bool is_valid() const {
@@ -67,7 +66,7 @@ struct trivial_key_t : public T {
     }
 
 private:
-    compute::gpu_arch_t arch_;
+    engine_id_t id_;
 };
 
 // GPU specific abstract interface for kernel_cache::value_impl_t
@@ -85,11 +84,8 @@ struct gpu_kernel_value_impl_t : public kernel_cache::value_impl_t {
             const std::vector<const char *> &kernel_names) const = 0;
 };
 
-// Container of kernel cache values. Used to prevent compute::kernel_generator_t
-// being dependent on the kernel cache.
-template <typename T,
-        typename = std::enable_if<std::is_convertible<const T &,
-                const compute::kernel_generator_t &>::value>>
+// Container of kernel cache values.
+template <typename T>
 struct gpu_kernel_value_container_t : public gpu_kernel_value_impl_t {
     gpu_kernel_value_container_t(T &&t) : value(std::move(t)) {}
 
@@ -168,7 +164,10 @@ struct gpu_kernel_key_container_t : public gpu_kernel_key_impl_t {
 
         auto g = std::make_shared<gpu_kernel_value_container_t<value_type>>(
                 value_type());
-        auto status = key.create_generator(engine, g->value);
+
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine);
+        auto status = key.create_generator(*compute_engine, g->value);
         generator = std::static_pointer_cast<gpu_kernel_value_impl_t>(g);
         return status;
     }

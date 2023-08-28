@@ -40,12 +40,11 @@ struct xe_systolic_gemm_copy_kernel_t {
         return status::success;
     };
 
-    status_t create_generator(
-            engine_t *engine, compute::compiled_bundle_t &generator) const {
+    status_t create_generator(const compute::compute_engine_t &engine,
+            compute::kernel_bundle_t &bundle) const {
         compute::kernel_ctx_t ctx;
         CHECK(init_kernel_ctx(ctx));
-        return compute::compiled_bundle_t::create(
-                generator, engine, {name()}, ctx);
+        return engine.create_kernel_bundle(bundle, {name()}, ctx);
     };
 
     status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {

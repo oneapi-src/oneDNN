@@ -24,7 +24,6 @@
 #include "gpu/compute/kernel.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
-#include "gpu/compute/kernel_generator.hpp"
 #include "gpu/compute/kernel_list.hpp"
 #include "gpu/compute/utils.hpp"
 

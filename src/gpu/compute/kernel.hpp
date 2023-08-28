@@ -47,6 +47,22 @@ public:
 
     virtual ~kernel_t() = default;
 
+    status_t get_kernels(const engine_t *engine, std::vector<kernel_t> &kernels,
+            const std::vector<const char *> &kernel_names) const {
+        if (kernel_names.size() != 1) return status::runtime_error;
+
+        // As there is only one kernel, allow the kernel_name to be unspecified
+        if (kernel_names[0] && std::string(kernel_names[0]) != name())
+            return status::runtime_error;
+
+        auto &compute_engine
+                = *utils::downcast<const compute_engine_t *>(engine);
+        if (!is_on(compute_engine)) return status::runtime_error;
+
+        kernels[0] = *this;
+        return status::success;
+    }
+
     operator bool() const { return bool(impl_); }
 
     kernel_impl_t *impl() const { return impl_.get(); }

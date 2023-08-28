@@ -61,8 +61,8 @@ struct gen_gemm_kernel_desc_t {
         }
     }
 
-    status_t create_generator(
-            engine_t *engine, compute::compiled_kernel_t &generator) const;
+    status_t create_generator(const compute::compute_engine_t &engine,
+            compute::kernel_t &kernel) const;
 
     serialized_t serialize() const {
         serialized_t s {};
