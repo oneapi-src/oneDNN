@@ -25,6 +25,11 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     // Init memory for all inputs and outputs that needs comparison
     const auto &prim_dt = mem.dt();
     const auto &graph_dt = static_cast<dnnl_data_type_t>(lt.get_data_type());
+    const bool is_boolean
+            = lt.get_data_type() == logical_tensor::data_type::boolean;
+
+    // Use data type from graph path to represent boolean
+    const auto &c_data_type = is_boolean ? prim_dt : graph_dt;
 
     // Get memory tag of primitive memory
     int ndims = mem.ndims();
@@ -46,7 +51,7 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     // otherwise use shape & tag from ref path side
 
     // Create memory for graph path
-    const auto data_type = static_cast<dnnl::memory::data_type>(graph_dt);
+    const auto data_type = static_cast<dnnl::memory::data_type>(c_data_type);
     if (is_op_input) {
         if (graph_dims_.empty()) graph_dims_.push_back(1);
         if (graph_strides_.empty()) graph_strides_.push_back(1);
@@ -62,9 +67,10 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
             std::memcpy(graph_data_handle, prim_data_handle, graph_mem.size());
         };
 
-        if (prim_dt != graph_dt) {
+        // Not do reorder for boolean data tensor
+        if (!is_boolean && prim_dt != c_data_type) {
             dnn_mem_t c_mem(
-                    ndims, mem.dims(), graph_dt, mtag, ::get_test_engine());
+                    ndims, mem.dims(), c_data_type, mtag, ::get_test_engine());
             c_mem.reorder(mem);
             prim_to_graph_memcpy(mem_, c_mem);
         } else {
@@ -75,7 +81,7 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
             dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
             mem_ = dnn_mem_t(md.get(), ::get_test_engine());
         } else {
-            mem_ = dnn_mem_t(mem.md_, graph_dt, mtag, ::get_test_engine());
+            mem_ = dnn_mem_t(mem.md_, c_data_type, mtag, ::get_test_engine());
         }
     }
 }
