@@ -69,11 +69,18 @@ struct gen_gemm_t : public gpu_gemm_t {
             ok = set_default_formats();
             if (!ok) return status::unimplemented;
 
+            eff_lda_ = desc()->lda();
+            eff_ldb_ = desc()->ldb();
+
             bool check_lda
                     = ((desc()->transa() == dnnl_notrans && desc()->lda() == 1)
                             || (desc()->transa() == dnnl_trans));
-            swap_ab_ = (desc()->a_type() == data_type::f16 && desc()->m() == 1
-                    && desc()->ldc() == 1 && check_lda);
+            swap_ab_ = (desc()->m() == 1 && desc()->ldc() == 1 && check_lda);
+
+            if (swap_ab_) {
+                std::swap(eff_lda_, eff_ldb_);
+                if (desc()->transa() == dnnl_notrans) eff_ldb_ = desc()->k();
+            }
 
             const auto d = desc();
 
@@ -357,22 +364,6 @@ struct gen_gemm_t : public gpu_gemm_t {
         int batch_dims() const {
             return nstl::max(desc()->c_desc.ndims - 2, 0);
         }
-
-        int align_a() const {
-            return int(utils::max_pow2_div(
-                    types::data_type_size(desc()->a_type()) * desc()->lda()));
-        }
-        int align_b() const {
-            return int(utils::max_pow2_div(
-                    types::data_type_size(desc()->b_type()) * desc()->ldb()));
-        }
-        int align_c() const {
-            return int(utils::max_pow2_div(
-                    types::data_type_size(desc()->c_type()) * desc()->ldc()));
-        }
-
-        int eff_align_a() const { return !swap_ab() ? align_a() : align_b(); }
-        int eff_align_b() const { return !swap_ab() ? align_b() : align_a(); }
         bool eff_transa() const {
             return !swap_ab() ? (desc()->transa() == dnnl_trans)
                               : (desc()->transb() == dnnl_notrans);
@@ -386,18 +377,27 @@ struct gen_gemm_t : public gpu_gemm_t {
         }
         dim_t eff_m() const { return !swap_ab() ? desc()->m() : desc()->n(); }
         dim_t eff_n() const { return !swap_ab() ? desc()->n() : desc()->m(); }
-        dim_t eff_lda() const {
-            return !swap_ab() ? desc()->lda() : desc()->ldb();
-        }
-        dim_t eff_ldb() const {
-            return !swap_ab() ? desc()->ldb() : desc()->lda();
-        }
+        dim_t eff_lda() const { return eff_lda_; }
+        dim_t eff_ldb() const { return eff_ldb_; }
         data_type_t eff_a_type() const {
             return !swap_ab() ? desc()->a_type() : desc()->b_type();
         }
         data_type_t eff_b_type() const {
             return !swap_ab() ? desc()->b_type() : desc()->a_type();
         }
+        int eff_align_a() const {
+            return int(utils::max_pow2_div(
+                    types::data_type_size(eff_a_type()) * eff_lda()));
+        }
+        int eff_align_b() const {
+            return int(utils::max_pow2_div(
+                    types::data_type_size(eff_b_type()) * eff_ldb()));
+        }
+        int align_c() const {
+            return int(utils::max_pow2_div(
+                    types::data_type_size(desc()->c_type()) * desc()->ldc()));
+        }
+
         const gen_gemm_nocopy_kernel_desc_t *kernel_desc() const {
             return &kernel_desc_;
         }
@@ -420,6 +420,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         bool swap_ab_ = false;
         bool a_zp_ = false, b_zp_ = false;
+        dim_t eff_lda_ = 0, eff_ldb_ = 0;
 
         const compute::device_info_t *dev_info_ = nullptr;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
