@@ -25,6 +25,26 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
+
+enum class sc_trans_kernel {
+    NO_TRANS, // don't use transpose
+    F32_8X8_TRANS, // use f32 8x8 transpose (f32 default)
+    F32_16X16_TRANS, // use f32 16x16 transpose (currently this is not enabled)
+    U8S8_16X16_TRANS, // use u8s8 16x16 transpose (u8s8 default)
+    BIT16_16X16_TRANS, // use bf16x16 transpose (Enabled when the cpu supports
+    // the highest instruction set is avx2)
+    BIT16_32X8_TRANS // use bf16 32x8 transpose ( bf16 default)
+};
+
+enum class sc_vnni_kernel {
+    NO_VNNI, // don't use vnni reorder/transpose
+    INSERT_REORDER_VNNI, // use inset kernel (step = 16)
+    X8_REORDER_VNNI, // use 8 step unpack kernel
+    X16_REORDER_VNNI, // use 16 step unpack kernel (default)
+    BF16_TRANSPOSE_VNNI, // bf16 transpose (default bf16 vnni transpose)
+    U8S8_TRANSPOSE_VNNI, // u8s8 transpose (default u8s8 vnni transpose)
+};
+
 void find_vectorized_axis(std::vector<expr> const &blocking_dims_expr,
         sc_data_format_t const &format, int &last_origin_axis,
         int &origin_axis_vectorized);
@@ -44,7 +64,7 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
         const sc_dims &plain_dims, const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, const tensor_slice &src,
         const tensor_slice &dst, const sc_data_type_t &dtype, bool is_dynamic,
-        bool dynamic_no_padding, bool &use_lanesx16);
+        bool dynamic_no_padding, sc_trans_kernel &trans_kernel_used);
 void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
         const sc_data_format_t &input_format,
@@ -53,7 +73,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         const std::vector<int> &inp_a_axis, const std::vector<int> &inp_b_axis,
         const std::vector<int> &out_a_axis, const std::vector<int> &out_b_axis,
         size_t wkld, bool is_dynamic, bool dynamic_no_padding,
-        bool use_lanesx16);
+        const sc_trans_kernel trans_kernel_used);
 bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
         std::vector<int> &inp_k_axis, std::vector<int> &out_n_axis,
         std::vector<int> &out_k_axis, const sc_dims &plain_dims,
@@ -61,7 +81,7 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
         const sc_data_format_t &output_format, const tensor_slice &src,
         const tensor_slice &dst, const sc_data_type_t &dtype,
         bool &is_vnni_reorder, bool is_dynamic, bool dynamic_no_padding,
-        bool &use_x16step);
+        sc_vnni_kernel &vnni_kernel_used);
 void do_vnni_reorder(std::vector<stmt_c> &cur_list, std::vector<expr> &rows,
         sc_data_type_t &rows_dtype, const bool is_vnni_reorder,
         const int bf16_step);
@@ -83,7 +103,7 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         std::vector<int> &out_n_axis, std::vector<int> &out_k_axis,
         size_t wkld = 0UL, const bool &is_vnni_reorder = false,
         bool is_dynamic = false, bool dynamic_no_padding = false,
-        bool use_x16step = false);
+        const sc_vnni_kernel vnni_kernel_used = sc_vnni_kernel::NO_VNNI);
 } // namespace gc
 } // namespace graph
 } // namespace impl

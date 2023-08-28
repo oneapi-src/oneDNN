@@ -106,6 +106,10 @@
         GTEST_SKIP(); \
     }
 
+#define IS_AVX512_AVAILABLE() \
+    (::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512F)
+
 #define IS_AMX_AVAILABLE() \
     (::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512AMXTILE \

@@ -1863,25 +1863,26 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
 
     bool is_vnni_reorder = false, vnni_usex16step = false;
     bool dynamic_no_padding = impl_alg & impl_kind_t::no_padding;
-    bool use_lanesx16 = false;
+    sc_trans_kernel trans_kernel_used;
+    sc_vnni_kernel vnni_kernel_used;
     if (!is_innermost_dim_strided
             && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims, input_format, output_format, src,
                     dst, dtype, is_vnni_reorder, is_dynamic, dynamic_no_padding,
-                    vnni_usex16step)) {
+                    vnni_kernel_used)) {
         compute_vnni_reorder(graph, ctx, src, dst, input_format, output_format,
                 dtype, plain_dims, output_loop, attrs, inp_a_axis, inp_b_axis,
                 out_a_axis, out_b_axis, wkld, is_vnni_reorder, is_dynamic,
-                dynamic_no_padding, vnni_usex16step);
+                dynamic_no_padding, vnni_kernel_used);
     } else if (!is_innermost_dim_strided
             && can_be_fast_transpose(graph, ctx, inp_a_axis, inp_b_axis,
                     out_a_axis, out_b_axis, plain_dims, input_format,
                     output_format, src, dst, dtype, is_dynamic,
-                    dynamic_no_padding, use_lanesx16)) {
+                    dynamic_no_padding, trans_kernel_used)) {
         compute_fast_transpose(graph, ctx, src, dst, input_format,
                 output_format, dtype, plain_dims, output_loop, attrs,
                 inp_a_axis, inp_b_axis, out_a_axis, out_b_axis, wkld,
-                is_dynamic, dynamic_no_padding, use_lanesx16);
+                is_dynamic, dynamic_no_padding, trans_kernel_used);
     } else if (is_not_blocking(input_format)
             && is_not_blocking(output_format)) {
         compute_reorder_stride2stride(graph, ctx, src, dst, input_format,
@@ -1983,7 +1984,8 @@ bool reorder_op_t::support_output_loop() const {
     auto src = tensor_slice(toy_inp_tsr), dst = tensor_slice(toy_out_tsr); \
     std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis; \
     bool is_vnni_reorder = false; \
-    bool usex16step = false;
+    sc_trans_kernel trans_kernel_used; \
+    sc_vnni_kernel vnni_kernel_used;
 
 bool reorder_op_t::support_optimized_kernel(const context_ptr &ctx) const {
     INIT_REORDER_OP_INFO()
@@ -1995,11 +1997,12 @@ bool reorder_op_t::support_optimized_kernel(const context_ptr &ctx) const {
                            input_format, output_format, src, dst, dtype,
                            is_dynamic(),
                            info_.cur_impl_ & impl_kind_t::no_padding,
-                           usex16step))
+                           trans_kernel_used))
             || can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims_, input_format, output_format, src,
                     dst, dtype, is_vnni_reorder, is_dynamic(),
-                    info_.cur_impl_ & impl_kind_t::no_padding, usex16step);
+                    info_.cur_impl_ & impl_kind_t::no_padding,
+                    vnni_kernel_used);
 }
 
 bool reorder_op_t::meet_vnni_reorder_require(const context_ptr &ctx) const {
@@ -2008,7 +2011,8 @@ bool reorder_op_t::meet_vnni_reorder_require(const context_ptr &ctx) const {
             && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims_, input_format, output_format, src,
                     dst, dtype, is_vnni_reorder, is_dynamic(),
-                    info_.cur_impl_ & impl_kind_t::no_padding, usex16step);
+                    info_.cur_impl_ & impl_kind_t::no_padding,
+                    vnni_kernel_used);
 }
 
 void reorder_op_t::compute_block(context_ptr ctx,

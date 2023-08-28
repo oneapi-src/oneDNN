@@ -151,6 +151,22 @@ INLINE vec_u16x16 sc_unpack_high_vec_u16x16_16bits(
         vec_u16x16 const &a, vec_u16x16 const &b) {
     return _mm256_unpackhi_epi16(a.v, b.v);
 }
+INLINE vec_u16x16 sc_unpack_low_vec_u16x16_32bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpacklo_epi32(a.v, b.v);
+}
+INLINE vec_u16x16 sc_unpack_high_vec_u16x16_32bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpackhi_epi32(a.v, b.v);
+}
+INLINE vec_u16x16 sc_unpack_low_vec_u16x16_64bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpacklo_epi64(a.v, b.v);
+}
+INLINE vec_u16x16 sc_unpack_high_vec_u16x16_64bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpackhi_epi64(a.v, b.v);
+}
 
 #define PARAM_U16X16(X) X.v
 #define sc_permute_vec_u16x16(a, b, imm) \

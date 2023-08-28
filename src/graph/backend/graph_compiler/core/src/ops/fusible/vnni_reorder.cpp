@@ -28,6 +28,24 @@ namespace impl {
 namespace graph {
 namespace gc {
 
+static sc_vnni_kernel get_vnni_kernel_type(sc_data_etype etype) {
+    switch (etype) {
+        case sc_data_etype::BF16: {
+            return sc_vnni_kernel::X16_REORDER_VNNI;
+        } break;
+        case sc_data_etype::U8: {
+            return sc_vnni_kernel::X16_REORDER_VNNI;
+        } break;
+        case sc_data_etype::S8: {
+            return sc_vnni_kernel::X16_REORDER_VNNI;
+        } break;
+        default: {
+            COMPILE_ASSERT(false, "Do not support dtype: " << etype);
+        } break;
+    }
+    return sc_vnni_kernel::NO_VNNI;
+}
+
 bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
         std::vector<int> &inp_k_axis, std::vector<int> &out_n_axis,
         std::vector<int> &out_k_axis, const sc_dims &plain_dims,
@@ -35,7 +53,7 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
         const sc_data_format_t &output_format, const tensor_slice &src,
         const tensor_slice &dst, const sc_data_type_t &dtype,
         bool &is_vnni_reorder, bool is_dynamic, bool dynamic_no_padding,
-        bool &use_x16step) {
+        sc_vnni_kernel &vnni_kernel_used) {
     // VNNI reorder only support NK2NKknk-liked format.
     // Last axis should be 2 if dytpe is bf16 and 4 if dytpe is u8/s8
     // eg. 384N 64K -> 12N 4K 8k 32n 2k
@@ -55,7 +73,10 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
         is_padding = true;
     }
 
-    if (input_format.is_blocking()) return false;
+    if (input_format.is_blocking()) {
+        vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+        return false;
+    }
     bool is_bf16 = dtype.as_etype() == sc_data_etype::BF16;
     inp_n_axis.clear();
     inp_k_axis.clear();
@@ -63,6 +84,7 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
     out_k_axis.clear();
     if (!utils::is_one_of(dtype.as_etype(), sc_data_etype::U8,
                 sc_data_etype::S8, sc_data_etype::BF16)) {
+        vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
         return false;
     }
     int inp_idx = 0, out_idx = 0;
@@ -80,19 +102,26 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
         auto tmp = output_format.format_code_.get(i);
         auto target_axis_dim = dst.shape_[i];
         // can't do vnni in dynamic cases
-        if (!target_axis_dim.isa<constant>()) return false;
+        if (!target_axis_dim.isa<constant>()) {
+            vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+            return false;
+        }
         if (out_dim_counts[tmp] > 1 && (get_expr_as_int(target_axis_dim) > 1)) {
             vectorized_last_dims = i;
             vectorized_original_axis = tmp;
             break;
         }
     }
-    if (out_dim_counts[vectorized_original_axis] < 2) { return false; }
+    if (out_dim_counts[vectorized_original_axis] < 2) {
+        vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+        return false;
+    }
 
     if (!dst.get_shape().at(vectorized_last_dims).isa<constant>()
             || get_expr_as_int(
                        dst.get_real_tensor()->strides_[vectorized_last_dims])
                     != 1) {
+        vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
         return false;
     }
 
@@ -131,6 +160,7 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
     // our K and N dims need to be constant
     if (!(src.get_shape().at(in_K_pos).isa<constant>()
                 || src.get_shape().at(in_N_pos).isa<constant>())) {
+        vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
         return false;
     }
     // Relax the restriction that the irrelevant dimension in the input is 1
@@ -142,6 +172,7 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
         if (get_expr_as_int(
                     src.get_real_tensor()->strides_[input_lastdim_max_idx])
                 != 1) {
+            vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
             return false;
         }
     }
@@ -159,47 +190,75 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
     inp_n_axis.emplace_back(in_N_pos);
     inp_k_axis.emplace_back(in_K_pos);
     // VNNI reorder kernel shape is 4x16 for u8/s8 and 4x8 for bf16.
+    vnni_kernel_used = get_vnni_kernel_type(dtype.as_etype());
     if (!is_padding) {
-        if (get_expr_as_int(dst.shape_[out_k2_pos]) != (is_bf16 ? 2 : 4))
+        if (get_expr_as_int(dst.shape_[out_k2_pos]) != (is_bf16 ? 2 : 4)) {
+            vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
             return false;
+        }
         if (!is_vnni_reorder) {
-            if (get_expr_as_int(dst.shape_[out_n_pos]) % 4 != 0) return false;
-            if (get_expr_as_int(dst.shape_[out_k_pos]) % 4 != 0) return false;
+            if (get_expr_as_int(dst.shape_[out_n_pos]) % 4 != 0) {
+                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+                return false;
+            }
+            if (get_expr_as_int(dst.shape_[out_k_pos]) % 4 != 0) {
+                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+                return false;
+            }
+            vnni_kernel_used = is_bf16 ? sc_vnni_kernel::BF16_TRANSPOSE_VNNI
+                                       : sc_vnni_kernel::U8S8_TRANSPOSE_VNNI;
         } else {
             if (get_expr_as_int(dst.shape_[out_n_pos]) % 16 == 0) {
-                use_x16step = true;
+                vnni_kernel_used = sc_vnni_kernel::X16_REORDER_VNNI;
             } else if (get_expr_as_int(dst.shape_[out_n_pos])
                             % (is_bf16 ? 8 : 16)
                     == 0) {
-                use_x16step = false;
+                vnni_kernel_used = sc_vnni_kernel::X8_REORDER_VNNI;
             } else {
+                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
                 return false;
             }
 
             if ((get_expr_as_int(dst.shape_[out_k_pos])
                         * get_expr_as_int(dst.shape_[out_k2_pos]))
                             % 4
-                    != 0)
+                    != 0) {
+                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
                 return false;
+            }
         }
     } else {
-        if (output_blocking_dims[out_k2_pos] != (is_bf16 ? 2 : 4)) return false;
+        if (output_blocking_dims[out_k2_pos] != (is_bf16 ? 2 : 4)) {
+            vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+            return false;
+        }
         if (!is_vnni_reorder) {
-            if (output_blocking_dims[out_n_pos] % 4 != 0) return false;
-            if (output_blocking_dims[out_k_pos] % 4 != 0) return false;
+            if (output_blocking_dims[out_n_pos] % 4 != 0) {
+                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+                return false;
+            }
+            if (output_blocking_dims[out_k_pos] % 4 != 0) {
+                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+                return false;
+            }
+            vnni_kernel_used = is_bf16 ? sc_vnni_kernel::BF16_TRANSPOSE_VNNI
+                                       : sc_vnni_kernel::U8S8_TRANSPOSE_VNNI;
         } else {
             if (output_blocking_dims[out_n_pos] % 16 == 0) {
-                use_x16step = true;
+                vnni_kernel_used = sc_vnni_kernel::X16_REORDER_VNNI;
             } else if (output_blocking_dims[out_n_pos] % (is_bf16 ? 8 : 16)
                     == 0) {
-                use_x16step = false;
+                vnni_kernel_used = sc_vnni_kernel::X8_REORDER_VNNI;
             } else {
+                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
                 return false;
             }
             if (output_blocking_dims[out_k_pos]
                             * output_blocking_dims[out_k2_pos] % 4
-                    != 0)
+                    != 0) {
+                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
                 return false;
+            }
         }
     }
 
@@ -335,7 +394,7 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         std::vector<int> &inp_n_axis, std::vector<int> &inp_k_axis,
         std::vector<int> &out_n_axis, std::vector<int> &out_k_axis, size_t wkld,
         const bool &is_vnni_reorder, bool is_dynamic, bool dynamic_no_padding,
-        bool use_x16step) {
+        const sc_vnni_kernel vnni_kernel_used) {
     bool is_bf16 = dtype.as_etype() == sc_data_etype::BF16;
     bool is_u8 = dtype.as_etype() == sc_data_etype::U8;
     auto input = src.get_real_tensor();
@@ -370,6 +429,7 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             || (is_dynamic && !dynamic_no_padding)) {
         is_padding = true;
     }
+    bool use_x16step = vnni_kernel_used == sc_vnni_kernel::X16_REORDER_VNNI;
     int u8_step = 16, bf16_step = use_x16step ? 16 : 8;
 
     std::vector<expr> rows(step);
