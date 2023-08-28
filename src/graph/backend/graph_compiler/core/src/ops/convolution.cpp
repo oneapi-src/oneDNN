@@ -726,10 +726,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     auto is_1x1 = std::all_of(weight_plain_dims.begin() + 2,
             weight_plain_dims.end(), [](int x) { return x == 1; });
     if (!is_1d) {
-        channel_last_support = is_1x1
-                || (ops::is_amx_dtype(ctx, src_dtype)
-                        && (kh - 1) * dilation_dims[1] + 1
-                                < input_plain_dims[input_plain_dims.size() - 2])
+        channel_last_support = is_1x1 || ops::is_amx_dtype(ctx, src_dtype)
                 || (has_pad && attrs_.get_or_else("inverse_filter", false));
     }
 

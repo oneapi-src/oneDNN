@@ -308,8 +308,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     // A relative large K_block(128) is good for padding_v2 template
     auto run_on_amx = ops::is_amx_dtype(ctx, get_weight_dtype());
     bool small_oc = oc_ <= 128;
-    bool using_v2_template
-      = has_pad && ((run_on_amx || is_3d_) && (kh_ - 1) * dh_ + 1 < ih_);
+    bool using_v2_template = has_pad && (run_on_amx || is_3d_);
     if ((!run_on_amx || using_v2_template || small_oc) && !large_spatial) {
       auto default_block
         = small_oc || using_v2_template ? 128 : 128 / dtype_size;
@@ -2108,12 +2107,10 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                   - 1)
                                 / dilation
                               + 1;
-                            expr num_right_pad
-                              = ((builder::make_cast(datatypes::s32, cur_i)
-                                   + (ker - 1) * dilation + 1 - (in + pad))
-                                  - 1)
-                                / dilation
-                              + 1;
+                            expr num_right_pad = divide_and_ceil(
+                              ((builder::make_cast(datatypes::s32, cur_i)
+                                + (ker - 1) * dilation + 1 - (in + pad))),
+                              dilation);
                             pad_begin_idx = 0;
                             pad_end_idx = num_pad;
                             unpad_begin_idx = num_pad;
@@ -2123,12 +2120,10 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                             }
                           }
                           _else_ {
-                            num_pad
-                              = ((builder::make_cast(datatypes::s32, cur_i)
-                                   + (ker - 1) * dilation + 1 - (in + pad))
-                                  - 1)
-                                / dilation
-                              + 1;
+                            num_pad = divide_and_ceil(
+                              ((builder::make_cast(datatypes::s32, cur_i)
+                                + (ker - 1) * dilation + 1 - (in + pad))),
+                              dilation);
                             pad_begin_idx = ker - num_pad;
                             pad_end_idx = ker;
                             unpad_begin_idx = 0;
@@ -2259,7 +2254,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                     auto fill_sub_tensor = [&](const expr &d_unpad_begin = 0,
                                              const expr &d_unpad_end = 1) {
                       _if_(cur_tile_begin < y_unpad_left) {
-                        _if_(cur_tile_end <= y_unpad_right) {
+                        _if_(
+                          y_unpad_right >= 0 && cur_tile_end <= y_unpad_right) {
                           // left pad only
                           real_l_pad = pw_b_
                             - builder::make_cast(datatypes::s32, cur_iw);
@@ -2315,7 +2311,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                         // update necessary row of sub-tensor according
                         // to actual_idx
                         _if_(cur_tile_begin < y_unpad_left) {
-                          _if_(cur_tile_end <= y_unpad_right) {
+                          _if_(y_unpad_right >= 0
+                            && cur_tile_end <= y_unpad_right) {
                             // left pad only
                             real_l_pad = pw_b_
                               - builder::make_cast(datatypes::s32, cur_iw);
@@ -2602,6 +2599,18 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                               idx = builder::make_cast(
                                 datatypes::u32, hi * kw_ + wi);
                               A_list[idx] = tensor_ptr(pbuffer, {0, 0});
+                            }
+                          }
+
+                          _if_(h_pad_begin_idx == 0 && h_unpad_end_idx < kh_) {
+                            // Add zero-padding tensorptr to A_list
+                            _for_(hi, h_unpad_end_idx, kh_) {
+                              _for_(wi, 0, kw_) {
+                                _var_(idx, datatypes::u32);
+                                idx = builder::make_cast(
+                                  datatypes::u32, hi * kw_ + wi);
+                                A_list[idx] = tensor_ptr(pbuffer, {0, 0});
+                              }
                             }
                           }
                         }
@@ -2980,8 +2989,7 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
           pack_rows, os_acc_size, os_mask);
       }
     } else {
-      if (((ops::is_amx_dtype(ctx, dtype_input) || is_3d_)
-            && (kh_ - 1) * dh_ + 1 < ih_)
+      if (((ops::is_amx_dtype(ctx, dtype_input) || is_3d_))
         || inverse_filter_) {
         if (inverse_filter_) {
           SC_INFO << "inverse_filter_ used in conv padding v2.";
