@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <mutex>
 #include <CL/cl_ext.h>
 
@@ -386,8 +387,8 @@ void dump_kernel_binary(compute::binary_t binary, const std::string &name) {}
 void dump_kernel_binary(cl_kernel) {}
 #endif
 
-void debugdump_processed_source(
-        const std::string &source, const std::string &options) {
+void debugdump_processed_source(const std::string &source,
+        const std::string &options, const std::string &cl_options) {
 #if defined(__linux__) && defined(DNNL_DEV_MODE)
     if (get_verbose(verbose_t::debuginfo) >= 10) {
         auto get_defines = [](const std::string &from) {
@@ -444,6 +445,7 @@ void debugdump_processed_source(
         std::string preprocess_cmd
                 = std::string() + "cpp -P " + o.c_str() + " | clang-format";
         execute_command(preprocess_cmd, source);
+        std::cout << "OCL_ARCH_OPTIONS: " << cl_options << std::endl;
     }
 #endif
 }

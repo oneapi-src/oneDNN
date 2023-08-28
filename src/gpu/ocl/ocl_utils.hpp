@@ -427,8 +427,8 @@ void dump_kernel_binary(cl_kernel ocl_kernel);
 void dump_kernel_binary(
         const engine_t *engine, const compute::kernel_t &binary_kernel);
 
-void debugdump_processed_source(
-        const std::string &source, const std::string &options);
+void debugdump_processed_source(const std::string &source,
+        const std::string &options, const std::string &ocl_options);
 
 status_t get_kernel_arg_types(cl_kernel ocl_kernel,
         std::vector<gpu::compute::scalar_type_t> *arg_types);
