@@ -211,13 +211,7 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
     if (fuse_eleadd)
         compute_elementwise_ref_direct_fwd(
                 &mkldnn_output[0], &mkldnn_ele_add[0], {N, K, P, Q});
-    bool correctness = equal(sc_output, mkldnn_output, 1e-3f);
-    if (!correctness) {
-        std::cout << "Check correctness FAIL." << std::endl;
-        print_output(sc_output, mkldnn_output, 100);
-        check_sum(sc_output, mkldnn_output);
-    }
-    EXPECT_TRUE(correctness);
+    test_utils::compare_data(sc_output, mkldnn_output, 1e-3f, 1e-3f);
 }
 
 void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
@@ -562,13 +556,7 @@ void check_conv_correctness_and_tuning_fwd(int N, int K, int C, int H, int W,
     if (fuse_eleadd)
         compute_elementwise_ref_direct_fwd(
                 &mkldnn_output[0], &mkldnn_ele_add[0], {N, K, P, Q});
-    bool correctness = equal(sc_output, mkldnn_output, 1e-3f);
-    if (!correctness) {
-        std::cout << "Check correctness FAIL." << std::endl;
-        print_output(sc_output, mkldnn_output, 100);
-        check_sum(sc_output, mkldnn_output);
-    }
-    EXPECT_TRUE(correctness);
+    test_utils::compare_data(sc_output, mkldnn_output, 1e-3f, 1e-3f);
 }
 
 TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_1_NCX) {

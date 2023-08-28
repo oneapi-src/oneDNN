@@ -158,13 +158,7 @@ void check_conv_fwd_correctness(conv_fwd_config_t cfg,
             fuse_bias ? dir_t::FWD_B : FWD_I, nullptr, nullptr, false, od, id,
             sd, pd, kd);
 
-    bool correctness = equal(sc_output, ref_output, 1e-3f);
-    if (!correctness) {
-        std::cout << "Check correctness FAIL." << std::endl;
-        print_output(sc_output, ref_output, 100);
-        check_sum(sc_output, ref_output);
-    }
-    EXPECT_TRUE(correctness);
+    test_utils::compare_data(sc_output, ref_output, 1e-3f, 1e-3f);
 }
 
 void check_conv_bwd_d_correctness(int N, int K, int C, int D, int H, int W,
@@ -215,13 +209,8 @@ void check_conv_bwd_d_correctness(int N, int K, int C, int D, int H, int W,
             padding, padding, &mkldnn_grad_data[0], &mkldnn_weight[0],
             &mkldnn_bias[0], &mkldnn_grad[0], dir_t::BWD_D, O, D, stride,
             padding, KD);
-    bool correctness = equal(grad_data, mkldnn_grad_data, 1e-3f);
-    if (!correctness) {
-        std::cout << "Check correctness FAIL." << std::endl;
-        print_output(grad_data, mkldnn_grad_data, 100);
-        check_sum(grad_data, mkldnn_grad_data);
-    }
-    EXPECT_TRUE(correctness);
+
+    test_utils::compare_data(grad_data, mkldnn_grad_data, 1e-3f, 1e-4f);
 }
 
 void check_conv_bwd_w_correctness(int N, int K, int C, int D, int H, int W,
