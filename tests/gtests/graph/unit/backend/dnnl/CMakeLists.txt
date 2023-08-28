@@ -14,6 +14,11 @@
 # limitations under the License.
 #===============================================================================
 
+# make gtest and library same definition for subgraph_visualizer_t
+if(ONEDNN_ENABLE_GRAPH_DUMP)
+    add_definitions_with_host_compiler(-DDNNL_ENABLE_GRAPH_DUMP)
+endif()
+
 set(OBJ_LIB graph_unit_test_dnnl_backend)
 
 add_library(${OBJ_LIB} OBJECT
