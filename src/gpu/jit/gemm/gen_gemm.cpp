@@ -47,18 +47,13 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     auto problem = pd()->kernel_desc()->problem();
 
-    auto stride_a0 = int32_t(pd()->desc()->stride_a(0));
-    auto stride_b0 = int32_t(pd()->desc()->stride_b(0));
+    auto stride_a0 = int32_t(pd()->eff_stride_a(0));
+    auto stride_b0 = int32_t(pd()->eff_stride_b(0));
     auto stride_c0 = int32_t(pd()->desc()->stride_c(0));
 
-    auto stride_a1 = int32_t(pd()->desc()->stride_a(1));
-    auto stride_b1 = int32_t(pd()->desc()->stride_b(1));
+    auto stride_a1 = int32_t(pd()->eff_stride_a(1));
+    auto stride_b1 = int32_t(pd()->eff_stride_b(1));
     auto stride_c1 = int32_t(pd()->desc()->stride_c(1));
-
-    if (swapab) {
-        std::swap(stride_a0, stride_b0);
-        std::swap(stride_a1, stride_b1);
-    }
 
     if (!last_k_block) flags |= FlagNonfinalKBlock;
     if (cmask & 1) flags |= FlagCOColumn;

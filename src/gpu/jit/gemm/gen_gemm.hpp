@@ -69,6 +69,9 @@ struct gen_gemm_t : public gpu_gemm_t {
             ok = set_default_formats();
             if (!ok) return status::unimplemented;
 
+            const auto d = desc();
+
+            // If m = 1, swap A/B to use more efficient n = 1 kernels if possible.
             eff_lda_ = desc()->lda();
             eff_ldb_ = desc()->ldb();
 
@@ -82,8 +85,18 @@ struct gen_gemm_t : public gpu_gemm_t {
                 if (desc()->transa() == dnnl_notrans) eff_ldb_ = desc()->k();
             }
 
-            const auto d = desc();
+            // Pad leading dimensions in case of a single row/column.
+            if ((d->k() == 1 && eff_transa() == dnnl_notrans)
+                    || (eff_m() == 1 && eff_transa() == dnnl_trans)) {
+                eff_lda_ = utils::rnd_up(eff_lda_, 16);
+            }
 
+            if ((eff_n() == 1 && eff_transb() == dnnl_notrans)
+                    || (d->k() == 1 && eff_transb() == dnnl_trans)) {
+                eff_ldb_ = utils::rnd_up(eff_ldb_, 16);
+            }
+
+            // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8)) {
                 ok = ok && utils::one_of(d->b_type(), u8, s8);
@@ -379,6 +392,12 @@ struct gen_gemm_t : public gpu_gemm_t {
         dim_t eff_n() const { return !swap_ab() ? desc()->n() : desc()->m(); }
         dim_t eff_lda() const { return eff_lda_; }
         dim_t eff_ldb() const { return eff_ldb_; }
+        dim_t eff_stride_a(int dim) const {
+            return !swap_ab() ? desc()->stride_a(dim) : desc()->stride_b(dim);
+        }
+        dim_t eff_stride_b(int dim) const {
+            return !swap_ab() ? desc()->stride_b(dim) : desc()->stride_a(dim);
+        }
         data_type_t eff_a_type() const {
             return !swap_ab() ? desc()->a_type() : desc()->b_type();
         }
@@ -386,16 +405,28 @@ struct gen_gemm_t : public gpu_gemm_t {
             return !swap_ab() ? desc()->b_type() : desc()->a_type();
         }
         int eff_align_a() const {
-            return int(utils::max_pow2_div(
-                    types::data_type_size(eff_a_type()) * eff_lda()));
+            auto sz = types::data_type_size(eff_a_type());
+            auto align = utils::max_pow2_div(eff_lda() * sz);
+            for (int b = 0; b < batch_dims(); b++)
+                align = nstl::min(
+                        align, utils::max_pow2_div(eff_stride_a(b) * sz));
+            return int(align);
         }
         int eff_align_b() const {
-            return int(utils::max_pow2_div(
-                    types::data_type_size(eff_b_type()) * eff_ldb()));
+            auto sz = types::data_type_size(eff_b_type());
+            auto align = utils::max_pow2_div(eff_ldb() * sz);
+            for (int b = 0; b < batch_dims(); b++)
+                align = nstl::min(
+                        align, utils::max_pow2_div(eff_stride_b(b) * sz));
+            return int(align);
         }
         int align_c() const {
-            return int(utils::max_pow2_div(
-                    types::data_type_size(desc()->c_type()) * desc()->ldc()));
+            auto sz = types::data_type_size(desc()->c_type());
+            auto align = utils::max_pow2_div(desc()->ldc() * sz);
+            for (int b = 0; b < batch_dims(); b++)
+                align = nstl::min(
+                        align, utils::max_pow2_div(desc()->stride_c(b) * sz));
+            return int(align);
         }
 
         const gen_gemm_nocopy_kernel_desc_t *kernel_desc() const {
