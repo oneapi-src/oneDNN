@@ -34,6 +34,10 @@ int rnd_up(int a, int b) {
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
+#if DT_BF8 || SRC_DT_BF8 || WEI_DT_BF8 || DST_DT_BF8 || BIA_DT_BF8
+#define MATH_UTILS_DECLARE_BF8 1
+#endif
+
 #if DT_BF16 || SRC_DT_BF16 || WEI_DT_BF16 || DST_DT_BF16 || BIA_DT_BF16 \
         || A_DT_BF16 || B_DT_BF16 || C_DT_BF16 || SUM_DT_BF16 \
         || POST_OP_USING_BF16
@@ -45,6 +49,103 @@ ushort16 __builtin_IB_simd_block_read_16_global_h(const __global ushort *);
 
 void __builtin_IB_simd_block_write_8_global_l(__global ulong *, ulong8);
 void __builtin_IB_simd_block_write_16_global_h(__global ushort *, ushort16);
+
+#if MATH_UTILS_DECLARE_BF8
+// Emulation functions for bf8 <-> f16 conversion.
+uchar __attribute__((overloadable)) cvt_hf_to_bf8(half f) {
+    // we just need to apply rounding
+    ushort fraw = as_ushort(f);
+    ushort naninf_mask = 0x7c00;
+
+    bool is_special = (fraw & naninf_mask) == naninf_mask;
+    bool is_nan = is_special && (fraw & 0x03ff); // one of the lsb is non zero
+
+    // we always return R ind for Nan input as there is no good
+    // conversion of payload
+    if (is_nan) { return 0xfe; }
+
+    // if infinity, we just return it as is
+    if (is_special) {
+        uchar raw_bits = fraw >> 8;
+        return raw_bits;
+    }
+
+    // otherwise we just round and return
+    ushort rounding_nudge = 0x007f + ((fraw & 0x0100) >> 8);
+    fraw = fraw + rounding_nudge;
+    uchar raw_bits = fraw >> 8;
+    return raw_bits;
+}
+
+uchar2 __attribute__((overloadable)) cvt_hf_to_bf8(half2 f) {
+    uchar2 r;
+    for (int i = 0; i < 2; i++) {
+        r[i] = cvt_hf_to_bf8(f[i]);
+    }
+    return r;
+}
+
+uchar4 __attribute__((overloadable)) cvt_hf_to_bf8(half4 f) {
+    uchar4 r;
+    for (int i = 0; i < 4; i++) {
+        r[i] = cvt_hf_to_bf8(f[i]);
+    }
+    return r;
+}
+
+uchar8 __attribute__((overloadable)) cvt_hf_to_bf8(half8 f) {
+    uchar8 r;
+    for (int i = 0; i < 8; i++) {
+        r[i] = cvt_hf_to_bf8(f[i]);
+    }
+    return r;
+}
+
+uchar16 __attribute__((overloadable)) cvt_hf_to_bf8(half16 f) {
+    uchar16 r;
+    for (int i = 0; i < 16; i++) {
+        r[i] = cvt_hf_to_bf8(f[i]);
+    }
+    return r;
+}
+
+half __attribute__((overloadable)) cvt_bf8_to_hf(uchar b) {
+    uchar2 iraw = {0, b};
+    return as_half(iraw);
+}
+
+half2 __attribute__((overloadable)) cvt_bf8_to_hf(uchar2 b) {
+    half2 f;
+    for (int i = 0; i < 2; i++) {
+        f[i] = cvt_bf8_to_hf(b[i]);
+    }
+    return f;
+}
+
+half4 __attribute__((overloadable)) cvt_bf8_to_hf(uchar4 b) {
+    half4 f;
+    for (int i = 0; i < 4; i++) {
+        f[i] = cvt_bf8_to_hf(b[i]);
+    }
+    return f;
+}
+
+half8 __attribute__((overloadable)) cvt_bf8_to_hf(uchar8 b) {
+    half8 f;
+    for (int i = 0; i < 8; i++) {
+        f[i] = cvt_bf8_to_hf(b[i]);
+    }
+    return f;
+}
+
+half16 __attribute__((overloadable)) cvt_bf8_to_hf(uchar16 b) {
+    half16 f;
+    for (int i = 0; i < 16; i++) {
+        f[i] = cvt_bf8_to_hf(b[i]);
+    }
+    return f;
+}
+#endif
 
 #if MATH_UTILS_DECLARE_BF16
 #ifdef cl_future_bf16_cvt
