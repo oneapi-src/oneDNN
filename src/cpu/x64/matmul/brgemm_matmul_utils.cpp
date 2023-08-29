@@ -128,16 +128,24 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
             broadcasting_strategy_t::no_broadcast};
     const bcast_set_t limited_bcast_set = {broadcasting_strategy_t::scalar,
             broadcasting_strategy_t::no_broadcast};
-    const bcast_set_t bcast_set = limit_bcast_strategies_set
+    const bcast_set_t bcast_set
+            = limit_bcast_strategies_set || bgmmc.is_runtime_N
             ? limited_bcast_set
             : default_bcast_set;
+    // binary post-ops are disabled for runtime N due to issues in
+    // injector::post_ops_ok() with identification of per_oc strategy
+    // for some cases
+    std::vector<post_op_type> accepted_post_ops;
+    accepted_post_ops.push_back(sum);
+    accepted_post_ops.push_back(eltwise);
+    if (!bgmmc.is_runtime_N) accepted_post_ops.push_back(binary);
     return supported_binary_bcast
-            && injector::post_ops_ok(post_ops_ok_args_t(get_max_cpu_isa(),
-                    {sum, eltwise, binary}, post_ops, &dst_d,
-                    false /*sum_at_pos_0_only*/,
-                    false /*sum_requires_scale_one*/,
-                    false /*sum_requires_zp_zero*/,
-                    true /*sum_requires_same_params*/, bcast_set));
+            && injector::post_ops_ok(
+                    post_ops_ok_args_t(get_max_cpu_isa(), accepted_post_ops,
+                            post_ops, &dst_d, false /*sum_at_pos_0_only*/,
+                            false /*sum_requires_scale_one*/,
+                            false /*sum_requires_zp_zero*/,
+                            true /*sum_requires_same_params*/, bcast_set));
 }
 
 status_t check_isa_with_datatype(
@@ -200,7 +208,7 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
         const int default_n_block = init_n_tag
                 ? get_default_n_block(format_tag::undef)
                 : bgmmc.N_blk;
-        bgmmc.wei_tag = blocked_B_layouts_allowed
+        bgmmc.wei_tag = blocked_B_layouts_allowed && !bgmmc.is_runtime_N
                 ? this->pick_blocked_B_layout(default_n_block)
                 : plain_tensor_layout_tag;
         if (format_tag::undef == bgmmc.wei_tag) return status::unimplemented;
@@ -215,11 +223,13 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
                     = bgmmc.b_dt_sz * B_d.blocking_desc().strides[dim];
         }
     } else {
-        bgmmc.wei_tag = blocked_B_layouts_allowed
+        bgmmc.wei_tag = blocked_B_layouts_allowed && !bgmmc.is_runtime_N
                 ? memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, blocked_64n_B_layout_tag,
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
                         blocked_16n_B_layout_tag)
+                : bgmmc.is_runtime_N
+                ? memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag)
                 : memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, acbd, adbc);
 
@@ -612,9 +622,10 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
             : 1;
     int iter = 0;
     const int runtime_M_chunk = bgmmc.lda_big_pow2() ? 2 : 4;
+    const int runtime_N_chunk = 2;
     for (int nthr_k = 1; nthr_k <= max_nthr_k; nthr_k++) {
         int num_M_blk = bgmmc.is_runtime_M ? 1 : div_up(bgmmc.M, bgmmc.M_blk);
-        int num_N_blk = div_up(bgmmc.N, bgmmc.N_blk);
+        int num_N_blk = bgmmc.is_runtime_N ? 1 : div_up(bgmmc.N, bgmmc.N_blk);
         int k_parallel_work = nstl::min(max_k_parallel_work, nthr_k);
         int num_parallel_work
                 = bgmmc.batch * num_M_blk * num_N_blk * k_parallel_work;
@@ -629,16 +640,17 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
                         && bgmmc.M_blk > 32
                 ? div_up(bgmmc.M_blk, 2)
                 : bgmmc.M_blk;
-        const int min_N_blk = low_parallelism && is_amx_xf16
-                        && !bm_conf_utils.check_n_blk_fixed()
+        const int min_N_blk = !bgmmc.is_runtime_N && low_parallelism
+                        && is_amx_xf16 && !bm_conf_utils.check_n_blk_fixed()
                         && bgmmc.N_blk > 32 && !runtime_dims
                 ? 32
                 : bgmmc.N_blk;
         const int desired_M_chunk = bgmmc.is_runtime_M
                 ? runtime_M_chunk
                 : nstl::min(4, num_M_blk);
-        const int desired_N_chunk
-                = nstl::min(a_lot_of_parallel_work_lvl2 ? 6 : 4, num_N_blk);
+        const int desired_N_chunk = bgmmc.is_runtime_N
+                ? runtime_N_chunk
+                : nstl::min(a_lot_of_parallel_work_lvl2 ? 6 : 4, num_N_blk);
 
         std::unordered_set<int> mblk_candidates;
         for (int m_blk = bgmmc.M_blk; m_blk >= min_M_blk;
@@ -813,7 +825,8 @@ float compute_blocking_heuristic_avx2(brgemm_matmul_conf_t &bgmmc,
 status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils) {
 
-    bgmmc.N_blk = nstl::min(static_cast<dim_t>(bgmmc.wei_n_blk), bgmmc.N);
+    bgmmc.N_blk = bgmmc.wei_n_blk;
+    if (!bgmmc.is_runtime_N) bgmmc.N_blk = nstl::min(bgmmc.N_blk, bgmmc.N);
 
     bgmmc.M_chunk_size = bgmmc.N_chunk_size = 1;
 
@@ -1015,7 +1028,6 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const int binary_ind = p.find(primitive_kind::binary);
     const int prelu_ind = p.find(primitive_kind::prelu);
     bgmmc.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
-    VCONDCHECK_BG(post_ops_ok(bgmmc, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
 
     bgmmc.src_zp_type = get_zp_type(attr, DNNL_ARG_SRC);
     bgmmc.wei_zp_type = get_zp_type(attr, DNNL_ARG_WEIGHTS);
@@ -1038,16 +1050,25 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.is_runtime_N = is_runtime_value(bgmmc.N);
     bgmmc.is_runtime_K = is_runtime_value(bgmmc.K);
 
-    // runtime value for M dimension is only supported
-    if (is_runtime_value(bgmmc.batch) || bgmmc.is_runtime_N
-            || bgmmc.is_runtime_K)
+    VCONDCHECK_BG(post_ops_ok(bgmmc, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
+
+    // runtime values for M/N dimensions are only supported
+    if (is_runtime_value(bgmmc.batch) || bgmmc.is_runtime_K)
         return status::unimplemented;
+
+    // Single runtime dimension is only supported for now
+    if (bgmmc.is_runtime_M && bgmmc.is_runtime_N) return status::unimplemented;
 
     // Runtime value for M dimension is supported for 2d AMX int8/bfloat16
     // problems only.
     const bool runtime_M_supported = bgmmc.is_amx && bgmmc.ndims == 2
             && one_of(true, bm_conf_utils.is_int8(), bm_conf_utils.is_bf16());
     if (bgmmc.is_runtime_M && !runtime_M_supported)
+        return status::unimplemented;
+    // Runtime N value is supported for 2d AMX bfloat16 problems only.
+    const bool runtime_N_supported
+            = bgmmc.is_amx && bgmmc.ndims == 2 && bm_conf_utils.is_bf16();
+    if (bgmmc.is_runtime_N && !runtime_N_supported)
         return status::unimplemented;
 
     bgmmc.batch_without_first_dim
@@ -1143,6 +1164,43 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                 VERBOSE_UNSUPPORTED_MEM_STRIDE);
     }
 
+    // runtime B stride wrt N dimension is not acceptable
+    VCONDCHECK_BG(!is_runtime_value(helper.get_b_stride(bgmmc.ndims - 1)),
+            VERBOSE_UNSUPPORTED_MEM_STRIDE);
+
+    // runtime B stride wrt K dimension is acceptable for non-transposed B and
+    // runtime N case only
+    const bool stride_B_wrt_K_dim_ok = IMPLICATION(
+            is_runtime_value(helper.get_b_stride(bgmmc.ndims - 2)),
+            !bgmmc.transposed_B && bgmmc.is_runtime_N);
+    VCONDCHECK_BG(stride_B_wrt_K_dim_ok, VERBOSE_UNSUPPORTED_MEM_STRIDE);
+
+    // runtime B strides wrt batch dimensions are acceptable for runtime N case
+    // only
+    for (int b = 0; b < bgmmc.batch_ndims; b++) {
+        VCONDCHECK_BG(IMPLICATION(is_runtime_value(helper.get_b_stride(b)),
+                              bgmmc.is_runtime_N),
+                VERBOSE_UNSUPPORTED_MEM_STRIDE);
+    }
+
+    // runtime C stride wrt N dimension is not acceptable
+    VCONDCHECK_BG(!is_runtime_value(helper.get_c_stride(bgmmc.ndims - 1)),
+            VERBOSE_UNSUPPORTED_MEM_STRIDE);
+
+    // runtime C stride wrt M dimension is acceptable for runtime N case only
+    const bool stride_C_wrt_K_dim_ok = IMPLICATION(
+            is_runtime_value(helper.get_c_stride(bgmmc.ndims - 2)),
+            bgmmc.is_runtime_N);
+    VCONDCHECK_BG(stride_C_wrt_K_dim_ok, VERBOSE_UNSUPPORTED_MEM_STRIDE);
+
+    // runtime C strides wrt batch dimensions are acceptable for runtime N case
+    // only
+    for (int b = 0; b < bgmmc.batch_ndims; b++) {
+        VCONDCHECK_BG(IMPLICATION(is_runtime_value(helper.get_c_stride(b)),
+                              bgmmc.is_runtime_N),
+                VERBOSE_UNSUPPORTED_MEM_STRIDE);
+    }
+
     const bool lda_is_big_2pow
             = (bm_conf_utils.is_bf16()
                       || (bgmmc.is_amx && bm_conf_utils.is_f16()))
@@ -1197,6 +1255,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     if (bgmmc.wei_n_blk > bgmmc.N_blk
             && IMPLICATION(
                     bgmmc.N == bgmmc.N_blk, bgmmc.N >= bgmmc.wei_n_blk)) {
+        assert(!bgmmc.is_runtim_N
+                && "N_blk should not be adjusted for runtime N");
         bgmmc.wei_n_blk = bgmmc.N_blk;
         VCHECK_BG(bm_conf_utils.update_and_check_B_tag(
                           weights_md, bgmmc.wei_n_blk),
@@ -1209,16 +1269,18 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     VCHECK_BG(bm_conf_utils.set_B_flags(weights_md), VERBOSE_BLOCKING_FAIL);
 
     bgmmc.M_tail = bgmmc.is_runtime_M ? 0 : bgmmc.M % bgmmc.M_blk;
-    bgmmc.N_tail = bgmmc.N % bgmmc.N_blk;
+    bgmmc.N_tail = bgmmc.is_runtime_N ? 0 : bgmmc.N % bgmmc.N_blk;
     bgmmc.K_tail = bgmmc.K > bgmmc.K_blk
             ? rnd_up(bgmmc.K % bgmmc.K_blk, bgmmc.required_k_granularity)
             : 0;
 
     bgmmc.LDB = bm_conf_utils.get_actual_LDB();
-    bgmmc.LDD = bgmmc.dst_tag == acbd ? dst_d.blocking_desc().strides[2]
-                                      : bgmmc.N;
-    bgmmc.LDC
-            = bgmmc.use_buffer_c && bgmmc.nthr_k <= 1 ? bgmmc.N_blk : bgmmc.LDD;
+    bgmmc.LDD = bgmmc.dst_tag == acbd && !bgmmc.is_runtime_N
+            ? dst_d.blocking_desc().strides[2]
+            : bgmmc.N;
+    bgmmc.LDC = bgmmc.use_buffer_c && bgmmc.nthr_k <= 1
+            ? bgmmc.N_blk * (bgmmc.is_runtime_N ? bgmmc.N_chunk_size : 1)
+            : bgmmc.LDD;
 
     init_aux_values(bgmmc, src_d, weights_d, dst_d);
 
@@ -1244,7 +1306,8 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     bgmmc.brgemm_batch_tail_size
             = last_chunck_batch_size % bgmmc.brgemm_batch_size;
 
-    bgmmc.buffer_c_chunk_sz = bgmmc.acc_dt_sz * bgmmc.LDC
+    bgmmc.buffer_c_chunk_sz = bgmmc.acc_dt_sz
+            * (bgmmc.is_runtime_N ? bgmmc.N_blk : bgmmc.LDC)
             * (bgmmc.nthr_k > 1 ? bgmmc.M : bgmmc.M_blk);
     bgmmc.buffer_c_per_thread_sz = bgmmc.buffer_c_chunk_sz
             * (bgmmc.nthr_k > 1 ? 1 : bgmmc.M_chunk_size * bgmmc.N_chunk_size);
@@ -1306,7 +1369,8 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     } else {
         const auto b_stride_elems
                 = bgmmc.req_wei_vnni_downconvert ? bgmmc.LDB : bgmmc.N;
-        bgmmc.copy_B_wei_stride = b_stride_elems * bgmmc.b_dt_sz;
+        bgmmc.copy_B_wei_stride
+                = bgmmc.is_runtime_N ? bgmmc.N : b_stride_elems * bgmmc.b_dt_sz;
     }
 
     bgmmc.C_ptr_shift_b = bgmmc.dst_tag == acbd
@@ -1379,7 +1443,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_conv_amx_tile_buffer,
                 static_cast<size_t>(bgmmc.nthr) * bgmmc.wsp_tile_per_thr_bytes,
                 default_data_align);
-    if (bgmmc.is_runtime_M)
+    if (bgmmc.is_runtime_M || bgmmc.is_runtime_N)
         scratchpad.book(key_brgemm_primitive_buffer_d,
                 bgmmc.M_blk * bgmmc.N_blk * bgmmc.c_dt_sz * bgmmc.nthr,
                 default_data_align);
@@ -1459,8 +1523,12 @@ void matmul_amx_blocking_params_t::set_blocking_parameters(
 // for parallel work over threads distribution score. Maximum scores - when
 // all threads have the same work amount w/o tails
 float matmul_amx_blocking_params_t::get_thread_balance_scores() {
+    assert(!(is_runtime_M && is_runtime_N)
+            && "single runtime dim is supported");
     // Ignore M sizes in thread balance computation as actual M size is unknown
     if (is_runtime_M) return (float)N / rnd_up(N, n_chunk_elems_);
+    // Ignore N sizes in thread balance computation as actual N size is unknown
+    if (is_runtime_N) return (float)M / rnd_up(M, m_chunk_elems_);
 
     dim_t num_M_chunks = div_up(M, m_chunk_elems_);
     dim_t num_N_chunks = div_up(N, n_chunk_elems_);
@@ -1488,7 +1556,9 @@ float matmul_amx_blocking_params_t::get_copied_data_reusage_scores() {
             ? effective_m_chunk_sz
             : nstl::min(M, effective_m_chunk_sz);
     const dim_t effective_n_chunk_sz = 64 * (use_buffer_a ? 4 : 1);
-    const dim_t desired_N_chunk_size = nstl::min(N, effective_n_chunk_sz);
+    const dim_t desired_N_chunk_size = is_runtime_N
+            ? effective_n_chunk_sz
+            : nstl::min(N, effective_n_chunk_sz);
     const float coef_M = nstl::min(
             static_cast<float>(m_chunk_elems_) / desired_M_chunk_size, 1.0f);
     const float coef_N = nstl::min(

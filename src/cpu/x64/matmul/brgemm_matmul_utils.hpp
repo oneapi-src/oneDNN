@@ -198,18 +198,20 @@ struct brgemm_matmul_conf_utils_t {
             bool C_any_layout, bool bias_any_layout);
 
     inline bool check_b_layout_blocked_by_n(format_tag_t matrix_b_tag) const {
-        return blocked_B_layouts_allowed
+        return blocked_B_layouts_allowed && !bgmmc.is_runtime_N
                 && utils::one_of(matrix_b_tag, blocked_64n_B_layout_tag,
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
                         blocked_16n_B_layout_tag);
     }
 
     inline bool get_blocked_B() const {
-        return blocked_B_layouts_allowed
+        return blocked_B_layouts_allowed && !bgmmc.is_runtime_N
                 && check_b_layout_blocked_by_n(bgmmc.wei_tag);
     }
 
     inline bool use_buffer_b(bool use_heuristic = true) const {
+        if (bgmmc.is_runtime_N) return true;
+
         if (bgmmc.is_amx)
             // use b_buffer for AMX when:
             // - not bf32 && using non-blocked weights
@@ -243,7 +245,7 @@ struct brgemm_matmul_conf_utils_t {
         // Check if m_block is a prime number from 32 to 64
         const bool is_prime_num
                 = utils::one_of(bgmmc.M_blk, 37, 41, 43, 47, 53, 59, 61);
-        const bool maybe_ldb_tail = bgmmc.N % 16;
+        const bool maybe_ldb_tail = !bgmmc.is_runtime_N && bgmmc.N % 16;
         return is_prime_num && IMPLICATION(bgmmc.M_blk < 48, maybe_ldb_tail);
     }
 
