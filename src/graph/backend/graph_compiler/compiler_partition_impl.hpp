@@ -143,9 +143,12 @@ public:
 #endif
 
 private:
-    std::shared_ptr<gc::jit_function_t> jit_func_;
+    // Notice: the order of the following graph_engine_ and jit_func_ shall not
+    // be changed, since we need to ensure jit_func_ is destructed before
+    // graph_engine_
     std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
             graph_engine_;
+    std::shared_ptr<gc::jit_function_t> jit_func_;
     std::vector<gc::runtime::dynamic_tensor_t> dyn_inputs_, dyn_outputs_;
 };
 

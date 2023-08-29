@@ -36,8 +36,8 @@ struct compiler_graph_engine_t;
 struct engine_ref_data {
     std::unordered_map<const graph::engine_t *,
             std::weak_ptr<graph::compiler_impl::compiler_graph_engine_t>>
-            engine_map;
-    std::mutex global_mutex;
+            engine_map_;
+    std::mutex global_mutex_;
 };
 
 struct compiler_graph_engine_t : public gc::runtime::engine_t {

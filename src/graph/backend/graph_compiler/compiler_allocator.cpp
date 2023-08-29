@@ -39,12 +39,12 @@ compiler_graph_engine_t::compiler_graph_engine_t(
 }
 
 compiler_graph_engine_t::~compiler_graph_engine_t() {
-    std::lock_guard<std::mutex> lock(engine_ref_data_ptr_->global_mutex);
+    std::lock_guard<std::mutex> lock(engine_ref_data_ptr_->global_mutex_);
     gc::release_runtime_memory(this);
-    for (auto iter = engine_ref_data_ptr_->engine_map.begin();
-            iter != engine_ref_data_ptr_->engine_map.end();) {
+    for (auto iter = engine_ref_data_ptr_->engine_map_.begin();
+            iter != engine_ref_data_ptr_->engine_map_.end();) {
         if (iter->second.lock() == nullptr) {
-            iter = engine_ref_data_ptr_->engine_map.erase(iter);
+            iter = engine_ref_data_ptr_->engine_map_.erase(iter);
         } else {
             ++iter;
         }
