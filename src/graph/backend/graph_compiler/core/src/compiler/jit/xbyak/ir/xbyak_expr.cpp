@@ -107,6 +107,7 @@ static handler_table register_handlers() {
     REGISTER_INTRIN("X86_SUB", x86, sub, compound_dst_mem, _2A_);
     REGISTER_INTRIN("X86_SHL", x86, shl, compound_dst_mem, _2A_);
     REGISTER_INTRIN("X86_SHR", x86, shr, compound_dst_mem, _2A_);
+    REGISTER_INTRIN("X86_SAR", x86, sar, compound_dst_mem, _2A_);
 
     REGISTER_INTRIN("X86_BIT_OR", x86, bit_or, compound_dst_mem, _2A_);
     REGISTER_INTRIN("X86_BIT_AND", x86, bit_and, compound_dst_mem, _2A_);
@@ -142,6 +143,7 @@ static handler_table register_handlers() {
     REGISTER_INTRIN("AVX_SUB", avx, sub, directed_end_mem, _3A_);
     REGISTER_INTRIN("AVX_SHL", avx, shl, directed_end_mem, _3A_);
     REGISTER_INTRIN("AVX_SHR", avx, shr, directed_end_mem, _3A_);
+    REGISTER_INTRIN("AVX_SAR", avx, sar, directed_end_mem, _3A_);
 
     REGISTER_INTRIN("AVX_BIT_OR", avx, bit_or, directed_end_mem, _3A_);
     REGISTER_INTRIN("AVX_BIT_AND", avx, bit_and, directed_end_mem, _3A_);
@@ -152,6 +154,7 @@ static handler_table register_handlers() {
     REGISTER_INTRIN("AVX_ABS", avx, abs, directed_end_mem, _2A_);
 
     REGISTER_INTRIN("AVX_MUL", avx, mul, directed_end_mem, _3A_);
+    REGISTER_INTRIN("AVX_MULHL", avx, mulhl, directed_end_mem, _3A_);
     REGISTER_INTRIN("AVX_DIV", avx, div, directed_end_mem, _3A_);
 
     REGISTER_INTRIN("AVX_CEIL", avx, ceil, directed_end_mem, _2A_);

@@ -74,11 +74,11 @@ const cpu_data_type_table &get_cpu_data_types() {
         { cpu_data_type::float_32_x4  ,   16 ,        16 ,        16 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::float_32_x8  ,   32 ,        32 ,        32 ,          32 ,        32 ,          32 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::float_32_x16 ,   64 ,        64 ,        64 ,          64 ,        64 ,          64 , avk::SSEUPx15_SSE },  // NOLINT
-        { cpu_data_type::mask_x4      ,   16 ,        16 ,        16 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
-        { cpu_data_type::mask_x8      ,   16 ,        16 ,        16 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
-        { cpu_data_type::mask_x16     ,   16 ,        16 ,        16 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
-        { cpu_data_type::mask_x32     ,   32 ,        32 ,        32 ,          32 ,        32 ,          32 , avk::SSEUPx15_SSE },  // NOLINT
-        { cpu_data_type::mask_x64     ,   64 ,        64 ,        64 ,          64 ,        64 ,          64 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::mask_x4      ,    1 ,         1 ,         1 ,          16 ,         8 ,           8 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::mask_x8      ,    1 ,         1 ,         1 ,          16 ,         8 ,           8 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::mask_x16     ,    2 ,         2 ,         1 ,          16 ,         8 ,           8 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::mask_x32     ,    4 ,         4 ,         1 ,          16 ,         8 ,           8 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::mask_x64     ,    8 ,         8 ,         1 ,          16 ,         8 ,           8 , avk::SSEUPx15_SSE },  // NOLINT
     //  +-----------------------------+------+-----------+-----------+-------------+-----------+-------------+-------------------+   // NOLINT
     });
 

@@ -64,7 +64,7 @@ struct ChooseMultiplier {
      * */
     ChooseMultiplier(uint64_t d, int N, int prec) {
         // log = ceil(log2(d))
-        log_ = N - utils::clz(d - 1);
+        log_ = 64 - utils::clz(d - 1);
         uint128_t _2_pow_N_l = u128_pow_2(N + log_);
         uint128_t _2_pow_N_lp = u128_pow_2(N + log_ - prec);
 
@@ -112,7 +112,6 @@ struct UintDivMultiplier {
             magic = muly.m_hig_;
             sft_pre = e;
             sft_post = muly.sft_;
-            assert(magic < _2_pow_N);
         } else {
             magic = mulx.m_hig_;
             sft_pre = 0;
@@ -141,6 +140,51 @@ struct UintDivMultiplier {
         }
     }
 };
+
+/**
+ * multiplier for invariant signed div optimization
+ * quotient rounded towards 0
+ * */
+struct SintDivMultiplier {
+    uint64_t magic_;
+    int sft_;
+    bool negative_;
+    bool compensate_;
+    bool power_of_2_;
+    /**
+     * generate multiplier for invariant signed div
+     * @param d the invariant signed int
+     * @param N number of calculation bits
+     * */
+    SintDivMultiplier(int64_t d, int N) {
+        // Get initial multiplier
+        negative_ = (d < 0);
+        uint64_t abs_d = std::abs(d);
+        assert(abs_d > 1);
+        uint128_t _2_pow_N = u128_pow_2(N);
+        uint128_t _2_pow_N_m1 = u128_pow_2(N - 1);
+        //
+        const auto mulx = ChooseMultiplier(abs_d, N, N - 1);
+        // Return final multiplier
+        if (abs_d == (UINT64_C(1) << mulx.log_)) {
+            magic_ = 0;
+            sft_ = mulx.log_;
+            compensate_ = false;
+            power_of_2_ = true;
+        } else if (mulx.m_hig_ >= _2_pow_N_m1) {
+            magic_ = uint64_t(mulx.m_hig_ - _2_pow_N);
+            sft_ = mulx.sft_;
+            compensate_ = true;
+            power_of_2_ = false;
+        } else {
+            magic_ = uint64_t(mulx.m_hig_);
+            sft_ = mulx.sft_;
+            compensate_ = false;
+            power_of_2_ = false;
+        }
+    }
+};
+
 } // namespace invariant_int
 } // namespace xbyak
 } // namespace gc

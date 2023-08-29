@@ -84,6 +84,7 @@ enum class xbyak_intrin_type {
     mod,
     shl,
     shr,
+    sar,
     min,
     max,
     abs,

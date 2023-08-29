@@ -127,7 +127,7 @@ public:
                 transform(dst, {bin->l_, bin->r_},
                         dst->dtype_, //
                         transform_x86_mod_div(xbyak_intrin_type::div),
-                        transform_intrin(xbyak_intrin_type::div));
+                        transform_avx_div());
             } break;
             case sc_expr_type::mod: {
                 auto bin = val.static_as<binary>();
@@ -223,10 +223,14 @@ public:
                         transform_intrin(xbyak_intrin_type::shl));
             } break;
             case intrin_type::shr: {
+                auto is_uint = (CATE_UINT
+                        == get_etype_category(dst->dtype_.type_code_));
+                auto sft_type = is_uint ? xbyak_intrin_type::shr
+                                        : xbyak_intrin_type::sar;
                 transform(dst, {intrin->args_[0], intrin->args_[1]},
                         dst->dtype_, //
-                        transform_x86_shift(xbyak_intrin_type::shr),
-                        transform_intrin(xbyak_intrin_type::shr));
+                        transform_x86_shift(sft_type),
+                        transform_intrin(sft_type));
             } break;
             case intrin_type::ceil: {
                 transform(dst, {intrin->args_[0]},
@@ -766,6 +770,13 @@ public:
         };
     }
 
+    transform_func transform_avx_div() {
+        return [this](const expr &dst, array_ref<expr> src,
+                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
+            transform_avx_div(dst, src[0], src[1], dtype);
+        };
+    }
+
     transform_func transform_simd_reduce_seq(xbyak_intrin_type intrin) {
         return [this, intrin](const expr &dst, array_ref<expr> src,
                        sc_data_type_t dtype, xbyak_intrin_isa isa) {
@@ -779,8 +790,9 @@ public:
 
     void transform_intrin(const expr &v, array_ref<expr> args,
             xbyak_intrin_type intrin, xbyak_intrin_isa isa) {
-        add_assignment(
-                v, make_xbyak_intrin(v->dtype_, args.as_vector(), intrin, isa));
+        add_assignment(v,
+                make_xbyak_intrin(v->dtype_, args.as_vector(), intrin, isa,
+                        xbyak_intrin_modifier(v->dtype_)));
     }
 
     void transform_intrin_eval(array_ref<expr> args, //
@@ -989,6 +1001,185 @@ public:
             add_assignment(dst,
                     make_xbyak_intrin(dst->dtype_, {tmp, rax, rdx}, intrin,
                             xbyak_intrin_isa::x86));
+        }
+    }
+
+    void transform_avx_div(const expr &dst, const expr &lhs, const expr &rhs,
+            sc_data_type_t dtype) {
+        // TODO(longsheng): refactor div transfrom before ssa
+        if (rhs.isa<constant>() && rhs->dtype_.is_etype(sc_data_etype::S32)) {
+            const auto const_val = rhs.static_as<constant>()->value_;
+            COMPILE_ASSERT(const_val.size() == 1,
+                    "AVX div by variant constant not supported.")
+            const auto divisor = const_val[0].s64;
+            const auto mult = invariant_int::SintDivMultiplier(divisor, 32);
+            // mulsh
+            const auto transform_mulh_s32 = [this, dtype](const expr &dst,
+                                                    const expr &lhs,
+                                                    uint64_t m) {
+                // mask = (0, -1, 0, -1, ...)
+                // magic = mult.magic_
+                int lanes = lhs->dtype_.lanes_;
+                auto dtype_64 = sc_data_type_t::index(lanes / 2);
+                std::vector<union_val> val(lanes);
+                for (int i = 0; i < lanes; i++) {
+                    val[i] = union_val(int64_t(-(i % 2)));
+                }
+                auto mask_c = builder::make_constant(val, dtype);
+                auto magic_c = builder::make_constant({m}, datatypes::s32);
+                mask_c->attr().set(attr_keys::force_simd_encode, true);
+                magic_c->attr().set(attr_keys::force_simd_encode, true);
+                //
+                auto magic = builder::make_var(dtype, "__magic");
+                auto hi1 = builder::make_var(dtype, "__hi1");
+                auto hi2 = builder::make_var(dtype, "__hi2");
+                add_defination(magic, linkage::local);
+                add_defination(hi1, linkage::local);
+                add_defination(hi2, linkage::local);
+                // magic = broadcast(magic_c)
+                // hi1 = _mm512_mul_epi32(lhs, [magic]);
+                // hi1 = _mm512_srli_epi64(hi1, [32]);
+                // hi2 = _mm512_srli_epi64(lhs, [32]);
+                // hi2 = _mm512_mul_epi32(hi2, [magic]);
+                // hi2 = _mm512_and_si512(hi2, [mask]);
+                // dst = _mm512_or_si512(hi1, hi2);
+                add_assignment(magic,
+                        make_xbyak_intrin(dtype, {magic_c},
+                                xbyak_intrin_type::broadcast,
+                                xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(datatypes::s32)));
+                add_assignment(hi1,
+                        make_xbyak_intrin(dtype, {lhs, magic},
+                                xbyak_intrin_type::mulhl,
+                                xbyak_intrin_isa::avx));
+                add_assignment(hi1,
+                        make_xbyak_intrin(dtype,
+                                {hi1, builder::make_constant(32)},
+                                xbyak_intrin_type::shr, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype_64)));
+                add_assignment(hi2,
+                        make_xbyak_intrin(dtype,
+                                {lhs, builder::make_constant(32)},
+                                xbyak_intrin_type::shr, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype_64)));
+                add_assignment(hi2,
+                        make_xbyak_intrin(dtype, {hi2, magic},
+                                xbyak_intrin_type::mulhl,
+                                xbyak_intrin_isa::avx));
+                add_assignment(hi2,
+                        make_xbyak_intrin(dtype, {hi2, mask_c},
+                                xbyak_intrin_type::bit_and,
+                                xbyak_intrin_isa::avx));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {hi1, hi2},
+                                xbyak_intrin_type::bit_or,
+                                xbyak_intrin_isa::avx));
+                // TODO(longsheng): srl+and+or can combine to vpermi2d in avx512
+            };
+            //
+            if (mult.power_of_2_) {
+                auto sft1 = builder::make_constant(mult.sft_ - 1);
+                auto sft2 = builder::make_constant(32 - mult.sft_);
+                auto sft3 = builder::make_constant(mult.sft_);
+                // dst = sar(lhs, [l - 1])
+                // dst = shr(dst, [N - l])
+                // dst = dst + lhs
+                // dst = sar(dst, [l])
+                // dst = d < 0 ? -dst : dst
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {lhs, sft1},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, sft2},
+                                xbyak_intrin_type::shr, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, lhs},
+                                xbyak_intrin_type::add, xbyak_intrin_isa::avx));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, sft3},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                if (mult.negative_) {
+                    auto simd_zero = builder::make_var(dtype, "__simd_zero");
+                    add_defination(simd_zero, linkage::local);
+                    add_assignment(simd_zero,
+                            make_xbyak_intrin(dtype, {simd_zero, simd_zero},
+                                    xbyak_intrin_type::bit_xor,
+                                    xbyak_intrin_isa::avx));
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {simd_zero, dst},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                }
+            } else if (mult.compensate_) {
+                auto sft = builder::make_constant(mult.sft_);
+                auto bit = builder::make_constant(31);
+                auto xsign = builder::make_var(dtype, "__xsign");
+                add_defination(xsign, linkage::local);
+                // dst = mulsh(lhs, [magic])
+                // dst = dst + lhs
+                // dst = sar(dst, [sft])
+                // xsign = sar(lhs, [N - 1])
+                // dst = d < 0 ? (xsign - dst) : (dst - xsign)
+                transform_mulh_s32(dst, lhs, mult.magic_);
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, lhs},
+                                xbyak_intrin_type::add, xbyak_intrin_isa::avx));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, sft},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                add_assignment(xsign,
+                        make_xbyak_intrin(dtype, {lhs, bit},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                if (mult.negative_) {
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {xsign, dst},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                } else {
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {dst, xsign},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                }
+            } else {
+                auto sft = builder::make_constant(mult.sft_);
+                auto bit = builder::make_constant(31);
+                auto xsign = builder::make_var(dtype, "__xsign");
+                add_defination(xsign, linkage::local);
+                // dst = mulsh(lhs, [magic])
+                // dst = sar(dst, sft)
+                // xsign = sar(lhs, [N - 1])
+                // dst = d < 0 ? (xsign - dst) : (dst - xsign)
+                transform_mulh_s32(dst, lhs, mult.magic_);
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, sft},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                add_assignment(xsign,
+                        make_xbyak_intrin(dtype, {lhs, bit},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                if (mult.negative_) {
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {xsign, dst},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                } else {
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {dst, xsign},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                }
+            }
+        } else {
+            add_assignment(dst,
+                    make_xbyak_intrin(dst->dtype_, {lhs, rhs},
+                            xbyak_intrin_type::div, xbyak_intrin_isa::avx));
         }
     }
 

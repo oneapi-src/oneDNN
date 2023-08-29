@@ -994,12 +994,13 @@ const Xbyak::AddressFrame *location_manager::get_address_frame(
         case cpu_data_type::uint_64_x8: return &(gen_.zword);
         case cpu_data_type::float_16_x32: return &(gen_.zword);
         case cpu_data_type::float_32_x16: return &(gen_.zword);
+        // avx512 mask
+        case cpu_data_type::mask_x4: return &(gen_.byte);
+        case cpu_data_type::mask_x8: return &(gen_.byte);
+        case cpu_data_type::mask_x16: return &(gen_.word);
+        case cpu_data_type::mask_x32: return &(gen_.dword);
+        case cpu_data_type::mask_x64: return &(gen_.qword);
         // not supported
-        case cpu_data_type::mask_x4:
-        case cpu_data_type::mask_x8:
-        case cpu_data_type::mask_x16:
-        case cpu_data_type::mask_x32:
-        case cpu_data_type::mask_x64:
         case cpu_data_type::void_t: {
             COMPILE_ASSERT(false, "Invalid address_frame: " << cpu_dtype);
         } break;

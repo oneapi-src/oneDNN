@@ -209,6 +209,8 @@ private:
     void handle_avx_movsh(const operand &op_dst, const operand &op_src);
     void handle_avx_movps(const operand &op_dst, const operand &op_src);
     void handle_avx_movph(const operand &op_dst, const operand &op_src);
+    void handle_avx512_kmov(const operand &op_dst, const operand &op_src,
+            const x86_64::cpu_data_type &cpu_dtype);
 
     void handle_avx_add(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
@@ -216,12 +218,17 @@ private:
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_mul(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_mulhl(const operand &op_dst, const operand &op_lhs,
+            const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_div(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_shl(const operand &op_dst, const operand &op_lhs,
             const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype,
             bool variable);
     void handle_avx_shr(const operand &op_dst, const operand &op_lhs,
+            const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype,
+            bool variable);
+    void handle_avx_sar(const operand &op_dst, const operand &op_lhs,
             const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype,
             bool variable);
     void handle_avx_max(const operand &op_dst, const operand &op_lhs,

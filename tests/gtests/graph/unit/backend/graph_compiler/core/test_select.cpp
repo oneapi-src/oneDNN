@@ -254,7 +254,6 @@ static void check_distill_bert_mha(const sc_dims &feature_plain_dims,
 }
 
 TEST(GCCore_CPU_select_test, TestCorrectnessNonBlocking) {
-    SKIP_ON_XBYAK();
     check_select_correctness({1}, {2, 128, 16, 68}, {1},
             sc_data_format_t(format_kinds::A),
             sc_data_format_t(format_kinds::ABCD),

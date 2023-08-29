@@ -102,6 +102,10 @@ public:
 
     expr_c visit(div_c v) override {
         // Transform unsigned div if divisor is a const of power of 2
+        if (v->r_.isa<constant>()
+                && v->r_->dtype_.is_etype(sc_data_etype::S32)) {
+            v->r_->attr().set(attr_keys::force_simd_encode, false);
+        }
         auto vv = ir_visitor_t::visit(std::move(v)).static_as<div_c>();
         if (vv->r_.isa<constant>()) {
             auto const_rhs = vv->r_.static_as<constant>();
