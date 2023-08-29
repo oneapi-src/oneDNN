@@ -243,6 +243,13 @@ bool ocl_gpu_kernel_t::is_on(
     return ctx == ocl_engine.context();
 }
 
+std::string ocl_gpu_kernel_t::name() const {
+    char name_data[32] = {};
+    UNUSED_OCL_RESULT(clGetKernelInfo(ocl_kernel(), CL_KERNEL_FUNCTION_NAME,
+            sizeof(name_data) - 1, name_data, nullptr));
+    return std::string(name_data);
+}
+
 } // namespace ocl
 } // namespace gpu
 } // namespace impl

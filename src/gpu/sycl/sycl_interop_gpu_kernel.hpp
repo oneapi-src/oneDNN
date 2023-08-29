@@ -48,6 +48,9 @@ public:
     }
 
     bool is_on(const gpu::compute::compute_engine_t &engine) const override;
+    std::string name() const override {
+        return sycl_kernel_->get_info<::sycl::info::kernel::function_name>();
+    }
 
 private:
     std::unique_ptr<::sycl::kernel> sycl_kernel_;

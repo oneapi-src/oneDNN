@@ -68,6 +68,8 @@ public:
 
     bool is_on(const compute_engine_t &) const;
 
+    std::string name() const;
+
 private:
     std::shared_ptr<kernel_impl_t> impl_;
 };
@@ -112,6 +114,7 @@ public:
     virtual void save_output_events() {}
 
     virtual bool is_on(const compute_engine_t &) const = 0;
+    virtual std::string name() const = 0;
 };
 
 inline status_t kernel_t::parallel_for(stream_t &stream,
@@ -144,6 +147,10 @@ inline void kernel_t::save_output_events() {
 
 inline bool kernel_t::is_on(const compute_engine_t &engine) const {
     return impl_->is_on(engine);
+}
+
+inline std::string kernel_t::name() const {
+    return impl_->name();
 }
 
 } // namespace compute

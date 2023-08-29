@@ -55,6 +55,7 @@ public:
     void save_output_events() override { save_events_ = true; }
 
     bool is_on(const gpu::compute::compute_engine_t &engine) const override;
+    std::string name() const override;
 
 private:
     cl_kernel ocl_kernel_;
