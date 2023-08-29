@@ -187,10 +187,10 @@ inline void brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::get_A_B(int icc,
 
 template <cpu_isa_t isa, bool use_inversion>
 status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
-        int vM, int i_N, int i_K, int i_init, int kd_b, int kd_e, int kh_b,
-        int kh_e) {
+        int vM, bool is_N_tail, bool is_K_tail, bool do_init, int kd_b,
+        int kd_e, int kh_b, int kh_e) {
 
-    if (i_init && i_K && jcp_.K > 0) return status::success;
+    if (do_init && is_K_tail && jcp_.K > 0) return status::success;
 
     const auto src_type = src_md(0)->data_type;
     const auto wei_type = weights_md(0)->data_type;
@@ -199,14 +199,15 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     const float alpha = 1.0;
     const float beta = 1.0;
 
-    auto vbeta = (i_init) ? 0 : beta;
-    auto vN = (i_N) ? jcp_.N_tail : jcp_.N;
-    auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
+    auto vbeta = do_init ? 0 : beta;
+    auto vN = is_N_tail ? jcp_.N_tail : jcp_.N;
+    auto vK = is_K_tail ? jcp_.K_tail : jcp_.K;
     auto vbrgM = jcp_.use_M_mask ? (vM == jcp_.M ? jcp_.brgM : jcp_.brgM_tail)
                                  : vM;
     if (vN == 0 || vK == 0) return status::success;
 
-    auto brg_idx = get_brg_idx(vM, i_init, i_N, i_K, kd_b, kd_e, kh_b, kh_e);
+    auto brg_idx = get_brg_idx(
+            vM, do_init, is_N_tail, is_K_tail, kd_b, kd_e, kh_b, kh_e);
     // if brgemm_t already created then skip this iteration
     if (brg_idx != -1) return status::success;
 
@@ -338,7 +339,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     brg_idx = brgemm_descriptors_->insert(brg, bd_mask, stoffs);
 
     const std::array<int, 8> key
-            = {vM, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e};
+            = {vM, is_N_tail, is_K_tail, do_init, kd_b, kd_e, kh_b, kh_e};
     if (brg_indices.find(key) == brg_indices.end()) {
         brg_indices.insert({key, brg_idx});
         brg_indices_c++;
@@ -623,20 +624,27 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             || (jcp_.dst_dt != jcp_.acc_dt) || jcp_.with_sum || jcp_.use_M_mask
             || jcp_.src_zero_point || jcp_.dst_zero_point;
 
-    const int M_begin = 0;
-    const int M_end = nstl::max(jcp_.M, jcp_.M_tail);
-    const int N_begin = 0;
-    const int N_end = (jcp_.N_tail == jcp_.N) ? 1 : 2;
-    const int K_begin = 0;
-    const int K_end = (jcp_.K_tail == 0) ? 1 : 2;
-    const int i_init_begin
-            = (IMPLICATION(jcp_.K_tail != 0, jcp_.K_tail == jcp_.K)
-                      && jcp_.exec_type == exec_trans
-                      && div_up(jcp_.nb_ic, jcp_.nb_ic_blocking) == 1
-                      && KD_BLOCK == KD && KH_BLOCK == KH)
-            ? 1
-            : 0;
-    int i_init_end = 2;
+    const auto Mv = (jcp_.M_tail > 0 && jcp_.M_tail != jcp_.M)
+            ? std::vector<int> {jcp_.M, jcp_.M_tail}
+            : std::vector<int> {jcp_.M};
+
+    std::vector<bool> bv_true {true};
+    std::vector<bool> bv_false {false};
+    std::vector<bool> bv_both {false, true};
+
+    const auto has_N_tail = jcp_.N_tail > 0 && jcp_.N_tail != jcp_.N;
+    std::vector<bool> Nv;
+    if (jcp_.N > 0) Nv.push_back(false);
+    if (has_N_tail) Nv.push_back(true);
+
+    const auto has_K_tail = jcp_.K_tail > 0 && jcp_.K_tail != jcp_.K;
+    std::vector<bool> Kv;
+    if (jcp_.K > 0) Kv.push_back(false);
+    if (has_K_tail) Kv.push_back(true);
+
+    const auto first_K_init_only = jcp_.exec_type == exec_trans
+            && (jcp_.ic / jcp_.ic_block <= 1)
+            && (KD_BLOCK == KD && KH_BLOCK == KH);
 
     for (const auto &key_value_pair : batchsizes) {
         const int kd_b = key_value_pair.first[0];
@@ -644,14 +652,16 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
         const int kh_b = key_value_pair.first[2];
         const int kh_e = key_value_pair.first[3];
 
-        for_(int i_N = N_begin; i_N < N_end; i_N++)
-        for_(int i_M = M_begin; i_M < M_end; i_M++)
-        for_(int i_init = i_init_begin; i_init < i_init_end; i_init++)
-        for (int i_K = K_begin; i_K < K_end; i_K++) {
-            auto M = (i_M) ? jcp_.M_tail : jcp_.M;
-            if (M <= 0) continue;
-            CHECK(add_brg_descriptor(
-                    M, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e));
+        for_(const auto &i_N : Nv)
+        for_(const auto &M : Mv)
+        for (const auto &i_K : Kv) {
+            const std::vector<bool> &init_v = (i_K == Kv.front())
+                    ? (first_K_init_only ? bv_true : bv_both)
+                    : bv_false;
+            for (const auto &i_init : init_v) {
+                CHECK(add_brg_descriptor(
+                        M, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e));
+            }
         }
     }
 
@@ -674,11 +684,15 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                     const int kh_b = key_value_pair.first[2];
                     const int kh_e = key_value_pair.first[3];
 
-                    for_(int i_init = 0; i_init < 2; i_init++)
-                    for_(int i_N = 0; i_N < 2; i_N++)
-                    for (int i_K = 0; i_K < 2; i_K++) {
-                        CHECK(add_brg_descriptor(
-                                M, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e));
+                    for_(const auto &i_N : Nv)
+                    for (const auto &i_K : Kv) {
+                        const std::vector<bool> &init_v = (i_K == Kv.front())
+                                ? (first_K_init_only ? bv_true : bv_both)
+                                : bv_false;
+                        for (const auto &i_init : init_v) {
+                            CHECK(add_brg_descriptor(M, i_N, i_K, i_init, kd_b,
+                                    kd_e, kh_b, kh_e));
+                        }
                     }
                 }
             }
@@ -700,11 +714,15 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                     const int kd_e = key_value_pair.first[1];
                     const int kh_b = key_value_pair.first[2];
                     const int kh_e = key_value_pair.first[3];
-                    for_(int i_init = 0; i_init < 2; i_init++)
-                    for_(int i_N = 0; i_N < 2; i_N++)
-                    for (int i_K = 0; i_K < 2; i_K++) {
-                        CHECK(add_brg_descriptor(
-                                M, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e));
+                    for_(const auto &i_N : Nv)
+                    for (const auto &i_K : Kv) {
+                        const std::vector<bool> &init_v = (i_K == Kv.front())
+                                ? (first_K_init_only ? bv_true : bv_both)
+                                : bv_false;
+                        for (const auto &i_init : init_v) {
+                            CHECK(add_brg_descriptor(M, i_N, i_K, i_init, kd_b,
+                                    kd_e, kh_b, kh_e));
+                        }
                     }
                 }
             }
