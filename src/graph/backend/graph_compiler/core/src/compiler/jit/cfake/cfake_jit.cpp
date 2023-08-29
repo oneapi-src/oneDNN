@@ -402,7 +402,6 @@ void cfake_jit::set_target_machine(target_machine_t &tm) {
     }
 
     bool vnni_enabled = tm.cpu_flags_.fAVX512VNNI;
-    bool avx512_f16_enabled = tm.cpu_flags_.fAVX512FP16;
     bool amx_f16_enabled = tm.cpu_flags_.fAVX512AMXFP16;
     bool amx_bf16_enabled = tm.cpu_flags_.fAVX512AMXBF16;
     bool amx_tile_enabled = tm.cpu_flags_.fAVX512AMXTILE;
@@ -410,7 +409,6 @@ void cfake_jit::set_target_machine(target_machine_t &tm) {
     tm.cpu_flags_ = f;
     tm.cpu_flags_.fAVX512VNNI = vnni_enabled;
     tm.cpu_flags_.fAVX512AMXBF16 = amx_bf16_enabled;
-    tm.cpu_flags_.fAVX512FP16 = avx512_f16_enabled;
     tm.cpu_flags_.fAVX512AMXFP16 = amx_f16_enabled;
     tm.cpu_flags_.fAVX512AMXTILE = amx_tile_enabled;
     tm.cpu_flags_.fAVX512AMXINT8 = amx_int8_enabled;

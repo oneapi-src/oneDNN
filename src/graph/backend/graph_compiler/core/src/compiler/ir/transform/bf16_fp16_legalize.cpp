@@ -136,7 +136,8 @@ expr_c bf16_fp16_promote_impl_t::visit(cmp_c v) {
 }
 
 expr_c bf16_fp16_promote_impl_t::visit(select_c v) {
-    if (v->l_->dtype_.is_etype(sc_data_etype::BF16)
+    if (utils::is_one_of(v->l_->dtype_.type_code_, sc_data_etype::BF16,
+                sc_data_etype::F16)
             && v->l_->dtype_.lanes_
                     > ctx_->get_max_vector_lanes(sc_data_etype::F32)) {
         return v;
