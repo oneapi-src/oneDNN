@@ -567,10 +567,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
         if (vnni_block > 1 && K_tail > simd_w) K_tail = rnd_up(K_tail, simd_w);
     } else {
         K = kh_sets * (ic >= ic_block ? ic_block : 0);
-        K_tail = kh_sets
-                * (exec_type == exec_trans && (!is_bf32)
-                                ? ic_block
-                                : rnd_up(ic % ic_block, vnni_block));
+        K_tail = kh_sets * rnd_up(ic % ic_block, vnni_block);
     }
 
     const auto vK = K > 0 ? K : K_tail;
