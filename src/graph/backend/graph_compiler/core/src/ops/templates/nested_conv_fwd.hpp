@@ -130,6 +130,10 @@ public:
 
   bool inverse_filter_ = false;
 
+  int get_im_w_block(const context_ptr &ctx) const;
+  int get_im_oc_block(const context_ptr &ctx) const;
+  int get_im_ic_block(const context_ptr &ctx) const;
+
 #define CONV_ARG_LIST \
   const context_ptr &ctx, const nested_conv_fwd_config_t &config, \
     fusion_manager *fusion, expr &output, const expr &input, \
@@ -142,6 +146,7 @@ public:
   void compute_conv_padding_nested(CONV_ARG_LIST) const;
   void compute_conv_no_padding_nested(CONV_ARG_LIST) const;
   void compute_conv_no_padding_os_blocking_nested(CONV_ARG_LIST) const;
+  void compute_conv1d(CONV_ARG_LIST) const;
   void dynamic_compute_conv_no_padding_nested(CONV_ARG_LIST) const;
   void dynamic_compute_conv_padding_nested(CONV_ARG_LIST) const;
   void dynamic_compute_1x1_pack_input_nested(CONV_ARG_LIST) const;
@@ -193,11 +198,14 @@ public:
   int pd_e_ = 0, ph_e_ = 0, pw_e_ = 0;
   int dd_ = 0, dh_ = 0, dw_ = 0;
   int actual_os_ = 0, adj_os_ = 0;
+  int default_im_block_ = 64;
+  int im_oc_block_, im_ic_block_, im_w_block_, im_h_block_;
   int num_elems_skip_per_ow_ = 0;
   bool try_os_blocking_ = false;
   bool is_1x1_conv_ = false;
   bool is_3d_ = false;
   bool is_1d_ = false;
+  bool use_conv1d = false;
   bool use_nested_2d_ = false;
   bool blocking_input_ = false;
   bool blocking_output_ = false;

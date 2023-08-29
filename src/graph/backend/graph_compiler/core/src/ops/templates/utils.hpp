@@ -207,6 +207,16 @@ inline static std::vector<int> get_sub_blocks(const int X, int factor = 2) {
   return sub_blocks;
 }
 
+template <typename T>
+inline static std::vector<int> get_blocks_if_not_satisfy(
+  const int X, int floor, int ceiling, T filter) {
+  auto block_list = utils::get_blocks(X, floor, ceiling);
+  block_list.erase(std::remove_if(block_list.begin(), block_list.end(), filter),
+    block_list.end());
+  if (block_list.empty()) { block_list = utils::get_blocks(X, floor, ceiling); }
+  return block_list;
+}
+
 inline expr get_balance211_length(
   const expr &n, const expr &team, const expr &idx, expr &n_start, expr &T1) {
   assert(team.isa<var>() || get_expr_as_int(team) >= 1);

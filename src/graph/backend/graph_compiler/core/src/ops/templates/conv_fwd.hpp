@@ -40,22 +40,8 @@ struct conv_fwd_config_t {
   int pack_input = 0;
   int loop_sched = 0;
 
-  int bs_threads = 1;
-  int s_threads = 1;
-  int oc_threads = 1;
-  int s_block = 1;
   conv_fwd_config_t() = default;
-  // new config entry
-  conv_fwd_config_t(int bs_threads, int s_threads, int oc_threads, int oc_block,
-    int ic_block, int s_block)
-    : K_block(oc_block)
-    , C_block(ic_block)
-    , bs_threads(bs_threads)
-    , s_threads(s_threads)
-    , oc_threads(oc_threads)
-    , s_block(s_block) {}
 
-  // old config entry
   conv_fwd_config_t(int K_block, int C_block, int tile_d, int tile_p,
     int tile_q, int tile_os, int pack_input, int loop_sched)
     : K_block(K_block)
@@ -98,6 +84,8 @@ public:
     std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
 
   void adjust_config_for_parallelisem(
+    const context_ptr &ctx, conv_fwd_config_t &cfg) const;
+  void adjust_config_for_cache_efficiency(
     const context_ptr &ctx, conv_fwd_config_t &cfg) const;
 
   float get_gflop() const override;
@@ -148,7 +136,6 @@ public:
               const std::vector<char> &os_mask = std::vector<char>()
   void compute_1x1_no_pack_input(CONV_ARG_LIST) const;
   void compute_1x1_pack_input(CONV_ARG_LIST) const;
-  void compute_conv1d(CONV_ARG_LIST) const;
   void compute_conv3d_no_padding(CONV_ARG_LIST) const;
   void compute_conv_no_padding(CONV_ARG_LIST) const;
   void compute_conv_padding(CONV_ARG_LIST) const;
@@ -166,13 +153,9 @@ public:
   int dd_ = 0, dh_ = 0, dw_ = 0;
   int actual_os_ = 0, adj_os_ = 0;
   int num_elems_skip_per_ow_ = 0;
-  int default_im_block_ = 64;
-  mutable int im_oc_block_, im_ic_block_, im_s_block_;
   bool try_os_blocking_ = false;
   bool is_1x1_conv_ = false;
   bool is_3d_ = false;
-  bool is_1d_ = false;
-  bool use_conv1d = false;
   bool blocking_input_ = false;
   bool blocking_output_ = false;
   any_map_t attrs_;

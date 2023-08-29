@@ -557,14 +557,18 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
             > ops::rl_kind::NO_LOWERING) {
         return false;
     }
+    bool use_1d = info_.inputs_[0]->details_.get_plain_dims().size() == 3;
     bool use_nested = attrs_.get_or_else("use_nested", true);
-    if (!use_nested) { return false; }
+    if (!use_nested && !use_1d) { return false; }
     const sc_dims &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
     const sc_dims &data_shape = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &output_shape = info_.outputs_[0]->details_.get_plain_dims();
+    auto dilations = get_dilations(attrs_);
+    auto has_dilation = std::any_of(
+            dilations.begin(), dilations.end(), [](int x) { return x > 1; });
     auto has_pad = std::any_of(
             pads_begin.begin(), pads_begin.end(), [](int x) { return x > 0; });
     auto is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
@@ -572,14 +576,25 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
     auto is_int8 = utils::is_one_of(
             info_.inputs_[0]->details_.dtype_, datatypes::u8, datatypes::s8);
     const int num_threads = runtime_config_t::get().get_num_threads();
+    auto dtype_size = utils::get_sizeof_type(info_.inputs_[1]->details_.dtype_);
+    bool os_blocking_with_oc_threads = !has_pad
+            && output_shape.back() * dtype_size < 32
+            && utils::is_one_of(info_.inputs_[0]->details_.dtype_,
+                    datatypes::u8, datatypes::s8, datatypes::bf16)
+            && !is_1x1 && weight_shape[0] >= 32
+            && is_parallel_space_enough(data_shape[0], num_threads);
     // Only support conv 3x3 with os blocking currently
     // TODO(zhicong): the config of nested conv 3x3 with big
     // shape(150x150,300x300, 7x7 oc split) needs to be further tuned
     // only used in throughput mode or real time mode in which the config is
     // well tuned
-    auto use_nested_conv = ndims_ == 4 && !has_pad && !is_1x1 && is_int8
-            && data_shape.back() <= 56 && output_shape.back() > 7
-            && num_threads / data_shape[0] <= 4;
+    auto use_nested_conv = (ndims_ == 4 && !has_pad && !has_dilation && is_int8
+                                   && !(data_shape.back() > 56 && !is_1x1)
+                                   && !(output_shape.back() <= 7 && !is_1x1)
+                                   && num_threads / data_shape[0] <= 4
+                                   && !os_blocking_with_oc_threads
+                                   && !attrs_.get_or_else("use_rl", false))
+            || use_1d;
     return use_nested_conv;
 }
 
@@ -623,23 +638,29 @@ bool conv_fwd_core_op_t::use_conv1d() {
     }
 
     // big data and small weight
-    auto &stride = attrs_.get<sc_dims>("strides");
+    auto stride = attrs_.get<sc_dims>("strides");
     auto weight_size = math_utils::get_dims_product(weight_shape)
             * utils::get_sizeof_type(info_.inputs_[1]->details_.dtype_);
     auto image_size = math_utils::get_dims_product(data_shape) / data_shape[0]
             * utils::get_sizeof_type(info_.inputs_[0]->details_.dtype_);
     int num_threads = runtime_config_t::get().get_num_threads();
     auto boundry = 5UL;
-    if (image_size / weight_size > boundry
-            && std::all_of(
-                    stride.begin(), stride.end(), [](int x) { return x == 1; })
+    bool has_stride = !std::all_of(
+            stride.begin(), stride.end(), [](int x) { return x == 1; });
+    auto is_int8 = utils::is_one_of(
+            info_.inputs_[0]->details_.dtype_, datatypes::u8, datatypes::s8);
+    if (image_size / weight_size > boundry && !has_stride
             && data_shape[0] % num_threads == 0) {
         // disable conv1d to use NH fusion
         return false;
     }
     // only used in throughput mode or real time mode in which the config is
     // well tuned
-    if (num_threads / data_shape[0] > 4) { return false; }
+    // TODO(zhicong): further confirm the constraint 32 in other data types
+    if ((data_shape[0] == 1 && has_stride && is_int8) || data_shape[1] % 32 != 0
+            || weight_shape[0] % 32 != 0) {
+        return false;
+    }
     return true;
 }
 
@@ -710,9 +731,15 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     if (use_nested_conv_fwd_generator()) {
         const nested_conv_fwd_config_t &tcfg
                 = *config_data_.get_as<nested_conv_fwd_config_t>();
+        auto body_gen = create_generator();
+        auto gen = static_cast<gen_nested_conv_fwd_t *>(body_gen.get());
         in_formats.reserve(2);
         C_block = tcfg.im_ic_block;
         K_block = tcfg.im_oc_block;
+        if (gen->use_conv1d) {
+            C_block = gen->im_ic_block_;
+            K_block = gen->im_oc_block_;
+        }
     } else if (use_rl == ops::rl_kind::FULL_LOWERING) {
         const conv_fwd_rl_config_t &tcfg
                 = *config_data_.get_as<conv_fwd_rl_config_t>();
@@ -721,15 +748,9 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     } else {
         const conv_fwd_config_t &tcfg
                 = *config_data_.get_as<conv_fwd_config_t>();
-        auto body_gen = create_generator();
-        auto gen = static_cast<gen_conv_fwd_t *>(body_gen.get());
         in_formats.reserve(2);
         C_block = tcfg.C_block;
         K_block = tcfg.K_block;
-        if (gen->use_conv1d) {
-            C_block = gen->im_ic_block_;
-            K_block = gen->im_oc_block_;
-        }
     }
     in_formats.resize(2);
     out_formats.resize(1);
@@ -778,8 +799,6 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
             || test_format == "NSC";
     bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc"
             || test_format == "NCSc";
-    bool use_channel_last = (channel_last_support && !force_blocking)
-            || (channel_last_support && force_channel_last) || is_dynamic();
     auto cur_format_set = std::unordered_set<std::vector<sc_data_format_t>>();
     auto cur_dispatch_key_set = dispatch_key_set_t();
     assert(in_formats.size() == 2);
@@ -791,6 +810,11 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
                        : utils::get_blocks(ic, 1, default_block).back();
     K_block = !dynamic ? K_block
                        : utils::get_blocks(oc, 1, default_block).back();
+    bool use_channel_last
+            = (((channel_last_support && !force_blocking)
+                       || (channel_last_support && force_channel_last))
+                      && ic % C_block == 0 && oc % K_block == 0)
+            || is_dynamic();
     // data layout
     if (use_channel_last) {
         data_format = is_3d ? sc_data_format_t::NDHWC()

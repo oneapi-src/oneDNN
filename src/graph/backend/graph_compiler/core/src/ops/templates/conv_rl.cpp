@@ -49,13 +49,17 @@ config_ptr gen_conv_fwd_rl_t::get_default_config(context_ptr ctx) const {
   conv_fwd_rl_config_t &cfg = *ret.unchecked_get_as<conv_fwd_rl_config_t>();
   cfg.brgemm_m = oh_;
   std::vector<int> brgemm_m_candidates = {32, 16};
+  bool has_proper_brgemm_m = false;
   for (auto &c : brgemm_m_candidates) {
     if (oh_ % c == 0) {
       cfg.brgemm_m = c;
+      has_proper_brgemm_m = true;
       break;
     }
   }
-  if (cfg.brgemm_m == oh_) { cfg.brgemm_m = utils::get_blocks(oh_, 16).back(); }
+  if (!has_proper_brgemm_m) {
+    cfg.brgemm_m = utils::get_blocks(oh_, 16, 64).back();
+  }
   cfg.brgemm_n = utils::get_blocks(oc_, 16).back();
 
   return std::move(ret);
@@ -531,7 +535,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
                 : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}})});
           }
         }
-        if (fusion) {
+        if (fusion && mb_ * groups_ >= num_threads) {
           // oh_ * ow_ * oc_
           fusion->create_output_fusion_anchor({tensor_slice(output,
             groups_ > 1
@@ -573,7 +577,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
                   : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}})});
             }
           }
-          if (fusion) {
+          if (fusion && mb_ * groups_ >= num_threads) {
             fusion->create_output_fusion_anchor({tensor_slice(output,
               groups_ > 1 ? slice_range {{n_o, 1}, {g, 1}, {0, oh_},
                 {0, ow_e - ow_b}, {0, oc_}}
