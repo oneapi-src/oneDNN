@@ -107,6 +107,8 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
             auto &pads_begin = op->attrs_.has_key("pads_begin")
                     ? op->attrs_.get<sc_dims>("pads_begin")
                     : op->attrs_.get<sc_dims>("paddings");
+            sc_dim groups = op->attrs_.get_or_else("groups", 1);
+            if (groups > 1) { return; }
             auto weight_plain_dims
                     = op->get_inputs()[1]->details_.get_plain_dims();
             auto kh = weight_plain_dims[ndims - 2];

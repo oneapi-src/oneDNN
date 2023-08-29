@@ -439,6 +439,7 @@ struct brg_desc_safe_t {
             auto fallback_isa = (int)dtype_size == 2 ? avx512_core_bf16
                     : (int)dtype_size == 1           ? avx512_core_vnni
                                                      : isa_undef;
+
             if (dnnl_dtypeA != dnnl_f32 && (arg.K < (4 / (int)dtype_size)))
                 return fallback_isa;
             int max_rd_block = dnnl_dtypeA == dnnl_bf16                  ? 32

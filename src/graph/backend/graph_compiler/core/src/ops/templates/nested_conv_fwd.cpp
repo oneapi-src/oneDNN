@@ -418,16 +418,18 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
       : utils::is_one_of(static_cast<int>(dilation.size()), 1, 2),
     "Wrong dilation dims, should be 1D, 2D or 3D, but got " << dilation.size()
                                                             << "D.");
-  COMPILE_ASSERT(input_plain_dims[1] == weight_plain_dims[1],
-    "expect input_plain_dims[1] == weight_plain_dims[1], but got "
-      << input_plain_dims[1] << " vs " << weight_plain_dims[1] << ".");
+  groups_ = static_cast<int>(attrs_.get_or_else("groups", 1));
+  COMPILE_ASSERT(input_plain_dims[1] / groups_ == weight_plain_dims[1],
+    "expect input_plain_dims[1] / groups == weight_plain_dims[1], but got "
+      << input_plain_dims[1] / groups_ << " vs " << weight_plain_dims[1]
+      << ".");
 
   mb_ = input_plain_dims[0];
-  ic_ = input_plain_dims[1];
+  ic_ = input_plain_dims[1] / groups_;
   id_ = is_3d_ ? input_plain_dims[2] : 1;
   ih_ = is_1d_ ? 1 : input_plain_dims[ndims_ - 2];
   iw_ = input_plain_dims[ndims_ - 1];
-  oc_ = weight_plain_dims[0];
+  oc_ = weight_plain_dims[0] / groups_;
   kd_ = is_3d_ ? weight_plain_dims[2] : 1;
   kh_ = is_1d_ ? 1 : weight_plain_dims[ndims_ - 2];
   kw_ = weight_plain_dims[ndims_ - 1];
@@ -486,8 +488,8 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
 }
 
 float gen_nested_conv_fwd_t::get_gflop() const {
-  float result = (float)mb_ * oc_ * 2.0 * ic_ * kd_ * kh_ * kw_ * od_ * oh_
-    * ow_ / (float)1e9;
+  float result = (float)mb_ * groups_ * oc_ * 2.0 * ic_ * kd_ * kh_ * kw_ * od_
+    * oh_ * ow_ / (float)1e9;
   return result;
 }
 

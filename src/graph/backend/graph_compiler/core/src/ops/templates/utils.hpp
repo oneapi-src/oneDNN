@@ -262,6 +262,48 @@ inline int get_lanes(
   return lanes;
 }
 
+inline uint64_t convert_int_to_mask(const int val) {
+  uint64_t mask = 0;
+  for (int i = 0; i < val; ++i) {
+    mask = mask << 1;
+    mask |= 0x1;
+  }
+  return mask;
+}
+
+inline int get_minimal_lanes(const int val) {
+  COMPILE_ASSERT(val <= 64,
+    "expected to be less than cache line size(64), but got " << val << "!");
+  if (val > 32) {
+    return 64;
+  } else if (val > 16) {
+    return 32;
+  } else {
+    return 16;
+  }
+}
+
+inline sc_data_type_t get_dtype(const int lanes) {
+  sc_data_type_t var_dtype;
+  switch (lanes) {
+    case 16: {
+      var_dtype = datatypes::u16;
+      break;
+    }
+    case 32: {
+      var_dtype = datatypes::u32;
+      break;
+    }
+    case 64: {
+      var_dtype = datatypes::index;
+      break;
+    }
+    default:
+      COMPILE_ASSERT(0, "expected lanes to be 16, 32, 64, but got " << lanes);
+  }
+  return var_dtype;
+}
+
 bool is_prefetch_debug_mode();
 // emit traces of prefetched address for debugging
 void trace_prefetch_for_debug(const expr &addr);

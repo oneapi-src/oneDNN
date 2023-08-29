@@ -62,7 +62,7 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionWithBias) {
   [v4: f32[1, 1, 1, 64]] = tensor_view(v2)
   [v5: f32[1, 1, 1, 1, 16, 64]] = reorder(v1)
   [v6: f32[64, 32, 32, 16]] = reorder(v0)
-  [v3: f32[64, 64, 32, 32]] = outerloop_64X1_partition_conv_fwd_core_add_reorder(v6, v5, v4)
+  [v3: f32[64, 64, 32, 32]] = outerloop_64X1X1_partition_conv_fwd_core_add_reorder(v6, v5, v4)
 }
 )";
     EXPECT_EQ(ss.str(), expected_graph);

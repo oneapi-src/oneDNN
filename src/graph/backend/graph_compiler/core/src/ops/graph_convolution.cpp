@@ -127,11 +127,26 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     sc_dims input_dims = info_.inputs_[0]->details_.get_plain_dims();
     sc_dims filter_dims = info_.inputs_[1]->details_.get_plain_dims();
     size_t ndims = input_dims.size();
+    COMPILE_ASSERT(
+            ndims >= 3, "conv ndims should >= 3, but got " << ndims << ".");
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
     auto strides = attrs_.get<sc_dims>("strides");
     sc_dims dilations = get_dilations(attrs_);
+    sc_dim groups = attrs_.get_or_else("groups", 1);
+    auto ic = data_format == "NXC" ? input_dims[ndims - 1] : input_dims[1];
+    auto oc = data_format == "NXC" ? filter_dims[ndims - 1] : filter_dims[0];
+    auto kic = data_format == "NXC" ? filter_dims[ndims - 2] : filter_dims[1];
+    COMPILE_ASSERT(ic % groups == 0 && oc % groups == 0,
+            "input channel and output channel must both be divisible by "
+            "groups, but got ic("
+                    << ic << "), oc(" << oc << "), groups(" << groups << ").");
+    COMPILE_ASSERT(ic / groups == kic,
+            "ic/g should be equal to filter_ic, but got "
+                    << ic / groups << " vs " << kic << ".");
+    COMPILE_ASSERT((groups == 1) || (groups > 1 && ic != groups),
+            "depthwise conv is not support yet!");
     if (attrs_.has_key("auto_pad")) {
         auto pad_type = attrs_.get<std::string>("auto_pad");
         if (pad_type == "VALID") {

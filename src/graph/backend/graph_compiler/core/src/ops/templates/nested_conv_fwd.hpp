@@ -184,6 +184,7 @@ public:
     expr &cond_tail_h, expr &cond_tail_w, int oc_block, int ic_block) const;
 
   size_t ndims_ = 0;
+  int groups_ = 1;
   int mb_ = 0, ic_ = 0, id_ = 0, ih_ = 0, iw_ = 0;
   int oc_ = 0, kd_ = 0, kh_ = 0, kw_ = 0;
   int od_ = 0, oh_ = 0, ow_ = 0;

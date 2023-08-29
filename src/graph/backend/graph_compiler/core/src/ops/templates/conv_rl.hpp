@@ -35,7 +35,13 @@ struct conv_fwd_rl_config_t {
     : brgemm_m(brgemm_m), brgemm_n(brgemm_n) {}
 };
 
-typedef enum { BATCH = 0, WIDTH } parallel_kind;
+enum class parallel_kind : int { BATCH = 0, WIDTH };
+namespace rl_kind {
+constexpr int NO_LOWERING = 0;
+constexpr int FULL_LOWERING = 1;
+constexpr int KW_LOWERING = 2;
+} // namespace rl_kind
+// enum class rl_kind : int { NO_LOWERING = 0, FULL_LOWERING, KW_LOWERING };
 
 class gen_conv_fwd_rl_t : public body_generator_t<conv_fwd_rl_config_t> {
 public:
@@ -88,6 +94,7 @@ public:
     stmt body, std::vector<for_loop> &fors) const override;
 
   size_t ndims_ = 0;
+  int groups_ = 1;
   int mb_ = 0, ic_ = 0, ih_ = 0, iw_ = 0;
   int oc_ = 0, oh_ = 0, ow_ = 0;
   int kh_ = 0, kw_ = 0;

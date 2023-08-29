@@ -32,6 +32,7 @@
 #include <ops/templates/nested_conv_fwd.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <util/any_map.hpp>
+#include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 using namespace dnnl::impl::graph::gc;
@@ -64,12 +65,12 @@ const conv_fwd_config_t cfg_fwd_3x3 = {
 
 bool verbose = false;
 
-void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
-        int C, int H, int W, int R, int S, sc_dims stride, sc_dims pads_begin,
-        sc_dims pads_end, sc_dims dilation, bool fuse_bias = false,
-        bool fuse_bn_relu = false, bool fuse_eleadd = false,
-        bool default_cfg = false, bool force_blocking = false,
-        bool force_channel_last = false) {
+void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int G,
+        int K, int C, int H, int W, int R, int S, sc_dims stride,
+        sc_dims pads_begin, sc_dims pads_end, sc_dims dilation,
+        bool fuse_bias = false, bool fuse_bn_relu = false,
+        bool fuse_eleadd = false, bool default_cfg = false,
+        bool force_blocking = false, bool force_channel_last = false) {
     REQUIRE_AVX2();
     int stride_h = stride[0], stride_w = stride[0];
     if (stride.size() > 1) { stride_w = stride[1]; }
@@ -77,16 +78,21 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
     if (pads_begin.size() > 1) { padding_w = pads_begin[1]; }
     int dilation_h = dilation[0], dilation_w = dilation[0];
     if (dilation.size() > 1) { dilation_w = dilation[1]; }
+    COMPILE_ASSERT(C % G == 0 && K % G == 0,
+            "C and K should be dividable by G, but got C("
+                    << C << "), K(" << K << "), G(" << G << ").");
 
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
-
-    auto in_a = mgr.make_input({graph_tensor::make({N, C, H, W})});
-    auto in_weight = mgr.make_input({graph_tensor::make({K, C, R, S})});
+    sc_dims data_dims = {N, C, H, W};
+    sc_dims weight_dims = {K, C / G, R, S};
+    auto in_a = mgr.make_input({graph_tensor::make(data_dims)});
+    auto in_weight = mgr.make_input({graph_tensor::make(weight_dims)});
     auto conv_out = mgr.make("conv_fwd_core",
             {in_a->get_outputs()[0], in_weight->get_outputs()[0]}, {},
             {{"strides", stride}, {"pads_begin", pads_begin},
-                    {"pads_end", pads_end}, {"dilations", dilation}});
+                    {"pads_end", pads_end}, {"dilations", dilation},
+                    {"groups", G}});
     COMPILE_ASSERT(!force_blocking || !force_channel_last,
             "only one of force_blocking and force_channel_last allowed");
     if (force_blocking) {
@@ -159,13 +165,10 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
     if (verbose) { std::cout << f; }
 
     auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f, true);
-    auto output = alloc_array<float>(
-            N * K / cfg.K_block * P * Q * cfg.K_block, INIT_NOOP);
-    auto input = alloc_array<float>(N * C / cfg.C_block * H * W * cfg.C_block);
-    auto weight = alloc_array<float>(K / cfg.K_block * C / cfg.C_block * R * S
-            * cfg.C_block * cfg.K_block);
-    auto ele_add
-            = alloc_array<float>(N * K / cfg.K_block * P * Q * cfg.K_block);
+    auto output = alloc_array<float>(N * K * P * Q, INIT_NOOP);
+    auto input = alloc_array<float>(math_utils::get_dims_product(data_dims));
+    auto weight = alloc_array<float>(math_utils::get_dims_product(weight_dims));
+    auto ele_add = alloc_array<float>(N * K * P * Q);
     auto bias = alloc_array<float>(K);
     auto bn_mul = alloc_array<float>(K);
     auto bn_add = alloc_array<float>(K);
@@ -195,15 +198,15 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
 
     auto mkldnn_input
             = NCHWc2NCHW(input, N, C / cfg.C_block, H, W, cfg.C_block);
-    auto mkldnn_weight = KCRSck2KCRS(weight, K / cfg.K_block, C / cfg.C_block,
-            R, S, cfg.C_block, cfg.K_block);
+    auto mkldnn_weight = KCRSck2KCRS(weight, K / cfg.K_block,
+            C / G / cfg.C_block, R, S, cfg.C_block, cfg.K_block);
 
     auto mkldnn_bias = std::move(bias);
     auto mkldnn_mul = std::move(bn_mul);
     auto mkldnn_add = std::move(bn_add);
     test_buffer<float> mkldnn_output(N * K * P * Q);
 
-    compute_ref_direct_fwd(N, 1, K, C, H, W, P, Q, R, S, stride_h, stride_w,
+    compute_ref_direct_fwd(N, G, K, C, H, W, P, Q, R, S, stride_h, stride_w,
             padding_h, padding_w, &mkldnn_input[0], &mkldnn_weight[0],
             &mkldnn_bias[0], &mkldnn_output[0],
             fuse_bias ? dir_t::FWD_B : FWD_I, &mkldnn_mul[0], &mkldnn_add[0],
@@ -219,7 +222,7 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
         sc_dims dilation, bool fuse_bias = false, bool fuse_bn_relu = false,
         bool fuse_eleadd = false, bool default_cfg = false,
         bool force_blocking = false, bool force_channel_last = false) {
-    check_conv_correctness_and_tuning_fwd(cfg, N, K, C, H, W, R, S, stride,
+    check_conv_correctness_and_tuning_fwd(cfg, N, 1, K, C, H, W, R, S, stride,
             padding, padding, dilation, fuse_bias, fuse_bn_relu, fuse_eleadd,
             default_cfg, force_blocking, force_channel_last);
 }
@@ -984,27 +987,27 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_12_NXC) {
 }
 TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_13_NCX_asym_pad) {
     REQUIRE_AVX512();
-    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 224, 224, 7,
-            7, sc_dims {2, 2}, sc_dims {3, 3}, sc_dims {2, 2}, sc_dims {1, 1},
-            false, false, false, false, true, false);
+    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 1, 64, 64, 224, 224,
+            7, 7, sc_dims {2, 2}, sc_dims {3, 3}, sc_dims {2, 2},
+            sc_dims {1, 1}, false, false, false, false, true, false);
 }
 TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_13_NXC_asym_pad) {
     REQUIRE_AVX512();
-    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 224, 224, 7,
-            7, sc_dims {2, 2}, sc_dims {3, 3}, sc_dims {2, 2}, sc_dims {1, 1},
-            false, false, false, false, false, true);
+    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 1, 64, 64, 224, 224,
+            7, 7, sc_dims {2, 2}, sc_dims {3, 3}, sc_dims {2, 2},
+            sc_dims {1, 1}, false, false, false, false, false, true);
 }
 TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_14_NCX_asym_pad) {
     REQUIRE_AVX512();
-    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 224, 224, 7,
-            7, sc_dims {1, 1}, sc_dims {3, 3}, sc_dims {2, 2}, sc_dims {1, 1},
-            false, false, false, false, true, false);
+    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 1, 64, 64, 224, 224,
+            7, 7, sc_dims {1, 1}, sc_dims {3, 3}, sc_dims {2, 2},
+            sc_dims {1, 1}, false, false, false, false, true, false);
 }
 TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_14_NXC_asym_pad) {
     REQUIRE_AVX512();
-    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 224, 224, 4,
-            4, sc_dims {1, 1}, sc_dims {3, 3}, sc_dims {2, 2}, sc_dims {1, 1},
-            false, false, false, false, false, true);
+    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 1, 64, 64, 224, 224,
+            4, 4, sc_dims {1, 1}, sc_dims {3, 3}, sc_dims {2, 2},
+            sc_dims {1, 1}, false, false, false, false, false, true);
 }
 TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dilation) {
     REQUIRE_AVX512();
@@ -1028,6 +1031,7 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dilation) {
             {1, 256, 256, 128, 128, 2, 1, 2},
     }; // N, K, C, H, W, Dilation, Stride, Padding
 
+    int G = 1;
     int R = 3, S = 3;
     for (auto workload : workload_list) {
         auto N = workload[0];
@@ -1039,11 +1043,66 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dilation) {
         auto stride = workload[6];
         auto padding = workload[7];
         if (dilation * 2 + 1 > H + 2 * padding) { continue; }
-        check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), N, K, C, H,
-                W, R, S, {stride, stride}, {padding, padding},
-                {dilation, dilation}, false, false, false, true, false, true);
+        check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), N, G, K, C,
+                H, W, R, S, {stride, stride}, {padding, padding},
+                {padding, padding}, {dilation, dilation}, false, false, false,
+                true, false, true);
     }
     return;
+}
+
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_groups) {
+    std::vector<std::vector<int>> workload_list = {
+            // N, G, K, C, H, W, R, S, stride, padding, dilation
+            {1, 2, 8, 8, 12, 12, 3, 3, 2, 0, 1},
+            {1, 4, 8, 8, 12, 12, 3, 3, 2, 0, 1},
+            {14, 2, 48, 48, 114, 114, 3, 3, 2, 0, 1},
+    };
+    for (auto &wl : workload_list) {
+        int idx = 0;
+        auto N = wl[idx++];
+        auto G = wl[idx++];
+        auto K = wl[idx++];
+        auto C = wl[idx++];
+        auto H = wl[idx++];
+        auto W = wl[idx++];
+        auto R = wl[idx++];
+        auto S = wl[idx++];
+        auto stride = wl[idx++];
+        auto padding = wl[idx++];
+        auto dilation = wl[idx++];
+        check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), N, G, K, C,
+                H, W, R, S, {stride, stride}, {padding, padding},
+                {padding, padding}, {dilation, dilation}, false, false, false,
+                true, false, true);
+    }
+}
+
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_groups_padding) {
+    std::vector<std::vector<int>> workload_list = {
+            // N, G, K, C, H, W, R, S, stride, padding, dilation
+            {1, 2, 8, 8, 12, 12, 3, 3, 2, 1, 1},
+            {1, 4, 8, 8, 12, 12, 3, 3, 2, 1, 1},
+            {14, 2, 48, 48, 114, 114, 3, 3, 2, 1, 1},
+    };
+    for (auto &wl : workload_list) {
+        int idx = 0;
+        auto N = wl[idx++];
+        auto G = wl[idx++];
+        auto K = wl[idx++];
+        auto C = wl[idx++];
+        auto H = wl[idx++];
+        auto W = wl[idx++];
+        auto R = wl[idx++];
+        auto S = wl[idx++];
+        auto stride = wl[idx++];
+        auto padding = wl[idx++];
+        auto dilation = wl[idx++];
+        check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), N, G, K, C,
+                H, W, R, S, {stride, stride}, {padding, padding},
+                {padding, padding}, {dilation, dilation}, false, false, false,
+                true, false, true);
+    }
 }
 
 // conv3x3 with bias

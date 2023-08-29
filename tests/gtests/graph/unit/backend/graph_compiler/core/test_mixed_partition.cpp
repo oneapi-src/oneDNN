@@ -88,7 +88,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseOpPass) {
     print_graph(graph, ss, true);
     std::string expected_str
             = R"(graph(v0: f32[28, 2, 16, 16, 32], v1: f32[28, 2, 16, 16, 32], v2: f32[2, 2, 1, 1, 32, 32], v3: f32[1, 2, 16, 16, 32]) -> [v4: f32[1, 2, 16, 16, 32]] {
-  [v5: f32[28, 2, 16, 16, 32]] = outerloop_28X2X16_partition_conv_fwd_core_add_relu(v0, v2, v1)
+  [v5: f32[28, 2, 16, 16, 32]] = outerloop_28X1X2X16_partition_conv_fwd_core_add_relu(v0, v2, v1)
   [v6: f32[1, 2, 16, 16, 32]] = reduce(v5)
   [v4: f32[1, 2, 16, 16, 32]] = outerloop_1X2X16X16_partition_add_relu(v6, v3)
 }
@@ -433,16 +433,11 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphLastDimPaddedReorder) {
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseBRGemmPreOpFusion) {
     sc_graph_t graph;
-
     auto run_threads = runtime_config_t::get().get_num_threads();
-
     int BS = run_threads, C = 64, H = 56, W = 56, K = 64;
     auto input0 = graph.make_input({graph_tensor::make({BS, C, H, W})});
-
     auto weight0 = graph.make_input({graph_tensor::make({K, C, 1, 1})});
-
     auto input1 = graph.make_input({graph_tensor::make({BS, C, H, W})});
-
     auto input2 = graph.make("constant", {}, {graph_tensor::make({1})},
             {{"values",
                      std::make_shared<static_data_t>(
@@ -451,17 +446,13 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseBRGemmPreOpFusion) {
 
     auto cast0 = graph.make("cast", {input1->get_outputs()[0]}, {},
             {{"dtype", datatypes::s32}});
-
     auto add0 = graph.make(
             "add", {cast0->get_outputs()[0], input2->get_outputs()[0]}, {}, {});
-
     auto conv0 = graph.make("conv_fwd_core",
             {input0->get_outputs()[0], weight0->get_outputs()[0]}, {},
             {{"strides", sc_dims {1, 1}}, {"paddings", sc_dims {0, 0}}});
-
     auto add1 = graph.make(
             "add", {conv0->get_outputs()[0], add0->get_outputs()[0]}, {}, {});
-
     auto output0 = graph.make_output(add1->get_outputs());
 
     auto ctx = get_test_ctx();
@@ -470,7 +461,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseBRGemmPreOpFusion) {
     ASSERT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
     // Due to brgemm pre-op fusion, the number of outer loops is equal to what
     // is written in conv template
-    EXPECT_EQ(fused_op->parti_list_[0]->get_outer_loops().size(), (size_t)3);
+    EXPECT_EQ(fused_op->parti_list_[0]->get_outer_loops().size(), (size_t)4);
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseOptimizedReduce2) {

@@ -70,55 +70,6 @@ float gen_conv_fwd_rl_t::get_gflop() const {
   return result;
 }
 
-static inline uint64_t convert_int_to_mask(const int val) {
-  uint64_t mask = 0;
-  for (int i = 0; i < val; ++i) {
-    mask = mask << 1;
-    mask |= 0x1;
-  }
-  return mask;
-}
-
-static inline int get_minimal_lanes(const int val) {
-  COMPILE_ASSERT(val <= cache_line_size,
-    "expected to be less than cache line size, but got " << val << "!");
-  if (val > 32) {
-    return 64;
-  } else if (val > 16) {
-    return 32;
-  } else if (val > 8) {
-    return 16;
-  } else {
-    return 8;
-  }
-}
-
-static inline sc_data_type_t get_dtype(const int lanes) {
-  sc_data_type_t var_dtype;
-  switch (lanes) {
-    case 8: {
-      var_dtype = datatypes::u8;
-      break;
-    }
-    case 16: {
-      var_dtype = datatypes::u16;
-      break;
-    }
-    case 32: {
-      var_dtype = datatypes::u32;
-      break;
-    }
-    case 64: {
-      var_dtype = datatypes::index;
-      break;
-    }
-    default:
-      COMPILE_ASSERT(
-        0, "expected lanes to be 8, 16, 32, 64, but got " << lanes);
-  }
-  return var_dtype;
-}
-
 gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
   const sc_dims &dilations, const sc_dims &pads_begin, const sc_dims &pads_end,
   std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
@@ -146,12 +97,18 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
     "Wrong weight dims, only support 4D weights, but got "
       << weight_plain_dims.size() << "D.");
 
+  groups_ = static_cast<int>(attrs_.get_or_else("groups", 1));
+  COMPILE_ASSERT(input_plain_dims[1] / groups_ == weight_plain_dims[1],
+    "expect input_plain_dims[1] / groups == weight_plain_dims[1], but got "
+      << input_plain_dims[1] / groups_ << " vs " << weight_plain_dims[1]
+      << ".");
+
   mb_ = input_plain_dims[0];
-  ic_ = input_plain_dims[1];
+  ic_ = input_plain_dims[1] / groups_;
   ih_ = input_plain_dims[2];
   iw_ = input_plain_dims[3];
 
-  oc_ = weight_plain_dims[0];
+  oc_ = weight_plain_dims[0] / groups_;
   kh_ = weight_plain_dims[2];
   kw_ = weight_plain_dims[3];
   oh_ = out_plain_dims[2];
@@ -182,18 +139,23 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
     "Not support the case of padding > filter_size!");
   int width_threshold = kw_;
   int num_threads = runtime_config_t::get().get_num_threads();
-  parallel_axis_ = (mb_ >= num_threads)
-    ? BATCH
-    : ((ow_ % num_threads == 0) && (ow_ / num_threads >= width_threshold)
-        ? WIDTH
-        : BATCH);
+  parallel_axis_ = (mb_ * groups_ >= num_threads)
+    ? parallel_kind::BATCH
+    : ((((ow_ % num_threads == 0) && (ow_ / num_threads >= width_threshold))
+         || utils::divide_and_ceil(ow_, num_threads) >= 4)
+        ? parallel_kind::WIDTH
+        : parallel_kind::BATCH);
+  // Switch to parallelism at width axis if possible to reduce imbalance on
+  // batch size axis.
+  if ((ow_ % num_threads == 0) && ((mb_ * groups_) % num_threads != 0))
+    parallel_axis_ = parallel_kind::WIDTH;
 
   num_brgemm_k_ = attrs_.get<int>("num_brgemm_k");
   brgemm_k_ = attrs_.get<int>("brgemm_k");
   extra_padding_ = attrs_.get<int>("extra_padding");
-  int last_row_size
-    = ((parallel_axis_ == BATCH) ? (actual_iw_ * ic_)
-                                 : ((ow_ / num_threads - 1) * sw_ + kw_) * ic_)
+  int last_row_size = ((parallel_axis_ == parallel_kind::BATCH)
+                          ? (actual_iw_ * ic_)
+                          : ((ow_ / num_threads - 1) * sw_ + kw_) * ic_)
     + extra_padding_;
   aux_buf_size_ = (actual_ih_ - 1) * kw_ * ic_ + last_row_size;
 
@@ -255,8 +217,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
 
   int given_num_threads = runtime_config_t::get().get_num_threads();
   int num_threads = given_num_threads;
-  if (parallel_axis_ == BATCH) {
-    num_threads = std::min(given_num_threads, mb_);
+  if (parallel_axis_ == parallel_kind::BATCH) {
+    num_threads = std::min(given_num_threads, mb_ * groups_);
     if (num_threads < given_num_threads) {
       SC_WARN
         << "The actual parallelism is less than given due to task assignment, "
@@ -300,7 +262,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
 
   _tensor_(init_mask_tsr, datatypes::index, {num_threads});
   _tensor_(init_lanes_tsr, datatypes::index, {num_threads});
-  if (parallel_axis_ == WIDTH) {
+  if (parallel_axis_ == parallel_kind::WIDTH) {
     for (int i = 0; i < num_threads; ++i) {
       int start_iw = (ow_ / num_threads) * i * sw_;
       int cur_pl = std::min(kw_, std::max(0, pl_ - start_iw));
@@ -311,8 +273,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     }
   }
 
-  auto init_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &q,
-                        const expr &init_idx) {
+  auto init_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &g,
+                        const expr &q, const expr &init_idx) {
     // only need to copy the valid area as all the remaining padding
     // areas are already zero-out
     int max_lanes = kw_ * ic_ * utils::get_sizeof_type(input_dtype);
@@ -320,7 +282,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     expr init_mask_expr = builder::make_cast(get_dtype(max_lanes), init_mask_);
     expr cur_pl = pl_;
     expr q_offset = 0;
-    if (parallel_axis_ == WIDTH) {
+    if (parallel_axis_ == parallel_kind::WIDTH) {
       init_mask_expr = builder::make_cast(
         get_dtype(max_lanes), init_mask_tsr[q / (ow_ / num_threads)]);
       cur_pl = builder::make_min(kw_,
@@ -332,40 +294,49 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     _for_(ih, pt_, real_pb > 0 ? (pt_ + ih_) : actual_ih_) {
       aux_buf[span_t(
         {ih * kw_ * ic_ + cur_pl * ic_}, max_lanes, init_mask_expr)]
-        = input[span_t(
-          {n_o, ih - pt_, q * sw_ - q_offset, 0}, max_lanes, init_mask_expr)];
+        = input[span_t(groups_ > 1
+            ? std::vector<expr> {n_o, g, ih - pt_, q * sw_ - q_offset, 0}
+            : std::vector<expr> {n_o, ih - pt_, q * sw_ - q_offset, 0},
+          max_lanes, init_mask_expr)];
     }
 
     if (real_pb == 0) {
       // last row handling, requires special handling for the case of
       // parallel on width axis
-      auto copy_last_row = [&](const int last_row, const int lanes,
-                             const int q_offset, const int pl = 0,
-                             const int pr = 0) {
-        auto copy_with_simd = utils::rnd_dn(last_row, lanes);
-        auto remainder = last_row % lanes;
-        if (copy_with_simd > 0) {
-          _for_(wi, 0, copy_with_simd, lanes) {
-            aux_buf[span_t(
-              {(actual_ih_ - 1) * kw_ * ic_ + wi + pl * ic_}, lanes)]
-              = input[span_t({n_o, actual_ih_ - pt_ - 1,
-                               wi / ic_ + init_idx * sw_ - q_offset, wi % ic_},
-                lanes)];
-          }
-        }
-        if (remainder > 0) {
-          auto remainder_mask = convert_int_to_mask(remainder);
-          aux_buf[span_t(
-            {(actual_ih_ - 1) * kw_ * ic_ + copy_with_simd + pl * ic_}, lanes,
-            remainder_mask)]
-            = input[span_t({n_o, actual_ih_ - pt_ - 1,
-                             copy_with_simd / ic_ + init_idx * sw_ - q_offset,
-                             copy_with_simd % ic_},
-              lanes, remainder_mask)];
-        }
-      };
+      auto copy_last_row
+        = [&](const int last_row, const int lanes, const int q_offset,
+            const int pl = 0, const int pr = 0) {
+            auto copy_with_simd = utils::rnd_dn(last_row, lanes);
+            auto remainder = last_row % lanes;
+            if (copy_with_simd > 0) {
+              _for_(wi, 0, copy_with_simd, lanes) {
+                aux_buf[span_t(
+                  {(actual_ih_ - 1) * kw_ * ic_ + wi + pl * ic_}, lanes)]
+                  = input[span_t(groups_ > 1
+                      ? std::vector<expr> {n_o, g, actual_ih_ - pt_ - 1,
+                        wi / ic_ + init_idx * sw_ - q_offset, wi % ic_}
+                      : std::vector<expr> {n_o, actual_ih_ - pt_ - 1,
+                        wi / ic_ + init_idx * sw_ - q_offset, wi % ic_},
+                    lanes)];
+              }
+            }
+            if (remainder > 0) {
+              auto remainder_mask = convert_int_to_mask(remainder);
+              aux_buf[span_t(
+                {(actual_ih_ - 1) * kw_ * ic_ + copy_with_simd + pl * ic_},
+                lanes, remainder_mask)]
+                = input[span_t(groups_ > 1
+                    ? std::vector<expr> {n_o, g, actual_ih_ - pt_ - 1,
+                      copy_with_simd / ic_ + init_idx * sw_ - q_offset,
+                      copy_with_simd % ic_}
+                    : std::vector<expr> {n_o, actual_ih_ - pt_ - 1,
+                      copy_with_simd / ic_ + init_idx * sw_ - q_offset,
+                      copy_with_simd % ic_},
+                  lanes, remainder_mask)];
+            }
+          };
 
-      if (parallel_axis_ == WIDTH) {
+      if (parallel_axis_ == parallel_kind::WIDTH) {
         _if_(q == 0) {
           auto last_row = ((ow_ / num_threads - 1) * sw_ + kw_ - pl_) * ic_;
           copy_last_row(last_row, lanes, 0, pl_, 0);
@@ -388,8 +359,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     }
   };
 
-  auto update_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &q,
-                          const expr &init_idx) {
+  auto update_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &g,
+                          const expr &q, const expr &init_idx) {
     auto update_lanes = std::min(lanes, get_minimal_lanes(update_lanes_));
     expr update_mask_var
       = builder::make_cast(get_dtype(update_lanes), update_mask_);
@@ -416,7 +387,10 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           _if_(update_copy_mask > 0) {
             aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
               update_lanes, update_copy_mask)]
-              = input[span_t({n_o, ih - 1 - pt_, (q - 1) * sw_ + kw_ - pl_, 0},
+              = input[span_t(groups_ > 1 ? std::vector<expr> {n_o, g,
+                               ih - 1 - pt_, (q - 1) * sw_ + kw_ - pl_, 0}
+                                         : std::vector<expr> {n_o, ih - 1 - pt_,
+                                           (q - 1) * sw_ + kw_ - pl_, 0},
                 update_lanes, update_copy_mask)];
           }
           // zero-out
@@ -438,7 +412,10 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         _for_(ih, pt_ + 1, real_pb > 0 ? (pt_ + ih_ + 1) : actual_ih_) {
           aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
             update_lanes, update_mask_var)]
-            = input[span_t({n_o, ih - pt_ - 1, (q - 1) * sw_ + kw_ - pl_, 0},
+            = input[span_t(groups_ > 1 ? std::vector<expr> {n_o, g,
+                             ih - pt_ - 1, (q - 1) * sw_ + kw_ - pl_, 0}
+                                       : std::vector<expr> {n_o, ih - pt_ - 1,
+                                         (q - 1) * sw_ + kw_ - pl_, 0},
               update_lanes, update_mask_var)];
         }
       }
@@ -452,14 +429,17 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
       _for_(ih, pt_ + 1, actual_ih_) {
         aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
           update_lanes, update_mask_var)]
-          = input[span_t({n_o, ih - pt_ - 1, (q - 1) * sw_ + kw_ - pl_, 0},
+          = input[span_t(groups_ > 1 ? std::vector<expr> {n_o, g, ih - pt_ - 1,
+                           (q - 1) * sw_ + kw_ - pl_, 0}
+                                     : std::vector<expr> {n_o, ih - pt_ - 1,
+                                       (q - 1) * sw_ + kw_ - pl_, 0},
             update_lanes, update_mask_var)];
       }
     }
   };
 
-  auto do_compute = [&](const expr &aux_buf, const expr &n_o, const expr &q,
-                      const expr &init_idx) {
+  auto do_compute = [&](const expr &aux_buf, const expr &n_o, const expr &g,
+                      const expr &q, const expr &init_idx) {
     _for_(p, 0, oh_ / config.brgemm_m) {
       _tensor_(A_list, datatypes::pointer, {num_brgemm_k_});
       _tensor_(B_list, datatypes::pointer, {num_brgemm_k_});
@@ -472,10 +452,13 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
       _for_(k_o, 0, K_num_block) {
         for (int i = 0; i < num_brgemm_k_; ++i) {
           // weight in KNknk format
-          B_list[i] = tensor_ptr(weight, {i, k_o, 0, 0, 0});
+          B_list[i] = tensor_ptr(weight, {i, g * K_num_block + k_o, 0, 0, 0});
         }
-        auto out_tsr = tensor_ptr(
-          output, {n_o, p * config.brgemm_m, q, k_o * config.brgemm_n});
+        auto out_tsr = tensor_ptr(output,
+          groups_ > 1 ? std::vector<expr> {n_o, g, p * config.brgemm_m, q,
+            k_o * config.brgemm_n}
+                      : std::vector<expr> {n_o, p * config.brgemm_m, q,
+                        (g * K_num_block + k_o) * config.brgemm_n});
 
         const auto hint_A_size = config.brgemm_m * brgemm_k_ * num_brgemm_k_;
         const auto hint_B_size = num_brgemm_k_ * brgemm_k_ * config.brgemm_n;
@@ -487,49 +470,74 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           {brgemm::attr_key::use_interleave_stores, true},
           {brgemm::attr_key::use_uker, true}};
 
-        builtin::brgemm_init_list_update(A_list, B_list, out_tsr, 1,
-          config.brgemm_m, config.brgemm_n, brgemm_k_, LDA_, config.brgemm_n,
-          ow_ * oc_ /* channel last */, 1 /*useless*/, 1 /*useless*/,
-          num_brgemm_k_, get_input_dtype(), get_weight_dtype(),
-          ctx->flags_.kernel_optim_ == 1 ? brg_attrs : sc_brgemm_attrs_t());
+        {
+          trace_guard_t trg(ctx, "brgemm");
+          builtin::brgemm_init_list_update(A_list, B_list, out_tsr, 1,
+            config.brgemm_m, config.brgemm_n, brgemm_k_, LDA_, config.brgemm_n,
+            ow_ * oc_ /* channel last for g=1, blocking for g>1 */,
+            1 /*useless*/, 1 /*useless*/, num_brgemm_k_, get_input_dtype(),
+            get_weight_dtype(),
+            ctx->flags_.kernel_optim_ == 1 ? brg_attrs : sc_brgemm_attrs_t());
+        }
 
         if (fusion) {
           // brgemm_m * brgemm_n
+          trace_guard_t trg(ctx, "post-op fusion");
           fusion->create_output_fusion_anchor({tensor_slice(output,
-            {{n_o, 1}, {p * config.brgemm_m, config.brgemm_m}, {q, 1},
-              {k_o * config.brgemm_n, config.brgemm_n}})});
+            groups_ > 1 ? slice_range {{n_o, 1}, {g, 1},
+              {p * config.brgemm_m, config.brgemm_m}, {q, 1},
+              {k_o * config.brgemm_n, config.brgemm_n}}
+                        : slice_range {{n_o, 1},
+                          {p * config.brgemm_m, config.brgemm_m}, {q, 1},
+                          {(g * K_num_block + k_o) * config.brgemm_n,
+                            config.brgemm_n}})});
         }
       }
       if (fusion) {
         // brgemm_m * oc_
         fusion->create_output_fusion_anchor({tensor_slice(output,
-          {{n_o, 1}, {p * config.brgemm_m, config.brgemm_m}, {q, 1},
-            {0, oc_}})});
+          groups_ > 1
+            ? slice_range {{n_o, 1}, {g, 1},
+              {p * config.brgemm_m, config.brgemm_m}, {q, 1}, {0, oc_}}
+            : slice_range {{n_o, 1}, {p * config.brgemm_m, config.brgemm_m},
+              {q, 1}, {g * oc_, oc_}})});
       }
     }
   };
 
-  if (BATCH == parallel_axis_) {
-    for_loop ln, lq;
+  if (parallel_kind::BATCH == parallel_axis_) {
+    for_loop ln, lg, lq;
     auto input_expr_dims = input.checked_as<tensor>()->dims_;
     auto mb_expr = input_expr_dims[0];
     _named_for_(ln, n_o, 0, mb_expr, 1, for_type::PARALLEL) {
-      _tensor_(aux_buf, input_dtype, {aux_buf_size_});
-      builtin::mem_zero(aux_buf, aux_buf_size_, input_dtype);
-      _named_for_(lq, q, 0, ow_, 1) {
-        _if_(q == 0) { init_aux_buf(aux_buf, n_o, q, 0); }
-        _else_ { update_aux_buf(aux_buf, n_o, q, 0); }
-        do_compute(aux_buf, n_o, q, 0);
-        if (fusion) {
-          // oh_ * oc_
-          fusion->create_output_fusion_anchor(
-            {tensor_slice(output, {{n_o, 1}, {0, oh_}, {q, 1}, {0, oc_}})});
+      _named_for_(lg, g, 0, groups_, 1) {
+        _tensor_(aux_buf, input_dtype, {aux_buf_size_});
+        builtin::mem_zero(aux_buf, aux_buf_size_, input_dtype);
+        _named_for_(lq, q, 0, ow_, 1) {
+          _if_(q == 0) {
+            trace_guard_t trg(ctx, "init_aux");
+            init_aux_buf(aux_buf, n_o, g, q, 0);
+          }
+          _else_ {
+            trace_guard_t trg(ctx, "update_aux");
+            update_aux_buf(aux_buf, n_o, g, q, 0);
+          }
+          do_compute(aux_buf, n_o, g, q, 0);
+          if (fusion) {
+            // oh_ * oc_
+            fusion->create_output_fusion_anchor({tensor_slice(output,
+              groups_ > 1
+                ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {q, 1}, {0, oc_}}
+                : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}})});
+          }
         }
-      }
-      if (fusion) {
-        // oh_ * ow_ * oc_
-        fusion->create_output_fusion_anchor(
-          {tensor_slice(output, {{n_o, 1}, {0, oh_}, {0, ow_}, {0, oc_}})});
+        if (fusion) {
+          // oh_ * ow_ * oc_
+          fusion->create_output_fusion_anchor({tensor_slice(output,
+            groups_ > 1
+              ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {0, ow_}, {0, oc_}}
+              : slice_range {{n_o, 1}, {0, oh_}, {0, ow_}, {g * oc_, oc_}})});
+        }
       }
     }
     lq->attr().set(stmt_attr_key::no_loop_fuse, true);
@@ -545,20 +553,33 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
       ow_e = start_idx + group_size;
       init_idx = start_idx;
       _for_(n_o, 0, mb_, 1) {
-        builtin::mem_zero(aux_buf, aux_buf_size_, input_dtype);
-        _for_(q, ow_b, ow_e, 1) {
-          _if_(q == init_idx) { init_aux_buf(aux_buf, n_o, q, init_idx); }
-          _else_ { update_aux_buf(aux_buf, n_o, q, init_idx); }
-          do_compute(aux_buf, n_o, q, init_idx);
-          if (fusion) {
-            // oh_ * oc_
-            fusion->create_output_fusion_anchor(
-              {tensor_slice(output, {{n_o, 1}, {0, oh_}, {q, 1}, {0, oc_}})});
+        _for_(g, 0, groups_, 1) {
+          builtin::mem_zero(aux_buf, aux_buf_size_, input_dtype);
+          _for_(q, ow_b, ow_e, 1) {
+            _if_(q == init_idx) {
+              trace_guard_t trg(ctx, "init_aux");
+              init_aux_buf(aux_buf, n_o, g, q, init_idx);
+            }
+            _else_ {
+              trace_guard_t trg(ctx, "update_aux");
+              update_aux_buf(aux_buf, n_o, g, q, init_idx);
+            }
+            do_compute(aux_buf, n_o, g, q, init_idx);
+            if (fusion) {
+              // oh_ * oc_
+              fusion->create_output_fusion_anchor({tensor_slice(output,
+                groups_ > 1
+                  ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {q, 1}, {0, oc_}}
+                  : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}})});
+            }
           }
-        }
-        if (fusion) {
-          fusion->create_output_fusion_anchor({tensor_slice(
-            output, {{n_o, 1}, {0, oh_}, {0, ow_e - ow_b}, {0, oc_}})});
+          if (fusion) {
+            fusion->create_output_fusion_anchor({tensor_slice(output,
+              groups_ > 1 ? slice_range {{n_o, 1}, {g, 1}, {0, oh_},
+                {0, ow_e - ow_b}, {0, oc_}}
+                          : slice_range {{n_o, 1}, {0, oh_}, {0, ow_e - ow_b},
+                            {g * oc_, oc_}})});
+          }
         }
       }
     }
