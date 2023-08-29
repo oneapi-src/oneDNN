@@ -284,6 +284,57 @@ private:
     std::shared_ptr<primitive_t> dst_reorder_p_;
 };
 
+struct ncsp_convolution_bwd_data_t : public primitive_t {
+    struct pd_t : public cpu_convolution_bwd_data_pd_t {
+
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
+                const convolution_fwd_pd_t *hint_fwd_pd)
+            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
+            , reduce(this)
+            , name_("tbd") {}
+
+        ~pd_t() = default;
+        DECLARE_COMMON_PD_T(name_.c_str(), ncsp_convolution_bwd_data_t);
+
+        status_t init(engine_t *engine);
+        status_t init_convolution(engine_t *engine);
+
+        std::shared_ptr<primitive_desc_t> nspc_conv_pd_;
+        std::shared_ptr<primitive_desc_t> src_reorder_pd_;
+        std::shared_ptr<primitive_desc_t> dst_reorder_pd_;
+        memory_desc_t nspc_diff_dst_md_;
+        memory_desc_t nspc_diff_src_md_;
+
+    private:
+        ncsp_matmul_reduction_helper reduce;
+        bool is_matmul_ = false;
+        std::string name_;
+        void init_scratchpad();
+        void init_name() {
+            std::string suffix = "conv";
+            name_ = "ncsp:" + suffix + "->";
+            name_.append(nspc_conv_pd_->name());
+        }
+    };
+    ncsp_convolution_bwd_data_t(const pd_t *cpd) : primitive_t(cpd) {};
+    ~ncsp_convolution_bwd_data_t() = default;
+
+    status_t init(engine_t *engine) override;
+    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute_convolution(const exec_ctx_t &ctx) const;
+
+private:
+    status_t reorder_activations(const exec_ctx_t &ctx,
+            const std::shared_ptr<primitive_t> prim, engine_t *engine,
+            const memory_arg_t &in, const memory_arg_t &out) const;
+    const pd_t *pd() const {
+        return static_cast<const pd_t *>(primitive_t::pd().get());
+    }
+    std::shared_ptr<primitive_t> nspc_conv_p_;
+    std::shared_ptr<primitive_t> src_reorder_p_;
+    std::shared_ptr<primitive_t> dst_reorder_p_;
+};
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl

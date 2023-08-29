@@ -746,6 +746,141 @@ status_t ncsp_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
         return execute_matmul(ctx);
 }
 
+status_t ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
+    VCHECK_CONV(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+    VCHECK_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VCHECK_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+            VERBOSE_BAD_ALGORITHM);
+    VCHECK_CONV(is_bwd_d(), VERBOSE_BAD_PROPKIND);
+    VCHECK_CONV(memory_desc_matches_tag(*diff_src_md(), get_ncsp_tag(ndims())),
+            VERBOSE_UNSUPPORTED_TAG);
+    VCHECK_CONV(memory_desc_matches_tag(*diff_dst_md(), get_ncsp_tag(ndims())),
+            VERBOSE_UNSUPPORTED_TAG);
+
+    if (one_of(data_type::bf16, diff_dst_md_.data_type, weights_md_.data_type)
+            && !mayiuse(avx512_core_bf16))
+        return status::unimplemented;
+
+    CHECK(init_convolution(engine));
+    init_scratchpad();
+    init_name();
+
+    return status::success;
+}
+
+status_t ncsp_convolution_bwd_data_t::pd_t::init_convolution(engine_t *engine) {
+    convolution_desc_t nspc_conv_d = convolution_desc_t();
+    format_tag_t nspc_tag = get_nspc_tag(ndims());
+    nspc_diff_src_md_ = *diff_src_md();
+    nspc_diff_dst_md_ = *diff_dst_md();
+    CHECK(memory_desc_init_by_tag(nspc_diff_src_md_, nspc_tag));
+    CHECK(memory_desc_init_by_tag(nspc_diff_dst_md_, nspc_tag));
+    const convolution_desc_t *ncsp_conv_d = desc();
+    primitive_desc_iface_t *conv_pdi;
+
+    CHECK(dnnl_convolution_backward_data_primitive_desc_create(&conv_pdi,
+            engine, ncsp_conv_d->alg_kind, &nspc_diff_src_md_, weights_md(0),
+            &nspc_diff_dst_md_, ncsp_conv_d->strides, ncsp_conv_d->dilates,
+            ncsp_conv_d->padding[0], ncsp_conv_d->padding[1], nullptr, attr()));
+    nspc_conv_pd_ = conv_pdi->impl();
+    diff_src_md_ = *nspc_conv_pd_->diff_src_md(0);
+    CHECK(reorder_primitive_desc_create(
+            src_reorder_pd_, engine, diff_src_md(), &nspc_diff_src_md_));
+    CHECK(reorder_primitive_desc_create(
+            dst_reorder_pd_, engine, diff_dst_md(), &nspc_diff_dst_md_));
+    weights_md_ = *nspc_conv_pd_->weights_md(0);
+    return status::success;
+}
+
+void ncsp_convolution_bwd_data_t::pd_t::init_scratchpad() {
+    using namespace memory_tracking::names;
+    auto scratchpad = scratchpad_registry().registrar();
+    const memory_desc_wrapper diff_dst_mdw(diff_dst_md());
+    const memory_desc_wrapper diff_src_mdw(diff_src_md());
+    scratchpad.book(key_conv_ncsp_diff_dst, diff_dst_mdw.nelems(),
+            sizeof(diff_dst_mdw.data_type()));
+    scratchpad.book(key_conv_ncsp_diff_src, diff_src_mdw.nelems(),
+            sizeof(diff_src_mdw.data_type()));
+    if (nspc_conv_pd_)
+        scratchpad.book(key_nested, nspc_conv_pd_->scratchpad_registry());
+    if (src_reorder_pd_)
+        scratchpad.book(key_nested, src_reorder_pd_->scratchpad_registry());
+    if (dst_reorder_pd_)
+        scratchpad.book(key_nested, dst_reorder_pd_->scratchpad_registry());
+}
+
+status_t ncsp_convolution_bwd_data_t::init(engine_t *engine) {
+    if (pd()->nspc_conv_pd_)
+        CHECK(pd()->nspc_conv_pd_->create_primitive(nspc_conv_p_, engine));
+    if (pd()->src_reorder_pd_)
+        CHECK(pd()->src_reorder_pd_->create_primitive(src_reorder_p_, engine));
+    if (pd()->dst_reorder_pd_)
+        CHECK(pd()->dst_reorder_pd_->create_primitive(dst_reorder_p_, engine));
+    return status::success;
+}
+
+status_t ncsp_convolution_bwd_data_t::reorder_activations(const exec_ctx_t &ctx,
+        const std::shared_ptr<primitive_t> prim, engine_t *engine,
+        const memory_arg_t &in, const memory_arg_t &out) const {
+    using namespace memory_tracking::names;
+    exec_args_t r_args;
+    r_args[DNNL_ARG_SRC] = in;
+    r_args[DNNL_ARG_DST] = out;
+    exec_ctx_t r_ctx(ctx, std::move(r_args));
+
+    nested_scratchpad_t ns(ctx, key_nested, prim);
+    r_ctx.set_scratchpad_grantor(ns.grantor());
+    CHECK(prim->execute(r_ctx));
+
+    return status::success;
+}
+
+status_t ncsp_convolution_bwd_data_t::execute_convolution(
+        const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
+    engine_t *engine = ctx.stream()->engine();
+    auto scratchpad = ctx.get_scratchpad_grantor();
+
+    // initialize nspc src memory
+    auto nspc_diff_src_mem
+            = scratchpad.get_memory_storage(key_conv_ncsp_diff_src);
+    memory_t nspc_diff_src_m_(
+            engine, &(pd()->nspc_diff_src_md_), std::move(nspc_diff_src_mem));
+
+    // initialize nspc dst memory
+    auto nspc_diff_dst_mem
+            = scratchpad.get_memory_storage(key_conv_ncsp_diff_dst);
+    memory_t nspc_diff_dst_m_(
+            engine, &(pd()->nspc_diff_dst_md_), std::move(nspc_diff_dst_mem));
+
+    CHECK(reorder_activations(ctx, dst_reorder_p_, engine,
+            ctx.args().at(DNNL_ARG_DIFF_DST), {&nspc_diff_dst_m_, false}));
+
+    const auto &args = ctx.args();
+    exec_args_t conv_args;
+    conv_args[DNNL_ARG_DIFF_DST] = {&nspc_diff_dst_m_, true};
+    conv_args[DNNL_ARG_DIFF_SRC] = {&nspc_diff_src_m_, false};
+    conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
+
+    exec_ctx_t nspc_ctx(ctx, std::move(conv_args));
+
+    nested_scratchpad_t ns(
+            ctx, memory_tracking::names::key_nested, nspc_conv_p_);
+
+    nspc_ctx.set_scratchpad_grantor(ns.grantor());
+    CHECK(nspc_conv_p_->execute(nspc_ctx));
+
+    CHECK(reorder_activations(ctx, src_reorder_p_, engine,
+            {&nspc_diff_src_m_, false}, ctx.args().at(DNNL_ARG_DIFF_SRC)));
+
+    return status::success;
+}
+
+status_t ncsp_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+    if (nspc_conv_p_) return execute_convolution(ctx);
+    return status::runtime_error;
+}
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
