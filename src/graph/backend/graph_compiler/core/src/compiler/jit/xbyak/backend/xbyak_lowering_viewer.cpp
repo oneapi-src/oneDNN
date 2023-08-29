@@ -1727,6 +1727,8 @@ void xbyak_lowering_viewer::handle_avx_bit_or(const operand &op_dst,
             case cpu_data_type::uint_16_x8:
             case cpu_data_type::uint_32_x8:
             case cpu_data_type::sint_32_x8:
+            case cpu_data_type::uint_8_x8:
+            case cpu_data_type::uint_8_x16:
             case cpu_data_type::uint_8_x32:
             case cpu_data_type::sint_8_x32: {
                 XBYAK_GEN(vpor, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
@@ -1769,8 +1771,10 @@ void xbyak_lowering_viewer::handle_avx_bit_and(const operand &op_dst,
             case cpu_data_type::float_32: {
                 XBYAK_GEN(vandps, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
             } break;
+            case cpu_data_type::uint_32_x4:
             case cpu_data_type::uint_32_x8:
             case cpu_data_type::sint_32_x8:
+            case cpu_data_type::uint_16_x8:
             case cpu_data_type::uint_16_x16: {
                 XBYAK_GEN(vpand, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
             } break;
@@ -2239,6 +2243,8 @@ void xbyak_lowering_viewer::handle_avx_pshuffle(const operand &op_dst,
         const operand &op_lhs, const operand &op_rhs,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
+        case cpu_data_type::uint_8_x8:
+        case cpu_data_type::uint_8_x16:
         case cpu_data_type::uint_8_x32: {
             XBYAK_GEN(vpshufb, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;

@@ -275,9 +275,16 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
     // Currently bf16 calculation needs to be larger than
     // the number of elements threshold, otherwise the performance may
     // regression.
-    // transpose axis should not be dynamic
+    // Multithread threashold is 35 - 48. We just div 6 directly in here.
     int bit16_threshold = trans_lanesx8 * trans_lanes_16bitx8 / 2;
-    int s8u8_threshold = trans_lanesx16 * trans_lanesx16 / 2;
+    int s8u8_threshold = trans_lanesx16 * trans_lanesx16 / 6;
+    auto cur_run_thread = runtime_config_t::get().get_num_threads();
+    // Single threashold is 128.
+    if (cur_run_thread == 1) {
+        bit16_threshold = trans_lanesx8 * trans_lanes_16bitx8 / 2;
+        s8u8_threshold = trans_lanesx16 * trans_lanesx16 / 2;
+    }
+    // transpose axis should not be dynamic
     if (is_16bit
             && (dynamic_no_padding
                     || (!is_dynamic
@@ -290,10 +297,17 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
         trans_kernel_used = sc_trans_kernel::NO_TRANS;
         return false;
     }
-    // currently does not support tensor slice with padding.
-    if (!whole_buffer_reorder(src) && (is_dynamic || !satisfy_dim_lanes())) {
-        trans_kernel_used = sc_trans_kernel::NO_TRANS;
-        return false;
+    bool is_new_fmgr = ctx->flags_.mixed_fusion_;
+    if (!is_new_fmgr) {
+        // currently does not support tensor slice with padding.
+        if (!whole_buffer_reorder(src)
+                && (is_dynamic || !satisfy_dim_lanes())) {
+            trans_kernel_used = sc_trans_kernel::NO_TRANS;
+            return false;
+        }
+    } else {
+        // currently does not support tensor slice in dynamic
+        if (!whole_buffer_reorder(src) && (is_dynamic)) { return false; }
     }
 
     trans_kernel_used = get_trans_kernel_type(dtype.as_etype());

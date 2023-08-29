@@ -1204,25 +1204,30 @@ public:
         // vpor         ymm0, ymm0, table2
         // vpcmpeqb     ymm1, ymm1, ymm1 // set all bit to 1
         // vpcmpeqb     xmm0, ymm0, ymm1
-        const auto max_lanes = 32;
-        auto mask_type = sc_data_type_t(sc_data_etype::U8, max_lanes);
-        auto bcst_type = sc_data_type_t(sc_data_etype::U8, max_lanes / 2);
-        auto tabl_type = sc_data_type_t(sc_data_etype::U32, 8);
-        //
+        const int mask_lanes = mask->dtype_.lanes_;
+        const int table_len = mask_lanes / 4;
+        assert(utils::is_one_of(mask_lanes, 8, 16, 32));
+        auto mask_type = sc_data_type_t(sc_data_etype::U8, mask_lanes);
+        auto movd_type = sc_data_type_t(sc_data_etype::U8, 16);
+        auto tabl_type = sc_data_type_t(sc_data_etype::U32, table_len);
+        // shuffle table
         const std::vector<union_val> val1
                 = {UINT64_C(0x00000000), UINT64_C(0x00000000),
                         UINT64_C(0x01010101), UINT64_C(0x01010101),
                         UINT64_C(0x02020202), UINT64_C(0x02020202),
                         UINT64_C(0x03030303), UINT64_C(0x03030303)};
-        auto table1 = builder::make_constant(val1, tabl_type);
+        const std::vector<union_val> v1(val1.begin(), val1.begin() + table_len);
+        auto table1 = builder::make_constant(v1, tabl_type);
+        // bit or value
         const std::vector<union_val> val2
                 = {UINT64_C(0xf7fbfdfe), UINT64_C(0x7fbfdfef),
                         UINT64_C(0xf7fbfdfe), UINT64_C(0x7fbfdfef),
                         UINT64_C(0xf7fbfdfe), UINT64_C(0x7fbfdfef),
                         UINT64_C(0xf7fbfdfe), UINT64_C(0x7fbfdfef)};
-        auto table2 = builder::make_constant(val2, tabl_type);
+        const std::vector<union_val> v2(val2.begin(), val2.begin() + table_len);
+        auto table2 = builder::make_constant(v2, tabl_type);
         //
-        auto xmm0 = make_physical_reg(bcst_type, x86_64::regs::xmm0);
+        auto xmm0 = make_physical_reg(movd_type, x86_64::regs::xmm0);
         auto ymm0 = make_physical_reg(mask_type, x86_64::regs::xmm0, "_ymm");
         auto ymm1 = make_physical_reg(mask_type, x86_64::regs::xmm1, "_ymm");
         add_defination(xmm0, linkage::local);
@@ -1230,7 +1235,7 @@ public:
         add_defination(ymm1, linkage::local);
         //
         add_assignment(xmm0,
-                make_xbyak_intrin(mask_type, {src}, //
+                make_xbyak_intrin(movd_type, {src}, //
                         xbyak_intrin_type::movd, xbyak_intrin_isa::avx));
         add_assignment(ymm0,
                 make_xbyak_intrin(mask_type, {xmm0}, //
@@ -1260,23 +1265,24 @@ public:
         // vpbroadcastw ymm0, xmm0
         // vpand        ymm0, ymm0, table1
         // vpcmpeqw     mask, ymm0, table1
-        const auto max_lanes = 16;
-        auto mask_type = sc_data_type_t(sc_data_etype::U16, max_lanes);
-        auto bcst_type = sc_data_type_t(sc_data_etype::U16, max_lanes / 2);
-        //
+        const int mask_lanes = mask->dtype_.lanes_;
+        assert(utils::is_one_of(mask_lanes, 8, 16));
+        auto mask_type = sc_data_type_t(sc_data_etype::U16, mask_lanes);
+        auto movd_type = sc_data_type_t(sc_data_etype::U16, 8);
+        // bit and value
         std::vector<union_val> val;
-        for (uint32_t i = 0; i < max_lanes; i++) {
+        for (int i = 0; i < mask_lanes; i++) {
             val.emplace_back(UINT64_C(1) << i);
         }
         auto table1 = builder::make_constant(val, mask_type);
         //
-        auto xmm0 = make_physical_reg(bcst_type, x86_64::regs::xmm0);
+        auto xmm0 = make_physical_reg(movd_type, x86_64::regs::xmm0);
         auto ymm0 = make_physical_reg(mask_type, x86_64::regs::xmm0, "_ymm");
         add_defination(xmm0, linkage::local);
         add_defination(ymm0, linkage::local);
         //
         add_assignment(xmm0,
-                make_xbyak_intrin(mask_type, {src}, //
+                make_xbyak_intrin(movd_type, {src}, //
                         xbyak_intrin_type::movd, xbyak_intrin_isa::avx));
         add_assignment(ymm0,
                 make_xbyak_intrin(mask_type, {xmm0}, //
@@ -1298,23 +1304,24 @@ public:
         // vpbroadcastd ymm0, xmm0
         // vpand        ymm0, ymm0, table1
         // vpcmpeqd     mask, ymm0, table1
-        const auto max_lanes = 8;
-        auto mask_type = sc_data_type_t(sc_data_etype::U32, max_lanes);
-        auto bcst_type = sc_data_type_t(sc_data_etype::U32, max_lanes / 2);
-        //
+        const int mask_lanes = mask->dtype_.lanes_;
+        assert(utils::is_one_of(mask_lanes, 4, 8));
+        auto mask_type = sc_data_type_t(sc_data_etype::U32, mask_lanes);
+        auto movd_type = sc_data_type_t(sc_data_etype::U32, 4);
+        // bit and value
         std::vector<union_val> val;
-        for (uint32_t i = 0; i < max_lanes; i++) {
+        for (int i = 0; i < mask_lanes; i++) {
             val.emplace_back(UINT64_C(1) << i);
         }
         auto table1 = builder::make_constant(val, mask_type);
         //
-        auto xmm0 = make_physical_reg(bcst_type, x86_64::regs::xmm0);
+        auto xmm0 = make_physical_reg(movd_type, x86_64::regs::xmm0);
         auto ymm0 = make_physical_reg(mask_type, x86_64::regs::xmm0, "_ymm");
         add_defination(xmm0, linkage::local);
         add_defination(ymm0, linkage::local);
         //
         add_assignment(xmm0,
-                make_xbyak_intrin(mask_type, {src}, //
+                make_xbyak_intrin(movd_type, {src}, //
                         xbyak_intrin_type::movd, xbyak_intrin_isa::avx));
         add_assignment(ymm0,
                 make_xbyak_intrin(mask_type, {xmm0}, //
