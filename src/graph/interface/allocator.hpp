@@ -113,7 +113,7 @@ public:
 
     struct monitor_t {
     private:
-        size_t persist_mem_;
+        size_t persist_mem_ = 0;
 
         std::unordered_map<const void *, mem_info_t> persist_mem_infos_;
 
