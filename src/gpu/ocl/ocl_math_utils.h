@@ -38,6 +38,10 @@ int rnd_up(int a, int b) {
 #define MATH_UTILS_DECLARE_BF8 1
 #endif
 
+#if DT_HF8 || SRC_DT_HF8 || WEI_DT_HF8 || DST_DT_HF8 || BIA_DT_HF8
+#define MATH_UTILS_DECLARE_HF8 1
+#endif
+
 #if DT_BF16 || SRC_DT_BF16 || WEI_DT_BF16 || DST_DT_BF16 || BIA_DT_BF16 \
         || A_DT_BF16 || B_DT_BF16 || C_DT_BF16 || SUM_DT_BF16 \
         || POST_OP_USING_BF16
@@ -49,6 +53,147 @@ ushort16 __builtin_IB_simd_block_read_16_global_h(const __global ushort *);
 
 void __builtin_IB_simd_block_write_8_global_l(__global ulong *, ulong8);
 void __builtin_IB_simd_block_write_16_global_h(__global ushort *, ushort16);
+
+#if MATH_UTILS_DECLARE_HF8
+// Emulation functions for hf8 <-> f16 conversion.
+uchar __attribute__((overloadable)) cvt_hf_to_hf8(half f) {
+    // Here the idea is to add a large constant to the float16_t to force the
+    // proper rounding to hf8 accuracy.
+    uchar raw_bits = 0;
+    ushort fraw = as_ushort(f);
+
+    // first we extract the sign and make the input positive
+    ushort s8 = (fraw & 0x8000) >> 8;
+    fraw = fraw & 0x7fff;
+
+    // we filter out overlow, nan
+    if (fraw >= 0x5f40) {
+        raw_bits = s8 | 0x7f;
+        return raw_bits;
+    }
+    // we filter out underflow when f <= 2^-10
+    if (fraw <= 0x1400) {
+        raw_bits = s8;
+        return raw_bits;
+    }
+
+    // compute the rounding shifter by taking its exponent + 0x1p7
+    // Lucky us, it does not overflow as fraw <= 448.
+    ushort a = 0x7c00, b = 0x1c00;
+    ushort shifter = (fraw & a) + b;
+    //half shifter = as_half(shifter);
+    ushort is_denorm = shifter < 0x1.0p1f;
+    if (is_denorm) shifter = 0x1.0p1f;
+
+    ushort rounded
+            = as_ushort((as_half(fraw) + as_half(shifter)) - as_half(shifter));
+
+    ushort e8 = ((rounded & 0x7c00) >> 10) - 8;
+    uchar m8 = (rounded & 0x03ff) >> 7;
+
+    // we need to make the implicit f32 mantissa bit explicit for
+    // denorm hf8
+    if (is_denorm) {
+        m8 = (m8 | 0x08) >> (-e8 + 1);
+        e8 = 0;
+    }
+
+    raw_bits = s8 | (e8 << 3) | m8;
+    return raw_bits;
+}
+
+uchar2 __attribute__((overloadable)) cvt_hf_to_hf8(half2 f) {
+    uchar2 r;
+    for (int i = 0; i < 2; i++) {
+        r[i] = cvt_hf_to_hf8(f[i]);
+    }
+    return r;
+}
+
+uchar4 __attribute__((overloadable)) cvt_hf_to_hf8(half4 f) {
+    uchar4 r;
+    for (int i = 0; i < 4; i++) {
+        r[i] = cvt_hf_to_hf8(f[i]);
+    }
+    return r;
+}
+
+uchar8 __attribute__((overloadable)) cvt_hf_to_hf8(half8 f) {
+    uchar8 r;
+    for (int i = 0; i < 8; i++) {
+        r[i] = cvt_hf_to_hf8(f[i]);
+    }
+    return r;
+}
+
+uchar16 __attribute__((overloadable)) cvt_hf_to_hf8(half16 f) {
+    uchar16 r;
+    for (int i = 0; i < 16; i++) {
+        r[i] = cvt_hf_to_hf8(f[i]);
+    }
+    return r;
+}
+
+half __attribute__((overloadable)) cvt_hf8_to_hf(uchar b) {
+    uchar raw_bits_ = b;
+    ushort s16 = (raw_bits_ & 0x80) << 8;
+    ushort e8 = (raw_bits_ & 0x78) >> 3;
+    ushort e16 = (e8 + 8 /* 15 - 7 = e16_bias - e8_bias */) << 10;
+    ushort m8 = (raw_bits_ & 0x7);
+    ushort m16 = m8 << 7;
+
+    // Need to convert hf8 denormal into f16 normal.
+    if (e8 == 0 && m8 != 0) {
+        ushort count = 2;
+        count = m8 > 0x1 ? 1 : count;
+        count = m8 > 0x3 ? 0 : count;
+        e16 -= count;
+        m16 = (m16 << (count + 1) & 0x7);
+    } else if (e8 == 0 && m8 == 0) {
+        e16 = 0;
+    } /* e8 == 0xf && m == 0x7, when? */
+
+    ushort u16 = s16 | e16 | m16;
+    //printf("hf8_to_hf: %x %f \n", u16, as_half(u16));
+    return as_half(u16);
+    //auto f16 = utils::bit_cast<float16_t>(u16);
+    //return static_cast<float>(f16);
+}
+
+half2 __attribute__((overloadable)) cvt_hf8_to_hf(uchar2 b) {
+    half2 f;
+    for (int i = 0; i < 2; i++) {
+        f[i] = cvt_hf8_to_hf(b[i]);
+    }
+    return f;
+}
+
+half4 __attribute__((overloadable)) cvt_hf8_to_hf(uchar4 b) {
+    half4 f;
+    for (int i = 0; i < 4; i++) {
+        f[i] = cvt_hf8_to_hf(b[i]);
+    }
+    return f;
+}
+
+half8 __attribute__((overloadable)) cvt_hf8_to_hf(uchar8 b) {
+    half8 f;
+    for (int i = 0; i < 8; i++) {
+        f[i] = cvt_hf8_to_hf(b[i]);
+    }
+    return f;
+}
+
+half16 __attribute__((overloadable)) cvt_hf8_to_hf(uchar16 b) {
+    half16 f;
+    for (int i = 0; i < 16; i++) {
+        f[i] = cvt_hf8_to_hf(b[i]);
+    }
+    return f;
+}
+
+#endif
+// clang-format on
 
 #if MATH_UTILS_DECLARE_BF8
 // Emulation functions for bf8 <-> f16 conversion.
