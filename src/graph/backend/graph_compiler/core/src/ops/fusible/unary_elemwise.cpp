@@ -85,8 +85,9 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
         if (op_name_ == "cast") {
             const sc_data_etype dst_etype
                     = dst[0]->tptr_->base_->dtype_.type_code_;
-            const uint32_t avx2_max_lanes
-                    = 256 / (utils::get_sizeof_etype(dst_etype) * 8);
+            auto size = utils::get_sizeof_etype(dst_etype);
+            assert(size * 8 <= 256 && "Bad type for cast");
+            const uint32_t avx2_max_lanes = 256 / (size * 8);
             vx_info_.lanes = std::min(avx2_max_lanes, vx_info_.lanes);
         }
     }

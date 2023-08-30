@@ -481,6 +481,34 @@ inline void compare_data_single(
 }
 
 template <typename T>
+inline void compare_data_int(
+        const T *dst, const T *ref, int i, float rtol, float atol, bool &pass) {
+    int64_t ref_64 = static_cast<int64_t>(ref[i]);
+    int64_t dst_64 = static_cast<int64_t>(dst[i]);
+    const int64_t diff_64 = dst_64 - ref_64;
+    const double gap = double(rtol)
+                    * (std::abs(ref_64) > std::abs(dst_64) ? std::abs(ref_64)
+                                                           : std::abs(dst_64))
+            + atol;
+    bool good = std::abs(diff_64) <= gap;
+    EXPECT_TRUE(good) << "Index: " << i << ", ref_64=" << ref_64
+                      << ", dst_64=" << dst_64;
+    if (!good) { pass = false; }
+}
+
+template <>
+inline void compare_data_single(const uint8_t *dst, const uint8_t *ref, int i,
+        float rtol, float atol, bool &pass) {
+    compare_data_int(dst, ref, i, rtol, atol, pass);
+}
+
+template <>
+inline void compare_data_single(const int8_t *dst, const int8_t *ref, int i,
+        float rtol, float atol, bool &pass) {
+    compare_data_int(dst, ref, i, rtol, atol, pass);
+}
+
+template <typename T>
 inline void compare_data_fp(
         const T *dst, const T *ref, int i, float rtol, float atol, bool &pass) {
     const float ref_f32 = static_cast<float>(ref[i]);

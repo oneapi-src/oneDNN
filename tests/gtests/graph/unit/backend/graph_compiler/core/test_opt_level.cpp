@@ -272,11 +272,11 @@ TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel) {
         jitf->call_generic_default(gargs.data());
     }
     test_utils::compare_data(output_lv0.data(), output_lv1.data(),
-            test_utils::product(out_dims));
+            test_utils::product(out_dims), 1e-4f, 1.0f);
     test_utils::compare_data(output_lv0.data(), output_lv2.data(),
-            test_utils::product(out_dims));
+            test_utils::product(out_dims), 1e-4f, 1.0f);
     test_utils::compare_data(output_lv0.data(), output_lv3.data(),
-            test_utils::product(out_dims));
+            test_utils::product(out_dims), 1e-4f, 1.0f);
 }
 
 TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel2) {

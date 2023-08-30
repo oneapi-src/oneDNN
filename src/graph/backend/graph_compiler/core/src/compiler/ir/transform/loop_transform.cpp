@@ -183,10 +183,7 @@ void for_loop_node_t::unroll(uint64_t factor, const stmt &parent) {
     if (is_const) {
         get_constant_from_for_loop(this, min, max, step, false);
         int64_t loop_len = max - min;
-        if (factor == 0) {
-            factor = remove ? utils::divide_and_ceil(loop_len, step)
-                            : loop_len / step;
-        }
+        if (factor == 0) { factor = utils::divide_and_ceil(loop_len, step); }
         has_remainder = loop_len % (factor * step) != 0
                 || loop_len < ((int64_t)factor * step);
     }
