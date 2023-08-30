@@ -55,7 +55,7 @@ private:
 
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
-    constant_cache_t::key_t constant_key_;
+    constant_cache_t::key_t constant_key_ = 0;
 
 public:
     layernorm_fwd_t() {
