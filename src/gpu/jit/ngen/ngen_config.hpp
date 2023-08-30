@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,5 +17,16 @@
 // Default macro settings (if any) can be defined here.
 #ifndef NGEN_CONFIG_HPP
 #define NGEN_CONFIG_HPP
+
+#include "common/bfloat16.hpp"
+#include "common/float16.hpp"
+
+namespace ngen {
+using bfloat16 = dnnl::impl::bfloat16_t;
+using half = dnnl::impl::float16_t;
+} // namespace ngen
+
+#define NGEN_BFLOAT16_TYPE
+#define NGEN_HALF_TYPE
 
 #endif /* header guard */
