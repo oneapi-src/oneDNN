@@ -149,10 +149,6 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
          || utils::divide_and_ceil(ow_, num_threads) >= 4)
         ? parallel_kind::WIDTH
         : parallel_kind::BATCH);
-  // Switch to parallelism at width axis if possible to reduce imbalance on
-  // batch size axis.
-  if ((ow_ % num_threads == 0) && ((mb_ * groups_) % num_threads != 0))
-    parallel_axis_ = parallel_kind::WIDTH;
 
   num_brgemm_k_ = attrs_.get<int>("num_brgemm_k");
   brgemm_k_ = attrs_.get<int>("brgemm_k");

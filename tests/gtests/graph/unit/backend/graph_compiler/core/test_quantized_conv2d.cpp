@@ -1116,6 +1116,16 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_9) {
     check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 4, 1, 16,
             3, 22, 22, 3, 3, {2, 2}, {1, 1}, {1, 2}, {2, 1}, false, true);
 }
+TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_10) {
+    REQUIRE_AMX();
+    // specify num_threads(4) to cover parallel at width axis with pads >
+    // strides
+    SET_THREADS_OR_SKIP(4);
+    check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 1, 16,
+            3, 5, 5, 5, 5, {2, 2}, {1, 1}, {3, 3}, {3, 3}, false, true);
+    check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 1, 16,
+            3, 5, 5, 5, 5, {2, 2}, {1, 1}, {3, 3}, {2, 2}, false, true);
+}
 
 TEST(GCCore_CPU_qconv2d_u8s8s32_rl_bias, padding_1) {
     REQUIRE_AMX();
