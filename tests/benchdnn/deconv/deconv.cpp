@@ -201,8 +201,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         }
     });
 
-    const bool swap_dt
-            = kind == DST && cfg.get_orig_dt(kind) != cfg.get_dt(kind);
+    const bool swap_dt = cfg.get_swapped_dt(kind) != dnnl_data_type_undef;
     if (swap_dt) mem_dt.set_dt(cfg.get_dt(kind));
     SAFE(mem_dt.reorder(mem_fp), WARN);
     if (swap_dt) mem_dt.set_dt(cfg.get_orig_dt(kind));
