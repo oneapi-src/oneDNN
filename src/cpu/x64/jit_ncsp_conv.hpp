@@ -139,7 +139,8 @@ struct ncsp_convolution_fwd_t : public primitive_t {
                 const typename pd_t::hint_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
             , bias_po_(with_groups())
-            , with_sum_(attr->post_ops_.find(primitive_kind::sum) != -1) {}
+            , with_sum_(attr->post_ops_.find(primitive_kind::sum) != -1)
+            , reduce(this) {}
 
         ~pd_t() = default;
 
@@ -148,12 +149,6 @@ struct ncsp_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine);
         status_t init_convolution(engine_t *engine);
         status_t init_matmul(engine_t *engine);
-        status_t reshape_activations(memory_desc_t *o_md,
-                const memory_desc_t *i_md, bool to_matmul = false,
-                bool is_dst = true);
-        status_t reshape_bias(memory_desc_t *o_md, const memory_desc_t *i_md);
-        status_t reshape_weights(memory_desc_t *o_md, const memory_desc_t *i_md,
-                bool to_matmul = false);
 
         std::shared_ptr<primitive_desc_t> matmul_pd_;
         std::shared_ptr<primitive_desc_t> nspc_conv_pd_;
@@ -172,6 +167,7 @@ struct ncsp_convolution_fwd_t : public primitive_t {
     private:
         bool is_matmul_;
         const bool with_sum_;
+        ncsp_matmul_reduction_helper reduce;
         std::string name_ = "ncsp:tbd";
         void init_name() {
             std::string suffix = is_matmul_ ? "matmul" : "conv";
@@ -298,12 +294,17 @@ struct ncsp_convolution_bwd_data_t : public primitive_t {
 
         status_t init(engine_t *engine);
         status_t init_convolution(engine_t *engine);
+        status_t init_matmul(engine_t *engine);
 
+        std::shared_ptr<primitive_desc_t> matmul_diff_src_pd_;
         std::shared_ptr<primitive_desc_t> nspc_conv_pd_;
         std::shared_ptr<primitive_desc_t> src_reorder_pd_;
         std::shared_ptr<primitive_desc_t> dst_reorder_pd_;
         memory_desc_t nspc_diff_dst_md_;
         memory_desc_t nspc_diff_src_md_;
+        memory_desc_t matmul_src_md_;
+        memory_desc_t matmul_wei_md_;
+        memory_desc_t matmul_dst_md_;
 
     private:
         ncsp_matmul_reduction_helper reduce;
@@ -311,9 +312,10 @@ struct ncsp_convolution_bwd_data_t : public primitive_t {
         std::string name_;
         void init_scratchpad();
         void init_name() {
-            std::string suffix = "conv";
+            std::string suffix = is_matmul_ ? "matmul" : "conv";
             name_ = "ncsp:" + suffix + "->";
-            name_.append(nspc_conv_pd_->name());
+            name_.append(is_matmul_ ? matmul_diff_src_pd_->name()
+                                    : nspc_conv_pd_->name());
         }
     };
     ncsp_convolution_bwd_data_t(const pd_t *cpd) : primitive_t(cpd) {};
@@ -322,6 +324,7 @@ struct ncsp_convolution_bwd_data_t : public primitive_t {
     status_t init(engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
     status_t execute_convolution(const exec_ctx_t &ctx) const;
+    status_t execute_matmul(const exec_ctx_t &ctx) const;
 
 private:
     status_t reorder_activations(const exec_ctx_t &ctx,
@@ -330,6 +333,7 @@ private:
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
+    std::shared_ptr<primitive_t> matmul_diff_src_p_;
     std::shared_ptr<primitive_t> nspc_conv_p_;
     std::shared_ptr<primitive_t> src_reorder_p_;
     std::shared_ptr<primitive_t> dst_reorder_p_;
