@@ -83,8 +83,8 @@ TEST(OpExecutable, DummyImpl) {
 
     // test two input events
     ::sycl::event input_event1;
-    auto returned_event2
-            = op_exec->execute_sycl(p_stream, {}, {input_event0, input_event1});
+    auto returned_event2 = op_exec->execute_sycl(
+            p_stream, {}, {std::move(input_event0), std::move(input_event1)});
     const auto &event_list2 = returned_event2.get_wait_list();
     ASSERT_GT(event_list2.size(), 0U);
     returned_event2.wait();
