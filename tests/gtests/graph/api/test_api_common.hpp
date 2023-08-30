@@ -129,6 +129,10 @@ extern dnnl_engine_kind_t api_test_engine_kind;
 #ifdef DNNL_WITH_SYCL
 struct allocator_handle_t {
     dnnl_graph_allocator_t allocator = nullptr;
+
+    allocator_handle_t() = default;
+    allocator_handle_t(const allocator_handle_t &other) = delete;
+    allocator_handle_t &operator=(const allocator_handle_t &other) = delete;
     ~allocator_handle_t() { dnnl_graph_allocator_destroy(allocator); }
     explicit operator bool() const noexcept {
         return static_cast<bool>(allocator);
