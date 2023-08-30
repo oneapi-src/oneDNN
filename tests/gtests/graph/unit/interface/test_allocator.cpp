@@ -38,7 +38,7 @@ TEST(Allocator, DefaultCpuAllocator) {
     }
 }
 
-TEST(Engine, AllocatorEarlyDestory) {
+TEST(Engine, AllocatorEarlyDestroy) {
     dnnl::impl::graph::allocator_t *alloc
             = new dnnl::impl::graph::allocator_t();
     graph::engine_t *eng;
@@ -50,6 +50,8 @@ TEST(Engine, AllocatorEarlyDestory) {
                     eng->get_allocator());
     void *mem_ptr = engine_alloc->allocate(static_cast<size_t>(16));
     if (mem_ptr == nullptr) {
+        // release engine before assertion.
+        eng->release();
         ASSERT_TRUE(false);
     } else {
         engine_alloc->deallocate(mem_ptr);
