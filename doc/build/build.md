@@ -12,8 +12,8 @@ git clone https://github.com/oneapi-src/oneDNN.git
 
 ## Build the Library
 
-Ensure that all software dependencies are in place and have at least the
-minimal supported version.
+Ensure that all [software dependencies](https://github.com/oneapi-src/oneDNN#requirements-for-building-from-source)
+are in place and have at least the minimal supported version.
 
 The oneDNN build system is based on CMake. Use
 
