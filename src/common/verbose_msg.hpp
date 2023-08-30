@@ -88,5 +88,6 @@
 #define VERBOSE_BLOCKING_FAIL "blocking heuristic failed"
 #define VERBOSE_SMALL_SHAPES "small shapes fall back"
 #define VERBOSE_NONTRIVIAL_STRIDE "only trivial strides are supported"
+#define VERBOSE_UNSUPPORTED_MEM_STRIDE "unsupported memory stride"
 
 #endif

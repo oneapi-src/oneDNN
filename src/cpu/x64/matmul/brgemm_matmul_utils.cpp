@@ -1125,22 +1125,22 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     }
 
     // runtime A stride wrt M dimension is not acceptable
-    if (is_runtime_value(helper.get_a_stride(bgmmc.ndims - 2)))
-        return status::unimplemented;
+    VCONDCHECK_BG(!is_runtime_value(helper.get_a_stride(bgmmc.ndims - 2)),
+            VERBOSE_UNSUPPORTED_MEM_STRIDE);
 
     // runtime A stride wrt K dimension is acceptable for transpose A and
     // runtime M case only
     const bool stride_A_wrt_K_dim_ok = IMPLICATION(
             is_runtime_value(helper.get_a_stride(bgmmc.ndims - 1)),
             bgmmc.transposed_A && bgmmc.is_runtime_M);
-    if (!stride_A_wrt_K_dim_ok) return status::unimplemented;
+    VCONDCHECK_BG(stride_A_wrt_K_dim_ok, VERBOSE_UNSUPPORTED_MEM_STRIDE);
 
     // runtime A strides wrt batch dimensions are acceptable for runtime M case
     // only
     for (int b = 0; b < bgmmc.batch_ndims; b++) {
-        if (!IMPLICATION(is_runtime_value(helper.get_a_stride(b)),
-                    bgmmc.is_runtime_M))
-            return status::unimplemented;
+        VCONDCHECK_BG(IMPLICATION(is_runtime_value(helper.get_a_stride(b)),
+                              bgmmc.is_runtime_M),
+                VERBOSE_UNSUPPORTED_MEM_STRIDE);
     }
 
     const bool lda_is_big_2pow
@@ -1381,7 +1381,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 default_data_align);
     if (bgmmc.is_runtime_M)
         scratchpad.book(key_brgemm_primitive_buffer_d,
-                bgmmc.LDD * bgmmc.M_blk * bgmmc.M_chunk_size * bgmmc.c_dt_sz,
+                bgmmc.M_blk * bgmmc.N_blk * bgmmc.c_dt_sz * bgmmc.nthr,
                 default_data_align);
 }
 
