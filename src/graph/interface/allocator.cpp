@@ -127,7 +127,9 @@ void dnnl_graph_allocator::monitor_t::record_deallocate(const void *buf) {
     } else {
         auto tid = std::this_thread::get_id();
         auto temp_pos = temp_mem_infos_[tid].find(buf);
-        temp_mem_[tid] -= temp_pos->second.size_;
+        if (temp_pos != temp_mem_infos_[tid].end()) {
+            temp_mem_[tid] -= temp_pos->second.size_;
+        }
     }
 }
 
