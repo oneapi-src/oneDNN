@@ -64,7 +64,12 @@ int get_minibatch(const int &bs, const int &min_os) {
     int minibatch = std::max(sc_dim(1), sc_dim(28) / sc_dim(std::sqrt(min_os)));
     if ((bs / minibatch % num_threads != 0
                 && bs / minibatch < 4 * num_threads)) {
-        return bs;
+        // TODO(zhicong): use a more general way for minibatch image affinity
+        if (bs % num_threads == 0) {
+            return 1;
+        } else {
+            return bs;
+        }
     }
     return bs % minibatch == 0 ? minibatch : 1;
 }
