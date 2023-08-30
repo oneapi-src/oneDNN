@@ -1176,9 +1176,13 @@ void reduce_collect_op_t::infer_slice_ranges(
             = search_known_slice_ranges(this, fsmap, stat_map);
     // set the other unknown slice range by achieved known_ranges_list
     slice_range_list &known_ranges_list = known_ranges_map[0];
-    COMPILE_ASSERT(get_inputs()[0]->producer_owner_->isa<reduce_compute_op_t>(),
-            "reduce_collect_op_t can only be placed after reduce_compute_op_t");
-    auto &input = get_inputs()[0]->producer_owner_->get_inputs().at(0);
+    // get producer
+    auto &producer = get_inputs()[0]->producer_owner_;
+    COMPILE_ASSERT(producer->isa<reduce_compute_op_t>(),
+            "reduce_collect_op_t can only be placed after "
+            "reduce_compute_op_t, but got "
+                    << producer->op_name_);
+    auto &input = producer->get_inputs().at(0);
     auto &real_rd_axis = get_rd_axis();
     update_reduce_op_fsmap(this, input, fsmap, stat_map, real_rd_axis);
     if (!stat_map.is_recursive_mode() && stat_map.is_retry()) return;

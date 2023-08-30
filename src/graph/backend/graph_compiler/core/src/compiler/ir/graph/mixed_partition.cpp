@@ -2872,7 +2872,19 @@ bool mixed_parti_t::contain_convolution() const {
 
 bool mixed_parti_t::contain_nested_parallel_for() const {
     auto outer_loops = get_outer_loops();
-    if (outer_loops.size() < 2) return false;
+    if (outer_loops.empty()) return false;
+    if (outer_loops.size() == 1) {
+        if (outer_loops[0]->num_threads_ == 0) return false;
+        if (outer_loops[0]->body_.isa<stmts>()) {
+            auto &ss = outer_loops[0]->body_.static_as<stmts>()->seq_;
+            for (auto &s : ss) {
+                if (s.isa<for_loop>()) {
+                    if (s.static_as<for_loop>()->num_threads_ > 0) return true;
+                }
+            }
+        }
+        return false;
+    }
     return (outer_loops[0]->num_threads_ > 0)
             && (outer_loops[1]->num_threads_ > 0);
 }
@@ -3309,6 +3321,9 @@ static bool try_optimize_reduce(mixed_parti_t *parti, sc_graph_t &sub_graph,
     auto ctx = parti->ctx_;
 
     auto outer_loops = parti->get_outer_loops();
+    // if parti contains nested parallel for, it could not be ensured that the
+    // inner loop is not parallel
+    bool nested_parallel_found = parti->contain_nested_parallel_for();
     // calculate least loop size which satisfies parallelism
     size_t parallel_least_size = 0;
     if (!outer_loops.empty()) {
@@ -3330,64 +3345,93 @@ static bool try_optimize_reduce(mixed_parti_t *parti, sc_graph_t &sub_graph,
             if (auto red_op
                     = op->dyn_cast<op_traits::maybe_split_optimized_t>()) {
                 if (!red_op->can_split_op()) continue;
-                // check rd_axis
-                std::vector<int> rd_axis;
                 if (auto rd_op = op->dyn_cast<reduce_op_t>()) {
-                    rd_axis = rd_op->get_rd_axis();
+                    if (!nested_parallel_found)
+                        splited_reduce_set.insert(red_op);
+                    continue;
                 } else if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
-                    if (rd_op->is_partial_reduce()) {
+                    COMPILE_ASSERT(rd_op->is_partial_reduce(),
+                            "Only partial reduce is expected")
+                    if (nested_parallel_found) {
                         splited_reduce_set.insert(red_op);
                         continue;
                     }
-                    rd_axis = rd_op->get_rd_axis();
+                    auto rd_axis = rd_op->get_rd_axis();
+                    // transform to plain rd axis
+                    rd_axis = transform_axis_blocking2plain(
+                            op->get_inputs()[0]->details_, rd_axis);
+                    rd_axis.erase(rd_axis.begin());
+                    // find original reduce op in partition
+                    auto orig_iter = graph2orig_ops.find(op);
+                    if (orig_iter == graph2orig_ops.end()) continue;
+                    auto &rd_binding_axis = parti->ax_binder_.bd_ax_map_.get(
+                            orig_iter->second->get_inputs()[0]);
+                    if (rd_binding_axis.empty()) continue;
+                    // If all of `rd_axis` would not appear on parallel
+                    // outer loops
+                    if (std::all_of(rd_binding_axis.begin(),
+                                rd_binding_axis.end(),
+                                [&rd_axis](const std::vector<int> &bd_ax) {
+                                    return std::all_of(bd_ax.begin(),
+                                            bd_ax.end(),
+                                            [&rd_axis](const int &ax) {
+                                                return std::all_of(
+                                                        rd_axis.begin(),
+                                                        rd_axis.end(),
+                                                        [&ax](const int &
+                                                                        rd_ax) {
+                                                            return ax != rd_ax;
+                                                        });
+                                            });
+                                })) {
+                        splited_reduce_set.insert(red_op);
+                    }
                 } else {
                     COMPILE_ASSERT(
                             0, "Unexpected kind of op found: " << op->op_name_)
-                }
-                // transform to plain rd axis
-                rd_axis = transform_axis_blocking2plain(
-                        op->get_inputs()[0]->details_, rd_axis);
-                // find original reduce op in partition
-                auto orig_iter = graph2orig_ops.find(op);
-                if (orig_iter == graph2orig_ops.end()) continue;
-                auto &rd_binding_axis = parti->ax_binder_.bd_ax_map_.get(
-                        orig_iter->second->get_inputs()[0]);
-                // If all of `rd_axis` would not appear on parallel
-                // outer loops
-                if (std::all_of(rd_binding_axis.begin(), rd_binding_axis.end(),
-                            [&rd_axis](const std::vector<int> &bd_ax) {
-                                return std::all_of(bd_ax.begin(), bd_ax.end(),
-                                        [&rd_axis](const int &ax) {
-                                            return std::all_of(rd_axis.begin(),
-                                                    rd_axis.end(),
-                                                    [&ax](const int &rd_ax) {
-                                                        return ax != rd_ax;
-                                                    });
-                                        });
-                            })) {
-                    splited_reduce_set.insert(red_op);
                 }
             }
         }
         // If split reduce op exist
         for (auto &red_op : splited_reduce_set) {
             auto op = dynamic_cast<sc_op *>(red_op);
+            reduce_operator rd_type;
+            // check padding except for reduce add
+            if (auto rd_op = op->dyn_cast<reduce_op_t>()) {
+                rd_type = rd_op->get_rd_op();
+            } else if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
+                rd_type = rd_op->get_rd_op();
+            } else {
+                COMPILE_ASSERT(
+                        0, "Unexpected kind of op found: " << op->op_name_)
+            }
+            if (rd_type != reduce_operator::add) {
+                auto &plain_dims
+                        = op->get_inputs()[0]->details_.get_plain_dims();
+                auto &fmt = op->get_inputs()[0]->details_.get_format();
+                auto blocking_dims = sc_data_format_t::get_blocking_shapes(
+                        plain_dims, fmt);
+                auto padded_dims = sc_data_format_t::get_padded_plain_shapes(
+                        blocking_dims, fmt);
+                // currently, do not support split with padding
+                if (plain_dims != padded_dims) continue;
+            }
             // pre-check
-            if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
-                auto rd_axis = rd_op->get_rd_axis();
-                // check if empty to make g++12 happy
-                if (!rd_axis.empty()) { rd_axis.erase(rd_axis.begin()); }
-                if (!rd_axis.empty()) {
-                    sc_dim prod = 1;
-                    for (auto &ax : rd_axis) {
-                        prod *= rd_op->get_inputs()[0]
-                                        ->details_.get_blocking_dims()[ax];
-                    }
-                    auto tsr_simd_len = vectorize_step(ctx,
-                            rd_op->get_inputs()[0]->details_.dtype_.type_code_);
-                    if (!check_tsr_len_under_resigter_size(prod, tsr_simd_len))
-                        continue;
-                }
+            if (op->isa<reduce_compute_op_t>()) {
+                // find original op in partition
+                auto orig_iter = graph2orig_ops.find(op->shared_from_this());
+                if (orig_iter == graph2orig_ops.end()) continue;
+                // get shrink info
+                auto slice_info = parti->buf_alloc_.get_shrinked_info(
+                        parti->buf_alloc_.g2b_map_.get(
+                                orig_iter->second->get_outputs()[0]));
+                if (slice_info.empty()) continue;
+                sc_dim prod = get_dims_product(
+                        get_expr_to_dims(get_slice_shape(slice_info)));
+                auto tsr_simd_len = vectorize_step(
+                        ctx, op->get_inputs()[0]->details_.dtype_.type_code_);
+                if (!check_tsr_len_under_resigter_size(prod, tsr_simd_len))
+                    continue;
             }
             // Do split
             red_op->split_op(ctx, sub_graph, 1);
@@ -3716,7 +3760,7 @@ std::shared_ptr<mixed_fuse_op_t> mixed_parti_t::transform_to_mixed_op() {
                 if (!mx_op->parti_list_[0]->validate_optimization()) {
                     // reset
                     fall_back = true;
-                    SC_MODULE_WARN << "invalid optimized reduce detected, "
+                    SC_MODULE_INFO << "invalid optimized reduce detected, "
                                       "fall-back "
                                       "to original pattern";
                     break;
@@ -3724,6 +3768,13 @@ std::shared_ptr<mixed_fuse_op_t> mixed_parti_t::transform_to_mixed_op() {
                 parti_list.emplace_back(mx_op->parti_list_[0]);
                 mx_op_name += get_graph_name(mx_op->sub_graph_);
             } else {
+                if (op->isa<reduce_collect_op_t>()) {
+                    fall_back = true;
+                    SC_MODULE_INFO << "reduce collect op must be fused with "
+                                      "reduce compute op, fall-back "
+                                      "to original pattern";
+                    break;
+                }
                 if (!op->isa<tensor_view_op_t>()) non_mixed_op_exist = true;
                 mx_op_name += op->op_name_;
             }
