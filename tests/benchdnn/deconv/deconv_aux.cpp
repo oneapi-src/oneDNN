@@ -64,6 +64,7 @@ int str2desc(desc_t *desc, const char *str) {
 
     desc_t d {0};
     d.g = -1;
+    d.has_groups = false;
     d.mb = 2;
     d.sd = d.sh = d.sw = 1;
     d.pd = d.ph = d.pw = -1;
@@ -136,9 +137,6 @@ int str2desc(desc_t *desc, const char *str) {
 #undef CASE_NN
 #undef CASE_N
 
-    // Check any number of groups, including one, works correctly.
-    if (d.g >= 0) d.has_groups = true;
-
 #define CHECK_SET_OR_ZERO_VAL(val_str, val) \
     if ((val) <= 0) { \
         assert((val_str)[0] == 'd' && (val_str)[1] == '.'); \
@@ -152,7 +150,15 @@ int str2desc(desc_t *desc, const char *str) {
 
 #define CHECK_SET_OR_ZERO(val) CHECK_SET_OR_ZERO_VAL(#val, val)
 
-    CHECK_SET_OR_ZERO(d.g);
+    // Check any number of groups, including one, works correctly.
+    if (d.g >= 0) {
+        CHECK_SET_OR_ZERO(d.g);
+        d.has_groups = true;
+    } else {
+        // Rest of driver pieces rely on the logic that `g` is positive.
+        d.g = 1;
+    }
+
     CHECK_SET_OR_ZERO(d.ic);
     CHECK_SET_OR_ZERO(d.oc);
     CHECK_SET_OR_ZERO(d.sd);
