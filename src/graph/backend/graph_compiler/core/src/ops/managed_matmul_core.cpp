@@ -577,6 +577,10 @@ sc_op_ptr managed_matmul_core_op_t::get_data_compensation(sc_graph_t &mgr) {
             {{"rd_axis", rdaxis}, {"rd_op", 0}, {"keep_dims", true}});
     sc_op_ptr mul_node;
     if (is_dyn_quan) {
+        COMPILE_ASSERT(dyn_weight_zero_points->details_.get_plain_dims()
+                        == sc_dims {1},
+                "matmul_core does not support per channel weight zero "
+                "points compensation yet");
         mul_node = mgr.make("mul",
                 {reduce_node->get_outputs()[0], dyn_weight_zero_points}, {},
                 {});
@@ -656,6 +660,10 @@ managed_matmul_core_op_t::get_s8s8_and_weight_compensation(
 
     if (weight_compensation) {
         if (is_dyn_quan) {
+            COMPILE_ASSERT(dyn_data_zero_points->details_.get_plain_dims()
+                            == sc_dims {1},
+                    "matmul_core does not support per channel data zero "
+                    "points compensation yet");
             nodes[0] = mgr.make("mul",
                     {reduce_node->get_outputs()[0], dyn_data_zero_points}, {},
                     {});
@@ -770,6 +778,12 @@ sc_op_ptr managed_matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
     }
 
     if (is_dyn_quan) {
+        COMPILE_ASSERT(
+                dyn_data_zero_points->details_.get_plain_dims() == sc_dims {1}
+                        && dyn_weight_zero_points->details_.get_plain_dims()
+                                == sc_dims {1},
+                "matmul_core does not support per channel data/weight zero "
+                "points compensation yet");
         ret_node = mgr.make(
                 "mul", {dyn_data_zero_points, dyn_weight_zero_points}, {}, {});
         auto const_reduce = mgr.make("constant", {}, {},

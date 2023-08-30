@@ -78,7 +78,7 @@ void compute_ref_direct_fwd(const int64_t MB, const int64_t G, const int64_t OC,
         float *mul_m = nullptr, float *add_m = nullptr, bool bn_relu = false,
         const int64_t OD = 1, const int64_t ID = 1, const int64_t SD = 1,
         const int64_t PD = 0, const int64_t KD = 1, const int64_t DD = 1,
-        const int64_t DH = 1, const int64_t DW = 1) {
+        const int64_t DH = 1, const int64_t DW = 1, bool qconv = false) {
     /* help compiler optimize the code */
 
     const int64_t OCG = OC / G, ICG = IC / G;
@@ -123,7 +123,11 @@ void compute_ref_direct_fwd(const int64_t MB, const int64_t G, const int64_t OC,
 
         if (dir & FLAG_BIA) {
             const size_t bia_off = bia_off_f(G, OC, g, oc);
-            conv_res += ((float *)bia_m)[bia_off];
+            if (qconv) {
+                conv_res += ((int32_t *)bia_m)[bia_off];
+            } else {
+                conv_res += ((float *)bia_m)[bia_off];
+            }
         }
 
         if (bn_relu) {

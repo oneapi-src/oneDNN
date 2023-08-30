@@ -120,7 +120,8 @@ void reorder_op_t::query_format(context_ptr ctx,
         for (auto &use : get_outputs()[0]->uses_) {
             if (auto may_bcst
                     = use.second->dyn_cast<op_traits::may_broadcast_t>()) {
-                if (may_bcst->get_broadcast_input() != -1) {
+                if (may_bcst->get_non_broadcast_input_index(true).size()
+                        != use.second->get_inputs().size()) {
                     attrs_.set(op_attr_key::break_post_fuse, true);
                 }
             }

@@ -323,6 +323,10 @@ size_t logical_tensor_t::get_blocking_byte_size() const {
 bool logical_tensor_t::is_dense() {
     if (strides_.empty()) { return true; }
     if (is_dynamic()) { return true; }
+    if (std::any_of(plain_dims_.begin(), plain_dims_.end(),
+                [](const sc_dim &d) { return d == 0; })) {
+        return true;
+    }
     assert(strides_.size() == dims_.size());
     if (strides_.back() != 1) { return false; }
     for (int i = dims_.size() - 2; i >= 0; --i) {

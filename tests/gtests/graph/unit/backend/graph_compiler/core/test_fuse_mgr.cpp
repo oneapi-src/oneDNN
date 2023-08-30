@@ -795,7 +795,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast3) {
     auto finput = fusion.make<input_op>(make_tsr({50, 100, 200}));
     auto finput_add = fusion.make<input_op>(sc_dims {100}, datatypes::s32);
     auto fadd = fusion.make<add_op_t>(
-            finput->get_outputs()[0], finput_add->get_outputs()[0]);
+            std::vector<graph_tensor_ptr> {
+                    finput->get_outputs()[0], finput_add->get_outputs()[0]},
+            std::vector<graph_tensor_ptr> {},
+            any_map_t {{"bc_axis", std::vector<int> {1}}});
     auto foutput = fusion.make<output_op>(fadd->get_outputs()[0]);
     EXPECT_EQ(fadd->get_outputs()[0], foutput->get_inputs()[0]);
     _function_(datatypes::s32, aaa,
@@ -844,7 +847,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast4) {
     auto finput = fusion.make<input_op>(make_tsr({100}));
     auto finput_add = fusion.make<input_op>(make_tsr({50, 100, 200}));
     auto fadd = fusion.make<sub_op_t>(
-            finput->get_outputs()[0], finput_add->get_outputs()[0]);
+            std::vector<graph_tensor_ptr> {
+                    finput->get_outputs()[0], finput_add->get_outputs()[0]},
+            std::vector<graph_tensor_ptr> {},
+            any_map_t {{"bc_axis", std::vector<int> {1}}});
     auto foutput = fusion.make<output_op>(fadd->get_outputs()[0]);
     EXPECT_EQ(fadd->get_outputs()[0], foutput->get_inputs()[0]);
     _function_(datatypes::s32, aaa,

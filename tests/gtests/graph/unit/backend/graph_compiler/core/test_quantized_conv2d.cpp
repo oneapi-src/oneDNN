@@ -427,7 +427,7 @@ void check_rl_qconv(conv_fwd_rl_config_t cfg, int N, int G, int K, int C, int H,
     sc_op_ptr final_out = g_conv_out;
     auto bc_axis = std::vector<int> {1};
     if (fuse_bias) {
-        auto g_bias = g.make_input({make_tensor({K}, datatypes::f32)});
+        auto g_bias = g.make_input({make_tensor({K}, datatypes::s32)});
         final_out = g.make("add",
                 {final_out->get_outputs()[0], g_bias->get_outputs()[0]}, {},
                 {{"bc_axis", bc_axis}});
@@ -469,7 +469,8 @@ void check_rl_qconv(conv_fwd_rl_config_t cfg, int N, int G, int K, int C, int H,
     compute_ref_direct_fwd(N, G, K, C, H, W, P, Q, R, S, stride_h, stride_w,
             padding_h, padding_w, &plain_input[0], &plain_weight[0],
             &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I,
-            nullptr, nullptr, false, 1, 1, 1, 0, 1, 1, dilation_h, dilation_w);
+            nullptr, nullptr, false, 1, 1, 1, 0, 1, 1, dilation_h, dilation_w,
+            true);
 
     test_utils::compare_data(sc_output, plain_output, 1e-3f, 1e-3f);
 }

@@ -113,8 +113,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
                 {in_a->get_outputs()[0], in_b->get_outputs()[0]}, {}, {});
         auto bias = mgr.make("add",
                 {gemm->get_outputs()[0], in_c->get_outputs()[0]},
-                {graph_tensor::make({M, N}, sc_data_format_t::MK())},
-                {{"bc_axis", std::vector<int> {1}}});
+                {graph_tensor::make({M, N}, sc_data_format_t::MK())}, {});
         auto relu = mgr.make("relu", {bias->get_outputs()[0]},
                 {graph_tensor::make({M, N}, sc_data_format_t::MK())}, {});
 
@@ -624,8 +623,8 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphBreakOpPreFusion2) {
     std::stringstream ss;
     print_graph(graph, ss, true);
     std::string expected_str
-            = R"(graph(v0: f32[28, 64, 56, 56], v1: f32[64, 64, 1, 1], v2: f32[64, 64, 1, 1]) -> [v3: s32[28, 64, 56, 56]] {
-  [v3: s32[28, 64, 56, 56]] = outerloop_28_partition_relu_conv_fwd_core_relu_conv_fwd_core_cast_cast_add(v0, v2, v1)
+            = R"(graph(v0: f32[28, 64, 56, 56], v1: f32[64, 64, 1, 1], v2: f32[64, 64, 1, 1]) -> [v3: f32[28, 64, 56, 56]] {
+  [v3: f32[28, 64, 56, 56]] = outerloop_28_partition_relu_conv_fwd_core_relu_conv_fwd_core_cast_cast_add(v0, v2, v1)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);

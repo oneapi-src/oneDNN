@@ -67,7 +67,8 @@
     F(leaky_relu); \
     F(duplicate); \
     F(pooling_avg); \
-    F(pooling_max);
+    F(pooling_max); \
+    F(broadcast);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;
 

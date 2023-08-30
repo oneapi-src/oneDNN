@@ -52,83 +52,6 @@ binary_elementwise_op_impl_t::get_inplace_map() {
     return {{0, std::move(ret)}};
 }
 
-std::vector<int> binary_elementwise_op_impl_t::infer_broadcast_axis() const {
-    int bc_input_idx = get_broadcast_input();
-    if (bc_input_idx == -1) return {};
-
-    sc_dims lhs_dims, rhs_dims;
-    lhs_dims = get_inputs()[0]->details_.get_plain_dims();
-    rhs_dims = get_inputs()[1]->details_.get_plain_dims();
-
-    sc_dims elt_dims, bc_dims;
-    if (bc_input_idx == 1) {
-        elt_dims = lhs_dims;
-        bc_dims = rhs_dims;
-    } else {
-        elt_dims = rhs_dims;
-        bc_dims = lhs_dims;
-    }
-    if (bc_dims.size() == 1 && bc_dims[0] == 1) {
-        return std::vector<int> {-1};
-    }
-    std::vector<int> bc_axis;
-    // broad-cast conditions 1: the shape of lhs and rhs not match
-    if (elt_dims.size() != bc_dims.size()) {
-        std::vector<int> common_axis(elt_dims.size(), 0);
-        // from right to left
-        int64_t i = elt_dims.size();
-        for (int64_t j = bc_dims.size() - 1; j >= 0; j--) {
-            while (i >= 1) {
-                i--;
-                if (elt_dims.at(i) == bc_dims.at(j)) {
-                    common_axis.at(i) = 1;
-                    break;
-                } else if (bc_dims.at(j) == 1) {
-                    break;
-                }
-            }
-            if (i == -1) {
-                COMPILE_ASSERT(0,
-                        "illegal elementwise operand found. "
-                                << utils::print_vector(elt_dims) << " , "
-                                << utils::print_vector(bc_dims));
-            }
-        }
-        for (size_t j = 0; j < common_axis.size(); ++j)
-            if (common_axis.at(j) == 1) bc_axis.emplace_back(j);
-    }
-    // broad-cast conditions 2: the shape of lhs and rhs match,
-    // but length=1 in dims
-    else {
-        bool double_check_broadcast = false;
-        for (size_t i = 0; i < elt_dims.size(); ++i) {
-            if (elt_dims.at(i) != bc_dims.at(i)) {
-                if (bc_dims.at(i) == 1) {
-                    double_check_broadcast = true;
-                } else if (!is_dynamic_dim(elt_dims.at(i))
-                        && !is_dynamic_dim(bc_dims.at(i))) {
-                    COMPILE_ASSERT(0,
-                            "illegal elementwise operand found: "
-                                    << utils::print_vector(elt_dims) << " , "
-                                    << utils::print_vector(bc_dims));
-                }
-            }
-        }
-        if (double_check_broadcast) {
-            for (size_t i = 0; i < elt_dims.size(); ++i) {
-                if (elt_dims.at(i) == bc_dims.at(i)
-                        || (is_dynamic_dim(elt_dims.at(i))
-                                && is_dynamic_dim(bc_dims.at(i)))) {
-                    bc_axis.emplace_back(i);
-                }
-            }
-            if (bc_axis.empty()) { bc_axis.emplace_back(-1); }
-        } else
-            bc_axis = {};
-    }
-    return bc_axis;
-}
-
 void infer_binary_slice_ranges(
         fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
     COMPILE_ASSERT(cur->get_inputs().size() == 2, "binary op is expected");
@@ -192,50 +115,144 @@ static slice_range_list infer_broadcast_slice(
     return bc_range_list;
 }
 
-binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
-        const std::vector<graph_tensor_ptr> &ins,
-        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
-    // TODO(xxx): do not cache vectorized_ or inplace_
-    assert(ins.size() == 2);
-    info_.inputs_ = ins;
+static sc_dims infer_binary_elementwise_output_shape(const sc_dims &lhs_shape,
+        const sc_dims &rhs_shape, const std::vector<int> &input_bc_axis) {
+    sc_dims output_shape;
+    if (input_bc_axis.empty()) {
+        output_shape
+                = op_traits::may_broadcast_t::infer_auto_broadcast_output_shape(
+                        lhs_shape, rhs_shape);
+    } else {
+        if (lhs_shape.size() != rhs_shape.size()) {
+            output_shape = lhs_shape.size() > rhs_shape.size() ? lhs_shape
+                                                               : rhs_shape;
+        } else {
+            output_shape = get_number_of_squeeze_dims(lhs_shape)
+                            <= get_number_of_squeeze_dims(rhs_shape)
+                    ? lhs_shape
+                    : rhs_shape;
+        }
+    }
+    return output_shape;
+}
+
+static sc_data_type_t infer_output_dtype(
+        sc_data_type_t a, sc_data_type_t b, bool is_b_scalar) {
+    if (is_b_scalar) return a;
+    // could_promote_dtypes is a map if {dtype, dtype_precision_ranking}
+    // dtype mapped to a higher precision ranking value is more precise
+    std::unordered_map<sc_data_type_t, int> could_promote_dtypes {
+            {datatypes::s32, 0}, {datatypes::bf16, 1}, {datatypes::f32, 2}};
+    if (could_promote_dtypes.find(a) != could_promote_dtypes.end()
+            && could_promote_dtypes.find(b) != could_promote_dtypes.end()) {
+        return could_promote_dtypes[a] >= could_promote_dtypes[b] ? a : b;
+    }
+    COMPILE_ASSERT(a == b,
+            "Binary elementwise op shall have both inputs with the same "
+            "dtype except for allow promotion cases.");
+    return a;
+}
+
+void binary_elementwise_op_impl_t::set_inplace_info() {
+    // legalize inplace
     auto lhs_const = dynamic_cast<constant_op_t *>(
             info_.inputs_.at(0)->producer_owner_);
     auto rhs_const = dynamic_cast<constant_op_t *>(
             info_.inputs_.at(1)->producer_owner_);
-    if (outs.empty()) {
-        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
-        // fixme: correctly infer the shape for broadcast
-        int bc_input_idx = get_broadcast_input();
-        int ref_idx = bc_input_idx < 0 ? 0 : 1 - bc_input_idx;
-        info_.outputs_[0]->details_ = info_.inputs_[ref_idx]->details_;
-    } else {
-        info_.outputs_ = outs;
-    }
-
-    int bc_idx = get_broadcast_input();
-
-    attrs_ = attrs;
-    plain_bc_axis_ = attrs.get_or_else("bc_axis", std::vector<int> {});
-
-    if (plain_bc_axis_.empty()) { plain_bc_axis_ = infer_broadcast_axis(); }
-
-    inplace_ = attrs.get_or_else("inplace", 0);
-    // legelize inplace
+    inplace_ = attrs_.get_or_else("inplace", 0);
+    auto non_bc_indices = get_non_broadcast_input_index(false);
     // inplace 0-th input
-    if (inplace_ == 0 && (lhs_const || bc_idx == 0)) {
+    if (inplace_ == 0
+            && (lhs_const
+                    || std::find(
+                               non_bc_indices.begin(), non_bc_indices.end(), 0)
+                            == non_bc_indices.end())) {
         inplace_ = -1;
     }
     // inplace 1-th input
-    else if (inplace_ == 1 && (rhs_const || bc_idx == 1)) {
+    else if (inplace_ == 1
+            && (rhs_const
+                    || std::find(
+                               non_bc_indices.begin(), non_bc_indices.end(), 1)
+                            == non_bc_indices.end())) {
         inplace_ = -1;
     }
     COMPILE_ASSERT(inplace_ >= -1 && inplace_ <= 1,
-            "binary op only have two inputs, but got "
+            "Binary elementwise op only have two inputs, but got "
                     << inplace_ << "-th input to be inplaced.");
 
     info_.tensor_share_info_ = (inplace_ == -1)
             ? std::unordered_map<int, std::vector<int>> {}
             : std::unordered_map<int, std::vector<int>> {{0, {inplace_}}};
+}
+
+binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+    COMPILE_ASSERT(
+            ins.size() == 2, "Binary elementwise op shall have 2 inputs.");
+    // if auto_broadcast is not numpy, lhs and rhs should strictly match
+    // if auto_broadcast is set && "bc_axis" is set, we follow "bc_axis"
+    // otherwise we consider auto_broadcast rule
+    std::string auto_broadcast
+            = attrs.get_or_else("auto_broadcast", std::string("numpy"));
+    COMPILE_ASSERT(auto_broadcast == "numpy"
+                    || ins[0]->details_.get_plain_dims()
+                            == ins[1]->details_.get_plain_dims(),
+            "Binary elementwise op's lhs and rhs should have the same shape "
+            "when auto_broadcast is none.");
+    info_.inputs_ = ins;
+    attrs_ = attrs;
+    auto lhs_shape = info_.inputs_[0]->details_.get_plain_dims();
+    auto rhs_shape = info_.inputs_[1]->details_.get_plain_dims();
+    // get user specified bc_axis of the shorter input
+    auto input_bc_axis = attrs_.get_or_else("bc_axis", std::vector<int> {});
+    sc_dims output_shape = infer_binary_elementwise_output_shape(
+            lhs_shape, rhs_shape, input_bc_axis);
+    // ref_idx shall be the same side as query format's output format
+    int ref_idx = get_ref_input_index(false);
+    if (ref_idx == may_broadcast_t::NOT_DETERMINED) {
+        ref_idx = lhs_shape.size() >= rhs_shape.size() ? 0 : 1;
+    }
+    if (outs.empty()) {
+        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
+        info_.outputs_[0]->details_.set_plain_dims(output_shape);
+        auto output_format = info_.inputs_[ref_idx]->details_.get_format();
+        bool is_b_scalar
+                = (info_.inputs_[1 - ref_idx]->details_.get_plain_dims()
+                        == sc_dims {1});
+        auto output_dtype = infer_output_dtype(
+                info_.inputs_[ref_idx]->details_.dtype_,
+                info_.inputs_[1 - ref_idx]->details_.dtype_, is_b_scalar);
+        info_.outputs_[0]->details_.set_format(output_format);
+        info_.outputs_[0]->details_.dtype_ = output_dtype;
+    } else {
+        info_.outputs_ = outs;
+    }
+
+    COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims() == output_shape,
+            "Binary elementwise op's output shape is not set correctly.");
+
+    // user specified bc_axis of the shorter input
+    if (input_bc_axis.empty()) {
+        plain_bc_axis_.emplace_back(
+                op_traits::may_broadcast_t::get_auto_broadcast_bc_axis(
+                        lhs_shape, output_shape));
+        plain_bc_axis_.emplace_back(
+                op_traits::may_broadcast_t::get_auto_broadcast_bc_axis(
+                        rhs_shape, output_shape));
+    } else {
+        COMPILE_ASSERT(ref_idx == 0 || ref_idx == 1,
+                "bc_axis is only applicable to uni-directional broadcast.");
+        plain_bc_axis_.resize(2);
+        plain_bc_axis_[ref_idx]
+                = op_traits::may_broadcast_t::get_auto_broadcast_bc_axis(
+                        info_.inputs_[ref_idx]->details_.get_plain_dims(),
+                        output_shape);
+        plain_bc_axis_[1 - ref_idx] = input_bc_axis;
+    }
+
+    set_inplace_info();
 }
 
 binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(graph_tensor_ptr lhs,
@@ -256,91 +273,69 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(graph_tensor_ptr lhs,
     }
 }
 
-int binary_elementwise_op_impl_t::get_broadcast_input() const {
+std::vector<int> binary_elementwise_op_impl_t::get_non_broadcast_input_index(
+        bool assert_non_empty) const {
     const sc_dims &lhs_dims = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &rhs_dims = info_.inputs_[1]->details_.get_plain_dims();
-    if (lhs_dims == rhs_dims) {
-        return -1;
-    } else {
-        // to suppport dynamic
-        if (lhs_dims.size() != rhs_dims.size()) {
-            return lhs_dims.size() > rhs_dims.size() ? 1 : 0;
+    const sc_dims &out_dims = infer_binary_elementwise_output_shape(lhs_dims,
+            rhs_dims, attrs_.get_or_else("bc_axis", std::vector<int> {}));
+    std::vector<int> ret;
+    for (size_t i = 0; i < info_.inputs_.size(); ++i) {
+        if (may_broadcast_t::broadcastable_shape_equal(
+                    info_.inputs_[i]->details_.get_plain_dims(), out_dims)) {
+            ret.emplace_back(i);
         }
-        return get_number_of_squeeze_dims(lhs_dims)
-                        <= get_number_of_squeeze_dims(rhs_dims)
-                ? 1
-                : 0;
     }
+    if (assert_non_empty) {
+        COMPILE_ASSERT(!ret.empty(),
+                "Binary op is required to have at least one non-broadcast "
+                "input at this stage.");
+    }
+    return ret;
 }
 
-static sc_data_format_t infer_broadcast_format(
-        const logical_tensor_t &target_lt, const logical_tensor_t &bc_lt) {
-    COMPILE_ASSERT(
-            bc_lt.get_plain_dims().size() == target_lt.get_plain_dims().size(),
-            "infer_blocking_format only support plain dimension aligned cases");
-    sc_data_format_kind_t target_lt_format_code
-            = target_lt.get_format().format_code_;
-    sc_data_format_t::blocking_t blocks = target_lt.get_format().blocks_;
-    sc_data_format_kind_t bc_lt_format_code = bc_lt.get_format().format_code_;
-    // start infer the blocks
-    sc_dims bc_plain_dim = bc_lt.get_plain_dims();
-    sc_dims target_plain_dim = target_lt.get_plain_dims();
-    int block_dim = target_lt_format_code.ndims()
-            - target_lt_format_code.norig_dims();
-    int target_batch_dim = target_lt.get_plain_dims().size()
-            - target_lt_format_code.norig_dims();
-    for (int i = 0; i < target_lt_format_code.norig_dims(); ++i) {
-        if (bc_plain_dim[target_batch_dim + i] == 1
-                && target_plain_dim[target_batch_dim + i] != 1) {
-            // if bc_plain_dim is 1 and this axis is with broadcast semantics
-            auto axis = target_lt_format_code.collect_blocking_index(i);
-            for (auto ax : axis) {
-                blocks[ax] = 1;
+int binary_elementwise_op_impl_t::get_ref_input_index(
+        bool assert_determined) const {
+    auto non_bc_input_indices
+            = get_non_broadcast_input_index(assert_determined);
+    if (non_bc_input_indices.empty()) {
+        return may_broadcast_t::NOT_DETERMINED;
+    }
+    int non_bc_input_idx
+            = non_bc_input_indices.size() > 1 ? -1 : non_bc_input_indices[0];
+    if (non_bc_input_idx == -1) {
+        // if the shapes are equal, find which side has blocking format.
+        if (is_dynamic()) {
+            non_bc_input_idx
+                    = info_.inputs_[0]->details_.get_format_candidates().size()
+                            >= info_.inputs_[1]
+                                       ->details_.get_format_candidates()
+                                       .size()
+                    ? 0
+                    : 1;
+        } else {
+            // Four situations: `both blocking`, `a blocking b not`, `b blocking
+            // a not`, `both not blocking`. Only `b blocking a not` need to set
+            // non_bc_input_idx to 1.
+            non_bc_input_idx = 0;
+            if (!info_.inputs_[0]->details_.get_format().is_blocking()
+                    && info_.inputs_[1]->details_.get_format().is_blocking()) {
+                non_bc_input_idx = 1;
             }
         }
     }
-    // start infer the format code
-    // if both batch OR both non-batch
-    // smaller side's format code == larger side's format code
-    COMPILE_ASSERT(target_lt_format_code.norig_dims()
-                    == bc_lt_format_code.norig_dims(),
-            "Unsupported case for binary_elementwise query format.");
-    return sc_data_format_t(target_lt.get_format().format_code_, blocks);
+    return non_bc_input_idx;
 }
 
 void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
-    auto in0_format = info_.inputs_[0]->details_.get_format();
-    auto in1_format = info_.inputs_[1]->details_.get_format();
+    const auto &in0_format = info_.inputs_[0]->details_.get_format();
+    const auto &in1_format = info_.inputs_[1]->details_.get_format();
 
-    int bc_input_idx = get_broadcast_input();
-    if (bc_input_idx == -1) {
-        // if the shapes are equal, find which side has blocking format.
-        if (is_dynamic()) {
-            bc_input_idx
-                    = info_.inputs_[0]->details_.get_format_candidates().size()
-                            >= info_.inputs_[1]
-                                       ->details_.get_format_candidates()
-                                       .size()
-                    ? 1
-                    : 0;
-        } else {
-            // Four situations: `both blocking`, `a blocking b not`, `b blocking
-            // a not`, `both not blocking`. Only `b blocking a not` need to set
-            // bc_input_index to 0.
-            bc_input_idx = 1;
-            if (!info_.inputs_[0]->details_.get_format().is_blocking()
-                    && info_.inputs_[1]->details_.get_format().is_blocking()) {
-                bc_input_idx = 0;
-            }
-        }
-    }
-    if (attrs_.has_key(op_attr_key::layout_input_index)) {
-        bc_input_idx = 1 - attrs_.get<int>(op_attr_key::layout_input_index);
-    }
-    attrs_.set<int>(op_attr_key::layout_input_index, 1 - bc_input_idx);
+    int layout_input_idx = get_ref_input_index(true);
+    attrs_[op_attr_key::layout_input_index] = layout_input_idx;
 
     if (info_.inputs_[0]->details_.get_plain_dims().size()
             != info_.inputs_[1]->details_.get_plain_dims().size()) {
@@ -350,9 +345,9 @@ void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
                 "format.");
         in_formats.push_back({in0_format});
         in_formats.push_back({in1_format});
-        out_formats.push_back({!bc_input_idx ? in1_format : in0_format});
+        out_formats.push_back({layout_input_idx ? in1_format : in0_format});
     } else {
-        if (!bc_input_idx) {
+        if (layout_input_idx) {
             // propagate layout from input 0 to 1.
             auto target_format = infer_broadcast_format(
                     info_.inputs_[1]->details_, info_.inputs_[0]->details_);
@@ -416,7 +411,7 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
             } else {
                 slice_range_list bc_arg_range_list = infer_broadcast_arg_slice(
                         known_ranges_map[1 - unknown_idx], bc_axis, keep_dims);
-                known_ranges_map[unknown_idx] = bc_arg_range_list;
+                known_ranges_map[unknown_idx] = std::move(bc_arg_range_list);
             }
             // set the other unknown slice range by achieved known_ranges_list
             set_unknown_slice_ranges(this, known_ranges_map, fsmap, stat_map);
@@ -489,7 +484,7 @@ void binary_elementwise_op_impl_t::infer_binding_axis(
             if (keep_dims) {
                 known_axis_map[unknown_idx] = known_axis_map[1 - unknown_idx];
             } else {
-                auto bc_axis = plain_bc_axis_;
+                auto bc_axis = plain_bc_axis_[bc_input_idx];
                 bound_axis known_axis = known_axis_map[1 - unknown_idx],
                            unknown_axis(known_axis.size());
                 if (unknown_idx != bc_input_idx) {
@@ -564,7 +559,7 @@ void binary_elementwise_op_impl_t::pre_binding_axis(bound_axis_map &bdax_map) {
                 if (keep_dims) {
                     inpaxis = outaxis;
                 } else {
-                    auto bc_axis = plain_bc_axis_;
+                    auto bc_axis = plain_bc_axis_[bc_input_idx];
                     for (auto &bd_ax : outaxis) {
                         std::vector<int> ret;
                         for (auto &ax : bd_ax) {
@@ -590,10 +585,11 @@ void binary_elementwise_op_impl_t::pre_binding_axis(bound_axis_map &bdax_map) {
 
 std::vector<int> binary_elementwise_op_impl_t::get_bc_axis() const {
     int bc_input_idx = get_broadcast_input();
-    if (bc_input_idx == -1) return {};
-    if (plain_bc_axis_ == std::vector<int> {-1}) return plain_bc_axis_;
+    if (bc_input_idx == -1) { bc_input_idx = 1; }
+    if (plain_bc_axis_[bc_input_idx] == std::vector<int> {-1})
+        return plain_bc_axis_[bc_input_idx];
     return transform_axis_plain2blocking(
-            info_.inputs_[1 - bc_input_idx], plain_bc_axis_);
+            info_.inputs_[1 - bc_input_idx], plain_bc_axis_[bc_input_idx]);
 }
 
 bool binary_elementwise_op_impl_t::register_brgemm_fusion(

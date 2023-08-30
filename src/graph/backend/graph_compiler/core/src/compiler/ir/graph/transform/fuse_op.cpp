@@ -285,7 +285,8 @@ static void check_reduce_broadcast_binary_fusion(
             pre_visit = [&](sc_op *op) -> bool {
                 auto bcast = op->dyn_cast<op_traits::may_broadcast_t>();
                 if (bcast) {
-                    if (bcast->get_broadcast_input() != -1) {
+                    if (bcast->get_non_broadcast_input_index(true).size()
+                            != op->get_inputs().size()) {
                         // if reduce op's input is from bcast op, we cannot fuse
                         // it
                         SC_MODULE_INFO << "Reduce op depends on broadcast op, "
@@ -312,7 +313,8 @@ static void check_reduce_broadcast_binary_fusion(
             post_visit = [&](sc_op *op, int from_input) -> bool {
                 auto bcast = op->dyn_cast<op_traits::may_broadcast_t>();
                 if (bcast) {
-                    if (bcast->get_broadcast_input() == from_input) {
+                    if (bcast->get_non_broadcast_input_index(true)[0]
+                            == 1 - from_input) {
                         // if reduce op's output is connected to bcast op's
                         // broadcast input, we cannot fuse it
                         SC_MODULE_INFO << "Reduce op is broadcast input, break "

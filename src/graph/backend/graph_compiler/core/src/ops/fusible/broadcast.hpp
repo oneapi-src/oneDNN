@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_FUSIBLE_TERNARY_ELEMWISE_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_FUSIBLE_TERNARY_ELEMWISE_HPP
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_FUSIBLE_BROADCAST_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_FUSIBLE_BROADCAST_HPP
 
-#include <utility>
 #include <vector>
+
 #include <compiler/ir/graph/fusible_op.hpp>
 
 namespace dnnl {
@@ -26,43 +26,45 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-class select_op_t : public fusible_op_t,
-                    public op_traits::auto_copyable_t,
-                    public op_traits::may_inplace_t,
-                    public op_traits::may_broadcast_t {
+/**
+ * The broadcast op
+ * Inputs:
+ *  - The input to be broadcasted
+ * Outputs:
+ *  - The resulting tensor
+ * Attrs:
+ *  - output_shape: sc_dims - Specifies the shape of the output
+ *  - bc_axis: std::vector<int> (optional). If it is not set, the calculation
+ *    will strictly follow auto-broadcast semantics. If set, the broadcast axis
+ *    will follow the specified "bc_axis".
+ * */
+class broadcast_op_t : public movement_op_t, public op_traits::auto_copyable_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
-    std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
-    get_inplace_map() override;
-
-    select_op_t(
-            graph_tensor_ptr cond, graph_tensor_ptr then, graph_tensor_ptr els);
-    select_op_t(const std::vector<graph_tensor_ptr> &ins,
+    broadcast_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-
-    uint32_t get_lanes() const { return vx_info_.lanes; }
+    broadcast_op_t(graph_tensor_ptr v, std::vector<int> &output_shape,
+            std::vector<int> &bc_axis);
 
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
             std::vector<std::vector<format_stride_pair>> &supported_outs)
             override;
-
-    std::vector<int> get_bc_axis(const int axis1, const int axis2) const;
-
-    std::vector<int> get_non_broadcast_input_index(
-            bool assert_non_empty) const override;
-
-    int get_ref_input_index(bool assert_determined) const override;
-
-    vectorized_info_t &get_vx_info() { return vx_info_; }
+    size_t compute_workload(const std::vector<shape_dtype_pair> &,
+            const std::vector<shape_dtype_pair> &) override;
 
     shape_rl_vec get_dynamic_shape_relations() const override;
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_binding_axis(bound_axis_map &bdax_map) override;
+    // get broadcast axis on blocking dims (inferred from the bc_axis_ on plain
+    // dims)
+    std::vector<int> get_bc_axis() const;
+
+    std::vector<int> get_plain_bc_axis() const { return plain_bc_axis_; }
 
 private:
+    sc_dims output_shape_;
+    std::vector<int> plain_bc_axis_;
     vectorized_info_t vx_info_;
 };
 

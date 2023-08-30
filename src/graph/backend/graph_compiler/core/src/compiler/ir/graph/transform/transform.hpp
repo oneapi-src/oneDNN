@@ -27,6 +27,9 @@ namespace gc {
 SC_INTERNAL_API void elemwise_bcast_swap(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void broadcast_transform(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API void elemwise_dimension_alignment(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 

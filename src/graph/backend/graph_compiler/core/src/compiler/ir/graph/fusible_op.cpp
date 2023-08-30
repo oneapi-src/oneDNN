@@ -41,6 +41,11 @@ namespace impl {
 namespace graph {
 namespace gc {
 
+int binary_elementwise_op_t::get_broadcast_input() const {
+    auto non_bc_input_idx = get_non_broadcast_input_index(true);
+    return non_bc_input_idx.size() > 1 ? -1 : 1 - non_bc_input_idx[0];
+}
+
 static int get_base_input_idx(fusible_op_t *cur) {
     int base_idx = 0;
     if (auto binary_node = cur->dyn_cast<binary_elementwise_op_t>()) {
@@ -49,9 +54,7 @@ static int get_base_input_idx(fusible_op_t *cur) {
     }
     if (auto select_node = cur->dyn_cast<select_op_t>()) {
         // we need to set base_idx to the max input
-        if (select_node->get_max_input() != -1) {
-            base_idx = select_node->get_max_input();
-        }
+        base_idx = select_node->get_non_broadcast_input_index(true)[0];
     }
     COMPILE_ASSERT(base_idx >= 0, "Bad base idx for fusible_op");
     return base_idx;

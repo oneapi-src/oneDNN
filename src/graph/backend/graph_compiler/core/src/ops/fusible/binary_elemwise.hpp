@@ -38,6 +38,25 @@ enum class elt_operator {
     PRELU,
 };
 
+/**
+ * The binary_elementwise op, including add, sub, mul, div, min, max
+ * squared_diff, and prelu
+ * Inputs:
+ *  - in[0] - the lhs input
+ *  - in[1] - the rhs input
+ * Outputs:
+ *  - The result tensors
+ * Attrs:
+ *  - auto_broadcast: std::string - default = "numpy". If set to "none", lhs
+ *    and rhs shall strictly match. If set to numpy, it will follow broadcast
+ *    semantics
+ *  - bc_axis: std::vector<int> (optional). If it is not set, the calculation
+ *    will strictly follow auto-broadcast semantics. If set, the broadcast axis
+ *    will follow the specified "bc_axis", which gives binary_elementwise op an
+ *    opportunity to override auto-broadcast semantics. Notice that in this
+ *    case, bc_input must have the same length as specified bc_axis to avoid
+ *    semantic ambiguity.
+ * */
 class binary_elementwise_op_impl_t : public binary_elementwise_op_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
@@ -48,12 +67,17 @@ public:
     binary_elementwise_op_impl_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
 
-    int get_broadcast_input() const override;
-    std::vector<int> infer_broadcast_axis() const override;
+    std::vector<int> get_non_broadcast_input_index(
+            bool assert_non_empty) const override;
 
     void set_elt_operator(elt_operator elt_op) { elt_op_ = elt_op; }
 
     uint32_t get_lanes() const { return vx_info_.lanes; }
+
+    int get_ref_input_index(bool assert_determined) const override;
+
+    // Legacy function only required for old inplace info design
+    void set_inplace_info();
 
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
@@ -64,8 +88,8 @@ public:
             const std::vector<const tensor_slice *> &inputs,
             brgemm_fusion_register &brg_reg) override;
     shape_rl_vec get_dynamic_shape_relations() const override;
-    // get real broadcast axis, generaly, you should set bc_axis on plain format
-    // semantics if necessary.
+    // get real broadcast axis, generally, you should set bc_axis on plain
+    // format semantics if necessary.
     std::vector<int> get_bc_axis() const;
     vectorized_info_t &get_vx_info() { return vx_info_; }
 

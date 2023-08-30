@@ -113,6 +113,9 @@ create_default_graph_flow(const context_ptr &ctx) {
     pre_tune_passes.push_back(create_graph_pass("quantize_op_compensation",
             quantize::calculate_op_compensation, {}, pass_type::pre_tune,
             sc_opt_level::lv0, true));
+    pre_tune_passes.push_back(
+            create_graph_pass("broadcast_transform", broadcast_transform, {},
+                    pass_type::pre_tune, sc_opt_level::lv0, true));
     pre_tune_passes.push_back(create_graph_pass("elemwise_dimension_alignment",
             elemwise_dimension_alignment, {}, pass_type::pre_tune,
             sc_opt_level::lv0, true));

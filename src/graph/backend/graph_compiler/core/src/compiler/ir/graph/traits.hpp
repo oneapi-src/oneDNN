@@ -36,17 +36,6 @@ struct mixed_parti_t;
 struct fuse_anchor_map_t;
 
 namespace op_traits {
-struct may_broadcast_t : public virtual op_base_trait_t {
-    // returns the input index of the logical tensor that will be broadcast
-    // returns -1 when it cannot broadcast
-    virtual int get_broadcast_input() const = 0;
-    virtual std::vector<int> infer_broadcast_axis() const = 0;
-    const std::vector<int> &get_plain_bc_axis() const { return plain_bc_axis_; }
-
-protected:
-    std::vector<int> plain_bc_axis_;
-};
-
 struct copyable_t : public virtual op_base_trait_t {
     virtual sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr)
