@@ -52,7 +52,10 @@ public:
 
     ~dnnl_graph_allocator() = default;
 
-    void operator=(const dnnl_graph_allocator &alloc) {
+    dnnl_graph_allocator &operator=(const dnnl_graph_allocator &alloc) {
+        // check self-assignment
+        if (this == &alloc) return *this;
+
 #ifdef DNNL_WITH_SYCL
         sycl_malloc_ = alloc.sycl_malloc_;
         sycl_free_ = alloc.sycl_free_;
@@ -60,7 +63,7 @@ public:
         host_malloc_ = alloc.host_malloc_;
         host_free_ = alloc.host_free_;
 #endif
-        return;
+        return *this;
     }
 
     enum class mem_type_t {
