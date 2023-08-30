@@ -50,6 +50,16 @@ public:
         : sycl_malloc_(sycl_malloc), sycl_free_(sycl_free) {}
 #endif
 
+    dnnl_graph_allocator(const dnnl_graph_allocator &alloc) {
+#ifdef DNNL_WITH_SYCL
+        sycl_malloc_ = alloc.sycl_malloc_;
+        sycl_free_ = alloc.sycl_free_;
+#else
+        host_malloc_ = alloc.host_malloc_;
+        host_free_ = alloc.host_free_;
+#endif
+    }
+
     ~dnnl_graph_allocator() = default;
 
     dnnl_graph_allocator &operator=(const dnnl_graph_allocator &alloc) {
