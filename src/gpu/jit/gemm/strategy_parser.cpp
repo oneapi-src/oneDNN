@@ -84,12 +84,14 @@ CacheSettingsLSC getCaching(char l1, char l3) {
     }
 }
 
-void getCaching(std::stringstream &s, MatrixAddressingStrategy &astrategy) {
+void getCaching(
+        std::stringstream &s, HW hw, MatrixAddressingStrategy &astrategy) {
     auto &cachingR = astrategy.cachingR;
     auto &cachingW = astrategy.cachingW;
 
     cachingR = CacheSettingsLSC::L1C_L3C;
-    cachingW = CacheSettingsLSC::L1WB_L3WB;
+    cachingW = (hw >= HW::XeHPC) ? CacheSettingsLSC::L1UC_L3WB
+                                 : CacheSettingsLSC::L1WB_L3WB;
 
     if (s.peek() == '{') {
         char eat, l1, l3;
@@ -131,7 +133,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     if (s.peek() == '/') s >> eat >> strategy.ka_load_masked;
     getTiling(s, true, false, strategy.A);
     if (s.peek() == 'x') s >> eat >> strategy.A_copies;
-    getCaching(s, strategy.A);
+    getCaching(s, hw, strategy.A);
     if (s.peek() == '+') {
         strategy.prefetchA = 1;
         s >> eat >> accessAPrefetch >> strategy.ka_prefetch;
@@ -141,7 +143,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             s >> eat >> strategy.prefetchAMasked;
         else
             strategy.prefetchAMasked = strategy.prefetchA;
-        getCaching(s, strategy.A_prefetch);
+        getCaching(s, hw, strategy.A_prefetch);
     }
     s >> std::ws >> asB >> accessB;
     if (s.peek() == '/') s >> eat >> accessBUnaligned;
@@ -149,7 +151,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     if (s.peek() == '/') s >> eat >> strategy.kb_load_masked;
     getTiling(s, false, true, strategy.B);
     if (s.peek() == 'x') s >> eat >> strategy.B_copies;
-    getCaching(s, strategy.B);
+    getCaching(s, hw, strategy.B);
     if (s.peek() == '+') {
         strategy.prefetchB = 1;
         s >> eat >> accessBPrefetch >> strategy.kb_prefetch;
@@ -159,16 +161,16 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             s >> eat >> strategy.prefetchBMasked;
         else
             strategy.prefetchBMasked = strategy.prefetchB;
-        getCaching(s, strategy.B_prefetch);
+        getCaching(s, hw, strategy.B_prefetch);
     }
     s >> std::ws >> asC >> accessC;
     getTiling(s, true, true, strategy.C);
-    getCaching(s, strategy.C);
+    getCaching(s, hw, strategy.C);
     if (s.peek() == '+') {
         strategy.prefetchC = 1;
         s >> eat >> accessCPrefetch;
         if (s.peek() == '@') s >> eat >> strategy.prefetchC;
-        getCaching(s, strategy.C_prefetch);
+        getCaching(s, hw, strategy.C_prefetch);
     }
 
     if (!accessAUnaligned) accessAUnaligned = downgradeBlock2D(accessA);
