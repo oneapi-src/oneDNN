@@ -203,7 +203,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
                     eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
                     with_a_zero_points(), with_b_zero_points(),
-                    with_c_zero_points(), with_bias(), sum_ab(), alpha(),
+                    with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
                     beta(), post_ops_, eff_a_type(), eff_b_type(),
                     desc()->c_type(), co_type, acc_type, eff_align_a(),
                     eff_align_b(), align_c(), eff_m(), eff_n(), d->k(),
@@ -353,11 +353,18 @@ struct gen_gemm_t : public gpu_gemm_t {
         }
 
         sum_ab_t sum_ab() const { return desc()->sum_ab; }
+        sum_ab_t eff_sum_ab() const {
+            if (swap_ab() && sum_ab() == sum_ab::sum_a_row)
+                return sum_ab::sum_b_col;
+            if (swap_ab() && sum_ab() == sum_ab::sum_b_col)
+                return sum_ab::sum_a_row;
+            return sum_ab();
+        }
 
         bool with_sum_ab() const { return sum_ab() != sum_ab::sum_none; }
 
         int sum_ab_cmask() const {
-            switch (sum_ab()) {
+            switch (eff_sum_ab()) {
                 default:
                 case sum_ab::sum_none: return 0;
                 case sum_ab::sum_a_row: return 1;
