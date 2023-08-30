@@ -429,30 +429,35 @@ TEST(GCCore_CPU_hplegalize_cpp, TestBF16Lower) {
 TEST(GCCore_CPU_hplegalize_cpp, TestAMXF16Lower) {
     REQUIRE_AVX512AMXFP16();
     builder::ir_builder_t builder;
-    _function_(datatypes::f16, aaa, _arg_("a", datatypes::f16),
-            _arg_("b", datatypes::f16)) {
-        _bind_(a, b);
-        _return_((a + b) * (a - b)
-                + builder::make_cast(datatypes::f16, 3.14159F));
+    int lanes = 1;
+    _function_(datatypes::s32, aaa, _arg_("a", datatypes::f16, {lanes}),
+            _arg_("b", datatypes::f16, {lanes}),
+            _arg_("c", datatypes::f16, {lanes})) {
+        _bind_(a, b, c);
+        c[span_t({0}, lanes)] = (a[span_t({0}, lanes)] + b[span_t({0}, lanes)])
+                        * (a[span_t({0}, lanes)] - b[span_t({0}, lanes)])
+                + builder::make_constant(
+                        std::vector<union_val>(lanes, 3.14159F),
+                        datatypes::f16);
+        _return_(1);
     }
     float fa = get_rand(), fb = get_rand(), fc, fc_ref;
-    fp16_t a = fa;
-    fp16_t b = fb;
-    fp16_t c;
+    fp16_t a[1] = {fa};
+    fp16_t b[1] = {fb};
+    fp16_t c[1];
     fc_ref = float(
-            fp16_t((float(a) + float(b)) * (float(a) - float(b)) + 3.14159F));
+            fp16_t((float(a[0]) + float(b[0])) * (float(a[0]) - float(b[0]))
+                    + 3.14159F));
     auto fptr = jit_engine_t::make(get_default_context())
                         ->get_entry_func(ir_module_t::from_entry_func(
                                                  get_default_context(), aaa),
                                 false);
-    // due to MSVC ABI, we cannot return bf16_t, because it is a struct and
-    // MSVC will treat bf16_t differently with uint16_t when returning it
-    c = fp16_t::from_storage(fptr->call<uint16_t>(a, b));
-    fc = float(c);
+    fptr->call<int>(&a, &b, &c);
+    fc = float(c[0]);
     EXPECT_TRUE(std::abs(fc - fc_ref) < 1e-5f);
     // vector type
     auto ctx = get_default_context();
-    int lanes = 8;
+    lanes = 8;
     if (ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu
             && ctx->machine_.cpu_flags_.fAVX512F) {
         _function_(datatypes::s32, bbb, _arg_("a", datatypes::f16, {lanes}),
