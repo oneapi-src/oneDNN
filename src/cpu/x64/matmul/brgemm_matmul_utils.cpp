@@ -228,8 +228,6 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
                         transposed_tensor_layout_tag, blocked_64n_B_layout_tag,
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
                         blocked_16n_B_layout_tag)
-                : bgmmc.is_runtime_N
-                ? memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag)
                 : memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, acbd, adbc);
 
@@ -1065,9 +1063,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             && one_of(true, bm_conf_utils.is_int8(), bm_conf_utils.is_bf16());
     if (bgmmc.is_runtime_M && !runtime_M_supported)
         return status::unimplemented;
-    // Runtime N value is supported for 2d AMX bfloat16 problems only.
-    const bool runtime_N_supported
-            = bgmmc.is_amx && bgmmc.ndims == 2 && bm_conf_utils.is_bf16();
+    // Runtime N value is supported for 2d AMX int8/bfloat16 problems only.
+    const bool runtime_N_supported = bgmmc.is_amx && bgmmc.ndims == 2
+            && one_of(true, bm_conf_utils.is_int8(), bm_conf_utils.is_bf16());
     if (bgmmc.is_runtime_N && !runtime_N_supported)
         return status::unimplemented;
 
