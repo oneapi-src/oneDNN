@@ -97,6 +97,7 @@ TEST(GCBackendApi, TestRewriteOutputLayout_CPU) {
     outputs[0]->layout_type = graph::layout_type::any;
     outputs[0]->ndims = -1;
 
+    // latest update will not overwrite output layout
     p.infer_shape(inputs, outputs);
-    EXPECT_EQ(outputs[0]->layout_type, graph::layout_type::strided);
+    EXPECT_EQ(outputs[0]->layout_type, graph::layout_type::any);
 }

@@ -63,6 +63,11 @@ graph::status_t compiler_partition_impl_t::infer_shape(
                         return alt->id == lt.id;
                     });
             if (in_pos != inputs.end()) { return **in_pos; }
+            auto out_pos = std::find_if(outputs.begin(), outputs.end(),
+                    [&](const graph::logical_tensor_t *alt) -> bool {
+                        return alt->id == lt.id;
+                    });
+            if (out_pos != outputs.end()) { return **out_pos; }
             return lt;
         };
         graph::op_t temp_node = graph::op_t(cur_op->get_kind());
@@ -76,7 +81,6 @@ graph::status_t compiler_partition_impl_t::infer_shape(
         std::vector<graph::logical_tensor_t *> ordered_inputs;
         ordered_inputs.reserve(ordered_inputs_holder.size());
         for (auto &tsr : ordered_inputs_holder) {
-            assert(tsr.layout_type == graph::layout_type::strided);
             ordered_inputs.emplace_back(&tsr);
         }
         std::vector<graph::logical_tensor_t *> ordered_outputs;
@@ -91,22 +95,17 @@ graph::status_t compiler_partition_impl_t::infer_shape(
             auto output_lt = *ordered_outputs[i];
             auto cur_val = cur_op->get_output_values()[i];
             cur_val->set_logical_tensor(output_lt);
-            // TODO(yifei): move the logic into compile() stage
-            // to let compiler backend decide the optimized layout after
-            // layout_propagation
-            if (output_lt.layout_type != graph::layout_type::strided) {
-                // force set strided layout
-                graph::dims shape(
-                        output_lt.dims, output_lt.dims + output_lt.ndims);
-                graph::dims strides = utils::get_dense_strides(shape);
-                cur_val->set_strides(strides);
-            }
+            // only write back inferred info to outputs
+            // shall not modify the layout type
             auto out_pos = std::find_if(outputs.begin(), outputs.end(),
                     [&](graph::logical_tensor_t *alt) -> bool {
                         return alt->id == ordered_outputs[i]->id;
                     });
             if (out_pos != outputs.end()) {
-                **out_pos = cur_val->get_logical_tensor();
+                auto cur_lt = cur_val->get_logical_tensor();
+                // ensure layout type not modified
+                cur_lt.layout_type = (**out_pos).layout_type;
+                **out_pos = cur_lt;
             }
         }
         return graph::status::success;
@@ -171,6 +170,7 @@ graph::status_t compiler_partition_impl_t::compile(
         }
         graph::graph_t temp_graph(copied_ops_);
         auto output_ops = temp_graph.get_output_ops();
+        std::vector<bool> output_format_any(outputs.size(), false);
         graph::status_t status;
         status = topo_order_visit(output_ops, [&](op_t *cur_op) {
             std::vector<gc::graph_tensor_ptr> producer_lt, consumer_lt;
@@ -195,8 +195,20 @@ graph::status_t compiler_partition_impl_t::compile(
             if (!is_dynamic) {
                 for (auto &out_value : cur_op->get_output_values()) {
                     auto lt = out_value->get_logical_tensor();
-                    consumer_lt.emplace_back(
-                            compiler_graph_impl_t::convert_logical_tensor(lt));
+                    // check in outputs
+                    auto out_pos = std::find_if(outputs.begin(), outputs.end(),
+                            [lt](const graph::logical_tensor_t &alt) -> bool {
+                                return alt.id == lt.id;
+                            });
+                    if (out_pos != outputs.end()) {
+                        consumer_lt.emplace_back(
+                                compiler_graph_impl_t::convert_logical_tensor(
+                                        *out_pos));
+                    } else {
+                        consumer_lt.emplace_back(
+                                compiler_graph_impl_t::convert_logical_tensor(
+                                        lt));
+                    }
                 }
             }
             // translate op
@@ -207,9 +219,11 @@ graph::status_t compiler_partition_impl_t::compile(
             for (size_t i = 0; i < cur_op->get_output_values().size(); i++) {
                 auto &out_value = cur_op->get_output_values()[i];
                 auto lt = out_value->get_logical_tensor();
-
-                if (std::find(out_lt_ids.begin(), out_lt_ids.end(), lt.id)
-                        != out_lt_ids.end()) {
+                auto out_pos = std::find_if(outputs.begin(), outputs.end(),
+                        [lt](const graph::logical_tensor_t &alt) -> bool {
+                            return alt.id == lt.id;
+                        });
+                if (out_pos != outputs.end()) {
                     auto out_ret
                             = sub_graph.make_output({ret->get_outputs()[i]});
                     if (is_dynamic) {
@@ -223,14 +237,21 @@ graph::status_t compiler_partition_impl_t::compile(
                             "logical_tensor_" + std::to_string(lt.id));
                     gc::sc_data_format_t output_format
                             = out_ret->get_inputs()[0]->details_.get_format();
-                    gc::sc_dims output_strides
-                            = out_ret->get_inputs()[0]->details_.get_strides();
-                    if (!output_format.is_any()) {
+                    // TODO(yifei): consider dynamic shape cases
+                    if (out_pos->layout_type == graph::layout_type::strided
+                            && !output_format.is_any()) {
+                        gc::sc_dims output_strides
+                                = out_ret->get_inputs()[0]
+                                          ->details_.get_strides();
                         out_ret->attrs_.set("target_formats",
                                 std::vector<gc::sc_data_format_t> {
                                         output_format});
                         out_ret->attrs_.set("target_strides",
                                 std::vector<gc::sc_dims> {output_strides});
+                    } else {
+                        output_format_any[std::distance(
+                                outputs.begin(), out_pos)]
+                                = true;
                     }
                     outputs_map[lt.id] = out_ret;
                 }
@@ -248,6 +269,9 @@ graph::status_t compiler_partition_impl_t::compile(
                 = pname_ + "_" + std::to_string(this->id_);
         backend_graph_obj.attrs_[gc::sc_graph_t::attr_key_t::fpmath_mode]
                 = static_cast<int>(fpmath_mode_);
+        backend_graph_obj
+                .attrs_[gc::sc_graph_t::attr_key_t::allow_channel_last_output]
+                = true;
 
         COMPILE_ASSERT(aengine->kind() == graph::engine_kind_t::dnnl_cpu,
                 "Graph compiler backend only supports cpu engine");
@@ -301,6 +325,41 @@ graph::status_t compiler_partition_impl_t::compile(
 
         std::shared_ptr<gc::jit_function_t> fptr
                 = gc::compiler_driver(ctx, backend_graph_obj, args);
+
+        // validate and set outputs strides
+        for (size_t i = 0; i < output_format_any.size(); ++i) {
+            for (const auto &op : backend_graph_obj.get_output_ops()) {
+                if (op->attrs_.get<size_t>("unique_id")
+                        == outputs_map[outputs[i].id]->attrs_.get<size_t>(
+                                "unique_id")) {
+                    const auto &inferred_strides
+                            = op->get_inputs()[0]->details_.get_strides();
+                    auto out_lt = const_cast<graph::logical_tensor_t *>(
+                            &outputs[i]);
+                    graph::dims out_shape(
+                            out_lt->dims, out_lt->dims + out_lt->ndims);
+                    graph::dims strides = utils::get_dense_strides(out_shape);
+                    out_lt->layout_type = graph::layout_type::strided;
+                    assertm(static_cast<int>(inferred_strides.size())
+                                    == out_lt->ndims,
+                            "Inferred stride shall have the same dimension "
+                            "as output logical tensor.");
+                    for (int d = 0; d < out_lt->ndims; ++d) {
+                        out_lt->layout.strides[d] = inferred_strides[d];
+                    }
+                    if (inferred_strides != strides) {
+                        // must be channel last format
+                        // TODO(yifei): generalize blocking stride to plain
+                        // stride logic here
+                        for (int d = 1; d < out_lt->ndims; ++d) {
+                            out_lt->layout.strides[d + 1] = inferred_strides[d];
+                        }
+                        out_lt->layout.strides[1] = 1;
+                    }
+                    break;
+                }
+            }
+        }
 
         auto pimpl = std::make_shared<compiler_compiled_partition_impl_t>(
                 *aengine, inputs, outputs, fptr, graph_engine,
