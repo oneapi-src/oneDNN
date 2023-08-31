@@ -25,6 +25,7 @@
 #include "common/kernel_cache.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -52,13 +53,15 @@ struct trivial_key_validator_t {
 template <typename T>
 struct trivial_key_t : public T {
     trivial_key_t() = delete;
-    trivial_key_t(const T &t, const engine_id_t &id) : T(t), id_(id) {}
+    trivial_key_t(const T &t, const engine_id_t &id)
+        : T(t)
+        , id_(id)
+        , serialization(t.serialize())
+        , hash_(hash_combine(serialization.hash(), id_.hash())) {}
     bool operator==(const trivial_key_t &other) const {
-        return this->serialize() == other.serialize() && id_ == other.id_;
+        return serialization == other.serialization && id_ == other.id_;
     }
-    size_t hash() const {
-        return hash_combine(T::serialize().hash(), id_.hash());
-    }
+    size_t hash() const { return hash_; }
 
     bool is_valid() const {
         const T *base = this;
@@ -67,6 +70,8 @@ struct trivial_key_t : public T {
 
 private:
     engine_id_t id_;
+    serialized_t serialization;
+    size_t hash_;
 };
 
 // GPU specific abstract interface for kernel_cache::value_impl_t
