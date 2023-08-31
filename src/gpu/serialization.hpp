@@ -56,18 +56,14 @@ struct serialized_data_t {
     void append(const T &t) {
         std::array<uint8_t, sizeof(T)> type_data;
         std::memcpy(type_data.data(), &t, sizeof(T));
-        for (auto &d : type_data) {
-            data.emplace_back(d);
-        }
+        data.insert(data.end(), type_data.begin(), type_data.end());
     }
     void append(const post_ops_t &post_ops) {
         append(post_ops.len());
         serialization_stream_t sstream {};
         serialization::serialize_post_ops(sstream, post_ops);
         auto post_op_data = sstream.get_data();
-        for (auto &d : post_op_data) {
-            data.emplace_back(d);
-        }
+        data.insert(data.end(), post_op_data.begin(), post_op_data.end());
     }
 
     template <typename Arg1, typename... Args>
