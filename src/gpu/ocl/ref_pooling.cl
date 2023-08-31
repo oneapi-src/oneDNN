@@ -32,6 +32,10 @@
 #define DST_DATA_MIN 0
 #elif DST_DT_F16
 #define DST_DATA_MIN -HALF_MAX
+#elif DST_DT_HF8
+#define DST_DATA_MIN (uchar)0xFE
+#elif DST_DT_BF8
+#define DST_DATA_MIN (uchar)0xFB
 #else
 #define DST_DATA_MIN DATA_MIN
 #endif

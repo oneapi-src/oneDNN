@@ -63,7 +63,7 @@ uchar __attribute__((overloadable)) cvt_hf_to_hf8(half f) {
     ushort fraw = as_ushort(f);
 
     // first we extract the sign and make the input positive
-    ushort s8 = (fraw & 0x8000) >> 8;
+    uint s8 = (fraw & 0x8000) >> 8;
     fraw = fraw & 0x7fff;
 
     // we filter out overlow, nan
@@ -81,14 +81,16 @@ uchar __attribute__((overloadable)) cvt_hf_to_hf8(half f) {
     // Lucky us, it does not overflow as fraw <= 448.
     ushort a = 0x7c00, b = 0x1c00;
     ushort shifter = (fraw & a) + b;
-    //half shifter = as_half(shifter);
-    ushort is_denorm = shifter < 0x1.0p1f;
-    if (is_denorm) shifter = 0x1.0p1f;
+    // e8 = e16 - e16_bias + e8_bias = e16 - 15 + 7
+    // e8 will be denorm if e8 <= 0 or e16 + 7 < 16
+    const int exp_threshold = 0x4000; // raw bits of exponent = 16
+    ushort is_denorm = shifter < exp_threshold;
+    if (is_denorm) shifter = exp_threshold;
 
     ushort rounded
             = as_ushort((as_half(fraw) + as_half(shifter)) - as_half(shifter));
 
-    ushort e8 = ((rounded & 0x7c00) >> 10) - 8;
+    int e8 = ((rounded & 0x7c00) >> 10) - 8;
     uchar m8 = (rounded & 0x03ff) >> 7;
 
     // we need to make the implicit f32 mantissa bit explicit for
@@ -136,11 +138,12 @@ uchar16 __attribute__((overloadable)) cvt_hf_to_hf8(half16 f) {
 
 half __attribute__((overloadable)) cvt_hf8_to_hf(uchar b) {
     uchar raw_bits_ = b;
-    ushort s16 = (raw_bits_ & 0x80) << 8;
+    ushort s8 = (raw_bits_ & 0x80) >> 7;
     ushort e8 = (raw_bits_ & 0x78) >> 3;
-    ushort e16 = (e8 + 8 /* 15 - 7 = e16_bias - e8_bias */) << 10;
     ushort m8 = (raw_bits_ & 0x7);
-    ushort m16 = m8 << 7;
+    ushort s16 = s8;
+    ushort e16 = e8 + 8; /* 15 - 7 = e16_bias - e8_bias */
+    ushort m16 = m8;
 
     // Need to convert hf8 denormal into f16 normal.
     if (e8 == 0 && m8 != 0) {
@@ -148,16 +151,19 @@ half __attribute__((overloadable)) cvt_hf8_to_hf(uchar b) {
         count = m8 > 0x1 ? 1 : count;
         count = m8 > 0x3 ? 0 : count;
         e16 -= count;
-        m16 = (m16 << (count + 1) & 0x7);
+        m16 = (m16 << (count + 1)) & 0x7;
     } else if (e8 == 0 && m8 == 0) {
         e16 = 0;
-    } /* e8 == 0xf && m == 0x7, when? */
+    } else if (e8 == 0xf && m8 == 0x7) {
+        e16 = 0x1f;
+        m16 = 0x4; // Real Indefinite (a qNaN)
+    }
+    s16 <<= 15;
+    e16 <<= 10;
+    m16 <<= 7;
 
     ushort u16 = s16 | e16 | m16;
-    //printf("hf8_to_hf: %x %f \n", u16, as_half(u16));
     return as_half(u16);
-    //auto f16 = utils::bit_cast<float16_t>(u16);
-    //return static_cast<float>(f16);
 }
 
 half2 __attribute__((overloadable)) cvt_hf8_to_hf(uchar2 b) {
@@ -207,7 +213,7 @@ uchar __attribute__((overloadable)) cvt_hf_to_bf8(half f) {
 
     // we always return R ind for Nan input as there is no good
     // conversion of payload
-    if (is_nan) { return 0xfe; }
+    if (is_nan) { return (fraw >> 8) | 0x02; }
 
     // if infinity, we just return it as is
     if (is_special) {

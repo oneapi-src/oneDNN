@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@
     intel_sub_group_block_write_uc8((__global uchar *)(dst), as_uchar8(val))
 #endif // SRC_DT_S8
 
-#if SRC_DT_U8
+#if SRC_DT_U8 || SRC_DT_HF8 || SRC_DT_BF8
 #define SRC_BLOCK_READ(src) \
     as_uchar(intel_sub_group_block_read_uc((const __global uchar *)(src)))
 #define SRC_BLOCK_READ8(src) \
@@ -139,7 +139,7 @@
     intel_sub_group_block_write_uc8((__global uchar *)(dst), as_uchar8(val))
 #endif // DST_DT_S8
 
-#if DST_DT_U8
+#if DST_DT_U8 || DST_DT_BF8 || DST_DT_HF8
 #define DST_BLOCK_READ(src) \
     as_uchar(intel_sub_group_block_read_uc((const __global uchar *)(src)))
 #define DST_BLOCK_READ8(src) \
@@ -216,7 +216,8 @@
 #if (SRC_DT_S8 && DST_DT_S8) || (SRC_DT_U8 && DST_DT_U8) \
         || (SRC_DT_BF16 && DST_DT_BF16) || (SRC_DT_F16 && DST_DT_F16) \
         || (SRC_DT_F32 && DST_DT_F32) || (SRC_DT_S32 && DST_DT_S32) \
-        || (SRC_DT_F64 && DST_DT_F64)
+        || (SRC_DT_F64 && DST_DT_F64) || (SRC_DT_BF8 && DST_DT_BF8) \
+        || (SRC_DT_HF8 && DST_DT_HF8)
 #define SRC_TO_DST(x) (x)
 #define SRC_TO_DST8(x) (x)
 #else

@@ -54,6 +54,18 @@ struct custom_reorder_t : public gpu_primitive_t {
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
                     dst_engine->kind() == engine_kind::gpu ? dst_engine
                                                            : src_engine);
+            if (!IMPLICATION(utils::one_of(dst_md()->data_type,
+                                     data_type::f8_e4m3, data_type::f8_e5m2),
+                        utils::one_of(src_md()->data_type, data_type::f32,
+                                data_type::f16, data_type::bf16,
+                                data_type::f64))
+                    || !IMPLICATION(
+                            utils::one_of(src_md()->data_type,
+                                    data_type::f8_e4m3, data_type::f8_e5m2),
+                            utils::one_of(dst_md()->data_type, data_type::f32,
+                                    data_type::f16, data_type::bf16,
+                                    data_type::f64)))
+                return status::unimplemented;
 
             ok = ok && !memory_desc_ndims_ok(src_md(), dst_md())
                     && compute_engine->mayiuse(

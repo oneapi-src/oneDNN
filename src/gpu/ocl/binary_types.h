@@ -36,6 +36,50 @@
 #define SRC0_TO_FLOAT CONVERT_FLOAT_T
 #endif
 
+#if SRC0_DT_BF8
+#define SRC0_BLOCK_READ(src) \
+    as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
+#define SRC0_BLOCK_READ2(src) \
+    as_char2(intel_sub_group_block_read_uc2((const __global uchar *)(src)))
+#define SRC0_BLOCK_READ4(src) \
+    as_char4(intel_sub_group_block_read_uc4((const __global uchar *)(src)))
+#define SRC0_BLOCK_READ8(src) \
+    as_char8(intel_sub_group_block_read_uc8((const __global uchar *)(src)))
+#endif // SRC_DT_BF8
+
+#if SRC1_DT_BF8
+#define SRC1_BLOCK_READ(src) \
+    as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ2(src) \
+    as_char2(intel_sub_group_block_read_uc2((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ4(src) \
+    as_char4(intel_sub_group_block_read_uc4((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ8(src) \
+    as_char8(intel_sub_group_block_read_uc8((const __global uchar *)(src)))
+#endif // SRC_DT_BF8
+
+#if SRC0_DT_HF8
+#define SRC0_BLOCK_READ(src) \
+    as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
+#define SRC0_BLOCK_READ2(src) \
+    as_char2(intel_sub_group_block_read_uc2((const __global uchar *)(src)))
+#define SRC0_BLOCK_READ4(src) \
+    as_char4(intel_sub_group_block_read_uc4((const __global uchar *)(src)))
+#define SRC0_BLOCK_READ8(src) \
+    as_char8(intel_sub_group_block_read_uc8((const __global uchar *)(src)))
+#endif // SRC_DT_HF8
+
+#if SRC1_DT_HF8
+#define SRC1_BLOCK_READ(src) \
+    as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ2(src) \
+    as_char2(intel_sub_group_block_read_uc2((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ4(src) \
+    as_char4(intel_sub_group_block_read_uc4((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ8(src) \
+    as_char8(intel_sub_group_block_read_uc8((const __global uchar *)(src)))
+#endif // SRC_DT_HF8
+
 #if SRC0_DT_S8
 #define SRC0_BLOCK_READ(src) \
     as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
@@ -167,6 +211,25 @@
 #define SRC1_BLOCK_READ8(src) \
     as_ushort8(intel_sub_group_block_read_us8((const __global ushort *)(src)))
 #endif // SRC1_DT_BF16
+
+#if DST_DT_BF8 || DST_DT_HF8
+#define DST_BLOCK_READ(src) \
+    as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
+#define DST_BLOCK_READ2(src) \
+    as_char2(intel_sub_group_block_read_uc2((const __global uchar *)(src)))
+#define DST_BLOCK_READ4(src) \
+    as_char4(intel_sub_group_block_read_uc4((const __global uchar *)(src)))
+#define DST_BLOCK_READ8(src) \
+    as_char8(intel_sub_group_block_read_uc8((const __global uchar *)(src)))
+#define DST_BLOCK_WRITE(dst, val) \
+    intel_sub_group_block_write_uc((__global uchar *)(dst), as_uchar(val))
+#define DST_BLOCK_WRITE2(dst, val) \
+    intel_sub_group_block_write_uc2((__global uchar *)(dst), as_uchar2(val))
+#define DST_BLOCK_WRITE4(dst, val) \
+    intel_sub_group_block_write_uc4((__global uchar *)(dst), as_uchar4(val))
+#define DST_BLOCK_WRITE8(dst, val) \
+    intel_sub_group_block_write_uc8((__global uchar *)(dst), as_uchar8(val))
+#endif // DST_DT_HF8 || DST_DT_BF8
 
 #if DST_DT_S8
 #define DST_BLOCK_READ(src) \

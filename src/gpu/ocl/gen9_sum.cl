@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,20 @@
 #define DST_BLOCK_WRITE8(dst, val) \
     intel_sub_group_block_write_uc8((__global uchar *)(dst), as_uchar8(val))
 #endif // SRC_DT_U8
+
+#if DST_DT_BF8
+#define DST_BLOCK_READ8(src) \
+    as_char8(intel_sub_group_block_read_uc8((const __global uchar *)(src)))
+#define DST_BLOCK_WRITE8(dst, val) \
+    intel_sub_group_block_write_uc8((__global uchar *)(dst), as_uchar8(val))
+#endif // DST_DT_BF8
+
+#if DST_DT_HF8
+#define DST_BLOCK_READ8(src) \
+    as_char8(intel_sub_group_block_read_uc8((const __global uchar *)(src)))
+#define DST_BLOCK_WRITE8(dst, val) \
+    intel_sub_group_block_write_uc8((__global uchar *)(dst), as_uchar8(val))
+#endif // DST_DT_HF8
 
 #if DST_DT_F16
 #define DST_BLOCK_READ8(src) \

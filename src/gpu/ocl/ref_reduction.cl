@@ -37,6 +37,8 @@
 #elif defined(IS_MIN)
 #if defined(SRC_DT_S8) || defined(SRC_DT_U8)
 #define ACCUMULATE(x, y) min(x, y)
+#elif defined(SRC_DT_BF8) || defined(SRC_DT_HF8)
+#define ACCUMULATE(x, y) fmin(TO_DEF_ACC_DATA(x), TO_DEF_ACC_DATA(y))
 #else
 #define ACCUMULATE(x, y) fmin(x, y)
 #endif
