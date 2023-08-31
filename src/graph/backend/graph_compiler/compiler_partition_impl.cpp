@@ -270,7 +270,7 @@ graph::status_t compiler_partition_impl_t::compile(
             }
         }
         // check engine
-        auto &tls_buffer = gc::runtime::thread_local_buffer_t::tls_buffer_;
+        auto &tls_buffer = gc::runtime::thread_local_buffer_t::tls_buffer();
         if (tls_buffer.engine_ && tls_buffer.engine_ != graph_engine.get()) {
             gc::release_runtime_memory(tls_buffer.engine_);
         }

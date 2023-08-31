@@ -57,7 +57,7 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
         void (*pfunc)(void *, void *, int64_t, generic_val *), uint64_t flags,
         void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
         int64_t step, generic_val *args) {
-    runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
+    runtime::thread_local_buffer_t::tls_buffer().additional_->is_main_thread_
             = true;
     using namespace dnnl::impl;
     auto num_jobs
@@ -67,8 +67,8 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
             num_jobs);
     if (nthr) {
         dnnl::impl::parallel(nthr, [&](int ithr, int nthr) {
-            runtime::thread_local_buffer_t::tls_buffer_.additional_
-                    ->linear_thread_id_
+            runtime::thread_local_buffer_t::tls_buffer()
+                    .additional_->linear_thread_id_
                     = ithr;
             auto f = [&](int64_t i) {
                 pfunc(rtl_ctx, module_env, i * step + begin, args);
@@ -76,7 +76,7 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
             for_nd(ithr, nthr, num_jobs, f);
         });
     }
-    runtime::thread_local_buffer_t::tls_buffer_.additional_->linear_thread_id_
+    runtime::thread_local_buffer_t::tls_buffer().additional_->linear_thread_id_
             = 0;
 }
 
@@ -99,8 +99,8 @@ static void set_num_threads(int num) {
 }
 
 static int get_thread_num() {
-    return runtime::thread_local_buffer_t::tls_buffer_.additional_
-            ->linear_thread_id_;
+    return runtime::thread_local_buffer_t::tls_buffer()
+            .additional_->linear_thread_id_;
 }
 
 static int get_in_parallel() {
@@ -118,7 +118,7 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
         void (*pfunc)(void *, void *, int64_t, generic_val *), uint64_t flags,
         void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
         int64_t step, generic_val *args) {
-    runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
+    runtime::thread_local_buffer_t::tls_buffer().additional_->is_main_thread_
             = true;
     oneapi::tbb::task_arena arena(get_default_threads());
     arena.execute([&] {
@@ -181,7 +181,7 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
 #ifdef SC_KERNEL_PROFILE
     int parent_instance_id = instance_id;
 #endif
-    runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
+    runtime::thread_local_buffer_t::tls_buffer().additional_->is_main_thread_
             = true;
 
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
@@ -191,7 +191,7 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
     for (int64_t i = begin; i < end; i += step) {
         SC_NO_OP();
 #ifdef SC_KERNEL_PROFILE
-        auto &tls = runtime::thread_local_buffer_t::tls_buffer_;
+        auto &tls = runtime::thread_local_buffer_t::tls_buffer();
         tls.additional_->instance_id_ = parent_instance_id;
         tls.additional_->linear_thread_id_ = get_thread_num();
 #endif

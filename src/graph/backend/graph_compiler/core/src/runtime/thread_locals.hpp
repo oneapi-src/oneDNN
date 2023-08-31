@@ -58,6 +58,9 @@ struct thread_local_buffer_t {
         int instance_id_ = 0;
         bool is_main_thread_ = false;
         trace_manager_t trace_;
+        // the pointer to keep registry alive
+        std::shared_ptr<thread_local_registry_t> registry_;
+        additional_t();
     };
     bool in_managed_thread_pool_ = false;
     engine_t *engine_ = nullptr;
@@ -75,7 +78,10 @@ struct thread_local_buffer_t {
     ~thread_local_buffer_t();
     using list_type = std::list<thread_local_buffer_t *>;
 
-    static thread_local thread_local_buffer_t tls_buffer_;
+    static inline thread_local_buffer_t &tls_buffer() {
+        static thread_local thread_local_buffer_t tls_buffer_;
+        return tls_buffer_;
+    }
 
     // disable move and copy
     thread_local_buffer_t(const thread_local_buffer_t &) = delete;
@@ -98,7 +104,7 @@ private:
 // also have the same assumption on the "main" thread which invokes the main
 // entry of the kernel
 inline thread_local_buffer_t &get_tls(runtime::stream_t *stream) {
-    auto &ret = thread_local_buffer_t::tls_buffer_;
+    auto &ret = thread_local_buffer_t::tls_buffer();
     assert(ret.engine_ == nullptr || ret.engine_ == stream->engine_);
     ret.engine_ = stream->engine_;
     return ret;

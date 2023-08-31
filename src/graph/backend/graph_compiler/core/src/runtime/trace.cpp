@@ -176,7 +176,7 @@ int get_last_trace_func_id() {
 using namespace dnnl::impl::graph::gc;
 extern "C" void sc_make_trace(int id, int in_or_out, int arg) {
     auto &trace_mgr
-            = runtime::thread_local_buffer_t::tls_buffer_.additional_->trace_;
+            = runtime::thread_local_buffer_t::tls_buffer().additional_->trace_;
     if (trace_mgr.trace_logs_.empty()) {
         trace_mgr.trace_logs_.reserve(
                 runtime_config_t::get().trace_initial_cap_);
