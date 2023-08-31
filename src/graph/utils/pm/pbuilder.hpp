@@ -287,20 +287,20 @@ public:
             const std::vector<dnnl::impl::graph::op_kind_t> &p_kind);
 
     alternation_t *append_alternation(
-            std::vector<std::shared_ptr<pb_graph_t>> p_nodes,
+            const std::vector<std::shared_ptr<pb_graph_t>> &p_nodes,
             const in_edges_t &p_in_edges);
     alternation_t *append_alternation(
-            std::vector<std::shared_ptr<pb_graph_t>> p_nodes);
+            const std::vector<std::shared_ptr<pb_graph_t>> &p_nodes);
 
-    repetition_t *append_repetition(std::shared_ptr<pb_graph_t> p_node,
-            port_map p_map, size_t min_rep, size_t max_rep,
+    repetition_t *append_repetition(const std::shared_ptr<pb_graph_t> &p_node,
+            const port_map &p_map, size_t min_rep, size_t max_rep,
             const in_edges_t &p_in_edges);
-    repetition_t *append_repetition(std::shared_ptr<pb_graph_t> p_node,
-            port_map p_map, size_t min_rep, size_t max_rep);
+    repetition_t *append_repetition(const std::shared_ptr<pb_graph_t> &p_node,
+            const port_map &p_map, size_t min_rep, size_t max_rep);
 
-    repetition_t *append_optional(
-            std::shared_ptr<pb_graph_t> p_node, const in_edges_t &p_in_edges);
-    repetition_t *append_optional(std::shared_ptr<pb_graph_t> p_node);
+    repetition_t *append_optional(const std::shared_ptr<pb_graph_t> &p_node,
+            const in_edges_t &p_in_edges);
+    repetition_t *append_optional(const std::shared_ptr<pb_graph_t> &p_node);
 
     std::vector<std::pair<iport_t, consumers_t>> get_inner_consumers();
     std::vector<std::pair<oport_t, producer_t>> get_inner_producers();

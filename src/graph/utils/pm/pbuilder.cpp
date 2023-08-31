@@ -272,7 +272,7 @@ pb_op_t *pb_graph_t::append_alternation(
 }
 
 alternation_t *pb_graph_t::append_alternation(
-        std::vector<std::shared_ptr<pb_graph_t>> p_nodes,
+        const std::vector<std::shared_ptr<pb_graph_t>> &p_nodes,
         const in_edges_t &p_in_edges) {
     for (size_t i = 0; i < p_nodes.size(); ++i) {
         p_nodes[i]->set_name("alternation" + std::to_string(nodes_.size())
@@ -289,17 +289,17 @@ alternation_t *pb_graph_t::append_alternation(
 }
 
 alternation_t *pb_graph_t::append_alternation(
-        std::vector<std::shared_ptr<pb_graph_t>> p_nodes) {
-    return append_alternation(std::move(p_nodes), {});
+        const std::vector<std::shared_ptr<pb_graph_t>> &p_nodes) {
+    return append_alternation(p_nodes, {});
 }
 
-repetition_t *pb_graph_t::append_repetition(std::shared_ptr<pb_graph_t> p_node,
-        port_map p_map, size_t min_rep, size_t max_rep,
-        const in_edges_t &p_in_edges) {
+repetition_t *pb_graph_t::append_repetition(
+        const std::shared_ptr<pb_graph_t> &p_node, const port_map &p_map,
+        size_t min_rep, size_t max_rep, const in_edges_t &p_in_edges) {
     assertm(p_map.first == 0, "repetition only supports 1 output port");
     p_node->set_name("repetition" + std::to_string(nodes_.size()) + "_pgraph");
-    std::shared_ptr<repetition_t> p_repetition(new repetition_t(
-            std::move(p_node), std::move(p_map), min_rep, max_rep));
+    std::shared_ptr<repetition_t> p_repetition(
+            new repetition_t(p_node, p_map, min_rep, max_rep));
     p_repetition->set_name("repetition" + std::to_string(nodes_.size()));
     connect_edges(p_repetition.get(), p_in_edges);
     nodes_.push_back(dynamic_pointer_cast<pb_node_t>(p_repetition));
@@ -308,14 +308,15 @@ repetition_t *pb_graph_t::append_repetition(std::shared_ptr<pb_graph_t> p_node,
     return p_repetition.get();
 }
 
-repetition_t *pb_graph_t::append_repetition(std::shared_ptr<pb_graph_t> p_node,
-        port_map p_map, size_t min_rep, size_t max_rep) {
-    return append_repetition(
-            std::move(p_node), std::move(p_map), min_rep, max_rep, {});
+repetition_t *pb_graph_t::append_repetition(
+        const std::shared_ptr<pb_graph_t> &p_node, const port_map &p_map,
+        size_t min_rep, size_t max_rep) {
+    return append_repetition(p_node, p_map, min_rep, max_rep, {});
 }
 
 repetition_t *pb_graph_t::append_optional(
-        std::shared_ptr<pb_graph_t> p_node, const in_edges_t &p_in_edges) {
+        const std::shared_ptr<pb_graph_t> &p_node,
+        const in_edges_t &p_in_edges) {
     // When append optional consumer B to a producer A, some conditions need
     // to be met:
     // A -> B*
@@ -339,8 +340,9 @@ repetition_t *pb_graph_t::append_optional(
     return p_repetition.get();
 }
 
-repetition_t *pb_graph_t::append_optional(std::shared_ptr<pb_graph_t> p_node) {
-    return append_optional(std::move(p_node), {});
+repetition_t *pb_graph_t::append_optional(
+        const std::shared_ptr<pb_graph_t> &p_node) {
+    return append_optional(p_node, {});
 }
 
 alternation_t::alternation_t(std::vector<std::shared_ptr<pb_graph_t>> p_nodes)
