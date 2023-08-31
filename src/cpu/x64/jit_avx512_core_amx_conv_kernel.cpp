@@ -704,7 +704,9 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
         kmovq(kmask, reg_tmp);
     };
 
-    const bool is_bf16 = jcp.src_dt == data_type::bf16;
+    const bool is_f32 = jcp.src_dt == data_type::f32;
+    const bool is_xf16 = one_of(jcp.src_dt, data_type::bf16, data_type::f16);
+
     const int inp_w_step
             = jcp.ngroups * jcp.ic_without_padding * jcp.typesize_in;
     const int inp_h_step = jcp.iw * inp_w_step;
@@ -713,12 +715,14 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     const int tail_size = jcp.ic_without_padding % jcp.ic_block_int;
     if (tail_size > 0) load_mask(tail_size, ktail_mask);
 
-    auto zero_it = [this, is_bf16](reg64_t tmp_out_ptr) {
+    auto zero_it = [this, is_f32, is_xf16](reg64_t tmp_out_ptr) {
         for (int ic = 0; ic < jcp.ic_without_padding; ic += jcp.ic_block_int) {
             const int offset = ic * jcp.typesize_in;
             const bool masked = ic + jcp.ic_block_int > jcp.ic_without_padding;
             Zmm zmm = masked ? zmm_zero | ktail_mask : zmm_zero;
-            if (is_bf16)
+            if (is_f32)
+                vmovdqu32(ptr[tmp_out_ptr + offset], zmm);
+            else if (is_xf16)
                 vmovdqu16(ptr[tmp_out_ptr + offset], zmm);
             else
                 vmovdqu8(ptr[tmp_out_ptr + offset], zmm);
@@ -826,7 +830,10 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
                 // zero masking is needed to avoid dependency on destination
                 Zmm zmm_load = masked ? zmm_tmp | ktail_mask | T_z : zmm_tmp;
                 Zmm zmm_store = masked ? zmm_tmp | ktail_mask : zmm_tmp;
-                if (is_bf16) {
+                if (is_f32) {
+                    vmovdqu32(zmm_load, ptr[reg_aux_inp_ptr + offset]);
+                    vmovdqu32(ptr[reg_aux_out_ptr + offset], zmm_store);
+                } else if (is_xf16) {
                     vmovdqu16(zmm_load, ptr[reg_aux_inp_ptr + offset]);
                     vmovdqu16(ptr[reg_aux_out_ptr + offset], zmm_store);
                 } else {
@@ -896,15 +903,18 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
         L(label_rov_skip);
     }
 
-    // For bf16, zero-pad an extra cacheline to avoid NaNs
+    // For floating point, zero-pad an extra cacheline to avoid NaNs
     // For int8, it is sufficient to zero-pad the weights only
-    if (is_bf16) {
+    if (is_f32 || is_xf16) {
         // shift forward to align h index to end of needed buffer
         imul(reg_tmp, reg_kht, out_h_step);
         add(reg_out_ptr, reg_tmp);
         // shift backward to align w index to end of needed buffer
         sub(reg_out_ptr, out_w_step);
-        vmovdqu16(ptr[reg_out_ptr], zmm_zero);
+        if (is_f32)
+            vmovdqu32(ptr[reg_out_ptr], zmm_zero);
+        else
+            vmovdqu16(ptr[reg_out_ptr], zmm_zero);
     }
 }
 
