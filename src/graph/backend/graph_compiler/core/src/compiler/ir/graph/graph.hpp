@@ -455,6 +455,9 @@ public:
         // if false, when an input_op is plain format and has only one use, will
         // set the input's data format to the expected format of the use
         static constexpr const char *is_input_plain = "is_input_plain";
+        // if true, will allow output to be in channel last format
+        static constexpr const char *allow_channel_last_output
+                = "allow_channel_last_output";
         static constexpr const char *fpmath_mode = "fpmath_mode";
     };
 

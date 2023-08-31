@@ -160,9 +160,9 @@ static void check_input_format(const std::vector<graph_tensor_ptr> &ins) {
 }
 
 static void insert_reorder_for_output_op(reorder_map_t &reorder_map,
-        const sc_op_ptr &node, bool is_out_plain, bool is_input_plain,
-        bool is_graph_dynamic, sc_graph_t &graph,
-        reorder_callback_type &insert_reorder_callback) {
+        const sc_op_ptr &node, bool allow_channel_last_output,
+        bool is_out_plain, bool is_input_plain, bool is_graph_dynamic,
+        sc_graph_t &graph, reorder_callback_type &insert_reorder_callback) {
     auto given_target_formats
             = node->attrs_.get_or_null<std::vector<sc_data_format_t>>(
                     "target_formats");
@@ -185,20 +185,39 @@ static void insert_reorder_for_output_op(reorder_map_t &reorder_map,
         auto &in_detail = node->get_inputs()[i]->details_;
         sc_data_format_t target_format;
         sc_dims target_stride;
+        bool use_channel_last_format = allow_channel_last_output
+                && in_detail.get_format().is_channel_last()
+                && !in_detail.get_format().is_blocking();
         if (given_target_formats) {
             target_format = (*given_target_formats)[i];
         } else if (is_out_plain) {
-            target_format = in_detail.get_format().to_plain();
+            if (use_channel_last_format) {
+                target_format = in_detail.get_format();
+            } else {
+                target_format = in_detail.get_format().to_plain();
+            }
         } else {
             target_format = in_detail.get_format();
         }
         if (given_target_strides) {
             target_stride = (*given_target_strides)[i];
         } else if (is_out_plain) {
-            // here stride is calculated by plain dims since the format
-            // is also plain
-            target_stride = logical_tensor_t::compute_dense_stride(
-                    in_detail.get_plain_dims());
+            // here stride is calculated according to plain dims & format
+            if (use_channel_last_format) {
+                // permute dense stride to channel last stride
+                sc_dims permuted_dims = in_detail.get_plain_dims();
+                size_t ndims = permuted_dims.size();
+                sc_dim channel = permuted_dims[1];
+                for (size_t d = 1; d < ndims - 1; ++d) {
+                    permuted_dims[d] = permuted_dims[d + 1];
+                }
+                permuted_dims[ndims - 1] = channel;
+                target_stride
+                        = logical_tensor_t::compute_dense_stride(permuted_dims);
+            } else {
+                target_stride = logical_tensor_t::compute_dense_stride(
+                        in_detail.get_plain_dims());
+            }
         } else {
             if (given_target_formats) {
                 auto dims = logical_tensor_t(target_format,
@@ -263,11 +282,26 @@ static void combine_layout_and_impl_dispatch(
     }
 }
 
+static bool has_channel_last_input(sc_graph_t &graph) {
+    for (const auto &inputs : graph.get_input_ops()) {
+        for (const auto &in_gt : inputs->get_outputs()) {
+            if (in_gt->details_.get_format().is_channel_last()
+                    && !in_gt->details_.get_format().is_blocking()) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // max times of layout tries with static shape
 constexpr int STATIC_MAX_LAYOUT_TRIES = 64;
 
 SC_INTERNAL_API void layout_propagation(
         sc_graph_t &graph, const context_ptr &ctx) {
+    bool allow_channel_last_output = has_channel_last_input(graph)
+            && graph.attrs_.get_or_else(
+                    sc_graph_t::attr_key_t::allow_channel_last_output, false);
     bool is_input_plain = graph.attrs_.get_or_else(
             sc_graph_t::attr_key_t::is_input_plain, true);
     bool is_graph_dynamic = graph.is_dynamic()
@@ -345,9 +379,9 @@ SC_INTERNAL_API void layout_propagation(
             sc_graph_t::attr_key_t::is_output_plain, true);
     auto do_visit = [&](const sc_op_ptr &node) {
         if (node->isa<output_op>()) {
-            insert_reorder_for_output_op(reorder_map, node, is_out_plain,
-                    is_input_plain, is_graph_dynamic, graph,
-                    insert_reorder_callback);
+            insert_reorder_for_output_op(reorder_map, node,
+                    allow_channel_last_output, is_out_plain, is_input_plain,
+                    is_graph_dynamic, graph, insert_reorder_callback);
         } else if (node->isa<input_op>() || node->isa<constant_op_t>()) {
             update_output_formats(node->info_.outputs_, {}, 0);
         } else {
