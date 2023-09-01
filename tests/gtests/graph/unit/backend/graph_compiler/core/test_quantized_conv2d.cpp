@@ -1141,6 +1141,11 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_rl, no_padding_1) {
     REQUIRE_AMX();
     check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 1, 64,
             3, 230, 230, 7, 7, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, true);
+
+    // specify odd num_threads to cover different parallelism at width axis
+    SET_THREADS_OR_SKIP(7);
+    check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 1, 64,
+            3, 230, 230, 7, 7, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, true);
 }
 TEST(GCCore_CPU_qconv2d_u8s8s32_rl, no_padding_2) {
     REQUIRE_AMX();

@@ -145,17 +145,17 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
   int num_threads = runtime_config_t::get().get_num_threads();
   parallel_axis_ = (mb_ * groups_ >= num_threads)
     ? parallel_kind::BATCH
-    : ((((ow_ % num_threads == 0) && (ow_ / num_threads >= width_threshold))
-         || utils::divide_and_ceil(ow_, num_threads) >= 4)
+    : ((int)utils::divide_and_ceil(ow_, num_threads) > width_threshold
         ? parallel_kind::WIDTH
         : parallel_kind::BATCH);
 
   num_brgemm_k_ = attrs_.get<int>("num_brgemm_k");
   brgemm_k_ = attrs_.get<int>("brgemm_k");
   extra_padding_ = attrs_.get<int>("extra_padding");
-  int last_row_size = ((parallel_axis_ == parallel_kind::BATCH)
-                          ? (actual_iw_ * ic_)
-                          : ((ow_ / num_threads - 1) * sw_ + kw_) * ic_)
+  int last_row_size
+    = ((parallel_axis_ == parallel_kind::BATCH)
+          ? (actual_iw_ * ic_)
+          : ((utils::divide_and_ceil(ow_, num_threads) - 1) * sw_ + kw_) * ic_)
     + extra_padding_;
   aux_buf_size_ = (actual_ih_ - 1) * kw_ * ic_ + last_row_size;
 
@@ -263,8 +263,18 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
   _tensor_(init_mask_tsr, datatypes::index, {num_threads});
   _tensor_(init_lanes_tsr, datatypes::index, {num_threads});
   if (parallel_axis_ == parallel_kind::WIDTH) {
+    auto get_start_pos = [](int tid, int groups, int size) {
+      int job1 = utils::divide_and_ceil(size, groups);
+      int job2 = job1 - 1;
+      int pos = size - job2 * groups;
+      int job = tid < pos ? job1 : job2;
+      int start_pos
+        = tid <= pos ? (tid * job1) : pos * job1 + (tid - pos) * job2;
+      return start_pos;
+    };
+
     for (int i = 0; i < num_threads; ++i) {
-      int start_iw = (ow_ / num_threads) * i * sw_;
+      int start_iw = get_start_pos(i, num_threads, ow_) * sw_;
       int cur_pl = std::min(kw_, std::max(0, pl_ - start_iw));
       int init_lanes
         = (kw_ - cur_pl) * ic_ * utils::get_sizeof_type(input_dtype);
@@ -274,7 +284,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
   }
 
   auto init_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &g,
-                        const expr &q, const expr &init_idx) {
+                        const expr &q, const expr &init_idx, const expr &tid) {
     // only need to copy the valid area as all the remaining padding
     // areas are already zero-out
     int max_lanes = kw_ * ic_ * utils::get_sizeof_type(input_dtype);
@@ -283,8 +293,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     expr cur_pl = pl_;
     expr q_offset = 0;
     if (parallel_axis_ == parallel_kind::WIDTH) {
-      init_mask_expr = builder::make_cast(
-        get_dtype(max_lanes), init_mask_tsr[q / (ow_ / num_threads)]);
+      init_mask_expr
+        = builder::make_cast(get_dtype(max_lanes), init_mask_tsr[tid]);
       cur_pl = builder::make_min(kw_,
         builder::make_max(
           0, pl_ - builder::make_cast(datatypes::s32, init_idx * sw_)));
@@ -337,19 +347,30 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           };
 
       if (parallel_axis_ == parallel_kind::WIDTH) {
+        int job1 = utils::divide_and_ceil(ow_, num_threads);
+        int job2 = ow_ / num_threads;
+        int threshold = (ow_ % num_threads) * job1;
+
         _if_(q == 0) {
-          auto last_row = ((ow_ / num_threads - 1) * sw_ + kw_ - pl_) * ic_;
+          // left-most region
+          auto last_row = ((job1 - 1) * sw_ + kw_ - pl_) * ic_;
           copy_last_row(last_row, lanes, 0, pl_, 0);
         }
         _else_ {
-          _if_(q == ow_ - ow_ / num_threads) {
-            auto last_row
-              = ((ow_ / num_threads - 1) * sw_ + kw_ - real_pr) * ic_;
+          _if_(q == ow_ - job2) {
+            // right-most region
+            auto last_row = ((job2 - 1) * sw_ + kw_ - real_pr) * ic_;
             copy_last_row(last_row, lanes, pl_, 0, real_pr);
           }
           _else_ {
-            auto last_row = ((ow_ / num_threads - 1) * sw_ + kw_) * ic_;
-            copy_last_row(last_row, lanes, pl_, 0, 0);
+            _if_(q >= threshold) {
+              auto last_row = ((job2 - 1) * sw_ + kw_) * ic_;
+              copy_last_row(last_row, lanes, pl_, 0, real_pr);
+            }
+            _else_ {
+              auto last_row = ((job1 - 1) * sw_ + kw_) * ic_;
+              copy_last_row(last_row, lanes, pl_, 0, 0);
+            }
           }
         }
       } else {
@@ -516,7 +537,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         _named_for_(lq, q, 0, ow_, 1) {
           _if_(q == 0) {
             trace_guard_t trg(ctx, "init_aux");
-            init_aux_buf(aux_buf, n_o, g, q, 0);
+            init_aux_buf(aux_buf, n_o, g, q, 0, 0 /*useless*/);
           }
           _else_ {
             trace_guard_t trg(ctx, "update_aux");
@@ -558,7 +579,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           _for_(q, ow_b, ow_e, 1) {
             _if_(q == init_idx) {
               trace_guard_t trg(ctx, "init_aux");
-              init_aux_buf(aux_buf, n_o, g, q, init_idx);
+              init_aux_buf(aux_buf, n_o, g, q, init_idx, t);
             }
             _else_ {
               trace_guard_t trg(ctx, "update_aux");
