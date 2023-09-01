@@ -231,7 +231,13 @@ struct const_memory_filler_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         void *data_handle = static_cast<void *>(
                 const_cast<target_dt *>(attr_data_.data()));
-        const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
+        auto it = args.find(DNNL_ARG_TO);
+        if (it == args.end()) {
+            // TODO(xxx): we should propagate the error by returning a status.
+            assert(!"cannot find memory for DNNL_ARG_TO");
+            return;
+        }
+        const memory &dst_mem = it->second;
 
         auto is_cpu = dst_mem.get_engine().get_kind() == engine::kind::cpu;
         // handle cross-engine case
@@ -558,10 +564,15 @@ struct matmul_executable_t : public op_executable_t {
         }
 
         if (with_sum_) {
-            memory &dst_mem
-                    = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
-            memory &psrc_mem = const_cast<memory &>(
-                    args.find(DNNL_GRAPH_ARG_POST_SRC)->second);
+            auto it_dst = args.find(DNNL_ARG_DST);
+            auto it_src = args.find(DNNL_GRAPH_ARG_POST_SRC);
+            if (it_dst == args.end() || it_src == args.end()) {
+                assert(!("cannot find the required memory"));
+                return;
+            }
+
+            memory &dst_mem = const_cast<memory &>(it_dst->second);
+            memory &psrc_mem = const_cast<memory &>(it_src->second);
 
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
                 dnnl::reorder(psrc_mem, dst_mem)
@@ -579,10 +590,15 @@ struct matmul_executable_t : public op_executable_t {
 
         auto sycl_deps = deps;
         if (with_sum_) {
-            memory &dst_mem
-                    = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
-            memory &psrc_mem = const_cast<memory &>(
-                    args.find(DNNL_GRAPH_ARG_POST_SRC)->second);
+            auto it_dst = args.find(DNNL_ARG_DST);
+            auto it_src = args.find(DNNL_GRAPH_ARG_POST_SRC);
+            if (it_dst == args.end() || it_src == args.end()) {
+                assert(!("cannot find the required memory"));
+                return {};
+            }
+
+            memory &dst_mem = const_cast<memory &>(it_dst->second);
+            memory &psrc_mem = const_cast<memory &>(it_src->second);
 
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
                 auto prim = dnnl::reorder(psrc_mem, dst_mem);
@@ -697,10 +713,15 @@ struct binary_executable_t : public op_executable_t {
         }
 
         if (with_sum_) {
-            memory &dst_mem
-                    = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
-            memory &psrc_mem = const_cast<memory &>(
-                    args.find(DNNL_GRAPH_ARG_POST_SRC)->second);
+            auto it_dst = args.find(DNNL_ARG_DST);
+            auto it_src = args.find(DNNL_GRAPH_ARG_POST_SRC);
+            if (it_dst == args.end() || it_src == args.end()) {
+                assert(!("cannot find the required memory"));
+                return;
+            }
+
+            memory &dst_mem = const_cast<memory &>(it_dst->second);
+            memory &psrc_mem = const_cast<memory &>(it_src->second);
 
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
                 dnnl::reorder(psrc_mem, dst_mem)
@@ -719,10 +740,15 @@ struct binary_executable_t : public op_executable_t {
 
         auto sycl_deps = deps;
         if (with_sum_) {
-            memory &dst_mem
-                    = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
-            memory &psrc_mem = const_cast<memory &>(
-                    args.find(DNNL_GRAPH_ARG_POST_SRC)->second);
+            auto it_dst = args.find(DNNL_ARG_DST);
+            auto it_src = args.find(DNNL_GRAPH_ARG_POST_SRC);
+            if (it_dst == args.end() || it_src == args.end()) {
+                assert(!("cannot find the required memory"));
+                return {};
+            }
+
+            memory &dst_mem = const_cast<memory &>(it_dst->second);
+            memory &psrc_mem = const_cast<memory &>(it_src->second);
 
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
                 auto prim = dnnl::reorder(psrc_mem, dst_mem);
@@ -939,8 +965,15 @@ struct reorder_executable_t : public op_executable_t {
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         if (with_sum_) {
-            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
-            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            auto it_dst = args.find(DNNL_ARG_DST);
+            auto it_src = args.find(DNNL_GRAPH_ARG_POST_SRC);
+            if (it_dst == args.end() || it_src == args.end()) {
+                assert(!("cannot find the required memory"));
+                return;
+            }
+
+            const memory &psrc_mem = it_src->second;
+            const memory &dst_mem = it_dst->second;
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
                 dnnl::reorder(psrc_mem, dst_mem)
                         .execute(stream, const_cast<memory &>(psrc_mem),
@@ -956,8 +989,15 @@ struct reorder_executable_t : public op_executable_t {
             const std::vector<::sycl::event> &deps = {}) const override {
         auto sycl_deps = deps;
         if (with_sum_) {
-            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
-            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            auto it_dst = args.find(DNNL_ARG_DST);
+            auto it_src = args.find(DNNL_GRAPH_ARG_POST_SRC);
+            if (it_dst == args.end() || it_src == args.end()) {
+                assert(!("cannot find the required memory"));
+                return {};
+            }
+
+            const memory &psrc_mem = it_src->second;
+            const memory &dst_mem = it_dst->second;
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
                 auto prim = dnnl::reorder(psrc_mem, dst_mem);
                 auto e = dnnl::sycl_interop::execute(prim, stream,
@@ -1307,12 +1347,25 @@ struct batchnorm_executable_t : public op_executable_t {
         prim_.execute(stream, exe_args);
 
         // calculate running_mean and running_variance
-        auto batch_mean = args.find(DNNL_ARG_MEAN)->second;
-        auto batch_variance = args.find(DNNL_ARG_VARIANCE)->second;
-        auto old_running_mean = args.find(DNNL_ARG_SRC_1)->second;
-        auto old_running_variance = args.find(DNNL_ARG_SRC_2)->second;
-        auto new_running_mean = args.find(DNNL_ARG_DST_1)->second;
-        auto new_running_variance = args.find(DNNL_ARG_DST_2)->second;
+        auto it_mean = args.find(DNNL_ARG_MEAN);
+        auto it_var = args.find(DNNL_ARG_VARIANCE);
+        auto it_src1 = args.find(DNNL_ARG_SRC_1);
+        auto it_src2 = args.find(DNNL_ARG_SRC_2);
+        auto it_dst1 = args.find(DNNL_ARG_DST_1);
+        auto it_dst2 = args.find(DNNL_ARG_DST_2);
+
+        if (graph::utils::one_of(args.end(), it_mean, it_var, it_src1, it_src2,
+                    it_dst1, it_dst2)) {
+            assert(!"cannot find one of the required memories");
+            return;
+        }
+
+        auto batch_mean = it_mean->second;
+        auto batch_variance = it_var->second;
+        auto old_running_mean = it_src1->second;
+        auto old_running_variance = it_src2->second;
+        auto new_running_mean = it_dst1->second;
+        auto new_running_variance = it_dst2->second;
 
         dnnl::engine p_engine = stream.get_engine();
         // new_running_mean = momentum * old_running_mean +
@@ -1437,8 +1490,15 @@ struct resampling_executable_t : public op_executable_t {
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         if (with_sum_) {
-            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
-            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            auto it_src = args.find(DNNL_GRAPH_ARG_POST_SRC);
+            auto it_dst = args.find(DNNL_ARG_DST);
+            if (it_src == args.end() || it_dst == args.end()) {
+                assert(!"cannot find src or dst memory");
+                return;
+            }
+
+            const memory &psrc_mem = it_src->second;
+            const memory &dst_mem = it_dst->second;
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
                 dnnl::reorder(psrc_mem, dst_mem)
                         .execute(stream, const_cast<memory &>(psrc_mem),

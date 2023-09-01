@@ -230,7 +230,10 @@ public:
     value_type get_attr(op_attr_t name) const {
         auto it = attributes_.find(name);
         assertm(it != attributes_.end(), "don't have such attribute");
-        return it->second.get<value_type>();
+        if (it == attributes_.end())
+            return {};
+        else
+            return it->second.get<value_type>();
     }
 
     template <typename Attr>
