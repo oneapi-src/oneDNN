@@ -19,10 +19,10 @@
 #include <mutex>
 #include <thread>
 
+#include "graph/unit/unit_test_common.hpp"
+#include "graph/unit/utils.hpp"
 #include "interface/allocator.hpp"
 #include "interface/c_types_map.hpp"
-
-#include "graph/unit/utils.hpp"
 
 TEST(Allocator, DefaultCpuAllocator) {
     dnnl::impl::graph::allocator_t *alloc
@@ -41,21 +41,27 @@ TEST(Allocator, DefaultCpuAllocator) {
 TEST(Engine, AllocatorEarlyDestroy) {
     dnnl::impl::graph::allocator_t *alloc
             = new dnnl::impl::graph::allocator_t();
-    graph::engine_t *eng;
-    dnnl_engine_create(&eng, dnnl_engine_kind_t::dnnl_cpu, 0);
+    graph::engine_t *eng = get_engine();
     eng->set_allocator(alloc);
     delete alloc;
     dnnl::impl::graph::allocator_t *engine_alloc
             = reinterpret_cast<dnnl::impl::graph::allocator_t *>(
                     eng->get_allocator());
+#ifndef DNNL_WITH_SYCL
     void *mem_ptr = engine_alloc->allocate(static_cast<size_t>(16));
+#else
+    void *mem_ptr = engine_alloc->allocate(
+            static_cast<size_t>(16), get_device(), get_context());
+#endif
     if (mem_ptr == nullptr) {
-        // release engine before assertion.
-        eng->release();
         ASSERT_TRUE(false);
     } else {
+#ifndef DNNL_WITH_SYCL
         engine_alloc->deallocate(mem_ptr);
-        eng->release();
+#else
+        sycl::event e;
+        engine_alloc->deallocate(mem_ptr, get_device(), get_context(), e);
+#endif
     }
 }
 
