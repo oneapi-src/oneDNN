@@ -29,15 +29,21 @@ namespace impl {
 namespace graph {
 namespace gc {
 
+static inline int get_full_lowering_threshold(int tile_col) {
+    int threshold = static_cast<int>(tile_col * 0.75);
+    return threshold;
+}
+
 static bool use_rl(const context_ptr &ctx, const sc_data_type_t &data_dtype,
         const sc_dims &data_dims, const sc_dims &weight_dims,
         const sc_dims &pads_begin, const sc_dims &pads_end) {
     auto ndims = data_dims.size();
     assert(ndims == 4 && weight_dims.size() == ndims);
     if (!ops::is_amx_dtype(ctx, data_dtype)) { return false; }
-
-    auto dtype_size = utils::get_sizeof_type(data_dtype);
-    int tile_col = 64 / dtype_size;
+    bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, data_dtype);
+    int vnni_blk = is_vnni_low_fp ? 2 : 4;
+    int tile_col = is_vnni_low_fp ? 32 : 64;
+    int threshold = get_full_lowering_threshold(tile_col);
     bool is_1x1 = std::all_of(weight_dims.begin() + 2, weight_dims.end(),
             [](int x) { return x == 1; });
     bool is_small_padding = std::all_of(pads_begin.begin(), pads_begin.end(),
@@ -49,9 +55,9 @@ static bool use_rl(const context_ptr &ctx, const sc_data_type_t &data_dtype,
                             int x) { return x <= weight_dims[ndims - 1]; });
     auto ic = weight_dims[1];
     auto kw = weight_dims[ndims - 1];
-
-    return (!is_1x1 && ndims == 4 && is_small_padding
-            && (ic <= (tile_col / 2)));
+    return (!is_1x1 && ndims == 4 && is_small_padding && (ic <= (tile_col / 2))
+            && ((ic % vnni_blk != 0 && kw * ic <= threshold)
+                    || (ic % vnni_blk == 0)));
 }
 
 static void query_accu_info_for_rl(const context_ptr &ctx,
@@ -62,12 +68,9 @@ static void query_accu_info_for_rl(const context_ptr &ctx,
     bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
     int vnni_blk = is_vnni_low_fp ? 2 : 4;
     int tile_col = is_vnni_low_fp ? 32 : 64;
-    int threshold = static_cast<int>(tile_col * 0.75);
+    int threshold = get_full_lowering_threshold(tile_col);
 
-    // Note, in the case of extra padding for vnni format, ic is not contiguous
-    // as there's extra padding between kw_i and kw_i+1, kw_lowering is not
-    // appropriate.
-    if (kw * ic <= threshold || ic % vnni_blk != 0) {
+    if (kw * ic <= threshold) {
         kind = ops::rl_kind::FULL_LOWERING;
 
         auto total_raw_accu = kw * kh * ic;
