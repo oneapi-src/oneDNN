@@ -768,11 +768,11 @@ void gen_nested_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
     output_tmp = out_tmp;
   }
 
+  auto origin_ow = dim2unsigned(attrs_.get_or_else("origin_ow", sc_dim(ow_)));
+  auto origin_oh = dim2unsigned(attrs_.get_or_else("origin_oh", sc_dim(oh_)));
   auto infer_input_idx = [&](std::vector<expr> output_idx) {
     std::vector<expr> input_idx = output_idx;
-    auto origin_ow = dim2unsigned(attrs_.get_or_else("origin_ow", sc_dim(ow_)));
     auto origin_iw = dim2unsigned(attrs_.get_or_else("origin_iw", sc_dim(iw_)));
-    auto origin_oh = dim2unsigned(attrs_.get_or_else("origin_oh", sc_dim(oh_)));
     auto origin_ih = dim2unsigned(attrs_.get_or_else("origin_ih", sc_dim(ih_)));
     if (sh_ > 1 || sw_ > 1) {
       expr os = output_idx[1];
@@ -960,7 +960,8 @@ void gen_nested_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                   }
                   if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
                     && oc_block * oc_used_threads == oc_
-                    && s_block * os_used_threads == os_) {
+                    && s_block * os_used_threads == os_
+                    && s_block % (origin_oh * origin_ow) == 0) {
                     _if_(o_ic == (ic_num_block - 1)) {
                       fusion->create_output_fusion_anchor({tensor_slice(output,
                         std::vector<std::pair<expr, expr>> {{n, 1UL},
