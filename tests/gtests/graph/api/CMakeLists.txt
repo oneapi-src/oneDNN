@@ -32,6 +32,7 @@ set(API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_constant_cache.cpp
     ${TEST_ALLOCATOR}
     ${TEST_THREAD}
 )

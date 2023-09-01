@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,4 +29,25 @@ TEST(CAPI, ConstantTensorCache) {
     ASSERT_EQ(dnnl_graph_get_constant_tensor_cache(nullptr),
             dnnl_invalid_arguments);
     ASSERT_EQ(dnnl_graph_set_constant_tensor_cache(-1), dnnl_invalid_arguments);
+}
+
+TEST(CAPI, ConstantTensorCacheCapacityControl) {
+    size_t default_capacity = SIZE_MAX, capacity = SIZE_MAX;
+
+    // set and check the new capacity
+    ASSERT_EQ(dnnl_graph_set_constant_tensor_cache_capacity(dnnl_cpu, 1024),
+            dnnl_success);
+    ASSERT_EQ(
+            dnnl_graph_get_constant_tensor_cache_capacity(dnnl_cpu, &capacity),
+            dnnl_success);
+    ASSERT_EQ(capacity, 1024U);
+
+    // recover the default config
+    ASSERT_EQ(dnnl_graph_set_constant_tensor_cache_capacity(
+                      dnnl_cpu, default_capacity),
+            dnnl_success);
+    ASSERT_EQ(
+            dnnl_graph_get_constant_tensor_cache_capacity(dnnl_cpu, &capacity),
+            dnnl_success);
+    ASSERT_EQ(capacity, std::numeric_limits<size_t>::max() / (1024 * 1024));
 }

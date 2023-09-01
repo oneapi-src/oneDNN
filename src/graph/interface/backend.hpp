@@ -217,10 +217,6 @@ private:
     std::unordered_map<size_t, const backend_t *> backends_;
 };
 
-// Backend API used by each backend to check the constant tensor cache enabling
-// status.
-bool is_constant_cache_enabled();
-
 } // namespace graph
 } // namespace impl
 } // namespace dnnl

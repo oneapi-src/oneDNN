@@ -136,6 +136,16 @@ inline std::string set2str(const std::set<T, Args...> &obj, F f) {
     return oss.str();
 }
 
+inline std::vector<std::string> split(const std::string &str, char delimiter) {
+    std::vector<std::string> strs;
+    std::istringstream f(str);
+    std::string s;
+    while (std::getline(f, s, delimiter)) {
+        strs.push_back(s);
+    }
+    return strs;
+}
+
 } // namespace utils
 } // namespace graph
 } // namespace impl
