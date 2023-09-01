@@ -1482,6 +1482,9 @@ inline void set_compiled_partition_cache_capacity(int capacity) {
 /// Control the enabling or disabling of constant tensor cache. This API must be
 /// called once before compilation stage. By default, constant tensor cache is
 /// disabled in the library.
+/// @note This API is deprecated and will be removed in future release, please
+/// use the set_constant_tensor_cache_capacity API to disable
+/// constant tensor cache by setting it's capacity to zero.
 ///
 /// @param flag Set to positive value to enable the cache and set to 0 to
 /// disable the cache. Negative values are invalid.
@@ -1491,11 +1494,42 @@ inline void set_constant_tensor_cache(int flag) {
 }
 
 /// Return the enabling status of constant tensor cache.
+/// @note This API is deprecated and will be removed in future release, please
+/// use the get_constant_tensor_cache_capacity API to check the
+/// enabling status by checking it's capacity.
 inline int get_constant_tensor_cache() {
     int result = 0;
     error::wrap_c_api(dnnl_graph_get_constant_tensor_cache(&result),
             "fail to get constant tensor cache");
     return result;
+}
+
+/// Control the capacity for the constant tensor cache that used for specific
+/// engine kind. This API is thread safe and can be called multiple times at
+/// runtime. The capacity is set to zero by default which means the cache is
+/// disabled. When calling this API, the corresponding cache will be flushed.
+/// Setting capacity to 0 means to clear all cached tensors and disable cache.
+/// Once the capacity limit is reached, no new tensors will be cached. If there
+/// are multiple devices for an engine kind, the capacity set here is for each
+/// device.
+///
+/// @param kind The engine kind that the constant tensor cache used for.
+/// @param size The constant tensor cache capacity size to set.
+inline void set_constant_tensor_cache_capacity(engine::kind kind, size_t size) {
+    error::wrap_c_api(dnnl_graph_set_constant_tensor_cache_capacity(
+                              static_cast<dnnl_engine_kind_t>(kind), size),
+            "fail to set constant tensor cache capacity");
+}
+
+/// Return the current capacity of constant tensor cache.
+///
+/// @param eng_kind The engine kind that the constant tensor cache used for.
+inline size_t get_constant_tensor_cache_capacity(engine::kind kind) {
+    size_t size = 0;
+    error::wrap_c_api(dnnl_graph_get_constant_tensor_cache_capacity(
+                              static_cast<dnnl_engine_kind_t>(kind), &size),
+            "fail to get constant tensor cache capacity");
+    return size;
 }
 
 /// @} dnnl_graph_constant_tensor_cache

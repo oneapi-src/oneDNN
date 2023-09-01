@@ -685,6 +685,9 @@ dnnl_status_t DNNL_API dnnl_graph_set_compiled_partition_cache_capacity(
 /// disable the cache. Negative values are invalid.
 /// @returns #dnnl_invalid_arguments if the @p flag value is
 /// invalid, and #dnnl_success on success.
+/// @note This API is deprecated and will be removed in future release, please
+/// use the dnnl_graph_set_constant_tensor_cache_capacity API to disable
+/// constant tensor cache by setting it's capacity to zero.
 dnnl_status_t DNNL_API dnnl_graph_set_constant_tensor_cache(int flag);
 
 /// Return the enabling or disabling status of constant tensor cache.
@@ -692,7 +695,35 @@ dnnl_status_t DNNL_API dnnl_graph_set_constant_tensor_cache(int flag);
 /// @param flag The constant tensor cache enabling status to query.
 /// @returns #dnnl_invalid_arguments if the @p flag value is
 /// nullptr, and #dnnl_success on success.
+/// @note This API is deprecated and will be removed in future release, please
+/// use the dnnl_graph_get_constant_tensor_cache_capacity API to check the
+/// enabling status by checking it's capacity.
 dnnl_status_t DNNL_API dnnl_graph_get_constant_tensor_cache(int *flag);
+
+/// Control the capacity for the constant tensor cache that used for specific
+/// engine kind. This API is thread safe and can be called multiple times at
+/// runtime. The capacity is set to zero by default which means the cache is
+/// disabled. When calling this API, the corresponding cache will be flushed.
+/// Setting capacity to 0 means to clear all cached tensors and disable cache.
+/// Once the capacity limit is reached, no new tensors will be cached. If there
+/// are multiple devices for an engine kind, the capacity set here is for each
+/// device.
+///
+/// @param eng_kind The engine kind that the constant tensor cache used for.
+/// @param size The constant tensor cache capacity size to set.
+/// @returns #dnnl_invalid_arguments if the @p eng_kind value is invalid, and
+/// #dnnl_success on success.
+dnnl_status_t DNNL_API dnnl_graph_set_constant_tensor_cache_capacity(
+        dnnl_engine_kind_t eng_kind, size_t size);
+
+/// Return the current capacity of constant tensor cache.
+///
+/// @param eng_kind The engine kind that the constant tensor cache used for.
+/// @param size The constant tensor cache capacity size to query.
+/// @returns #dnnl_invalid_arguments if the @p eng_kind value is
+/// nullptr or the @p size is nullptr, and #dnnl_success on success.
+dnnl_status_t DNNL_API dnnl_graph_get_constant_tensor_cache_capacity(
+        dnnl_engine_kind_t eng_kind, size_t *size);
 
 /// @} dnnl_graph_api_constant_tensor_cache
 
