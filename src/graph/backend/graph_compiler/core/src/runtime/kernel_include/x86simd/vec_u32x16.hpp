@@ -20,6 +20,9 @@
 #include "common.hpp"
 class vec_u16x16;
 #ifdef __AVX512F__
+#ifdef __AVX512FP16__
+class vec_f16x16;
+#endif
 class vec_u32x16 {
 public:
     union {
@@ -37,6 +40,11 @@ public:
                 i12, i13, i14, i15);
     }
     INLINE operator vec_u16x16() const;
+
+#ifdef __AVX512FP16__
+    INLINE operator vec_f16x16() const;
+#endif
+
     INLINE vec_u32x16(__m512i const &x) { v = x; }
 
     static INLINE vec_u32x16 load(const uint32_t *p) {

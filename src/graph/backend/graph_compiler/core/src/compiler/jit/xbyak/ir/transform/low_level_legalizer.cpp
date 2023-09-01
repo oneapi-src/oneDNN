@@ -147,9 +147,8 @@ public:
                           const sc_data_type_t &type_src) {
                       return (type_dst.type_code_ == sc_data_etype::F16)
                               && (utils::is_one_of(type_src.type_code_,
-                                      sc_data_etype::U16, sc_data_etype::U32,
-                                      sc_data_etype::S8, sc_data_etype::U8,
-                                      sc_data_etype::INDEX))
+                                      sc_data_etype::U16, sc_data_etype::S8,
+                                      sc_data_etype::U8))
                               && type_dst.lanes_ == 1;
                   };
         const auto convert_s32_transform
@@ -166,7 +165,7 @@ public:
             return convert_s32_transform(dst_dtype, src_dtype, src);
         } else if (is_f16_scalar_cast(dst_dtype, src_dtype)
                 || is_f16_scalar_cast(src_dtype, dst_dtype)) {
-            // f16 to other dtype must cast to s32 first
+            // other dtype to f16 must cast to s32 first
             return convert_s32_transform(dst_dtype, src_dtype, src);
         } else {
             return builder::make_cast(dst_dtype, src);

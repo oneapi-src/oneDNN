@@ -24,6 +24,9 @@
 
 class vec_u16x8;
 class vec_s32x8;
+#ifdef __AVX512FP16__
+class vec_f16x8;
+#endif
 class vec_f32x8 {
 public:
     union {
@@ -39,6 +42,9 @@ public:
     }
     INLINE vec_f32x8(__m256 const &x) { v = x; }
     INLINE operator vec_s32x8() const;
+#ifdef __AVX512FP16__
+    INLINE operator vec_f16x8() const;
+#endif
 
     static INLINE vec_f32x8 load(const float *p) { return _mm256_loadu_ps(p); }
     static INLINE vec_f32x8 load_aligned(const float *p) {

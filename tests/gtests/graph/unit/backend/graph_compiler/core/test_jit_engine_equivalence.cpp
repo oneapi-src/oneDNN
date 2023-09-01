@@ -2389,6 +2389,31 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
             MAKE_CAST(datatypes::s32), DATASET_I1);
 #undef REF_CAST_TO_S32
     //-----------------------------
+    // Cast to datatypes::f16
+    //-----------------------------
+    if (is_cpu_support_fp16()) {
+#define REF_CAST_TO_F16(IN, LANES, I) (static_cast<fp16_t>(IN[0][I]))
+        TEST_OP(UNARY, EXACT, float, fp16_t, datatypes::f32, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_F3);
+        TEST_OP(UNARY, EXACT, uint32_t, fp16_t, datatypes::u32, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_I1);
+        TEST_OP(UNARY, EXACT, int32_t, fp16_t, datatypes::s32, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_I1);
+        TEST_OP(UNARY, EXACT, uint64_t, fp16_t, datatypes::index,
+                datatypes::f16, DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD,
+                REF_CAST_TO_F16, MAKE_CAST(datatypes::f16), DATASET_I1);
+        TEST_OP(UNARY, EXACT, uint8_t, fp16_t, datatypes::u8, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_I1);
+        TEST_OP(UNARY, EXACT, uint16_t, fp16_t, datatypes::u16, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_I1);
+#undef REF_CAST_TO_F32
+    }
+    //-----------------------------
     // Cast to datatypes::f32
     //-----------------------------
 #define REF_CAST_TO_F32(IN, LANES, I) (static_cast<float>(IN[0][I]))

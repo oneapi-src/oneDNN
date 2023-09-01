@@ -19,6 +19,7 @@
 #include <immintrin.h>
 #include "common.hpp"
 #ifdef __AVX512FP16__
+class vec_f32x8;
 class vec_f16x8 {
 public:
     union {
@@ -34,6 +35,7 @@ public:
         v = _mm_setr_ph(i0, i1, i2, i3, i4, i5, i6, i7);
     }
     INLINE vec_f16x8(__m128h const &x) { v = x; }
+    INLINE operator vec_f32x8() const;
 
     static INLINE vec_f16x8 load(const _Float16 *p) { return _mm_loadu_ph(p); }
     static INLINE vec_f16x8 load_aligned(const _Float16 *p) {

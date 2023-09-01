@@ -483,48 +483,6 @@ public:
         const sc_data_type_t src_dtype = src->in_->dtype_;
         const sc_data_type_t dst_dtype = src->dtype_;
 
-        auto movd_resolver = [this](const sc_data_type_t &dst_dtype,
-                                     const sc_data_type_t &src_dtype,
-                                     const expr &dst, const expr &src) {
-            if (utils::is_one_of(dst_dtype.type_code_, sc_data_etype::F16,
-                        sc_data_etype::F32)) {
-                // vmovdqu store lower dst type bit
-                auto select_last_elem = builder::make_constant(
-                        {UINT64_C(0x01)}, datatypes::u8);
-                auto cond = cast_when_mask(
-                        select_last_elem, sc_data_type_t::boolean(4));
-                add_assignment(dst,
-                        make_xbyak_intrin(dst_dtype, {src},
-                                xbyak_intrin_type::mask_mov,
-                                xbyak_intrin_isa::avx,
-                                xbyak_intrin_modifier(cond, false)));
-            } else {
-                // vmod store lower 32bit
-                add_assignment(dst,
-                        make_xbyak_intrin(dst_dtype, {src},
-                                xbyak_intrin_type::movd,
-                                xbyak_intrin_isa::avx));
-            }
-        };
-
-        auto f16_cast_transform = [&](const sc_data_type_t &dst_dtype,
-                                          const sc_data_type_t &src_dtype) {
-            // mov src to all xmm reg
-            auto xmm0
-                    = make_physical_reg(sc_data_type_t(src_dtype.type_code_, 4),
-                            x86_64::regs::xmm0);
-            add_defination(xmm0, linkage::local);
-            movd_resolver(xmm0->dtype_, src_dtype, xmm0, src->in_);
-            // _mm_cvtpx_px
-            auto xmm1
-                    = make_physical_reg(sc_data_type_t(dst_dtype.type_code_, 4),
-                            x86_64::regs::xmm1);
-            add_defination(xmm1, linkage::local);
-            auto cast_expr = builder::make_cast(
-                    sc_data_type_t(dst_dtype.type_code_, 4), xmm0);
-            add_assignment(xmm1, cast_expr);
-            movd_resolver(dst_dtype, xmm1->dtype_, dst, xmm1);
-        };
         if (dst_dtype == sc_data_type_t::bf16(1)
                 && src_dtype == sc_data_type_t::f32(1)) {
             auto bias = builder::make_var(sc_data_type_t::u32(1), "bias");
@@ -555,18 +513,6 @@ public:
                     xbyak_intrin_type::shr, xbyak_intrin_isa::x86);
             // dst = u16(temp)
             add_assignment(dst, builder::make_cast(dst_dtype, temp));
-        } else if (dst_dtype == sc_data_type_t::f16(1)
-                && src_dtype == sc_data_type_t::f32(1)) {
-            f16_cast_transform(datatypes::f16, datatypes::f32);
-        } else if (src_dtype == sc_data_type_t::f16(1)
-                && dst_dtype == sc_data_type_t::f32(1)) {
-            f16_cast_transform(datatypes::f32, datatypes::f16);
-        } else if (dst_dtype == sc_data_type_t::f16(1)
-                && src_dtype == sc_data_type_t::s32(1)) {
-            f16_cast_transform(datatypes::f16, datatypes::s32);
-        } else if (src_dtype == sc_data_type_t::f16(1)
-                && dst_dtype == sc_data_type_t::s32(1)) {
-            f16_cast_transform(datatypes::s32, datatypes::f16);
         } else {
             add_assignment(dst, src);
         }
