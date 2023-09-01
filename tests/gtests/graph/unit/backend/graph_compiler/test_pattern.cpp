@@ -519,6 +519,7 @@ TEST(GCPatternTests, BF16MHATrainingPattern2_CPU) {
 
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern1_CPU) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -534,6 +535,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern1_CPU) {
 
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern2_CPU) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -551,6 +553,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern2_CPU) {
 
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1_CPU) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -566,6 +569,7 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1_CPU) {
 
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2_CPU) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -584,6 +588,7 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2_CPU) {
 
 TEST(GCPatternTests, BF16IdenticalBottleneckPattern_CPU) {
     REQUIRE_AMXBF16();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
     graph::graph_t agraph(engine->kind());
@@ -598,6 +603,7 @@ TEST(GCPatternTests, BF16IdenticalBottleneckPattern_CPU) {
 
 TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern_CPU) {
     REQUIRE_VNNI_AMXINT8();
+    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -616,6 +622,7 @@ TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern_CPU) {
 
 TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern_CPU) {
     REQUIRE_AMXBF16();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
     graph::graph_t agraph(engine->kind());
