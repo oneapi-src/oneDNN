@@ -208,7 +208,7 @@ public:
     template <typename Attr>
     dnnl_graph_op &set_attr(op_attr_t name, const Attr &a) {
         auto it = attributes_.find(name);
-        if (it != end(attributes_)) {
+        if (it != attributes_.end()) {
             it->second = {a};
         } else {
             attributes_.insert({name, {a}});
@@ -218,7 +218,7 @@ public:
 
     dnnl_graph_op &set_attr(op_attr_t name, const attribute_value_t &a) {
         auto it = attributes_.find(name);
-        if (it != end(attributes_)) {
+        if (it != attributes_.end()) {
             it->second = a;
         } else {
             attributes_.insert({name, a});
@@ -236,7 +236,7 @@ public:
     template <typename Attr>
     status_t get_attr(op_attr_t name, const Attr **attr) const {
         const auto &found = attributes_.find(name);
-        if (found == end(attributes_)) {
+        if (found == attributes_.end()) {
             return dnnl::impl::graph::status::invalid_arguments;
         }
 
