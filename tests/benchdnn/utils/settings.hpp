@@ -38,14 +38,14 @@ struct base_settings_t {
         static const std::string csv_pre
                 = std::string("perf,%engine%,%impl%,%name%,");
         static const std::string csv_post = std::string(
-                ",%attr%,%DESC%,%Gops%,%ctime%,%-time%,%-Gflops%,%0time%,%"
+                ",%attr%,%DESC%,%Gops%,%+ctime%,%-time%,%-Gflops%,%0time%,%"
                 "0Gflops%");
         static const std::string csv = csv_pre + driver_args + csv_post;
         return csv.c_str();
     }
 
     const char *perf_template_def
-            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%ctime%,%-time%,%-"
+            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%+ctime%,%-time%,%-"
               "Gflops%,%0time%,%0Gflops%";
     const char *perf_template = perf_template_def;
 
