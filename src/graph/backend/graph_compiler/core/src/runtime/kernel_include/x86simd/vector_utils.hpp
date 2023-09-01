@@ -157,7 +157,10 @@ INLINE vec_f16x16::operator vec_u16x16() const {
     return _mm256_cvtph_epu16(v);
 }
 INLINE vec_f16x16::operator vec_f32x16() const {
-    return _mm512_cvtph_ps(v256);
+    return _mm512_cvtxph_ps(v);
+}
+INLINE vec_f16x8::operator vec_f32x8() const {
+    return _mm256_cvtxph_ps(v);
 }
 INLINE vec_f16x16::operator vec_u32x16() const {
     return _mm512_cvtph_epu32(v);
@@ -167,6 +170,18 @@ INLINE vec_f16x16::operator vec_s32x16() const {
 }
 INLINE vec_f32x16::operator vec_f16x16() const {
     return _mm512_cvtxps_ph(v);
+}
+INLINE vec_f32x8::operator vec_f16x8() const {
+    return _mm256_cvtxps_ph(v);
+}
+INLINE vec_u16x16::operator vec_f16x16() const {
+    return _mm256_cvtepu16_ph(v);
+}
+INLINE vec_s32x16::operator vec_f16x16() const {
+    return _mm512_cvtepi32_ph(v);
+}
+INLINE vec_u32x16::operator vec_f16x16() const {
+    return _mm512_cvtepu32_ph(v);
 }
 #endif
 
