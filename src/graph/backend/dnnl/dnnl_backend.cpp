@@ -20,6 +20,7 @@
 #include "graph/utils/utils.hpp"
 
 #include "graph/backend/dnnl/dnnl_backend.hpp"
+#include "graph/backend/dnnl/dnnl_constant_tensor_cache.hpp"
 #include "graph/backend/dnnl/dnnl_opset.hpp"
 #include "graph/backend/dnnl/kernels/kernels.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
@@ -28,6 +29,12 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace dnnl_impl {
+
+bool kernel_base_t::enabled_constant_cache() const {
+    if (!p_engine_.get(true)) { return false; }
+    bool enabled = is_constant_cache_enabled(p_engine_);
+    return enabled;
+}
 
 dnnl_backend::dnnl_backend(const std::string &name, float priority)
     : backend_t(name, priority) {

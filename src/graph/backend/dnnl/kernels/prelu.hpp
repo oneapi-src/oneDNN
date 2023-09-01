@@ -20,7 +20,7 @@
 #include <memory>
 #include <vector>
 
-#include "graph/backend/dnnl/constant_cache.hpp"
+#include "graph/backend/dnnl/dnnl_constant_tensor_cache.hpp"
 #include "graph/backend/dnnl/dnnl_partition_impl.hpp"
 #include "graph/backend/dnnl/scratchpad.hpp"
 #include "graph/backend/dnnl/thread_local_cache.hpp"

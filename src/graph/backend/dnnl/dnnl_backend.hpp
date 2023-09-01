@@ -101,10 +101,7 @@ struct kernel_base_t {
 
     virtual status_t prepare_inplace_pairs_impl() { return status::success; };
 
-    bool enabled_constant_cache() const {
-        bool enabled = is_constant_cache_enabled();
-        return enabled;
-    }
+    bool enabled_constant_cache() const;
 
     std::vector<inplace_pair_t> inplace_pairs_;
     dnnl::engine p_engine_;

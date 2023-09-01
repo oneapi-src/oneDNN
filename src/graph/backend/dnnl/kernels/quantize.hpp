@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-#include "graph/backend/dnnl/constant_cache.hpp"
+#include "graph/backend/dnnl/dnnl_constant_tensor_cache.hpp"
 #include "graph/backend/dnnl/dnnl_partition_impl.hpp"
 #include "graph/backend/dnnl/op_executable.hpp"
 #include "graph/backend/dnnl/scratchpad.hpp"
@@ -169,14 +169,16 @@ public:
                 "no enough scratchpad memory");
         prepare_args_set(res, inputs, outputs, scratchpad);
 
+        constant_cache_t::cached_t c_buffer;
         if (enabled_constant_cache()) {
             std::promise<constant_cache_t::cached_t> c_promise;
             constant_cache_t::value_t cached_value
-                    = get_global_constant_cache().get_or_add(
-                            constant_key_, c_promise.get_future());
+                    = dnnl_constant_cache_get_or_add(p_engine_, constant_key_,
+                            memory_planner_.total_internal_persistent_size(),
+                            c_promise.get_future());
             bool is_from_cache = cached_value.valid();
             if (is_from_cache) {
-                const constant_cache_t::cached_t &c_buffer = cached_value.get();
+                c_buffer = cached_value.get();
                 grantor_t c_grantor
                         = memory_planner_.internal_persistent_grantor(
                                 c_buffer->data<char>());
@@ -186,11 +188,9 @@ public:
                             c_grantor.get(mem_offkey.second));
                 }
             } else {
-                constant_cache_t::cached_t c_buffer
-                        = std::make_shared<constant_buffer_t>(
-                                memory_planner_
-                                        .total_internal_persistent_size(),
-                                p_engine_, g_alloc_);
+                c_buffer = std::make_shared<dnnl_constant_buffer_t>(
+                        memory_planner_.total_internal_persistent_size(),
+                        p_engine_, g_alloc_);
                 grantor_t c_grantor
                         = memory_planner_.internal_persistent_grantor(
                                 c_buffer->data<char>());
@@ -247,14 +247,16 @@ public:
                 "no enough scratchpad memory");
         prepare_args_set(res, inputs, outputs, scratchpad);
 
+        constant_cache_t::cached_t c_buffer;
         if (enabled_constant_cache()) {
             std::promise<constant_cache_t::cached_t> c_promise;
             constant_cache_t::value_t cached_value
-                    = get_global_constant_cache().get_or_add(
-                            constant_key_, c_promise.get_future());
+                    = dnnl_constant_cache_get_or_add(p_engine_, constant_key_,
+                            memory_planner_.total_internal_persistent_size(),
+                            c_promise.get_future());
             bool is_from_cache = cached_value.valid();
             if (is_from_cache) {
-                const constant_cache_t::cached_t &c_buffer = cached_value.get();
+                c_buffer = cached_value.get();
                 grantor_t c_grantor
                         = memory_planner_.internal_persistent_grantor(
                                 c_buffer->data<char>());
@@ -264,11 +266,9 @@ public:
                             c_grantor.get(mem_offkey.second));
                 }
             } else {
-                constant_cache_t::cached_t c_buffer
-                        = std::make_shared<constant_buffer_t>(
-                                memory_planner_
-                                        .total_internal_persistent_size(),
-                                p_engine_, g_alloc_);
+                c_buffer = std::make_shared<dnnl_constant_buffer_t>(
+                        memory_planner_.total_internal_persistent_size(),
+                        p_engine_, g_alloc_);
                 grantor_t c_grantor
                         = memory_planner_.internal_persistent_grantor(
                                 c_buffer->data<char>());

@@ -27,6 +27,7 @@
 #include "oneapi/dnnl/dnnl_graph_types.h"
 
 #include "graph/interface/allocator.hpp"
+#include "graph/interface/constant_tensor_cache.hpp"
 #include "graph/interface/logical_tensor.hpp"
 #include "graph/interface/value.hpp"
 
@@ -51,6 +52,8 @@ using query = dnnl::query;
 using prop_kind = dnnl::prop_kind;
 using algorithm = dnnl::algorithm;
 using exec_args = std::unordered_map<int, memory>;
+
+using constant_cache_t = graph::constant_tensor_cache_t;
 
 using pd_cache_t = std::unordered_map<op_t *, graph::utils::any_t>;
 struct dnnl_allocator_t {

@@ -25,9 +25,8 @@
 
 #include <graph/utils/utils.hpp>
 
-#include "graph/interface/backend.hpp"
-
 #include "graph/backend/dnnl/common.hpp"
+#include "graph/backend/dnnl/dnnl_constant_tensor_cache.hpp"
 #include "graph/backend/dnnl/fusion_info.hpp"
 #include "graph/backend/dnnl/internal_attrs.hpp"
 #include "graph/backend/dnnl/op_executable.hpp"
@@ -355,7 +354,7 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
             = logical_tensor_wrapper_t(
                       op->get_input_value(0)->get_logical_tensor())
                       .is_constant()
-            && is_constant_cache_enabled();
+            && is_constant_cache_enabled(p_engine);
     const bool use_strided_src = !const_activation
             && ((src.get_ndims() == 4
                         && is_format(src, dnnl::memory::format_tag::acbd))
@@ -373,7 +372,7 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
     bool const_weight = logical_tensor_wrapper_t(
                                 op->get_input_value(1)->get_logical_tensor())
                                 .is_constant()
-            && is_constant_cache_enabled();
+            && is_constant_cache_enabled(p_engine);
     const bool use_strided_wei = !const_weight
             && (wei.get_ndims() == 4
                     && (is_format(wei, dnnl::memory::format_tag::adbc)

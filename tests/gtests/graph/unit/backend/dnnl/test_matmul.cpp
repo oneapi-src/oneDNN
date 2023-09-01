@@ -25,7 +25,7 @@
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
 
-#include "backend/dnnl/constant_cache.hpp"
+#include "backend/dnnl/dnnl_constant_tensor_cache.hpp"
 
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
@@ -7893,9 +7893,10 @@ TEST(ExecuteSubgraphInt8, ShareCachedWeight) {
                           {dst_s8_ts.get()}),
                 graph::status::success);
 
-        size_t curr_cache_size
-                = dnnl::impl::graph::dnnl_impl::get_global_constant_cache()
-                          .get_size();
+        size_t curr_cache_size = graph::get_constant_tensor_cache(
+                engine->kind(), engine->index())
+                                         ->get_size();
+
         if (i != 0) {
             // cache size should not change since no new weight cached
             ASSERT_EQ(prv_cache_size, curr_cache_size);

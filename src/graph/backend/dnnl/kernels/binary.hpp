@@ -29,8 +29,8 @@
 #include "graph/interface/backend.hpp"
 
 #include "graph/backend/dnnl/common.hpp"
-#include "graph/backend/dnnl/constant_cache.hpp"
 #include "graph/backend/dnnl/dnnl_backend.hpp"
+#include "graph/backend/dnnl/dnnl_constant_tensor_cache.hpp"
 #include "graph/backend/dnnl/dnnl_partition_impl.hpp"
 #include "graph/backend/dnnl/op_executable.hpp"
 #include "graph/backend/dnnl/scratchpad.hpp"

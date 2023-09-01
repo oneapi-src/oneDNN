@@ -17,6 +17,7 @@
 #include <functional>
 #include <random>
 
+#include "oneapi/dnnl/dnnl_graph.hpp"
 #include "gtest/gtest.h"
 
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
@@ -301,6 +302,10 @@ TEST(Execute, F32Resnet50Stage2Block) {
                 compiled_output, eng, ref_outputs_data.back());
     }
 
+    // set constant tensor cache capacity as 1GB
+    dnnl::graph::set_constant_tensor_cache_capacity(
+            static_cast<engine::kind>(eng->kind()), 1024);
+
     ASSERT_EQ(run_graph(g, inputs_ts, ref_outputs_ts, *eng, *strm),
             graph::status::success);
 
@@ -308,6 +313,12 @@ TEST(Execute, F32Resnet50Stage2Block) {
                       test_tensor::to_graph_tensor(outputs_ts)),
             graph::status::success);
     // execute another iteration to test constant cache hit
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    // disable constant tensor cache and then to test constant cache miss
+    dnnl::graph::set_constant_tensor_cache_capacity(
+            static_cast<engine::kind>(eng->kind()), 0);
     ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
                       test_tensor::to_graph_tensor(outputs_ts)),
             graph::status::success);
