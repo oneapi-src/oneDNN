@@ -410,7 +410,7 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
     ASSERT_EQ(g.add_op(&quantize), graph::status::success);
     ASSERT_EQ(g.finalize(), graph::status::success);
 
-    graph::pass::pass_base_ptr apass = get_pass("softmax_tc_q_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_softmax_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -444,8 +444,6 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
 TEST(Compile, SoftmaxAdd) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
-    SKIP_IF(engine->kind() == graph::engine_kind::gpu,
-            "Skip softmax post-ops fusion on gpu");
 
     std::vector<int64_t> softmax_shape {2, 2, 2};
     test::vector<float> src_data(product(softmax_shape));
@@ -482,7 +480,7 @@ TEST(Compile, SoftmaxAdd) {
     ASSERT_EQ(g.add_op(&add), graph::status::success);
     ASSERT_EQ(g.finalize(), graph::status::success);
 
-    graph::pass::pass_base_ptr apass = get_pass("softmax_post_ops_fusion_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("fp_softmax_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
