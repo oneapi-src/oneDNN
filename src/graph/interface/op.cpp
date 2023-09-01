@@ -75,10 +75,10 @@ status_t DNNL_API dnnl_graph_op_set_attr_f32(op_t *op,
     if (utils::any_null(op, value)) return status::invalid_arguments;
 
     if (is_f(name)) {
-        op->set_attr(name, *value);
+        op->set_attr<float>(name, *value);
     } else {
         std::vector<float> val(value, value + value_len);
-        op->set_attr(name, val);
+        op->set_attr<std::vector<float>>(name, val);
     }
 
     return status::success;
@@ -91,7 +91,7 @@ status_t DNNL_API dnnl_graph_op_set_attr_bool(op_t *op,
     if (value_len != 1) return status::invalid_arguments;
 
     const bool val = static_cast<bool>(*value);
-    op->set_attr(name, val);
+    op->set_attr<bool>(name, val);
 
     return status::success;
 }
@@ -101,10 +101,10 @@ status_t DNNL_API dnnl_graph_op_set_attr_s64(op_t *op,
     if (utils::any_null(op, value)) return status::invalid_arguments;
 
     if (is_i(name)) {
-        op->set_attr(name, *value);
+        op->set_attr<int64_t>(name, *value);
     } else {
         std::vector<int64_t> val(value, value + value_len);
-        op->set_attr(name, val);
+        op->set_attr<std::vector<int64_t>>(name, val);
     }
 
     return status::success;
@@ -115,7 +115,7 @@ status_t DNNL_API dnnl_graph_op_set_attr_str(op_t *op,
     if (utils::any_null(op, value)) return status::invalid_arguments;
     if (value_len == 0) return status::invalid_arguments;
 
-    op->set_attr(name, std::string(value));
+    op->set_attr<std::string>(name, std::string(value));
 
     return status::success;
 }
