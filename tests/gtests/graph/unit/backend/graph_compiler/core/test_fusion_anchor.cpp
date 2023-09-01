@@ -328,3 +328,36 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor2) {
     auto grouped_anchor = fanchor->dyn_cast<fuse_grouped_anchor_map_t>();
     ASSERT_FALSE(grouped_anchor);
 }
+
+TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor3) {
+    SET_THREADS_OR_SKIP(20);
+    sc_graph_t g;
+    // The last dim 35 could not be divided by max lanes, as the result, it
+    // should be auto split into grouped anchor in avoid of loop merge break
+    sc_dims input_dims = {20, 30, 55};
+    auto finput0 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput1 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput2 = g.make_input({graph_tensor::make(input_dims)});
+
+    auto frelu0 = g.make("relu", {finput0->get_outputs()[0]}, {}, {});
+    auto frelu1 = g.make("relu", {finput1->get_outputs()[0]}, {}, {});
+    auto fadd = g.make("add",
+            {frelu1->get_outputs()[0], finput2->get_outputs()[0]}, {}, {});
+    auto fmul = g.make(
+            "mul", {frelu0->get_outputs()[0], fadd->get_outputs()[0]}, {}, {});
+    auto fout = g.make_output(fmul->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+    do_mixed_partition(ctx, g);
+
+    auto mixed_op = get_mixed_op_from_graph(g);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    auto parti = mixed_op->parti_list_[0];
+    // No grouped anchor is expected explicitly
+    ASSERT_TRUE(std::all_of(parti->fanchors_.begin(), parti->fanchors_.end(),
+            [](const fuse_anchor_map_ptr &fanchor) {
+                return !fanchor->isa<fuse_grouped_anchor_map_t>();
+            }));
+}
