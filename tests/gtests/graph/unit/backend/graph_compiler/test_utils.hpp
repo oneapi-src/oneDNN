@@ -65,13 +65,6 @@ namespace utils {
         return; \
     }
 
-#define REQUIRE_SINGLE_THREAD() \
-    if (::dnnl::impl::graph::gc::runtime_config_t::get().get_num_threads() \
-            != 1) { \
-        GTEST_SKIP(); \
-        return; \
-    }
-
 #define REQUIRE_AMX() \
     if (!::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512AMXTILE) { \

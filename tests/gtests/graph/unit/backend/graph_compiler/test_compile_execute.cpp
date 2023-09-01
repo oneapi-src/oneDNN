@@ -756,7 +756,6 @@ TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution2_CPU) {
 
 TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_AVX512();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -771,7 +770,6 @@ TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_AVX512();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -786,7 +784,6 @@ TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -801,7 +798,6 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -817,7 +813,6 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC_CPU) {
 
 TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -906,7 +901,6 @@ TEST(GCGraphTest, BF16ConvolutionalBottleneckTrainingCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -924,7 +918,6 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionDynamicQuantize_CPU) {
 TEST(GCGraphTest,
         INT8IdenticalBottleneckCompileExecutionDynamicQuantizeNXC_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -942,7 +935,6 @@ TEST(GCGraphTest,
 TEST(GCGraphTest,
         INT8ConvolutionalBottleneckCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
