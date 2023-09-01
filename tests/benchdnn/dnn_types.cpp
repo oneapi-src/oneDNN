@@ -106,32 +106,6 @@ const char *prop2str(dnnl_prop_kind_t prop) {
     return "unknown prop_kind";
 }
 
-const char *data_kind2str(data_kind_t kind) {
-    switch (kind) {
-        case SRC: return "SRC";
-        case SRC_1: return "SRC_ADD";
-        case WEI: return "WEI";
-        case BIA: return "BIA";
-        case DST: return "DST";
-        case DIFF_DST: return "DIFF_DST";
-        case ACC: return "ACC";
-        case MEAN: return "MEAN";
-        case VAR: return "VAR";
-        case SC: return "SC";
-        case SH: return "SH";
-        case DST_ITER: return "DST_ITER";
-        case DST_ITER_C: return "DST_ITER_C";
-        case AUGRU_ATTENTION: return "AUGRU_ATTENTION";
-        case SRC_ITER: return "SRC_ITER";
-        case SRC_ITER_C: return "SRC_ITER_C";
-        case WEI_ITER: return "WEI_ITER";
-        case WEI_PEEPHOLE: return "WEI_PEEPHOLE";
-        case WEI_PROJECTION: return "WEI_PROJECTION";
-        default: assert(!"incorrect data kind");
-    }
-    return "incorrect data kind";
-}
-
 static const std::map<int, std::vector<const char *>> supported_args {
         {DNNL_ARG_SRC, {"src", "src0"}},
         {DNNL_ARG_SRC_1, {"src1"}},

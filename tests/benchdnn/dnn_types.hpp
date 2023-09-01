@@ -30,6 +30,7 @@
 
 #include "common.hpp"
 #include "oneapi/dnnl/dnnl_types.h"
+#include "utils/data_kind.hpp"
 #include "utils/wrapper.hpp"
 
 namespace tag {
@@ -72,33 +73,6 @@ std::ostream &operator<<(std::ostream &s, const std::vector<T> &v) {
         s << ":" << v[d];
     return s;
 }
-
-enum data_kind_t {
-    SRC = 0,
-    WEI,
-    BIA,
-    DST,
-    DIFF_DST,
-    ACC,
-    // bnorm, lnorm
-    SRC_1,
-    MEAN,
-    VAR,
-    SC,
-    SH,
-    // rnn
-    DST_ITER,
-    DST_ITER_C,
-    AUGRU_ATTENTION,
-    SRC_ITER,
-    SRC_ITER_C,
-    WEI_ITER,
-    WEI_PEEPHOLE,
-    WEI_PROJECTION,
-
-    DAT_TOTAL,
-};
-const char *data_kind2str(data_kind_t kind);
 
 struct attr_t {
     // policy_t defines the way entity values will be applied to a tensor
