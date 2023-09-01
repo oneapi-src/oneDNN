@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ TEST(Compile, TestReduce) {
     std::vector<bool> keep_dims_vals {true, false};
     std::vector<int64_t> axes {-3, 3};
 
-    test::vector<float> src_data(product(reduce_src_shape));
+    std::vector<float> src_data(product(reduce_src_shape));
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
     std::generate(src_data.begin(), src_data.end(),
@@ -104,21 +104,20 @@ TEST(Compile, TestReduce) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        test::vector<float> case1_out_data(product(new_reduce_dst_shape));
-        test::vector<float> case2_out_data(product(new_reduce_dst_shape));
-        graph::tensor_t reduce_src_ts(reduce_src, engine, src_data.data());
-        graph::tensor_t reduce_dst_ts1(
-                reduce_dst, engine, case1_out_data.data());
-        graph::tensor_t reduce_dst_ts2(
-                reduce_dst, engine, case2_out_data.data());
+        std::vector<float> case1_out_data(product(new_reduce_dst_shape));
+        std::vector<float> case2_out_data(product(new_reduce_dst_shape));
+        test_tensor reduce_src_ts(reduce_src, engine, src_data);
+        test_tensor reduce_dst_ts1(reduce_dst, engine, case1_out_data);
+        test_tensor reduce_dst_ts2(reduce_dst, engine, case2_out_data);
 
         ASSERT_EQ(
                 run_graph(g, {reduce_src_ts}, {reduce_dst_ts1}, *engine, *strm),
                 graph::status::success);
 
-        cp.execute(strm, {reduce_src_ts}, {reduce_dst_ts2});
+        cp.execute(strm, {reduce_src_ts.get()}, {reduce_dst_ts2.get()});
         strm->wait();
-
+        case1_out_data = reduce_dst_ts1.as_vec_type<float>();
+        case2_out_data = reduce_dst_ts2.as_vec_type<float>();
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -134,7 +133,7 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
     std::vector<int64_t> base_add_src1_shape {1, 2, 1, 1};
     std::vector<int64_t> axes {0, 3};
 
-    test::vector<float> src_data(product(reduce_src_shape));
+    std::vector<float> src_data(product(reduce_src_shape));
 
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
@@ -162,7 +161,7 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
             add_src1_shape.erase(add_src1_shape.end() - 1);
         }
 
-        test::vector<float> src1_data(product(add_src1_shape));
+        std::vector<float> src1_data(product(add_src1_shape));
         std::generate(src1_data.begin(), src1_data.end(),
                 [&]() { return f32_distribution(generator); });
 
@@ -194,12 +193,12 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
         g.add_op(&add);
         g.finalize();
 
-        graph::tensor_t reduce_src_ts(reduce_src, engine, src_data.data());
-        graph::tensor_t add_src1_ts(add_src1, engine, src1_data.data());
+        test_tensor reduce_src_ts(reduce_src, engine, src_data);
+        test_tensor add_src1_ts(add_src1, engine, src1_data);
 
         // -------------------------case 1----------------------------------
-        test::vector<float> case1_out_data(product(reduce_dst_shape));
-        graph::tensor_t add_dst_ts(add_dst, engine, case1_out_data.data());
+        std::vector<float> case1_out_data(product(reduce_dst_shape));
+        test_tensor add_dst_ts(add_dst, engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {reduce_src_ts, add_src1_ts}, {add_dst_ts},
                           *engine, *strm),
@@ -223,12 +222,14 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        test::vector<float> case2_out_data(product(reduce_dst_shape));
-        graph::tensor_t add_dst_ts2(add_dst, engine, case2_out_data.data());
+        std::vector<float> case2_out_data(product(reduce_dst_shape));
+        test_tensor add_dst_ts2(add_dst, engine, case2_out_data);
 
-        cp.execute(strm, {reduce_src_ts, add_src1_ts}, {add_dst_ts2});
+        cp.execute(strm, {reduce_src_ts.get(), add_src1_ts.get()},
+                {add_dst_ts2.get()});
         strm->wait();
-
+        case1_out_data = add_dst_ts.as_vec_type<float>();
+        case2_out_data = add_dst_ts2.as_vec_type<float>();
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -243,7 +244,7 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
     std::vector<int64_t> base_reduce_dst_shape {1, 2, 2, 1};
     std::vector<int64_t> axes {0, 3};
 
-    test::vector<float> src_data(product(reduce_src_shape));
+    std::vector<float> src_data(product(reduce_src_shape));
 
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
@@ -289,11 +290,11 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
         g.add_op(&relu);
         g.finalize();
 
-        graph::tensor_t reduce_src_ts(reduce_src, engine, src_data.data());
+        test_tensor reduce_src_ts(reduce_src, engine, src_data);
 
         // -------------------------case 1----------------------------------
-        test::vector<float> case1_out_data(product(reduce_dst_shape));
-        graph::tensor_t relu_dst_ts(relu_dst, engine, case1_out_data.data());
+        std::vector<float> case1_out_data(product(reduce_dst_shape));
+        test_tensor relu_dst_ts(relu_dst, engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {reduce_src_ts}, {relu_dst_ts}, *engine, *strm),
                 graph::status::success);
@@ -315,12 +316,13 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        test::vector<float> case2_out_data(product(reduce_dst_shape));
-        graph::tensor_t relu_dst_ts2(relu_dst, engine, case2_out_data.data());
+        std::vector<float> case2_out_data(product(reduce_dst_shape));
+        test_tensor relu_dst_ts2(relu_dst, engine, case2_out_data);
 
-        cp.execute(strm, {reduce_src_ts}, {relu_dst_ts2});
+        cp.execute(strm, {reduce_src_ts.get()}, {relu_dst_ts2.get()});
         strm->wait();
-
+        case1_out_data = relu_dst_ts.as_vec_type<float>();
+        case2_out_data = relu_dst_ts2.as_vec_type<float>();
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -335,7 +337,7 @@ TEST(ExecuteSubgraphFp32, ReduceSwish) {
     std::vector<int64_t> base_reduce_dst_shape {1, 2, 2, 1};
     std::vector<int64_t> axes {0, 3};
 
-    test::vector<float> src_data(product(reduce_src_shape));
+    std::vector<float> src_data(product(reduce_src_shape));
 
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
@@ -386,11 +388,11 @@ TEST(ExecuteSubgraphFp32, ReduceSwish) {
         g.add_op(&multiply);
         g.finalize();
 
-        graph::tensor_t reduce_src_ts(reduce_src, engine, src_data.data());
+        test_tensor reduce_src_ts(reduce_src, engine, src_data);
 
         // -------------------------case 1----------------------------------
-        test::vector<float> case1_out_data(product(reduce_dst_shape));
-        graph::tensor_t mul_dst_ts(mul_dst, engine, case1_out_data.data());
+        std::vector<float> case1_out_data(product(reduce_dst_shape));
+        test_tensor mul_dst_ts(mul_dst, engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {reduce_src_ts}, {mul_dst_ts}, *engine, *strm),
                 graph::status::success);
@@ -412,12 +414,13 @@ TEST(ExecuteSubgraphFp32, ReduceSwish) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        test::vector<float> case2_out_data(product(reduce_dst_shape));
-        graph::tensor_t mul_dst_ts2(mul_dst, engine, case2_out_data.data());
+        std::vector<float> case2_out_data(product(reduce_dst_shape));
+        test_tensor mul_dst_ts2(mul_dst, engine, case2_out_data);
 
-        cp.execute(strm, {reduce_src_ts}, {mul_dst_ts2});
+        cp.execute(strm, {reduce_src_ts.get()}, {mul_dst_ts2.get()});
         strm->wait();
-
+        case1_out_data = mul_dst_ts.as_vec_type<float>();
+        case2_out_data = mul_dst_ts2.as_vec_type<float>();
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -437,9 +440,9 @@ TEST(ExecuteSubgraphFp32, ReduceWith3PostOps) {
     std::vector<int64_t> reduce_dst_shape {1, 2, 2, 1};
     std::vector<int64_t> axes {0, 3};
 
-    test::vector<float> src_data(product(reduce_src_shape));
-    test::vector<float> max_src_data(product(reduce_dst_shape));
-    test::vector<float> mul_src_data(product(reduce_dst_shape));
+    std::vector<float> src_data(product(reduce_src_shape));
+    std::vector<float> max_src_data(product(reduce_dst_shape));
+    std::vector<float> mul_src_data(product(reduce_dst_shape));
 
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
@@ -498,13 +501,13 @@ TEST(ExecuteSubgraphFp32, ReduceWith3PostOps) {
         g.add_op(&multiply);
         g.finalize();
 
-        graph::tensor_t reduce_src_ts(reduce_src, engine, src_data.data());
-        graph::tensor_t max_src_ts(max_src, engine, max_src_data.data());
-        graph::tensor_t mul_src_ts(mul_src, engine, mul_src_data.data());
+        test_tensor reduce_src_ts(reduce_src, engine, src_data);
+        test_tensor max_src_ts(max_src, engine, max_src_data);
+        test_tensor mul_src_ts(mul_src, engine, mul_src_data);
 
         // -------------------------case 1----------------------------------
-        test::vector<float> case1_out_data(product(reduce_dst_shape));
-        graph::tensor_t mul_dst_ts(mul_dst, engine, case1_out_data.data());
+        std::vector<float> case1_out_data(product(reduce_dst_shape));
+        test_tensor mul_dst_ts(mul_dst, engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {reduce_src_ts, max_src_ts, mul_src_ts},
                           {mul_dst_ts}, *engine, *strm),
@@ -528,13 +531,15 @@ TEST(ExecuteSubgraphFp32, ReduceWith3PostOps) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        test::vector<float> case2_out_data(product(reduce_dst_shape));
-        graph::tensor_t mul_dst_ts2(mul_dst, engine, case2_out_data.data());
+        std::vector<float> case2_out_data(product(reduce_dst_shape));
+        test_tensor mul_dst_ts2(mul_dst, engine, case2_out_data);
 
-        cp.execute(
-                strm, {reduce_src_ts, max_src_ts, mul_src_ts}, {mul_dst_ts2});
+        cp.execute(strm,
+                {reduce_src_ts.get(), max_src_ts.get(), mul_src_ts.get()},
+                {mul_dst_ts2.get()});
         strm->wait();
-
+        case1_out_data = mul_dst_ts.as_vec_type<float>();
+        case2_out_data = mul_dst_ts2.as_vec_type<float>();
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -551,9 +556,9 @@ TEST(Execute, ReduceMeanOutputDims) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
-    test::vector<float> src0_data {1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f};
-    test::vector<float> ref_dst_data {4.f};
-    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+    std::vector<float> src0_data {1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f};
+    std::vector<float> ref_dst_data {4.f};
+    std::vector<float> dst_data(ref_dst_data.size(), 0.0);
     std::vector<int64_t> src0_shape {7};
     std::vector<int64_t> dst_shape {1};
 
@@ -594,12 +599,13 @@ TEST(Execute, ReduceMeanOutputDims) {
         cp.query_logical_tensor(dst.id, &dst_lt);
         ASSERT_EQ(dst_lt.layout_type, graph::layout_type::strided);
         ASSERT_EQ(dst_lt.ndims, static_cast<int>(new_dst_shape.size()));
-        graph::tensor_t src0_ts(src0, engine, src0_data.data());
-        graph::tensor_t dst_ts(dst_lt, engine, dst_data.data());
+        test_tensor src0_ts(src0, engine, src0_data);
+        test_tensor dst_ts(dst_lt, engine, dst_data);
 
-        ASSERT_EQ(
-                cp.execute(strm, {src0_ts}, {dst_ts}), graph::status::success);
+        ASSERT_EQ(cp.execute(strm, {src0_ts.get()}, {dst_ts.get()}),
+                graph::status::success);
         strm->wait();
+        dst_data = dst_ts.as_vec_type<float>();
         for (size_t i = 0; i < ref_dst_data.size(); ++i) {
             ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
         }

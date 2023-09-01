@@ -43,10 +43,10 @@ public:
         std::vector<graph::dim_t> src0_dims = params.src0_shape;
         std::vector<graph::dim_t> src1_dims = params.src1_shape;
         std::vector<graph::dim_t> dst_dims = params.dst_shape;
-        test::vector<float> src0_data(product(src0_dims));
-        test::vector<float> src1_data(product(src1_dims));
-        test::vector<float> case1_out_data(product(dst_dims));
-        test::vector<float> case2_out_data(product(dst_dims));
+        std::vector<float> src0_data(product(src0_dims));
+        std::vector<float> src1_data(product(src1_dims));
+        std::vector<float> case1_out_data(product(dst_dims));
+        std::vector<float> case2_out_data(product(dst_dims));
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(src0_data.begin(), src0_data.end(),
@@ -89,9 +89,9 @@ public:
         g.add_op(&concat_op);
         g.finalize();
 
-        graph::tensor_t src0_ts(src0_lt, eng, src0_data.data());
-        graph::tensor_t src1_ts(src1_lt, eng, src1_data.data());
-        graph::tensor_t case1_dst_ts(dst_lt, eng, case1_out_data.data());
+        test_tensor src0_ts(src0_lt, eng, src0_data);
+        test_tensor src1_ts(src1_lt, eng, src1_data);
+        test_tensor case1_dst_ts(dst_lt, eng, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {src0_ts, src1_ts}, {case1_dst_ts}, *eng, *strm),
                 graph::status::success);
@@ -112,10 +112,12 @@ public:
 
         p.compile(&cp, inputs, outputs, eng);
 
-        graph::tensor_t case2_dst_ts(dst_lt, eng, case2_out_data.data());
-        cp.execute(strm, {src0_ts, src1_ts}, {case2_dst_ts});
+        test_tensor case2_dst_ts(dst_lt, eng, case2_out_data);
+        cp.execute(strm, {src0_ts.get(), src1_ts.get()}, {case2_dst_ts.get()});
         strm->wait();
 
+        case1_out_data = case1_dst_ts.as_vec_type<float>();
+        case2_out_data = case2_dst_ts.as_vec_type<float>();
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -162,7 +164,7 @@ TEST(Compile, ConcatWithMoreInputs) {
     const std::vector<graph::dim_t> src_dims = {1, 2, 2, 2};
     const std::vector<graph::dim_t> dst_dims
             = {1, 2, 2, 2 * static_cast<graph::dim_t>(num_inputs)};
-    test::vector<float> dst_data(dst_dims.size(), 0.);
+    std::vector<float> dst_data(dst_dims.size(), 0.);
     const auto axis = 3;
 
     graph::op_t concat_op(graph::op_kind::Concat, "concat");
@@ -208,7 +210,7 @@ TEST(Compile, ConcatWithMoreInputsFail) {
     const std::vector<graph::dim_t> src_dims = {1, 2, 2, 2};
     const std::vector<graph::dim_t> dst_dims
             = {1, 2, 2, 2 * static_cast<graph::dim_t>(num_inputs)};
-    test::vector<float> dst_data(dst_dims.size(), 0.);
+    std::vector<float> dst_data(dst_dims.size(), 0.);
     const auto axis = 3;
 
     graph::op_t concat_op(graph::op_kind::Concat, "concat");
@@ -242,11 +244,11 @@ TEST(ExecuteSubgraphInt8, Concat) {
     std::vector<float> scales = {5.f / 127.f};
     std::vector<int64_t> zps = {0};
 
-    test::vector<int8_t> src0_s8_data(utils::product(in_shape));
-    test::vector<int8_t> src1_s8_data(utils::product(in_shape));
-    test::vector<int8_t> src2_s8_data(utils::product(in_shape));
-    test::vector<int8_t> case1_dst_s8_data(utils::product(out_shape));
-    test::vector<int8_t> case2_dst_s8_data(utils::product(out_shape));
+    std::vector<int8_t> src0_s8_data(utils::product(in_shape));
+    std::vector<int8_t> src1_s8_data(utils::product(in_shape));
+    std::vector<int8_t> src2_s8_data(utils::product(in_shape));
+    std::vector<int8_t> case1_dst_s8_data(utils::product(out_shape));
+    std::vector<int8_t> case2_dst_s8_data(utils::product(out_shape));
 
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
@@ -319,11 +321,11 @@ TEST(ExecuteSubgraphInt8, Concat) {
     g.add_op(&q_op);
     g.finalize();
 
-    graph::tensor_t src0_s8_ts(src0_s8, engine, src0_s8_data.data());
-    graph::tensor_t src1_s8_ts(src1_s8, engine, src1_s8_data.data());
-    graph::tensor_t src2_s8_ts(src2_s8, engine, src2_s8_data.data());
-    graph::tensor_t case1_dst_s8_ts(dst_s8_q, engine, case1_dst_s8_data.data());
-    graph::tensor_t case2_dst_s8_ts(dst_s8_q, engine, case2_dst_s8_data.data());
+    test_tensor src0_s8_ts(src0_s8, engine, src0_s8_data);
+    test_tensor src1_s8_ts(src1_s8, engine, src1_s8_data);
+    test_tensor src2_s8_ts(src2_s8, engine, src2_s8_data);
+    test_tensor case1_dst_s8_ts(dst_s8_q, engine, case1_dst_s8_data);
+    test_tensor case2_dst_s8_ts(dst_s8_q, engine, case2_dst_s8_data);
 
     // -------------------------case 1----------------------------------
     ASSERT_EQ(run_graph(g, {src0_s8_ts, src1_s8_ts, src2_s8_ts},
@@ -346,10 +348,11 @@ TEST(ExecuteSubgraphInt8, Concat) {
     std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8_q};
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    cp.execute(strm, {src0_s8_ts, src1_s8_ts, src2_s8_ts}, {case2_dst_s8_ts});
+    cp.execute(strm, {src0_s8_ts.get(), src1_s8_ts.get(), src2_s8_ts.get()},
+            {case2_dst_s8_ts.get()});
     strm->wait();
 
-    ASSERT_TRUE(allclose(case1_dst_s8_data, case2_dst_s8_data,
+    ASSERT_TRUE(allclose<int8_t>(case1_dst_s8_ts, case2_dst_s8_ts,
             /*rtol*/ 0.01f,
             /*atol*/ 1.f));
 }
@@ -403,17 +406,21 @@ TEST(Execute, ConcatEmptyInput) {
     ASSERT_EQ(lt.dims[1], 6);
     ASSERT_EQ(lt.dims[2], 4);
 
-    test::vector<float> src0_data(24);
-    test::vector<float> src2_data(24);
-    test::vector<float> dst_data(48);
+    graph::logical_tensor_t src1_lt;
+    cp.query_logical_tensor(src1.id, &src1_lt);
 
-    graph::tensor_t src0_ts(src0, eng, src0_data.data());
-    graph::tensor_t src1_ts(src1, eng, nullptr);
-    graph::tensor_t src2_ts(src2, eng, src2_data.data());
-    graph::tensor_t dst_ts(dst, eng, dst_data.data());
+    std::vector<float> src0_data(24);
+    std::vector<float> src2_data(24);
+    std::vector<float> dst_data(48);
+
+    test_tensor src0_ts(src0, eng, src0_data);
+    test_tensor src1_ts(src1_lt, eng);
+    test_tensor src2_ts(src2, eng, src2_data);
+    test_tensor dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
-    ASSERT_EQ(cp.execute(strm, {src0_ts, src1_ts, src2_ts}, {dst_ts}),
+    ASSERT_EQ(cp.execute(strm, {src0_ts.get(), src1_ts.get(), src2_ts.get()},
+                      {dst_ts.get()}),
             graph::status::success);
     strm->wait();
 }

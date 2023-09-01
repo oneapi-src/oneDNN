@@ -26,13 +26,12 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
 static inline void ref_batchnorm_fwd(graph::dim_t mb, graph::dim_t ic,
-        graph::dim_t ih, graph::dim_t iw, graph::tensor_t *src,
-        graph::tensor_t *dst, graph::tensor_t *scale, graph::tensor_t *shift,
-        graph::tensor_t *mean = nullptr, graph::tensor_t *variance = nullptr,
-        graph::tensor_t *running_mean = nullptr,
-        graph::tensor_t *running_variance = nullptr,
-        graph::tensor_t *batch_mean = nullptr,
-        graph::tensor_t *batch_variance = nullptr, float epsilon = 0.001f,
+        graph::dim_t ih, graph::dim_t iw, test_tensor *src, test_tensor *dst,
+        test_tensor *scale, test_tensor *shift, test_tensor *mean = nullptr,
+        test_tensor *variance = nullptr, test_tensor *running_mean = nullptr,
+        test_tensor *running_variance = nullptr,
+        test_tensor *batch_mean = nullptr,
+        test_tensor *batch_variance = nullptr, float epsilon = 0.001f,
         float momentum = 0.1f,
         std::function<float(const float)> activation = nullptr,
         bool channel_last = false, bool is_training = false) {
@@ -43,19 +42,18 @@ static inline void ref_batchnorm_fwd(graph::dim_t mb, graph::dim_t ic,
     size_t ih_ = static_cast<size_t>(ih);
     size_t iw_ = static_cast<size_t>(iw);
 
-    float *src_ptr = src->get_data_handle<float>();
-    float *dst_ptr = dst->get_data_handle<float>();
+    auto src_ptr = src->as_vec_type<float>();
+    auto dst_ptr = dst->as_vec_type<float>();
 
     if (is_training) {
-        float *mean_ptr = batch_mean->get_data_handle<float>();
-        float *variance_ptr = batch_variance->get_data_handle<float>();
-        float *scale_ptr = scale->get_data_handle<float>();
-        float *shift_ptr = shift->get_data_handle<float>();
-        float *est_mean_ptr = mean->get_data_handle<float>();
-        float *est_variance_ptr = variance->get_data_handle<float>();
-        float *running_mean_ptr = running_mean->get_data_handle<float>();
-        float *running_variance_ptr
-                = running_variance->get_data_handle<float>();
+        auto mean_ptr = batch_mean->as_vec_type<float>();
+        auto variance_ptr = batch_variance->as_vec_type<float>();
+        auto scale_ptr = scale->as_vec_type<float>();
+        auto shift_ptr = shift->as_vec_type<float>();
+        auto est_mean_ptr = mean->as_vec_type<float>();
+        auto est_variance_ptr = variance->as_vec_type<float>();
+        auto running_mean_ptr = running_mean->as_vec_type<float>();
+        auto running_variance_ptr = running_variance->as_vec_type<float>();
         // derives ref mean
         for (size_t channel = 0; channel < ic_; ++channel) {
             mean_ptr[channel] = 0.f;
@@ -114,24 +112,25 @@ static inline void ref_batchnorm_fwd(graph::dim_t mb, graph::dim_t ic,
             running_variance_ptr[k] = momentum * est_variance_ptr[k]
                     + (1 - momentum) * variance_ptr[k];
         }
+        // write back;
+        batch_mean->fill(mean_ptr);
+        batch_variance->fill(variance_ptr);
+        running_mean->fill(running_mean_ptr);
+        running_variance->fill(running_variance_ptr);
     } else {
-        float *mean_ptr = nullptr;
-        float *variance_ptr = nullptr;
-        float *scale_ptr = scale->get_data_handle<float>();
-        float *shift_ptr = shift->get_data_handle<float>();
-        std::unique_ptr<float[]> mean_data;
-        std::unique_ptr<float[]> variance_data;
+        std::vector<float> mean_ptr;
+        std::vector<float> variance_ptr;
+        auto scale_ptr = scale->as_vec_type<float>();
+        auto shift_ptr = shift->as_vec_type<float>();
         if (!mean) {
-            mean_data.reset(new float[static_cast<size_t>(ic)]);
-            mean_ptr = mean_data.get();
+            mean_ptr = std::vector<float>(static_cast<size_t>(ic), .0f);
         } else {
-            mean_ptr = mean->get_data_handle<float>();
+            mean_ptr = mean->as_vec_type<float>();
         }
         if (!variance) {
-            variance_data.reset(new float[static_cast<size_t>(ic)]);
-            variance_ptr = variance_data.get();
+            variance_ptr = std::vector<float>(static_cast<size_t>(ic), .0f);
         } else {
-            variance_ptr = variance->get_data_handle<float>();
+            variance_ptr = variance->as_vec_type<float>();
         }
         for (size_t batch = 0; batch < mb_; ++batch) {
             for (size_t channel = 0; channel < ic_; ++channel) {
@@ -151,6 +150,7 @@ static inline void ref_batchnorm_fwd(graph::dim_t mb, graph::dim_t ic,
             }
         }
     }
+    dst->fill(dst_ptr);
 }
 
 struct batchnorm_params_t {
@@ -297,23 +297,22 @@ public:
                 graph::status::success);
 
         // Allocate buffers.
-        test::vector<float> src_data(static_cast<size_t>(N * IC * IH * IW));
-        test::vector<float> scale_data(static_cast<size_t>(IC));
-        test::vector<float> shift_data(static_cast<size_t>(IC));
-        test::vector<float> mean_data(static_cast<size_t>(IC));
-        test::vector<float> variance_data(static_cast<size_t>(IC));
-        test::vector<float> running_mean_data(static_cast<size_t>(IC));
-        test::vector<float> running_variance_data(static_cast<size_t>(IC));
-        test::vector<float> batch_mean_data(static_cast<size_t>(IC));
-        test::vector<float> batch_variance_data(static_cast<size_t>(IC));
-        test::vector<float> dst_data(src_data.size(), 0.0);
-        test::vector<float> ref_dst_data(src_data.size(), 0.0);
-        test::vector<float> ref_running_mean_data(
-                running_mean_data.size(), 0.0);
-        test::vector<float> ref_running_variance_data(
+        std::vector<float> src_data(static_cast<size_t>(N * IC * IH * IW));
+        std::vector<float> scale_data(static_cast<size_t>(IC));
+        std::vector<float> shift_data(static_cast<size_t>(IC));
+        std::vector<float> mean_data(static_cast<size_t>(IC));
+        std::vector<float> variance_data(static_cast<size_t>(IC));
+        std::vector<float> running_mean_data(static_cast<size_t>(IC));
+        std::vector<float> running_variance_data(static_cast<size_t>(IC));
+        std::vector<float> batch_mean_data(static_cast<size_t>(IC));
+        std::vector<float> batch_variance_data(static_cast<size_t>(IC));
+        std::vector<float> dst_data(src_data.size(), 0.0);
+        std::vector<float> ref_dst_data(src_data.size(), 0.0);
+        std::vector<float> ref_running_mean_data(running_mean_data.size(), 0.0);
+        std::vector<float> ref_running_variance_data(
                 running_variance_data.size(), 0.0);
-        test::vector<float> ref_batch_mean_data(batch_mean_data.size(), 0.0);
-        test::vector<float> ref_batch_variance_data(
+        std::vector<float> ref_batch_mean_data(batch_mean_data.size(), 0.0);
+        std::vector<float> ref_batch_variance_data(
                 batch_variance_data.size(), 0.0);
         // Initialize src.
         std::generate(src_data.begin(), src_data.end(), []() {
@@ -356,43 +355,42 @@ public:
                     });
         }
 
-        graph::tensor_t src_ts(src, engine, src_data.data());
-        graph::tensor_t scale_ts(scale, engine, scale_data.data());
-        graph::tensor_t shift_ts(shift, engine, shift_data.data());
-        graph::tensor_t mean_ts(mean, engine, mean_data.data());
-        graph::tensor_t variance_ts(variance, engine, variance_data.data());
-        graph::tensor_t running_mean_ts(
-                running_mean, engine, running_mean_data.data());
-        graph::tensor_t running_variance_ts(
-                running_variance, engine, running_variance_data.data());
-        graph::tensor_t batch_mean_ts(
-                batch_mean, engine, batch_mean_data.data());
-        graph::tensor_t batch_variance_ts(
-                batch_variance, engine, batch_variance_data.data());
-        graph::tensor_t dst_ts = params.with_relu
-                ? graph::tensor_t(relu_dst, engine, dst_data.data())
-                : graph::tensor_t(dst, engine, dst_data.data());
-        graph::tensor_t ref_dst_ts = params.with_relu
-                ? graph::tensor_t(relu_dst, engine, ref_dst_data.data())
-                : graph::tensor_t(dst, engine, ref_dst_data.data());
-        graph::tensor_t ref_running_mean_ts(
-                running_mean, engine, ref_running_mean_data.data());
-        graph::tensor_t ref_running_variance_ts(
-                running_variance, engine, ref_running_variance_data.data());
-        graph::tensor_t ref_batch_mean_ts(
-                batch_mean, engine, ref_batch_mean_data.data());
-        graph::tensor_t ref_batch_variance_ts(
-                batch_variance, engine, ref_batch_variance_data.data());
+        test_tensor src_ts(src, engine, src_data);
+        test_tensor scale_ts(scale, engine, scale_data);
+        test_tensor shift_ts(shift, engine, shift_data);
+        test_tensor mean_ts(mean, engine, mean_data);
+        test_tensor variance_ts(variance, engine, variance_data);
+        test_tensor running_mean_ts(running_mean, engine, running_mean_data);
+        test_tensor running_variance_ts(
+                running_variance, engine, running_variance_data);
+        test_tensor batch_mean_ts(batch_mean, engine, batch_mean_data);
+        test_tensor batch_variance_ts(
+                batch_variance, engine, batch_variance_data);
+        test_tensor dst_ts(params.with_relu ? relu_dst : dst, engine, dst_data);
+        test_tensor ref_dst_ts(
+                params.with_relu ? relu_dst : dst, engine, ref_dst_data);
+        test_tensor ref_running_mean_ts(
+                running_mean, engine, ref_running_mean_data);
+        test_tensor ref_running_variance_ts(
+                running_variance, engine, ref_running_variance_data);
+        test_tensor ref_batch_mean_ts(batch_mean, engine, ref_batch_mean_data);
+        test_tensor ref_batch_variance_ts(
+                batch_variance, engine, ref_batch_variance_data);
 
         graph::stream_t *strm = get_stream();
 
         if (!is_training) {
-            cp.execute(strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
-                    {dst_ts});
+            cp.execute(strm,
+                    {src_ts.get(), scale_ts.get(), shift_ts.get(),
+                            mean_ts.get(), variance_ts.get()},
+                    {dst_ts.get()});
         } else {
-            cp.execute(strm, {src_ts, mean_ts, variance_ts, scale_ts, shift_ts},
-                    {dst_ts, running_mean_ts, running_variance_ts,
-                            batch_mean_ts, batch_variance_ts});
+            cp.execute(strm,
+                    {src_ts.get(), mean_ts.get(), variance_ts.get(),
+                            scale_ts.get(), shift_ts.get()},
+                    {dst_ts.get(), running_mean_ts.get(),
+                            running_variance_ts.get(), batch_mean_ts.get(),
+                            batch_variance_ts.get()});
         }
 
         strm->wait();
@@ -414,6 +412,16 @@ public:
                     &ref_batch_variance_ts, params.epsilon, momentum,
                     activation, params.data_format == "NXC",
                     params.op_kind == graph::op_kind::BatchNormForwardTraining);
+            running_mean_data = running_mean_ts.as_vec_type<float>();
+            ref_running_mean_data = ref_running_mean_ts.as_vec_type<float>();
+            running_variance_data = running_variance_ts.as_vec_type<float>();
+            ref_running_variance_data
+                    = ref_running_variance_ts.as_vec_type<float>();
+            batch_mean_data = batch_mean_ts.as_vec_type<float>();
+            ref_batch_mean_data = ref_batch_mean_ts.as_vec_type<float>();
+            batch_variance_data = batch_variance_ts.as_vec_type<float>();
+            ref_batch_variance_data
+                    = ref_batch_variance_ts.as_vec_type<float>();
             for (int64_t i = 0; i < IC; ++i) {
                 ASSERT_NEAR(
                         running_mean_data[i], ref_running_mean_data[i], 1.e-6f);
@@ -424,6 +432,8 @@ public:
                         1.e-6f);
             }
         }
+        dst_data = dst_ts.as_vec_type<float>();
+        ref_dst_data = ref_dst_ts.as_vec_type<float>();
         for (size_t i = 0; i < dst_data.size(); ++i) {
             ASSERT_NEAR(dst_data[i], ref_dst_data[i], 1.e-6f);
         }
@@ -500,20 +510,20 @@ TEST(Compile, BatchNormBackwardFp32) {
             7, shift_dims, graph::data_type::f32, graph::layout_type::strided);
 
     // Allocate buffers.
-    test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
-    test::vector<float> scale_data {2.0f};
-    test::vector<float> mean_data {2.5f};
-    test::vector<float> varience_data {1.25f};
-    test::vector<float> diff_dst_data {0.1f, 0.1f, 0.2f, 0.2f};
-    test::vector<float> diff_src_data(src_data.size(), 0.0);
-    test::vector<float> diff_scale_data(scale_data.size(), 0.0);
-    test::vector<float> diff_shift_data(scale_data.size(), 0.0);
+    std::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
+    std::vector<float> scale_data {2.0f};
+    std::vector<float> mean_data {2.5f};
+    std::vector<float> varience_data {1.25f};
+    std::vector<float> diff_dst_data {0.1f, 0.1f, 0.2f, 0.2f};
+    std::vector<float> diff_src_data(src_data.size(), 0.0);
+    std::vector<float> diff_scale_data(scale_data.size(), 0.0);
+    std::vector<float> diff_shift_data(scale_data.size(), 0.0);
 
     // expected results
-    test::vector<float> ref_diff_src_data {
+    std::vector<float> ref_diff_src_data {
             0.01788854f, -0.05366563f, 0.05366563f, -0.01788854f};
-    test::vector<float> ref_diff_scale_data {0.17888544f};
-    test::vector<float> ref_diff_shift_data {0.6f};
+    std::vector<float> ref_diff_scale_data {0.17888544f};
+    std::vector<float> ref_diff_shift_data {0.6f};
 
     bn_op.add_input(src);
     bn_op.add_input(diff_dst);
@@ -545,25 +555,30 @@ TEST(Compile, BatchNormBackwardFp32) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    graph::tensor_t src_ts(src, engine, src_data.data());
-    graph::tensor_t scale_ts(scale, engine, scale_data.data());
-    graph::tensor_t mean_ts(mean, engine, mean_data.data());
-    graph::tensor_t variance_ts(variance, engine, varience_data.data());
-    graph::tensor_t diff_dst_ts(diff_dst, engine, diff_dst_data.data());
-    graph::tensor_t diff_src_ts(diff_src, engine, diff_src_data.data());
-    graph::tensor_t diff_scale_ts(diff_scale, engine, diff_scale_data.data());
-    graph::tensor_t diff_shift_ts(diff_shift, engine, diff_shift_data.data());
+    test_tensor src_ts(src, engine, src_data);
+    test_tensor scale_ts(scale, engine, scale_data);
+    test_tensor mean_ts(mean, engine, mean_data);
+    test_tensor variance_ts(variance, engine, varience_data);
+    test_tensor diff_dst_ts(diff_dst, engine, diff_dst_data);
+    test_tensor diff_src_ts(diff_src, engine, diff_src_data);
+    test_tensor diff_scale_ts(diff_scale, engine, diff_scale_data);
+    test_tensor diff_shift_ts(diff_shift, engine, diff_shift_data);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts, diff_dst_ts, mean_ts, variance_ts, scale_ts},
-            {diff_src_ts, diff_scale_ts, diff_shift_ts});
+    cp.execute(strm,
+            {src_ts.get(), diff_dst_ts.get(), mean_ts.get(), variance_ts.get(),
+                    scale_ts.get()},
+            {diff_src_ts.get(), diff_scale_ts.get(), diff_shift_ts.get()});
     strm->wait();
+    diff_src_data = diff_src_ts.as_vec_type<float>();
     for (size_t i = 0; i < diff_src_data.size(); ++i) {
         ASSERT_NEAR(diff_src_data[i], ref_diff_src_data[i], 1e-3);
     }
+    diff_scale_data = diff_scale_ts.as_vec_type<float>();
     for (size_t i = 0; i < diff_scale_data.size(); ++i) {
         ASSERT_NEAR(diff_scale_data[i], ref_diff_scale_data[i], 1e-3);
     }
+    diff_shift_data = diff_shift_ts.as_vec_type<float>();
     for (size_t i = 0; i < diff_shift_data.size(); ++i) {
         ASSERT_NEAR(diff_shift_data[i], ref_diff_shift_data[i], 1e-3);
     }
@@ -604,11 +619,11 @@ TEST(Compile, BatchNormBackwardFp32WithSingleOutput) {
             4, src_dims, graph::data_type::f32, graph::layout_type::strided);
 
     // Allocate buffers.
-    test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
-    test::vector<float> mean_data {2.5f};
-    test::vector<float> variance_data {1.25f};
-    test::vector<float> diff_dst_data {0.1f, 0.1f, 0.2f, 0.2f};
-    test::vector<float> diff_src_data(src_data.size(), 0.0);
+    std::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
+    std::vector<float> mean_data {2.5f};
+    std::vector<float> variance_data {1.25f};
+    std::vector<float> diff_dst_data {0.1f, 0.1f, 0.2f, 0.2f};
+    std::vector<float> diff_src_data(src_data.size(), 0.0);
 
     bn_op.add_input(src);
     bn_op.add_input(diff_dst);
@@ -636,15 +651,16 @@ TEST(Compile, BatchNormBackwardFp32WithSingleOutput) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    graph::tensor_t src_ts(src, engine, src_data.data());
-    graph::tensor_t mean_ts(mean, engine, mean_data.data());
-    graph::tensor_t variance_ts(variance, engine, variance_data.data());
-    graph::tensor_t diff_dst_ts(diff_dst, engine, diff_dst_data.data());
-    graph::tensor_t diff_src_ts(diff_src, engine, diff_src_data.data());
+    test_tensor src_ts(src, engine, src_data);
+    test_tensor mean_ts(mean, engine, mean_data);
+    test_tensor variance_ts(variance, engine, variance_data);
+    test_tensor diff_dst_ts(diff_dst, engine, diff_dst_data);
+    test_tensor diff_src_ts(diff_src, engine, diff_src_data);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(
-            strm, {src_ts, diff_dst_ts, mean_ts, variance_ts}, {diff_src_ts});
+    cp.execute(strm,
+            {src_ts.get(), diff_dst_ts.get(), mean_ts.get(), variance_ts.get()},
+            {diff_src_ts.get()});
     strm->wait();
 }
 
@@ -665,13 +681,11 @@ TEST(Compile, BatchNormForwardTrainingWith1DSpatialInput) {
     dims variance_dims = {IC};
 
     // Allocate buffers.
-    test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
-    test::vector<float> scale_data {1.f};
-    test::vector<float> shift_data {2.f};
-    test::vector<float> mean_data {2.5f};
-    test::vector<float> variance_data {1.25f};
-    test::vector<float> dst_data(src_data.size(), 0.0);
-    test::vector<float> dst_mean_var_data(mean_data.size(), 0.0);
+    std::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
+    std::vector<float> scale_data {1.f};
+    std::vector<float> shift_data {2.f};
+    std::vector<float> mean_data {2.5f};
+    std::vector<float> variance_data {1.25f};
 
     graph::op_t bn_op(graph::op_kind::BatchNormForwardTraining);
     bn_op.set_attr<float>(graph::op_attr::epsilon, 0.0625);
@@ -757,21 +771,30 @@ TEST(Compile, BatchNormForwardTrainingWith1DSpatialInput) {
     ASSERT_TRUE(std::equal(output_strides.begin(), output_strides.end(),
             output_strides_ref.begin()));
 
-    graph::tensor_t src_ts(src, engine, src_data.data());
-    graph::tensor_t scale_ts(scale, engine, scale_data.data());
-    graph::tensor_t shift_ts(shift, engine, shift_data.data());
-    graph::tensor_t mean_ts(mean, engine, mean_data.data());
-    graph::tensor_t variance_ts(variance, engine, variance_data.data());
-    graph::tensor_t dst_ts(dst, engine, dst_data.data());
-    graph::tensor_t running_mean_ts(dst, engine, dst_mean_var_data.data());
-    graph::tensor_t running_variance_ts(dst, engine, dst_mean_var_data.data());
-    graph::tensor_t batch_mean_ts(dst, engine, dst_mean_var_data.data());
-    graph::tensor_t batch_variance_ts(dst, engine, dst_mean_var_data.data());
+    test_tensor src_ts(src, engine, src_data);
+    test_tensor scale_ts(scale, engine, scale_data);
+    test_tensor shift_ts(shift, engine, shift_data);
+    test_tensor mean_ts(mean, engine, mean_data);
+    test_tensor variance_ts(variance, engine, variance_data);
+    graph::logical_tensor_t dst_, running_mean_, running_variance_, batch_mean_,
+            batch_variance_;
+    cp.query_logical_tensor(dst.id, &dst_);
+    cp.query_logical_tensor(running_mean.id, &running_mean_);
+    cp.query_logical_tensor(running_variance.id, &running_variance_);
+    cp.query_logical_tensor(batch_mean.id, &batch_mean_);
+    cp.query_logical_tensor(batch_variance.id, &batch_variance_);
+    test_tensor dst_ts(dst_, engine);
+    test_tensor running_mean_ts(running_mean_, engine);
+    test_tensor running_variance_ts(running_variance_, engine);
+    test_tensor batch_mean_ts(batch_mean_, engine);
+    test_tensor batch_variance_ts(batch_variance_, engine);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
-            {dst_ts, running_mean_ts, running_variance_ts, batch_mean_ts,
-                    batch_variance_ts});
+    cp.execute(strm,
+            {src_ts.get(), scale_ts.get(), shift_ts.get(), mean_ts.get(),
+                    variance_ts.get()},
+            {dst_ts.get(), running_mean_ts.get(), running_variance_ts.get(),
+                    batch_mean_ts.get(), batch_variance_ts.get()});
     strm->wait();
 }
 
@@ -791,13 +814,11 @@ TEST(Compile, BatchNormForwardTrainingWith0DSpatialInput) {
     dims variance_dims = {IC};
 
     // Allocate buffers.
-    test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
-    test::vector<float> scale_data {1.f, 1.f, 1.f, 1.f};
-    test::vector<float> shift_data {2.f, 2.f, 2.f, 2.f};
-    test::vector<float> mean_data {1.0f, 2.0f, 3.0f, 4.0f};
-    test::vector<float> variance_data {0.f, 0.f, 0.f, 0.f};
-    test::vector<float> dst_data(src_data.size(), 0.0);
-    test::vector<float> dst_mean_var_data(mean_data.size(), 0.0);
+    std::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
+    std::vector<float> scale_data {1.f, 1.f, 1.f, 1.f};
+    std::vector<float> shift_data {2.f, 2.f, 2.f, 2.f};
+    std::vector<float> mean_data {1.0f, 2.0f, 3.0f, 4.0f};
+    std::vector<float> variance_data {0.f, 0.f, 0.f, 0.f};
 
     graph::op_t bn_op(graph::op_kind::BatchNormForwardTraining);
     bn_op.set_attr<float>(graph::op_attr::epsilon, 0.0625);
@@ -883,21 +904,30 @@ TEST(Compile, BatchNormForwardTrainingWith0DSpatialInput) {
     ASSERT_TRUE(std::equal(output_strides.begin(), output_strides.end(),
             output_strides_ref.begin()));
 
-    graph::tensor_t src_ts(src, engine, src_data.data());
-    graph::tensor_t scale_ts(scale, engine, scale_data.data());
-    graph::tensor_t shift_ts(shift, engine, shift_data.data());
-    graph::tensor_t mean_ts(mean, engine, mean_data.data());
-    graph::tensor_t variance_ts(variance, engine, variance_data.data());
-    graph::tensor_t dst_ts(dst, engine, dst_data.data());
-    graph::tensor_t running_mean_ts(dst, engine, dst_mean_var_data.data());
-    graph::tensor_t running_variance_ts(dst, engine, dst_mean_var_data.data());
-    graph::tensor_t batch_mean_ts(dst, engine, dst_mean_var_data.data());
-    graph::tensor_t batch_variance_ts(dst, engine, dst_mean_var_data.data());
+    test_tensor src_ts(src, engine, src_data);
+    test_tensor scale_ts(scale, engine, scale_data);
+    test_tensor shift_ts(shift, engine, shift_data);
+    test_tensor mean_ts(mean, engine, mean_data);
+    test_tensor variance_ts(variance, engine, variance_data);
+    graph::logical_tensor_t dst_, running_mean_, running_variance_, batch_mean_,
+            batch_variance_;
+    cp.query_logical_tensor(dst.id, &dst_);
+    cp.query_logical_tensor(running_mean.id, &running_mean_);
+    cp.query_logical_tensor(running_variance.id, &running_variance_);
+    cp.query_logical_tensor(batch_mean.id, &batch_mean_);
+    cp.query_logical_tensor(batch_variance.id, &batch_variance_);
+    test_tensor dst_ts(dst_, engine);
+    test_tensor running_mean_ts(running_mean_, engine);
+    test_tensor running_variance_ts(running_variance_, engine);
+    test_tensor batch_mean_ts(batch_mean_, engine);
+    test_tensor batch_variance_ts(batch_variance_, engine);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
-            {dst_ts, running_mean_ts, running_variance_ts, batch_mean_ts,
-                    batch_variance_ts});
+    cp.execute(strm,
+            {src_ts.get(), scale_ts.get(), shift_ts.get(), mean_ts.get(),
+                    variance_ts.get()},
+            {dst_ts.get(), running_mean_ts.get(), running_variance_ts.get(),
+                    batch_mean_ts.get(), batch_variance_ts.get()});
     strm->wait();
 }
 
@@ -919,41 +949,6 @@ TEST(Execute, BatchNormInt8) {
     dims shift_dims = {IC};
     dims mean_dims = {IC};
     dims variance_dims = {IC};
-
-    // Allocate buffers.
-    test::vector<int8_t> src_data(static_cast<size_t>(N * IC * IH * IW));
-    test::vector<float> scale_data(static_cast<size_t>(IC));
-    test::vector<float> shift_data(static_cast<size_t>(IC));
-    test::vector<float> mean_data(static_cast<size_t>(IC));
-    test::vector<float> variance_data(static_cast<size_t>(IC));
-    test::vector<int8_t> dst_data(src_data.size(), 0.0);
-    test::vector<int8_t> ref_dst_data(src_data.size(), 0.0);
-
-    // Initialize src.
-    std::generate(src_data.begin(), src_data.end(), []() {
-        static int i = 1;
-        return static_cast<int8_t>((i++) % 10);
-    });
-    // Initialize scale.
-    std::generate(scale_data.begin(), scale_data.end(), []() {
-        static int i = 1;
-        return std::abs(std::sin(static_cast<float>(i++) * 2.f));
-    });
-    // Initialize shift.
-    std::generate(shift_data.begin(), shift_data.end(), []() {
-        static int i = 1;
-        return std::abs(std::sin(static_cast<float>(i++) * 2.f));
-    });
-    // Initialize mean.
-    std::generate(mean_data.begin(), mean_data.end(), []() {
-        static int i = 1;
-        return std::sin(static_cast<float>(i++) * 2.f);
-    });
-    // Initialize variance.
-    std::generate(variance_data.begin(), variance_data.end(), []() {
-        static int i = 1;
-        return static_cast<float>(((i++) % 3) + 1) * 0.1;
-    });
 
     graph::op_t bn_op(0, graph::op_kind::BatchNormInference, "batchnorm");
     bn_op.set_attr<float>(graph::op_attr::epsilon, 0.000001f);
@@ -1013,15 +1008,18 @@ TEST(Execute, BatchNormInt8) {
     ASSERT_EQ(g.add_op(&quant), graph::status::success);
     g.finalize();
 
-    graph::tensor_t src_ts(src_int8, &engine, src_data.data());
-    graph::tensor_t scale_ts(scale, &engine, scale_data.data());
-    graph::tensor_t shift_ts(shift, &engine, shift_data.data());
-    graph::tensor_t mean_ts(mean, &engine, mean_data.data());
-    graph::tensor_t variance_ts(variance, &engine, variance_data.data());
-    graph::tensor_t dst_ts
-            = graph::tensor_t(dst_int8_out, &engine, dst_data.data());
-    graph::tensor_t ref_dst_ts
-            = graph::tensor_t(dst_int8_out, &engine, ref_dst_data.data());
+    test_tensor src_ts(src_int8, &engine);
+    src_ts.fill<int8_t>(0, 5);
+    test_tensor scale_ts(scale, &engine);
+    scale_ts.fill<float>();
+    test_tensor shift_ts(shift, &engine);
+    shift_ts.fill<float>();
+    test_tensor mean_ts(mean, &engine);
+    mean_ts.fill<float>();
+    test_tensor variance_ts(variance, &engine);
+    variance_ts.fill<float>();
+    test_tensor dst_ts(dst_int8_out, &engine);
+    test_tensor ref_dst_ts(dst_int8_out, &engine);
 
     ASSERT_EQ(run_graph(g, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
                       {ref_dst_ts}, engine, strm),
@@ -1048,18 +1046,20 @@ TEST(Execute, BatchNormInt8) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), graph::status::success);
 
-    cp.execute(&strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
-            {dst_ts});
+    cp.execute(&strm,
+            {src_ts.get(), scale_ts.get(), shift_ts.get(), mean_ts.get(),
+                    variance_ts.get()},
+            {dst_ts.get()});
     strm.wait();
 
     static auto isa = dnnl_get_effective_cpu_isa();
 
     if (engine.kind() == graph::engine_kind::cpu
             && isa < dnnl_cpu_isa_avx512_core_vnni)
-        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.1f,
+        ASSERT_TRUE(allclose<int8_t>(ref_dst_ts, dst_ts, /*rtol*/ 0.1f,
                 /*atol*/ 1.f));
     else
-        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.01f,
+        ASSERT_TRUE(allclose<int8_t>(ref_dst_ts, dst_ts, /*rtol*/ 0.01f,
                 /*atol*/ 1.f));
 }
 
@@ -1167,52 +1167,18 @@ TEST(Execute, BatchNormReluInt8) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), graph::status::success);
 
-    // Allocate buffers.
-    test::vector<int8_t> src_data(static_cast<size_t>(N * IC * IH * IW));
-    test::vector<float> scale_data(static_cast<size_t>(IC));
-    test::vector<float> shift_data(static_cast<size_t>(IC));
-    test::vector<float> mean_data(static_cast<size_t>(IC));
-    test::vector<float> variance_data(static_cast<size_t>(IC));
-    test::vector<int8_t> dst_data(src_data.size(), 0.0);
-    test::vector<int8_t> ref_dst_data(src_data.size(), 0.0);
-
-    // Initialize src.
-    std::generate(src_data.begin(), src_data.end(), []() {
-        static int i = 0;
-        return std::cos(static_cast<int8_t>(i++) / 10.f);
-    });
-    // Initialize scale.
-    std::generate(scale_data.begin(), scale_data.end(), []() {
-        static int i = 0;
-        return std::sin(static_cast<float>(i++) * 2.f);
-    });
-    // Initialize shift.
-    std::generate(shift_data.begin(), shift_data.end(), []() {
-        static int i = 0;
-        return std::tan(i++);
-    });
-    // Initialize mean.
-    std::generate(mean_data.begin(), mean_data.end(), []() {
-        static int i = 0;
-        return std::sin(static_cast<float>(i++) * 2.f);
-    });
-    // Initialize variance.
-    std::generate(variance_data.begin(), variance_data.end(), []() {
-        static int i = 0;
-        return static_cast<float>(i++);
-    });
-
-    graph::tensor_t src_ts(src_int8, &engine, src_data.data());
-    graph::tensor_t scale_ts(scale, &engine, scale_data.data());
-    graph::tensor_t shift_ts(shift, &engine, shift_data.data());
-    graph::tensor_t mean_ts(mean, &engine, mean_data.data());
-    graph::tensor_t variance_ts(variance, &engine, variance_data.data());
-
-    graph::tensor_t dst_ts
-            = graph::tensor_t(dst_int8_out, &engine, dst_data.data());
-
-    graph::tensor_t ref_dst_ts
-            = graph::tensor_t(dst_int8_out, &engine, ref_dst_data.data());
+    test_tensor src_ts(src_int8, &engine);
+    src_ts.fill<int8_t>(0, 5);
+    test_tensor scale_ts(scale, &engine);
+    scale_ts.fill<float>();
+    test_tensor shift_ts(shift, &engine);
+    shift_ts.fill<float>();
+    test_tensor mean_ts(mean, &engine);
+    mean_ts.fill<float>();
+    test_tensor variance_ts(variance, &engine);
+    variance_ts.fill<float>();
+    test_tensor dst_ts(dst_int8_out, &engine);
+    test_tensor ref_dst_ts(dst_int8_out, &engine);
 
     graph::stream_t &strm = *get_stream();
 
@@ -1220,16 +1186,18 @@ TEST(Execute, BatchNormReluInt8) {
                       {ref_dst_ts}, engine, strm),
             graph::status::success);
 
-    cp.execute(&strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
-            {dst_ts});
+    cp.execute(&strm,
+            {src_ts.get(), scale_ts.get(), shift_ts.get(), mean_ts.get(),
+                    variance_ts.get()},
+            {dst_ts.get()});
     strm.wait();
 
     static auto isa = dnnl_get_effective_cpu_isa();
     if (engine.kind() == graph::engine_kind::cpu
             && isa < dnnl_cpu_isa_avx512_core_vnni)
-        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.1f,
+        ASSERT_TRUE(allclose<int8_t>(dst_ts, ref_dst_ts, /*rtol*/ 0.1f,
                 /*atol*/ 1.f));
     else
-        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.01f,
+        ASSERT_TRUE(allclose<int8_t>(dst_ts, ref_dst_ts, /*rtol*/ 0.01f,
                 /*atol*/ 1.f));
 }

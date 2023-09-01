@@ -22,21 +22,12 @@
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/kernels/pool.hpp"
 
+#include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
 
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
-
-namespace {
-void run_all_passes(graph::graph_t &agraph) {
-    auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::impl::graph::pass::pass_manager_t(
-            backend_ptr.get_pass_registry());
-    pm.run_passes(agraph, "", graph::partition_policy::fusion);
-}
-} // namespace
 
 TEST(CompiledPartition, Relu) {
     graph::engine_t *eng = get_engine();
@@ -85,18 +76,17 @@ TEST(CompiledPartition, Relu) {
     ASSERT_EQ(size_in, size_out);
 
     size_t ele_num_in = size_in / sizeof(float);
-    test::vector<float> data_in(ele_num_in);
-    test::vector<float> data_out(ele_num_in);
+    std::vector<float> data_in(ele_num_in);
+    std::vector<float> data_out(ele_num_in);
     for (size_t i = 0; i < ele_num_in; i++) {
         data_in[i] = static_cast<float>(i) - static_cast<float>(ele_num_in / 2);
     }
 
-    graph::tensor_t t_in(lt_in, eng, data_in.data()),
-            t_out(query_out_lt, eng, data_out.data());
+    test_tensor t_in(lt_in, eng, data_in), t_out(query_out_lt, eng, data_out);
 
     std::vector<graph::tensor_t> t_inputs, t_outputs;
-    t_inputs.emplace_back(t_in);
-    t_outputs.emplace_back(t_out);
+    t_inputs.emplace_back(t_in.get());
+    t_outputs.emplace_back(t_out.get());
 
     graph::stream_t *strm = get_stream();
     EXPECT_SUCCESS(cp.execute(strm, t_inputs, t_outputs));
@@ -108,7 +98,7 @@ TEST(CompiledPartition, Relu) {
                 ? 0.0f
                 : static_cast<float>(i) - static_cast<float>(ele_num_in / 2);
     }
-
+    data_out = t_out.as_vec_type<float>();
     for (size_t i = 0; i < ele_num_in; i++) {
         ASSERT_FLOAT_EQ(ref_out[i], data_out[i]);
     }
@@ -147,12 +137,10 @@ TEST(CompiledPartition, SearchRequiredInputsOutputs) {
             /* tid= */ 3, {1, 1, 3, 3}, graph::data_type::f32);
     graph::logical_tensor_t lt_in_additional2 = utils::logical_tensor_init(
             /* tid= */ 4, {1, 1, 3, 3}, graph::data_type::f32);
-    graph::logical_tensor_t lt_out_additional1
-            = utils::logical_tensor_init(/* tid= */ 5, {1, 1, 3, 3},
-                    graph::data_type::f32, graph::layout_type::any);
-    graph::logical_tensor_t lt_out_additional2
-            = utils::logical_tensor_init(/* tid= */ 6, {1, 1, 3, 3},
-                    graph::data_type::f32, graph::layout_type::any);
+    graph::logical_tensor_t lt_out_additional1 = utils::logical_tensor_init(
+            /* tid= */ 5, {1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t lt_out_additional2 = utils::logical_tensor_init(
+            /* tid= */ 6, {1, 1, 3, 3}, graph::data_type::f32);
 
     // in/outputs list have to contain required logical tensor
     std::vector<const graph::logical_tensor_t *> lt_inputs_wrong {
@@ -191,37 +179,40 @@ TEST(CompiledPartition, SearchRequiredInputsOutputs) {
 
     size_t ele_num_in = size_in / sizeof(float);
     size_t ele_num_out = size_out / sizeof(float);
-    test::vector<float> data_in(ele_num_in);
-    test::vector<float> data_out(ele_num_out);
+    std::vector<float> data_in(ele_num_in);
+    std::vector<float> data_out(ele_num_out);
     for (size_t i = 0; i < ele_num_in; i++) {
         data_in[i] = static_cast<float>(i) - static_cast<float>(ele_num_in / 2);
     }
 
-    graph::tensor_t t_in(lt_in, eng, data_in.data()),
-            t_out(query_lt_out, eng, data_out.data());
-    graph::tensor_t t_in_additional1(lt_in_additional1, eng, nullptr),
-            t_in_additional2(lt_in_additional2, eng, nullptr);
-    graph::tensor_t t_out_additional1(lt_out_additional1, eng, nullptr),
-            t_out_additional2(lt_out_additional2, eng, nullptr);
+    test_tensor t_in(lt_in, eng, data_in), t_out(query_lt_out, eng, data_out);
+    test_tensor t_in_additional1(lt_in_additional1, eng),
+            t_in_additional2(lt_in_additional2, eng);
+
+    test_tensor t_out_additional1(lt_out_additional1, eng),
+            t_out_additional2(lt_out_additional2, eng);
 
     // when submit, in/outputs tensor's order must be same as compile
     // funcstion's in/outputs logical tensor
-    std::vector<graph::tensor_t> t_inputs_correct {
+    std::vector<test_tensor> t_inputs_correct {
             t_in_additional1, t_in, t_in_additional2};
-    std::vector<graph::tensor_t> t_outputs_correct {
+    std::vector<test_tensor> t_outputs_correct {
             t_out_additional1, t_out_additional2, t_out};
 
     graph::stream_t *strm = get_stream();
-    EXPECT_SUCCESS(cp.execute(strm, t_inputs_correct, t_outputs_correct));
+    EXPECT_SUCCESS(
+            cp.execute(strm, test_tensor::to_graph_tensor(t_inputs_correct),
+                    test_tensor::to_graph_tensor(t_outputs_correct)));
     strm->wait();
 
-    test::vector<float> ref_out(ele_num_in);
+    std::vector<float> ref_out(ele_num_in);
     for (size_t i = 0; i < ele_num_in; i++) {
         ref_out[i] = (i < ele_num_in / 2)
                 ? 0.0f
                 : static_cast<float>(i) - static_cast<float>(ele_num_in / 2);
     }
 
+    data_out = t_out.as_vec_type<float>();
     for (size_t i = 0; i < ele_num_in; i++) {
         ASSERT_FLOAT_EQ(ref_out[i], data_out[i]);
     }
@@ -274,23 +265,24 @@ TEST(CompiledPartition, AllowRepeatedInputs) {
     ASSERT_EQ(size_in, 9 * sizeof(float));
     ASSERT_EQ(size_in, size_out);
 
-    test::vector<float> data_in {
+    std::vector<float> data_in {
             1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f};
-    test::vector<float> data_out(data_in.size());
-    test::vector<float> ref_out {
+    std::vector<float> data_out(data_in.size());
+    std::vector<float> ref_out {
             1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f, 49.0f, 64.0f, 81.0f};
 
-    graph::tensor_t t_in1(lt_in1, eng, data_in.data());
-    graph::tensor_t t_out(query_lt_out, eng, data_out.data());
+    test_tensor t_in1(lt_in1, eng, data_in);
+    test_tensor t_out(query_lt_out, eng, data_out);
 
     // only one input
-    std::vector<graph::tensor_t> t_ins {t_in1};
-    std::vector<graph::tensor_t> t_outs {t_out};
+    std::vector<test_tensor> t_ins {t_in1};
+    std::vector<test_tensor> t_outs {t_out};
 
     graph::stream_t *strm = get_stream();
-    EXPECT_SUCCESS(cp.execute(strm, t_ins, t_outs));
+    EXPECT_SUCCESS(cp.execute(strm, test_tensor::to_graph_tensor(t_ins),
+            test_tensor::to_graph_tensor(t_outs)));
     strm->wait();
-
+    data_out = t_out.as_vec_type<float>();
     for (size_t i = 0; i < ref_out.size(); i++) {
         ASSERT_FLOAT_EQ(ref_out[i], data_out[i]);
     }

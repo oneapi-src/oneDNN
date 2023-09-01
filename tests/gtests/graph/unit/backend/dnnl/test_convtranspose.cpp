@@ -56,11 +56,11 @@ public:
         std::vector<graph::dim_t> weight_dims = params.weight_shape;
         std::vector<graph::dim_t> bias_dims = params.bias_shape;
         std::vector<graph::dim_t> dst_dims = params.dst_shape;
-        test::vector<float> src_data(product(src_dims));
-        test::vector<float> weight_data(product(weight_dims));
-        test::vector<float> bias_data(product(bias_dims));
-        test::vector<float> case1_out_data(product(dst_dims));
-        test::vector<float> case2_out_data(product(dst_dims));
+        std::vector<float> src_data(product(src_dims));
+        std::vector<float> weight_data(product(weight_dims));
+        std::vector<float> bias_data(product(bias_dims));
+        std::vector<float> case1_out_data(product(dst_dims));
+        std::vector<float> case2_out_data(product(dst_dims));
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(src_data.begin(), src_data.end(),
@@ -128,26 +128,29 @@ public:
         p.compile(&cp, inputs, outputs, eng);
         ASSERT_EQ(dst_lt.layout_type, graph::layout_type::strided);
 
-        graph::tensor_t src_ts(src_lt, eng, src_data.data());
-        graph::tensor_t weight_ts(weight_lt, eng, weight_data.data());
-        graph::tensor_t dst1_ts(dst_lt, eng, case1_out_data.data());
-        graph::tensor_t dst2_ts(dst_lt, eng, case2_out_data.data());
-        graph::tensor_t bias_ts;
+        test_tensor src_ts(src_lt, eng, src_data);
+        test_tensor weight_ts(weight_lt, eng, weight_data);
+        test_tensor dst1_ts(dst_lt, eng, case1_out_data);
+        test_tensor dst2_ts(dst_lt, eng, case2_out_data);
+        test_tensor bias_ts;
         if (params.with_bias) {
-            bias_ts = graph::tensor_t(bias_lt, eng, bias_data.data());
+            bias_ts = test_tensor(bias_lt, eng, bias_data);
         }
         graph::stream_t *strm = get_stream();
         if (params.with_bias) {
             ASSERT_EQ(run_graph(g, {src_ts, weight_ts, bias_ts}, {dst1_ts},
                               *eng, *strm),
                     graph::status::success);
-            cp.execute(strm, {src_ts, weight_ts, bias_ts}, {dst2_ts});
+            cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
+                    {dst2_ts.get()});
         } else {
             ASSERT_EQ(run_graph(g, {src_ts, weight_ts}, {dst1_ts}, *eng, *strm),
                     graph::status::success);
-            cp.execute(strm, {src_ts, weight_ts}, {dst2_ts});
+            cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst2_ts.get()});
         }
         strm->wait();
+        case1_out_data = dst1_ts.as_vec_type<float>();
+        case2_out_data = dst2_ts.as_vec_type<float>();
         for (size_t i = 0; i < case2_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -180,10 +183,10 @@ public:
         std::vector<graph::dim_t> src_dims = params.src_dims;
         std::vector<graph::dim_t> wei_dims = params.wei_dims;
         std::vector<graph::dim_t> dst_dims = params.dst_dims;
-        test::vector<float> diff_dst(product(dst_dims));
-        test::vector<float> weight(product(wei_dims));
-        test::vector<float> case1_out_data(product(src_dims));
-        test::vector<float> case2_out_data(product(src_dims));
+        std::vector<float> diff_dst(product(dst_dims));
+        std::vector<float> weight(product(wei_dims));
+        std::vector<float> case1_out_data(product(src_dims));
+        std::vector<float> case2_out_data(product(src_dims));
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(diff_dst.begin(), diff_dst.end(),
@@ -240,17 +243,20 @@ public:
         cp.query_logical_tensor(diff_src_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-        graph::tensor_t weight_ts(weight_lt, eng, weight.data());
-        graph::tensor_t diff_src1_ts(diff_src_lt, eng, case1_out_data.data());
-        graph::tensor_t diff_src2_ts(diff_src_lt, eng, case2_out_data.data());
+        test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
+        test_tensor weight_ts(weight_lt, eng, weight);
+        test_tensor diff_src1_ts(diff_src_lt, eng, case1_out_data);
+        test_tensor diff_src2_ts(diff_src_lt, eng, case2_out_data);
 
         graph::stream_t *strm = get_stream();
         ASSERT_EQ(run_graph(g, {diff_dst_ts, weight_ts}, {diff_src1_ts}, *eng,
                           *strm),
                 graph::status::success);
-        cp.execute(strm, {diff_dst_ts, weight_ts}, {diff_src2_ts});
+        cp.execute(strm, {diff_dst_ts.get(), weight_ts.get()},
+                {diff_src2_ts.get()});
         strm->wait();
+        case1_out_data = diff_src1_ts.as_vec_type<float>();
+        case2_out_data = diff_src2_ts.as_vec_type<float>();
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -270,10 +276,10 @@ public:
         std::vector<graph::dim_t> src_dims = params.src_dims;
         std::vector<graph::dim_t> wei_dims = params.wei_dims;
         std::vector<graph::dim_t> dst_dims = params.dst_dims;
-        test::vector<float> src(product(src_dims));
-        test::vector<float> diff_dst(product(dst_dims));
-        test::vector<float> case1_out_data(product(wei_dims));
-        test::vector<float> case2_out_data(product(wei_dims));
+        std::vector<float> src(product(src_dims));
+        std::vector<float> diff_dst(product(dst_dims));
+        std::vector<float> case1_out_data(product(wei_dims));
+        std::vector<float> case2_out_data(product(wei_dims));
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(src.begin(), src.end(),
@@ -330,17 +336,20 @@ public:
         cp.query_logical_tensor(diff_wei_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        graph::tensor_t src_ts(src_lt, eng, src.data());
-        graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-        graph::tensor_t diff_wei_ts1(diff_wei_lt, eng, case1_out_data.data());
-        graph::tensor_t diff_wei_ts2(diff_wei_lt, eng, case2_out_data.data());
+        test_tensor src_ts(src_lt, eng, src);
+        test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
+        test_tensor diff_wei_ts1(diff_wei_lt, eng, case1_out_data);
+        test_tensor diff_wei_ts2(diff_wei_lt, eng, case2_out_data);
 
         graph::stream_t *strm = get_stream();
         ASSERT_EQ(run_graph(g, {src_ts, diff_dst_ts}, {diff_wei_ts1}, *eng,
                           *strm),
                 graph::status::success);
-        cp.execute(strm, {src_ts, diff_dst_ts}, {diff_wei_ts2});
+        cp.execute(
+                strm, {src_ts.get(), diff_dst_ts.get()}, {diff_wei_ts2.get()});
         strm->wait();
+        case1_out_data = diff_wei_ts1.as_vec_type<float>();
+        case2_out_data = diff_wei_ts2.as_vec_type<float>();
         for (size_t i = 0; i < case2_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -363,13 +372,13 @@ public:
 
         graph::engine_t *eng = get_engine();
         std::vector<graph::dim_t> add_dims = params.add_src_shape;
-        test::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
-        test::vector<float> weight_data {
+        std::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
+        std::vector<float> weight_data {
                 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-        test::vector<float> bias_data = {1.0};
-        test::vector<float> add_src_data(product(add_dims));
-        test::vector<float> case1_out_data(16);
-        test::vector<float> case2_out_data(16);
+        std::vector<float> bias_data = {1.0};
+        std::vector<float> add_src_data(product(add_dims));
+        std::vector<float> case1_out_data(16);
+        std::vector<float> case2_out_data(16);
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(add_src_data.begin(), add_src_data.end(),
@@ -443,30 +452,33 @@ public:
         cp.query_logical_tensor(add_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        graph::tensor_t src_ts(src_lt, eng, src_data.data());
-        graph::tensor_t weight_ts(weight_lt, eng, weight_data.data());
-        graph::tensor_t bias_ts;
-        if (params.with_bias)
-            bias_ts = graph::tensor_t(bias_lt, eng, bias_data.data());
-        graph::tensor_t add_src_ts(add_src_lt, eng, add_src_data.data());
-        graph::tensor_t add_dst_ts1(add_dst_lt, eng, case1_out_data.data());
-        graph::tensor_t add_dst_ts2(add_dst_lt, eng, case2_out_data.data());
+        test_tensor src_ts(src_lt, eng, src_data);
+        test_tensor weight_ts(weight_lt, eng, weight_data);
+        test_tensor bias_ts;
+        if (params.with_bias) bias_ts = test_tensor(bias_lt, eng, bias_data);
+        test_tensor add_src_ts(add_src_lt, eng, add_src_data);
+        test_tensor add_dst_ts1(add_dst_lt, eng, case1_out_data);
+        test_tensor add_dst_ts2(add_dst_lt, eng, case2_out_data);
 
         graph::stream_t *strm = get_stream();
         if (params.with_bias) {
             ASSERT_EQ(run_graph(g, {src_ts, weight_ts, bias_ts, add_src_ts},
                               {add_dst_ts1}, *eng, *strm),
                     graph::status::success);
-            cp.execute(strm, {src_ts, weight_ts, bias_ts, add_src_ts},
-                    {add_dst_ts2});
+            cp.execute(strm,
+                    {src_ts.get(), weight_ts.get(), bias_ts.get(),
+                            add_src_ts.get()},
+                    {add_dst_ts2.get()});
         } else {
             ASSERT_EQ(run_graph(g, {src_ts, weight_ts, add_src_ts},
                               {add_dst_ts1}, *eng, *strm),
                     graph::status::success);
-            cp.execute(strm, {src_ts, weight_ts, add_src_ts}, {add_dst_ts2});
+            cp.execute(strm, {src_ts.get(), weight_ts.get(), add_src_ts.get()},
+                    {add_dst_ts2.get()});
         }
         strm->wait();
-
+        case1_out_data = add_dst_ts1.as_vec_type<float>();
+        case2_out_data = add_dst_ts2.as_vec_type<float>();
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -738,16 +750,16 @@ TEST(operator_kernel, convtranspose_relu) {
 
     for (auto with_bias : with_biases) {
         graph::engine_t *eng = get_engine();
-        test::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
-        test::vector<float> weight_data {
+        std::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
+        std::vector<float> weight_data {
                 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-        test::vector<float> bias_data = {2.0};
-        test::vector<float> ref_dst_data = with_bias
-                ? test::vector<float> {1.0, 4.5, 1.0, 4.5, 7.0, 2.5, 9.5, 3.5,
+        std::vector<float> bias_data = {2.0};
+        std::vector<float> ref_dst_data = with_bias
+                ? std::vector<float> {1.0, 4.5, 1.0, 4.5, 7.0, 2.5, 9.5, 3.5,
                         1.0, 9.5, 2.5, 4.5, 7.0, 3.5, 7.0, 3.5}
-                : test::vector<float> {0.0, 2.5, 0.0, 2.5, 5.0, 0.5, 7.5, 1.5,
+                : std::vector<float> {0.0, 2.5, 0.0, 2.5, 5.0, 0.5, 7.5, 1.5,
                         0.0, 7.5, 0.5, 2.5, 5.0, 1.5, 5.0, 1.5};
-        test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+        std::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
         graph::op_t convtranspose_op(
                 0, graph::op_kind::ConvTranspose, "ConvTranspose");
@@ -809,20 +821,22 @@ TEST(operator_kernel, convtranspose_relu) {
         cp.query_logical_tensor(relu_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        graph::tensor_t src_ts(src_lt, eng, src_data.data());
-        graph::tensor_t weight_ts(weight_lt, eng, weight_data.data());
-        graph::tensor_t bias_ts;
-        if (with_bias)
-            bias_ts = graph::tensor_t(bias_lt, eng, bias_data.data());
-        graph::tensor_t relu_dst_ts(relu_dst_lt, eng, dst_data.data());
+        test_tensor src_ts(src_lt, eng, src_data);
+        test_tensor weight_ts(weight_lt, eng, weight_data);
+        test_tensor bias_ts;
+        if (with_bias) bias_ts = test_tensor(bias_lt, eng, bias_data);
+        test_tensor relu_dst_ts(relu_dst_lt, eng, dst_data);
 
         graph::stream_t *strm = get_stream();
         if (with_bias)
-            cp.execute(strm, {src_ts, weight_ts, bias_ts}, {relu_dst_ts});
+            cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
+                    {relu_dst_ts.get()});
         else
-            cp.execute(strm, {src_ts, weight_ts}, {relu_dst_ts});
+            cp.execute(
+                    strm, {src_ts.get(), weight_ts.get()}, {relu_dst_ts.get()});
         strm->wait();
 
+        dst_data = relu_dst_ts.as_vec_type<float>();
         for (size_t i = 0; i < dst_data.size(); ++i) {
             ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
         }
@@ -836,11 +850,11 @@ TEST(operator_kernel, convtranspose_swish) {
 
     for (auto with_bias : with_biases) {
         graph::engine_t *eng = get_engine();
-        test::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
-        test::vector<float> weight_data {
+        std::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
+        std::vector<float> weight_data {
                 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-        test::vector<float> bias_data = {2.0};
-        test::vector<float> dst_data(16, 0.0);
+        std::vector<float> bias_data = {2.0};
+        std::vector<float> dst_data(16, 0.0);
 
         graph::op_t convtranspose_op(
                 0, graph::op_kind::ConvTranspose, "ConvTranspose");
@@ -909,18 +923,19 @@ TEST(operator_kernel, convtranspose_swish) {
         cp.query_logical_tensor(multiply_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        graph::tensor_t src_ts(src_lt, eng, src_data.data());
-        graph::tensor_t weight_ts(weight_lt, eng, weight_data.data());
-        graph::tensor_t bias_ts;
-        if (with_bias)
-            bias_ts = graph::tensor_t(bias_lt, eng, bias_data.data());
-        graph::tensor_t multiply_dst_ts(multiply_dst_lt, eng, dst_data.data());
+        test_tensor src_ts(src_lt, eng, src_data);
+        test_tensor weight_ts(weight_lt, eng, weight_data);
+        test_tensor bias_ts;
+        if (with_bias) bias_ts = test_tensor(bias_lt, eng, bias_data);
+        test_tensor multiply_dst_ts(multiply_dst_lt, eng, dst_data);
 
         graph::stream_t *strm = get_stream();
         if (with_bias)
-            cp.execute(strm, {src_ts, weight_ts, bias_ts}, {multiply_dst_ts});
+            cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
+                    {multiply_dst_ts.get()});
         else
-            cp.execute(strm, {src_ts, weight_ts}, {multiply_dst_ts});
+            cp.execute(strm, {src_ts.get(), weight_ts.get()},
+                    {multiply_dst_ts.get()});
         strm->wait();
     }
 }
@@ -948,10 +963,10 @@ TEST(ExecuteSubgraphInt8, GroupConvTransposeWeightOC1) {
             = {in_channel, out_channel / g, kernel_size, kernel_size};
     std::vector<int64_t> dst_shape = {2, out_channel, 7, 7};
 
-    test::vector<uint8_t> src_u8_data(product(src_shape));
-    test::vector<int8_t> weight_s8_data(product(weight_shape));
-    test::vector<int8_t> case1_out_data(product(dst_shape));
-    test::vector<int8_t> case2_out_data(product(dst_shape));
+    std::vector<uint8_t> src_u8_data(product(src_shape));
+    std::vector<int8_t> weight_s8_data(product(weight_shape));
+    std::vector<int8_t> case1_out_data(product(dst_shape));
+    std::vector<int8_t> case2_out_data(product(dst_shape));
 
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
@@ -1015,10 +1030,10 @@ TEST(ExecuteSubgraphInt8, GroupConvTransposeWeightOC1) {
     agraph.add_op(&qout_node);
     agraph.finalize();
 
-    graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-    graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-    graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-    graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+    test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+    test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
+    test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+    test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
     // -------------------------case 1----------------------------------
     ASSERT_EQ(run_graph(agraph, {src_u8_ts, weight_s8_ts}, {dst_s8_ts}, *engine,
@@ -1046,15 +1061,16 @@ TEST(ExecuteSubgraphInt8, GroupConvTransposeWeightOC1) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
+    cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
+            {dst_s8_case2_ts.get()});
     strm->wait();
 
     if (engine->kind() == graph::engine_kind::cpu
             && isa < dnnl_cpu_isa_avx512_core_vnni)
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+        ASSERT_TRUE(allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.1f,
                 /*atol*/ 1.f));
     else
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+        ASSERT_TRUE(allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.01f,
                 /*atol*/ 1.f));
 }
 
@@ -1086,10 +1102,10 @@ TEST(ExecuteSubgraphInt8, GroupConvTransposePerTensorScale) {
             = {in_channel, out_channel / g, kernel_size, kernel_size};
     std::vector<int64_t> dst_shape = {2, out_channel, 7, 7};
 
-    test::vector<uint8_t> src_s8_data(product(src_shape));
-    test::vector<int8_t> weight_s8_data(product(weight_shape));
-    test::vector<int8_t> case1_out_data(product(dst_shape));
-    test::vector<int8_t> case2_out_data(product(dst_shape));
+    std::vector<uint8_t> src_s8_data(product(src_shape));
+    std::vector<int8_t> weight_s8_data(product(weight_shape));
+    std::vector<int8_t> case1_out_data(product(dst_shape));
+    std::vector<int8_t> case2_out_data(product(dst_shape));
 
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
@@ -1152,10 +1168,10 @@ TEST(ExecuteSubgraphInt8, GroupConvTransposePerTensorScale) {
     agraph.add_op(&qout_node);
     agraph.finalize();
 
-    graph::tensor_t src_s8_ts(src_s8, engine, src_s8_data.data());
-    graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-    graph::tensor_t dst_s8_case1_ts(dst_s8, engine, case1_out_data.data());
-    graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+    test_tensor src_s8_ts(src_s8, engine, src_s8_data);
+    test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
+    test_tensor dst_s8_case1_ts(dst_s8, engine, case1_out_data);
+    test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
     // -------------------------case 1----------------------------------
     ASSERT_EQ(run_graph(agraph, {src_s8_ts, weight_s8_ts}, {dst_s8_case1_ts},
@@ -1178,11 +1194,13 @@ TEST(ExecuteSubgraphInt8, GroupConvTransposePerTensorScale) {
     std::vector<const graph::logical_tensor_t *> lt_ins {&src_s8, &weight_s8};
     std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
     p.compile(&cp, lt_ins, lt_outs, engine);
-    cp.execute(strm, {src_s8_ts, weight_s8_ts}, {dst_s8_case2_ts});
+    cp.execute(strm, {src_s8_ts.get(), weight_s8_ts.get()},
+            {dst_s8_case2_ts.get()});
     strm->wait();
 
-    ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-            /*atol*/ 1.f));
+    ASSERT_TRUE(
+            allclose<int8_t>(dst_s8_case1_ts, dst_s8_case2_ts, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
 }
 
 TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
@@ -1232,12 +1250,12 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
                 : nd == 2 ? std::vector<int64_t> {1, out_channel, 14, 14}
                           : std::vector<int64_t> {1, out_channel, 14, 14, 14};
 
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
+        std::vector<uint8_t> src_u8_data(product(src_shape));
+        std::vector<int8_t> weight_s8_data(product(weight_shape));
         size_t bias_size = with_bias ? product(bias_shape) : 0;
-        test::vector<float> bias_data(bias_size);
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        test::vector<int8_t> case2_out_data(product(dst_shape));
+        std::vector<float> bias_data(bias_size);
+        std::vector<int8_t> case1_out_data(product(dst_shape));
+        std::vector<int8_t> case2_out_data(product(dst_shape));
 
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
@@ -1328,14 +1346,14 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
         g.add_op(&qout_node);
         g.finalize();
 
-        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        graph::tensor_t bias_f32_ts;
+        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
         }
-        graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-        graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -1368,19 +1386,23 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         if (with_bias)
-            cp.execute(strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
-                    {dst_s8_case2_ts});
+            cp.execute(strm,
+                    {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get()},
+                    {dst_s8_case2_ts.get()});
         else
-            cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
+            cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
+                    {dst_s8_case2_ts.get()});
         strm->wait();
 
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.1f,
+                            /*atol*/ 1.f));
         else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.01f,
+                            /*atol*/ 1.f));
     }
 }
 
@@ -1448,12 +1470,12 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
                 : nd == 2 ? std::vector<int64_t> {1, out_channel, 14, 14}
                           : std::vector<int64_t> {1, out_channel, 14, 14, 14};
 
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
+        std::vector<uint8_t> src_u8_data(product(src_shape));
+        std::vector<int8_t> weight_s8_data(product(weight_shape));
         size_t bias_size = with_bias ? product(bias_shape) : 0;
-        test::vector<float> bias_data(bias_size);
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        test::vector<int8_t> case2_out_data(product(dst_shape));
+        std::vector<float> bias_data(bias_size);
+        std::vector<int8_t> case1_out_data(product(dst_shape));
+        std::vector<int8_t> case2_out_data(product(dst_shape));
 
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> u8_distribution(1.0f, 25.0f);
@@ -1567,14 +1589,14 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
         graph.add_op(&qout_node);
         graph.finalize();
 
-        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        graph::tensor_t bias_f32_ts;
+        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
         }
-        graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-        graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(graph, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -1605,19 +1627,23 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         if (with_bias)
-            cp.execute(strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
-                    {dst_s8_case2_ts});
+            cp.execute(strm,
+                    {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get()},
+                    {dst_s8_case2_ts.get()});
         else
-            cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
+            cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
+                    {dst_s8_case2_ts.get()});
         strm->wait();
 
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.1f,
+                            /*atol*/ 1.f));
         else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.01f,
+                            /*atol*/ 1.f));
     }
 }
 
@@ -1684,12 +1710,12 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
                 : nd == 2 ? std::vector<int64_t> {1, out_channel, 14, 14}
                           : std::vector<int64_t> {1, out_channel, 14, 14, 14};
 
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
+        std::vector<uint8_t> src_u8_data(product(src_shape));
+        std::vector<int8_t> weight_s8_data(product(weight_shape));
         size_t bias_size = with_bias ? product(bias_shape) : 0;
-        test::vector<float> bias_data(bias_size);
-        test::vector<float> case1_out_data(product(dst_shape));
-        test::vector<float> case2_out_data(product(dst_shape));
+        std::vector<float> bias_data(bias_size);
+        std::vector<float> case1_out_data(product(dst_shape));
+        std::vector<float> case2_out_data(product(dst_shape));
 
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> u8_distribution(1.0f, 25.0f);
@@ -1776,16 +1802,14 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
         // graph.add_op(&qout_node);
         graph.finalize();
 
-        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        graph::tensor_t bias_f32_ts;
+        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
         }
-        graph::tensor_t dst_f32_ts(
-                dst_eltwise_f32, engine, case1_out_data.data());
-        graph::tensor_t dst_f32_case2_ts(
-                dst_eltwise_f32, engine, case2_out_data.data());
+        test_tensor dst_f32_ts(dst_eltwise_f32, engine, case1_out_data);
+        test_tensor dst_f32_case2_ts(dst_eltwise_f32, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(graph, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -1816,18 +1840,22 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         if (with_bias)
-            cp.execute(strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
-                    {dst_f32_case2_ts});
+            cp.execute(strm,
+                    {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get()},
+                    {dst_f32_case2_ts.get()});
         else
-            cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
+            cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
+                    {dst_f32_case2_ts.get()});
         strm->wait();
 
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<float>(dst_f32_ts, dst_f32_case2_ts, /*rtol*/ 0.1f,
+                            /*atol*/ 1.f));
         else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+            ASSERT_TRUE(allclose<float>(dst_f32_ts, dst_f32_case2_ts,
+                    /*rtol*/ 0.01f,
                     /*atol*/ 1.f));
     }
 }
@@ -1862,10 +1890,10 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
         std::vector<int64_t> dst_shape
                 = std::vector<int64_t> {1, out_channel, 14, 14};
 
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
-        test::vector<float> case1_out_data(product(dst_shape));
-        test::vector<float> case2_out_data(product(dst_shape));
+        std::vector<uint8_t> src_u8_data(product(src_shape));
+        std::vector<int8_t> weight_s8_data(product(weight_shape));
+        std::vector<float> case1_out_data(product(dst_shape));
+        std::vector<float> case2_out_data(product(dst_shape));
 
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> u8_distribution(1.0f, 25.0f);
@@ -1942,12 +1970,10 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
         graph.add_op(&multiply_node);
         graph.finalize();
 
-        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        graph::tensor_t dst_f32_ts(
-                dst_multiply_f32, engine, case1_out_data.data());
-        graph::tensor_t dst_f32_case2_ts(
-                dst_multiply_f32, engine, case2_out_data.data());
+        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor dst_f32_ts(dst_multiply_f32, engine, case1_out_data);
+        test_tensor dst_f32_case2_ts(dst_multiply_f32, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(graph, {src_u8_ts, weight_s8_ts}, {dst_f32_ts},
@@ -1976,15 +2002,18 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
                 &dst_multiply_f32};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
-        cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
+        cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
+                {dst_f32_case2_ts.get()});
         strm->wait();
 
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<float>(dst_f32_ts, dst_f32_case2_ts, /*rtol*/ 0.1f,
+                            /*atol*/ 1.f));
         else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+            ASSERT_TRUE(allclose<float>(dst_f32_ts, dst_f32_case2_ts,
+                    /*rtol*/ 0.01f,
                     /*atol*/ 1.f));
     }
 }
@@ -2047,13 +2076,13 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         std::vector<int64_t> other_shape
                 = with_broadcast ? std::vector<int64_t> {1, 1, 1} : dst_shape;
 
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
-        test::vector<int8_t> other_s8_data(product(other_shape));
+        std::vector<uint8_t> src_u8_data(product(src_shape));
+        std::vector<int8_t> weight_s8_data(product(weight_shape));
+        std::vector<int8_t> other_s8_data(product(other_shape));
         size_t bias_size = with_bias ? product(bias_shape) : 0;
-        test::vector<float> bias_data(bias_size);
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        test::vector<int8_t> case2_out_data(product(dst_shape));
+        std::vector<float> bias_data(bias_size);
+        std::vector<int8_t> case1_out_data(product(dst_shape));
+        std::vector<int8_t> case2_out_data(product(dst_shape));
 
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> u8_distribution(0.0f, 25.0f);
@@ -2184,15 +2213,15 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         graph.add_op(&qout_node);
         graph.finalize();
 
-        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        graph::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
-        graph::tensor_t bias_f32_ts;
+        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor other_s8_ts(other_s8, engine, other_s8_data);
+        test_tensor bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
         }
-        graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-        graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(graph,
@@ -2227,20 +2256,24 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
 
         if (with_bias)
             cp.execute(strm,
-                    {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
-                    {dst_s8_case2_ts});
+                    {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get(),
+                            other_s8_ts.get()},
+                    {dst_s8_case2_ts.get()});
         else
-            cp.execute(strm, {src_u8_ts, weight_s8_ts, other_s8_ts},
-                    {dst_s8_case2_ts});
+            cp.execute(strm,
+                    {src_u8_ts.get(), weight_s8_ts.get(), other_s8_ts.get()},
+                    {dst_s8_case2_ts.get()});
         strm->wait();
 
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.1f,
+                            /*atol*/ 1.f));
         else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.01f,
+                            /*atol*/ 1.f));
     }
 }
 
@@ -2292,11 +2325,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
         std::vector<int64_t> other_shape
                 = with_broadcast ? std::vector<int64_t> {1, 1, 1} : dst_shape;
 
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
-        test::vector<float> other_f32_data(product(other_shape));
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        test::vector<int8_t> case2_out_data(product(dst_shape));
+        std::vector<uint8_t> src_u8_data(product(src_shape));
+        std::vector<int8_t> weight_s8_data(product(weight_shape));
+        std::vector<float> other_f32_data(product(other_shape));
+        std::vector<int8_t> case1_out_data(product(dst_shape));
+        std::vector<int8_t> case2_out_data(product(dst_shape));
 
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> u8_distribution(0.0f, 25.0f);
@@ -2392,11 +2425,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
         graph.add_op(&qout_node);
         graph.finalize();
 
-        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        graph::tensor_t other_f32_ts(other_f32, engine, other_f32_data.data());
-        graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-        graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor other_f32_ts(other_f32, engine, other_f32_data);
+        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(graph, {src_u8_ts, weight_s8_ts, other_f32_ts},
@@ -2426,17 +2459,20 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
         std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
-        cp.execute(strm, {src_u8_ts, weight_s8_ts, other_f32_ts},
-                {dst_s8_case2_ts});
+        cp.execute(strm,
+                {src_u8_ts.get(), weight_s8_ts.get(), other_f32_ts.get()},
+                {dst_s8_case2_ts.get()});
         strm->wait();
 
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni) {
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.1f,
+                            /*atol*/ 1.f));
         } else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<int8_t>(dst_s8_ts, dst_s8_case2_ts, /*rtol*/ 0.01f,
+                            /*atol*/ 1.f));
     }
 }
 
@@ -2489,11 +2525,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
                           : std::vector<int64_t> {1, out_channel, 14, 14, 14};
         std::vector<int64_t> other_shape = dst_shape;
 
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
-        test::vector<int8_t> other_s8_data(product(other_shape));
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        test::vector<int8_t> case2_out_data(product(dst_shape));
+        std::vector<uint8_t> src_u8_data(product(src_shape));
+        std::vector<int8_t> weight_s8_data(product(weight_shape));
+        std::vector<int8_t> other_s8_data(product(other_shape));
+        std::vector<int8_t> case1_out_data(product(dst_shape));
+        std::vector<int8_t> case2_out_data(product(dst_shape));
 
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
@@ -2748,22 +2784,6 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
                 : nd == 2 ? std::vector<int64_t> {1, out_channel, 1, 14}
                           : std::vector<int64_t> {1, out_channel, 1, 14, 14};
 
-        std::vector<test::vector<float>> datas {};
-        datas.emplace_back(product(src_shape));
-        datas.emplace_back(product(weight_shape));
-        datas.emplace_back(product(bias_shape));
-        for (size_t i = 0; i < 3; ++i)
-            datas.emplace_back(product(dst_shape));
-        test::vector<float> case1_out_data(product(dst_shape));
-        test::vector<float> case2_out_data(product(dst_shape));
-
-        std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> f32_distribution(1.0f, 25.0f);
-        for (auto &data : datas) {
-            std::generate(data.begin(), data.end(),
-                    [&]() { return f32_distribution(generator); });
-        }
-
         graph::graph_t agraph(engine->kind());
         std::vector<graph::logical_tensor_t> lt_vec {};
         size_t lt_idx = 0;
@@ -2843,13 +2863,13 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
 
         agraph.finalize();
 
-        graph::tensor_t dst_case1_ts(
-                lt_vec[output_lts[0]], engine, case1_out_data.data());
-        graph::tensor_t dst_case2_ts(
-                lt_vec[output_lts[0]], engine, case2_out_data.data());
-        std::vector<graph::tensor_t> src_tss {};
-        for (size_t i = 0; i < input_lts.size(); ++i)
-            src_tss.emplace_back(lt_vec[input_lts[i]], engine, datas[i].data());
+        test_tensor dst_case1_ts(lt_vec[output_lts[0]], engine);
+        test_tensor dst_case2_ts(lt_vec[output_lts[0]], engine);
+        std::vector<test_tensor> src_tss {};
+        for (size_t i = 0; i < input_lts.size(); ++i) {
+            src_tss.emplace_back(lt_vec[input_lts[i]], engine);
+            src_tss.back().fill<float>();
+        }
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(agraph, src_tss, {dst_case1_ts}, *engine, *strm),
@@ -2879,10 +2899,11 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        cp.execute(strm, src_tss, {dst_case2_ts});
+        cp.execute(strm, test_tensor::to_graph_tensor(src_tss),
+                {dst_case2_ts.get()});
         strm->wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+        ASSERT_TRUE(allclose<float>(dst_case1_ts, dst_case2_ts, /*rtol*/ 0.01f,
                 /*atol*/ 1.f));
     }
 }
@@ -2892,11 +2913,11 @@ TEST(Execute, ConvtransposeWithCache) {
 
     // default engine kind is cpu.
     graph::engine_t *eng = get_engine();
-    test::vector<float> src {1.0, 2.0, 3.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
-            0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
-    test::vector<float> ref_dst {3.0, 0.0, 3.0, 0.0, 7.0, 0.0, 7.0, 0.0};
-    test::vector<float> dst(ref_dst.size(), 0);
+    std::vector<float> src {1.0, 2.0, 3.0, 4.0};
+    std::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0,
+            1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+    std::vector<float> ref_dst {3.0, 0.0, 3.0, 0.0, 7.0, 0.0, 7.0, 0.0};
+    std::vector<float> dst(ref_dst.size(), 0);
     graph::op_t convtranspose_op(graph::op_kind::ConvTranspose);
     convtranspose_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
     convtranspose_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
@@ -2940,33 +2961,36 @@ TEST(Execute, ConvtransposeWithCache) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
     ASSERT_EQ(dst_lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor weight_ts(weight_lt, eng, weight);
+    test_tensor dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
-    ASSERT_EQ(cp.execute(strm, {src_ts, weight_ts}, {dst_ts}),
+    ASSERT_EQ(cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()}),
             graph::status::success);
     strm->wait();
+    dst = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 
     //test with same data and stream to see
     //if the memory cache runs correctly
-    test::vector<float> src2 {1.0, 2.0, 3.0, 4.0};
-    test::vector<float> weight2 {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+    std::vector<float> src2 {1.0, 2.0, 3.0, 4.0};
+    std::vector<float> weight2 {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
             0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
-    test::vector<float> ref_dst2 {3.0, 0.0, 3.0, 0.0, 7.0, 0.0, 7.0, 0.0};
-    test::vector<float> dst2(ref_dst.size(), 0);
+    std::vector<float> ref_dst2 {3.0, 0.0, 3.0, 0.0, 7.0, 0.0, 7.0, 0.0};
+    std::vector<float> dst2(ref_dst.size(), 0);
 
-    graph::tensor_t src_ts2(src_lt, eng, src2.data());
-    graph::tensor_t weight_ts2(weight_lt, eng, weight2.data());
-    graph::tensor_t dst_ts2(dst_lt, eng, dst2.data());
+    test_tensor src_ts2(src_lt, eng, src2);
+    test_tensor weight_ts2(weight_lt, eng, weight2);
+    test_tensor dst_ts2(dst_lt, eng, dst2);
 
-    ASSERT_EQ(cp.execute(strm, {src_ts2, weight_ts2}, {dst_ts2}),
+    ASSERT_EQ(cp.execute(
+                      strm, {src_ts2.get(), weight_ts2.get()}, {dst_ts2.get()}),
             graph::status::success);
     strm->wait();
+    dst2 = dst_ts2.as_vec_type<float>();
     for (size_t i = 0; i < dst2.size(); ++i) {
         ASSERT_FLOAT_EQ(dst2[i], ref_dst2[i]);
     }

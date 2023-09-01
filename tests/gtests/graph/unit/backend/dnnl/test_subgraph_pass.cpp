@@ -1118,16 +1118,16 @@ TEST(SubgraphPass, ExecutionArgsSet) {
 
     // because of deep copy, the desc should be same but the address should be
     // different
-    ASSERT_TRUE(cloned_mem1.get_desc() == mem1.get_desc()
-            && cloned_mem1.get() != mem1.get());
-    ASSERT_TRUE(cloned_mem2.get_desc() == mem2.get_desc()
-            && cloned_mem2.get() != mem2.get());
-    ASSERT_TRUE(cloned_mem3.get_desc() == mem3.get_desc()
-            && cloned_mem3.get() != mem3.get());
-    ASSERT_TRUE(cloned_mem4.get_desc() == mem4.get_desc()
-            && cloned_mem4.get() != mem4.get());
-    ASSERT_TRUE(cloned_mem5.get_desc() == mem5.get_desc()
-            && cloned_mem5.get() != mem5.get());
+    ASSERT_TRUE(
+            cloned_mem1.get_desc() == mem1.get_desc() && cloned_mem1 != mem1);
+    ASSERT_TRUE(
+            cloned_mem2.get_desc() == mem2.get_desc() && cloned_mem2 != mem2);
+    ASSERT_TRUE(
+            cloned_mem3.get_desc() == mem3.get_desc() && cloned_mem3 != mem3);
+    ASSERT_TRUE(
+            cloned_mem4.get_desc() == mem4.get_desc() && cloned_mem4 != mem4);
+    ASSERT_TRUE(
+            cloned_mem5.get_desc() == mem5.get_desc() && cloned_mem5 != mem5);
 
     // the external mems and internal mems are just alias to the mem object in
     // val-mem map, so both of their desc and address should be same
@@ -1135,25 +1135,25 @@ TEST(SubgraphPass, ExecutionArgsSet) {
             = cloned_exec_args_set.get_mems_use_external_inputs();
     ASSERT_TRUE(cloned_mem1.get_desc()
                     == mems_use_external_inputs[0].first.get_desc()
-            && cloned_mem1.get() == mems_use_external_inputs[0].first.get());
+            && cloned_mem1 == mems_use_external_inputs[0].first);
     ASSERT_TRUE(cloned_mem2.get_desc()
                     == mems_use_external_inputs[1].first.get_desc()
-            && cloned_mem2.get() == mems_use_external_inputs[1].first.get());
+            && cloned_mem2 == mems_use_external_inputs[1].first);
     ASSERT_TRUE(cloned_mem4.get_desc()
                     == mems_use_external_inputs[2].first.get_desc()
-            && cloned_mem4.get() == mems_use_external_inputs[2].first.get());
+            && cloned_mem4 == mems_use_external_inputs[2].first);
 
     auto mems_use_external_outputs
             = cloned_exec_args_set.get_mems_use_external_outputs();
     ASSERT_TRUE(cloned_mem5.get_desc()
                     == mems_use_external_outputs[0].first.get_desc()
-            && cloned_mem5.get() == mems_use_external_outputs[0].first.get());
+            && cloned_mem5 == mems_use_external_outputs[0].first);
 
     auto mems_use_internal_variables
             = cloned_exec_args_set.get_mems_use_internal_temporary();
     ASSERT_TRUE(cloned_mem3.get_desc()
                     == mems_use_internal_variables[0].first.get_desc()
-            && cloned_mem3.get() == mems_use_internal_variables[0].first.get());
+            && cloned_mem3 == mems_use_internal_variables[0].first);
 
     auto args = cloned_exec_args_set.get_exec_args();
 
@@ -1161,24 +1161,24 @@ TEST(SubgraphPass, ExecutionArgsSet) {
     auto cloned_op1_args = args[0];
     ASSERT_TRUE(
             cloned_mem1.get_desc() == cloned_op1_args[DNNL_ARG_SRC_0].get_desc()
-            && cloned_mem1.get() == cloned_op1_args[DNNL_ARG_SRC_0].get());
+            && cloned_mem1 == cloned_op1_args[DNNL_ARG_SRC_0]);
     ASSERT_TRUE(
             cloned_mem2.get_desc() == cloned_op1_args[DNNL_ARG_SRC_1].get_desc()
-            && cloned_mem2.get() == cloned_op1_args[DNNL_ARG_SRC_1].get());
+            && cloned_mem2 == cloned_op1_args[DNNL_ARG_SRC_1]);
     ASSERT_TRUE(
             cloned_mem3.get_desc() == cloned_op1_args[DNNL_ARG_DST].get_desc()
-            && cloned_mem3.get() == cloned_op1_args[DNNL_ARG_DST].get());
+            && cloned_mem3 == cloned_op1_args[DNNL_ARG_DST]);
 
     auto cloned_op2_args = args[1];
     ASSERT_TRUE(
             cloned_mem3.get_desc() == cloned_op2_args[DNNL_ARG_SRC_0].get_desc()
-            && cloned_mem3.get() == cloned_op2_args[DNNL_ARG_SRC_0].get());
+            && cloned_mem3 == cloned_op2_args[DNNL_ARG_SRC_0]);
     ASSERT_TRUE(
             cloned_mem4.get_desc() == cloned_op2_args[DNNL_ARG_SRC_1].get_desc()
-            && cloned_mem4.get() == cloned_op2_args[DNNL_ARG_SRC_1].get());
+            && cloned_mem4 == cloned_op2_args[DNNL_ARG_SRC_1]);
     ASSERT_TRUE(
             cloned_mem5.get_desc() == cloned_op2_args[DNNL_ARG_DST].get_desc()
-            && cloned_mem5.get() == cloned_op2_args[DNNL_ARG_DST].get());
+            && cloned_mem5 == cloned_op2_args[DNNL_ARG_DST]);
 }
 
 TEST(SubgraphPass, MemoryPlanning) {

@@ -23,9 +23,8 @@
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
 #include "graph/unit/unit_test_common.hpp"
 
-static inline test::vector<float> mish_func(
-        const test::vector<float> &ref_dst) {
-    test::vector<float> out;
+static inline std::vector<float> mish_func(const std::vector<float> &ref_dst) {
+    std::vector<float> out;
     for (auto &rdst : ref_dst) {
         float ret = std::tanh(std::log(std::exp(rdst) + 1.0f)) * rdst;
         out.emplace_back(ret);
@@ -33,9 +32,9 @@ static inline test::vector<float> mish_func(
     return out;
 }
 
-static inline test::vector<float> hardsigmoid_func(
-        const test::vector<float> &src, float alpha, float beta) {
-    test::vector<float> dst;
+static inline std::vector<float> hardsigmoid_func(
+        const std::vector<float> &src, float alpha, float beta) {
+    std::vector<float> dst;
     for (auto &in : src) {
         float ret = in * alpha + beta;
         if (ret > 1.f)
@@ -48,10 +47,10 @@ static inline test::vector<float> hardsigmoid_func(
     return dst;
 }
 
-static inline test::vector<float> hardsigmoidbackward_func(
-        const test::vector<float> &src, const test::vector<float> &diff_dst,
+static inline std::vector<float> hardsigmoidbackward_func(
+        const std::vector<float> &src, const std::vector<float> &diff_dst,
         float alpha, float beta) {
-    test::vector<float> diff_src;
+    std::vector<float> diff_src;
     for (size_t i = 0; i < src.size(); ++i) {
         const float check = src[i] * alpha + beta;
         float ret = 0.f;
@@ -63,18 +62,17 @@ static inline test::vector<float> hardsigmoidbackward_func(
     return diff_src;
 }
 
-static inline test::vector<float> sigmoid_func(
-        const test::vector<float> &ref_dst) {
-    test::vector<float> out;
+static inline std::vector<float> sigmoid_func(
+        const std::vector<float> &ref_dst) {
+    std::vector<float> out;
     for (auto &rdst : ref_dst) {
         out.emplace_back(static_cast<float>(1 / (exp(-rdst) + 1)));
     }
     return out;
 }
 
-static inline test::vector<float> tanh_func(
-        const test::vector<float> &ref_dst) {
-    test::vector<float> out;
+static inline std::vector<float> tanh_func(const std::vector<float> &ref_dst) {
+    std::vector<float> out;
     for (auto &rdst : ref_dst) {
         out.emplace_back(static_cast<float>(
                 (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst))));
@@ -82,18 +80,16 @@ static inline test::vector<float> tanh_func(
     return out;
 }
 
-static inline test::vector<float> sqrt_func(
-        const test::vector<float> &ref_dst) {
-    test::vector<float> out;
+static inline std::vector<float> sqrt_func(const std::vector<float> &ref_dst) {
+    std::vector<float> out;
     for (auto &rdst : ref_dst) {
         out.emplace_back(static_cast<float>(sqrt(rdst)));
     }
     return out;
 }
 
-static inline test::vector<float> round_func(
-        const test::vector<float> &ref_dst) {
-    test::vector<float> out;
+static inline std::vector<float> round_func(const std::vector<float> &ref_dst) {
+    std::vector<float> out;
     for (auto &rdst : ref_dst) {
         out.emplace_back(static_cast<float>(round(rdst)));
     }

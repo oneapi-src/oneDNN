@@ -27,7 +27,7 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
 static void fill_data(
-        test::vector<float> &buffer, dnnl::impl::data_type_t dtype) {
+        std::vector<float> &buffer, dnnl::impl::data_type_t dtype) {
     if (dtype == dnnl::impl::data_type::u8) {
         uint8_t *ptr = reinterpret_cast<uint8_t *>(buffer.data());
         std::generate(ptr, ptr + buffer.size(),
@@ -83,40 +83,31 @@ TEST(Execute, Int8Resnet50Stage2Block) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    using ltw = graph::logical_tensor_wrapper_t;
-
-    std::vector<test::vector<float>> inputs_data;
-    std::vector<test::vector<uint8_t>> outputs_data, ref_outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts, ref_outputs_ts;
+    std::vector<test_tensor> inputs_ts, outputs_ts, ref_outputs_ts;
 
     for (auto &lt : inputs) {
-        inputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
-        fill_data(inputs_data.back(), ltw(lt).data_type());
-        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<uint8_t>();
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        const std::vector<int64_t> dims = ltw(compiled_output).vdims();
-        auto size = utils::product(dims);
-        outputs_data.emplace_back(test::vector<uint8_t>(size));
-        outputs_ts.emplace_back(
-                compiled_output, eng, outputs_data.back().data());
-        ref_outputs_data.emplace_back(test::vector<uint8_t>(size));
-        ref_outputs_ts.emplace_back(
-                compiled_output, eng, ref_outputs_data.back().data());
+        outputs_ts.emplace_back(compiled_output, eng);
+        ref_outputs_ts.emplace_back(compiled_output, eng);
     }
 
     ASSERT_EQ(run_graph(g, inputs_ts, ref_outputs_ts, *eng, *strm),
             graph::status::success);
 
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     strm->wait();
 
-    ASSERT_TRUE(allclose(outputs_data[0], ref_outputs_data[0], /*rtol*/ 0.01f,
-            /*atol*/ 1.f));
+    ASSERT_TRUE(
+            allclose<uint8_t>(outputs_ts[0], ref_outputs_ts[0], /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
 }
 
 TEST(Execute, Int8Resnet50Stage2BlockWithZeroZps) {
@@ -160,40 +151,31 @@ TEST(Execute, Int8Resnet50Stage2BlockWithZeroZps) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    using ltw = graph::logical_tensor_wrapper_t;
-
-    std::vector<test::vector<float>> inputs_data;
-    std::vector<test::vector<uint8_t>> outputs_data, ref_outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts, ref_outputs_ts;
+    std::vector<test_tensor> inputs_ts, outputs_ts, ref_outputs_ts;
 
     for (auto &lt : inputs) {
-        inputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
-        fill_data(inputs_data.back(), ltw(lt).data_type());
-        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<uint8_t>();
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        const std::vector<int64_t> dims = ltw(compiled_output).vdims();
-        auto size = utils::product(dims);
-        outputs_data.emplace_back(test::vector<uint8_t>(size));
-        outputs_ts.emplace_back(
-                compiled_output, eng, outputs_data.back().data());
-        ref_outputs_data.emplace_back(test::vector<uint8_t>(size));
-        ref_outputs_ts.emplace_back(
-                compiled_output, eng, ref_outputs_data.back().data());
+        outputs_ts.emplace_back(compiled_output, eng);
+        ref_outputs_ts.emplace_back(compiled_output, eng);
     }
 
     ASSERT_EQ(run_graph(g, inputs_ts, ref_outputs_ts, *eng, *strm),
             graph::status::success);
 
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     strm->wait();
 
-    ASSERT_TRUE(allclose(outputs_data[0], ref_outputs_data[0], /*rtol*/ 0.01f,
-            /*atol*/ 1.f));
+    ASSERT_TRUE(
+            allclose<uint8_t>(outputs_ts[0], ref_outputs_ts[0], /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
 }
 
 TEST(Execute, Int8Resnet50Stage2BlockWithQuantWei) {
@@ -235,27 +217,22 @@ TEST(Execute, Int8Resnet50Stage2BlockWithQuantWei) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    using ltw = graph::logical_tensor_wrapper_t;
-
-    std::vector<test::vector<float>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+    std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
-        inputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
-        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<uint8_t>();
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        outputs_data.emplace_back(test::vector<float>(
-                utils::product(ltw(compiled_output).vdims())));
-        outputs_ts.emplace_back(
-                compiled_output, eng, outputs_data.back().data());
+        outputs_ts.emplace_back(compiled_output, eng);
     }
 
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     strm->wait();
 }
 
@@ -301,15 +278,15 @@ TEST(Execute, F32Resnet50Stage2Block) {
 
     using ltw = graph::logical_tensor_wrapper_t;
 
-    std::vector<test::vector<float>> inputs_data;
-    std::vector<test::vector<float>> outputs_data, ref_outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts, ref_outputs_ts;
+    std::vector<std::vector<float>> inputs_data;
+    std::vector<std::vector<float>> outputs_data, ref_outputs_data;
+    std::vector<test_tensor> inputs_ts, outputs_ts, ref_outputs_ts;
 
     for (auto &lt : inputs) {
         inputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
+                std::vector<float>(utils::product(ltw(lt).vdims())));
         fill_data(inputs_data.back(), ltw(lt).data_type());
-        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, eng, inputs_data.back());
     }
 
     for (auto &lt : outputs) {
@@ -317,24 +294,28 @@ TEST(Execute, F32Resnet50Stage2Block) {
         cp.query_logical_tensor(lt->id, &compiled_output);
         const std::vector<int64_t> dims = ltw(compiled_output).vdims();
         auto size = utils::product(dims);
-        outputs_data.emplace_back(test::vector<float>(size));
-        outputs_ts.emplace_back(
-                compiled_output, eng, outputs_data.back().data());
-        ref_outputs_data.emplace_back(test::vector<float>(size));
+        outputs_data.emplace_back(std::vector<float>(size));
+        outputs_ts.emplace_back(compiled_output, eng, outputs_data.back());
+        ref_outputs_data.emplace_back(std::vector<float>(size));
         ref_outputs_ts.emplace_back(
-                compiled_output, eng, ref_outputs_data.back().data());
+                compiled_output, eng, ref_outputs_data.back());
     }
 
     ASSERT_EQ(run_graph(g, inputs_ts, ref_outputs_ts, *eng, *strm),
             graph::status::success);
 
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     // execute another iteration to test constant cache hit
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     strm->wait();
 
-    ASSERT_TRUE(allclose(outputs_data[0], ref_outputs_data[0], /*rtol*/ 1e-5f,
-            /*atol*/ 1e-5f));
+    ASSERT_TRUE(
+            allclose<float>(outputs_ts[0], ref_outputs_ts[0], /*rtol*/ 1e-5f,
+                    /*atol*/ 1e-5f));
 }
 
 TEST(Execute, ItexInt8Resnet50Stage2Block) {
@@ -377,30 +358,27 @@ TEST(Execute, ItexInt8Resnet50Stage2Block) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    using ltw = graph::logical_tensor_wrapper_t;
-
-    std::vector<test::vector<float>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+    std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
-        inputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
-        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<uint8_t>();
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        outputs_data.emplace_back(test::vector<float>(
-                utils::product(ltw(compiled_output).vdims())));
-        outputs_ts.emplace_back(
-                compiled_output, eng, outputs_data.back().data());
+        outputs_ts.emplace_back(compiled_output, eng);
     }
 
     std::cout << "----------------iter 1----------------\n";
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     std::cout << "----------------iter 2----------------\n";
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     strm->wait();
 }
 
@@ -519,27 +497,22 @@ TEST(Execute, Int8Mha) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    using ltw = graph::logical_tensor_wrapper_t;
-
-    std::vector<test::vector<float>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+    std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
-        inputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
-        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<uint8_t>();
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        outputs_data.emplace_back(test::vector<float>(
-                utils::product(ltw(compiled_output).vdims())));
-        outputs_ts.emplace_back(
-                compiled_output, eng, outputs_data.back().data());
+        outputs_ts.emplace_back(compiled_output, eng);
     }
 
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     strm->wait();
 }
 
@@ -581,35 +554,23 @@ TEST(Execute, F32Mha) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    using ltw = graph::logical_tensor_wrapper_t;
-
-    std::vector<test::vector<float>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+    std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
-        // set all the input value to 1.f, then the value after softmax should
-        // be 1.f/seq_len, and the final output should be 1.f
-        inputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims()), 1.f));
-        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<float>();
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        outputs_data.emplace_back(test::vector<float>(
-                utils::product(ltw(compiled_output).vdims())));
-        outputs_ts.emplace_back(
-                compiled_output, eng, outputs_data.back().data());
+        outputs_ts.emplace_back(compiled_output, eng);
     }
 
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     strm->wait();
-
-    // correctness check
-    for (size_t i = 0; i < outputs_data[0].size(); i++) {
-        ASSERT_LT(std::fabs(outputs_data[0][i] - 1.f), 1e-5);
-    }
 }
 
 namespace {
@@ -678,32 +639,32 @@ TEST(Execute, Bf16Mha) {
 
     using ltw = graph::logical_tensor_wrapper_t;
 
-    std::vector<test::vector<uint16_t>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+    std::vector<std::vector<uint16_t>> inputs_data;
+    std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
         // set all the input value to 1.f, then the value after softmax should
         // be 1.f/seq_len, and the final output should be 1.f
-        inputs_data.emplace_back(test::vector<uint16_t>(
+        inputs_data.emplace_back(std::vector<uint16_t>(
                 utils::product(ltw(lt).vdims()), f32_to_bf16(1.f)));
-        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, eng, inputs_data.back());
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        outputs_data.emplace_back(test::vector<uint16_t>(
-                utils::product(ltw(compiled_output).vdims())));
-        outputs_ts.emplace_back(
-                compiled_output, eng, outputs_data.back().data());
+        outputs_ts.emplace_back(compiled_output, eng);
     }
 
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     strm->wait();
 
     // correctness check
-    for (size_t i = 0; i < outputs_data[0].size(); i++) {
-        ASSERT_LT(std::fabs(bf16_to_f32(outputs_data[0][i]) - 1.f), 1e-5);
+    auto out_data = outputs_ts[0].as_vec_type<uint16_t>();
+    for (size_t i = 0; i < out_data.size(); i++) {
+        ASSERT_LT(std::fabs(bf16_to_f32(out_data[i]) - 1.f), 1e-5);
     }
 }
 
@@ -749,23 +710,18 @@ TEST(Execute, Int8Bf16Mha) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    using ltw = graph::logical_tensor_wrapper_t;
-
-    std::vector<test::vector<uint16_t>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+    std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : partition_inputs) {
-        inputs_data.emplace_back(
-                test::vector<uint16_t>(utils::product(ltw(lt).vdims())));
-        inputs_ts.emplace_back(lt, eng, inputs_data.back().data());
+        inputs_ts.emplace_back(lt, eng);
     }
 
     for (auto &lt : partition_outputs) {
-        outputs_data.emplace_back(
-                test::vector<uint16_t>(utils::product(ltw(lt).vdims())));
-        outputs_ts.emplace_back(lt, eng, outputs_data.back().data());
+        outputs_ts.emplace_back(lt, eng);
     }
 
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
     strm->wait();
 }

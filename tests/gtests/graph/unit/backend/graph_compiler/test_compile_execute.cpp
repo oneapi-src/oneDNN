@@ -97,8 +97,8 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
         impl::engine_t &eng = *get_engine();
         ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
-        std::vector<impl::tensor_t> execution_inputs;
-        std::vector<impl::tensor_t> execution_outputs;
+        std::vector<test_tensor> execution_inputs;
+        std::vector<test_tensor> execution_outputs;
         partition_outputs.clear();
         for (auto &lt : outputs) {
             impl::logical_tensor_t compiled_output;
@@ -109,33 +109,28 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
         if (dynamic_callback) {
             dynamic_callback(partition_inputs, partition_outputs);
         }
-        size_t size = 0;
         for (auto &lt : partition_inputs) {
-            size += compiler_backend_ptr.get_mem_size(lt);
             assert(lt.ndims > -1);
             lt_info_map[lt.id] = lt;
         }
         for (auto &lt : partition_outputs) {
-            size += compiler_backend_ptr.get_mem_size(lt);
             assert(lt.ndims > -1);
             lt_info_map[lt.id] = lt;
         }
-        test::vector<char> data(size);
 
-        size = 0;
         for (auto &lt : partition_inputs) {
-            impl::tensor_t placeholder(lt, &eng, data.data() + size);
+            test_tensor placeholder(lt, &eng);
             execution_inputs.push_back(placeholder);
-            size += compiler_backend_ptr.get_mem_size(lt);
         }
         for (auto &lt : partition_outputs) {
-            impl::tensor_t placeholder(lt, &eng, data.data() + size);
+            test_tensor placeholder(lt, &eng);
             execution_outputs.push_back(placeholder);
-            size += compiler_backend_ptr.get_mem_size(lt);
         }
 
         impl::stream_t &strm = *get_stream();
-        ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
+        ASSERT_EQ(cp.execute(&strm,
+                          test_tensor::to_graph_tensor(execution_inputs),
+                          test_tensor::to_graph_tensor(execution_outputs)),
                 impl::status::success);
         strm.wait();
     }
@@ -349,40 +344,26 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
     impl::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), impl::status::success);
 
-    size_t total_buffer_size = 0;
-    for (auto &lt : partition_inputs) {
-        total_buffer_size += compiler_backend_ptr.get_mem_size(lt);
-    }
-    for (auto &lt : partition_outputs) {
-        impl::logical_tensor_t compiled_output;
-        cp.query_logical_tensor(lt.id, &compiled_output);
-        total_buffer_size += compiler_backend_ptr.get_mem_size(compiled_output);
-    }
-
     int thread_num = 8;
 
     auto thread_func = [&](size_t tid) {
-        test::vector<char> data(total_buffer_size);
+        std::vector<test_tensor> execution_inputs;
+        std::vector<test_tensor> execution_outputs;
 
-        std::vector<impl::tensor_t> execution_inputs;
-        std::vector<impl::tensor_t> execution_outputs;
-
-        size_t size = 0;
         for (auto &lt : partition_inputs) {
-            impl::tensor_t placeholder(lt, engine, data.data() + size);
+            test_tensor placeholder(lt, engine);
             execution_inputs.push_back(placeholder);
-            size += compiler_backend_ptr.get_mem_size(lt);
         }
         for (auto &lt : partition_outputs) {
             graph::logical_tensor_t compiled_output;
             cp.query_logical_tensor(lt.id, &compiled_output);
-            graph::tensor_t placeholder(
-                    compiled_output, engine, data.data() + size);
+            test_tensor placeholder(compiled_output, engine);
             execution_outputs.push_back(placeholder);
-            size += compiler_backend_ptr.get_mem_size(compiled_output);
         }
         impl::stream_t &strm = *get_stream();
-        ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
+        ASSERT_EQ(cp.execute(&strm,
+                          test_tensor::to_graph_tensor(execution_inputs),
+                          test_tensor::to_graph_tensor(execution_outputs)),
                 impl::status::success);
     };
 

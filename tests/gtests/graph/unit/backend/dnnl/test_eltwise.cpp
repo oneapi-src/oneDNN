@@ -30,8 +30,8 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
 template <typename attr_data_t = float>
-static inline void test_eltwise_common(test::vector<float> &src,
-        test::vector<float> &ref_dst, dnnl::impl::graph::dims &dims,
+static inline void test_eltwise_common(std::vector<float> &src,
+        std::vector<float> &ref_dst, dnnl::impl::graph::dims &dims,
         const graph::op_kind_t op_kind, const std::string &op_name,
         const std::map<dnnl::impl::graph::op_attr_t, attr_data_t> &attrs_data
         = {},
@@ -39,7 +39,7 @@ static inline void test_eltwise_common(test::vector<float> &src,
     graph::engine_t *eng = get_engine();
     graph::op_t op(op_kind, op_name);
 
-    test::vector<float> dst(src.size(), 0.0);
+    std::vector<float> dst(ref_dst.size(), 0.0);
 
     for (const auto &attr_data : attrs_data) {
         op.set_attr<attr_data_t>(attr_data.first, attr_data.second);
@@ -80,13 +80,14 @@ static inline void test_eltwise_common(test::vector<float> &src,
 
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor dst_ts(lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
 
-    cp.execute(strm, {src_ts}, {dst_ts});
+    cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
     strm->wait();
+    dst = dst_ts.as_vec_type<float>();
 
     if (op_kind == graph::op_kind::Log || op_kind == graph::op_kind::GELU
             || op_kind == graph::op_kind::SoftPlus) {
@@ -101,16 +102,17 @@ static inline void test_eltwise_common(test::vector<float> &src,
 
     //test with same data and stream to see
     //if the memory cache runs correctly
-    test::vector<float> dst2(src.size(), 0.0);
+    std::vector<float> dst2(dst.size(), 0.0);
 
-    graph::tensor_t src_ts2(src_lt, eng, src.data());
-    graph::tensor_t dst_ts2(dst_lt, eng, dst2.data());
+    test_tensor src_ts2(src_lt, eng, src);
+    test_tensor dst_ts2(lt, eng, dst2);
 
-    cp.execute(strm, {src_ts2}, {dst_ts2});
+    cp.execute(strm, {src_ts2.get()}, {dst_ts2.get()});
     strm->wait();
     if (!is_constant_input) return;
     // for constant input case, we will check the results of second iteration to
     // make sure it's properly handled.
+    dst2 = dst_ts2.as_vec_type<float>();
     if (op_kind == graph::op_kind::Log || op_kind == graph::op_kind::GELU
             || op_kind == graph::op_kind::SoftPlus) {
         for (size_t i = 0; i < src.size(); ++i) {
@@ -124,8 +126,8 @@ static inline void test_eltwise_common(test::vector<float> &src,
 }
 
 TEST(Execute, Abs) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
-    test::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
+    std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    std::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
@@ -133,8 +135,8 @@ TEST(Execute, Abs) {
 }
 
 TEST(Execute, AbsConstantInput) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
-    test::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
+    std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    std::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
@@ -143,8 +145,8 @@ TEST(Execute, AbsConstantInput) {
 }
 
 TEST(Execute, Round) {
-    test::vector<float> src {1.1f, -2.3f, 4.7f, 1.0f, 0.0f, -8.34f};
-    test::vector<float> ref_dst = round_func(src);
+    std::vector<float> src {1.1f, -2.3f, 4.7f, 1.0f, 0.0f, -8.34f};
+    std::vector<float> ref_dst = round_func(src);
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
@@ -152,8 +154,8 @@ TEST(Execute, Round) {
 }
 
 TEST(Execute, Clamp) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
-    test::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
+    std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    std::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
 
     graph::dims dims {1, 2, 3};
     const std::map<graph::op_attr_t, float> attrs_data {
@@ -165,9 +167,9 @@ TEST(Execute, Clamp) {
 
 template <typename attr_data_t = float>
 static inline void test_eltwise_bwd_common(
-        const std::pair<test::vector<float>, bool> &fwd_data_pair,
-        const test::vector<float> &diff_dst_data,
-        const test::vector<float> &ref_diff_src, dnnl::impl::graph::dims &dims,
+        const std::pair<std::vector<float>, bool> &fwd_data_pair,
+        const std::vector<float> &diff_dst_data,
+        const std::vector<float> &ref_diff_src, dnnl::impl::graph::dims &dims,
         const graph::op_kind_t op_kind, const std::string &op_name,
         const dnnl::impl::graph::dims &strides_fwd,
         const dnnl::impl::graph::dims &strides_diff_src,
@@ -182,7 +184,7 @@ static inline void test_eltwise_bwd_common(
             graph::op_kind::SqrtBackward,
             graph::op_kind::TanhBackward,
     };
-    const test::vector<float> &fwd_data = fwd_data_pair.first;
+    const std::vector<float> &fwd_data = fwd_data_pair.first;
     const bool is_fwd_data_src = fwd_data_pair.second;
 
     graph::op_t op(op_kind, op_name);
@@ -193,7 +195,7 @@ static inline void test_eltwise_bwd_common(
         op.set_attr<bool>(graph::op_attr::use_dst, !is_fwd_data_src);
     }
 
-    test::vector<float> diff_src_data(ref_diff_src.size(), 0.0f);
+    std::vector<float> diff_src_data(ref_diff_src.size(), 0.0f);
 
     graph::logical_tensor_t fwd_data_lt = utils::logical_tensor_init(
             0, dims, strides_fwd, graph::data_type::f32);
@@ -226,31 +228,30 @@ static inline void test_eltwise_bwd_common(
     std::vector<const graph::logical_tensor_t *> outputs {&diff_src_lt};
     p.compile(&cp, inputs, outputs, eng);
 
-    graph::tensor_t fwd_data_ts(
-            fwd_data_lt, eng, const_cast<float *>(fwd_data.data()));
-    graph::tensor_t diff_dst_ts(
-            diff_dst_lt, eng, const_cast<float *>(diff_dst_data.data()));
-    graph::tensor_t diff_src_ts(diff_src_lt, eng, diff_src_data.data());
+    test_tensor fwd_data_ts(fwd_data_lt, eng, fwd_data);
+    test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst_data);
+    test_tensor diff_src_ts(diff_src_lt, eng, diff_src_data);
 
-    std::vector<graph::tensor_t> input_ts {fwd_data_ts, diff_dst_ts};
-    std::vector<graph::tensor_t> output_ts {diff_src_ts};
+    std::vector<test_tensor> input_ts {fwd_data_ts, diff_dst_ts};
+    std::vector<test_tensor> output_ts {diff_src_ts};
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, input_ts, output_ts);
+    cp.execute(strm, test_tensor::to_graph_tensor(input_ts),
+            test_tensor::to_graph_tensor(output_ts));
     strm->wait();
-
+    diff_src_data = diff_src_ts.as_vec_type<float>();
     for (size_t i = 0; i < diff_src_data.size(); ++i) {
         ASSERT_NEAR(diff_src_data[i], ref_diff_src[i], 1e-5);
     }
 }
 
 TEST(Execute, ClampBackward) {
-    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+    std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
-    test::vector<float> dst {0.f, -1.f, 0.0723652f, -0.0364869f, 2.f, -1.f,
+    std::vector<float> dst {0.f, -1.f, 0.0723652f, -0.0364869f, 2.f, -1.f,
             0.188521f, -0.729739f, 2.f};
-    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+    std::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
             0.754086f, -0.218955f, 88.5838f};
-    test::vector<float> ref_diff_src {3.f, -0.f, 0.0194608f, -0.0559478f, 0.f,
+    std::vector<float> ref_diff_src {3.f, -0.f, 0.0194608f, -0.0559478f, 0.f,
             0.f, 0.754086f, -0.218955f, 0.f};
 
     graph::dims dims {1, 3, 3};
@@ -267,8 +268,8 @@ TEST(Execute, ClampBackward) {
 }
 
 TEST(Execute, Elu) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
-    test::vector<float> ref_dst;
+    std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    std::vector<float> ref_dst;
 
     for (size_t i = 0; i < src.size(); ++i) {
         float temp;
@@ -289,13 +290,13 @@ TEST(Execute, Elu) {
 }
 
 TEST(Execute, EluBackward) {
-    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+    std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
-    test::vector<float> dst {0.f, -0.632121f, 0.0723652f, -0.0358293f, 40.f,
+    std::vector<float> dst {0.f, -0.632121f, 0.0723652f, -0.0358293f, 40.f,
             -1.f, 0.188521f, -0.517965f, 88.371f};
-    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+    std::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
             0.754086f, -0.218955f, 88.5838f};
-    test::vector<float> ref_diff_src {3.f, -2.57516f, 0.0194608f, -0.0539432f,
+    std::vector<float> ref_diff_src {3.f, -2.57516f, 0.0194608f, -0.0539432f,
             70.f, 0.f, 0.754086f, -0.105544f, 88.5838f};
 
     graph::dims dims {1, 3, 3};
@@ -312,8 +313,8 @@ TEST(Execute, EluBackward) {
 }
 
 TEST(Execute, Exp) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
-    test::vector<float> ref_dst;
+    std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    std::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = static_cast<float>(exp(src[i]));
         ref_dst.push_back(temp);
@@ -325,9 +326,9 @@ TEST(Execute, Exp) {
 }
 
 TEST(Execute, Gelu) {
-    test::vector<float> src {
+    std::vector<float> src {
             -2.f, -1.5f, -1.f, -0.5f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
-    test::vector<float> ref_dst {-0.0455001f, -0.10021085f, -0.15865527f,
+    std::vector<float> ref_dst {-0.0455001f, -0.10021085f, -0.15865527f,
             -0.15426877f, 0.f, 0.3457312f, 0.84134465f, 1.399789f, 1.9544998f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
@@ -336,11 +337,11 @@ TEST(Execute, Gelu) {
 }
 
 TEST(Execute, GeluBackward) {
-    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+    std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
-    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+    std::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
             0.754086f, -0.218955f, 88.5838f};
-    test::vector<float> ref_diff_src {1.5f, 0.583208f, 0.0108521f, -0.0263458f,
+    std::vector<float> ref_diff_src {1.5f, 0.583208f, 0.0108521f, -0.0263458f,
             70.f, 0.f, 0.489138f, -0.00212478f, 88.5838f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
@@ -352,8 +353,8 @@ TEST(Execute, GeluBackward) {
 TEST(Execute, HardSigmoid) {
     float a = 1.0f / 6;
     float b = 0.5f;
-    test::vector<float> src {-3.1f, -3.f, -1.5f, 0.f, 0.6f, 3.f, 3.1f, 100.f};
-    test::vector<float> ref_dst = hardsigmoid_func(src, a, b);
+    std::vector<float> src {-3.1f, -3.f, -1.5f, 0.f, 0.6f, 3.f, 3.1f, 100.f};
+    std::vector<float> ref_dst = hardsigmoid_func(src, a, b);
 
     graph::dims dims {1, 2, 4};
     std::map<graph::op_attr_t, float> attrs_data {
@@ -368,10 +369,10 @@ TEST(Execute, HardSigmoid) {
 TEST(Execute, HardSigmoidBackward) {
     float a = 1.0f / 6;
     float b = 0.5f;
-    const test::vector<float> src {
+    const std::vector<float> src {
             -3.1f, -3.f, -1.5f, 0.f, 0.6f, 3.f, 3.1f, 100.f};
-    const test::vector<float> diff_dst(8, 0.5f);
-    test::vector<float> ref_diff_src
+    const std::vector<float> diff_dst(8, 0.5f);
+    std::vector<float> ref_diff_src
             = hardsigmoidbackward_func(src, diff_dst, a, b);
 
     graph::dims dims {1, 2, 4};
@@ -387,9 +388,9 @@ TEST(Execute, HardSigmoidBackward) {
 }
 
 TEST(Execute, HardSwish) {
-    test::vector<float> src {7.f, -4.f, 0.0723652095f, -0.0364869386f, 60.f,
+    std::vector<float> src {7.f, -4.f, 0.0723652095f, -0.0364869386f, 60.f,
             -20.f, 0.188521415f, -0.729738772f, 88.3709564f};
-    test::vector<float> ref_dst {7.f, 0.f, 0.0370553955f, -0.0180215873f, 60.f,
+    std::vector<float> ref_dst {7.f, 0.f, 0.0370553955f, -0.0180215873f, 60.f,
             0.f, 0.100184090f, -0.276116282f, 88.3709564f};
     dnnl::impl::graph::dims dims {1, 3, 3};
 
@@ -398,11 +399,11 @@ TEST(Execute, HardSwish) {
 }
 
 TEST(Execute, HardSwishBackward) {
-    test::vector<float> src {7.f, -4.f, 0.0723652095f, -0.0364869386f, 60.f,
+    std::vector<float> src {7.f, -4.f, 0.0723652095f, -0.0364869386f, 60.f,
             -20.f, 0.188521415f, -0.729738772f, 88.3709564f};
-    test::vector<float> diff_dst {9.f, -10.f, 0.0194608141f, -0.0559477545f,
+    std::vector<float> diff_dst {9.f, -10.f, 0.0194608141f, -0.0559477545f,
             70.f, -20.f, 0.754085660f, -0.218955040f, 88.5838242f};
-    test::vector<float> ref_diff_src {9.f, 0.f, 0.0101998346f, -0.0272934232f,
+    std::vector<float> ref_diff_src {9.f, 0.f, 0.0101998346f, -0.0272934232f,
             70.f, 0.f, 0.424429923f, -0.0562175252f, 88.5838242f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
@@ -413,9 +414,9 @@ TEST(Execute, HardSwishBackward) {
 }
 
 TEST(Execute, Relu) {
-    test::vector<float> src {
+    std::vector<float> src {
             -2.f, -1.5f, -1.f, -0.5f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
-    test::vector<float> ref_dst {0.f, 0.f, 0.f, 0.f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
+    std::vector<float> ref_dst {0.f, 0.f, 0.f, 0.f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
 
     graph::dims dims {1, 3, 3};
 
@@ -423,13 +424,13 @@ TEST(Execute, Relu) {
 }
 
 TEST(Execute, ReluBackward) {
-    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+    std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
-    test::vector<float> dst {
+    std::vector<float> dst {
             0.f, -0.f, 0.0723652f, -0.f, 40.f, -0.f, 0.188521f, -0.f, 88.371f};
-    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+    std::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
             0.754086f, -0.218955f, 88.5838f};
-    test::vector<float> ref_diff_src {
+    std::vector<float> ref_diff_src {
             0.f, -0.f, 0.0194608f, -0.f, 70.f, 0.f, 0.754086f, -0.f, 88.5838f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
@@ -458,8 +459,8 @@ TEST(Execute, ReluBackward) {
 }
 
 TEST(Execute, Sigmoid) {
-    test::vector<float> src {-5.f, -2.5f, -1.f, 0.3f, 0.f, 1.2f};
-    test::vector<float> ref_dst = sigmoid_func(src);
+    std::vector<float> src {-5.f, -2.5f, -1.f, 0.3f, 0.f, 1.2f};
+    std::vector<float> ref_dst = sigmoid_func(src);
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
@@ -467,14 +468,14 @@ TEST(Execute, Sigmoid) {
 }
 
 TEST(Execute, SigmoidBackward) {
-    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+    std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
-    test::vector<float> dst {0.5f, 0.268941f, 0.518083f, 0.490879f, 1.f,
+    std::vector<float> dst {0.5f, 0.268941f, 0.518083f, 0.490879f, 1.f,
             1.92875e-22f, 0.546991f, 0.325252f, 1.f};
-    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+    std::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
             0.754086f, -0.218955f, 88.5838f};
-    test::vector<float> ref_diff_src {0.75f, -1.37628f, 0.00485884f,
-            -0.0139823f, 0.f, 0.f, 0.186856f, -0.0480526f, 0.f};
+    std::vector<float> ref_diff_src {0.75f, -1.37628f, 0.00485884f, -0.0139823f,
+            0.f, 0.f, 0.186856f, -0.0480526f, 0.f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -487,15 +488,15 @@ TEST(Execute, SigmoidBackward) {
 }
 
 TEST(Execute, SoftPlus) {
-    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -25.f,
+    std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -25.f,
             0.188521f, -0.729739f, 44.317f};
-    test::vector<float> ref_dst_case1 = {-0.693147f, -1.31326f, -0.657619f,
+    std::vector<float> ref_dst_case1 = {-0.693147f, -1.31326f, -0.657619f,
             -0.711557f, -0.f, -25.f, -0.603322f, -1.12315f, -0.f};
-    test::vector<float> ref_dst_case2 = {0.693147f, 0.313262f, 0.729984f,
+    std::vector<float> ref_dst_case2 = {0.693147f, 0.313262f, 0.729984f,
             0.67507f, 40.f, 0.f, 0.791844f, 0.393416f, 44.317f};
-    test::vector<float> ref_dst_case3 = {-0.346574f, -1.06346f, -0.311699f,
+    std::vector<float> ref_dst_case3 = {-0.346574f, -1.06346f, -0.311699f,
             -0.36515f, -0.f, -25.f, -0.261146f, -0.834203f, -0.f};
-    test::vector<float> ref_dst_case4 = {0.346574f, 0.063464f, 0.384064f,
+    std::vector<float> ref_dst_case4 = {0.346574f, 0.063464f, 0.384064f,
             0.328663f, 40.f, 0.f, 0.449667f, 0.104465f, 44.317f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
@@ -519,17 +520,17 @@ TEST(Execute, SoftPlus) {
 }
 
 TEST(Execute, SoftPlusBackward) {
-    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+    std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
-    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+    std::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
             0.754086f, -0.218955f, 88.5838f};
-    test::vector<float> ref_diff_src_case1 {1.5f, -5.11741f, 0.00937849f,
+    std::vector<float> ref_diff_src_case1 {1.5f, -5.11741f, 0.00937849f,
             -0.0284842f, 2.97385e-16f, 0.f, 0.341607f, -0.147739f, 0.f};
-    test::vector<float> ref_diff_src_case2 {1.5f, -1.88259f, 0.0100823f,
+    std::vector<float> ref_diff_src_case2 {1.5f, -1.88259f, 0.0100823f,
             -0.0274636f, 70.f, 0.f, 0.412478f, -0.0712156f, 88.5838f};
-    test::vector<float> ref_diff_src_case3 {1.5f, -6.16558f, 0.00902748f,
+    std::vector<float> ref_diff_src_case3 {1.5f, -6.16558f, 0.00902748f,
             -0.0289941f, 1.2634e-33f, 0.f, 0.306793f, -0.177672f, 0.f};
-    test::vector<float> ref_diff_src_case4 {1.5f, -0.83442f, 0.0104333f,
+    std::vector<float> ref_diff_src_case4 {1.5f, -0.83442f, 0.0104333f,
             -0.0269537f, 70.f, 0.f, 0.447293f, -0.0412833f, 88.5838f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
@@ -558,8 +559,8 @@ TEST(Execute, SoftPlusBackward) {
 }
 
 TEST(Execute, Sqrt) {
-    test::vector<float> src {2.f, 1.5f, 1.0f, 0.5f, 0.f, 3.5f};
-    test::vector<float> ref_dst = sqrt_func(src);
+    std::vector<float> src {2.f, 1.5f, 1.0f, 0.5f, 0.f, 3.5f};
+    std::vector<float> ref_dst = sqrt_func(src);
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
@@ -567,13 +568,13 @@ TEST(Execute, Sqrt) {
 }
 
 TEST(Execute, SqrtBackward) {
-    test::vector<float> src {1.f, 0.0262164f, 30.f, 0.424328f, 88.1054f,
+    std::vector<float> src {1.f, 0.0262164f, 30.f, 0.424328f, 88.1054f,
             22.5865f, 44.2676f, 0.0748657f, 0.0429739f};
-    test::vector<float> dst {1.f, 0.161915f, 5.47723f, 0.651405f, 9.38645f,
+    std::vector<float> dst {1.f, 0.161915f, 5.47723f, 0.651405f, 9.38645f,
             4.75252f, 6.65339f, 0.273616f, 0.207301f};
-    test::vector<float> diff_dst {4.f, 0.0748657f, 10.f, 0.597313f, 88.1216f,
+    std::vector<float> diff_dst {4.f, 0.0748657f, 10.f, 0.597313f, 88.1216f,
             22.446f, 44.7703f, 0.0294627f, 0.0618955f};
-    test::vector<float> ref_diff_src {2.f, 0.231188f, 0.912871f, 0.458481f,
+    std::vector<float> ref_diff_src {2.f, 0.231188f, 0.912871f, 0.458481f,
             4.69409f, 2.36148f, 3.36447f, 0.0538395f, 0.149289f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
@@ -585,8 +586,8 @@ TEST(Execute, SqrtBackward) {
 }
 
 TEST(Execute, Square) {
-    test::vector<float> src {-2.f, -1.5f, -1.f, -0.5f, 0.f, 3.5f};
-    test::vector<float> ref_dst;
+    std::vector<float> src {-2.f, -1.5f, -1.f, -0.5f, 0.f, 3.5f};
+    std::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = src[i] * src[i];
         ref_dst.push_back(temp);
@@ -598,8 +599,8 @@ TEST(Execute, Square) {
 }
 
 TEST(Execute, Log) {
-    test::vector<float> src {2.f, 1.5f, 1.f, 0.5f, 0.8f, 3.5f};
-    test::vector<float> ref_dst;
+    std::vector<float> src {2.f, 1.5f, 1.f, 0.5f, 0.8f, 3.5f};
+    std::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = static_cast<float>(log(src[i]));
         ref_dst.push_back(temp);
@@ -611,8 +612,8 @@ TEST(Execute, Log) {
 }
 
 TEST(Execute, Tanh) {
-    test::vector<float> src {-2.f, -1.5f, -1.f, -0.5f, 0.f, 3.5f};
-    test::vector<float> ref_dst = tanh_func(src);
+    std::vector<float> src {-2.f, -1.5f, -1.f, -0.5f, 0.f, 3.5f};
+    std::vector<float> ref_dst = tanh_func(src);
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
@@ -620,13 +621,13 @@ TEST(Execute, Tanh) {
 }
 
 TEST(Execute, TanhBackward) {
-    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+    std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
-    test::vector<float> dst {0.f, -0.761594f, 0.0722392f, -0.0364708f, 1.f,
-            -1.f, 0.186319f, -0.622906f, 1.f};
-    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+    std::vector<float> dst {0.f, -0.761594f, 0.0722392f, -0.0364708f, 1.f, -1.f,
+            0.186319f, -0.622906f, 1.f};
+    std::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
             0.754086f, -0.218955f, 88.5838f};
-    test::vector<float> ref_diff_src {3.f, -2.93982f, 0.0193593f, -0.0558733f,
+    std::vector<float> ref_diff_src {3.f, -2.93982f, 0.0193593f, -0.0558733f,
             0.f, 0.f, 0.727908f, -0.133998f, 0.f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
@@ -641,7 +642,7 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
-    const std::vector<std::pair<size_t, test::vector<float>>> configs {
+    const std::vector<std::pair<size_t, std::vector<float>>> configs {
             {1,
                     {1.f, 1.f, 2.f, 2.f, 5.f, 5.f, 6.f, 6.f, 3.f, 3.f, 4.f, 4.f,
                             7.f, 7.f, 8.f, 8.f}},
@@ -671,7 +672,7 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
         std::iota(order.begin(), order.end(), 0);
         std::swap(order[axis], order[axis + 1]);
 
-        test::vector<float> src_data {1.f, 1.f, 2.f, 2.f, 3.f, 3.f, 4.f, 4.f,
+        std::vector<float> src_data {1.f, 1.f, 2.f, 2.f, 3.f, 3.f, 4.f, 4.f,
                 5.f, 5.f, 6.f, 6.f, 7.f, 7.f, 8.f, 8.f};
 
         graph::op_t reshape0 {0, graph::op_kind::StaticReshape, "reshape0"};
@@ -724,13 +725,13 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        test::vector<float> dst_data(product(reshape1_dst_shape));
-        graph::tensor_t reshape0_src_ts(reshape0_src, engine, src_data.data());
-        graph::tensor_t reshape1_dst_ts(reshape1_dst, engine, dst_data.data());
+        std::vector<float> dst_data(product(reshape1_dst_shape));
+        test_tensor reshape0_src_ts(reshape0_src, engine, src_data);
+        test_tensor reshape1_dst_ts(reshape1_dst, engine, dst_data);
 
-        cp.execute(strm, {reshape0_src_ts}, {reshape1_dst_ts});
+        cp.execute(strm, {reshape0_src_ts.get()}, {reshape1_dst_ts.get()});
         strm->wait();
-
+        dst_data = reshape1_dst_ts.as_vec_type<float>();
         for (size_t i = 0; i < expected_data.size(); ++i) {
             ASSERT_FLOAT_EQ(expected_data[i], dst_data[i]);
         }
@@ -740,10 +741,10 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
 TEST(ExecuteSubgraphFp32, ReciprocalMul) {
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src0_data {1.f, 2.f, 3.f, 10.f, 20.f, 30.f};
-    test::vector<float> src1_data {2.f, 2.f, 2.f, 5.f, 5.f, 5.f};
-    test::vector<float> ref_dst_data {0.5f, 1.f, 1.5f, 2.f, 4.f, 6.f};
-    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+    std::vector<float> src0_data {1.f, 2.f, 3.f, 10.f, 20.f, 30.f};
+    std::vector<float> src1_data {2.f, 2.f, 2.f, 5.f, 5.f, 5.f};
+    std::vector<float> ref_dst_data {0.5f, 1.f, 1.5f, 2.f, 4.f, 6.f};
+    std::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
     graph::op_t reciprocal_op {0, graph::op_kind::Reciprocal, "reciprocal"};
 
@@ -788,14 +789,15 @@ TEST(ExecuteSubgraphFp32, ReciprocalMul) {
     cp.query_logical_tensor(mul_dst.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src0_ts(src0, eng, src0_data.data());
-    graph::tensor_t src1_ts(src1, eng, src1_data.data());
-    graph::tensor_t dst_ts(lt, eng, dst_data.data());
+    test_tensor src0_ts(src0, eng, src0_data);
+    test_tensor src1_ts(src1, eng, src1_data);
+    test_tensor dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
-    ASSERT_EQ(cp.execute(strm, {src0_ts, src1_ts}, {dst_ts}),
+    ASSERT_EQ(cp.execute(strm, {src0_ts.get(), src1_ts.get()}, {dst_ts.get()}),
             graph::status::success);
     strm->wait();
+    dst_data = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -887,25 +889,27 @@ TEST(Execute, Sum) {
     std::vector<const graph::logical_tensor_t *> outputs {&output3};
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    test::vector<float> input0_data(product(input_dims), 1);
-    test::vector<float> input1_data(product(input_dims), 1);
-    test::vector<float> input2_data(product(input_dims), 1);
-    test::vector<float> input3_data(product(input_dims), 1);
-    test::vector<float> input4_data(product(input_dims), 1);
-    test::vector<float> output_data(product(input_dims), 0);
+    std::vector<float> input0_data(product(input_dims), 1);
+    std::vector<float> input1_data(product(input_dims), 1);
+    std::vector<float> input2_data(product(input_dims), 1);
+    std::vector<float> input3_data(product(input_dims), 1);
+    std::vector<float> input4_data(product(input_dims), 1);
+    std::vector<float> output_data(product(input_dims), 0);
 
-    graph::tensor_t input0_ts(input0, engine, input0_data.data());
-    graph::tensor_t input1_ts(input1, engine, input1_data.data());
-    graph::tensor_t input2_ts(input2, engine, input2_data.data());
-    graph::tensor_t input3_ts(input3, engine, input3_data.data());
-    graph::tensor_t input4_ts(input4, engine, input4_data.data());
-    graph::tensor_t output_ts(output3, engine, output_data.data());
+    test_tensor input0_ts(input0, engine, input0_data);
+    test_tensor input1_ts(input1, engine, input1_data);
+    test_tensor input2_ts(input2, engine, input2_data);
+    test_tensor input3_ts(input3, engine, input3_data);
+    test_tensor input4_ts(input4, engine, input4_data);
+    test_tensor output_ts(output3, engine, output_data);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {input0_ts, input1_ts, input2_ts, input3_ts, input4_ts},
-            {output_ts});
+    cp.execute(strm,
+            {input0_ts.get(), input1_ts.get(), input2_ts.get(), input3_ts.get(),
+                    input4_ts.get()},
+            {output_ts.get()});
     strm->wait();
-
+    output_data = output_ts.as_vec_type<float>();
     for (const auto v : output_data) {
         ASSERT_FLOAT_EQ(v, 5.f);
     }
@@ -969,13 +973,12 @@ public:
         graph::engine_t *eng = get_engine();
 
         std::vector<graph::dim_t> binary_src_shape = params.binary_src_shape;
-        test::vector<float> src {-2.f, -1.5f, 1.f, 0.5f};
-        test::vector<float> binary_src(product(binary_src_shape));
+        std::vector<float> src {-2.f, -1.5f, 1.f, 0.5f};
+        std::vector<float> binary_src(product(binary_src_shape));
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(binary_src.begin(), binary_src.end(),
                 [&]() { return f32_distribution(generator); });
-        test::vector<float> dst {0.f, 0.f, 0.f, 0.f};
 
         graph::op_t eltwise_op(0, params.eltwise_kind, "elt");
         if (params.eltwise_kind == graph::op_kind::Elu) {
@@ -1034,14 +1037,18 @@ public:
         cp.query_logical_tensor(binary_dst_lt.id, &lt);
 
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
-
-        graph::tensor_t src_ts(eltwise_src_lt, eng, src.data());
-        graph::tensor_t binary_src_ts(binary_src_lt, eng, binary_src.data());
-        graph::tensor_t binary_dst_ts(binary_dst_lt, eng, dst.data());
+        graph::logical_tensor_t esrc_lt, bsrc_lt, bdst_lt;
+        cp.query_logical_tensor(eltwise_src_lt.id, &esrc_lt);
+        cp.query_logical_tensor(binary_src_lt.id, &bsrc_lt);
+        cp.query_logical_tensor(binary_dst_lt.id, &bdst_lt);
+        test_tensor src_ts(esrc_lt, eng, src);
+        test_tensor binary_src_ts(bsrc_lt, eng, binary_src);
+        test_tensor binary_dst_ts(bdst_lt, eng);
 
         graph::stream_t *strm = get_stream();
 
-        ASSERT_EQ(cp.execute(strm, {src_ts, binary_src_ts}, {binary_dst_ts}),
+        ASSERT_EQ(cp.execute(strm, {src_ts.get(), binary_src_ts.get()},
+                          {binary_dst_ts.get()}),
                 graph::status::success);
         strm->wait();
     }

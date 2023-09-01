@@ -39,17 +39,9 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     std::vector<int64_t> weight_shape = {1, 4, 8, 16};
     std::vector<int64_t> dst_shape = {1, 4, 16, 16};
 
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<uint8_t> weight_data(product(weight_shape));
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<uint8_t> weight_data(product(weight_shape));
 
-    // random generate src, weight data
-    // random seed = 7
-    std::default_random_engine generator(7);
-    std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-    std::generate(src_data.begin(), src_data.end(),
-            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
-    std::generate(weight_data.begin(), weight_data.end(),
-            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
     float scale_src = 1 / 255.f; // map to 0~255
     int64_t zp_src = 110;
 
@@ -102,11 +94,12 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     g.add_op(&matmul_op);
     g.finalize();
 
-    graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
-    graph::tensor_t weight_u8_ts(weight_u8, engine, weight_data.data());
+    test_tensor src_u8_ts(src_u8, engine);
+    src_u8_ts.fill<uint8_t>(20, 10);
+    test_tensor weight_u8_ts(weight_u8, engine);
+    weight_u8_ts.fill<uint8_t>(20, 10);
     // -------------------------case 1----------------------------------
-    test::vector<float> case1_out_data(product(dst_shape));
-    graph::tensor_t dst_f32_ts(dst_f32, engine, case1_out_data.data());
+    test_tensor dst_f32_ts(dst_f32, engine);
     ASSERT_EQ(run_graph(g, {src_u8_ts, weight_u8_ts}, {dst_f32_ts}, *engine,
                       *strm),
             graph::status::success);
@@ -127,15 +120,16 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test::vector<float> case2_out_data(product(dst_shape));
-    graph::tensor_t dst_f32_case2_ts(dst_f32, engine, case2_out_data.data());
-    cp.execute(strm, {src_u8_ts, weight_u8_ts}, {dst_f32_case2_ts});
+    test_tensor dst_f32_case2_ts(dst_f32, engine);
+    cp.execute(strm, {src_u8_ts.get(), weight_u8_ts.get()},
+            {dst_f32_case2_ts.get()});
     strm->wait();
 
     static auto isa = dnnl_get_effective_cpu_isa();
     if (engine->kind() == graph::engine_kind::cpu
             && isa >= dnnl_cpu_isa_avx512_core_vnni) {
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+        ASSERT_TRUE(allclose<float>(dst_f32_case2_ts, dst_f32_ts,
+                /*rtol*/ 0.01f,
                 /*atol*/ 1.f));
     }
 }
@@ -156,8 +150,8 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32NonContiguous) {
     // simulate non-contiguous case
     std::vector<int64_t> weight_shape_large = {1, 1, 50, 96};
 
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<float> weight_data(product(weight_shape_large));
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<float> weight_data(product(weight_shape_large));
 
     // random generate src, weight data
     // random seed = 7
@@ -232,11 +226,11 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32NonContiguous) {
     g.add_op(&matmul_op);
     g.finalize();
 
-    graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
-    graph::tensor_t weight_f32_ts(weight_f32, engine, weight_data.data());
+    test_tensor src_u8_ts(src_u8, engine, src_data);
+    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
     // -------------------------case 1----------------------------------
-    test::vector<float> case1_out_data(product(dst_shape));
-    graph::tensor_t dst_f32_ts(dst_f32, engine, case1_out_data.data());
+    std::vector<float> case1_out_data(product(dst_shape));
+    test_tensor dst_f32_ts(dst_f32, engine, case1_out_data);
     ASSERT_EQ(run_graph(g, {src_u8_ts, weight_f32_ts}, {dst_f32_ts}, *engine,
                       *strm),
             graph::status::success);
@@ -257,15 +251,17 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32NonContiguous) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test::vector<float> case2_out_data(product(dst_shape));
-    graph::tensor_t dst_f32_case2_ts(dst_f32, engine, case2_out_data.data());
-    cp.execute(strm, {weight_f32_ts, src_u8_ts}, {dst_f32_case2_ts});
+    std::vector<float> case2_out_data(product(dst_shape));
+    test_tensor dst_f32_case2_ts(dst_f32, engine, case2_out_data);
+    cp.execute(strm, {weight_f32_ts.get(), src_u8_ts.get()},
+            {dst_f32_case2_ts.get()});
     strm->wait();
 
     static auto isa = dnnl_get_effective_cpu_isa();
     if (isa >= dnnl_cpu_isa_avx512_core_vnni) {
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
+        ASSERT_TRUE(
+                allclose<float>(dst_f32_ts, dst_f32_case2_ts, /*rtol*/ 0.01f,
+                        /*atol*/ 1.f));
     }
 }
 
@@ -282,8 +278,8 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
     std::vector<int64_t> weight_shape = {1, 4, 8, 16};
     std::vector<int64_t> dst_shape = {1, 4, 16, 16};
 
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<uint8_t> weight_data(product(weight_shape));
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<uint8_t> weight_data(product(weight_shape));
 
     // random generate src, weight data
     // random seed = 7
@@ -293,7 +289,7 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
             [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
     std::generate(weight_data.begin(), weight_data.end(),
             [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
-    test::vector<float> div_src1_data {0.5f};
+    std::vector<float> div_src1_data {0.5f};
     float scale_src = 1 / 255.f; // map to 0~255
     int64_t zp_src = 110;
 
@@ -378,13 +374,13 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
-    graph::tensor_t weight_u8_ts(weight_u8, engine, weight_data.data());
-    graph::tensor_t div_src1_ts(div_src1, engine, div_src1_data.data());
-    test::vector<float> case2_out_data(product(dst_shape));
-    graph::tensor_t dst_f32_case2_ts(div_f32, engine, case2_out_data.data());
-    cp.execute(
-            strm, {src_u8_ts, weight_u8_ts, div_src1_ts}, {dst_f32_case2_ts});
+    test_tensor src_u8_ts(src_u8, engine, src_data);
+    test_tensor weight_u8_ts(weight_u8, engine, weight_data);
+    test_tensor div_src1_ts(div_src1, engine, div_src1_data);
+    std::vector<float> case2_out_data(product(dst_shape));
+    test_tensor dst_f32_case2_ts(div_f32, engine, case2_out_data);
+    cp.execute(strm, {src_u8_ts.get(), weight_u8_ts.get(), div_src1_ts.get()},
+            {dst_f32_case2_ts.get()});
     strm->wait();
 }
 
@@ -402,9 +398,9 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
     std::vector<int64_t> dst_shape = {1, 4, 16, 16};
     std::vector<int64_t> post_add_shape = {1, 1, 1, 16};
 
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<uint8_t> weight_data(product(weight_shape));
-    test::vector<uint8_t> add_src1_data(product(post_add_shape));
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<uint8_t> weight_data(product(weight_shape));
+    std::vector<float> add_src1_data(product(post_add_shape));
 
     // random generate src, weight data
     // random seed = 7
@@ -416,7 +412,7 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
             [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
     std::generate(add_src1_data.begin(), add_src1_data.end(),
             [&]() { return u8_distribution(generator); });
-    test::vector<float> div_src1_data {0.5f};
+    std::vector<float> div_src1_data {0.5f};
     float scale_src = 1 / 255.f; // map to 0~255
     int64_t zp_src = 110;
 
@@ -510,14 +506,15 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
-    graph::tensor_t weight_u8_ts(weight_u8, engine, weight_data.data());
-    graph::tensor_t div_src1_ts(div_src1, engine, div_src1_data.data());
-    graph::tensor_t add_src1_ts(add_src1, engine, add_src1_data.data());
-    test::vector<float> case2_out_data(product(dst_shape));
-    graph::tensor_t dst_f32_case2_ts(add_f32, engine, case2_out_data.data());
-    cp.execute(strm, {src_u8_ts, weight_u8_ts, div_src1_ts, add_src1_ts},
-            {dst_f32_case2_ts});
+    test_tensor src_u8_ts(src_u8, engine, src_data);
+    test_tensor weight_u8_ts(weight_u8, engine, weight_data);
+    test_tensor div_src1_ts(div_src1, engine, div_src1_data);
+    test_tensor add_src1_ts(add_src1, engine, add_src1_data);
+    test_tensor dst_f32_case2_ts(add_f32, engine);
+    cp.execute(strm,
+            {src_u8_ts.get(), weight_u8_ts.get(), div_src1_ts.get(),
+                    add_src1_ts.get()},
+            {dst_f32_case2_ts.get()});
     strm->wait();
 }
 
@@ -534,8 +531,8 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
     std::vector<int64_t> weight_shape = {1, 4, 8, 16};
     std::vector<int64_t> dst_shape = {1, 4, 16, 16};
 
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<uint8_t> weight_data(product(weight_shape));
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<uint8_t> weight_data(product(weight_shape));
 
     for (auto &src_dtype : dtypes) {
         for (auto &weight_dtype : dtypes) {
@@ -656,12 +653,10 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
 
             p.compile(&cp, lt_ins, lt_outs, engine);
 
-            test::vector<float> div_src1_data(1);
-            test::vector<float> dst_data(product(dst_shape));
-            graph::tensor_t src_ts(src, engine, src_data.data());
-            graph::tensor_t weight_ts(weight, engine, weight_data.data());
-            graph::tensor_t dst_ts(dst_bf16, engine, dst_data.data());
-            cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
+            test_tensor src_ts(src, engine, src_data);
+            test_tensor weight_ts(weight, engine, weight_data);
+            test_tensor dst_ts(dst_bf16, engine);
+            cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
             strm->wait();
         }
     }
@@ -680,8 +675,8 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
     std::vector<int64_t> weight_shape = {1, 4, 8, 16};
     std::vector<int64_t> dst_shape = {1, 4, 16, 16};
 
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<uint8_t> weight_data(product(weight_shape));
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<uint8_t> weight_data(product(weight_shape));
 
     for (auto &src_dtype : dtypes) {
         for (auto &weight_dtype : dtypes) {
@@ -816,13 +811,13 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
 
             p.compile(&cp, lt_ins, lt_outs, engine);
 
-            test::vector<float> div_src1_data(1);
-            test::vector<float> dst_data(product(dst_shape));
-            graph::tensor_t src_ts(src, engine, src_data.data());
-            graph::tensor_t weight_ts(weight, engine, weight_data.data());
-            graph::tensor_t div_src1_ts(div_src1, engine, div_src1_data.data());
-            graph::tensor_t dst_ts(div_bf16, engine, dst_data.data());
-            cp.execute(strm, {src_ts, weight_ts, div_src1_ts}, {dst_ts});
+            std::vector<float> div_src1_data(1);
+            test_tensor src_ts(src, engine, src_data);
+            test_tensor weight_ts(weight, engine, weight_data);
+            test_tensor div_src1_ts(div_src1, engine, div_src1_data);
+            test_tensor dst_ts(div_bf16, engine);
+            cp.execute(strm, {src_ts.get(), weight_ts.get(), div_src1_ts.get()},
+                    {dst_ts.get()});
             strm->wait();
         }
     }
@@ -848,8 +843,8 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
     std::vector<int64_t> weight_stride = {512, 8, 1, 32};
     std::vector<int64_t> dst_shape = {1, 4, 16, 16};
 
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<uint8_t> weight_data(product(weight_shape));
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<uint8_t> weight_data(product(weight_shape));
 
     for (auto &src_dtype : dtypes) {
         for (auto &weight_dtype : dtypes) {
@@ -982,13 +977,13 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
 
             p.compile(&cp, lt_ins, lt_outs, engine);
 
-            test::vector<float> div_src1_data(1);
-            test::vector<float> dst_data(product(dst_shape));
-            graph::tensor_t src_ts(src, engine, src_data.data());
-            graph::tensor_t weight_ts(weight, engine, weight_data.data());
-            graph::tensor_t div_src1_ts(div_src1, engine, div_src1_data.data());
-            graph::tensor_t dst_ts(div_bf16, engine, dst_data.data());
-            cp.execute(strm, {src_ts, weight_ts, div_src1_ts}, {dst_ts});
+            std::vector<float> div_src1_data(1);
+            test_tensor src_ts(src, engine, src_data);
+            test_tensor weight_ts(weight, engine, weight_data);
+            test_tensor div_src1_ts(div_src1, engine, div_src1_data);
+            test_tensor dst_ts(div_bf16, engine);
+            cp.execute(strm, {src_ts.get(), weight_ts.get(), div_src1_ts.get()},
+                    {dst_ts.get()});
             strm->wait();
         }
     }
@@ -1014,8 +1009,8 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
     std::vector<int64_t> post_add_shape = {8, 1, 1, 16};
     std::vector<int64_t> dst_shape = {8, 4, 16, 16};
 
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<uint8_t> weight_data(product(weight_shape));
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<uint8_t> weight_data(product(weight_shape));
 
     for (auto &src_dtype : dtypes) {
         for (auto &weight_dtype : dtypes) {
@@ -1163,16 +1158,15 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
 
             p.compile(&cp, lt_ins, lt_outs, engine);
 
-            test::vector<float> div_src1_data(product(post_div_shape));
-            test::vector<float> add_src1_data(product(post_add_shape));
-            test::vector<float> dst_data(product(dst_shape));
-            graph::tensor_t src_ts(src, engine, src_data.data());
-            graph::tensor_t weight_ts(weight, engine, weight_data.data());
-            graph::tensor_t div_src1_ts(div_src1, engine, div_src1_data.data());
-            graph::tensor_t add_src1_ts(add_src1, engine, add_src1_data.data());
-            graph::tensor_t dst_ts(add_bf16, engine, dst_data.data());
-            cp.execute(strm, {src_ts, weight_ts, div_src1_ts, add_src1_ts},
-                    {dst_ts});
+            test_tensor src_ts(src, engine, src_data);
+            test_tensor weight_ts(weight, engine, weight_data);
+            test_tensor div_src1_ts(div_src1, engine);
+            test_tensor add_src1_ts(add_src1, engine);
+            test_tensor dst_ts(add_bf16, engine);
+            cp.execute(strm,
+                    {src_ts.get(), weight_ts.get(), div_src1_ts.get(),
+                            add_src1_ts.get()},
+                    {dst_ts.get()});
             strm->wait();
         }
     }
@@ -1189,9 +1183,9 @@ TEST(ExecuteSubgraphInt8, BmmMulAddTransposeBU8s8f32) {
     std::vector<int64_t> dst_shape = {1, 4, 16, 16};
     std::vector<int64_t> post_add_shape = {1, 1, 1, 16};
 
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<int8_t> weight_data(product(weight_shape));
-    test::vector<float> add_src1_data(product(post_add_shape));
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<int8_t> weight_data(product(weight_shape));
+    std::vector<float> add_src1_data(product(post_add_shape));
 
     // random generate src, weight data
     // random seed = 7
@@ -1205,7 +1199,7 @@ TEST(ExecuteSubgraphInt8, BmmMulAddTransposeBU8s8f32) {
             [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
     std::generate(add_src1_data.begin(), add_src1_data.end(),
             [&]() { return f32_distribution(generator); });
-    test::vector<float> mul_src1_data {0.5f};
+    std::vector<float> mul_src1_data {0.5f};
     float scale_src = 1 / 255.f; // map to 0~255
     int64_t zp_src = 110;
 
@@ -1301,13 +1295,15 @@ TEST(ExecuteSubgraphInt8, BmmMulAddTransposeBU8s8f32) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
-    graph::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
-    graph::tensor_t mul_src1_ts(mul_src1, engine, mul_src1_data.data());
-    graph::tensor_t add_src1_ts(add_src1, engine, add_src1_data.data());
-    test::vector<float> case2_out_data(product(dst_shape));
-    graph::tensor_t dst_f32_case2_ts(add_f32, engine, case2_out_data.data());
-    cp.execute(strm, {src_u8_ts, weight_s8_ts, mul_src1_ts, add_src1_ts},
-            {dst_f32_case2_ts});
+    test_tensor src_u8_ts(src_u8, engine, src_data);
+    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
+    test_tensor mul_src1_ts(mul_src1, engine, mul_src1_data);
+    test_tensor add_src1_ts(add_src1, engine, add_src1_data);
+    std::vector<float> case2_out_data(product(dst_shape));
+    test_tensor dst_f32_case2_ts(add_f32, engine, case2_out_data);
+    cp.execute(strm,
+            {src_u8_ts.get(), weight_s8_ts.get(), mul_src1_ts.get(),
+                    add_src1_ts.get()},
+            {dst_f32_case2_ts.get()});
     strm->wait();
 }

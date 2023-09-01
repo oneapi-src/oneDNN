@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@ namespace utils = dnnl::graph::tests::unit::utils;
 TEST(Execute, Typecast) {
     graph::engine_t *engine = get_engine();
 
-    test::vector<float> f32_val {
+    std::vector<float> f32_val {
             12.5234537f, 0.f, -32.6735142f, -1.f, -2.8765223f, 66.66f};
-    test::vector<uint16_t> bf16_val(f32_val.size(), 10);
+    std::vector<uint16_t> bf16_val(f32_val.size(), 10);
 
     graph::op_t typecast_op(graph::op_kind::TypeCast);
 
@@ -62,11 +62,12 @@ TEST(Execute, Typecast) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
     graph::stream_t *stream = get_stream();
-    graph::tensor_t f32_ts(f32_lt, engine, f32_val.data());
-    graph::tensor_t bf16_ts(bf16_lt, engine, bf16_val.data());
+    test_tensor f32_ts(f32_lt, engine, f32_val);
+    test_tensor bf16_ts(bf16_lt, engine, bf16_val);
 
     // f32 --> bf16
-    ASSERT_EQ(cp.execute(stream, {f32_ts}, {bf16_ts}), graph::status::success);
+    ASSERT_EQ(cp.execute(stream, {f32_ts.get()}, {bf16_ts.get()}),
+            graph::status::success);
     stream->wait();
 }
 

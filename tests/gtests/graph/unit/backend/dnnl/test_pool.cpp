@@ -67,10 +67,10 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         std::vector<int64_t> other_shape {1, 1, 1, 1};
         if (per_channel_broadcast) other_shape[1] = channels;
 
-        test::vector<int8_t> src_s8_data(product(src_shape));
-        test::vector<int8_t> other_s8_data(product(other_shape));
-        test::vector<int8_t> case1_dst_s8_data(product(dst_shape));
-        test::vector<int8_t> case2_dst_s8_data(product(dst_shape));
+        std::vector<int8_t> src_s8_data(product(src_shape));
+        std::vector<int8_t> other_s8_data(product(other_shape));
+        std::vector<int8_t> case1_dst_s8_data(product(dst_shape));
+        std::vector<int8_t> case2_dst_s8_data(product(dst_shape));
 
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
@@ -171,12 +171,10 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         g.add_op(&qout_op);
         g.finalize();
 
-        graph::tensor_t src_s8_ts(src_s8, engine, src_s8_data.data());
-        graph::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
-        graph::tensor_t case1_dst_s8_ts(
-                dst_s8, engine, case1_dst_s8_data.data());
-        graph::tensor_t case2_dst_s8_ts(
-                dst_s8, engine, case2_dst_s8_data.data());
+        test_tensor src_s8_ts(src_s8, engine, src_s8_data);
+        test_tensor other_s8_ts(other_s8, engine, other_s8_data);
+        test_tensor case1_dst_s8_ts(dst_s8, engine, case1_dst_s8_data);
+        test_tensor case2_dst_s8_ts(dst_s8, engine, case2_dst_s8_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_s8_ts, other_s8_ts}, {case1_dst_s8_ts},
@@ -202,17 +200,18 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        cp.execute(strm, {src_s8_ts, other_s8_ts}, {case2_dst_s8_ts});
+        cp.execute(strm, {src_s8_ts.get(), other_s8_ts.get()},
+                {case2_dst_s8_ts.get()});
         strm->wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_dst_s8_data, case2_dst_s8_data,
+            ASSERT_TRUE(allclose<int8_t>(case1_dst_s8_ts, case2_dst_s8_ts,
                     /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
-            ASSERT_TRUE(allclose(case1_dst_s8_data, case2_dst_s8_data,
+            ASSERT_TRUE(allclose<int8_t>(case1_dst_s8_ts, case2_dst_s8_ts,
                     /*rtol*/ 0.01f,
                     /*atol*/ 1.f));
     }
@@ -225,7 +224,7 @@ TEST(ExecuteSubgraphFp32, Pool3Postops) {
     std::vector<int64_t> pool_src_shape {2, 2, 4, 4};
     std::vector<int64_t> pool_dst_shape {2, 2, 2, 2};
 
-    std::vector<test::vector<float>> src_datas {};
+    std::vector<std::vector<float>> src_datas {};
     src_datas.emplace_back(product(pool_src_shape));
     // at most 3 additional input tensors
     for (size_t i = 0; i < 3; ++i)
@@ -304,15 +303,13 @@ TEST(ExecuteSubgraphFp32, Pool3Postops) {
             g.add_op(&pop);
         g.finalize();
 
-        std::vector<graph::tensor_t> src_tss {};
+        std::vector<test_tensor> src_tss {};
         for (size_t i = 0; i < input_lts.size(); ++i)
-            src_tss.emplace_back(
-                    lt_vec[input_lts[i]], engine, src_datas[i].data());
+            src_tss.emplace_back(lt_vec[input_lts[i]], engine, src_datas[i]);
 
         // -------------------------case 1----------------------------------
-        test::vector<float> case1_out_data(product(pool_dst_shape));
-        graph::tensor_t case1_dst_ts(
-                lt_vec[lt_idx], engine, case1_out_data.data());
+        std::vector<float> case1_out_data(product(pool_dst_shape));
+        test_tensor case1_dst_ts(lt_vec[lt_idx], engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, src_tss, {case1_dst_ts}, *engine, *strm),
                 graph::status::success);
@@ -337,16 +334,15 @@ TEST(ExecuteSubgraphFp32, Pool3Postops) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        test::vector<float> case2_out_data(product(pool_dst_shape));
-        graph::tensor_t case2_dst_ts(
-                lt_vec[lt_idx], engine, case2_out_data.data());
+        std::vector<float> case2_out_data(product(pool_dst_shape));
+        test_tensor case2_dst_ts(lt_vec[lt_idx], engine, case2_out_data);
 
-        cp.execute(strm, src_tss, {case2_dst_ts});
+        cp.execute(strm, test_tensor::to_graph_tensor(src_tss),
+                {case2_dst_ts.get()});
         strm->wait();
 
-        std::vector<std::pair<float, float>> out_data;
-        for (size_t i = 0; i < case1_out_data.size(); ++i)
-            out_data.emplace_back(case1_out_data[i], case2_out_data[i]);
+        case1_out_data = case1_dst_ts.as_vec_type<float>();
+        case2_out_data = case2_dst_ts.as_vec_type<float>();
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
@@ -357,11 +353,11 @@ TEST(Execute, AvgPoolExcludePad) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+    std::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             3.0, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> ref_dst {
+    std::vector<float> ref_dst {
             -2.0, 0.25, 0.5, 0.75, 0.5, 0.75, 3.0, -1.5, 4.0};
-    test::vector<float> dst(ref_dst.size(), 0.0);
+    std::vector<float> dst(ref_dst.size(), 0.0);
 
     graph::op_t avg_pool_op(0, graph::op_kind::AvgPool, "avgpool");
     avg_pool_op.set_attr<dims>(graph::op_attr::strides, {2, 2});
@@ -404,13 +400,13 @@ TEST(Execute, AvgPoolExcludePad) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor dst_ts(lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts}, {dst_ts});
+    cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
     strm->wait();
-
+    dst = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -420,11 +416,11 @@ TEST(Execute, AvgPoolIncludePad) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+    std::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             3.0, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> ref_dst {
+    std::vector<float> ref_dst {
             -0.5, 0.125, 0.125, 0.375, 0.5, 0.375, 0.75, -0.75, 1.0};
-    test::vector<float> dst(ref_dst.size(), 0.0);
+    std::vector<float> dst(ref_dst.size(), 0.0);
 
     graph::op_t avg_pool_op(0, graph::op_kind::AvgPool, "avgpool");
     avg_pool_op.set_attr<dims>(graph::op_attr::strides, {2, 2});
@@ -467,13 +463,13 @@ TEST(Execute, AvgPoolIncludePad) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor dst_ts(lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts}, {dst_ts});
+    cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
     strm->wait();
-
+    dst = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -483,11 +479,11 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> ref_diff_src {-1.0, 1.5, 1.5, 10.0, 2.0, 4.0, 4.0, 4.0,
+    std::vector<float> ref_diff_src {-1.0, 1.5, 1.5, 10.0, 2.0, 4.0, 4.0, 4.0,
             2.0, 4.0, 4.0, 4.0, 12.0, -2.5, -2.5, -3.0};
-    test::vector<float> diff_dst {
+    std::vector<float> diff_dst {
             -1.0, 3.0, 10.0, 4.0, 16.0, 8.0, 12.0, -5.0, -3.0};
-    test::vector<float> diff_src(ref_diff_src.size(), 0.0);
+    std::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
     graph::op_t avg_pool_bwd_op(graph::op_kind::AvgPoolBackward);
     avg_pool_bwd_op.set_attr<dims>(graph::op_attr::strides, {2, 2});
@@ -526,12 +522,13 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     cp.query_logical_tensor(diff_src_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-    graph::tensor_t diff_src_ts(lt, eng, diff_src.data());
+    test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
+    test_tensor diff_src_ts(lt, eng, diff_src);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {diff_dst_ts}, {diff_src_ts});
+    cp.execute(strm, {diff_dst_ts.get()}, {diff_src_ts.get()});
     strm->wait();
+    diff_src = diff_src_ts.as_vec_type<float>();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -541,11 +538,11 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> ref_diff_src {-0.25, 0.75, 0.75, 2.5, 1.0, 4.0, 4.0,
-            2.0, 1.0, 4.0, 4.0, 2.0, 3.0, -1.25, -1.25, -3.0 / 4};
-    test::vector<float> diff_dst {
+    std::vector<float> ref_diff_src {-0.25, 0.75, 0.75, 2.5, 1.0, 4.0, 4.0, 2.0,
+            1.0, 4.0, 4.0, 2.0, 3.0, -1.25, -1.25, -3.0 / 4};
+    std::vector<float> diff_dst {
             -1.0, 3.0, 10.0, 4.0, 16.0, 8.0, 12.0, -5.0, -3.0};
-    test::vector<float> diff_src(ref_diff_src.size(), 0.0);
+    std::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
     graph::op_t avg_pool_bwd_op(graph::op_kind::AvgPoolBackward);
     avg_pool_bwd_op.set_attr<dims>(graph::op_attr::strides, {2, 2});
@@ -584,12 +581,13 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     cp.query_logical_tensor(diff_src_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-    graph::tensor_t diff_src_ts(lt, eng, diff_src.data());
+    test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
+    test_tensor diff_src_ts(lt, eng, diff_src);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {diff_dst_ts}, {diff_src_ts});
+    cp.execute(strm, {diff_dst_ts.get()}, {diff_src_ts.get()});
     strm->wait();
+    diff_src = diff_src_ts.as_vec_type<float>();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -621,9 +619,9 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
             dst_shape.erase(dst_shape.begin() + 1);
         }
 
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        test::vector<int8_t> case2_out_data(product(dst_shape));
+        std::vector<uint8_t> src_u8_data(product(src_shape));
+        std::vector<int8_t> case1_out_data(product(dst_shape));
+        std::vector<int8_t> case2_out_data(product(dst_shape));
 
         // random generate src, weight and bias data
         // random seed = 7
@@ -691,9 +689,9 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
         g.add_op(&qout_op);
         g.finalize();
 
-        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        graph::tensor_t dst_u8_ts(dst_u8, engine, case1_out_data.data());
-        graph::tensor_t dst_u8_case2_ts(dst_u8, engine, case2_out_data.data());
+        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor dst_u8_ts(dst_u8, engine, case1_out_data);
+        test_tensor dst_u8_case2_ts(dst_u8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts}, {dst_u8_ts}, *engine, *strm),
@@ -716,16 +714,18 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        cp.execute(strm, {src_u8_ts}, {dst_u8_case2_ts});
+        cp.execute(strm, {src_u8_ts.get()}, {dst_u8_case2_ts.get()});
         strm->wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<uint8_t>(dst_u8_ts, dst_u8_case2_ts, /*rtol*/ 0.1f,
+                            /*atol*/ 1.f));
         else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+            ASSERT_TRUE(allclose<uint8_t>(dst_u8_ts, dst_u8_case2_ts,
+                    /*rtol*/ 0.01f,
                     /*atol*/ 1.f));
     }
 }
@@ -734,10 +734,10 @@ TEST(Execute, MaxPool) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+    std::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> ref_dst {-0.5, 2.0, 3.0, 4.0};
-    test::vector<float> dst(ref_dst.size(), 0.0);
+    std::vector<float> ref_dst {-0.5, 2.0, 3.0, 4.0};
+    std::vector<float> dst(ref_dst.size(), 0.0);
 
     graph::op_t max_pool_op(0, graph::op_kind::MaxPool, "maxpool");
     max_pool_op.set_attr<dims>(graph::op_attr::strides, {2, 2});
@@ -780,13 +780,13 @@ TEST(Execute, MaxPool) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor dst_ts(lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts}, {dst_ts});
+    cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
     strm->wait();
-
+    dst = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -796,10 +796,10 @@ TEST(Execute, MaxPoolwithCache) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+    std::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> ref_dst {-0.5, 2.0, 3.0, 4.0};
-    test::vector<float> dst(ref_dst.size(), 0.0);
+    std::vector<float> ref_dst {-0.5, 2.0, 3.0, 4.0};
+    std::vector<float> dst(ref_dst.size(), 0.0);
 
     graph::op_t max_pool_op(0, graph::op_kind::MaxPool, "maxpool");
     max_pool_op.set_attr<dims>(graph::op_attr::strides, {2, 2});
@@ -842,30 +842,30 @@ TEST(Execute, MaxPoolwithCache) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor dst_ts(lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts}, {dst_ts});
+    cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
     strm->wait();
-
+    dst = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 
     //test with same data and stream to see
     //if the memory cache runs correctly
-    test::vector<float> src2 {-1.0, -2.0, 2.0, 0.5, -4, -1.0, 2.0, 1.5, 4.0,
+    std::vector<float> src2 {-1.0, -2.0, 2.0, 0.5, -4, -1.0, 2.0, 1.5, 4.0,
             -1.5, -1.0, 2.0, 1.0, -2.0, -1.0, 2.0};
-    test::vector<float> ref_dst2 {-1.0, 2.0, 4.0, 2.0};
-    test::vector<float> dst2(ref_dst2.size(), 0.0);
+    std::vector<float> ref_dst2 {-1.0, 2.0, 4.0, 2.0};
+    std::vector<float> dst2(ref_dst2.size(), 0.0);
 
-    graph::tensor_t src_ts2(src_lt, eng, src2.data());
-    graph::tensor_t dst_ts2(dst_lt, eng, dst2.data());
+    test_tensor src_ts2(src_lt, eng, src2);
+    test_tensor dst_ts2(lt, eng, dst2);
 
-    cp.execute(strm, {src_ts2}, {dst_ts2});
+    cp.execute(strm, {src_ts2.get()}, {dst_ts2.get()});
     strm->wait();
-
+    dst2 = dst_ts2.as_vec_type<float>();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst2[i], ref_dst2[i]);
     }
@@ -949,13 +949,13 @@ TEST(Execute, MaxPoolBackward) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+    std::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             3.0, -1.0, 0.0, 1.0, -2.0, -1.0, 4.0};
-    test::vector<float> diff_src(src.size(), 0.0);
-    test::vector<float> ref_diff_src {0.0, 0.0, 16.0, 0.0, 4.0, 0.0, 0.0, 0.0,
+    std::vector<float> diff_src(src.size(), 0.0);
+    std::vector<float> ref_diff_src {0.0, 0.0, 16.0, 0.0, 4.0, 0.0, 0.0, 0.0,
             0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12.0};
 
-    test::vector<float> diff_dst {4.0, 16.0, 8.0, 12.0};
+    std::vector<float> diff_dst {4.0, 16.0, 8.0, 12.0};
 
     graph::op_t max_pool_bwd_op(graph::op_kind::MaxPoolBackward);
 
@@ -996,14 +996,14 @@ TEST(Execute, MaxPoolBackward) {
     cp.query_logical_tensor(diff_src_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-    graph::tensor_t diff_src_ts(lt, eng, diff_src.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
+    test_tensor diff_src_ts(lt, eng, diff_src);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    cp.execute(strm, {src_ts.get(), diff_dst_ts.get()}, {diff_src_ts.get()});
     strm->wait();
-
+    diff_src = diff_src_ts.as_vec_type<float>();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -1055,16 +1055,16 @@ TEST(Execute, MaxPoolBackwardPlainGrad) {
     cp.query_logical_tensor(diff_src_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test::vector<float> src(product(input_dims), 1);
-    test::vector<float> diff_dst(product(output_dims), 1);
-    test::vector<float> diff_src(product(input_dims), 1);
+    std::vector<float> src(product(input_dims), 1);
+    std::vector<float> diff_dst(product(output_dims), 1);
+    std::vector<float> diff_src(product(input_dims), 1);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-    graph::tensor_t diff_src_ts(lt, eng, diff_src.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
+    test_tensor diff_src_ts(lt, eng, diff_src);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    cp.execute(strm, {src_ts.get(), diff_dst_ts.get()}, {diff_src_ts.get()});
     strm->wait();
 }
 
@@ -1094,9 +1094,9 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
             dst_shape.erase(dst_shape.begin() + 1);
         }
 
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        test::vector<int8_t> case2_out_data(product(dst_shape));
+        std::vector<uint8_t> src_u8_data(product(src_shape));
+        std::vector<int8_t> case1_out_data(product(dst_shape));
+        std::vector<int8_t> case2_out_data(product(dst_shape));
 
         // random generate src, weight and bias data
         // random seed = 7
@@ -1165,9 +1165,9 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
         g.add_op(&qout_op);
         g.finalize();
 
-        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        graph::tensor_t dst_u8_ts(dst_u8, engine, case1_out_data.data());
-        graph::tensor_t dst_u8_case2_ts(dst_u8, engine, case2_out_data.data());
+        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor dst_u8_ts(dst_u8, engine, case1_out_data);
+        test_tensor dst_u8_case2_ts(dst_u8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts}, {dst_u8_ts}, *engine, *strm),
@@ -1190,16 +1190,18 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        cp.execute(strm, {src_u8_ts}, {dst_u8_case2_ts});
+        cp.execute(strm, {src_u8_ts.get()}, {dst_u8_case2_ts.get()});
         strm->wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose<uint8_t>(dst_u8_ts, dst_u8_case2_ts, /*rtol*/ 0.1f,
+                            /*atol*/ 1.f));
         else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+            ASSERT_TRUE(allclose<uint8_t>(dst_u8_ts, dst_u8_case2_ts,
+                    /*rtol*/ 0.01f,
                     /*atol*/ 1.f));
     }
 }
@@ -1216,9 +1218,9 @@ TEST(ExecuteSubgraphInt8, MaxpoolAsymmetric) {
     std::vector<int64_t> src_shape = {3, 3, 4, 4};
     std::vector<int64_t> dst_shape = {3, 3, 2, 2};
 
-    test::vector<uint8_t> src_u8_data(product(src_shape));
-    test::vector<int8_t> case1_out_data(product(dst_shape));
-    test::vector<int8_t> case2_out_data(product(dst_shape));
+    std::vector<uint8_t> src_u8_data(product(src_shape));
+    std::vector<int8_t> case1_out_data(product(dst_shape));
+    std::vector<int8_t> case2_out_data(product(dst_shape));
 
     // random generate src, weight and bias data
     // random seed = 7
@@ -1279,9 +1281,9 @@ TEST(ExecuteSubgraphInt8, MaxpoolAsymmetric) {
     g.add_op(&qout_op);
     g.finalize();
 
-    graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-    graph::tensor_t dst_u8_ts(dst_u8, engine, case1_out_data.data());
-    graph::tensor_t dst_u8_case2_ts(dst_u8, engine, case2_out_data.data());
+    test_tensor src_u8_ts(src_u8, engine, src_u8_data);
+    test_tensor dst_u8_ts(dst_u8, engine, case1_out_data);
+    test_tensor dst_u8_case2_ts(dst_u8, engine, case2_out_data);
 
     // -------------------------case 1----------------------------------
     ASSERT_EQ(run_graph(g, {src_u8_ts}, {dst_u8_ts}, *engine, *strm),
@@ -1304,17 +1306,18 @@ TEST(ExecuteSubgraphInt8, MaxpoolAsymmetric) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    cp.execute(strm, {src_u8_ts}, {dst_u8_case2_ts});
+    cp.execute(strm, {src_u8_ts.get()}, {dst_u8_case2_ts.get()});
     strm->wait();
 
     static auto isa = dnnl_get_effective_cpu_isa();
     if (engine->kind() == graph::engine_kind::cpu
             && isa < dnnl_cpu_isa_avx512_core_vnni)
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+        ASSERT_TRUE(allclose<uint8_t>(dst_u8_ts, dst_u8_case2_ts, /*rtol*/ 0.1f,
                 /*atol*/ 1.f));
     else
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
+        ASSERT_TRUE(
+                allclose<uint8_t>(dst_u8_ts, dst_u8_case2_ts, /*rtol*/ 0.01f,
+                        /*atol*/ 1.f));
 }
 
 struct pool_binary_params_t {
@@ -1359,10 +1362,6 @@ public:
                 post_src_shape.emplace_back(post_src_shape[1]);
                 post_src_shape.erase(post_src_shape.begin() + 1);
             }
-
-            test::vector<float> src(product(src_shape), 4.0);
-            test::vector<float> dst(product(dst_shape), 0.0);
-            test::vector<float> post_src(product(post_src_shape), 2.0);
 
             graph::op_t pool_op(0, params.pool_kind, "pool");
             pool_op.set_attr<dims>(
@@ -1426,12 +1425,15 @@ public:
             cp.query_logical_tensor(add_dst_lt.id, &lt);
             ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-            graph::tensor_t src_ts(src_lt, eng, src.data());
-            graph::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
-            graph::tensor_t add_dst_ts(add_dst_lt, eng, dst.data());
+            test_tensor src_ts(src_lt, eng);
+            src_ts.fill<bfloat16_t>(4.0);
+            test_tensor post_src_ts(post_src_lt, eng);
+            post_src_ts.fill<bfloat16_t>(2.0);
+            test_tensor add_dst_ts(add_dst_lt, eng);
 
             graph::stream_t *strm = get_stream();
-            ASSERT_EQ(cp.execute(strm, {src_ts, post_src_ts}, {add_dst_ts}),
+            ASSERT_EQ(cp.execute(strm, {src_ts.get(), post_src_ts.get()},
+                              {add_dst_ts.get()}),
                     graph::status::success);
             strm->wait();
         }
@@ -1480,32 +1482,32 @@ TEST(ExecuteSubgraphInt8, DequantizePoolReshapeQunatize) {
             graph::op_kind::AvgPool, graph::op_kind::MaxPool};
     const std::vector<graph::op_kind_t> rtypes {graph::op_kind::StaticTranspose,
             graph::op_kind::Wildcard, graph::op_kind::StaticReshape};
-    test::vector<int8_t> src_s8_data {4, 8, 12, 16, 20, 24, 28, 32, 36};
+    std::vector<int8_t> src_s8_data {4, 8, 12, 16, 20, 24, 28, 32, 36};
     std::vector<int64_t> order {3, 2, 1, 0};
     const float scale_src = 0.1f;
     const float scale_out = 0.2f;
     const int64_t zp_src = -4;
     const int64_t zp_out = -4;
-    std::vector<std::tuple<graph::op_kind_t, graph::op_kind_t,
-            test::vector<int8_t>>>
+    std::vector<
+            std::tuple<graph::op_kind_t, graph::op_kind_t, std::vector<int8_t>>>
             ut_vec {std::make_tuple(graph::op_kind::StaticTranspose,
                             graph::op_kind::AvgPool,
-                            test::vector<int8_t> {4, 10, 6, 12}),
+                            std::vector<int8_t> {4, 10, 6, 12}),
                     std::make_tuple(graph::op_kind::StaticTranspose,
                             graph::op_kind::MaxPool,
-                            test::vector<int8_t> {8, 14, 10, 16}),
+                            std::vector<int8_t> {8, 14, 10, 16}),
                     std::make_tuple(graph::op_kind::Wildcard,
                             graph::op_kind::AvgPool,
-                            test::vector<int8_t> {4, 6, 10, 12}),
+                            std::vector<int8_t> {4, 6, 10, 12}),
                     std::make_tuple(graph::op_kind::Wildcard,
                             graph::op_kind::MaxPool,
-                            test::vector<int8_t> {8, 10, 14, 16}),
+                            std::vector<int8_t> {8, 10, 14, 16}),
                     std::make_tuple(graph::op_kind::StaticReshape,
                             graph::op_kind::AvgPool,
-                            test::vector<int8_t> {4, 6, 10, 12}),
+                            std::vector<int8_t> {4, 6, 10, 12}),
                     std::make_tuple(graph::op_kind::StaticReshape,
                             graph::op_kind::MaxPool,
-                            test::vector<int8_t> {8, 10, 14, 16})};
+                            std::vector<int8_t> {8, 10, 14, 16})};
     size_t id = 0;
     for (auto &item : ut_vec) {
         const auto &rtype = std::get<0>(item);
@@ -1519,7 +1521,7 @@ TEST(ExecuteSubgraphInt8, DequantizePoolReshapeQunatize) {
             std::reverse(dst_shape.begin(), dst_shape.end());
         }
 
-        test::vector<int8_t> case1_dst_s8_data(product(dst_shape));
+        std::vector<int8_t> case1_dst_s8_data(product(dst_shape));
 
         graph::op_t dqdata_op(id++, graph::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
@@ -1593,9 +1595,8 @@ TEST(ExecuteSubgraphInt8, DequantizePoolReshapeQunatize) {
         g.add_op(&qout_op);
         g.finalize();
 
-        graph::tensor_t src_s8_ts(dq_in_s8, engine, src_s8_data.data());
-        graph::tensor_t case1_dst_s8_ts(
-                q_out_s8, engine, case1_dst_s8_data.data());
+        test_tensor src_s8_ts(dq_in_s8, engine, src_s8_data);
+        test_tensor case1_dst_s8_ts(q_out_s8, engine, case1_dst_s8_data);
         graph::pass::pass_base_ptr apass
                 = get_pass("x8_pool_reshape_transpose");
         apass->run(g);
@@ -1609,18 +1610,20 @@ TEST(ExecuteSubgraphInt8, DequantizePoolReshapeQunatize) {
         std::vector<const graph::logical_tensor_t *> lt_ins {&dq_in_s8};
         std::vector<const graph::logical_tensor_t *> lt_outs {&q_out_s8};
         p.compile(&cp, lt_ins, lt_outs, engine);
-        cp.execute(strm, {src_s8_ts}, {case1_dst_s8_ts});
+        cp.execute(strm, {src_s8_ts.get()}, {case1_dst_s8_ts.get()});
         strm->wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
         if (engine->kind() == graph::engine_kind::cpu
                 && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_dst_s8_data, dst_data,
-                    /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose(case1_dst_s8_ts.as_vec_type<int8_t>(), dst_data,
+                            /*rtol*/ 0.1f,
+                            /*atol*/ 1.f));
         else
-            ASSERT_TRUE(allclose(case1_dst_s8_data, dst_data,
-                    /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+            ASSERT_TRUE(
+                    allclose(case1_dst_s8_ts.as_vec_type<int8_t>(), dst_data,
+                            /*rtol*/ 0.01f,
+                            /*atol*/ 1.f));
     }
 }

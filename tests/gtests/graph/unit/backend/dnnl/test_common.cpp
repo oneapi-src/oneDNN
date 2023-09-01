@@ -54,13 +54,13 @@ TEST(Common, MakeDnnlMemory) {
 
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(0, {1, 2}, graph::data_type::f32);
-    graph::tensor_t t1 {lt, &eng, nullptr};
+    test_tensor t1 {lt, &eng};
     if (eng.kind() == graph::engine_kind::cpu) {
         ASSERT_NO_THROW(graph::dnnl_impl::make_dnnl_memory(
-                t1, dnnl::engine(dnnl::engine::kind::cpu, 0)));
+                t1.get(), dnnl::engine(dnnl::engine::kind::cpu, 0)));
     } else if (eng.kind() == graph::engine_kind::gpu) {
         ASSERT_NO_THROW(graph::dnnl_impl::make_dnnl_memory(
-                t1, dnnl::engine(dnnl::engine::kind::gpu, 0)));
+                t1.get(), dnnl::engine(dnnl::engine::kind::gpu, 0)));
     }
 }
 

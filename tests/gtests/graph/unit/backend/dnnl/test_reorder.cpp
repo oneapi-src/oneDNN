@@ -26,9 +26,9 @@ namespace utils = dnnl::graph::tests::unit::utils;
 TEST(Execute, ReorderData) {
     graph::engine_t *engine = get_engine();
 
-    test::vector<float> src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
-    test::vector<float> ref_dst {1.0, 4.0, 2.0, 5.0, 3.0, 6.0};
-    test::vector<float> dst(src.size(), 10);
+    std::vector<float> src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+    std::vector<float> ref_dst {1.0, 4.0, 2.0, 5.0, 3.0, 6.0};
+    std::vector<float> dst(src.size(), 10);
 
     graph::op_t reorder_op(graph::op_kind::Reorder);
 
@@ -64,11 +64,12 @@ TEST(Execute, ReorderData) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
     graph::stream_t *stream = get_stream();
-    graph::tensor_t src_ts(src_lt, engine, src.data());
-    graph::tensor_t dst_ts(dst_lt, engine, dst.data());
+    test_tensor src_ts(src_lt, engine, src);
+    test_tensor dst_ts(dst_lt, engine, dst);
 
-    cp.execute(stream, {src_ts}, {dst_ts});
+    cp.execute(stream, {src_ts.get()}, {dst_ts.get()});
     stream->wait();
+    dst = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < src.size(); ++i) {
         ASSERT_EQ(dst[i], ref_dst[i]);
     }
@@ -84,11 +85,11 @@ TEST(Execute, Int8Reorder) {
     */
     graph::engine_t *engine = get_engine();
 
-    test::vector<uint8_t> int8_src {1, 2, 3, 4, 5, 6};
-    test::vector<uint8_t> int8_dst(int8_src.size(), 0);
+    std::vector<uint8_t> int8_src {1, 2, 3, 4, 5, 6};
+    std::vector<uint8_t> int8_dst(int8_src.size(), 0);
 
     // int8 = f32 / scales + zero_points
-    test::vector<uint8_t> ref_dst {9, 36, 18, 45, 27, 54};
+    std::vector<uint8_t> ref_dst {9, 36, 18, 45, 27, 54};
 
     graph::graph_t agraph(engine->kind());
     std::vector<int64_t> zps1 = {0};
@@ -139,11 +140,12 @@ TEST(Execute, Int8Reorder) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
     graph::stream_t *stream = get_stream();
-    graph::tensor_t src_ts(int8_src_lt, engine, int8_src.data());
-    graph::tensor_t dst_ts(int8_dst_lt, engine, int8_dst.data());
+    test_tensor src_ts(int8_src_lt, engine, int8_src);
+    test_tensor dst_ts(int8_dst_lt, engine, int8_dst);
 
-    cp.execute(stream, {src_ts}, {dst_ts});
+    cp.execute(stream, {src_ts.get()}, {dst_ts.get()});
     stream->wait();
+    int8_dst = dst_ts.as_vec_type<uint8_t>();
     for (size_t i = 0; i < int8_src.size(); ++i) {
         ASSERT_EQ(int8_dst[i], ref_dst[i]);
     }
@@ -186,9 +188,9 @@ TEST(Compile, ReorderNegativeInput) {
 TEST(Execute, ReorderDataBf16) {
     graph::engine_t *engine = get_engine();
 
-    test::vector<float> src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
-    test::vector<float> ref_dst {1.0, 4.0, 2.0, 5.0, 3.0, 6.0};
-    test::vector<float> dst(src.size(), 10);
+    std::vector<bfloat16_t> src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+    std::vector<bfloat16_t> ref_dst {1.0, 4.0, 2.0, 5.0, 3.0, 6.0};
+    std::vector<bfloat16_t> dst(src.size(), 10);
 
     graph::op_t reorder_op(graph::op_kind::Reorder);
 
@@ -224,10 +226,10 @@ TEST(Execute, ReorderDataBf16) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
     graph::stream_t *stream = get_stream();
-    graph::tensor_t src_ts(src_lt, engine, src.data());
-    graph::tensor_t dst_ts(dst_lt, engine, dst.data());
+    test_tensor src_ts(src_lt, engine, src);
+    test_tensor dst_ts(dst_lt, engine, dst);
 
-    cp.execute(stream, {src_ts}, {dst_ts});
+    cp.execute(stream, {src_ts.get()}, {dst_ts.get()});
     stream->wait();
 }
 
@@ -240,9 +242,9 @@ TEST(Execute, ReorderAddBf16) {
                     && eng->kind() == graph::engine_kind::cpu,
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    test::vector<uint16_t> src {1, 2, 3, 4, 5, 6};
-    test::vector<uint16_t> post_src {1, 2, 3, 4, 5, 6};
-    test::vector<uint16_t> dst(src.size(), 0);
+    std::vector<uint16_t> src {1, 2, 3, 4, 5, 6};
+    std::vector<uint16_t> post_src {1, 2, 3, 4, 5, 6};
+    std::vector<uint16_t> dst(src.size(), 0);
 
     graph::graph_t agraph(eng->kind());
     graph::op_t reorder {0, graph::op_kind::Reorder, "reorder"};
@@ -284,10 +286,10 @@ TEST(Execute, ReorderAddBf16) {
     std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t post_src_ts(add_src_lt, eng, post_src.data());
-    graph::tensor_t dst_ts(add_dst_lt, eng, dst.data());
-    cp.execute(strm, {src_ts, post_src_ts}, {dst_ts});
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor post_src_ts(add_src_lt, eng, post_src);
+    test_tensor dst_ts(add_dst_lt, eng, dst);
+    cp.execute(strm, {src_ts.get(), post_src_ts.get()}, {dst_ts.get()});
     strm->wait();
 }
 
@@ -354,12 +356,12 @@ TEST(Execute, Int8ReorderAdd) {
     GTEST_SKIP();
     graph::engine_t *engine = get_engine();
 
-    test::vector<uint8_t> int8_src {1, 2, 3, 4, 5, 6};
-    test::vector<uint8_t> int8_src_other {1, 2, 3, 4, 5, 6};
-    test::vector<uint8_t> int8_dst(int8_src.size(), 0);
+    std::vector<uint8_t> int8_src {1, 2, 3, 4, 5, 6};
+    std::vector<uint8_t> int8_src_other {1, 2, 3, 4, 5, 6};
+    std::vector<uint8_t> int8_dst(int8_src.size(), 0);
 
     // int8 = f32 / scales + zero_points
-    test::vector<uint8_t> ref_dst {2, 6, 5, 9, 8, 12};
+    std::vector<uint8_t> ref_dst {2, 6, 5, 9, 8, 12};
 
     graph::graph_t agraph(engine->kind());
     std::vector<int64_t> zps = {0};
@@ -435,13 +437,13 @@ TEST(Execute, Int8ReorderAdd) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
     graph::stream_t *stream = get_stream();
-    graph::tensor_t src_ts(int8_src_lt, engine, int8_src.data());
-    graph::tensor_t src_other_ts(
-            int8_src_other_lt, engine, int8_src_other.data());
-    graph::tensor_t dst_ts(int8_dst_add_lt, engine, int8_dst.data());
+    test_tensor src_ts(int8_src_lt, engine, int8_src);
+    test_tensor src_other_ts(int8_src_other_lt, engine, int8_src_other);
+    test_tensor dst_ts(int8_dst_add_lt, engine, int8_dst);
 
-    cp.execute(stream, {src_ts, src_other_ts}, {dst_ts});
+    cp.execute(stream, {src_ts.get(), src_other_ts.get()}, {dst_ts.get()});
     stream->wait();
+    int8_dst = dst_ts.as_vec_type<uint8_t>();
     for (size_t i = 0; i < int8_src.size(); ++i) {
         ASSERT_EQ(int8_dst[i], ref_dst[i]);
     }

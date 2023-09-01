@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,18 +47,17 @@ public:
         op.set_attr<bool>(graph::op_attr::per_channel_broadcast,
                 params.per_channel_broadcast);
 
-        test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -1.0, 1.0};
-        test::vector<float> wei;
-        copy_data(params.wei, wei);
-        test::vector<float> dst(src.size(), 0.0);
+        std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -1.0, 1.0};
+        std::vector<float> wei(params.wei);
+        std::vector<float> dst(src.size(), 0.0);
         dnnl::impl::graph::dims dims {1, 2, 2, 2};
 
         graph::logical_tensor_t src_lt
                 = utils::logical_tensor_init(0, dims, graph::data_type::f32);
         graph::logical_tensor_t wei_lt = utils::logical_tensor_init(
                 1, params.wei_dims, graph::data_type::f32);
-        graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
-                2, dims, graph::data_type::f32, graph::layout_type::any);
+        graph::logical_tensor_t dst_lt
+                = utils::logical_tensor_init(2, dims, graph::data_type::f32);
 
         op.add_input(src_lt);
         op.add_input(wei_lt);
@@ -88,14 +87,14 @@ public:
 
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        graph::tensor_t src_ts(src_lt, eng, src.data());
-        graph::tensor_t wei_ts(wei_lt, eng, wei.data());
-        graph::tensor_t dst_ts(dst_lt, eng, dst.data());
+        test_tensor src_ts(src_lt, eng, src);
+        test_tensor wei_ts(wei_lt, eng, wei);
+        test_tensor dst_ts(dst_lt, eng, dst);
         graph::stream_t *strm = get_stream();
 
-        cp.execute(strm, {src_ts, wei_ts}, {dst_ts});
+        cp.execute(strm, {src_ts.get(), wei_ts.get()}, {dst_ts.get()});
         strm->wait();
-
+        dst = dst_ts.as_vec_type<float>();
         for (size_t i = 0; i < src.size(); ++i) {
             ASSERT_FLOAT_EQ(dst[i], params.ref_dst[i]);
         }
@@ -122,20 +121,17 @@ public:
         graph::engine_t *eng = get_engine();
         graph::stream_t *strm = get_stream();
 
-        test::vector<float> src;
-        test::vector<float> wei;
-        test::vector<float> diff_dst;
-        copy_data(params.src, src);
-        copy_data(params.wei, wei);
-        copy_data(params.diff_dst, diff_dst);
+        std::vector<float> src(params.src);
+        std::vector<float> wei(params.wei);
+        std::vector<float> diff_dst(params.diff_dst);
 
-        test::vector<float> diff_src(src.size(), 0.f);
+        std::vector<float> diff_src(src.size(), 0.f);
 
         size_t diff_wei_size = 1;
         for (auto dim : params.diff_wei_dims) {
             diff_wei_size *= dim;
         }
-        test::vector<float> diff_wei(diff_wei_size, 0.f);
+        std::vector<float> diff_wei(diff_wei_size, 0.f);
 
         graph::op_t prelu_op(graph::op_kind::PReLUBackward, "prelu_bwd");
         prelu_op.set_attr<std::string>(
@@ -147,12 +143,10 @@ public:
                 1, params.wei_dims, graph::data_type::f32);
         graph::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
                 2, params.data_dims, graph::data_type::f32);
-        graph::logical_tensor_t diff_src_lt
-                = utils::logical_tensor_init(3, params.data_dims,
-                        graph::data_type::f32, graph::layout_type::any);
-        graph::logical_tensor_t diff_wei_lt
-                = utils::logical_tensor_init(4, params.diff_wei_dims,
-                        graph::data_type::f32, graph::layout_type::any);
+        graph::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+                3, params.data_dims, graph::data_type::f32);
+        graph::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
+                4, params.diff_wei_dims, graph::data_type::f32);
 
         prelu_op.add_input(src_lt);
         prelu_op.add_input(wei_lt);
@@ -181,17 +175,19 @@ public:
 
         ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-        graph::tensor_t src_ts(src_lt, eng, src.data());
-        graph::tensor_t wei_ts(wei_lt, eng, wei.data());
-        graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-        graph::tensor_t diff_src_ts(diff_src_lt, eng, diff_src.data());
-        graph::tensor_t diff_wei_ts(diff_wei_lt, eng, diff_wei.data());
+        test_tensor src_ts(src_lt, eng, src);
+        test_tensor wei_ts(wei_lt, eng, wei);
+        test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
+        test_tensor diff_src_ts(diff_src_lt, eng, diff_src);
+        test_tensor diff_wei_ts(diff_wei_lt, eng, diff_wei);
 
-        ASSERT_EQ(cp.execute(strm, {src_ts, wei_ts, diff_dst_ts},
-                          {diff_src_ts, diff_wei_ts}),
+        ASSERT_EQ(cp.execute(strm,
+                          {src_ts.get(), wei_ts.get(), diff_dst_ts.get()},
+                          {diff_src_ts.get(), diff_wei_ts.get()}),
                 graph::status::success);
         strm->wait();
-
+        diff_src = diff_src_ts.as_vec_type<float>();
+        diff_wei = diff_wei_ts.as_vec_type<float>();
         for (size_t i = 0; i < params.ref_diff_src.size(); ++i) {
             ASSERT_FLOAT_EQ(diff_src[i], params.ref_diff_src[i]);
         }

@@ -73,12 +73,11 @@ static inline void run_all_single_passes(dnnl::impl::graph::graph_t &agraph) {
 // function are not visible outside.
 static inline dnnl::impl::graph::status_t run_graph(
         dnnl::impl::graph::graph_t &agraph,
-        const std::vector<dnnl::impl::graph::tensor_t> &g_in_ts,
-        const std::vector<dnnl::impl::graph::tensor_t> &g_out_ts,
+        const std::vector<test_tensor> &g_in_ts,
+        const std::vector<test_tensor> &g_out_ts,
         dnnl::impl::graph::engine_t &eng, dnnl::impl::graph::stream_t &strm) {
     namespace graph = dnnl::impl::graph;
     namespace dnnl_impl = graph::dnnl_impl;
-    using ltw = graph::logical_tensor_wrapper_t;
     graph::status_t ret;
     graph::graph_t copied(agraph);
     auto ops = copied.get_ops();
@@ -97,10 +96,10 @@ static inline dnnl::impl::graph::status_t run_graph(
     // set the given in/outputs to the graph
     std::vector<graph::logical_tensor_t> g_in_lts, g_out_lts;
     for (auto &in_t : g_in_ts) {
-        g_in_lts.emplace_back(in_t.get_logical_tensor());
+        g_in_lts.emplace_back(in_t.get().get_logical_tensor());
     }
     for (auto &out_t : g_out_ts) {
-        g_out_lts.emplace_back(out_t.get_logical_tensor());
+        g_out_lts.emplace_back(out_t.get().get_logical_tensor());
     }
     ret = dnnl_impl::set_given_inputs_outputs(ops, g_in_lts, g_out_lts);
     if (ret != graph::status::success) return ret;
@@ -110,7 +109,7 @@ static inline dnnl::impl::graph::status_t run_graph(
     if (ret != graph::status::success) return ret;
 
     // used to hold the temporary buffers
-    std::unordered_map<size_t, test::vector<char>> temp_data;
+    std::unordered_map<size_t, test_tensor> temp_data;
 
     // compile and execute each op in topo order
     return graph::topo_order_visit(
@@ -176,36 +175,35 @@ static inline dnnl::impl::graph::status_t run_graph(
                 for (auto &in_val : op->get_input_values()) {
                     auto in_lt = in_val->get_logical_tensor();
                     auto pos = std::find_if(g_in_ts.begin(), g_in_ts.end(),
-                            [&](const graph::tensor_t &t) {
-                                return in_lt.id == t.get_logical_tensor().id;
+                            [&](const test_tensor &t) {
+                                return in_lt.id
+                                        == t.get().get_logical_tensor().id;
                             });
                     if (pos != g_in_ts.end()) {
-                        in_ts.emplace_back(*pos);
+                        in_ts.emplace_back(pos->get());
                         continue;
                     }
                     if (temp_data.find(in_lt.id) == temp_data.end()) {
-                        temp_data.insert({in_lt.id,
-                                test::vector<char>(ltw(in_lt).size(), 0)});
+                        temp_data.insert({in_lt.id, test_tensor(in_lt, &eng)});
                     }
-                    in_ts.emplace_back(
-                            in_lt, &eng, temp_data.at(in_lt.id).data());
+                    in_ts.emplace_back(temp_data.at(in_lt.id).get());
                 }
                 for (auto &out_val : op->get_output_values()) {
                     auto out_lt = out_val->get_logical_tensor();
                     auto pos = std::find_if(g_out_ts.begin(), g_out_ts.end(),
-                            [&](const graph::tensor_t &t) {
-                                return out_lt.id == t.get_logical_tensor().id;
+                            [&](const test_tensor &t) {
+                                return out_lt.id
+                                        == t.get().get_logical_tensor().id;
                             });
                     if (pos != g_out_ts.end()) {
-                        out_ts.emplace_back(*pos);
+                        out_ts.emplace_back(pos->get());
                         continue;
                     }
                     if (temp_data.find(out_lt.id) == temp_data.end()) {
-                        temp_data.insert({out_lt.id,
-                                test::vector<char>(ltw(out_lt).size(), 0)});
+                        temp_data.insert(
+                                {out_lt.id, test_tensor(out_lt, &eng)});
                     }
-                    out_ts.emplace_back(
-                            out_lt, &eng, temp_data.at(out_lt.id).data());
+                    out_ts.emplace_back(temp_data.at(out_lt.id).get());
                 }
 
                 // execute
@@ -218,7 +216,7 @@ static inline dnnl::impl::graph::status_t run_graph(
 }
 
 template <typename T>
-inline bool allclose(const test::vector<T> &a, const test::vector<T> &b,
+static inline bool allclose(const std::vector<T> &a, const std::vector<T> &b,
         float rtol, float atol) {
     if (a.size() != b.size()) return false;
     bool flag = true;
@@ -238,11 +236,11 @@ inline bool allclose(const test::vector<T> &a, const test::vector<T> &b,
 }
 
 template <typename T>
-void copy_data(const std::vector<T> &from, test::vector<T> &to) {
-    to.resize(from.size());
-    for (size_t i = 0; i < from.size(); i++) {
-        to[i] = from[i];
-    }
+static inline bool allclose(
+        const test_tensor &a, const test_tensor &b, float rtol, float atol) {
+    auto av = a.as_vec_type<T>();
+    auto bv = b.as_vec_type<T>();
+    return allclose(av, bv, rtol, atol);
 }
 
 static inline size_t product(std::vector<int64_t> &in) {

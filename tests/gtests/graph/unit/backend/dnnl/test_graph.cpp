@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,11 +63,11 @@ TEST(Graph, GetDnnlPartitions) {
     auto &fake_bkd = fake_impl::fake_backend_t::get_singleton();
     fake_bkd.get_partitions(agraph, partition_policy::fusion);
     ASSERT_EQ(agraph.get_num_partitions(), 2U);
-    auto p1 = agraph.get_partitions()[0].get();
+    auto p1 = agraph.get_partitions()[0];
     ASSERT_NE(p1->get_assigned_backend()->get_name(),
             std::string("fake_backend"));
     ASSERT_TRUE(p1->is_initialized());
-    auto p2 = agraph.get_partitions()[1].get();
+    auto p2 = agraph.get_partitions()[1];
     ASSERT_EQ(p2->get_assigned_backend()->get_name(),
             std::string("fake_backend"));
     ASSERT_TRUE(p2->is_initialized());

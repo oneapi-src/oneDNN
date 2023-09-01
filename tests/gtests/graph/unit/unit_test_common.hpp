@@ -19,10 +19,17 @@
 
 #include <memory>
 #include <vector>
+#include <type_traits>
 
 #include "common/engine.hpp"
 #include "common/stream.hpp"
-#include "interface/partition_cache.hpp"
+#include "common/type_helpers.hpp"
+
+#include "graph/interface/c_types_map.hpp"
+#include "graph/interface/partition_cache.hpp"
+#include "graph/interface/tensor.hpp"
+
+#include "tests/gtests/dnnl_test_common.hpp"
 
 #ifdef DNNL_WITH_SYCL
 #include "sycl/sycl_compat.hpp"
@@ -54,100 +61,6 @@ dnnl::impl::graph::engine_kind_t get_test_engine_kind();
 
 void set_test_engine_kind(dnnl::impl::graph::engine_kind_t kind);
 
-namespace test {
-
-#ifdef DNNL_WITH_SYCL
-constexpr size_t usm_alignment = 16;
-#endif
-
-template <typename T>
-class TestAllocator {
-public:
-    typedef T value_type;
-
-    TestAllocator() noexcept {}
-
-    T *allocate(size_t num_elements) {
-        namespace graph = dnnl::impl::graph;
-        if (get_test_engine_kind() == graph::engine_kind::cpu) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-            dev_ = get_device();
-            ctx_ = get_context();
-            return reinterpret_cast<T *>(::sycl::aligned_alloc(usm_alignment,
-                    num_elements * sizeof(T), dev_, ctx_,
-                    ::sycl::usm::alloc::shared));
-#else
-            return reinterpret_cast<T *>(malloc(num_elements * sizeof(T)));
-#endif
-        } else if (get_test_engine_kind() == graph::engine_kind::gpu) {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-            dev_ = get_device();
-            ctx_ = get_context();
-            return reinterpret_cast<T *>(::sycl::aligned_alloc(usm_alignment,
-                    num_elements * sizeof(T), dev_, ctx_,
-                    ::sycl::usm::alloc::shared));
-#else
-            return nullptr;
-#endif
-        } else {
-            return nullptr;
-        }
-    }
-
-    void deallocate(T *ptr, size_t) {
-        namespace graph = dnnl::impl::graph;
-        if (!ptr) return;
-
-        if (get_test_engine_kind() == graph::engine_kind::cpu) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-            ::sycl::free(ptr, ctx_);
-#else
-            free(ptr);
-#endif
-        } else if (get_test_engine_kind() == graph::engine_kind::gpu) {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-            ::sycl::free(ptr, ctx_);
-#endif
-        } else {
-        }
-    }
-
-    template <class U>
-    TestAllocator(const TestAllocator<U> &) noexcept {}
-
-    template <class U>
-    bool operator==(const TestAllocator<U> &rhs) noexcept {
-        return true;
-    }
-
-    template <class U>
-    bool operator!=(const TestAllocator<U> &rhs) noexcept {
-        return !this->operator==(rhs);
-    }
-
-    template <typename U>
-    struct rebind {
-        using other = TestAllocator<U>;
-    };
-
-private:
-#ifdef DNNL_WITH_SYCL
-    // The underlying implementation of ::sycl::device and ::sycl::context
-    // are shared ptr. So we can hold a copy of them to avoid be destroyed
-    // before we use them.
-    ::sycl::device dev_;
-    ::sycl::context ctx_;
-#endif
-};
-
-template <typename T>
-#ifdef DNNL_WITH_SYCL
-using vector = std::vector<T, TestAllocator<T>>;
-#else
-using vector = std::vector<T>;
-#endif // DNNL_WITH_SYCL
-} // namespace test
-
 inline int get_compiled_partition_cache_size() {
     int result = 0;
 #ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
@@ -163,5 +76,148 @@ inline int set_compiled_partition_cache_capacity(int capacity) {
 #endif
     return 0;
 }
+
+class test_tensor {
+private:
+    using ltw = dnnl::impl::graph::logical_tensor_wrapper_t;
+
+    struct deletor_wrapper {
+        deletor_wrapper(dnnl::impl::graph::allocator_t *alc) : alc_(alc) {}
+        void operator()(void *p) {
+            if (!p) {
+#ifdef DNNL_WITH_SYCL
+                alc_->deallocate(p, get_device(), get_context(), {});
+#else
+                alc_->deallocate(p);
+#endif
+            }
+        }
+        dnnl::impl::graph::allocator_t *alc_;
+    };
+
+    /// @brief Alloc memory by engine
+    /// @return Alloced memory
+    static std::shared_ptr<char> allocate(
+            const dnnl::impl::graph::engine_t *e, size_t size) {
+        std::shared_ptr<char> data;
+        auto alc = static_cast<dnnl::impl::graph::allocator_t *>(
+                e->get_allocator());
+        if (e->kind() == dnnl::impl::graph::engine_kind::cpu) { // cpu kind
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+            data.reset(static_cast<char *>(alc->allocate(
+                               size, get_device(), get_context())),
+                    deletor_wrapper {alc});
+#else
+            data.reset(static_cast<char *>(alc->allocate(size)),
+                    deletor_wrapper {alc});
+#endif
+        } else { // gpu kind
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+            data.reset(static_cast<char *>(alc->allocate(
+                               size, get_device(), get_context())),
+                    deletor_wrapper {alc});
+#else
+            assert(!"not supported non-sycl for GPU");
+#endif
+        }
+        return data;
+    }
+
+public:
+    test_tensor() = default;
+
+    test_tensor(const dnnl::impl::graph::logical_tensor_t &lt,
+            const dnnl::impl::graph::engine_t *e)
+        : num_bytes_(ltw(lt).size()) {
+        data_ = allocate(e, num_bytes_);
+        ts_ = dnnl::impl::graph::tensor_t(lt, e, data_.get());
+    }
+
+    template <typename T>
+    test_tensor(const dnnl::impl::graph::logical_tensor_t &lt,
+            const dnnl::impl::graph::engine_t *e, const std::vector<T> &data)
+        : test_tensor(lt, e) {
+        this->fill(data);
+    }
+
+    /// @brief Returns memory size (in bytes) of this tensor
+    /// @return The size
+    size_t get_size() const { return num_bytes_; };
+
+    /// @brief Returns the current graph tensor
+    /// @return The graph tensor
+    const dnnl::impl::graph::tensor_t &get() const { return ts_; }
+
+    /// @brief return @c true if tensor handle is not nullptr, otherwise
+    /// return @c false
+    operator bool() const { return ts_.get_data_handle() != nullptr; }
+
+    /// @brief Return a vector copying elements in the tensor
+    /// @tparam T Data type of tensor element
+    /// @return The vector
+    template <typename T>
+    std::vector<T> as_vec_type() const {
+        const auto dptr = static_cast<typename std::add_pointer<T>::type>(
+                ts_.get_data_handle());
+        if (!dptr) return {};
+        size_t volume = (num_bytes_ + sizeof(T) - 1) / sizeof(T);
+        return {dptr, dptr + volume};
+    }
+
+    template <typename T>
+    void fill(T mean, T deviation, double sparsity = 1.) {
+        if (num_bytes_ == 0 || !data_) return;
+        T *format_ptr = static_cast<typename std::add_pointer<T>::type>(
+                ts_.get_data_handle());
+        size_t volume = (num_bytes_ + sizeof(T) - 1) / sizeof(T);
+        fill_data<T>(volume, format_ptr, mean, deviation, sparsity);
+    }
+
+    template <typename T>
+    void fill() {
+        this->fill<T>(T(1), T(0.2f));
+    }
+
+    template <typename T>
+    void fill(T val) {
+        if (num_bytes_ == 0 || !data_) return;
+        T *format_ptr = static_cast<typename std::add_pointer<T>::type>(
+                ts_.get_data_handle());
+        size_t volume = (num_bytes_ + sizeof(T) - 1) / sizeof(T);
+        for (size_t i = 0; i < volume; ++i) {
+            format_ptr[i] = val;
+        }
+    }
+
+    template <typename T>
+    void fill(const std::vector<T> &vec) {
+        size_t volume = (num_bytes_ + sizeof(T) - 1) / sizeof(T);
+        if (vec.size() != volume) {
+            assert(!"number of elements in vector does not match test "
+                    "tensor.");
+            return;
+        }
+        if (num_bytes_ == 0 || !data_) return;
+        T *format_ptr = static_cast<typename std::add_pointer<T>::type>(
+                ts_.get_data_handle());
+        for (size_t i = 0; i < vec.size(); ++i) {
+            format_ptr[i] = vec[i];
+        }
+    }
+
+    static std::vector<dnnl::impl::graph::tensor_t> to_graph_tensor(
+            const std::vector<test_tensor> &vecs) {
+        std::vector<dnnl::impl::graph::tensor_t> res;
+        for (const auto &e : vecs) {
+            res.emplace_back(e.get());
+        }
+        return res;
+    }
+
+private:
+    dnnl::impl::graph::tensor_t ts_;
+    std::shared_ptr<char> data_ {nullptr};
+    size_t num_bytes_;
+};
 
 #endif

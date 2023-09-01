@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <random>
+
 #include "gtest/gtest.h"
 
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
@@ -31,9 +32,9 @@ TEST(Execute, Softmax) {
     graph::op_t softmax_op(graph::op_kind::SoftMax);
     softmax_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-    test::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
-    test::vector<float> ref_dst_data {0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
-    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+    std::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
+    std::vector<float> ref_dst_data {0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
+    std::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
     // prepare logical tensor
     graph::logical_tensor_t src
@@ -66,12 +67,14 @@ TEST(Execute, Softmax) {
     cp.query_logical_tensor(dst.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src, eng, src_data.data());
-    graph::tensor_t dst_ts(lt, eng, dst_data.data());
+    test_tensor src_ts(src, eng, src_data);
+    test_tensor dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
-    ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
+            graph::status::success);
     strm->wait();
+    dst_data = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -83,9 +86,9 @@ TEST(Execute, SoftmaxWithLastDim) {
     graph::op_t softmax_op(graph::op_kind::SoftMax);
     softmax_op.set_attr<int64_t>(graph::op_attr::axis, -1);
 
-    test::vector<float> src_data {3.0, 3.0, 1.0, 1.0};
-    test::vector<float> ref_dst_data {0.5, 0.5, 0.5, 0.5};
-    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+    std::vector<float> src_data {3.0, 3.0, 1.0, 1.0};
+    std::vector<float> ref_dst_data {0.5, 0.5, 0.5, 0.5};
+    std::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
     // prepare logical tensor
     graph::logical_tensor_t src
@@ -118,39 +121,34 @@ TEST(Execute, SoftmaxWithLastDim) {
     cp.query_logical_tensor(dst.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src, eng, src_data.data());
-    graph::tensor_t dst_ts(lt, eng, dst_data.data());
+    test_tensor src_ts(src, eng, src_data);
+    test_tensor dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
-    ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
+            graph::status::success);
     strm->wait();
+    dst_data = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
 }
 
 static inline void test_softmax_bwd_common(const graph::op_kind_t op_kind,
-        test::vector<float> &dst, test::vector<float> &diff_dst,
-        test::vector<float> &ref_diff_src, const graph::dims &dims,
-        const bool plain_grad) {
+        std::vector<float> &dst, std::vector<float> &diff_dst,
+        std::vector<float> &ref_diff_src, const graph::dims &dims) {
     graph::op_t softmax_bwd_op(op_kind);
     graph::engine_t *eng = get_engine();
 
     softmax_bwd_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
-    test::vector<float> diff_src(ref_diff_src.size(), 0.0);
+    std::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
     graph::logical_tensor_t diff_dst_lt;
     // prepare logical tensor
     graph::logical_tensor_t dst_lt
             = utils::logical_tensor_init(0, dims, graph::data_type::f32);
-    if (plain_grad) {
-        diff_dst_lt
-                = utils::logical_tensor_init(1, dims, graph::data_type::f32);
-    } else {
-        diff_dst_lt = utils::logical_tensor_init(
-                1, dims, graph::data_type::f32, graph::layout_type::any);
-    }
+    diff_dst_lt = utils::logical_tensor_init(1, dims, graph::data_type::f32);
     graph::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
             2, graph::data_type::f32, graph::layout_type::any);
 
@@ -179,50 +177,49 @@ static inline void test_softmax_bwd_common(const graph::op_kind_t op_kind,
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    graph::logical_tensor_t q_lt;
+    graph::logical_tensor_t q_lt, d_lt;
     cp.query_logical_tensor(diff_src_lt.id, &q_lt);
+    cp.query_logical_tensor(diff_dst_lt.id, &d_lt);
     ASSERT_EQ(q_lt.layout_type, graph::layout_type::strided);
 
     for (auto i = 0; i < dst_lt.ndims; i++)
         ASSERT_EQ(q_lt.dims[i], dst_lt.dims[i]);
 
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
-    graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-    graph::tensor_t diff_src_ts(q_lt, eng, diff_src.data());
+    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor diff_dst_ts(d_lt, eng, diff_dst);
+    test_tensor diff_src_ts(q_lt, eng, diff_src);
 
     graph::stream_t *strm = get_stream();
-    ASSERT_EQ(cp.execute(strm, {diff_dst_ts, dst_ts}, {diff_src_ts}),
+    ASSERT_EQ(cp.execute(strm, {diff_dst_ts.get(), dst_ts.get()},
+                      {diff_src_ts.get()}),
             graph::status::success);
     strm->wait();
+    diff_src = diff_src_ts.as_vec_type<float>();
     for (size_t i = 0; i < ref_diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
 }
 
 TEST(Execute, SoftMaxBackward) {
-    test::vector<float> dst {0.5, 0.5, 0.5, 0.5};
-    test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
-    test::vector<float> ref_diff_src {-1, 1, -0.5, 0.5};
+    std::vector<float> dst {0.5, 0.5, 0.5, 0.5};
+    std::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
+    std::vector<float> ref_diff_src {-1, 1, -0.5, 0.5};
 
     const graph::dims dims {2, 2};
 
-    const bool plain_grad = false;
-
-    test_softmax_bwd_common(graph::op_kind::SoftMaxBackward, dst, diff_dst,
-            ref_diff_src, dims, plain_grad);
+    test_softmax_bwd_common(
+            graph::op_kind::SoftMaxBackward, dst, diff_dst, ref_diff_src, dims);
 }
 
 TEST(Execute, SoftMaxBackwardPlainGrad) {
-    test::vector<float> dst {0.5, 0.5, 0.5, 0.5};
-    test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
-    test::vector<float> ref_diff_src {-1, 1, -0.5, 0.5};
+    std::vector<float> dst {0.5, 0.5, 0.5, 0.5};
+    std::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
+    std::vector<float> ref_diff_src {-1, 1, -0.5, 0.5};
 
     const graph::dims dims {2, 2};
 
-    const bool plain_grad = true;
-
-    test_softmax_bwd_common(graph::op_kind::SoftMaxBackward, dst, diff_dst,
-            ref_diff_src, dims, plain_grad);
+    test_softmax_bwd_common(
+            graph::op_kind::SoftMaxBackward, dst, diff_dst, ref_diff_src, dims);
 }
 
 TEST(Execute, LogSoftmax) {
@@ -231,10 +228,10 @@ TEST(Execute, LogSoftmax) {
     graph::op_t logsoftmax_op(graph::op_kind::LogSoftmax);
     logsoftmax_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-    test::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
-    test::vector<float> ref_dst_data {-0.6931472f, -0.6931472f, -0.6931472f,
+    std::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
+    std::vector<float> ref_dst_data {-0.6931472f, -0.6931472f, -0.6931472f,
             -0.6931472f, -0.6931472f, -0.6931472f};
-    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+    std::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
     // prepare logical tensor
     graph::logical_tensor_t src
@@ -268,43 +265,39 @@ TEST(Execute, LogSoftmax) {
     cp.query_logical_tensor(dst.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::tensor_t src_ts(src, eng, src_data.data());
-    graph::tensor_t dst_ts(lt, eng, dst_data.data());
+    test_tensor src_ts(src, eng, src_data);
+    test_tensor dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
-    ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
+            graph::status::success);
     strm->wait();
+    dst_data = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
 }
 
 TEST(Execute, LogSoftmaxBackward) {
-    test::vector<float> dst {
-            -0.6931472f, -0.6931472f, -0.6931472f, -0.6931472f};
-    test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
-    test::vector<float> ref_diff_src {-2, 2, -1, 1};
+    std::vector<float> dst {-0.6931472f, -0.6931472f, -0.6931472f, -0.6931472f};
+    std::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
+    std::vector<float> ref_diff_src {-2, 2, -1, 1};
 
     const graph::dims dims {2, 2};
 
-    const bool plain_grad = false;
-
     test_softmax_bwd_common(graph::op_kind::LogSoftmaxBackward, dst, diff_dst,
-            ref_diff_src, dims, plain_grad);
+            ref_diff_src, dims);
 }
 
 TEST(Execute, LogSoftmaxBackwardPlainGrad) {
-    test::vector<float> dst {
-            -0.6931472f, -0.6931472f, -0.6931472f, -0.6931472f};
-    test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
-    test::vector<float> ref_diff_src {-2, 2, -1, 1};
+    std::vector<float> dst {-0.6931472f, -0.6931472f, -0.6931472f, -0.6931472f};
+    std::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
+    std::vector<float> ref_diff_src {-2, 2, -1, 1};
 
     const graph::dims dims {2, 2};
 
-    const bool plain_grad = true;
-
     test_softmax_bwd_common(graph::op_kind::LogSoftmaxBackward, dst, diff_dst,
-            ref_diff_src, dims, plain_grad);
+            ref_diff_src, dims);
 }
 
 static inline void test_softmax_bwd_get_inplace_pair_common(
@@ -371,11 +364,11 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
             "Skip bf16 tests for systems that do not support avx512_core.");
 
     std::vector<int64_t> softmax_shape {2, 2, 2};
-    test::vector<float> src_data(product(softmax_shape));
+    std::vector<bfloat16_t> src_data(product(softmax_shape));
 
     // random seed = 7
     std::default_random_engine generator(7);
-    std::uniform_real_distribution<float> src_distribution(0.f, 1.f);
+    std::uniform_real_distribution<float> src_distribution(0.f, 4.f);
     std::generate(src_data.begin(), src_data.end(),
             [&]() { return src_distribution(generator); });
 
@@ -426,16 +419,19 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
 
     ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
 
-    test::vector<uint8_t> dst_data(product(softmax_shape));
-    test::vector<uint8_t> ref_data(product(softmax_shape));
-    graph::tensor_t src_ts(src, engine, src_data.data());
-    graph::tensor_t dst_ts(quant_dst, engine, dst_data.data());
-    graph::tensor_t ref_ts(quant_dst, engine, ref_data.data());
+    std::vector<uint8_t> dst_data(product(softmax_shape));
+    std::vector<uint8_t> ref_data(product(softmax_shape));
+    test_tensor src_ts(src, engine, src_data);
+    test_tensor dst_ts(quant_dst, engine, dst_data);
+    test_tensor ref_ts(quant_dst, engine, ref_data);
 
     ASSERT_EQ(run_graph(g, {src_ts}, {ref_ts}, *engine, *strm),
             graph::status::success);
-    ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
+    ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
+            graph::status::success);
     strm->wait();
+    ref_data = ref_ts.as_vec_type<uint8_t>();
+    dst_data = dst_ts.as_vec_type<uint8_t>();
     for (size_t i = 0; i < ref_data.size(); ++i) {
         ASSERT_EQ(ref_data[i], dst_data[i]);
     }
@@ -446,8 +442,8 @@ TEST(Compile, SoftmaxAdd) {
     graph::stream_t *strm = get_stream();
 
     std::vector<int64_t> softmax_shape {2, 2, 2};
-    test::vector<float> src_data(product(softmax_shape));
-    test::vector<float> src1_data(product(softmax_shape), 0.5f);
+    std::vector<float> src_data(product(softmax_shape));
+    std::vector<float> src1_data(product(softmax_shape), 0.5f);
 
     // random seed = 7
     std::default_random_engine generator(7);
@@ -496,18 +492,20 @@ TEST(Compile, SoftmaxAdd) {
 
     ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
 
-    test::vector<float> dst_data(product(softmax_shape));
-    test::vector<float> ref_data(product(softmax_shape));
-    graph::tensor_t src_ts(src, engine, src_data.data());
-    graph::tensor_t src1_ts(add_src1, engine, src1_data.data());
-    graph::tensor_t dst_ts(add_dst, engine, dst_data.data());
-    graph::tensor_t ref_ts(add_dst, engine, ref_data.data());
+    std::vector<float> dst_data(product(softmax_shape));
+    std::vector<float> ref_data(product(softmax_shape));
+    test_tensor src_ts(src, engine, src_data);
+    test_tensor src1_ts(add_src1, engine, src1_data);
+    test_tensor dst_ts(add_dst, engine, dst_data);
+    test_tensor ref_ts(add_dst, engine, ref_data);
 
     ASSERT_EQ(run_graph(g, {src_ts, src1_ts}, {ref_ts}, *engine, *strm),
             graph::status::success);
-    ASSERT_EQ(cp.execute(strm, {src_ts, src1_ts}, {dst_ts}),
+    ASSERT_EQ(cp.execute(strm, {src_ts.get(), src1_ts.get()}, {dst_ts.get()}),
             graph::status::success);
     strm->wait();
+    dst_data = dst_ts.as_vec_type<float>();
+    ref_data = ref_ts.as_vec_type<float>();
     for (size_t i = 0; i < ref_data.size(); ++i) {
         ASSERT_FLOAT_EQ(ref_data[i], dst_data[i]);
     }

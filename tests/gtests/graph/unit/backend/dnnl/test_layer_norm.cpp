@@ -27,15 +27,15 @@ namespace utils = dnnl::graph::tests::unit::utils;
 TEST(Execute, LayernormTraining) {
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src {2.0, 4.0, 5.0, 2.0, 3.0, 5.0};
-    test::vector<float> scale {1.0, 2.0};
-    test::vector<float> shift {0.0, 1.0};
-    test::vector<float> ref_dst {-1.0, 3.0, 1.0, -1.0, -1.0, 3.0};
-    test::vector<float> ref_mean {3.0, 3.5, 4.0};
-    test::vector<float> ref_var {1.0, 2.25, 1.0};
-    test::vector<float> dst(src.size(), 0.0);
-    test::vector<float> mean(ref_mean.size(), 0.0);
-    test::vector<float> var(ref_var.size(), 0.0);
+    std::vector<float> src {2.0, 4.0, 5.0, 2.0, 3.0, 5.0};
+    std::vector<float> scale {1.0, 2.0};
+    std::vector<float> shift {0.0, 1.0};
+    std::vector<float> ref_dst {-1.0, 3.0, 1.0, -1.0, -1.0, 3.0};
+    std::vector<float> ref_mean {3.0, 3.5, 4.0};
+    std::vector<float> ref_var {1.0, 2.25, 1.0};
+    std::vector<float> dst(src.size(), 0.0);
+    std::vector<float> mean(ref_mean.size(), 0.0);
+    std::vector<float> var(ref_var.size(), 0.0);
 
     graph::op_t layernorm_op(graph::op_kind::LayerNorm);
 
@@ -84,16 +84,21 @@ TEST(Execute, LayernormTraining) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t scale_ts(scale_lt, eng, scale.data());
-    graph::tensor_t shift_ts(shift_lt, eng, shift.data());
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
-    graph::tensor_t mean_ts(mean_lt, eng, mean.data());
-    graph::tensor_t var_ts(variance_lt, eng, var.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor scale_ts(scale_lt, eng, scale);
+    test_tensor shift_ts(shift_lt, eng, shift);
+    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor mean_ts(mean_lt, eng, mean);
+    test_tensor var_ts(variance_lt, eng, var);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts, scale_ts, shift_ts}, {dst_ts, mean_ts, var_ts});
+    cp.execute(strm, {src_ts.get(), scale_ts.get(), shift_ts.get()},
+            {dst_ts.get(), mean_ts.get(), var_ts.get()});
     strm->wait();
+
+    dst = dst_ts.as_vec_type<float>();
+    mean = mean_ts.as_vec_type<float>();
+    var = var_ts.as_vec_type<float>();
 
     for (size_t i = 0; i < ref_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -108,11 +113,11 @@ TEST(Execute, LayernormTraining) {
 TEST(Execute, LayernormInference) {
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src {2.0, 4.0, 3.0, 5.5, 5.0, 4.0, 1.0, 2.5};
-    test::vector<float> scale {1.0, 2.0};
-    test::vector<float> shift {0.0, 1.0};
-    test::vector<float> ref_dst {-1.0, 3.0, -1.0, 3.0, 1.0, -1.0, -1.0, 3.0};
-    test::vector<float> dst(src.size(), 0.0);
+    std::vector<float> src {2.0, 4.0, 3.0, 5.5, 5.0, 4.0, 1.0, 2.5};
+    std::vector<float> scale {1.0, 2.0};
+    std::vector<float> shift {0.0, 1.0};
+    std::vector<float> ref_dst {-1.0, 3.0, -1.0, 3.0, 1.0, -1.0, -1.0, 3.0};
+    std::vector<float> dst(src.size(), 0.0);
 
     graph::op_t layernorm_op(graph::op_kind::LayerNorm);
 
@@ -155,15 +160,17 @@ TEST(Execute, LayernormInference) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t scale_ts(scale_lt, eng, scale.data());
-    graph::tensor_t shift_ts(shift_lt, eng, shift.data());
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor scale_ts(scale_lt, eng, scale);
+    test_tensor shift_ts(shift_lt, eng, shift);
+    test_tensor dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts, scale_ts, shift_ts}, {dst_ts});
+    cp.execute(strm, {src_ts.get(), scale_ts.get(), shift_ts.get()},
+            {dst_ts.get()});
     strm->wait();
 
+    dst = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < ref_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -172,9 +179,9 @@ TEST(Execute, LayernormInference) {
 TEST(Execute, LayernormInferenceWithoutScaleShift) {
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src {2.0, 4.0, 3.0, 5.5, 5.0, 4.0, 1.0, 2.5};
-    test::vector<float> ref_dst {-1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0};
-    test::vector<float> dst(src.size(), 0.0);
+    std::vector<float> src {2.0, 4.0, 3.0, 5.5, 5.0, 4.0, 1.0, 2.5};
+    std::vector<float> ref_dst {-1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0};
+    std::vector<float> dst(src.size(), 0.0);
 
     graph::op_t layernorm_op(graph::op_kind::LayerNorm);
 
@@ -211,13 +218,13 @@ TEST(Execute, LayernormInferenceWithoutScaleShift) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    graph::tensor_t src_ts(src_lt, eng, src.data());
-    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
+    test_tensor src_ts(src_lt, eng, src);
+    test_tensor dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, {src_ts}, {dst_ts});
+    cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
     strm->wait();
-
+    dst = dst_ts.as_vec_type<float>();
     for (size_t i = 0; i < ref_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -238,26 +245,26 @@ TEST(Execute, LayerNormBackwardFp32) {
     const dims scaleshift_dims {C};
 
     // inputs data
-    test::vector<float> src_data {
+    std::vector<float> src_data {
             1.0f, -1.0f, 2.0f, 0.0f, 1.0f, -1.0f, 2.0f, 0.0f};
-    test::vector<float> diff_dst_data {
+    std::vector<float> diff_dst_data {
             12.0f, -2.0f, 6.0f, -1.0f, 3.0f, -0.5f, 1.5f, -0.25f};
-    test::vector<float> diff_dst_data_no_affine {
+    std::vector<float> diff_dst_data_no_affine {
             1.5f, -0.5f, 0.75f, -0.25f, 0.375f, -0.125f, 0.1875f, -0.0625f};
-    test::vector<float> mean_data {0.0f, 1.0f, 0.0f, 1.0f};
-    test::vector<float> var_data {3.9375f, 0.9375f, 0.1875f, 3.9375f};
-    test::vector<float> scale_data {0.125f, 0.25f};
+    std::vector<float> mean_data {0.0f, 1.0f, 0.0f, 1.0f};
+    std::vector<float> var_data {3.9375f, 0.9375f, 0.1875f, 3.9375f};
+    std::vector<float> scale_data {0.125f, 0.25f};
 
     // outputs data
-    test::vector<float> diff_src_data(src_data.size());
-    test::vector<float> diff_scale_data(scale_data.size());
-    test::vector<float> diff_shift_data(scale_data.size());
+    std::vector<float> diff_src_data(src_data.size());
+    std::vector<float> diff_scale_data(scale_data.size());
+    std::vector<float> diff_shift_data(scale_data.size());
 
     // expected outputs data
-    test::vector<float> ref_diff_src_data {
+    std::vector<float> ref_diff_src_data {
             0.375f, -0.375f, 0.0f, 0.0f, -1.5f, 1.5f, 0.046875f, -0.046875f};
-    test::vector<float> ref_diff_scale_data {18.75f, 3.125f};
-    test::vector<float> ref_diff_shift_data {22.5f, -3.75f};
+    std::vector<float> ref_diff_scale_data {18.75f, 3.125f};
+    std::vector<float> ref_diff_shift_data {22.5f, -3.75f};
 
     const float epsilon {0.0625f};
 
@@ -329,31 +336,32 @@ TEST(Execute, LayerNormBackwardFp32) {
         ASSERT_EQ(inplace_pairs[0].input_id, diff_dst.id);
         ASSERT_EQ(inplace_pairs[0].output_id, diff_src.id);
 
-        graph::tensor_t src_ts(src, engine, src_data.data());
-        graph::tensor_t diff_dst_ts(diff_dst, engine,
-                use_affine ? diff_dst_data.data()
-                           : diff_dst_data_no_affine.data());
-        graph::tensor_t mean_ts(mean, engine, mean_data.data());
-        graph::tensor_t var_ts(var, engine, var_data.data());
-        graph::tensor_t scale_ts(scale, engine, scale_data.data());
-        graph::tensor_t diff_src_ts(diff_src, engine, diff_src_data.data());
-        graph::tensor_t diff_scale_ts(
-                diff_scale, engine, diff_scale_data.data());
-        graph::tensor_t diff_shift_ts(
-                diff_shift, engine, diff_shift_data.data());
+        test_tensor src_ts(src, engine, src_data);
+        test_tensor diff_dst_ts(diff_dst, engine,
+                use_affine ? diff_dst_data : diff_dst_data_no_affine);
+        test_tensor mean_ts(mean, engine, mean_data);
+        test_tensor var_ts(var, engine, var_data);
+        test_tensor scale_ts(scale, engine, scale_data);
+        test_tensor diff_src_ts(diff_src, engine, diff_src_data);
+        test_tensor diff_scale_ts(diff_scale, engine, diff_scale_data);
+        test_tensor diff_shift_ts(diff_shift, engine, diff_shift_data);
 
-        std::vector<graph::tensor_t> inputs_ts {
+        std::vector<test_tensor> inputs_ts {
                 src_ts, diff_dst_ts, mean_ts, var_ts, scale_ts};
-        std::vector<graph::tensor_t> outputs_ts {diff_src_ts};
+        std::vector<test_tensor> outputs_ts {diff_src_ts};
         if (use_affine) {
             outputs_ts.push_back(diff_scale_ts);
             outputs_ts.push_back(diff_shift_ts);
         }
 
-        cp.execute(strm, inputs_ts, outputs_ts);
+        cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                test_tensor::to_graph_tensor(outputs_ts));
         strm->wait();
 
         const float abs_err {0.001f};
+        diff_src_data = diff_src_ts.as_vec_type<float>();
+        diff_scale_data = diff_scale_ts.as_vec_type<float>();
+        diff_shift_data = diff_shift_ts.as_vec_type<float>();
         for (size_t i = 0; i < diff_src_data.size(); ++i) {
             ASSERT_NEAR(ref_diff_src_data[i], diff_src_data[i], abs_err);
         }
@@ -384,7 +392,7 @@ TEST(ExecuteSubgraphInt8, LayernormTypecastQuant) {
     std::vector<int64_t> layernorm_shape {2, 2, 2};
     std::vector<int64_t> scale_lt_shape {2};
     std::vector<int64_t> shift_lt_shape {2};
-    test::vector<float> src_data(product(layernorm_shape));
+    std::vector<bfloat16_t> src_data(product(layernorm_shape));
 
     // random seed = 7
     std::default_random_engine generator(7);
@@ -450,24 +458,24 @@ TEST(ExecuteSubgraphInt8, LayernormTypecastQuant) {
 
     ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
 
-    test::vector<float> dst_data(product(layernorm_shape));
-    test::vector<float> ref_data(product(layernorm_shape));
-    test::vector<float> scale(product(scale_lt_shape));
-    test::vector<float> shift(product(shift_lt_shape));
+    std::vector<float> scale(product(scale_lt_shape));
+    std::vector<float> shift(product(shift_lt_shape));
 
-    graph::tensor_t src_ts(src, engine, src_data.data());
-    graph::tensor_t scale_ts(scale_lt, engine, scale.data());
-    graph::tensor_t shift_ts(shift_lt, engine, shift.data());
-    graph::tensor_t dst_ts(quant_dst, engine, dst_data.data());
-    graph::tensor_t ref_ts(quant_dst, engine, ref_data.data());
+    test_tensor src_ts(src, engine, src_data);
+    test_tensor scale_ts(scale_lt, engine, scale);
+    test_tensor shift_ts(shift_lt, engine, shift);
+    test_tensor dst_ts(quant_dst, engine);
+    test_tensor ref_ts(quant_dst, engine);
 
     ASSERT_EQ(run_graph(g, {src_ts, scale_ts, shift_ts}, {ref_ts}, *engine,
                       *strm),
             graph::status::success);
-    ASSERT_EQ(cp.execute(strm, {src_ts, scale_ts, shift_ts}, {dst_ts}),
+    ASSERT_EQ(cp.execute(strm, {src_ts.get(), scale_ts.get(), shift_ts.get()},
+                      {dst_ts.get()}),
             graph::status::success);
     strm->wait();
-
+    auto dst_data = dst_ts.as_vec_type<uint8_t>();
+    auto ref_data = ref_ts.as_vec_type<uint8_t>();
     for (size_t i = 0; i < ref_data.size(); ++i) {
         ASSERT_FLOAT_EQ(ref_data[i], dst_data[i]);
     }
