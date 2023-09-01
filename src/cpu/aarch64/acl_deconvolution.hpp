@@ -107,6 +107,8 @@ struct acl_deconvolution_fwd_t : public primitive_t {
             const bool ok = is_fwd() // Only forward deconvolutions
                     && utils::one_of(
                             desc()->alg_kind, alg_kind::deconvolution_direct)
+                    && (expect_data_types(f16, f16, f16, f16)
+                            || expect_data_types(f32, f32, f32, f32))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops,
                             dst_data_t);
@@ -153,7 +155,6 @@ struct acl_deconvolution_fwd_t : public primitive_t {
                     = desc_.bias_desc.format_kind != format_kind::undef;
 
             // Data type
-
             auto acl_src_data_t = acl_utils::get_acl_data_t(src_data_t);
             auto acl_wei_data_t = acl_utils::get_acl_data_t(wei_data_t);
             auto acl_dst_data_t = acl_utils::get_acl_data_t(dst_data_t);
