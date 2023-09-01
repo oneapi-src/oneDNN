@@ -1124,3 +1124,55 @@ TEST(GCPatternTests, add_typecast_concat_typecasts_quant_CPU) {
     test_pattern_matched(agraph, {"add_typecast_concat_typecasts_quant"}, 1,
             std::vector<partition_info_t> {{6, 3, 1}});
 }
+
+TEST(GCPatternTests, FP32STARCODERMHAPattern_CPU) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    graph::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, false, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"fp32_starcoder_mha"}, 1,
+            std::vector<partition_info_t> {{5, 6, 1}});
+}
+
+TEST(GCPatternTests, BF16STARCODERMHAPattern_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    graph::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, true, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"bf16_starcoder_mha"}, 1,
+            std::vector<partition_info_t> {{5, 6, 1}});
+}
+
+TEST(GCPatternTests, INT8FP32STARCODERMHAPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    graph::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, false, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_starcoder_mha"}, 1,
+            std::vector<partition_info_t> {{10, 6, 1}});
+}
+
+TEST(GCPatternTests, INT8BF16STARCODERMHAPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    graph::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, true, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_bf16_starcoder_mha"}, 1,
+            std::vector<partition_info_t> {{15, 6, 1}});
+}

@@ -1174,3 +1174,51 @@ TEST(GCGraphTest, LlamaInt8Bf16Concat_CPU) {
     // should hit add_typecast_concat_typecasts_quant pattern
     compile_execution_pipeline(agraph, 1);
 }
+
+TEST(GCGraphTest, FP32STARCODERMHACompileExecution_CPU) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, false, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16STARCODERMHACompileExecution_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, true, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8FP32STARCODERMHACompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, false, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16STARCODERMHACompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, true, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
