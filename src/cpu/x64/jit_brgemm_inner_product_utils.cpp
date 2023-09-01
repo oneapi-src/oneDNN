@@ -338,7 +338,23 @@ int jit_brgemm_ip_conf_t::get_adjusted_oc_block() const {
     const bool is_f32_compute = !jbgp.is_bf32
             && everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool is_avx512 = is_superset(jbgp.isa, avx512_core);
+    const bool is_avx2 = is_superset(jbgp.isa, avx2);
     const bool is_f32_compute_avx512 = is_f32_compute && is_avx512;
+    const bool is_f32_compute_avx2 = !is_avx512 && is_avx2 && is_f32_compute;
+
+    // These heuristic are required to avoid usage different weight layouts in case of different data shapes.
+    // Applicibility is limited to big weights only (like LLM use cases) since minimal memory consumption and
+    // time for weights reorder are key optimization points there.
+    const size_t wei_size = static_cast<size_t>(jbgp.ic * jbgp.oc) * types::data_type_size(jbgp.wei_dt);
+    // Use oc block to be 32 if weight size >= 8MB on amx bf16 to optimized memory consumption.
+    if (jbgp.is_amx && jbgp.wei_dt == bf16 && !jbgp.is_bf32 && wei_size >= 8 * (1 << 20))
+        return 32;
+    // Use oc block to be 64 if weight size >= 16MB on avx512 f32 to optimized memory consumption.
+    if (is_f32_compute_avx512 && wei_size >= 16 * (1 << 20))
+        return 64;
+    // Use oc block to be 24 if weight size >= 16MB on avx2 f32 to optimized memory consumption.
+    if (is_f32_compute_avx2 && wei_size >= 16 * (1 << 20))
+        return 24;
 
     // we can't change block size on forward and weights update (external)
     // if layout is set by user, for backward data it can be chosen different
