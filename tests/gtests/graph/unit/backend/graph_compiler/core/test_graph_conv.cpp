@@ -21,6 +21,7 @@
 #include "compiler/ir/graph/graph_op.hpp"
 #include "compiler/ir/graph/lowering.hpp"
 #include "compiler/ir/graph/pass/pass.hpp"
+#include "compiler/ir/graph/quantization/quantize_info.hpp"
 #include "compiler/ir/graph/transform/transform.hpp"
 #include "compiler/jit/jit.hpp"
 #include "context.hpp"
@@ -125,6 +126,88 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolution7x1) {
     // The conv1d graph is different from the reference
     graph.attrs_["no_conv1d"] = true;
     graph_driver(graph, get_test_ctx());
+}
+
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolution1DFusion) {
+    REQUIRE_AMX();
+    SET_THREADS_OR_SKIP(112);
+    int N = 128, IC = 64, OC = 64, H = 56, W = 56, R = 3, S = 3;
+    any_map_t dqinfo = {
+            {attr_keys::quan_dtype, datatypes::f32},
+            {attr_keys::scales, std::vector<float>({1.f})},
+            {attr_keys::per_channel, false},
+            {attr_keys::channel_axis, 1},
+            {attr_keys::zero_points, std::vector<int>({0})},
+            {attr_keys::asymmetric, false},
+    };
+    any_map_t qinfo = {
+            {attr_keys::quan_dtype, datatypes::s8},
+            {attr_keys::scales, std::vector<float>({1.f})},
+            {attr_keys::per_channel, false},
+            {attr_keys::channel_axis, 1},
+            {attr_keys::zero_points, std::vector<int>({0})},
+            {attr_keys::asymmetric, false},
+    };
+    sc_graph_t g;
+    // input
+    sc_data_type_t src_dtype = datatypes::s8;
+    sc_data_type_t weight_dtype = datatypes::s8;
+    // input dequantize
+    sc_op_ptr data_input = g.make_input({graph_tensor::make(
+            {N, IC, H, W}, sc_data_format_t(format_kinds::ABCD), src_dtype)});
+    sc_op_ptr weight_input1 = g.make_input({graph_tensor::make({OC, IC, 1, 1},
+            sc_data_format_t(format_kinds::ABCD), weight_dtype)});
+    weight_input1->attrs_.set("constant", const_kind::local_const);
+    sc_op_ptr weight_input2 = g.make_input({graph_tensor::make({OC, IC, R, S},
+            sc_data_format_t(format_kinds::ABCD), weight_dtype)});
+    weight_input2->attrs_.set("constant", const_kind::local_const);
+    auto deq_data1
+            = g.make("dequantize", data_input->get_outputs(), {}, dqinfo);
+    auto deq_weight1
+            = g.make("dequantize", weight_input1->get_outputs(), {}, dqinfo);
+    // conv relu quantize
+    sc_dims paddings1 = {0, 0};
+    sc_op_ptr conv_op1 = g.make("conv_fwd_core",
+            {deq_data1->get_outputs()[0], deq_weight1->get_outputs()[0]}, {},
+            {{"strides", sc_dims {1, 1}}, {"pads_begin", paddings1},
+                    {"pads_end", paddings1}, {"data_format", "NCX"},
+                    {"weights_format", "OIX"}});
+    auto conv_relu_quan_out1
+            = g.make("quantize", conv_op1->get_outputs(), {}, qinfo);
+
+    auto deq_data2 = g.make(
+            "dequantize", conv_relu_quan_out1->get_outputs(), {}, dqinfo);
+    auto deq_weight2
+            = g.make("dequantize", weight_input2->get_outputs(), {}, dqinfo);
+    sc_dims paddings2 = {1, 1};
+    // conv relu quantize
+    sc_op_ptr conv_op2 = g.make("conv_fwd_core",
+            {deq_data2->get_outputs()[0], deq_weight2->get_outputs()[0]}, {},
+            {{"strides", sc_dims {1, 1}}, {"pads_begin", paddings2},
+                    {"pads_end", paddings2}, {"data_format", "NCX"},
+                    {"weights_format", "OIX"}});
+    auto conv_relu_quan_out2
+            = g.make("quantize", conv_op2->get_outputs(), {}, qinfo);
+    const sc_op_ptr &final_out = conv_relu_quan_out2;
+
+    sc_op_ptr out = g.make_output(final_out->get_outputs());
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = 1;
+    graph_driver(g, ctx);
+    std::stringstream ss;
+    print_graph(g, ss, true, false, true, false);
+    const char *expected_graph
+            = R"(graph(v0: s8[128, 64, 56, 56], v1: s8[64, 64, 1, 1], v2: s8[64, 64, 3, 3]) -> [v3: s8[128, 64, 56, 56]] {
+  [v4: s8[1, 1, 3, 3, 16, 64, 4]] = reorder(v2)
+  [v5: s8[64, 64, 1]] = tensor_view(v1)
+  [v6: s8[1, 1, 1, 16, 64, 4]] = reorder(v5)
+  [v7: s8[128, 56, 56, 64]] = reorder(v0)
+  [v8: s8[1, 401408, 64]] = tensor_view(v7)
+  [v9: s8[128, 56, 56, 64]] = outerloop_1X112X1X1X1X1X1_partition_quantized_conv_fwd_core_tensor_view_cast_cast(v8, v6)
+  [v3: s8[128, 64, 56, 56]] = outerloop_128_partition_padding_conv_fwd_core_cast_cast_reorder(v9, v4)
+}
+)";
+    EXPECT_TRUE(ss.str() == expected_graph);
 }
 
 TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionWithDilation) {
