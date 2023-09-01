@@ -696,11 +696,16 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
     }
 
     // Prelu post-op.
-    // TODO: currently run-time dimensions are not supported in prelu post-op.
     for (int idx = 0; idx < dnnl_post_ops_len(const_po); ++idx) {
         if (dnnl_post_ops_get_kind(const_po, idx) != dnnl_prelu) continue;
 
-        const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
+        const auto &orig_dst_md = query_md(const_pd, DNNL_ARG_DST);
+        benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_dst_md;
+        if (has_runtime_dims(orig_dst_md)) {
+            prb_dst_md = prb->get_md(DNNL_ARG_DST);
+        }
+        const auto &dst_md = prb_dst_md ? prb_dst_md : orig_dst_md;
+
         const auto ndims = query_md_ndims(dst_md);
         int mask = 0;
         dnnl_dims_t dims = {0};
