@@ -14,56 +14,65 @@
 # limitations under the License.
 #===============================================================================
 
-set(API_TEST_SRCS
+include_directories_with_host_compiler(
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/tests/gtests/graph
+    ${PROJECT_SOURCE_DIR}/tests/gtests/gtest
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+FILE(GLOB COMMON_API_TEST_DEPS
     ${CMAKE_CURRENT_SOURCE_DIR}/api_test_main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
+    ${TEST_ALLOCATOR}
+)
+
+function(register_graph_api_exe exe_name srcs)
+    string(REPLACE "test_" "test_graph_" exe_new_name ${exe_name})
+    list(APPEND srcs ${COMMON_API_TEST_DEPS})
+    set(DEPS 
+        ${LIB_PACKAGE_NAME}
+        ${EXTRA_SHARED_LIBS}
+        dnnl_gtest
+    )
+    register_graph_exe(${exe_new_name} "${srcs}" "${DEPS}")
+endfunction()
+
+# engine indepnendent test
+FILE(GLOB API_TEST_ENGINE_INDEPENDENT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_add_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile_parametrized.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_constant_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_filter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_compile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_engine.cpp
-    ${TEST_ALLOCATOR}
 )
+
+FILE(GLOB API_TEST_ENGINE_DEPENDENT_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile_parametrized.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_compile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_partition.cpp
+)
+
+
+foreach(TEST_FILE ${API_TEST_ENGINE_INDEPENDENT_SOURCES})
+    get_filename_component(exe ${TEST_FILE} NAME_WE)
+    register_graph_api_exe(${exe} ${TEST_FILE})
+endforeach()
+
+foreach(TEST_FILE ${API_TEST_ENGINE_DEPENDENT_SOURCES})
+    get_filename_component(exe ${TEST_FILE} NAME_WE)
+    # add suffix _usm to test both CPU and GPU
+    register_graph_api_exe(${exe}_usm ${TEST_FILE})
+endforeach()
 
 set(sycl_rt_pattern "(SYCL|DPCPP)")
 if(DNNL_CPU_RUNTIME MATCHES ${sycl_rt_pattern} OR DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
     add_subdirectory(sycl)
-endif()
-
-get_property(API_TEST_DEPS GLOBAL PROPERTY GRAPH_API_TEST_DEPS)
-
-add_executable(test_graph_api ${API_TEST_SRCS} ${API_TEST_DEPS})
-
-target_link_libraries(test_graph_api
-    dnnl_gtest
-    ${DNNL_LIBRARY_NAME}
-    ${EXTRA_SHARED_LIBS}
-    )
-
-include_directories_with_host_compiler(
-    ${PROJECT_SOURCE_DIR}/tests/gtests/graph
-    ${PROJECT_SOURCE_DIR}/tests/gtests/gtest
-    ${PROJECT_SOURCE_DIR}/include
-    )
-
-# Add CPU test if CPU runtime is enabled
-if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
-    add_test("test_graph_api_cpu" "test_graph_api" "--engine=cpu")
-    maybe_configure_windows_test("test_graph_api_cpu" TEST)
-endif()
-
-# Add GPU test if GPU runtime is enabled
-if(DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
-    add_test("test_graph_api_gpu" "test_graph_api" "--engine=gpu")
-    maybe_configure_windows_test("test_graph_api_gpu" TEST)
 endif()

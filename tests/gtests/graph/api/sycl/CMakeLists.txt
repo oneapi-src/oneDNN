@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2022 Intel Corporation
+# Copyright 2021-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +14,14 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
-    )
+file(GLOB API_SYCL_TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_compiled_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_tensor.cpp
+)
 
-set(OBJ_LIB graph_api_test_sycl)
-add_library(${OBJ_LIB} OBJECT ${SOURCES})
-
-include_directories_with_host_compiler(
-    ${PROJECT_SOURCE_DIR}/tests/gtests/graph
-    ${PROJECT_SOURCE_DIR}/tests/gtests/gtest
-    ${PROJECT_SOURCE_DIR}/include
-    )
-
-set_property(GLOBAL APPEND PROPERTY GRAPH_API_TEST_DEPS
-    $<TARGET_OBJECTS:${OBJ_LIB}>)
+foreach(TEST_FILE ${API_SYCL_TEST_SOURCES})
+    get_filename_component(exe ${TEST_FILE} NAME_WE)
+    # add suffix _usm to test both CPU and GPU
+    register_graph_api_exe(${exe}_sycl_usm ${TEST_FILE})
+endforeach()

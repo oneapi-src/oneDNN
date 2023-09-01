@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #===============================================================================
-set(OBJ_LIB graph_unit_test_interface)
+set(TEST_EXE test_unit_interface)
 
-add_library(${OBJ_LIB} OBJECT
+file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
@@ -30,10 +30,8 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
 )
 
-set(sycl_rt_pattern "(SYCL|DPCPP)")
-if(DNNL_CPU_RUNTIME MATCHES ${sycl_rt_pattern} OR DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
+register_graph_unit_exe(${TEST_EXE} "${SOURCES}" "")
+
+if(DNNL_WITH_SYCL)
     add_subdirectory(sycl)
 endif()
-
-set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS
-    $<TARGET_OBJECTS:${OBJ_LIB}>)
