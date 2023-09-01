@@ -44,4 +44,7 @@ enum data_kind_t {
 };
 const char *data_kind2str(data_kind_t kind);
 
+// Returns correspondent `data_kind_t` value to a given `arg` value.
+data_kind_t exec_arg2data_kind(int arg);
+
 #endif
