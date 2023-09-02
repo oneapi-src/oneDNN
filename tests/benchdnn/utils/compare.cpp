@@ -341,6 +341,11 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // may result in sporadic order of operations. This may cause a
             // difference around `x.5f` value, and can be rounded either way to
             // `x` or `x + 1` which can't be fixed by filling.
+            //
+            // Another class of `off-by-1` issues coming from optimized
+            // reference when transcendental operation present in the chain. In
+            // such cases, there's no way to test original output as both
+            // outputs would be rounded to integer number.
             const auto is_int8_round_good = [args]() -> bool {
                 // Check that original value is close to x.5f.
                 static constexpr float small_eps = 9e-6f;
@@ -357,7 +362,15 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                 }
                 return false;
             };
-            ok = is_integral_dt(args.dt) && is_int8_round_good();
+            const auto is_int8_prim_ref_and_transcedental = [&]() -> bool {
+                if (!has_prim_ref_) return false;
+                if (fabsf(args.exp_f32 - args.got) != 1) return false;
+                // TODO: update with transcendental eltwise ops only.
+                return has_eltwise;
+            };
+            ok = is_integral_dt(args.dt)
+                    && (is_int8_round_good()
+                            || is_int8_prim_ref_and_transcedental());
             if (ok) break;
 
             // Nvidia backend with fpmath mode enabled returns not exact output
