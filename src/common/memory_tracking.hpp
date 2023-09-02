@@ -200,6 +200,7 @@ enum {
     key_conv_int_dat_in_acc_dt,
     key_conv_ncsp_dst,
     key_conv_ncsp_src,
+    key_conv_ncsp_diff_dst,
     key_conv_ncsp_matmul_dst,
     key_conv_ncsp_diff_sp_sum,
     key_conv_padded_bias,

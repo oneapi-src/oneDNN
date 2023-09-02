@@ -225,30 +225,38 @@ struct ncsp_convolution_bwd_weights_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> reduce_wei_diff_pd_;
         std::shared_ptr<primitive_desc_t> reduce_bia_diff_pd_;
         std::shared_ptr<primitive_desc_t> reduce_bia_diff_sp_pd_;
+        std::shared_ptr<primitive_desc_t> nspc_conv_pd_;
+        std::shared_ptr<primitive_desc_t> src_reorder_pd_;
+        std::shared_ptr<primitive_desc_t> dst_reorder_pd_;
         memory_desc_t matmul_src_md_;
         memory_desc_t matmul_wei_md_;
         memory_desc_t matmul_dst_md_;
         memory_desc_t wei_reduce_dst_md_;
         memory_desc_t bia_reduce_dst_md_;
         memory_desc_t diff_dst_sp_sum_md_;
+        memory_desc_t nspc_src_md_;
+        memory_desc_t nspc_diff_dst_md_;
 
     private:
         ncsp_matmul_reduction_helper reduce;
-        bool is_matmul_;
+        bool is_matmul_ = false;
         std::string name_;
         void init_scratchpad();
         void init_name() {
             std::string suffix = is_matmul_ ? "matmul" : "conv";
             name_ = "ncsp:" + suffix + "->";
-            name_.append(matmul_wei_diff_pd_->name());
-            name_.append("+");
-            name_.append("reduction->");
-            name_.append(reduce_wei_diff_pd_->name());
-            if (with_bias()) {
-                name_.append("+reduction->");
-                name_.append(reduce_bia_diff_sp_pd_->name());
-                name_.append("+reduction->");
-                name_.append(reduce_bia_diff_pd_->name());
+            name_.append(is_matmul_ ? matmul_wei_diff_pd_->name()
+                                    : nspc_conv_pd_->name());
+            if (is_matmul_) {
+                name_.append("+");
+                name_.append("reduction->");
+                name_.append(reduce_wei_diff_pd_->name());
+                if (with_bias()) {
+                    name_.append("+reduction->");
+                    name_.append(reduce_bia_diff_sp_pd_->name());
+                    name_.append("+reduction->");
+                    name_.append(reduce_bia_diff_pd_->name());
+                }
             }
         }
     };
@@ -271,6 +279,9 @@ private:
     std::shared_ptr<primitive_t> reduce_wei_diff_p_;
     std::shared_ptr<primitive_t> reduce_bia_diff_sp_p_;
     std::shared_ptr<primitive_t> reduce_bia_diff_p_;
+    std::shared_ptr<primitive_t> nspc_conv_p_;
+    std::shared_ptr<primitive_t> src_reorder_p_;
+    std::shared_ptr<primitive_t> dst_reorder_p_;
 };
 
 } // namespace x64
