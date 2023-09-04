@@ -68,6 +68,12 @@ typedef enum {
     dnnl_sparse_encoding_undef = 0,
     /// Compressed Sparse Row (CSR) encoding.
     dnnl_csr,
+    /// An encoding that is used for an opaque storage schema for
+    /// tensors with unstructured sparsity. A memory descriptor with the
+    /// packed encoding cannot be used to create a memory object. It can
+    /// only be used to create a primitive descriptor to query the
+    /// actual memory descriptor (similar to the format tag `any`).
+    dnnl_packed,
 } dnnl_sparse_encoding_t;
 #endif
 

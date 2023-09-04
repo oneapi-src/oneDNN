@@ -883,6 +883,12 @@ struct memory : public handle<dnnl_memory_t> {
             undef = dnnl_sparse_encoding_undef,
             /// Compressed Sparse Row (CSR) encoding.
             csr = dnnl_csr,
+            /// An encoding that is used for an opaque storage schema for
+            /// tensors with unstructured sparsity. A memory descriptor with the
+            /// packed encoding cannot be used to create a memory object. It can
+            /// only be used to create a primitive descriptor to query the
+            /// actual memory descriptor (similar to the format tag `any`).
+            packed = dnnl_packed,
     };
 #endif
 
@@ -2665,6 +2671,40 @@ struct memory : public handle<dnnl_memory_t> {
                 error::wrap_c_api(status,
                         "could not create a memory descriptor for CSR sparse "
                         "encoding");
+            return desc {md};
+        }
+
+        /// Function for creating a memory descriptor for packed sparse
+        /// encoding.
+        ///
+        /// The created memory descriptor cannot be used to create a memory
+        /// object. It can only be used to create a primitive descriptor to
+        /// query the actual memory descriptor (similar to the format tag
+        /// `any`).
+        ///
+        /// @warning
+        ///     The meaning and content of the handles of the memory object that
+        ///     is created using the queried memory descriptor are unspecified
+        ///     therefore using the content is an undefined behavior.
+        ///
+        /// @param adims Tensor dimensions.
+        /// @param adata_type Data precision/type.
+        /// @param nnz Number of non-zero entries.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case a
+        ///     zero memory descriptor will be constructed. This flag is
+        ///     optional and defaults to false.
+        static desc packed(const dims &adims, data_type adata_type, dim nnz,
+                bool allow_empty = false) {
+            validate_dims(adims);
+            dnnl_memory_desc_t md = nullptr;
+            dnnl_status_t status = dnnl_memory_desc_create_with_packed_encoding(
+                    &md, (int)adims.size(), adims.data(),
+                    convert_to_c(adata_type), nnz);
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a memory descriptor for packed "
+                        "sparse encoding");
             return desc {md};
         }
 #endif

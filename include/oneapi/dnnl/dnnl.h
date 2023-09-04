@@ -715,6 +715,29 @@ dnnl_status_t DNNL_API dnnl_memory_desc_create_with_csr_encoding(
         dnnl_memory_desc_t *memory_desc, int ndims, const dnnl_dims_t dims,
         dnnl_data_type_t data_type, dnnl_dim_t nnz, dnnl_data_type_t indices_dt,
         dnnl_data_type_t pointers_dt);
+
+/// Creates a memory descriptor for packed sparse encoding.
+///
+/// The created memory descriptor cannot be used to create a memory
+/// object. It can only be used to create a primitive descriptor to
+/// query the actual memory descriptor (similar to the format tag
+/// `any`).
+///
+/// @warning
+///     The meaning and content of the handles of the memory object that
+///     is created using the queried memory descriptor are unspecified
+///     therefore using the content is an undefined behavior.
+///
+/// @param memory_desc Output memory descriptor.
+/// @param ndims Number of dimensions
+/// @param dims Array of dimensions.
+/// @param data_type Elements data type.
+/// @param nnz Number of non-zero entries.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_desc_create_with_packed_encoding(
+        dnnl_memory_desc_t *memory_desc, int ndims, const dnnl_dims_t dims,
+        dnnl_data_type_t data_type, dnnl_dim_t nnz);
 #endif
 
 /// Creates a memory descriptor for a region inside an area

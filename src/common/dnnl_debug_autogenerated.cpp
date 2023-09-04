@@ -77,6 +77,7 @@ const char *dnnl_engine_kind2str(dnnl_engine_kind_t v) {
 const char *dnnl_sparse_encoding2str(dnnl_sparse_encoding_t v) {
     if (v == dnnl_sparse_encoding_undef) return "undef";
     if (v == dnnl_csr) return "csr";
+    if (v == dnnl_packed) return "packed";
     assert(!"unknown sparse_encoding");
     return "unknown sparse_encoding";
 }
