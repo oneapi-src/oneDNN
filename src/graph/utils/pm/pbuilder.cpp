@@ -278,8 +278,7 @@ alternation_t *pb_graph_t::append_alternation(
         p_nodes[i]->set_name("alternation" + std::to_string(nodes_.size())
                 + "_pgraph" + std::to_string(i));
     }
-    std::shared_ptr<alternation_t> p_alternation(
-            new alternation_t(std::move(p_nodes)));
+    std::shared_ptr<alternation_t> p_alternation(new alternation_t(p_nodes));
     p_alternation->set_name("alternation" + std::to_string(nodes_.size()));
     connect_edges(p_alternation.get(), p_in_edges);
     nodes_.push_back(dynamic_pointer_cast<pb_node_t>(p_alternation));
@@ -332,8 +331,7 @@ repetition_t *pb_graph_t::append_optional(
                 "consumer");
     }
     p_node->set_name("optional" + std::to_string(nodes_.size()) + "_pgraph");
-    std::shared_ptr<repetition_t> p_repetition(
-            new repetition_t(std::move(p_node)));
+    std::shared_ptr<repetition_t> p_repetition(new repetition_t(p_node));
     p_repetition->set_name("optional" + std::to_string(nodes_.size()));
     connect_edges(p_repetition.get(), p_in_edges);
     nodes_.push_back(dynamic_pointer_cast<pb_node_t>(p_repetition));
