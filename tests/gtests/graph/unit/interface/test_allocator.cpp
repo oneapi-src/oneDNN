@@ -55,8 +55,8 @@ TEST(Engine, AllocatorEarlyDestroy) {
         ASSERT_TRUE(false);
     } else {
         engine_alloc->deallocate(mem_ptr);
+        eng->release();
     }
-    eng->release();
 }
 
 #ifndef NDEBUG
