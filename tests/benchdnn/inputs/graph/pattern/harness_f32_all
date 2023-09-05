@@ -3,6 +3,7 @@
 --reset --case=pattern/f32/bn_relu_fusion.json
 --reset --case=pattern/f32/conv_bias_post_ops_fusion.json
 --reset --case=pattern/f32/conv_add_sigmoid_multiply_relu_fusion.json
+--reset --case=pattern/f32/conv_add_swish_relu_fusion.json
 --reset --in-shapes=0:50x1024x14x14+1:2048x1024x1x1+2:2048 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
 --reset --in-shapes=0:50x1024x14x14+1:512x1024x1x1+2:512 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
 --reset --in-shapes=0:50x256x56x56+1:128x256x1x1+2:128 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
