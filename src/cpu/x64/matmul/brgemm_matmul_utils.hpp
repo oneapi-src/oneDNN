@@ -101,6 +101,7 @@ struct brgemm_matmul_conf_t {
     bool with_scales;
     bool with_dst_scales;
     bool s8s8_compensation_required;
+    bool packed_sparse_weights;
     bool is_oscale_per_n;
     brgemm_broadcast_t src_zp_type;
     brgemm_broadcast_t wei_zp_type;
@@ -216,7 +217,8 @@ struct brgemm_matmul_conf_utils_t {
             // use b_buffer for AMX when:
             // - not bf32 && using non-blocked weights
             // - is bf32
-            return IMPLICATION(!wei_down_convert_to_vnni(), !bgmmc.blocked_B);
+            return IMPLICATION(!wei_down_convert_to_vnni(), !bgmmc.blocked_B)
+                    || bgmmc.packed_sparse_weights;
 
         // Values based on measured performance difference
         // between plain and copy-to-blocked routine.

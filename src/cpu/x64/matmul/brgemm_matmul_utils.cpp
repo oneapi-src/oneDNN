@@ -965,9 +965,10 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.s8s8_compensation_required = bgmmc.src_dt == s8 && !isa_has_s8s8(isa);
     bgmmc.ndims = dst_d.ndims();
 
+    const bool is_wei_any = weights_d.format_kind() == format_kind::any
+            || weights_d.is_sparse_packed_desc();
     brgemm_matmul_conf_utils_t bm_conf_utils(bgmmc, isa, attr,
-            src_d.format_kind() == format_kind::any,
-            weights_d.format_kind() == format_kind::any,
+            src_d.format_kind() == format_kind::any, is_wei_any,
             dst_d.format_kind() == format_kind::any,
             bias_md.format_kind == format_kind::any);
 
@@ -978,6 +979,11 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.a_dt_sz = bgmmc.tr_a_dt_sz = types::data_type_size(bgmmc.src_dt);
     bgmmc.b_dt_sz = bgmmc.tr_b_dt_sz = types::data_type_size(bgmmc.wei_dt);
 
+    bgmmc.packed_sparse_weights = weights_d.is_sparse_packed_desc();
+    if (bgmmc.packed_sparse_weights) {
+        VCONDCHECK_BG(bgmmc.is_amx, VERBOSE_ISA_SPARSE_ENCODING_MISMATCH);
+        VCONDCHECK_BG(bgmmc.wei_dt == s8, VERBOSE_UNSUPPORTED_DT);
+    }
     bgmmc.is_bf32 = bm_conf_utils.is_bf32();
 
     // Make BRGeMM compute MatMul as if it were in bfloat16, while down-convert
@@ -1097,7 +1103,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                         || (bgmmc.M <= 32 && bgmmc.M * bgmmc.N <= 256)
                         || bgmmc.K <= 16);
     }
-
+    // This is the only implementation that support the packed_sparse_weights
+    // case therefore there is no fallback for it.
+    is_small_shapes = is_small_shapes && !bgmmc.packed_sparse_weights;
     VCONDCHECK_BG(!is_small_shapes, VERBOSE_SMALL_SHAPES);
 
     // required granularity for k dimension

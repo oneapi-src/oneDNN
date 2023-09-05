@@ -842,15 +842,33 @@ inline status_t memory_desc_init_by_strides(
 
 inline status_t memory_desc_init_by_tag(
         memory_desc_t &md, format_tag_t tag, const dims_t strides = nullptr) {
-    status_t status
-            = memory_desc_init_by_tag(md, md.ndims, md.dims, md.data_type, tag);
-    if (status != status::success || strides == nullptr) return status;
 
-    if (!memory_desc_strides_check(md, strides))
+    const bool is_sparse = md.format_kind == format_kind::sparse;
+    auto md_tmp = memory_desc_t();
+
+    CHECK(memory_desc_init_by_tag(
+            md_tmp, md.ndims, md.dims, md.data_type, tag));
+
+    if (strides != nullptr && !memory_desc_strides_check(md_tmp, strides))
         return status::invalid_arguments;
 
-    for (int d = 0; d < md.ndims; ++d)
-        md.format_desc.blocking.strides[d] = strides[d];
+    if (is_sparse) {
+        if (md.format_desc.sparse_desc.encoding != sparse_encoding::packed
+                || md.offset0 != 0)
+            return status::invalid_arguments;
+        md = cvt_blocked2sparse_packed(md_tmp, md.format_desc.sparse_desc.nnz);
+    } else {
+        md = md_tmp;
+    }
+
+    if (strides == nullptr) return status::success;
+
+    for (int d = 0; d < md.ndims; ++d) {
+        if (is_sparse)
+            md.format_desc.sparse_desc.packed_desc.strides[d] = strides[d];
+        else
+            md.format_desc.blocking.strides[d] = strides[d];
+    }
 
     return status::success;
 }
@@ -936,17 +954,25 @@ inline status_t memory_desc_init_by_md_and_dt(memory_desc_t &md,
  * doesn't matter. */
 inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
         const dims_t strides = nullptr) {
-    if (md.format_kind != types::format_tag_to_kind(tag)) return false;
+    if (md.format_kind != format_kind::sparse) {
+        if (md.format_kind != types::format_tag_to_kind(tag)) return false;
+    }
 
     memory_desc_t md_gold;
     status_t status = memory_desc_init_by_tag(
             md_gold, md.ndims, md.dims, md.data_type, tag);
     if (status != status::success) return false;
 
-    if (md.format_kind != format_kind::blocked)
+    const bool is_sparse_packed_desc = md.format_kind == format_kind::sparse
+            && md.format_desc.sparse_desc.encoding == sparse_encoding::packed;
+
+    if (md.format_kind != format_kind::blocked && !is_sparse_packed_desc)
         return false; // unimplemented yet
 
-    const auto &blk = md.format_desc.blocking;
+    const auto &blk = md.format_kind == format_kind::blocked
+            ? md.format_desc.blocking
+            : md.format_desc.sparse_desc.packed_desc;
+
     const auto &blk_gold = md_gold.format_desc.blocking;
 
     using utils::array_cmp;

@@ -27,6 +27,7 @@
 #include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/brgemm/brgemm_utils.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/x64/jit_avx512_sparse_decompress_kernel.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_copy_utils.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
 
@@ -148,6 +149,8 @@ private:
     std::unique_ptr<jit_brgemm_matmul_copy_a_t> copy_A_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_f32_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::s32>> acc_ker_s32_;
+    std::unique_ptr<jit_avx512_sparse_decompress_kernel_t>
+            sparse_decompress_kernel_;
 };
 
 } // namespace matmul

@@ -85,7 +85,16 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     auto check_attr_zero_points
             = [&]() -> bool { return attr()->zero_points_.common(); };
     const bool problem_dt_correct = is_int8 || is_bf16 || is_f32 || is_f16;
-    VDISPATCH_MATMUL(is_dense_format_kind(), VERBOSE_NONTRIVIAL_STRIDE);
+
+    auto src_d = memory_desc_wrapper(src_md_);
+    auto weights_d = memory_desc_wrapper(weights_md_);
+    auto bias_d = memory_desc_wrapper(bias_md_);
+    auto dst_d = memory_desc_wrapper(dst_md_);
+    const bool is_sparse_ok = is_dense_format_kind()
+            || (!src_d.is_sparse_desc() && !bias_d.is_sparse_desc()
+                    && !dst_d.is_sparse_desc()
+                    && weights_d.is_sparse_packed_desc());
+    VDISPATCH_MATMUL(is_sparse_ok, VERBOSE_UNSUPPORTED_SPARSE_CFG);
     VDISPATCH_MATMUL(mayiuse(isa), VERBOSE_UNSUPPORTED_ISA);
     VDISPATCH_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
@@ -206,7 +215,7 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
             brgemm_palettes_.insert(idx, pd()->get_brg_desc(idx));
     }
 
-    if (bgmmc.use_buffer_b)
+    if (bgmmc.use_buffer_b && !bgmmc.packed_sparse_weights)
         CHECK(create_brgemm_matmul_copy_b(copy_B_kernel_, &bgmmc));
 
     if (bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only)
@@ -220,6 +229,11 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
         CHECK(safe_ptr_assign(
                 acc_ker_s32_, new cpu_accumulator_1d_t<data_type::s32>()));
         CHECK(acc_ker_s32_->create_kernel());
+    }
+
+    if (bgmmc.packed_sparse_weights) {
+        CHECK(safe_ptr_assign(sparse_decompress_kernel_,
+                new jit_avx512_sparse_decompress_kernel_t(bgmmc)));
     }
 
     return status::success;
@@ -289,10 +303,13 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             int kc_prev = -1;
             for_(int kc = kc_start; kc < kc_end; kc++)
             for (int nb = n_start; nb < n_end; nb++) {
-                const bool skip_copy_b = nb_prev == nb && kc_prev == kc
-                        && (b_prev == b
-                                || bgmmc.bcast_B_desc
-                                           .bcast_across_all_batch_dims);
+                const bool bcast_across_all_batch_dims
+                        = bgmmc.bcast_B_desc.bcast_across_all_batch_dims;
+                const bool skip_copy_b
+                        = (nb_prev == nb && kc_prev == kc
+                                  && (b_prev == b
+                                          || bcast_across_all_batch_dims))
+                        && !bgmmc.packed_sparse_weights;
                 if (bgmmc.use_buffer_b && !skip_copy_b)
                     copy_b_chunk_in_buffer(brgmm_ctx, ithr, b, nb, kc);
                 for (int mb = m_start; mb < m_end; mb++) {
@@ -409,7 +426,6 @@ void brgemm_matmul_t<isa>::compute_kernel(
                     static_cast<const void *>(zp_comp_b),
                     static_cast<const void *>(zp_c_val_ptr), false, 1, false,
                     false, brgmm_ctx.get_dst_scales_ptr()};
-
             brgemm_kernel_execute_postops(brg_kernel, gemm_batch, addr_batch,
                     (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch,
                     &leading_dimensions);
@@ -671,9 +687,23 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
     const bool is_K_tail
             = brgmm_ctx.is_last_K_chunk(k_chunk_idx) && bgmmc.K_tail > 0;
     const int gemm_batch = brgmm_ctx.get_brgemm_batch_size(k_chunk_idx);
-    auto ctx = jit_brgemm_matmul_copy_b_t::ctx_t();
 
     const dim_t n = brgmm_ctx.get_N_idx(n_blk_idx, true);
+
+    if (brgmm_ctx.packed_sparse_weights()) {
+        for (int gb = 0; gb < gemm_batch + is_K_tail; gb++) {
+            const int k = k_start + gb * bgmmc.K_blk;
+            auto p = jit_avx512_sparse_decompress_kernel_t::call_params_t();
+            p.src_ptr = (void *)brgmm_ctx.get_data_B_ptr(b_idx, k, n);
+            p.bitmask_ptr
+                    = (void *)brgmm_ctx.get_data_B_bitmask_ptr(b_idx, k, n);
+            p.dst_ptr = (void *)brgmm_ctx.get_buf_B_ptr(ithr, gb, n_blk_idx);
+            (*sparse_decompress_kernel_)(&p);
+        }
+        return;
+    }
+
+    auto ctx = jit_brgemm_matmul_copy_b_t::ctx_t();
     ctx.current_N_blk = brgmm_ctx.get_N_kernel_size(n_blk_idx);
 
     ctx.zp_a_compensation_ptr = (void *)brgmm_ctx.get_zp_a_compensation_ptr(
@@ -739,6 +769,14 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         data_B_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
         data_C_ptr_ = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
+        const memory_desc_wrapper weights_d(pd->weights_md(0));
+        if (bgmmc_.packed_sparse_weights) {
+            data_B_offsets_ptr_
+                    = CTX_IN_MEM(const int64_t *, DNNL_ARG_WEIGHTS, 1);
+            data_B_bitmask_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS, 2);
+            B_packed_sparse_block_size_ = weights_d.blk_size();
+        }
+
         bias_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
         oscales_ptr_ = oscales;
         dst_scales_ptr_ = dst_scales;
@@ -772,7 +810,6 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                         key_conv_amx_tile_buffer)
                 : nullptr;
 
-        const memory_desc_wrapper weights_d(pd->weights_md(0));
         const dim_t comp_offset = bgmmc_.b_dt_sz
                 * (weights_d.size() - weights_d.additional_buffer_size());
         s8s8_compensation_ptr_ = (bgmmc.s8s8_compensation_required)
@@ -1030,8 +1067,21 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     }
 
     const char *get_data_B_ptr(int b, int k, int n) const {
+        if (bgmmc_.packed_sparse_weights) {
+            const auto blk_num
+                    = get_data_B_off(b, k, n) / B_packed_sparse_block_size_;
+            const auto blk_off = data_B_offsets_ptr_[blk_num];
+            return data_B_ptr_ + blk_off;
+        }
+
         int cur_b = get_bb_idx(b, bgmmc_.bcast_B_desc);
         return data_B_ptr_ + get_data_B_off(cur_b, k, n);
+    }
+
+    const char *get_data_B_bitmask_ptr(int b, int k, int n) const {
+        assert(bgmmc_.packed_sparse_weights);
+        const auto bitmask_off = get_data_B_off(b, k, n) / CHAR_BIT;
+        return data_B_bitmask_ptr_ + bitmask_off;
     }
 
     char *get_data_C_ptr(int b, int m, int n) const {
@@ -1516,6 +1566,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
 
     dim_t copy_B_wei_stride() const { return copy_B_wei_stride_; }
 
+    bool packed_sparse_weights() const { return bgmmc_.packed_sparse_weights; }
+
 private:
     struct tail_processing_t {
         // dimension index kernel is applied to
@@ -1537,6 +1589,14 @@ private:
     const brgemm_matmul_conf_t &bgmmc_;
     const char *data_A_ptr_;
     const char *data_B_ptr_;
+    // The offsets and bitmask pointers are only available when the weights
+    // are sparse and packed.
+    const dim_t *data_B_offsets_ptr_;
+    const char *data_B_bitmask_ptr_;
+    // The size of a packed saprse block. E.g. the block
+    // for a tag 'BA16a64b4a' is 4096.
+    int B_packed_sparse_block_size_;
+
     char *data_C_ptr_;
     brgemm_batch_element_t *batch_element_ptr_;
 
