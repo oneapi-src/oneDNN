@@ -197,7 +197,7 @@ graph::status_t compiler_partition_impl_t::compile(
                     auto lt = out_value->get_logical_tensor();
                     // check in outputs
                     auto out_pos = std::find_if(outputs.begin(), outputs.end(),
-                            [lt](const graph::logical_tensor_t &alt) -> bool {
+                            [&lt](const graph::logical_tensor_t &alt) -> bool {
                                 return alt.id == lt.id;
                             });
                     if (out_pos != outputs.end()) {
@@ -220,7 +220,7 @@ graph::status_t compiler_partition_impl_t::compile(
                 auto &out_value = cur_op->get_output_values()[i];
                 auto lt = out_value->get_logical_tensor();
                 auto out_pos = std::find_if(outputs.begin(), outputs.end(),
-                        [lt](const graph::logical_tensor_t &alt) -> bool {
+                        [&lt](const graph::logical_tensor_t &alt) -> bool {
                             return alt.id == lt.id;
                         });
                 if (out_pos != outputs.end()) {
