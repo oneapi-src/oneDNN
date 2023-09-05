@@ -298,12 +298,13 @@ static inline void verify_shape_infer_for_arithmetic_op_with_broadcast(
 #undef for_
 
 static inline void set_conv_common_attr(impl::graph::op_t &conv,
-        std::vector<int64_t> strides = {1, 1},
-        std::vector<int64_t> pads_begin = {0, 0},
-        std::vector<int64_t> pads_end = {0, 0},
-        std::vector<int64_t> dilations = {1, 1}, std::string auto_pad = "None",
-        std::string data_format = "NXC", std::string filter_format = "XIO",
-        int64_t groups = 1) {
+        const std::vector<int64_t> &strides = {1, 1},
+        const std::vector<int64_t> &pads_begin = {0, 0},
+        const std::vector<int64_t> &pads_end = {0, 0},
+        const std::vector<int64_t> &dilations = {1, 1},
+        const std::string &auto_pad = "None",
+        const std::string &data_format = "NXC",
+        const std::string &filter_format = "XIO", int64_t groups = 1) {
     conv.set_attr(impl::graph::op_attr::strides, strides);
     conv.set_attr(impl::graph::op_attr::pads_begin, pads_begin);
     conv.set_attr(impl::graph::op_attr::pads_end, pads_end);
@@ -315,13 +316,13 @@ static inline void set_conv_common_attr(impl::graph::op_t &conv,
 }
 
 static inline void set_conv_dw_base_op_attr(impl::graph::op_t &conv) {
-    std::vector<int64_t> conv_strides {1, 1};
-    std::vector<int64_t> conv_pads_begin {0, 0};
-    std::vector<int64_t> conv_pads_end {0, 0};
-    std::vector<int64_t> conv_dilations {1, 1};
-    std::string conv_auto_pad = "None";
-    std::string conv_data_format = "NCX";
-    std::string conv_filter_format = "OIX";
+    const std::vector<int64_t> &conv_strides {1, 1};
+    const std::vector<int64_t> &conv_pads_begin {0, 0};
+    const std::vector<int64_t> &conv_pads_end {0, 0};
+    const std::vector<int64_t> &conv_dilations {1, 1};
+    const std::string &conv_auto_pad = "None";
+    const std::string &conv_data_format = "NCX";
+    const std::string &conv_filter_format = "OIX";
     int64_t conv_groups = 1;
     set_conv_common_attr(conv, conv_strides, conv_pads_begin, conv_pads_end,
             conv_dilations, conv_auto_pad, conv_data_format, conv_filter_format,
@@ -347,12 +348,14 @@ static inline void set_conv_dw_post_op_attr(
 
 static inline void set_convtranspose_common_attr(
         dnnl::impl::graph::op_t &convtranspose,
-        std::vector<int64_t> strides = {1, 1},
-        std::vector<int64_t> pads_begin = {0, 0},
-        std::vector<int64_t> pads_end = {0, 0},
-        std::vector<int64_t> dilations = {1, 1}, std::string auto_pad = "None",
-        std::string data_format = "NXC", std::string filter_format = "XOI",
-        int64_t groups = 1, std::vector<int64_t> output_padding = {0, 0}) {
+        const std::vector<int64_t> &strides = {1, 1},
+        const std::vector<int64_t> &pads_begin = {0, 0},
+        const std::vector<int64_t> &pads_end = {0, 0},
+        const std::vector<int64_t> &dilations = {1, 1},
+        const std::string &auto_pad = "None",
+        const std::string &data_format = "NXC",
+        const std::string &filter_format = "XOI", int64_t groups = 1,
+        const std::vector<int64_t> &output_padding = {0, 0}) {
     set_conv_common_attr(convtranspose, strides, pads_begin, pads_end,
             dilations, auto_pad, data_format, filter_format, groups);
     convtranspose.set_attr(
