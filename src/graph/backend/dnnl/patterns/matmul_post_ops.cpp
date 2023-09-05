@@ -41,7 +41,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(matmul_post_ops)
                 |
              [bias]*
                 |
-        [unary/binary]*[0,4]
+        [unary/binary]*[0,MAX_REPETITION)
                 |
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_matmul_post_ops)
@@ -140,7 +140,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                 |
               [bias]*
                 |
-        [unary/binary]*[0,4]
+[unary/binary]*[0,MAX_REPETITION)
                 |
             [quant_out]*
                 |      
@@ -284,7 +284,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_matmul_post_ops_gpu)
                 |       /
                add
                 |
-        [unary/binary]*[0,4]
+[unary/binary]*[0,MAX_REPETITION)
                 |
             quant_out
                 |      
@@ -404,7 +404,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_matmul_add_post_ops_gpu)
                 |   /
               [bias]*
                 |
-        [unary/binary]*[0,4]
+[unary/binary]*[0,MAX_REPETITION)
                 |
           [typecast_out]*
                 |
@@ -578,7 +578,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_matmul_post_ops_gpu)
                 |     /
                Add
                 |
-        [unary/binary]*[0,4]
+[unary/binary]*[0,MAX_REPETITION)
                 |
           typecast_out
                 |

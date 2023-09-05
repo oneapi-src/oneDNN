@@ -36,7 +36,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(softmax_post_ops)
 /*     
              softmax
                 |
-        [unary/binary]*[0,4]
+[unary/binary]*[0,MAX_REPETITION)
                 |
           [typecast_out]*
                 |
