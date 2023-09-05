@@ -96,25 +96,29 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
         impl::compiled_partition_t cp(p);
         impl::engine_t &eng = *get_engine();
         ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
-        if (dynamic_callback) {
-            dynamic_callback(partition_inputs, partition_outputs);
-        }
+
         std::vector<impl::tensor_t> execution_inputs;
         std::vector<impl::tensor_t> execution_outputs;
         partition_outputs.clear();
+        for (auto &lt : outputs) {
+            impl::logical_tensor_t compiled_output;
+            cp.query_logical_tensor(lt->id, &compiled_output);
+            partition_outputs.push_back(compiled_output);
+            assert(compiled_output.ndims > -1);
+        }
+        if (dynamic_callback) {
+            dynamic_callback(partition_inputs, partition_outputs);
+        }
         size_t size = 0;
         for (auto &lt : partition_inputs) {
             size += compiler_backend_ptr.get_mem_size(lt);
             assert(lt.ndims > -1);
             lt_info_map[lt.id] = lt;
         }
-        for (auto &lt : outputs) {
-            impl::logical_tensor_t compiled_output;
-            cp.query_logical_tensor(lt->id, &compiled_output);
-            size += compiler_backend_ptr.get_mem_size(compiled_output);
-            partition_outputs.push_back(compiled_output);
-            assert(compiled_output.ndims > -1);
-            lt_info_map[compiled_output.id] = compiled_output;
+        for (auto &lt : partition_outputs) {
+            size += compiler_backend_ptr.get_mem_size(lt);
+            assert(lt.ndims > -1);
+            lt_info_map[lt.id] = lt;
         }
         test::vector<char> data(size);
 
