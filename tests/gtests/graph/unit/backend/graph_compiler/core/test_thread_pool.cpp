@@ -25,6 +25,7 @@
 #include <runtime/managed_thread_pool_exports.hpp>
 #include <runtime/parallel.hpp>
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+#include "graph/unit/unit_test_common.hpp"
 #include <test_thread.hpp>
 #define dnnl_thread_env() \
     dnnl::testing::scoped_tp_activation_t unused_raii {}
@@ -33,6 +34,23 @@
 #endif
 
 using namespace dnnl::impl::graph::gc;
+
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+struct gc_env_initializer {
+    gc_env_initializer() {
+        dnnl::impl::graph::gc::runtime::get_default_stream = []() {
+            static auto the_stream = []() {
+                dnnl::impl::graph::gc::runtime::stream_t ret
+                        = dnnl::impl::graph::gc::runtime::default_stream;
+                ret.vtable_.stream = ::get_stream();
+                return ret;
+            }();
+            return &the_stream;
+        };
+    }
+};
+static gc_env_initializer gc_test_init;
+#endif
 
 #if SC_CPU_THREADPOOL > 0
 
