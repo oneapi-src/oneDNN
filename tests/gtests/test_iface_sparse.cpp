@@ -31,12 +31,16 @@ TEST(iface_sparse_test_t, TestSparseMDCreation) {
     // CSR.
     ASSERT_NO_THROW(
             md = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
+    // Packed.
+    ASSERT_NO_THROW(md = memory::desc::packed({64, 128}, dt::f32, nnz));
 }
 
 TEST(iface_sparse_test_t, TestSparseMDComparison) {
     const int nnz = 12;
     memory::desc md1;
     memory::desc md2;
+
+    // CSR.
 
     // Different index data types.
     ASSERT_NO_THROW(
@@ -58,6 +62,18 @@ TEST(iface_sparse_test_t, TestSparseMDComparison) {
     ASSERT_NO_THROW(md2
             = memory::desc::csr({64, 128}, dt::f32, nnz + 1, dt::s32, dt::s32));
     ASSERT_NE(md1, md2);
+
+    // Packed.
+
+    // Equal memory descriptors.
+    ASSERT_NO_THROW(md1 = memory::desc::packed({64, 128}, dt::f32, nnz));
+    ASSERT_NO_THROW(md2 = memory::desc::packed({64, 128}, dt::f32, nnz));
+    ASSERT_EQ(md1, md2);
+
+    // Different nnz.
+    ASSERT_NO_THROW(md1 = memory::desc::packed({64, 128}, dt::f32, nnz));
+    ASSERT_NO_THROW(md2 = memory::desc::packed({64, 128}, dt::f32, nnz + 1));
+    ASSERT_NE(md1, md2);
 }
 
 TEST(iface_sparse_test_t, TestSparseMDQueries) {
@@ -68,9 +84,10 @@ TEST(iface_sparse_test_t, TestSparseMDQueries) {
     const memory::data_type data_type = dt::f32;
 
     memory::desc md;
+
+    // CSR.
     ASSERT_NO_THROW(md
             = memory::desc::csr(dims, data_type, nnz, indices_dt, pointers_dt));
-
     ASSERT_EQ(md.get_dims(), dims);
     ASSERT_EQ(md.get_data_type(), data_type);
     ASSERT_EQ(md.get_data_type(0), data_type);
@@ -80,11 +97,23 @@ TEST(iface_sparse_test_t, TestSparseMDQueries) {
     ASSERT_EQ(md.get_sparse_encoding(), memory::sparse_encoding::csr);
     ASSERT_EQ(md.get_data_type(1), indices_dt);
     ASSERT_EQ(md.get_data_type(2), pointers_dt);
+
+    // Packed.
+    ASSERT_NO_THROW(md = memory::desc::packed(dims, data_type, nnz));
+    ASSERT_EQ(md.get_dims(), dims);
+    ASSERT_EQ(md.get_data_type(), data_type);
+    ASSERT_EQ(md.get_data_type(0), data_type);
+    ASSERT_EQ(md.get_format_kind(), memory::format_kind::sparse);
+
+    ASSERT_EQ(md.get_nnz(), nnz);
+    ASSERT_EQ(md.get_sparse_encoding(), memory::sparse_encoding::packed);
 }
 
 TEST(iface_sparse_test_t, TestSparseMDSize) {
     const int nnz = 12;
     memory::desc md;
+
+    // CSR.
     ASSERT_NO_THROW(
             md = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
     // Size of values.
@@ -104,6 +133,23 @@ TEST(iface_sparse_test_t, TestSparseMDSize) {
     const size_t exp_pointers_size = (md.get_dims()[0] + 1)
             * memory::data_type_size(md.get_data_type(2));
     ASSERT_EQ(md.get_size(2), exp_pointers_size);
+
+    // Packed.
+
+    // The user-created memory descriptor for packed encoding cannot
+    // be queried for sizes.
+    ASSERT_NO_THROW(md = memory::desc::packed({64, 128}, dt::f32, nnz));
+    // Size of values.
+    // Default.
+    ASSERT_EQ(md.get_size(), 0u);
+    // Explicit.
+    ASSERT_EQ(md.get_size(0), 0u);
+
+    // Size of offsets.
+    ASSERT_EQ(md.get_size(1), 0u);
+
+    // Size of bitmask.
+    ASSERT_EQ(md.get_size(2), 0u);
 }
 
 TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
