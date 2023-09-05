@@ -2141,7 +2141,8 @@ struct simple_reorder_t : public primitive_t {
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
             using skip_mask_t = dnnl_primitive_attr::skip_mask_t;
-            bool args_ok = src_md->data_type == type_i
+            bool args_ok = impl::is_dense_format_kind({src_md, dst_md})
+                    && src_md->data_type == type_i
                     && dst_md->data_type == type_o
                     && attr->has_default_values(skip_mask_t::scales_runtime
                             | skip_mask_t::zero_points

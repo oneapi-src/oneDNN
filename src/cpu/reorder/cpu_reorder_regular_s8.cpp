@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,6 +64,8 @@ const impl_list_map_t &regular_s8_impl_list_map() {
             REG_SR(s8, any, f16, any, fmt_order::any, spec::reference)
             REG_SR(s8, any, s8, any, fmt_order::any, spec::reference)
             REG_SR(s8, any, u8, any, fmt_order::any, spec::reference)
+
+            REG_SPARSE_SR_X64(s8, any, s8, any)
 
             nullptr,
         }},

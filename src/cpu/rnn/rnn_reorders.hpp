@@ -200,7 +200,7 @@ struct rnn_data_reorder_t : public primitive_t {
             using namespace status;
             const memory_desc_wrapper id(src_md), od(dst_md);
 
-            bool args_ok = true;
+            bool args_ok = impl::is_dense_format_kind({src_md, dst_md});
 #define PD_CHECK_ARG(x) args_ok = args_ok && (x)
             PD_CHECK_ARG(id.data_type() == type_i);
             PD_CHECK_ARG(od.data_type() == type_o);
@@ -346,7 +346,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             using namespace status;
             const memory_desc_wrapper id(src_md), od(dst_md);
 
-            bool args_ok = true;
+            bool args_ok = impl::is_dense_format_kind({src_md, dst_md});
 #define PD_CHECK_ARG(x) args_ok = args_ok && (x)
             // Fast checks
             PD_CHECK_ARG(id.data_type() == type_i);
@@ -560,7 +560,7 @@ struct rnn_weights_reorder_t : public primitive_t {
             using namespace status;
 
             const memory_desc_wrapper id(src_md), od(dst_md);
-            bool args_ok = true;
+            bool args_ok = impl::is_dense_format_kind({src_md, dst_md});
 #define PD_CHECK_ARG(x) args_ok = args_ok && (x)
             PD_CHECK_ARG(id.data_type() == type_i);
             PD_CHECK_ARG(od.data_type() == type_o);
@@ -751,7 +751,8 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
 
             const memory_desc_wrapper id(src_md), od(dst_md);
 
-            const bool args_ok = true && id.data_type() == type_i
+            const bool args_ok = impl::is_dense_format_kind({src_md, dst_md})
+                    && id.data_type() == type_i
                     && od.data_type() == data_type::s8 && id.is_dense();
             if (!args_ok) return invalid_arguments;
 

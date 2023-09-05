@@ -145,19 +145,23 @@ private:
 #define ARG_TYPE(t) \
     typename std::remove_cv<typename std::remove_pointer<t>::type>::type
 
-// Returns destination memory which may not have been zero pad initialized.
-#define CTX_OUT_MEM(type, arg) static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg))
-
 // Returns destination memory which has been zero pad initialized. This macro
 // may result in a failure returned via the `status` input since zero pad
 // may fail.
 #define CTX_OUT_CLEAN_MEM(type, arg, status) \
     static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg, true, &status))
 
+// Returns destination memory which may not have been zero pad initialized.
+#define CTX_OUT_MEM_COMMON(type, arg, index) \
+    static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg, false, nullptr, index))
+#define CTX_OUT_MEm(type, arg) CTX_OUT_MEM_COMMON(type, arg, 0)
+#define CTX_OUT_MEm0(type, arg) CTX_OUT_MEM_COMMON(type, arg, 0)
+#define CTX_OUT_MEm1(type, arg) CTX_OUT_MEM_COMMON(type, arg, 1)
+#define CTX_OUT_MEm2(type, arg) CTX_OUT_MEM_COMMON(type, arg, 2)
+
 #define CTX_IN_MEM_COMMON(type, arg, index) \
     static_cast<const ARG_TYPE(type) *>( \
             ctx.host_ptr(arg, false, nullptr, index))
-
 #define CTX_IN_MEm(type, arg) CTX_IN_MEM_COMMON(type, arg, 0)
 #define CTX_IN_MEm0(type, arg) CTX_IN_MEM_COMMON(type, arg, 0)
 #define CTX_IN_MEm1(type, arg) CTX_IN_MEM_COMMON(type, arg, 1)
@@ -166,5 +170,6 @@ private:
 // __VA_ARGS__here is an index of the buffer. It is empty unless the memory
 // argument is sparse.
 #define CTX_IN_MEM(type, arg, ...) CTX_IN_MEm##__VA_ARGS__(type, arg)
+#define CTX_OUT_MEM(type, arg, ...) CTX_OUT_MEm##__VA_ARGS__(type, arg)
 
 #endif

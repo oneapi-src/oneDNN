@@ -2180,6 +2180,8 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         engine_t *engine, const primitive_attr_t *attr, engine_t *src_engine,
         const memory_desc_t *src_md, engine_t *dst_engine,
         const memory_desc_t *dst_md) {
+    if (!impl::is_dense_format_kind({src_md, dst_md}))
+        return status::unimplemented;
     auto prb = tr::prb_t();
 
     status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
@@ -2605,6 +2607,8 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         engine_t *engine, const primitive_attr_t *attr, engine_t *src_engine,
         const memory_desc_t *src_md, engine_t *dst_engine,
         const memory_desc_t *dst_md) {
+    if (!impl::is_dense_format_kind({src_md, dst_md}))
+        return status::unimplemented;
     auto prb = tr::prb_t();
 
     status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);

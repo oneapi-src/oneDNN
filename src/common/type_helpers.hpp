@@ -735,12 +735,40 @@ inline bool operator==(const zero_pad_desc_t &lhs, const zero_pad_desc_t &rhs) {
 #undef COMPARE_FLOAT_DESC_MEMBERS
 #undef COMPARE_FLOAT_DESC_ARRAY_MEMBERS
 
-inline bool is_dense_format_kind(const std::vector<memory_desc_t *> mds) {
+inline bool is_dense_format_kind(const std::vector<const memory_desc_t *> mds) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     for (const auto *md : mds)
         if (md->format_kind == format_kind::sparse) return false;
 #endif
     return true;
+}
+
+inline memory_desc_t cvt_blocked2sparse_packed(
+        const memory_desc_t &blocked_md, dim_t nnz) {
+    if (blocked_md.format_kind != format_kind::blocked) return glob_zero_md;
+
+    auto sparse_packed_md = blocked_md;
+    sparse_packed_md.format_kind = format_kind::sparse;
+    sparse_packed_md.format_desc.sparse_desc.encoding = sparse_encoding::packed;
+    sparse_packed_md.format_desc.sparse_desc.nnz = nnz;
+    sparse_packed_md.format_desc.sparse_desc.packed_desc
+            = blocked_md.format_desc.blocking;
+    return sparse_packed_md;
+}
+
+inline memory_desc_t cvt_sparse_packed2blocked(
+        const memory_desc_t &sparse_packed_md) {
+    if (sparse_packed_md.format_kind != format_kind::sparse
+            || sparse_packed_md.format_desc.sparse_desc.encoding
+                    != sparse_encoding::packed)
+        return glob_zero_md;
+
+    const blocking_desc_t &blk_desc
+            = sparse_packed_md.format_desc.sparse_desc.packed_desc;
+    auto blocked_md = sparse_packed_md;
+    blocked_md.format_desc.blocking = blk_desc;
+    blocked_md.format_kind = format_kind::blocked;
+    return blocked_md;
 }
 
 /** returns true if strides are compatible with memory_desc_t */
