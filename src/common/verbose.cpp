@@ -260,7 +260,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
         result = verbose_t::get_debuginfo(verbose.get());
     if (result) print_header();
     bool filter_result = flags & filter_kind;
-    return result && filter_result;
+    return filter_result ? result : 0;
 #endif
 }
 
