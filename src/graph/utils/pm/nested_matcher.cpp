@@ -774,9 +774,19 @@ bool repetition_matcher_t::prepare_next_matching_round(
         } else {
             // More than 1 consumers. In this case, needs to check
             // if the last node of previous match accepts external
-            // output. If no, break
+            // output or nodes of next match accepts internal input.
+            // If no, break
             pb_op_t *current_pb_op = updated_op_map_[current_op];
-            if (!current_pb_op->is_allowing_external_outputs()) return true;
+            if (!current_pb_op->is_allowing_external_outputs()) {
+                bool prepare_fail = true;
+                for (const auto &next_pb_op : rep_node_->get_contained_ops()) {
+                    if (next_pb_op->is_allowing_internal_inputs()) {
+                        prepare_fail = false;
+                        break;
+                    }
+                }
+                if (prepare_fail) return prepare_fail;
+            }
             // If yes, decide which one of the consumers will be used
             // for next round's match
             iport_t iport = pmap_.second;
