@@ -1719,6 +1719,60 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically4) {
     EXPECT_TRUE(mod);
 }
 
+TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
+    REQUIRE_AMX();
+    SET_THREADS_OR_SKIP(16);
+
+    int M = 4, N = 11008, K = 4096;
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input(
+            {graph_tensor::make({M, K}, sc_data_format_t(format_kinds::MK))});
+    auto weight0 = graph.make_input(
+            {graph_tensor::make({K, N}, sc_data_format_t(format_kinds::KN))});
+    auto weight1 = graph.make_input(
+            {graph_tensor::make({K, N}, sc_data_format_t(format_kinds::KN))});
+
+    // mmm0
+    auto mmm0 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
+    {
+        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 16, 4, 0};
+        mmm0->dyn_cast<op_traits::configurable_t>()->set_config(
+                reflection::general_object_t::make(cfg));
+    }
+    auto relu0 = graph.make("relu", mmm0->get_outputs(), {}, {});
+    // mmm1
+    auto mmm1 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
+    {
+        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 16, 4, 0};
+        mmm1->dyn_cast<op_traits::configurable_t>()->set_config(
+                reflection::general_object_t::make(cfg));
+    }
+    auto relu1 = graph.make("relu", mmm1->get_outputs(), {}, {});
+    // Although mmm0 and mmm1 are both inputs of add0, they should not be merged
+    // due to nested parallel loop found
+    auto add0 = graph.make(
+            "add", {relu0->get_outputs()[0], relu1->get_outputs()[0]}, {}, {});
+    auto out0 = graph.make_output(add0->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.opt_level_ = sc_opt_level::lv2;
+    graph_driver(graph, ctx);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    // Actually, mmm0 and mmm1 would still be merged during later parallel merge
+    std::string expected_str
+            = R"(graph(v0: f32[4, 4096], v1: f32[4096, 11008], v2: f32[4096, 11008]) -> [v3: f32[4, 11008]] {
+  [v4: f32[4, 11008]] = outerloop_1X16_partition_managed_matmul_core_relu(v0, v2)
+  [v3: f32[4, 11008]] = outerloop_1X16_partition_managed_matmul_core_relu_add(v0, v1, v4)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+}
+
 class test_prefetchable_op : public tunable_op_t,
                              public op_traits::may_prefetch_t {
 public:

@@ -2282,10 +2282,13 @@ static bool try_merge_brgemm_and_preop_parti(mixed_parti_t *A, mixed_parti_t *B,
 }
 
 static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
-        const sc_op_ptr &joint_op = nullptr, bool keep_outerloop_size = false) {
+        const sc_op_ptr &joint_op, bool keep_outerloop_size = false) {
     A = A->get_root(), B = B->get_root();
     if (A == B) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
+    // in avoid conflict with parallel merge
+    if (A->contain_nested_parallel_for() || B->contain_nested_parallel_for())
+        return false;
     if (!joint_op && !check_parti_connectionship(A, B)) return false;
     if (!joint_op && check_parti_ring_risk(A, B)) return false;
     auto dep_flag = check_parti_dep(A, B);
@@ -2361,9 +2364,6 @@ static bool try_merge_mixed_parti_vertically(
     if (A == B) return false;
     // if A and B are forked, do not merge them
     if (check_parti_forked(A, B)) return false;
-    // in avoid conflict with parallel merge
-    if (A->contain_nested_parallel_for() || B->contain_nested_parallel_for())
-        return false;
     // skip single op partition
     if (A->is_single_op_parti() || B->is_single_op_parti()) return false;
     bool image_affinity = A->contain_convolution() && B->contain_convolution();
