@@ -48,6 +48,10 @@ struct ref_sparse_matmul_t : public primitive_t {
                     = utils::everyone_is(f32, src_type, wei_type, dst_type)
                     && utils::one_of(true, wei_d.is_sparse_desc(),
                             src_d.is_sparse_desc())
+                    && IMPLICATION(wei_d.is_sparse_desc(),
+                            wei_d.encoding() == sparse_encoding::csr)
+                    && IMPLICATION(src_d.is_sparse_desc(),
+                            src_d.encoding() == sparse_encoding::csr)
                     && IMPLICATION(
                             wei_d.is_sparse_desc(), !src_d.is_sparse_desc())
                     && IMPLICATION(src_d.is_sparse_desc(),
