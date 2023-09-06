@@ -679,25 +679,26 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
     } else {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
         return execute_sycl(astream, inputs, outputs, {}, nullptr);
+#else
+        // TODO(xxx): need to improve the check of two engines. On dev-graph, there
+        // is a match function.
+        if (!astream
+                || (astream->engine()->kind() != pimpl_->get_engine()->kind()))
+            return status::invalid_arguments;
+
+        const backend_t *backend = src_partition_.get_assigned_backend();
+        if (!backend) return status::invalid_arguments;
+
+        // Pre-process the given tensor. The pre-process includes
+        // FIXME(xx) reduce overhead?
+        // 1. decode backend id from the layout id and remove it
+        std::vector<tensor_t> processed_inputs, processed_outputs;
+        pre_process(processed_inputs, inputs, backend);
+        pre_process(processed_outputs, outputs, backend);
+
+        return pimpl_->execute(astream, processed_inputs, processed_outputs);
 #endif
     }
-
-    // TODO(xxx): need to improve the check of two engines. On dev-graph, there
-    // is a match function.
-    if (!astream || (astream->engine()->kind() != pimpl_->get_engine()->kind()))
-        return status::invalid_arguments;
-
-    const backend_t *backend = src_partition_.get_assigned_backend();
-    if (!backend) return status::invalid_arguments;
-
-    // Pre-process the given tensor. The pre-process includes
-    // FIXME(xx) reduce overhead?
-    // 1. decode backend id from the layout id and remove it
-    std::vector<tensor_t> processed_inputs, processed_outputs;
-    pre_process(processed_inputs, inputs, backend);
-    pre_process(processed_outputs, outputs, backend);
-
-    return pimpl_->execute(astream, processed_inputs, processed_outputs);
 }
 
 #ifdef DNNL_WITH_SYCL
