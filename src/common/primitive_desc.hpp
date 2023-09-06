@@ -52,7 +52,8 @@ struct primitive_desc_t : public c_compatible {
         is_initialized_ = is_initialized_ && attr_.is_initialized();
     }
 
-    primitive_desc_t(primitive_kind_t kind) : kind_(kind) {}
+    primitive_desc_t(primitive_kind_t kind)
+        : kind_(kind), pd_iterator_offset_(0) {}
 
     bool is_initialized() const { return is_initialized_; }
 
