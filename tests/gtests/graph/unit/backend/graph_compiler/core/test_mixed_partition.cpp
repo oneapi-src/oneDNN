@@ -1766,8 +1766,8 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
     // Actually, mmm0 and mmm1 would still be merged during later parallel merge
     std::string expected_str
             = R"(graph(v0: f32[4, 4096], v1: f32[4096, 11008], v2: f32[4096, 11008]) -> [v3: f32[4, 11008]] {
-  [v4: f32[4, 11008]] = outerloop_1X16_partition_managed_matmul_core_relu(v0, v2)
-  [v3: f32[4, 11008]] = outerloop_1X16_partition_managed_matmul_core_relu_add(v0, v1, v4)
+  [v4: f32[4, 11008]] = outerloop_1X16X1X1X16_partition_managed_matmul_core_relu(v0, v2)
+  [v3: f32[4, 11008]] = outerloop_1X16X1X1X16_partition_managed_matmul_core_relu_add(v0, v1, v4)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);
