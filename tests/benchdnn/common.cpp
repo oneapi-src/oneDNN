@@ -445,7 +445,8 @@ int batch(const char *fname, bench_f bench) {
 
         // shell style comments
         if (str.front() == '#') {
-            std::getline(ifs, str); // take whole commented line out
+            std::string dummy;
+            std::getline(ifs, dummy); // take whole commented line out
             continue;
         }
 

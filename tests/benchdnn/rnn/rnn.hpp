@@ -169,7 +169,7 @@ private:
         return offset(d + 1, off * dims_[d] + pos, rem...);
     }
 
-    Telem *base_ptr_;
+    Telem *base_ptr_ = nullptr;
     std::vector<int64_t> dims_;
 };
 
@@ -347,7 +347,7 @@ struct prb_t : public desc_t {
                 wei_scales_mask = 0x18;
                 wei_nscales = dhc * n_gates();
                 break;
-            default: assert(!"unsupported scaling policy");
+            default: SAFE_V(FAIL);
         }
         wei_scales = (float *)zmalloc(sizeof(float) * wei_nscales, 64);
 
@@ -361,7 +361,7 @@ struct prb_t : public desc_t {
                     wei_proj_scales_mask = 0x0;
                     wei_proj_nscales = 1;
                     break;
-                default: assert(!"unsupported scaling policy");
+                default: SAFE_V(FAIL);
             }
             wei_proj_scales
                     = (float *)zmalloc(sizeof(float) * wei_proj_nscales, 64);

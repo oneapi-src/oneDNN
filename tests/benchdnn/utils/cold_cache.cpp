@@ -204,6 +204,8 @@ bool cold_cache_t::update_dnnl_args(std::vector<dnnl_exec_arg_t> &dnnl_args) {
     for (const auto &cc_entry : cache_) {
         const int arg = cc_entry.first;
         const int dnnl_args_idx = cold_cache_utils::get_arg_idx(dnnl_args, arg);
+        if (dnnl_args_idx < 0) return false;
+
         const auto &e = cc_entry.second;
         // Assumption that cache entries of the same size.
         if (cc_counter_ >= e.size()) cc_counter_ = 0;

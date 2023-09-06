@@ -184,7 +184,7 @@ int check_s8s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
     }
 
     /* 2. compute s8_plain_quantized --reorder--> s8_packed_quantized */
-    mem_s8_dst.reorder(mem_s8_src);
+    SAFE(mem_s8_dst.reorder(mem_s8_src), WARN);
 
     /* 3. we check that the two memory are bitwise identical. */
     auto sz = mem_dt.size();
