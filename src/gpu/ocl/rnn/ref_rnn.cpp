@@ -721,10 +721,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     using namespace rnn_utils;
-    auto assign_funcs = [](gemm_t &g) { g = &class_name::gemm_primitive; };
-
-    assign_funcs(gemm_iter_func);
-    assign_funcs(gemm_layer_func);
 
     switch (pd()->cell_kind()) {
         case dnnl_vanilla_lstm:

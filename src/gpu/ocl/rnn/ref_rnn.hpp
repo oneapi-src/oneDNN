@@ -398,8 +398,6 @@ private:
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
 
-    gemm_t gemm_iter_func;
-    gemm_t gemm_layer_func;
     elemwise_f elemwise_common;
     elemwise_gru_f elemwise_gru;
     elemwise_gru_lbr_f elemwise_gru_lbr;
