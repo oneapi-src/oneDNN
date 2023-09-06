@@ -206,7 +206,7 @@ protected:
 
         // post ops
         post_ops po;
-        for (auto post_op : p.attr.post_ops) {
+        for (const auto &post_op : p.attr.post_ops) {
             switch (post_op.kind) {
                 case primitive::kind::sum: po.append_sum(); break;
                 case primitive::kind::eltwise:
