@@ -586,11 +586,11 @@ status_t layout_propagator_for_batchnorm(op_ptr &op,
         scratchpad_index = op->num_outputs() - 2;
         value_ptr workspace_val = op->get_output_value(op->num_outputs() - 1);
         status = fill_layout_info(workspace_val, pd.workspace_desc());
+        if (status != status::success) return status;
     }
 
     value_ptr scratchpad_val = op->get_output_value(scratchpad_index);
     status = fill_layout_info(scratchpad_val, pd.scratchpad_desc());
-    if (status != status::success) return status;
 
     return status;
 }

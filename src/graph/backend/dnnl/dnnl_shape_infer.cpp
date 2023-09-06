@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -470,8 +470,10 @@ status_t infer_dnnl_pool_bwd_output_shape(op_t *n,
         std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto_pad
         for (size_t i = 0; i < src_sp.size(); ++i) {
-            infer_auto_pad(src_sp[i], strides[i], kernel[i], dilations[i],
-                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+            auto ret = infer_auto_pad(src_sp[i], strides[i], kernel[i],
+                    dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
+
+            if (ret != status::success) return ret;
         }
         n->set_attr(op_attr::pads_begin, new_pads_begin);
         n->set_attr(op_attr::pads_end, new_pads_end);
