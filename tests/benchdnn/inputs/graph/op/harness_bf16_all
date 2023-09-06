@@ -11,6 +11,8 @@
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/bf16/avgpool_bwd.json
 --reset --op-attrs=0:auto_pad:VALID*kernel:2x2 --case=op/bf16/avgpool_bwd.json
 --reset --in-shapes=0:1x300x300x64 --op-attrs=0:data_format:NXC*src_shape:1x600x600x64 --case=op/bf16/avgpool_bwd.json
+--reset --in-shapes=0:2x192 --case=op/bf16/bnorm_fwd_d.json
+--reset --in-shapes=0:2x192x71 --case=op/bf16/bnorm_fwd_d.json
 --reset --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/bf16/bnorm.json
 --reset --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/bf16/bnorm_fwd_d.json
 --reset --in-shapes=0:2x71x71x192+1:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/bf16/bnorm_bwd.json
