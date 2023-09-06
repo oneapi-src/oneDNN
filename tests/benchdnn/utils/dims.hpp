@@ -27,7 +27,7 @@ using vdims_t = std::vector<dims_t>;
 
 struct prb_dims_t {
     dims_t dims;
-    int ndims;
+    int ndims = 0;
     std::string name;
 
     int64_t nelems(int mask) const;
@@ -44,7 +44,7 @@ struct prb_vdims_t {
     // Destination dimensions with all broadcasts incorporated. Drivers inherit
     // this member and may modify it due to driver specifics.
     dims_t dst_dims;
-    int ndims;
+    int ndims = 0;
     std::string name;
 
     int n_inputs() const { return static_cast<int>(vdims.size()); }

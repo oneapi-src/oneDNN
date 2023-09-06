@@ -1167,8 +1167,9 @@ static std::string try_map_tag(
     for (int i = 0; i < (int)tag.size(); i++) {
         char c = tag[i];
         if (!std::isalpha(tag[i])) continue;
-        auto pos = logical_tag.find(std::tolower(c));
+        size_t pos = logical_tag.find(std::tolower(c));
         if (pos == std::string::npos) pos = logical_tag.find(std::toupper(c));
+        if (pos >= logical_tag.size()) SAFE_V(FAIL);
 
         mapped_tag[i]
                 = (char)(tag[i] - std::tolower(c) + 'a' + logical_indices[pos]);

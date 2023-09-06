@@ -394,7 +394,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_norm_validation_mode(compare_with_norm);
 
     const auto dt = prb->dir & FLAG_FWD ? prb->dt[1] : prb->dt[0];
-    // Get safe from digits exceeding digits_f32.
+    // Digits must be non-negative for safe left-shifting when `digits_dt`
+    // exceeds `digits_f32`.
     const int safe_digits = MAX2(0, digits_dt(dnnl_f32) - digits_dt(dt));
     const float trh_coeff = (1 << safe_digits);
     float trh = trh_coeff * ((kind == SRC || kind == DST) ? 6e-7 : 0);
