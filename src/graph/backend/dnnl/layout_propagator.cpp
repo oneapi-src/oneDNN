@@ -875,6 +875,8 @@ status_t layout_propagator_for_to_group(op_ptr &op,
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         dnnl::memory::desc out_md;
         auto groups = op->get_attr<int64_t>(op_attr::groups);
+        // avoid dividing by zero at below.
+        if (groups == 0) return status::invalid_shape;
         if (op->has_attr(op_attr::is_convtranspose)
                 && op->get_attr<bool>(op_attr::is_convtranspose)) {
             auto permuted_weight = transpose(in_md, 0, 1);
