@@ -747,9 +747,9 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 
     grid_computation = &class_name::linear_execution;
 
-    rnn_utils::set_workspace_offsets(pd()->rnn_conf, ws_gates_offset_,
-            ws_states_offset_, ws_c_states_offset_, ws_grid_comp_offset_,
-            ws_bias_offset_);
+    const conf_t &rnn = pd()->rnn_conf;
+    rnn_utils::set_workspace_offsets(rnn, ws_gates_offset_, ws_states_offset_,
+            ws_c_states_offset_, ws_grid_comp_offset_, ws_bias_offset_);
     int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
     size_t wei_offsets_iter_sz
             = static_cast<size_t>(pd()->L() * pd()->D() * max_nparts);
@@ -758,7 +758,6 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     wei_layer_offsets = std::vector<dim_t>(wei_offsets_layer_sz);
     wei_iter_offsets = std::vector<dim_t>(wei_offsets_iter_sz);
 
-    const conf_t &rnn = this->pd()->rnn_conf;
     assign_weight_offsets(rnn, pd()->weights_md(1), wei_iter_offsets,
             rnn.n_parts_weights_iter, rnn.parts_weights_iter,
             rnn.weights_iter_ld, rnn.weights_iter_nld, pd()->weights_type);
@@ -790,7 +789,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
                                     pd()->gemm_layer_fwd_pd_, engine),
                             create_nested_primitive(gemm_iter_fwd_,
                                     pd()->gemm_iter_fwd_pd_, engine),
-                            pd()->rnn_conf.is_vanilla_gru
+                            rnn.is_vanilla_gru
                                     ? create_nested_primitive(gemm_iter_fwd_2_,
                                             pd()->gemm_iter_fwd_2_pd_, engine)
                                     : status::success);
@@ -806,16 +805,14 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
                                     pd()->gemm_diff_wei_layer_pd_, engine),
                             create_nested_primitive(gemm_diff_wei_iter_,
                                     pd()->gemm_diff_wei_iter_pd_, engine),
-                            pd()->rnn_conf.is_vanilla_gru
+                            rnn.is_vanilla_gru
                                     ? create_nested_primitive(gemm_iter_bwd_2_,
                                             pd()->gemm_iter_bwd_2_pd_, engine)
                                     : status::success,
-                            pd()->rnn_conf.is_vanilla_gru
-                                    ? create_nested_primitive(
-                                            gemm_diff_wei_iter_2_,
-                                            pd()->gemm_diff_wei_iter_2_pd_,
-                                            engine)
-                                    : status::success);
+                            rnn.is_vanilla_gru ? create_nested_primitive(
+                                    gemm_diff_wei_iter_2_,
+                                    pd()->gemm_diff_wei_iter_2_pd_, engine)
+                                               : status::success);
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }
