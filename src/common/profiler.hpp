@@ -40,6 +40,8 @@ static double get_msec() {
 #ifdef _WIN32
     static LARGE_INTEGER frequency;
     if (frequency.QuadPart == 0) QueryPerformanceFrequency(&frequency);
+    // In case the hardware does not support high-resolution perf counter
+    if (frequency.QuadPart == 0) return 0.0;
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
     return 1e+3 * now.QuadPart / frequency.QuadPart;
