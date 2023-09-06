@@ -1325,6 +1325,10 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
             = types::data_type_size(tmp_matmul_conf_for_reorder.src_dt);
     tmp_matmul_conf_for_reorder.b_dt_sz = tmp_matmul_conf_for_reorder.tr_b_dt_sz
             = types::data_type_size(tmp_matmul_conf_for_reorder.wei_dt);
+    tmp_matmul_conf_for_reorder.copy_B_wei_stride
+            = tmp_matmul_conf_for_reorder.N
+            * tmp_matmul_conf_for_reorder.b_dt_sz;
+    tmp_matmul_conf_for_reorder.transposed_B = false;
     CHECK(matmul::create_brgemm_matmul_copy_b(
             diff_wei.srcatch_gates_reorder_kernel_,
             &tmp_matmul_conf_for_reorder));
