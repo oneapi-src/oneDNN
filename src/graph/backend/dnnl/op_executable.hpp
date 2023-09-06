@@ -1026,7 +1026,7 @@ struct bn_folding_t : public op_executable_t {
     class desc_t {
         friend struct bn_folding_t;
 
-        float epsilon_;
+        float epsilon_ = 1e-5f;
         std::string data_format_;
         std::string filter_format_;
 
