@@ -567,8 +567,9 @@ TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_1_NCX) {
             28 * 28, 1, 1, 1, 1, 0, false, false, false, true, true, false);
 }
 TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_1_NXC) {
-    check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 7, 63 * 8,
-            63 * 2, 64 * 64, 1, 1, 1, 1, 0, false, false, false, true, false,
+    check_conv_correctness_and_tuning_fwd(
+            conv_fwd_config_t(63 * 8, 63 * 2, 1, 1, 1, 0, 0, 0), 7, 63 * 8,
+            63 * 2, 64 * 64, 1, 1, 1, 1, 0, false, false, false, false, false,
             true);
 }
 TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_2_NCX) {
