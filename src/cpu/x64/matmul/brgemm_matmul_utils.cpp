@@ -1253,7 +1253,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     if (bgmmc.wei_n_blk > bgmmc.N_blk
             && IMPLICATION(
                     bgmmc.N == bgmmc.N_blk, bgmmc.N >= bgmmc.wei_n_blk)) {
-        assert(!bgmmc.is_runtim_N
+        assert(!bgmmc.is_runtime_N
                 && "N_blk should not be adjusted for runtime N");
         bgmmc.wei_n_blk = bgmmc.N_blk;
         VCHECK_BG(bm_conf_utils.update_and_check_B_tag(
