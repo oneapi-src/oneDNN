@@ -349,15 +349,15 @@ dim_t rnn_utils::get_workspace_size(const conf_t &rnn) {
 }
 
 void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t dir, dim_t lay,
-        data_type_t src_t, dim_t *wei_layer_off_ptr,
+        data_type_t src_t, const std::vector<dim_t> &wei_layer_offsets,
         const dim_t &ws_states_offset_, dim_t &grid_ws_lay_offset,
         dim_t &grid_wei_lay_offset, dim_t &grid_ws_iter_offset) {
     // Function overloaded. This function is called by grid execution
     dim_t n_layer = rnn.n_layer;
     dim_t n_dir = rnn.n_dir;
 
-    AOC<dim_t, 3> off_weights_lay(
-            wei_layer_off_ptr, n_layer, n_dir, rnn.n_parts_weights_layer);
+    const AOC<const dim_t, 3> off_weights_lay(wei_layer_offsets.data(), n_layer,
+            n_dir, rnn.n_parts_weights_layer);
 
     grid_wei_lay_offset = off_weights_lay(lay, dir, 0);
     grid_ws_lay_offset = (ws_states_offset_
@@ -372,7 +372,8 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t dir, dim_t lay,
 }
 
 void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir,
-        dim_t lay, data_type_t src_t, dim_t *wei_iter_off_ptr,
+        dim_t lay, data_type_t src_t,
+        const std::vector<dim_t> &wei_iter_offsets,
         const dim_t &ws_states_offset_, dim_t &cell_ws_iter_offset,
         dim_t &cell_ws_lay_offset, dim_t &cell_scratch_offset,
         dim_t &cell_wei_iter_offset) {
@@ -381,9 +382,9 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir,
     dim_t n_iter = rnn.n_iter;
     dim_t n_dir = rnn.n_dir;
 
-    if (wei_iter_off_ptr) {
-        AOC<dim_t, 3> off_weights_iter(wei_iter_off_ptr, rnn.n_layer, rnn.n_dir,
-                rnn.n_parts_weights_iter);
+    if (!wei_iter_offsets.empty()) {
+        const AOC<const dim_t, 3> off_weights_iter(wei_iter_offsets.data(),
+                rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_iter);
         cell_wei_iter_offset = off_weights_iter(lay, dir, 0);
     }
 
@@ -403,12 +404,13 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir,
 }
 
 void rnn_utils::set_gru_offsets_part2(const conf_t &rnn, dim_t iter, dim_t dir,
-        dim_t lay, data_type_t src_t, dim_t *wei_iter_off_ptr,
+        dim_t lay, data_type_t src_t,
+        const std::vector<dim_t> &wei_iter_offsets,
         const dim_t &ws_states_offset_, dim_t &cell_wei_iter_offset,
         dim_t &cell_scratch_offset, dim_t &cell_ws_iter_offset) {
 
-    AOC<dim_t, 3> off_weights_iter(
-            wei_iter_off_ptr, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_iter);
+    AOC<const dim_t, 3> off_weights_iter(wei_iter_offsets.data(), rnn.n_layer,
+            rnn.n_dir, rnn.n_parts_weights_iter);
     cell_wei_iter_offset = off_weights_iter(lay, dir, 1);
     cell_scratch_offset += 2 * rnn.dhc * rnn.scratch_gates_elsz;
     cell_ws_iter_offset = (ws_states_offset_

@@ -260,11 +260,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override;
 
-    ~_ref_rnn_common_t() {
-        free(wei_layer_offset_ptr);
-        free(wei_iter_offset_ptr);
-    }
-
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_(ctx);
     }
@@ -310,7 +305,7 @@ private:
 
     gemm_sig(gemm_primitive);
 
-    weights_assign_sig(assign_weights);
+    weights_assign_sig(assign_weight_offsets);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
     status_t bias_prepare(const exec_ctx_t &ctx,
@@ -397,14 +392,11 @@ private:
 
     // ptrs for storing weight offsets which are pre-calculated in
     // in grid execution as weights_*_assing_func
-    dim_t *wei_layer_offset_ptr;
-    dim_t *wei_iter_offset_ptr;
+    std::vector<dim_t> wei_layer_offsets;
+    std::vector<dim_t> wei_iter_offsets;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
-
-    weights_assign_t weights_layer_assign_func;
-    weights_assign_t weights_iter_assign_func;
 
     gemm_t gemm_iter_func;
     gemm_t gemm_layer_func;

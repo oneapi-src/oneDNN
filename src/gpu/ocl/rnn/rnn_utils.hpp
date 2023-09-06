@@ -68,7 +68,8 @@
 
 #define cell_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, dim_t dir, dim_t lay, \
-            dim_t iter, dim_t *wei_layer_offset, dim_t *wei_iter_offset, \
+            dim_t iter, dim_t wei_layer_offset, \
+            const std::vector<dim_t> &wei_iter_offsets, \
             const memory_storage_t &bias, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
@@ -103,8 +104,8 @@
 
 #define weights_assign_sig(f) \
     void f(const rnn_utils::conf_t &rnn, const memory_desc_t *md, \
-            dim_t *weights_, dim_t n_parts, const dim_t *gates_per_part, \
-            const memory_storage_t &w_, dim_t ld, dim_t nld, \
+            std::vector<dim_t> &weights_, dim_t n_parts, \
+            const dim_t *gates_per_part, dim_t ld, dim_t nld, \
             data_type_t wei_t) const
 
 static inline bool is_ws_print_enabled() {
@@ -340,15 +341,15 @@ dim_t set_workspace_offsets(const conf_t &rnn, dim_t &ws_gates_offset,
         dim_t &ws_h_state_offset, dim_t &ws_c_state_offset,
         dim_t &ws_grid_comp_onfset, dim_t &ws_bias_offset);
 void set_gru_offsets_part2(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        data_type_t src_t, dim_t *wei_iter_off_ptr,
+        data_type_t src_t, const std::vector<dim_t> &wei_iter_off_ptr,
         const dim_t &ws_states_offset_, dim_t &cell_wei_iter_offset,
         dim_t &cell_scratch_offset, dim_t &cell_ws_iter_offset);
 void set_offsets_fwd_gemm(const conf_t &rnn, dim_t dir, dim_t lay,
-        data_type_t src_t, dim_t *wei_layer_off_ptr,
+        data_type_t src_t, const std::vector<dim_t> &wei_layer_offsets,
         const dim_t &ws_states_offset_, dim_t &grid_ws_lay_offset,
         dim_t &grid_wei_lay_offset, dim_t &grid_ws_iter_offset);
 void set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        data_type_t src_t, dim_t *wei_iter_off_ptr,
+        data_type_t src_t, const std::vector<dim_t> &wei_iter_offsets,
         const dim_t &ws_states_offset_, dim_t &cell_ws_iter_offset,
         dim_t &cell_ws_lay_offset, dim_t &cell_scratch_offset,
         dim_t &cell_wei_iter_offset);

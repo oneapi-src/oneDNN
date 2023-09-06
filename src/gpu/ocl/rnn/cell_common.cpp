@@ -35,13 +35,13 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     dim_t cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
             cell_wei_iter_offset;
 
-    set_offsets_fwd_gemm(rnn, iter, dir, lay, src_t, wei_iter_offset_ptr,
+    set_offsets_fwd_gemm(rnn, iter, dir, lay, src_t, wei_iter_offsets,
             ws_states_offset_, cell_ws_iter_offset, cell_ws_lay_offset,
             cell_scratch_offset, cell_wei_iter_offset);
 
     if (aprop == prop_kind::forward) {
         if (!rnn.merge_gemm_layer) {
-            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
+            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
                     workspace.ws(), cell_ws_lay_offset, scratch_gates,
                     cell_scratch_offset, gemm_layer_fwd));
         }
@@ -71,7 +71,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 cell_scr_diff_iter_off, gemm_iter_bwd));
 
         if (!rnn.merge_gemm_layer) {
-            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
+            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
                     scratch_gates, cell_scratch_offset, scratch_diff_states,
                     cell_scr_diff_lay_off, gemm_layer_bwd));
 
