@@ -300,6 +300,8 @@ status_t infer_conv_output_shape(op_t *n,
     std::string fil_fmt = n->get_attr<std::string>(op_attr::weights_format);
     std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
 
+    // avoid dividing by zero at below.
+    if (g == 0) return status::invalid_shape;
     // check if src channel / groups == weight input channel
     if (in0.get_src_c(src_fmt) / g != in1.get_weight_i(fil_fmt)) {
         return status::invalid_shape;
@@ -454,6 +456,8 @@ status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
     std::string fil_fmt = n->get_attr<std::string>(op_attr::weights_format);
     std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
 
+    // avoid dividing by zero at below.
+    if (g == 0) return status::invalid_shape;
     // check if src channel / groups == weight output channel
     if (in0.get_src_c(src_fmt) / g != in1.get_weight_o(fil_fmt)) {
         return status::invalid_shape;
@@ -607,6 +611,9 @@ status_t infer_convtranspose_output_shape(op_t *n,
     const auto &pads_end = n->get_attr<dims>(op_attr::pads_end);
     std::string fil_fmt = n->get_attr<std::string>(op_attr::weights_format);
     std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
+
+    // avoid dividing by zero at below.
+    if (g == 0) return status::invalid_shape;
 
     if (!out0.is_shape_unknown()) {
         // check if dst channel / groups == weight output channel

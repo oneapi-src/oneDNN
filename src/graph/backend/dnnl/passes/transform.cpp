@@ -3398,7 +3398,9 @@ impl::status_t lift_up_weight_reshape_for_depthwiseconv(
                 = (wei_format == "OIX") ? wei_dims[0] : wei_dims[ndims - 1];
         const int64_t inputchannel
                 = (wei_format == "OIX") ? wei_dims[1] : wei_dims[ndims - 2];
-        if (outchannel % groups != 0 || inputchannel != 1) continue;
+
+        if (groups == 0 || outchannel % groups != 0 || inputchannel != 1)
+            continue;
 
         if (!op->get_input_value(1)->has_producer()) break;
         op_t *reshape_op = op->get_input_op(1);
