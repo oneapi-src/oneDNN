@@ -17,7 +17,7 @@
 --reset --in-shapes=0:384x4096+1:4096x1024 --case=pattern/bf16/matmul_post_ops_clip_fusion.json
 --reset --in-shapes=0:16x1024+1:1024x1024+2:1x1+3:1x1 --case=pattern/bf16/matmul_post_ops_relu_add_fusion.json
 --reset --in-shapes=0:384x4096+1:4096x1024+2:384x1024 --case=pattern/bf16/matmul_post_ops_sum_logistic_fusion.json
---reset --in-shapes=0:384x4096+1:4096x1024+2:1x1024 --case=pattern/bf16/matmul_bias_post_ops_clip_fusion.json
+--reset --in-shapes=0:384x4096+1:4096x1024+2:1024 --case=pattern/bf16/matmul_bias_post_ops_clip_fusion.json
 --reset --in-shapes=0:384x4096+1:4096x1024+2:1x1024 --op-attrs=2054:min:-1*max:1 --case=pattern/bf16/matmul_bias_post_ops_clip_fusion.json
 --reset --in-shapes=0:384x4096+1:4096x1024+2:1x1024 --case=pattern/bf16/matmul_bias_post_ops_elu_fusion.json
 # reduction
