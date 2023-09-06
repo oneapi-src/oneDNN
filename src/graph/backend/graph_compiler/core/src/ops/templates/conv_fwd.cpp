@@ -255,15 +255,13 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       cfg.tile_p = 1;
     }
   } else {
-    if (ow_ >= 32 || !is_parallel_space_enough(mb_, nthreads)) {
+    if (ow_ >= 16 || !is_parallel_space_enough(mb_ * oc_ / 64, nthreads)) {
       cfg.tile_p = 1;
     } else {
-      cfg.tile_p = tile_p_list.back();
-      for (auto p_candidate : tile_p_list) {
-        if (p_candidate >= 64 / ow_) {
-          cfg.tile_p = p_candidate;
-          break;
-        }
+      if (oh_ >= 16) {
+        cfg.tile_p = utils::get_blocks(oh_, 1, 64 / ow_).back();
+      } else {
+        cfg.tile_p = oh_;
       }
     }
   }
@@ -334,13 +332,13 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   adjust_config_for_cache_efficiency(ctx, cfg);
   validate_conv_fwd_default_config(ctx, cfg);
 
-  if (ic_ > 32 && cfg.C_block % 32 != 0 && !is_1x1_conv_) {
+  if (ic_ > 32 && cfg.C_block % 32 != 0) {
     // The performance will be very bad if C_bloc % 32 != 0 in convNxN
-    cfg.C_block = utils::rnd_up(cfg.C_block, 32);
+    cfg.C_block = utils::rnd_up(cfg.C_block, 64 / dtype_size);
   }
-  if (oc_ > 128 && cfg.K_block % 32 != 0 && !is_1x1_conv_) {
+  if (oc_ > 128 && cfg.K_block % 32 != 0) {
     // The performance will be very bad if C_bloc % 32 != 0 in convNxN
-    cfg.K_block = utils::rnd_up(cfg.K_block, 32);
+    cfg.K_block = utils::rnd_up(cfg.K_block, 64 / dtype_size);
   }
   if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
     == ops::rl_kind::KW_LOWERING) {
@@ -514,11 +512,12 @@ static int tensor_offset(const sc_dims &dims_, const std::vector<int> &idx) {
   return offset;
 }
 
-static inline int get_oc_split_factor(const int mb, const int weight_size,
-  const int L2_cache_size, const int K_num_block) {
+static inline int get_oc_split_factor(const int mb, const int data_size,
+  const int weight_size, const int L2_cache_size, const int K_num_block) {
   int oc_split = 1;
   auto nthreads = runtime_config_t::get().get_num_threads();
-  if (weight_size >= L2_cache_size || nthreads > mb) {
+  if (weight_size >= L2_cache_size
+    || (nthreads > mb && weight_size > data_size)) {
     // config observation: real time mode will prefer split oc first and
     // oc_split = nthreads.
     int expected_split_num
@@ -1065,12 +1064,15 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
   auto LDC = blocking_output_ ? config.K_block : oc_ * groups_;
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   auto mb_expr_ = input_expr_dims[0];
+  auto data_size
+    = math_utils::get_dims_product(in_tensors_[0].get_blocking_dims())
+    * utils::get_sizeof_type(get_input_dtype());
   auto weight_size
     = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
     * utils::get_sizeof_type(get_weight_dtype());
   auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
-  int oc_split
-    = get_oc_split_factor(mb_, weight_size, L2_cache_size, K_num_block);
+  int oc_split = get_oc_split_factor(
+    mb_, data_size, weight_size, L2_cache_size, K_num_block);
 
   _named_for_(lok, outer_k, 0, oc_split, 1, for_type::PARALLEL) {
     _named_for_(ln, n, 0, mb_expr_, 1) {
@@ -1900,13 +1902,15 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
            : std::vector<expr> {num_threads, kh_, src_row_tile_size, LDA});
   _tensor_(g_cur_indices, datatypes::u32, {num_threads, kh_});
   _tensor_(g_init_state, datatypes::boolean, {num_threads});
-
+  auto data_size
+    = math_utils::get_dims_product(in_tensors_[0].get_blocking_dims())
+    * utils::get_sizeof_type(get_input_dtype());
   auto weight_size
     = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
     * utils::get_sizeof_type(get_weight_dtype());
   auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
-  int oc_split
-    = get_oc_split_factor(mb_, weight_size, L2_cache_size, K_num_block);
+  int oc_split = get_oc_split_factor(
+    mb_, data_size, weight_size, L2_cache_size, K_num_block);
 
   int outer_range
     = reuse_sub_tensor ? ow_ / config.tile_q : oh_ / config.tile_p;

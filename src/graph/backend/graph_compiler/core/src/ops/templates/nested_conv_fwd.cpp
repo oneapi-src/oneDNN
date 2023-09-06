@@ -68,10 +68,12 @@ SC_CLASS_END();
 
 namespace ops {
 
-static inline int get_oc_split_factor(
+static inline int get_oc_split_factor(const int data_size,
   const int weight_size, const int L2_cache_size, const int K_num_block) {
   int oc_split = 1;
-  if (weight_size >= L2_cache_size) {
+  // data_size == -1 for dynamic case
+  if (weight_size >= L2_cache_size
+    && (weight_size > data_size || data_size == -1)) {
     int expected_split_num = utils::divide_and_ceil(weight_size, L2_cache_size);
     for (auto &factor : utils::get_factors(K_num_block)) {
       if (factor >= expected_split_num) {
@@ -202,8 +204,9 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
       = get_blocks_if_not_satisfy(oc_, 1, default_block, [](int x) {
           return x % 32 != 0;
         }).back();
-    cfg.im_ic_block
-      = get_blocks_if_not_satisfy(ic_, 1, default_block, [](int x) {
+    cfg.im_ic_block = ic_ <= 512
+      ? ic_
+      : get_blocks_if_not_satisfy(ic_, 1, default_block, [](int x) {
           return x % 32 != 0;
         }).back();
 
@@ -279,6 +282,10 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
                 cfg.im_w_block = os_blocks[i];
                 break;
               }
+            }
+            if (cfg.im_w_block <= ow_) {
+              cfg.w_threads = 1;
+              cfg.h_threads = num_threads;
             }
           } else {
             // don't use os blocking, directly split threads on h
@@ -412,7 +419,7 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
     if (!is_1x1_conv_ && ic_ > 32 && cfg.im_ic_block % 32 != 0) {
       // The performance is bad when ic_block % 32 != 0. The performance of ic =
       // 56 is worse than ic = 64(in total execution time).
-      cfg.im_ic_block = utils::rnd_up(cfg.im_ic_block, 32);
+      cfg.im_ic_block = utils::rnd_up(ic_ <= 512 ? ic_ : cfg.im_ic_block, 32);
     }
 
     cfg.C_block = utils::divide_and_ceil(
@@ -2470,13 +2477,13 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
 
   expr cond_tail_w = w_block % im_w_block != 0 || ow_expr_ % im_w_block != 0;
   expr cond_tail_h = h_block % im_h_block != 0 || oh_expr_ % im_h_block != 0;
-
   auto weight_size
     = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
     * utils::get_sizeof_type(get_weight_dtype());
   auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
   int oc_split = (oc_threads == 1 && oc_num_block_pt == 1)
-    ? get_oc_split_factor(weight_size, L2_cache_size, oc_block / im_oc_block)
+    ? get_oc_split_factor(
+      -1, weight_size, L2_cache_size, oc_block / im_oc_block)
     : 1;
 
   auto LDA = blocking_input_ ? sw_ * im_ic_block : sw_ * ic_;
@@ -3848,13 +3855,16 @@ void gen_nested_conv_fwd_t::compute_conv_padding_nested(CONV_ARG_LIST) const {
   int y_unpad_bottom = oh_ - dst_num_pad_bottom - 1;
   int y_unpad_left = dst_num_pad_left;
   int y_unpad_right = ow_ - dst_num_pad_right - 1;
-
+  auto data_size
+    = math_utils::get_dims_product(in_tensors_[0].get_blocking_dims())
+    * utils::get_sizeof_type(get_input_dtype());
   auto weight_size
     = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
     * utils::get_sizeof_type(get_weight_dtype());
   auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
   int oc_split = (oc_threads == 1 && oc_num_block_pt == 1)
-    ? get_oc_split_factor(weight_size, L2_cache_size, oc_block / im_oc_block)
+    ? get_oc_split_factor(
+      data_size, weight_size, L2_cache_size, oc_block / im_oc_block)
     : 1;
 
   // create a global shared zero-buffer referenced by padding
@@ -4595,7 +4605,8 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
     * utils::get_sizeof_type(get_weight_dtype());
   auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
   int oc_split = (oc_threads == 1 && oc_num_block_pt == 1)
-    ? get_oc_split_factor(weight_size, L2_cache_size, oc_block / im_oc_block)
+    ? get_oc_split_factor(
+      -1, weight_size, L2_cache_size, oc_block / im_oc_block)
     : 1;
 
   // create a global shared zero-buffer referenced by padding
