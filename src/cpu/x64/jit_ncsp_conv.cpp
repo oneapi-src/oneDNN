@@ -344,12 +344,7 @@ status_t ncsp_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
             && !mayiuse(avx512_core_bf16))
         return status::unimplemented;
 
-    is_matmul_ = reduce.is_gemm() && attr()->has_default_values();
-
-    if (is_matmul_)
-        CHECK(init_matmul(engine));
-    else
-        CHECK(init_convolution(engine));
+    CHECK(init_convolution(engine));
     init_name();
     init_scratchpad();
 
@@ -380,134 +375,24 @@ status_t ncsp_convolution_bwd_weights_t::pd_t::init_convolution(
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_weights_t::pd_t::init_matmul(engine_t *engine) {
-    const bool to_matmul = true;
-
-    // {N, G, OC/G, SP_o}
-    CHECK(reduce.reshape_activations(
-            &matmul_src_md_, diff_dst_md(0), to_matmul, true));
-
-    // initialize diff weights to plain format.
-    CHECK(memory_desc_init_by_strides(diff_weights_md_, diff_weights_md_.ndims,
-            diff_weights_md_.dims, diff_weights_md_.data_type, nullptr));
-
-    // reshape into matmul plain layout.
-    memory_desc_t conv_src_reshaped;
-    CHECK(reduce.reshape_activations(
-            &conv_src_reshaped, &src_md_, true, false));
-    // transpose
-    CHECK(reduce.transpose(matmul_wei_md_, conv_src_reshaped));
-
-    // matmul_dst {N, G, OC/G, IC/G}
-    dims_t matmul_dst_dims = {0};
-    matmul_dst_dims[0] = MB();
-    if (with_groups()) matmul_dst_dims[1] = G();
-    matmul_dst_dims[1 + with_groups()] = OC() / G();
-    matmul_dst_dims[2 + with_groups()] = IC() / G();
-    CHECK(memory_desc_init_by_strides(matmul_dst_md_, 3 + with_groups(),
-            matmul_dst_dims, data_type::f32, nullptr));
-
-    primitive_attr_t _attr;
-    primitive_desc_iface_t *matmul_wei_diff_pdi;
-    CHECK(dnnl_matmul_primitive_desc_create(&matmul_wei_diff_pdi, engine,
-            &matmul_src_md_, &matmul_wei_md_, nullptr, &matmul_dst_md_,
-            &_attr));
-    matmul_wei_diff_pd_ = matmul_wei_diff_pdi->impl();
-
-    // reduction of matmul_dst on MB {1, G, OC/G, IC, G}
-    CHECK(reduce.reshape_weights(
-            &wei_reduce_dst_md_, diff_weights_md(0), to_matmul));
-
-    primitive_desc_iface_t *reduction_wei_diff_pdi;
-    CHECK(dnnl_reduction_primitive_desc_create(&reduction_wei_diff_pdi, engine,
-            alg_kind::reduction_sum, &matmul_dst_md_, &wei_reduce_dst_md_, 0.f,
-            0.f, nullptr));
-    reduce_wei_diff_pd_ = reduction_wei_diff_pdi->impl();
-
-    if (with_bias()) {
-        if (diff_bias_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_strides(diff_bias_md_, nullptr));
-        // {1, G, OC/G, 1}
-        CHECK(reduce.reshape_bias(&bia_reduce_dst_md_, diff_weights_md(1)));
-
-        dims_t diff_dst_sp_sum_dims = {0};
-        diff_dst_sp_sum_dims[0] = MB();
-        if (with_groups()) diff_dst_sp_sum_dims[1] = G();
-        diff_dst_sp_sum_dims[1 + with_groups()] = OC() / G();
-        diff_dst_sp_sum_dims[2 + with_groups()] = 1;
-        CHECK(memory_desc_init_by_strides(diff_dst_sp_sum_md_,
-                3 + with_groups(), diff_dst_sp_sum_dims, data_type::f32,
-                nullptr));
-
-        primitive_desc_iface_t *reduce_diff_bia_pdi;
-        CHECK(dnnl_reduction_primitive_desc_create(&reduce_diff_bia_pdi, engine,
-                alg_kind::reduction_sum, &matmul_src_md_, &diff_dst_sp_sum_md_,
-                0.f, 0.f, nullptr));
-        reduce_bia_diff_sp_pd_ = reduce_diff_bia_pdi->impl();
-
-        reduce_diff_bia_pdi = nullptr;
-        CHECK(dnnl_reduction_primitive_desc_create(&reduce_diff_bia_pdi, engine,
-                alg_kind::reduction_sum, &diff_dst_sp_sum_md_,
-                &bia_reduce_dst_md_, 0.f, 0.f, nullptr));
-        reduce_bia_diff_pd_ = reduce_diff_bia_pdi->impl();
-    }
-
-    return status::success;
-}
-
 void ncsp_convolution_bwd_weights_t::pd_t::init_scratchpad() {
     using namespace memory_tracking::names;
     auto scratchpad = scratchpad_registry().registrar();
-    if (is_matmul_) {
-        if (matmul_wei_diff_pd_) {
-            memory_desc_wrapper matmul_dst_mdw(matmul_dst_md_);
-            scratchpad.book(
-                    key_nested, matmul_wei_diff_pd_->scratchpad_registry());
-            scratchpad.book(
-                    key_nested, reduce_wei_diff_pd_->scratchpad_registry());
-            scratchpad.book(key_conv_ncsp_matmul_dst, matmul_dst_mdw.nelems(),
-                    matmul_dst_mdw.data_type_size());
-            if (with_bias()) {
-                memory_desc_wrapper diff_dst_sp_sum_mdw(diff_dst_sp_sum_md_);
-                scratchpad.book(key_conv_ncsp_diff_sp_sum,
-                        diff_dst_sp_sum_mdw.nelems(),
-                        diff_dst_sp_sum_mdw.data_type_size());
-                scratchpad.book(
-                        key_nested, reduce_bia_diff_pd_->scratchpad_registry());
-            }
-        }
-    } else {
-        const memory_desc_wrapper diff_dst_mdw(diff_dst_md());
-        const memory_desc_wrapper src_mdw(src_md());
-        scratchpad.book(key_conv_ncsp_diff_dst, diff_dst_mdw.nelems(),
-                diff_dst_mdw.data_type_size());
-        scratchpad.book(key_conv_ncsp_src, src_mdw.nelems(),
-                sizeof(src_mdw.data_type()));
-        if (nspc_conv_pd_)
-            scratchpad.book(key_nested, nspc_conv_pd_->scratchpad_registry());
-        if (src_reorder_pd_)
-            scratchpad.book(key_nested, src_reorder_pd_->scratchpad_registry());
-        if (dst_reorder_pd_)
-            scratchpad.book(key_nested, dst_reorder_pd_->scratchpad_registry());
-    }
+    const memory_desc_wrapper diff_dst_mdw(diff_dst_md());
+    const memory_desc_wrapper src_mdw(src_md());
+    scratchpad.book(key_conv_ncsp_diff_dst, diff_dst_mdw.nelems(),
+            diff_dst_mdw.data_type_size());
+    scratchpad.book(
+            key_conv_ncsp_src, src_mdw.nelems(), sizeof(src_mdw.data_type()));
+    if (nspc_conv_pd_)
+        scratchpad.book(key_nested, nspc_conv_pd_->scratchpad_registry());
+    if (src_reorder_pd_)
+        scratchpad.book(key_nested, src_reorder_pd_->scratchpad_registry());
+    if (dst_reorder_pd_)
+        scratchpad.book(key_nested, dst_reorder_pd_->scratchpad_registry());
 }
 
 status_t ncsp_convolution_bwd_weights_t::init(engine_t *engine) {
-    if (pd()->matmul_wei_diff_pd_)
-        CHECK(pd()->matmul_wei_diff_pd_->create_primitive(
-                matmul_wei_diff_p_, engine));
-    if (pd()->reduce_wei_diff_pd_)
-        CHECK(pd()->reduce_wei_diff_pd_->create_primitive(
-                reduce_wei_diff_p_, engine));
-    if (pd()->with_bias()) {
-        if (pd()->reduce_bia_diff_pd_)
-            CHECK(pd()->reduce_bia_diff_pd_->create_primitive(
-                    reduce_bia_diff_p_, engine));
-        if (pd()->reduce_bia_diff_sp_pd_)
-            CHECK(pd()->reduce_bia_diff_sp_pd_->create_primitive(
-                    reduce_bia_diff_sp_p_, engine));
-    }
-
     if (pd()->nspc_conv_pd_)
         CHECK(pd()->nspc_conv_pd_->create_primitive(nspc_conv_p_, engine));
     if (pd()->src_reorder_pd_)
@@ -575,99 +460,8 @@ status_t ncsp_convolution_bwd_weights_t::execute_convolution(
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_weights_t::execute_matmul(
-        const exec_ctx_t &ctx) const {
-    engine_t *engine = ctx.stream()->engine();
-    auto scratchpad = ctx.get_scratchpad_grantor();
-    using namespace memory_tracking::names;
-    // must cast away const-ness to use as handles for new memory objects
-    void *conv_src = const_cast<void *>(CTX_IN_MEM(const void *, DNNL_ARG_SRC));
-    void *conv_diff_wei = const_cast<void *>(
-            CTX_IN_MEM(const void *, DNNL_ARG_DIFF_WEIGHTS));
-    void *conv_diff_bia
-            = const_cast<void *>(CTX_IN_MEM(const void *, DNNL_ARG_DIFF_BIAS));
-    void *conv_diff_dst = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_DST);
-
-    // init matmul src, weights, dst mems from conv weights, src, dst handles
-    memory_t matmul_src_m_(engine, &(pd()->matmul_src_md_),
-            memory_flags_t::use_runtime_ptr, conv_diff_dst);
-    memory_t matmul_wei_m_(engine, &(pd()->matmul_wei_md_),
-            memory_flags_t::use_runtime_ptr, conv_src);
-    memory_t wei_reduce_dst_m_(engine, &(pd()->wei_reduce_dst_md_),
-            memory_flags_t::use_runtime_ptr, conv_diff_wei);
-
-    memory_t matmul_dst_m_(engine, &(pd()->matmul_dst_md_),
-            std::move(scratchpad.get_memory_storage(key_conv_ncsp_matmul_dst)));
-
-    // execute wei_diff matmul
-    exec_args_t matmul_wei_diff_args;
-    matmul_wei_diff_args[DNNL_ARG_SRC] = {&matmul_src_m_, true};
-    matmul_wei_diff_args[DNNL_ARG_WEIGHTS] = {&matmul_wei_m_, true};
-    matmul_wei_diff_args[DNNL_ARG_DST] = {&matmul_dst_m_, false};
-
-    exec_ctx_t matmul_wei_diff_ctx(ctx, std::move(matmul_wei_diff_args));
-
-    nested_scratchpad_t matmul_wei_diff_ns(
-            ctx, memory_tracking::names::key_nested, matmul_wei_diff_p_);
-    matmul_wei_diff_ctx.set_scratchpad_grantor(matmul_wei_diff_ns.grantor());
-    CHECK(matmul_wei_diff_p_->execute(matmul_wei_diff_ctx));
-
-    // reduce wei_diff on minibatch
-    exec_args_t reduce_wei_diff_args;
-    reduce_wei_diff_args[DNNL_ARG_SRC] = {&matmul_dst_m_, true};
-    reduce_wei_diff_args[DNNL_ARG_DST] = {&wei_reduce_dst_m_, false};
-
-    exec_ctx_t reduce_wei_diff_ctx(ctx, std::move(reduce_wei_diff_args));
-
-    nested_scratchpad_t reduction_wei_diff_ns(
-            ctx, memory_tracking::names::key_nested, reduce_wei_diff_p_);
-    reduce_wei_diff_ctx.set_scratchpad_grantor(reduction_wei_diff_ns.grantor());
-    CHECK(reduce_wei_diff_p_->execute(reduce_wei_diff_ctx));
-
-    if (pd()->with_bias()) {
-        memory_t bia_reduce_dst_m_(engine, &(pd()->bia_reduce_dst_md_),
-                memory_flags_t::use_runtime_ptr, conv_diff_bia);
-
-        memory_t diff_dst_sp_sum_m_(engine, &(pd()->diff_dst_sp_sum_md_),
-                std::move(scratchpad.get_memory_storage(
-                        key_conv_ncsp_diff_sp_sum)));
-
-        // reduce bia_diff on spatial first for jit impl
-        exec_args_t reduce_bia_diff_sp_args;
-        reduce_bia_diff_sp_args[DNNL_ARG_SRC] = {&matmul_src_m_, true};
-        reduce_bia_diff_sp_args[DNNL_ARG_DST] = {&diff_dst_sp_sum_m_, false};
-
-        exec_ctx_t reduce_bia_diff_sp_ctx(
-                ctx, std::move(reduce_bia_diff_sp_args));
-
-        nested_scratchpad_t reduction_bia_diff_sp_ns(
-                ctx, memory_tracking::names::key_nested, reduce_bia_diff_sp_p_);
-        reduce_bia_diff_sp_ctx.set_scratchpad_grantor(
-                reduction_bia_diff_sp_ns.grantor());
-        CHECK(reduce_bia_diff_sp_p_->execute(reduce_bia_diff_sp_ctx));
-
-        // reduce on minibatch
-        exec_args_t reduce_bia_diff_args;
-        reduce_bia_diff_args[DNNL_ARG_SRC] = {&diff_dst_sp_sum_m_, true};
-        reduce_bia_diff_args[DNNL_ARG_DST] = {&bia_reduce_dst_m_, false};
-
-        exec_ctx_t reduce_bia_diff_ctx(ctx, std::move(reduce_bia_diff_args));
-
-        nested_scratchpad_t reduction_bia_diff_ns(
-                ctx, memory_tracking::names::key_nested, reduce_bia_diff_p_);
-        reduce_bia_diff_ctx.set_scratchpad_grantor(
-                reduction_bia_diff_ns.grantor());
-        CHECK(reduce_bia_diff_p_->execute(reduce_bia_diff_ctx));
-    }
-
-    return status::success;
-}
-
 status_t ncsp_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
-    if (nspc_conv_p_)
-        return execute_convolution(ctx);
-    else
-        return execute_matmul(ctx);
+    return execute_convolution(ctx);
 }
 
 status_t ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
@@ -866,8 +660,10 @@ status_t ncsp_convolution_bwd_data_t::execute_matmul(
 }
 
 status_t ncsp_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
-    if (matmul_diff_src_p_) return execute_matmul(ctx);
-    else return execute_convolution(ctx);
+    if (matmul_diff_src_p_)
+        return execute_matmul(ctx);
+    else
+        return execute_convolution(ctx);
 }
 
 } // namespace x64

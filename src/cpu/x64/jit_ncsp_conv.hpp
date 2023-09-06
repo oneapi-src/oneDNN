@@ -225,21 +225,10 @@ struct ncsp_convolution_bwd_weights_t : public primitive_t {
 
         status_t init(engine_t *engine);
         status_t init_convolution(engine_t *engine);
-        status_t init_matmul(engine_t *engine);
 
-        std::shared_ptr<primitive_desc_t> matmul_wei_diff_pd_;
-        std::shared_ptr<primitive_desc_t> reduce_wei_diff_pd_;
-        std::shared_ptr<primitive_desc_t> reduce_bia_diff_pd_;
-        std::shared_ptr<primitive_desc_t> reduce_bia_diff_sp_pd_;
         std::shared_ptr<primitive_desc_t> nspc_conv_pd_;
         std::shared_ptr<primitive_desc_t> src_reorder_pd_;
         std::shared_ptr<primitive_desc_t> dst_reorder_pd_;
-        memory_desc_t matmul_src_md_;
-        memory_desc_t matmul_wei_md_;
-        memory_desc_t matmul_dst_md_;
-        memory_desc_t wei_reduce_dst_md_;
-        memory_desc_t bia_reduce_dst_md_;
-        memory_desc_t diff_dst_sp_sum_md_;
         memory_desc_t nspc_src_md_;
         memory_desc_t nspc_diff_dst_md_;
 
@@ -249,27 +238,12 @@ struct ncsp_convolution_bwd_weights_t : public primitive_t {
         std::string name_;
         void init_scratchpad();
         void init_name() {
-            std::string suffix = is_matmul_ ? "matmul" : "conv";
-            name_ = "ncsp:" + suffix + "->";
-            name_.append(is_matmul_ ? matmul_wei_diff_pd_->name()
-                                    : nspc_conv_pd_->name());
-            if (!is_matmul_) {
-                name_.append("+src_reorder->");
-                name_.append(src_reorder_pd_->name());
-                name_.append("+dst_reorder->");
-                name_.append(dst_reorder_pd_->name());
-            }
-            if (is_matmul_) {
-                name_.append("+");
-                name_.append("reduction->");
-                name_.append(reduce_wei_diff_pd_->name());
-                if (with_bias()) {
-                    name_.append("+reduction->");
-                    name_.append(reduce_bia_diff_sp_pd_->name());
-                    name_.append("+reduction->");
-                    name_.append(reduce_bia_diff_pd_->name());
-                }
-            }
+            name_ = "ncsp:conv->";
+            name_.append(nspc_conv_pd_->name());
+            name_.append("+src_reorder->");
+            name_.append(src_reorder_pd_->name());
+            name_.append("+dst_reorder->");
+            name_.append(dst_reorder_pd_->name());
         }
     };
     ncsp_convolution_bwd_weights_t(const pd_t *cpd) : primitive_t(cpd) {};
@@ -278,7 +252,6 @@ struct ncsp_convolution_bwd_weights_t : public primitive_t {
     status_t init(engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
     status_t execute_convolution(const exec_ctx_t &ctx) const;
-    status_t execute_matmul(const exec_ctx_t &ctx) const;
 
 private:
     status_t reorder_activations(const exec_ctx_t &ctx,
@@ -287,10 +260,6 @@ private:
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
-    std::shared_ptr<primitive_t> matmul_wei_diff_p_;
-    std::shared_ptr<primitive_t> reduce_wei_diff_p_;
-    std::shared_ptr<primitive_t> reduce_bia_diff_sp_p_;
-    std::shared_ptr<primitive_t> reduce_bia_diff_p_;
     std::shared_ptr<primitive_t> nspc_conv_p_;
     std::shared_ptr<primitive_t> src_reorder_p_;
     std::shared_ptr<primitive_t> dst_reorder_p_;
