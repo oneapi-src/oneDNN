@@ -31,25 +31,23 @@ void print_verbose_header() {
     ocl_engine_factory_t factory(engine_kind::gpu);
     for (size_t i = 0; i < factory.count(); ++i) {
         engine_t *eng_ptr = nullptr;
-        factory.engine_create(&eng_ptr, i);
-        std::unique_ptr<ocl_gpu_engine_t, engine_deleter_t> eng;
-        eng.reset(utils::downcast<ocl_gpu_engine_t *>(eng_ptr));
-        try {
-            auto *dev_info = eng ? eng->device_info() : nullptr;
-
-            auto s_name = dev_info ? dev_info->name() : "unknown";
-            auto s_ver
-                    = dev_info ? dev_info->runtime_version().str() : "unknown";
-
-            printf("onednn_verbose,info,gpu,engine,%d,name:%s,driver_version:%"
-                   "s,"
-                   "binary_kernels:%s\n",
-                    (int)i, s_name.c_str(), s_ver.c_str(),
-                    dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
-        } catch (...) {
+        status_t status = factory.engine_create(&eng_ptr, i);
+        if (status != status::success) {
             VERROR(common, ocl, VERBOSE_INVALID_DEVICE_ENV,
                     dnnl_engine_kind2str(engine_kind::gpu), i);
+            continue;
         }
+
+        ocl_gpu_engine_t *eng = utils::downcast<ocl_gpu_engine_t *>(eng_ptr);
+        auto *dev_info = eng->device_info();
+        auto s_name = dev_info->name();
+        auto s_ver = dev_info->runtime_version().str();
+
+        printf("onednn_verbose,info,gpu,engine,%d,name:%s,"
+               "driver_version:%s,binary_kernels:%s\n",
+                (int)i, s_name.c_str(), s_ver.c_str(),
+                dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
+        eng_ptr->release();
     }
 }
 
