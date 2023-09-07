@@ -188,8 +188,7 @@ std::array<reduction_subproblem_t, 2> subdivide_subproblem(
     prb0.src_zpads = subprb.src_zpads;
     prb1.dst_zpads = subprb.dst_zpads;
 
-    std::array<reduction_subproblem_t, 2> out = {prb0, prb1};
-    return out;
+    return {std::move(prb0), std::move(prb1)};
 }
 
 status_t split_into_phases(const reduction_subproblem_t &subprb,
