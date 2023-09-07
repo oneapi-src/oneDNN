@@ -52,22 +52,25 @@ exception is the API for creating a memory object. In that case, the API takes a
 of buffers. The order of the buffers in the vector matters and should correspond to
 the buffers' indices.
 
-oneDNN also introduces a new format kind dnnl::memory::format_kind::sparse. 
+oneDNN also introduces a new format kind dnnl::memory::format_kind::sparse.
 Sparse encoding (a.k.a. sparse format) is an
-enumeration type that specifies how data is encoded. Currently, oneDNN only
-supports CSR (Compressed sparse row) sparse encoding
-(dnnl::memory::sparse_encoding::csr).
+enumeration type that specifies how data is encoded. Currently, oneDNN
+supports CSR (Compressed Sparse Row) and PACKED sparse encodings
+(dnnl::memory::sparse_encoding::csr, dnnl::memory::sparse_encoding_packed).
 
 The memory descriptor has dedicated static member functions for creating memory
 descriptors for different sparse encodings.
 
 Each encoding defines the number and meaning of the buffers.
 
-| Sparse encoding | Buffers                               |
-|:----------------|:--------------------------------------|
-| CSR             | 0 - values, 1 - indices, 2 - pointers |
+| Sparse encoding | Buffers                                 |
+|:----------------|:----------------------------------------|
+| CSR             | 0 - values, 1 - indices, 2 - pointers   |
+| PACKED          | The meaning and content are unspecified |
 
-Pseudo-code with creating a memory object for CSR sparse encoding.
+The pseudo-code below demonstrates how to create a memory object
+for CSR sparse encoding and use the new API to work with the
+underlying handles.
 
 ~~~cpp
     using namespace dnnl;
@@ -114,11 +117,21 @@ Pseudo-code with creating a memory object for CSR sparse encoding.
     assert(pointers_handle == (void *)csr_pointers.data());
 ~~~
 
+A memory descriptor created for the sparse encoding PACKED cannot
+be used to create a memory object. It can only be used to create
+a primitive descriptor to query the actual memory descriptor
+(similar to the format tag `any`).
+
 #### Primitives
 
-The option enables a matmul primitive that can work with sparse input tensors.
-Only one of the input tensors is allowed to be sparse. The output tensor is
-always dense.
+##### Matrix Multiplication
+
+This option enables the matmul primitive that can work with
+sparse input tensors.
+
+###### CSR encoding
+Only one of the input tensors is allowed to be sparse. The
+output tensor is always dense.
 
 The following data types combinations are supported:
 
@@ -126,25 +139,57 @@ The following data types combinations are supported:
 |:-------|:--------|:---------|
 | f32    | s32     | s32      |
 
-The following sparse encodings are supported:
-
-* CSR
-
-The following format tags are supported for dense input/output tensors:
+The following format tags are supported for dense input/output
+tensors:
 
 * ab
 
-Benchdnn can be used to test the sparse matmul as follows:
+See the example [here](@ref cpu_matmul_csr.cpp).
+
+Benchdnn can be used to test matmul with a CSR input tensor as follows:
 `./benchdnn --matmul --encoding=csr+0.99:: --wtag=ab --dtag=ab 4x1000000:1000000x128`
 
 For the case above, the number of non-zero elements for the source tensor is
-calculated as max(4 * 1000000 * (1 - 0.99)), 1).
+calculated as max(4 * 1000000 * (1 - 0.99), 1).
 
-#### Limitations
+###### PACKED encoding
+
+Only the weights tensor is allowed to be sparse. The other tensors
+are always dense.
+
+In general, it is expected that all matmul related functionality (e.g. post-ops,
+scales, zero-points, etc) that is supported for the dense weights should
+also work for the sparse weights.
+
+Currently, matmul has the following limitations for the PACKED encoding:
+* Only Intel Advanced Matrix Extensions (Intel AMX) instruction set
+architecture (ISA) is supported
+* Only `s8` data type for the weights is supported
+* Only 1 batch dimension is supported
+
+See the example [here](@ref cpu_matmul_weights_compression.cpp).
+
+Benchdnn can be used to test matmul with the PACKED weights tensor as follows:
+`./benchdnn --matmul --dt=s8:s8:s32 --encoding=:packed+0.99: 3x512x1024:1x1024x512`
+
+For the case above, the number of non-zero elements for the weights tensor is
+calculated as max(1024 * 512 * (1 - 0.99), 1).
+
+##### Reorder
+
+Currently, there is only one reorder for packing a dense tensor, i.e. converting
+a dense tensor that is in `ab` format to a sparse tensor that is encoded with
+the `PACKED` encoding.
+
+In general, it is expected that all reorder-related functionality
+(e.g. scales, zero-points, etc) that is supported for the dense
+destination tensor should also work for the sparse one.
+
+#### Common Limitations
 * This functionality is not supported for SYCL and OpenCL runtimes
 * The interoperability API for sparse memory is not provided
 * Sparse memory and memory descriptor can only be used with the Matrix
-Multiplication primitive
+Multiplication and Reorder primitives
 * Sparse memory can be created only for a CPU engine
 
 ### ONEDNN_EXPERIMENTAL_PROFILING
