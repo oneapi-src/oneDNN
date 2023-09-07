@@ -195,6 +195,17 @@ sc_data_format_kind_t sc_data_format_kind_t::to_plain() const {
     return sc_data_format_kind_t(storage);
 }
 
+sc_data_format_kind_t sc_data_format_kind_t::to_channel_last() const {
+    int ndims = this->norig_dims();
+    std::vector<int> storage(ndims);
+    for (int i = 1; i < ndims; i++) {
+        storage[i] = i + 1;
+    }
+    storage[0] = 0;
+    storage[ndims - 1] = 1;
+    return sc_data_format_kind_t(storage);
+}
+
 bool sc_data_format_t::is_blocking() const {
     return format_code_.is_blocking();
 }
@@ -213,6 +224,10 @@ bool sc_data_format_t::is_any() const {
 
 sc_data_format_t sc_data_format_t::to_plain() const {
     return sc_data_format_t(format_code_.to_plain());
+}
+
+sc_data_format_t sc_data_format_t::to_channel_last() const {
+    return sc_data_format_t(format_code_.to_channel_last());
 }
 
 sc_format_category sc_data_format_t::get_format_category() const {
