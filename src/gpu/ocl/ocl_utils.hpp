@@ -293,14 +293,18 @@ struct ocl_wrapper_t {
 
     ocl_wrapper_t(const ocl_wrapper_t &other) : t_(other.t_) { do_retain(); }
 
-    ocl_wrapper_t(ocl_wrapper_t &&other) noexcept : t_(std::move(other.t_)) {
-        other.t_ = nullptr;
+    ocl_wrapper_t(ocl_wrapper_t &&other) noexcept : ocl_wrapper_t() {
+        swap(*this, other);
     }
 
     ocl_wrapper_t &operator=(ocl_wrapper_t other) {
-        using std::swap;
-        swap(t_, other.t_);
+        swap(*this, other);
         return *this;
+    }
+
+    friend void swap(ocl_wrapper_t &a, ocl_wrapper_t &b) noexcept {
+        using std::swap;
+        swap(a.t_, b.t_);
     }
 
     ~ocl_wrapper_t() { do_release(); }
