@@ -624,13 +624,14 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
                 if (!tail_int)
                     create_fusible_output_anchor(
                             ss, dst, iter_vars, {i + 1}, vx_info, attrs);
-                cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
-                        floor, expr(lanes),
-                        ss.size() > 1 ? make_stmt<stmts_node_t>(std::move(ss))
-                                      : s,
-                        true, for_type::NORMAL);
-                if (unroll_inner_loop) {
-                    cur->attr()[stmt_attr_key::unroll_loop] = 0;
+                cur = ss.size() > 1 ? make_stmt<stmts_node_t>(std::move(ss))
+                                    : s;
+                if (iter_vars.at(i).isa<var>()) {
+                    cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
+                            floor, expr(lanes), cur, true, for_type::NORMAL);
+                    if (unroll_inner_loop) {
+                        cur->attr()[stmt_attr_key::unroll_loop] = 0;
+                    }
                 }
                 tcur.emplace_back(cur);
             }
