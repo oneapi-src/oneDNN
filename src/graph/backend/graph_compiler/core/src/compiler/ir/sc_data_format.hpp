@@ -135,6 +135,8 @@ public:
 
     sc_data_format_kind_t to_plain() const;
 
+    sc_data_format_kind_t to_channel_last() const;
+
     // makes an N-D plain format.
     static sc_data_format_kind_t get_plain_by_dims(size_t ndims);
     // makes a format that 2d blocking are at the lowest 2 dimensions. e.g. if
@@ -246,6 +248,8 @@ struct SC_API sc_data_format_t {
     bool is_any() const;
 
     sc_data_format_t to_plain() const;
+
+    sc_data_format_t to_channel_last() const;
 
     sc_format_category get_format_category() const;
 

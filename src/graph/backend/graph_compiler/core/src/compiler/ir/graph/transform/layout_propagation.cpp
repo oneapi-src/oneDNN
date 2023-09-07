@@ -24,6 +24,7 @@
 #include "../pass/pass.hpp"
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
+#include <ops/convolution.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/reshape.hpp>
@@ -160,9 +161,9 @@ static void check_input_format(const std::vector<graph_tensor_ptr> &ins) {
 }
 
 static void insert_reorder_for_output_op(reorder_map_t &reorder_map,
-        const sc_op_ptr &node, bool allow_channel_last_output,
-        bool is_out_plain, bool is_input_plain, bool is_graph_dynamic,
-        sc_graph_t &graph, reorder_callback_type &insert_reorder_callback) {
+        const sc_op_ptr &node, bool use_channel_last_format, bool is_out_plain,
+        bool is_input_plain, bool is_graph_dynamic, sc_graph_t &graph,
+        reorder_callback_type &insert_reorder_callback) {
     auto given_target_formats
             = node->attrs_.get_or_null<std::vector<sc_data_format_t>>(
                     "target_formats");
@@ -185,14 +186,11 @@ static void insert_reorder_for_output_op(reorder_map_t &reorder_map,
         auto &in_detail = node->get_inputs()[i]->details_;
         sc_data_format_t target_format;
         sc_dims target_stride;
-        bool use_channel_last_format = allow_channel_last_output
-                && in_detail.get_format().is_channel_last()
-                && !in_detail.get_format().is_blocking();
         if (given_target_formats) {
             target_format = (*given_target_formats)[i];
         } else if (is_out_plain) {
             if (use_channel_last_format) {
-                target_format = in_detail.get_format();
+                target_format = in_detail.get_format().to_channel_last();
             } else {
                 target_format = in_detail.get_format().to_plain();
             }
@@ -294,12 +292,25 @@ static bool has_channel_last_input(sc_graph_t &graph) {
     return false;
 }
 
+static bool has_conv_op(sc_graph_t &graph) {
+    auto pos = std::find_if(
+            graph.ops_.begin(), graph.ops_.end(), [](const sc_op_ptr &op) {
+                if (op->dyn_cast<ops::conv_fwd_core_op_t>()) {
+                    return true;
+                } else {
+                    return false;
+                }
+            });
+    return pos != graph.ops_.end();
+}
+
 // max times of layout tries with static shape
 constexpr int STATIC_MAX_LAYOUT_TRIES = 64;
 
 SC_INTERNAL_API void layout_propagation(
         sc_graph_t &graph, const context_ptr &ctx) {
-    bool allow_channel_last_output = has_channel_last_input(graph)
+    bool use_channel_last_format = has_channel_last_input(graph)
+            && has_conv_op(graph)
             && graph.attrs_.get_or_else(
                     sc_graph_t::attr_key_t::allow_channel_last_output, false);
     bool is_input_plain = graph.attrs_.get_or_else(
@@ -380,7 +391,7 @@ SC_INTERNAL_API void layout_propagation(
     auto do_visit = [&](const sc_op_ptr &node) {
         if (node->isa<output_op>()) {
             insert_reorder_for_output_op(reorder_map, node,
-                    allow_channel_last_output, is_out_plain, is_input_plain,
+                    use_channel_last_format, is_out_plain, is_input_plain,
                     is_graph_dynamic, graph, insert_reorder_callback);
         } else if (node->isa<input_op>() || node->isa<constant_op_t>()) {
             update_output_formats(node->info_.outputs_, {}, 0);
