@@ -328,6 +328,7 @@ graph::status_t compiler_partition_impl_t::compile(
 
         // validate and set outputs strides
         for (size_t i = 0; i < output_format_any.size(); ++i) {
+            if (!output_format_any[i]) { continue; }
             for (const auto &op : backend_graph_obj.get_output_ops()) {
                 if (op->attrs_.get<size_t>("unique_id")
                         == outputs_map[outputs[i].id]->attrs_.get<size_t>(
@@ -336,6 +337,8 @@ graph::status_t compiler_partition_impl_t::compile(
                             = op->get_inputs()[0]->details_.get_strides();
                     auto out_lt = const_cast<graph::logical_tensor_t *>(
                             &outputs[i]);
+                    assertm(out_lt->ndims > -1,
+                            "Partition output shape shall be specified.");
                     graph::dims out_shape(
                             out_lt->dims, out_lt->dims + out_lt->ndims);
                     graph::dims strides = utils::get_dense_strides(out_shape);
