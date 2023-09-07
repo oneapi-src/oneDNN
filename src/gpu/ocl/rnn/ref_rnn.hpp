@@ -193,7 +193,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
         rnn_utils::ocl_conf_t ocl_conf;
         rnn_offsets_t off;
-        rnn_utils::conf_t rnn_conf;
+        rnn_utils::conf_t rnn_conf = {};
         data_type_t acc_data_t = data_type::undef;
         data_type_t src_type = data_type::undef;
         data_type_t weights_type = data_type::undef;
@@ -307,7 +307,8 @@ private:
 
     weights_assign_sig(assign_weight_offsets);
 
-    float (*activation_func)(float dd, float s, float alpha, float cliping);
+    float (*activation_func)(float dd, float s, float alpha, float cliping)
+            = nullptr;
     status_t bias_prepare(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, dim_t n_layer,
             dim_t n_dir, dim_t n_bias, dim_t n_gates, dim_t dhc,
@@ -384,23 +385,23 @@ private:
 
     // offset variables set in workspace and used in offset calculations for
     // grid & cell execution and fwd & bwd kernel macros
-    dim_t ws_gates_offset_;
-    dim_t ws_states_offset_;
-    dim_t ws_c_states_offset_;
-    dim_t ws_grid_comp_offset_;
-    dim_t ws_bias_offset_;
+    dim_t ws_gates_offset_ = 0;
+    dim_t ws_states_offset_ = 0;
+    dim_t ws_c_states_offset_ = 0;
+    dim_t ws_grid_comp_offset_ = 0;
+    dim_t ws_bias_offset_ = 0;
 
     // ptrs for storing weight offsets which are pre-calculated in
     // in grid execution as weights_*_assing_func
     std::vector<dim_t> wei_layer_offsets;
     std::vector<dim_t> wei_iter_offsets;
 
-    grid_execution_f grid_computation;
-    cell_execution_f cell_func;
+    grid_execution_f grid_computation = nullptr;
+    cell_execution_f cell_func = nullptr;
 
-    elemwise_f elemwise_common;
-    elemwise_gru_f elemwise_gru;
-    elemwise_gru_lbr_f elemwise_gru_lbr;
+    elemwise_f elemwise_common = nullptr;
+    elemwise_gru_f elemwise_gru = nullptr;
+    elemwise_gru_lbr_f elemwise_gru_lbr = nullptr;
 
     enum { SCALES_ = 0, TM_SCALES_ = 1 };
 };
