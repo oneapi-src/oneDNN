@@ -118,7 +118,7 @@ status_t generate_reduction_phases(const memory_desc_t *src,
     int dst_zpad_mask
             = ~utils::get_dims_mask(dst->dims, dst->padded_dims, dst->ndims);
     int stride = 1;
-    for (auto block : src_blocks) {
+    for (const auto &block : src_blocks) {
         if (!is_masked(reduced_dim_mask, block.dim_idx)) {
             // Non-reduced dims get transferred directly to dst (no reorders)
             exp_dst_blocks.push_back(block);
@@ -171,8 +171,7 @@ status_t generate_reduction_phases(const memory_desc_t *src,
     subprbs.emplace_back(nelems, 1, 1);
     reduction_subproblem_t &base_subprb = subprbs.back();
 
-    auto src_zpad_info = calc_zero_padding(src_blocks, src_mdw);
-    base_subprb.dst_zpads = src_zpad_info;
+    base_subprb.dst_zpads = calc_zero_padding(src_blocks, src_mdw);
 
     for (const auto &red_block : reduction_blocks) {
         const reduction_subproblem_t &prev_subprb = subprbs.back();

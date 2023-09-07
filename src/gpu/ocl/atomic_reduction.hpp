@@ -72,7 +72,7 @@ struct atomic_reduction_t : public gpu_primitive_t {
 
         reduction_conf_t conf;
         std::vector<atomic_reduction_conf_t> phases;
-        bool needs_finalization;
+        bool needs_finalization = false;
         std::shared_ptr<primitive_desc_t> eltwise_pd_;
     };
 
