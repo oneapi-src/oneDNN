@@ -143,37 +143,36 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
         // Assumes that all threads see the same environment
         static std::string user_opt = getenv_string_user("VERBOSE");
 
-        auto update_kind = [&](const std::string &s, int &k) -> int {
+        auto update_kind = [&](const std::string &s, int &k) {
             // Legacy: we accept values 0,1,2
             // 0 and none erase previously set flags, including error
-            if (s == "0" || s == "none") return k = verbose_t::none;
-            if (s == "1") return k |= verbose_t::exec_profile;
+            if (s == "0" || s == "none") k = verbose_t::none;
+            if (s == "1") k |= verbose_t::exec_profile;
             if (s == "2")
-                return k |= verbose_t::exec_profile | verbose_t::create_profile;
-            if (s == "all" || s == "-1") return k |= verbose_t::all;
-            if (s == "error") return k |= verbose_t::error;
+                k |= verbose_t::exec_profile | verbose_t::create_profile;
+            if (s == "all" || s == "-1") k |= verbose_t::all;
+            if (s == "error") k |= verbose_t::error;
             if (s == "check")
-                return k |= verbose_t::create_check | verbose_t::exec_check;
-            if (s == "dispatch") return k |= verbose_t::create_dispatch;
+                k |= verbose_t::create_check | verbose_t::exec_check;
+            if (s == "dispatch") k |= verbose_t::create_dispatch;
             if (s == "profile")
-                return k |= verbose_t::create_profile | verbose_t::exec_profile;
-            if (s == "profile_create") return k |= verbose_t::create_profile;
-            if (s == "profile_exec") return k |= verbose_t::exec_profile;
+                k |= verbose_t::create_profile | verbose_t::exec_profile;
+            if (s == "profile_create") k |= verbose_t::create_profile;
+            if (s == "profile_exec") k |= verbose_t::exec_profile;
             // Enable profiling to external libraries
-            if (s == "profile_externals")
-                return k |= verbose_t::profile_externals;
+            if (s == "profile_externals") k |= verbose_t::profile_externals;
             // we extract debug info debuginfo=XX. ignore if debuginfo is invalid.
             if (s.rfind("debuginfo=", 0) == 0)
-                return k |= verbose_t::make_debuginfo(
-                               std::strtol(s.c_str() + 10, nullptr, 10));
-
-            // Unknown option is ignored
-            // TODO: exit on unsupported or print a message?
-            return k;
+                k |= verbose_t::make_debuginfo(
+                        std::strtol(s.c_str() + 10, nullptr, 10));
         };
 
-        auto update_filter = [&](const std::string &s, int &k) -> int {
-            std::regex regexp(s);
+        auto update_filter = [&](const std::string &s) noexcept -> int {
+            int k = component_t::none;
+            std::regex regexp;
+            try {
+                regexp = std::regex(s);
+            } catch (const std::regex_error &) { return component_t::all; }
             if (std::regex_search("primitive", regexp)) {
                 k |= component_t::primitive;
             }
@@ -244,10 +243,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
             // update filter flags
             if (tok.rfind("filter=", 0) == 0) {
                 auto filter_str = tok.substr(7);
-                if (!filter_str.empty()) {
-                    flags = component_t::none;
-                    update_filter(filter_str, flags);
-                }
+                if (!filter_str.empty()) { flags = update_filter(filter_str); }
             }
         }
 
