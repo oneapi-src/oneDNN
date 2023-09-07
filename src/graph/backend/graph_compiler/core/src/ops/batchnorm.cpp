@@ -47,6 +47,10 @@ void batchnorm_inference_op::get_graph_impl(
     outputs = remake_logical_tensors(info_.outputs_);
     float epsilon = attrs_.get<float>("epsilon");
     std::string format = attrs_.get<std::string>("data_format");
+    auto bc_axis = format == "NCX"
+            ? std::vector<int> {1}
+            : std::vector<int> {static_cast<int>(
+                    info_.inputs_[0]->details_.get_plain_dims().size() - 1)};
     // input
     graph->make_input(inputs);
     // eps constant;
@@ -70,11 +74,11 @@ void batchnorm_inference_op::get_graph_impl(
             "sub", {inputs[2], mean_op->get_outputs()[0]}, {}, {});
 
     auto x1 = graph->make("mul", {inputs[0], bn_mul->get_outputs()[0]}, {},
-            any_map_t({{"bc_axis", std::vector<int> {1}}}));
+            any_map_t({{"bc_axis", bc_axis}}));
 
     auto y1 = graph->make("add",
             {x1->get_outputs()[0], bn_add->get_outputs()[0]}, {outputs[0]},
-            any_map_t({{"bc_axis", std::vector<int> {1}}}));
+            any_map_t({{"bc_axis", bc_axis}}));
     // output
     graph->make_output(y1->get_outputs());
 }
