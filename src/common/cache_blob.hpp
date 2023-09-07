@@ -87,7 +87,7 @@ struct cache_blob_t {
         return impl_->add_binary(binary, binary_size);
     }
 
-    status_t get_binary(const uint8_t **binary, size_t *binary_size) {
+    status_t get_binary(const uint8_t **binary, size_t *binary_size) const {
         if (!impl_) return status::runtime_error;
         return impl_->get_binary(binary, binary_size);
     }

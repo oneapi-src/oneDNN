@@ -59,12 +59,13 @@ public:
             jit::jit_generator_base &jitter) const = 0;
 
     virtual status_t create_kernel(compute::kernel_t *kernel,
-            jit::jit_generator_base *jitter, cache_blob_t cache_blob) const = 0;
+            jit::jit_generator_base *jitter,
+            const cache_blob_t &cache_blob) const = 0;
 
     virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
             const compute::kernel_ctx_t &kernel_ctx,
-            cache_blob_t cache_blob) const = 0;
+            const cache_blob_t &cache_blob) const = 0;
 
     virtual status_t create_kernels_from_ocl_source(
             std::vector<compute::kernel_t> *kernels,
@@ -83,7 +84,8 @@ public:
     virtual status_t create_kernel_from_binary(compute::kernel_t &kernel,
             const compute::binary_t &binary, const char *kernel_name) const = 0;
 
-    virtual status_t create_kernels_from_cache_blob(cache_blob_t cache_blob,
+    virtual status_t create_kernels_from_cache_blob(
+            const cache_blob_t &cache_blob,
             std::vector<compute::kernel_t> &kernels,
             const std::vector<const char *> &kernel_names) const = 0;
 
