@@ -2103,7 +2103,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CommitPaddingToContentOfAnchor) {
             != content_number_map.end());
 }
 
-TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop) {
+TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop1) {
     REQUIRE_AVX2();
     SET_THREADS_OR_SKIP(28);
     int BS = 28, H = 32, W = 32, C = 64;
@@ -2147,6 +2147,50 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop) {
             && reo_inner_loop->attr_
             && reo_inner_loop->attr_->get_or_else(
                     stmt_attr_key::merge_loop, false));
+}
+
+// check whether illgeal loop var found
+class loop_var_finder_t : public ir_viewer_t {
+public:
+    using ir_viewer_t::dispatch;
+    using ir_viewer_t::view;
+    void operator()(stmt_c v) { ir_viewer_t::dispatch(std::move(v)); }
+    bool is_legal() const { return !illegal_loop_var_; }
+    void view(for_loop_c f) override {
+        if (!f->var_.isa<var>()) { illegal_loop_var_ = true; }
+        ir_viewer_t::view(f);
+    }
+
+private:
+    bool illegal_loop_var_ = false;
+};
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop2) {
+    SET_THREADS_OR_SKIP(1);
+    int BS = 1, H = 8, W = 8, C = 64;
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input({graph_tensor::make({BS, C, H, W})});
+    // relu
+    auto relu0 = graph.make("relu", input0->get_outputs(), {}, {});
+    // reduce
+    auto radd0 = graph.make("reduce", relu0->get_outputs(), {},
+            {{"rd_axis", std::vector<int> {0, 2, 3}}, {"rd_op", 0},
+                    {"keep_dims", false}});
+    graph.make_output(radd0->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+    mixed_partition(graph, ctx);
+
+    auto mixed_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    auto &func = mixed_op->parti_list_[0]->func_;
+    loop_var_finder_t lv_finder;
+    lv_finder(func->body_);
+    // All loop var should be `var` type. `for 0 in (0, 1, 1)` is not expected.
+    EXPECT_TRUE(lv_finder.is_legal());
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, PoolingLoopReSchedule) {
