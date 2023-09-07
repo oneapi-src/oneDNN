@@ -90,7 +90,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
 int init_prim_ref(
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref, const prb_t *prb) {
-    if (!(has_bench_mode_bit(mode_bit_t::corr) && is_gpu() && fast_ref))
+    if (!(has_bench_mode_bit(mode_bit_t::corr) && fast_ref)) return OK;
+
+    // f32 cases should go through reference no matter what.
+    if (is_cpu() && (prb->src_dt() == dnnl_f32 && prb->wei_dt() == dnnl_f32))
         return OK;
 
     // Create a new copy of prb to avoid potentially corrupting the test by
@@ -99,6 +102,7 @@ int init_prim_ref(
     update_cpu_ref_attrs(cpu_attr);
     std::vector<std::vector<dnnl_data_type_t>> prim_ref_dt {
             prb->dt, {dnnl_f32}};
+    if (is_cpu()) prim_ref_dt.erase(prim_ref_dt.begin());
     dnnl_primitive_t prim_ref_ {};
 
     for (const auto &prim_ref_dt_i : prim_ref_dt) {
