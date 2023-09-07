@@ -170,6 +170,8 @@ protected:
         return ok;
     }
 
+    /// This function body follows
+    /// convolution_pd_t::expect_data_types(...)
     bool expect_data_types(data_type_t src_dt, data_type_t wei_dt,
             data_type_t bia_dt, data_type_t dst_dt) const {
         bool ok = true
