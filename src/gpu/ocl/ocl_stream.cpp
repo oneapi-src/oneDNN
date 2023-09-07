@@ -251,7 +251,7 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
     }
 
     if (flags() & stream_flags::out_of_order)
-        ocl_event_t::from(out_dep).events = {out_event};
+        ocl_event_t::from(out_dep).events = {std::move(out_event)};
 
     return status::success;
 }
@@ -299,7 +299,7 @@ status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
     }
 
     if (flags() & stream_flags::out_of_order)
-        ocl_event_t::from(out_dep).events = {out_event};
+        ocl_event_t::from(out_dep).events = {std::move(out_event)};
 
     return status::success;
 }
