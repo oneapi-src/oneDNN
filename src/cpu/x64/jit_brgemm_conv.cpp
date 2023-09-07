@@ -169,9 +169,7 @@ inline void brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::get_A_B(int icc,
     const auto src_base_kd = src_base_ic + id * src_d_offset;
     const auto wei_kd = maybe_invert(kd_b, KD);
     const auto wei_base_kd = wei_base_ic + wei_kd * wei_kd_offset;
-    const auto duplicate_kh
-            = (jcp_.exec_type == exec_trans && jcp_.is_relo_whi());
-    const auto ih = iih_b + (duplicate_kh ? 0 : kh_b * DH);
+    const auto ih = iih_b + (jcp_.is_relo_whi() ? 0 : kh_b * DH);
     const auto src_base_kh = src_base_kd + ih * adj_src_h_offset;
     const auto wei_kh = maybe_invert(kh_b, KH);
     const auto wei_base_kh = wei_base_kd + wei_kh * wei_kh_offset;
@@ -515,7 +513,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                 * (jcp_.wei_plain ? jcp_.oc_without_padding : jcp_.oc_block);
         wei_kh_stride = KW * wei_kw_stride;
     }
-    wei_kd_stride = KH * wei_kh_stride;
+    wei_kd_stride = (jcp_.is_relo_whi() ? 1 : KH) * wei_kh_stride;
     wei_ocb_stride = jcp_.wei_plain ? jcp_.oc_block : KD * wei_kd_stride;
     wei_g_stride = jcp_.wei_plain ? jcp_.oc : jcp_.nb_oc * wei_ocb_stride;
     wei_ic_stride = jcp_.wei_plain ? jcp_.oc_without_padding : jcp_.oc_block;
@@ -566,12 +564,14 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             for (int ioh = 0; ioh < jcp_.oh; ioh++) {
 
                 const auto iih = ioh * SH - TP;
-                const auto kh_s = jcp_.is_os_blocking
+                const auto kh_s = (jcp_.is_os_blocking || jcp_.is_relo_whi())
                         ? 0
                         : div_up(nstl::max(0, -iih), DH);
-                const auto kh_f = KH
-                        - div_up(
-                                nstl::max(0, iih - IH + (KH - 1) * DH + 1), DH);
+                const auto kh_f = (jcp_.is_relo_whi()) ? 1
+                                                       : KH
+                                - div_up(nstl::max(0,
+                                                 iih - IH + (KH - 1) * DH + 1),
+                                        DH);
                 const auto bs = get_bs(kd_s, kd_f, kh_s, kh_f);
                 if (bs <= 0) continue;
 
@@ -1675,33 +1675,36 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_weights(
     const auto &jcp = _pd->jcp_;
 
     wei = input_weights;
-    if (!jcp.is_relo()) return;
+    if (!jcp.is_relo() || !jcp.relo_conv_weights) return;
+
+    auto wei_buffer = ctx.get_scratchpad_grantor().template get<char>(
+            key_conv_amx_wei_buffer);
+
+    auto nb_rd = div_up(_pd->rd, jcp.vnni_block);
+    if (jcp.is_rd_padded_to_block) nb_rd = rnd_up(nb_rd, 16);
+    const auto inp_oc_block = 16; // this is oc block of inp weights layout
+
+    assert(jcp.oc_block % inp_oc_block == 0);
+    const auto oc_chunks = jcp.oc_block / inp_oc_block;
+    const auto inp_nb_oc = div_up(jcp.oc, inp_oc_block);
 
     if (jcp.is_relo_whi()) {
         // reorder weights from (g)Owhi16o to (g)OR16r16o<vnni_granularity>r, where r := whi
-        auto wei_buffer = ctx.get_scratchpad_grantor().template get<char>(
-                key_conv_amx_wei_buffer);
-        auto p = jit_conv_call_s();
-        p.src = wei;
-        p.dst = wei_buffer;
-        (*copy_to_relo_wbuffer_)(&p);
-        wei = wei_buffer;
+        const auto inp_ocb_offs = _pd->rd * inp_oc_block * wei_dsz;
+        const auto out_ocb_offs
+                = nb_rd * jcp.oc_block * wei_dsz * jcp.vnni_block;
+
+        parallel_nd(jcp.ngroups, jcp.nb_oc, [&](dim_t g, dim_t ocb) {
+            auto p = jit_brgemm_relo_copy_to_wbuffer_t::ctx_t();
+            const auto inp_ocb = g * inp_nb_oc + ocb * oc_chunks;
+            const auto out_ocb = g * jcp.nb_oc + ocb;
+            p.src = input_weights + inp_ocb * inp_ocb_offs;
+            p.dst = wei_buffer + out_ocb * out_ocb_offs;
+            p.last_ocb = (ocb == jcp.nb_oc - 1);
+            (*copy_to_relo_wbuffer_)(&p);
+        });
     } else if (jcp.is_relo_wi()) {
-        if (!jcp.relo_conv_weights) return;
-
         // reorder weights from (g)Ohwi16o  to (g)OhR16r<oc_block>o<vnni_granularity>r, where r := wi
-        auto wei_buffer = ctx.get_scratchpad_grantor().template get<char>(
-                key_conv_amx_wei_buffer);
-
-        auto nb_rd = div_up(_pd->rd, jcp.vnni_block);
-        if (jcp.is_rd_padded_to_block) nb_rd = rnd_up(nb_rd, 16);
-
-        const auto inp_oc_block = 16; // this is oc block of inp weights layout
-
-        assert(jcp.oc_block % inp_oc_block == 0);
-        const auto oc_chunks = jcp.oc_block / inp_oc_block;
-
-        const auto inp_nb_oc = div_up(jcp.oc, inp_oc_block);
         const auto inp_kh_offs = _pd->rd * inp_oc_block * wei_dsz;
         const auto out_kh_offs
                 = nb_rd * jcp.oc_block * wei_dsz * jcp.vnni_block;
@@ -1716,8 +1719,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_weights(
                     p.last_ocb = (ocb == jcp.nb_oc - 1);
                     (*copy_to_relo_wbuffer_)(&p);
                 });
-        wei = wei_buffer;
     }
+    wei = wei_buffer;
 }
 
 template <cpu_isa_t isa, bool use_inversion>
@@ -1808,72 +1811,130 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
     cp.ic = ic;
     const auto iw_buf = jcp.copy_block_only ? 0 : (ow * SW);
     dim_t inp_offset_start, out_offset_start;
-    const auto kh_koef = jcp.is_relo_whi() ? jcp.kh : 1;
 
-    const auto base_ih_buf = (jcp.copy_block_only ? 0 : ih_start) + TP;
-    const auto base_out_offset_start
-            = (jcp.copy_block_only ? 0
-                                   : static_cast<dim_t>(icb) * _pd->pbuf_d_sz)
-            + base_ih_buf * _pd->pbuf_w_sz
-            + iw_buf * jcp.inp_ic_block * kh_koef;
+    const auto base_ih_buf = (jcp.copy_block_only ? 0 : ih_start)
+            + (jcp.is_relo_whi() ? 0 : TP);
     const auto base_inp_offset_start = static_cast<dim_t>(btc.n) * src_d_sz
             + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
 
-    for (int kh = 0; kh < kh_koef; kh++) {
-        int ih_s {0}, ih_f {0};
-        if (jcp.is_relo_whi()) {
-            assert(!jcp.is_os_blocking);
-            ih_s = nstl::max(0, TP - oh * SH - kh * DH);
-            ih_f = nstl::max(
-                    0, (oh + jcp.oh_block - 1) * SH + kh * DH - TP + 1 - IH);
+    if (jcp.is_relo_whi()) {
+        const auto base_out_offset_start
+                = (jcp.copy_block_only
+                                  ? 0
+                                  : static_cast<dim_t>(icb) * _pd->pbuf_d_sz)
+                + base_ih_buf * _pd->pbuf_w_sz
+                + iw_buf * jcp.inp_ic_block * (jcp.is_relo_whi() ? KH : 1);
 
-            cp.h_count = nstl::max(0, jcp.oh_block);
-            inp_offset_start = base_inp_offset_start
-                    + nstl::max(ih_s, ih_start) * src_w_sz;
-            // inp_buffer has physical padding
-            out_offset_start = base_out_offset_start + kh * jcp.inp_ic_block;
-        } else {
-            // For os_blocking:
-            // We have to zero top and bottom padding now
-            // taking into account that batch size is always the same (kh_s is 0 for os_blocking)
-            // TODO: extend M_mask (may be different for different kh) to avoid copying
-            // top/bottom padded rows and avoid extra calculations in kernel
-            // also for convolutions with pw == 0 the copy routine maybe not needed
-            ih_s = jcp.is_os_blocking ? nstl::max(0, -virt_ih_start) : 0;
-            ih_f = jcp.is_os_blocking ? nstl::max(0, virt_ih_end - IH) : 0;
+        // for relo_whi we copy top and bottom padded lines
+        auto p = jit_conv_call_s();
 
-            cp.h_count = nstl::max(0, rows_to_copy) + ih_s + ih_f;
-            inp_offset_start = base_inp_offset_start + ih_start * src_w_sz;
+        bool has_inp_buffer_overlap = true && last_btc.g == btc.g
+                && last_btc.n == btc.n && last_btc.owb == btc.owb;
+
+        for_(int id = id_start; id < id_end; id++)
+        for (int doh = 0; doh < jcp.oh_block; doh++) {
+            const int ih_overlap = doh == 0
+                    ? has_inp_buffer_overlap * nstl::max(0, KH - SH)
+                    : 0;
+            const int kh_eff = jcp.kh - ih_overlap;
+
+            const auto sdst = base_out_offset_start
+                    + btc.ohb
+                            * ((jcp.oh_block - 1) * _pd->pbuf_w_sz
+                                    + jcp.stride_h * jcp.inp_ic_block)
+                    + ih_overlap * jcp.inp_ic_block;
+
+            const int ih_s = (doh + oh) * jcp.stride_h - jcp.t_pad + ih_overlap;
+            const int ih_e = ih_s + kh_eff;
+            const int ih = nstl::max(0, ih_s);
+            p.t_overflow = nstl::max(0, -ih_s);
+            p.b_overflow = nstl::min<int>(kh_eff, nstl::max(0, ih_e - jcp.ih));
+            p.kh_padding
+                    = nstl::max<int>(0, (kh_eff - p.t_overflow - p.b_overflow));
+            p.kh_offset = kh_eff;
+
+            const int iw_s = ow * jcp.stride_w - jcp.l_pad;
+            const int iw_e = iw_s + jcp.iwp;
+            p.f_overflow = nstl::max(0, -iw_s);
+            p.back_overflow = nstl::max(0, iw_e - jcp.iw);
+            p.kw_padding = nstl::max<int>(
+                    0, jcp.iwp - p.f_overflow - p.back_overflow);
+
+            const auto first_actual_h = ih;
+            inp_offset_start
+                    = base_inp_offset_start + first_actual_h * src_w_sz;
             // inp_buffer has physical padding
-            out_offset_start = base_out_offset_start - ih_s * _pd->pbuf_w_sz;
+            out_offset_start = sdst + doh * _pd->pbuf_w_sz;
+
+            const auto inp_offset = inp_offset_start + id * src_h_sz;
+            const auto id_buf = id - (jcp.copy_block_only ? id_start : 0) + FP;
+            const auto out_offset = out_offset_start + id_buf * _pd->pbuf_h_sz;
+
+            p.src = src + src_dsz * inp_offset;
+            p.dst = btc.inp_buffer + src_dsz * out_offset;
+
+            (*copy_to_relo_pbuffer_)(&p);
         }
-        cp.t_pad = ih_s;
-        cp.b_pad = ih_f;
+    } else {
+        const auto base_out_offset_start
+                = (jcp.copy_block_only
+                                  ? 0
+                                  : static_cast<dim_t>(icb) * _pd->pbuf_d_sz)
+                + base_ih_buf * _pd->pbuf_w_sz + iw_buf * jcp.inp_ic_block;
+        // For os_blocking:
+        // We have to zero top and bottom padding now
+        // taking into account that batch size is always the same (kh_s is 0 for os_blocking)
+        // TODO: extend M_mask (may be different for different kh) to avoid copying
+        // top/bottom padded rows and avoid extra calculations in kernel
+        // also for convolutions with pw == 0 the copy routine maybe not needed
+        cp.t_pad = jcp.is_os_blocking ? nstl::max(0, -virt_ih_start) : 0;
+        cp.b_pad = jcp.is_os_blocking ? nstl::max(0, virt_ih_end - IH) : 0;
+
+        cp.h_count = nstl::max(0, rows_to_copy) + cp.t_pad + cp.b_pad;
+        inp_offset_start = base_inp_offset_start + ih_start * src_w_sz;
+        // inp_buffer has physical padding
+        out_offset_start = base_out_offset_start - cp.t_pad * _pd->pbuf_w_sz;
 
         for (int id = id_start; id < id_end; id++) {
             const auto inp_offset = inp_offset_start + id * src_h_sz;
             const auto id_buf = id - (jcp.copy_block_only ? id_start : 0) + FP;
             const auto out_offset = out_offset_start + id_buf * _pd->pbuf_h_sz;
-            if (jcp.exec_type == exec_trans) {
-                cp.src = src + src_dsz * inp_offset;
-                cp.dst = btc.inp_buffer + src_dsz * out_offset;
-                (*copy_to_pbuffer_)(&cp);
-                if (jcp.is_relo() && jcp.vnni_block > 1) {
+            cp.src = src + src_dsz * inp_offset;
+            cp.dst = btc.inp_buffer + src_dsz * out_offset;
+            if (jcp.is_relo()) {
+                if (jcp.vnni_block > 1) {
                     int size_to_sero = 0;
                     if (_pd->rd % jcp.vnni_block != 0)
                         size_to_sero = jcp.vnni_block;
                     if (_pd->rd > jcp.simd_w && _pd->rd % jcp.simd_w != 0)
                         size_to_sero = jcp.simd_w;
+                    size_to_sero *= jcp.src_dsz;
                     void *const __restrict p_zeroing = (char *)cp.dst
                             + src_dsz * cp.h_count * _pd->pbuf_w_sz;
                     if (size_to_sero > 0 && btc.inp_buffer_zero != p_zeroing) {
-                        std::memset(p_zeroing, 0, jcp.src_dsz * size_to_sero);
+                        std::memset(p_zeroing, 0, size_to_sero);
                         btc.inp_buffer_zero = p_zeroing;
                     }
                 }
+                const auto actual_iw_block = nstl::min(jcp.iw_block, IW - iw);
+                if (actual_iw_block < jcp.iw_block) {
+                    int size_to_sero = 0;
+                    const auto zero_elem_size
+                            = (dim_t)src_dsz * jcp.inp_ic_block;
+                    size_to_sero
+                            = zero_elem_size * (jcp.iw_block - actual_iw_block);
+                    for (size_t iih = 0; iih < cp.h_count; iih++) {
+                        void *const __restrict p_zeroing = (char *)cp.dst
+                                + (dim_t)src_dsz * iih * _pd->pbuf_w_sz
+                                + zero_elem_size * actual_iw_block;
+                        std::memset(p_zeroing, 0, size_to_sero);
+                    }
+                }
             }
+            (*copy_to_pbuffer_)(&cp);
         }
     }
+
     if (!jcp.copy_block_only) bmask(icb, btc.odb, btc.ohb, btc.owb) = 1;
 
 #undef bmask
@@ -1896,12 +1957,17 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
             KD - div_up(nstl::max(0, iid - ID + (KD - 1) * DD + 1), DD), 1, \
             1); \
     const auto kd_l = kd_f - kd_s; \
-    const auto iih = ndims_pick(btc.oh * SH - TP, btc.oh * SH - TP, 0); \
+    const auto adj_sh = jcp.is_relo_whi() ? 1 : SH; \
+    const auto adj_tp = jcp.is_relo_whi() ? 0 : TP; \
+    const auto iih = ndims_pick( \
+            btc.oh * adj_sh - adj_tp, btc.oh * adj_sh - adj_tp, 0); \
     const auto kh_s_ = div_up(nstl::max(0, -iih), DH); \
-    const auto kh_s = jcp.is_os_blocking ? 0 : ndims_pick(kh_s_, kh_s_, 0); \
+    const auto kh_s = (jcp.is_os_blocking || jcp.is_relo_whi()) \
+            ? 0 \
+            : ndims_pick(kh_s_, kh_s_, 0); \
     const auto kh_f_ \
             = KH - div_up(nstl::max(0, iih - IH + (KH - 1) * DH + 1), DH); \
-    const auto kh_f = ndims_pick(kh_f_, kh_f_, 1); \
+    const auto kh_f = jcp.is_relo_whi() ? 1 : ndims_pick(kh_f_, kh_f_, 1); \
     const auto kh_l = kh_f - kh_s; \
     const bool is_oc_tail = (jcp.oc - oc < jcp.oc_block); \
     const bool is_ic_tail = (btc.icc == _pd->ic_chunks - 1 \
@@ -2081,6 +2147,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
     auto ndims = _pd->ndims;
 
     BRGEMM_CONV_KER_HEADER;
+
     MAYBE_UNUSED(g_ic);
     MAYBE_UNUSED(src);
 
@@ -2096,13 +2163,13 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
             ? nstl::max(0, btc.odb * jcp.od_block * SD - FP)
             : 0;
     const auto iih_shift = jcp.copy_block_only
-            ? nstl::max(0, btc.ohb * jcp.oh_block * SH - TP)
+            ? nstl::max(0, btc.ohb * jcp.oh_block * adj_sh - adj_tp)
             : 0;
     const auto iiw_shift
             = jcp.copy_block_only ? (btc.owb * jcp.ow_block * SW) : 0;
 
     const auto iid_b = iid + FP - iid_shift;
-    const auto iih_b = iih + TP - iih_shift;
+    const auto iih_b = iih + adj_tp - iih_shift;
     iiw_b = ow_b * SW - iiw_shift;
     ptr_D = dst_base
             + dst_dsz
@@ -2131,7 +2198,12 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
                 + src_dsz
                         * ((jcp.copy_block_only ? 0
                                                 : ((icb + ic_block_s)
-                                                        * _pd->pbuf_d_sz)));
+                                                        * _pd->pbuf_d_sz)))
+                + (jcp.is_relo_whi() ? src_dsz * btc.ohb
+                                        * ((jcp.oh_block - 1) * _pd->pbuf_w_sz
+                                                + jcp.stride_h
+                                                        * jcp.inp_ic_block)
+                                     : 0);
         const void *ptrA {nullptr}, *ptrB {nullptr};
 
         if (jcp.brg_type == brgemm_static_offs) {
