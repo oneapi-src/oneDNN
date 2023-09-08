@@ -24,6 +24,7 @@ include_directories_with_host_compiler(
 FILE(GLOB COMMON_API_TEST_DEPS
     ${CMAKE_CURRENT_SOURCE_DIR}/api_test_main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
+    ${TEST_THREAD}
     ${TEST_ALLOCATOR}
 )
 
