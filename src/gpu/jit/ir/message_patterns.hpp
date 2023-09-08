@@ -46,8 +46,8 @@ struct stride_layout_t {
         stride_entry_t() = default;
         stride_entry_t(dim_t size, dim_t stride)
             : size(size), stride(stride) {};
-        dim_t size;
-        dim_t stride;
+        dim_t size = 0;
+        dim_t stride = 0;
     };
 
     struct stride_dim_t {
@@ -62,8 +62,8 @@ struct stride_layout_t {
         stride_dim_t(const stride_dim_t &other) = default;
 
         dim_type_t dim;
-        dim_t size;
-        dim_t stride;
+        dim_t size = 0;
+        dim_t stride = 0;
 
         // whether this dimension can result in buffer overflows
         bool can_overflow;

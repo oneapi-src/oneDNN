@@ -92,7 +92,7 @@ private:
         }
     }
 
-    ir_context_t *ir_ctx_;
+    ir_context_t *ir_ctx_ = nullptr;
 
     view_t full_mem_view_;
     view_t mem_view_;

@@ -425,7 +425,7 @@ void compress(memory_desc_t &a, memory_desc_t &b, int &a_mask, int &b_mask) {
 }
 #undef NO_IDX
 
-void fix_steps(dimensions_t &blk, dimensions_t pkt) {
+void fix_steps(dimensions_t &blk, const dimensions_t &pkt) {
     int steps[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
     for (size_t i = 0; i < pkt.size(); i++) {
         steps[pkt[i].idx] *= pkt[i].size;
@@ -438,7 +438,7 @@ void fix_steps(dimensions_t &blk, dimensions_t pkt) {
 
 // Returns vector of blocks that were present in a but missing from b
 dimensions_t find_missing_blocks(
-        dimensions_t all, dimensions_t subset, bool round_up) {
+        const dimensions_t &all, dimensions_t subset, bool round_up) {
     dimensions_t ret;
     for (size_t ia = 0; ia < all.size(); ia++) {
         dimension_t from_a = all[ia];
@@ -461,7 +461,7 @@ dimensions_t find_missing_blocks(
 
 enum order_t { none, a_then_b, b_then_a };
 
-dimensions_t remainder(dimensions_t all, dimensions_t subset) {
+dimensions_t remainder(const dimensions_t &all, const dimensions_t &subset) {
     dimensions_t ret;
     for (size_t i = 0; i < all.size(); i++) {
         if (i < subset.size()) {
@@ -513,7 +513,7 @@ bool fill_to_vect(
     return false;
 }
 
-bool add_to_vector(dimensions_t &v, dimension_t item) {
+bool add_to_vector(dimensions_t &v, const dimension_t &item) {
     if (v.empty() || item.idx != v.back().idx) {
         if (v.size() >= LOOP_NEST_LEVEL) { return false; }
         v.push_back(item);
@@ -564,7 +564,7 @@ dimensions_t fix_order_to(dimensions_t input, dimensions_t ref) {
     return ret;
 }
 
-int check_size(dimensions_t block) {
+int check_size(const dimensions_t &block) {
     int length = 1;
     for (size_t i = 0; i < block.size(); i++) {
         length *= block[i].size;

@@ -262,7 +262,7 @@ public:
 private:
     struct entry_t {
         int index = -1;
-        int value;
+        int value = -1;
     };
 
     std::array<entry_t, KeyT::max_id()> entries_;

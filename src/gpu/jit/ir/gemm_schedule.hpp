@@ -1093,7 +1093,7 @@ private:
 
     bool is_finalized_ = false;
 
-    constraint_set_t *cset_;
+    constraint_set_t *cset_ = nullptr;
     grid_info_t kernel_grid_;
     grid_info_t tg_grid_;
 

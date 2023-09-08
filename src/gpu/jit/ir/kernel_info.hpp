@@ -70,6 +70,7 @@ private:
 };
 
 enum class kernel_id_t {
+    undef,
     convolution,
     pre_reorder,
     post_reorder,
@@ -298,7 +299,7 @@ private:
         args_.emplace_back(var, kind, key, is_input, value, scratchpad_size);
     }
 
-    kernel_id_t id_;
+    kernel_id_t id_ = kernel_id_t::undef;
     compute::nd_range_t nd_range_;
 
     std::vector<arg_t> args_;

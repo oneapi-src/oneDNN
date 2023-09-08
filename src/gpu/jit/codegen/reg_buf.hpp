@@ -104,8 +104,8 @@ public:
     }
 
 private:
-    ngen::HW hw_;
-    int block_regs_;
+    ngen::HW hw_ = ngen::HW::Unknown;
+    int block_regs_ = 0;
     std::vector<int> block_bases_;
     grf_permutation_t grf_perm_;
 };

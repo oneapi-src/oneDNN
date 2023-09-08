@@ -61,7 +61,7 @@ struct loop_info_t {
 private:
     expr_t init_;
     expr_t bound_;
-    int size_;
+    int size_ = 0;
 };
 
 // Iterates through multiple nested loops with fixed bounds. Used to unroll
