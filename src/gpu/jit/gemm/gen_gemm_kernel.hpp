@@ -72,6 +72,11 @@ struct gen_gemm_kernel_desc_t {
     }
     compute::gpu_arch_t arch() const { return arch_; }
 
+    const kcatalog::Entry &entry() const {
+        assert(entry != nullptr);
+        return *entry_;
+    };
+
 protected:
     static Type convert_dnnl_to_kernel_type(data_type_t type) {
         switch (type) {

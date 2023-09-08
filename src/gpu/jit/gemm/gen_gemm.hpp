@@ -484,9 +484,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         const auto *info = nocopy_info();
 
         if (get_verbose(verbose_t::debuginfo) >= 2) {
-            printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
-                    info->unroll[LoopM], info->unroll[LoopN], info->wg[LoopM],
-                    info->wg[LoopN], info->wg[LoopK]);
+            printf("onednn_verbose,info,gpu,%s\n", kd->entry().str().c_str());
         }
 
         if (info->fusedBeta() || info->fusedPostOps()) {

@@ -115,6 +115,25 @@ struct Selector {
     friend bool operator>=(const Selector &sel1, const Selector &sel2) {
         return !(sel1 < sel2);
     }
+
+    std::string str(const int (&alignments)[3]) const {
+        std::string result {hw};
+        result.append(" ");
+        result.append(kernelType);
+        result.append(" ");
+        for (auto &p : precisions) {
+            result.append(p);
+        }
+        result.append(" ");
+        for (int i = 0; i < 3; i++) {
+            result.append(layouts[i]);
+            if (alignments[i] != 1) {
+                result.append("@");
+                result.append(std::to_string(alignments[i]));
+            }
+        }
+        return result;
+    }
 };
 
 enum : int {
@@ -215,6 +234,17 @@ struct Entry {
     }
     friend bool operator>=(const Selector &s, const Entry &e) {
         return s >= e.selector;
+    }
+
+    std::string str() const {
+        std::string result = selector.str(restrictions.alignment);
+        result.append(" ");
+        result.append(std::to_string(driverInfo.unroll[LoopM]));
+        result.append(" ");
+        result.append(std::to_string(driverInfo.unroll[LoopM]));
+        result.append(" ");
+        result.append(strategy);
+        return result;
     }
 };
 
