@@ -1208,11 +1208,15 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     }
 
     // Auxiliary functions for getting offsets with pre-calculated memory
-    // strides for each tensor to get general sulution for all possible
+    // strides for each tensor to get general solution for all possible
     // dimension without significant overhead
     dim_t get_data_A_off(int b, int m, int k) const {
         using namespace format_tag;
-        if (bgmmc_.src_tag == acbd || bgmmc_.src_tag == adbc) {
+        if (one_of(bgmmc_.src_tag, acbd, adbc)
+                /* this is a special case when src can be represented
+                   by plain and transposed tags due to a batch dim equal to 1 */
+                || (one_of(bgmmc_.src_tag, abcd, abdc)
+                        && bgmmc_.A_ptr_shift_b != 0)) {
             dim_t b_off = 0;
             if (!bgmmc_.bcast_A_desc.bcast_mask) { // no broadcast
                 const dim_t batch_dim1 = bgmmc_.bcast_A_desc.batch_dims[1];
@@ -1229,7 +1233,11 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
 
     dim_t get_data_B_off(int b, int k, int n) const {
         using namespace format_tag;
-        if (bgmmc_.wei_tag == acbd || bgmmc_.wei_tag == adbc) {
+        if (one_of(bgmmc_.wei_tag, acbd, adbc)
+                /* this is a special case when weights can be represented
+                   by plain and transposed tags due to a batch dim equal to 1 */
+                || (one_of(bgmmc_.wei_tag, abcd, abdc)
+                        && bgmmc_.B_ptr_shift_b != 0)) {
             dim_t b_off = 0;
             if (!bgmmc_.bcast_B_desc.bcast_mask) { // no broadcast
                 const dim_t batch_dim1 = bgmmc_.bcast_B_desc.batch_dims[1];
@@ -1266,7 +1274,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     dim_t get_data_C_off(int b, int m, int n) const {
         using namespace format_tag;
         assert(bgmmc_.dst_tag != adbc);
-        if (bgmmc_.dst_tag == acbd) {
+        if (bgmmc_.dst_tag == acbd
+                || (one_of(bgmmc_.dst_tag, abcd, abdc)
+                        && bgmmc_.C_ptr_shift_b != 0)) {
             const dim_t batch_dim1 = bgmmc_.bcast_A_desc.batch_dims[1];
             dim_t b_off = C_strides_[2] * (b % batch_dim1)
                     + (b / batch_dim1) * C_ptr_shift_b_;
