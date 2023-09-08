@@ -14,8 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstring>
 #include <random>
 
+#include "utils/dnnl_query.hpp"
 #include "utils/fill.hpp"
 #include "utils/numeric.hpp"
 #include "utils/parallel.hpp"
@@ -107,9 +109,18 @@ int fill_zero_points(
     return OK;
 }
 
-int fill_random_real(dnn_mem_t &mem_dt) {
-    const auto nelems = mem_dt.nelems();
+int fill_random_real_dense(dnn_mem_t &mem_fp) {
+    auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    // The `nelems()` function returns a product of dims/pdims regardless of
+    // whether the tensor is dense or sparse (this is by design). Because of
+    // that we need to adjust the `nelems` value for the sparse tensor as the
+    // number of elements to fill is equal to `nnz`.
+    if (mem_fp.format_kind() == dnnl_format_kind_sparse)
+        nelems = query_md_nnz(mem_fp.md_);
+#endif
 
     /* Do fixed partitioning to have same filling for any number of threads */
     static constexpr int64_t chunk_size = 64;
@@ -129,10 +140,41 @@ int fill_random_real(dnn_mem_t &mem_dt) {
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             float val = gen(int_seed);
-            mem_dt.set_elem(
-                    idx, round_to_nearest_representable(mem_dt.dt(), val));
+            mem_fp.set_elem(
+                    idx, round_to_nearest_representable(mem_fp.dt(), val));
         }
     });
 
     return OK;
+}
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+int fill_random_real_sparse(
+        const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem_fp) {
+    auto orig_cc_mem_md = query_md(dnnl_memory);
+    const int nhandles = query_md_num_handles(orig_cc_mem_md);
+    assert(nhandles == 3);
+    // Since a sparsity pattern affects performance, it's crucial to keep the
+    // pattern intact and only randomize tensor values.
+    // The assumption is every sparse format contains three handles and the
+    // second and the third are responsible for a sparsity pattern.
+    for (int idx = 1; idx < nhandles; idx++) {
+        void *dst_ptr = mem_fp.get_mapped_pointer<void>(idx);
+        void *src_ptr = nullptr;
+        dnnl_memory_get_data_handle_v2(dnnl_memory, &src_ptr, idx);
+
+        const size_t size = dnnl_memory_desc_get_size_v2(orig_cc_mem_md, idx);
+        std::memcpy(dst_ptr, src_ptr, size);
+    }
+
+    return fill_random_real_dense(mem_fp);
+}
+#endif
+
+int fill_random_real(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem_fp) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    if (mem_fp.format_kind() == dnnl_format_kind_sparse)
+        return fill_random_real_sparse(dnnl_memory, mem_fp);
+#endif
+    return fill_random_real_dense(mem_fp);
 }
