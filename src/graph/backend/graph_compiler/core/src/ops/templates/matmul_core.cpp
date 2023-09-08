@@ -343,11 +343,10 @@ void gen_matmul_core_t::get_and_check_blocks(sc_graph_t &graph,
   if (blocking_axis_.B_k.size() == 1) {
     assert(blocking_axis_.B_n.size() == 1);
     COMPILE_ASSERT(is_config_set, "config must be set with plain input.");
-    bool is_avx512f16 = inputs[1].as<tensor>()->elem_dtype_ == datatypes::f16
-      && get_default_context()->machine_.cpu_flags_.fAVX512FP16;
+    bool is_f16 = inputs[1].as<tensor>()->elem_dtype_ == datatypes::f16;
     COMPILE_ASSERT(
-      inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32 || is_avx512f16,
-      "the datatype of B must be f32 or AVX512_f16 when B is plain.");
+      inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32 || is_f16,
+      "the datatype of B must be f32 or f16 when B is plain.");
     N_block = config.N_block;
   } else {
     N_block = get_expr_as_int(B_dims[blocking_axis_.B_n.back()]);
@@ -518,11 +517,10 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(sc_graph_t &graph,
   // update bidx and stride_b according to the format of tensor B
   if (!update_b) {
     if (blocking_axis_.B_k.size() == 1 && blocking_axis_.B_n.size() == 1) {
-      bool is_avx512f16 = inputs[1].as<tensor>()->elem_dtype_ == datatypes::f16
-        && get_default_context()->machine_.cpu_flags_.fAVX512FP16;
+      bool is_f16 = inputs[1].as<tensor>()->elem_dtype_ == datatypes::f16;
       COMPILE_ASSERT(
-        inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32 || is_avx512f16,
-        "the datatype of B must be f32 or AVX512_f16 when B is plain.");
+        inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32 || is_f16,
+        "the datatype of B must be f32 or f16 when B is plain.");
       LDB = 1;
       stride_b = K_block;
       int flag_l_idx = 0, flag_s_idx = 0;
