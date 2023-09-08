@@ -285,6 +285,7 @@ class indexing2var_impl_t : public ir_visitor_t {
                     if (!cmp.compare(v->idx_[i], idx_[i])) { return false; }
                 }
                 if (v->mask_.defined()) {
+                    if (!mask_.defined()) { return false; }
                     if (!cmp.compare(v->mask_, mask_)) { return false; }
                 } else {
                     if (mask_.defined()) { return false; }
