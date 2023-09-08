@@ -191,8 +191,8 @@ inline bool blocking_desc_is_equal(const memory_desc_t &lhs_md,
         const memory_desc_t &rhs_md, bool ignore_strides = false) {
     using dnnl::impl::utils::array_cmp;
 
-    assert(lhs_md.format_kind == format_kind::blocked);
-    assert(rhs_md.format_kind == format_kind::blocked);
+    if (lhs_md.format_kind != format_kind::blocked) return false;
+    if (rhs_md.format_kind != format_kind::blocked) return false;
 
     const auto &lhs = lhs_md.format_desc.blocking;
     const auto &rhs = rhs_md.format_desc.blocking;
@@ -896,30 +896,15 @@ inline status_t memory_desc_init_by_md_and_dt(memory_desc_t &md,
 inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag) {
     if (md.format_kind != types::format_tag_to_kind(tag)) return false;
 
+    if (md.format_kind != format_kind::blocked)
+        return false; // unimplemented yet
+
     memory_desc_t md_gold;
     status_t status = memory_desc_init_by_tag(
             md_gold, md.ndims, md.dims, md.data_type, tag);
     if (status != status::success) return false;
 
-    if (md.format_kind != format_kind::blocked)
-        return false; // unimplemented yet
-
-    const auto &blk = md.format_desc.blocking;
-    const auto &blk_gold = md_gold.format_desc.blocking;
-
-    using utils::array_cmp;
-    bool same_blocks = true && blk.inner_nblks == blk_gold.inner_nblks
-            && array_cmp(blk.inner_blks, blk_gold.inner_blks, blk.inner_nblks)
-            && array_cmp(blk.inner_idxs, blk_gold.inner_idxs, blk.inner_nblks);
-
-    if (!same_blocks) return false;
-
-    for (int d = 0; d < md.ndims; ++d) {
-        if (md.dims[d] == 1) continue; // stride of unit dim is meaningless
-        if (blk.strides[d] != blk_gold.strides[d]) return false;
-    }
-
-    return true;
+    return types::blocking_desc_is_equal(md, md_gold);
 }
 
 /** returns matching tag (or undef if match is not found)
