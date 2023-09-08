@@ -300,7 +300,9 @@ status_t insert_to_group_for_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
         if (fusion_info.has_post_dw_conv()) {
             const auto &dw_conv = fusion_info.get_post_dw_conv()->get_op();
             auto dw_conv_groups = dw_conv->get_attr<int64_t>(op_attr::groups);
-            const auto inserted = insert_to_group(cur_op, dw_conv_groups, 2);
+            const auto inserted = insert_to_group(cur_op, dw_conv_groups,
+                    fusion_info.get_post_dw_conv()
+                            ->get_unfused_input_indices()[0]);
             if (!inserted) continue;
         }
 

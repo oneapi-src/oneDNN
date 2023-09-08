@@ -41,23 +41,65 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(conv_post_ops)
               \   /
               conv
                 |
-         depthwise_conv
+             [bias]*
                 |
+    [unary/binary]*[0,MAX_REPETITION)
+                |
+          depthwise_conv
+                |
+             [bias]*
+                |
+    [unary/binary]*[0,MAX_REPETITION)
+                |
+
+  (TODO:Jiexin)limitation: For now, this pattern use decision function 
+  check_conv_weight_size to avoid mismatching, but this implicitly requires user 
+  to provide conv weight size when creating logical tensors if they want the 
+  computation graph to benefit from this pattern.
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_depthwise_cpu)
-        .set_priority(10.2f)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
+        dnnl, fp_conv_postops_depthwise_postops_cpu)
+        .set_priority(10.3f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *conv
+                    pm::pb_op_t *pconv
                             = pgraph->append_op(graph::op_kind::Convolution);
-                    conv->append_decision_function(check_input_num<2>);
+                    pconv->append_decision_function(check_conv_weight_size<1>);
+                    // Optional bias_add
+                    auto popt_bias1 = optional_bias_add(pgraph, pconv, false);
+
+                    auto alt_graph1 = std::make_shared<pb_graph_t>();
+                    auto palt1 = alt_graph1->append_alternation(
+                            get_unary_binary_ops());
+                    palt1->allow_internal_inputs();
+                    alt_graph1->create_input_port(0, palt1, 0);
+                    alt_graph1->create_output_port(0, palt1, 0);
+
+                    auto prep1 = pgraph->append_repetition(alt_graph1, {0, 0},
+                            0, MAX_REPETITION,
+                            in_edges_t {in_edge(0, popt_bias1, 0)});
 
                     pm::pb_op_t *depthwise
                             = pgraph->append_op(graph::op_kind::Convolution,
-                                    in_edges_t {in_edge(0, conv, 0)});
-                    depthwise->append_decision_function(check_input_num<2>);
+                                    in_edges_t {in_edge(0, prep1, 0)});
+                    depthwise->append_decision_function(
+                            check_conv_weight_size<3>);
+                    // Optional bias_add
+                    auto popt_bias2
+                            = optional_bias_add(pgraph, depthwise, false);
+
+                    auto alt_graph2 = std::make_shared<pb_graph_t>();
+                    auto palt2 = alt_graph2->append_alternation(
+                            get_unary_binary_ops());
+                    palt2->allow_internal_inputs();
+                    alt_graph2->create_input_port(0, palt2, 0);
+                    alt_graph2->create_output_port(0, palt2, 0);
+
+                    pgraph->append_repetition(alt_graph2, {0, 0}, 0,
+                            MAX_REPETITION,
+                            in_edges_t {in_edge(0, popt_bias2, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_conv_fwd>();

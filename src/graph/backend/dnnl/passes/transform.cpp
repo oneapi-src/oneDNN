@@ -945,10 +945,14 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                 fusion_info.append_post_binary(post_op->shared_from_this(),
                         std::vector<size_t> {base_op->num_inputs()});
             } else if (post_op->get_kind() == op_kind::dnnl_convolution) {
-                // TODO(xx) if dw_conv has bias, we also need to put it into the
-                // unfused input indices
-                fusion_info.append_post_dw_conv(post_op->shared_from_this(),
-                        std::vector<size_t> {base_op->num_inputs()});
+                if (post_op->num_inputs() > 2) {
+                    fusion_info.append_post_dw_conv(post_op->shared_from_this(),
+                            std::vector<size_t> {base_op->num_inputs(),
+                                    base_op->num_inputs() + 1});
+                } else {
+                    fusion_info.append_post_dw_conv(post_op->shared_from_this(),
+                            std::vector<size_t> {base_op->num_inputs()});
+                }
             } else {
                 // unsupported post ops
                 continue;

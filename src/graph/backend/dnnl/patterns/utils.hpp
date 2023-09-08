@@ -71,6 +71,19 @@ bool check_input_dtype_from_offset(op_t *op) {
     return true;
 }
 
+template <dim N>
+static inline bool check_conv_weight_size(op_t *op) {
+    std::string weight_fmt = op->get_attr<std::string>(op_attr::weights_format);
+    const logical_tensor_t &weight_lt
+            = op->get_input_value(1)->get_logical_tensor();
+    const auto weight_lt_wrapper = logical_tensor_wrapper_t(weight_lt);
+    if (weight_lt_wrapper.ndims() == DNNL_GRAPH_UNKNOWN_NDIMS) { return false; }
+    dims fil_sp = weight_lt_wrapper.get_weight_spatial_dims(weight_fmt);
+    bool all_equal = std::all_of(
+            fil_sp.begin(), fil_sp.end(), [](dim value) { return value == N; });
+    return all_equal;
+}
+
 template <data_type_t DTYPE>
 bool check_output_dtype(op_t *op) {
     for (size_t i = 0; i < op->num_outputs(); ++i) {

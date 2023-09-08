@@ -1330,7 +1330,8 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
     g.add_op(&depthwise);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("fp_conv_depthwise_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass("fp_conv_postops_depthwise_postops_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1346,6 +1347,62 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
     ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
     // fused conv and to_groupped ops
     ASSERT_EQ(subgraph->num_ops(), 2U);
+}
+
+TEST(SubgraphPass, FailToFusePostOpsForConvDepthwise) {
+    /*   conv
+          |
+         conv (depthwise)
+    */
+    graph::engine_t *g_eng = get_engine();
+    dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
+
+    // N, IC, IH, IW
+    std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    std::vector<int64_t> conv_wei_shape {4, 4, 1, 1};
+    // N, OC, OH, OW
+    std::vector<int64_t> conv_dst_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    std::vector<int64_t> dw_wei_shape {4, 1, 3, 3};
+    // N, OC, OH, OW
+    std::vector<int64_t> dw_dst_shape {4, 4, 2, 2};
+
+    graph::op_t conv {0, graph::op_kind::Convolution, "conv"};
+    set_conv_dw_base_op_attr(conv);
+
+    graph::op_t depthwise {1, graph::op_kind::Convolution, "depthwise"};
+    set_conv_dw_post_op_attr(depthwise, "k3s2p1");
+
+    graph::logical_tensor_t conv_src
+            = logical_tensor_init(0, graph::data_type::f32);
+    graph::logical_tensor_t conv_wei
+            = logical_tensor_init(1, graph::data_type::f32);
+    graph::logical_tensor_t conv_dst
+            = logical_tensor_init(2, graph::data_type::f32);
+
+    graph::logical_tensor_t dw_wei
+            = logical_tensor_init(3, graph::data_type::f32);
+    graph::logical_tensor_t dw_dst
+            = logical_tensor_init(4, graph::data_type::f32);
+
+    conv.add_input(conv_src);
+    conv.add_input(conv_wei);
+    conv.add_output(conv_dst);
+
+    depthwise.add_input(conv_dst);
+    depthwise.add_input(dw_wei);
+    depthwise.add_output(dw_dst);
+
+    graph::graph_t g;
+    g.add_op(&conv);
+    g.add_op(&depthwise);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass
+            = get_pass("fp_conv_postops_depthwise_postops_cpu");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 0U);
 }
 
 TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {

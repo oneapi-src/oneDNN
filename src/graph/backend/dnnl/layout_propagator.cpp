@@ -141,19 +141,29 @@ status_t layout_propagator_for_conv(op_ptr &op, const dnnl::engine &p_engine,
         int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         fusion_info = mgr.get_info(key);
     }
+
     if (fusion_info.has_post_dw_conv()) {
         const auto &dw_conv = fusion_info.get_post_dw_conv();
-        auto dw_wei_idx = dw_conv->get_unfused_input_indices();
-        // TODO(xx) support bias
-        assertm(dw_wei_idx.size() == 1,
-                "not support bias for fused dw_conv now");
+        auto dw_idx = dw_conv->get_unfused_input_indices();
+        value_ptr dw_wei = op->get_input_value(dw_idx[0]);
+        value_ptr dw_bias = nullptr;
+        if (dw_conv->get_unfused_input_indices().size() > 1) {
+            dw_bias = op->get_input_value(dw_idx[1]);
+        }
 
         const auto &dw_wei_opt_mdesc = pd.query_md(query::exec_arg_md,
                 DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-        insert_reorder_before(op, dw_wei_idx[0], dw_wei_opt_mdesc, p_engine,
-                mgr, pd_cache, rewriter);
-        value_ptr dw_wei = op->get_input_value(2);
+        insert_reorder_before(op, dw_idx[0], dw_wei_opt_mdesc, p_engine, mgr,
+                pd_cache, rewriter);
         status = fill_layout_info(dw_wei, dw_wei_opt_mdesc);
+
+        if (dw_conv->get_unfused_input_indices().size() > 1) {
+            const auto &dw_bias_opt_mdesc = pd.query_md(query::exec_arg_md,
+                    DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+            insert_reorder_before(op, dw_idx[1], dw_bias_opt_mdesc, p_engine,
+                    mgr, pd_cache, rewriter);
+            status = fill_layout_info(dw_bias, dw_bias_opt_mdesc);
+        }
         if (status != status::success) return status;
     }
     // insert a reorder if output layout is different from output optimal layout

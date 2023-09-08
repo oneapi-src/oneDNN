@@ -165,6 +165,8 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             is_post_sum = is_post_sum
                     && logical_tensor_wrapper_t(dst).vdims()
                             == logical_tensor_wrapper_t(psrc).vdims();
+            // sum post-op cannot be a part of post-op chain in dw post-op case
+            is_post_sum = is_post_sum && !fusion_info.has_post_dw_conv();
             // dst should have equal or larger memory size than post src
             is_post_sum = is_post_sum
                     && (psrc.data_type == dst.data_type
@@ -218,8 +220,6 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             }
         } else if (fused_op_kind == op_kind::dnnl_convolution) {
             const auto &extra_input_indices = pop->get_unfused_input_indices();
-            assertm(extra_input_indices.size() == 1,
-                    "post-conv doesn't support extra bias inputs now");
 
             auto get_dnn_dt = [](const std::shared_ptr<value_t> &val) {
                 using ltw = logical_tensor_wrapper_t;
@@ -237,7 +237,14 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                     op_attr::strides)[0];
             const int64_t pad_l = fused_op->get_attr<std::vector<int64_t>>(
                     op_attr::pads_begin)[0];
-            dnnl_pops.append_dw(wei_dt, bia_dt, dst_dt, ks, stride, pad_l);
+            if (extra_input_indices.size() > 1) {
+                const size_t bias_idx = extra_input_indices[1];
+                auto bias_value = op->get_input_value(bias_idx);
+                const auto bia_dt = get_dnn_dt(bias_value);
+                dnnl_pops.append_dw(wei_dt, bia_dt, dst_dt, ks, stride, pad_l);
+            } else {
+                dnnl_pops.append_dw(wei_dt, bia_dt, dst_dt, ks, stride, pad_l);
+            }
         } else {
             // not reachable
         }

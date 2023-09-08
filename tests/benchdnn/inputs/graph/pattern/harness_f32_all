@@ -26,6 +26,8 @@
 # This fusion pattern is not support on GPU engine for now, will split into 2
 # partitions with GPU engine
 --reset --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --case=pattern/f32/conv_bias_relu_depthwise_bias_relu_fusion_cpu.json
+--reset --case=pattern/f32/conv_bias_mul_mul_depthwise_bias_swish_fusion_cpu.json
 --reset --in-shapes=0:2x128x56x56+1:128x128x1x1+3:128x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:128 --case=pattern/f32/conv_depthwise_fusion_cpu.json
 --reset --in-shapes=0:2x24x56x56+1:144x24x1x1+3:144x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:144 --case=pattern/f32/conv_depthwise_fusion_cpu.json
 --reset --in-shapes=0:2x256x28x28+1:256x256x1x1+3:256x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:256 --case=pattern/f32/conv_depthwise_fusion_cpu.json
