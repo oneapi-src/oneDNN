@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 #include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/brgemm/brgemm_utils.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/x64/jit_avx512_core_scale_precompute.hpp"
 #include "cpu/x64/jit_avx512_sparse_decompress_kernel.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_copy_utils.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
@@ -151,6 +152,7 @@ private:
     std::unique_ptr<cpu_accumulator_1d_t<data_type::s32>> acc_ker_s32_;
     std::unique_ptr<jit_avx512_sparse_decompress_kernel_t>
             sparse_decompress_kernel_;
+    std::unique_ptr<jit_avx512_core_scale_precompute_t> jit_scale_precompute_;
 };
 
 } // namespace matmul

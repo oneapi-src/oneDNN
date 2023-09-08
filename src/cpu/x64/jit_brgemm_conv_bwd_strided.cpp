@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -619,6 +619,20 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::init(
         CHECK(comp_vpad_pbuffer_->create_kernel());
     }
 
+    // JIT to precompute scales
+    const bool is_jit_supported = mayiuse(avx512_core);
+    const auto attr = _pd->attr();
+    if (is_jit_supported && req_copy_scales(attr, jcp.scale_adjust_factor)) {
+        const auto &attr_scales = attr->scales_;
+        int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+        if (wei_scale_mask != 0) {
+            CHECK(safe_ptr_assign(jit_scale_precompute_,
+                    new jit_avx512_core_scale_precompute_t(
+                            jcp.scale_adjust_factor)));
+            CHECK(jit_scale_precompute_->create_kernel());
+        }
+    }
+
     const auto ow_block = jcp.owp;
     const auto oh_block = jcp.ohp;
     const auto od_block = jcp.odp;
@@ -659,9 +673,11 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, _pd->IC(), _pd->attr(),
-            jcp.scale_adjust_factor);
+    const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
+
+    const float *oscales = scale_utils::precompute_scales(scratchpad,
+            src_scales, wei_scales, pd()->IC(), pd()->attr(),
+            jit_scale_precompute_.get(), jcp.scale_adjust_factor);
 
     brgemm_bwd_exec_ctx_t brgemm_ctx(ctx, _pd);
 
@@ -686,7 +702,6 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
                     + (jcp.s8s8_compensation_required ? s8s8_comp_offset : 0)
             : nullptr;
 
-    const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
     brgemm_batch_element_t *const __restrict brg_batch_global
             = (jcp.brg_type == brgemm_strd && jcp.exec_type != exec_vpad)
             ? nullptr

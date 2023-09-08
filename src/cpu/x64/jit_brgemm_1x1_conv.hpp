@@ -31,6 +31,7 @@
 #include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/x64/jit_avx512_core_scale_precompute.hpp"
 #include "cpu/x64/jit_brgemm_conv_trans_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
@@ -158,6 +159,7 @@ private:
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_rtus_kernel_t>
             rtus_kernel_;
+    std::unique_ptr<jit_avx512_core_scale_precompute_t> jit_scale_precompute_;
 
     const memory_desc_wrapper bias_d;
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -237,6 +237,19 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
         CHECK(sparse_decompress_kernel_->create_kernel());
     }
 
+    // JIT to precompute scales
+    const bool is_jit_supported = mayiuse(avx512_core);
+    const auto attr = pd()->attr();
+    if (is_jit_supported && req_copy_scales(attr)) {
+        const auto &attr_scales = attr->scales_;
+        int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+        if (wei_scale_mask != 0) {
+            CHECK(safe_ptr_assign(jit_scale_precompute_,
+                    new jit_avx512_core_scale_precompute_t()));
+            CHECK(jit_scale_precompute_->create_kernel());
+        }
+    }
+
     return status::success;
 }
 
@@ -254,9 +267,9 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
     matmul_helper_t helper(src_d, weights_d, dst_d);
 
-    auto &scratchpad = ctx.get_scratchpad_grantor();
-    const float *oscales = precompute_scales(
-            scratchpad, src_scales, wei_scales, pd()->N(), pd()->attr());
+    const float *oscales = scale_utils::precompute_scales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->N(),
+            pd()->attr(), jit_scale_precompute_.get());
 
     brg_matmul_exec_ctx_t brgmm_ctx(ctx, pd(), oscales, src_zero_point,
             wei_zero_point, dst_zero_point, dst_scales, helper);

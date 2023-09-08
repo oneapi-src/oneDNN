@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
-#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/jit_avx512_core_amx_1x1_convolution.hpp"
 
@@ -74,8 +73,9 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, pd()->OC(), pd()->attr());
+    const float *oscales = scale_utils::precompute_scales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->OC(),
+            pd()->attr(), jit_scale_precompute_.get());
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
