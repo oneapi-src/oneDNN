@@ -77,7 +77,7 @@ bool is_fused_kernel_applicable(lnorm_conf_t &conf,
     int min_num_c_blocks = 2;
     int max_num_c_blocks = 32;
     int max_ss_util = 32;
-    const int best_num_blocks = [=]() {
+    const int best_num_blocks = [&]() {
         int num_blocks = 1;
         int best_num = num_blocks;
         float ss_util = get_ss_utilization(conf.across_axis, max_ss);
@@ -100,14 +100,14 @@ bool is_fused_kernel_applicable(lnorm_conf_t &conf,
 
     // Setup across axis blocking
     // based on number of blocks, number of threads, slm buffer and wg size
-    auto get_wg_size = [=](const int num_n_blocks) {
+    auto get_wg_size = [&](const int num_n_blocks) {
         return conf.sub_group_size
                 * nstl::max(num_n_blocks, conf.num_norm_blocks_fused);
     };
-    auto get_num_thrs = [=](const int num_n_blocks) {
+    auto get_num_thrs = [&](const int num_n_blocks) {
         return num_n_blocks * conf.num_norm_blocks_fused;
     };
-    auto get_slm_size = [=](const int num_n_blocks) {
+    auto get_slm_size = [&](const int num_n_blocks) {
         const size_t scale_shift_size
                 = 2 * num_n_blocks * conf.norm_block_fused * sizeof(float);
         const size_t dd_gamma_size = conf.calculate_stats
@@ -116,17 +116,14 @@ bool is_fused_kernel_applicable(lnorm_conf_t &conf,
                 : 0;
         return scale_shift_size + dd_gamma_size;
     };
-    auto get_num_blocks = [=](const int n_block) {
+    auto get_num_blocks = [&](const int n_block) {
         return utils::div_up(conf.across_axis, n_block);
-    };
-    auto get_block = [=](const int num_blocks) {
-        return utils::div_up(conf.across_axis, num_blocks);
     };
     // Limit values experimentally selected, based on PVC perf data.
     int min_n_block = 4;
     int max_n_block = 12;
     int min_num_thrs = 160;
-    const int best_n_block = [=]() {
+    const int best_n_block = [&]() {
         int block = min_n_block;
         int best_block = block;
         while (block <= max_n_block) {
@@ -312,7 +309,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         };
         const int max_num_blocks = gpu_arch >= gpu_arch_t::xe_hpc ? 8 : 16;
         const int min_num_blocks = 4;
-        const int best_num_blocks = [=]() {
+        const int best_num_blocks = [&]() {
             int num_blocks = 1;
             int best_num = num_blocks;
             float ss_util = get_ss_utilization(num_wgs, max_ss);
