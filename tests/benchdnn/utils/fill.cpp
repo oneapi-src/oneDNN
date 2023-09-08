@@ -39,8 +39,8 @@ int fill_scales(const attr_t::arg_scales_t::entry_t &e, dnn_mem_t &mem_dt,
         if (mem_dt) mem_dt.set_elem(0, e.scale);
     } else {
         /* Do fixed partitioning to have same filling for any number of threads */
-        const int64_t n_chunks = 16;
-        const int64_t chunk_size = div_up(nelems, n_chunks);
+        static constexpr int64_t chunk_size = 64;
+        const int64_t n_chunks = div_up(nelems, chunk_size);
         benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
             int64_t idx_start = idx_chunk * chunk_size;
             int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
@@ -82,8 +82,8 @@ int fill_zero_points(
         if (mem_dt) mem_dt.set_elem(0, e.value);
     } else {
         /* Do fixed partitioning to have same filling for any number of threads */
-        const int64_t n_chunks = 16;
-        const int64_t chunk_size = div_up(nelems, n_chunks);
+        static constexpr int64_t chunk_size = 64;
+        const int64_t n_chunks = div_up(nelems, chunk_size);
         benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
             int64_t idx_start = idx_chunk * chunk_size;
             int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
@@ -112,8 +112,8 @@ int fill_random_real(dnn_mem_t &mem_dt) {
     if (nelems == 0) return OK;
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    static constexpr int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    static constexpr int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
