@@ -14,9 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/atomic_reduction.hpp"
+#include "common/compiler_workarounds.hpp"
+
 #include "common/eltwise_pd.hpp"
 #include "common/scratchpad.hpp"
+#include "gpu/ocl/atomic_reduction.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
