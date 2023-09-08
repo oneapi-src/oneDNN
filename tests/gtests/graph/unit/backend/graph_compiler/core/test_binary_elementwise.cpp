@@ -51,22 +51,16 @@ static void binary_add_ref(const sc_dims &lhs_plain_dims,
     sc_dims output_strides = test_utils::compute_dense_stride(out_plain_dims);
     const size_t total_size = out.size();
     utils::parallel_for(0, total_size, 1, [&](int64_t i) {
-        sc_dims output_idx
-                = test_utils::flattened_idx_to_ndims_idx(i, output_strides);
-        sc_dims lhs_idx(output_idx.size());
-        sc_dims rhs_idx(output_idx.size());
-        for (size_t d = 0; d < lhs_idx.size(); ++d) {
-            lhs_idx[d] = extended_lhs_plain_dims[d] == 1 ? 0 : output_idx[d];
+        size_t lhs_idx_flattened = 0, rhs_idx_flattened = 0;
+        size_t idx = i;
+        for (size_t d = 0; d < output_strides.size(); ++d) {
+            auto output_idx = idx / output_strides[d];
+            idx -= output_idx * output_strides[d];
+            auto lhs_idx = extended_lhs_plain_dims[d] == 1 ? 0 : output_idx;
+            lhs_idx_flattened += lhs_idx * lhs_strides[d];
+            auto rhs_idx = extended_rhs_plain_dims[d] == 1 ? 0 : output_idx;
+            rhs_idx_flattened += rhs_idx * rhs_strides[d];
         }
-        for (size_t d = 0; d < rhs_idx.size(); ++d) {
-            rhs_idx[d] = extended_rhs_plain_dims[d] == 1 ? 0 : output_idx[d];
-        }
-        auto prod_lhs = math_utils::vector_mul(lhs_idx, lhs_strides);
-        size_t lhs_idx_flattened
-                = std::accumulate(prod_lhs.begin(), prod_lhs.end(), 0);
-        auto prod_rhs = math_utils::vector_mul(rhs_idx, rhs_strides);
-        size_t rhs_idx_flattened
-                = std::accumulate(prod_rhs.begin(), prod_rhs.end(), 0);
         out[i] = lhs[lhs_idx_flattened] + rhs[rhs_idx_flattened];
     });
 }

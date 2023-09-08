@@ -87,7 +87,9 @@ SC_INTERNAL_API void eliminate_zero_shaped_tensors(
                 if (!op->info_.inputs_.empty()) { // only one input left
                     auto &input_left = op->info_.inputs_.front();
                     for (auto &out_tsr : op->get_outputs()) {
-                        for (auto &idx_op : out_tsr->uses_) {
+                        // replace_input may change the uses, we need to copy it
+                        auto uses = out_tsr->uses_;
+                        for (auto &idx_op : uses) {
                             idx_op.second->replace_input(
                                     idx_op.first, input_left);
                         }
