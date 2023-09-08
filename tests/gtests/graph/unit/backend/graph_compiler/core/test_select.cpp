@@ -62,29 +62,19 @@ static void select_ref(const sc_dims &cond_plain_dims,
 
     const size_t total_size = out.size();
     utils::parallel_for(0, total_size, 1, [&](int64_t i) {
-        sc_dims output_idx
-                = test_utils::flattened_idx_to_ndims_idx(i, output_strides);
-        sc_dims cond_idx(output_idx.size());
-        sc_dims then_idx(output_idx.size());
-        sc_dims else_idx(output_idx.size());
-        for (size_t d = 0; d < cond_idx.size(); ++d) {
-            cond_idx[d] = extended_cond_plain_dims[d] == 1 ? 0 : output_idx[d];
+        size_t cond_idx_flattened = 0, then_idx_flattened = 0,
+               else_idx_flattened = 0;
+        size_t idx = i;
+        for (size_t d = 0; d < output_strides.size(); ++d) {
+            auto output_idx = idx / output_strides[d];
+            idx -= output_idx * output_strides[d];
+            size_t cond_idx = extended_cond_plain_dims[d] == 1 ? 0 : output_idx;
+            cond_idx_flattened += cond_idx * cond_strides[d];
+            cond_idx = extended_then_plain_dims[d] == 1 ? 0 : output_idx;
+            then_idx_flattened += cond_idx * then_strides[d];
+            cond_idx = extended_else_plain_dims[d] == 1 ? 0 : output_idx;
+            else_idx_flattened += cond_idx * else_strides[d];
         }
-        for (size_t d = 0; d < then_idx.size(); ++d) {
-            then_idx[d] = extended_then_plain_dims[d] == 1 ? 0 : output_idx[d];
-        }
-        for (size_t d = 0; d < else_idx.size(); ++d) {
-            else_idx[d] = extended_else_plain_dims[d] == 1 ? 0 : output_idx[d];
-        }
-        auto prod_cond = math_utils::vector_mul(cond_idx, cond_strides, false);
-        size_t cond_idx_flattened
-                = std::accumulate(prod_cond.begin(), prod_cond.end(), 0);
-        auto prod_then = math_utils::vector_mul(then_idx, then_strides, false);
-        size_t then_idx_flattened
-                = std::accumulate(prod_then.begin(), prod_then.end(), 0);
-        auto prod_else = math_utils::vector_mul(else_idx, else_strides, false);
-        size_t else_idx_flattened
-                = std::accumulate(prod_else.begin(), prod_else.end(), 0);
         out[i] = cond[cond_idx_flattened] > 0UL ? then[then_idx_flattened]
                                                 : els[else_idx_flattened];
     });
