@@ -191,11 +191,28 @@ inline bool blocking_desc_is_equal(const memory_desc_t &lhs_md,
         const memory_desc_t &rhs_md, bool ignore_strides = false) {
     using dnnl::impl::utils::array_cmp;
 
-    assert(lhs_md.format_kind == format_kind::blocked);
-    assert(rhs_md.format_kind == format_kind::blocked);
+    auto is_sparse_packed_desc = [](const memory_desc_t &md) {
+        return md.format_kind == format_kind::sparse
+                && md.format_desc.sparse_desc.encoding
+                == sparse_encoding::packed;
+    };
 
-    const auto &lhs = lhs_md.format_desc.blocking;
-    const auto &rhs = rhs_md.format_desc.blocking;
+    const bool lhs_is_sparse_packed_desc = is_sparse_packed_desc(lhs_md);
+    const bool rhs_is_sparse_packed_desc = is_sparse_packed_desc(rhs_md);
+
+    if (lhs_md.format_kind != format_kind::blocked
+            && !lhs_is_sparse_packed_desc)
+        return false;
+    if (rhs_md.format_kind != format_kind::blocked
+            && !rhs_is_sparse_packed_desc)
+        return false;
+
+    const auto &lhs = lhs_md.format_kind == format_kind::sparse
+            ? lhs_md.format_desc.sparse_desc.packed_desc
+            : lhs_md.format_desc.blocking;
+    const auto &rhs = rhs_md.format_kind == format_kind::sparse
+            ? rhs_md.format_desc.sparse_desc.packed_desc
+            : rhs_md.format_desc.blocking;
     bool equal = lhs.inner_nblks == rhs.inner_nblks
             && array_cmp(lhs.inner_blks, rhs.inner_blks, lhs.inner_nblks)
             && array_cmp(lhs.inner_idxs, rhs.inner_idxs, lhs.inner_nblks);
@@ -959,31 +976,7 @@ inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag) {
             md_gold, md.ndims, md.dims, md.data_type, tag);
     if (status != status::success) return false;
 
-    const bool is_sparse_packed_desc = md.format_kind == format_kind::sparse
-            && md.format_desc.sparse_desc.encoding == sparse_encoding::packed;
-
-    if (md.format_kind != format_kind::blocked && !is_sparse_packed_desc)
-        return false; // unimplemented yet
-
-    const auto &blk = md.format_kind == format_kind::blocked
-            ? md.format_desc.blocking
-            : md.format_desc.sparse_desc.packed_desc;
-
-    const auto &blk_gold = md_gold.format_desc.blocking;
-
-    using utils::array_cmp;
-    bool same_blocks = true && blk.inner_nblks == blk_gold.inner_nblks
-            && array_cmp(blk.inner_blks, blk_gold.inner_blks, blk.inner_nblks)
-            && array_cmp(blk.inner_idxs, blk_gold.inner_idxs, blk.inner_nblks);
-
-    if (!same_blocks) return false;
-
-    for (int d = 0; d < md.ndims; ++d) {
-        if (md.dims[d] == 1) continue; // stride of unit dim is meaningless
-        if (blk.strides[d] != blk_gold.strides[d]) return false;
-    }
-
-    return true;
+    return types::blocking_desc_is_equal(md, md_gold);
 }
 
 /** returns matching tag (or undef if match is not found)
