@@ -112,7 +112,6 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
         status_t init_conf(engine_t *engine);
 
         gen9_eltwise_jit_params_t conf;
-        offsets_t off;
     };
 
     status_t init(engine_t *engine) override {
@@ -169,8 +168,6 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
         status_t init_conf(engine_t *engine);
 
         gen9_eltwise_jit_params_t conf;
-        offsets_t off;
-        bool use_dense;
     };
 
     status_t init(engine_t *engine) override {
