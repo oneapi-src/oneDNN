@@ -86,18 +86,16 @@ inline bool is_amx_dtype(const context_ptr &ctx, const sc_data_type_t &dtype) {
 
 inline bool is_vnni_low_fp(
   const context_ptr &ctx, const sc_data_type_t &dtype) {
-  return dtype == datatypes::bf16
-    || (ctx->machine_.cpu_flags_.fAVX512AMXFP16 && dtype == datatypes::f16);
+  return dtype == datatypes::bf16;
 }
 
 inline bool no_vnni_low_fp(
   const context_ptr &ctx, const sc_data_type_t &dtype) {
-  return ctx->machine_.cpu_flags_.fAVX512FP16 && dtype == datatypes::f16;
+  return dtype == datatypes::f16;
 }
 
 inline bool no_vnni(const context_ptr &ctx, const sc_data_type_t &dtype) {
-  return dtype == datatypes::f32
-    || (ctx->machine_.cpu_flags_.fAVX512FP16 && dtype == datatypes::f16);
+  return dtype == datatypes::f32 || dtype == datatypes::f16;
 }
 
 inline std::vector<expr> dims_to_expr(const sc_dims &dim) {

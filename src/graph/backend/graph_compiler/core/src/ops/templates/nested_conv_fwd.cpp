@@ -4830,7 +4830,7 @@ bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
       "data, the mixed datatypes is not supported yet!");
     COMPILE_ASSERT((dtypeOutput == datatypes::f32),
       "Output should be f32 when data and weights are in f16.");
-    kpack = ctx->machine_.cpu_flags_.fAVX512AMXFP16 ? 2 : 1;
+    kpack = 1;
   }
   if (utils::is_one_of(dtypeInput, datatypes::s8, datatypes::u8)) {
     COMPILE_ASSERT((dtypeWeight == datatypes::s8),
