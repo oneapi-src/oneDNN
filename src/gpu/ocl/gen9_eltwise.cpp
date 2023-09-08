@@ -74,14 +74,7 @@ compute::kernel_ctx_t gen9_eltwise_jit_params_t::get_kernel_ctx() const {
 
     kernel_ctx.define_int("NELEMS_OVERFLOW", with_overflow);
 
-    // attribute for wg-size and subgroup-size
-    kernel_ctx.define_int("GWS_WITH_SG_DEFAULT", 1);
-    // wg-size
-    kernel_ctx.define_int("GWS_LWS0_DEFAULT", work_group_size);
-    kernel_ctx.define_int("GWS_LWS1_DEFAULT", 1);
-    kernel_ctx.define_int("GWS_LWS2_DEFAULT", 1);
-    // subgroup-size
-    kernel_ctx.define_int("GWS_SGS_DEFAULT", sub_group_size);
+    kernel_ctx.define_int("SIMD", sub_group_size);
 
     return kernel_ctx;
 }

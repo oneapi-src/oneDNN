@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,9 +15,9 @@
 *******************************************************************************/
 
 #define DT_UNDEF 1
-#include "gpu/ocl/ocl_types.h"
-
+#include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/ocl_math_utils.h"
+#include "gpu/ocl/ocl_types.h"
 
 #undef SRC_OFF
 #undef DST_OFF

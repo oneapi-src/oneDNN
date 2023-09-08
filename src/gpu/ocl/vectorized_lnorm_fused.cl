@@ -18,6 +18,7 @@
 #endif
 #define VECT_DT_N VECT_SIZE_FUSED
 
+#include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/ocl_types.h"
 
 #undef SRC_OFF

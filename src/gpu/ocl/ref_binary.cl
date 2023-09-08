@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/binary_types.h"
+#include "gpu/ocl/dispatch.h"
 
 #if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD && !WITH_BINARY_POST_OP
 KERNEL_ATTR

@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/ocl_eltwise.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/types_interop.h"

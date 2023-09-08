@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/ocl_types.h"
 
 #include "gpu/ocl/concat_common.h"

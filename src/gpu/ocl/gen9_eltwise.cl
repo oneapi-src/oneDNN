@@ -17,11 +17,9 @@
 #include "gpu/ocl/ocl_eltwise.h"
 #include "gpu/ocl/ocl_post_ops.h"
 
-#define SIMD GWS_SGS_DEFAULT
-
-KERNEL_ATTR
-__kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
-        dim_t nelems, float alpha, float beta) {
+__attribute__((intel_reqd_sub_group_size(SIMD))) __kernel void gen9_eltwise_fwd(
+        __global DATA_T *src, __global DATA_T *dst, dim_t nelems, float alpha,
+        float beta) {
     const dim_t grsize = get_local_size(0);
     const dim_t grid = get_group_id(0);
     const dim_t sgid = get_sub_group_id();
@@ -73,8 +71,8 @@ __kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
     }
 }
 
-KERNEL_ATTR
-__kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
+__attribute__((intel_reqd_sub_group_size(SIMD))) __kernel void gen9_eltwise_bwd(
+        __global DATA_T *src, __global DATA_T *diff_src,
         __global DATA_T *diff_dst, dim_t nelems, float alpha, float beta) {
     const dim_t grsize = get_local_size(0);
     const dim_t grid = get_group_id(0);

@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/binary_types.h"
+#include "gpu/ocl/dispatch.h"
 
 #if IS_PLAIN_LAYOUT
 KERNEL_ATTR

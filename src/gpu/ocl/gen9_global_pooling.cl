@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/ocl_types.h"
 
 #define ALG_AVG (ALG_AVG_NP || ALG_AVG_P)

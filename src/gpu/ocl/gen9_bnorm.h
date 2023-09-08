@@ -17,6 +17,7 @@
 #define GPU_OCL_GEN9_BNORM_H
 
 #define VECT_DT_N VECT_SIZE
+#include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/ocl_types.h"
 
 #define IS_IC_EQ_8 (IC == 8)
