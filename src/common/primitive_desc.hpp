@@ -423,6 +423,18 @@ protected:
 
     /* static magic */
 
+    template <typename pd_t, typename... Args>
+    static std::unique_ptr<pd_t> make_unique_pd(Args &&...args) {
+        /** the only reason why this class is here is the inability of
+         * utils::make_unique() to operate on protected parent classes
+         * of the derivative pd_t's; compilers should optimize it out */
+        class pd_t_compat : public pd_t {
+        public:
+            pd_t_compat(Args &&...args) : pd_t(std::forward<Args>(args)...) {}
+        };
+        return utils::make_unique<pd_t_compat>(std::forward<Args>(args)...);
+    }
+
     template <typename pd_t>
     static status_t create(primitive_desc_t **pd, const op_desc_t *adesc,
             const primitive_attr_t *attr, engine_t *engine,
@@ -433,14 +445,13 @@ protected:
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
         auto hint
                 = reinterpret_cast<const typename pd_t::hint_class *>(hint_fwd);
-        auto _pd = std::unique_ptr<pd_t>(
-                new pd_t((const pd_op_desc_t *)adesc, attr, hint));
+        auto _pd
+                = make_unique_pd<pd_t>((const pd_op_desc_t *)adesc, attr, hint);
         if (_pd == nullptr) return out_of_memory;
-        if (!_pd->is_initialized()) { return out_of_memory; }
+        if (!_pd->is_initialized()) return out_of_memory;
         CHECK(_pd->init(engine));
         CHECK(_pd->init_scratchpad_md());
-        *pd = _pd.release();
-        return success;
+        return safe_ptr_assign(*pd, _pd.release());
     }
 
     friend struct dnnl::impl::impl_list_item_t;

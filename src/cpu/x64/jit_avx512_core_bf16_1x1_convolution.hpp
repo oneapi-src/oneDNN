@@ -236,9 +236,9 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             auto dw_dst_dt = cd_dw.dst_desc.data_type;
 
 #define CASE(dt) \
-    case dt: { \
-        std::unique_ptr<dw_pd_t<dt>> fusable_pd( \
-                new dw_pd_t<dt>(&cd_dw, &attr_dw, nullptr)); \
+    case (dt): { \
+        auto fusable_pd \
+                = make_unique_pd<dw_pd_t<(dt)>>(&cd_dw, &attr_dw, nullptr); \
         CHECK(fusable_pd->init(engine)); \
         jcp_dw = &(fusable_pd->jcp_); \
         dw_conv_pd_ = std::move(fusable_pd); \
