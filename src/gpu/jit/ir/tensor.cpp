@@ -534,10 +534,7 @@ layout_t view_t::create_pseudo_vlayout(
         dim_t &rem_vdim = rem_vdims[vidx];
         if (rem_vdim == 1) continue;
 
-        if (tb_is_outermost) {
-            tblock = rem_vdim;
-            rem_vdim = 1;
-        } else if (rem_vdim % tblock == 0) {
+        if (rem_vdim % tblock == 0) {
             rem_vdim /= tblock;
         } else if (rem_vdim % tblock != 0) {
             // Try to split the current block and start from scratch.
