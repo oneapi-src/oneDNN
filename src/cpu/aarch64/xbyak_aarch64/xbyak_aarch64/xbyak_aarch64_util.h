@@ -70,19 +70,6 @@ struct implementer_t {
   const char *implementer;
 };
 
-/* 2023.02.11
-   cacheInfo_t does not need to be disclosed. */
-#if defined(__GNUC__) || defined(__clang_version__)
-struct __attribute__((deprecated)) cacheInfo_t {
-#elif defined(_MSC_VER)
-struct __declspec(deprecated) cacheInfo_t {
-#endif
-  uint64_t midr_el1;
-  uint32_t dataCacheLevel;
-  uint32_t highestInnerCacheLevel;
-  uint32_t dataCacheSize[maxCacheLevel];
-};
-
 /**
    CPU detection class
 */
@@ -97,10 +84,6 @@ public:
   void dumpCacheInfo() const;
   Arm64CacheType getCacheType(const Arm64CacheLevel i) const;
   uint32_t getCoresSharingDataCache(const Arm64CacheLevel i) const;
-  /* 2023.02.11 */
-#if defined(__GNUC__) || defined(__clang_version__)
-  uint32_t __attribute__((deprecated("Please use getLastDataCacheLevel()"))) getDataCacheLevels() const;
-#endif
   uint32_t getDataCacheSize(const Arm64CacheLevel i) const;
   const char *getImplementer() const;
   uint32_t getLastDataCacheLevel() const;
