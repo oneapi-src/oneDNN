@@ -283,7 +283,7 @@ int fill_memory(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     }
 
     // 3. We reorder the data for the DNNL RNN primitive
-    mem_dt.reorder(mem_fp, reorder_attr);
+    SAFE(mem_dt.reorder(mem_fp, reorder_attr), WARN);
     if ((reorder_attr != nullptr) && (dt == dnnl_s8))
         if (check_s8s8_reorder(prb, kind, mem_dt, mem_fp) != OK) return FAIL;
 
@@ -474,7 +474,7 @@ int fill_weights(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     // Pass rnn attributes to f32 -> s8 reorders only
     const_dnnl_primitive_attr_t reorder_attr = nullptr;
     if (prb.is_int8()) reorder_attr = attr;
-    mem_dt.reorder(mem_pure_fp, reorder_attr);
+    SAFE(mem_dt.reorder(mem_pure_fp, reorder_attr), WARN);
 
     // Test that s8 -> s8 reorder works correctly
     if ((reorder_attr != nullptr) && (c.dt == dnnl_s8))
