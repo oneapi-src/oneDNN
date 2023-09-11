@@ -446,6 +446,15 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dnn_mem_t::init_csr_md(int ndims,
             &md, ndims, dims, data_type, nnz, indices_dt, pointers_dt));
     return md;
 }
+
+benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dnn_mem_t::init_sparse_packed_md(
+        int ndims, const dnnl_dims_t dims, dnnl_data_type_t data_type,
+        dnnl_dim_t nnz) {
+    dnnl_memory_desc_t md {};
+    DNN_SAFE_V(dnnl_memory_desc_create_with_packed_encoding(
+            &md, ndims, dims, data_type, nnz));
+    return md;
+}
 #endif
 
 int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
