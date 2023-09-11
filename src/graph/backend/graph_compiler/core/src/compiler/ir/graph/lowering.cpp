@@ -1483,7 +1483,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         if (num_ops > 2 || rtl_cfg.get_num_threads() == 1
                 || gflop / rtl_cfg.get_num_threads() > 0.0666f) {
             use_managed_thread_pool = true;
-        } else if (ctx->use_amx() && !graph.is_dynamic()) {
+        } else if (ctx->use_amx()) {
             use_managed_thread_pool = true;
         }
     }

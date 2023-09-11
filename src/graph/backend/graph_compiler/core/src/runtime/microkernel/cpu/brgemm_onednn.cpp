@@ -496,6 +496,9 @@ struct brg_desc_safe_t {
             auto itr_pair = palettes_.insert(palette_ptr_t(palette_buffer));
             found_kernel->palette_ = itr_pair.first->ptr_;
             amx_tile_configure(found_kernel->palette_);
+            dnnl::impl::graph::gc::runtime::thread_local_buffer_t::tls_buffer()
+                    .amx_buffer_.cur_palette
+                    = found_kernel->palette_;
             found_kernel->is_amx_ = true;
         } else {
             found_kernel->palette_ = nullptr;
