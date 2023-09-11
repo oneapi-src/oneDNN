@@ -323,8 +323,8 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         while (K / iik_block / K_split_num < K_sub_block && K_sub_block > 1) {
             K_sub_block--;
         }
-        if (is_f32 && K <= 1024) { K_sub_block = 1; }
-        if (is_bf16 && K < 4096) { K_sub_block = 1; }
+        if (is_f32 && K < 1024) { K_sub_block = 1; }
+        if (is_bf16 && K < 2048) { K_sub_block = 1; }
         int L2_K = utils::divide_and_ceil(
                            utils::divide_and_ceil(single_K, iik_block),
                            K_sub_block)
