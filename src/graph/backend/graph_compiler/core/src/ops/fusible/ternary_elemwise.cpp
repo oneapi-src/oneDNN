@@ -586,8 +586,11 @@ void compute_block_select(const context_ptr &ctx,
     // use src_indices.at(0) as default
     for (unsigned i = 0; i < dst.nslice_dims(); i++) {
         // make the loop var for the for-loop
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(dst.get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + fusion_create_idx()));
         in_idx.emplace_back(iter_vars.back());
         if (std::find(bc_axis_1.begin(), bc_axis_1.end(), i)
                 != bc_axis_1.end()) {
@@ -699,9 +702,12 @@ void compute_block_select(const context_ptr &ctx,
                 cur->attr()[op_traits::workload_computable_t::workload_number]
                         = wkld;
                 bld->emit(cur);
-                cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
-                        expr(floor), expr(int(vx_info.lanes)), bld->pop_scope(),
-                        true, for_type::NORMAL);
+                cur = bld->pop_scope();
+                if (iter_vars.at(i).isa<var>()) {
+                    cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
+                            expr(floor), expr(int(vx_info.lanes)), cur, true,
+                            for_type::NORMAL);
+                }
                 tcur.emplace_back(cur);
             }
             if ((!tail.isa<constant>() && !is_blocking_shape) || tail_int) {
@@ -759,7 +765,7 @@ void compute_block_select(const context_ptr &ctx,
                         bld->pop_scope(), true, for_type::NORMAL);
                 tcur.emplace_back(cur);
             }
-        } else {
+        } else if (iter_vars.at(i).isa<var>()) {
             if (!tcur.empty() && tcur[0].defined()) {
                 body = make_stmt<stmts_node_t>(std::move(tcur));
                 tcur.clear();
@@ -809,10 +815,10 @@ void compute_block_select(const context_ptr &ctx,
         }
     }
     if (!tcur.empty() && tcur[0].defined()) {
-        assert(dst.get_shape().size() == 1UL);
         for (auto &it : tcur) {
             bld->emit(it);
         }
+        cur->attr()[stmt_attr_key::merge_loop] = true;
     } else {
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);

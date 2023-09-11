@@ -2149,20 +2149,29 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop1) {
                     stmt_attr_key::merge_loop, false));
 }
 
-// check whether illgeal loop var found
-class loop_var_finder_t : public ir_viewer_t {
+// loop finder
+class loop_finder_t : public ir_viewer_t {
 public:
     using ir_viewer_t::dispatch;
     using ir_viewer_t::view;
     void operator()(stmt_c v) { ir_viewer_t::dispatch(std::move(v)); }
-    bool is_legal() const { return !illegal_loop_var_; }
+    bool has_illegal_var() const { return illegal_loop_var_; }
+    bool has_dummy_range() const { return dummy_loop_range_; }
     void view(for_loop_c f) override {
+        // check `var_` if var type
         if (!f->var_.isa<var>()) { illegal_loop_var_ = true; }
+        // check loop range if dummy
+        if (f->iter_begin_.isa<constant>() && f->iter_end_.isa<constant>()
+                && get_expr_as_int(f->iter_begin_) == 0
+                && get_expr_as_int(f->iter_end_) == 1) {
+            dummy_loop_range_ = true;
+        }
         ir_viewer_t::view(f);
     }
 
 private:
     bool illegal_loop_var_ = false;
+    bool dummy_loop_range_ = false;
 };
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop2) {
@@ -2187,10 +2196,44 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop2) {
     auto mixed_op = get_mixed_op_from_graph(graph);
     ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
     auto &func = mixed_op->parti_list_[0]->func_;
-    loop_var_finder_t lv_finder;
+    loop_finder_t lv_finder;
     lv_finder(func->body_);
     // All loop var should be `var` type. `for 0 in (0, 1, 1)` is not expected.
-    EXPECT_TRUE(lv_finder.is_legal());
+    EXPECT_FALSE(lv_finder.has_illegal_var());
+}
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop3) {
+    SET_THREADS_OR_SKIP(28);
+    int BS = 28, M = 32, N = 32;
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input({graph_tensor::make(
+            {BS, M, N}, sc_data_format_t(format_kinds::ABC), datatypes::u8)});
+    auto input1 = graph.make_input({graph_tensor::make(
+            {BS, M, N}, sc_data_format_t(format_kinds::ABC), datatypes::f32)});
+    auto input2 = graph.make_input({graph_tensor::make(
+            {BS, M, N}, sc_data_format_t(format_kinds::ABC), datatypes::f32)});
+    // select0
+    auto select0 = graph.make("select",
+            {input0->get_outputs()[0], input1->get_outputs()[0],
+                    input2->get_outputs()[0]},
+            {}, {});
+    // relu0
+    auto relu0 = graph.make("relu", select0->get_outputs(), {}, {});
+    graph.make_output({relu0->get_outputs()[0]});
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+    mixed_partition(graph, ctx);
+
+    auto mixed_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    auto &func = mixed_op->parti_list_[0]->func_;
+    loop_finder_t lv_finder;
+    lv_finder(func->body_);
+    // All loop range should not be dummp like (0, 1, 1)
+    EXPECT_FALSE(lv_finder.has_dummy_range());
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, PoolingLoopReSchedule) {
