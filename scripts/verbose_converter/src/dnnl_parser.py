@@ -319,6 +319,11 @@ class LogParser:
                     )
             return entry
 
+        # `verbose_template` should have `component` field as second entry, but
+        # since it gets discarded for compatibility with previous verbose
+        # outputs, it's not in the final version of the string.
+        # Restore `component` when the least compatible library version's
+        # verbose output will contain it.
         verbose_template = (
             "onednn_verbose,operation,engine,primitive,"
             + "implementation,prop_kind,memory_descriptors,attributes,"
@@ -333,20 +338,25 @@ class LogParser:
             if marker == "onednn_verbose":
                 if l_raw[1].split(".")[0].isdigit():
                     l_raw.pop(1)
-                if (l_raw[1] == "primitive"):
+                # Skip graph component as not supported
+                if l_raw[1] == "graph":
+                    continue
+                # Remove a component from the line if presented
+                if l_raw[1] == "primitive":
                     l_raw.pop(1)
-                    event = l_raw[1].split(":")[0]
-                    if event == "info":
-                        opt = l_raw[2]
-                        if opt == "template":
-                            verbose_template = "onednn_verbose," + line.split(":")[1]
-                    if event in ["exec", "create"]:
-                        l_converted = convert_primitive(
-                            l_raw, verbose_template + ",exec_time"
-                        )
-                        if l_converted:
-                            self.__data[i] = l_converted
-                            i = i + 1
+
+                event = l_raw[1].split(":")[0]
+                if event == "info":
+                    opt = l_raw[2]
+                    if opt == "template":
+                        verbose_template = "onednn_verbose," + line.split(":")[1]
+                if event in ["exec", "create"]:
+                    l_converted = convert_primitive(
+                        l_raw, verbose_template + ",exec_time"
+                    )
+                    if l_converted:
+                        self.__data[i] = l_converted
+                        i = i + 1
 
     def get_data(self):
         """
