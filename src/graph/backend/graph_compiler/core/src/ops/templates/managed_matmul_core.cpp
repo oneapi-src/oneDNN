@@ -573,7 +573,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
       if (plain_M <= 256) { M_block_default = 32; }
     }
   } else if (is_vnni_low_fp) {
-    if (plain_M > 4096 && plain_N >= 768 && plain_K >= 768) {
+    if (plain_M > 16384 && plain_N >= 1024 && plain_K >= 768) {
       M_block_default = get_bf16_M_block_default(plain_M, num_threads);
       N_block_default = get_bf16_N_block_default(plain_N);
       K_block_default = 64;
@@ -585,7 +585,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   } else {
     bool is_amx = get_default_context()->use_amx();
     assert(utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8));
-    if (plain_M <= 1024 || (plain_M / num_threads / 64 < 4 && is_amx)) {
+    if (plain_M <= 1024 || (plain_M / num_threads / 64 < 8 && is_amx)) {
       M_block_default = 32;
     }
     // in amx, single core small M perfers using 128
