@@ -3517,11 +3517,11 @@ static bool try_optimize_outer_loop(mixed_parti_t *parti, sc_graph_t &sub_graph,
 }
 
 static bool try_optimize_fusion_anchor(mixed_parti_t *parti,
+        sc_graph_t &sub_graph,
         const std::unordered_map<sc_op_ptr, sc_op_ptr> &graph2orig_ops) {
     // auto skip
     if (parti->committed_ops_.size() < 2) return false;
     auto &ctx = parti->ctx_;
-    auto &dep_m = parti->dep_m_;
     // check the op whether is the elementwise op with last dim undividable
     auto elem_op_with_last_dim_undividable
             = [&ctx, &parti](const sc_op_ptr &op) -> bool {
@@ -3554,25 +3554,29 @@ static bool try_optimize_fusion_anchor(mixed_parti_t *parti,
     };
     // set hint about fusion anchor
     auto set_hint = [](std::vector<sc_op_ptr> &ops) -> bool {
+        bool flag = false;
         if (ops.size() > 1) {
             for (auto &op : ops) {
                 op->attrs_.set(mixed_partition_hint::split_anchor_op, true);
             }
-            ops.clear();
-            return true;
+            flag = true;
         }
-        return false;
+        ops.clear();
+        return flag;
     };
 
+    auto dep_m = op_dep_matrix_t(sub_graph);
     bool redo = false;
     std::vector<sc_op_ptr> target_ops;
     // visit sorted commit ops
     for (auto &op : parti->committed_ops_) {
+        // get mapping op on sub graph
+        auto sub_graph_op = query_op_on_graph(op);
         if (target_ops.empty() && elem_op_with_last_dim_undividable(op)) {
             // lookup commited anchor
             auto &committed_anchor = *parti->lookup_anchor_map(op.get());
             if (typeid(committed_anchor) == typeid(fuse_anchor_map_t)) {
-                target_ops.emplace_back(query_op_on_graph(op));
+                target_ops.emplace_back(sub_graph_op);
             }
         } else if (!target_ops.empty()) {
             auto first_op
@@ -3582,20 +3586,20 @@ static bool try_optimize_fusion_anchor(mixed_parti_t *parti,
             if (elem_op_with_last_dim_undividable(op)
                     && (parti->lookup_anchor_map(first_op)
                             == parti->lookup_anchor_map(op.get()))
-                    && dep_m->lookup(target_ops.back(), op) == 1) {
-                target_ops.emplace_back(query_op_on_graph(op));
-                continue;
+                    && dep_m.lookup(target_ops.back(), sub_graph_op) == 1) {
+                target_ops.emplace_back(sub_graph_op);
             } else if (parti->lookup_anchor_map(first_op)
                             == parti->lookup_anchor_map(op.get(), false)
                     && !target_ops.empty()) {
                 target_ops.clear();
                 // replace first op
                 if (elem_op_with_last_dim_undividable(op)) {
-                    target_ops.emplace_back(query_op_on_graph(op));
+                    target_ops.emplace_back(sub_graph_op);
                 }
+            } else {
+                // check redo flag
+                redo |= set_hint(target_ops);
             }
-            // double-check redo flag
-            redo |= set_hint(target_ops);
         }
     }
     // if the first op still exists utils loop ends
@@ -3617,7 +3621,8 @@ bool try_optimize_parti(mixed_parti_t *parti, sc_graph_t &sub_graph,
     // optimize loop order
     need_optimize |= try_optimize_outer_loop(parti, sub_graph, graph2orig_ops);
     // optimize fusion anchor
-    need_optimize |= try_optimize_fusion_anchor(parti, graph2orig_ops);
+    need_optimize
+            |= try_optimize_fusion_anchor(parti, sub_graph, graph2orig_ops);
 
     if (need_optimize) {
         sub_graph.attrs_.set(mixed_partition_hint::optimized_sub_graph, true);
