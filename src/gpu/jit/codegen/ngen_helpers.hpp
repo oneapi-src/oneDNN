@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ inline ngen::DataType to_ngen(const type_t &type) {
 
     CASE(bf16, bf);
     CASE(f16, hf);
+    CASE(bf8, bf8);
     CASE(tf32, tf32);
     CASE(f32, f);
     CASE(f64, df);
@@ -83,6 +84,7 @@ inline type_t to_ir(ngen::DataType type) {
 
     CASE(bf16, bf);
     CASE(f16, hf);
+    CASE(bf8, bf8);
     CASE(f32, f);
     CASE(f64, df);
     CASE(s16, w);

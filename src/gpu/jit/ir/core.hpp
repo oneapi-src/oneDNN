@@ -207,6 +207,8 @@ enum class type_kind_t {
     s64,
 
     // Floating point types.
+    bf8,
+    hf8,
     bf16,
     f16,
     tf32,
@@ -262,7 +264,8 @@ public:
         }
         return type_t::undef();
     }
-
+    static type_t bf8(int elems = 1) { return type_t(type_kind_t::bf8, elems); }
+    static type_t hf8(int elems = 1) { return type_t(type_kind_t::hf8, elems); }
     static type_t bf16(int elems = 1) {
         return type_t(type_kind_t::bf16, elems);
     }
@@ -385,6 +388,8 @@ public:
         switch ((int)dt) {
 #define CASE(x) \
     case data_type::x: kind_ = type_kind_t::x; break;
+            CASE(bf8);
+            CASE(hf8);
             CASE(bf16);
             CASE(f16);
             CASE(tf32);
@@ -436,10 +441,13 @@ public:
     bool is_bool() const { return kind() == type_kind_t::_bool; }
 
     bool is_fp() const {
-        return utils::one_of(kind(), type_kind_t::bf16, type_kind_t::f16,
-                type_kind_t::tf32, type_kind_t::f32, type_kind_t::f64);
+        return utils::one_of(kind(), type_kind_t::bf8, type_kind_t::hf8,
+                type_kind_t::bf16, type_kind_t::f16, type_kind_t::tf32,
+                type_kind_t::f32, type_kind_t::f64);
     }
 
+    bool is_bf8() const { return kind() == type_kind_t::bf8; }
+    bool is_hf8() const { return kind() == type_kind_t::hf8; }
     bool is_bf16() const { return kind() == type_kind_t::bf16; }
     bool is_f16() const { return kind() == type_kind_t::f16; }
     bool is_tf32() const { return kind() == type_kind_t::tf32; }
