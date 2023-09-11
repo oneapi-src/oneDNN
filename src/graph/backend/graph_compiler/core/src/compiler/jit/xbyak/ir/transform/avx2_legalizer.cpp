@@ -339,8 +339,8 @@ public:
                             "extract_var" + std::to_string(var_index++));
                     cur_list.emplace_back(
                             builder::make_var_tensor_def_unattached(var));
-                    cur_list.emplace_back(builder::make_assign_unattached(
-                            var, builder::make_extract(value, imm)));
+                    cur_list.emplace_back(builder::make_assign_unattached(var,
+                            builder::make_extract(value, imm, type_lanes)));
                 };
 
                 // We need to extract value to xmm register.
