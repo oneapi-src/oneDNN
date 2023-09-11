@@ -218,15 +218,12 @@ struct rnn_data_reorder_t : public primitive_t {
 #undef PD_CHECK_ARG
             if (!args_ok) return invalid_arguments;
 
-            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+            auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
             if (_pd == nullptr) return out_of_memory;
-            if (_pd->init(engine, src_engine, dst_engine) != success) {
-                delete _pd;
-                return unimplemented;
-            }
+            CHECK(_pd->init(engine, src_engine, dst_engine));
             CHECK(_pd->init_scratchpad_md());
-            return safe_ptr_assign(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd.release());
         }
         friend dnnl::impl::impl_list_item_t;
     };
@@ -385,20 +382,17 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
                             attr->rnn_weights_projection_qparams_.mask_, 0, 8))
                 return unimplemented;
 
-            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+            auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
             if (_pd == nullptr) return out_of_memory;
             _pd->itag_ = itag;
-            if (_pd->init(engine, src_engine, dst_engine) != success) {
-                delete _pd;
-                return unimplemented;
-            }
+            CHECK(_pd->init(engine, src_engine, dst_engine));
             CHECK(_pd->init_scratchpad_md());
             const bool is_s8s8 = dst_md->extra.flags
                     & memory_extra_flags::rnn_s8s8_compensation;
             _pd->gemm_pack = is_s8s8 ? &gemm_s8s8s32_pack : &gemm_s8u8s32_pack;
 
-            return safe_ptr_assign(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd.release());
 #undef PD_CHECK_ARG
         }
 
@@ -580,16 +574,13 @@ struct rnn_weights_reorder_t : public primitive_t {
             format_tag_t itag = id.matches_one_of_tag(ldigo, ldgoi, ldio, ldoi);
             if (itag == format_tag::undef) return invalid_arguments;
 
-            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+            auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
             if (_pd == nullptr) return out_of_memory;
-            if (_pd->init(engine, src_engine, dst_engine) != success) {
-                delete _pd;
-                return unimplemented;
-            }
+            CHECK(_pd->init(engine, src_engine, dst_engine));
             _pd->itag_ = itag;
             CHECK(_pd->init_scratchpad_md());
-            return safe_ptr_assign(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd.release());
         }
 
         void init_scratchpad() {
@@ -796,13 +787,10 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                     && od.extra().compensation_mask == 0;
             if (!(check_u8s8 || check_s8s8)) return invalid_arguments;
 
-            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+            auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
             if (_pd == nullptr) return out_of_memory;
-            if (_pd->init(engine, src_engine, dst_engine) != success) {
-                delete _pd;
-                return unimplemented;
-            }
+            CHECK(_pd->init(engine, src_engine, dst_engine));
 
             _pd->itag_ = format_tag::undef;
 
@@ -814,11 +802,10 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                 _pd->itag_ = itag;
                 _pd->otag_ = otag;
             } else {
-                delete _pd;
                 return invalid_arguments;
             }
             CHECK(_pd->init_scratchpad_md());
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd.release());
         }
 
         void init_scratchpad() {

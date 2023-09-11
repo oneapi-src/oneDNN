@@ -2157,13 +2157,10 @@ struct simple_reorder_t : public primitive_t {
             if (input_d.has_runtime_dims_or_strides() && is_set && mask > 0)
                 return status::unimplemented;
 
-            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+            auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
             if (_pd == nullptr) return status::out_of_memory;
-            if (_pd->init(engine, src_engine, dst_engine) != status::success) {
-                delete _pd;
-                return status::unimplemented;
-            }
+            CHECK(_pd->init(engine, src_engine, dst_engine));
 
             const size_t scratchpad_sz_
                     = simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
@@ -2182,7 +2179,7 @@ struct simple_reorder_t : public primitive_t {
             }
 
             CHECK(_pd->init_scratchpad_md());
-            return safe_ptr_assign(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd.release());
         }
         friend dnnl::impl::impl_list_item_t;
     };

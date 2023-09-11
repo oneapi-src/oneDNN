@@ -263,14 +263,11 @@ private:
             const primitive_attr_t *attr, const memory_desc_t *dst_md, int n, \
             int concat_dim, const memory_desc_t *const *src_mds) { \
         using namespace status; \
-        auto _pd = new pd_t(attr, dst_md, n, concat_dim, src_mds); \
+        auto _pd = make_unique_pd<pd_t>(attr, dst_md, n, concat_dim, src_mds); \
         if (_pd == nullptr) return out_of_memory; \
-        if (_pd->init(engine) != success) { \
-            delete _pd; \
-            return unimplemented; \
-        } \
+        CHECK(_pd->init(engine)); \
         CHECK(_pd->init_scratchpad_md()); \
-        return safe_ptr_assign(*concat_pd, _pd); \
+        return safe_ptr_assign(*concat_pd, _pd.release()); \
     } \
     status_t create_primitive( \
             std::pair<std::shared_ptr<primitive_t>, bool> &primitive, \
