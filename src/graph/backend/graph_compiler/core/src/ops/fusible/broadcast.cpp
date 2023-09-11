@@ -243,8 +243,11 @@ void broadcast_op_t::compute_block(context_ptr ctx,
     // use src_indices.at(0) as default
     for (unsigned i = 0; i < dst_tsl->nslice_dims(); i++) {
         // make the loop var for the for-loop
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(dst_tsl->get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + fusion_create_idx()));
         dst_idx.emplace_back(iter_vars.back());
         if (std::find(bc_axis.begin(), bc_axis.end(), i) != bc_axis.end()) {
             in_idx.emplace_back(iter_vars.back());
@@ -323,9 +326,12 @@ void broadcast_op_t::compute_block(context_ptr ctx,
                 cur->attr()[op_traits::workload_computable_t::workload_number]
                         = wkld;
                 bld->emit(cur);
-                cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
-                        expr(floor), expr(lanes), bld->pop_scope(), true,
-                        for_type::NORMAL);
+                cur = bld->pop_scope();
+                if (iter_vars.at(i).isa<var>()) {
+                    cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
+                            expr(floor), expr(lanes), cur, true,
+                            for_type::NORMAL);
+                }
                 tcur.emplace_back(cur);
             }
             if (!tail.isa<constant>() || tail_int) {
@@ -389,7 +395,6 @@ void broadcast_op_t::compute_block(context_ptr ctx,
         }
     }
     if (!tcur.empty() && tcur[0].defined()) {
-        assert(dst_tsl->get_shape().size() == 1UL);
         // TODO(xxx): currenly we don't add merge_loop attribute for this
         // special case, need stronger loop analysis.
         for (auto &it : tcur) {
