@@ -276,7 +276,7 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
     // the number of elements threshold, otherwise the performance may
     // regression.
     // Multithread threashold is 35 - 48. We just div 6 directly in here.
-    int bit16_threshold = trans_lanesx8 * trans_lanes_16bitx8 / 2;
+    int bit16_threshold = trans_lanesx8 * trans_lanes_16bitx8 / 6;
     int s8u8_threshold = trans_lanesx16 * trans_lanesx16 / 6;
     auto cur_run_thread = runtime_config_t::get().get_num_threads();
     // Single threashold is 128.
@@ -306,8 +306,32 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
             return false;
         }
     } else {
+        // According to the current experimental results, when the number of
+        // shape elements is about 200 times the size of the L1cache, the
+        // performance will decline due to the drop in the L1cache hit rate.
+        // test shape example: [56, 256, 56, 56], [56, 64, 56, 56], [56, 256,
+        // 31, 22]
+        // Note the shape sizes that appear around the threshold.
+        auto shape_number = math_utils::get_dims_product(input_blocking_shapes)
+                * utils::get_sizeof_etype(dtype.type_code_);
+        int cache_multiplier = 200;
+        auto buffer_size_threshold
+                = ctx->machine_.cpu_flags_.getDCacheSize(1) * cache_multiplier;
+        // It seems that in the case of multi-threading, the threshold setting
+        // is similar.
+        if (cur_run_thread == 1) {
+            cache_multiplier = 125;
+            buffer_size_threshold = ctx->machine_.cpu_flags_.getDCacheSize(1)
+                    * cache_multiplier;
+        }
         // currently does not support tensor slice in dynamic
-        if (!whole_buffer_reorder(src) && (is_dynamic)) { return false; }
+        if (!whole_buffer_reorder(src)
+                && (is_dynamic
+                        || (!satisfy_dim_lanes()
+                                && ((uint64_t)shape_number
+                                        > buffer_size_threshold)))) {
+            return false;
+        }
     }
 
     trans_kernel_used = get_trans_kernel_type(dtype.as_etype());
