@@ -143,7 +143,6 @@ public:
               const std::vector<char> &os_mask = std::vector<char>()
   void compute_1x1_pack_input_nested(CONV_ARG_LIST) const;
   void compute_1x1_no_pack_input_nested(CONV_ARG_LIST) const;
-  void compute_conv_padding_nested(CONV_ARG_LIST) const;
   void compute_conv_no_padding_nested(CONV_ARG_LIST) const;
   void compute_conv_no_padding_os_blocking_nested(CONV_ARG_LIST) const;
   void compute_conv1d(CONV_ARG_LIST) const;
