@@ -706,15 +706,15 @@ private:
             int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
 
     inline dim_t filter_w_to_src(int kw, int ow = 0, int pad_l = 0) {
-        return kw * (jcp.dilate_w + 1) + ow - pad_l;
+        return static_cast<dim_t>(kw) * (jcp.dilate_w + 1) + ow - pad_l;
     }
     inline dim_t filter_h_to_src(int kh) { return kh * (jcp.dilate_h + 1); }
     inline dim_t filter_d_to_src(int kd) {
-        return kd * (jcp.dilate_d + 1) * jcp.ih;
+        return static_cast<dim_t>(kd) * (jcp.dilate_d + 1) * jcp.ih;
     }
 
     inline dim_t get_src_offset(dim_t ic_idx, dim_t w_idx, dim_t hd_idx = 0) {
-        return jcp.typesize_in
+        return static_cast<dim_t>(jcp.typesize_in)
                 * (hd_idx * jcp.tr_iw * jcp.ic_block + jcp.tr_iw * ic_idx
                         + w_idx);
     }
@@ -732,12 +732,13 @@ private:
     }
     inline dim_t get_full_kernel_offset(int ocb, int icb, int kh, int kw) {
         return jcp.typesize_out
-                * (ocb * jcp.nb_ic * jcp.kd * jcp.kh * jcp.kw * jcp.ic_block
+                * (static_cast<dim_t>(ocb) * jcp.nb_ic * jcp.kd * jcp.kh
+                                * jcp.kw * jcp.ic_block * jcp.oc_block
+                        + static_cast<dim_t>(icb) * jcp.kd * jcp.kh * jcp.kw
+                                * jcp.ic_block * jcp.oc_block
+                        + static_cast<dim_t>(kh) * jcp.kw * jcp.ic_block
                                 * jcp.oc_block
-                        + icb * jcp.kd * jcp.kh * jcp.kw * jcp.ic_block
-                                * jcp.oc_block
-                        + kh * jcp.kw * jcp.ic_block * jcp.oc_block
-                        + kw * jcp.ic_block * jcp.oc_block);
+                        + static_cast<dim_t>(kw) * jcp.ic_block * jcp.oc_block);
     };
 
     inline void setup_stack_space();

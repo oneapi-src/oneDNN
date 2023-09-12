@@ -1581,7 +1581,8 @@ void jit_brgemm_ip_bwd_w_conf_t::init_scratchpad(
         int num_os_chunks_per_thread = jbgp.local_buffers_for_input_tensors
                 ? 1
                 : div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
-        const dim_t num_elems_per_thread = num_os_chunks_per_thread
+        const dim_t num_elems_per_thread
+                = static_cast<dim_t>(num_os_chunks_per_thread)
                 * jbgp.gemm_batch_size * jbgp.os_block * jbgp.LDB;
         scratchpad.book(key_brgemm_primitive_buffer_b,
                 (size_t)jbgp.nthr * num_elems_per_thread,

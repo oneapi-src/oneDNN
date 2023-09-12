@@ -2756,8 +2756,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
         L(icb_block_label_end);
 
         const auto src_icb_loop_shift_bytes = get_src_offset(ic_block, 0);
-        const auto kernel_icb_loop_shift_bytes
-                = get_kernel_offset(0, jcp.kd * jcp.kh * jcp.kw);
+        const auto kernel_icb_loop_shift_bytes = get_kernel_offset(
+                0, static_cast<dim_t>(jcp.kd) * jcp.kh * jcp.kw);
         if (generate_icb_loop) {
             add(reg_src, src_icb_loop_shift_bytes);
             safe_add(reg_kernel, kernel_icb_loop_shift_bytes, reg_long_offt);
@@ -3169,7 +3169,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
             if (generate_icb_loop) {
                 add(reg_src, get_src_offset(ic_block, 0));
                 safe_add(reg_kernel,
-                        get_kernel_offset(0, jcp.kd * jcp.kh * jcp.kw),
+                        get_kernel_offset(0,
+                                static_cast<dim_t>(jcp.kd) * jcp.kh * jcp.kw),
                         reg_long_offt);
                 sub(reg_icb, ic_block);
                 cmp(reg_icb, 0);
@@ -3259,8 +3260,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::maybe_zero_kernel() {
             jmp(skip_zeroing, T_NEAR);
     }
 
-    const size_t kernel_block_bytes
-            = get_kernel_offset(0, jcp.kw * jcp.kh * jcp.kd);
+    const size_t kernel_block_bytes = get_kernel_offset(
+            0, static_cast<dim_t>(jcp.kw) * jcp.kh * jcp.kd);
     Label icb_block_label, icb_block_label_cb;
 
     const bool generate_icb_loop = jcp.nb_ic_blocking_max > 1;

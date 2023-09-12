@@ -404,8 +404,8 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
     // Quick return if possible.
     if (m <= 0 || n <= 0) return;
 
-    auto nthr_max = dnnl_get_current_num_threads();
-    auto nthr_goal = thread_checker<a_t>(nthr_max, m, n, trans);
+    dim_t nthr_max = dnnl_get_current_num_threads();
+    dim_t nthr_goal = thread_checker<a_t>(nthr_max, m, n, trans);
 
     if (nthr_goal == 1) {
         gemv_kernel_driver(
@@ -413,7 +413,7 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
         return;
     }
 
-    enum { M_MIN = 500, N_MIN = 128 };
+    dim_t M_MIN = 500, N_MIN = 128;
     bool is_short_fat = m <= nthr_goal * M_MIN && n >= nthr_goal * N_MIN;
 
     bool use_y_buf = trans == no_trans && (is_bf16 || (is_f32 && is_short_fat));
@@ -428,7 +428,7 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
     auto nthr_spawn = dnnl_thr_syncable() ? nthr_max : nthr_goal;
     int nbufs_used = 0;
     parallel(nthr_spawn, [&](int ithr, int nthr) {
-        int nthr_eff = nstl::min(nthr_goal, nthr);
+        int nthr_eff = nstl::min(nthr_goal, static_cast<dim_t>(nthr));
 
         dim_t thread_m = m, off_m = 0;
         dim_t thread_n = n, off_n = 0;

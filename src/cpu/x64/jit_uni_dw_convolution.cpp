@@ -225,7 +225,7 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
     const int aux_w
             = nstl::min(jcp.iw, jcp.iw - jcp.kw + jcp.r_pad + jcp.stride_w);
     const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
-    const dim_t work_amount = jcp.mb * chb_work * jcp.ih;
+    const dim_t work_amount = static_cast<dim_t>(jcp.mb) * chb_work * jcp.ih;
     const auto nthr = jcp.nthr;
 
     parallel(nthr, [&](const int ithr, const int nthr) {
