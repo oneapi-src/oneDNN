@@ -31,6 +31,7 @@ enum alg_t {
     SELECT,
     TRANSPOSE,
     RESHAPE,
+    ALG_UNKNOWN,
 };
 
 using arg_md_t = ::std::tuple<::std::string, dims_t, dnnl_data_type_t>;
