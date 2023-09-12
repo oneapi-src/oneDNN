@@ -308,7 +308,10 @@ private:
         // share their broadcast property
         // TODO: enforce through data structure
         const auto it = entry_map_.find(key); // search an entry for a key
-        assert(it != entry_map_.end());
+        if (it == entry_map_.end()) {
+            assert(!"Non-existent key");
+            return 0;
+        }
         const auto &te = (*it).second;
         const auto scale = te.bcast ? vlen : sizeof(table_entry_val_t);
         return te.off + key_off_val_shift * scale;
