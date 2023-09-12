@@ -56,7 +56,7 @@ x64::cpu_isa_t brgemm_calc_isa(dim_t K1, dim_t K2, bool is_int8, bool is_bf16) {
     const bool is_amx_bf16 = is_bf16 && x64::mayiuse(x64::avx512_core_amx);
 
     if (is_amx_int8 || is_amx_bf16) {
-        const dim_t padding = (is_int8 ? 4 : (is_bf16 ? 2 : 1));
+        const dim_t padding = is_int8 ? 4 : /* is_bf16 */ 2;
         const auto result = brgemm_calc_k_block_amx(K1, K2, is_int8);
         const auto k1_block_amx = result.first;
         const auto k2_block_amx = result.second;
