@@ -143,9 +143,15 @@ inline size_t get_scratchpad_num_elements(const dim_t batch, dim_t M,
         const int nthr) {
     const int num_scratchpad_blocks
             = use_single_gemm_call_optimization ? 1 : nthr;
-    return get_scratchpad_block_elements(
-                   batch, M, N, use_single_gemm_call_optimization, nthr)
+    size_t buf_sz = get_scratchpad_block_elements(batch, M, N,
+                            use_single_gemm_call_optimization, nthr)
             * num_scratchpad_blocks;
+
+    // Buffer needs to be large enough to accommodate one thread buffer
+    // size requirement in case only one thread is used during execution.
+    size_t buf_sz_1thr = get_scratchpad_block_elements(
+            batch, M, N, use_single_gemm_call_optimization, 1);
+    return nstl::max(buf_sz_1thr, buf_sz);
 }
 
 inline void book_acc_scratchpad(matmul_pd_t &pd, const params_t &params,
