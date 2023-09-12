@@ -425,7 +425,10 @@ void brgemm_matmul_t<isa>::compute_kernel(
         const bool use_init_ker = (do_init && gemm_batch == 0);
         const int brg_ker_idx = pd()->get_brg_kernel_idx(
                 false, use_init_ker, m_ker_idx, is_N_tail, true);
-        assert(brg_ker_idx >= 0);
+        if (brg_ker_idx < 0) {
+            assert(!"Requested brgemm kernel was not created.");
+            return;
+        }
         const bool is_amx = is_superset(
                 pd()->get_brg_desc(brg_ker_idx).isa_impl, avx512_core_amx);
         brgemm_palettes_.maybe_tile_configure(
