@@ -10404,10 +10404,12 @@ void gemm_kernel_generator_t<hw>::gemmApplyPostOps(int poMin, int poMax,
                 auto &eff = state.effBinary[i];
                 auto op = dnnlToBinaryOp(entry.binary.alg);
 
-                gemmBinaryOpC(op, problem.binaryRow[i], problem.binaryCol[i],
-                        problem.Tbinary[i], problem.binary[i],
-                        strategy.binary[i], eff, ld, problem, strategy, state);
+                bool ok = gemmBinaryOpC(op, problem.binaryRow[i],
+                        problem.binaryCol[i], problem.Tbinary[i],
+                        problem.binary[i], strategy.binary[i], eff, ld, problem,
+                        strategy, state);
 
+                if (!ok) stub();
                 state.ra.safeRelease(ld);
                 state.ra.safeRelease(eff);
                 break;
