@@ -63,11 +63,6 @@ graph::status_t compiler_partition_impl_t::infer_shape(
                         return alt->id == lt.id;
                     });
             if (in_pos != inputs.end()) { return **in_pos; }
-            auto out_pos = std::find_if(outputs.begin(), outputs.end(),
-                    [&](const graph::logical_tensor_t *alt) -> bool {
-                        return alt->id == lt.id;
-                    });
-            if (out_pos != outputs.end()) { return **out_pos; }
             return lt;
         };
         graph::op_t temp_node = graph::op_t(cur_op->get_kind());
