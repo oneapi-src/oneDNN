@@ -1476,18 +1476,17 @@ void gemm_kernel_generator_t<hw>::doReadSuppressionWA(
 
     if (!strategy.readSuppressionWA) return;
 
-    if (state.r0_info.isValid() && !state.r0_info.isARF())
-        temp = GRF(state.r0_info.getBase());
-    else {
-        temp = state.ra.try_alloc();
-        if (temp.isValid())
-            freeTemp = true;
-        else
-            temp = r0;
-    }
+    temp = state.ra.try_alloc();
+    if (temp.isValid())
+        freeTemp = true;
+    else
+        temp = GRF(strategy.GRFs - 1);
 
-    csel<int16_t>(8, temp, temp, temp, temp);
-    csel<float>(8, temp, temp, temp, temp);
+    auto rI = temp.uw(0)(1);
+    auto rF = temp.f(4)(1);
+
+    csel(4, rI, rI, rI, rI); // Clear read suppression data in int pipe.
+    csel(4, rF, rF, rF, rF); // Clear read suppression data in float pipe.
 
     if (freeTemp) state.ra.safeRelease(temp);
 }
