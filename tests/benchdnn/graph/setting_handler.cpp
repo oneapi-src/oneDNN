@@ -181,8 +181,8 @@ namespace custom {
             op_setting.alg = ::custom::alg_t::RESHAPE;
             break;
         default:
-            op_setting.alg = ::custom::alg_t::ALG_UNKNOWN; 
-            assert(!"unknown alg"); 
+            op_setting.alg = ::custom::alg_t::ALG_UNKNOWN;
+            assert(!"unknown alg");
             res->state = res_state_t::INVALID_ARGUMENTS;
             return op_setting;
     }
