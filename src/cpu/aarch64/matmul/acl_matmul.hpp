@@ -17,9 +17,9 @@
 #ifndef ACL_MATMUL_HPP
 #define ACL_MATMUL_HPP
 
-#include "cpu/aarch64/matmul/acl_matmul_utils.hpp"
-
+#include "common/utils.hpp"
 #include "cpu/aarch64/acl_post_ops.hpp"
+#include "cpu/aarch64/matmul/acl_matmul_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -106,6 +106,11 @@ struct acl_matmul_t : public primitive_t {
                 CHECK(acl_matmul_utils::init_conf_matmul_fixed_format(
                         amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
             } else {
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+                // to avoid seg. fault in case threadpool is enabled and its pointer is null
+                if (threadpool_utils::get_active_threadpool() == nullptr)
+                    return status::unimplemented;
+#endif
                 CHECK(acl_matmul_utils::init_conf_matmul_non_fixed_format(
                         amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
             }

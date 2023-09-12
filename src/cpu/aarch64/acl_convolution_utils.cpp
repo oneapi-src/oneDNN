@@ -351,7 +351,6 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
     return status::success;
 }
 
-#if DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL
 status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
@@ -399,7 +398,6 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     return status::success;
 }
-#endif
 
 status_t init_conf_depthwise(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,

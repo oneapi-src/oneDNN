@@ -16,8 +16,6 @@
 
 #include "cpu/aarch64/acl_winograd_convolution.hpp"
 
-#if DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -43,5 +41,3 @@ status_t acl_wino_convolution_fwd_t::execute_forward(
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-
-#endif // DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL

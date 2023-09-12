@@ -21,7 +21,6 @@
 
 #include "cpu/aarch64/acl_convolution_utils.hpp"
 
-#if DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -91,6 +90,8 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
                             alg_kind::convolution_winograd)
                     && utils::one_of(true, is_fp16_ok, is_fp32_ok)
                     && !has_zero_dim_memory();
+
+            ok = ok && DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL;
             if (!ok) return status::unimplemented;
 
             CHECK(acl_convolution_utils::init_conf_wino(acp_, src_md_,
@@ -147,5 +148,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL
 #endif // CPU_AARCH64_ACL_WINOGRAD_CONVOLUTION_HPP

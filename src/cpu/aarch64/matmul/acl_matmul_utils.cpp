@@ -58,7 +58,7 @@ status_t init_conf_matmul_fixed_format(acl_matmul_conf_t &amp,
     // must be the outermost
     using namespace format_tag;
     auto src_tag = memory_desc_matches_one_of_tag(
-            src_md, acdb, abcd, abdc, abc, acb, ab, ba);
+            src_md, abcd, abdc, abc, acb, ab, ba);
     auto dst_tag = memory_desc_matches_one_of_tag(dst_md, abcd, abc, ab, ba);
     ACL_CHECK_SUPPORT(utils::one_of(format_tag::undef, src_tag, dst_tag),
             "Format tag is undefined");
