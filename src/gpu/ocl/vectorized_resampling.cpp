@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,7 +112,9 @@ status_t vectorized_resampling_bwd_t::pd_t::init_conf(engine_t *engine) {
     // Restriction: Only works for axb cases
     using namespace dnnl::impl::format_tag;
     const bool is_axb = (diff_src_d.matches_one_of_tag(acb, acdb, acdeb)
-            != format_tag::undef);
+                    != format_tag::undef
+            && diff_src_d.matches_one_of_tag(abc, abcd, abcde)
+                    == format_tag::undef);
     if (!is_axb) { return status::unimplemented; }
 
     // ------- Heuristics -------- //
