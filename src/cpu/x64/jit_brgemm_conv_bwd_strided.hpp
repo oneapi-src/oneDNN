@@ -29,6 +29,7 @@
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/brgemm/brgemm_containers.hpp"
+#include "cpu/x64/jit_brgemm_conv_bwd_copy_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_bwd_trans_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_comp_pad_kernel.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
@@ -102,17 +103,19 @@ private:
     struct brgemm_bwd_thread_ctx_t {
         brgemm_bwd_thread_ctx_t(brgemm_bwd_exec_ctx_t &brgemm_ctx_, int ithr_,
                 brgemm_batch_element_t *__restrict brg_batch_, char *c_buffer_,
-                char *wsp_tile_)
+                char *out_buffer_, char *wsp_tile_)
             : brgemm_ctx(brgemm_ctx_)
             , ithr(ithr_)
             , brg_batch(brg_batch_)
             , c_buffer(c_buffer_)
+            , out_buffer(out_buffer_)
             , wsp_tile(wsp_tile_) {}
 
         brgemm_bwd_exec_ctx_t &brgemm_ctx;
         int ithr;
         brgemm_batch_element_t *__restrict brg_batch;
         char *c_buffer;
+        char *out_buffer;
         char *wsp_tile;
         int cur_brg_idx = -1;
         int g, n, icb;
@@ -189,6 +192,9 @@ private:
     std::unique_ptr<jit_avx512_core_brgemm_conv_bwd_trans_kernel::
                     jit_avx512_core_brgemm_conv_bwd_trans_kernel_t>
             copy_to_pbuffer_;
+    std::unique_ptr<jit_avx512_core_brgemm_conv_bwd_copy_kernel::
+                    jit_avx512_core_brgemm_conv_bwd_copy_kernel_t>
+            copy_to_output_buffer_;
     std::unique_ptr<jit_generator> comp_vpad_pbuffer_;
 
     size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;

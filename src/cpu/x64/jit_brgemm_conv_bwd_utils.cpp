@@ -687,6 +687,7 @@ void brg_blocking_t::update_blocks() {
         iw_block = 28;
         ih_block = 14;
     }
+
     nb_id = div_up(id, id_block);
     nb_ih = div_up(ih, ih_block);
     nb_oc = div_up(oc, oc_block);
@@ -696,7 +697,7 @@ void brg_blocking_t::update_blocks() {
     nb_kw = div_up(kw, kw_block);
     nb_iw = div_up(iw, iw_block);
 
-    sp = iw;
+    sp = has_uneven_iw ? rnd_up(iw, stride_w) : iw;
     sp_block = iw_block;
     nb_sp = nb_iw;
 
@@ -1035,23 +1036,33 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
             = div_up(ih, thr_ic_block * div_up(id, thr_id_block));
     id_block = nstl::min(id_block, thr_id_block);
     ih_block = nstl::min(ih_block, thr_ih_block);
-    while ((id_block % stride_d != 0 || id % id_block != 0) && id_block < id)
+    while ((id_block % stride_d != 0
+                   || (id % stride_d == 0
+                           && id % id_block
+                                   != 0) // TODO: remove this once perf is validated for all shapes
+                   )
+            && id_block < id)
         id_block++;
-    while ((ih_block % stride_h != 0 || ih % ih_block != 0) && ih_block < ih)
+    while ((ih_block % stride_h != 0
+                   || (ih % stride_h == 0
+                           && ih % ih_block
+                                   != 0) // TODO: remove this once perf is validated for all shapes
+                   )
+            && ih_block < ih)
         ih_block++;
 
     // --- Select iw_block ----
     const auto max_iw_block_L2 = iw;
     auto start_iw_block = nstl::min(max_iw_block_thr, max_iw_block_L2);
-
-    sp = iw;
-    const auto start_sp_block = start_iw_block;
+    sp = has_uneven_iw ? rnd_up(iw, stride_w) : iw;
+    const auto start_sp_block
+            = has_uneven_iw ? rnd_up(start_iw_block, stride_w) : start_iw_block;
     auto prev_spb = 0;
     for (auto ns = 1; ns <= sp; ns++) {
         const auto spb = div_up(sp, ns);
         if (spb == prev_spb || spb > start_sp_block) continue;
         if (spb % stride_w != 0) continue;
-        if (iw % spb != 0) continue;
+        if (!has_uneven_iw && iw % spb != 0) continue;
 
         prev_spb = spb;
         iw_block = spb;
@@ -1072,7 +1083,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
 }
 
 status_t brg_blocking_t::calc_blocks() {
-    sp = iw;
+    sp = has_uneven_iw ? rnd_up(iw, stride_w) : iw;
 
     nb_oc_blocking = 1;
     // --- Select kernel blocking ---
@@ -1094,7 +1105,7 @@ status_t brg_blocking_t::calc_blocks() {
     }
 
     const auto thr_eff_threshold = 0.9f;
-    const auto max_iw_block_thr = utils::saturate(1, iw,
+    const auto max_iw_block_thr = utils::saturate(1, sp,
             static_cast<int>(div_up(
                     mb * ngroups * nb_ic * is, thr_eff_threshold * nthr)));
 
@@ -1430,8 +1441,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (everyone_is(1, jcp.stride_d, jcp.stride_h, jcp.stride_w))
         return status::unimplemented;
 
-    if (jcp.id % jcp.stride_d != 0 || jcp.ih % jcp.stride_h != 0
-            || jcp.iw % jcp.stride_w)
+    jcp.has_uneven_iw = jcp.iw % jcp.stride_w != 0;
+    const bool has_uneven_spatial = jcp.id % jcp.stride_d != 0
+            || jcp.ih % jcp.stride_h != 0 || jcp.has_uneven_iw;
+
+    if ((!is_superset(jcp.isa, avx512_core) || is_deconv) && has_uneven_spatial)
         return status::unimplemented;
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
@@ -1855,7 +1869,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     //-----------------------------------------------------------------------
 
-    jcp.exec_type = is_amx(isa) ? exec_trans : exec_base;
+    jcp.exec_type = (is_amx(isa) || jcp.has_uneven_iw) ? exec_trans : exec_base;
     jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
 
     // TODO: in future use (kd/kh/kw) and (kd/kh/kw)_pad blocks for more
@@ -1957,6 +1971,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.inp_buffer_mask_size = rnd_up(static_cast<dim_t>(jcp.nb_id) * jcp.nb_ih
                     * jcp.nb_iw * jcp.ngroups * jcp.nb_oc,
             P4K);
+    jcp.out_buffer_size
+            = rnd_up(jcp.iw_block * jcp.stride_w * jcp.ic_without_padding, P4K);
 
     const bool scale_adjust_required
             = jcp.s8s8_compensation_required && !jcp.has_int8_vnni;
@@ -2013,6 +2029,12 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     scratchpad.book(key_conv_brgemm_inp_buffer_mask, inp_buffer_mask_size,
             sizeof(uint8_t), 0, P4K);
 
+    if (jcp.exec_type == exec_trans && jcp.has_uneven_iw) {
+        size_t out_buffer_size
+                = static_cast<size_t>(jcp.nthr) * jcp.out_buffer_size;
+        scratchpad.book(key_conv_brgemm_out_buffer, out_buffer_size,
+                jcp.dst_dsz, 0, P4K);
+    }
     if (jcp.use_buffer) {
         scratchpad.book(key_brgemm_primitive_buffer, jcp.nthr * jcp.buffer_size,
                 jcp.acc_dsz, 0, P4K);

@@ -687,7 +687,7 @@ struct jit_brgemm_conv_conf_t {
     int od_block, oh_block, nb_od,
             nb_oh; // blocking  - included in parallelization
     int id_block, ih_block, nb_id, nb_ih;
-    dim_t inp_buffer_size, inp_buffer_mask_size;
+    dim_t inp_buffer_size, inp_buffer_mask_size, out_buffer_size;
     conv_brgemm_exec_type_t exec_type;
     bool is_relo {false};
     conv_brgemm_relo_type_t relo_type {conv_brgemm_relo_type_t::undefined};
@@ -800,6 +800,7 @@ struct jit_brgemm_conv_conf_t {
     bool tr_ocb_chunk = false;
     bool tr_icb_chunk = false;
     int vnni_block {1};
+    bool has_uneven_iw;
 };
 
 struct jit_shuffle_conf_t {

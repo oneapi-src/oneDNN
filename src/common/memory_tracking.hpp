@@ -191,6 +191,7 @@ enum {
     key_conv_brgemm_buffer,
     key_conv_brgemm_inp_buffer,
     key_conv_brgemm_inp_buffer_mask,
+    key_conv_brgemm_out_buffer,
     key_conv_bwd_w_1st_bia_reorder,
     key_conv_bwd_w_1st_wei_reorder,
     key_conv_gemm_acc,

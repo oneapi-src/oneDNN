@@ -38,6 +38,7 @@ using namespace nstl;
 using namespace data_type;
 
 using namespace jit_avx512_core_brgemm_conv_bwd_trans_kernel;
+using namespace jit_avx512_core_brgemm_conv_bwd_copy_kernel;
 using namespace jit_uni_brgemm_conv_comp_pad_kernel;
 
 #define ndims_pick(v5, v4, v3) \
@@ -591,6 +592,11 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::init(
         CHECK(safe_ptr_assign(copy_to_pbuffer_,
                 new jit_avx512_core_brgemm_conv_bwd_trans_kernel_t(jcp)));
         CHECK(copy_to_pbuffer_->create_kernel());
+        if (jcp.has_uneven_iw) {
+            CHECK(safe_ptr_assign(copy_to_output_buffer_,
+                    new jit_avx512_core_brgemm_conv_bwd_copy_kernel_t(jcp)));
+            CHECK(copy_to_output_buffer_->create_kernel());
+        }
     }
 
     if (jcp.req_cal_comp_pad) {
@@ -629,6 +635,11 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::init(
     return status::success;
 }
 
+#define data_blk_off(f, n, c, d, h, w) \
+    (((f).ndims() == 3) ? (f).blk_off(n, c, w) \
+                        : (((f).ndims() == 4) ? (f).blk_off(n, c, h, w) \
+                                              : (f).blk_off(n, c, d, h, w)))
+
 template <cpu_isa_t isa, bool is_deconv>
 status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
         const exec_ctx_t &ctx) const {
@@ -648,8 +659,11 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
 
     brgemm_bwd_exec_ctx_t brgemm_ctx(ctx, _pd);
 
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md(0));
+
     const char *const __restrict diff_dst = brgemm_ctx.diff_dst;
     const char *const __restrict wei = brgemm_ctx.weights;
+    char *const __restrict dst = brgemm_ctx.dst;
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto extra_data_offset
@@ -681,6 +695,10 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
             : nullptr;
     auto inp_p_buffer_mask = (jcp.exec_type == exec_trans)
             ? scratchpad.template get<uint8_t>(key_conv_brgemm_inp_buffer_mask)
+            : nullptr;
+
+    auto out_p_buffer = (jcp.exec_type == exec_trans && jcp.has_uneven_iw)
+            ? scratchpad.template get<char>(key_conv_brgemm_out_buffer)
             : nullptr;
 
     int32_t *src_zp_comp_base = jcp.src_zero_point
@@ -716,6 +734,12 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
         char *inp_buffer = (jcp.exec_type == exec_trans)
                 ? inp_p_buffer + src_dsz * ithr * jcp.inp_buffer_size
                 : nullptr;
+
+        char *const __restrict out_buffer
+                = (jcp.exec_type == exec_trans && jcp.has_uneven_iw)
+                ? out_p_buffer + dst_dsz * ithr * jcp.out_buffer_size
+                : nullptr;
+
         if (is_amx && inp_buffer) {
             // Workaround: for some machines SEGFAULT possible on tile load
             // if the page was not touched before it
@@ -748,7 +772,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
             assert(!"Unknown loop order");
 
         brgemm_bwd_thread_ctx_t btc(
-                brgemm_ctx, ithr, brg_batch, c_buffer, wsp_tile);
+                brgemm_ctx, ithr, brg_batch, c_buffer, out_buffer, wsp_tile);
 
         int last_n = -1;
         int last_g = -1;
@@ -776,36 +800,57 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
             auto id_end = nstl::min(ID, id_begin + jcp.id_block);
             auto ih_begin = ihb * jcp.ih_block;
             auto ih_end = nstl::min(IH, ih_begin + jcp.ih_block);
+            auto iw_begin = iwb * jcp.iw_block;
 
             for_(int id = id_begin; id < id_end; id++)
-            for_(int ih = ih_begin; ih < ih_end; ih++)
-            for (int occ = 0; occ < oc_chunks; occ++) {
-                btc.id = id;
-                btc.ih = ih;
-                btc.occ = occ;
+            for (int ih = ih_begin; ih < ih_end; ih++) {
+                for (int occ = 0; occ < oc_chunks; occ++) {
+                    btc.id = id;
+                    btc.ih = ih;
+                    btc.occ = occ;
 
-                if (jcp.exec_type == exec_base) {
-                    for (int sw = 0; sw < SW; sw++) {
-                        btc.sw = sw;
-                        ker_base(btc);
-                    }
-                } else if (jcp.exec_type == exec_trans) {
-                    maybe_trans_inp(ithr, diff_dst, inp_buffer, inp_buffer_mask,
-                            g, n, occ, idb, ihb, iwb, last_g, last_n, last_occ,
-                            last_idb, last_ihb, last_iwb);
-                    for (int sw = 0; sw < SW; sw++) {
-                        btc.sw = sw;
-                        ker_trans(btc, inp_buffer);
-                    }
-                } else
-                    assert(!"Unknown exec type");
+                    if (jcp.exec_type == exec_base) {
+                        for (int sw = 0; sw < SW; sw++) {
+                            btc.sw = sw;
+                            ker_base(btc);
+                        }
+                    } else if (jcp.exec_type == exec_trans) {
+                        maybe_trans_inp(ithr, diff_dst, inp_buffer,
+                                inp_buffer_mask, g, n, occ, idb, ihb, iwb,
+                                last_g, last_n, last_occ, last_idb, last_ihb,
+                                last_iwb);
+                        for (int sw = 0; sw < SW; sw++) {
+                            btc.sw = sw;
+                            ker_trans(btc, inp_buffer);
+                        }
+                    } else
+                        assert(!"Unknown exec type");
 
-                last_n = n;
-                last_g = g;
-                last_occ = occ;
-                last_idb = idb;
-                last_ihb = ihb;
-                last_iwb = iwb;
+                    last_n = n;
+                    last_g = g;
+                    last_occ = occ;
+                    last_idb = idb;
+                    last_ihb = ihb;
+                    last_iwb = iwb;
+                }
+
+                if (jcp.exec_type == exec_trans && jcp.has_uneven_iw
+                        && iwb == jcp.nb_iw - 1) {
+                    const bool is_ic_tail
+                            = jcp.ic - (btc.icb * jcp.ic_block) < jcp.ic_block;
+                    const int ic_size
+                            = is_ic_tail ? jcp.ic % jcp.ic_block : jcp.ic_block;
+
+                    auto cp = jit_brgemm_conv_bwd_copy_kernel_call_s();
+                    cp.src = btc.out_buffer;
+                    cp.dst = dst
+                            + data_blk_off(diff_src_d, n,
+                                      g * jcp.ic + icb * jcp.ic_block, id, ih,
+                                      iw_begin)
+                                    * jcp.dst_dsz;
+                    cp.num_ic = ic_size;
+                    (*copy_to_output_buffer_)(&cp);
+                }
             }
             if (jcp.loop_order == loop_ndhwgc)
                 nd_iterator_step(n, jcp.mb, idb, jcp.nb_id, ihb, jcp.nb_ih, iwb,
@@ -821,6 +866,8 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
 
     return status::success;
 }
+
+#undef data_blk_off
 
 template <cpu_isa_t isa, bool is_deconv>
 void brgemm_convolution_bwd_strided_t<isa, is_deconv>::cal_compensation(
@@ -1029,6 +1076,12 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::maybe_trans_inp(int ithr,
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
     const auto ocb = occ * jcp.nb_oc_blocking;
+
+    // This function does not work correctly if spatial block is not divisible
+    // by corresponding stride.
+    // TODO: drop this restriction.
+    assert(jcp.iw_block % jcp.stride_w == 0 && jcp.ih_block % jcp.stride_h == 0
+            && jcp.id_block % jcp.stride_d == 0);
 
     if (last_g == g && last_n == n && last_occ == occ && last_idb == idb
             && last_ihb == ihb && last_iwb == iwb)
@@ -1384,7 +1437,13 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_trans(
             = bias ? bias + (bias_d.blk_off(g_ic) * bia_dsz) : nullptr;
     const auto nb_oc_b = nstl::min(jcp.nb_oc_blocking, jcp.nb_oc - ocb)
             - (is_oc_tail ? 1 : 0);
-    char *const __restrict dst_base = dst + dst_dsz * (btc.n * dst_d_sz + g_ic);
+
+    const bool is_tail_iwb = btc.iwb == jcp.nb_iw - 1;
+    const bool need_out_buffer = jcp.has_uneven_iw && is_tail_iwb;
+
+    char *const __restrict dst_base
+            = (need_out_buffer ? btc.out_buffer
+                               : dst + dst_dsz * (btc.n * dst_d_sz + g_ic));
     char *ptr_C;
     char *ptr_D;
     int kd_b(0), kd_e(0), kh_b(0), kh_e(0), k_l(0);
@@ -1395,8 +1454,11 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_trans(
 
     ptr_D = dst_base
             + dst_dsz
-                    * (id * dst_h_sz + ih * dst_w_sz
-                            + iw_b * jcp.ic_without_padding);
+                    * (need_out_buffer
+                                    ? btc.sw * jcp.ic_without_padding
+                                    : (id * dst_h_sz + ih * dst_w_sz
+                                            + iw_b * jcp.ic_without_padding));
+
     ptr_C = (jcp.use_buffer) ? btc.c_buffer : static_cast<char *>(ptr_D);
 
     const auto ker_i = (jcp.M > 0 ? jcp.M : jcp.M_tail) - 1;
