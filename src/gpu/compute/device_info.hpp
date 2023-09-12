@@ -294,7 +294,7 @@ protected:
     int32_t hw_threads_[2] = {0, 0};
     int32_t eu_count_ = 0;
     int32_t max_eus_per_wg_ = 0;
-    int32_t max_subgroup_size_ = 0;
+    int32_t max_subgroup_size_ = 16;
     int max_exec_size_ = 0;
     size_t max_wg_size_ = 0;
     size_t llc_cache_size_ = 0;
