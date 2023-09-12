@@ -2262,7 +2262,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      size_t comp_ker_offs, bool do_postops) {
-        if (brg_idx == -1) {
+        if (brg_idx < 0) {
             assert(!"Requested brgemm kernel was not created.");
             return;
         }
