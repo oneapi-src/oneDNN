@@ -735,6 +735,14 @@ inline bool operator==(const zero_pad_desc_t &lhs, const zero_pad_desc_t &rhs) {
 #undef COMPARE_FLOAT_DESC_MEMBERS
 #undef COMPARE_FLOAT_DESC_ARRAY_MEMBERS
 
+inline bool is_dense_format_kind(const std::vector<memory_desc_t *> mds) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    for (const auto *md : mds)
+        if (md->format_kind == format_kind::sparse) return false;
+#endif
+    return true;
+}
+
 /** returns true if strides are compatible with memory_desc_t */
 inline bool memory_desc_strides_check(
         const memory_desc_t &md, const dims_t strides) {

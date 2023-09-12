@@ -51,7 +51,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
                         && is_bias_1xN());
     };
 
-    bool ok = is_dense_data() && !has_zero_dim_memory()
+    bool ok = is_dense_format_kind() && !has_zero_dim_memory()
             && src_md()->data_type == src_type
             && weights_md()->data_type == weights_type
             && desc()->accum_data_type == acc_type

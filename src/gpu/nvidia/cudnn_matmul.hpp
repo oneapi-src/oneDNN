@@ -56,7 +56,7 @@ struct cudnn_matmul_t : public primitive_t {
             auto *sycl_engine
                     = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
 
-            bool ok = is_dense_data() && blocking_ok()
+            bool ok = is_dense_format_kind() && blocking_ok()
                     && attr()->has_default_values(
                             smask_t::scales_runtime | smask_t::post_ops)
                     && attr_scales_ok() && attr_post_ops_ok(attr())

@@ -96,7 +96,7 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
                                 *this));
     };
 
-    bool ok = is_dense_data() && !has_zero_dim_memory()
+    bool ok = is_dense_format_kind() && !has_zero_dim_memory()
             && one_of(src_md()->data_type, s8, u8)
             && weights_md()->data_type == s8 && desc()->accum_data_type == s32
             && one_of(dst_md()->data_type, f32, s32, s8, u8)
