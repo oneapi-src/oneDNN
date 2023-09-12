@@ -180,7 +180,11 @@ namespace custom {
         case ::graph::op::kind::StaticReshape:
             op_setting.alg = ::custom::alg_t::RESHAPE;
             break;
-        default: assert(!"unknown alg"); return op_setting;
+        default:
+            op_setting.alg = ::custom::alg_t::ALG_UNKNOWN; 
+            assert(!"unknown alg"); 
+            res->state = res_state_t::INVALID_ARGUMENTS;
+            return op_setting;
     }
     for (size_t i = 0; i < base_op_ref.in_lts_.size(); i++) {
         auto arg = get_prim_arg_name_from_graph_op_input_offset(
