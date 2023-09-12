@@ -225,7 +225,7 @@ int partition_data_displacer_t::displace_input_data(
 
     dnnl_memory_desc_destroy(mem_replace.md_);
     dnnl_memory_desc_clone(&mem_replace.md_, mem.md_);
-    mem.reorder(mem_replace);
+    SAFE(mem.reorder(mem_replace), WARN);
     return OK;
 }
 

@@ -141,8 +141,9 @@ int execute(const prb_t *prb, const args_t &args, res_t *res) {
     auto tag = ::std::get<0>(prb->arg_mds_.at(DNNL_ARG_SRC));
     dnn_mem_t pad(src, src.dt(), tag, get_test_engine());
     ::graph::permute_md(pad, prb->order);
-    const_cast<dnn_mem_t &>(args.find(DNNL_ARG_DST)).reorder(pad);
-    return OK;
+    int ret = const_cast<dnn_mem_t &>(args.find(DNNL_ARG_DST)).reorder(pad);
+    if (ret != OK) { res->state = FAILED; }
+    return ret;
 }
 } // namespace transpose
 
@@ -188,8 +189,9 @@ int execute(const prb_t *prb, const args_t &args, res_t *res) {
     // update output shape with dense stride
     dnnl_memory_desc_create_with_string_tag(&pad.md_, dst.ndims(), dst.dims(),
             dst.dt(), normalize_tag(tag::abx, dst.ndims()).c_str());
-    dst.reorder(pad);
-    return OK;
+    int ret = dst.reorder(pad);
+    if (ret != OK) { res->state = FAILED; }
+    return ret;
 }
 } // namespace reshape
 
@@ -293,13 +295,16 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {}
 
 int execute(const prb_t *prb, const args_t &args, res_t *res) {
+    int ret = FAILED;
     switch (prb->alg) {
-        case SELECT: ::custom::select::execute(prb, args, res); break;
-        case TRANSPOSE: ::custom::transpose::execute(prb, args, res); break;
-        case RESHAPE: ::custom::reshape::execute(prb, args, res); break;
+        case SELECT: ret = ::custom::select::execute(prb, args, res); break;
+        case TRANSPOSE:
+            ret = ::custom::transpose::execute(prb, args, res);
+            break;
+        case RESHAPE: ret = ::custom::reshape::execute(prb, args, res); break;
         default: assert(!"unknown alg"); break;
     }
-    return OK;
+    return ret;
 }
 
 } // namespace custom

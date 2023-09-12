@@ -71,7 +71,7 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
         if (!is_boolean && prim_dt != c_data_type) {
             dnn_mem_t c_mem(
                     ndims, mem.dims(), c_data_type, mtag, ::get_test_engine());
-            c_mem.reorder(mem);
+            SAFE_V(c_mem.reorder(mem));
             prim_to_graph_memcpy(mem_, c_mem);
         } else {
             prim_to_graph_memcpy(mem_, mem);
