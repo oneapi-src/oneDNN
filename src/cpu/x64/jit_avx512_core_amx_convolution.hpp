@@ -296,7 +296,7 @@ private:
         const auto &jcp = kernel_->jcp;
         const int nb_ic = utils::div_up(jcp.ic, 2 * jcp.ic_block);
         const dim_t const_extra_offset
-                = jcp.kw * jcp.ic_block * jcp.oc_block * 2;
+                = static_cast<dim_t>(jcp.kw) * jcp.ic_block * jcp.oc_block * 2;
         dim_t extra_offset = (jcp.ndims == 5) ? kX * jcp.kh * const_extra_offset
                                               : kX * const_extra_offset;
         return (dim_t)((g * jcp.nb_oc + oc_b) * nb_ic + ic_b) * jcp.kd * jcp.kh

@@ -1251,11 +1251,13 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
         auto p = jit_amx_ip_trans_diff_wei::ctx_t();
 
         const dim_t ext_nb_ic = div_up(jbgp.ic, ext_ic_block_);
-        dim_t icb_shift = (icb * (jbgp.ic_block / ext_ic_block_))
+        dim_t icb_shift
+                = (static_cast<dim_t>(icb) * (jbgp.ic_block / ext_ic_block_))
                 * ext_ic_block_ * ext_oc_block_;
 
-        dim_t ocb_shift = (ocb * (jbgp.oc_block / ext_oc_block_)) * ext_nb_ic
-                * ext_ic_block_ * ext_oc_block_;
+        dim_t ocb_shift
+                = (static_cast<dim_t>(ocb) * (jbgp.oc_block / ext_oc_block_))
+                * ext_nb_ic * ext_ic_block_ * ext_oc_block_;
         dim_t out_offset = ocb_shift + icb_shift;
 
         p.src = get_wei_acc_ptr(ti, ocb, icb, 0);
@@ -1291,8 +1293,8 @@ dim_t brgemm_inner_product_bwd_weights_t<isa>::get_wei_offset(
         int ocb, int icb) const {
     const auto &jbgp = pd()->jbgp_;
     if (jbgp.is_amx) {
-        const dim_t offset
-                = jbgp.kd * jbgp.kh * jbgp.kw * jbgp.ic_block * jbgp.oc_block;
+        const dim_t offset = static_cast<dim_t>(jbgp.kd) * jbgp.kh * jbgp.kw
+                * jbgp.ic_block * jbgp.oc_block;
         return (ocb * jbgp.nb_ic + icb) * offset;
     } else {
         const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));

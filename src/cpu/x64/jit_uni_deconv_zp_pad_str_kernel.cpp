@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,8 +51,8 @@ void jit_uni_deconv_zp_pad_str_kernel_base_t::generate() {
 
 void jit_uni_deconv_zp_pad_str_kernel_base_t::compute() {
 
-    const dim_t outer_icb_step = jcp_.kd * jcp_.kh * jcp_.kw * jcp_.ic_block
-            * jcp_.oc_block * jcp_.ch_block;
+    const dim_t outer_icb_step = static_cast<dim_t>(jcp_.kd) * jcp_.kh * jcp_.kw
+            * jcp_.ic_block * jcp_.oc_block * jcp_.ch_block;
     const dim_t inner_icb_step = jcp_.oc_block * jcp_.ch_block * 4;
     const bool ic_tail_exists = jcp_.ic_without_padding % jcp_.ic_block;
 

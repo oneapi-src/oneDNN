@@ -140,27 +140,29 @@ private:
 
     inline dim_t get_dst_offset(dim_t sp_idx, int ocb) {
         const bool is_layout_nxc = is_dst_layout_nxc();
-        dim_t sp_str = is_layout_nxc ? jcp.ngroups * jcp.oc : jcp.oc_block;
+        dim_t sp_str = is_layout_nxc ? static_cast<dim_t>(jcp.ngroups) * jcp.oc
+                                     : jcp.oc_block;
         dim_t ocb_str = jcp.oc_block
                 * (is_layout_nxc ? 1 : (dim_t)jcp.od * jcp.oh * jcp.ow);
         return jcp.typesize_out * (ocb_str * ocb + sp_str * sp_idx);
     }
 
     inline dim_t filter_w_to_src(int kw, int ow = 0, int pad_l = 0) {
-        return kw * (jcp.dilate_w + 1) + ow * jcp.stride_w - pad_l;
+        return static_cast<dim_t>(kw) * (jcp.dilate_w + 1) + ow * jcp.stride_w
+                - pad_l;
     }
     inline dim_t filter_h_to_src(int kh) {
-        return kh * (jcp.dilate_h + 1) * jcp.iw;
+        return static_cast<dim_t>(kh) * (jcp.dilate_h + 1) * jcp.iw;
     }
     inline dim_t filter_d_to_src(int kd) {
-        return kd * (jcp.dilate_d + 1) * jcp.iw * jcp.ih;
+        return static_cast<dim_t>(kd) * (jcp.dilate_d + 1) * jcp.iw * jcp.ih;
     }
 
     inline dim_t get_src_offset(dim_t ic_idx, dim_t isp) {
         int icb = ic_idx / jcp.ic_block;
         int ic = ic_idx % jcp.ic_block;
         dim_t isp_str = is_src_layout_nxc()
-                ? jcp.ngroups * jcp.ic
+                ? static_cast<dim_t>(jcp.ngroups) * jcp.ic
                 : (jcp.is_1stconv ? 1 : jcp.ic_block);
         dim_t full_spatial_size = (dim_t)jcp.iw * jcp.ih * jcp.id;
         dim_t ic_str = jcp.is_1stconv && !is_src_layout_nxc()
@@ -177,13 +179,15 @@ private:
         int rnd_ic_block = utils::rnd_up(jcp.ic_block, scale);
         int icb = ic_idx / jcp.ic_block;
         int ic = ic_idx % jcp.ic_block;
-        dim_t ksp_str = rnd_ic_block * jcp.oc_block;
-        dim_t ksp_idx = kd * jcp.kh * jcp.kw + kh * jcp.kw + kw;
+        dim_t ksp_str = static_cast<dim_t>(rnd_ic_block) * jcp.oc_block;
+        dim_t ksp_idx
+                = static_cast<dim_t>(kd) * jcp.kh * jcp.kw + kh * jcp.kw + kw;
 
-        dim_t icb_str = jcp.kd * jcp.kh * jcp.kw * ksp_str;
-        dim_t ocb_str = jcp.nb_ic * icb_str;
-        dim_t ic_off = (ic / scale) * jcp.oc_block * scale + (ic % scale);
-        return jcp.typesize_in
+        dim_t icb_str = static_cast<dim_t>(jcp.kd) * jcp.kh * jcp.kw * ksp_str;
+        dim_t ocb_str = static_cast<dim_t>(jcp.nb_ic) * icb_str;
+        dim_t ic_off = static_cast<dim_t>(ic / scale) * jcp.oc_block * scale
+                + (ic % scale);
+        return static_cast<dim_t>(jcp.typesize_in)
                 * (ocb * ocb_str + icb * icb_str + ksp_idx * ksp_str + ic_off);
     }
 
@@ -645,11 +649,14 @@ private:
 
     inline dim_t filter_w_to_src(int kw, int ow = 0, int pad_l = 0) {
         int stride_w = jcp.transpose_src ? 1 : jcp.stride_w;
-        return kw * (jcp.dilate_w + 1) + ow * stride_w - pad_l;
+        return static_cast<dim_t>(kw) * (jcp.dilate_w + 1) + ow * stride_w
+                - pad_l;
     }
-    inline dim_t filter_h_to_src(int kh) { return kh * (jcp.dilate_h + 1); }
+    inline dim_t filter_h_to_src(int kh) {
+        return static_cast<dim_t>(kh) * (jcp.dilate_h + 1);
+    }
     inline dim_t filter_d_to_src(int kd) {
-        return kd * (jcp.dilate_d + 1) * jcp.ih;
+        return static_cast<dim_t>(kd) * (jcp.dilate_d + 1) * jcp.ih;
     }
 
     inline dim_t get_src_offset(dim_t ic_idx, dim_t w_idx, dim_t hd_idx = 0) {
@@ -661,9 +668,11 @@ private:
         dim_t ic = is_src_layout_nxc() ? ic_idx % jcp.ic_block : ic_idx;
         dim_t iw_str = jcp.is_1stconv || jcp.transpose_src
                 ? 1
-                : (is_src_layout_nxc() ? jcp.ngroups * jcp.ic : jcp.ic_block);
-        dim_t ihid_str
-                = jcp.tr_iw * (jcp.transpose_src ? jcp.ic_block : iw_str);
+                : (is_src_layout_nxc()
+                                ? static_cast<dim_t>(jcp.ngroups) * jcp.ic
+                                : jcp.ic_block);
+        dim_t ihid_str = static_cast<dim_t>(jcp.tr_iw)
+                * (jcp.transpose_src ? jcp.ic_block : iw_str);
         // jcp.transpose_src w_idx might be greater than jcp.tr_iw as right zero
         // padding memory is shared with left zero padding of the next block
         dim_t isp_off = hd_idx * ihid_str + w_idx * iw_str;
@@ -671,9 +680,10 @@ private:
         dim_t ic_str = jcp.transpose_src
                 ? jcp.tr_iw
                 : (jcp.is_1stconv ? full_spatial_size : 1);
-        dim_t icb_str
-                = jcp.ic_block * (is_src_layout_nxc() ? 1 : full_spatial_size);
-        return jcp.typesize_in * (isp_off + icb_str * icb + ic_str * ic);
+        dim_t icb_str = static_cast<dim_t>(jcp.ic_block)
+                * (is_src_layout_nxc() ? 1 : full_spatial_size);
+        return static_cast<dim_t>(jcp.typesize_in)
+                * (isp_off + icb_str * icb + ic_str * ic);
     }
 
     inline dim_t get_ddst_offset(dim_t w_idx, dim_t hd_idx = 0) {

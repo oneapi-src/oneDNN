@@ -4110,12 +4110,12 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
 
     bool use_nxc_harness = false;
     if (is_data_layout_nxc) {
-        dim_t kernel_size
-                = jcp.ic * jcp.oc * jcp.kd * jcp.kh * jcp.kw * jcp.typesize_out;
-        dim_t src_size
-                = jcp.mb * jcp.ic * jcp.id * jcp.ih * jcp.iw * jcp.typesize_in;
-        dim_t diff_dst_size
-                = jcp.mb * jcp.oc * jcp.id * jcp.ih * jcp.iw * jcp.typesize_in;
+        dim_t kernel_size = static_cast<dim_t>(jcp.ic) * jcp.oc * jcp.kd
+                * jcp.kh * jcp.kw * jcp.typesize_out;
+        dim_t src_size = static_cast<dim_t>(jcp.mb) * jcp.ic * jcp.id * jcp.ih
+                * jcp.iw * jcp.typesize_in;
+        dim_t diff_dst_size = static_cast<dim_t>(jcp.mb) * jcp.oc * jcp.id
+                * jcp.ih * jcp.iw * jcp.typesize_in;
         dim_t data_size = src_size + diff_dst_size;
 
         // The advantage of the nxc kernel is cache traversal, this comes at a

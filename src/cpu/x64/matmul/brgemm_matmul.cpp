@@ -1203,7 +1203,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
 
         int x0 = k % bgmmc_.wei_k_blk;
         int x1 = n % bgmmc_.wei_n_blk;
-        dim_t offset = (x0 / vnni_factor) * vnni_factor * bgmmc_.wei_n_blk
+        dim_t offset = static_cast<dim_t>(x0 / vnni_factor) * vnni_factor
+                        * bgmmc_.wei_n_blk
                 + x1 * vnni_factor + x0 % vnni_factor;
         return bgmmc_.b_dt_sz * offset;
     }

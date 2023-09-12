@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,13 +88,14 @@ private:
     inline void solve_common(int oc_blocks);
 
     inline dim_t filter_w_to_input(int ki, int oi = 0, int pad_l = 0) {
-        return ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l;
+        return static_cast<dim_t>(ki) * (jcp.dilate_w + 1) + oi * jcp.stride_w
+                - pad_l;
     };
     inline dim_t filter_h_to_input(int ki) {
-        return ki * (jcp.dilate_h + 1) * jcp.iw;
+        return static_cast<dim_t>(ki) * (jcp.dilate_h + 1) * jcp.iw;
     };
     inline dim_t filter_d_to_input(int ki) {
-        return ki * (jcp.dilate_d + 1) * jcp.iw * jcp.ih;
+        return static_cast<dim_t>(ki) * (jcp.dilate_d + 1) * jcp.iw * jcp.ih;
     };
 
     inline dim_t get_input_offset(int i_ic, int i_iw) {

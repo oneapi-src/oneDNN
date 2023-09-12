@@ -324,8 +324,9 @@ private:
     inline ptrdiff_t get_dst_offset(int iw, int oc, int kw) {
         ptrdiff_t ow
                 = (iw + jcp.l_pad - kw * (jcp.dilate_w + 1)) / jcp.stride_w;
-        ptrdiff_t ow_str
-                = is_ddst_layout_nxc() ? jcp.ngroups * jcp.oc : jcp.oc_block;
+        ptrdiff_t ow_str = is_ddst_layout_nxc()
+                ? static_cast<ptrdiff_t>(jcp.ngroups) * jcp.oc
+                : jcp.oc_block;
 
         return typesize * (ow * ow_str + oc);
     };

@@ -2209,7 +2209,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         // TODO: incorporate loop order into smart blocking selection
         auto wei_size = (size_t)jcp.oc * jcp.ic * jcp.wei_dsz;
         auto max_size = 0.75f * brg_blocking_t::L2;
-        const dim_t os = jcp.od * jcp.oh * jcp.ow;
+        const dim_t os = static_cast<dim_t>(jcp.od) * jcp.oh * jcp.ow;
         const dim_t os_cutoff = 400; // approximate and empiric
         const bool use_loop_ngcdhw
                 = max_size < wei_size || (jcp.mb == 1 && os < os_cutoff);

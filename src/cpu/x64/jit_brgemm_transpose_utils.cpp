@@ -327,8 +327,9 @@ void jit_brgemm_trans_m_k_f32_t::transpose(int nrows, int ncolumns) {
     Label K_loop, K_tail_or_done, K_done;
     const int num_nrows_loop = nrows / transpose_size;
     const int nrows_tail = nrows % transpose_size;
-    const dim_t src_shift = transpose_size * conf_->ic * typesize;
-    const dim_t tr_src_shift = transpose_size * typesize;
+    const dim_t src_shift
+            = static_cast<dim_t>(transpose_size) * conf_->ic * typesize;
+    const dim_t tr_src_shift = static_cast<dim_t>(transpose_size) * typesize;
 
     if (num_nrows_loop > 1) mov(reg_row_loop, num_nrows_loop);
     L(K_loop);
@@ -377,7 +378,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
     const int ic_tail = conf_->M_tail % transpose_size;
     src_stride = conf_->ic * typesize;
     tr_src_stride = conf_->LDA * typesize;
-    const dim_t m_src_shift = transpose_size * typesize;
+    const dim_t m_src_shift = static_cast<dim_t>(transpose_size) * typesize;
     const dim_t m_tr_src_shift = tr_src_stride * transpose_size;
 
     const dim_t batch_src_shift = src_stride * os_block;
@@ -705,14 +706,17 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
     src_stride = conf_->ic * typesize;
     tr_src_stride = conf_->LDA * typesize;
 
-    const dim_t batch_src_shift = src_stride * os_block;
-    const dim_t batch_tr_src_shift = tr_src_stride * conf_->M;
+    const dim_t batch_src_shift = static_cast<dim_t>(src_stride) * os_block;
+    const dim_t batch_tr_src_shift
+            = static_cast<dim_t>(tr_src_stride) * conf_->M;
 
-    const dim_t M_src_shift = transpose_size * typesize;
-    const dim_t M_tr_src_shift = transpose_size * conf_->LDA * typesize;
+    const dim_t M_src_shift = static_cast<dim_t>(transpose_size) * typesize;
+    const dim_t M_tr_src_shift
+            = static_cast<dim_t>(transpose_size) * conf_->LDA * typesize;
 
-    const dim_t K_src_shift = transpose_size * conf_->ic * typesize;
-    const dim_t K_tr_src_shift = transpose_size * typesize;
+    const dim_t K_src_shift
+            = static_cast<dim_t>(transpose_size) * conf_->ic * typesize;
+    const dim_t K_tr_src_shift = static_cast<dim_t>(transpose_size) * typesize;
 
     auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
@@ -1478,8 +1482,10 @@ void jit_trans_to_vnni_t::generate() {
         src_col_shift = transpose_size * typesize_data;
         tr_src_col_shift = 2 * transpose_size * typesize_data;
 
-        src_row_shift = transpose_size * conf_->oc * typesize_data;
-        tr_src_row_shift = transpose_size * conf_->LDB * typesize_data;
+        src_row_shift = static_cast<dim_t>(transpose_size) * conf_->oc
+                * typesize_data;
+        tr_src_row_shift = static_cast<dim_t>(transpose_size) * conf_->LDB
+                * typesize_data;
 
     } else { // matrix_to_transform_ == matrix_C
         int row_block = conf_->ic_block;
@@ -1627,7 +1633,7 @@ struct jit_copy_f32_t : public jit_brgemm_trans_to_vnni_t,
         , jit_generator(jit_name())
         , column_step(isa_max_vlen(conf->isa) / typesize_data)
         , num_regs(isa_num_vregs(conf->isa)) {
-        col_shift = column_step * typesize_data;
+        col_shift = static_cast<dim_t>(column_step) * typesize_data;
     }
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
@@ -2390,8 +2396,8 @@ void jit_brgemm_trans_wei_f32_t::generate() {
     int ic_tail = conf_->N_tail % transpose_size;
     src_stride = fwd_oc_block * typesize; // src_row_stride
     tr_src_stride = ic_block * typesize; // tr_src_row_stride
-    dim_t N_src_shift = conf_->kd * conf_->kh * conf_->kw * fwd_ic_block
-            * fwd_oc_block * typesize;
+    dim_t N_src_shift = static_cast<dim_t>(conf_->kd) * conf_->kh * conf_->kw
+            * fwd_ic_block * fwd_oc_block * typesize;
     dim_t N_tr_src_shift = conf_->simd_w * typesize;
     dim_t K_src_shift = conf_->simd_w * typesize;
     dim_t K_tr_src_shift = conf_->ic_block * conf_->simd_w * typesize;
@@ -2619,10 +2625,12 @@ void jit_brgemm_trans_wei_bf16_t::generate() {
     int ic_tail = conf_->N_tail % transpose_size;
     src_stride = 2 * fwd_oc_block * typesize;
     tr_src_stride = 2 * ic_block * typesize;
-    dim_t N_src_shift = conf_->simd_w * fwd_oc_block * typesize;
+    dim_t N_src_shift
+            = static_cast<dim_t>(conf_->simd_w) * fwd_oc_block * typesize;
     dim_t N_tr_src_shift = 2 * conf_->simd_w * typesize;
     dim_t K_src_shift = 2 * conf_->simd_w * typesize;
-    dim_t K_tr_src_shift = conf_->ic_block * conf_->simd_w * typesize;
+    dim_t K_tr_src_shift
+            = static_cast<dim_t>(conf_->ic_block) * conf_->simd_w * typesize;
 
     mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
@@ -2923,11 +2931,12 @@ void jit_brgemm_trans_wei_f16_t::generate() {
     int ic_tail = conf_->N_tail % transpose_size;
     src_stride = fwd_oc_block * typesize_in;
     tr_src_stride = ic_block * typesize_out;
-    dim_t N_src_shift = (conf_->kd * conf_->kh * conf_->kw * fwd_ic_block)
-            * fwd_oc_block * typesize_in;
+    dim_t N_src_shift = static_cast<dim_t>(conf_->kd) * conf_->kh * conf_->kw
+            * fwd_ic_block * fwd_oc_block * typesize_in;
     dim_t N_tr_src_shift = conf_->simd_w * typesize_out;
     dim_t K_src_shift = conf_->simd_w * typesize_in;
-    dim_t K_tr_src_shift = conf_->ic_block * conf_->simd_w * typesize_out;
+    dim_t K_tr_src_shift = static_cast<dim_t>(conf_->ic_block) * conf_->simd_w
+            * typesize_out;
 
     mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
@@ -3055,9 +3064,9 @@ void jit_amx_ip_trans_diff_wei_to_vnni_t::generate() {
         // OUT: [OCB][ICB][16i][No][2i]: BF16
         if (ic_block <= 0) return;
 
-        dim_t inp_icb_offset = typesize_acc
+        dim_t inp_icb_offset = static_cast<dim_t>(typesize_acc)
                 * (icb * ext_ic_block_ * jbgp_->oc_block); // Internal
-        dim_t out_icb_offset = typesize_out
+        dim_t out_icb_offset = static_cast<dim_t>(typesize_out)
                 * (icb * div_up(ext_ic_block_, 2) * ext_oc_block_
                         * 2); // External
 
@@ -3068,7 +3077,7 @@ void jit_amx_ip_trans_diff_wei_to_vnni_t::generate() {
         for (int oc = 0; oc < jbgp_->oc_block; oc += simd_w) {
             int ext_oc = oc % ext_oc_block_;
             int ext_ocb = oc / ext_oc_block_;
-            dim_t ext_ocb_offset = typesize_out
+            dim_t ext_ocb_offset = static_cast<dim_t>(typesize_out)
                     * (ext_ocb * div_up(jbgp_->ic, ext_ic_block_)
                             * div_up(ext_ic_block_, 2) * ext_oc_block_ * 2);
             if (is_oc_tail && oc_padded != oc_padded_ext

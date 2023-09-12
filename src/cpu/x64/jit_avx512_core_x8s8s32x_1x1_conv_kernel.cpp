@@ -1222,7 +1222,8 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
     using namespace dnnl::impl::memory_tracking::names;
 
     const int wei_mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
-    const dim_t scales_count = wei_mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+    const dim_t scales_count
+            = wei_mask == 0 ? 1 : static_cast<dim_t>(jcp.oc) * jcp.ngroups;
     const dim_t count = nstl::max<dim_t>(scales_count, (dim_t)jcp.ic_block);
     scratchpad.book<float>(key_conv_adjusted_scales, count);
 }

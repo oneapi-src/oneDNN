@@ -1226,7 +1226,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
             if (jcp.nb_ow > 1 && cur_n_oi == 0) {
                 // cur_n_oi == 0 signifies beginning of new ow_block
                 // (or end of previous block)
-                const dim_t inp_lpad_region_shift = -label_cntr * jcp.ow_block
+                const dim_t inp_lpad_region_shift
+                        = static_cast<dim_t>(-label_cntr) * jcp.ow_block
                         * jcp.stride_w * in_ic_shift;
                 L(ow_block_jmp_table[label_cntr++]);
                 // harness passes shifted src pointer that does not take
