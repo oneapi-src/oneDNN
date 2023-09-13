@@ -498,7 +498,7 @@ struct brg_desc_safe_t {
             amx_tile_configure(found_kernel->palette_);
             dnnl::impl::graph::gc::runtime::thread_local_buffer_t::tls_buffer()
                     .amx_buffer_.cur_palette
-                    = found_kernel->palette_;
+                    = nullptr;
             found_kernel->is_amx_ = true;
         } else {
             found_kernel->palette_ = nullptr;
