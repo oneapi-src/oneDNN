@@ -811,7 +811,7 @@ static inline DataType decodeRegTypecode12(unsigned dt)
         DataType::ub,      DataType::uw,      DataType::ud,      DataType::uq,
         DataType::b,       DataType::w,       DataType::d,       DataType::q,
         DataType::bf8,     DataType::hf,      DataType::f,       DataType::df,
-        DataType::invalid, DataType::bf,      DataType::tf32,    DataType::invalid,
+        DataType::invalid, DataType::bf,      DataType::tf32,    DataType::bf8
     };
     return conversionTable[dt & 0xF];
 }
