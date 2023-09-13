@@ -474,8 +474,8 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
     || (ph_e_ > 0) || (pw_e_ > 0);
   // TODO(zhicong): check whether to use os_blocking when sh > 1
   const auto num_threads = runtime_config_t::get().get_num_threads();
-  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && ow_ <= 28
-    && sh_ == 1 && (is_int8 || is_bf16)
+  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && sh_ == 1
+    && ((is_int8 && ow_ <= 28) || (is_bf16 && ow_ <= 14))
     && is_parallel_space_enough(mb_ * (oc_ / 64), num_threads)
     && use_rl == ops::rl_kind::NO_LOWERING;
 }
