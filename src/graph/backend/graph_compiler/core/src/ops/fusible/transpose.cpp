@@ -275,8 +275,9 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
     // Currently bf16 calculation needs to be larger than
     // the number of elements threshold, otherwise the performance may
     // regression.
-    // Multithread threashold is 35 - 48. We just div 6 directly in here.
-    int bit16_threshold = trans_lanesx8 * trans_lanes_16bitx8 / 6;
+    // Multithread threashold is 35 - 88 (threads 56 - 4). We just div 6
+    // directly in u8s8 and div 3 in bf16.
+    int bit16_threshold = trans_lanesx8 * trans_lanes_16bitx8 / 3;
     int s8u8_threshold = trans_lanesx16 * trans_lanesx16 / 6;
     auto cur_run_thread = runtime_config_t::get().get_num_threads();
     // Single threashold is 128.
