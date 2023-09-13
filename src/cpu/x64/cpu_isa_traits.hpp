@@ -407,8 +407,8 @@ static inline int isa_max_vlen(cpu_isa_t isa) {
         return cpu_isa_traits<avx2>::vlen;
     else if (is_superset(isa, sse41))
         return cpu_isa_traits<sse41>::vlen;
-    else
-        return 0;
+    assert(!"ISA Error");
+    return 0;
 }
 
 static inline int isa_num_vregs(cpu_isa_t isa) {
@@ -418,8 +418,8 @@ static inline int isa_num_vregs(cpu_isa_t isa) {
         return cpu_isa_traits<avx2>::n_vregs;
     else if (is_superset(isa, sse41))
         return cpu_isa_traits<sse41>::n_vregs;
-    else
-        return 0;
+    assert(!"ISA Error");
+    return 0;
 }
 
 } // namespace
