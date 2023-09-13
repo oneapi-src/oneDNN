@@ -599,7 +599,7 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
     if (ic_ * oc_ < 512 * 512) { default_im_block_ /= 2; }
     if (mb_ == 1 && num_threads == 4) { default_im_block_ = 64; }
     bool is_small_oc_with_enough_parallel
-      = oc_ < 512 && is_parallel_space_enough(mb_ * ow_ / 32, num_threads);
+      = oc_ < 256 && is_parallel_space_enough(mb_ * ow_ / 32, num_threads);
     im_oc_block_ = utils::get_blocks(
       oc_, 1, is_small_oc_with_enough_parallel ? oc_ : default_im_block_)
                      .back();
