@@ -144,7 +144,8 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
         }
 
         memory_desc_t want_wei_md = weights_md;
-        memory_desc_init_by_tag(want_wei_md, wei_tag);
+        CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
+
         if (jcp.signed_input && !jcp.is_depthwise) {
             want_wei_md.extra.flags = 0
                     | memory_extra_flags::compensation_conv_s8s8

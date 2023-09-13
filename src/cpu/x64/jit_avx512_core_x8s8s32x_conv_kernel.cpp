@@ -1528,7 +1528,8 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         }
 
         memory_desc_t want_wei_md = weights_md;
-        memory_desc_init_by_tag(want_wei_md, wei_tag);
+        CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
+
         if (jcp.signed_input) {
             want_wei_md.extra.flags = 0 | compensation_conv_s8s8 | scale_adjust;
             want_wei_md.extra.compensation_mask = (1 << 0)
