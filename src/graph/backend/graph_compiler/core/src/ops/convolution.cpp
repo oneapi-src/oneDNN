@@ -76,7 +76,7 @@ void conv_fwd_core_op_t::infer_slice_ranges(
                     "constant", const_kind::not_const);
     if (attrs_.has_key("inverse_filter")
             || !attrs_.get_or_else("image_affinity", true)
-            || !is_weight_constant) {
+            || !is_weight_constant || is_dynamic()) {
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
         return;
     }

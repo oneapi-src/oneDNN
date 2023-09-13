@@ -1701,12 +1701,11 @@ void gen_nested_conv_fwd_t::dynamic_compute_1x1_pack_input_nested(
         }
       } // pw
     } // ph
-    if (fusion) {
-      _if_(mb_expr_ > 1) {
-        fusion->create_output_fusion_anchor({tensor_slice(
-          output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_}, {0, oc_}})});
-      }
-    }
+    // TODO(xurui) disable the anchor fow now for dynamic bottleneck.
+    // if (fusion && mb_ > 1) {
+    //   fusion->create_output_fusion_anchor({tensor_slice(
+    //     output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_}, {0, oc_}})});
+    // }
   } // pbs
   loops = {lpbs, lph, lpw, lpoc, lpic};
 }
