@@ -966,7 +966,8 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         const int simd_idx = simd_w == 16 ? 0 : simd_w == 8 ? 1 : 2;
         const auto wei_tag = wei_tags[simd_idx][with_groups][ndims - 3];
         memory_desc_t want_wei_md = weights_md;
-        memory_desc_init_by_tag(want_wei_md, wei_tag);
+        CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
+
         if (jcp.signed_input) {
             want_wei_md.extra.flags = 0 | compensation_conv_s8s8 | scale_adjust;
             want_wei_md.extra.compensation_mask

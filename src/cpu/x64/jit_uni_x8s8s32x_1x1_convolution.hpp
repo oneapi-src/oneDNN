@@ -211,7 +211,8 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             }
 
             memory_desc_t want_wei_md = weights_md_;
-            memory_desc_init_by_tag(want_wei_md, wei_tag);
+            CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
+
             if (is_src_s8) {
                 want_wei_md.extra.flags
                         = 0 | compensation_conv_s8s8 | scale_adjust;

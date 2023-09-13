@@ -553,7 +553,7 @@ status_t init_brgemm_kernel(x64::brgemm_t *desc, x64::cpu_isa_t isa,
 
     x64::brgemm_kernel_t *_t_ptr;
     CHECK(brgemm_kernel_create(&_t_ptr, *desc));
-    safe_ptr_assign<x64::brgemm_kernel_t>(ker, _t_ptr);
+    CHECK(safe_ptr_assign<x64::brgemm_kernel_t>(ker, _t_ptr));
 
     return status::success;
 };

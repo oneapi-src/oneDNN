@@ -94,8 +94,8 @@ status_t bwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
     memory_desc_t src_md_patched;
     const auto src_dt = fwd_deconv_d->dst_desc.data_type;
 
-    memory_desc_init_by_md_and_dt(
-            src_md_patched, fwd_deconv_d->dst_desc, src_dt);
+    CHECK(memory_desc_init_by_md_and_dt(
+            src_md_patched, fwd_deconv_d->dst_desc, src_dt));
     src_md = &src_md_patched;
     dst_md = &fwd_deconv_d->src_desc;
     deconv_weights_d = &fwd_deconv_d->weights_desc;
