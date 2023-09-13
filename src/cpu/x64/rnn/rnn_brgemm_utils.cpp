@@ -1370,9 +1370,7 @@ status_t rnn_brgemm_t<prop_kind::backward>::init_kernels(
             CHECK(kernel_transpose_single_row_iter_->create_kernel());
 
             if (!is_m_block_equal) {
-                const auto m_block_layer = is_m_block_equal
-                        ? rnn.diff_wei_brgemm.m_block
-                        : rnn.diff_wei_brgemm.M_layer;
+                const auto m_block_layer = rnn.diff_wei_brgemm.M_layer;
                 kernel_transpose_single_row_layer_
                         = utils::make_unique<jit_brgemm_transpose_single_row_t>(
                                 m_block_layer);
