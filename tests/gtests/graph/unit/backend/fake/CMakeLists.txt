@@ -14,7 +14,9 @@
 # limitations under the License.
 #===============================================================================
 
-FILE(GLOB FAKE_TEST_SOURCES
+set(OBJ_LIB graph_unit_test_fake_backend)
+
+add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_fake_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
@@ -22,7 +24,5 @@ FILE(GLOB FAKE_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pass.cpp
     )
 
-foreach(TEST_FILE ${FAKE_TEST_SOURCES})
-    get_filename_component(exe ${TEST_FILE} NAME_WE)
-    register_graph_unit_exe(${exe} ${TEST_FILE} "unit_fake_")
-endforeach()
+set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)
