@@ -58,6 +58,8 @@ names. Here are some examples of usage:
   execution profiling from primitive API
 - `ONEDNN_VERBOSE=profile_exec,filter=conv\|matmul` will print execution
   profiling verbose of (de)convolution and matmul primitive
+- Filter won't work if the regular expression is invalid
+- Only the last one will take effect if multiple filters are specified
 
 oneDNN supports the following legacy settings:
 
