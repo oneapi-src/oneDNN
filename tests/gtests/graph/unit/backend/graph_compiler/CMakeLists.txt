@@ -34,35 +34,29 @@ append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 append_host_compiler_options(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
 add_definitions_with_host_compiler(${DEFINITIONS})
+set(OBJ_LIB graph_unit_test_compiler_backend)
 
-file(GLOB_RECURSE GRAPH_COMPILER_CORE_TEST_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp
+file(GLOB_RECURSE TEST_SRC
+${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 )
 
-file(GLOB GRAPH_COMPILER_BRIDGE_TEST_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_backend_api.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compile_execute.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern.cpp
-)
 
 get_property(SC_BUILTIN_ENABLED GLOBAL PROPERTY GRAPH_COMPILER_BUILTIN_ENABLED)
 if(NOT SC_BUILTIN_ENABLED)
-    list(REMOVE_ITEM GRAPH_COMPILER_CORE_TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/core/test_intrisics_combine.cpp)
+    list(REMOVE_ITEM TEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/core/test_intrisics_combine.cpp)
 endif()
 
-include_directories_with_host_compiler(
+add_library(${OBJ_LIB} OBJECT ${TEST_SRC})
+
+include_directories_with_host_compiler(${OBJ_LIB}
+    PRIVATE
     ${PROJECT_SOURCE_DIR}/tests/gtests/graph # gtest related headers
     ${PROJECT_SOURCE_DIR}/src/
     ${PROJECT_SOURCE_DIR}/src/graph/backend/graph_compiler/core/src # for context
     ${CMAKE_CURRENT_SOURCE_DIR}/core
     ${CMAKE_CURRENT_SOURCE_DIR}/core/reference
     ${PROJECT_SOURCE_DIR}/src/cpu/x64
-)
+    )
 
-set(TEST_EXE test_unit_gc_core)
-register_graph_unit_exe(${TEST_EXE} "${GRAPH_COMPILER_CORE_TEST_SOURCES}" "")
-
-foreach(TEST_FILE ${GRAPH_COMPILER_BRIDGE_TEST_SOURCES})
-    get_filename_component(exe ${TEST_FILE} NAME_WE)
-    register_graph_unit_exe(${exe} ${TEST_FILE} "unit_gc_")
-endforeach()
+set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)
