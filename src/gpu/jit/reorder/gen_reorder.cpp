@@ -72,7 +72,10 @@ status_t gen_reorder_t::pd_t::init(
     auto skip_mask = dnnl_primitive_attr::skip_mask_t::post_ops
             | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
             | dnnl_primitive_attr::skip_mask_t::scales_runtime;
+    using namespace data_type;
     bool ok = src_engine == dst_engine && src_engine->kind() == engine_kind::gpu
+            && utils::one_of(src_dt, f32, f16, bf16, s32, s8, u8, f64)
+            && utils::one_of(dst_dt, f32, f16, bf16, s32, s8, u8, f64)
             && IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp16))
             && IMPLICATION(src_dt == data_type::bf16,

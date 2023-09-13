@@ -50,6 +50,14 @@ struct ref_reorder_t : public gpu_primitive_t {
             if (memory_desc_wrapper(src_md()).has_runtime_dims_or_strides())
                 return status::unimplemented;
 
+            using namespace data_type;
+            if (!utils::one_of(
+                        src_md()->data_type, f32, f16, bf16, s32, s8, u8, f64))
+                return status::unimplemented;
+            if (!utils::one_of(
+                        dst_md()->data_type, f32, f16, bf16, s32, s8, u8, f64))
+                return status::unimplemented;
+
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
                     dst_engine->kind() == engine_kind::gpu ? dst_engine
                                                            : src_engine);
