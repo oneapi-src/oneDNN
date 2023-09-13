@@ -712,7 +712,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
         char *inp_buffer = (jcp.exec_type == exec_trans)
                 ? inp_p_buffer + src_dsz * ithr * jcp.inp_buffer_size
                 : nullptr;
-        if (is_amx) {
+        if (is_amx && inp_buffer) {
             // Workaround: for some machines SEGFAULT possible on tile load
             // if the page was not touched before it
             for (dim_t i = 0; i < jcp.inp_buffer_size;
@@ -827,9 +827,9 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::cal_compensation(
 
     if (!jcp.req_cal_comp_pad) return;
 
-    if (jcp.src_zero_point)
+    if (jcp.src_zero_point && src_zp_buffer)
         std::memset(src_zp_buffer, 0, sizeof(int32_t) * jcp.comp_a_buffer_size);
-    if (jcp.s8s8_compensation_required)
+    if (jcp.s8s8_compensation_required && s8s8_comp_buffer)
         std::memset(s8s8_comp_buffer, 0,
                 sizeof(int32_t) * jcp.s8s8_comp_buffer_size);
 

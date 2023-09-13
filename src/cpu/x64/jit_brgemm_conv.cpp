@@ -1527,10 +1527,10 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
             const auto wei_offs = g * _pd->wei_g_stride
                     + ocb * _pd->wei_ocb_stride + kd_b * _pd->wei_kd_stride
                     + kh_b * _pd->wei_kh_stride + kw_b * _pd->wei_kw_stride;
-            if (jcp.src_zero_point)
+            if (jcp.src_zero_point && src_zp_buffer)
                 std::memset(&src_zp_buffer[buffer_offs], 0,
                         sizeof(int32_t) * k_l * comp_kw_sz);
-            if (jcp.s8s8_compensation_required)
+            if (jcp.s8s8_compensation_required && s8s8_comp_buffer)
                 std::memset(&s8s8_comp_buffer[buffer_offs], 0,
                         sizeof(int32_t) * k_l * comp_kw_sz);
 
