@@ -313,25 +313,31 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
         // test shape example: [56, 256, 56, 56], [56, 64, 56, 56], [56, 256,
         // 31, 22]
         // Note the shape sizes that appear around the threshold.
-        auto shape_number = math_utils::get_dims_product(input_blocking_shapes)
-                * utils::get_sizeof_etype(dtype.type_code_);
-        int cache_multiplier = 200;
-        auto buffer_size_threshold
-                = ctx->machine_.cpu_flags_.getDCacheSize(1) * cache_multiplier;
-        // It seems that in the case of multi-threading, the threshold setting
-        // is similar.
-        if (cur_run_thread == 1) {
-            cache_multiplier = 125;
-            buffer_size_threshold = ctx->machine_.cpu_flags_.getDCacheSize(1)
+        if (!is_dynamic) {
+            auto shape_number
+                    = math_utils::get_dims_product(input_blocking_shapes)
+                    * utils::get_sizeof_etype(dtype.type_code_);
+            int cache_multiplier = 200;
+            auto buffer_size_threshold
+                    = ctx->machine_.cpu_flags_.getDCacheSize(1)
                     * cache_multiplier;
-        }
-        // currently does not support tensor slice in dynamic
-        if (!whole_buffer_reorder(src)
-                && (is_dynamic
-                        || (!satisfy_dim_lanes()
-                                && ((uint64_t)shape_number
-                                        > buffer_size_threshold)))) {
-            return false;
+            // It seems that in the case of multi-threading, the threshold
+            // setting is similar.
+            if (cur_run_thread == 1) {
+                cache_multiplier = 125;
+                buffer_size_threshold
+                        = ctx->machine_.cpu_flags_.getDCacheSize(1)
+                        * cache_multiplier;
+            }
+            if (!whole_buffer_reorder(src)
+                    && ((!satisfy_dim_lanes()
+                            && ((uint64_t)shape_number
+                                    > buffer_size_threshold)))) {
+                return false;
+            }
+        } else {
+            // currently does not support tensor slice in dynamic
+            if (!whole_buffer_reorder(src)) { return false; }
         }
     }
 
