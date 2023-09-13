@@ -360,6 +360,20 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor3) {
             [](const fuse_anchor_map_ptr &fanchor) {
                 return !fanchor->isa<fuse_grouped_anchor_map_t>();
             }));
+    // check tensor shrink info for fadd
+    auto body
+            = parti->get_outer_loops().back()->body_.checked_as<stmts>()->seq_;
+    EXPECT_TRUE(std::any_of(body.begin(), body.end(), [](const stmt &s) {
+        return s.cast<define>()
+                .map([](const define &d) { return d->var_.as<tensor>(); })
+                .filter([](const tensor &t) {
+                    // check output buffer of add whether has tensor shrink attr
+                    return t->name_.find("add") != std::string::npos
+                            && t->attr().has_key(
+                                    tensor_shrinker_attrs::should_shrink);
+                })
+                .has_value();
+    }));
 }
 
 TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor4) {

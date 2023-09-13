@@ -386,6 +386,19 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
     slice_range_map known_ranges_map
             = search_known_slice_ranges(this, fsmap, stat_map);
     if (known_ranges_map.empty()) return;
+    // double-check all known case
+    if (known_ranges_map.size() == get_inputs().size()) {
+        // check whether slice size is matched
+        if (known_ranges_map[0].size() != known_ranges_map[1].size()) {
+            // try to align with smaller one and erase bigger one
+            int erase_input_id
+                    = known_ranges_map[0].size() < known_ranges_map[1].size()
+                    ? 1
+                    : 0;
+            known_ranges_map.erase(erase_input_id);
+            fsmap.datamap_.erase(get_inputs()[erase_input_id].get());
+        }
+    }
     auto &outslice = fsmap.get(get_outputs()[0]);
     // if unkown slice ranges exist.
     if (known_ranges_map.size() < get_inputs().size()) {
