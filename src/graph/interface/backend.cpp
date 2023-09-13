@@ -59,15 +59,15 @@ class constant_cache_flag_t {
 
     // We specialize the constructor so that we can initialize the flag
     // according to the env var. Because, with the new constant tensor cache
-    // control API, the cache is enabled by default. If we want to run examples
-    // without caching, we need to change the code to call
-    // set_constant_tensor_cache(0) explicitly and rebuild it, which makes
+    // control API, the cache is disabled by default. If we want to run examples
+    // with caching, we need to change the code to call
+    // set_constant_tensor_cache(1) explicitly and rebuild it, which makes
     // testing both two configurations in pre-CI inconvenient. So we add the
-    // internal env var _ONEDNN_GRAPH_CONSTANT_CACHE. If it's set by users, the
+    // internal env var _ONEDNN_CONSTANT_CACHE. If it's set by users, the
     // initial status will equal to the env var value.
     constant_cache_flag_t() {
-        // If env var is set, use it. Otherwise, use flag=1 by default.
-        int flag = utils::getenv_int_internal("CONSTANT_CACHE", 1);
+        // If env var is set, use it. Otherwise, use flag=0 by default.
+        int flag = utils::getenv_int_internal("CONSTANT_CACHE", 0);
         store(flag);
     }
 
