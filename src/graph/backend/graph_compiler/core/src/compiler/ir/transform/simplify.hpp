@@ -30,11 +30,14 @@ namespace gc {
  * condition is constant.
  * @param skip_rename skip renaming the variables if the it has conflicts with
  * parent scopes. Enabling this feature will slow down this pass a lot.
+ * @param skip_if_loop skip simplifying if-else and for-loop node
  * */
 class ir_simplifier_t : public function_pass_t {
 public:
     bool skip_rename_;
-    ir_simplifier_t(bool skip_rename) : skip_rename_(skip_rename) {}
+    bool skip_if_loop_;
+    ir_simplifier_t(bool skip_rename, bool skip_if_loop = false)
+        : skip_rename_(skip_rename), skip_if_loop_(skip_if_loop) {}
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f) const;
     SC_DECL_PASS_INFO_FUNC();

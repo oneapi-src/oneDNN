@@ -30,8 +30,7 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-SC_DECL_PASS_INFO(ir_simplifier,
-        SC_PASS_DEPENDS_ON(validator, constant_folder, loop_merger),
+SC_DECL_PASS_INFO(ir_simplifier, SC_PASS_DEPENDS_ON(validator, constant_folder),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(IR_SIMPLIFIED), SC_PASS_UNSET_STATE());
 
@@ -404,13 +403,21 @@ public:
 
 func_c ir_simplifier_t::operator()(func_c f) {
     simplify_impl_t simpl {skip_rename_};
-    if_loop_simplify_impl_t ilimpl;
-    return simpl.dispatch(ilimpl.dispatch(simpl.dispatch(f)));
+    auto ret = simpl.dispatch(f);
+    if (!skip_if_loop_) {
+        if_loop_simplify_impl_t ilimpl;
+        ret = simpl.dispatch(ilimpl.dispatch(ret));
+    }
+    return ret;
 }
 stmt_c ir_simplifier_t::operator()(stmt_c f) const {
     simplify_impl_t simpl {skip_rename_};
-    if_loop_simplify_impl_t ilimpl;
-    return simpl.dispatch(ilimpl.dispatch(simpl.dispatch(std::move(f))));
+    auto ret = simpl.dispatch(std::move(f));
+    if (!skip_if_loop_) {
+        if_loop_simplify_impl_t ilimpl;
+        ret = simpl.dispatch(ilimpl.dispatch(ret));
+    }
+    return ret;
 }
 
 } // namespace gc
