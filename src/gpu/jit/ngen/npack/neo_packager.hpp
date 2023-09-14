@@ -180,6 +180,7 @@ inline HW decodeGfxCoreFamily(GfxCoreFamily family)
         case GfxCoreFamily::XeHP:     return HW::XeHP;
         case GfxCoreFamily::XeHPG:    return HW::XeHPG;
         case GfxCoreFamily::XeHPC:    return HW::XeHPC;
+        case GfxCoreFamily::Xe2:      return HW::Xe2;
         default:                      return HW::Unknown;
     }
 }
@@ -194,6 +195,7 @@ inline GfxCoreFamily encodeGfxCoreFamily(HW hw)
         case HW::XeHP:    return GfxCoreFamily::XeHP;
         case HW::XeHPG:   return GfxCoreFamily::XeHPG;
         case HW::XeHPC:   return GfxCoreFamily::XeHPC;
+        case HW::Xe2:     return GfxCoreFamily::Xe2;
         default:          return GfxCoreFamily::Unknown;
     }
 }
@@ -208,6 +210,7 @@ inline ngen::ProductFamily decodeProductFamily(ProductFamily family)
     if (family == ProductFamily::DG2) return ngen::ProductFamily::DG2;
     if (family == ProductFamily::MTL) return ngen::ProductFamily::MTL;
     if (family == ProductFamily::PVC) return ngen::ProductFamily::PVC;
+    if (family > ProductFamily::PVC && family <= ProductFamily::LNL_M) return ngen::ProductFamily::GenericXe2;
     return ngen::ProductFamily::Unknown;
 }
 

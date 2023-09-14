@@ -43,6 +43,7 @@ enum class GfxCoreFamily : uint32_t {
     XeHP = 0xC05,
     XeHPG = 0xC07,
     XeHPC = 0xC08,
+    Xe2 = 0xC09,
 };
 
 enum class ProductFamily : uint32_t {
@@ -56,6 +57,8 @@ enum class ProductFamily : uint32_t {
     DG2 = 1270,
     PVC = 1271,
     MTL = 1272,
+    LNL = 1275,
+    LNL_M = 1276
 };
 
 typedef struct

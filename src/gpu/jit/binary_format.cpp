@@ -109,7 +109,10 @@ public:
 
         // Validate A64 pointer argument.
         mov<uint32_t>(2, header[0](1), src_ptr.ud(0)(1));
-        load(1 | SWSB(sb0, 1), data2, scattered_dword(), A64, header);
+        if (hw >= HW::XeHPC)
+            load(1 | SWSB(sb0, 1), data2, D64, A64, header);
+        else
+            load(1 | SWSB(sb0, 1), data2, scattered_dword(), A64, header);
         cmp(1 | eq | f0[0] | sb0.dst, null.ud(), data2.ud(0),
                 uint32_t(MAGICPTR));
         jmpi(1 | ~f0[0], doWrite);
@@ -177,6 +180,10 @@ public:
                     break;
                 case compute::gpu_arch_t::xe_hpc:
                     kernel = binary_format_kernel_t<HW::XeHPC>::make_kernel(
+                            engine);
+                    break;
+                case compute::gpu_arch_t::xe2:
+                    kernel = binary_format_kernel_t<HW::Xe2>::make_kernel(
                             engine);
                     break;
                 case compute::gpu_arch_t::unknown: kernel = nullptr; break;

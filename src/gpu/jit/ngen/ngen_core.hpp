@@ -220,6 +220,7 @@ enum class Core {
     Gen12p7 = XeHPG,    /* Deprecated -- will be removed in the future */
     XeHPC,
     Gen12p8 = XeHPC,    /* Deprecated -- will be removed in the future */
+    Xe2,
 };
 
 typedef Core HW;
@@ -240,6 +241,7 @@ enum class ProductFamily : int {
     MTL,
     GenericXeHPC,
     PVC,
+    GenericXe2,
 };
 
 struct Product {
@@ -264,12 +266,14 @@ static inline constexpr14 ProductFamily genericProductFamily(HW hw)
         case HW::XeHP:  return ProductFamily::GenericXeHP;
         case HW::XeHPG: return ProductFamily::GenericXeHPG;
         case HW::XeHPC: return ProductFamily::GenericXeHPC;
+        case HW::Xe2:   return ProductFamily::GenericXe2;
         default:        return ProductFamily::Unknown;
     }
 }
 
 static inline constexpr14 Core getCore(ProductFamily family)
 {
+    if (family >= ProductFamily::GenericXe2)   return Core::Xe2;
     if (family >= ProductFamily::GenericXeHPC) return Core::XeHPC;
     if (family >= ProductFamily::GenericXeHPG) return Core::XeHPG;
     if (family >= ProductFamily::GenericXeHP)  return Core::XeHP;
@@ -1668,9 +1672,10 @@ public:
 // Token count.
 constexpr inline int tokenCount(HW hw, int grfCount = 128)
 {
-    return (hw >= HW::XeHPC) ? 32 :
-         (hw >= HW::Gen12LP) ? 16
-                             : 0;
+    return (hw >= HW::Xe2 && grfCount < 256) ? 16 :
+                           (hw >= HW::XeHPC) ? 32 :
+                         (hw >= HW::Gen12LP) ? 16
+                                             : 0;
 }
 
 class SBID
@@ -2367,6 +2372,9 @@ public:
 class hdc_base {
 protected:
     void hwCheck(HW hw) const {
+#ifdef NGEN_SAFE
+        if (hw >= HW::Xe2) throw unsupported_message();
+#endif
     }
 };
 

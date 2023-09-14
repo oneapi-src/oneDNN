@@ -88,6 +88,7 @@ struct hw_context_t {
             case ngen::HW::XeLP:
             case ngen::HW::XeHP:
             case ngen::HW::XeHPG: return 8;
+            case ngen::HW::Xe2:
             case ngen::HW::XeHPC: return 16;
             default: ir_error_not_expected();
         }

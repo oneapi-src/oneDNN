@@ -71,6 +71,15 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     adjustStrategy(hw_, problem_, strategy_);
     modifyStrategy(strategy_, aux_params_);
 
+    if (hw_ == ngen::HW::Xe2) {
+        // Temporary hack to use XeHPC register banking on Xe2, in order
+        //   to successfully reuse XeHPC strategies.
+        strategy_.raHW = ngen::HW::XeHPC;
+
+        // Workaround for over-stringent emulation block 2D checks.
+        if (strategy_.optAlignAB == 8) strategy_.optAlignAB = 64;
+    }
+
     // Disable global k parallelization if it wouldn't be used.
     if (strategy_.kParallel && k_ >= 0) {
         auto k_min = aux_params_.k0 * aux_params_.wgK;
@@ -140,6 +149,7 @@ void gen_gemm_kernel_desc_t::update_driver_info() {
         REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
         REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
         REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
+        REG_XE2_ISA(ARCH_DISPATCH(Xe2))
         default:
             assert(!"Unsupported architecture");
             driver_info_ = entry_->driverInfo;
@@ -231,6 +241,12 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     k_ = k;
     eu_count_ = eu_count;
     disable_systolic_ = !has_systolic;
+
+    // Workaround for over-stringent emulation block 2D alignment checks.
+    if (arch == compute::gpu_arch_t::xe2) {
+        if (align_a > 4 && align_a < 64) align_a = 4;
+        if (align_b > 4 && align_b < 64) align_b = 4;
+    }
 
     align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
     align_b = nstl::max(align_b, int(types::data_type_size(b_type)));
@@ -366,10 +382,11 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     k_ = k;
     eu_count_ = eu_count;
 
-    if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC))
-        return status::unimplemented;
+    if (hw_ != HW::Xe2)
+        if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC))
+            return status::unimplemented;
 
-    bool xehpc = (hw_ == HW::XeHPC);
+    bool xehpc = (hw_ >= HW::XeHPC);
 
     auto osys = xehpc ? 16 : 8;
     auto ksys = int(32 / types::data_type_size(a_type));
@@ -476,6 +493,7 @@ void gen_gemm_xe_systolic_kernel_desc_t::choose_unrolls(
             if (unroll_n == 48) alt = (m * n >= 13824 * eu_count);
             break;
         case compute::gpu_arch_t::xe_hpc:
+        case compute::gpu_arch_t::xe2:
             if (utils::one_of(a_type, f16, bf16)) {
                 if (unroll_m != 0)
                     unroll_n = (unroll_m > 16) ? 32 : 16;
@@ -629,6 +647,7 @@ gpu::compute::binary_t gen_gemm_kernel_t::get_binary(
         REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
         REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
         REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
+        REG_XE2_ISA(ARCH_DISPATCH(Xe2))
         default: assert(!"Unsupported architecture"); break;
     }
 

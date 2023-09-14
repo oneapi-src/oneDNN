@@ -179,7 +179,8 @@ static inline int slmCapacity(HW hw) {
         case HW::Gen12LP:
         case HW::XeHP:
         case HW::XeHPG:
-        case HW::XeHPC: return 131072;
+        case HW::XeHPC:
+        case HW::Xe2: return 131072;
         default: return 0;
     }
 }
@@ -195,7 +196,8 @@ static inline int eusPerSubslice(HW hw) {
     switch (hw) {
         case HW::Gen9:
         case HW::Gen11:
-        case HW::XeHPC: return 8;
+        case HW::XeHPC:
+        case HW::Xe2: return 8;
         case HW::Gen12LP:
         case HW::XeHP:
         case HW::XeHPG: return 16;
@@ -1528,6 +1530,7 @@ Bundle gemm_kernel_generator_t<hw>::getHint(HintType type) {
         case HW::XeHP:
         case HW::XeHPG:
         case HW::XeHPC:
+        case HW::Xe2:
             switch (type) {
                 case HintType::LongTerm0: return Bundle(0, Bundle::any);
                 case HintType::LongTerm1: return Bundle(1, Bundle::any);
@@ -1606,6 +1609,7 @@ Bundle gemm_kernel_generator_t<hw>::getHint(
         case HW::XeHP:
         case HW::XeHPG:
         case HW::XeHPC:
+        case HW::Xe2:
             switch (strategy.registerScheme) {
                 case GEMMStrategy::CSeparate:
                     switch (type) {
@@ -1720,6 +1724,7 @@ Bundle gemm_kernel_generator_t<hw>::getHint(
         case HW::XeHP:
         case HW::XeHPG:
         case HW::XeHPC:
+        case HW::Xe2:
             switch (type) {
                 case HintType::S: return Bundle();
                 case HintType::D: return Bundle();
@@ -1899,6 +1904,9 @@ static inline int addrGRFCount(const MatrixAddressing &atype,
     // Non-load blocks don't get address registers.
     if (!block.isLoadBlock()) return 0;
 
+    // Offset blocks don't either -- they will share existing address registers.
+    if (block.offsetAddr != 0) return 0;
+
     switch (effectiveAccessType(atype, astrategy, block)) {
         case AccessType::Scattered:
         case AccessType::ChannelScattered:
@@ -1927,10 +1935,14 @@ static bool tryAllocAddrRegs(vector<GRFRange> &addrRegs,
 
     addrRegs.resize(nblocks);
 
+    GRFRange last;
     for (int l = 0; l < nblocks && ok; l++) {
-        addrRegs[l] = state.ra.try_alloc_range(
-                addrGRFCount(atype, astrategy, layout[l]), hint);
-        ok &= addrRegs[l].isValid();
+        if (layout[l].offsetAddr == 0) {
+            last = state.ra.try_alloc_range(
+                    addrGRFCount(atype, astrategy, layout[l]), hint);
+            ok &= last.isValid();
+        }
+        addrRegs[l] = last;
     }
 
     if (!ok) {
@@ -2130,6 +2142,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
     bool avoidFragment = (remOpts & AllowFragment) == 0;
     bool allowDesc = remOpts & AllowDescriptors;
     bool prefetch = astrategy.prefetch;
+    if (hw == HW::Xe2) allowDesc = false;
 
     int R = rounddown_pow2(r);
     int C = rounddown_pow2(c);
@@ -2173,6 +2186,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
     block.msgRegs = 0;
     block.bytes = 0;
     block.hasNoLoad = false;
+    block.offsetAddr = 0;
 
     auto &vrmask = block.rowMask.variable;
     auto &vcmask = block.colMask.variable;
@@ -3120,8 +3134,11 @@ bool gemm_kernel_generator_t<hw>::getSubblocks(Type T,
     if (indices) indices->clear();
     sublayout.clear();
 
+    bool sharedOK = true;
+
     for (int b = 0; b < int(layout.size()); b++) {
         auto &block = layout[b];
+        if (block.offsetAddr == 0) sharedOK = true;
         int qq1Unclamped = x1 - block.*offsetQ;
         int qq2Unclamped = x2 - block.*offsetQ;
         int qq1 = clamp<int>(qq1Unclamped, 0, block.*nq);
@@ -3139,10 +3156,16 @@ bool gemm_kernel_generator_t<hw>::getSubblocks(Type T,
                        << status_stream::endl;
                 return false;
             }
+            if (subblock.offsetAddr > 0 && !sharedOK) {
+                status << "Subblock has a shared address register."
+                       << status_stream::endl;
+                return false;
+            }
             if (subaddrs) subaddrs->push_back((*addrs)[b]);
             if (indices) indices->push_back(int(b));
             sublayout.push_back(subblock);
-        }
+        } else
+            sharedOK = false;
     }
     return true;
 }
@@ -3601,6 +3624,7 @@ bool gemm_kernel_generator_t<hw>::add1DBlockToRegLayout(Type T,
             block.descRemC = false;
             block.descAssigned = false;
             block.addrShift = addrShift;
+            block.offsetAddr = 0;
             block.hasNoLoad = false;
             block.msgRegs = std::max(1, bbytes >> GRF::log2Bytes(hw));
 
@@ -3811,6 +3835,56 @@ static void finalizeLayout(HW hw, Type T, vector<RegisterBlock> &layout,
     }
 }
 
+static inline int maxOffsetAddr(
+        Type T, const MatrixAddressingStrategy &astrategy) {
+    switch (astrategy.base.getModel()) {
+        case ModelA64:
+        case ModelSLM: return 1 << 19;
+        case ModelA32:
+        case ModelBTS: return 1 << 11;
+        default: return 0;
+    }
+}
+
+// Identify and combine block address registers that differ only by constant offsets.
+void coalesceAddrs(HW hw, Type T, vector<RegisterBlock> &layout,
+        const MatrixAddressing &atype,
+        const MatrixAddressingStrategy &astrategy) {
+    if (hw < HW::Xe2) return;
+    if (!astrategy.newDP) return;
+    if (layout.empty()) return;
+
+    int lastR = 0, lastC = 0;
+    int max = maxOffsetAddr(T, astrategy);
+
+    for (auto &block : layout) {
+        int dr = block.offsetR - lastR;
+        int dc = block.offsetC - lastC;
+
+        switch (atype.layout) {
+            case MatrixLayout::N:
+                if (dc == 0) block.offsetAddr = dr;
+                break;
+            case MatrixLayout::T:
+                if (dr == 0) block.offsetAddr = dc;
+                break;
+            case MatrixLayout::Pr:
+            case MatrixLayout::Pc:
+                block.offsetAddr = untile(T, atype, block);
+                break;
+        }
+
+        block.offsetAddr *= T.size();
+        if (block.offsetAddr >= max || block.offsetAddr < -max)
+            block.offsetAddr = 0;
+        if (block.offsetAddr == 0) {
+            // No match. Make this block the new anchor.
+            lastR = block.offsetR;
+            lastC = block.offsetC;
+        }
+    }
+}
+
 // Create a register layout for a matrix.
 template <HW hw>
 bool gemm_kernel_generator_t<hw>::getRegLayout(Type T,
@@ -3851,6 +3925,8 @@ bool gemm_kernel_generator_t<hw>::getRegLayout(Type T,
     if (!success) return false;
 
     finalizeLayout(hw, T, layout, atype, astrategy);
+
+    coalesceAddrs(hw, T, layout, atype, astrategy);
 
     return true;
 }
@@ -4562,7 +4638,8 @@ void gemm_kernel_generator_t<hw>::loadMatrixBlock(const Register &dest,
                     send(mod, static_cast<SharedFunction>(block.sfid), dest,
                             addr, null, exdesc.all, a0[0]);
                 } else {
-                    load(mod, dest, spec, astrategy.base, addr[0]);
+                    load(mod, dest, spec, astrategy.base,
+                            addr[0] + block.offsetAddr);
                 }
                 break;
             }
@@ -4685,7 +4762,8 @@ void gemm_kernel_generator_t<hw>::storeMatrixBlock(const GRF &src,
             case AccessType::ChannelScattered: {
                 auto spec = getDataSpecLSC(
                         atype, astrategy, block, AccessClass::Write);
-                store(mod, spec, astrategy.base, addr[0], src);
+                store(mod, spec, astrategy.base, addr[0] + block.offsetAddr,
+                        src);
                 break;
             }
             case AccessType::Block2D:
@@ -4809,7 +4887,8 @@ void gemm_kernel_generator_t<hw>::atomicAddMatrixBlock(Type T, const GRF &src,
                     if (block.ebytes != T.real().size()) stub();
                     if (astrategy.newDP)
                         atomic(T.isFP() ? AtomicOp::fadd : AtomicOp::add, mod,
-                                specLSC, astrategy.base, addr[hoff], curSrc);
+                                specLSC, astrategy.base,
+                                addr[hoff] + block.offsetAddr, curSrc);
                     else
                         switch (T.real()) {
                             case Type::f32:
@@ -4846,7 +4925,7 @@ void gemm_kernel_generator_t<hw>::atomicAddMatrixBlock(Type T, const GRF &src,
                 if (block.simdSize > 16) stub(); // Need 32 channels.
                 if (astrategy.newDP)
                     load(block.simdSize | maskMod, rOld, specLSC,
-                            astrategy.base, addr[0]);
+                            astrategy.base, addr[0] + block.offsetAddr);
                 else if (astrategy.base.getModel() == ModelA64) {
                     if (block.ebytes == 2)
                         load(block.simdSize | maskMod, rOld, scattered_byte(2),
@@ -4904,7 +4983,8 @@ void gemm_kernel_generator_t<hw>::atomicAddMatrixBlock(Type T, const GRF &src,
 
                     if (astrategy.newDP)
                         atomic(AtomicOp::cmpwr, atomicMod, rOld, specLSC,
-                                astrategy.base, addr[hoff], rOld);
+                                astrategy.base, addr[hoff] + block.offsetAddr,
+                                rOld);
                     else
                         switch (block.ebytes) {
                             case 2:
@@ -5792,6 +5872,8 @@ void gemm_kernel_generator_t<hw>::setupAddrRel(Type T, const GRFRange &addrDst,
     int deltaR = blockDst.offsetR - blockSrc.offsetR;
     int deltaC = blockDst.offsetC - blockSrc.offsetC;
 
+    if (blockDst.offsetAddr) return; // nothing to do
+
     if (astrategy.address2D)
         incAddr(addrDst, addrSrc, Subregister(), deltaR, deltaC, blockDst,
                 blockSrc, atype, astrategy, strategy, state);
@@ -5859,6 +5941,9 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T,
 
         // Skip non-load blocks.
         if (!block.isLoadBlock()) continue;
+
+        // Skip offset blocks.
+        if (block.offsetAddr != 0) continue;
 
         auto bparams = params;
         Subregister tempRem;
@@ -5957,6 +6042,9 @@ void gemm_kernel_generator_t<hw>::incAddrShifted(const GRFRange &addrDst,
     // Handle non-load blocks.
     if (!layoutDst.isLoadBlock()) return;
     if (!layoutSrc.isLoadBlock()) stub();
+
+    // Skip offset blocks.
+    if (layoutDst.offsetAddr != 0) return;
 
     if (layoutDst.addrShift != layoutSrc.addrShift) stub();
 
@@ -7320,6 +7408,8 @@ void gemm_kernel_generator_t<hw>::updateCLayout(
         vector<RegisterBlock> sublayoutExt, sublayoutCopy, sublayoutAcc;
         size_t sublayoutCopySize = 0;
         int bytes = 0, bytesConvert = 0;
+        auto initOA = layoutExt[lstart].offsetAddr;
+        auto lanchor = lstart;
         int tokens = 0, maxTokens = 256;
         if (needLoad && hw >= HW::Gen12LP)
             maxTokens = tokenCount(hw, strategy.GRFs);
@@ -7340,11 +7430,20 @@ void gemm_kernel_generator_t<hw>::updateCLayout(
                 }
 
             auto blockExt = layoutExt[lend];
+            if (blockExt.offsetAddr == 0)
+                initOA = 0, lanchor = lend;
+            else {
+                blockExt.offsetAddr
+                        -= initOA; // Handle case where we start with an offset block.
+                if (!copyC) layout[lend].offsetAddr -= initOA;
+            }
             auto naddr = addrGRFCount(problem.C, strategy.C, blockExt);
             FOR_EACH_C C_addrs[q].push_back(
                     (blockExt.offsetR == 0 && blockExt.offsetC == 0)
                             ? C_addr0[q]
-                            : tryAlloc(naddr));
+                            : (blockExt.offsetAddr == 0)
+                            ? tryAlloc(naddr)
+                            : C_addrs[q][lanchor - lstart]);
             if (needLoad || copyC)
                 C_extRegs.push_back(tryAlloc(
                         blockExt.nregs(), getHint(HintType::CLoad, strategy)));
@@ -7389,6 +7488,7 @@ void gemm_kernel_generator_t<hw>::updateCLayout(
                         problem.C, strategy.C, strategy, state,
                         state.ldcMultiples[q]);
             }
+            // TODO: use inline address offsets instead of setupAddrRel for constant offsets.
         }
 
         if (strategy.C.atomic) {
@@ -8427,6 +8527,7 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
         block.extra = 1;
         block.count = 1;
         block.log2GRFBytes = GRF::log2Bytes(hw);
+        block.offsetAddr = 0;
 
         GRFMultirange saveVFlags;
         std::swap(saveVFlags,
@@ -14158,6 +14259,8 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(
 // Get minimum alignment for block 2D message.
 static inline int block2DCMinAlignment(HW hw, const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
+    if (hw == HW::Xe2)
+        return 64; /* Workaround for overstringent emulation alignment checks */
     return isTransposing(astrategy.accessType) ? 4 : 8;
 }
 
@@ -24868,6 +24971,7 @@ REG_XELP_ISA(template class gemm_kernel_generator_t<HW::Gen12LP>);
 REG_XEHP_ISA(template class gemm_kernel_generator_t<HW::XeHP>);
 REG_XEHPG_ISA(template class gemm_kernel_generator_t<HW::XeHPG>);
 REG_XEHPC_ISA(template class gemm_kernel_generator_t<HW::XeHPC>);
+REG_XE2_ISA(template class gemm_kernel_generator_t<HW::Xe2>);
 
 } // namespace jit
 } // namespace gpu

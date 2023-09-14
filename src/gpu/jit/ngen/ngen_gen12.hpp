@@ -24,6 +24,7 @@ struct EncodingTag12 {};
 struct EncodingTagXeHPC {};
 template <HW hw> struct EncodingTag12Dispatch { using tag = EncodingTag12; };
 template <> struct EncodingTag12Dispatch<HW::XeHPC> { using tag = EncodingTagXeHPC; };
+template <> struct EncodingTag12Dispatch<HW::Xe2> { using tag = EncodingTagXeHPC; };
 
 class SWSBInfo12
 {
@@ -472,7 +473,7 @@ static_assert(sizeof(InstructionXeHPC) == 16, "Internal error: InstructionXeHPC 
 static inline unsigned getTypecode12(DataType type)
 {
     static const uint8_t conversionTable[32] = {2,6,1,5,0,4,11,10,3,7,9,13,8,0,4,8,
-                                                14,2,2,2,2,2,2,2,2,2,2,2,0,4,0,4};
+                                                14,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
     return conversionTable[static_cast<unsigned>(type) & 0x1F];
 }
 
@@ -845,12 +846,14 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 case -1: {
                     int typebytes = decodeDPASTypecodeBytes12(ternary.dstType);
                     len = (rcount * typebytes + 3) >> 2;
+                    if (typebytes == 8) len = rcount;
                     o.bits = ternary.dst;
                     break;
                 }
                 case 0: {
                     int typebytes = decodeDPASTypecodeBytes12(ternary.src0Type);
                     len = (rcount * typebytes + 3) >> 2;
+                    if (typebytes == 8) len = rcount;
                     o.bits = ternary.src0;
                     break;
                 }
@@ -863,6 +866,8 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                         len = ((sr << 1) + sdepth * rcount * 4 + 63) >> 6;
                     else
                         len = (sr + sdepth * rcount * 4 + 31) >> 5;
+                    if (decodeDPASTypecodeBytes12(ternary.src2Type) == 8)
+                        len = rcount;
                     break;
                 }
                 default: return false;

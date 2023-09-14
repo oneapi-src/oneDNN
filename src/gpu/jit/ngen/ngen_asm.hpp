@@ -371,7 +371,7 @@ bool AsmInstruction::getOperandRegion(autoswsb::DependencyRegion &region, int op
             case 1: len = sdepth; break;
             case 2:
                 if (op == Opcode::dpasw) rcount = (rcount + 1) >> 1;
-                len = GRF::bytesToGRFs(hw, operand.reg.getByteOffset() + sdepth * rcount * 4);
+                len = GRF::bytesToGRFs(hw, operand.reg.getByteOffset() + sdepth * rcount * 4 * operand.reg.getDwords());
                 break;
             default: return false;
         }

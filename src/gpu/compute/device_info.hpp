@@ -43,6 +43,7 @@ enum class gpu_arch_t {
     xe_hp,
     xe_hpg,
     xe_hpc,
+    xe2,
 };
 
 static inline gpu_arch_t str2gpu_arch(const char *str) {
@@ -55,6 +56,7 @@ static inline gpu_arch_t str2gpu_arch(const char *str) {
     CASE(xe_hp);
     CASE(xe_hpg);
     CASE(xe_hpc);
+    CASE(xe2);
     return gpu_arch_t::unknown;
 #undef CASE
 }

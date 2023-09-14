@@ -232,4 +232,10 @@
 #define REG_XEHPC_ISA(...)
 #endif
 
+#if BUILD_PRIMITIVE_GPU_ISA_ALL || BUILD_XEHPC
+#define REG_XE2_ISA(...) __VA_ARGS__
+#else
+#define REG_XE2_ISA(...)
+#endif
+
 #endif

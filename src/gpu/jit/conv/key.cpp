@@ -47,6 +47,7 @@ enum class key_hw_kind_t {
     xehp,
     xehpg,
     xehpc,
+    xe2,
 };
 
 std::string to_string(key_hw_kind_t kind) {
@@ -59,6 +60,7 @@ std::string to_string(key_hw_kind_t kind) {
         CASE(xehp);
         CASE(xehpg);
         CASE(xehpc);
+        CASE(xe2);
         default: ir_error_not_expected();
     }
 #undef CASE
@@ -72,6 +74,7 @@ key_hw_kind_t to_hw_kind(ngen::HW hw) {
         case ngen::HW::XeHP: return key_hw_kind_t::xehp;
         case ngen::HW::XeHPG: return key_hw_kind_t::xehpg;
         case ngen::HW::XeHPC: return key_hw_kind_t::xehpc;
+        case ngen::HW::Xe2: return key_hw_kind_t::xe2;
         default: ir_error_not_expected(); return key_hw_kind_t::undef;
     }
 }

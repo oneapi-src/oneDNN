@@ -88,7 +88,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
     if (dt_int_ok) attr_skip_mask |= smask_t::zero_points_runtime;
 
     bool arch_ok = utils::one_of(
-            arch, arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc);
+            arch, arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc, arch_t::xe2);
 
     ok = ok && limits_ok && (dt_float_ok || dt_int_ok) && arch_ok
             && compute_engine->mayiuse(compute::device_ext_t::
@@ -166,7 +166,7 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
     using namespace data_type;
 
     const auto &d = desc();
-    bool xehpc = (dev_info_->gpu_arch() == compute::gpu_arch_t::xe_hpc);
+    bool xehpc = (dev_info_->gpu_arch() >= compute::gpu_arch_t::xe_hpc);
 
     if (any_prepacked_ || (packed_a_ && packed_b_)) return false;
 
@@ -244,7 +244,7 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     format_tag_t b_packed_tag_48 = undef;
     format_tag_t unpacked_tag = batch ? abc : ab;
 
-    if (arch == compute::gpu_arch_t::xe_hpc) {
+    if (arch >= compute::gpu_arch_t::xe_hpc) {
         a_packed_tag_64 = batch ? ((sz == 2) ? aCB4c8b16c2b : aCB4c8b16c4b)
                                 : ((sz == 2) ? BA4b8a16b2a : BA4b8a16b4a);
         a_packed_tag_16 = batch ? ((sz == 2) ? aCB16c2b : aCB16c4b)

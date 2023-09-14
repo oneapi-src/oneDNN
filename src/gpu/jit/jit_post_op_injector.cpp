@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ REG_XELP_ISA(template struct jit_post_op_injector<gpu_xe_lp>);
 REG_XEHP_ISA(template struct jit_post_op_injector<gpu_xe_hp>);
 REG_XEHPG_ISA(template struct jit_post_op_injector<gpu_xe_hpg>);
 REG_XEHPC_ISA(template struct jit_post_op_injector<gpu_xe_hpc>);
+REG_XE2_ISA(template struct jit_post_op_injector<gpu_xe2>);
 
 } // namespace jit
 } // namespace gpu

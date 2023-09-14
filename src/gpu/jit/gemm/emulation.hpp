@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,11 +45,12 @@ struct EmulationStrategy {
         if (hw_ >= HW::Gen11) emulateDWxDW = true;
         if (hw_ == HW::Gen12LP) emulate64 = true;
         if (hw_ == HW::XeHPG) emulate64 = true;
-        if (hw_ == HW::XeHPC) {
-            if (stepping >= SteppingPVCXTB0)
-                emulate64_mul = emulate64_logic = true;
-            else
+        if (hw_ == HW::Xe2) emulate64_mul = true;
+        if (hw_ >= HW::XeHPC) {
+            if (hw_ == HW::XeHPC && stepping < SteppingPVCXTB0)
                 emulate64 = noemulate64_shift = true;
+            else
+                emulate64_mul = emulate64_logic = true;
         }
     }
 };

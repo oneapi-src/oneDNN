@@ -40,6 +40,7 @@ static std::string to_string(ngen::HW hw) {
         CASE(XeHP)
         CASE(XeHPG)
         CASE(XeHPC)
+        CASE(Xe2)
         default: ir_error_not_expected();
     }
 #undef CASE

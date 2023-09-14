@@ -98,6 +98,7 @@ protected:
             case compute::gpu_arch_t::xe_hp: return ngen::HW::XeHP;
             case compute::gpu_arch_t::xe_hpg: return ngen::HW::XeHPG;
             case compute::gpu_arch_t::xe_hpc: return ngen::HW::XeHPC;
+            case compute::gpu_arch_t::xe2: return ngen::HW::Xe2;
             default: return ngen::HW::Unknown;
         }
     }

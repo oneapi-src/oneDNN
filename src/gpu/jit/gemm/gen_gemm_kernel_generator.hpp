@@ -586,6 +586,8 @@ struct RegisterBlock {
     MaskInfo rowMask; // Row mask for this block.
     MaskInfo colMask; // Column mask for this block.
 
+    int32_t offsetAddr; // Address offset, for sharing address registers.
+
     static constexpr int8_t Interleaved
             = -1; // Value for cxComponent indicating interleaved real/imaginary data.
 
