@@ -164,7 +164,7 @@ int bench(int argc, char **argv) {
     using namespace parser;
     static settings_t s;
     static const settings_t def {};
-    driver_task_executor_t task_executor;
+    static driver_task_executor_t task_executor;
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
