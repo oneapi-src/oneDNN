@@ -543,6 +543,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<f32, u8>(pd);
                 default: break;
             }
+            break;
         case s32:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<s32, f32>(pd);
@@ -553,6 +554,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<s32, u8>(pd);
                 default: break;
             }
+            break;
         case bf16:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<bf16, f32>(pd);
@@ -564,6 +566,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<bf16, u8>(pd);
                 default: break;
             }
+            break;
         case f16:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<f16, f32>(pd);
@@ -574,6 +577,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<f16, u8>(pd);
                 default: break;
             }
+            break;
         case s8:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<s8, f32>(pd);
@@ -584,6 +588,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<s8, u8>(pd);
                 default: break;
             }
+            break;
         case u8:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<u8, f32>(pd);
