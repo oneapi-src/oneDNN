@@ -48,38 +48,68 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
 
             // Assumption: src_mds have different layouts with dst mem
             // descriptor matching only with one of the src mem descriptors
-            need_output_reorder = !dnnl_memory_desc_equal(src_md(0), src_md(1))
-                    && (dnnl_memory_desc_equal(src_md(0), dst_md())
-                            || dnnl_memory_desc_equal(src_md(1), dst_md()));
+            // or, all of them have the same memory layout
+            bool need_output_reorder
+                    = (!dnnl_memory_desc_equal(src_md(0), src_md(1))
+                              && (dnnl_memory_desc_equal(src_md(0), dst_md())
+                                      || dnnl_memory_desc_equal(
+                                              src_md(1), dst_md())))
+                    || (dnnl_memory_desc_equal(src_md(0), src_md(1))
+                            && dnnl_memory_desc_equal(src_md(0), dst_md()));
 
-            if (!need_output_reorder || is_broadcast(src_md(0), src_md(1))) {
+            // Assumption: src_mds have different layouts with dst_md matching one of src_md
+            need_input_reorder = dnnl_memory_desc_equal(src_md(0), src_md(1))
+                    && !dnnl_memory_desc_equal(src_md(0), dst_md());
+
+            if ((!need_output_reorder && !need_input_reorder)
+                    || is_broadcast(src_md(0), src_md(1))) {
                 return status::unimplemented;
             }
 
-            src_index = dnnl_memory_desc_equal(src_md(0), dst_md()) ? 0 : 1;
             alg_kind_t binary_alg = desc()->alg_kind;
+            primitive_attr_t attr;
 
-            switch (binary_alg) {
-                case alg_kind::binary_add:
-                case alg_kind::binary_mul:
-                case alg_kind::binary_min:
-                case alg_kind::binary_max: break;
-                default: return status::unimplemented;
+            reorder_pd_list.emplace_back(nullptr);
+
+            if (need_input_reorder) {
+                if (binary_alg != dnnl::impl::alg_kind::binary_add) {
+                    return status::unimplemented;
+                }
+
+                CHECK(reorder_primitive_desc_create(
+                        reorder_pd_list.back(), engine, src_md(0), dst_md()));
+
+                reorder_pd_list.emplace_back(nullptr);
+
+                CHECK(attr.post_ops_.append_sum(1.f));
+
+                CHECK(reorder_primitive_desc_create(reorder_pd_list.back(),
+                        engine, src_md(1), dst_md(), &attr));
+            } else { //need_output_reorder else-block
+                switch (binary_alg) {
+                    case alg_kind::binary_add:
+                    case alg_kind::binary_mul:
+                    case alg_kind::binary_min:
+                    case alg_kind::binary_max: break;
+                    default: return status::unimplemented;
+                };
+
+                // Check for memory descriptor layours for SRC and DST
+                // Matching layouts will not cause a reorder
+                src_index = dnnl_memory_desc_equal(src_md(0), dst_md()) ? 0 : 1;
+
+                CHECK(attr.post_ops_.append_binary(
+                        binary_alg, src_md(src_index)));
+
+                CHECK(reorder_primitive_desc_create(reorder_pd_list.back(),
+                        engine, src_md(!src_index), dst_md(), &attr));
             }
-
-            primitive_attr_t reorder_attr;
-
-            CHECK(reorder_attr.post_ops_.append_binary(
-                    binary_alg, src_md(src_index)));
-
-            CHECK(reorder_primitive_desc_create(reorder_pd, engine,
-                    src_md(!src_index), dst_md(), &reorder_attr));
 
             return status::success;
         }
 
-        std::shared_ptr<primitive_desc_t> reorder_pd;
-        bool need_output_reorder = false;
+        std::vector<std::shared_ptr<primitive_desc_t>> reorder_pd_list;
+        bool need_input_reorder = false;
         int src_index = -1;
 
     private:
@@ -94,34 +124,43 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        CHECK(create_nested_primitive(
-                reorder_primitive, pd()->reorder_pd, engine));
+        int size = pd()->need_input_reorder ? 2 : 1;
+        reorder_primitive_list.resize(size);
+        for (int i = 0; i < size; ++i) {
+            CHECK(create_nested_primitive(reorder_primitive_list[i],
+                    pd()->reorder_pd_list[i], engine));
+        }
         return status::success;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        exec_args_t r_args;
-        memory_arg_t arg;
+        for (int id = 0; id < int(reorder_primitive_list.size()); id++) {
+            exec_args_t r_args;
+            auto dst = ctx.args().at(DNNL_ARG_DST);
+            r_args[DNNL_ARG_DST] = dst;
 
-        auto dst = ctx.args().at(DNNL_ARG_DST);
-        r_args[DNNL_ARG_DST] = dst;
-        r_args[DNNL_ARG_SRC] = !pd()->src_index ? ctx.args().at(DNNL_ARG_SRC_1)
-                                                : ctx.args().at(DNNL_ARG_SRC_0);
+            if (pd()->need_input_reorder) {
+                r_args[DNNL_ARG_SRC] = id == 0 ? ctx.args().at(DNNL_ARG_SRC_0)
+                                               : ctx.args().at(DNNL_ARG_SRC_1);
+            } else {
+                r_args[DNNL_ARG_SRC] = !pd()->src_index
+                        ? ctx.args().at(DNNL_ARG_SRC_1)
+                        : ctx.args().at(DNNL_ARG_SRC_0);
 
-        arg = pd()->src_index ? ctx.args().at(DNNL_ARG_SRC_1)
-                              : ctx.args().at(DNNL_ARG_SRC_0);
-        r_args[DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1] = arg;
-
-        exec_ctx_t r_ctx(ctx, std::move(r_args));
-        CHECK(reorder_primitive->execute(r_ctx));
+                r_args[DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1]
+                        = pd()->src_index ? ctx.args().at(DNNL_ARG_SRC_1)
+                                          : ctx.args().at(DNNL_ARG_SRC_0);
+            }
+            exec_ctx_t r_ctx(ctx, std::move(r_args));
+            CHECK(reorder_primitive_list[id]->execute(r_ctx));
+        }
         return status::success;
     }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> reorder_primitive;
+    std::vector<std::shared_ptr<primitive_t>> reorder_primitive_list;
 };
-
 } // namespace ocl
 } // namespace gpu
 } // namespace impl
