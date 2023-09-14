@@ -83,9 +83,17 @@ struct nchw_pooling_fwd_t : public primitive_t {
         }
     };
 
-    nchw_pooling_fwd_t(const pd_t *apd);
+    nchw_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     using data_t = typename prec_traits<d_type>::type;
+
+    status_t init(engine_t *engine) override {
+        ref_post_ops_
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops_) return status::out_of_memory;
+        CHECK(ref_post_ops_->init(pd()->dst_md()));
+        return status::success;
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -94,7 +102,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    const ref_post_ops_t ref_post_ops_;
+    std::unique_ptr<ref_post_ops_t> ref_post_ops_;
 };
 
 template <data_type_t d_type>

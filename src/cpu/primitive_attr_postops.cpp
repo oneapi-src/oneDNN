@@ -197,17 +197,17 @@ format_tag_t get_prelu_weights_format(const dim_t n_dims) {
     return format_tag::undef;
 }
 
-memory_desc_t get_prelu_memory_desc(
+status_t get_prelu_memory_desc(memory_desc_t &weights_md,
         const dims_t &dst_dims, const int dst_ndims, int weights_mask) {
 
-    memory_desc_t weights_md;
     weights_md.data_type = data_type::f32;
     weights_md.ndims = dst_ndims;
     utils::copy_dims_with_mask(
             weights_md.dims, dst_dims, dst_ndims, weights_mask);
-    memory_desc_init_by_tag(weights_md, get_prelu_weights_format(dst_ndims));
+    CHECK(memory_desc_init_by_tag(
+            weights_md, get_prelu_weights_format(dst_ndims)));
 
-    return weights_md;
+    return status::success;
 }
 
 void get_l_dims_po(dims_t &l_dims_po, const dim_t l_offset,
@@ -225,11 +225,9 @@ dim_t get_po_tensor_off(const memory_desc_t &tensor_md, const dim_t l_offset,
     return memory_desc_wrapper(tensor_md).off_v(l_dims_po);
 }
 
-dim_t get_prelu_weights_off(const dim_t l_offset, const dims_t &dst_dims,
-        const int dst_ndims, int weights_mask) {
-
-    const memory_desc_t &weights_md
-            = get_prelu_memory_desc(dst_dims, dst_ndims, weights_mask);
+dim_t get_prelu_weights_off(const memory_desc_t &weights_md,
+        const dim_t l_offset, const dims_t &dst_dims, const int dst_ndims,
+        int weights_mask) {
 
     return get_po_tensor_off(
             weights_md, l_offset, dst_dims, dst_ndims, weights_mask);
@@ -247,11 +245,27 @@ dim_t get_binary_src1_off(const memory_desc_t &src1_md, const dim_t l_offset,
 
 } // namespace
 
+status_t ref_post_ops_t::init(const memory_desc_t *dst_md) {
+    if (!dst_md) return status::invalid_arguments;
+
+    for (auto idx = 0; idx < po_.len(); ++idx) {
+        const auto &e = po_.entry_[idx];
+        if (e.is_prelu()) {
+            memory_desc_t weights_md;
+            CHECK(get_prelu_memory_desc(
+                    weights_md, dst_md->dims, dst_md->ndims, e.prelu.mask));
+            prelu_md_.emplace_back(weights_md);
+        }
+    }
+    return status::success;
+}
+
 void ref_post_ops_t::execute(float &res, const args_t &args) const {
     if (po_.len() == 0) return;
 
     auto it_eltwise_po = eltwise_po_.begin();
     auto it_binary_po = binary_po_.begin();
+    auto it_prelu_md = prelu_md_.begin();
     for (auto idx = 0; idx < po_.len(); ++idx) {
         const auto &e = po_.entry_[idx];
         switch (e.kind) {
@@ -296,10 +310,12 @@ void ref_post_ops_t::execute(float &res, const args_t &args) const {
                 const auto prelu_weights = CTX_IN_MEM(const float *,
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
                                 | DNNL_ARG_WEIGHTS));
-                const auto off = get_prelu_weights_off(args.l_offset,
-                        dst_d.dims(), dst_d.ndims(), e.prelu.mask);
+                const auto off
+                        = get_prelu_weights_off(*it_prelu_md, args.l_offset,
+                                dst_d.dims(), dst_d.ndims(), e.prelu.mask);
                 const auto &weights_value = prelu_weights[off];
                 res = weights_value * res;
+                ++it_prelu_md;
             } break;
             default: assert(!"unsupported post op primitive kind!");
         }

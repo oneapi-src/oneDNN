@@ -32,10 +32,6 @@ namespace cpu {
 
 using namespace nstl;
 
-template <data_type_t d_type>
-nchw_pooling_fwd_t<d_type>::nchw_pooling_fwd_t(const pd_t *apd)
-    : primitive_t(apd), ref_post_ops_(pd()->attr()->post_ops_) {}
-
 template <>
 status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
         const exec_ctx_t &ctx) const {
@@ -160,7 +156,7 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
                         args.ctx = &ctx;
                         args.l_offset = dst_offset;
                         args.dst_md = pd()->dst_md();
-                        ref_post_ops_.execute(dst[dst_offset], args);
+                        ref_post_ops_->execute(dst[dst_offset], args);
                         dst[dst_offset]
                                 = saturate_and_round<data_t>(dst[dst_offset]);
                     });
@@ -196,7 +192,7 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
                         args.ctx = &ctx;
                         args.l_offset = dst_offset;
                         args.dst_md = pd()->dst_md();
-                        ref_post_ops_.execute(res, args);
+                        ref_post_ops_->execute(res, args);
                         d[0] = saturate_and_round<data_t>(res);
                     });
         } else {
@@ -360,7 +356,7 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
                         args.ctx = &ctx;
                         args.l_offset = dst_offset;
                         args.dst_md = pd()->dst_md();
-                        ref_post_ops_.execute(d_fp32, args);
+                        ref_post_ops_->execute(d_fp32, args);
 
                         dst[dst_offset] = static_cast<data_t>(d_fp32);
                     });
@@ -394,7 +390,7 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
                         args.ctx = &ctx;
                         args.l_offset = dst_offset;
                         args.dst_md = pd()->dst_md();
-                        ref_post_ops_.execute(d_fp32, args);
+                        ref_post_ops_->execute(d_fp32, args);
                         dst[dst_offset] = static_cast<data_t>(d_fp32);
                     });
         } else {

@@ -73,6 +73,7 @@ struct ref_binary_t : public primitive_t {
         ref_post_ops
                 = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
         if (!ref_post_ops) return status::out_of_memory;
+        CHECK(ref_post_ops->init(pd()->dst_md()));
         return status::success;
     }
 
