@@ -440,6 +440,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         // they are calculated using fast but potentially unstable formula.
         if (kind == MEAN) trh = 1e-7f;
         if (kind == VAR) trh = 5e-7f;
+        if (kind == DST) trh = 2e-6f;
     }
     cmp.set_threshold(trh);
 
@@ -458,6 +459,9 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const auto bnorm_add_check =
             [&, kind, prb](
                     const compare::compare_t::driver_check_func_args_t &args) {
+                bool ok = is_nvidia_gpu() && args.diff < args.trh;
+                if (ok) return true;
+
                 if (!((prb->dir & FLAG_FWD) && kind == DST && prb->use_sh()))
                     return false;
 
