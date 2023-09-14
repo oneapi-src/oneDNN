@@ -545,6 +545,10 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
                         const int n_ker_idx = brgmm_ctx.get_N_kernel_idx(nb);
                         const int brg_ker_idx = pd()->get_brg_kernel_idx(
                                 false, false, m_ker_idx, n_ker_idx, false);
+                        if (brg_ker_idx == -1) {
+                            assert(!"Requested brgemm kernel was not created.");
+                            return;
+                        }
                         const bool is_amx = is_superset(
                                 pd()->get_brg_desc(brg_ker_idx).isa_impl,
                                 avx512_core_amx);
