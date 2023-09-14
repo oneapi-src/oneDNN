@@ -153,7 +153,7 @@ struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
                         = &input[input_d.blk_off(o_blksize * O, i_blksize * I)];
                 const int oc_block = nstl::min(o_blksize, OC - O * o_blksize);
                 const int ic_block = nstl::min(i_blksize, IC - I * i_blksize);
-                int non_zeros = 0, zeros = 0;
+                int non_zeros = 0;
                 int bitmask_idx = (O * NB_IC + I) * i_blksize;
                 comp_tile_len_ptr[comp_tile_len_index] = cl_length;
 
@@ -176,8 +176,6 @@ struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
                                 *outp++ = o;
                                 bitmask_ptr[bitmask_idx] |= (1UL << bit);
                                 non_zeros++;
-                            } else {
-                                zeros++;
                             }
                             plain_off += plain_i_stride;
                             bit++;

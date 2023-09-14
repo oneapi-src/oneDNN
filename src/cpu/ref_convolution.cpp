@@ -399,7 +399,6 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
                 else
                     ds += ker(g, mb, ic, id, ih, iw);
 
-                size_t post_ops_data_idx = 0;
                 int depthwise_inj_idx = 0;
                 for (int i = 0; i < p.len(); i++) {
                     auto &post_op = p.entry_[i];
@@ -409,7 +408,6 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
                         auto depthwise_bias = depthwise_base + post_op.depthwise.offset[post_op.depthwise.shifts];
 
                         ds = depthwise_injectors[depthwise_inj_idx]->compute_scalar(ds, depthwise_weights + g * IC + ic, depthwise_bias + g * IC + ic);
-                        post_ops_data_idx++;
                         depthwise_inj_idx++;
                     }
                 }
