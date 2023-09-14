@@ -120,16 +120,17 @@ inline bool simple_po_check(const primitive_attr_t *attr) {
 inline status_t get_scales_mask(
         const primitive_attr_t *attr, int *src_mask, int *dst_mask) {
     const auto &s = attr->scales_;
-    if (src_mask) {
-        *src_mask = 0;
-        if (!s.get(DNNL_ARG_SRC).has_default_values())
-            *src_mask = s.get(DNNL_ARG_SRC).mask_;
-    }
-    if (dst_mask) {
-        *dst_mask = 0;
-        if (!s.get(DNNL_ARG_DST).has_default_values())
-            *dst_mask = s.get(DNNL_ARG_DST).mask_;
-    }
+
+    if (src_mask == nullptr || dst_mask == nullptr)
+        return status::invalid_arguments;
+
+    *src_mask = 0;
+    if (!s.get(DNNL_ARG_SRC).has_default_values())
+        *src_mask = s.get(DNNL_ARG_SRC).mask_;
+
+    *dst_mask = 0;
+    if (!s.get(DNNL_ARG_DST).has_default_values())
+        *dst_mask = s.get(DNNL_ARG_DST).mask_;
 
     // This is used in a check function.
     if (*src_mask > 0 && *dst_mask > 0 && *dst_mask != *src_mask)
