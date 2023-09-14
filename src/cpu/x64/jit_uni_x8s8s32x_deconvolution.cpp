@@ -347,8 +347,10 @@ jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::jit_uni_x8s8s32x_deconv_fwd_kernel(
                         _jit_avx2_x8s8s32x_deconv_fwd_kernel>(
                         ajcp, attr, dst_d);
                 return;
-            } else
+            } else {
                 assert(!"invalid channel blocking for current ISA");
+            }
+            break;
         case 4:
             kernel_ = utils::make_unique<
                     _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Xbyak::Xmm>>(
