@@ -19,6 +19,8 @@
 
 #include "graph/interface/op.hpp"
 
+#include "common/verbose.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace graph {

@@ -27,6 +27,8 @@
 #include "graph/interface/logical_tensor.hpp"
 #include "graph/interface/op.hpp"
 
+#include "common/verbose.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace graph {

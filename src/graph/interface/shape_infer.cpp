@@ -24,9 +24,28 @@
 
 #include "graph/interface/shape_infer.hpp"
 
+#define VCHECK_INVALID_SHAPE(cond, msg, ...) \
+    VCONDCHECK(graph, create, check, compile, (cond), status::invalid_shape, \
+            msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
+
+// utils function
+namespace {
+
+std::string dims2str(const dims &dims) {
+    if (dims.empty()) return std::string("");
+
+    std::string str;
+    str += std::to_string(dims[0]);
+    for (size_t d = 1; d < dims.size(); ++d)
+        str += ("x" + std::to_string(dims[d]));
+    return str;
+}
+
+} // namespace
 
 /// convert shape to ncx or oix
 dims canonicalize(const dims &shape, const std::string &format) {
@@ -303,9 +322,14 @@ status_t infer_conv_output_shape(op_t *n,
     // avoid dividing by zero at below.
     if (g == 0) return status::invalid_shape;
     // check if src channel / groups == weight input channel
-    if (in0.get_src_c(src_fmt) / g != in1.get_weight_i(fil_fmt)) {
-        return status::invalid_shape;
-    }
+    VCHECK_INVALID_SHAPE(
+            (in0.get_src_c(src_fmt) / g == in1.get_weight_i(fil_fmt)),
+            "%s, the source channel divided by groups should be equal to the "
+            "weight input channels, given source input channel: %d, group: "
+            "%d, weight input channel: %d ",
+            op_t::kind2str(n->get_kind()).c_str(),
+            static_cast<int>(in0.get_src_c(src_fmt)), static_cast<int>(g),
+            static_cast<int>(in1.get_weight_i(fil_fmt)));
 
     // spatial dims
     dims src_sp = in0.get_src_spatial_dims(src_fmt);
@@ -318,11 +342,15 @@ status_t infer_conv_output_shape(op_t *n,
     if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
 
     // strides and dilations are required and should be correctly provided.
-    if (strides.size() != src_sp.size() || dilations.size() != fil_sp.size()
-            || new_pads_begin.size() != src_sp.size()
-            || new_pads_end.size() != src_sp.size()) {
-        return status::invalid_shape;
-    }
+    const auto invalid_strides_and_dilations_cond
+            = (strides.size() != src_sp.size()
+                    || dilations.size() != fil_sp.size()
+                    || new_pads_begin.size() != src_sp.size()
+                    || new_pads_end.size() != src_sp.size());
+    VCHECK_INVALID_SHAPE(!invalid_strides_and_dilations_cond,
+            "%s, the strides and dilations are required and should be "
+            "correctly provided ",
+            op_t::kind2str(n->get_kind()).c_str());
 
     if (n->has_attr(op_attr::auto_pad)
             && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
@@ -331,7 +359,11 @@ status_t infer_conv_output_shape(op_t *n,
         for (size_t i = 0; i < src_sp.size(); ++i) {
             auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
                     dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
-            if (ret != status::success) return ret;
+            VCHECK_INVALID_SHAPE((ret == status::success),
+                    "%s, auto padding attribute can only be set to the "
+                    "following values: VALID, SAME_UPPER, SAME_LOWER, NONE. "
+                    "given value: %s",
+                    op_t::kind2str(n->get_kind()).c_str(), auto_pad.c_str());
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -347,9 +379,10 @@ status_t infer_conv_output_shape(op_t *n,
     if ("NXC" == src_fmt) { output_dims = ncx2nxc(output_dims); }
 
     if (out0.ndims() != -1) {
-        if (!validate(output_dims, out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(output_dims, out0.vdims()),
+                "%s, inferred output shape and shape from logical tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     set_shape_and_strides(*outputs[0], output_dims);
@@ -399,11 +432,15 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
     if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
 
     // strides and dilations are required and should be correctly provided.
-    if (strides.size() != src_sp.size() || dilations.size() != fil_sp.size()
-            || new_pads_begin.size() != src_sp.size()
-            || new_pads_end.size() != src_sp.size()) {
-        return status::invalid_shape;
-    }
+    const auto invalid_strides_and_dilations_cond
+            = (strides.size() != src_sp.size()
+                    || dilations.size() != fil_sp.size()
+                    || new_pads_begin.size() != src_sp.size()
+                    || new_pads_end.size() != src_sp.size());
+    VCHECK_INVALID_SHAPE(!invalid_strides_and_dilations_cond,
+            "%s, the strides and dilations are required and should be "
+            "correctly provided ",
+            op_t::kind2str(n->get_kind()).c_str());
 
     if (n->has_attr(op_attr::auto_pad)
             && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
@@ -413,7 +450,11 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
         for (size_t i = 0; i < src_sp.size(); ++i) {
             auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
                     dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
-            if (ret != status::success) return ret;
+            VCHECK_INVALID_SHAPE((ret == status::success),
+                    "%s, auto padding attribute can only be set to the "
+                    "following values: VALID, SAME_UPPER, SAME_LOWER, NONE. "
+                    "given value: %s",
+                    op_t::kind2str(n->get_kind()).c_str(), auto_pad.c_str());
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -459,9 +500,14 @@ status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
     // avoid dividing by zero at below.
     if (g == 0) return status::invalid_shape;
     // check if src channel / groups == weight output channel
-    if (in0.get_src_c(src_fmt) / g != in1.get_weight_o(fil_fmt)) {
-        return status::invalid_shape;
-    }
+    VCHECK_INVALID_SHAPE(
+            (in0.get_src_c(src_fmt) / g == in1.get_weight_o(fil_fmt)),
+            "%s, src channel divided by groups should be equal to weight "
+            "output channel,  src channel:%d, g:%d, weight output channel: "
+            "%d ",
+            op_t::kind2str(n->get_kind()).c_str(),
+            static_cast<int>(in0.get_src_c(src_fmt)), static_cast<int>(g),
+            static_cast<int>(in1.get_weight_o(fil_fmt)));
 
     // spatial dims
     dims src_sp = in0.get_src_spatial_dims(src_fmt);
@@ -474,11 +520,15 @@ status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
     if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
 
     // strides and dilations are required and should be correctly provided.
-    if (strides.size() != src_sp.size() || dilations.size() != fil_sp.size()
-            || new_pads_begin.size() != src_sp.size()
-            || new_pads_end.size() != src_sp.size()) {
-        return status::invalid_shape;
-    }
+    const auto invalid_strides_and_dilations_cond
+            = (strides.size() != src_sp.size()
+                    || dilations.size() != fil_sp.size()
+                    || new_pads_begin.size() != src_sp.size()
+                    || new_pads_end.size() != src_sp.size());
+    VCHECK_INVALID_SHAPE(!invalid_strides_and_dilations_cond,
+            "%s, the strides and dilations are required and should be "
+            "correctly provided ",
+            op_t::kind2str(n->get_kind()).c_str());
 
     if (n->has_attr(op_attr::auto_pad)
             && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
@@ -487,7 +537,11 @@ status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
         for (size_t i = 0; i < src_sp.size(); ++i) {
             auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
                     dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
-            if (ret != status::success) return ret;
+            VCHECK_INVALID_SHAPE((ret == status::success),
+                    "%s, auto padding attribute can only be set to the "
+                    "following values: VALID, SAME_UPPER, SAME_LOWER, NONE. "
+                    "given value: %s",
+                    op_t::kind2str(n->get_kind()).c_str(), auto_pad.c_str());
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -503,9 +557,10 @@ status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
     if ("NXC" == src_fmt) { output_dims = ncx2nxc(output_dims); }
 
     if (out0.ndims() != -1) {
-        if (!validate(output_dims, out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(output_dims, out0.vdims()),
+                "%s, inferred output shape and shape from logical tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     set_shape_and_strides(*outputs[0], output_dims);
@@ -555,11 +610,15 @@ status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
     if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
 
     // strides and dilations are required and should be correctly provided.
-    if (strides.size() != src_sp.size() || dilations.size() != fil_sp.size()
-            || new_pads_begin.size() != src_sp.size()
-            || new_pads_end.size() != src_sp.size()) {
-        return status::invalid_shape;
-    }
+    const auto invalid_strides_and_dilations_cond
+            = (strides.size() != src_sp.size()
+                    || dilations.size() != fil_sp.size()
+                    || new_pads_begin.size() != src_sp.size()
+                    || new_pads_end.size() != src_sp.size());
+    VCHECK_INVALID_SHAPE(!invalid_strides_and_dilations_cond,
+            "%s, the strides and dilations are required and should be "
+            "correctly provided ",
+            op_t::kind2str(n->get_kind()).c_str());
 
     if (n->has_attr(op_attr::auto_pad)
             && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
@@ -568,7 +627,11 @@ status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
         for (size_t i = 0; i < src_sp.size(); ++i) {
             auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
                     dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
-            if (ret != status::success) return ret;
+            VCHECK_INVALID_SHAPE((ret == status::success),
+                    "%s, auto padding attribute can only be set to the "
+                    "following values: VALID, SAME_UPPER, SAME_LOWER, NONE. "
+                    "given value: %s",
+                    op_t::kind2str(n->get_kind()).c_str(), auto_pad.c_str());
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -617,9 +680,14 @@ status_t infer_convtranspose_output_shape(op_t *n,
 
     if (!out0.is_shape_unknown()) {
         // check if dst channel / groups == weight output channel
-        if (out0.get_src_c(src_fmt) / g != in1.get_weight_o(fil_fmt)) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(
+                (out0.get_src_c(src_fmt) / g == in1.get_weight_o(fil_fmt)),
+                "%s, the dst channel divided by groups should be equal to "
+                "weight output channel. dst channel: %d, group: %d, weight "
+                "output channel: %d ",
+                op_t::kind2str(n->get_kind()).c_str(),
+                static_cast<int>(out0.get_src_c(src_fmt)), static_cast<int>(g),
+                static_cast<int>(in1.get_weight_o(fil_fmt)));
     }
 
     dims src_sp = in0.get_src_spatial_dims(src_fmt);
@@ -632,11 +700,15 @@ status_t infer_convtranspose_output_shape(op_t *n,
     if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
 
     // strides and dilations are required and should be correctly provided.
-    if (strides.size() != src_sp.size() || dilations.size() != fil_sp.size()
-            || new_pads_begin.size() != src_sp.size()
-            || new_pads_end.size() != src_sp.size()) {
-        return status::invalid_shape;
-    }
+    const auto invalid_strides_and_dilations_cond
+            = (strides.size() != src_sp.size()
+                    || dilations.size() != fil_sp.size()
+                    || new_pads_begin.size() != src_sp.size()
+                    || new_pads_end.size() != src_sp.size());
+    VCHECK_INVALID_SHAPE(!invalid_strides_and_dilations_cond,
+            "%s, the strides and dilations are required and should be "
+            "correctly provided ",
+            op_t::kind2str(n->get_kind()).c_str());
 
     dims output_padding(src_sp.size(), 0);
     if (n->has_attr(op_attr::output_padding)) {
@@ -652,7 +724,11 @@ status_t infer_convtranspose_output_shape(op_t *n,
             auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
                     dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i],
                     true);
-            if (ret != status::success) return ret;
+            VCHECK_INVALID_SHAPE((ret == status::success),
+                    "%s, auto padding attribute can only be set to the "
+                    "following values: VALID, SAME_UPPER, SAME_LOWER, NONE. "
+                    "given value: %s",
+                    op_t::kind2str(n->get_kind()).c_str(), auto_pad.c_str());
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -670,9 +746,10 @@ status_t infer_convtranspose_output_shape(op_t *n,
             src_fmt, in0.get_src_n(), in1.get_weight_o(fil_fmt) * g, output_sp);
 
     if (out0.ndims() != -1) {
-        if (!validate(out0_shape, out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(out0_shape, out0.vdims()),
+                "%s, inferred output shape and shape from logical tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     set_shape_and_strides(*outputs[0], out0_shape);
@@ -724,7 +801,11 @@ status_t infer_pool_output_shape(op_t *n,
         for (size_t i = 0; i < src_sp.size(); ++i) {
             auto ret = infer_auto_pad(src_sp[i], strides[i], kernel[i],
                     dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
-            if (ret != status::success) return ret;
+            VCHECK_INVALID_SHAPE((ret == status::success),
+                    "%s, auto padding attribute can only be set to the "
+                    "following values: VALID, SAME_UPPER, SAME_LOWER, NONE. "
+                    "given value: %s",
+                    op_t::kind2str(n->get_kind()).c_str(), auto_pad.c_str());
         }
         n->set_attr(op_attr::pads_begin, new_pads_begin);
         n->set_attr(op_attr::pads_end, new_pads_end);
@@ -746,9 +827,10 @@ status_t infer_pool_output_shape(op_t *n,
     dims out_shape = make_data_dims(
             src_format, in0.get_src_n(), in0.get_src_c(src_format), output_sp);
     if (out0.ndims() != -1) {
-        if (!validate(out_shape, out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(out_shape, out0.vdims()),
+                "%s, inferred output shape and shape from logical tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     set_shape_and_strides(*outputs[0], out_shape);
@@ -763,9 +845,9 @@ status_t infer_pool_bwd_output_shape(op_t *n,
 
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
-        if (!validate(in0.vdims(), out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
+                "%s, input and output shapes are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     const bool is_maxpool = n->get_kind() == op_kind::MaxPoolBackward;
@@ -821,7 +903,11 @@ status_t infer_pool_bwd_output_shape(op_t *n,
         for (size_t i = 0; i < src_sp.size(); ++i) {
             auto ret = infer_auto_pad(src_sp[i], strides[i], kernel[i],
                     dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
-            if (ret != status::success) return ret;
+            VCHECK_INVALID_SHAPE((ret == status::success),
+                    "%s, auto padding attribute can only be set to the "
+                    "following values: VALID, SAME_UPPER, SAME_LOWER, NONE. "
+                    "given value: %s",
+                    op_t::kind2str(n->get_kind()).c_str(), auto_pad.c_str());
         }
         n->set_attr(op_attr::pads_begin, new_pads_begin);
         n->set_attr(op_attr::pads_end, new_pads_end);
@@ -863,60 +949,73 @@ status_t infer_matmul_output_shape(op_t *n,
 
     dims inferred_out_shape;
     if (input0_rank == 1 && input1_rank == 1) {
-        if (updated_input0 != updated_input1) {
-            // matmul: incompatible arg shapes
-            return status::invalid_shape;
-        }
+        // matmul: incompatible arg shapes
+        VCHECK_INVALID_SHAPE((updated_input0 == updated_input1),
+                "%s, arg shapes are not compatible. input 0: %s, input 1: %s ",
+                op_t::kind2str(n->get_kind()).c_str(),
+                dims2str(input0_dims).c_str(), dims2str(input1_dims).c_str());
+
         // example: input0={1,1}, input1={1,1}, output={2}. According to spec,
         // output shape of two 1D tensors multiplication [S] x [S] is squeezed
         // to scalar.
         inferred_out_shape = {};
     } else if (input0_rank == 1) {
-        if (updated_input0[0] != updated_input1[input1_rank - 2]) {
-            // matmul: incompatible arg shapes
-            return status::invalid_shape;
-        }
+        // matmul: incompatible arg shapes
+        VCHECK_INVALID_SHAPE(
+                (updated_input0[0] == updated_input1[input1_rank - 2]),
+                "%s, arg shapes are not compatible. input 0: %s, input 1: %s ",
+                op_t::kind2str(n->get_kind()).c_str(),
+                dims2str(input0_dims).c_str(), dims2str(input1_dims).c_str());
+
         // example: input0 shape {3}, input1 shape {2,3,4}, output shape {2,4}
         updated_input1.erase(
                 updated_input1.begin() + static_cast<dim_t>(input1_rank) - 2);
         inferred_out_shape = updated_input1;
     } else if (input1_rank == 1) {
-        if (updated_input1[0] != updated_input0[input0_rank - 1]) {
-            // matmul: incompatible arg shapes
-            return status::invalid_shape;
-        }
+        // matmul: incompatible arg shapes
+        VCHECK_INVALID_SHAPE(
+                (updated_input1[0] == updated_input0[input0_rank - 1]),
+                "%s, arg shapes are not compatible. input 0: %s, input 1: %s ",
+                op_t::kind2str(n->get_kind()).c_str(),
+                dims2str(input0_dims).c_str(), dims2str(input1_dims).c_str());
         // example: input0 shape {2,3,4}, input1 shape {4}, output shape {2,3}
         updated_input0.erase(
                 updated_input0.begin() + static_cast<dim_t>(input0_rank) - 1);
         inferred_out_shape = updated_input0;
     } else if (input0_rank == 2 && input1_rank == 2) {
-        if (updated_input0[1] != updated_input1[0]) {
-            // matmul: incompatible arg shapes
-            return status::invalid_shape;
-        }
+        // matmul: incompatible arg shapes
+        VCHECK_INVALID_SHAPE((updated_input0[1] == updated_input1[0]),
+                "%s, arg shapes are not compatible. input 0: %s, input 1: %s ",
+                op_t::kind2str(n->get_kind()).c_str(),
+                dims2str(input0_dims).c_str(), dims2str(input1_dims).c_str());
         // example: input0 shape {1, 3}, input1 shape {3, 2}, output shape {1,2}
         inferred_out_shape = {updated_input0[0], updated_input1[1]};
     } else {
-        if (updated_input0[input0_rank - 1]
-                != updated_input1[input1_rank - 2]) {
-            // matmul: incompatible arg shapes
-            return status::invalid_shape;
-        }
+        // matmul: incompatible arg shapes
+        VCHECK_INVALID_SHAPE((updated_input0[input0_rank - 1]
+                                     == updated_input1[input1_rank - 2]),
+                "%s, arg shapes are not compatible. input 0: %s, input 1: %s ",
+                op_t::kind2str(n->get_kind()).c_str(),
+                dims2str(input0_dims).c_str(), dims2str(input1_dims).c_str());
+
         std::vector<int64_t> input0_batch_dims {
                 updated_input0.begin(), updated_input0.end() - 2};
         std::vector<int64_t> input1_batch_dims {
                 updated_input1.begin(), updated_input1.end() - 2};
         status_t ret = broadcast(
                 input0_batch_dims, input1_batch_dims, inferred_out_shape);
-        if (ret != status::success) { return ret; }
+        VCHECK_INVALID_SHAPE((ret == status::success),
+                "%s, failed to implement numpy broadcasting",
+                op_t::kind2str(n->get_kind()).c_str());
+
         inferred_out_shape.push_back(updated_input0[input0_rank - 2]);
         inferred_out_shape.push_back(updated_input1[input1_rank - 1]);
     }
 
     if (out0.ndims() != -1) {
-        if (!validate(inferred_out_shape, out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(inferred_out_shape, out0.vdims()),
+                "%s, inferred out shape and output shape are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     set_shape_and_strides(*outputs[0], inferred_out_shape);
@@ -931,9 +1030,9 @@ status_t infer_identity_output_shape(op_t *n,
 
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
-        if (!validate(in0.vdims(), out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
+                "%s, input and output shapes are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     // We should compute output dense strides instead of directly copying input
@@ -964,10 +1063,9 @@ status_t infer_bias_backprop_output_shape(op_t *n,
 
     auto in = logical_tensor_wrapper_t(inputs[0]);
     dims input_dims = in.vdims();
-    if (input_dims.size() < 4) {
-        // bias add backprop: input should have at least 4 dims.
-        return status::invalid_shape;
-    }
+    VCHECK_INVALID_SHAPE((input_dims.size() >= 4),
+            "%s, should have at least 4 dims, given dims: %zu ",
+            op_t::kind2str(n->get_kind()).c_str(), input_dims.size());
 
     std::string fmt = n->has_attr(op_attr::data_format)
             ? n->get_attr<std::string>(op_attr::data_format)
@@ -988,16 +1086,15 @@ status_t infer_bias_add_output_shape(op_t *n,
 
     auto in = logical_tensor_wrapper_t(inputs[0]);
     dims input_dims = in.vdims();
-    if (input_dims.size() < 2) {
-        // bias add: input should have at least 2 dims.
-        return status::invalid_shape;
-    }
+    VCHECK_INVALID_SHAPE((input_dims.size() >= 2),
+            "%s, input should have at least 2 dims, given dims: %zu ",
+            op_t::kind2str(n->get_kind()).c_str(), input_dims.size());
+
     auto bias = logical_tensor_wrapper_t(inputs[1]);
     dims bias_dims = bias.vdims();
-    if (bias_dims.size() != 1) {
-        // bias add: bias should have exactly 1 dimension.
-        return status::invalid_shape;
-    }
+    VCHECK_INVALID_SHAPE((bias_dims.size() == 1),
+            "%s, the bias input should have exactly 1 dim, given dims: %zu ",
+            op_t::kind2str(n->get_kind()).c_str(), bias_dims.size());
 
     // following the spec of convolution, nxc as default format
     std::string fmt = n->has_attr(op_attr::data_format)
@@ -1005,10 +1102,11 @@ status_t infer_bias_add_output_shape(op_t *n,
             : "NXC";
 
     const auto channels = in.get_src_c(fmt);
-    if (bias_dims[0] != channels) {
-        // bias add: bias size should match input channels size.
-        return status::invalid_shape;
-    }
+    VCHECK_INVALID_SHAPE((bias_dims[0] == channels),
+            "%s, the bias size should match input channel size, given bias "
+            "size: %d ",
+            op_t::kind2str(n->get_kind()).c_str(),
+            static_cast<int>(bias_dims[0]));
 
     return infer_identity_output_shape(n, inputs, outputs);
 }
@@ -1088,21 +1186,29 @@ status_t infer_select_output_shape(op_t *n,
     dims inferred_out_shape;
 
     if (shapes_should_match) { // no broadcast
-        if (!(input0_dims == input1_dims && input1_dims == input2_dims)) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(
+                (input0_dims == input1_dims && input1_dims == input2_dims),
+                "%s, all input dims should match each other if there is no "
+                "broadcast. input0 dims: %s, input1 dims: %s, input2 dims: %s ",
+                op_t::kind2str(n->get_kind()).c_str(),
+                dims2str(input0_dims).c_str(), dims2str(input1_dims).c_str(),
+                dims2str(input2_dims).c_str());
         inferred_out_shape = input0_dims;
     } else { // can broadcast
         status_t ret1 = broadcast(input1_dims, input2_dims, inferred_out_shape);
-        if (ret1 != status::success) { return ret1; }
+        VCHECK_INVALID_SHAPE((ret1 == status::success),
+                "%s, failed to implement numpy broadcasting",
+                op_t::kind2str(n->get_kind()).c_str());
         status_t ret2 = one_way_broadcast(inferred_out_shape, input0_dims);
-        if (ret2 != status::success) { return ret2; }
+        VCHECK_INVALID_SHAPE((ret2 == status::success),
+                "%s, failed to implement one-way broadcasting",
+                op_t::kind2str(n->get_kind()).c_str());
     }
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
-        if (!validate(inferred_out_shape, out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(inferred_out_shape, out0.vdims()),
+                "%s, inferred out shape and output shape are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     set_shape_and_strides(*outputs[0], inferred_out_shape);
@@ -1126,20 +1232,22 @@ status_t infer_elemwise_arithmetic_output_shape(op_t *n,
     dims input1_dims = in1.vdims();
     dims inferred_out_shape;
     if (shapes_should_match) {
-        if (input0_dims != input1_dims) {
-            // add: incompatible input shapes (auto_broadcast=none)
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE((input0_dims == input1_dims),
+                "%s, incompatible input shapes (auto_broadcast=none) ",
+                op_t::kind2str(n->get_kind()).c_str());
+
         inferred_out_shape = input0_dims;
     } else {
         status_t ret = broadcast(input0_dims, input1_dims, inferred_out_shape);
-        if (ret != status::success) { return ret; }
+        VCHECK_INVALID_SHAPE((ret == status::success),
+                "%s, failed to implement numpy broadcasting",
+                op_t::kind2str(n->get_kind()).c_str());
     }
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
-        if (!validate(inferred_out_shape, out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(inferred_out_shape, out0.vdims()),
+                "%s, inferred out shape and output shape are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     set_shape_and_strides(*outputs[0], inferred_out_shape);
@@ -1157,7 +1265,10 @@ status_t infer_bn_fwd_train_output_shape(op_t *n,
     cvec_int64 input_dims = in.vdims();
     // Graph API supports 0d spatial input of batchnorm at minimum,
     // of which the input dim size is 2
-    if (input_dims.size() < 2) return status::invalid_shape;
+    VCHECK_INVALID_SHAPE((input_dims.size() >= 2),
+            "%s, input dim size of batch norm should be at least 2, input dims "
+            "size: %zu ",
+            op_t::kind2str(n->get_kind()).c_str(), input_dims.size());
 
     std::string fmt = n->has_attr(op_attr::data_format)
             ? n->get_attr<std::string>(op_attr::data_format)
@@ -1187,8 +1298,11 @@ status_t infer_bn_bwd_output_shape(op_t *n,
     cvec_int64 input_dims = in.vdims();
     const auto out_delta = logical_tensor_wrapper_t(inputs[1]);
     cvec_int64 out_delta_dims = out_delta.vdims();
-    if (input_dims.size() < 4 || out_delta_dims.size() < 4)
-        return status::invalid_shape;
+    VCHECK_INVALID_SHAPE((input_dims.size() >= 4 && out_delta_dims.size() >= 4),
+            "%s, dims range should not be less than 4, input dims size: %zu, "
+            "output delta dims size: %zu",
+            op_t::kind2str(n->get_kind()).c_str(), input_dims.size(),
+            out_delta_dims.size());
 
     std::string fmt = n->has_attr(op_attr::data_format)
             ? n->get_attr<std::string>(op_attr::data_format)
@@ -1238,14 +1352,23 @@ status_t infer_concat_output_shape(op_t *n,
     for (auto iter = inputs.cbegin(); iter != inputs.cend(); iter++) {
         auto lt_inN = logical_tensor_wrapper_t(*iter);
         const auto &lt_inN_dims = lt_inN.vdims();
-        if (lt_inN.ndims() != ndims) { return status::invalid_shape; }
+        VCHECK_INVALID_SHAPE((lt_inN.ndims() == ndims),
+                "%s, input dims size should be equal to lt dims size. "
+                "input dims size: %d, lt input size: %d  ",
+                op_t::kind2str(n->get_kind()).c_str(), ndims, lt_inN.ndims());
+
         if (lt_inN.data_type() != data_type) { return status::unimplemented; }
         for (int32_t i = 0; i < ndims; i++) {
             if (i != axis) {
                 // input dims should be same except axis dim.
-                if (dims[i] != lt_inN_dims[static_cast<size_t>(i)]) {
-                    return status::invalid_shape;
-                }
+                VCHECK_INVALID_SHAPE(
+                        (dims[i] == lt_inN_dims[static_cast<size_t>(i)]),
+                        "%s, input dims should be same except axis dim. "
+                        "dims[i]: %d, dim in logical tensor: %d ",
+                        op_t::kind2str(n->get_kind()).c_str(),
+                        static_cast<int>(dims[i]),
+                        static_cast<int>(lt_inN_dims[static_cast<size_t>(i)]));
+
             } else {
                 sum += lt_inN_dims[static_cast<size_t>(axis)];
             }
@@ -1306,9 +1429,10 @@ status_t infer_reduce_output_shape(op_t *n,
                                 [](int64_t d) { return d == 0; }),
                     shape.end());
         if (!out0.is_shape_unknown()) {
-            if (!validate(shape, out0.vdims())) {
-                return status::invalid_shape;
-            }
+            VCHECK_INVALID_SHAPE(validate(shape, out0.vdims()),
+                    "%s, inferred out shape and output shape are not "
+                    "compatible",
+                    op_t::kind2str(n->get_kind()).c_str());
         }
 
         set_shape_and_strides(*outputs[0], shape);
@@ -1334,9 +1458,9 @@ status_t infer_static_reshape_output_shape(op_t *n,
 
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
-        if (!validate(in0.vdims(), out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
+                "%s, input and output shapes are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     const dims &in_dims = in0.vdims();
@@ -1346,15 +1470,20 @@ status_t infer_static_reshape_output_shape(op_t *n,
     bool find_uncertain_dim = false; // shape contains -1
     size_t uncertain_axis = 0;
     for (size_t i = 0; i < out_dims.size(); i++) {
-        if (out_dims[i] < -1) return status::invalid_shape;
+        VCHECK_INVALID_SHAPE((out_dims[i] >= -1),
+                "%s, output dims should be larger than or equal to -1, output "
+                "dim: %d  ",
+                op_t::kind2str(n->get_kind()).c_str(),
+                static_cast<int>(out_dims[i]));
         if (out_dims[i] == 0) {
             // handle special_zero: 0 means same as input shape in that
             // dimension if special_zero is true; or 0 as-is if special_zero is
             // false
             if (special_zero) {
-                if (i >= static_cast<size_t>(in0.ndims())) {
-                    return status::invalid_shape;
-                }
+                VCHECK_INVALID_SHAPE((i < static_cast<size_t>(in0.ndims())),
+                        "%s, output dims size should be smaller than input "
+                        "size for special zero, output dim size: %zu  ",
+                        op_t::kind2str(n->get_kind()).c_str(), out_dims.size());
                 out_dims[i] = in_dims[i];
             }
         } else if (out_dims[i] == -1) {
@@ -1376,16 +1505,26 @@ status_t infer_static_reshape_output_shape(op_t *n,
     // handle -1 in output shape: the value is inferred from the size of the
     // input tensor and the remaining dimensions
     if (find_uncertain_dim) {
-        if (out_size == 0) return status::invalid_shape;
+        VCHECK_INVALID_SHAPE((out_size != 0),
+                "%s, output size is not allowed to be 0 for uncertain dims, "
+                "output size: %d  ",
+                op_t::kind2str(n->get_kind()).c_str(), out_size);
         out_dims[uncertain_axis] = in_size / out_size;
     }
 
     // size of input should be same as output
     if (find_uncertain_dim == false) {
-        if (out_size != in_size) return status::invalid_shape;
+        VCHECK_INVALID_SHAPE((out_size == in_size),
+                "%s, size of input should be same as output. input size: %d, "
+                "output size: %d  ",
+                op_t::kind2str(n->get_kind()).c_str(), in_size, out_size);
     } else {
-        if (out_size * out_dims[uncertain_axis] != in_size)
-            return status::invalid_shape;
+        VCHECK_INVALID_SHAPE((out_size * out_dims[uncertain_axis] == in_size),
+                "%s, the product of output size and output dim at uncertain "
+                "axis should be equal to the input size. input size: %d, "
+                "output size: %d, output dim at uncertain axis: %d  ",
+                op_t::kind2str(n->get_kind()).c_str(), in_size, out_size,
+                static_cast<int>(out_dims[uncertain_axis]));
     }
 
     // We should compute output dense strides instead of
@@ -1403,9 +1542,9 @@ status_t infer_static_transpose_output_shape(op_t *n,
 
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
-        if (!validate(in0.vdims(), out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
+                "%s, input and output shapes are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     const dims &in_dims = in0.vdims();
@@ -1418,10 +1557,18 @@ status_t infer_static_transpose_output_shape(op_t *n,
         if (order.size() != static_cast<size_t>(in_ndims)) {
             return status::invalid_shape;
         }
+        VCHECK_INVALID_SHAPE((order.size() == static_cast<size_t>(in_ndims)),
+                "%s, order size should be equal to input dims size. order "
+                "size: %zu, input dims size: %d  ",
+                op_t::kind2str(n->get_kind()).c_str(), order.size(), in_ndims);
 
         for (int64_t &axis : order) {
-            if (axis < -in_ndims || axis > in_ndims - 1)
-                return status::invalid_shape;
+            VCHECK_INVALID_SHAPE((!(axis < -in_ndims || axis > in_ndims - 1)),
+                    "%s, order axis should be in appropriate range. axis: %d, "
+                    "in_ndims: %d ",
+                    op_t::kind2str(n->get_kind()).c_str(),
+                    static_cast<int>(axis), in_ndims);
+
             if (axis < 0) axis += in_ndims;
             if (order_covered_flg[axis]) {
                 return status::invalid_shape;

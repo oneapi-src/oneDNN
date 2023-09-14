@@ -22,6 +22,10 @@
 #include "graph/backend/dnnl/dnnl_shape_infer.hpp"
 #include "graph/backend/dnnl/internal_attrs.hpp"
 
+#define VCHECK_INVALID_SHAPE(cond, msg, ...) \
+    VCONDCHECK(graph, create, check, compile, (cond), status::invalid_shape, \
+            msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -207,9 +211,9 @@ status_t infer_permute_output_shape(op_t *n,
 
     // check the given shape
     if (!out0.is_shape_unknown()) {
-        if (!validate(inferred_out_dims, out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(inferred_out_dims, out0.vdims()),
+                "%s, inferred out shape and output shape are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
     set_shape_and_strides(*outputs[0], inferred_out_dims);
 
@@ -350,15 +354,15 @@ status_t infer_bn_folding_output_shape(op_t *n,
 
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
-        if (!validate(in0.vdims(), out0.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
+                "%s, input and output shapes are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     if (out1.ndims() != -1) {
-        if (!validate(in1.vdims(), out1.vdims())) {
-            return status::invalid_shape;
-        }
+        VCHECK_INVALID_SHAPE(validate(in1.vdims(), out1.vdims()),
+                "%s, input and output shapes are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
     }
 
     // We should compute output dense strides instead of
