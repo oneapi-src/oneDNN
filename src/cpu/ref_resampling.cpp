@@ -107,7 +107,7 @@ static dim_t get_offset(const memory_desc_wrapper &data_d, dim_t n, dim_t c,
 }
 
 ref_resampling_fwd_t::ref_resampling_fwd_t(const pd_t *apd)
-    : primitive_t(apd), ref_post_ops_(pd()->attr()->post_ops_) {}
+    : primitive_t(apd) {}
 
 ref_resampling_fwd_t::~ref_resampling_fwd_t() = default;
 
@@ -197,7 +197,7 @@ void ref_resampling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                 args.dst_md = pd()->dst_md();
                 args.l_offset = data_l_off;
                 args.dst_val = io::load_float_value(dst_dt, dst, data_p_off);
-                ref_post_ops_.execute(res, args);
+                ref_post_ops_->execute(res, args);
 
                 store_fn(res, dst, data_p_off);
             });

@@ -39,11 +39,7 @@ namespace gemm_x8s8s32x_convolution_utils {
 template <typename dst_data_t>
 struct ref_pp_ker_t : pp_ker_t {
     ref_pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp)
-        : pp_ker_t(pd, jcp) {
-        if (jcp.with_eltwise || jcp.with_binary) {
-            ref_post_ops_.reset(new ref_post_ops_t(jcp.post_ops));
-        }
-    }
+        : pp_ker_t(pd, jcp), dst_md_(pd->dst_md()) {}
 
     using acc_data_t = pp_ker_t::acc_data_t;
 
@@ -55,8 +51,19 @@ struct ref_pp_ker_t : pp_ker_t {
             const exec_ctx_t &ctx, const memory_desc_t &dst_md,
             const single_gemm_conv_chunk_desc_t &chunk_desc) const override;
 
+    status_t create_kernel() override {
+        if (this->jcp_.with_eltwise || this->jcp_.with_binary) {
+            ref_post_ops_
+                    = utils::make_unique<ref_post_ops_t>(this->jcp_.post_ops);
+            if (!ref_post_ops_) return status::out_of_memory;
+            return ref_post_ops_->init(dst_md_);
+        }
+        return status::success;
+    }
+
 private:
     std::unique_ptr<ref_post_ops_t> ref_post_ops_;
+    const memory_desc_t *dst_md_;
 };
 
 template <typename dst_data_t>

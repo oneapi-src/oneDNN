@@ -69,6 +69,8 @@ struct ref_post_ops_t {
 
     virtual ~ref_post_ops_t() = default;
 
+    status_t init(const memory_desc_t *dst_md);
+
     void execute(float &res, const args_t &args = args_t()) const;
 
     static bool primitive_kind_ok(const post_ops_t &po) {
@@ -84,6 +86,7 @@ private:
 
     std::vector<ref_eltwise_scalar_fwd_t> eltwise_po_;
     std::vector<ref_binary_scalar_t> binary_po_;
+    std::vector<memory_desc_t> prelu_md_;
 };
 
 } // namespace cpu
