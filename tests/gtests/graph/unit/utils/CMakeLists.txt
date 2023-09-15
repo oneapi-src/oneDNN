@@ -14,21 +14,15 @@
 # limitations under the License.
 #===============================================================================
 
-set(TEST_EXE test_unit_utils)
+set(OBJ_LIB graph_unit_test_utils)
 
-file(GLOB TEST_UTILS_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_debug.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_json.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_verbose.cpp
-)
+file(GLOB TEST_UTILS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
 
 if(DNNL_USE_CLANG_SANITIZER)
     # Due to the following tests are testing out-of-range enum values.
     list(REMOVE_ITEM TEST_UTILS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_debug.cpp)
 endif()
 
-register_graph_unit_exe(${TEST_EXE} "${TEST_UTILS_SOURCES}" "")
+add_library(${OBJ_LIB} OBJECT ${TEST_UTILS_SOURCES})
+
+set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS $<TARGET_OBJECTS:${OBJ_LIB}>)

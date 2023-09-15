@@ -17,8 +17,31 @@
 include_directories_with_host_compiler(
     ${PROJECT_SOURCE_DIR}/tests
     ${PROJECT_SOURCE_DIR}/src/graph
+    ${PROJECT_SOURCE_DIR}/include)
+
+file(GLOB COMMON_UNIT_TESTS
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+    )
+
+list(APPEND COMMON_UNIT_TESTS ${TEST_THREAD})
+list(APPEND COMMON_UNIT_TESTS ${TEST_ALLOCATOR})
+
+add_subdirectory(interface)
+add_subdirectory(backend)
+add_subdirectory(utils)
+
+get_property(UNIT_TEST_DEPS GLOBAL PROPERTY GRAPH_UNIT_TEST_DEPS)
+get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
+
+add_executable(test_graph_unit ${COMMON_UNIT_TESTS} ${UNIT_TEST_DEPS} ${LIB_DEPS})
+
+# Set path to non exported headers
+include_directories_with_host_compiler(
+    ${PROJECT_SOURCE_DIR}/tests/gtests/graph
+    ${PROJECT_SOURCE_DIR}/tests/gtests/gtest
     ${PROJECT_SOURCE_DIR}/include
-)
+    ${PROJECT_SOURCE_DIR}/src/graph
+    )
 
 if(DNNL_ENABLE_JIT_PROFILING OR DNNL_ENABLE_ITT_TASKS)
     if (UNIX AND NOT APPLE)
@@ -30,30 +53,25 @@ endif()
 
 get_property(STATIC_LIB_DEPS GLOBAL PROPERTY DNNL_SUBDIR_EXTRA_STATIC_LIBS)
 get_property(SHARED_LIB_DEPS GLOBAL PROPERTY DNNL_SUBDIR_EXTRA_SHARED_LIBS)
-get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
 
-file(GLOB COMMON_UNIT_TESTS
-    ${CMAKE_CURRENT_SOURCE_DIR}/unit_test_common.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/unit_test_main.cpp
-    ${TEST_THREAD}
-    ${TEST_ALLOCATOR}
-)
-
-function(register_graph_unit_exe exe_name srcs category)
-    string(REPLACE "test_" "test_graph_${category}" exe_new_name ${exe_name})
-    set(DEPS
-        ${LIB_PACKAGE_NAME}
-        ${EXTRA_SHARED_LIBS}
-        ${EXTRA_STATIC_LIBS}
-        ${STATIC_LIB_DEPS}
-        ${SHARED_LIB_DEPS}
-        dnnl_gtest
+target_link_libraries(test_graph_unit
+    dnnl_gtest
+    ${EXTRA_SHARED_LIBS}
+    ${EXTRA_STATIC_LIBS}
+    ${STATIC_LIB_DEPS}
+    ${SHARED_LIB_DEPS}
     )
-    
-    list(APPEND srcs ${COMMON_UNIT_TESTS} ${LIB_DEPS})
-    register_graph_exe(${exe_new_name} "${srcs}" "${DEPS}")
-endfunction()
 
-add_subdirectory(interface)
-add_subdirectory(backend)
-add_subdirectory(utils)
+set(sycl_rt_pattern "(SYCL|DPCPP)")
+
+# Add CPU test if CPU runtime is enabled
+if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+    add_test("test_graph_unit_cpu" "test_graph_unit" "--engine=cpu")
+    maybe_configure_windows_test("test_graph_unit_cpu" TEST)
+endif()
+
+# Add GPU test if GPU runtime is enabled
+if(DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
+    add_test("test_graph_unit_gpu" "test_graph_unit" "--engine=gpu")
+    maybe_configure_windows_test("test_graph_unit_gpu" TEST)
+endif()
