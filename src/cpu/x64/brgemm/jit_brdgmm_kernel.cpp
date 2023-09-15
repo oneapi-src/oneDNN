@@ -1267,7 +1267,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
         }
     };
 
-    assert(m_block1_tail() == 0);
+    assert(brg.bdb_tail == 0);
     m_loop();
 }
 
