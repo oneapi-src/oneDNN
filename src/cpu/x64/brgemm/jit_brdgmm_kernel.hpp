@@ -241,9 +241,6 @@ private:
 
     inline int M() { return brg.bcast_dim; }
     inline int N() { return brg.load_dim; }
-    inline int m_block1() { return brg.bd_block; }
-    inline int nb_m_block1() { return brg.bdb; }
-    inline int m_block1_tail() { return brg.bdb_tail; }
     inline int m_block2() { return brg.bd_block2; }
     inline int nb_m_block2() { return brg.bdb2; }
     inline int m_block2_tail() { return brg.bdb2_tail; }
