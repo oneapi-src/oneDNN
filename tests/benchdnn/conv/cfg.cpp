@@ -91,6 +91,12 @@ float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
         float safe_density = (float)safe_n_acc / density_args.n_acc;
         if (is_int8()) safe_density *= 3.f;
         density = MIN2(density, safe_density);
+        // It seems that reduced precision values are accumulated on Nvidia HW
+        // with atomics since false positive may or may not occur. To remove
+        // the possibility of false positive, need to put more zeroes to reduce
+        // the range of output value to stay precise.
+        if (is_nvidia_gpu() && get_dt(density_args.data_kind) == dnnl_bf16)
+            density /= 2.f;
     }
 
     BENCHDNN_PRINT(6, "[FILL_CFG][%s] n_acc=%lld safe_n_acc=%s; density=%f\n",
