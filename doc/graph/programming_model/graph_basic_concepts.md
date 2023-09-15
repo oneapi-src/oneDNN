@@ -4,9 +4,9 @@ Basic Concepts {#dev_guide_graph_basic_concepts}
 ## Introduction
 
 In oneDNN Graph API programming model, a computation graph is passed to library
-and then optimized sub-graphs which are called `partitions` are returned by
-the library. `Partition` is decided by oneDNN Graph API implementation. It is
-the key concept to satisfy the different needs of AI hardware classes by using a
+and then optimized sub-graphs which are called `partitions` are returned by the
+library. `Partition` is decided by oneDNN Graph API implementation. It is the
+key concept to satisfy the different needs of AI hardware classes by using a
 unified API. Typically can compile `partitions`, bind `tensor` data, and execute
 `compiled partitions`.
 
@@ -15,6 +15,8 @@ The key concepts in oneDNN Graph API include `logical tensor`, `op`, `graph`,
 between these entities. Besides, oneDNN Graph API shares the common `engine` and
 `stream` concepts of oneDNN primitive API.
 
+Check the API documentation for detailed usage of each API concept.
+
 @img{img_graph_programming_model.png,Figure 1: Overview of Graph API programming model. Blue rectangles denote oneDNN objects\, and red lines denote dependencies between objects.,80%,}
 
 ## Logical Tensor
@@ -22,8 +24,10 @@ between these entities. Besides, oneDNN Graph API shares the common `engine` and
 `Logical tensor` (@ref dnnl::graph::logical_tensor) describes the metadata of
 the input and output tensors, like data type, number of dimensions, size for
 each dimension, tensor layout and property. Each logical tensor has a unique ID
-which is immutable during the lifetime of a logical tensor. The metadata of a
-logical tensor cannot be modified without creating a new one.
+which is immutable during the lifetime of a logical tensor. Shape information
+for the input logical tensor will be required at the partition compilation
+stage. Logical tensor is not mutable. Users must create a new logical tensor
+with the same ID to pass any new additional information to oneDNN Graph API.
 
 ## Op
 
@@ -59,12 +63,14 @@ and output logical tensors and engine (@ref dnnl::engine).
 
 The output logical tensors can have unknown dimensions during compilation. In
 this case, the compilation procedure should deduce the output shapes according
-to the input shapes and will return an error if the output shapes cannot deduced
-determinately. The output logical tensors can also have `any` layout type (@ref
-dnnl::graph::logical_tensor::layout_type::any). It means that the compilation
-procedure can choose the optimal layouts for the output tensors. Optimal layouts
-are represented as opaque layout IDs and saved in the corresponding output
-logical tensors.
+to the input shapes and will return an error if the output shapes cannot be
+deduced deterministically. The input logical tensors should have either the
+`strided` or `opaque` layout type (@ref
+dnnl::graph::logical_tensor::layout_type). Additionally, the output logical
+tensors can have layout type `any`. It means that the compilation procedure can
+choose the optimal layouts for the output tensors. Optimal layouts are
+represented as opaque layout IDs and saved in the corresponding output logical
+tensors.
 
 A partition may contains many logical tensors with part of them are internal
 intermediate results connecting two operations inside the partition. The
