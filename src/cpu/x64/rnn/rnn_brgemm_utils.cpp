@@ -176,7 +176,7 @@ dim_t brgemm_calc_m_block_vanilla_rnn(dim_t nthr, dim_t M, dim_t N_blocks,
         const dim_t m_block_end = 8;
 
         float max_decimal_mn = 0.0f;
-        dim_t best_candidate = 0.0;
+        dim_t best_candidate = m_block_start;
         bool found_best_solution = false;
 
         for (dim_t m_block_it = m_block_start; m_block_it >= m_block_end;
