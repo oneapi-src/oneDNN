@@ -758,9 +758,10 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     auto bia_layout = user_bia_layout;
 
     if (prb.is_bwd_w) {
-        if (utils::one_of(prb.wei_data_type, data_type::bf16, data_type::f16))
+        if (utils::one_of(prb.wei_data_type, data_type::bf16, data_type::f16, data_type::bf8))
             wei_layout = wei_layout.retype(type_t::f32());
-        if (utils::one_of(prb.bia_data_type, data_type::bf16, data_type::f16))
+        if (utils::one_of(prb.bia_data_type, data_type::bf16, data_type::f16,
+                    data_type::bf8))
             bia_layout = bia_layout.retype(type_t::f32());
     }
 
@@ -806,6 +807,8 @@ bool data_types_ok(const conv_problem_t &prb, const hw_t &hw) {
     auto dst = prb.dst_data_type;
     auto bia = prb.bia_data_type;
     bool is_bf16 = utils::one_of(data_type::bf16, src, wei, dst, bia);
+    bool is_bf8 = utils::one_of(data_type::bf8, src, wei, dst, bia);
+    bool is_hf8 = utils::one_of(data_type::hf8, src, wei, dst, bia);
     if (!prb.is_f64_conv() && utils::one_of(data_type::f64, src, wei, dst, bia))
         return false;
     bool is_xelpg = hw == ngen::HW::XeHPG && !hw.systolic_support();
@@ -814,14 +817,16 @@ bool data_types_ok(const conv_problem_t &prb, const hw_t &hw) {
             && (utils::one_of(hw.to_ngen(), ngen::HW::XeLP, ngen::HW::XeHPG)
                     && !is_xelpg))
         return false;
+    if (is_bf8 && !(utils::one_of(hw, ngen::HW::XeHPC))) return false;
+    if (is_hf8) return false;
     if (prb.is_fwd) return true;
     if (prb.is_bwd_d) return true;
     if (prb.is_bwd_w) {
         bool ok = true;
         data_type_t default_acc_type
                 = src == data_type::f64 ? data_type::f64 : data_type::f32;
-        ok &= utils::one_of(src, data_type::bf16, data_type::f16,
-                data_type::f32, data_type::f64);
+        ok &= utils::one_of(src, data_type::bf8, data_type::bf16,
+                data_type::f16, data_type::f32, data_type::f64);
         ok &= (dst == src);
         ok &= utils::one_of(wei, src, default_acc_type);
 

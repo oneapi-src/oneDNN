@@ -149,6 +149,9 @@ enum class key_type_kind_t {
     bf16,
     f16,
     x16, // f16 or bf16
+    bf8,
+    hf8,
+    xf8, // bf8 or hf8
     f32,
     s32,
     tf32,
@@ -167,6 +170,9 @@ std::string to_string(key_type_kind_t kind) {
         CASE(bf16);
         CASE(f16);
         CASE(x16);
+        CASE(bf8);
+        CASE(hf8);
+        CASE(xf8);
         CASE(f32);
         CASE(s32);
         CASE(tf32);
@@ -184,6 +190,8 @@ key_type_kind_t to_type_kind(data_type_t dt) {
         CASE(s8);
         CASE(u8);
         CASE(bf16);
+        CASE(bf8);
+        CASE(hf8);
         CASE(f16);
         CASE(f32);
         CASE(s32);
@@ -208,6 +216,9 @@ key_type_kind_t to_filter(key_type_kind_t kind) {
         case key_type_kind_t::f16:
         case key_type_kind_t::bf16:
         case key_type_kind_t::x16: return key_type_kind_t::x16;
+        case key_type_kind_t::bf8:
+        case key_type_kind_t::hf8:
+        case key_type_kind_t::xf8: return key_type_kind_t::xf8;
         default: ir_error_not_expected();
     }
     return key_type_kind_t::undef;
@@ -221,6 +232,7 @@ struct key_kind_traits_t<key_type_kind_t> {
         switch (kind) {
             case key_type_kind_t::any:
             case key_type_kind_t::x8:
+            case key_type_kind_t::xf8:
             case key_type_kind_t::x16: return true;
             default: return false;
         }
@@ -234,6 +246,9 @@ struct key_kind_traits_t<key_type_kind_t> {
             case key_type_kind_t::x8:
                 return utils::one_of(
                         b, key_type_kind_t::s8, key_type_kind_t::u8);
+            case key_type_kind_t::xf8:
+                return utils::one_of(
+                        b, key_type_kind_t::bf8, key_type_kind_t::hf8);
             case key_type_kind_t::x16:
                 return utils::one_of(
                         b, key_type_kind_t::bf16, key_type_kind_t::f16);

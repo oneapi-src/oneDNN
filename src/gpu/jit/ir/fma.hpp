@@ -265,7 +265,9 @@ public:
             const hw_t &hw, const type_t &a, const type_t &b, const type_t &c) {
         int max_size = max_exec_size;
         int max_exec_size_bytes = get_max_exec_size_bytes(hw);
-        int max_type_size = std::max(a.size(), std::max(b.size(), c.size()));
+        int max_type_size = utils::one_of(type_t::bf8(), a, b, c)
+                ? 2
+                : std::max(a.size(), std::max(b.size(), c.size()));
         return std::min(max_size, max_exec_size_bytes / max_type_size);
     }
     int get_exec_size() const { return exec_size; }

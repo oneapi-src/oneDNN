@@ -31,6 +31,8 @@ namespace model {
 type_t to_type(data_type_t dt) {
     switch (static_cast<int>(dt)) {
         case data_type::s8:
+        case data_type::bf8:
+        case data_type::hf8:
         case data_type::u8: return type_t::d8;
         case data_type::f16:
         case data_type::bf16: return type_t::d16;

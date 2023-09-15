@@ -451,10 +451,10 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     = (s.getByteOffset() != 0 || d.getByteOffset() != 0);
             bool some_stride = (conv_dst_stride > 1 || conv_src_stride > 1);
             assert((src_hf || dst_hf) || esize <= 16);
-            auto t1 = tmp1.subregister(0, ngen::DataType::hf);
             // Esize 1 disabled for hf <-> bf8.
             // bcast to tmp reg, convert 2 vals, copy one to dst.
             if (esize == 1) {
+                auto t1 = tmp1.subregister(0, ngen::DataType::hf);
                 auto t2 = tmp2.subregister(0, src_raw);
                 plan(mov, 2, t1.reinterpret(0, src_raw)(1),
                         s.reinterpret(0, src_raw)(0));
@@ -465,6 +465,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             // Conversion allowed only with 0 offset, matching stride.
             } else if (some_stride || some_offset) {
                 if (dst_bf8) {
+                    auto t1 = tmp1.subregister(0, ngen::DataType::hf);
                     auto t2 = tmp2.subregister(0, conv_src);
                     plan(mov, esize, t1.reinterpret(0, src_raw)(1),
                             s.reinterpret(0, src_raw)(conv_src_stride));
