@@ -445,7 +445,8 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
             = (brgattr.hint_bd_block != 0 || brgattr.hint_bd_block2 != 0
                     || brgattr.hint_ld_block != 0 || brgattr.hint_ld_block2 != 0
                     || brgattr.hint_load_nt_A != brgemm_hint_nt_undef
-                    || brgattr.hint_load_nt_B != brgemm_hint_nt_undef);
+                    || brgattr.hint_load_nt_B != brgemm_hint_nt_undef
+                    || brgattr.bs_group > 1);
     if (brgattr.use_uker || brg->is_bf16_tmm || hint_blocking_set
             || brgattr.bd_mask_level
             || brgattr.fpmath_mode != fpmath_mode::strict || max_vpad > 0) {
@@ -742,6 +743,7 @@ int brgemm_cmp(const brgemm_t &lhs, const brgemm_t &rhs) {
     CMP_BRGEMM_FIELD(brgattr.LDC2_N);
     CMP_BRGEMM_FIELD(brgattr.var_bs);
     CMP_BRGEMM_FIELD(brgattr.postops_only);
+    CMP_BRGEMM_FIELD(brgattr.bs_group);
 
     CMP_BRGEMM_FIELD(brgattr.hint_bd_block);
     CMP_BRGEMM_FIELD(brgattr.hint_ld_block);

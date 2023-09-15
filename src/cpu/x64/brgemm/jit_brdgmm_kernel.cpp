@@ -908,7 +908,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::batch_pad_kernel(
 template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
         int n_blocks, bool has_top_padding, bool has_bottom_padding,
-        bool has_tail) {
+        bool has_tail, int shift_a) {
 
     const bool has_padding = has_top_padding || has_bottom_padding;
     const int max_bvmms
@@ -956,14 +956,32 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
                 if (get_substep_simd(n_i, v_i, has_tail) <= 0) continue;
                 load_b(vmm_b(i), n_i, v_i, has_tail);
             }
+            if (grouped_bs()) {
+                for_(int m_i = 0; m_i < m_blocks; ++m_i)
+                for (int i = 0; i < n_e; ++i) {
+                    const int n_i = nb_i + i;
+                    if (get_substep_simd(n_i, v_i, has_tail) <= 0) continue;
+                    const auto vmm_A = vmm_a(m_i + shift_a, i);
+                    if (shift_a == 0 || m_i == m_blocks - 1) {
+                        if (!is_fma_embd())
+                            load_a(vmm_A, m_i, n_i, v_i, has_tail);
+                        if (brg.req_s8s8_compensation)
+                            vpaddb(vmm_A, vmm_A, vmm_shift());
+                    }
+                }
+            }
+
             for_(int m_i = 0; m_i < m_blocks; ++m_i)
             for (int i = 0; i < n_e; ++i) {
                 const int n_i = nb_i + i;
                 if (get_substep_simd(n_i, v_i, has_tail) <= 0) continue;
-                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, v_i, has_tail);
-                if (brg.req_s8s8_compensation)
-                    vpaddb(vmm_a(), vmm_a(), vmm_shift());
-                dot_product(vmm_a(), vmm_b(i), m_i, n_i, v_i);
+                const auto vmm_A = vmm_a(m_i + shift_a, i);
+                if (!grouped_bs() && (shift_a == 0 || m_i == m_blocks - 1)) {
+                    if (!is_fma_embd()) load_a(vmm_A, m_i, n_i, v_i, has_tail);
+                    if (brg.req_s8s8_compensation)
+                        vpaddb(vmm_A, vmm_A, vmm_shift());
+                }
+                dot_product(vmm_A, vmm_b(i), m_i, n_i, v_i);
             }
         }
     } else {
@@ -987,7 +1005,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
             lea(reg_table_base,
                     ptr[reg_table_base + reg_aux_A_vpad_top * sizeof(void *)]);
             jmp(ptr[reg_table_base], T_NEAR);
-            align(8);
+
+            align(64);
             L(jmp_table_base);
             for (int m_i = 0; m_i < m_blocks; ++m_i) {
                 putL(jmp_table_labels[m_i]);
@@ -1001,19 +1020,36 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
                 jge(done, T_NEAR);
             }
 
+            if (grouped_bs()) {
+                for_(int v_i = 0, p_b_i = 0; v_i < v_substep; ++v_i)
+                for (int n_i = 0; n_i < n_blocks; ++n_i, ++p_b_i) {
+                    if (get_substep_simd(n_i, v_i, has_tail) <= 0) continue;
+                    if (shift_a == 0 || m_i == m_blocks - 1) {
+                        const auto vmm_A = vmm_a(m_i + shift_a, n_i);
+                        if (!is_fma_embd())
+                            load_a(vmm_A, m_i, n_i, v_i, has_tail);
+                        if (brg.req_s8s8_compensation)
+                            vpaddb(vmm_A, vmm_A, vmm_shift());
+                    }
+                }
+            }
+
             for_(int v_i = 0, p_b_i = 0; v_i < v_substep; ++v_i)
             for (int n_i = 0; n_i < n_blocks; ++n_i, ++p_b_i) {
                 if (get_substep_simd(n_i, v_i, has_tail) <= 0) continue;
-                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, v_i, has_tail);
-                if (brg.req_s8s8_compensation)
-                    vpaddb(vmm_a(), vmm_a(), vmm_shift());
+                const auto vmm_A = vmm_a(m_i + shift_a, n_i);
+                if (!grouped_bs() && (shift_a == 0 || m_i == m_blocks - 1)) {
+                    if (!is_fma_embd()) load_a(vmm_A, m_i, n_i, v_i, has_tail);
+                    if (brg.req_s8s8_compensation)
+                        vpaddb(vmm_A, vmm_A, vmm_shift());
+                }
                 if (p_b_i < n_preload_b_vmms) {
-                    dot_product(vmm_a(), vmm_b(p_b_i), m_i, n_i, v_i);
+                    dot_product(vmm_A, vmm_b(p_b_i), m_i, n_i, v_i);
                 } else {
                     // preloaded vmm_b not available
                     const int b_idx = max_bvmms - 1;
                     load_b(vmm_b(b_idx), n_i, v_i, has_tail);
-                    dot_product(vmm_a(), vmm_b(b_idx), m_i, n_i, v_i);
+                    dot_product(vmm_A, vmm_b(b_idx), m_i, n_i, v_i);
                 }
             }
         }
@@ -1101,7 +1137,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::vertical_pad_kernel(
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::call_brdgmm_microkernel(
-        const int m_blocks, const int n_blocks, bool has_n_tail) {
+        const int m_blocks, const int n_blocks, bool has_n_tail, int shift_a) {
 
     // padding for vertical dimensions
     const int tpad = brg.brgattr.max_top_vpad;
@@ -1112,7 +1148,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::call_brdgmm_microkernel(
         cmp(reg_total_padding, 0);
         jg(microkernel_with_padding, T_NEAR);
     }
-    brdgmm_microkernel(m_blocks, n_blocks, false, false, has_n_tail);
+    brdgmm_microkernel(m_blocks, n_blocks, false, false, has_n_tail, shift_a);
     if (has_vpad_) {
         jmp(done_microkernel, T_NEAR);
         L(microkernel_with_padding);
@@ -1121,7 +1157,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::call_brdgmm_microkernel(
             cmp(reg_total_padding, m_blocks);
             jge(skip_microkernel_l, T_NEAR);
         }
-        brdgmm_microkernel(m_blocks, n_blocks, tpad, bpad, has_n_tail);
+        brdgmm_microkernel(m_blocks, n_blocks, tpad, bpad, has_n_tail, shift_a);
         L(skip_microkernel_l);
 
         vertical_pad_kernel(m_blocks, n_blocks, has_n_tail);
@@ -1141,8 +1177,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::batch_loop(
     mov(reg_BS_loop, reg_BS);
     restore_A_B_matrices();
 
-    L(bs_loop_label);
-    {
+    auto bs_iteration = [&](int shift_a) {
         Label compute_brdgemm_l, end_batch_loop_l;
         set_A_B_matrices();
         if (compute_compensation_ && has_bpad_) {
@@ -1155,11 +1190,17 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::batch_loop(
         }
         L(compute_brdgemm_l);
         if (has_vpad_) get_vertical_padding_info(m_blocks);
-        call_brdgmm_microkernel(m_blocks, n_blocks, has_n_tail);
-
+        call_brdgmm_microkernel(m_blocks, n_blocks, has_n_tail, shift_a);
         L(end_batch_loop_l);
-        advance_A_B_matrices();
-        dec(reg_BS_loop);
+    };
+
+    L(bs_loop_label);
+    {
+        for (int sh = 0; sh < bs_group(); sh++) {
+            bs_iteration(sh);
+            advance_A_B_matrices();
+        }
+        sub(reg_BS_loop, bs_group());
         jg(bs_loop_label, T_NEAR);
     }
 

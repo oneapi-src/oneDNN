@@ -85,8 +85,20 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
 
             // assign compute vmms
             idx_vmm_a_ = compute_vmm_base_idx_;
-            idx_vmm_b_ = compute_vmm_base_idx_ + !is_fma_embd(brg);
+            const int max_m = brg.bd_block2 + brg.brgattr.bs_group - 1;
+            const int max_n = brg.ld_block2 - 1;
+            idx_vmm_b_ = vmm_a_idx(brg, max_m, max_n) + !is_fma_embd(brg);
         }
+        int vnni_substep(const brgemm_t &brg) const {
+            return brg.isa_impl == avx2_vnni_2 && brg.is_xf16() ? 2 : 1;
+        }
+        int vmm_a_idx(const brgemm_t &brg, int m, int n) const {
+            const auto idx_offset = grouped_bs(brg)
+                    ? (m * brg.ld_block2 + n) * vnni_substep(brg)
+                    : 0;
+            return idx_vmm_a_ + idx_offset;
+        }
+
         int get_compute_vmm_count() { return compute_vmm_count_; }
         int get_aux_vmm_count() {
             const int vmm_tmp_count = 2; // vmm_tmp(0) + vmm_tmp(1)
@@ -251,10 +263,17 @@ private:
     inline int n_block2() { return brg.ld_block2; }
     inline int nb_n_block2() { return brg.ldb2; }
     inline int n_block2_tail() { return brg.ldb2_tail; }
-
     int tail_length() { return n_block1_tail() % simd_w_; }
+
+    inline int bs_group() const { return brg.brgattr.bs_group; }
+    static bool grouped_bs(const brgemm_t &brg) {
+        return brg.brgattr.bs_group > 1;
+    }
+    inline bool grouped_bs() const { return grouped_bs(brg); }
     static bool is_fma_embd(const brgemm_t &brg) {
-        return brg.is_f32 && is_superset(brg.isa_impl, avx512_core);
+        return grouped_bs(brg)
+                ? false
+                : brg.is_f32 && is_superset(brg.isa_impl, avx512_core);
     }
     bool is_fma_embd() { return is_fma_embd(brg); }
     bool is_fast_vnni_int8() { return is_fast_vnni_int8(brg); }
@@ -262,9 +281,8 @@ private:
     bool req_vmm_reload() { return brg.is_bf16_emu; }
     bool assign_data_vmm_once() { return !req_vmm_reload(); }
 
-    int vnni_substep() {
-        return brg.isa_impl == avx2_vnni_2 && brg.is_xf16() ? 2 : 1;
-    }
+    int vnni_substep() { return vmm_alloc.vnni_substep(brg); }
+
     int get_substep_simd(int n_i, int v_i, bool has_n_tail) {
         const int last_n_block_sz
                 = n_block2_tail() > 0 ? n_block2_tail() : n_block2();
@@ -274,7 +292,11 @@ private:
             return simd_w_;
         }
     }
-    Vmm vmm_a() { return Vmm(vmm_alloc.get_idx_vmm_a()); }
+    Vmm vmm_a(int m, int n) {
+        const auto idx_a = vmm_alloc.vmm_a_idx(brg, m, n);
+        assert(idx_a < (vmm_alloc.get_idx_vmm_b() + is_fma_embd()));
+        return Vmm(idx_a);
+    }
     Vmm vmm_b(int bi = 0) { return Vmm(vmm_alloc.get_idx_vmm_b() + bi); }
     Vmm accm(int m_blocks, int n_blocks, int m, int n, int vnni_idx) {
         assert(m_blocks <= m_block2() && m < m_blocks);
@@ -320,12 +342,12 @@ private:
     void vertical_pad_kernel(int m_blocks, int n_blocks, bool has_tail);
     void batch_pad_kernel(int m_blocks, int n_blocks, bool has_tail = false);
     void brdgmm_microkernel(int m_blocks, int n_blocks, bool has_top_padding,
-            bool has_bottom_padding, bool has_tail = false);
+            bool has_bottom_padding, bool has_tail, int shift_a);
     void compute_loop();
     void get_batch_padding_info();
     void get_vertical_padding_info(const int m_blocks);
-    void call_brdgmm_microkernel(
-            const int m_blocks, const int n_blocks, bool has_n_tail);
+    void call_brdgmm_microkernel(const int m_blocks, const int n_blocks,
+            bool has_n_tail, int shift_a);
     void batch_loop(const int m_blocks, const int n_blocks, bool has_n_tail);
     void cvt2ps(data_type_t type_in, const Vmm vmm_in, const Xbyak::Operand &op,
             bool mask_flag, bool store);
