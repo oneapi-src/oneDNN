@@ -90,6 +90,16 @@ graph::status_t compiler_partition_impl_t::infer_shape(
             auto output_lt = *ordered_outputs[i];
             auto cur_val = cur_op->get_output_values()[i];
             cur_val->set_logical_tensor(output_lt);
+            // if layout is any; let's respect it
+            // if layout is strided; shape_infer will fill the stride
+            // if layout is undef; convert it to strided and fill the stride
+            if (output_lt.layout_type == graph::layout_type::undef) {
+                // force set strided dense layout
+                graph::dims shape(
+                        output_lt.dims, output_lt.dims + output_lt.ndims);
+                graph::dims strides = utils::get_dense_strides(shape);
+                cur_val->set_strides(strides);
+            }
             // only write back inferred info to outputs
             // shall not modify the layout type
             auto out_pos = std::find_if(outputs.begin(), outputs.end(),
@@ -99,7 +109,8 @@ graph::status_t compiler_partition_impl_t::infer_shape(
             if (out_pos != outputs.end()) {
                 auto cur_lt = cur_val->get_logical_tensor();
                 // ensure layout type not modified
-                cur_lt.layout_type = (**out_pos).layout_type;
+                if ((**out_pos).layout_type == graph::layout_type::any)
+                    cur_lt.layout_type = (**out_pos).layout_type;
                 **out_pos = cur_lt;
             }
         }
