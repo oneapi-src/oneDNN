@@ -355,42 +355,24 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
 #endif
 
 // Atomics
-#if __OPENCL_C_VERSION__ >= 200
 #define DECLARE_ATOMIC_OP(op, type) \
     type __attribute__((overloadable)) CONCAT3(atomic_, op, _global)( \
             volatile global CONCAT2(atomic_, type) * source, type operand) { \
         return CONCAT3(atomic_fetch_, op, _explicit)( \
                 source, operand, memory_order_relaxed); \
     }
-
-#if defined(cl_intel_global_float_atomics) \
-        || (defined(cl_ext_float_atomics) \
-                && defined(__opencl_c_ext_fp32_global_atomic_add))
+#if __OPENCL_C_VERSION__ >= 200
+// Atomic operations require:
+// 1. The cl_ext_float_atomics extension (for all float functions)
+// 2. the __opencl_c_ext_fp32_global_atomic_add feature (for float add/sub)
+// 3. the __opencl_c_ext_fp32_global_atomic_min_max feature (for float min/max)
+// All intel GPUs should support these on up-to-date drivers, for all archs
+// gen9 and later
 DECLARE_ATOMIC_OP(add, float)
 DECLARE_ATOMIC_OP(sub, float)
-#else // float atomics
-inline float atomic_add_global(
-        volatile __global atomic_float *source, float operand) {
-    float old_val = atomic_load_explicit(
-            source, memory_order_relaxed, memory_scope_device);
-    bool success = false;
-    do {
-        float new_val = old_val + operand;
-        success = atomic_compare_exchange_strong_explicit(source, &old_val,
-                new_val, memory_order_acq_rel, memory_order_relaxed,
-                memory_scope_device);
-    } while (!success);
-    return old_val;
-}
-#endif
 
-#if defined(cl_intel_global_float_atomics) \
-        || (defined(cl_ext_float_atomics) \
-                && defined(__opencl_c_ext_fp32_global_atomic_min_max))
 DECLARE_ATOMIC_OP(min, float)
 DECLARE_ATOMIC_OP(max, float)
-#endif
-
 #endif
 
 #endif
