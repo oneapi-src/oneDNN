@@ -988,7 +988,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     if (jbgp.nthr_oc_b > 1) {
         parallel(num_threads, [&](const int ithr, const int nthr) {
             const int nthr_oc = jbgp.nthr_oc_b <= nthr ? jbgp.nthr_oc_b : 1;
-            if (nthr_oc <= 1) return;
+            const int n_oc_bufs = nstl::min(oc_chunks, nthr_oc);
+            if (n_oc_bufs <= 1) return;
 
             const int ddst_elems = jbgp.LDC * jbgp.os;
             const int reduce_chunk_size = 64;
@@ -1010,7 +1011,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                     : reinterpret_cast<float *>(c_buffer_start);
             int oc_buf_idx = !is_f32_out;
             int oc_buf_end = is_f32_out;
-            for (int oc_buf = oc_buf_idx; oc_buf < nthr_oc - oc_buf_end;
+            for (int oc_buf = oc_buf_idx; oc_buf < n_oc_bufs - oc_buf_end;
                     oc_buf++) {
                 const dim_t c_buf_offt = acc_dt_sz
                         * (oc_buf * jbgp.os * jbgp.LDC + reduce_start);
@@ -1018,7 +1019,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 
                 acc_ker_->accumulate((float *)out_buffer, (float *)c_buffer,
                         elems_to_reduce);
-                if (!is_f32_out && oc_buf == (nthr_oc - oc_buf_end) - 1) {
+                if (!is_f32_out && oc_buf == (n_oc_bufs - oc_buf_end) - 1) {
                     if (is_bf16) {
                         cvt_float_to_bfloat16((bfloat16_t *)dsrc_reduced,
                                 (const float *)out_buffer, elems_to_reduce);
