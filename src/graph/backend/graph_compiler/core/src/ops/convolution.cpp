@@ -563,14 +563,19 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
     const sc_dims &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
+    const sc_dims &pads_end = attrs_.has_key("pads_end")
+            ? attrs_.get<sc_dims>("pads_end")
+            : attrs_.get<sc_dims>("paddings");
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
     const sc_dims &data_shape = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &output_shape = info_.outputs_[0]->details_.get_plain_dims();
     auto dilations = get_dilations(attrs_);
     auto has_dilation = std::any_of(
             dilations.begin(), dilations.end(), [](int x) { return x > 1; });
-    auto has_pad = std::any_of(
-            pads_begin.begin(), pads_begin.end(), [](int x) { return x > 0; });
+    auto has_pad = std::any_of(pads_begin.begin(), pads_begin.end(),
+                           [](int x) { return x > 0; })
+            || std::any_of(pads_end.begin(), pads_end.end(),
+                    [](int x) { return x > 0; });
     auto is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
             [](int x) { return x == 1; });
     auto is_int8 = utils::is_one_of(
