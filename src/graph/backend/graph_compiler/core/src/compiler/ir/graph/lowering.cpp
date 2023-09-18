@@ -324,6 +324,9 @@ std::string get_tensor_name(graph_tensor *t, sc_op *linked_output) {
         tensor_name
                 = linked_output->attrs_.get_or_else("temp.name", tensor_name);
     }
+    for (auto &ch : tensor_name) {
+        if (ch == '*') { ch = '_'; }
+    }
     return tensor_name;
 }
 } // namespace graph
