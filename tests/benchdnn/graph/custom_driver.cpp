@@ -185,11 +185,12 @@ int execute(const prb_t *prb, const args_t &args, res_t *res) {
     dnn_mem_t &dst = const_cast<dnn_mem_t &>(args.find(DNNL_ARG_DST));
     // generate dense stride
     dnn_mem_t pad(src.md_, src.dt(), tag::abx, get_test_engine());
-    pad.reorder(src);
+    int ret = pad.reorder(src);
+    if (ret != OK) { res->state = FAILED; }
     // update output shape with dense stride
     dnnl_memory_desc_create_with_string_tag(&pad.md_, dst.ndims(), dst.dims(),
             dst.dt(), normalize_tag(tag::abx, dst.ndims()).c_str());
-    int ret = dst.reorder(pad);
+    ret = dst.reorder(pad);
     if (ret != OK) { res->state = FAILED; }
     return ret;
 }
