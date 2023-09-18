@@ -73,7 +73,7 @@ struct gen_gemm_kernel_desc_t {
     compute::gpu_arch_t arch() const { return arch_; }
 
     const kcatalog::Entry &entry() const {
-        assert(entry != nullptr);
+        assert(entry_ != nullptr);
         return *entry_;
     };
 
