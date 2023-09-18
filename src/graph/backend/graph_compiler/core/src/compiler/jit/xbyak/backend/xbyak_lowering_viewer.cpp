@@ -3193,6 +3193,7 @@ void xbyak_lowering_viewer::handle_call(const expr_c &lhs, const call_c &v) {
                 },
                 [&](const uint64_t &addr) {
                     // call addr
+                    gen_->vzeroupper();
                     gen_->mov(regs::rax, addr);
                     gen_->call(regs::rax);
                 });
