@@ -25,7 +25,9 @@
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
 #include <ops/convolution.hpp>
+#include <ops/fusible/broadcast.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/reduce.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/reshape.hpp>
 namespace dnnl {
@@ -431,7 +433,9 @@ SC_INTERNAL_API void layout_propagation(
                     || node->isa<binary_elementwise_op_t>()
                     || node->isa<tensor_view_op_t>()
                     || node->isa<ops::dynamic_reshape_op>()
-                    || node->isa<concat_op_t>() || node->isa<select_op_t>()) {
+                    || node->isa<concat_op_t>() || node->isa<select_op_t>()
+                    || node->isa<broadcast_op_t>() || node->isa<reshape_op_t>()
+                    || node->isa<reduce_op_t>()) {
                 std::vector<sc_data_format_t> old_formats;
                 std::vector<std::vector<sc_data_format_t>>
                         input_format_candidates;

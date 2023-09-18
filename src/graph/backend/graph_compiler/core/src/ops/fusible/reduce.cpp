@@ -153,6 +153,7 @@ void reduce_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     const auto &in_fmt = info_.inputs_[0]->details_.get_format();
+    in_formats.push_back({in_fmt});
     if (keep_dims_) {
         out_formats.push_back({get_reduced_format(in_fmt, plain_rd_axis_,
                 info_.inputs_[0]->details_.get_plain_dims().size())});
