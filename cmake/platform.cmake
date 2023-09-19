@@ -153,6 +153,14 @@ if(MSVC)
     endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR DNNL_WITH_SYCL OR
             CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+        # When using Debug build mode CMake adds '-debug' without any
+        # optimization-level option causing the warning.
+        # We disable the warning for debug build mode.
+        if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+            append(CMAKE_CCXX_FLAGS "-Wno-debug-disables-optimization")
+            # The compiler may issue the corresponding remark.
+            append(CMAKE_CCXX_FLAGS "-Rno-debug-disables-optimization")
+        endif()
         # Default fp-model in icx and dpcpp (unlike clang) may be precise or
         # fast=1 depending on the version.
         append(CMAKE_CCXX_FLAGS "/fp:precise")
