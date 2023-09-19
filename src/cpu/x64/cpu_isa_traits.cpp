@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -358,9 +358,21 @@ bool init() {
     // XFEATURE_XTILEDATA set successfully, TMUL usage is allowed
     return true;
 }
+#elif defined(_WIN32)
+bool init() {
+    // XSAVE feature must be supported in order to check AMX state.
+    const bool xsave_supported = cpu().has(Xbyak::util::Cpu::tOSXSAVE);
+    if (!xsave_supported) return false;
+
+    // AMX state is controlled by TILECFG and TILEDATA features defined in
+    // XCR0[18:17].
+    uint64_t xcr0_features = Xbyak::util::Cpu::getXfeature();
+    return ((xcr0_features >> 17) & 3) == 3;
+}
 #else
 bool init() {
-    return true;
+    // Disable AMX by default to avoid potential crashes.
+    return false;
 }
 #endif
 
