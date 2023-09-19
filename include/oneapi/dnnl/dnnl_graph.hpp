@@ -1467,7 +1467,7 @@ inline void set_compiled_partition_cache_capacity(int capacity) {
 
 /// Control the enabling or disabling of constant tensor cache. This API must be
 /// called once before compilation stage. By default, constant tensor cache is
-/// enabled in the library.
+/// disabled in the library.
 ///
 /// @param flag Set to positive value to enable the cache and set to 0 to
 /// disable the cache. Negative values are invalid.
