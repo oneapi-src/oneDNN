@@ -62,6 +62,20 @@ if(WIN32 AND CMAKE_BASE_NAME STREQUAL "clang++")
     endif()
 endif()
 
+find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
+if(OPENCL_LIBRARY)
+    message(STATUS "OpenCL runtime is found in the environment: ${OPENCL_LIBRARY}")
+    list(APPEND EXTRA_SHARED_LIBS ${OPENCL_LIBRARY})
+else()
+    message(STATUS "OpenCL runtime is not found in the environment. Trying to find it using find_package(...)")
+    # As a plan B we try to locate OpenCL runtime using our OpenCL CMake module.
+    find_package(OpenCL REQUIRED)
+    # Unset INTERFACE_INCLUDE_DIRECTORIES property because DPCPP
+    # compiler contains OpenCL headers
+    set_target_properties(OpenCL::OpenCL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+    list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
+endif()
+
 if(DNNL_SYCL_CUDA)
     # XXX: Suppress warning coming from SYCL headers:
     #   error: use of function template name with no prior declaration in
@@ -74,9 +88,6 @@ if(DNNL_SYCL_CUDA)
 
     find_package(cuBLAS REQUIRED)
     find_package(cuDNN REQUIRED)
-    # An ugly workaround to satisfy OpenCL dependency that is coming from
-    # the compute layer. OpenCL is NOT used by CUDA backend.
-    list(APPEND EXTRA_SHARED_LIBS OpenCL)
 
     if(NOT WIN32)
         # XXX: CUDA contains OpenCL headers that conflict with the OpenCL
@@ -98,34 +109,15 @@ if(DNNL_SYCL_CUDA)
         endforeach()
     endif()
 
+    message(STATUS "DPC++ support is enabled (CUDA)")
 elseif(DNNL_SYCL_HIP)
-    # An ugly workaround to satisfy OpenCL dependency that is coming from
-    # the compute layer. OpenCL is NOT used by HIP backend.
-    list(APPEND EXTRA_SHARED_LIBS OpenCL)
-
     find_package(HIP REQUIRED)
     find_package(rocBLAS REQUIRED)
     find_package(MIOpen REQUIRED)
+    message(STATUS "DPC++ support is enabled (HIP)")
 else()
     # In order to support large shapes.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sycl-id-queries-fit-in-int")
-
-    find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
-    if(OPENCL_LIBRARY)
-        message(STATUS "OpenCL runtime is found in the environment: ${OPENCL_LIBRARY}")
-        # OpenCL runtime was found in the environment hence simply add it to
-        # the EXTRA_SHARED_LIBS list
-        list(APPEND EXTRA_SHARED_LIBS ${OPENCL_LIBRARY})
-    else()
-        message(STATUS "OpenCL runtime is not found in the environment. Try to find it using find_package(...)")
-        # This is expected when using OSS compiler that doesn't distribute
-        # OpenCL runtime
-        find_package(OpenCL REQUIRED)
-        # Unset INTERFACE_INCLUDE_DIRECTORIES property because DPCPP
-        # compiler contains OpenCL headers
-        set_target_properties(OpenCL::OpenCL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-        list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
-    endif()
     message(STATUS "DPC++ support is enabled (OpenCL and Level Zero)")
 endif()
 
