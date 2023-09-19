@@ -1391,6 +1391,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_step_unroll(
             const bool masked_store = is_last_ch && (ch == nb_ch_blocking - 1);
             const bool use_extra_vmm = isa == avx2 && masked_store;
             Vmm vmm_out = use_extra_vmm ? get_output_reg(1) : vmm_bias;
+            MAYBE_UNUSED(use_extra_vmm); // workaround for compiler error (bug?)
             addps_xmm(vmm_bias, vmm_out, vmmword[reg_tmp_output + off_output],
                     masked_store);
         }
