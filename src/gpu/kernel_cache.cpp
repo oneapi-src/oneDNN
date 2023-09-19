@@ -20,6 +20,8 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
+using namespace compute;
+
 status_t get_or_create(const kernel_cache::key_t &key,
         gpu_kernel_value_t &jit_generator, engine_t *engine) {
     struct create_context_t {
@@ -36,22 +38,56 @@ status_t get_or_create(const kernel_cache::key_t &key,
     create_context_t context {
             *utils::downcast<gpu_kernel_key_impl_t *>(key.impl()), engine};
     auto result = kernel_cache::get().get_or_create(key, *create, &context);
-    jit_generator = std::static_pointer_cast<gpu_kernel_value_impl_t>(
+    jit_generator = std::static_pointer_cast<kernel_cache::value_impl_t>(
             result.value.release());
     return result.status;
 }
 
+template <typename value_type>
 status_t get_cached_kernels(std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
-        engine_t *engine, std::vector<compute::kernel_t> &kernels,
+        engine_t *engine, std::vector<kernel_t> &kernels,
         const std::vector<const char *> &kernel_names) {
     kernel_cache::key_t key {std::move(key_impl)};
 
     gpu_kernel_value_t value;
     CHECK(get_or_create(key, value, engine));
-    CHECK(value.get_kernels(engine, kernels, kernel_names));
 
-    return status::success;
+    static_assert(std::is_same<value_type, kernel_t>()
+                    || std::is_same<value_type, kernel_bundle_t>(),
+            "Only support caching kernel_t or kernel_bundle_t");
+
+    if (std::is_same<value_type, kernel_t>()) {
+        if (kernel_names.size() != 1) return status::runtime_error;
+        const kernel_t &kernel = utils::downcast<
+                const gpu_kernel_value_container_t<kernel_t> *>(value.impl())
+                                         ->value;
+        // As there is only one kernel, allow the kernel_name to be unspecified
+        if (kernel_names[0] && std::string(kernel_names[0]) != kernel.name())
+            return status::runtime_error;
+
+        if (!kernel.is_on(*utils::downcast<const compute_engine_t *>(engine)))
+            return status::runtime_error;
+
+        kernels[0] = kernel;
+        return status::success;
+    } else if (std::is_same<value_type, kernel_bundle_t>()) {
+        const kernel_bundle_t &bundle = utils::downcast<
+                const gpu_kernel_value_container_t<kernel_bundle_t> *>(
+                value.impl())
+                                                ->value;
+        return bundle.get_kernels(engine, kernels, kernel_names);
+    }
+    return status::runtime_error;
 }
+
+template status_t get_cached_kernels<kernel_t>(
+        std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl, engine_t *engine,
+        std::vector<kernel_t> &kernels,
+        const std::vector<const char *> &kernel_names);
+template status_t get_cached_kernels<kernel_bundle_t>(
+        std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl, engine_t *engine,
+        std::vector<kernel_t> &kernels,
+        const std::vector<const char *> &kernel_names);
 
 } // namespace gpu
 } // namespace impl

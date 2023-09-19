@@ -52,6 +52,22 @@ struct trivial_key_validator_t {
 // trivial structure.
 template <typename T>
 struct trivial_key_t : public T {
+    // helper for extracting the value type associated with the key
+    template <typename S>
+    struct create_signature {};
+
+    template <typename R, typename C, typename A1, typename A2>
+    struct create_signature<R (C::*)(A1, A2) const> {
+        using result_type = R;
+        using class_type = C;
+        using arg1_type = A1;
+        using arg2_type = A2;
+    };
+
+    using value_type =
+            typename std::remove_reference<typename create_signature<decltype(
+                    &T::create_generator)>::arg2_type>::type;
+
     trivial_key_t() = delete;
     trivial_key_t(const T &t, const engine_id_t &id)
         : T(t)
@@ -74,63 +90,29 @@ private:
     size_t hash_;
 };
 
-// GPU specific abstract interface for kernel_cache::value_impl_t
-struct gpu_kernel_value_impl_t : public kernel_cache::value_impl_t {
-    status_t get_kernel(const engine_t *engine, compute::kernel_t &kernel,
-            const char *kernel_name) const {
-        std::vector<compute::kernel_t> kernels {};
-        std::vector<const char *> names {kernel_name};
-        CHECK(get_kernels(engine, kernels, names));
-        kernel = kernels[0];
-        return status::success;
-    }
-    virtual status_t get_kernels(const engine_t *engine,
-            std::vector<compute::kernel_t> &kernels,
-            const std::vector<const char *> &kernel_names) const = 0;
-};
-
 // Container of kernel cache values.
 template <typename T>
-struct gpu_kernel_value_container_t : public gpu_kernel_value_impl_t {
+struct gpu_kernel_value_container_t : public kernel_cache::value_impl_t {
     gpu_kernel_value_container_t(T &&t) : value(std::move(t)) {}
-
-    status_t get_kernels(const engine_t *engine,
-            std::vector<compute::kernel_t> &kernels,
-            const std::vector<const char *> &kernel_names) const override {
-        return value.get_kernels(engine, kernels, kernel_names);
-    }
-
     T value;
 };
 
 // GPU specific interface for kernel_cache::value_t
 struct gpu_kernel_value_t {
     gpu_kernel_value_t() = default;
-    gpu_kernel_value_t(const std::shared_ptr<gpu_kernel_value_impl_t> &impl)
+    gpu_kernel_value_t(const std::shared_ptr<kernel_cache::value_impl_t> &impl)
         : impl_(impl) {}
 
-    const gpu_kernel_value_impl_t *impl() const {
-        return utils::downcast<gpu_kernel_value_impl_t *>(impl_.get());
-    };
+    const kernel_cache::value_impl_t *impl() const { return impl_.get(); };
 
     std::shared_ptr<kernel_cache::value_impl_t> release() {
-        std::shared_ptr<gpu_kernel_value_impl_t> ret = nullptr;
+        std::shared_ptr<kernel_cache::value_impl_t> ret = nullptr;
         std::swap(ret, impl_);
-        return std::static_pointer_cast<kernel_cache::value_impl_t>(ret);
-    }
-
-    status_t get_kernel(const engine_t *engine, compute::kernel_t &kernel,
-            const char *kernel_name) const {
-        return impl()->get_kernel(engine, kernel, kernel_name);
-    }
-    status_t get_kernels(const engine_t *engine,
-            std::vector<compute::kernel_t> &kernels,
-            const std::vector<const char *> &kernel_names) const {
-        return impl()->get_kernels(engine, kernels, kernel_names);
+        return ret;
     }
 
 private:
-    std::shared_ptr<gpu_kernel_value_impl_t> impl_;
+    std::shared_ptr<kernel_cache::value_impl_t> impl_;
 };
 
 // GPU specific abstract interface for kernel_cache::key_impl_t
@@ -144,21 +126,7 @@ struct gpu_kernel_key_impl_t : public kernel_cache::key_impl_t {
 // simple data containing structures with no dependencies on the kernel cache.
 template <typename K>
 struct gpu_kernel_key_container_t : public gpu_kernel_key_impl_t {
-    // helper for extracting the value type associated with the key
-    template <typename S>
-    struct create_signature {};
-
-    template <typename R, typename C, typename A1, typename A2>
-    struct create_signature<R (C::*)(A1, A2) const> {
-        using result_type = R;
-        using class_type = C;
-        using arg1_type = A1;
-        using arg2_type = A2;
-    };
-
-    using value_type =
-            typename std::remove_reference<typename create_signature<decltype(
-                    &K::create_generator)>::arg2_type>::type;
+    using value_type = typename K::value_type;
 
     template <typename... Args>
     gpu_kernel_key_container_t(Args &&...args)
@@ -173,7 +141,7 @@ struct gpu_kernel_key_container_t : public gpu_kernel_key_impl_t {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         auto status = key.create_generator(*compute_engine, g->value);
-        generator = std::static_pointer_cast<gpu_kernel_value_impl_t>(g);
+        generator = std::static_pointer_cast<kernel_cache::value_impl_t>(g);
         return status;
     }
 
@@ -193,8 +161,19 @@ using trivial_key_container_t = gpu_kernel_key_container_t<trivial_key_t<K>>;
 
 // Interface to the kernel cache to consolidate cache related logic in one
 // location
+template <typename value_type>
 status_t get_cached_kernels(std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
         engine_t *engine, std::vector<compute::kernel_t> &kernels,
+        const std::vector<const char *> &kernel_names);
+
+extern template status_t get_cached_kernels<compute::kernel_t>(
+        std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl, engine_t *engine,
+        std::vector<compute::kernel_t> &kernels,
+        const std::vector<const char *> &kernel_names);
+
+extern template status_t get_cached_kernels<compute::kernel_bundle_t>(
+        std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl, engine_t *engine,
+        std::vector<compute::kernel_t> &kernels,
         const std::vector<const char *> &kernel_names);
 
 } // namespace gpu

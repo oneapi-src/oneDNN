@@ -191,7 +191,7 @@ struct gpu_primitive_t : public primitive_t {
                 params, compute_engine->engine_id());
         if (!key->key.is_valid()) return status::runtime_error;
 
-        CHECK(get_cached_kernels(
+        CHECK(get_cached_kernels<typename trivial_key_t<T>::value_type>(
                 std::move(key), engine, kernels, kernel_names));
 
         register_kernels(kernels);
