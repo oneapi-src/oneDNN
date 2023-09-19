@@ -430,7 +430,8 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
         sp_block = 0;
         nb_sp = 0;
         eff = 0;
-        max_regs = isa_num_vregs(isa);
+        // TODO: remove workaround once constructor is fixed
+        max_regs = isa == isa_undef ? 0 : isa_num_vregs(isa);
         bcast_simd = acc_simd_w;
     }
 
