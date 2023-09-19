@@ -645,7 +645,7 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
   bool has_pad = (pd_b_ > 0) || (ph_b_ > 0) || (pw_b_ > 0) || (pd_e_ > 0)
     || (ph_e_ > 0) || (pw_e_ > 0);
   try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_)
-    && (is_int8 || is_bf16) && !is_dynamic();
+    && (is_int8 || is_bf16) && !is_dynamic() && sh_ == 1;
   use_nested_2d_ = (!is_1d_ && !is_3d_);
   if (is_1d_) {
     use_conv1d = true;
