@@ -71,6 +71,7 @@ enum class device_ext_t : uint64_t {
     khr_int64_extended_atomics        = 1ull << 5,
     khr_local_int32_base_atomics      = 1ull << 6,
     khr_local_int32_extended_atomics  = 1ull << 7,
+    ext_float_atomics                 = 1ull << 8,
     // Intel specific Gen9+
     intel_subgroups              = 1ull << 16,
     intel_required_subgroup_size = 1ull << 17,
@@ -104,6 +105,7 @@ static inline const char *ext2cl_str(device_ext_t ext) {
         CASE(khr_int64_extended_atomics)
         CASE(khr_local_int32_base_atomics)
         CASE(khr_local_int32_extended_atomics)
+        CASE(ext_float_atomics)
 
         CASE(intel_subgroups)
         CASE(intel_required_subgroup_size)
