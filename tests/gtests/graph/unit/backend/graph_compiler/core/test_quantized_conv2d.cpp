@@ -882,17 +882,17 @@ TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage4_NXC) {
             512, 512, 9, 9, 3, 3, {1, 1}, {0, 0}, false, true, false, true);
 }
 
-TEST(GCCore_CPU_qconv2d_nested_u8s8s32_1x1, rn50_stage4_NXC) {
-    REQUIRE_AMX();
-    check_nested_qconv<uint8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 12,
-            512, 512, 56, 56, 1, 1, {1, 1}, {0, 0}, false, true, false, true);
-}
-
 TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, oob_rn50_conv_NXC) {
     SET_THREADS_OR_SKIP(4);
     REQUIRE_AMX();
     check_nested_qconv<int8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 1,
             512, 512, 21, 21, 3, 3, {2, 2}, {0, 0}, false, true, false, true);
+}
+
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_1x1, rn50_stage4_NXC) {
+    REQUIRE_AMX();
+    check_nested_qconv<uint8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 12,
+            512, 512, 56, 56, 1, 1, {1, 1}, {0, 0}, false, true, false, true);
 }
 
 TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_1x1, ut1) {
