@@ -271,6 +271,11 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
                 = downcast<gpu_primitive_attr_t *>(pd->attr()->gpu_attr_.get());
         bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
         adjust_lws_calc_kernel(conf, compute_engine, large_grf_mode);
+
+        if (!compute_engine->mayiuse(
+                    compute::device_ext_t::ext_float_atomics)) {
+            return status::unimplemented;
+        }
     }
 
     conf.dispatch_reduce_stat = compute_engine->create_dispatch();
