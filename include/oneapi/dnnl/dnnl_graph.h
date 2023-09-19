@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -673,7 +673,7 @@ dnnl_status_t DNNL_API dnnl_graph_set_compiled_partition_cache_capacity(
 
 /// Control the enabling or disabling of constant tensor cache. This API must
 /// be called once before compilation stage. By default, constant tensor cache is
-/// enabled in the library.
+/// disabled in the library.
 ///
 /// @param flag Set to positive value to enable the cache and set to 0 to
 /// disable the cache. Negative values are invalid.
