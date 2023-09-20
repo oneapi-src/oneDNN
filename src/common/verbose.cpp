@@ -78,7 +78,7 @@ namespace impl {
 
 static setting_t<uint32_t> verbose {0};
 
-void print_header() {
+void print_header(const filter_status_t &filter_status) {
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (!version_printed.test_and_set()) {
         printf("onednn_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
@@ -128,6 +128,14 @@ void print_header() {
                "time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
 #endif
+        if (filter_status.status == filter_status_t::flags::valid)
+            printf("onednn_verbose,common,info,filter format is enabled, "
+                   "hit components: %s\n",
+                    filter_status.components.c_str());
+        else if (filter_status.status == filter_status_t::flags::invalid)
+            printf("onednn_verbose,common,error,filter format is ill-formed "
+                   "and is not applied, error: %s\n",
+                    filter_status.err_msg.c_str());
     }
 }
 
@@ -139,10 +147,12 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
 #else
     // we print all verbose by default
     static int flags = component_t::all;
+    // record filter parsing result to instruct verbose printing
+    static filter_status_t filter_status;
+
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
         static std::string user_opt = getenv_string_user("VERBOSE");
-
         auto update_kind = [&](const std::string &s, int &k) {
             // Legacy: we accept values 0,1,2
             // 0 and none erase previously set flags, including error
@@ -167,70 +177,52 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
                         std::strtol(s.c_str() + 10, nullptr, 10));
         };
 
-        auto update_filter = [&](const std::string &s) noexcept -> int {
+        auto update_filter = [&](const std::string &s,
+                                     filter_status_t &filter_status) -> int {
+
+#define REGEX_SEARCH(k, component, regexp, filter_status) \
+    if (std::regex_search("" #component "", regexp)) { \
+        (k) |= component_t::component; \
+        (filter_status).components += "" #component ","; \
+    }
             int k = component_t::none;
             std::regex regexp;
             try {
                 regexp = std::regex(s);
-            } catch (const std::regex_error &) { return component_t::all; }
-            if (std::regex_search("primitive", regexp)) {
-                k |= component_t::primitive;
+            } catch (const std::regex_error &e) {
+                filter_status.status = filter_status_t::flags::invalid;
+                filter_status.err_msg = e.what();
+                return component_t::all;
             }
-            if (std::regex_search("reorder", regexp)) {
-                k |= component_t::reorder;
-            }
-            if (std::regex_search("shuffle", regexp)) {
-                k |= component_t::shuffle;
-            }
-            if (std::regex_search("concat", regexp)) {
-                k |= component_t::concat;
-            }
-            if (std::regex_search("sum", regexp)) { k |= component_t::sum; }
-            if (std::regex_search("convolution", regexp)) {
-                k |= component_t::convolution;
-            }
-            if (std::regex_search("deconvolution", regexp)) {
-                k |= component_t::deconvolution;
-            }
-            if (std::regex_search("eltwise", regexp)) {
-                k |= component_t::eltwise;
-            }
-            if (std::regex_search("lrn", regexp)) { k |= component_t::lrn; }
-            if (std::regex_search("batch_normalization", regexp)) {
-                k |= component_t::batch_normalization;
-            }
-            if (std::regex_search("inner_product", regexp)) {
-                k |= component_t::inner_product;
-            }
-            if (std::regex_search("rnn", regexp)) { k |= component_t::rnn; }
-            if (std::regex_search("binary", regexp)) {
-                k |= component_t::binary;
-            }
-            if (std::regex_search("matmul", regexp)) {
-                k |= component_t::matmul;
-            }
-            if (std::regex_search("resampling", regexp)) {
-                k |= component_t::resampling;
-            }
-            if (std::regex_search("pooling", regexp)) {
-                k |= component_t::pooling;
-            }
-            if (std::regex_search("reduction", regexp)) {
-                k |= component_t::reduction;
-            }
-            if (std::regex_search("prelu", regexp)) { k |= component_t::prelu; }
-            if (std::regex_search("softmax", regexp)) {
-                k |= component_t::softmax;
-            }
-            if (std::regex_search("layer_normalization", regexp)) {
-                k |= component_t::layer_normalization;
-            }
-            if (std::regex_search("group_normalization", regexp)) {
-                k |= component_t::group_normalization;
-            }
-            if (std::regex_search("graph", regexp)) { k |= component_t::graph; }
-            if (std::regex_search("gemm_api", regexp)) {
-                k |= component_t::gemm_api;
+            REGEX_SEARCH(k, primitive, regexp, filter_status);
+            REGEX_SEARCH(k, reorder, regexp, filter_status);
+            REGEX_SEARCH(k, shuffle, regexp, filter_status);
+            REGEX_SEARCH(k, concat, regexp, filter_status);
+            REGEX_SEARCH(k, sum, regexp, filter_status);
+            REGEX_SEARCH(k, convolution, regexp, filter_status);
+            REGEX_SEARCH(k, deconvolution, regexp, filter_status);
+            REGEX_SEARCH(k, eltwise, regexp, filter_status);
+            REGEX_SEARCH(k, lrn, regexp, filter_status);
+            REGEX_SEARCH(k, batch_normalization, regexp, filter_status);
+            REGEX_SEARCH(k, inner_product, regexp, filter_status);
+            REGEX_SEARCH(k, rnn, regexp, filter_status);
+            REGEX_SEARCH(k, binary, regexp, filter_status);
+            REGEX_SEARCH(k, matmul, regexp, filter_status);
+            REGEX_SEARCH(k, resampling, regexp, filter_status);
+            REGEX_SEARCH(k, pooling, regexp, filter_status);
+            REGEX_SEARCH(k, reduction, regexp, filter_status);
+            REGEX_SEARCH(k, prelu, regexp, filter_status);
+            REGEX_SEARCH(k, softmax, regexp, filter_status);
+            REGEX_SEARCH(k, layer_normalization, regexp, filter_status);
+            REGEX_SEARCH(k, group_normalization, regexp, filter_status);
+            REGEX_SEARCH(k, graph, regexp, filter_status);
+            REGEX_SEARCH(k, gemm_api, regexp, filter_status);
+
+            // filter enabled and at least one component is hit
+            if (filter_status.components.length() != 0) {
+                // pop out the last comma
+                filter_status.components.pop_back();
+                filter_status.status = filter_status_t::flags::valid;
             }
             return k;
         };
@@ -243,7 +235,9 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
             // update filter flags
             if (tok.rfind("filter=", 0) == 0) {
                 auto filter_str = tok.substr(7);
-                if (!filter_str.empty()) { flags = update_filter(filter_str); }
+                if (!filter_str.empty()) {
+                    flags = update_filter(filter_str, filter_status);
+                }
             }
         }
 
@@ -254,7 +248,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
     int result = verbose.get() & verbosity_kind;
     if (verbosity_kind == verbose_t::debuginfo)
         result = verbose_t::get_debuginfo(verbose.get());
-    if (result) print_header();
+    if (result) print_header(filter_status);
     bool filter_result = flags & filter_kind;
     return filter_result ? result : 0;
 #endif

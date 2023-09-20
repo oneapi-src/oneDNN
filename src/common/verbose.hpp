@@ -181,6 +181,19 @@ struct component_t {
     };
 };
 
+struct filter_status_t {
+    enum flags : uint32_t {
+        none = 0,
+        valid,
+        invalid,
+    };
+
+    flags status = flags::none;
+    // used to form a message about proper components used
+    std::string components;
+    std::string err_msg;
+};
+
 inline component_t::flag_kind prim_kind2_comp_kind(
         const primitive_kind_t prim_kind) {
     return static_cast<component_t::flag_kind>(1 << prim_kind | 1 << 0);
