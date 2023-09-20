@@ -332,8 +332,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         assert(nnz > 0);
         for (int i = 0; i < nnz; i++)
             nnz_mask[i] = true;
-        std::shuffle(nnz_mask.begin(), nnz_mask.end(),
-                std::default_random_engine {});
+        std::default_random_engine rng(nnz);
+        std::shuffle(nnz_mask.begin(), nnz_mask.end(), rng);
     }
 #endif
 
