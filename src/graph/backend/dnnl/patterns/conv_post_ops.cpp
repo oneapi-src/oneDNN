@@ -569,6 +569,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
         });
 
 /*
+TODO(Jiexin): Currently, we found conv+relu+multiply/divide/subtract lacks 
+optimization in oneDNN post-ops fusion, so we don't plan to extend the post-op 
+chain of this pattern, we will extend it when corresponding optimization is 
+enabled.
                     [quant_weight]*
         |                  |
    dequant_data     dequant_weight
@@ -579,8 +583,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                 | [typecast_bias]*
                 |   /
               [bias]*  [typecast_binary]*
-                |           /
-        [unary/binary]*[0,4]
+                |        /
+            [unary/binary]*
                 |
     [typecast_out -> quant_out]*
                 |
@@ -652,8 +656,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_post_ops)
                             1, popt_typecast_binary, 1);
                     postop_with_tc_graph->create_output_port(0, pop_with_tc, 0);
 
-                    auto prep = pgraph->append_repetition(postop_with_tc_graph,
-                            {0, 0}, 0, MAX_REPETITION,
+                    auto prep = pgraph->append_optional(postop_with_tc_graph,
                             in_edges_t {in_edge(0, popt_bias, 0)});
 
                     // Optional typecast_out + quant_out
