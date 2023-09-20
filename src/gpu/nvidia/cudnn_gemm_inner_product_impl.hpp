@@ -163,7 +163,8 @@ struct cudnn_gemm_inner_product_fwd_impl_t
         if (use_acc_dst_) {
             pd->scratchpad_registry().registrar().book(
                     memory_tracking::names::key_iprod_int_dat_in_acc_dt,
-                    memory_desc_wrapper(pd->dst_md()).size(), size_t(1));
+                    memory_desc_wrapper(pd->dst_md()).nelems(),
+                    types::data_type_size(pd->desc()->accum_data_type));
             CHECK(create_and_set_tensor_descriptor(&y_acc_desc_,
                     CUDNN_DATA_FLOAT, ndims_, dims_[io::dst],
                     strides_[io::dst]));

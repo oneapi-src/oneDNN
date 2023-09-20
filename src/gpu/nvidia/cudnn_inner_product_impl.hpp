@@ -129,8 +129,6 @@ struct cudnn_inner_product_impl_base_t {
         return filter_using_spatial_format_;
     }
 
-    virtual bool ip_using_scratchpad() const { return (workspace_size_ > 0); }
-
     void set_bias_dims(cudnnTensorFormat_t format, int ndims, int bias_dim) {
         // Set the dimensions and strides for the bias.
         // Note that the second dimension of bias and the first dimension
