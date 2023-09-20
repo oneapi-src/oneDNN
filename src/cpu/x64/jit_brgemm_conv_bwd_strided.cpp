@@ -1100,7 +1100,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_base(
     const int ocb = btc.occ * jcp.nb_oc_blocking;
     const int oc = ocb * jcp.oc_block;
     const int g_oc = btc.g * jcp.oc + oc;
-    const dim_t iw = btc.iwb * jcp.iw_block + btc.sw;
+    const dim_t iw = static_cast<dim_t>(btc.iwb) * jcp.iw_block + btc.sw;
     const dim_t iw_raw = static_cast<dim_t>(btc.iwb) * jcp.iw_block;
     const dim_t ih = btc.ih;
     const dim_t id = btc.id;
