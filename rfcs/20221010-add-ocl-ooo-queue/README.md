@@ -86,3 +86,6 @@ inline cl_event execute(const dnnl::primitive &aprimitive,
 ### Generic API
 The generic API for primitive execution is available for either stream in-order or out-of-order.
 Creating an out-of-order stream with the generic API will be made available for the OpenCL runtime.
+The execution API can be used with the out-of-order stream but the burden of the proper
+synchronization will be on the user because the API doesn't return events. As an option, users
+can use barriers.
