@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ struct bitcast {
 
 template <typename T> static inline constexpr14 int bsf(T x)
 {
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(_MSC_VER)
     unsigned long index;
     if (sizeof(T) > 4)
         (void) _BitScanForward64(&index, x);
@@ -62,7 +62,7 @@ template <typename T> static inline constexpr14 int bsf(T x)
 
 template <typename T> static inline constexpr14 int bsr(T x)
 {
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(_MSC_VER)
     unsigned long index;
     if (sizeof(T) > 4)
         (void) _BitScanReverse64(&index, x);
