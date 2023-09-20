@@ -143,6 +143,11 @@ TEST(APILogicalTensor, CreateWithDataType) {
             id, data_type::boolean, {3, 4}, layout_type::strided};
     ASSERT_EQ(lt_boolean.get_id(), id);
     ASSERT_EQ(lt_boolean.get_data_type(), data_type::boolean);
+
+    // f8_e5m2
+    logical_tensor lt_f8 {id, data_type::f8_e5m2, {3, 4}, layout_type::strided};
+    ASSERT_EQ(lt_f8.get_id(), id);
+    ASSERT_EQ(lt_f8.get_data_type(), data_type::f8_e5m2);
 }
 
 TEST(APILogicalTensor, ShallowCopy) {

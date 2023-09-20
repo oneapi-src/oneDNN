@@ -32,6 +32,8 @@ const char *data_type2str(data_type_t v) {
     if (v == data_type::s8) return "s8";
     if (v == data_type::u8) return "u8";
     if (v == data_type::boolean) return "boolean";
+    if (v == data_type::f8_e5m2) return "f8_e5m2";
+    if (v == data_type::f8_e4m3) return "f8_e4m3";
     assert(!"unknown data_type");
     return "unknown data_type";
 }
