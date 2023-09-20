@@ -837,13 +837,13 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
             auto get_block_candidate = [&]() -> dim_t {
                 // for AMX prefer block sizes which utilize at least 13 tile
                 // rows
-                const int tile_rows_min = 13;
-                const int tile_rows_max = 16;
-                const int scale_rows_min = 2;
-                const int scale_rows_max = 4;
+                const dim_t tile_rows_min = 13;
+                const dim_t tile_rows_max = 16;
+                const dim_t scale_rows_min = 2;
+                const dim_t scale_rows_max = 4;
 
-                for_(int r = tile_rows_max; r >= tile_rows_min; r--)
-                for (int s = scale_rows_max; s >= scale_rows_min; s--) {
+                for_(dim_t r = tile_rows_max; r >= tile_rows_min; r--)
+                for (dim_t s = scale_rows_max; s >= scale_rows_min; s--) {
                     const dim_t m_blk = s * r;
                     if (bgmmc.M % m_blk == 0) return m_blk;
                 }
