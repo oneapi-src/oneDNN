@@ -80,40 +80,6 @@ public:
         , reduction_block(1, reduction_size, inner_size)
         , outer_block(2, outer_size, inner_size * reduction_size) {}
 
-    reduction_subproblem_t(std::vector<block_t> blocks, size_t red_start_idx,
-            size_t red_end_idx, int reduced_mask)
-        : inner_block(0, 1, 1)
-        , reduction_block(1, 1, blocks[red_start_idx].stride)
-        , outer_block(2, 1,
-                  red_end_idx == blocks.size()
-                          ? blocks.back().stride * blocks.back().block
-                          : blocks[red_end_idx].stride) {
-
-        // Compute the size of the inner, reduction, and outer blocks
-        // Assume that any reduced dims before red_start_idx have already
-        // been reduced to 1 element (heuristic in how these problems are generated)
-        dim_t ignored_inner_elems = 1;
-        for (size_t i = 0; i < blocks.size(); i++) {
-            dim_t block_size = blocks[i].block;
-            if (i < red_start_idx) {
-                if (reduced_mask & (1 << blocks[i].dim_idx)) {
-                    ignored_inner_elems *= block_size;
-                } else {
-                    inner_block.block *= block_size;
-                }
-            } else if (i < red_end_idx) {
-                assert(reduced_mask & (1 << blocks[i].dim_idx));
-                reduction_block.block *= block_size;
-            } else {
-                outer_block.block *= block_size;
-            }
-        }
-
-        // For ignored inner dims, we have to reduce the stride of the other dims
-        reduction_block.stride /= ignored_inner_elems;
-        outer_block.stride /= ignored_inner_elems;
-    }
-
     std::string str() const {
         std::stringstream os;
         os << "subproblem:" << std::endl;

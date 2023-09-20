@@ -24,6 +24,7 @@
 #include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
 #include "gpu/serialization.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -113,7 +114,7 @@ static constexpr dim_t undefined_dim_idx = -1;
 struct block_t {
     block_t() = default;
 
-    block_t(int dim_idx, dim_t block, const stride_t &stride)
+    block_t(dim_t dim_idx, dim_t block, const stride_t &stride)
         : dim_idx(dim_idx), block(block), stride(stride) {}
 
 #if __cplusplus >= 202002L
@@ -146,11 +147,91 @@ struct block_t {
 };
 assert_trivially_serializable(block_t);
 
+// Static-sized layout of blocks
+struct block_layout_t {
+#if __cplusplus >= 202002L
+    bool operator==(const block_layout_t &) const = default;
+#endif
+    using value_type = std::array<block_t, DNNL_MAX_NDIMS>;
+    using iterator = value_type::iterator;
+    using reverse_iterator = value_type::reverse_iterator;
+    using const_iterator = value_type::const_iterator;
+    using const_reverse_iterator = value_type::const_reverse_iterator;
+
+    block_layout_t() = default;
+    block_layout_t(const memory_desc_wrapper &mdw, bool inner_only = false,
+            bool do_normalize = true);
+
+    size_t size() const { return num_blocks; }
+    bool empty() const { return num_blocks == 0; }
+    const block_t &front() const {
+        gpu_assert(num_blocks > 0);
+        return blocks[0];
+    }
+    block_t &front() {
+        gpu_assert(num_blocks > 0);
+        return blocks[0];
+    }
+    const block_t &back() const {
+        gpu_assert(num_blocks > 0);
+        return blocks[num_blocks - 1];
+    }
+    block_t &back() {
+        gpu_assert(num_blocks > 0);
+        return blocks[num_blocks - 1];
+    }
+
+    // Iterators only go up to num_blocks, not necessarily to DNNL_MAX_NDIMS
+    iterator begin() { return blocks.begin(); }
+    const_iterator begin() const { return blocks.begin(); }
+    reverse_iterator rbegin() {
+        return blocks.rbegin() + static_cast<long>(blocks.size() - num_blocks);
+    }
+    const_reverse_iterator rbegin() const {
+        return blocks.rbegin() + static_cast<long>(blocks.size() - num_blocks);
+    }
+    iterator end() { return blocks.begin() + num_blocks; }
+    const_iterator end() const { return blocks.begin() + num_blocks; }
+    reverse_iterator rend() { return blocks.rend(); }
+    const_reverse_iterator rend() const { return blocks.rend(); }
+
+    void erase(size_t idx) {
+        for (size_t i = idx + 1; i < num_blocks; i++) {
+            blocks[i - 1] = blocks[i];
+        }
+        blocks[num_blocks] = block_t();
+        num_blocks--;
+    }
+
+    void insert(size_t idx, block_t val) {
+        assert(num_blocks + 1 < DNNL_MAX_NDIMS);
+        for (size_t i = idx; i < num_blocks; i++) {
+            std::swap(val, blocks[i]);
+        }
+        append(val);
+    }
+
+    const block_t &operator[](size_t idx) const { return blocks[idx]; }
+
+    void append(const block_t &block) { blocks[num_blocks++] = block; }
+    size_t get_hash() const { return dnnl::impl::gpu::get_hash(this); }
+
+    block_t &operator[](size_t idx) {
+        assert(idx < num_blocks);
+        return blocks[idx];
+    }
+
+    block_layout_t normalized(bool remove_size_1_blocks = true) const;
+
+private:
+    size_t num_blocks = 0;
+    value_type blocks;
+};
+
+// Alias for block_layout_t::normalized which should be removed once jit::ir
+// supports block_layout_t in favor of std::vector<block_t>
 std::vector<block_t> normalize_blocks(
         const std::vector<block_t> &blocks, bool remove_size_1_blocks = true);
-
-std::vector<block_t> compute_block_structure(const memory_desc_wrapper &mdw,
-        bool inner_only = false, bool do_normalize = true);
 
 } // namespace gpu
 } // namespace impl

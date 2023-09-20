@@ -24,7 +24,7 @@ namespace ocl {
 // Convert a block structure + dims to a list of zero-padding structs
 // Note: Doesn't include blocking structures that don't require zero-padding.
 std::vector<zero_padding_t> calc_zero_padding(
-        const std::vector<block_t> &blocks, const memory_desc_wrapper &mdw) {
+        const block_layout_t &blocks, const memory_desc_wrapper &mdw) {
     std::vector<zero_padding_t> out;
     const blocking_desc_t &src_blocking = mdw.blocking_desc();
     const dim_t *dims = mdw.dims();
@@ -57,8 +57,7 @@ std::vector<zero_padding_t> calc_zero_padding(
     return out;
 }
 
-block_t merge_blocks(
-        std::vector<block_t> blocks, size_t start_idx, size_t end_idx) {
+block_t merge_blocks(block_layout_t blocks, size_t start_idx, size_t end_idx) {
     block_t ret = blocks[start_idx];
     for (size_t i = start_idx + 1; i < end_idx; i++) {
         block_t &next_block = blocks[i];
@@ -109,24 +108,24 @@ status_t generate_reduction_phases(const memory_desc_t *src,
     memory_desc_wrapper src_mdw(src);
     memory_desc_wrapper dst_mdw(dst);
 
-    std::vector<block_t> src_blocks = compute_block_structure(src_mdw);
-    std::vector<block_t> dst_blocks = compute_block_structure(dst_mdw);
+    block_layout_t src_blocks(src_mdw);
+    block_layout_t dst_blocks(dst_mdw);
 
     // Requirement: dst blocks match src blocks with the exception of reduced dims (these
     // blocks are removed) and dst zero-padding on reduced dims (these are added back in)
-    std::vector<block_t> exp_dst_blocks;
+    block_layout_t exp_dst_blocks;
     int dst_zpad_mask
             = ~utils::get_dims_mask(dst->dims, dst->padded_dims, dst->ndims);
     int stride = 1;
     for (const auto &block : src_blocks) {
         if (!is_masked(reduced_dim_mask, block.dim_idx)) {
             // Non-reduced dims get transferred directly to dst (no reorders)
-            exp_dst_blocks.push_back(block);
+            exp_dst_blocks.append(block);
             exp_dst_blocks.back().stride = stride;
             stride *= block.block;
         } else if (is_masked(dst_zpad_mask, block.dim_idx)) {
             // dst-zpadded, reduced dims get added to dst as well
-            exp_dst_blocks.push_back(block);
+            exp_dst_blocks.append(block);
             exp_dst_blocks.back().stride = stride;
             stride *= block.block;
 
@@ -134,7 +133,7 @@ status_t generate_reduction_phases(const memory_desc_t *src,
             dst_zpad_mask &= ~(1 << block.dim_idx);
         } // Otherwise, it's reduced and removed, not added to dst
     }
-    exp_dst_blocks = normalize_blocks(exp_dst_blocks);
+    exp_dst_blocks = exp_dst_blocks.normalized();
 
     // Make sure dst matches the expected format
     if (dst_blocks.size() != exp_dst_blocks.size()) {

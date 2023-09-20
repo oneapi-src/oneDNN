@@ -20,75 +20,93 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
-std::vector<block_t> normalize_blocks(
-        const std::vector<block_t> &blocks, bool remove_size_1_blocks) {
-    auto new_blocks = blocks;
-
-    // Remove blocks of size 1.
-    if (remove_size_1_blocks) {
-        for (auto it = new_blocks.begin(); it != new_blocks.end();) {
-            if (it->block == 1) {
-                it = new_blocks.erase(it);
-            } else {
-                ++it;
-            }
-        }
-    }
-
-    // Merge same dimension blocks.
-    block_t prev_b;
-    prev_b.dim_idx = undefined_dim_idx;
-    for (auto it = new_blocks.begin(); it != new_blocks.end();) {
-        if (it->dim_idx == prev_b.dim_idx
-                && it->stride == (prev_b.stride * prev_b.block)) {
-            auto &b = *(it - 1);
-            b.block *= it->block;
-            prev_b = b;
-            it = new_blocks.erase(it);
-        } else {
-            prev_b = *it;
-            ++it;
-        }
-    }
-
-    return new_blocks;
+static bool can_combine(
+        const block_t &a, const block_t &b, bool same_dim_only = true) {
+    bool dim_ok = !same_dim_only || (a.dim_idx == b.dim_idx);
+    bool a_then_b = (a.stride * a.block == b.stride);
+    return dim_ok && a_then_b;
 }
 
-std::vector<block_t> compute_block_structure(
-        const memory_desc_wrapper &mdw, bool inner_only, bool do_normalize) {
-    if (mdw.format_kind() == format_kind::undef) return {};
+block_layout_t block_layout_t::normalized(bool remove_size_1_blocks) const {
+    if (num_blocks == 0) return block_layout_t();
+    block_layout_t res;
 
-    const int ndims = mdw.ndims();
+    res.append(blocks.front());
+    auto cur = res.begin();
+    for (size_t i = 1; i < num_blocks; i++) {
+        const auto &block = blocks[i];
+        if (block.block == 1 && remove_size_1_blocks) continue;
+        if (can_combine(*cur, block)) {
+            cur->stride = std::min(cur->stride, block.stride);
+            cur->block = cur->block * block.block;
+        } else {
+            res.append(block);
+            cur++;
+        }
+    }
+
+    if (res.front().block == 1 && remove_size_1_blocks) res.erase(0);
+
+    return res;
+}
+
+std::vector<block_t> normalize_blocks(
+        const std::vector<block_t> &blocks, bool remove_size_1_blocks) {
+    if (blocks.empty()) return {};
+    std::vector<block_t> res;
+
+    res.emplace_back(blocks.front());
+    auto *cur = &res.back();
+    for (size_t i = 1; i < blocks.size(); i++) {
+        const auto &block = blocks[i];
+        if (block.block == 1 && remove_size_1_blocks) continue;
+        if (can_combine(*cur, block)) {
+            cur->stride = std::min(cur->stride, block.stride);
+            cur->block = cur->block * block.block;
+        } else {
+            res.emplace_back(block);
+            cur = &res.back();
+        }
+    }
+
+    if (res.front().block == 1 && remove_size_1_blocks) res.erase(res.begin());
+
+    return res;
+}
+
+block_layout_t::block_layout_t(
+        const memory_desc_wrapper &mdw, bool inner_only, bool do_normalize) {
+    if (mdw.format_kind() == format_kind::undef) return;
+
+    const size_t ndims = static_cast<size_t>(mdw.ndims());
     auto &blocking = mdw.blocking_desc();
     auto *padded_dims = mdw.padded_dims();
 
     dim_t stride = 1;
     std::vector<dim_t> full_blocks(ndims, 1);
-    std::vector<block_t> out;
     for (int i = blocking.inner_nblks - 1; i >= 0; i--) {
-        int dim_idx = blocking.inner_idxs[i];
+        dim_t dim_idx = blocking.inner_idxs[i];
         dim_t block = blocking.inner_blks[i];
-        out.emplace_back(dim_idx, block, stride);
+        append(block_t(dim_idx, block, stride));
         stride *= block;
-        full_blocks[dim_idx] *= block;
+        full_blocks[static_cast<size_t>(dim_idx)] *= block;
     }
 
     if (!inner_only) {
-        for (int i = 0; i < ndims; i++) {
+        for (size_t i = 0; i < ndims; i++) {
             dim_t block = padded_dims[i] / full_blocks[i];
-            out.emplace_back(i, block, blocking.strides[i]);
+            append(block_t(static_cast<dim_t>(i), block, blocking.strides[i]));
         }
 
         // Sort outer blocks by their stride.
-        std::sort(out.begin() + blocking.inner_nblks, out.end(),
+        std::sort(begin() + blocking.inner_nblks, end(),
                 [](const block_t &a, const block_t &b) {
                     return a.stride < b.stride
                             || (a.stride == b.stride && a.block < b.block);
                 });
     }
 
-    if (do_normalize) out = normalize_blocks(out);
-    return out;
+    if (do_normalize) *this = normalized();
 }
 
 } // namespace gpu

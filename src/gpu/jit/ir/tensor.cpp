@@ -68,8 +68,14 @@ layout_t::layout_t(const memory_desc_wrapper &mdw, bool do_normalize)
     ir_assert(mdw.is_blocking_desc()) << "Expected blocking memory descriptor.";
 
     ndims_ = mdw.ndims();
-    blocks_ = compute_block_structure(
+    block_layout_t layout(
             mdw, /* inner_only */ false, /* do_normalize */ do_normalize);
+
+    // TODO: Switch blocks_ from std::vector<block_t> to block_layout_t
+    // to avoid this copy
+    for (const auto &block : layout) {
+        blocks_.emplace_back(block);
+    }
 
     sanity_check();
 }

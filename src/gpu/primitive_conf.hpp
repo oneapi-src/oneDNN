@@ -231,14 +231,6 @@ struct attr_info_t {
     bool with_per_oc_dst_zpoints;
 };
 
-struct block_layout_t {
-#if __cplusplus >= 202002L
-    bool operator==(const block_layout_t &) const = default;
-#endif
-
-    std::array<block_t, MAX_NDIMS> blocks;
-};
-
 using strides_t = std::array<dim_t, MAX_NDIMS>;
 
 struct offsets_t {
@@ -1044,18 +1036,17 @@ inline strides_t get_outer_strides(const memory_desc_wrapper &md) {
 }
 
 inline block_layout_t get_inner_layout(const memory_desc_wrapper &md) {
-    std::vector<block_t> inner_layout = normalize_blocks(
-            compute_block_structure(md, /* inner_only */ true));
+    block_layout_t inner_layout(md, /* inner_only */ true);
 
     block_layout_t ret;
     // Explicitly initialize to size-1 blocks
     for (int d = 0; d < MAX_NDIMS; d++) {
-        ret.blocks[d] = block_t(d, 1, 0);
+        ret.append(block_t(d, 1, 0));
     }
 
     // Overwrite inner blocks with their actual values
     for (const auto &block : inner_layout) {
-        ret.blocks[block.dim_idx] = block;
+        ret[block.dim_idx] = block;
     }
 
     return ret;
@@ -1079,7 +1070,7 @@ inline void def_offsets(const dim_t offs[4][MAX_NDIMS],
 inline void def_block_offsets(const block_layout_t &layout,
         compute::kernel_ctx_t &kernel_ctx, const char *str) {
 
-    for (auto &b : layout.blocks) {
+    for (const block_t &b : layout) {
         kernel_ctx.define_int(utils::format("%s_B%d", str, b.dim_idx), b.block);
         kernel_ctx.define_int(
                 utils::format("%s_SB%d", str, b.dim_idx), b.stride);
