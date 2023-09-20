@@ -234,9 +234,7 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                             {"transposed_b", transposed_b},
                             {"post_rd_axis", post_rd_axis},
                             {attr_keys::output_channel_axis,
-                                    output_channel_axis},
-                            {"post_binary",
-                                    attrs.get_or_else("post_binary", false)}});
+                                    output_channel_axis}});
         } else {
             matmul = graph->make("matmul_core", {trans0, trans1}, {},
                     {{attr_keys::output_channel_axis, output_channel_axis},

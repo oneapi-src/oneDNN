@@ -117,39 +117,6 @@ void annotate_config(sc_graph_t &graph, const context_ptr &ctx) {
             }
         }
     });
-
-    // annotate graph with matmul+binary(no broadcast)
-    auto vis1 = op_visitor_t::bfs();
-    vis1.visit_graph(graph, [&](op_visitor_t *vis1, const sc_op_ptr &node) {
-        if (node->op_name_ == "matmul"
-                || node->op_name_ == "managed_matmul_core") {
-            size_t use_size = node->get_outputs()[0]->uses_.size();
-            auto next_node
-                    = node->get_outputs()[0]->uses_.at(0).second.get_shared();
-            while (!next_node->isa<tunable_op_t>()
-                    && !next_node->isa<output_op>()
-                    && next_node->op_name_ != "matmul") {
-                if (next_node->attrs_.get_or_else(
-                            op_attr_key::break_pre_fuse, false)) {
-                    break;
-                }
-                if (next_node->isa<binary_elementwise_op_t>()) {
-                    node->attrs_.set("post_binary",
-                            next_node->get_inputs()[0]
-                                            ->details_.get_plain_dims()
-                                            .size()
-                                    == next_node->get_inputs()[1]
-                                               ->details_.get_plain_dims()
-                                               .size());
-                    break;
-                }
-                if (next_node->get_outputs()[0]->uses_.size() > 1) { break; }
-                next_node = next_node->get_outputs()[0]
-                                    ->uses_.at(0)
-                                    .second.get_shared();
-            }
-        }
-    });
 }
 
 } // namespace gc
