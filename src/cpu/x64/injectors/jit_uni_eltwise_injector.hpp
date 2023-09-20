@@ -37,7 +37,7 @@ namespace eltwise_injector {
 struct static_params_t {
 
     static_params_t(bool save_state = true,
-            Xbyak::Reg64 p_table = Xbyak::util::rax,
+            Xbyak::Reg64 p_table = Xbyak::Reg64(Xbyak::Operand::RAX),
             Xbyak::Opmask k_mask = Xbyak::Opmask(1), bool is_fwd = true,
             bool use_dst = false, bool preserve_vmm = true,
             bool preserve_p_table = true)
@@ -93,7 +93,7 @@ struct jit_uni_eltwise_injector_f32 {
     //   code. Depends on algorithm. See `_use_dst_for_bwd` algs definition.
     jit_uni_eltwise_injector_f32(jit_generator *host, alg_kind_t alg,
             float alpha, float beta, float scale, bool save_state = true,
-            Xbyak::Reg64 p_table = Xbyak::util::rax,
+            Xbyak::Reg64 p_table = Xbyak::Reg64(Xbyak::Operand::RAX),
             Xbyak::Opmask k_mask = Xbyak::Opmask(1), bool is_fwd = true,
             bool use_dst = false, bool preserve_vmm = true,
             bool preserve_p_table = true)
@@ -116,7 +116,7 @@ struct jit_uni_eltwise_injector_f32 {
 
     jit_uni_eltwise_injector_f32(jit_generator *host,
             const post_ops_t::entry_t::eltwise_t &eltwise,
-            bool save_state = true, Xbyak::Reg64 p_table = Xbyak::util::rax,
+            bool save_state = true, Xbyak::Reg64 p_table = Xbyak::Reg64(Xbyak::Operand::RAX),
             Xbyak::Opmask k_mask = Xbyak::Opmask(1), bool is_fwd = true,
             bool use_dst = false, bool preserve_vmm = true,
             bool preserve_p_table = true)

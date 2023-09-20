@@ -85,8 +85,7 @@ private:
     std::vector<const brgemm_kernel_t *> refs_;
 #ifdef BRGEMM_KERNEL_GLOBAL_STORAGE
     static std::set<std::shared_ptr<brgemm_kernel_t>,
-            decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>
-            set_;
+            decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>& get_set_();
 
     static utils::rw_mutex_t &rw_mutex() {
         static utils::rw_mutex_t mutex;
@@ -100,6 +99,10 @@ private:
     std::set<std::shared_ptr<brgemm_kernel_t>,
             decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>
             set_;
+    std::set<std::shared_ptr<brgemm_kernel_t>,
+            decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>& get_set_() {
+                return set_;
+            }
     void lock_write() {}
     void unlock_write() {}
 #endif

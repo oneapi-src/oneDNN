@@ -82,7 +82,7 @@ public:
     Xbyak::Zmm bf16_emu_reserv_1_ = Xbyak::Zmm(28);
     Xbyak::Zmm bf16_emu_reserv_2_ = Xbyak::Zmm(29);
     Xbyak::Zmm bf16_emu_reserv_3_ = Xbyak::Zmm(30);
-    Xbyak::Reg64 reg_tmp_ = Xbyak::util::rax;
+    Xbyak::Reg64 reg_tmp_ = Xbyak::Reg64(Xbyak::Operand::RAX);
     Xbyak::Zmm bf16_emu_reserv_4_ = Xbyak::Zmm(31);
 };
 
