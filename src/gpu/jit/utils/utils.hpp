@@ -429,13 +429,13 @@ inline std::vector<std::string> split(const std::string &s,
     size_t beg = 0;
     size_t end = 0;
     std::vector<std::string> ret;
-    while (end != std::string::npos) {
-        beg = (end == 0) ? 0 : end + delimiter.size();
+    do {
         end = s.find(delimiter, beg);
         size_t len
                 = (end == std::string::npos) ? std::string::npos : (end - beg);
         ret.push_back(s.substr(beg, len));
-    }
+        beg = end + delimiter.size();
+    } while (end != std::string::npos);
     return ret;
 }
 
