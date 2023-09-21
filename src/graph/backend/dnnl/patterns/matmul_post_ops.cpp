@@ -41,8 +41,6 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(matmul_post_ops)
                 |
              [bias]*
                 |
-            [BatchNorm]*
-                |
         [unary/binary]*[0,4]
                 |
 */
@@ -57,15 +55,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_matmul_post_ops)
                     // Optional bias
                     auto popt_bias = optional_bias_add(pgraph, pmatmul, false);
 
-                    // Optional BN
-                    auto popt_graph = std::make_shared<pb_graph_t>();
-                    auto pbn = popt_graph->append_op(
-                            graph::op_kind::BatchNormInference);
-                    popt_graph->create_input_port(0, pbn, 0);
-                    popt_graph->create_output_port(0, pbn, 0);
-                    auto popt = pgraph->append_optional(
-                            popt_graph, {in_edge(0, popt_bias, 0)});
-
                     auto alt_graph = std::make_shared<pb_graph_t>();
                     auto palt = alt_graph->append_alternation(
                             get_unary_binary_ops());
@@ -74,7 +63,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_matmul_post_ops)
                     alt_graph->create_output_port(0, palt, 0);
 
                     pgraph->append_repetition(alt_graph, {0, 0}, 0,
-                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)});
+                            MAX_REPETITION,
+                            in_edges_t {in_edge(0, popt_bias, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_matmul>();
