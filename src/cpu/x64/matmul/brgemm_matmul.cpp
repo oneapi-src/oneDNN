@@ -234,6 +234,7 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
     if (bgmmc.packed_sparse_weights) {
         CHECK(safe_ptr_assign(sparse_decompress_kernel_,
                 new jit_avx512_sparse_decompress_kernel_t(bgmmc)));
+        CHECK(sparse_decompress_kernel_->create_kernel());
     }
 
     return status::success;
