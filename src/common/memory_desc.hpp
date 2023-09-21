@@ -197,6 +197,11 @@ struct sparse_desc_t {
 
 // Description of extra information stored in memory
 struct memory_extra_desc_t {
+    memory_extra_desc_t()
+        : flags(0)
+        , compensation_mask(0)
+        , scale_adjust(0.0f)
+        , asymm_compensation_mask(0) {}
     // The flags contain arbitrary extra information, such as compensation.
     // @sa dnnl_memory_extra_flags_t
     uint64_t flags;
@@ -232,7 +237,16 @@ status_t memory_desc_permute_axes(memory_desc_t &out_memory_desc,
 // format. Additionally, contains format-specific descriptions of the data
 // layout.
 struct dnnl_memory_desc : public dnnl::impl::c_compatible {
-    dnnl_memory_desc() = default;
+    dnnl_memory_desc()
+        : ndims(0)
+        , dims {}
+        , data_type(dnnl::impl::data_type::undef)
+        , padded_dims {}
+        , padded_offsets {}
+        , offset0(0)
+        , format_kind(dnnl::impl::format_kind::undef)
+        , format_desc {}
+        , extra {} {}
     dnnl_memory_desc(const dnnl_memory_desc &other) = default;
     // Number of dimensions
     int ndims;
