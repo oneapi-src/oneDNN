@@ -42,15 +42,20 @@ struct jit_avx512_sparse_decompress_kernel_t : public jit_generator {
         switch (bgmmc.wei_tag) {
             case format_tag::BA16a64b4a:
             case format_tag::aCB16b64c4b: b_blk_sz_ = 64; break;
-            default: assert(!"unknown tag"); return;
+            default:
+                assert(!"unknown tag");
+                ctor_status_ = status::invalid_arguments;
+                return;
         }
 
         assert(a_outter_blk_sz_ == 16);
         assert(a_inner_blk_sz_ == 4);
         assert(b_blk_sz_ == 64);
 
-        if (a_outter_blk_sz_ != 16 || a_inner_blk_sz_ != 4 || b_blk_sz_ != 64)
+        if (a_outter_blk_sz_ != 16 || a_inner_blk_sz_ != 4 || b_blk_sz_ != 64) {
+            ctor_status_ = status::invalid_arguments;
             return;
+        }
 
         blk_sz_ = a_outter_blk_sz_ * b_blk_sz_ * a_inner_blk_sz_;
         nblks_to_decompress_ = bgmmc.K_blk * b_blk_sz_ / blk_sz_;
@@ -58,10 +63,17 @@ struct jit_avx512_sparse_decompress_kernel_t : public jit_generator {
 
     void tile_configure(const char *palette) const { (*this)(palette); }
 
+    status_t create_kernel() override {
+        CHECK(ctor_status_);
+        return jit_generator::create_kernel();
+    }
+
 private:
-    int nblks_to_decompress_;
-    int blk_sz_;
-    int b_blk_sz_;
+    status_t ctor_status_ = status::success;
+
+    int nblks_to_decompress_ = 0;
+    int blk_sz_ = 0;
+    int b_blk_sz_ = 0;
 
     const int a_outter_blk_sz_ = 16;
     const int a_inner_blk_sz_ = 4;
