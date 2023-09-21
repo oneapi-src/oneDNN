@@ -222,7 +222,6 @@ TEST(APIOp, Fp8Quantize) {
     const size_t id = 123;
     op quant {id, op::kind::Quantize, "quant"};
     quant.set_attr<std::vector<float>>(op::attr::scales, {0.5f});
-    quant.set_attr<std::vector<int64_t>>(op::attr::zps, {0});
 
     logical_tensor in {0, logical_tensor::data_type::f32, {10, 10},
             logical_tensor::layout_type::strided};
@@ -244,7 +243,6 @@ TEST(APIOp, Fp8Dequantize) {
     const size_t id = 123;
     op dequant {id, op::kind::Dequantize, "dequant"};
     dequant.set_attr<std::vector<float>>(op::attr::scales, {0.5f});
-    dequant.set_attr<std::vector<int64_t>>(op::attr::zps, {0});
 
     logical_tensor in {0, logical_tensor::data_type::f8_e5m2, {10, 10},
             logical_tensor::layout_type::strided};

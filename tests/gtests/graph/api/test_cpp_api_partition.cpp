@@ -347,7 +347,6 @@ TEST(APIPartition, F8MatmulPartition) {
 
     op deq0 {2, op::kind::Dequantize, "dequant0"};
     deq0.set_attr<std::vector<float>>(op::attr::scales, {0.5f});
-    deq0.set_attr<std::vector<int64_t>>(op::attr::zps, {0});
     deq0.add_inputs({deq0_src});
     deq0.add_outputs({deq0_dst});
 
@@ -358,7 +357,6 @@ TEST(APIPartition, F8MatmulPartition) {
 
     op deq1 {5, op::kind::Dequantize, "dequant1"};
     deq1.set_attr<std::vector<float>>(op::attr::scales, {0.5f});
-    deq1.set_attr<std::vector<int64_t>>(op::attr::zps, {0});
     deq1.add_inputs({deq1_src});
     deq1.add_outputs({deq1_dst});
 
