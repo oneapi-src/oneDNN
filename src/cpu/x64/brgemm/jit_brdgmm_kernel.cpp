@@ -1015,7 +1015,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
 
         for (int m_i = 0; m_i < m_blocks; ++m_i) {
             L(jmp_table_labels[m_i]);
-            if (has_bottom_padding) {
+            if (has_bottom_padding
+                    && (m_blocks - m_i) <= brg.brgattr.max_bottom_vpad) {
                 cmp(reg_aux_A_vpad_bottom, m_blocks - m_i);
                 jge(done, T_NEAR);
             }
