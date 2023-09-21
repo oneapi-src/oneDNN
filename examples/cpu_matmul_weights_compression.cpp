@@ -124,7 +124,8 @@ void matmul_example(dnnl::engine::kind engine_kind) {
     }
 
     if (wei_packed_md != user_weights_mem.get_desc()) {
-        matmul_weights_mem = memory(wei_packed_md, engine, wei_handles);
+        matmul_weights_mem
+                = memory(wei_packed_md, engine, std::move(wei_handles));
         reorder(user_weights_mem, matmul_weights_mem)
                 .execute(engine_stream, user_weights_mem, matmul_weights_mem);
     }
