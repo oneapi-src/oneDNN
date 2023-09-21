@@ -202,7 +202,7 @@ const format_kind_t opaque = dnnl_format_kind_opaque;
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 const format_kind_t sparse = dnnl_format_kind_sparse;
 #else
-const format_kind_t sparse = dnnl_format_kind_undef;
+const format_kind_t sparse = static_cast<format_kind_t>(4);
 #endif
 
 // Internal only format kinds.
@@ -1878,9 +1878,9 @@ const query_t sparse_encoding = dnnl_query_sparse_encoding;
 const query_t nnz_s64 = dnnl_query_nnz_s64;
 const query_t num_handles_s32 = dnnl_query_num_handles_s32;
 #else
-const query_t sparse_encoding = dnnl_query_undef;
-const query_t nnz_s64 = dnnl_query_undef;
-const query_t num_handles_s32 = dnnl_query_undef;
+const query_t sparse_encoding = static_cast<query_t>(266);
+const query_t nnz_s64 = static_cast<query_t>(267);
+const query_t num_handles_s32 = static_cast<query_t>(268);
 #endif
 
 // Internal only query kinds.
