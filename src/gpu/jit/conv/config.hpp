@@ -258,7 +258,8 @@ private:
         bool any_f64
                 = utils::one_of(data_type::f64, src_data_type, dst_data_type);
         if (!allow_ab_transpose || any_zp || any_f64 || with_groups) {
-            ab_swap_transpose = false;
+            ab_swap_transpose
+                    = gpu_utils::dev_getenv("ab_swap_transpose", false);
             return;
         }
         int max_sp = (hw_cfg.hw() >= ngen::HW::XeHPC) ? 1240 : 512;
@@ -276,6 +277,8 @@ private:
                         && ih != iw && iw <= max_sp);
         ab_swap_transpose = allow_fwd && allow_bwd_d && allow_bwd_w
                 && (do_oc_swap || do_ic_swap);
+        ab_swap_transpose
+                = gpu_utils::dev_getenv("ab_swap_transpose", ab_swap_transpose);
     }
 };
 
