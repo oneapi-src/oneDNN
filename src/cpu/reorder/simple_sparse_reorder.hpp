@@ -197,16 +197,13 @@ struct simple_sparse_reorder_t : public primitive_t {
                             is_applicable(src_md, dst_md, attr);
             if (!args_ok) return status::invalid_arguments;
 
-            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+            auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
             if (_pd == nullptr) return status::out_of_memory;
-            if (_pd->init(engine, src_engine, dst_engine) != status::success) {
-                delete _pd;
-                return status::unimplemented;
-            }
+            CHECK(_pd->init(engine, src_engine, dst_engine));
 
             CHECK(_pd->init_scratchpad_md());
-            return safe_ptr_assign(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd.release());
         }
 
         status_t init(
