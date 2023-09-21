@@ -1120,7 +1120,8 @@ DNNL_GRAPH_OP_SCHEMA(Quantize, 1,
                         op_attr::qtype, false, attribute_kind::s, "per_tensor")
                 .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(1))
                 .set_attr(op_attr::scales, true, attribute_kind::fs)
-                .set_attr(op_attr::zps, true, attribute_kind::is)
+                // for symmetric quantization or fp8 quantization, zps is not required.
+                .set_attr(op_attr::zps, false, attribute_kind::is)
                 .set_type_constraints("T1", {data_type::f32})
                 .set_type_constraints("T2",
                         {data_type::u8, data_type::s8, data_type::f8_e5m2,
@@ -1138,7 +1139,8 @@ DNNL_GRAPH_OP_SCHEMA(Dequantize, 1,
                         op_attr::qtype, false, attribute_kind::s, "per_tensor")
                 .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(1))
                 .set_attr(op_attr::scales, true, attribute_kind::fs)
-                .set_attr(op_attr::zps, true, attribute_kind::is)
+                // for symmetric quantization or fp8 quantization, zps is not required.
+                .set_attr(op_attr::zps, false, attribute_kind::is)
                 .set_type_constraints("T1",
                         {data_type::u8, data_type::s8, data_type::f8_e5m2,
                                 data_type::f8_e4m3})
