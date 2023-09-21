@@ -82,7 +82,8 @@ struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
         // This reorder expects a non-plain format for destination.
         return input_d.is_blocking_desc() && output_d.is_sparse_desc()
                 && output_d.sparse_desc().encoding == sparse_encoding::packed
-                && output_d.blocking_desc().inner_nblks > 0;
+                && output_d.blocking_desc().inner_nblks > 0
+                && output_d.blk_size() % 64 == 0;
     }
 
     static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
