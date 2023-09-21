@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_gpu_hw_info.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 #include "gpu/jit/binary_format.hpp"
 #include "gpu/jit/jit_generator.hpp"
@@ -29,15 +30,19 @@ void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
         compute::gpu_arch_t &gpu_arch, int &stepping_id, bool &mayiuse_systolic,
         bool &mayiuse_ngen_kernels) {
     using namespace ngen;
-    using arch_t = gpu::compute::gpu_arch_t;
-
     HW hw = HW::Unknown;
     Product product = {ProductFamily::Unknown, 0};
     jit::jit_generator<HW::Unknown>::detectHWInfo(context, device, hw, product);
 
     gpu_arch = jit::convert_ngen_arch_to_dnnl(hw);
     stepping_id = product.stepping;
-
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    status_t ret
+            = get_ocl_device_enabled_systolic_intel(device, mayiuse_systolic);
+    assert(ret == CL_SUCCESS);
+    MAYBE_UNUSED(ret);
+#else
+    using arch_t = gpu::compute::gpu_arch_t;
     switch (gpu_arch) {
         case arch_t::xe_hp:
         case arch_t::xe_hpc: mayiuse_systolic = true; break;
@@ -49,6 +54,7 @@ void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
             break;
         default: mayiuse_systolic = false;
     }
+#endif
 
     auto status
             = jit::gpu_supports_binary_format(&mayiuse_ngen_kernels, engine);

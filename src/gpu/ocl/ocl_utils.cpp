@@ -45,6 +45,14 @@
 #define CL_DEVICE_NUM_EUS_PER_SUB_SLICE_INTEL 0x4254
 #endif
 
+#ifndef CL_DEVICE_FEATURE_CAPABILITIES_INTEL
+#define CL_DEVICE_FEATURE_CAPABILITIES_INTEL 0x4256
+#endif
+
+#ifndef CL_DEVICE_FEATURE_FLAG_DPAS_INTEL
+#define CL_DEVICE_FEATURE_FLAG_DPAS_INTEL (1 << 1)
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -483,6 +491,15 @@ static status_t get_ocl_device_eu_count_intel(
 
     *eu_count = (int32_t)(
             num_slices * num_sub_slices_per_slice * num_eus_per_sub_slice);
+    return status::success;
+}
+
+status_t get_ocl_device_enabled_systolic_intel(
+        cl_device_id device, bool &enabled_systolic) {
+    cl_bitfield res;
+    OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_FEATURE_CAPABILITIES_INTEL,
+            sizeof(cl_bitfield), &res, nullptr));
+    enabled_systolic = res & CL_DEVICE_FEATURE_FLAG_DPAS_INTEL;
     return status::success;
 }
 
