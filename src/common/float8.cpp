@@ -32,10 +32,9 @@ float8_e5m2_t &float8_e5m2_t::operator=(float16_t f) {
     bool is_special = (fraw & naninf_mask) == naninf_mask;
     bool is_nan = is_special && (fraw & 0x03ff); // one of the lsb is non zero
 
-    // we always return R ind for Nan input as there is no good
-    // conversion of payload
+    // we always set quiet bit for NaN
     if (is_nan) {
-        raw_bits_ = 0xfe;
+        raw_bits_ = (fraw >> 8) | 0x02;
         return *this;
     }
 
