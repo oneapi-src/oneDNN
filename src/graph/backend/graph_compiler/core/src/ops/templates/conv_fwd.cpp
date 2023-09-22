@@ -75,6 +75,8 @@ void gen_conv_fwd_t::validate_conv_fwd_default_config(
     ? std::vector<int> {0, 1}
     : std::vector<int> {-1};
   auto loop_sched_list = std::vector<int> {0, 1, 2, 3};
+  const auto dtype_size = utils::get_sizeof_type(get_weight_dtype());
+  const auto vnni_blk = 4 / dtype_size;
   if (std::find(K_block_list.begin(), K_block_list.end(), cfg.K_block)
     == K_block_list.end()) {
     cfg.K_block = K_block_list.at(0);
@@ -106,6 +108,10 @@ void gen_conv_fwd_t::validate_conv_fwd_default_config(
   if (std::find(loop_sched_list.begin(), loop_sched_list.end(), cfg.loop_sched)
     == loop_sched_list.end()) {
     cfg.loop_sched = loop_sched_list.at(0);
+  }
+  if (ops::is_amx_dtype(ctx, get_input_dtype())
+    && cfg.C_block % vnni_blk != 0) {
+    cfg.C_block = utils::rnd_up(cfg.C_block, vnni_blk);
   }
 }
 

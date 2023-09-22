@@ -663,8 +663,8 @@ bool conv_fwd_core_op_t::use_conv1d() {
     // only used in throughput mode or real time mode in which the config is
     // well tuned
     // TODO(zhicong): further confirm the constraint 32 in other data types
-    if ((data_shape[0] == 1 && has_stride && is_int8) || data_shape[1] % 32 != 0
-            || weight_shape[0] % 32 != 0) {
+    if ((data_shape[0] == 1 && has_stride && is_int8) || data_shape[1] % 64 != 0
+            || weight_shape[0] % 64 != 0) {
         return false;
     }
     return true;

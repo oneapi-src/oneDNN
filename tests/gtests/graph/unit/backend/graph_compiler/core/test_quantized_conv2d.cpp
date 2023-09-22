@@ -666,6 +666,13 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_1x1, no_padding_3_NXC) {
             {2, 3}, {1, 1}, {0, 0}, false, true, false, true);
 }
 
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, oob_efficientnet_conv_NXC) {
+    SET_THREADS_OR_SKIP(4);
+    REQUIRE_AMX();
+    check_qconv<int8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 144, 6, 1, 1,
+            1, 1, {1, 1}, {1, 1}, {0, 0}, false, true, false, true);
+}
+
 TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, no_padding_1_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 128, 64, 64, 56, 56, 3, 3,
