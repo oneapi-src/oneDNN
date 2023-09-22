@@ -23,6 +23,11 @@
 #define typeof(x) __typeof__(x)
 
 #define unroll_for __attribute__((opencl_unroll_hint)) for
+#define unroll_for_by(factor) __attribute__((opencl_unroll_hint(factor))) for
+#define unroll_2_for unroll_for_by(2)
+#define unroll_4_for unroll_for_by(4)
+#define unroll_8_for unroll_for_by(8)
+#define unroll_16_for unroll_for_by(16)
 
 #define for_ for
 
@@ -41,6 +46,12 @@
 #endif
 
 #define dim_t long // 64 bit per the OpenCL specification
+
+#ifdef USE_INT32_OFFSET
+#define off_t int
+#else
+#define off_t dim_t
+#endif
 
 #if DT_F64 == 1
 #define AS_POST_OP_DATA_T(v) v
