@@ -82,49 +82,9 @@ static void query_accu_info_for_rl(const context_ptr &ctx,
     } else {
         kind = ops::rl_kind::KW_LOWERING;
 
-        int padding1 = 0, padding2 = 0;
-        int brgemm_k1 = 0, brgemm_k2 = 0;
-        int num_brgemm_k1 = 0, num_brgemm_k2 = 0;
-        auto get_num_brgemm_k_and_padding
-                = [&ic, &kh, &kw](int brg_k, int &num_brg_k, int &padding) {
-                      num_brg_k = utils::divide_and_ceil(ic * kw, brg_k) * kh;
-                      auto padded_accu_per_row = brg_k * num_brg_k / kh;
-                      padding = padded_accu_per_row - ic * kw;
-                  };
-        {
-            // 1) greedy
-            int k_len = 1;
-            for (; k_len <= kw; ++k_len) {
-                if (ic * k_len > tile_col) break;
-            }
-            assert(k_len > 1);
-            brgemm_k1 = ic * (k_len - 1);
-            get_num_brgemm_k_and_padding(brgemm_k1, num_brgemm_k1, padding1);
-        }
-
-        {
-            // 2) compact
-            int num_k = utils::divide_and_ceil(ic * kw, tile_col);
-            int num_kw = utils::divide_and_ceil(kw, num_k);
-            while (num_kw * ic > tile_col)
-                num_kw--;
-            brgemm_k2 = ic * num_kw;
-            get_num_brgemm_k_and_padding(brgemm_k2, num_brgemm_k2, padding2);
-        }
-
-        if (padding1 < padding2) {
-            brgemm_k = brgemm_k1;
-            num_brgemm_k = num_brgemm_k1;
-            extra_padding = padding1;
-        } else {
-            brgemm_k = brgemm_k2;
-            num_brgemm_k = num_brgemm_k2;
-            extra_padding = padding2;
-        }
-        COMPILE_ASSERT(extra_padding % ic == 0,
-                "Expect extra_padding is dividable by ic, but got "
-                "extra_padding="
-                        << extra_padding << ",ic=" << ic << ".");
+        brgemm_k = ic * kw;
+        num_brgemm_k = kh;
+        extra_padding = 0;
     }
 }
 
@@ -257,20 +217,7 @@ void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
                     op->replace_input(1, view_wei->get_outputs()[0], true);
                 }
             } else {
-                // B-OIHW->OIHW'(padding on rhs of "W")
-                if (extra_padding > 0) {
-                    auto padded_wei = graph.make("padding", {weight}, {},
-                            {{"pads_begin", sc_dims {0, 0}},
-                                    {"pads_end",
-                                            sc_dims {0, extra_padding / ic}}});
-
-                    if (is_constant_weight) {
-                        padded_wei->attrs_.set(
-                                "constant", const_kind::local_const);
-                    }
-                    op->replace_input(1, padded_wei->get_outputs()[0], true);
-                    vis->update_state_for_visited(padded_wei);
-                }
+                // noops as no need to re-layout weight/inputs
             }
         }
     });

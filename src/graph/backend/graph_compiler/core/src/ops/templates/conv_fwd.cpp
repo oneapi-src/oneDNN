@@ -1199,11 +1199,9 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
               int list_size = kh_ * kw_ * C_num_block;
               int num_kw = kw_, kw_step = 1;
               int brgemm_k = 1, num_brgemm_k = 1;
-              int extra_padding = 0;
               if (use_rl == ops::rl_kind::KW_LOWERING) {
                 brgemm_k = attrs_.get_or_else("brgemm_k", 1);
                 num_brgemm_k = attrs_.get_or_else("num_brgemm_k", 1);
-                extra_padding = attrs_.get_or_else("extra_padding", 0);
                 list_size = num_brgemm_k;
                 num_kw = num_brgemm_k / kh_;
                 kw_step = brgemm_k / ic_;
@@ -1245,72 +1243,7 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                       }
                     }
                   };
-
-                  if (use_rl == ops::rl_kind::KW_LOWERING
-                    && extra_padding > 0) {
-                    // need extra padding for A at the last brgemm
-                    _if_((p_o == oh_ / config.tile_p - 1)
-                      && (p_i == config.tile_p - 1)
-                      && (q_o == ow_ / config.tile_q - 1)) {
-                      auto dtype_input = get_input_dtype();
-                      int max_col_in_bytes = 32;
-                      int ic_in_bytes
-                        = ic_ * utils::get_sizeof_type(dtype_input);
-                      COMPILE_ASSERT(ic_in_bytes <= max_col_in_bytes,
-                        "Expect ic*dtype <=32 for kw lowering, but got "
-                          << ic_in_bytes << ".");
-                      COMPILE_ASSERT(extra_padding % ic_ == 0,
-                        "Expect extra_padding is dividable by ic, but got "
-                        "extra_padding="
-                          << extra_padding << ",ic=" << ic_ << ".");
-                      auto src_row_tile_orig_size
-                        = (config.tile_q - 1) * sw_ + dw_ * (kw_ - 1) + 1;
-                      auto src_row_tile_size
-                        = src_row_tile_orig_size + extra_padding / ic_;
-                      _tensor_(
-                        tmp_input, dtype_input, {kh_, src_row_tile_size, ic_});
-
-                      auto lanes = get_minimal_lanes(ic_in_bytes);
-                      auto mask = convert_int_to_mask(ic_in_bytes);
-                      auto mask_expr = mask != 0
-                        ? builder::make_cast(get_dtype(lanes), mask)
-                        : expr();
-
-                      _for_(ih, 0, kh_) {
-                        _for_(iw, 0, src_row_tile_orig_size) {
-                          tmp_input[span_t({ih, iw, 0}, lanes, mask_expr)]
-                            = input[blocking_input_
-                                ? span_t({n, g, (oh_ - 1) * sh_ + dh_ * ih,
-                                           (ow_ - config.tile_q) * sw_ + iw, 0},
-                                  lanes, mask_expr)
-                                : span_t({n, (oh_ - 1) * sh_ + dh_ * ih,
-                                           (ow_ - config.tile_q) * sw_ + iw,
-                                           g * config.C_block},
-                                  lanes, mask_expr)];
-                        }
-                        builtin::brgemm_init(tensor_ptr(tmp_input,
-                                               {ih, src_row_tile_orig_size, 0}),
-                          extra_padding / ic_, ic_, ic_, dtype_input, 0);
-                      }
-
-                      _for_(r, 0, kh_) {
-                        _for_(s, 0, num_kw) {
-                          auto idx = r * num_kw + s;
-                          A_list[idx]
-                            = tensor_ptr(tmp_input, {r, s * kw_step, 0});
-                          B_list[idx] = tensor_ptr(weight,
-                            kpack > 1
-                              ? std::vector<expr> {g * K_num_block + k_o, 0, r,
-                                s * kw_step, 0, 0, 0}
-                              : std::vector<expr> {g * K_num_block + k_o, 0, r,
-                                s * kw_step, 0, 0});
-                        }
-                      }
-                    }
-                    _else_ { fill_A_and_B_list(); }
-                  } else {
-                    fill_A_and_B_list();
-                  }
+                  fill_A_and_B_list();
 
                   int M = config.tile_q, K = config.C_block, N = config.K_block;
                   if (use_rl == ops::rl_kind::KW_LOWERING) { K = brgemm_k; }
@@ -1876,18 +1809,15 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   int list_size = kd_ * kh_ * kw_;
   int brgemm_k = 1, num_brgemm_k = 1;
   int num_kw = kw_, kw_step = 1;
-  int extra_padding = 0;
   if (use_rl == ops::rl_kind::KW_LOWERING) {
     // TODO(xxx): enable advanced optimization for kw_lowering
     reuse_sub_tensor = false;
     use_var_bs = false;
     brgemm_k = attrs_.get_or_else("brgemm_k", 1);
     num_brgemm_k = attrs_.get_or_else("num_brgemm_k", 1);
-    extra_padding = attrs_.get_or_else("extra_padding", 0);
     list_size = num_brgemm_k * kd_;
     num_kw = num_brgemm_k / kh_;
     kw_step = brgemm_k / ic_;
-    src_row_tile_size += extra_padding / ic_;
   }
 
   _tensor_(pbuffer, dtype_input, {src_row_tile_size, LDA});
@@ -2632,76 +2562,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                               }
                             }
                           };
-                          if (use_rl == ops::rl_kind::KW_LOWERING
-                            && extra_padding > 0) {
-                            _if_((p_o == oh_ / config.tile_p - 1)
-                              && (p_i == config.tile_p - 1)
-                              && (q_o == ow_ / config.tile_q - 1)) {
-                              COMPILE_ASSERT(extra_padding % ic_ == 0,
-                                "Expect extra_padding is dividable by ic, "
-                                "but got extra_padding="
-                                  << extra_padding << ",ic=" << ic_ << ".");
 
-                              int max_col_in_bytes = 32;
-                              int ic_in_bytes
-                                = ic_ * utils::get_sizeof_type(dtype_input);
-                              COMPILE_ASSERT(ic_in_bytes <= max_col_in_bytes,
-                                "Expect ic*dtype <=32 for kw lowering, but got "
-                                  << ic_in_bytes << ".");
-                              _tensor_(tmp_input, dtype_input,
-                                {kh_, src_row_tile_size, ic_});
-
-                              auto lanes = get_minimal_lanes(ic_in_bytes);
-                              auto mask = convert_int_to_mask(ic_in_bytes);
-                              auto mask_expr = mask != 0
-                                ? builder::make_cast(get_dtype(lanes), mask)
-                                : expr();
-                              _for_(ih, 0, kh_) {
-                                _for_(iw, 0, src_row_tile_size) {
-                                  auto cur_h = (oh_ - 1) * sh_ + ih;
-                                  auto cur_w = (ow_ - config.tile_q) * sw_ + iw;
-                                  _if_(cur_h < ph_b_ + ih_ && cur_w >= pw_b_
-                                    && cur_w < pw_b_ + iw_) {
-                                    tmp_input[span_t(
-                                      {ih, iw, 0}, lanes, mask_expr)]
-                                      = input[blocking_input_
-                                          ? span_t({n, g, cur_h - ph_b_,
-                                                     cur_w - pw_b_, 0},
-                                            lanes, mask_expr)
-                                          : span_t(
-                                            {n, cur_h - ph_b_, cur_w - pw_b_,
-                                              g * config.C_block},
-                                            lanes, mask_expr)];
-                                  }
-                                  _else_ {
-                                    tmp_input[span_t(
-                                      {ih, iw, 0}, lanes, mask_expr)]
-                                      = pbuffer[span_t(
-                                        {0, 0}, lanes, mask_expr)];
-                                  }
-                                }
-                              }
-
-                              _for_(r, 0, kh_) {
-                                _for_(s, 0, num_kw) {
-                                  auto idx = r * num_kw + s;
-                                  A_list[idx] = tensor_ptr(
-                                    tmp_input, {r, s * kw_step, 0});
-                                  B_list[idx] = tensor_ptr(weight,
-                                    kpack > 1
-                                      ? std::vector<expr> {g * K_num_block
-                                          + k_o,
-                                        0, r, s * kw_step, 0, 0, 0}
-                                      : std::vector<expr> {
-                                        g * K_num_block + k_o, 0, r,
-                                        s * kw_step, 0, 0});
-                                }
-                              }
-                            }
-                            _else_ { fill_A_and_B_list(); }
-                          } else {
-                            fill_A_and_B_list();
-                          }
+                          fill_A_and_B_list();
                           if (use_var_bs) {
                             do_var_bs_for_2d(kd_, kh_);
                           } else {
