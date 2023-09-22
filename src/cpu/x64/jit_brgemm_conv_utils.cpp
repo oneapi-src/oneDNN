@@ -315,7 +315,17 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
 
     if (jcp.wei_plain) {
         jcp.LDB = jcp.oc_without_padding;
-        BRGEMM_WEITAG_OC_RDP_OCB(, , o);
+        // Note: non-f32 datatypes are currently unsupported
+        assert(jcp.vnni_block == 1);
+        if (is_3d) {
+            wei_tag = with_groups ? dhwigo : dhwio;
+        } else if (is_1d) {
+            wei_tag = with_groups ? wigo : wio;
+        } else if (is_2d) {
+            wei_tag = with_groups ? hwigo : hwio;
+        } else {
+            return status::unimplemented;
+        }
     } else {
         if (jcp.is_relo && jcp.relo_conv_weights) {
             if (is_3d) {
