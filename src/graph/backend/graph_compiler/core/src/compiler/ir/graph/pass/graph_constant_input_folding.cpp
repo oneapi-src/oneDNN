@@ -24,6 +24,7 @@
 #include "pass.hpp"
 #include <compiler/ir/statics_table.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <runtime/const_cache_wrapper.hpp>
 #include <unordered_map>
 
 SC_MODULE(graph.pass.const_input_fold);
@@ -53,37 +54,75 @@ struct shared_global_data_allocator_t {
     std::mutex lock_;
     size_t needed_allocation_size(
             const std::vector<std::shared_ptr<cached_const_graph_tensor>>
-                    &cache) {
-        size_t ret = 0;
-        for (auto &v : cache) {
-            if (!v->buf_) { ret += utils::divide_and_ceil(v->size_, 64) * 64; }
+                    &cache,
+            const std::vector<void *> &existing_data, size_t &out_real_const) {
+        size_t ret_lazy = 0, ret_compile_time_const = 0;
+        for (size_t i = 0; i < cache.size(); i++) {
+            auto &v = cache[i];
+            size_t &val = existing_data[i] ? ret_compile_time_const : ret_lazy;
+            if (!v->buf_base_) {
+                val += utils::divide_and_ceil(v->size_, 64) * 64;
+            }
         }
-        return ret;
+        out_real_const = ret_compile_time_const;
+        return ret_lazy;
     }
     void
     alloc(const std::vector<std::shared_ptr<cached_const_graph_tensor>> &cache,
             const std::vector<void *> &existing_data,
             runtime::engine_t *engine) {
-        if (needed_allocation_size(cache)) {
+        size_t ret_lazy = 0, ret_compile_time_const = 0;
+        ret_lazy = needed_allocation_size(
+                cache, existing_data, ret_compile_time_const);
+        if (ret_lazy + ret_compile_time_const) {
             std::lock_guard<std::mutex> guard {lock_};
             // do double-check locking
-            size_t total_size = needed_allocation_size(cache);
-            if (!total_size) { return; }
-            std::shared_ptr<void> base = std::shared_ptr<void> {
-                    engine->vtable_->persistent_alloc(engine, total_size),
-                    [engine](void *p) {
-                        engine->vtable_->persistent_dealloc(engine, p);
-                    }};
-            size_t offset = 0;
-            for (size_t idx = 0; idx < cache.size(); idx++) {
-                auto &v = cache[idx];
-                // the update on buf_ is protected by lock_
-                if (!v->buf_) {
-                    v->buf_ = static_cast<uint8_t *>(base.get()) + offset;
-                    v->buf_base_ = base;
-                    offset += utils::divide_and_ceil(v->size_, 64) * 64;
-                    if (existing_data[idx]) {
-                        memcpy(v->buf_, existing_data[idx], v->size_);
+            ret_lazy = needed_allocation_size(
+                    cache, existing_data, ret_compile_time_const);
+            if (ret_lazy) {
+                // need to register into const cache manager for
+                // lazy-initialized buffers
+                auto base = runtime::create_and_register_const_cache(
+                        engine, ret_lazy);
+                size_t offset = 0;
+                for (size_t idx = 0; idx < cache.size(); idx++) {
+                    auto &v = cache[idx];
+                    if (existing_data[idx]) continue;
+                    // the update on buf_ is protected by lock_
+                    if (!v->buf_base_) {
+                        v->buf_base_ = base;
+                        v->offset_ = offset;
+                        offset += utils::divide_and_ceil(v->size_, 64) * 64;
+                        SC_MODULE_INFO << "Alloc buffer for " << v
+                                       << ", offset=" << v->offset_;
+                    }
+                }
+            }
+            if (ret_compile_time_const) {
+                // no need to register into const cache manager for
+                // compile-time constants because they are never evicted
+                std::shared_ptr<void> baseptr = std::shared_ptr<void> {
+                        engine->vtable_->persistent_alloc(
+                                engine, ret_compile_time_const),
+                        [engine](void *p) {
+                            engine->vtable_->persistent_dealloc(engine, p);
+                        }};
+                auto base = std::make_shared<runtime::const_cache_proxy>(
+                        baseptr, baseptr.get(), ret_compile_time_const,
+                        /*lazy*/ false);
+                size_t offset = 0;
+                for (size_t idx = 0; idx < cache.size(); idx++) {
+                    auto &v = cache[idx];
+                    if (!existing_data[idx]) continue;
+                    // the update on buf_ is protected by lock_
+                    if (!v->buf_base_) {
+                        v->buf_base_ = base;
+                        v->offset_ = offset;
+                        memcpy((char *)baseptr.get() + offset,
+                                existing_data[idx], v->size_);
+                        offset += utils::divide_and_ceil(v->size_, 64) * 64;
+                        SC_MODULE_INFO << "Alloc buffer for " << v
+                                       << ", offset=" << v->offset_;
                     }
                 }
             }
@@ -169,13 +208,14 @@ static std::shared_ptr<const_graph_tensor_cache> get_cache() {
 }
 
 cached_const_graph_tensor::~cached_const_graph_tensor() {
-    cache_owner_->remove(*this);
+    // if dependency_, the cached tensor should be created by unit tests
+    if (dependency_) cache_owner_->remove(*this);
 }
 
 static std::atomic<size_t> internal_tensor_id = {0xfffff000};
 
-SC_INTERNAL_API void graph_constant_input_folding(
-        sc_graph_t &mgr, const context_ptr &ctx) {
+SC_INTERNAL_API void graph_constant_input_folding_impl(
+        sc_graph_t &mgr, const context_ptr &ctx, bool share_constants) {
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
     std::vector<sc_op *> edge_ops;
     vis.visit_graph(mgr, [&edge_ops](op_visitor_t *vis, const sc_op_ptr &node) {
@@ -185,9 +225,9 @@ SC_INTERNAL_API void graph_constant_input_folding(
                 node->attrs_["temp.tensor_id"] = tsr_id;
             }
         }
-        if (node->isa<constant_op_t>()
-                || node->attrs_.get_or_else(
-                        "constant", const_kind::not_const)) {
+        auto cur_const_state
+                = node->attrs_.get_or_else("constant", const_kind::not_const);
+        if (node->isa<constant_op_t>() || cur_const_state) {
             if (node->isa<constant_op_t>()) {
                 edge_ops.emplace_back(node.get());
                 node->attrs_.set("constant", const_kind::local_const);
@@ -213,9 +253,13 @@ SC_INTERNAL_API void graph_constant_input_folding(
                                 "constant", const_kind::global_const);
                         edge_ops.emplace_back(parent_node);
                         if (parent_node->isa<tensor_view_op_t>()) {
-                            parent_node->get_inputs()[0]
-                                    ->producer_owner_->attrs_.set("constant",
-                                            const_kind::global_const);
+                            auto tv_in = parent_node;
+                            while (tv_in->isa<tensor_view_op_t>()) {
+                                tv_in = tv_in->get_inputs()[0]->producer_owner_;
+                            }
+                            tv_in->attrs_.set(
+                                    "constant", const_kind::global_const);
+                            edge_ops.emplace_back(tv_in);
                         }
                     }
                 }
@@ -239,16 +283,18 @@ SC_INTERNAL_API void graph_constant_input_folding(
             }
         }
     });
-    if (!edge_ops.empty() && ctx->flags_.const_share_) {
+    if (share_constants && !edge_ops.empty() && ctx->flags_.const_share_) {
         op_dep_matrix_t dependency {mgr};
         std::vector<size_t> hash_cache(mgr.ops_.size());
         std::vector<void *> existing_data_vec;
+        // the list of cached tensors in the whole graph
         std::vector<std::shared_ptr<cached_const_graph_tensor>> caches;
         for (auto op : edge_ops) {
             if (op->attrs_.has_key(op_attr_key::const_input_cache)) {
                 continue;
             }
             if (op->isa<input_op>()) { continue; }
+            // the list of cached tensors in this op
             std::vector<std::shared_ptr<cached_const_graph_tensor>> results;
             // the op-ids of inputs and constants that current op depends on
             std::list<sc_op_ptr> depending_inputs;
@@ -321,6 +367,25 @@ SC_INTERNAL_API void graph_constant_input_folding(
                     });
             depending_ops.emplace_back(op->logical_op_id_);
             for (size_t i = 0; i < op->get_outputs().size(); i++) {
+                void *existing_data = nullptr;
+                if (auto c_op = op->dyn_cast<constant_op_t>()) {
+                    auto &src = *(c_op->get_constant_values());
+                    existing_data = src.data_;
+                }
+                existing_data_vec.emplace_back(existing_data);
+                auto buf_size = op->get_outputs()[i]
+                                        ->details_.get_blocking_byte_size();
+                if (buf_size <= 8UL) {
+                    // skip scalars, don't register it in the cache manager
+                    auto cached_tsr
+                            = std::make_shared<cached_const_graph_tensor>(
+                                    nullptr, buf_size, get_cache());
+                    // mark as deleted from the cache manager
+                    *cached_tsr->deletion_flag_ = true;
+                    results.emplace_back(cached_tsr);
+                    caches.emplace_back(cached_tsr);
+                    continue;
+                }
                 // for each output tensor of the edge op, rebuild the
                 // dependency graph
                 auto g = std::make_shared<sc_graph_t>();
@@ -358,12 +423,6 @@ SC_INTERNAL_API void graph_constant_input_folding(
                 }
                 auto &lastop = newops[op->logical_op_id_];
                 g->make_output({lastop->get_outputs()[i]});
-                void *existing_data = nullptr;
-                if (auto c_op = op->dyn_cast<constant_op_t>()) {
-                    auto &src = *(c_op->get_constant_values());
-                    existing_data = src.data_;
-                }
-                existing_data_vec.emplace_back(existing_data);
                 results.emplace_back(get_cache()->add_tensor(g,
                         op->get_outputs()[i]->details_.get_blocking_byte_size(),
                         ctx->engine_));
@@ -379,11 +438,29 @@ SC_INTERNAL_API void graph_constant_input_folding(
                     print_graph(*g, *sc_stream_temp.stream_, true, true);
                 }
             }
-            op->attrs_[op_attr_key::const_input_cache] = std::move(results);
+            // mark the op with const_input_cache attr. We need to skip the
+            // tensorview ops, because we don't generate tensor buffer for these
+            // ops
+            auto cached_op = op;
+            while (cached_op->isa<tensor_view_op_t>()) {
+                cached_op = cached_op->get_inputs()[0]->producer_owner_;
+            }
+            cached_op->attrs_[op_attr_key::const_input_cache]
+                    = std::move(results);
         }
         get_cache()->alloca_.alloc(caches, existing_data_vec, ctx->engine_);
     }
 }
+
+SC_INTERNAL_API void graph_constant_input_folding(
+        sc_graph_t &mgr, const context_ptr &ctx) {
+    graph_constant_input_folding_impl(mgr, ctx, false);
+}
+SC_INTERNAL_API void graph_constant_input_folding_and_share_constants(
+        sc_graph_t &mgr, const context_ptr &ctx) {
+    graph_constant_input_folding_impl(mgr, ctx, true);
+}
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

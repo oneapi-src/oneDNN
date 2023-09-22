@@ -42,8 +42,6 @@
 
 using namespace dnnl::impl::graph;
 
-#define VERBOSE_compile "compile"
-
 /// This allows to create a partition directly with an op and an engine kind. In
 /// order to not break backend API and change the existing graph and partition
 /// implementation, we internally construct a temporal graph object, add the
@@ -194,14 +192,15 @@ status_t DNNL_API dnnl_graph_partition_compile(partition_t *partition,
     //   false - cache_miss, the compiled partition is not in the cache
     std::pair<compiled_partition_t *, bool> cp {compiled_partition, false};
 
-    if (utils::get_graph_verbose(dnnl::impl::verbose_t::create_profile)) {
+    if (get_verbose(dnnl::impl::verbose_t::create_profile,
+                dnnl::impl::component_t::graph)) {
         double start_ms = dnnl::impl::get_msec();
         CHECK(partition->compile(cp, in, out, engine));
         double duration_ms = dnnl::impl::get_msec() - start_ms;
 
         const char *cache_status = cp.second ? ":cache_hit" : ":cache_miss";
-        VPROFGRAPH(start_ms, compile, cache_status, compiled_partition->info(),
-                duration_ms);
+        VPROF(start_ms, graph, compile, cache_status,
+                compiled_partition->info(), duration_ms);
     } else {
         CHECK(partition->compile(cp, in, out, engine));
     }
@@ -312,31 +311,35 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
     }
 
 #ifndef NDEBUG
-    if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
+    if (get_verbose(dnnl::impl::verbose_t::exec_profile,
+                dnnl::impl::component_t::graph)) {
         allocator_t *alloc = reinterpret_cast<allocator_t *>(
                 compiled_partition->get_engine()->get_allocator());
-        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        allocator_t::monitor_t &monitor = alloc->get_monitor();
+        monitor.reset_peak_temp_memory();
         stream->wait();
         double start_ms = dnnl::impl::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         stream->wait();
         double duration_ms = dnnl::impl::get_msec() - start_ms;
-        VFORMATGRAPH(start_ms, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
+        VFORMAT(start_ms, graph, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
                 compiled_partition->info(), duration_ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
-                allocator_t::monitor_t::get_total_persist_memory(alloc),
-                allocator_t::monitor_t::get_peak_temp_memory(alloc));
-    } else if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
+                monitor.get_total_persist_memory(),
+                monitor.get_peak_temp_memory());
+    } else if (get_verbose(dnnl::impl::verbose_t::exec_profile,
+                       dnnl::impl::component_t::graph)) {
 #else
-    if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
+    if (get_verbose(dnnl::impl::verbose_t::exec_profile,
+                dnnl::impl::component_t::graph)) {
 #endif
         stream->wait();
         double start_ms = dnnl::impl::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         stream->wait();
         double duration_ms = dnnl::impl::get_msec() - start_ms;
-        VPROFGRAPH(start_ms, exec, VERBOSE_profile, compiled_partition->info(),
-                duration_ms);
+        VPROF(start_ms, graph, exec, VERBOSE_profile,
+                compiled_partition->info(), duration_ms);
     } else {
         CHECK(compiled_partition->execute(stream, ins, outs));
     }
@@ -370,10 +373,12 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
         outs.emplace_back(**(outputs + i));
     }
 #ifndef NDEBUG
-    if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
+    if (get_verbose(dnnl::impl::verbose_t::exec_profile,
+                dnnl::impl::component_t::graph)) {
         allocator_t *alloc = reinterpret_cast<allocator_t *>(
                 compiled_partition->get_engine()->get_allocator());
-        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        allocator_t::monitor_t &monitor = alloc->get_monitor();
+        monitor.reset_peak_temp_memory();
         stream->wait();
         double start_ms = dnnl::impl::get_msec();
         if (deps != nullptr) {
@@ -386,14 +391,16 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
         }
         stream->wait();
         double duration_ms = dnnl::impl::get_msec() - start_ms;
-        VFORMATGRAPH(start_ms, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
+        VFORMAT(start_ms, graph, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
                 compiled_partition->info(), duration_ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
-                allocator_t::monitor_t::get_total_persist_memory(alloc),
-                allocator_t::monitor_t::get_peak_temp_memory(alloc));
-    } else if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
+                monitor.get_total_persist_memory(),
+                monitor.get_peak_temp_memory());
+    } else if (get_verbose(dnnl::impl::verbose_t::exec_profile,
+                       dnnl::impl::component_t::graph)) {
 #else
-    if (utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile)) {
+    if (get_verbose(dnnl::impl::verbose_t::exec_profile,
+                dnnl::impl::component_t::graph)) {
 #endif
         stream->wait();
         double start_ms = dnnl::impl::get_msec();
@@ -407,8 +414,8 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
         }
         stream->wait();
         double duration_ms = dnnl::impl::get_msec() - start_ms;
-        VPROFGRAPH(start_ms, exec, VERBOSE_profile, compiled_partition->info(),
-                duration_ms);
+        VPROF(start_ms, graph, exec, VERBOSE_profile,
+                compiled_partition->info(), duration_ms);
     } else {
         if (deps != nullptr) {
             const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
@@ -672,25 +679,26 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
     } else {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
         return execute_sycl(astream, inputs, outputs, {}, nullptr);
+#else
+        // TODO(xxx): need to improve the check of two engines. On dev-graph, there
+        // is a match function.
+        if (!astream
+                || (astream->engine()->kind() != pimpl_->get_engine()->kind()))
+            return status::invalid_arguments;
+
+        const backend_t *backend = src_partition_.get_assigned_backend();
+        if (!backend) return status::invalid_arguments;
+
+        // Pre-process the given tensor. The pre-process includes
+        // FIXME(xx) reduce overhead?
+        // 1. decode backend id from the layout id and remove it
+        std::vector<tensor_t> processed_inputs, processed_outputs;
+        pre_process(processed_inputs, inputs, backend);
+        pre_process(processed_outputs, outputs, backend);
+
+        return pimpl_->execute(astream, processed_inputs, processed_outputs);
 #endif
     }
-
-    // TODO(xxx): need to improve the check of two engines. On dev-graph, there
-    // is a match function.
-    if (!astream || (astream->engine()->kind() != pimpl_->get_engine()->kind()))
-        return status::invalid_arguments;
-
-    const backend_t *backend = src_partition_.get_assigned_backend();
-    if (!backend) return status::invalid_arguments;
-
-    // Pre-process the given tensor. The pre-process includes
-    // FIXME(xx) reduce overhead?
-    // 1. decode backend id from the layout id and remove it
-    std::vector<tensor_t> processed_inputs, processed_outputs;
-    pre_process(processed_inputs, inputs, backend);
-    pre_process(processed_outputs, outputs, backend);
-
-    return pimpl_->execute(astream, processed_inputs, processed_outputs);
 }
 
 #ifdef DNNL_WITH_SYCL

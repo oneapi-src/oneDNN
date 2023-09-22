@@ -104,8 +104,10 @@ struct gemm_convolution_fwd_t : public primitive_t {
         const auto &jcp = pd()->jcp_;
         beta_ = jcp.with_sum ? one : zero;
 
-        if (jcp.with_eltwise || jcp.with_binary)
+        if (jcp.with_eltwise || jcp.with_binary) {
             CHECK(safe_ptr_assign(post_ops_, new ref_post_ops_t(jcp.post_ops)));
+            CHECK(post_ops_->init(pd()->dst_md()));
+        }
         return status::success;
     }
 

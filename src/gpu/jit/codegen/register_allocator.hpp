@@ -160,10 +160,12 @@ protected:
     void update_peak_grf_usage() {}
 #endif
 
+#ifdef DNNL_DEV_MODE
     int peak_regs = 0;
     int warn_flags;
     bool is_speculate = false;
     std::string kernel_name;
+#endif
 
 private:
     ngen::RegisterAllocator ra;

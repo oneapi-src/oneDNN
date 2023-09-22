@@ -87,7 +87,7 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
             && desc()->accum_data_type == acc_type
             && dst_md()->data_type == dst_type;
 
-    VDISPATCH_MATMUL(is_dense_data(), VERBOSE_NONTRIVIAL_STRIDE);
+    VDISPATCH_MATMUL(is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
     VDISPATCH_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VDISPATCH_MATMUL(attr()->has_default_values(
@@ -100,9 +100,10 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
                              /* is_int8 */ false),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_MATMUL(check_attr_scales(), VERBOSE_UNSUPPORTED_SCALES_CFG);
-    VDISPATCH_MATMUL(check_attr_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
     VDISPATCH_MATMUL(check_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
     VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+    // Should be followed by `set_default_formats`.
+    VDISPATCH_MATMUL(check_attr_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
     VDISPATCH_MATMUL(gemm_based::check_gemm_compatible_formats(*this),
             "Incompatible format");
 

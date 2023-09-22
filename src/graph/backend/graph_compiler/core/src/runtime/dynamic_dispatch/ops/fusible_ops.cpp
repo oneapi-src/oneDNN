@@ -18,6 +18,7 @@
 #include "util.hpp"
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
+#include <runtime/dynamic_dispatch/ops/runtime_op_info.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/target_machine.hpp>
 
@@ -93,6 +94,29 @@ extern "C" void infer_shape_unary_fusible_op(void *out, void *in) {
     runtime::dynamic_tensor_t *in_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(in);
     runtime::deep_copy_dynamic_tensor(out_dyn_tsr, in_dyn_tsr);
+}
+
+extern "C" void infer_shape_padding_fusible_op(
+        void *out, void *in, dyn_padding_runtime_info_t &op_info) {
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *in_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in);
+
+    int data_ndims = in_dyn_tsr->ndims_;
+    out_dyn_tsr->ndims_ = data_ndims;
+    int64_t *data_dims = in_dyn_tsr->dims_;
+    out_dyn_tsr->dims_[0] = data_dims[0];
+    out_dyn_tsr->dims_[1] = data_dims[1];
+    int pads_begin[3] = {
+            op_info.pads_begin_d, op_info.pads_begin_h, op_info.pads_begin_w};
+    int pads_end[3]
+            = {op_info.pads_end_d, op_info.pads_end_h, op_info.pads_end_w};
+    int offset = data_ndims == 5 ? -2 : -1;
+    for (int i = 2; i < data_ndims; i++) {
+        out_dyn_tsr->dims_[i]
+                = data_dims[i] + pads_begin[i + offset] + pads_end[i + offset];
+    }
 }
 
 extern "C" void query_format_unary_fusible_op(void *table, void *out, void *in,
@@ -223,6 +247,37 @@ extern "C" void query_format_reorder_op(void *table, void *out, void *in,
     }
 }
 
+extern "C" void query_format_padding_op(void *table, void *out, void *in,
+        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel,
+        int *impl_alg) {
+    // infer shape
+    runtime::op_dispatch_tables_t *op_table
+            = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
+
+    dyn_padding_runtime_info_t info
+            = *op_table->op_info_
+                       .unchecked_get_as<dyn_padding_runtime_info_t>();
+    infer_shape_padding_fusible_op(out, in, info);
+    // query format
+    auto &format_table = op_table->format_table_;
+    if (format_table) {
+        void *value = format_table->get(in_fmt, 1);
+        assert(value);
+        *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    }
+    // query kernel
+    auto &kernel_table = op_table->kernel_table_;
+    if (kernel_table) {
+        uint64_t keys[2] = {*in_fmt, *out_fmt};
+        void *func
+                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 2);
+        assert(func);
+        *reinterpret_cast<void **>(kernel) = func;
+    }
+    // query inplace
+    *out_size = runtime::calculate_blocking_dims(out, out_fmt);
+}
+
 extern "C" void infer_shape_reduce_op(
         void *out, void *in, int *rd_axis, int num_axis) {
     // todo: currently we only support keep dimension reduce.
@@ -289,6 +344,10 @@ extern "C" void query_format_tensor_view_op(void *table, void *out, void *in,
     // query kernel
     auto &kernel_table = op_table->kernel_table_;
     assert(!kernel_table);
+    // query inplace
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    *out_size = runtime::calculate_blocking_dims(out_dyn_tsr, out_fmt);
 }
 
 extern "C" void query_format_select_op(void *table, void *out, void *in0,

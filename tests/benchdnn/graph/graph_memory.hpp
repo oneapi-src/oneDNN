@@ -60,21 +60,15 @@ public:
     //
     //
     // The constructor accepts three boolean parameters:
-    // 1. should_use_graph_shape: indicate whether the memory should use the
-    // shape and strides from graph path.
-    // 2. is_op_input: whether the logical tensor is an input of an op
-    // 3. is_fake_output: for fake outputs, the driver cannot create memory
+    // 1. is_op_input: whether the logical tensor is an input of an op
+    // 2. is_fake_output: for fake outputs, the driver cannot create memory
     // objects based on primitive memory for them, but construct memory
     // from graph shape. The default value is false.
     //
     dnn_graph_mem_t(const dnn_mem_t &mem, const deserialized_lt &lt,
-            const bool should_use_graph_shape, const bool is_op_input,
-            const bool is_fake_output = false);
+            const bool is_op_input, const bool is_fake_output = false);
 
     dnnl::graph::tensor make_graph_tensor(const deserialized_lt &lt) const;
-
-    // get the memory for correctness check
-    const dnn_mem_t &reorder_back_mem();
 
     const dnn_mem_t &get_mem() const { return mem_; }
 
@@ -84,7 +78,6 @@ public:
 private:
     dnn_mem_t mem_;
     std::shared_ptr<void> buffer_;
-    bool use_graph_shape_;
     dnnl::memory::dims graph_dims_;
     dnnl::memory::dims graph_strides_;
 };

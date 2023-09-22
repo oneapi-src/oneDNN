@@ -29,7 +29,7 @@
 #include <compiler/ir/ir_module.hpp>
 #include <compiler/jit/xbyak/ir/reg_allocation/reg_allocator.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
-#include <compiler/jit/xbyak/ir/utils.hpp>
+#include <compiler/jit/xbyak/ir/util/utils.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
 #include <compiler/jit/xbyak/x86_64/abi_function_interface.hpp>
 
@@ -444,7 +444,8 @@ protected:
                           .remove_const()
                           .static_as<define>();
         if (is_spilled(vv->var_) && vv->init_.defined()) {
-            if (vv->var_.isa<tensor>() && vv->init_.isa<tensorptr>()) {
+            if (vv->var_.isa<tensor>()
+                    && (vv->init_.isa<cast>() || vv->init_.isa<tensorptr>())) {
                 // load tensor_ptr using lea needs dst be reg
                 vv->init_ = insert_load(std::move(vv->init_), cur_index_);
             } else if (const_exceed_32bit(vv->init_)) {
@@ -499,6 +500,11 @@ protected:
             v->args_[i] = insert_load(std::move(v->args_[i]), cur_index_);
             return v;
         };
+        // cond_mask for intrin must be reg
+        auto &mask = v->modifier_.cond_mask_;
+        if (mask.defined() && is_spilled(mask)) {
+            mask = insert_load(std::move(mask), cur_index_);
+        }
         // resolve differnet format
         switch (v->format_) {
             case xbyak_intrin_format::undefined: {
@@ -518,7 +524,8 @@ protected:
                 resolve_dst_ = resolve_dst::store;
                 assert(v->args_.size() > 0);
                 auto n = v->args_.size() - 1;
-                if (n > 0 && is_imm(v->args_.back())) { n = n - 1; }
+                auto imm_last = n > 0 && is_imm(v->args_.back());
+                if (cpu_flags_.fAVX512F && imm_last) { n = n - 1; }
                 if (spilled_args_sum(v->args_, n) > 0) { return resolve(); }
             } break;
             case xbyak_intrin_format::directed_dst_mem: {

@@ -32,6 +32,7 @@ namespace concat {
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     std::vector<benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> src_d_wrappers(
             prb->n_inputs());
@@ -54,9 +55,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     std::vector<dnnl_memory_desc_t> src_d(
             src_d_wrappers.begin(), src_d_wrappers.end());
     init_pd_args.is_iterator_supported = false;
-    DNN_SAFE_STATUS(dnnl_concat_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, dst_d, prb->n_inputs(), prb->axis,
-            src_d.data(), dnnl_attr));
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_concat_primitive_desc_create(
+            &init_pd_args.pd, init_pd_args.engine, dst_d, prb->n_inputs(),
+            prb->axis, src_d.data(), dnnl_attr)));
 
     return dnnl_success;
 }
@@ -65,8 +66,8 @@ int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     // Do fixed partitioning to have same filling for any number of threads.
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
     // Set proper range of valid values to avoid any reorders back and forth.
     const bool s8u8_or_u8s8 = (dt == dnnl_s8 && mem_dt.dt() == dnnl_u8)
             || (dt == dnnl_u8 && mem_dt.dt() == dnnl_s8);
@@ -161,7 +162,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     // Leave hard coded until supported mask is 0 only.
                     ref_mem.set_elem(
                             0, prb->attr.scales.get(exec_src_arg).scale);
-                    mem.reorder(ref_mem);
+                    SAFE(mem.reorder(ref_mem), WARN);
                 }
                 break;
         }
@@ -182,6 +183,17 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 int check_cacheit(
         std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
+    // Assume it doesn't change through the execution.
+    static int capacity = 0;
+    static auto st = dnnl_get_primitive_cache_capacity(&capacity);
+    if (st != dnnl_success) return FAIL;
+    if (capacity > 0 && prb->n_inputs() + 1 > capacity) {
+        BENCHDNN_PRINT(2, "%s\n",
+                "[INFO] The number of potential internal reorder pds plus "
+                "concat itself exceeds the cache capacity which will lead to a "
+                "test case false-positive failure.");
+        return OK;
+    }
     return check_caches(v_prim[0], prb, res);
 }
 
@@ -191,8 +203,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(
+                           ref_mem_map, mem_map, prim, prb, res, prb->dir),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 

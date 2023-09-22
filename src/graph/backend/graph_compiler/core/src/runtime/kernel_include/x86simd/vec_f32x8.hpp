@@ -24,6 +24,9 @@
 
 class vec_u16x8;
 class vec_s32x8;
+#ifdef __AVX512FP16__
+class vec_f16x8;
+#endif
 class vec_f32x8 {
 public:
     union {
@@ -39,6 +42,9 @@ public:
     }
     INLINE vec_f32x8(__m256 const &x) { v = x; }
     INLINE operator vec_s32x8() const;
+#ifdef __AVX512FP16__
+    INLINE operator vec_f16x8() const;
+#endif
 
     static INLINE vec_f32x8 load(const float *p) { return _mm256_loadu_ps(p); }
     static INLINE vec_f32x8 load_aligned(const float *p) {
@@ -203,33 +209,35 @@ INLINE float sc_reduce_add(vec_f32x8 const &a) {
     return _mm_cvtss_f32(v1);
 }
 
-INLINE vec_f32x8 sc_unpack_low(
-        vec_f32x8 const &a, vec_f32x8 const &b, int elem_step) {
+INLINE vec_f32x8 sc_unpack_low_vec_f32x8_64bits(
+        vec_f32x8 const &a, vec_f32x8 const &b) {
+    return _mm256_castpd_ps(
+            _mm256_unpacklo_pd(_mm256_castps_pd(a.v), _mm256_castps_pd(b.v)));
+}
+
+INLINE vec_f32x8 sc_unpack_low_vec_f32x8_32bits(
+        vec_f32x8 const &a, vec_f32x8 const &b) {
     return _mm256_unpacklo_ps(a.v, b.v);
 }
 
-INLINE vec_f32x8 sc_unpack_high(
-        vec_f32x8 const &a, vec_f32x8 const &b, int elem_step) {
+INLINE vec_f32x8 sc_unpack_high_vec_f32x8_32bits(
+        vec_f32x8 const &a, vec_f32x8 const &b) {
     return _mm256_unpackhi_ps(a.v, b.v);
 }
 
-INLINE vec_f32x8 sc_shuffle(
-        vec_f32x8 const &a, vec_f32x8 const &b, const int imm8) {
-    if (imm8 == 68) {
-        return _mm256_shuffle_ps(a.v, b.v, 0b01000100);
-    } else {
-        return _mm256_shuffle_ps(a.v, b.v, 0b11101110);
-    } /* 238 */
+INLINE vec_f32x8 sc_unpack_high_vec_f32x8_64bits(
+        vec_f32x8 const &a, vec_f32x8 const &b) {
+    return _mm256_castpd_ps(
+            _mm256_unpackhi_pd(_mm256_castps_pd(a.v), _mm256_castps_pd(b.v)));
 }
 
-INLINE vec_f32x8 sc_permute(
-        vec_f32x8 const &a, vec_f32x8 const &b, const int imm8) {
-    if (imm8 == 32) {
-        return _mm256_permute2f128_ps(a.v, b.v, 0b00100000);
-    } else {
-        return _mm256_permute2f128_ps(a.v, b.v, 0b00110001);
-    } /* 49 */
-}
+#define PARAM_F32X8(X) X.v
+#define sc_permute_vec_f32x8(a, b, imm8) \
+    _mm256_permute2f128_ps(PARAM_F32X8(a), PARAM_F32X8(b), imm8);
+#define sc_shuffle_vec_f32x8_128bits(a, b, imm8) \
+    _mm256_shuffle_f32x4(PARAM_F32X8(a), PARAM_F32X8(b), imm8);
+#define sc_shuffle_vec_f32x8_32bits(a, b, imm8) \
+    _mm256_shuffle_ps(PARAM_F32X8(a), PARAM_F32X8(b), imm8);
 
 INLINE vec_f32x8 sc_exp(vec_f32x8 const &a) {
     float *flo = (float *)&a;

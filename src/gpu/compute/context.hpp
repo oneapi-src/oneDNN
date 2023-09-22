@@ -17,6 +17,8 @@
 #ifndef GPU_COMPUTE_CONTEXT_HPP
 #define GPU_COMPUTE_CONTEXT_HPP
 
+#include <memory>
+
 #include "common/primitive_exec_types.hpp"
 
 namespace dnnl {
@@ -27,6 +29,7 @@ namespace compute {
 class event_t {
 public:
     virtual ~event_t() = 0;
+    virtual std::unique_ptr<event_t> clone() const = 0;
 };
 inline event_t::~event_t() = default;
 
@@ -35,6 +38,8 @@ class context_t {
 public:
     virtual event_t &get_deps() = 0;
     virtual const event_t &get_deps() const = 0;
+
+    virtual void append_deps(const compute::event_t &event) = 0;
 };
 
 } // namespace compute

@@ -23,7 +23,7 @@
 #include "gpu/gpu_batch_normalization_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/gen9_bnorm_lookup_table.hpp"
+#include "gpu/ocl/bnorm_lookup_table.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -42,11 +42,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T(impl_name(), gen9_batch_normalization_fwd_t);
 
         const char *impl_name() const {
-            return conf.nhwc_optimized
-                    ? (conf.use_stats_one_pass ? "ocl:gen9:nhwc:onepass"
-                                               : "ocl:gen9:nhwc")
-                    : (conf.use_stats_one_pass ? "ocl:gen9:blocked:onepass"
-                                               : "ocl:gen9:blocked");
+            return conf.use_stats_one_pass ? "ocl:gen9:onepass" : "ocl:gen9";
         }
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -55,7 +51,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = is_fwd()
+            bool ok = is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(src_md()->data_type, f32, bf16, f16, s8)
                     && IMPLICATION(f16 == src_md()->data_type,
                             compute_engine->mayiuse(
@@ -102,46 +98,27 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         std::vector<const char *> kernel_names
                 = {nullptr, nullptr, nullptr, nullptr, nullptr};
 
-        if (pd()->conf.nhwc_optimized) {
-            kernel_names[0] = "gen9_bnorm_fwd_nhwc";
-            if (pd()->conf.calculate_stats) {
-                if (pd()->conf.use_stats_one_pass) {
-                    kernel_names[1] = "gen9_calc_mean_var_nhwc";
-                } else {
-                    kernel_names[1] = "gen9_calc_mean_nhwc";
-                    kernel_names[2] = "gen9_calc_variance_nhwc";
-                }
-            }
-        } else {
-            kernel_names[0] = "gen9_bnorm_fwd";
-            if (pd()->conf.calculate_stats) {
-                if (pd()->conf.use_stats_one_pass) {
-                    kernel_names[1] = "gen9_calc_mean_var";
-                } else {
-                    kernel_names[1] = "gen9_calc_mean";
-                    kernel_names[2] = "gen9_calc_variance";
-                }
-            }
-        }
+        kernel_names[0] = "gen9_bnorm_fwd";
+
         if (pd()->conf.calculate_stats) {
             if (pd()->conf.use_stats_one_pass) {
-                if (!pd()->conf.use_fused_atomics_reduction)
+                kernel_names[1] = "gen9_calc_mean_var";
+                if (!pd()->conf.use_fused_atomics_reduction) {
                     kernel_names[2] = "gen9_reduce_mean_var";
-            } else {
+                } else {
+                    kernel_names[2] = "gen9_fused_reduce_init";
+                    kernel_names[3] = "gen9_fused_reduce_final";
+                }
+            } else { // regular algorithm
+                kernel_names[1] = "gen9_calc_mean";
+                kernel_names[2] = "gen9_calc_variance";
                 if (!pd()->conf.use_fused_atomics_reduction) {
                     kernel_names[3] = "gen9_reduce_mean";
                     kernel_names[4] = "gen9_reduce_variance";
+                } else {
+                    kernel_names[3] = "gen9_fused_reduce_init";
+                    kernel_names[4] = "gen9_fused_reduce_final";
                 }
-            }
-        }
-        if (pd()->conf.calculate_stats
-                && pd()->conf.use_fused_atomics_reduction) {
-            if (pd()->conf.use_stats_one_pass) {
-                kernel_names[2] = "gen9_fused_reduce_init";
-                kernel_names[3] = "gen9_fused_reduce_final";
-            } else {
-                kernel_names[3] = "gen9_fused_reduce_init";
-                kernel_names[4] = "gen9_fused_reduce_final";
             }
         }
 
@@ -201,16 +178,14 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T(impl_name(), gen9_batch_normalization_bwd_t);
 
-        const char *impl_name() const {
-            return conf.nhwc_optimized ? "ocl:gen9:nhwc" : "ocl:gen9:blocked";
-        }
+        const char *impl_name() const { return "ocl:gen9"; }
 
         status_t init(engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
             using namespace data_type;
 
-            bool ok = !is_fwd()
+            bool ok = !is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(src_md()->data_type, f32, bf16, f16)
                     && IMPLICATION(f16 == src_md()->data_type,
                             compute_engine->mayiuse(
@@ -254,13 +229,8 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
         std::vector<const char *> kernel_names
                 = {nullptr, nullptr, nullptr, nullptr};
 
-        if (pd()->conf.nhwc_optimized) {
-            kernel_names[0] = "gen9_bnorm_bwd_nhwc";
-            kernel_names[1] = "gen9_calculate_stats_nhwc";
-        } else {
-            kernel_names[0] = "gen9_bnorm_bwd";
-            kernel_names[1] = "gen9_calculate_stats";
-        }
+        kernel_names[0] = "gen9_bnorm_bwd";
+        kernel_names[1] = "gen9_calculate_stats";
         if (pd()->conf.use_fused_atomics_reduction) {
             kernel_names[2] = "gen9_fused_reduce_init";
             kernel_names[3] = "gen9_fused_reduce_final";

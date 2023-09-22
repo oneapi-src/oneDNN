@@ -31,6 +31,19 @@ inline dnnl::impl::graph::gc::context_ptr get_test_ctx() {
     return ctx;
 }
 
+inline bool is_builtin_test_ctx() {
+    namespace gc = dnnl::impl::graph::gc;
+#if SC_BUILTIN_JIT_ENABLED
+    if (get_test_ctx()->flags_.jit_kind_ == gc::jit_kind::xbyak) {
+        return true;
+    } else {
+        return false;
+    }
+#else
+    return false;
+#endif
+}
+
 inline dnnl::impl::graph::gc::context_ptr get_test_ctx_without_amx() {
     namespace gc = dnnl::impl::graph::gc;
     // forcibly disable fAVX512AMXTILE
@@ -38,6 +51,28 @@ inline dnnl::impl::graph::gc::context_ptr get_test_ctx_without_amx() {
         static auto ctx = []() {
             auto new_ctx = std::make_shared<gc::context_t>(*get_test_ctx());
             new_ctx->machine_.cpu_flags_.fAVX512AMXTILE = false;
+            return new_ctx;
+        }();
+        return ctx;
+    } else {
+        return get_test_ctx();
+    }
+};
+
+inline dnnl::impl::graph::gc::context_ptr get_avx2_test_ctx() {
+    namespace gc = dnnl::impl::graph::gc;
+    if ((IS_AVX512_AVAILABLE())) {
+        static auto ctx = []() {
+            auto new_ctx = std::make_shared<gc::context_t>(*get_test_ctx());
+            new_ctx->machine_.cpu_flags_.fAVX512AMXTILE = false;
+            new_ctx->machine_.cpu_flags_.fAVX512AMXINT8 = false;
+            new_ctx->machine_.cpu_flags_.fAVX512AMXBF16 = false;
+            new_ctx->machine_.cpu_flags_.fAVX512BF16 = false;
+            new_ctx->machine_.cpu_flags_.fAVX512VNNI = false;
+            new_ctx->machine_.cpu_flags_.fAVX512F = false;
+            new_ctx->machine_.cpu_flags_.fAVX512BW = false;
+            new_ctx->machine_.cpu_flags_.fAVX512VL = false;
+            new_ctx->machine_.cpu_flags_.fAVX512DQ = false;
             return new_ctx;
         }();
         return ctx;

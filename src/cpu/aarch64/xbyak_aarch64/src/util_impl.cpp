@@ -161,11 +161,6 @@ Cpu::Cpu() {
 
 void Cpu::dumpCacheInfo() const { return info->dumpCacheInfo(); }
 
-/* 2023.02.11 To be removed. */
-#if defined(__GNUC__) || defined(__clang_version__)
-uint32_t Cpu::getDataCacheLevels() const { return getLastDataCacheLevel(); }
-#endif
-
 Arm64CacheType Cpu::getCacheType(const Arm64CacheLevel i) const { return info->getCacheType(i); }
 
 uint32_t Cpu::getCoresSharingDataCache(const Arm64CacheLevel i) const { return info->getCoresSharingDataCache(i); }

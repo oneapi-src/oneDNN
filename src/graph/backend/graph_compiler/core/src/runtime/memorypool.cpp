@@ -120,6 +120,7 @@ size_t filo_memory_pool_t::get_block_size(size_t sz) const {
         return block_size_;
     }
 }
+
 void *filo_memory_pool_t::alloc(runtime::stream_t *stream, size_t sz) {
     if (unlikely(!buffers_)) {
         buffers_ = memory_block_t::make(

@@ -386,89 +386,49 @@ static status_t cuda_to_dnnl_status(CUresult cu_result) {
     }
 }
 
-#define CUDA_ERROR_LOCATION __FILE__ " : " STRINGIFY(__LINE__)
+#define CUDA_ERROR_LOCATION __FILE__ ":" STRINGIFY(__LINE__) " : "
+
+#define CUDA_ERR_MESSAGE(exception_class, name, err) \
+    exception_class(std::string(CUDA_ERROR_LOCATION) + std::string(#name) \
+                    + std::string(" : "), \
+            err)
+
+#define TRY_AND_THROW_FUNC(good_status, exception_class, name, ...) \
+    { \
+        auto err = name(__VA_ARGS__); \
+        if (err != (good_status)) { \
+            throw CUDA_ERR_MESSAGE(exception_class, name, err); \
+        } \
+    }
+
+#define TRY_AND_REPORT_FUNC(good_status, exception_class, name, ...) \
+    { \
+        auto err = name(__VA_ARGS__); \
+        if (err != (good_status)) { \
+            std::cout << CUDA_ERR_MESSAGE(exception_class, name, err).what() \
+                      << std::endl; \
+        } \
+    }
 
 #define CUDA_EXECUTE_FUNC(name, ...) \
-    { \
-        auto err = name(__VA_ARGS__); \
-        if (err != CUDA_SUCCESS) { \
-            throw cuda_error(std::string("At :") \
-                            + std::string(CUDA_ERROR_LOCATION) \
-                            + std::string(#name) + std::string(" : "), \
-                    err); \
-        } \
-    }
-
+    TRY_AND_THROW_FUNC(CUDA_SUCCESS, cuda_error, name, __VA_ARGS__)
 #define CUBLAS_EXECUTE_FUNC(name, ...) \
-    { \
-        auto err = name(__VA_ARGS__); \
-        if (err != CUBLAS_STATUS_SUCCESS) { \
-            throw cublas_error(std::string("At :") \
-                            + std::string(CUDA_ERROR_LOCATION) \
-                            + std::string(#name) + std::string(" : "), \
-                    err); \
-        } \
-    }
-
+    TRY_AND_THROW_FUNC(CUBLAS_STATUS_SUCCESS, cublas_error, name, __VA_ARGS__)
 #define CUDNN_EXECUTE_FUNC(name, ...) \
-    { \
-        auto err = name(__VA_ARGS__); \
-        if (err != CUDNN_STATUS_SUCCESS) { \
-            throw cudnn_error(std::string("At :") \
-                            + std::string(CUDA_ERROR_LOCATION) \
-                            + std::string(#name) + std::string(" : "), \
-                    err); \
-        } \
-    }
+    TRY_AND_THROW_FUNC(CUDNN_STATUS_SUCCESS, cudnn_error, name, __VA_ARGS__)
 
 #define CUDA_EXECUTE_FUNC_V(name, ...) \
-    { \
-        auto err = name(__VA_ARGS__); \
-        if (err != CUDA_SUCCESS) { \
-            std::cout << cuda_error(std::string("At :") \
-                            + std::string(CUDA_ERROR_LOCATION) \
-                            + std::string(#name) + std::string(" : "), \
-                    err) \
-                                 .what() \
-                      << std::endl; \
-        } \
-    }
-
-#define CUDNN_EXECUTE_FUNC_V(name, ...) \
-    { \
-        auto err = name(__VA_ARGS__); \
-        if (err != CUDNN_STATUS_SUCCESS) { \
-            std::cout << cudnn_error(std::string("At :") \
-                            + std::string(CUDA_ERROR_LOCATION) \
-                            + std::string(#name) + std::string(" : "), \
-                    err) \
-                                 .what() \
-                      << std::endl; \
-        } \
-    }
-
+    TRY_AND_REPORT_FUNC(CUDA_SUCCESS, cuda_error, name, __VA_ARGS__)
 #define CUBLAS_EXECUTE_FUNC_V(name, ...) \
-    { \
-        auto err = name(__VA_ARGS__); \
-        if (err != CUBLAS_STATUS_SUCCESS) { \
-            std::cout << cublas_error(std::string("At :") \
-                            + std::string(CUDA_ERROR_LOCATION) \
-                            + std::string(#name) + std::string(" : "), \
-                    err) \
-                                 .what() \
-                      << std::endl; \
-        } \
-    }
+    TRY_AND_REPORT_FUNC(CUBLAS_STATUS_SUCCESS, cublas_error, name, __VA_ARGS__)
+#define CUDNN_EXECUTE_FUNC_V(name, ...) \
+    TRY_AND_REPORT_FUNC(CUDNN_STATUS_SUCCESS, cudnn_error, name, __VA_ARGS__)
 
 #define CUDNN_CHECK_V(e) \
     { \
         auto status = (e); \
         if (status != CUDNN_STATUS_SUCCESS) { \
-            std::cout << cudnn_error(std::string("At :") \
-                            + std::string(CUDA_ERROR_LOCATION) \
-                            + std::string(" : "), \
-                    status) \
-                                 .what() \
+            std::cout << CUDA_ERR_MESSAGE(cudnn_error, " ", status).what() \
                       << std::endl; \
         } \
     }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ inline float16_t &float16_t::operator=(float f) {
     uint32_t mm = m >> 13;
     uint32_t r = m & 0x1FFF;
     uint32_t ee = 0;
-    int32_t eee = (e - 127) + 15;
+    int32_t eee = static_cast<int32_t>((e - 127) + 15);
 
     if (e == 0) {
         // Denormal/zero floats all become zero.
@@ -70,7 +70,7 @@ inline float16_t &float16_t::operator=(float f) {
         if (m != 0 && mm == 0) mm = 1;
     } else if (eee > 0 && eee < 0x1F) {
         // Normal range. Perform round to even on mantissa.
-        ee = eee;
+        ee = static_cast<uint32_t>(eee);
         if (r > (0x1000 - (mm & 1))) {
             // Round up.
             mm++;
@@ -86,13 +86,13 @@ inline float16_t &float16_t::operator=(float f) {
         mm = 0;
     } else {
         // Underflow.
-        float ff = fabsf(f) + 0.5;
+        float ff = fabsf(f) + 0.5f;
         uint32_t ii = utils::bit_cast<uint32_t>(ff);
         ee = 0;
         mm = ii & 0x7FF;
     }
 
-    this->raw = (ss << 15) | (ee << 10) | mm;
+    this->raw = static_cast<uint16_t>((ss << 15) | (ee << 10) | mm);
     return *this;
 }
 

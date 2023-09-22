@@ -27,6 +27,11 @@ namespace impl {
 
 struct eltwise_fwd_pd_t;
 
+status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, float alpha, float beta);
+
 struct eltwise_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::eltwise;
 

@@ -777,7 +777,8 @@ private:
                 auto &vvar = a_view.vvar(vidx);
                 auto &name = vvar.as<var_t>().name;
                 if (utils::one_of(name, "g", "ic", "oc")) continue;
-                int padded = cfg.padded_dim(vvar.as<var_t>().name);
+                int padded = cfg.padded_dim(
+                        conv_dim_t::from_name(vvar.as<var_t>().name));
                 int dim = a_view.vdims()[vidx];
                 if (dim != padded) add_mask_desc(mask_descs_, vvar < dim);
                 continue;
@@ -1214,7 +1215,9 @@ int zp_plan_t::comp_reg_buf_size() const {
 
 stmt_t zp_plan_t::load_create_stmt(
         const expr_t &mem_buf, const expr_t &reg_buf, int subtile_idx) const {
-    return impl->load.create_stmt(mem_buf, reg_buf, subtile_idx);
+    return subtile_idx > 0
+            ? stmt_t()
+            : impl->load.create_stmt(mem_buf, reg_buf, subtile_idx);
 }
 
 stmt_t zp_plan_t::comp_init_create_stmt(buffer_manager_t &buf_mgr,

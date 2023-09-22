@@ -104,8 +104,8 @@ public:
     }
 
 private:
-    ngen::HW hw_;
-    int block_regs_;
+    ngen::HW hw_ = ngen::HW::Unknown;
+    int block_regs_ = 0;
     std::vector<int> block_bases_;
     grf_permutation_t grf_perm_;
 };
@@ -128,6 +128,8 @@ public:
         , rd_(sub) {}
 
     bool is_empty() const { return !reg_buf_; }
+
+    bool with_permute() const { return reg_buf_->with_permute(); }
 
     ngen::HW hw() const { return reg_buf_->hw(); }
 

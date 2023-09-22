@@ -297,9 +297,9 @@ struct bias_state_t : public fusion_state_t {
         GET_BROADCAST_TYPE();
         // support only_channel
         if (bct_type != brg_broadcast_type::only_channel) { return false; }
-        // should be f32 or bf16
+        // should be f32, bf16 or fp16
         if (!utils::is_one_of(cur_op->get_inputs()[0]->details_.dtype_,
-                    datatypes::bf16, datatypes::f32)) {
+                    datatypes::bf16, datatypes::f16, datatypes::f32)) {
             return false;
         }
         cur_op_count_++;

@@ -144,7 +144,8 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
         }
 
         memory_desc_t want_wei_md = weights_md;
-        memory_desc_init_by_tag(want_wei_md, wei_tag);
+        CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
+
         if (jcp.signed_input && !jcp.is_depthwise) {
             want_wei_md.extra.flags = 0
                     | memory_extra_flags::compensation_conv_s8s8
@@ -346,8 +347,10 @@ jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::jit_uni_x8s8s32x_deconv_fwd_kernel(
                         _jit_avx2_x8s8s32x_deconv_fwd_kernel>(
                         ajcp, attr, dst_d);
                 return;
-            } else
+            } else {
                 assert(!"invalid channel blocking for current ISA");
+            }
+            break;
         case 4:
             kernel_ = utils::make_unique<
                     _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Xbyak::Xmm>>(
@@ -366,7 +369,8 @@ void jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
     const int mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
-    const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+    const dim_t scales_count
+            = mask == 0 ? 1 : static_cast<dim_t>(jcp.oc) * jcp.ngroups;
     dim_t count = nstl::max<dim_t>(scales_count, 8);
     scratchpad.book<float>(key_conv_adjusted_scales, count);
 

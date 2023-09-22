@@ -64,7 +64,8 @@ status_t primitive_create(primitive_iface_t **primitive_iface,
 
     std::pair<primitive_iface_t *, bool> p_iface;
 
-    if (get_verbose(verbose_t::create_profile)) {
+    if (get_verbose(verbose_t::create_profile,
+                prim_kind2_comp_kind(primitive_desc_iface->impl()->kind()))) {
         double start_ms = get_msec();
         CHECK(primitive_desc_iface->create_primitive_iface(
                 p_iface, cache_blob));
@@ -73,7 +74,8 @@ status_t primitive_create(primitive_iface_t **primitive_iface,
         const char *str = p_iface.second ? ":cache_hit" : ":cache_miss";
         if (cache_blob) str = ":from_cache_blob";
 
-        VPROF(start_ms, create, str, p_iface.first->pd()->info(), duration_ms);
+        VPROF(start_ms, primitive, create, str, p_iface.first->pd()->info(),
+                duration_ms);
     } else {
         CHECK(primitive_desc_iface->create_primitive_iface(
                 p_iface, cache_blob));
@@ -85,37 +87,44 @@ status_t primitive_execute(
         const primitive_iface_t *primitive_iface, exec_ctx_t &ctx) {
     auto stream = ctx.stream();
     status_t status = success;
-    auto pd = primitive_iface->pd();
 
 #if defined(DNNL_ENABLE_ITT_TASKS)
     const bool enable_itt = itt::get_itt(itt::__itt_task_level_low);
-    if (enable_itt) itt::primitive_task_start(pd->impl()->kind(), pd->info());
+    if (enable_itt)
+        itt::primitive_task_start(primitive_iface->pd()->impl()->kind());
 #endif
 
-    if (get_verbose(verbose_t::exec_profile)) {
+    if (get_verbose(verbose_t::exec_profile,
+                prim_kind2_comp_kind(primitive_iface->pd()->impl()->kind()))) {
         stream->wait();
         double start_ms = get_msec();
         status = stream->enqueue_primitive(primitive_iface, ctx);
         stream->wait();
         double duration_ms = get_msec() - start_ms;
-        if (pd->impl()->has_runtime_dims_or_strides()) {
+        if (primitive_iface->pd()->impl()->has_runtime_dims_or_strides()) {
             // Take out mds from `ctx` here to avoid primitive_desc dependency
             // on `exec_ctx_t` type.
             // TODO: invariant arg names for training?
-            const auto pd_src_md = pd->impl()->invariant_src_md();
+            const auto pd_src_md
+                    = primitive_iface->pd()->impl()->invariant_src_md();
             const auto src_md = ctx.memory_mdw(DNNL_ARG_SRC, pd_src_md).md_;
-            const auto pd_wei_md = pd->impl()->invariant_wei_md();
+            const auto pd_wei_md
+                    = primitive_iface->pd()->impl()->invariant_wei_md();
             const auto wei_md = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd_wei_md).md_;
-            const auto pd_bia_md = pd->impl()->invariant_bia_md();
+            const auto pd_bia_md
+                    = primitive_iface->pd()->impl()->invariant_bia_md();
             const auto bia_md = ctx.memory_mdw(DNNL_ARG_BIAS, pd_bia_md).md_;
-            const auto pd_dst_md = pd->impl()->invariant_dst_md();
+            const auto pd_dst_md
+                    = primitive_iface->pd()->impl()->invariant_dst_md();
             const auto dst_md = ctx.memory_mdw(DNNL_ARG_DST, pd_dst_md).md_;
 
-            std::string info = pd->info_with_runtime_dims(
+            std::string info = primitive_iface->pd()->info_with_runtime_dims(
                     src_md, wei_md, bia_md, dst_md);
-            VPROF(start_ms, exec, VERBOSE_profile, info.c_str(), duration_ms);
+            VPROF(start_ms, primitive, exec, VERBOSE_profile, info.c_str(),
+                    duration_ms);
         } else {
-            VPROF(start_ms, exec, VERBOSE_profile, pd->info(), duration_ms);
+            VPROF(start_ms, primitive, exec, VERBOSE_profile,
+                    primitive_iface->pd()->info(), duration_ms);
         }
     } else {
         status = stream->enqueue_primitive(primitive_iface, ctx);

@@ -285,6 +285,12 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()
 
+if(DNNL_BLAS_VENDOR STREQUAL "ACCELERATE")
+    install(FILES
+    "../cmake/FindBLAS.cmake"
+    DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+endif()
+
 # On Windows we need to add dnnl.dll path to CTESTCONFIG_PATH which is later
 # passed to ctest and Visual Studio solutions
 if(WIN32)

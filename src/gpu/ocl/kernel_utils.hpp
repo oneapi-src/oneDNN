@@ -32,18 +32,6 @@ const char *get_kernel_source(const char *name);
 const char *get_kernel_header(const std::string &name);
 
 template <typename GetKernelSourceFunc>
-std::unordered_map<const char *, std::vector<const char *>> map_sources(
-        const std::vector<const char *> &kernel_names,
-        const GetKernelSourceFunc &get_kernel_source_func) {
-    std::unordered_map<const char *, std::vector<const char *>> source_to_names;
-    for (auto &name : kernel_names) {
-        const char *source = get_kernel_source_func(name);
-        source_to_names[source].push_back(name);
-    }
-    return source_to_names;
-}
-
-template <typename GetKernelSourceFunc>
 status_t create_kernels(const compute::compute_engine_t *engine,
         compute::kernel_list_t &kernel_list,
         const compute::kernel_ctx_t &kernel_ctx,

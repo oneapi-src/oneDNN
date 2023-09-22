@@ -156,8 +156,9 @@ struct gpu_primitive_t : public primitive_t {
             for (const char *name : kernel_names)
                 oss << name << " ";
 
-            VFORMAT(get_msec(), exec, VERBOSE_debug, "kernel options,%s,%s",
-                    oss.str().c_str(), kernel_ctx.options().c_str());
+            VFORMAT(get_msec(), primitive, exec, VERBOSE_debug,
+                    "kernel options,%s,%s", oss.str().c_str(),
+                    kernel_ctx.options().c_str());
         }
 #endif
         CHECK(compute_engine->create_kernels(

@@ -101,6 +101,8 @@ std::string partition_kind2str(partition_kind_t v) {
         CASE(residual_conv_blocks);
         CASE(quantized_residual_conv_blocks);
         CASE(concat_fusion_memory_optim);
+        CASE(sdp);
+        CASE(quantized_sdp);
         default: return "unknown_kind";
     }
 #undef CASE
@@ -135,6 +137,8 @@ partition_kind_t str2partition_kind(const std::string &str) {
     IF_HANDLE(residual_conv_blocks);
     IF_HANDLE(quantized_residual_conv_blocks);
     IF_HANDLE(concat_fusion_memory_optim);
+    IF_HANDLE(sdp);
+    IF_HANDLE(quantized_sdp);
 
     return partition_kind_t::undef;
 

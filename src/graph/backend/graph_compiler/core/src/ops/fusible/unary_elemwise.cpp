@@ -16,6 +16,7 @@
 
 #include <assert.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
@@ -78,6 +79,18 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     }
     vx_info_.lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
+    auto cur_cpu_flags = ctx->machine_.cpu_flags_;
+    if (!cur_cpu_flags.fAVX512F && cur_cpu_flags.fAVX2) {
+        // In avx2, bf16x16 can't cast to f32x16. Maximum lanes must be 8.
+        if (op_name_ == "cast") {
+            const sc_data_etype dst_etype
+                    = dst[0]->tptr_->base_->dtype_.type_code_;
+            auto size = utils::get_sizeof_etype(dst_etype);
+            assert(size * 8 <= 256 && "Bad type for cast");
+            const uint32_t avx2_max_lanes = 256 / (size * 8);
+            vx_info_.lanes = std::min(avx2_max_lanes, vx_info_.lanes);
+        }
+    }
     auto func = [&](const std::vector<expr> &in,
                         std::vector<expr::lvalue_proxy_t> &out) -> stmt {
         return builder::make_assign_unattached(out[0], compute_element(in[0]));
@@ -87,9 +100,9 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     if (get_owner_graph().is_dynamic()) {
         use_mask &= info_.cur_impl_ != impl_kind_t::no_padding;
     }
-    compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_, vx_info_,
-            mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
-            use_mask);
+    compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
+            vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
+            attrs_, wkld, use_mask);
 }
 
 void unary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {
@@ -269,7 +282,10 @@ expr sigmoid_op_t::compute_element(expr in) {
 }
 
 expr exp_op_t::compute_element(expr in) {
-    return builder::make_exp(in);
+    auto out = builder::make_exp(in);
+    out->attr().set(
+            "overflow_check", attrs_.get_or_else("overflow_check", true));
+    return out;
 }
 
 expr tanh_op_t::compute_element(expr in) {
@@ -410,8 +426,8 @@ expr clamp_op_t::compute_element(expr in) {
     auto dtype = in->dtype_;
     COMPILE_ASSERT(dtype.type_code_ == sc_data_etype::F32,
             "clamp_op_t currently only supports fp32");
-    float clamp_min = attrs_.get<float>("clamp_min");
-    float clamp_max = attrs_.get<float>("clamp_max");
+    float clamp_min = attrs_.get<float>("min");
+    float clamp_max = attrs_.get<float>("max");
     return builder::make_max(
             builder::make_min(in, make_expr<constant_node>(clamp_max, dtype)),
             make_expr<constant_node>(clamp_min, dtype));
@@ -491,6 +507,14 @@ expr swish_op_t::compute_element(expr in) {
     return in * compute_sigmoid(f_sigmoid_in);
 }
 
+expr hardsigmoid_op_t::compute_element(expr in) {
+    DEFINE_ALPHA_AND_BETA_BASED_ON_DTYPE("hardsigmoid");
+    auto f_one = make_expr<constant_node>(1.f, dtype);
+    auto f_zero = make_expr<constant_node>(0.f, dtype);
+    return builder::make_max(f_zero,
+            builder::make_min(f_one, builder::make_fmadd(in, f_alpha, f_beta)));
+}
+
 OP_REGISTER(sigmoid_op_t, sigmoid)
 OP_REGISTER(exp_op_t, exp)
 OP_REGISTER(erf_op_t, erf)
@@ -511,6 +535,7 @@ OP_REGISTER(mish_op_t, mish)
 OP_REGISTER(soft_plus_op_t, soft_plus)
 OP_REGISTER(square_op_t, square)
 OP_REGISTER(swish_op_t, swish)
+OP_REGISTER(hardsigmoid_op_t, hardsigmoid)
 
 } // namespace gc
 } // namespace graph

@@ -106,15 +106,15 @@ private:
     bool open_file() {
         auto path_len_ok = [&](const std::string &path) {
             if (path.length() >= PATH_MAX) {
-                VERROR(linux_perf, "dump directory path '%s' is too long",
-                        path.c_str());
+                VERROR(common, linux_perf,
+                        "dump directory path '%s' is too long", path.c_str());
                 return false;
             }
             return true;
         };
 
         auto complain = [](const std::string &path) {
-            VERROR(linux_perf, "cannot create dump directory '%s' (%m)",
+            VERROR(common, linux_perf, "cannot create dump directory '%s' (%m)",
                     path.c_str());
             return false;
         };
@@ -153,7 +153,7 @@ private:
 
         fd_ = open(path.c_str(), O_CREAT | O_TRUNC | O_RDWR, 0666);
         if (fd_ == -1) {
-            VERROR(linux_perf, "cannot open jitdump file '%s' (%m)",
+            VERROR(primitive, linux_perf, "cannot open jitdump file '%s' (%m)",
                     path.c_str());
             return false;
         }
@@ -192,7 +192,7 @@ private:
         }
 #else
         if (use_tsc) {
-            VERROR(linux_perf,
+            VERROR(primitive, linux_perf,
                     "TSC timestamps is not supported. clock_gettime() is used "
                     "instead.");
         }
@@ -273,7 +273,9 @@ private:
             uint64_t code_index;
         } c;
         c.id = 0; // JIT_CODE_LOAD
-        c.total_size = sizeof(c) + strlen(code_name) + 1 + code_size;
+        size_t total_size = sizeof(c) + strlen(code_name) + 1 + code_size;
+        c.total_size = static_cast<uint32_t>(total_size);
+        assert(c.total_size > code_size); // Catch potential overflow.
         c.timestamp = get_timestamp(use_tsc_);
         c.pid = getpid();
         c.tid = gettid();

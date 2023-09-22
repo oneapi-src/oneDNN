@@ -1546,11 +1546,11 @@ ITT_EXTERN_C void _N_(mark_pt_region_begin)(__itt_pt_region region)
 #if defined(ITT_API_IPT_SUPPORT) && (ITT_PLATFORM==ITT_PLATFORM_WIN || ITT_PLATFORM==ITT_PLATFORM_POSIX) && !defined(__ANDROID__)
     if (_N_(_ittapi_global).ipt_collect_events == 1)
     {
-        __itt_pt_mark_event(2*region);
+        __itt_pt_mark_event((__itt_pt_region)(2*region));
     }
     else
     {
-        __itt_pt_mark(2*region);
+        __itt_pt_mark((__itt_pt_region)(2*region));
     }
 #else
     (void)region;
@@ -1562,11 +1562,11 @@ ITT_EXTERN_C void _N_(mark_pt_region_end)(__itt_pt_region region)
 #if defined(ITT_API_IPT_SUPPORT) && (ITT_PLATFORM==ITT_PLATFORM_WIN || ITT_PLATFORM==ITT_PLATFORM_POSIX) && !defined(__ANDROID__)
     if (_N_(_ittapi_global).ipt_collect_events == 1)
     {
-        __itt_pt_mark_event(2*region + 1);
+        __itt_pt_mark_event((__itt_pt_region)(2*region + 1));
     }
     else
     {
-        __itt_pt_mark(2*region + 1);
+        __itt_pt_mark((__itt_pt_region)(2*region + 1));
     }
 #else
      (void)region;

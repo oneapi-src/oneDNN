@@ -211,7 +211,8 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             }
 
             memory_desc_t want_wei_md = weights_md_;
-            memory_desc_init_by_tag(want_wei_md, wei_tag);
+            CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
+
             if (is_src_s8) {
                 want_wei_md.extra.flags
                         = 0 | compensation_conv_s8s8 | scale_adjust;
@@ -272,8 +273,8 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             CHECK(get_depthwise_conv_desc(
                     cd_dw, src_md, attr_1x1, attr_dw, dw_po_index));
 
-            std::unique_ptr<dw_pd_t> fusable_pd(
-                    new dw_pd_t(&cd_dw, &attr_dw, nullptr));
+            auto fusable_pd
+                    = make_unique_pd<dw_pd_t>(&cd_dw, &attr_dw, nullptr);
             CHECK(fusable_pd->init(engine));
             jcp_dw_ = &(fusable_pd->jcp_);
             dw_conv_pd_ = std::move(fusable_pd);

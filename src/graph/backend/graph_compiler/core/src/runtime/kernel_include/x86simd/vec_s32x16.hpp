@@ -23,7 +23,9 @@ class vec_f32x16;
 class vec_u8x16;
 class vec_s8x16;
 #ifdef __AVX512F__
-
+#ifdef __AVX512FP16__
+class vec_f16x16;
+#endif
 class vec_s32x16 {
 public:
     union {
@@ -45,6 +47,11 @@ public:
     INLINE operator vec_f32x16() const;
     INLINE operator vec_u8x16() const;
     INLINE operator vec_s8x16() const;
+
+#ifdef __AVX512FP16__
+    INLINE operator vec_f16x16() const;
+#endif
+
     static INLINE vec_s32x16 load(const int32_t *p) {
         return _mm512_loadu_si512((const __m512i *)p);
     }
@@ -137,6 +144,10 @@ INLINE vec_s32x16 sc_max(vec_s32x16 const &a, vec_s32x16 const &b) {
 }
 INLINE vec_s32x16 sc_min(vec_s32x16 const &a, vec_s32x16 const &b) {
     return _mm512_min_epi32(a.v, b.v);
+}
+
+INLINE int sc_reduce_add(vec_s32x16 const &a) {
+    return _mm512_reduce_add_epi32(a.v);
 }
 
 INLINE vec_s32x16 sc_abs(vec_s32x16 const &a) {

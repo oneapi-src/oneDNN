@@ -78,7 +78,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
-    const int max_batch_times = 10000;
+    const int max_batch_times = 4096;
     // Nvidia/AMD don't support profiling.
     const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
     const dnnl::stream::flags flags = use_profiling
@@ -101,11 +101,12 @@ inline int measure_perf_aggregate(timer::timer_t &t,
     reset_gpu_profiling(((dnnl::stream)stream).get());
 
     bool is_first_loop = true;
+    size_t prim_num = 1;
     while (true) {
-        for_(size_t i = 0; i < sz; i++)
-        for (int j = 0; j < cur_batch_times; j++) {
+        for_(int i = 0; i < cur_batch_times; i++)
+        for (size_t j = 0; j < sz; j++) {
             DNN_GRAPH_SAFE(
-                    perf_func_v[i](stream, inputs_v[i], outputs_v[i]), WARN);
+                    perf_func_v[j](stream, inputs_v[j], outputs_v[j]), WARN);
         }
         DNN_GRAPH_SAFE(stream.wait(), WARN);
 
@@ -121,9 +122,17 @@ inline int measure_perf_aggregate(timer::timer_t &t,
                         "WARNING: no counters were found during profiling.");
                 break;
             }
+            // Calculate the number of primitives in a batch
+            if (is_first_loop) { prim_num = nsecs.size() / cur_batch_times; }
 
-            for (size_t i = 0; i < nsecs.size(); i++) {
-                t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
+            for (int i = 0; i < cur_batch_times; i++) {
+                int64_t cycles_res = 0;
+                double nsecs_res = 0;
+                for (size_t j = 0; j < prim_num; j++) {
+                    cycles_res += cycles[i * prim_num + j];
+                    nsecs_res += nsecs[i * prim_num + j];
+                }
+                t.stop(1, cycles_res, nsecs_res / 1e6);
             }
         } else {
             t.stamp(cur_batch_times);
@@ -559,6 +568,7 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
                     {dnnl::graph::op::kind::PReLU, dnnl_driver_t::prelu},
                     {dnnl::graph::op::kind::PReLUBackward,
                             dnnl_driver_t::prelu},
+                    {dnnl::graph::op::kind::Pow, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::Quantize, dnnl_driver_t::reorder},
                     {dnnl::graph::op::kind::Reciprocal, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::ReduceL1, dnnl_driver_t::reduction},
@@ -578,6 +588,7 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
                             dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::Reorder, dnnl_driver_t::reorder},
                     {dnnl::graph::op::kind::Round, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Select, dnnl_driver_t::custom},
                     {dnnl::graph::op::kind::Sigmoid, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::SigmoidBackward,
                             dnnl_driver_t::eltwise},
@@ -594,9 +605,9 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
                     {dnnl::graph::op::kind::SquaredDifference,
                             dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::StaticReshape,
-                            dnnl_driver_t::reorder},
+                            dnnl_driver_t::custom},
                     {dnnl::graph::op::kind::StaticTranspose,
-                            dnnl_driver_t::reorder},
+                            dnnl_driver_t::custom},
                     {dnnl::graph::op::kind::Subtract, dnnl_driver_t::binary},
                     {dnnl::graph::op::kind::Tanh, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::TanhBackward,
@@ -652,6 +663,15 @@ bool is_nxc_lt_arg(const std::string &kind, const int exec_arg) {
     } else {
         return false;
     }
+}
+
+// when length is 3, return "abc", when length is 5, return "abcde"
+std::string get_default_tag(size_t length) {
+    std::string mtag;
+    for (size_t i = 0; i < length; ++i) {
+        mtag += char('a' + i);
+    }
+    return mtag;
 }
 
 std::string strides2memory_tag(const size_t ndims,
@@ -1205,6 +1225,20 @@ int get_prim_arg_name_from_graph_op_input_offset(
                 return DNNL_ARG_ATTR_SCALES | DNNL_ARG_TO;
             else if (input_offset == 2)
                 return DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_TO;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::Select: {
+            if (input_offset == 0)
+                return DNNL_ARG_WEIGHTS;
+            else if (input_offset == 1)
+                return DNNL_ARG_SRC_0;
+            else if (input_offset == 2)
+                return DNNL_ARG_SRC_1;
             else {
                 BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
                         input_offset);

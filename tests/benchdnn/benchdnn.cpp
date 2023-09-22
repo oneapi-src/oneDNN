@@ -14,11 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <float.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -87,6 +85,8 @@ int main(int argc, char **argv) {
     --argc;
     ++argv;
 
+    timer::timer_t total_time;
+
     if (parse_main_help(argv[0])) return 0;
 
     init_fp_mode();
@@ -148,6 +148,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "err: unknown driver\n");
     }
 
+    total_time.stamp();
+
     printf("tests:%d passed:%d skipped:%d mistrusted:%d unimplemented:%d "
            "invalid_arguments:%d failed:%d listed:%d\n",
             benchdnn_stat.tests, benchdnn_stat.passed, benchdnn_stat.skipped,
@@ -164,15 +166,24 @@ int main(int argc, char **argv) {
                     perf_timer_stats[timer::timer_t::avg]);
         }
     }
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
-        const auto &compute_ref_timer
-                = benchdnn_stat.ms.find(timer::names::ref_timer);
-        if (compute_ref_timer != benchdnn_stat.ms.end()) {
-            const auto &compute_ref_timer_stats = compute_ref_timer->second;
-            printf("total compute_ref: sum(s):%.2f\n",
-                    compute_ref_timer_stats[timer::timer_t::sum]);
-        }
+
+    const auto total_s = total_time.sec(timer::timer_t::sum);
+    printf("total: %.2fs;", total_s);
+    for (const auto &e : timer::get_global_service_timers()) {
+        const auto &supported_mode_bit = std::get<1>(e);
+        if (!has_bench_mode_bit(supported_mode_bit)) continue;
+
+        const auto &t_name = std::get<2>(e);
+        const auto &t = benchdnn_stat.ms.find(t_name);
+        if (t == benchdnn_stat.ms.end()) continue;
+
+        const auto &stats = t->second;
+        const auto &t_print_name = std::get<0>(e);
+        double s = stats[timer::timer_t::sum];
+        double r_s_to_total = 100.f * s / total_s;
+        printf(" %s: %.2fs (%.0f%%);", t_print_name.c_str(), s, r_s_to_total);
     }
+    printf("\n");
 
     finalize();
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -147,8 +147,8 @@ dnnl_status_t DNNL_API dnnl_set_default_fpmath_mode(dnnl_fpmath_mode_t mode);
 ///
 /// @param level Verbosity level:
 ///  - 0: no verbose output (default),
-///  - 1: primitive information at execution,
-///  - 2: primitive information at creation and execution.
+///  - 1: primitive and graph information at execution,
+///  - 2: primitive and graph information at creation/compilation and execution.
 /// @returns #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the
 ///     @p level value is invalid, and #dnnl_success/#dnnl::status::success on
 ///     success.

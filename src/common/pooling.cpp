@@ -31,12 +31,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_POOLING(cond, msg, ...) \
-    VCONDCHECK(create, check, pooling, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, pooling, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_POOLING_IMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, pooling, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, pooling, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 namespace {
 status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
@@ -68,8 +68,8 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
     const bool rt_dims_or_strides
             = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
             || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
-    VCONDCHECK(create, check, pool, !rt_dims_or_strides, status::unimplemented,
-            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VCONDCHECK(primitive, create, check, pool, !rt_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     pd.diff_src_desc = pd.src_desc = zero_md();
     pd.diff_dst_desc = pd.dst_desc = zero_md();
@@ -103,14 +103,14 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
                 VERBOSE_INCONSISTENT_DIM, "src", i, "dst", i);
 
     for (int i = 2; i < src_desc->ndims; ++i) {
-        const int src = src_desc->dims[i];
-        const int dst = dst_desc->dims[i];
-        const int ker = kernel[i - 2];
-        const int dil = dilation ? dilation[i - 2] : 0;
-        const int pad_l = padding_l[i - 2];
-        const int pad_r = padding_r[i - 2];
-        const int str = strides[i - 2];
-        const int ker_range = 1 + (ker - 1) * (dil + 1);
+        const dim_t src = src_desc->dims[i];
+        const dim_t dst = dst_desc->dims[i];
+        const dim_t ker = kernel[i - 2];
+        const dim_t dil = dilation ? dilation[i - 2] : 0;
+        const dim_t pad_l = padding_l[i - 2];
+        const dim_t pad_r = padding_r[i - 2];
+        const dim_t str = strides[i - 2];
+        const dim_t ker_range = 1 + (ker - 1) * (dil + 1);
 
         VCHECK_POOLING(str > 0 && dil >= 0 && pad_l >= 0 && (pad_r + str >= 0),
                 VERBOSE_INCONSISTENT_PRB);

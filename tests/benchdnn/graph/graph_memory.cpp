@@ -19,30 +19,23 @@
 namespace graph {
 
 dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
-        const deserialized_lt &lt, const bool should_use_graph_shape,
-        const bool is_op_input, const bool is_fake_output) {
+        const deserialized_lt &lt, const bool is_op_input,
+        const bool is_fake_output) {
 
     // Init memory for all inputs and outputs that needs comparison
     const auto &prim_dt = mem.dt();
     const auto &graph_dt = static_cast<dnnl_data_type_t>(lt.get_data_type());
+    const bool is_boolean
+            = lt.get_data_type() == logical_tensor::data_type::boolean;
 
-    // For int8 cases, as graph driver will modify the data type of leading
-    // ops to u8/s8 in the reference path and use corresponding drivers to
-    // generate data, special handling is needed. If it's found that data
-    // type in ref path is u8/s8, it will be used.
-    //
-    // The reason why not always using primitive data type is that the driver
-    // rewrites data type in graph path for bf16 case handling. So we prefer
-    // data type in graph, and for int8 cases, that from ref path will be used.
-    //
-    dnnl_data_type_t c_data_type
-            = prim_dt == dnnl_s8 || prim_dt == dnnl_u8 ? prim_dt : graph_dt;
+    // Use data type from graph path to represent boolean
+    const auto &c_data_type = is_boolean ? prim_dt : graph_dt;
 
+    // Get memory tag of primitive memory
     int ndims = mem.ndims();
     dims_t strides(mem.strides(), mem.strides() + ndims);
     std::string mtag = strides2memory_tag(ndims, strides);
 
-    use_graph_shape_ = should_use_graph_shape;
     graph_dims_ = lt.shape_;
     graph_strides_ = lt.stride_;
 
@@ -57,22 +50,31 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     // For outputs, use shape & tag from graph path for fake outputs,
     // otherwise use shape & tag from ref path side
 
-    // create memory for graph path
-    const auto &graph_mtag = strides2memory_tag(ndims, graph_strides_);
+    // Create memory for graph path
     const auto data_type = static_cast<dnnl::memory::data_type>(c_data_type);
     if (is_op_input) {
-        if (should_use_graph_shape) {
-            dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
-            mem_ = dnn_mem_t(md.get(), ::get_test_engine());
+        if (graph_dims_.empty()) graph_dims_.push_back(1);
+        if (graph_strides_.empty()) graph_strides_.push_back(1);
 
-            const void *prim_data_handle = static_cast<void *>(mem);
-            void *graph_data_handle = mem_.get_mapped_pointer<void>();
-            const auto &mem_size = mem.size();
-            std::memcpy(graph_data_handle, prim_data_handle, mem_size);
+        // create graph memory
+        dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
+        mem_ = dnn_mem_t(md.get(), ::get_test_engine());
+
+        const auto prim_to_graph_memcpy = [](dnn_mem_t &graph_mem,
+                                                  const dnn_mem_t &prim_mem) {
+            const void *prim_data_handle = static_cast<const void *>(prim_mem);
+            void *graph_data_handle = graph_mem.get_mapped_pointer<void>();
+            std::memcpy(graph_data_handle, prim_data_handle, graph_mem.size());
+        };
+
+        // Not do reorder for boolean data tensor
+        if (!is_boolean && prim_dt != c_data_type) {
+            dnn_mem_t c_mem(
+                    ndims, mem.dims(), c_data_type, mtag, ::get_test_engine());
+            SAFE_V(c_mem.reorder(mem));
+            prim_to_graph_memcpy(mem_, c_mem);
         } else {
-            mem_ = dnn_mem_t(
-                    mem.md_, c_data_type, graph_mtag, ::get_test_engine());
-            mem_.reorder(mem);
+            prim_to_graph_memcpy(mem_, mem);
         }
     } else {
         if (is_fake_output) {
@@ -93,11 +95,6 @@ dnnl::graph::tensor dnn_graph_mem_t::make_graph_tensor(
     dnnl::graph::tensor ret(graph_lt, get_graph_engine(), data_handle);
 
     return ret;
-}
-
-const dnn_mem_t &dnn_graph_mem_t::reorder_back_mem() {
-    if (use_graph_shape_) { reshape_md(mem_, graph_dims_, graph_strides_); }
-    return mem_;
 }
 
 } // namespace graph

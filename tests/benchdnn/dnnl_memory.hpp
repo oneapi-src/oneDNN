@@ -189,6 +189,10 @@ struct dnn_mem_t {
     static benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> init_csr_md(int ndims,
             const dnnl_dims_t dims, dnnl_data_type_t data_type, dnnl_dim_t nnz,
             dnnl_data_type_t indices_dt, dnnl_data_type_t pointers_dt);
+    // Initializes memory descriptor for packed encoding.
+    static benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> init_sparse_packed_md(
+            int ndims, const dnnl_dims_t dims, dnnl_data_type_t data_type,
+            dnnl_dim_t nnz);
 #endif
 
     /* fields */

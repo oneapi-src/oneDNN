@@ -39,14 +39,16 @@ public:
     std::vector<std::string> requires_;
     pass_func func_;
     pass_type type_;
+    sc_opt_level opt_level_; // allowed minimum opt level.
     bool enabled_; // for debug and tuning
     basic_graph_pass_t(pass_func func, const std::string &name,
             const std::vector<std::string> &required, pass_type type,
-            bool enabled = true)
+            sc_opt_level opt_level = sc_opt_level::lv3, bool enabled = true)
         : name_(name)
         , requires_(required)
         , func_(func)
         , type_(type)
+        , opt_level_(opt_level)
         , enabled_(enabled) {}
 };
 
@@ -54,7 +56,7 @@ using basic_graph_pass_ptr = std::shared_ptr<basic_graph_pass_t>;
 
 basic_graph_pass_ptr create_graph_pass(const std::string &name, pass_func func,
         const std::vector<std::string> &required, pass_type type,
-        bool enabled = true);
+        sc_opt_level opt_level = sc_opt_level::lv3, bool enabled = true);
 
 // Return: std::vector<std::shared_ptr>, represents all passes run order.
 // 1. If adding a new pass, developer need to define this pass will be put which
@@ -114,6 +116,7 @@ struct graph_config;
  * default passes
  * @param post_tune_pass the graph passes after running tuner. if null, use
  * default passes
+ * @param allow_cache allow reusing cached code for the graph
  * */
 SC_API void graph_driver(sc_graph_t &graph,
         const context_ptr &ctx = get_default_context(),
@@ -121,13 +124,15 @@ SC_API void graph_driver(sc_graph_t &graph,
         int tuner_batch = 0, int repeat = 0, int64_t timeout = 0,
         tuner_creator *tune_creator = nullptr,
         std::vector<basic_graph_pass_ptr> *pre_tune_pass = nullptr,
-        std::vector<basic_graph_pass_ptr> *post_tune_pass = nullptr);
+        std::vector<basic_graph_pass_ptr> *post_tune_pass = nullptr,
+        bool allow_cache = false);
 
 // util function to create mapping of ops in the copied graph
 std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> create_op_map(
         sc_graph_t &lg, sc_graph_t &rg);
 void run_graph_passes(sc_graph_t &graph, const context_ptr &ctx,
-        const std::vector<basic_graph_pass_ptr> &passes);
+        const std::vector<basic_graph_pass_ptr> &passes,
+        bool allow_cache = false);
 
 // get graph driver result before fusion, usually used for unit test
 void graph_driver_before_fusion(sc_graph_t &graph, const context_ptr &ctx);

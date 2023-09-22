@@ -36,8 +36,7 @@ struct loop_info_t {
         var = loop.var;
         init_ = loop.init;
         bound_ = loop.bound;
-
-        auto e_size = simplify(bound_ - init_);
+        expr_t e_size = simplify(bound_ - init_);
         ir_assert(is_const(e_size));
         size_ = to_cpp<int>(e_size);
     }
@@ -62,7 +61,7 @@ struct loop_info_t {
 private:
     expr_t init_;
     expr_t bound_;
-    int size_;
+    int size_ = 0;
 };
 
 // Iterates through multiple nested loops with fixed bounds. Used to unroll
@@ -1569,7 +1568,7 @@ public:
         };
 
         bmnk_dim_helper_t h(cfg_);
-        int k_iter_blk = h.iter_dim('k');
+        int k_iter_blk = h.iter_dim(gemm_dims::k);
         int reduce_iter_bytes = k_iter_blk * cfg_.prb().a_data_type_size;
         // Add periodic signal-wait thread group synchronization in some cases.
         // This is to ensure threads access close reduction blocks and able to

@@ -22,6 +22,7 @@
 #include <vector>
 #include <unordered_map>
 #include <util/def.hpp>
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -30,6 +31,8 @@ namespace gc {
 namespace runtime {
 struct engine_t;
 }
+
+struct cached_const_graph_tensor;
 
 // Manages the ownership of the internal data buffer
 struct SC_API aligned_buffer_t {
@@ -81,6 +84,7 @@ struct statics_table_t {
     aligned_buffer_t data_;
     // the size of initialized section
     size_t initialized_size_;
+    std::vector<std::shared_ptr<cached_const_graph_tensor>> shared_tensors_;
     // gets the data by name, will throw an exception if name not found
     void *get(const std::string &name) const;
     // gets the data by name, returns null if name not found instead of throwing

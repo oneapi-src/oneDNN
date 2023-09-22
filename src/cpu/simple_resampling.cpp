@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ private:
 
     // For fwd processing:
     const bool are_postops_set_;
-    const ref_post_ops_t ref_post_ops_;
+    std::unique_ptr<ref_post_ops_t> ref_post_ops_;
     std::vector<linear_coeffs_t> linear_coeffs_;
 
     // For bwd processing:
@@ -74,8 +74,7 @@ template <data_type_t src_type, data_type_t dst_type>
 simple_resampling_kernel_t<src_type, dst_type>::simple_resampling_kernel_t(
         const resampling_pd_t *pd)
     : simple_resampling_base_t(pd)
-    , are_postops_set_(!(pd_->attr()->post_ops_.entry_.empty()))
-    , ref_post_ops_(pd_->attr()->post_ops_) {
+    , are_postops_set_(!(pd_->attr()->post_ops_.entry_.empty())) {
     if (pd_->is_fwd()) {
         const memory_desc_wrapper src_d(pd_->src_md());
         inner_stride_ = src_d.blocking_desc().strides[pd_->ndims() - 1];
@@ -112,6 +111,9 @@ status_t simple_resampling_kernel_t<src_type, dst_type>::init() {
         fill_coeffs();
         if (!pd_->is_fwd()) fill_weights();
     }
+    ref_post_ops_ = utils::make_unique<ref_post_ops_t>(pd_->attr()->post_ops_);
+    if (!ref_post_ops_) return status::out_of_memory;
+    CHECK(ref_post_ops_->init(pd_->dst_md()));
 
     return status::success;
 }
@@ -247,7 +249,7 @@ simple_resampling_kernel_t<src_type, dst_type>::create_nearest() const {
                         && IMPLICATION(preserve_zero_padding,
                                 innermost_el < tail_size_)) {
                     po_args.dst_val = dst[innermost_el];
-                    ref_post_ops_.execute(res, po_args);
+                    ref_post_ops_->execute(res, po_args);
                     po_args.l_offset++;
                 }
 
@@ -316,7 +318,7 @@ simple_resampling_kernel_t<src_type, dst_type>::create_linear() const {
                         && IMPLICATION(preserve_zero_padding,
                                 innermost_el < tail_size_)) {
                     po_args.dst_val = dst[innermost_el];
-                    ref_post_ops_.execute(res, po_args);
+                    ref_post_ops_->execute(res, po_args);
                     po_args.l_offset++;
                 }
 
@@ -375,7 +377,7 @@ simple_resampling_kernel_t<src_type, dst_type>::create_bilinear() const {
                         && IMPLICATION(preserve_zero_padding,
                                 innermost_el < tail_size_)) {
                     po_args.dst_val = dst[innermost_el];
-                    ref_post_ops_.execute(res, po_args);
+                    ref_post_ops_->execute(res, po_args);
                     po_args.l_offset++;
                 }
 
@@ -441,7 +443,7 @@ simple_resampling_kernel_t<src_type, dst_type>::create_trilinear() const {
                         && IMPLICATION(preserve_zero_padding,
                                 innermost_el < tail_size_)) {
                     po_args.dst_val = dst[innermost_el];
-                    ref_post_ops_.execute(res, po_args);
+                    ref_post_ops_->execute(res, po_args);
                     po_args.l_offset++;
                 }
 
@@ -541,6 +543,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<f32, u8>(pd);
                 default: break;
             }
+            break;
         case s32:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<s32, f32>(pd);
@@ -551,6 +554,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<s32, u8>(pd);
                 default: break;
             }
+            break;
         case bf16:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<bf16, f32>(pd);
@@ -562,6 +566,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<bf16, u8>(pd);
                 default: break;
             }
+            break;
         case f16:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<f16, f32>(pd);
@@ -572,6 +577,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<f16, u8>(pd);
                 default: break;
             }
+            break;
         case s8:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<s8, f32>(pd);
@@ -582,6 +588,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case u8: return new simple_resampling_kernel_t<s8, u8>(pd);
                 default: break;
             }
+            break;
         case u8:
             switch (dst_dt) {
                 case f32: return new simple_resampling_kernel_t<u8, f32>(pd);

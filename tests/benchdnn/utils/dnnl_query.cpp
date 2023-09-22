@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common.hpp"
+
 #include "utils/dnnl_query.hpp"
 
 dnnl_prop_kind_t query_prop_kind(const_dnnl_primitive_desc_t pd) {
@@ -48,6 +50,14 @@ const_dnnl_memory_desc_t query_md(
 
 const_dnnl_memory_desc_t query_md(const_dnnl_primitive_desc_t pd, int index) {
     return query_md(pd, dnnl_query_exec_arg_md, index);
+}
+
+const_dnnl_memory_desc_t query_md(const_dnnl_memory_t memory) {
+    const_dnnl_memory_desc_t md = nullptr;
+    auto st = dnnl_memory_get_memory_desc(memory, &md);
+    if (st != dnnl_success)
+        BENCHDNN_PRINT(0, "%s\n", "Error: querying md from memory failed");
+    return md;
 }
 
 dnnl_engine_t query_engine(

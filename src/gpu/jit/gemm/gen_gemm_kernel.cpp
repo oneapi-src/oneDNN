@@ -65,14 +65,14 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     strategy_.unroll[LoopM] = entry_->driverInfo.unroll[LoopM];
     strategy_.unroll[LoopN] = entry_->driverInfo.unroll[LoopN];
     parseStrategy(entry_->strategy, hw_, problem_, strategy_);
-    if (isPacked(problem_.A.layout) || isPacked(problem_.B.layout))
-        strategy_.panelCheck |= (hw_ >= ngen::HW::XeHPC);
+    strategy_.panelCheck
+            |= (isPacked(problem_.A.layout) || isPacked(problem_.B.layout));
     adjustStrategy(hw_, problem_, strategy_);
+    modifyStrategy(strategy_, aux_params_);
 
     // Disable global k parallelization if it wouldn't be used.
     if (strategy_.kParallel && k_ >= 0) {
-        auto k_min = aux_params_.k0;
-        if (strategy_.kParallelLocal) k_min *= strategy_.wg[LoopK];
+        auto k_min = aux_params_.k0 * aux_params_.wgK;
         if (k_ <= k_min) {
             strategy_.kParallel = false;
             strategy_.C.atomic = false;
@@ -81,7 +81,7 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     }
 
     // Always use variable beta for global k-parallel kernels.
-    if (strategy_.kParallel) problem_.beta_real = Scalar<double>();
+    if (strategy_.kParallel && !strategy_.fuseBeta) problem_.beta = Scalar();
 
     // Omit periodic barriers when k is small.
     if (strategy_.barrierFreq > 0 && k_ >= 0 && k_ < 2 * strategy_.barrierFreq)
@@ -94,15 +94,25 @@ status_t gen_gemm_kernel_desc_t::finalize() {
         if (wg_tile_m > 0 && wg_tile_n > 0) {
             dim_t thread_count = dim_t(utils::div_up(m_, wg_tile_m))
                     * utils::div_up(n_, wg_tile_n) * strategy_.wg[LoopM]
-                    * strategy_.wg[LoopN] * std::max(strategy_.wg[LoopK], 1);
+                    * strategy_.wg[LoopN];
+            if (!strategy_.kParallelVariable)
+                thread_count *= std::max(strategy_.wg[LoopK], 1);
             dim_t thread_gpu = eu_count_
                     * compute::device_info_t::threads_per_eu(
                             arch_, strategy_.GRFs > 128);
             if (thread_count <= thread_gpu) {
-                strategy_.persistent = false;
-                strategy_.cWalkOrder = WalkOrder::HW2D;
-                strategy_.blocking[LoopM] = 16777216;
-                strategy_.blocking[LoopN] = 16777216;
+                if (strategy_.kParallelVariable)
+                    strategy_.cWalkOrder = WalkOrder::SimpleLinear;
+                else if (strategy_.kParallel
+                        && (strategy_.fuseBeta || strategy_.fusePostOps)) {
+                    strategy_.persistent = false;
+                    strategy_.cWalkOrder = WalkOrder::SimpleLinear;
+                } else {
+                    strategy_.persistent = false;
+                    strategy_.cWalkOrder = WalkOrder::HW2D;
+                    strategy_.blocking[LoopM] = 16777216;
+                    strategy_.blocking[LoopN] = 16777216;
+                }
             }
         }
     }
@@ -250,8 +260,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
-    if (alpha == 1.0f) problem_.alpha_real = alpha;
-    if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
+    if (alpha == 1.0f) problem_.alpha = alpha;
+    if (beta == 0.0f || beta == 1.0f) problem_.beta = beta;
 
     auto status = transfer_post_ops(post_ops, swap_ab);
     if (status != status::success) return status;
@@ -331,8 +341,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     }
 
     auto block_k = entry_->driverInfo.blocking[LoopK];
-    if (block_k > 0 && k > block_k && beta != 1.0f)
-        problem_.beta_real = Scalar<double>();
+    if (block_k > 0 && k > block_k && beta != 1.0f) problem_.beta = Scalar();
 
     return finalize();
 }
@@ -394,8 +403,8 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     if (a_offset || b_offset) problem_.abOffset = ABOffset::Load;
     if (a_offset) problem_.aoPtrDims = 0;
     if (b_offset) problem_.boPtrDims = 0;
-    if (alpha == 1.0f) problem_.alpha_real = alpha;
-    if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
+    if (alpha == 1.0f) problem_.alpha = alpha;
+    if (beta == 0.0f || beta == 1.0f) problem_.beta = beta;
 
     auto status = transfer_post_ops(post_ops);
     if (status != status::success) return status;
@@ -525,6 +534,9 @@ void gen_gemm_kernel_t::init_interface() {
         if (problem.cOffset == COffset::Pre)
             interface_.newArgument("ldco", DataType::d);
     }
+
+    if (strategy.needsTempC(problem))
+        interface_.newArgument("temp_C", ExternalArgumentType::GlobalPtr);
     for (int i = 0; i < problem.postOps.len(); i++) {
         if (problem.postOps.entry_[i].kind != primitive_kind::binary) continue;
         auto bname = "binary" + std::to_string(i);
@@ -534,7 +546,8 @@ void gen_gemm_kernel_t::init_interface() {
             interface_.newArgument("ld" + bname, DataType::d);
     }
     interface_.newArgument("flags", DataType::ud);
-    if (strategy.kParallel || strategy.kParallelLocal)
+    if ((strategy.kParallel || strategy.kParallelLocal)
+            && !strategy.kParallelVariable)
         interface_.newArgument("k0", DataType::d);
     if (problem.batch == BatchMode::Strided) {
         if (problem.batchDims > 1) {
@@ -560,6 +573,11 @@ void gen_gemm_kernel_t::init_interface() {
             interface_.newArgument("recip_batch_size1", DataType::ud);
         }
     }
+    if (strategy.fuseBeta || strategy.fusePostOps)
+        interface_.newArgument("status", ExternalArgumentType::GlobalPtr,
+                GlobalAccessType::Stateless);
+    if (strategy.fuseBeta && strategy.kParallel)
+        interface_.newArgument("group_count_k", DataType::ud);
     if (strategy.linearOrder()) {
         interface_.newArgument("group_count_m", DataType::ud);
         interface_.newArgument("group_count_n", DataType::ud);
@@ -573,6 +591,12 @@ void gen_gemm_kernel_t::init_interface() {
     } else if (strategy.cWalkOrder == WalkOrder::Boustrophedon) {
         interface_.newArgument("bslice", DataType::d);
         interface_.newArgument("bthresh", DataType::d);
+    }
+    if (strategy.kParallelVariable) {
+        interface_.newArgument("k0", DataType::ud);
+        interface_.newArgument("k_parallel_start", DataType::ud);
+        interface_.newArgument("k_recip", DataType::ud);
+        if (strategy.fuseBeta) interface_.newArgument("k0_recip", DataType::ud);
     }
     if (strategy.persistent)
         interface_.newArgument("group_stride", DataType::ud);

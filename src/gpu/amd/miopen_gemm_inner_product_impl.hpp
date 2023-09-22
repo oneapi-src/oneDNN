@@ -18,8 +18,8 @@
 #ifndef GPU_AMD_MIOPEN_GEMM_INNER_PRODUCT_IMPL_HPP
 #define GPU_AMD_MIOPEN_GEMM_INNER_PRODUCT_IMPL_HPP
 
-#include <rocblas.h>
 #include <miopen/miopen.h>
+#include <rocblas/rocblas.h>
 
 #include "common/type_helpers.hpp"
 #include "gpu/amd/miopen_inner_product_impl.hpp"

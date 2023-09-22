@@ -1113,7 +1113,8 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
             if (jcp.nb_ow > 1 && cur_n_oi == 0) {
                 // cur_n_oi == 0 signifies beginning of new ow_block
                 // (or end of previous block)
-                const dim_t inp_lpad_region_shift = -label_cntr * jcp.ow_block
+                const dim_t inp_lpad_region_shift
+                        = static_cast<dim_t>(-label_cntr) * jcp.ow_block
                         * jcp.stride_w * in_ic_shift;
                 L(ow_block_jmp_table[label_cntr++]);
                 // harness passes shifted src pointer that does not take
@@ -1396,7 +1397,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
             }
         }
         memory_desc_t want_wei_md = weights_md;
-        memory_desc_init_by_tag(want_wei_md, wei_tag);
+        CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
 
         if (jcp.signed_input) {
             want_wei_md.extra.flags = 0
@@ -1603,7 +1604,8 @@ void jit_uni_x8s8s32x_fwd_kernel<isa>::init_scratchpad(
         const primitive_attr_t &attr) {
 
     const int mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
-    const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+    const dim_t scales_count
+            = mask == 0 ? 1 : static_cast<dim_t>(jcp.oc) * jcp.ngroups;
     dim_t count = scales_count == 1 ? (dim_t)8 : scales_count;
     scratchpad.book<float>(key_conv_adjusted_scales, count);
 }

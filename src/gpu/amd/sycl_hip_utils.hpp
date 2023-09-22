@@ -18,10 +18,10 @@
 #ifndef GPU_AMD_SYCL_HIP_UTILS_HPP
 #define GPU_AMD_SYCL_HIP_UTILS_HPP
 
-#include <rocblas.h>
 #include <stdexcept>
 #include "miopen/miopen.h"
 #include <hip/hip_runtime.h>
+#include <rocblas/rocblas.h>
 
 #include "dnnl_sycl.hpp"
 

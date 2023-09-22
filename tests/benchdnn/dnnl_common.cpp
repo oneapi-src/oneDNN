@@ -45,6 +45,8 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "utils/cold_cache.hpp"
+
 extern "C" dnnl_status_t dnnl_impl_notify_profiling_complete(
         dnnl_stream_t stream);
 
@@ -226,21 +228,6 @@ int test_persistent_cache_api(
     set_primitive_cache_capacity_without_clearing(old_capacity);
 
     return OK;
-}
-
-float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
-    switch (dt) {
-        case dnnl_f32: break;
-        case dnnl_f64: break;
-        case dnnl_bf16: value = (float)dnnl::impl::bfloat16_t(value); break;
-        case dnnl_f16: value = (float)dnnl::impl::float16_t(value); break;
-        case dnnl_s32:
-        case dnnl_s8:
-        case dnnl_u8: value = maybe_saturate(dt, value); break;
-        default: SAFE(FAIL, CRIT);
-    }
-
-    return value;
 }
 
 // Engine kind used to run oneDNN primitives for testing
@@ -428,8 +415,12 @@ void finalize() {
 
 inline int measure_perf_individual(timer::timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
+    cold_cache_t cold_cache(dnnl_args);
+
     t.reset();
     while (true) {
+        if (!cold_cache.update_dnnl_args(dnnl_args)) break;
+        t.start();
         DNN_SAFE(perf_func(stream, dnnl_args), WARN);
         t.stamp();
         if (should_stop(t)) break;
@@ -450,18 +441,20 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
     DNN_SAFE(perf_func(stream, dnnl_args), WARN);
     DNN_SAFE(dnnl_stream_wait(stream), CRIT);
 
+    cold_cache_t cold_cache(dnnl_args);
+
+    bool is_first_loop = true;
     int cur_batch_times
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
-
-    t.reset();
 
     // Nvidia/AMD don't support profiling.
     const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
     if (use_profiling) reset_gpu_profiling(stream);
 
-    bool is_first_loop = true;
+    t.reset();
     while (true) {
         for (int i = 0; i < cur_batch_times; i++) {
+            if (!cold_cache.update_dnnl_args(dnnl_args)) break;
             DNN_SAFE(perf_func(stream, dnnl_args), WARN);
         }
         DNN_SAFE(dnnl_stream_wait(stream), CRIT);
@@ -486,7 +479,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             t.stamp(cur_batch_times);
         }
 
-        if (should_stop(t)) break;
+        if (should_stop(t) || cold_cache.should_stop()) break;
 
         // Adjust cur_batch_times after the first batch run
         if (is_first_loop) {
@@ -502,7 +495,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         }
     }
 
-    notify_gpu_profiling_complete(stream);
+    if (use_profiling) notify_gpu_profiling_complete(stream);
 
     return OK;
 }
@@ -877,6 +870,52 @@ static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
     return OK;
 }
 
+int get_cpu_cache_size(size_t &cache_size) {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    using namespace dnnl::impl::cpu::platform;
+    static const auto L2_size = get_per_core_cache_size(2);
+    static const auto L3_size = get_per_core_cache_size(3);
+    static const auto num_cores = get_num_cores();
+    static const auto total_cache_size = (L2_size + L3_size) * num_cores;
+#else
+    // If functions are not available, just use 150 MiB.
+    static const auto total_cache_size = 150 * 1024 * 1024;
+#endif
+    cache_size = total_cache_size;
+    return OK;
+}
+
+int get_gpu_cache_size(size_t &cache_size) {
+    if (!is_gpu()) return OK;
+
+    static size_t _cache_size = 0;
+    if (_cache_size > 0) {
+        cache_size = _cache_size;
+        return OK;
+    }
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    auto eng = dnnl::engine(get_test_engine(), true);
+    cl_int status = CL_SUCCESS;
+    cl_device_id ocl_device = dnnl::ocl_interop::get_device(eng);
+
+    cl_ulong cache_sz = 0;
+    status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
+            sizeof(cl_ulong), &cache_sz, nullptr);
+    if (status != CL_SUCCESS) return FAIL;
+
+    _cache_size = (size_t)cache_sz;
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+    auto eng = dnnl::engine(get_test_engine(), true);
+    auto sycl_dev = dnnl::sycl_interop::get_device(eng);
+    _cache_size
+            = (size_t)sycl_dev
+                      .get_info<::sycl::info::device::global_mem_cache_size>();
+#endif
+    cache_size = _cache_size;
+    return OK;
+}
+
 struct check_mem_size_args_t {
     check_mem_size_args_t(const_dnnl_primitive_desc_t pd, bool want_input,
             bool add_ref_size = false)
@@ -1111,7 +1150,9 @@ int check_mem_size(const_dnnl_memory_desc_t md, res_t *res) {
     if (!mem_check) return OK;
 
     check_mem_size_args_t check_mem_size_args(nullptr, false, false);
-    check_mem_size_args.total_size_device = dnnl_memory_desc_get_size(md);
+    const auto md_size = dnnl_memory_desc_get_size(md);
+    check_mem_size_args.total_size_device = md_size;
+    check_mem_size_args.sizes.push_back(md_size);
 
     return check_total_size(check_mem_size_args, res);
 }

@@ -45,20 +45,32 @@ matmul_op::matmul_op(const std::vector<graph_tensor_ptr> &ins,
     bool is_int8 = utils::is_one_of(
             ins[0]->details_.dtype_, datatypes::u8, datatypes::s8);
     bool is_bf16 = ins[0]->details_.dtype_ == datatypes::bf16;
-    sc_dims expected_out_shape
-            = {merge_vec(matmul_core_op_t::get_batch_dims_impl(A_dims, B_dims),
-                    {A_dims[A_dims.size() - (trans_a ? 1 : 2)],
-                            B_dims[B_dims.size() - (trans_b ? 2 : 1)]})};
+    bool is_low_precision_fp = utils::is_one_of(
+            ins[0]->details_.dtype_, datatypes::bf16, datatypes::f16);
+    sc_dims output_shape;
+    if (!is_dynamic()) {
+        output_shape = {merge_vec(
+                matmul_core_op_t::get_batch_dims_with_bc_impl(A_dims, B_dims),
+                {A_dims[A_dims.size() - (trans_a ? 1 : 2)],
+                        B_dims[B_dims.size() - (trans_b ? 2 : 1)]})};
+    } else {
+        output_shape = {
+                merge_vec(matmul_core_op_t::get_batch_dims_impl(A_dims, B_dims),
+                        {A_dims[A_dims.size() - (trans_a ? 1 : 2)],
+                                B_dims[B_dims.size() - (trans_b ? 2 : 1)]})};
+    }
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this,
-                sc_data_format_t(), expected_out_shape,
+                sc_data_format_t(), output_shape,
                 is_int8 ? datatypes::s32
-                        : (is_bf16 ? datatypes::bf16 : datatypes::f32)));
+                        : (is_low_precision_fp ? (
+                                   is_bf16 ? datatypes::bf16 : datatypes::f16)
+                                               : datatypes::f32)));
     } else {
         info_.outputs_ = outs;
         if (!is_dynamic()) {
             COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
-                            == expected_out_shape,
+                            == output_shape,
                     "Bad out dims");
         }
     }
@@ -129,6 +141,8 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // used for mmm_core
     bool transposed_a = attrs.get_or_else("transpose_a", false);
     bool transposed_b = attrs.get_or_else("transpose_b", false);
+    std::vector<int> post_rd_axis
+            = attrs.get_or_else("post_rd_axis", std::vector<int> {});
     transed_matmul(graph, attrs, ins->get_outputs()[0], ins->get_outputs()[1],
             trans0, trans1);
 
@@ -141,6 +155,17 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                         && outputs[0]->details_.dtype_ == datatypes::bf16,
                 "All inputs should have same data type.")
         is_bf16 = true;
+    }
+
+    bool is_f16 = false;
+    if (inputs[0]->details_.dtype_ == datatypes::f16
+            || inputs[1]->details_.dtype_ == datatypes::f16
+            || outputs[0]->details_.dtype_ == datatypes::f16) {
+        COMPILE_ASSERT(inputs[0]->details_.dtype_ == datatypes::f16
+                        && inputs[1]->details_.dtype_ == datatypes::f16
+                        && outputs[0]->details_.dtype_ == datatypes::f16,
+                "All inputs should have same data type.")
+        is_f16 = true;
     }
 
     // For Nd*2d and 2d*Nd non-dynamic cases, ND input will be reshaped into 2D
@@ -157,8 +182,14 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             auto reshape_node = graph->make("tensor_view", {trans0},
                     {graph_tensor::make(reshape_dest, sc_data_format_t(),
                             trans0->details_.dtype_)},
-                    {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
+                    {{"shape", reshape_dest}, {"format", sc_data_format_t()},
+                            {"forbid_penetrate", true}});
             trans0 = reshape_node->get_outputs()[0];
+            if (post_rd_axis.size() == 1
+                    && post_rd_axis.at(0)
+                            == static_cast<int>(trans0_plain_dims.size()) - 1) {
+                post_rd_axis.at(0) = 1;
+            }
         }
         // check 2d*Nd cases
         if (trans0_plain_dims.size() == 2 && trans1_plain_dims.size() > 2) {
@@ -174,7 +205,8 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             sc_op_ptr reshape_node = graph->make("tensor_view", {trans1},
                     {graph_tensor::make(reshape_dest, reshape_fmt,
                             trans1->details_.dtype_)},
-                    {{"shape", reshape_dest}, {"format", reshape_fmt}});
+                    {{"shape", reshape_dest}, {"format", reshape_fmt},
+                            {"forbid_penetrate", true}});
             trans1 = reshape_node->get_outputs()[0];
         }
     }
@@ -200,8 +232,11 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             matmul = graph->make("managed_matmul_core", {trans0, trans1}, {},
                     {{"transposed_a", transposed_a},
                             {"transposed_b", transposed_b},
+                            {"post_rd_axis", post_rd_axis},
                             {attr_keys::output_channel_axis,
-                                    output_channel_axis}});
+                                    output_channel_axis},
+                            {"post_binary",
+                                    attrs.get_or_else("post_binary", false)}});
         } else {
             matmul = graph->make("matmul_core", {trans0, trans1}, {},
                     {{attr_keys::output_channel_axis, output_channel_axis},
@@ -235,18 +270,19 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                     {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
         }
     }
-    if (is_bf16) {
+    if (is_bf16 || is_f16) {
         matmul = graph->make("cast", matmul->get_outputs(), {},
-                {{"dtype", datatypes::bf16}});
+                {{"dtype", inputs[0]->details_.dtype_}});
     }
 
     // check optional input lotgical tensor: bias
     if (info_.inputs_.size() == 3) {
         // create bias op by using broadcast op
-        // considering: {bs0, bs1, .., M, N} and {M,N}, for bias, it shape is
-        // equal with N.
-        if (is_bf16) {
-            COMPILE_ASSERT(inputs[2]->details_.dtype_ == datatypes::bf16,
+        // considering: {bs0, bs1, .., M, N} and {M,N}, for bias, it shape
+        // is equal with N.
+        if (is_bf16 || is_f16) {
+            COMPILE_ASSERT(
+                    inputs[2]->details_.dtype_ == inputs[0]->details_.dtype_,
                     "All inputs should have same data type.")
         }
         int last_axis = outputs[0]->details_.get_plain_dims().size() - 1;

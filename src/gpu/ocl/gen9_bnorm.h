@@ -20,7 +20,7 @@
 #include "gpu/ocl/ocl_types.h"
 
 #define IS_IC_EQ_8 (IC == 8)
-#define HAS_IC_TAIL (IC != IC16)
+#define HAS_IC_TAIL (IC != PADDED_IC)
 #define HAS_STAT_SP_BLOCK_TAIL (SP % STAT_SP_BLOCK)
 #define HAS_UPDATE_SP_BLOCK_TAIL (SP % UPDATE_SP_BLOCK)
 
@@ -40,7 +40,7 @@
 #define HAS_SP_TAIL (SP != SP_TAIL)
 #endif // NHWC_OPTIMIZED
 
-#define IC_BLOCK_SGROUPS (IC_BLOCK / 16)
+#define IC_BLOCK_SGROUPS (IC_BLOCK / SG_SIZE)
 #define IC_TAIL_SGROUPS (IC_BLOCK_SGROUPS % VECT_SIZE)
 #define IC_VECT_SGROUPS (IC_BLOCK_SGROUPS - IC_TAIL_SGROUPS)
 #define HAS_IC_VECT_TAIL (IC_TAIL_SGROUPS > 0)
@@ -178,13 +178,14 @@ void gen9_calc_fused_reduction(volatile __global atomic_float *dst,
     const int simd_id = get_sub_group_local_id();
 
     const int group_size = GWS_LWS1_CALC * GWS_LWS2_CALC;
-    const int sg_group_id = get_local_id(0) / 16;
+    const int sg_group_id = get_local_id(0) / SG_SIZE;
     const int local_id = get_local_id(1);
 
     if (local_id > 0) {
         for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
             const int slm_offset = CALC_SLM_LINE_SIZE * local_id
-                    + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16 + simd_id;
+                    + REDUCE_NUM_SGROUPS * SG_SIZE * sg_group_id + sg * SG_SIZE
+                    + simd_id;
             local_sum[slm_offset] = sum[sg];
 #if USE_STATS_ONE_PASS
             local_sum_sq[slm_offset] = sum_sq[sg];
@@ -197,8 +198,8 @@ void gen9_calc_fused_reduction(volatile __global atomic_float *dst,
         for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
             for (int gr_id = 1; gr_id < group_size; ++gr_id) {
                 const int off_local = CALC_SLM_LINE_SIZE * gr_id
-                        + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16
-                        + simd_id;
+                        + REDUCE_NUM_SGROUPS * SG_SIZE * sg_group_id
+                        + sg * SG_SIZE + simd_id;
 #if USE_STATS_ONE_PASS
                 SUM_DATA_T tmp = local_sum[off_local];
                 SUM_DATA_T tmp_sq = local_sum_sq[off_local];
@@ -210,7 +211,7 @@ void gen9_calc_fused_reduction(volatile __global atomic_float *dst,
                 sum[sg] += local_sum[off_local];
 #endif
             }
-            const int offset = dst_offset + sg * 16 + simd_id;
+            const int offset = dst_offset + sg * SG_SIZE + simd_id;
 #if HAS_IC_TAIL
             if (offset < IC) {
 #endif
@@ -242,12 +243,13 @@ void gen9_calc_fused_reduction(volatile __global atomic_float *diff_scale,
 
     const int simd_id = get_sub_group_local_id();
     const int group_size = GWS_LWS1_CALC * GWS_LWS2_CALC;
-    const int sg_group_id = get_local_id(0) / 16;
+    const int sg_group_id = get_local_id(0) / SG_SIZE;
     const int local_id = get_local_id(1);
 
     for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
         const int slm_offset = CALC_SLM_LINE_SIZE * local_id
-                + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16 + simd_id;
+                + REDUCE_NUM_SGROUPS * SG_SIZE * sg_group_id + sg * SG_SIZE
+                + simd_id;
 #if HAS_IC_VECT_TAIL && NHWC_OPTIMIZED
         if (sg >= IC_VECT_SGROUPS) {
             local_gamma[slm_offset] = diff_gamma_tail[sg - IC_VECT_SGROUPS];
@@ -269,12 +271,12 @@ void gen9_calc_fused_reduction(volatile __global atomic_float *diff_scale,
 
             for (int gr_id = 0; gr_id < group_size; ++gr_id) {
                 const int off_local = CALC_SLM_LINE_SIZE * gr_id
-                        + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16
-                        + simd_id;
+                        + REDUCE_NUM_SGROUPS * SG_SIZE * sg_group_id
+                        + sg * SG_SIZE + simd_id;
                 d_gamma += local_gamma[off_local];
                 d_beta += local_beta[off_local];
             }
-            const int offset = dst_offset + sg * 16 + simd_id;
+            const int offset = dst_offset + sg * SG_SIZE + simd_id;
 #if HAS_IC_TAIL
             if (offset < IC)
 #endif

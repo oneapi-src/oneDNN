@@ -49,7 +49,6 @@
 #if defined(_WIN32) && !defined(__GNUC__)
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
-#define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
 
 #if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
@@ -68,9 +67,9 @@ enum { CRIT = 1, WARN = 2 };
         int status__ = (f); \
         if (status__ != OK) { \
             if (s == CRIT || s == WARN) { \
-                fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
-                        __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
-                        status__); \
+                BENCHDNN_PRINT(0, \
+                        "Error: Fuction '%s' at (%s:%d) returned '%d'\n", \
+                        __FUNCTION__, __FILE__, __LINE__, status__); \
                 fflush(0); \
                 if (s == CRIT) exit(1); \
             } \
@@ -82,8 +81,9 @@ enum { CRIT = 1, WARN = 2 };
     do { \
         int status__ = (f); \
         if (status__ != OK) { \
-            fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
-                    __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status__); \
+            BENCHDNN_PRINT(0, \
+                    "Error: Fuction '%s' at (%s:%d) returned '%d'\n", \
+                    __FUNCTION__, __FILE__, __LINE__, status__); \
             fflush(0); \
             exit(1); \
         } \

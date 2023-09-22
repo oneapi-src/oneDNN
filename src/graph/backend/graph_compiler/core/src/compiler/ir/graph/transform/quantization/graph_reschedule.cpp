@@ -25,13 +25,22 @@
 #include <compiler/ir/graph/visitor.hpp>
 #include <ops/convolution.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/pooling.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
+#include <ops/reshape.hpp>
 #include <util/math_utils.hpp>
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
 namespace quantize {
+bool reschedule_forbid_op(const sc_op_ptr &node) {
+    // transpose could be processed as it only changes the order of dim.
+    return (node->isa<ops::dynamic_reshape_op>()
+                   || node->isa<tensor_view_op_t>() || node->isa<reshape_op_t>()
+                   || node->isa<concat_op_t>() || node->isa<split_op_t>())
+            && node->attrs_.get_or_else(attr_keys::per_channel, false);
+}
 void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::bfs();
     vis.visit_graph(mgr, [&](op_visitor_t *vis, const sc_op_ptr &node) {
@@ -66,7 +75,8 @@ void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {
                 if ((cld_node.second->isa<op_traits::may_quantize_t>()
                             && cld_node.second
                                        ->dyn_cast<op_traits::may_quantize_t>()
-                                       ->should_quantized_)) {
+                                       ->should_quantized_
+                            && !reschedule_forbid_op(cld_node.second))) {
                     cld_node.second->replace_input(
                             cld_node.first, dequantize_input);
                     use_count--;
@@ -146,6 +156,7 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                     auto cur_parent = node;
                     while (cur_child.second
                                     ->dyn_cast<op_traits::may_quantize_t>()
+                            && !cur_child.second->isa<concat_op_t>()
                             // reserve dynamic version here for debug.
                             //     &&
                             //     !cur_child.second->isa<movement_op_t>())
@@ -168,11 +179,12 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                             : cur_parent->get_outputs()[0]->uses_;
                     // TODO(yifei): overcome the constraints here
                     for (const auto &use : cur_parent_uses) {
-                        COMPILE_ASSERT(!use.second->dyn_cast<
-                                               op_traits::may_quantize_t>(),
+                        COMPILE_ASSERT(use.second->isa<concat_op_t>()
+                                        || !use.second->dyn_cast<
+                                                op_traits::may_quantize_t>(),
                                 "may_quantize op with multiple consumers "
                                 "shouldn't have any of may_quantize "
-                                "consumers.");
+                                "consumers (except concat).");
                     }
                     sc_op_ptr dequantize_node;
                     if (is_dyn_quan) {
@@ -248,19 +260,25 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                     }
                     vis->update_state_for_visited(dequantize_node);
                 }
-            } else {
+            } else if (!reschedule_forbid_op(node)) {
                 // align output datatype with input
                 for (auto &out : node->get_outputs()) {
-                    out->details_.dtype_
-                            = node->get_inputs()[0]->details_.dtype_;
+                    if (node->isa<pooling_avg_op_t>()) {
+                        node->get_outputs()[0]->details_.dtype_.type_code_
+                                = sc_data_etype::F32;
+                    } else {
+                        out->details_.dtype_
+                                = node->get_inputs()[0]->details_.dtype_;
+                    }
                     // insert dequantize if last op of pattern is output op,
                     // for pattern like `qua->deq->reshape->output`
                     std::vector<std::pair<int, sc_op_weak_ptr_t>> uses
                             = out->uses_;
                     for (auto &use : uses) {
                         auto cld_op = use.second.lock();
-                        if (!(cld_op->dyn_cast<op_traits::may_quantize_t>()
-                                    && cld_op->get_outputs().size() == 1)
+                        if ((!(cld_op->dyn_cast<op_traits::may_quantize_t>()
+                                     && cld_op->get_outputs().size() == 1)
+                                    || reschedule_forbid_op(cld_op))
                                 && ((node->attrs_.has_key(attr_keys::scales)
                                             && node->attrs_.has_key(
                                                     attr_keys::zero_points))

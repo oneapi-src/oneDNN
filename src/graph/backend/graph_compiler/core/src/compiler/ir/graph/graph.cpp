@@ -22,6 +22,7 @@
 #include "dynamic_lower_info.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/dynamic_internal_info.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_data.hpp>
@@ -78,7 +79,9 @@ sc_op_ptr op_traits::auto_copyable_t::copy(
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
     auto ths = dynamic_cast<sc_op *>(this);
-    return mgr.make(ths->op_name_, ins, outs, ths->attrs_);
+    auto ret = mgr.make(ths->op_name_, ins, outs, ths->attrs_);
+    ret->copy_dispatch_key_set_from_op(ths->shared_from_this());
+    return ret;
 }
 
 std::vector<graph_tensor_ptr> copy_logical_tsr(
@@ -239,24 +242,23 @@ void logical_tensor_t::internal_update() {
     if (strides_.empty()) {
         strides_ = compute_dense_stride(dims_);
     } else {
-        COMPILE_ASSERT(check_stride_validity(is_dynamic_, dims_, strides_),
+        COMPILE_ASSERT(check_stride_validity(is_dynamic(), dims_, strides_),
                 "Specified strides value invalid or not consistent with "
                 "real(blocking) dims.")
     }
 }
 
-void logical_tensor_t::dynamic_update() {
-    is_dynamic_ = !std::all_of(plain_dims_.begin(), plain_dims_.end(),
+bool logical_tensor_t::is_dynamic() const {
+    return !std::all_of(plain_dims_.begin(), plain_dims_.end(),
             [](const sc_dim &dim) { return !is_dynamic_dim(dim); });
 }
 
 // sets the logical dims in plain format
 void logical_tensor_t::set_plain_dims(const sc_dims &plain_dims) {
-    COMPILE_ASSERT(is_dynamic_ || is_dense(),
+    COMPILE_ASSERT(is_dynamic() || is_dense(),
             "Forbid update format on a strided tensor.");
     strides_.clear();
     plain_dims_ = plain_dims;
-    dynamic_update();
     internal_update();
 }
 
@@ -278,7 +280,7 @@ void logical_tensor_t::set_format(const sc_data_format_t &newv) {
 }
 
 void logical_tensor_t::set_strides(const sc_dims &strides) {
-    COMPILE_ASSERT(check_stride_validity(is_dynamic_, dims_, strides),
+    COMPILE_ASSERT(check_stride_validity(is_dynamic(), dims_, strides),
             "Specified strides value invalid or not consistent with "
             "real(blocking) dims.")
     strides_ = strides;
@@ -320,7 +322,11 @@ size_t logical_tensor_t::get_blocking_byte_size() const {
 
 bool logical_tensor_t::is_dense() {
     if (strides_.empty()) { return true; }
-    if (is_dynamic_) { return true; }
+    if (is_dynamic()) { return true; }
+    if (std::any_of(plain_dims_.begin(), plain_dims_.end(),
+                [](const sc_dim &d) { return d == 0; })) {
+        return true;
+    }
     assert(strides_.size() == dims_.size());
     if (strides_.back() != 1) { return false; }
     for (int i = dims_.size() - 2; i >= 0; --i) {
@@ -330,14 +336,18 @@ bool logical_tensor_t::is_dense() {
 }
 
 std::vector<expr> logical_tensor_t::get_strides_expr(sc_graph_t &g) const {
-    return is_dynamic_ ? dims_to_dense_stride(get_blocking_dims_expr(g))
-                       : g.dims_to_expr(get_strides());
+    return is_dynamic() ? dims_to_dense_stride(get_blocking_dims_expr(g))
+                        : g.dims_to_expr(get_strides());
 }
 
 sc_dims logical_tensor_t::compute_dense_stride(const sc_dims &dims) {
     sc_dims strides(dims.size(), 1);
     for (int i = dims.size() - 2; i >= 0; --i) {
-        strides[i] = dims[i + 1] * strides[i + 1];
+        if (dims[i + 1] == 0) {
+            strides[i] = strides[i + 1];
+        } else {
+            strides[i] = dims[i + 1] * strides[i + 1];
+        }
     }
     return strides;
 }
@@ -350,7 +360,6 @@ void logical_tensor_t::to_string(std::ostream &os) {
 size_t logical_tensor_t::hash() const {
     size_t seed = 0;
     hash_combine(seed, static_cast<uint64_t>(dtype_));
-    hash_combine(seed, static_cast<uint64_t>(is_dynamic_));
     hash_combine(seed, plain_dims_);
     hash_combine(seed, dims_);
     hash_combine(seed, strides_);
@@ -393,11 +402,16 @@ graph_tensor_ptr graph_tensor::copy() {
     return std::make_shared<graph_tensor>(producer_owner_, details_);
 }
 
-void sc_op::replace_input(size_t index, const graph_tensor_ptr &new_input) {
-    assert(index < info_.inputs_.size());
-    assert(new_input->details_.is_dynamic()
-            || get_dims_product(info_.inputs_[index]->details_.get_plain_dims())
-                    == get_dims_product(new_input->details_.get_plain_dims()));
+void sc_op::replace_input(size_t index, const graph_tensor_ptr &new_input,
+        const bool skip_shape_check) {
+    if (!skip_shape_check) {
+        assert(index < info_.inputs_.size());
+        assert(new_input->details_.is_dynamic()
+                || get_dims_product(
+                           info_.inputs_[index]->details_.get_plain_dims())
+                        == get_dims_product(
+                                new_input->details_.get_plain_dims()));
+    }
     info_.inputs_[index]->detach_use(shared_from_this(), index);
     info_.inputs_[index] = new_input;
     new_input->attach_use(shared_from_this(), index);
@@ -447,6 +461,11 @@ dispatch_set_ptr &sc_op::get_dispatch_key_set() {
         info_.dispatch_key_set_ = std::make_shared<dispatch_key_set_t>();
     }
     return info_.dispatch_key_set_;
+}
+
+dispatch_set_ptr sc_op::get_internal_dispatch_key_set(const context_ptr &ctx) {
+    throw std::runtime_error(
+            "Internal dispatch key set should be implemented by concrete op.");
 }
 
 void sc_op::copy_dispatch_key_set_from_op(const sc_op_ptr &other) {
@@ -523,11 +542,14 @@ sc_graph_t &sc_graph_t::operator=(sc_graph_t &&other) {
     return *this;
 }
 
-size_t sc_graph_t::hash_contents() const {
+size_t sc_graph_t::hash_contents(
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
     size_t seed = 0;
+    hash_combine(seed, attrs_.get_or_else("fpmath_mode", 0));
     op_visitor_t vis = op_visitor_t::bfs_topology_sort(this->ops_.size());
     vis.visit_graph(*this, [&](op_visitor_t *vis, const sc_op_ptr &op) {
-        hash_combine(seed, op->hash_contents());
+        hash_combine(seed, op->hash_contents(filter));
     });
     return seed;
 }
@@ -766,12 +788,29 @@ std::unordered_set<sc_dim> sc_graph_t::get_external_dynamic_vars() {
     return ext_vars;
 }
 
-bool sc_op::compare_contents(const sc_op *other) const {
+bool sc_graph_t::need_dynamic_internal_query() {
+    return !std::all_of(ops_.begin(), ops_.end(), [](const sc_op_ptr &op) {
+        return !op->need_dynamic_internal_query();
+    });
+}
+
+bool sc_op::need_dynamic_internal_query() {
+    bool ret = need_dynamic_internal_query_impl();
+    if (ret && !info_.internal_info_) {
+        info_.internal_info_ = std::make_shared<dyn_internal_info_t>();
+    }
+    return ret;
+}
+
+bool sc_op::compare_contents(const sc_op *other, // NOLINT
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
     if (op_name_ != other->op_name_) { return false; }
     int numattrs = 0, othernumattrs = 0;
     auto &othermap = other->attrs_.as_map();
     for (auto &kv : attrs_.as_map()) {
         if (utils::string_startswith(kv.first, "temp.")) { continue; }
+        if (filter && !filter(this, kv.first)) { continue; }
         numattrs++;
         auto otherkv = othermap.find(kv.first);
         if (otherkv == othermap.end()) { return false; }
@@ -779,6 +818,7 @@ bool sc_op::compare_contents(const sc_op *other) const {
     }
     for (auto &kv : othermap) {
         if (utils::string_startswith(kv.first, "temp.")) { continue; }
+        if (filter && !filter(this, kv.first)) { continue; }
         othernumattrs++;
     }
     if (numattrs != othernumattrs) { return false; }
@@ -786,23 +826,31 @@ bool sc_op::compare_contents(const sc_op *other) const {
     return true;
 }
 
-size_t sc_op::hash_contents() const {
+size_t sc_op::standard_hash_contents(const sc_op *p,
+        const std::function<bool(const sc_op *, const std::string &)> &filter) {
     size_t seed = 0;
-    for (auto &in : info_.inputs_) {
+    for (auto &in : p->info_.inputs_) {
         hash_combine(seed, in->details_.hash());
     }
-    for (auto &out : info_.outputs_) {
+    for (auto &out : p->info_.outputs_) {
         hash_combine(seed, out->details_.hash());
     }
-    hash_combine(seed, this->op_name_);
-    for (auto &kv : attrs_.as_map()) {
+    hash_combine(seed, p->op_name_);
+    for (auto &kv : p->attrs_.as_map()) {
         if (utils::string_startswith(kv.first, "temp.")) { continue; }
+        if (filter && !filter(p, kv.first)) { continue; }
         // To hash unordered_map, use `XOR`, which satisfies commutative law.
         // Otherwise, for ordered containers (like arrays), use `hash_combine`
         // to distinguish result from the differnt sequence order.
         if (!kv.second.empty()) { seed ^= kv.second.hash(); }
     }
     return seed;
+}
+
+size_t sc_op::hash_contents( // NOLINT
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
+    return standard_hash_contents(this, filter);
 }
 
 static std::unordered_map<std::string, op_factory_func> &get_op_factory_map() {
@@ -866,6 +914,7 @@ expr tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
             nullptr);
     tsr->attr().set(
             attr_keys::plain_dims, graph.dims_to_expr(tsrd.get_plain_dims()));
+    if (graph.is_dynamic()) { tsr->attr().set(attr_keys::always_trans, true); }
     return tsr;
 }
 

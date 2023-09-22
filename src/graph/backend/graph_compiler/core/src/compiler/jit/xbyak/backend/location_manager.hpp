@@ -127,9 +127,6 @@ public:
     // get operand addr of SIB structured for amx load/store
     operand get_operand_sib(
             const expr_c &base, const expr_c &indx, const expr_c &disp);
-    // get operand for avx mask reg
-    operand get_operand_avx_mask(
-            const operand &op, const x86_64::cpu_data_type &cpu_dtype);
 
     //--------------------------------------------------------------------------
     // MISC. interface

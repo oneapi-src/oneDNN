@@ -161,12 +161,17 @@ void normalize_common_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                 "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
         inputs0 = cast0->get_outputs()[0];
         if (use_affine) {
-            auto cast1 = graph->make(
-                    "cast", {inputs[1]}, {}, {{"dtype", datatypes::f32}});
-            auto cast2 = graph->make(
-                    "cast", {inputs[2]}, {}, {{"dtype", datatypes::f32}});
-            inputs1 = cast1->get_outputs()[0];
-            inputs2 = cast2->get_outputs()[0];
+            // in case inputs0 and inputs1,2 have different datatypes
+            if (inputs[1]->details_.dtype_.is_etype(sc_data_etype::BF16)) {
+                auto cast1 = graph->make(
+                        "cast", {inputs[1]}, {}, {{"dtype", datatypes::f32}});
+                inputs1 = cast1->get_outputs()[0];
+            }
+            if (inputs[2]->details_.dtype_.is_etype(sc_data_etype::BF16)) {
+                auto cast2 = graph->make(
+                        "cast", {inputs[2]}, {}, {{"dtype", datatypes::f32}});
+                inputs2 = cast2->get_outputs()[0];
+            }
         }
     }
     // x^2

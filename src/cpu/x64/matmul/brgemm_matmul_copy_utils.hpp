@@ -36,6 +36,7 @@ struct jit_brgemm_matmul_copy_b_t {
         dim_t current_K_start;
         dim_t current_K_iters;
         dim_t current_N_blk;
+        dim_t dynamic_src_stride;
     };
 
     virtual void operator()(ctx_t *ctx) = 0;

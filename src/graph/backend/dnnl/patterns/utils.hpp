@@ -222,6 +222,7 @@ inline graph::utils::pm::repetition_t *post_quantized_add(
     auto postop_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
     graph::utils::pm::pb_op_t *pop
             = postop_graph->append_alternation(get_unary_binary_ops());
+    pop->allow_internal_inputs();
     postop_graph->create_input_port(0, pop, 0);
     postop_graph->create_input_port(1, pop, 1);
     postop_graph->create_output_port(0, pop, 0);
@@ -229,6 +230,40 @@ inline graph::utils::pm::repetition_t *post_quantized_add(
     auto prep = pgraph->append_repetition(postop_graph, {0, 0}, 0,
             MAX_REPETITION, graph::utils::pm::in_edges_t {in_edge(0, padd, 0)});
     return prep;
+}
+
+/*
+    if optional_qout is true:
+        pattern is [ [Multiply / Divide]* - Quantize]*
+    else:
+        pattern is [Multiply / Divide]* - Quantize
+*/
+inline graph::utils::pm::pb_node_t *optional_smooth_quant(
+        const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
+        graph::utils::pm::pb_node_t *input, bool optional_qout = false) {
+    auto optional_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
+    graph::utils::pm::pb_op_t *smooth_op = optional_graph->append_alternation(
+            {graph::op_kind::Multiply, graph::op_kind::Divide});
+    optional_graph->create_input_port(0, smooth_op, 0);
+    optional_graph->create_output_port(0, smooth_op, 0);
+    auto popt_qout_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
+    auto p_curr_graph = optional_qout ? popt_qout_graph : pgraph;
+    auto opt = optional_qout
+            ? p_curr_graph->append_optional(optional_graph)
+            : p_curr_graph->append_optional(optional_graph,
+                    graph::utils::pm::in_edges_t {in_edge(0, input, 0)});
+    graph::utils::pm::pb_op_t *quant_out
+            = p_curr_graph->append_op(graph::op_kind::Quantize,
+                    graph::utils::pm::in_edges_t {in_edge(0, opt, 0)});
+    if (optional_qout) {
+        p_curr_graph->create_input_port(0, opt, 0);
+        p_curr_graph->create_output_port(0, quant_out, 0);
+        auto opt_qout = pgraph->append_optional(p_curr_graph,
+                graph::utils::pm::in_edges_t {in_edge(0, input, 0)});
+        return opt_qout;
+    } else {
+        return quant_out;
+    }
 }
 
 } // namespace pattern

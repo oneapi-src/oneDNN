@@ -78,6 +78,11 @@ static sc_data_type_t check_and_infer_out_dtype(
                 "wei_dtype expected to be bf16 when src_dtype is bf16, but got "
                         << wei_dtype << ".");
         return datatypes::bf16;
+    } else if (src_dtype == datatypes::f16) {
+        COMPILE_ASSERT(wei_dtype == datatypes::f16,
+                "wei_dtype expected to be f16 when src_dtype is f16, but got "
+                        << wei_dtype << ".");
+        return datatypes::f16;
     } else {
         COMPILE_ASSERT(
                 src_dtype == datatypes::f32 && wei_dtype == datatypes::f32,
@@ -122,11 +127,26 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     sc_dims input_dims = info_.inputs_[0]->details_.get_plain_dims();
     sc_dims filter_dims = info_.inputs_[1]->details_.get_plain_dims();
     size_t ndims = input_dims.size();
+    COMPILE_ASSERT(
+            ndims >= 3, "conv ndims should >= 3, but got " << ndims << ".");
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
     auto strides = attrs_.get<sc_dims>("strides");
     sc_dims dilations = get_dilations(attrs_);
+    sc_dim groups = attrs_.get_or_else("groups", 1);
+    auto ic = data_format == "NXC" ? input_dims[ndims - 1] : input_dims[1];
+    auto oc = data_format == "NXC" ? filter_dims[ndims - 1] : filter_dims[0];
+    auto kic = data_format == "NXC" ? filter_dims[ndims - 2] : filter_dims[1];
+    COMPILE_ASSERT(ic % groups == 0 && oc % groups == 0,
+            "input channel and output channel must both be divisible by "
+            "groups, but got ic("
+                    << ic << "), oc(" << oc << "), groups(" << groups << ").");
+    COMPILE_ASSERT(ic / groups == kic,
+            "ic/g should be equal to filter_ic, but got "
+                    << ic / groups << " vs " << kic << ".");
+    COMPILE_ASSERT((groups == 1) || (groups > 1 && ic != groups),
+            "depthwise conv is not support yet!");
     if (attrs_.has_key("auto_pad")) {
         auto pad_type = attrs_.get<std::string>("auto_pad");
         if (pad_type == "VALID") {
@@ -157,7 +177,8 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     // we must infer_out_dims even when pad_type is SAME_UPPER or
     // SAME_LOWER, because output shape will be different from inputs shape
     // when stride > 1
-    auto expected_out_shape = infer_out_dims(get_owner_graph(), input_dims,
+    auto expected_out_shape = infer_out_dims(
+            info_.inputs_[0]->producer_owner_->get_owner_graph(), input_dims,
             filter_dims, pads_begin, pads_end, strides, dilations, data_format,
             filter_format);
     auto expected_out_dtype
@@ -167,6 +188,8 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this,
                 sc_data_format_t(), expected_out_shape, expected_out_dtype));
     } else {
+        // skip check when is dynamic
+        if (is_dynamic()) return;
         COMPILE_ASSERT(
                 info_.outputs_.size() == 1, "convolution expects 1 output.");
         COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
@@ -186,7 +209,8 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     sc_op_ptr conv, graph_out;
     graph_tensor_ptr input = inputs[0], filter = inputs[1];
 
-    bool is_bf16 = input->details_.dtype_ == datatypes::bf16;
+    bool is_low_precision_fp = utils::is_one_of(
+            input->details_.dtype_, datatypes::bf16, datatypes::f16);
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
@@ -219,11 +243,6 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     }
 
     conv = graph->make("conv_fwd_core", {input, filter}, {}, attrs);
-    if (is_bf16) {
-        conv = graph->make(
-                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
-    }
-
     if (data_format == "NXC") {
         // conv_fwd_core's output is with NCX plain shape
         // need to permute NCX to NXC
@@ -236,12 +255,17 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                                       : sc_data_format_t::NHWC()}});
     }
 
+    if (is_low_precision_fp) {
+        conv = graph->make("cast", conv->get_outputs(), {},
+                {{"dtype", input->details_.dtype_}});
+    }
+
     // add bias
     if (info_.inputs_.size() == 3) {
         COMPILE_ASSERT(inputs[2]->details_.get_plain_dims().size() == 1,
                 "Convolution op's bias shall be 1D tensor.")
-        if (is_bf16) {
-            COMPILE_ASSERT(inputs[2]->details_.dtype_ == datatypes::bf16,
+        if (is_low_precision_fp) {
+            COMPILE_ASSERT(inputs[2]->details_.dtype_ == input->details_.dtype_,
                     "Bias should have the same data type as input and "
                     "filter.")
         }
@@ -302,7 +326,8 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     sc_op_ptr conv, graph_out;
     graph_tensor_ptr output_delta = inputs[0], filter = inputs[1];
 
-    bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
+    bool is_low_precision_fp = utils::is_one_of(
+            inputs[0]->details_.dtype_, datatypes::bf16, datatypes::f16);
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
@@ -371,9 +396,9 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                 "conv_bwd_data_core", {output_delta, filter}, {}, attrs);
     }
 
-    if (is_bf16) {
-        conv = graph->make(
-                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+    if (is_low_precision_fp) {
+        conv = graph->make("cast", conv->get_outputs(), {},
+                {{"dtype", inputs[0]->details_.dtype_}});
     }
 
     if (data_format == "NXC") {
@@ -430,7 +455,8 @@ void conv_bwd_weight_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     sc_op_ptr conv, graph_out;
     graph_tensor_ptr input = inputs[0], output_delta = inputs[1];
 
-    bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
+    bool is_low_precision_fp = utils::is_one_of(
+            inputs[0]->details_.dtype_, datatypes::bf16, datatypes::f16);
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
@@ -464,9 +490,9 @@ void conv_bwd_weight_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     conv = graph->make(
             "conv_bwd_weight_core", {input, output_delta}, {}, attrs);
 
-    if (is_bf16) {
-        conv = graph->make(
-                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+    if (is_low_precision_fp) {
+        conv = graph->make("cast", conv->get_outputs(), {},
+                {{"dtype", inputs[0]->details_.dtype_}});
     }
     // insert transpose for output: OIX to XIO
     if (filter_format == "XIO") {

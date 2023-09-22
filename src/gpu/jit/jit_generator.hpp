@@ -19,19 +19,9 @@
 
 #include <memory>
 
-#include "common/bfloat16.hpp"
-#include "common/float16.hpp"
 #include "common/nstl.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
 #include "oneapi/dnnl/dnnl_config.h"
-
-namespace ngen {
-using bfloat16 = dnnl::impl::bfloat16_t;
-using half = dnnl::impl::float16_t;
-} // namespace ngen
-
-#define NGEN_BFLOAT16_TYPE
-#define NGEN_HALF_TYPE
 
 #include "gpu/jit/ngen/ngen_opencl.hpp"
 

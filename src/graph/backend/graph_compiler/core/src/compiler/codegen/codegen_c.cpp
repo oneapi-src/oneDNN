@@ -50,7 +50,7 @@ static std::string get_closure_wrapper_name(const std::string &name) {
 static void print_cpp_etype(ostream &os, sc_data_etype t) {
     switch (t) {
         case sc_data_etype::UNDEF: assert(0 && "Met undef"); break;
-        case sc_data_etype::F16: os << "uint16_t"; break;
+        case sc_data_etype::F16: os << "_Float16"; break;
         case sc_data_etype::BF16: os << "uint16_t"; break;
         case sc_data_etype::U16: os << "uint16_t"; break;
         case sc_data_etype::F32: os << "float"; break;
@@ -148,6 +148,11 @@ void codegen_c_vis::print_type(sc_data_type_t dtype) {
             case sc_data_type_t::bf16(16): *os << "vec_u16x16"; break;
             case sc_data_type_t::bf16(32): *os << "vec_u16x32"; break;
 
+            case sc_data_type_t::f16(4): *os << "vec_f16x4"; break;
+            case sc_data_type_t::f16(8): *os << "vec_f16x8"; break;
+            case sc_data_type_t::f16(16): *os << "vec_f16x16"; break;
+            case sc_data_type_t::f16(32): *os << "vec_f16x32"; break;
+
             case sc_data_type_t::f32(4): *os << "vec_f32x4"; break;
             case sc_data_type_t::f32(8): *os << "vec_f32x8"; break;
             case sc_data_type_t::f32(16): *os << "vec_f32x16"; break;
@@ -160,14 +165,20 @@ void codegen_c_vis::print_type(sc_data_type_t dtype) {
             case sc_data_type_t::u32(8): *os << "vec_u32x8"; break;
             case sc_data_type_t::u32(16): *os << "vec_u32x16"; break;
 
+            case sc_data_type_t::index(2): *os << "vec_u64x2"; break;
+            case sc_data_type_t::index(4): *os << "vec_u64x4"; break;
+            case sc_data_type_t::index(8): *os << "vec_u64x8"; break;
+
             case sc_data_type_t::u16(8): *os << "vec_u16x8"; break;
             case sc_data_type_t::u16(16): *os << "vec_u16x16"; break;
             case sc_data_type_t::u16(32): *os << "vec_u16x32"; break;
 
+            case sc_data_type_t::s8(8): *os << "vec_s8x8"; break;
             case sc_data_type_t::s8(16): *os << "vec_s8x16"; break;
             case sc_data_type_t::s8(32): *os << "vec_s8x32"; break;
             case sc_data_type_t::s8(64): *os << "vec_s8x64"; break;
 
+            case sc_data_type_t::u8(8): *os << "vec_u8x8"; break;
             case sc_data_type_t::u8(16): *os << "vec_u8x16"; break;
             case sc_data_type_t::u8(32): *os << "vec_u8x32"; break;
             case sc_data_type_t::u8(64): *os << "vec_u8x64"; break;
@@ -285,7 +296,12 @@ void codegen_c_vis::view(constant_c v) {
         print_type(v->dtype_);
         (*os) << ')' << v->value_.at(0).u64 << ')';
     } else {
-        v->to_string(*os);
+        if (v->dtype_.is_etype(sc_data_etype::F16)) {
+            (*os) << "(_Float16)";
+            v->to_string(*os);
+        } else {
+            v->to_string(*os);
+        }
     }
 }
 
@@ -333,6 +349,14 @@ void codegen_c_vis::view(cast_c v) {
             *os << "tobf16(";
             dispatch(v->in_);
             *os << ')';
+        } else if (v->in_->dtype_.is_etype(sc_data_etype::F16)
+                && v->dtype_.is_etype(sc_data_etype::F32)) {
+            *os << "(float)";
+            dispatch(v->in_);
+        } else if (v->in_->dtype_.is_etype(sc_data_etype::F32)
+                && v->dtype_.is_etype(sc_data_etype::F16)) {
+            *os << "(_Float16)";
+            dispatch(v->in_);
         } else {
             *os << '(';
             print_cpp_type(*os, v->dtype_) << ')';
@@ -457,25 +481,36 @@ void codegen_c_vis::view(intrin_call_c v) {
             trinary_func_codegen_c(v->args_, "sc_fmadd");
             break;
         case intrin_type::unpack_low:
-            *os << "sc_unpack_low(";
+            *os << "sc_unpack_low_";
+            print_type(v->dtype_);
+            *os << "_";
+            *os << v->intrin_attrs_->get<int>("elem_bits");
+            *os << "bits";
+            *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";
             dispatch(v->args_[1]);
-            *os << ", ";
-            *os << v->intrin_attrs_->get<int>("elem_bits");
             *os << ')';
             break;
         case intrin_type::unpack_high:
-            *os << "sc_unpack_high(";
+            *os << "sc_unpack_high_";
+            print_type(v->dtype_);
+            *os << "_";
+            *os << v->intrin_attrs_->get<int>("elem_bits");
+            *os << "bits";
+            *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";
             dispatch(v->args_[1]);
-            *os << ", ";
-            *os << v->intrin_attrs_->get<int>("elem_bits");
             *os << ')';
             break;
         case intrin_type::shuffle:
-            *os << "sc_shuffle(";
+            *os << "sc_shuffle_";
+            print_type(v->dtype_);
+            *os << "_";
+            *os << v->intrin_attrs_->get<int>("type_bits");
+            *os << "bits";
+            *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";
             dispatch(v->args_[1]);
@@ -484,7 +519,9 @@ void codegen_c_vis::view(intrin_call_c v) {
             *os << ')';
             break;
         case intrin_type::permute:
-            *os << "sc_permute(";
+            *os << "sc_permute_";
+            print_type(v->dtype_);
+            *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";
             dispatch(v->args_[1]);
@@ -577,6 +614,47 @@ void codegen_c_vis::view(intrin_call_c v) {
             break;
         case intrin_type::permutex2var:
             trinary_func_codegen_c(v->args_, "sc_permutex2var");
+            break;
+        case intrin_type::permutexvar:
+            if (v->args_[0].isa<constant_c>()) {
+                // vpermq have two different invocation. If is imm, we need to
+                // do use these part.
+                int lanes = v->intrin_attrs_->get<int>("lanes");
+                int elem_bits = utils::get_sizeof_etype(
+                                        v->args_[1]->dtype_.type_code_)
+                        * 8 * lanes;
+                auto suffix = std::to_string(elem_bits) + "bits";
+                *os << "sc_permutexvar_";
+                print_type(v->args_[1]->dtype_);
+                *os << "_" + suffix;
+                *os << '(';
+                dispatch(v->args_[0]);
+                *os << ',';
+                dispatch(v->args_[1]);
+                *os << ')';
+            } else {
+                binary_func_codegen_c(v->args_, "sc_permutexvar");
+            }
+            break;
+        case intrin_type::insert:
+            *os << "sc_insert_";
+            print_type(v->dtype_);
+            *os << "(";
+            dispatch(v->args_[0]);
+            *os << ", ";
+            dispatch(v->args_[1]);
+            *os << ", ";
+            *os << v->intrin_attrs_->get<int>("insert_imm");
+            *os << ')';
+            break;
+        case intrin_type::extract:
+            *os << "sc_extract_";
+            print_type(v->args_[0]->dtype_);
+            *os << "(";
+            dispatch(v->args_[0]);
+            *os << ", ";
+            *os << v->intrin_attrs_->get<int>("extract_imm");
+            *os << ')';
             break;
         default: assert(0 && "Unknown intrinsic!"); break;
     }

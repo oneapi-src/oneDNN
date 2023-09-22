@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,22 +19,49 @@
 #include <mutex>
 #include <thread>
 
+#include "graph/unit/unit_test_common.hpp"
+#include "graph/unit/utils.hpp"
 #include "interface/allocator.hpp"
 #include "interface/c_types_map.hpp"
 
-#include "graph/unit/utils.hpp"
-
 TEST(Allocator, DefaultCpuAllocator) {
     dnnl::impl::graph::allocator_t *alloc
-            = dnnl::impl::graph::allocator_t::create();
+            = new dnnl::impl::graph::allocator_t();
 
     void *mem_ptr = alloc->allocate(static_cast<size_t>(16));
     if (mem_ptr == nullptr) {
-        alloc->release();
+        delete alloc;
         ASSERT_TRUE(false);
     } else {
         alloc->deallocate(mem_ptr);
-        alloc->release();
+        delete alloc;
+    }
+}
+
+TEST(Engine, AllocatorEarlyDestroy) {
+    dnnl::impl::graph::allocator_t *alloc
+            = new dnnl::impl::graph::allocator_t();
+    graph::engine_t *eng = get_engine();
+    eng->set_allocator(alloc);
+    delete alloc;
+    dnnl::impl::graph::allocator_t *engine_alloc
+            = reinterpret_cast<dnnl::impl::graph::allocator_t *>(
+                    eng->get_allocator());
+#ifndef DNNL_WITH_SYCL
+    void *mem_ptr = engine_alloc->allocate(static_cast<size_t>(16));
+#else
+    void *mem_ptr = engine_alloc->allocate(
+            static_cast<size_t>(16), get_device(), get_context());
+#endif
+    if (mem_ptr == nullptr) {
+        ASSERT_TRUE(false);
+    } else {
+#ifndef DNNL_WITH_SYCL
+        engine_alloc->deallocate(mem_ptr);
+#else
+        sycl::event e;
+        engine_alloc->deallocate(mem_ptr, get_device(), get_context(), e);
+#endif
     }
 }
 
@@ -44,7 +71,8 @@ TEST(Allocator, Monitor) {
 
     const size_t temp_size = 1024, persist_size = 512;
 
-    allocator_t *alloc = allocator_t::create();
+    allocator_t *alloc = new allocator_t();
+    allocator_t::monitor_t &monitor = alloc->get_monitor();
     std::vector<void *> persist_bufs;
     std::mutex m;
 
@@ -70,15 +98,14 @@ TEST(Allocator, Monitor) {
 
     // single thread
     for (size_t iter = 0; iter < 4; iter++) {
-        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0U);
+        monitor.reset_peak_temp_memory();
+        ASSERT_EQ(monitor.get_peak_temp_memory(), 0U);
 
         callee(); // call the callee to do memory operation
 
+        ASSERT_EQ(monitor.get_peak_temp_memory(), temp_size);
         ASSERT_EQ(
-                allocator_t::monitor_t::get_peak_temp_memory(alloc), temp_size);
-        ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(alloc),
-                persist_size * (iter + 1));
+                monitor.get_total_persist_memory(), persist_size * (iter + 1));
     }
 
     for (auto p_buf : persist_bufs) {
@@ -88,11 +115,10 @@ TEST(Allocator, Monitor) {
 
     // multiple threads
     auto thread_func = [&]() {
-        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0U);
+        monitor.reset_peak_temp_memory();
+        ASSERT_EQ(monitor.get_peak_temp_memory(), 0U);
         callee();
-        ASSERT_EQ(
-                allocator_t::monitor_t::get_peak_temp_memory(alloc), temp_size);
+        ASSERT_EQ(monitor.get_peak_temp_memory(), temp_size);
     };
 
     std::thread t1(thread_func);
@@ -102,14 +128,13 @@ TEST(Allocator, Monitor) {
     t2.join();
 
     // two threads allocated persist buffer
-    ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(alloc),
-            persist_size * 2);
+    ASSERT_EQ(monitor.get_total_persist_memory(), persist_size * 2);
 
     for (auto p_buf : persist_bufs) {
         alloc->deallocate(p_buf);
     }
     persist_bufs.clear();
 
-    alloc->release();
+    delete alloc;
 }
 #endif

@@ -29,37 +29,47 @@
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/jit/jit.hpp>
 #include <util/any_map.hpp>
+#include <util/math_utils.hpp>
 
 using namespace dnnl::impl::graph::gc;
 
-// broadcast_ref function calculates lhs + rhs with plain format & without
-// fusion
-static void broadcast_ref(const sc_dims &lhs_plain_dims,
-        const sc_dims &rhs_plain_dims, std::vector<float> &lhs,
-        std::vector<float> &rhs, std::vector<float> &out) {
-    sc_graph_t graph;
-    auto input = graph.make_input(
-            {std::make_shared<graph_tensor>(nullptr, sc_data_format_t(),
-                     lhs_plain_dims, datatypes::f32),
-                    std::make_shared<graph_tensor>(nullptr, sc_data_format_t(),
-                            rhs_plain_dims, datatypes::f32)});
-    auto add = graph.make("add", input->get_outputs(), {}, {});
-    auto output = graph.make_output(add->get_outputs());
-    graph.attrs_.set("temp.disable_graph_fusion", 1);
-    graph_driver(graph, get_test_ctx());
-    ir_module_ptr mod = lower_graph(get_test_ctx(), graph, {input, output});
-    auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(mod, true);
-    std::vector<generic_val> gargs;
-    gargs.emplace_back(lhs.data());
-    gargs.emplace_back(rhs.data());
-    gargs.emplace_back(out.data());
-    fptr->call_generic_default(gargs.data());
+static void binary_add_ref(const sc_dims &lhs_plain_dims,
+        const sc_dims &rhs_plain_dims, const sc_dims &out_plain_dims,
+        const std::vector<std::vector<int>> &plain_bc_axis,
+        std::vector<float> &lhs, std::vector<float> &rhs,
+        std::vector<float> &out) {
+    auto &lhs_plain_axis = plain_bc_axis[0];
+    auto &rhs_plain_axis = plain_bc_axis[1];
+    auto extended_lhs_plain_dims = test_utils::get_extended_plain_dims(
+            lhs_plain_axis, lhs_plain_dims, out_plain_dims);
+    auto extended_rhs_plain_dims = test_utils::get_extended_plain_dims(
+            rhs_plain_axis, rhs_plain_dims, out_plain_dims);
+    sc_dims lhs_strides
+            = test_utils::compute_dense_stride(extended_lhs_plain_dims);
+    sc_dims rhs_strides
+            = test_utils::compute_dense_stride(extended_rhs_plain_dims);
+    sc_dims output_strides = test_utils::compute_dense_stride(out_plain_dims);
+    const size_t total_size = out.size();
+    utils::parallel_for(0, total_size, 1, [&](int64_t i) {
+        size_t lhs_idx_flattened = 0, rhs_idx_flattened = 0;
+        size_t idx = i;
+        for (size_t d = 0; d < output_strides.size(); ++d) {
+            auto output_idx = idx / output_strides[d];
+            idx -= output_idx * output_strides[d];
+            auto lhs_idx = extended_lhs_plain_dims[d] == 1 ? 0 : output_idx;
+            lhs_idx_flattened += lhs_idx * lhs_strides[d];
+            auto rhs_idx = extended_rhs_plain_dims[d] == 1 ? 0 : output_idx;
+            rhs_idx_flattened += rhs_idx * rhs_strides[d];
+        }
+        out[i] = lhs[lhs_idx_flattened] + rhs[rhs_idx_flattened];
+    });
 }
 
 static void check_broadcast_correctness(const sc_dims &lhs_plain_dims,
         const sc_dims &rhs_plain_dims,
         sc_data_format_t lhs_format = sc_data_format_t(),
-        sc_data_format_t rhs_format = sc_data_format_t()) {
+        sc_data_format_t rhs_format = sc_data_format_t(),
+        const std::vector<int> &bc_axis = {}) {
     REQUIRE_AVX2();
     sc_graph_t graph;
     auto input = graph.make_input({std::make_shared<graph_tensor>(nullptr,
@@ -74,7 +84,7 @@ static void check_broadcast_correctness(const sc_dims &lhs_plain_dims,
             {{"out_format", rhs_format}, {"internal", true}});
     auto add = graph.make("add",
             {reorder_lhs->get_outputs()[0], reorder_rhs->get_outputs()[0]}, {},
-            {});
+            {{"bc_axis", bc_axis}});
     auto output = graph.make_output(add->get_outputs());
     graph_driver(graph, get_test_ctx());
     ir_module_ptr mod = lower_graph(get_test_ctx(), graph, {input, output});
@@ -82,8 +92,12 @@ static void check_broadcast_correctness(const sc_dims &lhs_plain_dims,
     std::vector<generic_val> gargs;
     sc_dim lhs_size = test_utils::product(lhs_plain_dims);
     sc_dim rhs_size = test_utils::product(rhs_plain_dims);
-    sc_dim out_size = test_utils::product(
-            output->get_inputs()[0]->details_.get_plain_dims());
+    const auto &out_plain_dims
+            = output->get_inputs()[0]->details_.get_plain_dims();
+    const auto &plain_bc_axis
+            = dynamic_cast<op_traits::may_broadcast_t *>(add.get())
+                      ->get_plain_bc_axis();
+    sc_dim out_size = test_utils::product(out_plain_dims);
     std::vector<float> lhs(lhs_size, 0.f);
     std::iota(lhs.begin(), lhs.end(), 0);
     std::vector<float> rhs(rhs_size, 0.f);
@@ -94,7 +108,8 @@ static void check_broadcast_correctness(const sc_dims &lhs_plain_dims,
     gargs.emplace_back(rhs.data());
     gargs.emplace_back(out.data());
     fptr->call_generic_default(gargs.data());
-    broadcast_ref(lhs_plain_dims, rhs_plain_dims, lhs, rhs, ref_out);
+    binary_add_ref(lhs_plain_dims, rhs_plain_dims, out_plain_dims,
+            plain_bc_axis, lhs, rhs, ref_out);
     test_utils::compare_data<float>(out.data(), ref_out.data(), ref_out.size());
 }
 
@@ -117,7 +132,7 @@ TEST(GCCore_CPU_binary_elementwise_test, TestCorrectnessNonBlocking) {
             sc_data_format_t(format_kinds::A));
     check_broadcast_correctness({2, 3, 5, 7}, {3},
             sc_data_format_t(sc_data_format_kind_t(0, 1, 2, 3)),
-            sc_data_format_t(format_kinds::A));
+            sc_data_format_t(format_kinds::A), {1});
     // 4D + 2D
     check_broadcast_correctness({2, 3, 5, 7}, {5, 7},
             sc_data_format_t(sc_data_format_kind_t(0, 1, 3, 2)),
@@ -213,7 +228,7 @@ TEST(GCCore_CPU_binary_elementwise_test, TestCorrectnessSingleSideBlockingRHS) {
     // rhs blocking
     check_broadcast_correctness({1, 128, 16, 64}, {16, 64},
             sc_data_format_t(format_kinds::ACBD),
-            sc_data_format_t(format_kinds::ABab, {4, 16}));
+            sc_data_format_t(format_kinds::AB));
     check_broadcast_correctness({1, 128, 16, 64}, {16, 64},
             sc_data_format_t(format_kinds::ACBD),
             sc_data_format_t(format_kinds::ABba, {16, 4}));
@@ -238,6 +253,30 @@ TEST(GCCore_CPU_binary_elementwise_test, TestCorrectnessBlocking) {
     check_broadcast_correctness({1, 128, 16, 64}, {16, 64},
             sc_data_format_t(sc_data_format_kind_t(0, 1, 2, 3, 1, 3), {4, 16}),
             sc_data_format_t(format_kinds::ABab, {4, 16}));
+}
+
+TEST(GCCore_CPU_binary_elementwise_test, TestConstInferShape) {
+    sc_graph_t graph;
+    std::vector<float> const_data(320);
+    auto const1 = graph.make("constant", {}, {},
+            {{"values", std::make_shared<static_data_t>(const_data)},
+                    {"dtype", datatypes::f32},
+                    {"plain_dims", sc_dims {1, 1, 1, 320}},
+                    {"format", sc_data_format_t()}});
+    auto input = graph.make_input({std::make_shared<graph_tensor>(
+            nullptr, sc_data_format_t(), sc_dims {1}, datatypes::f32)});
+    auto add = graph.make(
+            "add", {const1->get_outputs()[0], input->get_outputs()[0]}, {}, {});
+    auto output = graph.make_output(add->get_outputs());
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    constexpr const char *expected
+            = R"(graph(v0: f32[1]) -> [v1: f32[1, 1, 1, 320]] {
+  [v2: f32[1, 1, 1, 320]] = constant([1, 1, 1, 320])
+  [v1: f32[1, 1, 1, 320]] = add(v2, v0)
+}
+)";
+    EXPECT_EQ(ss.str(), expected);
 }
 
 template <typename T,
@@ -298,4 +337,19 @@ TEST(GCCore_CPU_binary_elementwise_test, TestPReluOp) {
         check_binary_elementwise<float>("prelu", shape, ref_prelu);
         check_binary_elementwise<bf16_t>("prelu", shape, ref_prelu);
     }
+}
+
+TEST(GCCore_CPU_binary_elementwise_test, TestCorrectnessBidirectional) {
+    check_broadcast_correctness({1, 64, 16, 1}, {16, 64},
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::AB));
+    check_broadcast_correctness({4, 1, 1, 1}, {16, 32, 16},
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABC));
+    check_broadcast_correctness({1, 16, 64}, {1, 64, 16, 1},
+            sc_data_format_t(format_kinds::ABC),
+            sc_data_format_t(format_kinds::ABCD));
+    check_broadcast_correctness({4, 16, 1, 1}, {16, 1, 16},
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABC));
 }

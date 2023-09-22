@@ -62,7 +62,8 @@ static status_t conv_descr_create(const deconvolution_desc_t *dd,
     if (utils::one_of(dd->prop_kind, forward_training, forward_inference)) {
         prop_kind = backward_data;
         assert(src_dt != data_type::undef);
-        memory_desc_init_by_md_and_dt(src_md_patched, dd->dst_desc, src_dt);
+        CHECK(memory_desc_init_by_md_and_dt(
+                src_md_patched, dd->dst_desc, src_dt));
         src_md = &src_md_patched;
         dst_md = &dd->src_desc;
         d_weights_d = &dd->weights_desc;
@@ -271,6 +272,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         ref_post_ops
                 = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
         if (!ref_post_ops) return status::out_of_memory;
+        CHECK(ref_post_ops->init(pd()->dst_md()));
         return status::success;
     }
 

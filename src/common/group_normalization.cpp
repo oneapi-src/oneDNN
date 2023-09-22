@@ -29,12 +29,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_GNORM(cond, msg, ...) \
-    VCONDCHECK(create, check, gnorm, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, gnorm, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_GNORM_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, gnorm, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, gnorm, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
 
 namespace {
 status_t group_normalization_desc_init(group_normalization_desc_t *desc,
@@ -80,7 +80,7 @@ status_t group_normalization_desc_init(group_normalization_desc_t *desc,
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
     }
-    VCONDCHECK(create, check, bnorm, !runtime_dims_or_strides,
+    VCONDCHECK(primitive, create, check, bnorm, !runtime_dims_or_strides,
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     gd.src_desc = *src_desc;
@@ -143,7 +143,7 @@ status_t group_normalization_attr_check(const group_normalization_desc_t &desc,
         const data_type_t src_dt = desc.src_desc.data_type;
         const data_type_t dst_dt = desc.dst_desc.data_type;
 
-        auto fwd_attr_mask = smask_t::none;
+        auto fwd_attr_mask = smask_t::post_ops;
 
         const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8)
                 || utils::one_of(dst_dt, data_type::s8, data_type::u8);
@@ -160,6 +160,14 @@ status_t group_normalization_attr_check(const group_normalization_desc_t &desc,
 
             VCHECK_GNORM_UNIMPL(utils::everyone_is(0, mask_src, mask_dst),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
+        }
+
+        // Check post-ops
+        if (!attr->post_ops_.has_default_values()) {
+            const auto &po = attr->post_ops_;
+            using namespace primitive_kind;
+            VCHECK_GNORM_UNIMPL(po.has_default_values({binary, eltwise}),
+                    VERBOSE_UNSUPPORTED_POSTOP);
         }
     } else {
         VCHECK_GNORM_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);

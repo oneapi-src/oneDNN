@@ -33,30 +33,6 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-enum class gemm_dim_kind_t {
-    undef = 0,
-    b,
-    m,
-    n,
-    k,
-    _max,
-};
-
-std::string to_string(gemm_dim_kind_t kind) {
-    std::ostringstream oss;
-    switch (kind) {
-#define CASE(name) \
-    case gemm_dim_kind_t::name: return #name
-        CASE(b);
-        CASE(m);
-        CASE(n);
-        CASE(k);
-#undef CASE
-        default: ir_error_not_expected();
-    }
-    return oss.str();
-}
-
 // Tile level kinds.
 enum class level_kind_t {
     undef = 0,
@@ -107,16 +83,6 @@ std::vector<tensor_kind_t> input_tensors(const conv_config_t &cfg) {
     return ret;
 }
 
-using gemm_dim_t = tile_key_t<gemm_dim_kind_t>;
-using gemm_tile_t = tile_generic_t<gemm_dim_t>;
-
-namespace gemm_dims {
-gemm_dim_t b(gemm_dim_kind_t::b);
-gemm_dim_t m(gemm_dim_kind_t::m);
-gemm_dim_t n(gemm_dim_kind_t::n);
-gemm_dim_t k(gemm_dim_kind_t::k);
-} // namespace gemm_dims
-
 // Flags specifying blocking restrictions for a convolution dimension.
 enum class tile_flags_t : uint32_t {
     undef = 0,
@@ -153,63 +119,21 @@ bool any(tile_flags_t a) {
     return a != tile_flags_t::undef;
 }
 
-gemm_dim_t to_gemm(const conv_dim_t &d, prop_kind_t prop) {
-    bool is_fwd = (prop == prop_kind::forward);
-    bool is_bwd_d = (prop == prop_kind::backward_data);
-    bool is_bwd_w = (prop == prop_kind::backward_weights);
-    auto pick = [&](const gemm_dim_t &fwd, const gemm_dim_t &bwd_d,
-                        const gemm_dim_t &bwd_w) {
-        if (is_fwd) return fwd;
-        if (is_bwd_d) return bwd_d;
-        if (is_bwd_w) return bwd_w;
-        ir_error_not_expected();
-        return gemm_dim_t();
-    };
-    switch (d.kind()) {
-        case conv_dim_kind_t::g: return gemm_dims::b;
-        case conv_dim_kind_t::mb:
-            return pick(gemm_dims::m, gemm_dims::m, gemm_dims::k);
-        case conv_dim_kind_t::oc:
-            return pick(gemm_dims::n, gemm_dims::k, gemm_dims::n);
-        case conv_dim_kind_t::ic:
-            return pick(gemm_dims::k, gemm_dims::n, gemm_dims::m);
-        case conv_dim_kind_t::kd:
-        case conv_dim_kind_t::kh:
-        case conv_dim_kind_t::kw:
-            return pick(gemm_dims::k, gemm_dims::k, gemm_dims::m);
-        case conv_dim_kind_t::od:
-        case conv_dim_kind_t::oh:
-        case conv_dim_kind_t::ow:
-            return pick(gemm_dims::m, gemm_dim_t(), gemm_dims::k);
-        case conv_dim_kind_t::id:
-        case conv_dim_kind_t::ih:
-        case conv_dim_kind_t::iw:
-            return pick(gemm_dim_t(), gemm_dims::m, gemm_dim_t());
-        default: ir_error_not_expected();
-    }
-    return gemm_dim_t();
-}
-
-gemm_tile_t to_gemm(const conv_tile_t &t, prop_kind_t prop) {
-    gemm_tile_t ret;
-    for (auto d : t) {
-        auto gemm_d = to_gemm(d, prop);
-        if (!ret.has(gemm_d)) ret[gemm_d] = 1;
-        ret[gemm_d] *= t[d];
-    }
-    return ret;
-}
-
-bool is_reduction_dim(const conv_dim_t &d, prop_kind_t prop) {
-    return to_gemm(d, prop) == gemm_dims::k;
+bool is_reduction_dim(
+        const conv_dim_t &d, prop_kind_t prop, bool is_transpose) {
+    return to_gemm(d, prop, is_transpose) == gemm_dims::k;
 }
 
 bool is_vectorized_dim(const conv_dim_t &d, const conv_problem_t &prb) {
     if (prb.is_dw) return d == conv_dims::g;
+    bool transpose = prb.ab_swap_transpose;
     switch (prb.prop_kind()) {
-        case prop_kind::forward: return d == conv_dims::oc;
-        case prop_kind::backward_data: return d == conv_dims::ic;
-        case prop_kind::backward_weights: return d == conv_dims::oc;
+        case prop_kind::forward:
+            return (transpose ? d == conv_dims::mb : d == conv_dims::oc);
+        case prop_kind::backward_data:
+            return (transpose ? d == conv_dims::mb : d == conv_dims::ic);
+        case prop_kind::backward_weights:
+            return (transpose ? d == conv_dims::ic : d == conv_dims::oc);
         default: ir_error_not_expected();
     }
     return false;
@@ -252,6 +176,30 @@ std::vector<int> get_factors(int n) {
     if (n_sqrt * n_sqrt == n) lo--;
     for (int i = lo; i >= 1; i--) {
         if (n % i == 0) ret.push_back(n / i);
+    }
+    return ret;
+}
+
+std::vector<int> get_loop_blocks(int n) {
+    const int step = 4;
+    int steps = (int)(std::log((float)n) / std::log((float)step));
+    auto factors = get_factors(n);
+    if (factors.size() >= (size_t)steps) return factors;
+
+    std::vector<int> ret;
+    ret.reserve(steps);
+    for (int i = 1; i <= n; i *= step) {
+        int a = i;
+        int b = i * step;
+        bool found = false;
+        for (int j : factors) {
+            if (a <= j && j < b) {
+                found = true;
+                ret.push_back(j);
+                break;
+            }
+        }
+        if (!found) ret.push_back(i);
     }
     return ret;
 }
@@ -345,7 +293,7 @@ struct tile_info_t {
             int blk = math::lcm(div_info.unroll_unit, iter_blk);
             return {blk / iter_blk};
         }
-        return get_factors(size);
+        return get_loop_blocks(size);
     }
 
     conv_dim_t dim;
@@ -433,7 +381,7 @@ const layout_t &compute_layout(const conv_config_t &cfg, tensor_kind_t kind) {
 int get_layout_unit(const conv_config_t &cfg, const layout_t &layout,
         tensor_kind_t tensor_kind, const conv_dim_t &d) {
     auto &prb = cfg.prb();
-    if (!is_reduction_dim(d, prb.prop_kind())) return 1;
+    if (!is_reduction_dim(d, prb.prop_kind(), prb.ab_swap_transpose)) return 1;
     int dim_idx = tensor_conv_dim_index(d, tensor_kind);
     if (dim_idx == -1) return 1;
 
@@ -583,14 +531,15 @@ private:
         bool is_dpas = cfg.is_dp_fma();
         int rdims = 0;
         for (auto d : iter_) {
-            if (is_reduction_dim(d, prb.prop_kind())) rdims++;
+            if (is_reduction_dim(d, prb.prop_kind(), prb.ab_swap_transpose))
+                rdims++;
         }
         bool is_fused_reduction = (rdims > 1);
         for (auto d : iter_) {
             auto &info = tile_info(d);
             int unit = 1;
             if (is_vectorized_dim(d, prb)) unit = cfg.vec_size();
-            if (is_reduction_dim(d, prb.prop_kind())) {
+            if (is_reduction_dim(d, prb.prop_kind(), prb.ab_swap_transpose)) {
                 // This is to ensure that reduction-related address shifts are
                 // constant. For example with a_blk = 8 and Ax16a layout there are two
                 // kinds of "a" shifts: inside the innermost block and outer shift.
@@ -623,7 +572,9 @@ private:
             // additional space for x8 -> s16 reorder.
             int min_m_iter_block_hint = 2;
             for (auto d : iter_) {
-                if (to_gemm(d, prb.prop_kind()) != gemm_dims::m) continue;
+                if (to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose)
+                        != gemm_dims::m)
+                    continue;
                 auto &info = tile_info(d);
                 int blk = std::min(info.min_iter_blk, min_m_iter_block_hint);
                 int pow2_blk = utils::rnd_up_pow2(blk);
@@ -638,7 +589,9 @@ private:
         conv_dim_t d0;
         conv_dim_t d1;
         for (auto d : iter_) {
-            if (!is_reduction_dim(d, cfg.prb().prop_kind())) continue;
+            if (!is_reduction_dim(
+                        d, cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose))
+                continue;
             rdims++;
             (d0.is_undef() ? d0 : d1) = d;
         }
@@ -856,7 +809,8 @@ int grf_usage_bytes(fma_kind_t fma, int b_iter, int m_iter, int n_iter,
 
 int grf_usage_bytes(const conv_config_t &cfg, const conv_params_t &params) {
     auto &prb = cfg.prb();
-    auto iter = to_gemm(params.blocking().iter(), prb.prop_kind());
+    auto iter = to_gemm(
+            params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
     int b_iter = iter.at(gemm_dims::b, 1);
     int m_iter = iter.at(gemm_dims::m, 1);
     int n_iter = iter.at(gemm_dims::n, 1);
@@ -894,8 +848,10 @@ int slm_usage_bytes(const conv_config_t &cfg, int b_tg, int m_tg, int n_tg,
 int slm_usage_bytes_for_params(
         const conv_config_t &cfg, const conv_params_t &params) {
     auto &prb = cfg.prb();
-    auto tg = to_gemm(params.blocking().thread_group(), prb.prop_kind());
-    auto iter = to_gemm(params.blocking().iter(), prb.prop_kind());
+    auto tg = to_gemm(params.blocking().thread_group(), prb.prop_kind(),
+            prb.ab_swap_transpose);
+    auto iter = to_gemm(
+            params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
     int b_tg = tg.at(gemm_dims::b, 1);
     int m_tg = tg.at(gemm_dims::m, 1);
     int n_tg = tg.at(gemm_dims::n, 1);
@@ -913,7 +869,8 @@ public:
     blocking_checker_t(const conv_config_t &cfg) : cfg_(cfg) {
         init_checks();
         padded_shape_ = get_conv_shape(cfg, /*pad=*/true);
-        padded_gemm_shape_ = to_gemm(padded_shape_, cfg.prb().prop_kind());
+        padded_gemm_shape_ = to_gemm(padded_shape_, cfg.prb().prop_kind(),
+                cfg.prb().ab_swap_transpose);
         max_tg_size_ = get_default_max_tg_size(
                 cfg.hw_cfg(), cfg.exec_cfg().regs(), cfg.simd());
     }
@@ -948,9 +905,12 @@ private:
     struct context_t {
         context_t(const blocking_t &blk, const conv_config_t &cfg) : blk(blk) {
             auto &prb = cfg.prb();
-            auto gemm_iter = to_gemm(blk.iter(), prb.prop_kind());
-            auto gemm_loop = to_gemm(blk.loop(), prb.prop_kind());
-            auto gemm_tg = to_gemm(blk.thread_group(), prb.prop_kind());
+            auto gemm_iter = to_gemm(
+                    blk.iter(), prb.prop_kind(), prb.ab_swap_transpose);
+            auto gemm_loop = to_gemm(
+                    blk.loop(), prb.prop_kind(), prb.ab_swap_transpose);
+            auto gemm_tg = to_gemm(
+                    blk.thread_group(), prb.prop_kind(), prb.ab_swap_transpose);
             b_iter = gemm_iter.at(gemm_dims::b, 1);
             m_iter = gemm_iter.at(gemm_dims::m, 1);
             n_iter = gemm_iter.at(gemm_dims::n, 1);
@@ -970,7 +930,9 @@ private:
             // Use 2x reduction when the reduction dimension is dense to avoid
             // partial cache line loads.
             for (auto d : blk.iter()) {
-                if (to_gemm(d, cfg.prb().prop_kind()) == gemm_dims::k) {
+                if (to_gemm(d, cfg.prb().prop_kind(),
+                            cfg.prb().ab_swap_transpose)
+                        == gemm_dims::k) {
                     if (is_inner_non_blocked(cfg, d)) return true;
                 }
             }
@@ -1082,7 +1044,8 @@ private:
         if (!cfg_.is_dp_fma()) return true;
         int ab_size = cfg_.prb().a_data_type_size;
         int dpas_k = dpas_reduce_bytes_ / ab_size;
-        return ctx.k_iter % dpas_k == 0;
+        return cfg_.prb().ab_swap_transpose ? ctx.n_iter % cfg_.simd() == 0
+                                            : ctx.k_iter % dpas_k == 0;
     }
 
     bool check_grf_usage_ok(const context_t &ctx) const {
@@ -1238,7 +1201,8 @@ private:
         auto &prb = cfg_.prb();
         int max_blk = 1;
         for (auto d : ctx.blk.iter()) {
-            if (to_gemm(d, prb.prop_kind()) == gemm_dims::m) {
+            if (to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose)
+                    == gemm_dims::m) {
                 int d_blk = inner_block(cfg_, d);
                 max_blk = std::max(max_blk, d_blk);
             }
@@ -1337,16 +1301,21 @@ namespace conv_schemes {
 //   #dim - remove minimum block restriction (minimum is 1)
 blocking_scheme_t fwd_T_wo_I_noi("ls:[ic,kd,kh,kw],T:[oc,ow],i:[mb,oc,ic]");
 blocking_scheme_t fwd_T_no_I_noi("ls:[ic,kd,kh,kw],T:[oc,mb],i:[mb,oc,ic]");
+blocking_scheme_t fwd_T_wn_I_wnoi("ls:[ic,kd,kh,kw],T:[ow,mb],i:[ow,mb,oc,ic]");
 blocking_scheme_t fwd_T_i_I_noi("ls:[ic,kd,kh,kw],T:[ic],i:[mb,oc,ic]");
+blocking_scheme_t fwd_T_iw_I_wnoi("ls:[ic,kd,kh,kw],T:[ic,ow],i:[ow,mb,oc,ic]");
 blocking_scheme_t fwd_T_wo_I_woi("ls:[ic,kd,kh,kw],T:[oc,ow],i:[ow,oc,ic]");
 blocking_scheme_t fwd_T_i_I_woi("ls:[ic,kd,kh,kw],T:[ic],i:[ow,oc,ic]");
 blocking_scheme_t fwd_T_wo_I_woki("ls:[ic,kd,kh,kw],T:[oc,ow],i:[ow,oc,kw,ic]");
+blocking_scheme_t fwd_T_w_I_woki("ls:[ic,kd,kh,kw],T:[ow],i:[ow,oc,kw,ic]");
+blocking_scheme_t fwd_T_w_I_noki("ls:[ic,kd,kh,kw],T:[ow],i:[mb,ow,oc,kw,ic]");
 blocking_scheme_t fwd_T_wo_I_noki("ls:[ic,kd,kh,kw],T:[oc,ow],i:[mb,oc,kw,ic]");
 blocking_scheme_t fwd_dw_T_w_I_wgk("ls:[kd,kh,kw],T:[ow],i:[ow,g,#kw]");
 blocking_scheme_t fwd_dw_T_w_I_ngk("ls:[kd,kh,kw],T:[ow],i:[mb,g,#kw]");
 blocking_scheme_t bwd_d_T_wi_I_nio("ls:[oc,kd,kh,kw],T:[ic,iw],i:[mb,ic,oc]");
 blocking_scheme_t bwd_d_T_ni_I_nio("ls:[oc,kd,kh,kw],T:[ic,mb],i:[mb,ic,oc]");
 blocking_scheme_t bwd_d_T_o_I_nio("ls:[oc,kd,kh,kw],T:[oc],i:[mb,ic,oc]");
+blocking_scheme_t bwd_d_T_w_I_on("ls:[oc,kd,kh,kw],T:[iw],i:[oc,mb]");
 blocking_scheme_t bwd_d_T_wi_I_wio("ls:[oc,kd,kh,kw],T:[ic,iw],i:[iw,ic,oc]");
 blocking_scheme_t bwd_d_T_o_I_wio("ls:[oc,kd,kh,kw],T:[oc],i:[iw,ic,oc]");
 blocking_scheme_t bwd_d_dw_T_w_I_wgk("ls:[kd,kh,kw],T:[iw],i:[iw,g,kw]");
@@ -1450,12 +1419,20 @@ std::vector<blocking_scheme_t> get_blocking_schemes_bwd_w_dw(
 std::vector<blocking_scheme_t> get_blocking_schemes_fwd(
         const conv_config_t &cfg) {
     std::vector<blocking_scheme_t> ret;
-    auto m_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
+    auto m_iter_dim = cfg.prb().ab_swap_transpose
+            ? conv_dims::oc
+            : select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
     if (m_iter_dim == conv_dims::mb) {
         ret.push_back(conv_schemes::fwd_T_wo_I_noi);
         ret.push_back(conv_schemes::fwd_T_no_I_noi);
         if (cfg.hw() >= ngen::HW::XeLP)
             ret.push_back(conv_schemes::fwd_T_i_I_noi);
+    } else if (m_iter_dim == conv_dims::oc) {
+        ret.push_back(conv_schemes::fwd_T_wn_I_wnoi);
+        if (cfg.hw() >= ngen::HW::XeLP) {
+            ret.push_back(conv_schemes::fwd_T_i_I_noi);
+            ret.push_back(conv_schemes::fwd_T_iw_I_wnoi);
+        }
     } else {
         ret.push_back(conv_schemes::fwd_T_wo_I_woi);
         if (cfg.hw() >= ngen::HW::XeLP)
@@ -1464,6 +1441,9 @@ std::vector<blocking_scheme_t> get_blocking_schemes_fwd(
     if (is_small_ic(cfg.prb()) && cfg.prb().kw > 1) {
         if (m_iter_dim == conv_dims::mb) {
             ret.push_back(conv_schemes::fwd_T_wo_I_noki);
+        } else if (m_iter_dim == conv_dims::oc) {
+            ret.push_back(conv_schemes::fwd_T_w_I_woki);
+            ret.push_back(conv_schemes::fwd_T_w_I_noki);
         } else {
             ret.push_back(conv_schemes::fwd_T_wo_I_woki);
         }
@@ -1474,7 +1454,9 @@ std::vector<blocking_scheme_t> get_blocking_schemes_fwd(
 std::vector<blocking_scheme_t> get_blocking_schemes_bwd_d(
         const conv_config_t &cfg) {
     std::vector<blocking_scheme_t> ret;
-    auto m_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::iw});
+    auto m_iter_dim = cfg.prb().ab_swap_transpose
+            ? conv_dims::ic
+            : select_iter_dim(cfg, {conv_dims::mb, conv_dims::iw});
     if (m_iter_dim == conv_dims::mb) {
         ret.push_back(conv_schemes::bwd_d_T_ni_I_nio);
         ret.push_back(conv_schemes::bwd_d_T_wi_I_nio);
@@ -1484,6 +1466,8 @@ std::vector<blocking_scheme_t> get_blocking_schemes_bwd_d(
         ret.push_back(conv_schemes::bwd_d_T_wi_I_wio);
         if (cfg.hw() >= ngen::HW::XeLP)
             ret.push_back(conv_schemes::bwd_d_T_o_I_wio);
+        if (m_iter_dim == conv_dims::ic)
+            ret.push_back(conv_schemes::bwd_d_T_w_I_on);
     }
     return ret;
 }
@@ -1558,7 +1542,7 @@ struct conv_tiler_params_t {
 conv_tiler_params_t &tiler_params() {
     static conv_tiler_params_t params = []() {
         conv_tiler_params_t ret;
-        auto s_opts = dev_getenv("tiler", std::string());
+        auto s_opts = gpu_utils::dev_getenv("tiler", std::string());
         if (s_opts.empty()) return ret;
         auto opts = ir_utils::split(s_opts, ",");
         for (auto &opt : opts) {
@@ -1987,15 +1971,16 @@ struct indexed_tile_t {
 };
 
 std::vector<std::vector<int>> to_indexed(
-        const std::vector<conv_params_t> &params_vec, prop_kind_t prop_kind) {
+        const std::vector<conv_params_t> &params_vec, prop_kind_t prop_kind,
+        bool is_transpose) {
     indexed_tile_t iter;
     indexed_tile_t tg;
     indexed_tile_t loop;
     for (auto &p : params_vec) {
         auto &b = p.blocking();
-        iter.add(to_gemm(b.iter(), prop_kind));
-        tg.add(to_gemm(b.thread_group(), prop_kind));
-        loop.add(to_gemm(b.loop(), prop_kind));
+        iter.add(to_gemm(b.iter(), prop_kind, is_transpose));
+        tg.add(to_gemm(b.thread_group(), prop_kind, is_transpose));
+        loop.add(to_gemm(b.loop(), prop_kind, is_transpose));
     }
     iter.finalize();
     tg.finalize();
@@ -2004,9 +1989,10 @@ std::vector<std::vector<int>> to_indexed(
     std::vector<std::vector<int>> ret;
     for (auto &p : params_vec) {
         auto &b = p.blocking();
-        auto v0 = iter.to_index(to_gemm(b.iter(), prop_kind));
-        auto v1 = tg.to_index(to_gemm(b.thread_group(), prop_kind));
-        auto v2 = loop.to_index(to_gemm(b.loop(), prop_kind));
+        auto v0 = iter.to_index(to_gemm(b.iter(), prop_kind, is_transpose));
+        auto v1 = tg.to_index(
+                to_gemm(b.thread_group(), prop_kind, is_transpose));
+        auto v2 = loop.to_index(to_gemm(b.loop(), prop_kind, is_transpose));
         std::vector<int> v;
         v.insert(v.end(), v0.begin(), v0.end());
         v.insert(v.end(), v1.begin(), v1.end());
@@ -2028,8 +2014,9 @@ std::vector<std::vector<int>> to_indexed(
 class params_distance_t {
 public:
     params_distance_t() = default;
-    params_distance_t(const params_generator_t &g, prop_kind_t prop_kind) {
-        dists_ = to_indexed(g.params_vec(), prop_kind);
+    params_distance_t(const params_generator_t &g, prop_kind_t prop_kind,
+            bool is_transpose) {
+        dists_ = to_indexed(g.params_vec(), prop_kind, is_transpose);
     }
 
     float dist(int id0, int id1) const {
@@ -2109,7 +2096,8 @@ public:
     conv_tuner_t(const conv_config_t &cfg)
         : conv_key_(cfg.key())
         , params_gen_(cfg)
-        , params_dist_(params_gen_, cfg.prb().prop_kind())
+        , params_dist_(params_gen_, cfg.prb().prop_kind(),
+                  cfg.prb().ab_swap_transpose)
         , ops_(cfg.prb().ops()) {
         params_gen_.shuffle(conv_key_hash_t()(cfg.key()));
     }
@@ -2360,8 +2348,16 @@ private:
                 break;
             case tiler_mode_t::lookup: {
                 auto params = const_conv_lookup_table().find(cfg.key());
-                if (!params.is_empty()) {
-                    params_gen_ = params_generator_t(cfg, params);
+                blocking_checker_t blocking_checker(cfg);
+                bool transposed = cfg.prb().ab_swap_transpose;
+                if (!params.is_empty()
+                        && (!transposed
+                                || blocking_checker.is_ok(params.blocking()))) {
+                    if (transposed) {
+                        params_gen_ = params_generator_t(cfg, params);
+                    } else {
+                        params_gen_ = params_generator_t(params);
+                    }
                 } else {
                     mode_ = tiler_mode_t::model;
                     params_gen_ = params_generator_t(cfg);

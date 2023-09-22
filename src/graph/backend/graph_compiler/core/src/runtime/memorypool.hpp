@@ -78,7 +78,7 @@ struct memory_block_t {
 };
 
 // The FILO memory pool. The memory allocation and deallocation should be in
-// first-in-first-out fashion
+// first-in-last-out fashion
 struct filo_memory_pool_t {
     size_t block_size_;
     // the linked list of all allocated memory blocks

@@ -261,7 +261,8 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_N(const context_ptr &ctx,
   int N_tile = N_num_block / config.num_tile_n;
   bool loop_sched = config.loop_sched;
   auto dtype = get_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
   std::vector<int> p_locations, q_locations, d_locations;
   for (int i = 0; i < H + 2 * padding_h; i++) {
     if (i * stride_h >= padding_h && i * stride_h < H + padding_h) {
@@ -470,7 +471,8 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL(const context_ptr &ctx,
       C_num_block = utils::divide_and_ceil(C, C_block);
   bool loop_sched = config.loop_sched;
   auto dtype = get_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
   int NPQ_block_pad
     = (dtype_block > 1 && NPQ_block % 2) ? NPQ_block + 1 : NPQ_block;
 
@@ -656,7 +658,6 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
   std::vector<for_loop> &loops) const {
   // Init
   bool is_3d = ndims_ == 5;
-  bool is_bf16 = (get_dtype() == datatypes::bf16);
   int num_threads = runtime_config_t::get().get_num_threads();
   int padding_d = is_3d ? padding_[0] : 0, stride_d = is_3d ? stride_[0] : 1;
   int padding_h = padding_[0], padding_w = padding_[0];
@@ -687,7 +688,8 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
   int N_tile = N_num_block / config.num_tile_n;
   bool loop_sched = config.loop_sched;
   auto dtype = get_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
   std::vector<int> oh_locations, ow_locations, d_locations;
   for (int i = 0; i < IH + 2 * padding_h; i++) {
     if (i * stride_h >= padding_h && i * stride_h < IH + padding_h) {

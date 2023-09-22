@@ -34,6 +34,8 @@ struct concat_pd_t : public primitive_desc_t {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
+    ~concat_pd_t() = default;
+
     arg_usage_t arg_usage(int arg) const override {
         if (arg >= DNNL_ARG_MULTIPLE_SRC
                 && arg < DNNL_ARG_MULTIPLE_SRC + n_inputs())
@@ -112,6 +114,19 @@ protected:
         init_desc();
     }
 
+    concat_pd_t &operator=(const concat_pd_t &other) {
+        DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+        n_ = other.n_;
+        concat_dim_ = other.concat_dim_;
+        dst_md_ = other.dst_md_;
+        original_dst_ = other.original_dst_;
+        src_mds_ = other.src_mds_;
+        src_image_mds_ = other.src_image_mds_;
+
+        init_desc();
+        return *this;
+    }
+
     /* inits src_image_mds_ and dst_md_ in simple cases. It is possible to
      * override dst_md_ by using force_dst_md.
      * Rationale: if user forces particular dst_md, that cannot be used to
@@ -135,9 +150,9 @@ protected:
         }
 
         const int ndims = force_dst_md->ndims;
-        int current_concat_dim_offset = 0;
+        dim_t current_concat_dim_offset = 0;
         for (int i = 0; i < n_; ++i) {
-            const int dim = src_mds_[i].dims[concat_dim_];
+            const dim_t dim = src_mds_[i].dims[concat_dim_];
             dims_t dims, offsets = {};
             utils::array_copy(dims, force_dst_md->dims, ndims);
             dims[concat_dim_] = dim;
@@ -248,14 +263,11 @@ private:
             const primitive_attr_t *attr, const memory_desc_t *dst_md, int n, \
             int concat_dim, const memory_desc_t *const *src_mds) { \
         using namespace status; \
-        auto _pd = new pd_t(attr, dst_md, n, concat_dim, src_mds); \
+        auto _pd = make_unique_pd<pd_t>(attr, dst_md, n, concat_dim, src_mds); \
         if (_pd == nullptr) return out_of_memory; \
-        if (_pd->init(engine) != success) { \
-            delete _pd; \
-            return unimplemented; \
-        } \
+        CHECK(_pd->init(engine)); \
         CHECK(_pd->init_scratchpad_md()); \
-        return safe_ptr_assign(*concat_pd, _pd); \
+        return safe_ptr_assign(*concat_pd, _pd.release()); \
     } \
     status_t create_primitive( \
             std::pair<std::shared_ptr<primitive_t>, bool> &primitive, \

@@ -49,7 +49,8 @@ struct ref_matmul_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = is_dense_data() && utils::one_of(src_type, f32, bf16, f16)
+            bool ok = is_dense_format_kind()
+                    && utils::one_of(src_type, f32, bf16, f16)
                     && utils::one_of(wei_type, f32, bf16, f16)
                     && utils::one_of(dst_type, f32, bf16, f16)
                     && src_type == wei_type
@@ -85,6 +86,7 @@ struct ref_matmul_t : public primitive_t {
         ref_post_ops
                 = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
         if (!ref_post_ops) return status::out_of_memory;
+        CHECK(ref_post_ops->init(pd()->dst_md()));
         return status::success;
     }
 

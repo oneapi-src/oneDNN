@@ -61,8 +61,9 @@ status_t sycl_hip_stream_t::init() {
             && (flags() & stream_flags::out_of_order) == 0)
         return status::invalid_arguments;
 
-    VCONDCHECK(create, check, stream, is_profiling_enabled() == false,
-            unimplemented, VERBOSE_PROFILING_UNSUPPORTED);
+    VCONDCHECK(primitive, create, check, stream,
+            is_profiling_enabled() == false, status::unimplemented,
+            VERBOSE_PROFILING_UNSUPPORTED);
 
     // If queue_ is not set then construct it
     auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine());
@@ -71,7 +72,10 @@ status_t sycl_hip_stream_t::init() {
     if (!queue_) {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
-        queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev));
+        ::sycl::property_list prop_list;
+        if (flags() & stream_flags::in_order)
+            prop_list = {::sycl::property::queue::in_order {}};
+        queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev, prop_list));
     } else {
         // We need to check that the given queue is associated with
         // the device and context of the engine.

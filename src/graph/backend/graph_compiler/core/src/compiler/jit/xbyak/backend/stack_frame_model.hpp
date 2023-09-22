@@ -112,7 +112,7 @@ public:
     struct stack_item {
         stack_item(size_t stack_size_before_item, std::string debug_comment)
             : stack_size_before_item_(stack_size_before_item)
-            , debug_comment_(debug_comment) {}
+            , debug_comment_(std::move(debug_comment)) {}
 
         virtual ~stack_item() {};
 

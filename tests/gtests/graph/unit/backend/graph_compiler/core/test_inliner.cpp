@@ -92,41 +92,46 @@ TEST(GCCore_CPU_func_inline_cpp, TestInlineAt) {
 TEST(GCCore_CPU_func_inline_cpp, TestInlineTensor) {
     builder::ir_builder_t builder;
 
-    _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {100, 200})) {
+    _function_(
+            datatypes::void_t, aaa, _arg_("A", datatypes::f32, {100 * 200})) {
         _bind_(A);
         _for_(i, 0, 100) {
-            _for_(j, 0, 200) { A[{i, j}] = A[{i, j}] + 1; }
+            _for_(j, 0, 200) { A[i * 200 + j] = A[i * 200 + j] + 1; }
         }
+        _var_init_(ptr, datatypes::pointer, builder::tensor_ptr(A, {0}));
     }
 
-    _function_(
-            datatypes::s32, mainfunc, _arg_("A1", datatypes::f32, {200, 400})) {
+    _function_(datatypes::s32, mainfunc,
+            _arg_("A1", datatypes::f32, {200 * 400})) {
         _bind_(A);
-        A[{0, 0}] = 1;
+        A[0] = 1;
         builder.push_evaluate(
-                with_attr(aaa(tensor_ptr(A, {100, 200})), "inline_level", 2));
+                with_attr(aaa(tensor_ptr(A, {100})), "inline_level", 2));
     }
     func_inliner_t inl;
 
-    _function_(
-            datatypes::s32, expected, _arg_("A1", datatypes::f32, {200, 400})) {
+    _function_(datatypes::s32, expected,
+            _arg_("A1", datatypes::f32, {200 * 400})) {
         _bind_(A);
-        A[{0, 0}] = 1;
-        expr ptr = builder::tensor_ptr(A, {100, 200});
+        A[0] = 1;
         builder.push_scope();
         {
             _for_(i, 0, 100) {
-                _for_(j, 0, 200) { ptr[{i, j}] = ptr[{i, j}] + 1; }
+                _for_(j, 0, 200) {
+                    A[100 + (i * 200 + j)] = A[100 + (i * 200 + j)] + 1;
+                }
             }
         }
+        _var_init_(ptr, datatypes::pointer,
+                builder::tensor_ptr(A, {100 + expr(0)}));
         builder.emit(builder.pop_scope());
 
         builder.push_scope();
         builder.emit(builder.pop_scope());
     }
-
+    auto out = inl(mainfunc);
     ir_comparer cmp(true);
-    EXPECT_TRUE(cmp.compare(inl(mainfunc), expected, false));
+    EXPECT_TRUE(cmp.compare(out, expected, false));
 }
 
 TEST(GCCore_CPU_func_inline_cpp, TestInlineFailure) {

@@ -31,8 +31,9 @@
 #include "cpu/cpu_softmax_pd.hpp"
 
 #define VCHECK_SOFTMAX(cond, msg, ...) \
-    VCONDCHECK(create, dispatch, softmax, (cond), status::unimplemented, \
-            "%s," msg, this->info(engine), ##__VA_ARGS__)
+    VCONDCHECK(primitive, create, dispatch, softmax, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {
@@ -130,6 +131,7 @@ struct ref_softmax_fwd_t : public primitive_t {
         ref_post_ops
                 = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
         if (!ref_post_ops) return status::out_of_memory;
+        CHECK(ref_post_ops->init(pd()->dst_md()));
 
         return status::success;
     }

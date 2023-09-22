@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
 * Copyright 2020-2023 FUJITSU LIMITED
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,11 +163,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         bool ok = true && p.ndims > 0
                 && utils::one_of(p.itype, f32, s32, data_type::s8, u8)
-                && utils::one_of(p.otype, f32, s32, data_type::s8, u8)
+                && utils::one_of(p.otype, f32, bf16, s32, data_type::s8, u8)
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
-                && simple_impl_desc_init(p, nullptr)
-                && prb_has_small_strides(p);
+                && simple_impl_desc_init(p, nullptr) && prb_has_small_strides(p)
+                && ((p.otype != bf16) || (p.itype == f32 && mayiuse_bf16()));
 
         return ok;
     }
@@ -647,6 +647,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     if (idt == f32 || idt == s32)
                         cvt_v_s32_u8(startIdx, regNum);
                     if (idt == data_type::s8) cvt_v_s8_u8(startIdx, regNum);
+                    break;
+                case bf16:
+                    if (idt == f32) cvt_v_f32_bf16(startIdx, regNum);
                     break;
                 default: assert(!"unreachable");
             }
@@ -1677,6 +1680,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         UNROLL_INST(fcvtzs, VReg4S, tmp, tmp);
     }
 
+    void cvt_v_f32_bf16(const size_t startIdx, const size_t regNum) {
+        UNROLL_INST2(bfcvtn, VReg4H(i), VReg4S(i));
+    }
+
     void cvt_z_s8_s32(const size_t startIdx, const size_t regNum) {
         cvt_z_b_s(startIdx, regNum);
         UNROLL_INST(sxtb, ZRegS, tmp, P_ALL_ONE / T_m, tmp);
@@ -2627,6 +2634,8 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         engine_t *engine, const primitive_attr_t *attr, engine_t *src_engine,
         const memory_desc_t *src_md, engine_t *dst_engine,
         const memory_desc_t *dst_md) {
+    if (!impl::is_dense_format_kind({src_md, dst_md}))
+        return status::unimplemented;
     auto prb = tr::prb_t();
 
     status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
@@ -2658,7 +2667,7 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         prb_dump(ker_desc.prb);
     });
 
-    auto _pd = new pd_t(
+    auto _pd = make_unique_pd<pd_t>(
             attr, src_engine->kind(), src_md, dst_engine->kind(), dst_md);
     if (_pd == nullptr) return status::out_of_memory;
 
@@ -2666,14 +2675,11 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
     _pd->prb_ = prb;
     _pd->with_groups_
             = prb.compensation_mask == tr::prb_t::comp_mask_with_groups;
-    if (_pd->init(engine, src_engine, dst_engine) != status::success) {
-        delete _pd;
-        return status::unimplemented;
-    }
+    CHECK(_pd->init(engine, src_engine, dst_engine));
     _pd->ker_desc_ = ker_desc;
     CHECK(_pd->init_scratchpad_md());
 
-    return safe_ptr_assign(*reorder_pd, _pd);
+    return safe_ptr_assign(*reorder_pd, _pd.release());
 }
 
 void jit_uni_reorder_t::omp_driver_0d(int off, const char *in, char *out,
@@ -3055,6 +3061,8 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         engine_t *engine, const primitive_attr_t *attr, engine_t *src_engine,
         const memory_desc_t *src_md, engine_t *dst_engine,
         const memory_desc_t *dst_md) {
+    if (!impl::is_dense_format_kind({src_md, dst_md}))
+        return status::unimplemented;
     auto prb = tr::prb_t();
 
     status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
@@ -3073,17 +3081,14 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         return status::unimplemented;
     }
 
-    auto _pd = new pd_t(
+    auto _pd = make_unique_pd<pd_t>(
             attr, src_engine->kind(), src_md, dst_engine->kind(), dst_md);
     if (_pd == nullptr) return status::out_of_memory;
     _pd->prb_ = prb;
-    if (_pd->init(engine, src_engine, dst_engine) != status::success) {
-        delete _pd;
-        return status::unimplemented;
-    }
+    CHECK(_pd->init(engine, src_engine, dst_engine));
     CHECK(_pd->init_scratchpad_md());
 
-    return safe_ptr_assign(*reorder_pd, _pd);
+    return safe_ptr_assign(*reorder_pd, _pd.release());
 }
 
 void jit_blk_reorder_t::pd_t::prb_tile_normalize(tr::prb_t &p) {

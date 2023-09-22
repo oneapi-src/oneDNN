@@ -59,6 +59,11 @@ std::vector<for_loop> collect_loops(stmt body);
  * */
 std::vector<for_loop> collect_nested_loops(stmt body);
 
+/**
+ * Collect all loops inside this body recursively
+ * */
+std::vector<for_loop> collect_all_loops(const stmt &body);
+
 // get inner for_loop
 for_loop get_inner_for_loop(const for_loop_node_t *f);
 

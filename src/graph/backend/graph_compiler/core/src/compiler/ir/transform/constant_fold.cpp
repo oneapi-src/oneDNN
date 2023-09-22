@@ -187,6 +187,7 @@ public:
     // to avoid reading stale result of previous runs of the pass
     uint64_t run_idx;
     bool canonicalized = false;
+    int updated_at_sub_run_ = -1;
     constant_fold_analysis_result_t(const constant_fold_analysis_result_t &)
             = delete;
     constant_fold_analysis_result_t(constant_fold_analysis_result_t &&)
@@ -760,8 +761,10 @@ std::pair<expr_c, expr_c> get_operand_from_binary(const expr_c &a) {
 }
 
 bool fold_special_consts(expr_c &orig, expr_c l, const constant_c &r) {
+    // does not fold pointer constant
+    if (r->dtype_.is_pointer()) { return false; }
     // todo: handle vector types with different value
-    if (r->value_.size() > 1) return false;
+    if (r->value_.size() > 1) { return false; }
     sc_expr_type op = orig->node_type_;
     if (r->dtype_.is_etype(sc_data_etype::BOOLEAN)) {
         bool val = r->value_[0].u64;
@@ -1137,11 +1140,28 @@ public:
     // a comparer with strict var/tensor comparison
     ir_comparer cmper;
     uint64_t run_idx_ = get_run_id();
+    int sub_run_idx_ = 0;
     int expr_depth_ = 0;
     int loop_depth_ = 0;
+    // track if rvalue of var is changed. It is used to skip redoing folding for
+    // non-fast mode
+    bool var_rvalue_changed_ = false;
     bool fast_;
+    bool skip_mod_expand_;
 
-    constant_fold_t(bool fast) : cmper(false, true, true, false), fast_(fast) {}
+    constant_fold_t(bool fast, bool skip_mod_expand = false)
+        : cmper(false, true, true, false)
+        , fast_(fast)
+        , skip_mod_expand_(skip_mod_expand) {}
+    expr_c dispatch(expr_c v) override {
+        if (v.isa<var>() || v.isa<constant>()) { return v; }
+        auto ana = get_analysis(v.get(), run_idx_);
+        if (ana && ana->updated_at_sub_run_ == sub_run_idx_) { return v; }
+        auto ret = ir_consistent_visitor_t::dispatch(v);
+        get_analysis_for_edit(ret.get(), run_idx_)->updated_at_sub_run_
+                = sub_run_idx_;
+        return ret;
+    }
 
     bool is_same_op(expr_c &v1, expr_c &v2) {
         if (v1->node_type_ != v2->node_type_) return false;
@@ -1412,36 +1432,44 @@ public:
                     break;
                 } else {
                     constant_c rv = l_r.second.checked_as<constant_c>();
-                    switch (l_r.first->node_type_) {
-                        case sc_expr_type::add:
-                        case sc_expr_type::sub: {
-                            // TODO(xxx): special case for distribution law of
-                            // Integer division
-                            if (parent->node_type_ == sc_expr_type::div) {
-                                auto l_r = get_operand_from_binary(parent);
+                    //
+                    auto expand_add_sub = [&](bool skip) {
+                        if (skip) {
+                            return builder::remake_binary(
+                                    expand_polynomial(l_r.first),
+                                    expand_polynomial(l_r.second), parent);
+                        } else {
+                            auto next_lr = get_operand_from_binary(l_r.first);
+                            auto new_parent = builder::remake_binary(
+                                    expand_polynomial(builder::remake_binary(
+                                            next_lr.first, rv, parent)),
+                                    expand_polynomial(builder::remake_binary(
+                                            next_lr.second, rv, parent)),
+                                    l_r.first);
+                            if (parent->node_type_ == sc_expr_type::mod)
                                 return builder::remake_binary(
-                                        expand_polynomial(l_r.first),
-                                        expand_polynomial(l_r.second), parent);
-                            } else {
-                                auto next_lr
-                                        = get_operand_from_binary(l_r.first);
-                                auto new_parent = builder::remake_binary(
-                                        expand_polynomial(
-                                                builder::remake_binary(
-                                                        next_lr.first, rv,
-                                                        parent)),
-                                        expand_polynomial(
-                                                builder::remake_binary(
-                                                        next_lr.second, rv,
-                                                        parent)),
-                                        l_r.first);
-                                if (parent->node_type_ == sc_expr_type::mod)
-                                    return builder::remake_binary(
-                                            new_parent, l_r.second, parent);
-                                else {
-                                    return new_parent;
-                                }
+                                        new_parent, l_r.second, parent);
+                            else {
+                                return new_parent;
                             }
+                        }
+                    };
+                    switch (l_r.first->node_type_) {
+                        // TODO(xxx): special case for distribution law of
+                        // Integer division and modulo
+                        case sc_expr_type::add: {
+                            bool skip = parent->node_type_ == sc_expr_type::div
+                                    || (parent->node_type_ == sc_expr_type::mod
+                                            && skip_mod_expand_);
+                            return expand_add_sub(skip);
+                        }
+                        case sc_expr_type::sub: {
+                            auto is_uint = get_type_category(l_r.second->dtype_)
+                                    == CATE_UINT;
+                            bool skip = parent->node_type_ == sc_expr_type::div
+                                    || (parent->node_type_ == sc_expr_type::mod
+                                            && (skip_mod_expand_ || is_uint));
+                            return expand_add_sub(skip);
                         }
                         case sc_expr_type::mul:
                         case sc_expr_type::div:
@@ -1486,7 +1514,6 @@ public:
             expr_c parent, const expr_c &lhs, const expr_c &rhs) {
         auto l = fold_range_dispatch(lhs);
         auto r = fold_range_dispatch(rhs);
-
         if (l.isa<constant>() && r.isa<constant>()) {
             auto cl = l.static_as<constant_c>();
             auto cr = r.static_as<constant_c>();
@@ -1532,7 +1559,7 @@ public:
         expr_depth_++;
         expr_c old = parent;
         auto parent_type = parent->node_type_;
-        constexpr int max_iter = 5000;
+        constexpr int max_iter = 100;
         int loop_cnt = 0;
         for (;;) {
             expr_c ret = parent;
@@ -1588,8 +1615,6 @@ public:
         return v;
     }
 
-    // expr_c visit(cast_c v) override {
-    // }
     expr_c visit(cast_c v) override {
         auto in = fold_range_dispatch(v->in_);
         bool changed = !in.ptr_same(v->in_);
@@ -1641,20 +1666,24 @@ public:
     expr_c visit(cmp_c v) override { return fold_binary(v); }
     expr_c visit(logic_c v) override { return fold_binary(v); }
     expr_c visit(intrin_call_c v) override {
-        auto ret = ir_consistent_visitor_t::visit(std::move(v));
-        if (ret.isa<intrin_call>()) {
-            auto node = ret.static_as<intrin_call_c>();
-            switch (node->type_) {
-                case intrin_type::shl:
-                case intrin_type::shr:
-                case intrin_type::max:
-                case intrin_type::min:
-                case intrin_type::int_and:
-                case intrin_type::int_or: return fold_binary(node);
-                case intrin_type::fmadd: return fold_fmadd(node);
-                default: break;
+        switch (v->type_) {
+            case intrin_type::shl:
+            case intrin_type::shr:
+            case intrin_type::max:
+            case intrin_type::min:
+            case intrin_type::int_and:
+            case intrin_type::int_or: return fold_binary(v);
+            case intrin_type::fmadd: {
+                auto ret = ir_consistent_visitor_t::visit(std::move(v));
+                if (ret.isa<intrin_call_c>()) {
+                    return fold_fmadd(ret.static_as<intrin_call_c>());
+                } else {
+                    return ret;
+                }
             }
+            default: break;
         }
+        auto ret = ir_consistent_visitor_t::visit(std::move(v));
         return ret;
     }
     expr_c visit(logic_not_c v) override {
@@ -1684,7 +1713,33 @@ public:
                 auto c = cond.static_as<constant_c>();
                 bool is_false = is_const_equal_to(c, 0);
                 return is_false ? node->r_ : node->l_;
+            } else if (node->l_.ptr_same(node->r_)
+                    || (node->l_.isa<constant>()
+                            && node->l_->equals(node->r_))) {
+                return node->l_;
             }
+        }
+        return ret;
+    }
+
+    stmt_c visit(define_c v) override {
+        auto ret = ir_consistent_visitor_t::visit(v).checked_as<define_c>();
+        if (fast_) { return ret; }
+        if (v->var_.isa<var>() && v->var_->dtype_.lanes_ == 1
+                && ret->init_.defined() && !ret.ptr_same(v)
+                && ret->init_.isa<constant>()) {
+            var_rvalue_changed_ = true;
+        }
+        return ret;
+    }
+
+    stmt_c visit(assign_c v) override {
+        auto ret = ir_consistent_visitor_t::visit(v).checked_as<assign_c>();
+        if (fast_) { return ret; }
+        if (v->var_.isa<var>() && v->var_->dtype_.lanes_ == 1
+                && !v->value_.ptr_same(ret->value_)
+                && ret->value_.isa<constant>()) {
+            var_rvalue_changed_ = true;
         }
         return ret;
     }
@@ -1815,13 +1870,14 @@ public:
             func_c cur_f = v;
             func_c ret;
             for (;;) {
+                var_rvalue_changed_ = false;
                 constant_fold_analysis_t ana {run_idx_};
                 ana.dispatch(cur_f);
                 // keep the exprs alive to make sure the raw pointers in
                 // analysis result is valid
                 auto keep_alive = std::move(ana.single_assign_);
                 ret = ir_visitor_t::dispatch(cur_f);
-                if (ret == cur_f) {
+                if (!var_rvalue_changed_ || ret == cur_f) {
                     for (auto &kv : keep_alive) {
                         if (kv.first->temp_data_) {
                             kv.first->temp_data_->clear();
@@ -1830,6 +1886,7 @@ public:
                     return ret;
                 }
                 cur_f = ret;
+                sub_run_idx_++;
             }
         }
         return ir_visitor_t::dispatch(v);
@@ -1857,16 +1914,18 @@ expr_c constant_folder_t::operator()(expr_c f) const {
  *  this feature to constant folding pass
  *  @param f: original polynomial expr.
  *  @param max_iter: maximum iteration time, default is one.
+ *  @param skip_mod: skip int mod expand.
  * */
-expr_c constant_folder_t::expand_polynomial(expr_c f, int max_iter) {
-    constant_fold_t pass {true};
+expr_c constant_folder_t::expand_polynomial(
+        expr_c f, int max_iter, bool skip_mod) {
+    constant_fold_t pass {true, skip_mod};
     auto ret = pass.dispatch(std::move(f));
     for (int i = 0; i < max_iter; i++) {
         auto old = ret;
         ret = pass.expand_polynomial(old);
         if (ret.ptr_same(old)) { break; }
     }
-    constant_fold_t pass2 {true};
+    constant_fold_t pass2 {true, skip_mod};
     return pass2.dispatch(ret);
 }
 

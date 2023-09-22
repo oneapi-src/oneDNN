@@ -169,6 +169,22 @@ protected:
         }
         return ok;
     }
+
+    /// This function body follows
+    /// convolution_pd_t::expect_data_types(...)
+    bool expect_data_types(data_type_t src_dt, data_type_t wei_dt,
+            data_type_t bia_dt, data_type_t dst_dt) const {
+        bool ok = true
+                && (src_dt == data_type::undef
+                        || invariant_src_md()->data_type == src_dt)
+                && (wei_dt == data_type::undef
+                        || invariant_wei_md()->data_type == wei_dt)
+                && (dst_dt == data_type::undef
+                        || invariant_dst_md()->data_type == dst_dt);
+        if (with_bias() && bia_dt != data_type::undef)
+            ok = ok && invariant_bia_md()->data_type == bia_dt;
+        return ok;
+    }
 };
 
 struct deconvolution_fwd_pd_t : public deconvolution_pd_t {

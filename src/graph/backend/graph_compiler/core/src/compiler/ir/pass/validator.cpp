@@ -19,6 +19,7 @@
 #include <vector>
 #include "../intrinsics.hpp"
 #include "../viewer.hpp"
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/pass/printer.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/tir_pos_trace.hpp>
@@ -159,6 +160,10 @@ static bool validate_brgemm_dtype(sc_data_type_t dtype_A,
             || (dtype_A == datatypes::bf16 && dtype_B == datatypes::bf16
                     && (has_postop ? utils::is_one_of(
                                 dtype_C, datatypes::f32, datatypes::bf16)
+                                   : dtype_C == datatypes::f32))
+            || (dtype_A == datatypes::f16 && dtype_B == datatypes::f16
+                    && (has_postop ? utils::is_one_of(
+                                dtype_C, datatypes::f32, datatypes::f16)
                                    : dtype_C == datatypes::f32))) {
         return true;
     }
@@ -402,8 +407,29 @@ void validate_impl_t::view(intrin_call_c v) {
             COMPILE_ASSERT_POS(v->args_[0]->dtype_ == v->args_[2]->dtype_,
                     "The types of the first and last args should be the same"
                             << v->args_[0]->dtype_ << " v.s. "
-                            << v->args_[1]->dtype_);
+                            << v->args_[2]->dtype_);
 
+            break;
+        case intrin_type::permutexvar:
+            validate_type(v);
+            COMPILE_ASSERT_POS(v->args_.size() == 2,
+                    "Trinary intrinsics take two parameters. Got " << v);
+            break;
+        case intrin_type::insert:
+            validate_type(v);
+            COMPILE_ASSERT_POS(v->args_.size() == 2,
+                    "The intrinsics take two parameters. Got " << v);
+            COMPILE_ASSERT_POS(
+                    v->intrin_attrs_->get_or_null<int>("insert_imm") != nullptr,
+                    "Must specify intrin_attrs_.");
+            break;
+        case intrin_type::extract:
+            validate_type(v);
+            COMPILE_ASSERT_POS(v->args_.size() == 1,
+                    "The intrinsics take one parameter. Got " << v);
+            COMPILE_ASSERT_POS(v->intrin_attrs_->get_or_null<int>("extract_imm")
+                            != nullptr,
+                    "Must specify intrin_attrs_.");
             break;
         case intrin_type::gather:
             validate_type(v);
@@ -465,7 +491,7 @@ void validate_impl_t::view(intrin_call_c v) {
             COMPILE_ASSERT_POS(v->dtype_ == datatypes::void_t,
                     "brgemm should return void");
             COMPILE_ASSERT_POS(
-                    v->args_.size() == brgemm_args::NUM_FULL_ARGS_STRIDE,
+                    v->check_brgemm_arg_size(brgemm_args::NUM_FULL_ARGS_STRIDE),
                     "Wrong number of arguments for brgemm");
             auto &extras = v->intrin_attrs_->get<brgemm_args::extra_args_t>(
                     intrin_attr::brgemm_extras);
@@ -498,13 +524,14 @@ void validate_impl_t::view(intrin_call_c v) {
                            << "-th argument of brgemm does not match. "
                               "Expecting"
                            << tsr_dtype_C << " Got" << v->args_[2]->dtype_);
-            for (unsigned i = brgemm_args::C + 1; i < v->args_.size(); i++) {
+            for (unsigned i = brgemm_args::C + 1;
+                    i < brgemm_args::NUM_FULL_ARGS_STRIDE; i++) {
                 COMPILE_ASSERT_POS(
                         v->args_[i]->dtype_ == brgemm_args::arg_types[i],
                         "The " << i
                                << "-th argument of brgemm does not match. "
                                   "Expecting"
-                               << brgemm_args::arg_types[i] << " Got"
+                               << brgemm_args::arg_types[i] << " Got "
                                << v->args_[i]->dtype_);
             }
             break;
@@ -513,7 +540,7 @@ void validate_impl_t::view(intrin_call_c v) {
             COMPILE_ASSERT_POS(v->dtype_ == datatypes::void_t,
                     "list_brgemm should return void");
             COMPILE_ASSERT_POS(
-                    v->args_.size() == brgemm_args::NUM_FULL_ARGS_LIST,
+                    v->check_brgemm_arg_size(brgemm_args::NUM_FULL_ARGS_LIST),
                     "Wrong number of arguments for list_brgemm");
 
             auto &extras = v->intrin_attrs_->get<brgemm_args::extra_args_t>(
@@ -532,7 +559,7 @@ void validate_impl_t::view(intrin_call_c v) {
                         "list_BRGEMM currently only support fp32, got: " << v);
             }
 
-            for (unsigned i = 0; i < v->args_.size(); i++) {
+            for (unsigned i = 0; i < brgemm_args::NUM_FULL_ARGS_LIST; i++) {
                 COMPILE_ASSERT_POS(
                         v->args_[i]->dtype_ == brgemm_args::list_arg_types[i],
                         "The " << i
@@ -651,7 +678,10 @@ void validate_impl_t::check_var_tensor_def(
         auto &init = v->var_.static_as<tensor>()->init_value_;
         COMPILE_ASSERT_POS(init == nullptr
                         || init == tensor_node::get_zero_tensor_initializer()
-                        || init->size_ == sizeof(union_val),
+                        || init->size_ == sizeof(union_val)
+                        || (v->var_->attr_
+                                && v->var_->attr_->has_key(
+                                        attr_keys::shared_const)),
                 "The tensor defined in function cannot have init value: " << v);
     }
 }

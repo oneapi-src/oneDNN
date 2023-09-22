@@ -37,6 +37,7 @@ namespace softmax {
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto dst_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->ddt, prb->dtag);
@@ -56,10 +57,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
 
-        DNN_SAFE_STATUS(dnnl_softmax_forward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_softmax_forward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, prop, alg_kind,
                 init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
-                prb->axis, dnnl_attr));
+                prb->axis, dnnl_attr)));
     } else {
         // Re-create dst_md with source tag if dst was not specified, immitating
         // default value.
@@ -73,15 +74,18 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto diff_dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->ddt, tag::any);
 
-        DNN_SAFE_STATUS(dnnl_softmax_backward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_softmax_backward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, alg_kind, diff_src_d,
-                diff_dst_d, dst_d, prb->axis, init_pd_args.hint, dnnl_attr));
+                diff_dst_d, dst_d, prb->axis, init_pd_args.hint, dnnl_attr)));
     }
 
     return dnnl_success;
 }
 
 int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
     int64_t outer_size = 0, inner_size = 0, axis_size = 0;
     get_sizes(prb, outer_size, inner_size, axis_size);
 
@@ -98,8 +102,8 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     // log(sum(x_j)) won't be close to zero as in case of single top-1 value.
 
     // Do fixed partitioning to have same filling for any number of threads.
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(outer_size, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
@@ -195,11 +199,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-
-    if (is_gpu() && prb->attr.post_ops.len() != 0) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -259,6 +258,7 @@ std::vector<int> supported_exec_args(dir_t dir) {
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
         dnnl_primitive_t prim_ref) {
+    update_inplace_memory_args(mem_map, prb, dir);
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
     const auto &ref_engine = get_cpu_engine();
@@ -306,24 +306,6 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();
     }
 
-    // Drop destination memory for in-place case. `args` will take care of rest.
-    const bool inplace_fwd = prb->inplace && (prb->dir & FLAG_FWD);
-    const bool inplace_bwd = prb->inplace && (dir & FLAG_BWD);
-    if (inplace_fwd) {
-        mem_map[DNNL_ARG_DST] = dnn_mem_t();
-    } else if (inplace_bwd) {
-        mem_map[DNNL_ARG_DIFF_SRC] = dnn_mem_t();
-    }
-
-    if (!has_bench_mode_bit(mode_bit_t::corr)) return OK;
-
-    // Use inplace reference computation every time.
-    if (dir & FLAG_FWD) {
-        ref_mem_map.emplace(DNNL_ARG_DST, dnn_mem_t());
-    } else {
-        ref_mem_map.emplace(DNNL_ARG_DIFF_SRC, dnn_mem_t());
-    }
-
     return OK;
 }
 
@@ -360,8 +342,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(
+                           ref_mem_map, mem_map, prim, prb, res, prb->dir),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,8 +72,8 @@ dnnl_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
     auto ia_accessor = [=](dim_t i, dim_t j) { return A[j * lda + i]; };
     auto ib_accessor = [=](dim_t i, dim_t j) { return B[j * ldb + i]; };
 
-    const int a_rows = AisN ? m : k;
-    const int a_cols = AisN ? k : m;
+    const dim_t a_rows = AisN ? m : k;
+    const dim_t a_cols = AisN ? k : m;
     dnnl::impl::parallel_nd(a_cols, a_rows, [&](dim_t j, dim_t i) {
         da_setter(i, j,
                 static_cast<double>(ia_accessor(i, j))

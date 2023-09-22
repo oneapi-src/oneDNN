@@ -59,7 +59,7 @@ public:
     stmt_c operator()(stmt_c f) const;
     expr_c operator()(expr_c f) const;
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
-    expr_c expand_polynomial(expr_c f, int max_iter = 1);
+    expr_c expand_polynomial(expr_c f, int max_iter = 1, bool skip_mod = false);
     SC_DECL_PASS_INFO_FUNC();
 };
 // do auto cast and constant fold for input expr.

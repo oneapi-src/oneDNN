@@ -33,6 +33,7 @@ namespace impl {
 namespace graph {
 namespace gc {
 struct op_dispatch_key_t;
+struct impl_op_dispatch_key_t;
 class SC_INTERNAL_API tunable_op_t
     : public sc_op,
       public op_traits::copyable_t,
@@ -67,6 +68,10 @@ public:
     void set_config_if_empty(context_ptr ctx, body_generator_base_t *p);
     virtual void set_config_by_key(
             const op_dispatch_key_t &key, const context_ptr &ctx) {
+        throw std::runtime_error("unimplemented");
+    }
+    virtual void set_internal_config_by_key(
+            const impl_op_dispatch_key_t &key, const context_ptr &ctx) {
         throw std::runtime_error("unimplemented");
     }
 

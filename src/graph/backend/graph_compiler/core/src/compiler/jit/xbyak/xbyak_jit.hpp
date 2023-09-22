@@ -47,36 +47,33 @@ class xbyak_jit;
  *   way to ensure that the memory allocated for the JIT'ed code has the
  *   same lifespan as this xbyak_jit_module.
  */
-class SC_INTERNAL_API xbyak_jit_module
-    : public jit_module,
-      public std::enable_shared_from_this<xbyak_jit_module> {
+class SC_INTERNAL_API xbyak_jit_module_code : public jit_module_code {
 public:
-    virtual ~xbyak_jit_module() = default;
+    virtual ~xbyak_jit_module_code() = default;
 
 private:
     // NOTE: It may be okay to actually provide these. I just haven't given it
     // much consideration yet. -cconvey
-    xbyak_jit_module(xbyak_jit_module &&other) = delete;
-    xbyak_jit_module(const xbyak_jit_module &other) = delete;
+    xbyak_jit_module_code(xbyak_jit_module_code &&other) = delete;
+    xbyak_jit_module_code(const xbyak_jit_module_code &other) = delete;
 
     // xbyak_jit is this object's factory class.
     friend class xbyak_jit;
 
     /**
      * @param jit_output - Describes the xbyak jit result.
-     * @param globals - Describes the static table base jit_module needs.
      * @param managed_thread_pool - Whether to use managed thread pool
      */
-    xbyak_jit_module(std::shared_ptr<xbyak::xbyak_jit_generator> jit_output,
-            statics_table_t &&globals, bool managed_thread_pool);
+    xbyak_jit_module_code(
+            std::shared_ptr<xbyak::xbyak_jit_generator> jit_output,
+            bool managed_thread_pool);
 
     std::shared_ptr<xbyak::xbyak_jit_generator> jit_output_;
 
 public:
     void *get_address_of_symbol(const std::string &name) override;
 
-    std::shared_ptr<jit_function_t> get_function(
-            const std::string &name) override;
+    void *get_function(const std::string &name, void *&wrapper) override;
 };
 
 class SC_INTERNAL_API xbyak_jit : public jit_engine_t {

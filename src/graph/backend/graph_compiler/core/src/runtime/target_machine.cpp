@@ -167,6 +167,8 @@ target_machine_t get_native_target_machine() {
                 = hasavx512 && (info[2] & ((int)1 << 11)) != 0;
         tm.cpu_flags_.fAVX512AMXBF16
                 = hasavx512 && (info[3] & ((int)1 << 22)) != 0;
+        tm.cpu_flags_.fAVX512FP16
+                = hasavx512 && (info[3] & ((int)1 << 23)) != 0;
         tm.cpu_flags_.fAVX512AMXTILE
                 = hasavx512 && (info[3] & ((int)1 << 24)) != 0;
         tm.cpu_flags_.fAVX512AMXINT8
@@ -177,6 +179,7 @@ target_machine_t get_native_target_machine() {
             int info2[4];
             cpuid(info2, 0x00000007, 1);
             tm.cpu_flags_.fAVX512BF16 = (info2[0] & ((int)1 << 5)) != 0;
+            tm.cpu_flags_.fAVX512AMXFP16 = (info2[0] & ((int)1 << 21)) != 0;
         }
     }
     if (nExIds >= 0x80000001) {

@@ -1034,7 +1034,7 @@ TEST(Compile, ConvAddSharedInputs) {
     g.finalize();
 
     // run pass
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1102,7 +1102,7 @@ TEST(Compile, ConvAddInplace) {
     g.finalize();
 
     // run pass
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1355,7 +1355,7 @@ TEST(Execute, ConvolutionBnFp32) {
             graph::status::success);
 
     // run fusion partition
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1466,7 +1466,7 @@ TEST(Compile, ConvBnSharedInputs) {
             graph::status::success);
 
     // run fusion partition
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1552,7 +1552,7 @@ TEST(Execute, ConvAdd) {
         g.add_op(&add_op);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1638,7 +1638,7 @@ TEST(Execute, ConvAddPerTensorBroadcast) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1720,7 +1720,7 @@ TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1803,7 +1803,7 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1886,7 +1886,7 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1966,7 +1966,7 @@ TEST(Compile, ConvAddBroadcast) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -2040,7 +2040,7 @@ TEST(Execute, ConvAddRelu) {
     g.add_op(&relu_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -2157,7 +2157,7 @@ TEST(Execute, ConvMultiplePostOps) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -2213,35 +2213,35 @@ TEST(Execute, ConvBiasEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param_t> params1 = {
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    {2.0, 1.5, 4.0, 0.5}, graph::op_kind::Abs, "Abs", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0}, {2.0, 1.5, 4.0, 0.5},
+                    graph::op_kind::Abs, "Abs", {}},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {static_cast<float>(exp(-2) - 1), 1.5, 4.0, 0.5},
                     graph::op_kind::Elu, "Elu", {{graph::op_attr::alpha, 1.f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     hardsigmoid_func({-2.0, 1.5, 4.0, 0.5}, 1.f / 6, 0.5f),
                     graph::op_kind::HardSigmoid, "HardSigmoid",
                     {{graph::op_attr::alpha, 1.f / 6},
                             {graph::op_attr::beta, 0.5f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {-0.04f, 1.5f, 4.0f, 0.5f}, graph::op_kind::LeakyReLU,
                     "LeakyReLU", {{graph::op_attr::alpha, 0.02f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     mish_func({-2.0, 1.5, 4.0, 0.5}), graph::op_kind::Mish,
                     "Mish", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    {0.0, 1.5, 3.0, 0.5}, graph::op_kind::Clamp, "Clamp",
+            eltwise_param_t {"fp_conv_post_ops", {-1.0}, {0.0, 1.5, 3.0, 0.5},
+                    graph::op_kind::Clamp, "Clamp",
                     {{graph::op_attr::min, 0.f}, {graph::op_attr::max, 3.f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     sigmoid_func({-2.0, 1.5, 4.0, 0.5}),
                     graph::op_kind::Sigmoid, "Sigmoid", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {4.0, 2.25, 16.0, 0.25}, graph::op_kind::Square, "Square",
                     {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     tanh_func({-2.0, 1.5, 4.0, 0.5}), graph::op_kind::Tanh,
                     "Tanh", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {1.0},
+            eltwise_param_t {"fp_conv_post_ops", {1.0},
                     sqrt_func({0.0, 3.5, 6.0, 2.5}), graph::op_kind::Sqrt,
                     "Sqrt", {}},
     };
@@ -2331,17 +2331,17 @@ TEST(Execute, ConvBiasAddEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param_t> params2 = {
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {static_cast<float>(exp(-4.0) - 1), 2.5, 3.0, 0.5},
                     graph::op_kind::Elu, "Elu", {{graph::op_attr::alpha, 1.f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     {-0.08f, 2.5f, 3.0f, 0.5f}, graph::op_kind::LeakyReLU,
                     "LeakyReLU", {{graph::op_attr::alpha, 0.02f}}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"fp_conv_post_ops", {-1.0},
                     mish_func({-4.0f, 2.5f, 3.0f, 0.5f}), graph::op_kind::Mish,
                     "Mish", {}},
-            eltwise_param_t {"conv_bias_post_ops_fusion", {3.0},
-                    {0.0, 6.f, 6.f, 4.5}, graph::op_kind::Clamp, "ReLU6",
+            eltwise_param_t {"fp_conv_post_ops", {3.0}, {0.0, 6.f, 6.f, 4.5},
+                    graph::op_kind::Clamp, "ReLU6",
                     {{graph::op_attr::min, 0.f}, {graph::op_attr::max, 6.f}}},
     };
 
@@ -2457,17 +2457,17 @@ TEST(Execute, ConvAddEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param_t> params = {
-            eltwise_param_t {"conv_post_ops_fusion", {0.0},
+            eltwise_param_t {"fp_conv_post_ops", {0.0},
                     {static_cast<float>(exp(-3.0) - 1), 3.5, 4.0, 1.5},
                     graph::op_kind::Elu, "Elu", {{graph::op_attr::alpha, 1.f}}},
-            eltwise_param_t {"conv_post_ops_fusion", {0.0},
+            eltwise_param_t {"fp_conv_post_ops", {0.0},
                     {-0.06f, 3.5f, 4.0f, 1.5f}, graph::op_kind::LeakyReLU,
                     "LeakyReLU", {{graph::op_attr::alpha, 0.02f}}},
-            eltwise_param_t {"conv_post_ops_fusion", {0.0},
+            eltwise_param_t {"fp_conv_post_ops", {0.0},
                     mish_func({-3.0f, 3.5f, 4.0f, 1.5f}), graph::op_kind::Mish,
                     "Mish", {}},
-            eltwise_param_t {"conv_post_ops_fusion", {0.0},
-                    {0.0, 3.5, 4.f, 1.5}, graph::op_kind::Clamp, "ReLU6",
+            eltwise_param_t {"fp_conv_post_ops", {0.0}, {0.0, 3.5, 4.f, 1.5},
+                    graph::op_kind::Clamp, "ReLU6",
                     {{graph::op_attr::min, 0.f}, {graph::op_attr::max, 6.f}}},
     };
 
@@ -2630,7 +2630,7 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
             graph::status::success);
 
     // -------------------------case 2----------------------------------
-    graph::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_depthwise_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -2798,8 +2798,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2972,8 +2971,7 @@ static inline void quantized_conv2d_eltwise(
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -3216,8 +3214,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_conv_add_post_ops_fusion_gpu"
-                                : "int8_conv_add_post_ops_fusion_cpu");
+                                ? "x8s8x8_conv_add_post_ops_gpu"
+                                : "x8s8x8_conv_add_post_ops_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -3418,8 +3416,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluWithDifferentSrc1AndDstTypeOnGPU) {
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
             = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "int8_conv_add_post_ops_fusion_gpu"
-                            : "int8_conv_add_post_ops_fusion_cpu");
+                            ? "x8s8x8_conv_add_post_ops_gpu"
+                            : "x8s8x8_conv_add_post_ops_cpu");
     ASSERT_NE(apass, nullptr);
 
     apass->run(agraph);
@@ -3624,8 +3622,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_conv_add_post_ops_fusion_gpu"
-                                : "int8_conv_add_post_ops_fusion_cpu");
+                                ? "x8s8x8_conv_add_post_ops_gpu"
+                                : "x8s8x8_conv_add_post_ops_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -3798,8 +3796,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -3966,8 +3963,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4164,10 +4160,9 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
 
         graph::pass::pass_base_ptr apass1
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_conv_add_post_ops_fusion_gpu"
-                                : "int8_conv_add_post_ops_fusion_cpu");
-        graph::pass::pass_base_ptr apass2
-                = get_pass("int8_conv_post_ops_fusion");
+                                ? "x8s8x8_conv_add_post_ops_gpu"
+                                : "x8s8x8_conv_add_post_ops_cpu");
+        graph::pass::pass_base_ptr apass2 = get_pass("x8s8x_conv_post_ops");
 
         apass1->run(g);
         apass2->run(g);
@@ -4345,7 +4340,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4536,7 +4531,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4710,7 +4705,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4909,7 +4904,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -5067,8 +5062,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionAddU8s8u8MixBf16) {
     ASSERT_EQ(g.add_op(&tc_bias_op), graph::status::success);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("x8s8x_tc_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -5265,7 +5259,7 @@ TEST(Execute, ConvolutionBf16InFp32Out) {
             graph::status::success);
 
     // run fusion partition
-    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("fp_conv_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -5486,8 +5480,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_conv_add_post_ops_fusion_gpu"
-                                : "int8_conv_add_post_ops_fusion_cpu");
+                                ? "x8s8x8_conv_add_post_ops_gpu"
+                                : "x8s8x8_conv_add_post_ops_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -5727,8 +5721,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_conv_add_post_ops_fusion_gpu"
-                                : "int8_conv_add_post_ops_fusion_cpu");
+                                ? "x8s8x8_conv_add_post_ops_gpu"
+                                : "x8s8x8_conv_add_post_ops_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -5886,7 +5880,7 @@ TEST(ExecuteSubgraphInt8, ConvDepthwise) {
 
         int64_t zp_out = eng->kind() == graph::engine_kind::gpu ? 0 : 78;
 
-        size_t scale_size = wei_qtype == "per_tensor" ? 1 : 4;
+        size_t scale_size = wei_qtype == "per_tensor" ? 1 : 24;
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
@@ -5986,7 +5980,7 @@ TEST(ExecuteSubgraphInt8, ConvDepthwise) {
 
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
-                = get_pass("int8_depthwise_conv_reshape_post_ops_fusion");
+                = get_pass("x8s8x_conv_reshape_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
 
@@ -6005,5 +5999,122 @@ TEST(ExecuteSubgraphInt8, ConvDepthwise) {
         p.compile(&cp, lt_ins, lt_outs, eng);
         cp.execute(strm, {src_u8_ts, weight_f32_ts}, {dst_s8_case2_ts});
         strm->wait();
+    }
+}
+
+TEST(ExecuteSubgraphInt8, ShareCachedWeights) {
+    using dims = graph::dnnl_impl::dims;
+
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    int64_t g = 1;
+    std::string wei_qtype = "per_channel";
+    std::string src_qtype = "symmetric";
+
+    float scale_src = 1 / 255.f;
+    int64_t zp_src = 0;
+    std::vector<int64_t> weight_shape {8, 8, 3, 3};
+
+    size_t scale_size = 8;
+    std::vector<float> scale_wei(scale_size, 1 / 127.f);
+    std::vector<int64_t> zp_wei(scale_size, 0);
+
+    graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
+    SET_Q_DQ_DATA_ATTR(dqdata_node)
+
+    graph::op_t dqweight_node(3, graph::op_kind::Dequantize, "dqweight_node");
+    SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
+
+    graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
+    SET_CONV_ATTR(conv_node, 2)
+
+    auto src_u8 = utils::logical_tensor_init(1, graph::data_type::u8);
+    auto src_f32_dq = utils::logical_tensor_init(2, graph::data_type::f32);
+    auto weight_s8
+            = utils::logical_tensor_init(4, weight_shape, graph::data_type::s8);
+    weight_s8.property = graph::property_type::constant;
+    auto weight_f32_dq = utils::logical_tensor_init(
+            5, weight_shape, graph::data_type::f32);
+    auto dst_f32 = utils::logical_tensor_init(7, graph::data_type::f32);
+
+    dqdata_node.add_input(src_u8);
+    dqdata_node.add_output(src_f32_dq);
+
+    dqweight_node.add_input(weight_s8);
+    dqweight_node.add_output(weight_f32_dq);
+
+    conv_node.add_input(src_f32_dq);
+    conv_node.add_input(weight_f32_dq);
+    conv_node.add_output(dst_f32);
+
+    graph::graph_t agraph(engine->kind());
+    agraph.add_op(&dqdata_node);
+    agraph.add_op(&dqweight_node);
+    agraph.add_op(&conv_node);
+    agraph.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
+    auto part = agraph.get_partitions()[0];
+
+    graph::partition_t p;
+    p.init(part);
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> u8_distribution(0.0f, 100.0f);
+    std::uniform_real_distribution<float> s8_distribution(-64.0f, 64.0f);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+
+    test::vector<int8_t> weight_s8_data(product(weight_shape));
+    std::generate(weight_s8_data.begin(), weight_s8_data.end(),
+            [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
+    graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+
+    std::vector<std::vector<int64_t>> src_shapes {
+            {1, 8, 12, 12}, {3, 8, 12, 12}};
+    std::vector<std::vector<int64_t>> dst_shapes {
+            {1, 8, 10, 10}, {3, 8, 10, 10}};
+    std::vector<std::shared_ptr<graph::compiled_partition_t>> cps;
+    for (size_t i = 0; i < src_shapes.size(); ++i) {
+        std::cout << "---------------\n";
+        std::vector<int64_t> src_shape = src_shapes[i];
+        std::vector<int64_t> dst_shape = dst_shapes[i];
+
+        src_u8 = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
+        dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::f32);
+
+        std::vector<const graph::logical_tensor_t *> lt_ins {
+                &src_u8, &weight_s8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_f32};
+
+        cps.push_back(std::make_shared<graph::compiled_partition_t>(p));
+        auto &cp = *cps.back();
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                graph::status::success);
+
+        test::vector<uint8_t> src_u8_data(product(src_shape));
+        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+
+        test::vector<float> dst_data(product(dst_shape));
+        graph::tensor_t dst_ts(dst_f32, engine, dst_data.data());
+
+        cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_ts});
+        strm->wait();
+
+        test::vector<float> ref_dst_data(product(dst_shape));
+        graph::tensor_t ref_dst_ts(dst_f32, engine, ref_dst_data.data());
+
+        ASSERT_EQ(run_graph(agraph, {src_u8_ts, weight_s8_ts}, {ref_dst_ts},
+                          *engine, *strm),
+                graph::status::success);
+
+        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.01f,
+                /*atol*/ 0.01f));
     }
 }

@@ -11,6 +11,8 @@
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f16/avgpool_bwd.json
 --reset --op-attrs=0:auto_pad:VALID*kernel:2x2 --case=op/f16/avgpool_bwd.json
 --reset --in-shapes=0:1x300x300x64 --op-attrs=0:data_format:NXC*src_shape:1x600x600x64 --case=op/f16/avgpool_bwd.json
+--reset --in-shapes=0:2x192 --case=op/f16/bnorm_fwd_d.json
+--reset --in-shapes=0:2x192x71 --case=op/f16/bnorm_fwd_d.json
 --reset --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f16/bnorm.json
 --reset --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f16/bnorm_fwd_d.json
 --reset --in-shapes=0:2x71x71x192+1:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f16/bnorm_bwd.json
@@ -43,7 +45,7 @@
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f16/deconv.json
 --reset --op-attrs=0:auto_pad:VALID --case=op/f16/deconv.json
 --reset --op-attrs=0:output_padding:1x1 --case=op/f16/deconv.json
---reset --in-shapes=0:1x28x28x32  --op-attrs=0:data_format:NXC --case=op/f16/deconv.json
+--reset --in-shapes=0:1x28x28x32 --op-attrs=0:data_format:NXC --case=op/f16/deconv.json
 --reset --in-shapes=1:3x3x128x32 --op-attrs=0:weights_format:XOI --case=op/f16/deconv.json
 --reset --case=op/f16/deconv_bwd_d.json
 --reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/f16/deconv_bwd_d.json
@@ -73,7 +75,7 @@
 --reset --case=op/f16/interpolate.json
 --reset --op-attrs=0:mode:bilinear --case=op/f16/interpolate.json
 --reset --op-attrs=0:mode:trilinear --case=op/f16/interpolate.json
---reset --in-shapes=0:0:2x7x14x17--op-attrs=0:data_format:NXC --case=op/f16/interpolate.json
+--reset --in-shapes=0:2x7x14x17 --op-attrs=0:data_format:NXC --case=op/f16/interpolate.json
 --reset --case=op/f16/interpolate_bwd.json
 --reset --op-attrs=0:mode:bilinear --case=op/f16/interpolate_bwd.json
 --reset --op-attrs=0:mode:trilinear --case=op/f16/interpolate_bwd.json
@@ -139,4 +141,8 @@
 --reset --case=op/f16/sqrt.json
 --reset --case=op/f16/sqrt_bwd.json
 # reorder
---reset --in-shapes=0:2x64x3x3  --case=op/f16/reorder.json
+--reset --in-shapes=0:2x64x3x3 --case=op/f16/reorder.json
+# large scope
+--reset --in-shapes=0:abcd --case=op/f16/reorder.json
+--reset --in-shapes=0:cdba --case=op/f16/reorder.json
+--reset --in-shapes=0:acdb --case=op/f16/reorder.json

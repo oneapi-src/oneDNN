@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -170,6 +170,46 @@ HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_buffer_test_cpp_t, BasicInteropCtor) {
     int i_ref_count = int(ref_count);
     ASSERT_EQ(i_ref_count, 1);
 
+    TEST_OCL_CHECK(clReleaseMemObject(ocl_mem));
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_buffer_test_cpp_t, BufferMapUnmap) {
+    SKIP_IF(engine::get_count(engine::kind::gpu) == 0, "Engine not found.");
+
+    engine eng(engine::kind::gpu, 0);
+    memory::dim n = 100;
+    memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
+
+    cl_context ocl_ctx = ocl_interop::get_context(eng);
+    cl_int err;
+    cl_mem ocl_mem = clCreateBuffer(
+            ocl_ctx, CL_MEM_READ_WRITE, mem_d.get_size(), nullptr, &err);
+    TEST_OCL_CHECK(err);
+    ASSERT_NE(ocl_mem, nullptr);
+
+    auto mem = ocl_interop::make_memory(
+            mem_d, eng, ocl_interop::memory_kind::buffer, ocl_mem);
+
+    ASSERT_EQ(ocl_interop::memory_kind::buffer,
+            ocl_interop::get_memory_kind(mem));
+
+    {
+        float *mapped_ptr = mem.template map_data<float>();
+        GTEST_EXPECT_NE(mapped_ptr, nullptr);
+        for (int i = 0; i < n; i++) {
+            mapped_ptr[i] = (float)i;
+        }
+        mem.unmap_data(mapped_ptr);
+    }
+
+    {
+        float *mapped_ptr = mem.template map_data<float>();
+        GTEST_EXPECT_NE(mapped_ptr, nullptr);
+        for (int i = 0; i < n; i++) {
+            ASSERT_EQ(mapped_ptr[i], (float)i);
+        }
+        mem.unmap_data(mapped_ptr);
+    }
     TEST_OCL_CHECK(clReleaseMemObject(ocl_mem));
 }
 

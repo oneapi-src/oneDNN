@@ -110,8 +110,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     // Optional quant_out
                     auto popt_qout_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *pquant_out
-                            = popt_graph->append_op(graph::op_kind::Quantize);
+                    pm::pb_op_t *pquant_out = popt_qout_graph->append_op(
+                            graph::op_kind::Quantize);
                     popt_qout_graph->create_input_port(0, pquant_out, 0);
                     popt_qout_graph->create_output_port(0, pquant_out, 0);
                     pgraph->append_optional(
@@ -180,8 +180,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     // Optional quant_out
                     auto popt_qout_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *pquant_out
-                            = popt_graph->append_op(graph::op_kind::Quantize);
+                    pm::pb_op_t *pquant_out = popt_qout_graph->append_op(
+                            graph::op_kind::Quantize);
                     pquant_out->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                     pquant_out->append_decision_function(

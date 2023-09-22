@@ -34,6 +34,7 @@ namespace sum {
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     std::vector<benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> src_d_wrappers(
             prb->n_inputs());
@@ -54,9 +55,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     std::vector<dnnl_memory_desc_t> src_d(
             src_d_wrappers.begin(), src_d_wrappers.end());
     init_pd_args.is_iterator_supported = false;
-    return dnnl_sum_primitive_desc_create(&init_pd_args.pd, init_pd_args.engine,
-            dst_d, prb->n_inputs(), prb->input_scales.data(), src_d.data(),
-            dnnl_attr);
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_sum_primitive_desc_create(&init_pd_args.pd,
+            init_pd_args.engine, dst_d, prb->n_inputs(),
+            prb->input_scales.data(), src_d.data(), dnnl_attr)));
+
+    return dnnl_success;
 }
 
 int fill_src(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
@@ -112,6 +115,7 @@ std::vector<int> supported_exec_args(dir_t dir) {
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
         dnnl_primitive_t prim_ref) {
+    update_inplace_memory_args(mem_map, prb, dir);
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
     const auto &ref_engine = get_cpu_engine();
@@ -137,9 +141,6 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();
     }
 
-    // Drop destination memory for in-place case. `args` will take care of rest.
-    if (prb->inplace) { mem_map[DNNL_ARG_DST] = dnn_mem_t(); }
-
     return OK;
 }
 
@@ -162,8 +163,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(
+                           ref_mem_map, mem_map, prim, prb, res, prb->dir),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 

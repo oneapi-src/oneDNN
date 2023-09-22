@@ -83,7 +83,9 @@ namespace brgemm_utils {
 bool can_dispatch_uker(const brgemm_t *brg) {
     return brg->is_tmm
             && one_of(brg->type, brgemm_addr, brgemm_offs, brgemm_static_offs)
-            && brg->brgattr.use_uker;
+            && brg->brgattr.use_uker
+            && everyone_is(false, brg->is_runtime_lda, brg->is_runtime_ldb,
+                    brg->is_runtime_ldc, brg->is_runtime_ldd);
 }
 
 void maybe_try_bf32(brgemm_t *brg) {
@@ -488,7 +490,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
         recalc_ld_block(brg->ld_block);
         recalc_ld_block2(brg->ld_block2);
 
-        if (brg->brgattr.use_uker) {
+        if (can_dispatch_uker(brg)) {
             // Blocking heuristics for some shapes
             // TODO: Review these criterias
             size_t eff_K
@@ -716,12 +718,17 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     if (brg->isa_impl == isa_undef) return status::unimplemented;
 
     const int max_vregs = isa_num_vregs(brg->isa_impl);
+
+    // Note: using avx512_core template, but calculation uses 'brg->isa_impl'
+    // which is dynamic i.e. uses values AVX2, AVX2_VNNI, etc. depending on the
+    // configuration.
     const int aux_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
             Xbyak::Zmm>::get_aux_vmm_count(*brg);
+    const int compute_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
+            Xbyak::Zmm>::get_compute_vmm_count(*brg);
     const int bf16_emu_vregs = brg->is_bf16_emu * 4;
-    const int compute_vregs = 2; // b_vmm + a_vmm
     const int max_acc_vmms
-            = max_vregs - aux_vregs - nstl::max(compute_vregs, bf16_emu_vregs);
+            = max_vregs - nstl::max(compute_vregs + aux_vregs, bf16_emu_vregs);
 
     const int simd_w = isa_max_vlen(brg->isa_impl) / brg->typesize_C;
     const bool is_avx2_vnni_2_xf16
@@ -809,10 +816,15 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
 
     brg->LDA = (brg->is_row_major()) ? static_cast<int>(LDA)
                                      : static_cast<int>(LDB);
+    brg->is_runtime_lda = (brg->is_row_major()) ? is_runtime_value(LDA)
+                                                : is_runtime_value(LDB);
     brg->LDB = (brg->is_row_major()) ? static_cast<int>(LDB)
                                      : static_cast<int>(LDA);
+    brg->is_runtime_ldb = (brg->is_row_major()) ? is_runtime_value(LDB)
+                                                : is_runtime_value(LDA);
     brg->LDC = static_cast<int>(LDC);
     brg->LDD = static_cast<int>(LDC);
+    brg->is_runtime_ldc = brg->is_runtime_ldd = is_runtime_value(LDC);
 
     brg->bcast_dim
             = (brg->is_row_major()) ? static_cast<int>(M) : static_cast<int>(N);
@@ -876,7 +888,8 @@ void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
                 avx512_core_fp16, is_isa_ok(avx2_vnni_2), avx2_vnni_2);
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_vnni),
-                avx512_core_vnni, is_isa_ok(avx2_vnni), avx2_vnni);
+                avx512_core_vnni, is_isa_ok(avx2_vnni_2), avx2_vnni_2,
+                is_isa_ok(avx2_vnni), avx2_vnni);
     }
 
     brg->req_s8s8_compensation = brg->is_int8 && brg->dt_a == data_type::s8

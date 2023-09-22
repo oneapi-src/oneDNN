@@ -71,6 +71,12 @@ struct brgemm_deconvolution_fwd_t : public primitive_t {
                     && (mask_dst == 0 || mask_dst == 1 << 1);
         }
 
+        brgemm_broadcast_t get_zp_type(int arg) const {
+            return attr()->zero_points_.has_default_values(arg)
+                    ? brgemm_broadcast_t::none
+                    : brgemm_broadcast_t::per_tensor;
+        }
+
         std::shared_ptr<primitive_desc_t> conv_pd_;
         bool has_strides_ = false;
 

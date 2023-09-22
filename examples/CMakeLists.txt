@@ -46,6 +46,7 @@ file(GLOB_RECURSE headers *.hpp *.h)
 
 if(NOT DNNL_EXPERIMENTAL_SPARSE)
     list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/cpu_matmul_csr.cpp)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/cpu_matmul_weights_compression.cpp)
 endif()
 
 # Remove tests for CUDA which use unimplemented primitives
@@ -59,6 +60,14 @@ if(DNNL_SYCL_CUDA)
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/layer_normalization.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/reorder.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/shuffle.cpp)
+endif()
+
+# Remove examples for Graph API if graph component is not enabled
+if(NOT ONEDNN_BUILD_GRAPH)
+    list(REMOVE_ITEM sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_getting_started.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/sycl_getting_started.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_inference_int8.cpp)
 endif()
 
 if(DNNL_SYCL_HIP)

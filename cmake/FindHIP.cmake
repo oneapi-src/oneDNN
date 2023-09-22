@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2022 Intel Corporation
+# Copyright 2022-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ find_package(Threads REQUIRED)
 list(APPEND hip_root_hints
             ${HIPROOT}
             $ENV{HIPROOT}
+            "/opt/rocm"
             "/opt/rocm/hip")
 
 find_path(

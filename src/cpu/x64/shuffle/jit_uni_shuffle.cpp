@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,8 +83,9 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
         conf_.simd_tail = C() % conf_.simd_w;
         conf_.c_split_size = conf_.blk_size;
         if (C() < std::sqrt(conf_.sp))
-            conf_.sp_split_size
-                    = conf_.sp / math::gcd(conf_.sp, dnnl_get_max_threads());
+            conf_.sp_split_size = conf_.sp
+                    / math::gcd(conf_.sp,
+                            static_cast<dim_t>(dnnl_get_max_threads()));
         else
             conf_.sp_split_size = conf_.sp;
     } else

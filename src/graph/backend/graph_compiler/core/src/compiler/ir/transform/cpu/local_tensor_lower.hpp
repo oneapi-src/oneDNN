@@ -46,6 +46,8 @@ public:
 func_t get_cpu_temp_malloc_func(bool is_thread_local);
 
 func_t get_cpu_temp_free_func(bool is_thread_local);
+func_t get_acquire_const_cache_func();
+func_t get_release_const_cache_func();
 
 } // namespace gc
 } // namespace graph

@@ -20,6 +20,7 @@
 
 #include "gpu/jit/gemm/gen_gemm.hpp"
 #include "gpu/jit/gemm/xe_hp_systolic_gemm.hpp"
+#include "gpu/ocl/gemm/conv_gemm.hpp"
 #include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
 #include "gpu/ocl/gemm/ref_gemm.hpp"
 
@@ -31,6 +32,9 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = {
+#ifdef DNNL_DEV_MODE
+        INSTANCE(ocl::conv_gemm_t)
+#endif
         INSTANCE(jit::xe_hp_systolic_gemm_t)
         INSTANCE(ocl::gemm_with_post_ops_t)
         INSTANCE(jit::gen_gemm_t)

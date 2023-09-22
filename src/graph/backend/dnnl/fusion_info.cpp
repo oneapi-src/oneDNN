@@ -146,8 +146,8 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             const auto &extra_inputs = pop->get_unfused_input_indices();
             float scale = pop->get_scale();
             int32_t zp = pop->get_zp();
-            const auto psrc = op->get_input_value(extra_inputs[0])
-                                      ->get_logical_tensor();
+            const auto psrc_val = op->get_input_value(extra_inputs[0]);
+            const auto psrc = psrc_val->get_logical_tensor();
             const auto dst = op->get_output_value(0)->get_logical_tensor();
             // check if can use post-sum, otherwise use binary post ops
             // algorithm should be binary_add
@@ -170,6 +170,34 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                     && (psrc.data_type == dst.data_type
                             || impl::utils::one_of(psrc.data_type,
                                     impl::data_type::u8, impl::data_type::s8));
+            // post src should not have alias. Here the condition of alias_ins == 1
+            // is to disable the inplace option for src = main_op(src) + src
+            const auto get_external_id
+                    = [](const std::shared_ptr<value_t> &val) {
+                          auto tmp_val = val;
+                          while (tmp_val->has_producer()) {
+                              size_t lt_id = tmp_val->get_logical_tensor().id;
+                              // check if lt_id is already a external id
+                              if (lt_id != std::numeric_limits<size_t>::max())
+                                  return lt_id;
+
+                              const op_t &prod_op = tmp_val->get_producer();
+                              // ops like Dnnl_constant_scales doesn't have external input
+                              // return a internal id
+                              if (prod_op.num_inputs() == 0) return lt_id;
+                              tmp_val = prod_op.get_input_value(0);
+                          }
+                          return tmp_val->get_logical_tensor().id;
+                      };
+            size_t alias_ins = 0;
+            size_t psrc_lt_id = get_external_id(psrc_val);
+            for (size_t op_in_idx = 0; op_in_idx < op->num_inputs();
+                    ++op_in_idx) {
+                size_t op_in_lt_id
+                        = get_external_id(op->get_input_value(op_in_idx));
+                if (op_in_lt_id == psrc_lt_id) alias_ins++;
+            }
+            is_post_sum = is_post_sum && alias_ins == 1;
             if (is_post_sum) {
                 pop->set_post_sum();
                 op->set_attr<bool>(op_attr::with_sum, true);

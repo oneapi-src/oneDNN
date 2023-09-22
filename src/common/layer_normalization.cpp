@@ -30,12 +30,12 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_LNORM(cond, msg, ...) \
-    VCONDCHECK(create, check, lnorm, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, lnorm, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_LNORM_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, lnorm, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, lnorm, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
 
 namespace {
 status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
@@ -79,7 +79,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
                            .has_runtime_dims_or_strides()
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
-    VCONDCHECK(create, check, lnorm, !runtime_dims_or_strides,
+    VCONDCHECK(primitive, create, check, lnorm, !runtime_dims_or_strides,
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     ld.src_desc = *src_desc;

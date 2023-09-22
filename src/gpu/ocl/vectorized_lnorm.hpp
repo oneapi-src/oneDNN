@@ -47,7 +47,7 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
             auto src_data_t = src_md()->data_type;
             auto dst_data_t = dst_md()->data_type;
 
-            bool ok = is_fwd()
+            bool ok = is_fwd() && !has_zero_dim_memory()
                     && (utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(f32, src_data_t, dst_data_t))
@@ -71,8 +71,6 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        if (pd()->has_zero_dim_memory()) return status::success;
-
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -113,7 +111,7 @@ struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
             auto diff_dst_dt = diff_dst_md()->data_type;
             auto diff_src_dt = diff_src_md()->data_type;
 
-            bool ok = !is_fwd()
+            bool ok = !is_fwd() && !has_zero_dim_memory()
                     && (utils::everyone_is(
                                 f32, src_dt, diff_dst_dt, diff_src_dt)
                             || utils::everyone_is(
@@ -142,13 +140,16 @@ struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        if (pd()->has_zero_dim_memory()) return status::success;
-
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
+        if (pd()->conf.use_fused) {
+            CHECK(create_kernel(engine, &kernel_fused_,
+                    "vectorized_lnorm_bwd_fused", kernel_ctx));
+            if (!kernel_fused_) return status::runtime_error;
+        }
         CHECK(create_kernel(
                 engine, &kernel_, "vectorized_lnorm_bwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
@@ -175,6 +176,7 @@ private:
     compute::kernel_t kernel_scaleshift_;
     compute::kernel_t kernel_scaleshift_finalize_;
     compute::kernel_t kernel_;
+    compute::kernel_t kernel_fused_;
 };
 
 } // namespace ocl

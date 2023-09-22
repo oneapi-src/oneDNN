@@ -48,10 +48,21 @@ public:
     bool insert(int idx, brgemm_t &brg, const std::vector<char> &bd_mask,
             const std::vector<brgemm_batch_element_t> &static_offsets);
 
+    int insert(brgemm_t &brg) {
+        std::vector<char> dummy_bd_mask;
+        std::vector<brgemm_batch_element_t> dummy_static_offsets;
+        return insert(brg, dummy_bd_mask, dummy_static_offsets);
+    }
+
+    int insert(brgemm_t &brg, const std::vector<char> &bd_mask,
+            const std::vector<brgemm_batch_element_t> &static_offsets);
+
+    size_t refs_size() { return refs_.size(); }
+
 private:
     std::vector<const brgemm_t *> refs_;
 
-    std::set<brgemm_t> set_;
+    std::map<brgemm_t, int> map_;
     std::vector<std::vector<char>> bd_mask_list_;
     std::vector<std::vector<brgemm_batch_element_t>> static_offsets_list_;
 };

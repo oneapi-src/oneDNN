@@ -27,7 +27,7 @@ namespace graph {
 namespace gc {
 // TODO(xxx): last dims is default axis to normlization
 static void ref_instancenorm_fwd(float *out, float *in, float *gamma,
-        float *beta, int N, int C, int H, int W, float eps = 1e-5,
+        float *beta, int N, int C, int H, int W, float eps = 1e-5f,
         bool use_scale_shift = false) {
     std::vector<float> mean(N * C);
     std::vector<float> var(N * C);

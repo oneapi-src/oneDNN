@@ -55,6 +55,7 @@ struct Restrictions {
 };
 
 enum RestrictionTags : char {
+    ReqAlignFallback = '#',
     ReqBlock2DA = 'A',
     ReqNoBlock2DA = 'a',
     ReqBlock2DB = 'B',
@@ -114,6 +115,25 @@ struct Selector {
     friend bool operator>=(const Selector &sel1, const Selector &sel2) {
         return !(sel1 < sel2);
     }
+
+    std::string str(const int (&alignments)[3]) const {
+        std::string result {hw};
+        result.append(" ");
+        result.append(kernelType);
+        result.append(" ");
+        for (auto &p : precisions) {
+            result.append(p);
+        }
+        result.append(" ");
+        for (int i = 0; i < 3; i++) {
+            result.append(layouts[i]);
+            if (alignments[i] != 1) {
+                result.append("@");
+                result.append(std::to_string(alignments[i]));
+            }
+        }
+        return result;
+    }
 };
 
 enum : int {
@@ -158,6 +178,9 @@ enum : int {
     ParamE_Fr0, // FMA count at which frequency starts dropping.
     ParamE_Fr1, // FMA count at which frequency stops dropping.
     ParamECount,
+
+    ParamE_Cp0
+    = ParamE_Cb1, // Fused post-op overhead per partial wave, constant coefficient
 
     // Maximum possible parameter count
     MaxParamCount = ParamECount,
@@ -211,6 +234,17 @@ struct Entry {
     }
     friend bool operator>=(const Selector &s, const Entry &e) {
         return s >= e.selector;
+    }
+
+    std::string str() const {
+        std::string result = selector.str(restrictions.alignment);
+        result.append(" ");
+        result.append(std::to_string(driverInfo.unroll[LoopM]));
+        result.append(" ");
+        result.append(std::to_string(driverInfo.unroll[LoopM]));
+        result.append(" ");
+        result.append(strategy);
+        return result;
     }
 };
 

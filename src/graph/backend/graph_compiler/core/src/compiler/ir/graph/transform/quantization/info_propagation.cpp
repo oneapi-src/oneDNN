@@ -41,6 +41,12 @@ static std::vector<std::pair<int, sc_op_ptr>> find_quantize_aware_nodes(
     std::vector<std::pair<int, sc_op_ptr>> aware_nodes;
     for (auto &child_lt : node->get_outputs()) {
         for (const auto &child_op : child_lt->uses_) {
+            if (child_op.second->isa<concat_op_t>()) {
+                // Concat op has multiple inputs whose data types must be same.
+                // To assure this constraint, we do not consider it as quantize
+                // aware node.
+                continue;
+            }
             if ((child_op.second->dyn_cast<op_traits::may_quantize_t>()
                         && child_op.second->attrs_.get_or_else(
                                 sc_graph_t::attr_key_t::quantize, true))
@@ -377,7 +383,8 @@ SC_INTERNAL_API void quantize_info_propagation(
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
     vis.visit_graph(mgr, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<dequantize_op_t>() || node->isa<dynamic_dequantize_op_t>()
-                || node->isa<op_traits::may_quantize_t>()
+                || (node->isa<op_traits::may_quantize_t>()
+                        && !node->isa<concat_op_t>())
                 || node->isa<cast_op_t>()) {
             if (node->isa<cast_op_t>()) { check_and_set_mixed_dtype(node); }
             auto aware_ops = find_quantize_aware_nodes(node);

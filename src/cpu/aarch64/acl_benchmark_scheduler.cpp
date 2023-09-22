@@ -46,7 +46,7 @@ void BenchmarkScheduler::schedule(ICPPKernel *kernel, const Hints &hints) {
     _real_scheduler.schedule(kernel, hints);
     double duration_ms = get_msec() - start_ms;
     const char *name = kernel->name();
-    VPROF(start_ms, exec, VERBOSE_external, name, duration_ms);
+    VPROF(start_ms, primitive, exec, VERBOSE_external, name, duration_ms);
 }
 
 void BenchmarkScheduler::schedule_op(ICPPKernel *kernel, const Hints &hints,
@@ -55,7 +55,7 @@ void BenchmarkScheduler::schedule_op(ICPPKernel *kernel, const Hints &hints,
     _real_scheduler.schedule_op(kernel, hints, window, tensors);
     double duration_ms = get_msec() - start_ms;
     const char *name = kernel->name();
-    VPROF(start_ms, exec, VERBOSE_external, name, duration_ms);
+    VPROF(start_ms, primitive, exec, VERBOSE_external, name, duration_ms);
 }
 
 void BenchmarkScheduler::run_tagged_workloads(
@@ -64,7 +64,7 @@ void BenchmarkScheduler::run_tagged_workloads(
     _real_scheduler.run_tagged_workloads(workloads, tag);
     double duration_ms = get_msec() - start_ms;
     const char *name = tag != nullptr ? tag : "Unknown";
-    VPROF(start_ms, exec, VERBOSE_external, name, duration_ms);
+    VPROF(start_ms, primitive, exec, VERBOSE_external, name, duration_ms);
 }
 
 void BenchmarkScheduler::run_workloads(std::vector<Workload> &workloads) {

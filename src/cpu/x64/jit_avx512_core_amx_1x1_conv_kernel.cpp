@@ -1081,7 +1081,7 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
                         OIhw16i16o4i, gOIhw16i16o4i, OIdhw16i16o4i,
                         gOIdhw16i16o4i);
         memory_desc_t want_wei_md = weights_md;
-        memory_desc_init_by_tag(want_wei_md, wei_tag);
+        CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
 
         if (jcp.src_zero_point) {
             want_wei_md.extra.flags |= compensation_conv_asymmetric_src;

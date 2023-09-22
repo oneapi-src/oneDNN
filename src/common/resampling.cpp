@@ -31,12 +31,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_RS(cond, msg, ...) \
-    VCONDCHECK(create, check, resampling, (cond), status::invalid_arguments, \
-            msg, ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, resampling, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_RS_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, resampling, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, resampling, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 namespace {
 status_t resampling_desc_init(resampling_desc_t *resampling_desc,
@@ -70,8 +70,10 @@ status_t resampling_desc_init(resampling_desc_t *resampling_desc,
         o_md->ndims = i_md->ndims;
         o_md->data_type = i_md->data_type;
         utils::array_copy(o_md->dims, i_md->dims, 2);
-        for (int i = 0; i < o_md->ndims - 2; i++)
-            o_md->dims[2 + i] = (dim_t)(i_md->dims[2 + i] * factors[i]);
+        for (int i = 0; i < o_md->ndims - 2; i++) {
+            double i_dim_val = static_cast<double>(i_md->dims[2 + i]);
+            o_md->dims[2 + i] = static_cast<dim_t>(i_dim_val * factors[i]);
+        }
         o_md->format_kind = format_kind::any;
     };
 
@@ -86,9 +88,11 @@ status_t resampling_desc_init(resampling_desc_t *resampling_desc,
 
     /* User provided factors are used only to compute destination dimensions.
      Implementation uses true scaling factors from source to destination */
-    for (int i = 0; i < src_desc->ndims - 2; i++)
-        rd.factors[i] = (float)((double)dst_desc->dims[2 + i]
-                / src_desc->dims[2 + i]);
+    for (int i = 0; i < src_desc->ndims - 2; i++) {
+        double dst_dim_val = static_cast<double>(dst_desc->dims[2 + i]);
+        double src_dim_val = static_cast<double>(src_desc->dims[2 + i]);
+        rd.factors[i] = static_cast<float>(dst_dim_val / src_dim_val);
+    }
 
     VCHECK_RS(src_desc->ndims == dst_desc->ndims, VERBOSE_INCONSISTENT_NDIMS,
             "src", "dst");

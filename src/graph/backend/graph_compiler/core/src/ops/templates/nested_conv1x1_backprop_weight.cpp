@@ -147,7 +147,8 @@ gen_nested_conv1x1_backprop_weight_t::gen_nested_conv1x1_backprop_weight_t(
     in_tensors_.size() == 2, "input logical tensor size should be two.");
   COMPILE_ASSERT(
     out_tensors_.size() == 1, "output logical tensor size should be one.");
-  bool is_bf16 = get_A_dtype() == datatypes::bf16;
+  bool is_vnni_low_fp
+    = ops::is_vnni_low_fp(get_default_context(), get_A_dtype());
   ndims_ = get_data_dims().size();
   bool is_3d = ndims_ == 5;
   int stride_d = is_3d ? stride_[0] : 1, stride_h = stride_[0],
@@ -166,7 +167,7 @@ gen_nested_conv1x1_backprop_weight_t::gen_nested_conv1x1_backprop_weight_t(
   const int IC = get_data_dims()[1];
   const int OC = get_grad_dims()[1];
   const int N = get_data_dims()[0];
-  if (is_bf16) {
+  if (is_vnni_low_fp) {
     im_oc_block_ = 32;
     im_ic_block_ = 32;
     im_bs_block_ = 32;
@@ -445,7 +446,8 @@ bool gen_nested_conv1x1_backprop_weight_t::generate(context_ptr ctx,
 
   // other template related pre-compute values
   auto dtype = get_A_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
   int oc_single_core = OC / oc_threads;
   int ic_single_core = IC / ic_threads;
   int bs_single_core = BS / bs_threads;

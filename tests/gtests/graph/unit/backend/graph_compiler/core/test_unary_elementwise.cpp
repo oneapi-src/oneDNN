@@ -160,6 +160,22 @@ TEST(GCCore_CPU_unary_elementwise_test, TestEluOp) {
 }
 
 template <typename T>
+void ref_hardsigmoid_func(T *out, const T *in, size_t size) {
+    auto func = std::bind(ref_hardsigmoid<T>, std::placeholders::_1,
+            std::placeholders::_2, std::placeholders::_3, alpha, thebeta);
+    func(out, in, size);
+}
+TEST(GCCore_CPU_unary_elementwise_test, TestHardSigmoidOp) {
+    REQUIRE_AVX2();
+    for (auto &shape : test_shapes) {
+        check_unary_elementwise<float>(
+                "hardsigmoid", shape, ref_hardsigmoid_func);
+        check_unary_elementwise<bf16_t>(
+                "hardsigmoid", shape, ref_hardsigmoid_func);
+    }
+}
+
+template <typename T>
 void ref_hardswish_func(T *out, const T *in, size_t size) {
     auto func = std::bind(ref_hardswish<T>, std::placeholders::_1,
             std::placeholders::_2, std::placeholders::_3, alpha, thebeta);

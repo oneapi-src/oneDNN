@@ -63,10 +63,6 @@ size_t strided_offset(const int _n, const size_t _sn, const int _d,
 } // namespace nhwc_pooling
 
 template <data_type_t d_type>
-nhwc_pooling_fwd_t<d_type>::nhwc_pooling_fwd_t(const pd_t *apd)
-    : primitive_t(apd), ref_post_ops_(pd()->attr()->post_ops_) {}
-
-template <data_type_t d_type>
 void nhwc_pooling_fwd_t<d_type>::array_div_by_const(const int n,
         const ker_data_t *src, const size_t num, ker_data_t *dst) const {
     for (int i = 0; i < n; ++i) {
@@ -306,7 +302,7 @@ status_t nhwc_pooling_fwd_t<data_type::f32>::execute_forward(
             args.dst_md = pd()->dst_md();
 
             for (dim_t oc = 0; oc < OC; ++oc) {
-                ref_post_ops_.execute(d[oc], args);
+                ref_post_ops_->execute(d[oc], args);
                 args.l_offset += OSP;
             }
         }
@@ -478,7 +474,7 @@ status_t nhwc_pooling_fwd_t<d_type>::execute_forward(
                     args.dst_md = pd()->dst_md();
 
                     for (dim_t oc = 0; oc < OC; ++oc) {
-                        ref_post_ops_.execute(dst_f32[oc], args);
+                        ref_post_ops_->execute(dst_f32[oc], args);
                         args.l_offset += OSP;
                     }
                 }

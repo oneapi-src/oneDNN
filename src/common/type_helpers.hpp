@@ -309,13 +309,26 @@ inline bool is_integral_dt(data_type_t dt) {
 }
 
 template <typename data_t>
-inline void cvt_from_float(data_t *out, const float *inp, size_t nelems) {
-    assert(!"unimplemented");
-}
+inline void cvt_from_float(data_t *out, const float *inp, size_t nelems)
+        = delete;
 
 template <typename data_t>
-inline void cvt_to_float(float *out, const data_t *inp, size_t nelems) {
-    assert(!"unimplemented");
+inline void cvt_to_float(float *out, const data_t *inp, size_t nelems) = delete;
+
+template <>
+inline void cvt_from_float<float>(float *out, const float *inp, size_t nelems) {
+    // This operation should be avoided as it does nothing useful
+    assert(!"unexpected");
+    for (size_t i = 0; i < nelems; i++)
+        out[i] = inp[i];
+}
+
+template <>
+inline void cvt_to_float<float>(float *out, const float *inp, size_t nelems) {
+    // This operation should be avoided as it does nothing useful
+    assert(!"unexpected");
+    for (size_t i = 0; i < nelems; i++)
+        out[i] = inp[i];
 }
 
 template <>
@@ -350,6 +363,19 @@ inline void cvt_from_float(
             break;
         case data_type::f16:
             cvt_from_float((float16_t *)out, inp, nelems);
+            break;
+        default: assert(!"unimplemented");
+    }
+}
+
+inline void cvt_to_float(
+        data_type_t dt, float *out, const void *inp, size_t nelems) {
+    switch (dt) {
+        case data_type::bf16:
+            cvt_to_float(out, (const bfloat16_t *)inp, nelems);
+            break;
+        case data_type::f16:
+            cvt_to_float(out, (const float16_t *)inp, nelems);
             break;
         default: assert(!"unimplemented");
     }
@@ -709,6 +735,42 @@ inline bool operator==(const zero_pad_desc_t &lhs, const zero_pad_desc_t &rhs) {
 #undef COMPARE_FLOAT_DESC_MEMBERS
 #undef COMPARE_FLOAT_DESC_ARRAY_MEMBERS
 
+inline bool is_dense_format_kind(const std::vector<const memory_desc_t *> mds) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    for (const auto *md : mds)
+        if (md->format_kind == format_kind::sparse) return false;
+#endif
+    return true;
+}
+
+inline memory_desc_t cvt_blocked2sparse_packed(
+        const memory_desc_t &blocked_md, dim_t nnz) {
+    if (blocked_md.format_kind != format_kind::blocked) return glob_zero_md;
+
+    auto sparse_packed_md = blocked_md;
+    sparse_packed_md.format_kind = format_kind::sparse;
+    sparse_packed_md.format_desc.sparse_desc.encoding = sparse_encoding::packed;
+    sparse_packed_md.format_desc.sparse_desc.nnz = nnz;
+    sparse_packed_md.format_desc.sparse_desc.packed_desc
+            = blocked_md.format_desc.blocking;
+    return sparse_packed_md;
+}
+
+inline memory_desc_t cvt_sparse_packed2blocked(
+        const memory_desc_t &sparse_packed_md) {
+    if (sparse_packed_md.format_kind != format_kind::sparse
+            || sparse_packed_md.format_desc.sparse_desc.encoding
+                    != sparse_encoding::packed)
+        return glob_zero_md;
+
+    const blocking_desc_t &blk_desc
+            = sparse_packed_md.format_desc.sparse_desc.packed_desc;
+    auto blocked_md = sparse_packed_md;
+    blocked_md.format_desc.blocking = blk_desc;
+    blocked_md.format_kind = format_kind::blocked;
+    return blocked_md;
+}
+
 /** returns true if strides are compatible with memory_desc_t */
 inline bool memory_desc_strides_check(
         const memory_desc_t &md, const dims_t strides) {
@@ -780,15 +842,33 @@ inline status_t memory_desc_init_by_strides(
 
 inline status_t memory_desc_init_by_tag(
         memory_desc_t &md, format_tag_t tag, const dims_t strides = nullptr) {
-    status_t status
-            = memory_desc_init_by_tag(md, md.ndims, md.dims, md.data_type, tag);
-    if (status != status::success || strides == nullptr) return status;
 
-    if (!memory_desc_strides_check(md, strides))
+    const bool is_sparse = md.format_kind == format_kind::sparse;
+    auto md_tmp = memory_desc_t();
+
+    CHECK(memory_desc_init_by_tag(
+            md_tmp, md.ndims, md.dims, md.data_type, tag));
+
+    if (strides != nullptr && !memory_desc_strides_check(md_tmp, strides))
         return status::invalid_arguments;
 
-    for (int d = 0; d < md.ndims; ++d)
-        md.format_desc.blocking.strides[d] = strides[d];
+    if (is_sparse) {
+        if (md.format_desc.sparse_desc.encoding != sparse_encoding::packed
+                || md.offset0 != 0)
+            return status::invalid_arguments;
+        md = cvt_blocked2sparse_packed(md_tmp, md.format_desc.sparse_desc.nnz);
+    } else {
+        md = md_tmp;
+    }
+
+    if (strides == nullptr) return status::success;
+
+    for (int d = 0; d < md.ndims; ++d) {
+        if (is_sparse)
+            md.format_desc.sparse_desc.packed_desc.strides[d] = strides[d];
+        else
+            md.format_desc.blocking.strides[d] = strides[d];
+    }
 
     return status::success;
 }
@@ -874,17 +954,25 @@ inline status_t memory_desc_init_by_md_and_dt(memory_desc_t &md,
  * doesn't matter. */
 inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
         const dims_t strides = nullptr) {
-    if (md.format_kind != types::format_tag_to_kind(tag)) return false;
+    if (md.format_kind != format_kind::sparse) {
+        if (md.format_kind != types::format_tag_to_kind(tag)) return false;
+    }
 
     memory_desc_t md_gold;
     status_t status = memory_desc_init_by_tag(
             md_gold, md.ndims, md.dims, md.data_type, tag);
     if (status != status::success) return false;
 
-    if (md.format_kind != format_kind::blocked)
+    const bool is_sparse_packed_desc = md.format_kind == format_kind::sparse
+            && md.format_desc.sparse_desc.encoding == sparse_encoding::packed;
+
+    if (md.format_kind != format_kind::blocked && !is_sparse_packed_desc)
         return false; // unimplemented yet
 
-    const auto &blk = md.format_desc.blocking;
+    const auto &blk = md.format_kind == format_kind::blocked
+            ? md.format_desc.blocking
+            : md.format_desc.sparse_desc.packed_desc;
+
     const auto &blk_gold = md_gold.format_desc.blocking;
 
     using utils::array_cmp;

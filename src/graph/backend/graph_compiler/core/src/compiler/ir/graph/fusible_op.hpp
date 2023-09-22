@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/graph/graph.hpp>
+#include <compiler/ir/graph/trait/may_broadcast.hpp>
 #include <compiler/ir/graph/trait/may_inplace.hpp>
 #include <compiler/ir/graph/traits.hpp>
 namespace dnnl {
@@ -230,8 +231,12 @@ public:
         return sc_data_format_t::get_blocking_shapes(
                 get_constant_plain_dims(), get_constant_format());
     }
-    bool compare_contents(const sc_op *other) const override;
-    size_t hash_contents() const override;
+    bool compare_contents(const sc_op *other,
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter) const override;
+    size_t hash_contents(
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter) const override;
 
     // if necessary, reset const_values according possible `var` from attrs
     void reset_const_values();
@@ -257,13 +262,16 @@ class binary_elementwise_op_t : public fusible_op_t,
                                 public op_traits::brgemm_fusion_acceptable_t,
                                 public op_traits::auto_copyable_with_trait_t<
                                         op_traits::brgemm_fusion_acceptable_t> {
+public:
+    int get_broadcast_input() const;
 };
 
 inline bool is_broadcast_op(const sc_op *op) {
     return (op->isa<op_traits::may_broadcast_t>()
             && op->dyn_cast<const op_traits::may_broadcast_t>()
-                            ->get_broadcast_input()
-                    != -1);
+                            ->get_non_broadcast_input_index(true)
+                            .size()
+                    != op->get_inputs().size());
 }
 
 class unary_elementwise_op_t : public fusible_op_t,

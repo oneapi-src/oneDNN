@@ -19,6 +19,7 @@
 #include "context.hpp"
 #include "test_utils.hpp"
 #include "util/bf16.hpp"
+#include "util/fp16.hpp"
 #include "gtest/gtest.h"
 #include <compiler/codegen/codegen_c.hpp>
 #include <compiler/ir/graph/driver.hpp>
@@ -181,6 +182,8 @@ static void check_batch_matmul(
             = input_dtype == datatypes::u8 && weight_dtype == datatypes::s8;
     bool is_bf16
             = input_dtype == datatypes::bf16 && weight_dtype == datatypes::bf16;
+    bool is_f16
+            = input_dtype == datatypes::f16 && weight_dtype == datatypes::f16;
 
     auto ctx = get_test_ctx();
 
@@ -224,6 +227,9 @@ static void check_batch_matmul(
                 input_dims, input_format, weight_dims, weight_format, out_dims);
     } else if (is_bf16) { // bf16
         run_bmm_test<bf16_t, bf16_t, float>(fptr, M, N, K, batch_size,
+                input_dims, input_format, weight_dims, weight_format, out_dims);
+    } else if (is_f16) { // f16
+        run_bmm_test<fp16_t, fp16_t, float>(fptr, M, N, K, batch_size,
                 input_dims, input_format, weight_dims, weight_format, out_dims);
     } else { // f32
         run_bmm_test<float, float, float>(fptr, M, N, K, batch_size, input_dims,
@@ -452,6 +458,23 @@ TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmbf16FWD2) {
                                sc_data_format_t(format_kinds::ABCD),
                                sc_data_format_t(format_kinds::ABCD),
                                datatypes::bf16, datatypes::bf16},
+            cfg_fwd);
+}
+// f16
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmf16FWD1) {
+    REQUIRE_FP16();
+    check_batch_matmul({{2, 256, 64}, {2, 64, 128}, {2, 256, 128},
+                               sc_data_format_t(format_kinds::ABC),
+                               sc_data_format_t(format_kinds::ABC),
+                               datatypes::f16, datatypes::f16},
+            cfg_fwd);
+}
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmf16FWD2) {
+    REQUIRE_FP16();
+    check_batch_matmul({{32, 2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
+                               sc_data_format_t(format_kinds::ABCD),
+                               sc_data_format_t(format_kinds::ABCD),
+                               datatypes::f16, datatypes::f16},
             cfg_fwd);
 }
 // bert case

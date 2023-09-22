@@ -153,6 +153,16 @@ protected:
                 other.desc_.is_cross_engine);
     }
 
+    reorder_pd_t &operator=(const reorder_pd_t &other) {
+        DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+        src_md_ = other.src_md_;
+        dst_md_ = other.dst_md_;
+
+        init_desc(other.desc_.src_engine_kind, other.desc_.dst_engine_kind,
+                other.desc_.is_cross_engine);
+        return *this;
+    }
+
 protected:
     void init_desc(engine_kind_t src_engine_kind, engine_kind_t dst_engine_kind,
             bool is_cross_engine) {

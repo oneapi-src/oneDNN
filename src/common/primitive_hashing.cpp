@@ -163,6 +163,8 @@ size_t get_md_hash(const memory_desc_t &md) {
             seed = get_array_hash(seed,
                     md.format_desc.sparse_desc.metadata_types,
                     sparse_desc_t::max_metadata_types);
+            // User cannot initialize `packed_desc` therefore `packed_desc`
+            // is always zero initialized.
             break;
 #endif
         default: assert(!"unknown format_kind");

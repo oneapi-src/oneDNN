@@ -171,8 +171,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     const auto density = cfg.get_density(density_args);
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
@@ -228,21 +228,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_sum_po(
             prb->attr, res, dnnl_gemm, prb->src_dt(), prb->dst_dt());
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_gemm);
+
+    // Unconditionally skip remaining unimplemented cases.
+    // TODO: stop doing it.
+    res->state = SKIPPED;
+    res->reason = CASE_NOT_SUPPORTED;
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
-    // AMX kernel only supports SRC zero points in unrolled kernel,
-    // and only for values of 0 or 1.
-    // Note: this check must be done here due to the fact that zero point value
-    // in brgemm API is a runtime argument.
-    // TODO: remove once AMX kernel fully supports zero points.
-    const bool is_amx = dnnl::mayiuse(dnnl_cpu_isa_avx512_core_amx);
-    const bool is_src_zp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
-    const int src_zp_value = prb->attr.zero_points.get(DNNL_ARG_SRC).value;
-    if (is_amx && is_src_zp && src_zp_value != 0 && src_zp_value != 1) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
     // Reorder does not support s8 and zp compensations for arbitrary shapes,
     // so skip unsupported cases.
     // Note: this check must be done here to avoid runtime error in benchdnn due
@@ -326,12 +319,8 @@ int doit(const prb_t *prb, res_t *res) {
             false /* transB */, layout, prb->alpha, prb->beta, prb->get_lda(),
             prb->get_ldb(), prb->get_ldc(use_dst_as_acc), prb->m, prb->n,
             prb->k, nullptr /* strides */);
-    check_dnnl_status(status_init, prb, res);
+    SAFE(check_dnnl_status(status_init, prb, res), WARN);
     if (res->state == SKIPPED) return OK;
-    // Unconditionally skip remaining unimplemented cases.
-    // TODO: remove this and add a SAFE check above.
-    if (status_init != dnnl_success)
-        return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
 
     attr_args_t attr_args;
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
@@ -451,20 +440,21 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Move cfg out of filling since its creation is not free.
     cfg_t cfg(prb, {SRC, WEI, BIA, DST});
-    SAFE(fill_data(SRC, prb, cfg, src_dt, src_fp, res), WARN);
-    SAFE(fill_data(WEI, prb, cfg, wei_dt, wei_fp, res), WARN);
+    TIME_FILL(SAFE(fill_data(SRC, prb, cfg, src_dt, src_fp, res), WARN));
+    TIME_FILL(SAFE(fill_data(WEI, prb, cfg, wei_dt, wei_fp, res), WARN));
     const int sum_idx = prb->attr.post_ops.find(attr_t::post_ops_t::SUM);
     if ((prb->beta != 0) || brgemm_attr.generate_skip_accumulation) {
-        SAFE(fill_data(DST, prb, cfg, acc_dt, acc_fp, res), WARN);
+        TIME_FILL(SAFE(fill_data(DST, prb, cfg, acc_dt, acc_fp, res), WARN));
         // Beta requires same values for reference and the kernel.
         if (use_dst_as_acc) {
-            dst_fp.reorder(acc_fp);
-            dst_dt.reorder(dst_fp);
+            SAFE(dst_fp.reorder(acc_fp), WARN);
+            SAFE(dst_dt.reorder(dst_fp), WARN);
         }
     }
-    if (sum_idx >= 0) SAFE(fill_data(DST, prb, cfg, dst_dt, dst_fp, res), WARN);
+    if (sum_idx >= 0)
+        TIME_FILL(SAFE(fill_data(DST, prb, cfg, dst_dt, dst_fp, res), WARN));
     if (prb->bia_dt != dnnl_data_type_undef)
-        SAFE(fill_data(BIA, prb, cfg, bia_dt, bia_fp, res), WARN);
+        TIME_FILL(SAFE(fill_data(BIA, prb, cfg, bia_dt, bia_fp, res), WARN));
 
     // "Library" args are needed to get dst for comparison.
     // "Reference" are used as usual.
@@ -588,7 +578,7 @@ int doit(const prb_t *prb, res_t *res) {
     brgemm_kernel_execute_postops(brgemm_kernel, prb->batch_size,
             v_batch_element.data(), acc_ptr, dst_ptr, post_ops_data,
             scratchpad_ptr);
-    if (res) res->state = EXECUTED;
+    res->state = EXECUTED;
 
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         ref_args.set(DNNL_ARG_SRC, src_fp);

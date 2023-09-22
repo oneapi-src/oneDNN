@@ -200,8 +200,9 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             if (has_zero_dim_memory()) return status::success;
             bool gemm_compatible
                     = gemm_consitency_check(src_md(), weights_md(), dst_md());
-            bool need_reorder = IMPLICATION(!gemm_compatible,
-                    reorder_check(src_md(), weights_md(), dst_md()));
+            bool need_reorder = gemm_compatible
+                    ? false
+                    : reorder_check(src_md(), weights_md(), dst_md());
 
             dnnl_data_type_t src_type = src_md()->data_type;
             dnnl_data_type_t weights_type = weights_md(0)->data_type;

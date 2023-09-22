@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,8 +45,8 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     auto output = CTX_OUT_CLEAN_MEM(data_t *, o_arg, status);
     CHECK(status);
 
-    const int axis = pd()->axis();
-    const int axis_size = pd()->axis_size();
+    const auto axis = pd()->axis();
+    const auto axis_size = pd()->axis_size();
 
     const dim_t MB = pd()->MB();
     const dim_t C = pd()->C();

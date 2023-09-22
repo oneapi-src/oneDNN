@@ -80,7 +80,7 @@ private:
         for_(size_t i = 0; i < sizes_and_leading_dims_[0].size(); i++)
         for_(auto alpha : alpha_values_)
         for_(auto beta : beta_values_)
-        for (auto dt : is_amx ? amx_dts_ : dts_) {
+        for (const auto &dt : is_amx ? amx_dts_ : dts_) {
             brgemm_params_t param = {};
             param.transA = tr;
             param.transB = 'n';

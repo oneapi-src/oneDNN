@@ -16,6 +16,7 @@
 
 #include <iostream>
 #include <limits>
+#include "compiler/ir/graph/fusible_op_utils.hpp"
 #include "context.hpp"
 #include "util/bf16.hpp"
 #include "gtest/gtest.h"
@@ -42,17 +43,23 @@ template <typename Dtype>
 static void do_test_reduce_op(const sc_dims &in_shape,
         const std::vector<int> &rd_axis, const std::string &reduce_name,
         int out_size, sc_data_type_t in_dtype,
-        const std::function<std::vector<float>(std::vector<float> &)>
-                &ref_func) {
+        const std::function<std::vector<float>(std::vector<float> &)> &ref_func,
+        bool keep_dims = false, const sc_dims &out_shape = {}) {
     REQUIRE_AVX2();
     sc_graph_t graph;
     auto input = graph.make_input(
             {graph_tensor::make(in_shape, sc_data_format_t(), in_dtype)});
-    auto reduce = graph.make(reduce_name, {input->get_outputs()[0]}, {},
-            {
-                    {"rd_axis", rd_axis},
-                    {"keep_dims", false},
-            });
+    auto output_tensors = std::vector<graph_tensor_ptr>();
+    if (out_shape.size() > 0) {
+        output_tensors.emplace_back(
+                graph_tensor::make(out_shape, sc_data_format_t(), in_dtype));
+    }
+    auto reduce
+            = graph.make(reduce_name, {input->get_outputs()[0]}, output_tensors,
+                    {
+                            {"rd_axis", rd_axis},
+                            {"keep_dims", keep_dims},
+                    });
     auto output = graph.make_output(reduce->get_outputs());
     graph_driver(graph, get_test_ctx());
     auto f = lower_graph(get_test_ctx(), graph, {output, input});
@@ -597,6 +604,71 @@ TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutput) {
     if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
+TEST(GCCore_CPU_reduce_op_cpp, TestPaddingReduceAsOutput) {
+    REQUIRE_AVX2();
+    sc_graph_t graph;
+    auto ctx = get_test_ctx();
+    const int cols = vectorize_step(ctx, sc_data_etype::F32) - 1;
+    sc_dims input_shape = {32, cols};
+    auto input0 = graph.make_input(
+            {graph_tensor::make({32, cols}, sc_data_format_t::MK())});
+    auto input1 = graph.make_input(
+            {graph_tensor::make({32, cols}, sc_data_format_t::MK())});
+    auto reo0 = graph.make("reorder", {input0->get_outputs()[0]}, {},
+            {{"out_format", sc_data_format_t::MKmk(16, cols + 1)},
+                    {"internal", true}});
+    auto reo1 = graph.make("reorder", {input1->get_outputs()[0]}, {},
+            {{"out_format", sc_data_format_t::MKmk(16, cols + 1)},
+                    {"internal", true}});
+    auto add0 = graph.make(
+            "add", {reo0->get_outputs()[0], reo1->get_outputs()[0]}, {}, {});
+    auto reduce0 = graph.make("reduce", add0->get_outputs(), {},
+            {{"rd_axis", std::vector<int> {1}}, {"rd_op", 2}});
+    auto output0 = graph.make_output(reduce0->get_outputs());
+
+    mixed_partition(graph, ctx);
+
+    auto f = lower_graph(get_test_ctx(), graph, {output0, input0, input1});
+    auto fptr = jit_engine_t::make(ctx)->get_entry_func(f, true);
+
+    auto in_a = alloc_array<float>(test_utils::product(input_shape),
+            init_action::INIT_RANGE, -100, -1);
+    auto in_b = alloc_array<float>(test_utils::product(input_shape),
+            init_action::INIT_RANGE, -100, -1);
+    // auto in_c = alloc_array<float>(1);
+    auto out = alloc_array<float>(32, INIT_NOOP);
+    auto ref_out = std::vector<float>(32);
+
+    std::vector<generic_val> generic_args;
+    generic_args.emplace_back(&out[0]);
+    generic_args.emplace_back(&in_a[0]);
+    generic_args.emplace_back(&in_b[0]);
+    fptr->call_generic_default(generic_args.data());
+
+    for (auto i = 0; i < input_shape[0]; i++) {
+        float max = -std::numeric_limits<float>::infinity();
+        for (auto j = 0; j < cols; j++) {
+            max = std::max(max, in_a[i * cols + j] + in_b[i * cols + j]);
+        }
+        ref_out[i] = max;
+    }
+    if (verbose) {
+        for (size_t i = 0; i < in_a.size(); i++) {
+            std::cout << in_a[i] << " ";
+            if ((i + 1) % cols == 0) std::cout << std::endl;
+        }
+        std::cout << std::endl;
+        for (size_t i = 0; i < in_b.size(); i++) {
+            std::cout << in_b[i] << " ";
+            if ((i + 1) % cols == 0) std::cout << std::endl;
+        }
+        std::cout << std::endl;
+        std::cout << out[0] << std::endl;
+        std::cout << ref_out[0] << std::endl;
+    }
+    test_utils::compare_data(out, ref_out, the_rtol, the_atol);
+}
+
 TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
     REQUIRE_AVX2();
     test_buffer<float> out;
@@ -931,4 +1003,40 @@ TEST(GCCore_CPU_reduce_op_cpp, TestPartialBf16) {
     bool done = false;
     do_test_bf16(out, refout, done);
     if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
+}
+
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOpkeepDims1) {
+    const int out_size = 3;
+    do_test_reduce_op<float>(
+            sc_dims({3, 3, 3}), std::vector<int>({1, 2}), "reduce_mean",
+            out_size, datatypes::f32,
+            [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                for (size_t i = 0; i < ref_out.size(); ++i)
+                    ref_out[i] = 0;
+                for (size_t i = 0; i < 3; ++i)
+                    for (size_t j = 0; j < 3; ++j)
+                        for (size_t k = 0; k < 3; ++k)
+                            ref_out[i] += input[i * 3 * 3 + j * 3 + k] / 9;
+                return ref_out;
+            },
+            true);
+}
+
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOpkeepDims2) {
+    const int out_size = 3;
+    do_test_reduce_op<float>(
+            sc_dims({3, 3, 3}), std::vector<int>({1, 2}), "reduce_mean",
+            out_size, datatypes::f32,
+            [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                for (size_t i = 0; i < ref_out.size(); ++i)
+                    ref_out[i] = 0;
+                for (size_t i = 0; i < 3; ++i)
+                    for (size_t j = 0; j < 3; ++j)
+                        for (size_t k = 0; k < 3; ++k)
+                            ref_out[i] += input[i * 3 * 3 + j * 3 + k] / 9;
+                return ref_out;
+            },
+            false, sc_dims({3, 1, 1}));
 }

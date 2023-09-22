@@ -141,7 +141,7 @@ dnnl_status_t extended_sgemm(const char *transa, const char *transb,
         auto status = gemm_driver(transa, transb, bias ? "C" : nullptr, M, N, K,
                 alpha, A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
                 force_jit_nocopy_gemm);
-        if (status == status::success) return status;
+        if (status != status::unimplemented) return status;
     }
 #endif
 
@@ -200,13 +200,13 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
 
     status = try_cblas_gemm_s8u8s32(transa, transb, offsetc, M, N, K, alpha, A,
             LDA, ao, B, LDB, bo, beta, C, LDC, co);
-    if (status == dnnl_success) return status;
+    if (status != status::unimplemented) return status;
 
 #if DNNL_X64 && !__BUILD_GEMM_NONE
     if (mayiuse(sse41)) {
         auto status = gemm_driver(transa, transb, offsetc, M, N, K, alpha, A,
                 LDA, ao, B, LDB, bo, beta, C, LDC, co, false);
-        if (status == status::success) return status;
+        if (status != status::unimplemented) return status;
     }
 #elif DNNL_PPC64
 #ifdef __MMA__
@@ -249,13 +249,13 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     if (use_jit) {
         auto status = gemm_driver(transa, transb, offsetc, M, N, K, alpha, A,
                 LDA, ao, B, LDB, bo, beta, C, LDC, co, false);
-        if (status == status::success) return status;
+        if (status != status::unimplemented) return status;
     }
 
     if (use_s8u8) {
         auto status = simple_gemm_s8s8s32(transa, transb, offsetc, M, N, K,
                 alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
-        if (status == status::success) return status;
+        if (status != status::unimplemented) return status;
     }
 #endif
 
@@ -303,7 +303,7 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
         auto status = gemm_driver(transa, transb, dummyOffsetC, M, N, K, alpha,
                 (const bfloat16_t *)A, lda, dummy_ao, (const bfloat16_t *)B,
                 ldb, dummy_bo, beta, (float *)C, ldc, dummy_co, false);
-        if (status == status::success) return status;
+        if (status != status::unimplemented) return status;
     }
 #elif DNNL_PPC64
 #if defined(USE_CBLAS) && defined(BLAS_HAS_SBGEMM) && defined(__MMA__)

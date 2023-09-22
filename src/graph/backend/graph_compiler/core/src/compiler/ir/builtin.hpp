@@ -33,6 +33,7 @@ namespace gc {
 SC_INTERNAL_API expr get_ir_null();
 SC_INTERNAL_API expr get_ir_zero_index();
 SC_INTERNAL_API bool is_pure_func_call(const expr_c &v);
+
 namespace builtin {
 
 /**
@@ -140,7 +141,7 @@ void dnnl_brgemm_init(
  * @param brg_postops_data postops_data
  * @param brg_c_buf c_buf
  * */
-void brgemm_init_update(const expr &A, const expr &B, const expr &C,
+evaluate brgemm_init_update(const expr &A, const expr &B, const expr &C,
         const expr &num, const expr &M, const expr &N, const expr &K,
         const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
         const expr &stride_b, const sc_data_type_t &dtypeA,
@@ -182,7 +183,7 @@ void brgemm_init_update(const expr &A, const expr &B, const expr &C,
  * @param brg_postops_data postops_data
  * @param brg_c_buf c_buf
  * */
-void brgemm_init_update_allow_fusion(const expr &A, const expr &B,
+evaluate brgemm_init_update_allow_fusion(const expr &A, const expr &B,
         const expr &C, const expr &num, const expr &M, const expr &N,
         const expr &K, const expr &LDA, const expr &LDB, const expr &LDC,
         const expr &stride_a, const expr &stride_b,
@@ -235,9 +236,9 @@ void brgemm_init(
  * @param brg_postops_data postops_data
  * @param brg_c_buf c_buf
  * */
-void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
-        const expr &M, const expr &N, const expr &K, const expr &LDA,
-        const expr &LDB, const expr &LDC, const expr &stride_a,
+evaluate brgemm_update(const expr &A, const expr &B, const expr &C,
+        const expr &num, const expr &M, const expr &N, const expr &K,
+        const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
         const expr &stride_b, const sc_data_type_t &dtypeA,
         const sc_data_type_t &dtypeB,
         const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
@@ -277,7 +278,7 @@ void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
  * @param brg_postops_data postops_data
  * @param brg_c_buf c_buf
  * */
-void brgemm_list_update(const expr &A, const expr &B, const expr &C,
+evaluate brgemm_list_update(const expr &A, const expr &B, const expr &C,
         const expr &num, const expr &M, const expr &N, const expr &K,
         const expr &lda, const expr &ldb, const expr &ldc, const expr &stride_a,
         const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
@@ -319,7 +320,7 @@ void brgemm_list_update(const expr &A, const expr &B, const expr &C,
  * @param brg_postops_data postops_data
  * @param brg_c_buf c_buf
  * */
-void brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
+evaluate brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
         const expr &num, const expr &M, const expr &N, const expr &K,
         const expr &lda, const expr &ldb, const expr &ldc, const expr &stride_a,
         const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
@@ -383,7 +384,16 @@ expr call_managed_matmul_core_query_format(const expr &tb, const expr &out0,
         const expr &in_format1, const expr &ori_in_format0,
         const expr &ori_in_format1, const expr &out_size, const expr &kernel,
         const expr &impl = get_ir_null());
+expr call_conv_fwd_core_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &in1, const expr &ori_in0,
+        const expr &ori_in1, const expr &out_format0, const expr &in_format0,
+        const expr &in_format1, const expr &ori_in_format0,
+        const expr &ori_in_format1, const expr &out_size, const expr &kernel,
+        const expr &impl = get_ir_null());
 expr call_unary_fusible_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &out_foramt0, const expr &in_format0,
+        const expr &out_size, const expr &kernel);
+expr call_padding_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_foramt0, const expr &in_format0,
         const expr &out_size, const expr &kernel);
 expr call_binary_fusible_op_query_format(const expr &tb, const expr &out0,

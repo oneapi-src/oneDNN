@@ -48,33 +48,27 @@ bool compiler_backend_t::register_passes() {
     REQUIRE_AMX_END
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
             fp32_conv_training_pattern, pass_registry_);
-    REQUIRE_SINGLE_THREAD_BEGIN
     REQUIRE_AMX_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
             fp32_conv_inference_pattern, pass_registry_);
     REQUIRE_AMX_END
-    REQUIRE_SINGLE_THREAD_END
     REQUIRE_BF16_AMXBF16_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mha_pattern, pass_registry_);
     REQUIRE_AMXBF16_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mlp_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
             bf16_conv_training_pattern, pass_registry_);
-    REQUIRE_SINGLE_THREAD_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
             bf16_conv_inference_pattern, pass_registry_);
-    REQUIRE_SINGLE_THREAD_END
     REQUIRE_AMXBF16_END
     REQUIRE_BF16_AMXBF16_END
     REQUIRE_VNNI_AMXINT8_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mha_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mlp_pattern, pass_registry_);
-    REQUIRE_SINGLE_THREAD_BEGIN
     REQUIRE_AMX_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
             int8_conv_inference_pattern, pass_registry_);
     REQUIRE_AMX_END
-    REQUIRE_SINGLE_THREAD_END
     REQUIRE_VNNI_AMXINT8_END
     COMPILER_BACKEND_REGISTER_PASSES_CALL(misc_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(concat_patterns, pass_registry_);

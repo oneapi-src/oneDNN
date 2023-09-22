@@ -24,6 +24,7 @@
 #include "templates/convNxN_backprop_weight.hpp"
 #include "templates/conv_bwd.hpp"
 #include "templates/conv_fwd.hpp"
+#include "templates/conv_rl.hpp"
 #include "templates/nested_conv1x1_backprop_data.hpp"
 #include "templates/nested_conv1x1_backprop_weight.hpp"
 #include "templates/nested_convNxN_backprop_data.hpp"
@@ -37,7 +38,10 @@
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <ops/templates/utils.hpp>
 #include <runtime/config.hpp>
+#include <runtime/dynamic_dispatch/ops/config.hpp>
+#include <runtime/dynamic_dispatch/ops/runtime_op_info.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 #include <util/simple_math.hpp>
@@ -70,19 +74,26 @@ void conv_fwd_core_op_t::infer_slice_ranges(
                     "constant", const_kind::not_const)
             || info_.inputs_[1]->attrs_.get_or_else(
                     "constant", const_kind::not_const);
-    if (attrs_.has_key("inverse_filter") || !is_weight_constant) {
+    if (attrs_.has_key("inverse_filter")
+            || !attrs_.get_or_else("image_affinity", true)
+            || !is_weight_constant || is_dynamic()) {
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
         return;
     }
     int C_block = 1;
     int K_block = 1;
     int tile_p = 1;
+    const auto use_rl = attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING);
 
     if (config_data_) {
         if (use_nested_conv_fwd_generator()) {
             const nested_conv_fwd_config_t &tcfg
                     = *config_data_.get_as<nested_conv_fwd_config_t>();
             tile_p = tcfg.im_h_block;
+        } else if (use_rl == ops::rl_kind::FULL_LOWERING) {
+            const conv_fwd_rl_config_t &tcfg
+                    = *config_data_.get_as<conv_fwd_rl_config_t>();
+            tile_p = tcfg.brgemm_m;
         } else {
             const conv_fwd_config_t &tcfg
                     = *config_data_.get_as<conv_fwd_config_t>();
@@ -96,9 +107,12 @@ void conv_fwd_core_op_t::infer_slice_ranges(
         stat_map.append_ops_by_status(this, infer_status_code::RETRY);
         return;
     }
-    auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size(),
-         wei_plain_size = get_inputs()[1]->details_.get_plain_dims().size();
-    auto wei_plain_dim = get_inputs()[1]->details_.get_plain_dims();
+    auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size();
+    auto wei_plain_dim = use_rl != ops::rl_kind::NO_LOWERING
+            ? attrs_.get<sc_dims>("origin_wei_plain_dims")
+            : get_inputs()[1]->details_.get_plain_dims();
+
+    auto wei_plain_size = wei_plain_dim.size();
     auto inp_dims = get_inputs()[0]->details_.get_blocking_dims(),
          wei_dims = get_inputs()[1]->details_.get_blocking_dims(),
          out_dims = get_outputs()[0]->details_.get_blocking_dims();
@@ -272,9 +286,15 @@ void conv_fwd_core_op_t::infer_slice_ranges(
 }
 
 void conv_fwd_core_op_t::infer_out_tensor_details() {
+    if (!info_.outputs_[0]->details_.get_plain_dims().empty()) return;
     auto &cur_plain_dims = info_.outputs_[0]->details_.get_plain_dims();
     auto &indims = info_.inputs_[0]->details_.get_plain_dims();
-    auto &weightdims = info_.inputs_[1]->details_.get_plain_dims();
+    auto weightdims = info_.inputs_[1]->details_.get_plain_dims();
+    if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
+            > ops::rl_kind::NO_LOWERING) {
+        weightdims = attrs_.get<sc_dims>("origin_wei_plain_dims");
+    }
+
     auto &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
@@ -284,7 +304,7 @@ void conv_fwd_core_op_t::infer_out_tensor_details() {
     auto expected_out_shape = infer_out_dims(get_owner_graph(), indims,
             weightdims, pads_begin, pads_end, attrs_.get<sc_dims>("strides"),
             get_dilations(attrs_), attrs_);
-    if (!cur_plain_dims.empty()) {
+    if (!cur_plain_dims.empty() && !is_dynamic()) {
         COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
                         == expected_out_shape,
                 "Bad output shape for conv");
@@ -301,15 +321,20 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
     int ndims = input_dims.size();
     const bool is_1d = (ndims == 3);
     const bool is_3d = (ndims == 5);
+    sc_dims wei_dims = weight_dims;
     COMPILE_ASSERT(
             utils::is_one_of(static_cast<int>(input_dims.size()), 3, 4, 5),
             "wrong input dims, expected to be 3D, 4D or 5D input, but got "
                     << input_dims.size() << "D.");
-    COMPILE_ASSERT(
-            utils::is_one_of(static_cast<int>(weight_dims.size()), 3, 4, 5)
-                    && (weight_dims.size() == input_dims.size()),
+    if (attrs.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
+            > ops::rl_kind::NO_LOWERING) {
+        wei_dims = attrs.get<sc_dims>("origin_wei_plain_dims");
+    }
+
+    COMPILE_ASSERT(utils::is_one_of(static_cast<int>(wei_dims.size()), 3, 4, 5)
+                    && (wei_dims.size() == input_dims.size()),
             "wrong weight dims, only support 4D or 5D weights, but got "
-                    << weight_dims.size() << "D.");
+                    << wei_dims.size() << "D.");
     COMPILE_ASSERT(
             is_3d ? utils::is_one_of(static_cast<int>(pads_begin.size()), 1, 3)
                     : is_1d ? utils::is_one_of(
@@ -370,15 +395,15 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
     };
     sc_dims out_dims(ndims);
     out_dims[0] = input_dims[0];
-    out_dims[1] = weight_dims[0];
+    out_dims[1] = wei_dims[0];
     for (int i = 2; i < ndims; ++i) {
-        if (is_dynamic_dim(input_dims[i]) || is_dynamic_dim(weight_dims[i])
+        if (is_dynamic_dim(input_dims[i]) || is_dynamic_dim(wei_dims[i])
                 || is_dynamic_dim(pads_begin_dims[i - 2])
                 || is_dynamic_dim(pads_end_dims[i - 2])
                 || is_dynamic_dim(stride_dims[i - 2])) {
             out_dims[i] = owner_graph.get_next_dynamic_placeholder();
         } else {
-            out_dims[i] = calc_out_shapes(input_dims[i], weight_dims[i],
+            out_dims[i] = calc_out_shapes(input_dims[i], wei_dims[i],
                     pads_begin_dims[i - 2], pads_end_dims[i - 2],
                     stride_dims[i - 2], dilation_dims[i - 2]);
         }
@@ -465,7 +490,11 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
     : tunable_op_t("conv_fwd_core", ins, outs, attrs) {
     COMPILE_ASSERT(info_.inputs_.size() == 2, "conv expects 2 inputs");
     auto &indims = info_.inputs_[0]->details_.get_plain_dims();
-    auto &weightdims = info_.inputs_[1]->details_.get_plain_dims();
+    auto weightdims = info_.inputs_[1]->details_.get_plain_dims();
+    if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
+            > ops::rl_kind::NO_LOWERING) {
+        weightdims = attrs.get<sc_dims>("origin_wei_plain_dims");
+    }
     ndims_ = indims.size();
     auto strides = attrs_.get<sc_dims>("strides");
     auto dilations = get_dilations(attrs_);
@@ -494,8 +523,18 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
         pads_begin = attrs_.get<sc_dims>("paddings");
         pads_end = pads_begin;
     }
-    COMPILE_ASSERT(pads_begin == pads_end,
-            "Current conv_fwd_core only supports symmetric padding.");
+    sc_dim groups = attrs_.get_or_else("groups", 1);
+    auto ic = indims[1];
+    auto oc = weightdims[0];
+    COMPILE_ASSERT(ic % groups == 0 && oc % groups == 0,
+            "input channel and output channel must both be divisible by "
+            "groups, but got ic("
+                    << ic << "), oc(" << oc << "), groups(" << groups << ").");
+    COMPILE_ASSERT(ic / groups == weightdims[1],
+            "ic/g should be equal to filter_dims[1], but got "
+                    << ic / groups << " vs " << weightdims[1] << ".");
+    COMPILE_ASSERT((groups == 1) || (groups > 1 && ic != groups),
+            "depthwise conv is not support yet!");
     auto &data_dtype = info_.inputs_[0]->details_.dtype_;
     auto &weight_dtype = info_.inputs_[1]->details_.dtype_;
     if (info_.outputs_.empty()) {
@@ -511,30 +550,59 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
 }
 
 bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
+    if (is_dynamic()) return true;
+    sc_dim groups = attrs_.get_or_else("groups", 1);
+    if (groups > 1) { return false; }
+    if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
+            > ops::rl_kind::NO_LOWERING) {
+        return false;
+    }
+    bool use_1d = info_.inputs_[0]->details_.get_plain_dims().size() == 3;
     bool use_nested = attrs_.get_or_else("use_nested", true);
-    if (!use_nested) { return false; }
+    if (!use_nested && !use_1d) { return false; }
     const sc_dims &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
     const sc_dims &data_shape = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &output_shape = info_.outputs_[0]->details_.get_plain_dims();
+    auto dilations = get_dilations(attrs_);
+    auto has_dilation = std::any_of(
+            dilations.begin(), dilations.end(), [](int x) { return x > 1; });
     auto has_pad = std::any_of(
             pads_begin.begin(), pads_begin.end(), [](int x) { return x > 0; });
     auto is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
             [](int x) { return x == 1; });
     auto is_int8 = utils::is_one_of(
             info_.inputs_[0]->details_.dtype_, datatypes::u8, datatypes::s8);
+    const int num_threads = runtime_config_t::get().get_num_threads();
+    auto dtype_size = utils::get_sizeof_type(info_.inputs_[1]->details_.dtype_);
+    bool os_blocking_with_oc_threads = !has_pad
+            && output_shape.back() * dtype_size < 32
+            && utils::is_one_of(info_.inputs_[0]->details_.dtype_,
+                    datatypes::u8, datatypes::s8, datatypes::bf16)
+            && !is_1x1 && weight_shape[0] >= 32
+            && is_parallel_space_enough(data_shape[0], num_threads);
     // Only support conv 3x3 with os blocking currently
     // TODO(zhicong): the config of nested conv 3x3 with big
     // shape(150x150,300x300, 7x7 oc split) needs to be further tuned
-    auto use_nested_conv = ndims_ == 4 && !has_pad && !is_1x1 && is_int8
-            && data_shape.back() <= 56 && output_shape.back() > 7;
+    // only used in throughput mode or real time mode in which the config is
+    // well tuned
+    auto use_nested_conv = (ndims_ == 4 && !has_pad && !has_dilation && is_int8
+                                   && !(data_shape.back() > 56 && !is_1x1)
+                                   && !(output_shape.back() <= 7 && !is_1x1)
+                                   && !(data_shape[1] % 32 != 0 && is_1x1)
+                                   && num_threads / data_shape[0] <= 4
+                                   && !os_blocking_with_oc_threads
+                                   && !attrs_.get_or_else("use_rl", false))
+            || use_1d;
     return use_nested_conv;
 }
 
 bool conv_fwd_core_op_t::use_conv1d() {
     // should be 2d case
+    sc_dim groups = attrs_.get_or_else("groups", 1);
+    if (groups > 1) { return false; }
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
     const sc_dims &data_shape = info_.inputs_[0]->details_.get_plain_dims();
     if (weight_shape.size() != 4UL) { return false; }
@@ -571,18 +639,27 @@ bool conv_fwd_core_op_t::use_conv1d() {
     }
 
     // big data and small weight
-    auto &stride = attrs_.get<sc_dims>("strides");
+    auto stride = attrs_.get<sc_dims>("strides");
     auto weight_size = math_utils::get_dims_product(weight_shape)
             * utils::get_sizeof_type(info_.inputs_[1]->details_.dtype_);
     auto image_size = math_utils::get_dims_product(data_shape) / data_shape[0]
             * utils::get_sizeof_type(info_.inputs_[0]->details_.dtype_);
     int num_threads = runtime_config_t::get().get_num_threads();
     auto boundry = 5UL;
-    if (image_size / weight_size > boundry
-            && std::all_of(
-                    stride.begin(), stride.end(), [](int x) { return x == 1; })
+    bool has_stride = !std::all_of(
+            stride.begin(), stride.end(), [](int x) { return x == 1; });
+    auto is_int8 = utils::is_one_of(
+            info_.inputs_[0]->details_.dtype_, datatypes::u8, datatypes::s8);
+    if (image_size / weight_size > boundry && !has_stride
             && data_shape[0] % num_threads == 0) {
         // disable conv1d to use NH fusion
+        return false;
+    }
+    // only used in throughput mode or real time mode in which the config is
+    // well tuned
+    // TODO(zhicong): further confirm the constraint 32 in other data types
+    if ((data_shape[0] == 1 && has_stride && is_int8) || data_shape[1] % 32 != 0
+            || weight_shape[0] % 32 != 0) {
         return false;
     }
     return true;
@@ -597,24 +674,24 @@ body_generator_ptr conv_fwd_core_op_t::create_generator() {
     auto &pads_end = attrs_.has_key("pads_end")
             ? attrs_.get<sc_dims>("pads_end")
             : attrs_.get<sc_dims>("paddings");
-    COMPILE_ASSERT(pads_begin == pads_end,
-            "Current conv_fwd generator logic only supports symmetric "
-            "padding.");
 
+#define CREATE_GENERATOR(type) \
+    utils::make_unique<type>(this, stride, dilations, pads_begin, pads_end, \
+            graph::extract_detail_from_tensors(get_inputs()), \
+            graph::extract_detail_from_tensors(get_outputs()))
     if (use_nested_conv_fwd_generator()) {
-        return utils::make_unique<gen_nested_conv_fwd_t>(this, stride,
-                dilations, pads_begin,
-                graph::extract_detail_from_tensors(get_inputs()),
-                graph::extract_detail_from_tensors(get_outputs()));
+        return CREATE_GENERATOR(gen_nested_conv_fwd_t);
+    } else if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
+            == ops::rl_kind::FULL_LOWERING) {
+        return CREATE_GENERATOR(gen_conv_fwd_rl_t);
     } else {
-        auto ret = utils::make_unique<gen_conv_fwd_t>(this, stride, dilations,
-                pads_begin, graph::extract_detail_from_tensors(get_inputs()),
-                graph::extract_detail_from_tensors(get_outputs()));
+        auto ret = CREATE_GENERATOR(gen_conv_fwd_t);
         if (attrs_.get_or_else("inverse_filter", false)) {
             ret->inverse_filter_ = true;
         }
         return std::move(ret);
     }
+#undef CREATE_GENERATOR
 }
 
 float conv_fwd_core_op_t::get_gflop() {
@@ -625,11 +702,25 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
-
+    sc_data_format_t data_format, weight_format, out_format;
+    sc_data_format_t raw_weight_format
+            = info_.inputs_[1]->details_.get_format();
+    bool dynamic = is_dynamic();
     COMPILE_ASSERT(info_.inputs_.size() == 2,
             "conv expects 2 inputs, but got " << info_.inputs_.size()
                                               << " inputs.");
     ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
+    auto use_rl = attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING);
+    sc_dim groups = attrs_.get_or_else("groups", 1);
+    auto weight_plain_dims = use_rl > ops::rl_kind::NO_LOWERING
+            ? attrs_.get<sc_dims>("origin_wei_plain_dims")
+            : info_.inputs_[1]->details_.get_plain_dims();
+    auto input_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
+    int ic = input_plain_dims[1] / groups, oc = weight_plain_dims[0] / groups;
+    const bool is_data_blocking
+            = info_.inputs_[0]->details_.get_format().is_blocking();
+    const bool is_weight_blocking
+            = info_.inputs_[1]->details_.get_format().is_blocking();
 
     // nested os blocking conv 3x3 works when use_amx is true
     if (!ctx->use_amx()) { attrs_.set("use_nested", false); }
@@ -638,27 +729,32 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     }
     int C_block = 1;
     int K_block = 1;
-
     if (use_nested_conv_fwd_generator()) {
         const nested_conv_fwd_config_t &tcfg
                 = *config_data_.get_as<nested_conv_fwd_config_t>();
+        auto body_gen = create_generator();
+        auto gen = static_cast<gen_nested_conv_fwd_t *>(body_gen.get());
         in_formats.reserve(2);
         C_block = tcfg.im_ic_block;
         K_block = tcfg.im_oc_block;
-    } else {
-        const conv_fwd_config_t &tcfg
-                = *config_data_.get_as<conv_fwd_config_t>();
-        auto body_gen = create_generator();
-        auto gen = static_cast<gen_conv_fwd_t *>(body_gen.get());
-        in_formats.reserve(2);
-        C_block = tcfg.C_block;
-        K_block = tcfg.K_block;
         if (gen->use_conv1d) {
             C_block = gen->im_ic_block_;
             K_block = gen->im_oc_block_;
         }
+    } else if (use_rl == ops::rl_kind::FULL_LOWERING) {
+        const conv_fwd_rl_config_t &tcfg
+                = *config_data_.get_as<conv_fwd_rl_config_t>();
+        in_formats.reserve(2);
+        K_block = tcfg.brgemm_n;
+    } else {
+        const conv_fwd_config_t &tcfg
+                = *config_data_.get_as<conv_fwd_config_t>();
+        in_formats.reserve(2);
+        C_block = tcfg.C_block;
+        K_block = tcfg.K_block;
     }
-
+    in_formats.resize(2);
+    out_formats.resize(1);
     const bool is_3d = ndims_ == 5;
     const bool is_1d = ndims_ == 3;
     const auto src_dtype = info_.inputs_[0]->details_.dtype_;
@@ -683,18 +779,17 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
             || info_.inputs_[1]->attrs_.get_or_else(
                     "constant", const_kind::not_const);
 
-    auto weight_plain_dims = info_.inputs_[1]->details_.get_plain_dims();
-    auto input_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
     bool channel_last_support = false;
+    auto kh = weight_plain_dims[ndims_ - 2];
+    auto kw = weight_plain_dims[ndims_ - 1];
+    auto is_1x1 = std::all_of(weight_plain_dims.begin() + 2,
+            weight_plain_dims.end(), [](int x) { return x == 1; });
     if (!is_1d) {
-        auto kh = weight_plain_dims[ndims_ - 2];
-        auto is_1x1 = std::all_of(weight_plain_dims.begin() + 2,
-                weight_plain_dims.end(), [](int x) { return x == 1; });
-        channel_last_support = is_1x1
-                || (ops::is_amx_dtype(ctx, src_dtype)
-                        && (kh - 1) * dilation_dims[1] + 1
-                                < input_plain_dims[input_plain_dims.size() - 2])
-                || (has_pad && attrs_.get_or_else("inverse_filter", false));
+        channel_last_support = is_1x1 || ops::is_amx_dtype(ctx, src_dtype)
+                || (has_pad && attrs_.get_or_else("inverse_filter", false))
+                || use_rl == ops::rl_kind::FULL_LOWERING;
+        if (use_rl != ops::rl_kind::NO_LOWERING && groups > 1)
+            channel_last_support = false;
     }
 
     std::string test_format;
@@ -705,50 +800,226 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
             || test_format == "NSC";
     bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc"
             || test_format == "NCSc";
-    bool use_channel_last = (channel_last_support && !force_blocking)
-            || (channel_last_support && force_channel_last);
+    auto cur_format_set = std::unordered_set<std::vector<sc_data_format_t>>();
+    auto cur_dispatch_key_set = dispatch_key_set_t();
+    assert(in_formats.size() == 2);
+    bool is_first_format = true;
+    auto default_block = get_dyn_conv_default_block(is_1x1,
+            utils::get_sizeof_type(src_dtype), has_pad,
+            src_dtype == datatypes::f32);
+    C_block = !dynamic ? C_block
+                       : utils::get_blocks(ic, 1, default_block).back();
+    K_block = !dynamic ? K_block
+                       : utils::get_blocks(oc, 1, default_block).back();
+    bool use_channel_last
+            = (((channel_last_support && !force_blocking)
+                       || (channel_last_support && force_channel_last))
+                      && ic % C_block == 0 && oc % K_block == 0)
+            || is_dynamic();
     // data layout
     if (use_channel_last) {
-        in_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
-                        : is_1d     ? sc_data_format_t::NSC()
-                                    : sc_data_format_t::NHWC()});
+        data_format = is_3d ? sc_data_format_t::NDHWC()
+                : is_1d     ? sc_data_format_t::NSC()
+                            : sc_data_format_t::NHWC();
     } else {
-        in_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(C_block)
-                        : is_1d     ? sc_data_format_t::NSC()
-                                    : sc_data_format_t::NCHWc(C_block)});
+        data_format = is_3d ? sc_data_format_t::NCDHWc(C_block)
+                : is_1d
+                ? sc_data_format_t::NSC()
+                : sc_data_format_t::NCHWc(
+                        (use_rl == ops::rl_kind::FULL_LOWERING && groups > 1)
+                                ? ic
+                                : C_block);
+    }
+    // weight layout
+    if (use_rl == ops::rl_kind::FULL_LOWERING && !dynamic) {
+        int brgemm_k = attrs_.get<int>("brgemm_k");
+        int brgemm_n = K_block;
+        if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
+                && wei_dtype == datatypes::s8) {
+            weight_format = sc_data_format_t::KNkn4k(brgemm_k, brgemm_n);
+        } else if (src_dtype == datatypes::bf16
+                && wei_dtype == datatypes::bf16) {
+            weight_format = sc_data_format_t::KNkn2k(brgemm_k, brgemm_n);
+        } else {
+            COMPILE_ASSERT(0, "Invalid datatype for reduce lowering!");
+        }
+    } else {
+        if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
+                && wei_dtype == datatypes::s8) {
+            weight_format = is_3d
+                    ? sc_data_format_t::KCDRSck4c(C_block, K_block)
+                    : is_1d ? sc_data_format_t::KCSck4c(C_block, K_block)
+                            : sc_data_format_t::KCRSck4c(C_block, K_block);
+        } else if (src_dtype == datatypes::bf16
+                && wei_dtype == datatypes::bf16) {
+            weight_format = is_3d
+                    ? sc_data_format_t::KCDRSck2c(C_block, K_block)
+                    : is_1d ? sc_data_format_t::KCSck2c(C_block, K_block)
+                            : sc_data_format_t::KCRSck2c(C_block, K_block);
+        } else {
+            weight_format = is_3d ? sc_data_format_t::KCDRSck(C_block, K_block)
+                    : is_1d       ? sc_data_format_t::KCSck(C_block, K_block)
+                                  : sc_data_format_t::KCRSck(C_block, K_block);
+        }
     }
 
-    // weight layout
-    if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
-            && wei_dtype == datatypes::s8) {
-        in_formats.push_back({is_3d
-                        ? sc_data_format_t::KCDRSck4c(C_block, K_block)
-                        : is_1d
-                        ? sc_data_format_t::KCSck4c(C_block, K_block)
-                        : sc_data_format_t::KCRSck4c(C_block, K_block)});
-    } else if (src_dtype == datatypes::bf16 && wei_dtype == datatypes::bf16) {
-        in_formats.push_back({is_3d
-                        ? sc_data_format_t::KCDRSck2c(C_block, K_block)
-                        : is_1d
-                        ? sc_data_format_t::KCSck2c(C_block, K_block)
-                        : sc_data_format_t::KCRSck2c(C_block, K_block)});
-    } else {
-        in_formats.push_back({is_3d
-                        ? sc_data_format_t::KCDRSck(C_block, K_block)
-                        : is_1d ? sc_data_format_t::KCSck(C_block, K_block)
-                                : sc_data_format_t::KCRSck(C_block, K_block)});
+    if (is_weight_blocking && dynamic) {
+        weight_format = raw_weight_format;
+        // follow last layer's config
+        if (raw_weight_format.blocks_[0]) {
+            C_block = raw_weight_format.blocks_[0];
+        }
+        if (raw_weight_format.blocks_[1]) {
+            K_block = raw_weight_format.blocks_[1];
+        }
     }
+
+    // out layout
     if (use_channel_last) {
-        out_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
-                        : is_1d      ? sc_data_format_t::NSC()
-                                     : sc_data_format_t::NHWC()});
+        out_format = is_3d ? sc_data_format_t::NDHWC()
+                : is_1d    ? sc_data_format_t::NSC()
+                           : sc_data_format_t::NHWC();
     } else {
-        out_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(K_block)
-                        : is_1d      ? sc_data_format_t::NSC()
-                                     : sc_data_format_t::NCHWc(K_block)});
+        out_format = is_3d ? sc_data_format_t::NCDHWc(K_block)
+                : is_1d
+                ? sc_data_format_t::NSC()
+                : sc_data_format_t::NCHWc(
+                        (use_rl == ops::rl_kind::NO_LOWERING && groups > 1)
+                                ? oc
+                                : K_block);
+    }
+
+    std::vector<sc_data_format_t> ret_formats
+            = {data_format, weight_format, out_format};
+    if (cur_format_set.find(ret_formats) == cur_format_set.end()) {
+        in_formats[0].emplace_back(data_format);
+        in_formats[1].emplace_back(weight_format);
+        out_formats[0].emplace_back(out_format);
+        cur_format_set.insert(ret_formats);
+    }
+
+    if (dynamic) {
+        if (is_first_format) {
+            nested_conv_fwd_config_t &tcfg
+                    = *config_data_.get_as<nested_conv_fwd_config_t>();
+            tcfg.im_ic_block = C_block;
+            tcfg.im_oc_block = K_block;
+            is_first_format = false;
+        }
+        std::vector<std::vector<sc_dim>> var_block
+                = {{}, {C_block, K_block}, {}};
+        op_dispatch_key_t ret_key(var_block, ret_formats);
+        cur_dispatch_key_set.set_.insert(ret_key);
+        auto &dispatch_key_set = get_dispatch_key_set();
+        dispatch_key_set->get_inner_set().insert(
+                cur_dispatch_key_set.set_.begin(),
+                cur_dispatch_key_set.set_.end());
     }
     format_to_dense_format_stride_pair(
             in_formats, out_formats, supported_ins, supported_outs);
+}
+
+void conv_fwd_core_op_t::set_config_by_key(
+        const op_dispatch_key_t &key, const context_ptr &ctx) {
+    assert(key.var_block_.size() == 3);
+    if (use_nested_conv_fwd_generator()) {
+        config_data_ = dyn_config_candidates_[key.impl_];
+        nested_conv_fwd_config_t &tcfg
+                = *config_data_.get_as<nested_conv_fwd_config_t>();
+        tcfg.im_ic_block = key.var_block_[1][0];
+        tcfg.im_oc_block = key.var_block_[1][1];
+        auto cfg = dyn_config_candidates_[key.impl_]
+                           .unchecked_get_as<nested_conv_fwd_config_t>();
+        dynamic_conv_param.h_threads = cfg->h_threads;
+        dynamic_conv_param.oc_threads = cfg->oc_threads;
+        dynamic_conv_param.im_h_block = cfg->im_h_block;
+        dynamic_conv_param.im_w_block = cfg->im_w_block;
+    }
+}
+
+sc_op_ptr conv_fwd_core_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
+    auto ret = tunable_op_t::copy(ins, outs, mgr);
+    auto conv_fwd = ret->dyn_cast<conv_fwd_core_op_t>();
+    conv_fwd->dynamic_conv_param.h_threads = dynamic_conv_param.h_threads;
+    conv_fwd->dynamic_conv_param.oc_threads = dynamic_conv_param.oc_threads;
+    conv_fwd->dynamic_conv_param.im_h_block = dynamic_conv_param.im_h_block;
+    conv_fwd->dynamic_conv_param.im_w_block = dynamic_conv_param.im_w_block;
+    return ret;
+}
+
+std::vector<int> conv_fwd_core_op_t::get_impl_dispatch_candidates(
+        const context_ptr &ctx) {
+    return get_dynamic_impl_dispatch_candidates(this, ctx);
+}
+
+shape_rl_vec conv_fwd_core_op_t::get_dynamic_shape_relations() const {
+    return get_shape_relations_impl(get_inputs()[0]->details_.get_plain_dims(),
+            get_inputs()[1]->details_.get_plain_dims(),
+            get_outputs()[0]->details_.get_plain_dims(), attrs_);
+}
+
+reflection::shared_general_object_t
+conv_fwd_core_op_t::get_dynamic_runtime_info() {
+    sc_dims pads_begin = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get_or_else<sc_dims>("paddings", sc_dims(ndims_ - 2, 0));
+    sc_dims pads_end = attrs_.has_key("pads_end")
+            ? attrs_.get<sc_dims>("pads_end")
+            : attrs_.get_or_else<sc_dims>("paddings", sc_dims(ndims_ - 2, 0));
+
+    sc_dims stride = attrs_.get<sc_dims>("strides");
+    sc_dims stride_dims(ndims_ - 2, stride[0]);
+    if (stride.size() > 1) { stride_dims = stride; }
+
+    auto dyn_info = ndims_ == 5
+            ? dyn_conv_fwd_runtime_info_t(stride[0], stride[1], stride[2],
+                    pads_begin[0], pads_begin[1], pads_begin[2], pads_end[0],
+                    pads_end[1], pads_end[2])
+            : dyn_conv_fwd_runtime_info_t(stride[0], stride[1], pads_begin[0],
+                    pads_begin[1], pads_end[0], pads_end[1]);
+    reflection::shared_general_object_t info
+            = reflection::general_object_t::make(dyn_info);
+    return info;
+}
+
+shape_rl_vec conv_fwd_core_op_t::get_shape_relations_impl(
+        const std::vector<sc_dim> &data_plain_dims,
+        const std::vector<sc_dim> &weight_plain_dims,
+        const std::vector<sc_dim> &out_plain_dims, const any_map_t &attrs) {
+    auto ndims = data_plain_dims.size();
+    sc_dims pads_begin = attrs.has_key("pads_begin")
+            ? attrs.get<sc_dims>("pads_begin")
+            : attrs.get_or_else<sc_dims>("paddings", sc_dims(ndims - 2, 0));
+    sc_dims pads_end = attrs.has_key("pads_end")
+            ? attrs.get<sc_dims>("pads_end")
+            : attrs.get_or_else<sc_dims>("paddings", sc_dims(ndims - 2, 0));
+
+    sc_dims stride = attrs.get<sc_dims>("strides");
+    sc_dims stride_dims(ndims - 2, stride[0]);
+    if (stride.size() > 1) { stride_dims = stride; }
+
+    shape_rl_vec ret;
+    auto is_1x1 = std::all_of(weight_plain_dims.begin() + 2,
+            weight_plain_dims.end(), [](int x) { return x == 1; });
+    assert(data_plain_dims.size() == weight_plain_dims.size()
+            && data_plain_dims.size() == 4 && weight_plain_dims.size() == 4);
+    auto data_BS = data_plain_dims[0];
+    auto data_H = data_plain_dims[data_plain_dims.size() - 2];
+    auto data_W = data_plain_dims[data_plain_dims.size() - 1];
+    auto out_BS = out_plain_dims[0];
+    auto out_H = out_plain_dims[data_plain_dims.size() - 2];
+    auto out_W = out_plain_dims[data_plain_dims.size() - 1];
+    if (is_dynamic_dim(data_BS)) { ret.emplace_back(data_BS, out_BS); }
+    if (is_dynamic_dim(data_H) && stride[0] == 1
+            && (pads_begin[0] + pads_end[0] - weight_plain_dims[2] == -1)) {
+        ret.emplace_back(data_H, out_H);
+    }
+    if (is_dynamic_dim(data_W) && stride[1] == 1
+            && (pads_begin[1] + pads_end[1] - weight_plain_dims[3] == -1)) {
+        ret.emplace_back(data_W, out_W);
+    }
+    return ret;
 }
 
 sc_op_ptr conv_fwd_core_op_t::do_compensations(
@@ -1049,6 +1320,16 @@ conv_bwd_weight_core_op_t::conv_bwd_weight_core_op_t(
         }
         attrs_.set<std::string>("auto_pad", "none");
     }
+    const auto &pads_begin = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get<sc_dims>("paddings");
+    const auto &pads_end = attrs_.has_key("pads_end")
+            ? attrs_.get<sc_dims>("pads_end")
+            : attrs_.get<sc_dims>("paddings");
+    bool has_pad = std::any_of(pads_begin.begin(), pads_begin.end(),
+                           [](sc_dim p) { return p > 0; })
+            || std::any_of(pads_end.begin(), pads_end.end(),
+                    [](sc_dim p) { return p > 0; });
 
     if (info_.outputs_.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(

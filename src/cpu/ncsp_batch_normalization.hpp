@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -92,8 +92,8 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
             }
 
             if (utils::one_of(d_type, data_type::bf16, data_type::f16)) {
-                const int simd_w = 16;
-                const int SP = D() * H() * W();
+                static constexpr dim_t simd_w = 16;
+                const dim_t SP = D() * H() * W();
                 const int nbufs = 2;
                 const size_t cvt_buf_sz
                         = nbufs * nthr_ * utils::rnd_up(SP, simd_w);
@@ -177,8 +177,8 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
                         key_bnorm_tmp_diff_ss, ss_size);
 
             if (utils::one_of(d_type, data_type::bf16, data_type::f16)) {
-                const int simd_w = 16;
-                const int SP = D() * H() * W();
+                static constexpr dim_t simd_w = 16;
+                const dim_t SP = D() * H() * W();
                 const int nbufs = 2 + !use_global_stats();
                 const size_t cvt_buf_sz
                         = nbufs * nthr_ * utils::rnd_up(SP, simd_w);

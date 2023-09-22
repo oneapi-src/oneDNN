@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -141,6 +141,51 @@ HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, DefaultConstructor) {
         ASSERT_EQ(mapped_ptr[i], float(i));
     }
     mem.unmap_data(mapped_ptr);
+}
+
+template <typename AllocFuncT, typename FreeFuncT>
+void test_usm_map_unmap(
+        const AllocFuncT &alloc_func, const FreeFuncT &free_func) {
+    SKIP_IF(engine::get_count(engine::kind::gpu) == 0, "Engine not found.");
+
+    engine eng(engine::kind::gpu, 0);
+    memory::dim n = 100;
+    memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
+
+    auto *ptr = alloc_func(eng.get(), mem_d.get_size());
+    ASSERT_NE(ptr, nullptr);
+
+    auto mem = ocl_interop::make_memory(
+            mem_d, eng, ocl_interop::memory_kind::usm, ptr);
+
+    ASSERT_EQ(ocl_interop::memory_kind::usm, ocl_interop::get_memory_kind(mem));
+
+    {
+        float *mapped_ptr = mem.template map_data<float>();
+        GTEST_EXPECT_NE(mapped_ptr, nullptr);
+        fill_data(mapped_ptr, n, eng);
+        mem.unmap_data(mapped_ptr);
+    }
+
+    {
+        float *mapped_ptr = mem.template map_data<float>();
+        GTEST_EXPECT_NE(mapped_ptr, nullptr);
+        for (int i = 0; i < n; i++) {
+            ASSERT_EQ(mapped_ptr[i], float(i));
+        }
+        mem.unmap_data(mapped_ptr);
+    }
+    free_func(eng.get(), ptr);
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, DeviceMapUnmap) {
+    test_usm_map_unmap(dnnl::impl::gpu::ocl::usm::malloc_device,
+            dnnl::impl::gpu::ocl::usm::free);
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, SharedMapUnmap) {
+    test_usm_map_unmap(dnnl::impl::gpu::ocl::usm::malloc_shared,
+            dnnl::impl::gpu::ocl::usm::free);
 }
 
 } // namespace dnnl

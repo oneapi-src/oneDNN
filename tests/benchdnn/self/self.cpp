@@ -37,6 +37,7 @@ int bench(int argc, char **argv) {
     bnorm();
     memory();
     graph();
+    norm();
 
     return bs.tests == bs.passed ? OK : FAIL;
 }

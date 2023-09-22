@@ -17,6 +17,8 @@ following information is printed for certain verbosity levels:
 * Level 2.
     * Various warnings.
     * The library implementation name if it hits the --skip-impl match.
+* Level 3.
+    * Cold cache stats.
 * Level 5.
     * The library implementation name picked to compute the given problem.
 * Level 6.

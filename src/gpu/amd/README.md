@@ -2,13 +2,11 @@
 
 ## General information
 
-Support for AMD backend is implemented via SYCL HIP backend. The feature is disabled
-by default. Users must enable it at build time with a CMake option `DNNL_GPU_VENDOR=AMD`.
-The AMD GPUs can be used via oneDNN engine abstraction. The engine should be created using
-`dnnl::engine::kind::gpu` engine kind or the user can provide a `sycl::device` objects that
-corresponds to AMD GPUs. The stream in AMD backend defines an out-of-order SYCL queue by default.
-Similar to the existing oneDNN API, user can specify an in-order queue when creating
-a stream if needed.
+Support for AMD backend is implemented via SYCL HIP backend. The feature is
+disabled by default. Users must enable it at build time with a CMake option
+`DNNL_GPU_VENDOR=AMD`. The AMD GPUs can be used via oneDNN engine abstraction.
+The engine should be created using `dnnl::engine::kind::gpu` engine kind or the
+user can provide a `sycl::device` objects that corresponds to AMD GPUs.
 
 ## Pre-requisites
 * [oneAPI DPC++ Compiler with support for HIP AMD](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-hip-amd), version [2022-12](https://github.com/intel/llvm/releases/tag/2022-12)

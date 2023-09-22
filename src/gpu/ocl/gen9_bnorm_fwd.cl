@@ -275,7 +275,7 @@ __kernel void gen9_calc_mean(__global DATA_T *src, __global float *reduce_temp,
     __local float local_sum[CALC_SLM_SIZE];
     gen9_calc_fused_reduction(mean, c, &v_mean, local_sum);
 #else
-    // reduce_temp is padded to IC16, no OOB writes
+    // reduce_temp is padded to PADDED_IC, no OOB writes
     STORE_FLOAT_1x16(&reduce_temp[group_c_offset + mb_sp_idx * 16], v_mean);
 #endif
 }
@@ -294,7 +294,7 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
     const bool is_last_ic_block = c + 16 > IC;
     const bool is_last_sp_block = (sp_block_idx == STAT_SP_NBLOCKS - 1);
 #endif
-    reduce_temp += REDUCE_STAT_NBLOCKS * IC16;
+    reduce_temp += REDUCE_STAT_NBLOCKS * PADDED_IC;
 
 #if USE_NHWC
     src += c + sp_block_idx * STAT_SP_BLOCK * IC;
@@ -423,7 +423,7 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
     __local float local_sum[CALC_SLM_SIZE];
     gen9_calc_fused_reduction(variance, c, &v_var, local_sum);
 #else
-    // reduce_temp is padded to IC16, no OOB writes
+    // reduce_temp is padded to PADDED_IC, no OOB writes
     STORE_FLOAT_1x16(&reduce_temp[group_c_offset + mb_sp_idx * 16], v_var);
 #endif
 }

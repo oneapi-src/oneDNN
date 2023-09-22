@@ -162,10 +162,10 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d(
                 for (int oj = oh_s, ij = ih_s; oj < oh_e;
                         ++oj, ij += jcp.stride_h) {
                     int dilate_h = jcp.dilate_h + 1;
-                    int i_t_overflow
-                            = nstl::min(jcp.kh, div_up(max(0, -ij), dilate_h));
+                    int i_t_overflow = nstl::min(
+                            jcp.kh, div_up(nstl::max(0, -ij), dilate_h));
                     int i_b_overflow = nstl::min(jcp.kh,
-                            div_up(max(0,
+                            div_up(nstl::max(0,
                                            ij - jcp.ih + (jcp.kh - 1) * dilate_h
                                                    + 1),
                                     dilate_h));
@@ -435,10 +435,10 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d_dw(
                 auto scales = &oscales[jcp.is_oc_scale * g];
 
                 int dilate_h = jcp.dilate_h + 1;
-                int i_t_overflow
-                        = nstl::min(jcp.kh, div_up(max(0, -ih_s), dilate_h));
+                int i_t_overflow = nstl::min(
+                        jcp.kh, div_up(nstl::max(0, -ih_s), dilate_h));
                 int i_b_overflow = nstl::min(jcp.kh,
-                        div_up(max(0,
+                        div_up(nstl::max(0,
                                        ih_s - jcp.ih + (jcp.kh - 1) * dilate_h
                                                + 1),
                                 dilate_h));
@@ -570,10 +570,10 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_3d(
                 int iw_s = ow_s * jcp.stride_w;
                 int id_s = -jcp.f_pad + od_s * jcp.stride_d;
                 int dilate_d = jcp.dilate_d + 1;
-                int d_f_overflow
-                        = nstl::min(jcp.kd, div_up(max(0, -id_s), dilate_d));
+                int d_f_overflow = nstl::min(
+                        jcp.kd, div_up(nstl::max(0, -id_s), dilate_d));
                 int d_back_overflow = nstl::min(jcp.kd,
-                        div_up(max(0,
+                        div_up(nstl::max(0,
                                        id_s - jcp.id + (jcp.kd - 1) * dilate_d
                                                + 1),
                                 dilate_d));
@@ -608,10 +608,10 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_3d(
                 for (int oj = oh_s, ij = ih_s; oj < oh_e;
                         ++oj, ij += jcp.stride_h) {
                     int dilate_h = jcp.dilate_h + 1;
-                    int i_t_overflow
-                            = nstl::min(jcp.kh, div_up(max(0, -ij), dilate_h));
+                    int i_t_overflow = nstl::min(
+                            jcp.kh, div_up(nstl::max(0, -ij), dilate_h));
                     int i_b_overflow = nstl::min(jcp.kh,
-                            div_up(max(0,
+                            div_up(nstl::max(0,
                                            ij - jcp.ih + (jcp.kh - 1) * dilate_h
                                                    + 1),
                                     dilate_h));

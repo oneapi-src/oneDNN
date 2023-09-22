@@ -26,8 +26,9 @@
 #include "utils.hpp"
 
 #define VDISPATCH_MATMUL(cond, msg, ...) \
-    VCONDCHECK(create, dispatch, matmul, (cond), status::unimplemented, \
-            "%s," msg, this->info(engine), ##__VA_ARGS__)
+    VCONDCHECK(primitive, create, dispatch, matmul, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {
@@ -172,14 +173,9 @@ protected:
 
     // All implementations that do not support sparse inputs/outputs should
     // call this function.
-    bool is_dense_data() {
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-        for (auto md : {&src_md_, &weights_md_, &bias_md_, &dst_md_}) {
-            if (memory_desc_wrapper(md).format_kind() == format_kind::sparse)
-                return false;
-        }
-#endif
-        return true;
+    bool is_dense_format_kind() {
+        return impl::is_dense_format_kind(
+                {&src_md_, &weights_md_, &bias_md_, &dst_md_});
     }
 };
 

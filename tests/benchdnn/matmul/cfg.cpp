@@ -33,9 +33,11 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
             && dnnl_data_type_size(this->get_dt(DST)) >= 4;
     if (is_int8_and_wide_dst) { set_range_max(SRC, 160); }
 
-    BENCHDNN_PRINT(6, "%s SRC_%s=[%d;%d] : WEI_%s=[%d;%d]\n", "[FILL_CFG]",
+    BENCHDNN_PRINT(6,
+            "[FILL_CFG] SRC_%s=[%d;%d]; WEI_%s=[%d;%d]; DST_%s=[%d;%d];\n",
             dt2str(this->get_dt(SRC)), get_range_min(SRC), get_range_max(SRC),
-            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI));
+            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI),
+            dt2str(this->get_dt(DST)), get_range_min(DST), get_range_max(DST));
 }
 
 // Adjust density based on accumulation chain.
@@ -82,6 +84,11 @@ cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
             {{dnnl_s8}, {-8, 8}},
             {{dnnl_u8}, {0, 8}},
             {{dnnl_s32}, {-8, 8}},
+            // Bias can be empty, which is expressed through undefined dt.
+            // This entry allows to modify a bias range in general path without
+            // branching whether bias is present or not.
+            // Applicable for graph driver data displacer.
+            {{dnnl_data_type_undef}, {0, 0}},
     };
 
     static const cfg_t::cfg_entry_t::cfg_map_t dst_cfg_map = {

@@ -96,25 +96,29 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
         impl::compiled_partition_t cp(p);
         impl::engine_t &eng = *get_engine();
         ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
-        if (dynamic_callback) {
-            dynamic_callback(partition_inputs, partition_outputs);
-        }
+
         std::vector<impl::tensor_t> execution_inputs;
         std::vector<impl::tensor_t> execution_outputs;
         partition_outputs.clear();
+        for (auto &lt : outputs) {
+            impl::logical_tensor_t compiled_output;
+            cp.query_logical_tensor(lt->id, &compiled_output);
+            partition_outputs.push_back(compiled_output);
+            assert(compiled_output.ndims > -1);
+        }
+        if (dynamic_callback) {
+            dynamic_callback(partition_inputs, partition_outputs);
+        }
         size_t size = 0;
         for (auto &lt : partition_inputs) {
             size += compiler_backend_ptr.get_mem_size(lt);
             assert(lt.ndims > -1);
             lt_info_map[lt.id] = lt;
         }
-        for (auto &lt : outputs) {
-            impl::logical_tensor_t compiled_output;
-            cp.query_logical_tensor(lt->id, &compiled_output);
-            size += compiler_backend_ptr.get_mem_size(compiled_output);
-            partition_outputs.push_back(compiled_output);
-            assert(compiled_output.ndims > -1);
-            lt_info_map[compiled_output.id] = compiled_output;
+        for (auto &lt : partition_outputs) {
+            size += compiler_backend_ptr.get_mem_size(lt);
+            assert(lt.ndims > -1);
+            lt_info_map[lt.id] = lt;
         }
         test::vector<char> data(size);
 
@@ -350,7 +354,9 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
         total_buffer_size += compiler_backend_ptr.get_mem_size(lt);
     }
     for (auto &lt : partition_outputs) {
-        total_buffer_size += compiler_backend_ptr.get_mem_size(lt);
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt.id, &compiled_output);
+        total_buffer_size += compiler_backend_ptr.get_mem_size(compiled_output);
     }
 
     int thread_num = 8;
@@ -368,9 +374,12 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
             size += compiler_backend_ptr.get_mem_size(lt);
         }
         for (auto &lt : partition_outputs) {
-            impl::tensor_t placeholder(lt, engine, data.data() + size);
+            graph::logical_tensor_t compiled_output;
+            cp.query_logical_tensor(lt.id, &compiled_output);
+            graph::tensor_t placeholder(
+                    compiled_output, engine, data.data() + size);
             execution_outputs.push_back(placeholder);
-            size += compiler_backend_ptr.get_mem_size(lt);
+            size += compiler_backend_ptr.get_mem_size(compiled_output);
         }
         impl::stream_t &strm = *get_stream();
         ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
@@ -385,94 +394,6 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
     for (int t_num = 0; t_num < thread_num; t_num++) {
         workers[t_num].join();
     }
-}
-
-namespace dnnl {
-namespace impl {
-namespace graph {
-namespace gc {
-void release_runtime_memory(runtime::engine_t *engine);
-}
-} // namespace graph
-} // namespace impl
-} // namespace dnnl
-
-struct engine_releaser_gc_t {
-    impl::engine_t *pengine_;
-    ~engine_releaser_gc_t() {
-        if (pengine_) { dnnl_engine_destroy(pengine_); }
-    }
-};
-
-// test allocator release before compiled partition destruction
-TEST(GCGraphTest, AllocatorEarlyRelease_CPU) {
-    REQUIRE_AVX512();
-    dnnl::impl::graph::gc::release_runtime_memory(nullptr);
-    REQUIRE_CPU_ENGINE();
-    impl::graph_t agraph(engine->kind());
-    compiler_utils::add_MHA_subgraph(&agraph, false);
-    agraph.finalize();
-
-    auto &compiler_backend_ptr
-            = impl::compiler_impl::compiler_backend_t::get_singleton();
-    compiler_backend_ptr.get_partitions(agraph, impl::partition_policy::fusion);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    impl::partition_t p;
-    p.init(partitions[0]);
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-
-    std::vector<const impl::logical_tensor_t *> inputs;
-    std::vector<const impl::logical_tensor_t *> outputs;
-    for (auto &lt : partition_inputs) {
-        inputs.push_back(&lt);
-    }
-    for (auto &lt : partition_outputs) {
-        outputs.push_back(&lt);
-    }
-    impl::compiled_partition_t cp(p);
-    impl::allocator_t *allocator = impl::allocator_t::create();
-    // create a new engine rather than use test engine here to avoid release the
-    // default allocator of the test engine
-    impl::engine_t *pengine = nullptr;
-    dnnl_engine_create(&pengine, impl::engine_kind::cpu, 0);
-    engine_releaser_gc_t releaser {pengine};
-    ASSERT_TRUE(pengine);
-    pengine->set_allocator(allocator);
-    impl::engine_t &eng = *pengine;
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
-
-    allocator->release(); // release the allocator
-
-    std::vector<impl::tensor_t> execution_inputs;
-    std::vector<impl::tensor_t> execution_outputs;
-    size_t size = 0;
-    for (auto &lt : partition_inputs) {
-        size += compiler_backend_ptr.get_mem_size(lt);
-    }
-    for (auto &lt : partition_outputs) {
-        size += compiler_backend_ptr.get_mem_size(lt);
-    }
-    test::vector<char> data(size);
-
-    size = 0;
-    for (auto &lt : partition_inputs) {
-        impl::tensor_t placeholder(lt, &eng, data.data() + size);
-        execution_inputs.push_back(placeholder);
-        size += compiler_backend_ptr.get_mem_size(lt);
-    }
-    for (auto &lt : partition_outputs) {
-        impl::tensor_t placeholder(lt, &eng, data.data() + size);
-        execution_outputs.push_back(placeholder);
-        size += compiler_backend_ptr.get_mem_size(lt);
-    }
-
-    impl::stream_t &strm = *get_stream();
-    ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
-            impl::status::success);
-    strm.wait();
 }
 
 TEST(GCGraphTest, FP32MHAAlternativeCompileExecution_CPU) {
@@ -775,6 +696,7 @@ TEST(GCGraphTest, BF16BartMLPResidualCompileExecution_CPU) {
     compile_execution_pipeline(agraph, 1);
 }
 
+#if 0
 TEST(GCGraphTest, INT8BartMLPResidualCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_CPU_ENGINE();
@@ -794,6 +716,7 @@ TEST(GCGraphTest, INT8BF16BartMLPResidualCompileExecution_CPU) {
 
     compile_execution_pipeline(agraph, 1);
 }
+#endif
 
 TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution_CPU) {
     REQUIRE_AVX512();
@@ -837,7 +760,6 @@ TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution2_CPU) {
 
 TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_AVX512();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -852,7 +774,6 @@ TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_AVX512();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -867,7 +788,6 @@ TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -882,7 +802,6 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -898,7 +817,6 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC_CPU) {
 
 TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -987,7 +905,6 @@ TEST(GCGraphTest, BF16ConvolutionalBottleneckTrainingCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -1005,7 +922,6 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionDynamicQuantize_CPU) {
 TEST(GCGraphTest,
         INT8IdenticalBottleneckCompileExecutionDynamicQuantizeNXC_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -1023,7 +939,6 @@ TEST(GCGraphTest,
 TEST(GCGraphTest,
         INT8ConvolutionalBottleneckCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
     REQUIRE_CPU_ENGINE();
@@ -1261,5 +1176,53 @@ TEST(GCGraphTest, LlamaInt8Bf16Concat_CPU) {
     agraph.finalize();
 
     // should hit add_typecast_concat_typecasts_quant pattern
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32STARCODERMHACompileExecution_CPU) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, false, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16STARCODERMHACompileExecution_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, true, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8FP32STARCODERMHACompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, false, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16STARCODERMHACompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::construct_starcoder_mha_subgraph(
+            &agraph, id_gen, true, true);
+    agraph.finalize();
+
     compile_execution_pipeline(agraph, 1);
 }

@@ -120,16 +120,17 @@ inline bool simple_po_check(const primitive_attr_t *attr) {
 inline status_t get_scales_mask(
         const primitive_attr_t *attr, int *src_mask, int *dst_mask) {
     const auto &s = attr->scales_;
-    if (src_mask) {
-        *src_mask = 0;
-        if (!s.get(DNNL_ARG_SRC).has_default_values())
-            *src_mask = s.get(DNNL_ARG_SRC).mask_;
-    }
-    if (dst_mask) {
-        *dst_mask = 0;
-        if (!s.get(DNNL_ARG_DST).has_default_values())
-            *dst_mask = s.get(DNNL_ARG_DST).mask_;
-    }
+
+    if (src_mask == nullptr || dst_mask == nullptr)
+        return status::invalid_arguments;
+
+    *src_mask = 0;
+    if (!s.get(DNNL_ARG_SRC).has_default_values())
+        *src_mask = s.get(DNNL_ARG_SRC).mask_;
+
+    *dst_mask = 0;
+    if (!s.get(DNNL_ARG_DST).has_default_values())
+        *dst_mask = s.get(DNNL_ARG_DST).mask_;
 
     // This is used in a check function.
     if (*src_mask > 0 && *dst_mask > 0 && *dst_mask != *src_mask)
@@ -2140,7 +2141,8 @@ struct simple_reorder_t : public primitive_t {
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
             using skip_mask_t = dnnl_primitive_attr::skip_mask_t;
-            bool args_ok = src_md->data_type == type_i
+            bool args_ok = impl::is_dense_format_kind({src_md, dst_md})
+                    && src_md->data_type == type_i
                     && dst_md->data_type == type_o
                     && attr->has_default_values(skip_mask_t::scales_runtime
                             | skip_mask_t::zero_points
@@ -2157,13 +2159,10 @@ struct simple_reorder_t : public primitive_t {
             if (input_d.has_runtime_dims_or_strides() && is_set && mask > 0)
                 return status::unimplemented;
 
-            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+            auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
             if (_pd == nullptr) return status::out_of_memory;
-            if (_pd->init(engine, src_engine, dst_engine) != status::success) {
-                delete _pd;
-                return status::unimplemented;
-            }
+            CHECK(_pd->init(engine, src_engine, dst_engine));
 
             const size_t scratchpad_sz_
                     = simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
@@ -2182,7 +2181,7 @@ struct simple_reorder_t : public primitive_t {
             }
 
             CHECK(_pd->init_scratchpad_md());
-            return safe_ptr_assign(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd.release());
         }
         friend dnnl::impl::impl_list_item_t;
     };

@@ -62,12 +62,12 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     throw std::runtime_error("make_jit_module().");
 }
 
-void *cfake_jit_module_t::get_address_of_symbol(const std::string &name) {
+void *cfake_jit_module_code_t::get_address_of_symbol(const std::string &name) {
     // fix-me: (win32)
     throw std::runtime_error("get_address_of_symbol().");
 }
 
-cfake_jit_module_t::~cfake_jit_module_t() {
+cfake_jit_module_code_t::~cfake_jit_module_code_t() {
     // fix-me: (win32)
     throw std::runtime_error("~cfake_jit_module()");
 }
@@ -188,9 +188,10 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         os << "Error when fork: " << utils::get_error_msg(fork_errno);
         throw std::runtime_error(os.str());
     }
-    return std::shared_ptr<cfake_jit_module_t>(new cfake_jit_module_t(
-            compiled_module, inpath, outpath, std::move(globals),
-            has_generic_wrapper, managed_thread_pool));
+    std::shared_ptr<cfake_jit_module_code_t> code(
+            new cfake_jit_module_code_t(compiled_module, inpath, outpath,
+                    has_generic_wrapper, managed_thread_pool));
+    return std::make_shared<jit_module>(std::move(globals), code);
 }
 
 statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
@@ -256,17 +257,15 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
 
     auto ret = make_jit_module(inpath, outpath, std::move(attr_table),
             generate_wrapper, managed_thread_pool);
-    ret->postprocess(new_mod);
+    ret->code_->postprocess(new_mod, ret->globals_);
     return ret;
 }
 
-void *cfake_jit_module_t::get_address_of_symbol(const std::string &name) {
-    void *global_var = globals_.get_or_null(name);
-    if (global_var) { return global_var; }
+void *cfake_jit_module_code_t::get_address_of_symbol(const std::string &name) {
     return dlsym(module_, name.c_str());
 }
 
-cfake_jit_module_t::~cfake_jit_module_t() {
+cfake_jit_module_code_t::~cfake_jit_module_code_t() {
     if (module_) {
         dlclose(module_);
 
@@ -279,21 +278,11 @@ cfake_jit_module_t::~cfake_jit_module_t() {
 
 #endif
 
-std::shared_ptr<jit_function_t> cfake_jit_module_t::get_function(
-        const std::string &name) {
+void *cfake_jit_module_code_t::get_function(
+        const std::string &name, void *&wrapper) {
     void *fun = get_address_of_symbol(name);
-    void *wrapper = get_address_of_symbol(name + "_0wrapper");
-    if (fun || wrapper) {
-        if (runtime_config_t::get().execution_verbose_) {
-            return general_jit_function_t::make(shared_from_this(), fun,
-                    wrapper, name, managed_thread_pool_);
-        } else {
-            return general_jit_function_t::make(shared_from_this(), fun,
-                    wrapper, std::string(), managed_thread_pool_);
-        }
-    } else {
-        return nullptr;
-    }
+    wrapper = get_address_of_symbol(name + "_0wrapper");
+    return fun;
 }
 
 template <typename T, typename TF>
@@ -340,7 +329,9 @@ get_compiler_flag_map() {
             {"__AVX512IFMA__", foffset(fAVX512IFMA)},
             {"__AVX512VBMI__", foffset(fAVX512VBMI)},
             {"__AVX512BF16__", foffset(fAVX512BF16)},
+            {"__AVX512FP16__", foffset(fAVX512FP16)},
 
+            {"__AMX_FP16__", foffset(fAVX512AMXFP16)},
             {"__AMX_BF16__", foffset(fAVX512AMXBF16)},
             {"__AMX_INT8__", foffset(fAVX512AMXTILE)},
             {"__AMX_TILE__", foffset(fAVX512AMXINT8)},
@@ -411,12 +402,14 @@ void cfake_jit::set_target_machine(target_machine_t &tm) {
     }
 
     bool vnni_enabled = tm.cpu_flags_.fAVX512VNNI;
+    bool amx_f16_enabled = tm.cpu_flags_.fAVX512AMXFP16;
     bool amx_bf16_enabled = tm.cpu_flags_.fAVX512AMXBF16;
     bool amx_tile_enabled = tm.cpu_flags_.fAVX512AMXTILE;
     bool amx_int8_enabled = tm.cpu_flags_.fAVX512AMXINT8;
     tm.cpu_flags_ = f;
     tm.cpu_flags_.fAVX512VNNI = vnni_enabled;
     tm.cpu_flags_.fAVX512AMXBF16 = amx_bf16_enabled;
+    tm.cpu_flags_.fAVX512AMXFP16 = amx_f16_enabled;
     tm.cpu_flags_.fAVX512AMXTILE = amx_tile_enabled;
     tm.cpu_flags_.fAVX512AMXINT8 = amx_int8_enabled;
 }

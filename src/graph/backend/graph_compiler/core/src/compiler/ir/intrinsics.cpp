@@ -230,6 +230,33 @@ struct permutex2var_handler_t : public trinary_intrinsic_handler_t {
     permutex2var_handler_t() : trinary_intrinsic_handler_t("permutex2var") {}
 };
 
+struct permutexvar_handler_t : public binary_intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        COMPILE_ASSERT(node.args_.size() == 2, "Expecting 2 args.");
+        node.dtype_ = node.args_[1]->dtype_;
+    }
+    permutexvar_handler_t() : binary_intrinsic_handler_t("permutexvar") {}
+};
+
+struct insert_handler_t : public trinary_intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 2);
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    insert_handler_t() : trinary_intrinsic_handler_t("insert") {}
+};
+
+struct extract_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = sc_data_type_t(node.args_[0]->dtype_.type_code_);
+        if (node.intrin_attrs_->get<int>("lanes") > 1) {
+            node.dtype_.lanes_ = node.intrin_attrs_->get<int>("lanes");
+        }
+    }
+    extract_handler_t() : intrinsic_handler_t("extract") {}
+};
+
 struct gather_handler_t : public binary_intrinsic_handler_t {
     gather_handler_t() : binary_intrinsic_handler_t("gather") {}
     void on_initialize(intrin_call_node &node) override {
@@ -332,7 +359,7 @@ struct write_struct_handler_t : public binary_intrinsic_handler_t {
 struct brgemm_handler_t : public intrinsic_handler_t {
     size_t arg_cnt_;
     void on_initialize(intrin_call_node &node) override {
-        assert(node.args_.size() == arg_cnt_);
+        assert(node.check_brgemm_arg_size(arg_cnt_));
         node.dtype_ = datatypes::void_t;
     }
     brgemm_handler_t(size_t arg_cnt, const char *name)
@@ -400,6 +427,24 @@ struct avx_broadcast_idx_handler_t : public x86_intrinsic_handler_t {
     }
     avx_broadcast_idx_handler_t()
         : x86_intrinsic_handler_t("avx_broadcast_idx") {}
+};
+
+struct avx_mask_cast_handler_t : public x86_intrinsic_handler_t {
+    void on_initialize(low_level_intrin_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = node.intrin_attrs_->get<sc_data_type_t>("dtype");
+    }
+    avx_mask_cast_handler_t() : x86_intrinsic_handler_t("avx_mask_cast") {}
+};
+
+struct avx_compare_handler_t : public x86_intrinsic_handler_t {
+    void on_initialize(low_level_intrin_node &node) override {
+        assert(node.args_.size() == 3);
+        assert(node.args_[2].isa<constant>());
+        assert(node.args_[0]->dtype_ == node.args_[1]->dtype_);
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    avx_compare_handler_t() : x86_intrinsic_handler_t("avx_compare") {}
 };
 
 namespace brgemm_args {
@@ -499,6 +544,9 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<shl_handler_t>(),
         utils::make_unique<shr_handler_t>(),
         utils::make_unique<permutex2var_handler_t>(),
+        utils::make_unique<permutexvar_handler_t>(),
+        utils::make_unique<insert_handler_t>(),
+        utils::make_unique<extract_handler_t>(),
         utils::make_unique<gather_handler_t>(),
         utils::make_unique<read_struct_handler_t>(),
         utils::make_unique<write_struct_handler_t>(),
@@ -523,6 +571,8 @@ intrinsic_handler_t &get_intrinsic_handler(intrin_type intrin) {
 
 static std::unique_ptr<x86_intrinsic_handler_t> x86_handlers[] = {
         utils::make_unique<avx_broadcast_idx_handler_t>(),
+        utils::make_unique<avx_mask_cast_handler_t>(),
+        utils::make_unique<avx_compare_handler_t>(),
 };
 x86_intrinsic_handler_t &get_x86_intrinsic_handler(int64_t intrin) {
     return *x86_handlers[intrin];

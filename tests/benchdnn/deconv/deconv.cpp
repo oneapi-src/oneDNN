@@ -160,8 +160,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
                                                                : 0;
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
@@ -215,6 +215,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->src_dims().data(), prb->get_dt(SRC), prb->stag);
@@ -246,34 +247,36 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         case FWD_B:
         case FWD_I:
             if (prb->dir != FWD_B) bia_d.reset(nullptr);
-            DNN_SAFE_STATUS(dnnl_deconvolution_forward_primitive_desc_create(
-                    &init_pd_args.pd, init_pd_args.engine,
-                    prb->dir == FWD_I ? dnnl_forward_inference
-                                      : dnnl_forward_training,
-                    alg, init_pd_args.src_md ? init_pd_args.src_md : src_d,
-                    wei_d, bia_d, dst_d, prb->strides().data(),
-                    prb->dilations().data(), prb->padding().data(),
-                    prb->padding_r().data(), dnnl_attr));
+            TIME_C_PD(DNN_SAFE_STATUS(
+                    dnnl_deconvolution_forward_primitive_desc_create(
+                            &init_pd_args.pd, init_pd_args.engine,
+                            prb->dir == FWD_I ? dnnl_forward_inference
+                                              : dnnl_forward_training,
+                            alg,
+                            init_pd_args.src_md ? init_pd_args.src_md : src_d,
+                            wei_d, bia_d, dst_d, prb->strides().data(),
+                            prb->dilations().data(), prb->padding().data(),
+                            prb->padding_r().data(), dnnl_attr)));
             break;
         case BWD_D:
-            DNN_SAFE_STATUS(
+            TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_deconvolution_backward_data_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, src_d,
                             wei_d, dst_d, prb->strides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
-                            dnnl_attr));
+                            dnnl_attr)));
             break;
         case BWD_W:
         case BWD_WB:
             if (prb->dir == BWD_W) bia_d.reset(nullptr);
-            DNN_SAFE_STATUS(
+            TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_deconvolution_backward_weights_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, src_d,
                             wei_d, bia_d, dst_d, prb->strides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
-                            dnnl_attr));
+                            dnnl_attr)));
             break;
         default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
     }
@@ -533,9 +536,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(
-                 ref_mem_map, mem_map, prim, prb, res, prb->dir, prim_ref),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res,
+                           prb->dir, prim_ref),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 

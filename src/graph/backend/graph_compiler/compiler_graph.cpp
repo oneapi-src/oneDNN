@@ -122,24 +122,28 @@ gc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
             = aop->get_attributes();
     auto input_dim = producer_lt[0]->details_.get_plain_dims().size();
     if (aop->get_kind() == op_kind::Quantize
-            || aop->get_kind() == op_kind::Dequantize) {
+            || aop->get_kind() == op_kind::Dequantize
+            || aop->get_kind() == op_kind::DynamicQuantize
+            || aop->get_kind() == op_kind::DynamicDequantize) {
         if (attrs.find(graph::op_attr::qtype) != attrs.end()) {
             backend_attrs.set("per_channel",
                     (attrs[graph::op_attr::qtype].get<std::string>()
                             == "per_channel"));
         }
-        if (attrs.find(graph::op_attr::axis) != attrs.end()) {
-            backend_attrs.set("channel_axis",
-                    convert_axis(attrs[graph::op_attr::axis].get<int64_t>(),
-                            input_dim));
+        int64_t axis = attrs.find(graph::op_attr::axis) != attrs.end()
+                ? attrs[graph::op_attr::axis].get<int64_t>()
+                : 1;
+        backend_attrs.set("channel_axis", convert_axis(axis, input_dim));
+        if (aop->get_kind() == op_kind::Quantize
+                || aop->get_kind() == op_kind::Dequantize) {
+            std::vector<float> scales
+                    = attrs[graph::op_attr::scales].get<std::vector<float>>();
+            std::vector<int64_t> zps_int64
+                    = attrs[graph::op_attr::zps].get<std::vector<int64_t>>();
+            std::vector<int> zps(zps_int64.begin(), zps_int64.end());
+            backend_attrs.set("scales", scales);
+            backend_attrs.set("zero_points", zps);
         }
-        std::vector<float> scales
-                = attrs[graph::op_attr::scales].get<std::vector<float>>();
-        std::vector<int64_t> zps_int64
-                = attrs[graph::op_attr::zps].get<std::vector<int64_t>>();
-        std::vector<int> zps(zps_int64.begin(), zps_int64.end());
-        backend_attrs.set("scales", scales);
-        backend_attrs.set("zero_points", zps);
         backend_attrs.set("dtype",
                 convert_data_type(aop->get_output_value(0)
                                           ->get_logical_tensor()

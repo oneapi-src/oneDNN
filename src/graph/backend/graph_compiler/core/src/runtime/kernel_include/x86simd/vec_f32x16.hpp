@@ -23,6 +23,9 @@ class vec_u16x16;
 class vec_u8x16;
 class vec_s8x16;
 class vec_s32x16;
+#ifdef __AVX512FP16__
+class vec_f16x16;
+#endif
 class vec_f32x16 {
 public:
     union {
@@ -42,6 +45,9 @@ public:
     INLINE operator vec_u8x16() const;
     INLINE operator vec_s8x16() const;
     INLINE operator vec_s32x16() const;
+#ifdef __AVX512FP16__
+    INLINE operator vec_f16x16() const;
+#endif
 
     static INLINE vec_f32x16 load(const float *p) { return _mm512_loadu_ps(p); }
     static INLINE vec_f32x16 load_aligned(const float *p) {
@@ -164,6 +170,28 @@ INLINE vec_f32x16 sc_log(vec_f32x16 const &a) {
     return b;
 }
 
+INLINE vec_f32x16 sc_unpack_low_vec_f32x16_32bits(
+        vec_f32x16 const &a, vec_f32x16 const &b) {
+    return _mm512_unpacklo_ps(a.v, b.v);
+}
+
+INLINE vec_f32x16 sc_unpack_low_vec_f32x16_64bits(
+        vec_f32x16 const &a, vec_f32x16 const &b) {
+    return _mm512_castpd_ps(
+            _mm512_unpacklo_pd(_mm512_castps_pd(a.v), _mm512_castps_pd(b.v)));
+}
+
+INLINE vec_f32x16 sc_unpack_high_vec_f32x16_32bits(
+        vec_f32x16 const &a, vec_f32x16 const &b) {
+    return _mm512_unpackhi_ps(a.v, b.v);
+}
+
+INLINE vec_f32x16 sc_unpack_high_vec_f32x16_64bits(
+        vec_f32x16 const &a, vec_f32x16 const &b) {
+    return _mm512_castpd_ps(
+            _mm512_unpackhi_pd(_mm512_castps_pd(a.v), _mm512_castps_pd(b.v)));
+}
+
 INLINE vec_f32x16 sc_pow(vec_f32x16 const &a, vec_f32x16 const &b) {
     vec_f32x16 c;
     for (int i = 0; i < 16; i++) {
@@ -171,6 +199,11 @@ INLINE vec_f32x16 sc_pow(vec_f32x16 const &a, vec_f32x16 const &b) {
     }
     return c;
 }
+#define PARAM_F32X16(X) X.v
+#define sc_shuffle_vec_f32x16_128bits(a, b, imm) \
+    _mm512_shuffle_f32x4(PARAM_F32X16(a), PARAM_F32X16(b), imm);
+#define sc_shuffle_vec_f32x16_32bits(a, b, imm) \
+    _mm512_shuffle_ps(PARAM_F32X16(a), PARAM_F32X16(b), imm);
 
 #endif
 #endif

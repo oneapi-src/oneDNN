@@ -23,3 +23,5 @@
 --batch=shapes_3d_resnext101
 --batch=set_maskrcnn
 --batch=set_fastrcnn
+--batch=shapes_movinet_dw
+--batch=shapes_x3d_dw

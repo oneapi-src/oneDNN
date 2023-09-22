@@ -55,6 +55,8 @@ int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
             64.f,
     };
     const auto table_size = sizeof(gen) / sizeof(gen[0]);
+    // MIOpen doesn't work properly when tensors are filled with 0xFF.
+    const bool zero_out_wa = is_amd_gpu();
 
     benchdnn_parallel_nd(nelems, [&](int64_t i) {
         const int64_t table_idx = kind == SRC
@@ -62,8 +64,7 @@ int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
                 : ((i * (table_size + 1) / table_size) % table_size);
         mem_fp.set_elem(
                 i, round_to_nearest_representable(conf->dt, gen[table_idx]));
-        // MIOpen doesn't work properly when tensors are filled with 0xFF.
-        if (is_amd_gpu()) mem_dt.set_elem(i, 0);
+        if (zero_out_wa) mem_dt.set_elem(i, 0);
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
@@ -133,6 +134,7 @@ int compare_compensation(const prb_t *prb, dnn_mem_map_t &mem_map,
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto dims = prb->dims;
     for (int d = 0; d < prb->ndims; ++d)
@@ -182,9 +184,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args_t()));
 
     init_pd_args.is_iterator_supported = false;
-    return dnnl_reorder_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.src_md ? init_pd_args.src_md : src_d, src_engine,
-            dst_d, dst_engine, dnnl_attr);
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_reorder_primitive_desc_create(
+            &init_pd_args.pd, init_pd_args.src_md ? init_pd_args.src_md : src_d,
+            src_engine, dst_d, dst_engine, dnnl_attr)));
+
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
@@ -432,8 +436,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(
+                           ref_mem_map, mem_map, prim, prb, res, prb->dir),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 

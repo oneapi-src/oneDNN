@@ -46,7 +46,8 @@ struct acl_depthwise_convolution_resource_t : public resource_t {
             &acl_obj_->dst_tensor,
             acp.padstride_info,
             1, // depth multiplier default value
-            acp.act_info);
+            acp.act_info,
+            acp.dilation_info);
 
         // clang-format on
         return status::success;

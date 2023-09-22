@@ -73,7 +73,7 @@ status_t sycl_stream_t::init() {
     }
 
     if (is_profiling_enabled() && sycl_dev.is_gpu() && !queue_->is_in_order()) {
-        VERROR(dpcpp,
+        VERROR(common, dpcpp,
                 "DPC++ kernel profiling is not supported with out-of-order "
                 "queues");
         return status::invalid_arguments;

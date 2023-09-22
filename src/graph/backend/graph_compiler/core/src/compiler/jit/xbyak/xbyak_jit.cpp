@@ -33,6 +33,7 @@
 #include <util/utils.hpp>
 
 #include <compiler/codegen/precodegen_passes.hpp>
+#include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/dessa_transform.hpp>
 #include <compiler/ir/transform/loop_function_motion.hpp>
@@ -44,8 +45,10 @@
 #include <compiler/jit/xbyak/ir/pass/ir_data_initializer.hpp>
 #include <compiler/jit/xbyak/ir/pass/ir_indexer.hpp>
 #include <compiler/jit/xbyak/ir/pass/live_interval.hpp>
+#include <compiler/jit/xbyak/ir/transform/avx2_legalizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
+#include <compiler/jit/xbyak/ir/transform/indexing_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/intrinsics_combine.hpp>
 #include <compiler/jit/xbyak/ir/transform/low_level_legalizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/module_var_resolver.hpp>
@@ -66,11 +69,15 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
         const context_ptr &ctx, const x86_64::target_profile_t &profile) {
     std::vector<module_pass_ptr> ret;
 
-    ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<module_var_resolver_t>());
+    ret.emplace_back(module_function_pass_t::make<indexing_transform_t>());
+    ret.emplace_back(utils::make_unique<constant_folder_t>(false));
+    ret.emplace_back(utils::make_unique<auto_caster_t>());
     ret.emplace_back(
             module_function_pass_t::make<low_level_legalizer_t>(ctx->machine_));
     ret.emplace_back(module_function_pass_t::make<constant_optimizer_t>());
+    ret.emplace_back(
+            module_function_pass_t::make<avx2_legalizer_t>(ctx->machine_));
     ret.emplace_back(
             module_function_pass_t::make<simple_loop_function_motion_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(false));
@@ -173,43 +180,31 @@ std::shared_ptr<jit_module> xbyak_jit::make_jit_module(
     //========================================================================
     bool use_managed_tp = ir_mod2->attr_.get<bool>(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
-    auto ret = std::shared_ptr<xbyak_jit_module>(new xbyak_jit_module(
-            std::move(jit_output_), std::move(attr_table), use_managed_tp));
-    ret->postprocess(ir_mod2);
-    return ret;
+    auto ret = std::shared_ptr<xbyak_jit_module_code>(
+            new xbyak_jit_module_code(std::move(jit_output_), use_managed_tp));
+    ret->postprocess(ir_mod2, attr_table);
+    return std::make_shared<jit_module>(std::move(attr_table), ret);
 }
 
 // ================== //
 //  xbyak_jit_module  //
 // ================== //
 
-xbyak_jit_module::xbyak_jit_module(
+xbyak_jit_module_code::xbyak_jit_module_code(
         std::shared_ptr<xbyak_jit_generator> jit_output,
-        statics_table_t &&globals, bool managed_thread_pool)
-    : jit_module(std::move(globals), managed_thread_pool)
+        bool managed_thread_pool)
+    : jit_module_code(managed_thread_pool)
     , jit_output_(std::move(jit_output)) {}
 
-void *xbyak_jit_module::get_address_of_symbol(const std::string &name) {
-    void *global_var = globals_.get_or_null(name);
-    if (global_var) { return global_var; }
+void *xbyak_jit_module_code::get_address_of_symbol(const std::string &name) {
     return jit_output_->get_func_address(name);
 }
 
-std::shared_ptr<jit_function_t> xbyak_jit_module::get_function(
-        const std::string &name) {
+void *xbyak_jit_module_code::get_function(
+        const std::string &name, void *&wrapper) {
     void *fun = jit_output_->get_func_address(name);
-    void *wrapper = jit_output_->get_func_address(name + "_0wrapper");
-    if (fun || wrapper) {
-        if (runtime_config_t::get().execution_verbose_) {
-            return general_jit_function_t::make(shared_from_this(), fun,
-                    wrapper, name, managed_thread_pool_);
-        } else {
-            return general_jit_function_t::make(shared_from_this(), fun,
-                    wrapper, std::string(), managed_thread_pool_);
-        }
-    } else {
-        return nullptr;
-    }
+    wrapper = jit_output_->get_func_address(name + "_0wrapper");
+    return fun;
 }
 
 } // namespace gc

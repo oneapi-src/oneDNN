@@ -335,6 +335,7 @@ public:
                 computation_data_type = CUDNN_DATA_INT32;
                 break;
             case CUDNN_DATA_BFLOAT16:
+            case CUDNN_DATA_HALF:
                 computation_data_type = CUDNN_DATA_FLOAT;
                 break;
             default: computation_data_type = data_types[y];

@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2022 Intel Corporation
+# Copyright 2021-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,6 +71,11 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
     # "warning: ‘clang::sycl_kernel’ scoped attribute directive ignored [-Wattributes]"
     # We don't have control over it so just suppress it for the time being.
     append(DPCPP_HOST_COMPILER_OPTS "-Wno-attributes")
+
+    # Host compiler operates on preprocessed files and headers, and it
+    # mistakenly assumes that anonymous namespace types are used from a header
+    # which is not always the case.
+    append(DPCPP_HOST_COMPILER_OPTS "-Wno-subobject-linkage")
 
     find_program(GNU_COMPILER NAMES ${DNNL_DPCPP_HOST_COMPILER})
     if(NOT GNU_COMPILER)

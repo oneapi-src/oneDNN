@@ -35,6 +35,9 @@ dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt) {
         case graph_dt::s32: return dnnl_s32;
         case graph_dt::s8: return dnnl_s8;
         case graph_dt::u8: return dnnl_u8;
+        // use u8 instead of boolean in the reference path
+        // dnn_graph_mem_t will use the data type from the logical tensor and the u8 data handle
+        case graph_dt::boolean: return dnnl_u8;
         case graph_dt::undef:
         default: return dnnl_data_type_undef;
     }
@@ -95,12 +98,12 @@ void assign_dilation_val(bool has_h, bool has_d, int64_t &w, int64_t &h,
 void assign_shape_val(int64_t &c, int64_t &w, int64_t &h, int64_t &d,
         const std::vector<int64_t> &ncx_shape) {
     auto ndims = ncx_shape.size();
+    bool has_w = ndims > 2;
     bool has_h = ndims > 3;
     bool has_d = ndims > 4;
-    // shape includes { c, w, h, d }
     // NCDHW
     c = ncx_shape[1];
-    w = ncx_shape[ndims - 1];
+    w = has_w ? ncx_shape[ndims - 1] : 1;
     h = has_h ? ncx_shape[ndims - 2] : 1;
     d = has_d ? ncx_shape[2] : 1;
 };
@@ -140,20 +143,95 @@ bool get_driver_axis(const deserialized_op &base_op_ref, int &axis) {
 }
 
 bool get_prb_dims(const deserialized_op &base_op_ref, prb_dims_t &prb_dims) {
-    bool from_output = base_op_ref.kind_ == "StaticTranspose" ? true : false;
-    prb_dims.dims = from_output ? base_op_ref.out_lts_.front().shape_
-                                : base_op_ref.in_lts_.front().shape_;
+    prb_dims.dims = base_op_ref.in_lts_.front().shape_;
     prb_dims.ndims = static_cast<int>(prb_dims.dims.size());
     return true;
 }
 
+// extend shape in src to match the ndims
+// if the rank in tensor is less than ndims, we need to insert 1
+void extend_dims(::graph::deserialized_lt &lt, size_t ndims) {
+    size_t nelem = 1;
+    for (size_t i = 0; i < lt.shape_.size(); i++) {
+        nelem *= lt.shape_[i];
+    }
+    while (lt.shape_.size() < ndims) {
+        lt.shape_.insert(lt.shape_.begin(), 1);
+    }
+    while (lt.stride_.size() < ndims) {
+        lt.stride_.insert(lt.stride_.begin(), nelem);
+    }
+}
+
+namespace custom {
+
+::custom::settings_t get_setting(const deserialized_op &base_op_ref,
+        const std::unordered_set<size_t> &rewrite_lt_ids, res_t *res) {
+    ::custom::settings_t op_setting;
+    auto opkind = opstr2kind(base_op_ref.kind_);
+    switch (opkind) {
+        case ::graph::op::kind::Select:
+            op_setting.alg = ::custom::alg_t::SELECT;
+            break;
+        case ::graph::op::kind::StaticTranspose:
+            op_setting.alg = ::custom::alg_t::TRANSPOSE;
+            base_op_ref.get_attr_s64_vector(op_setting.order, "order");
+            break;
+        case ::graph::op::kind::StaticReshape:
+            op_setting.alg = ::custom::alg_t::RESHAPE;
+            break;
+        default:
+            op_setting.alg = ::custom::alg_t::ALG_UNKNOWN;
+            assert(!"unknown alg");
+            res->state = res_state_t::INVALID_ARGUMENTS;
+            return op_setting;
+    }
+    for (size_t i = 0; i < base_op_ref.in_lts_.size(); i++) {
+        auto arg = get_prim_arg_name_from_graph_op_input_offset(
+                opkind, static_cast<int>(i));
+        auto dim = base_op_ref.in_lts_[i].shape_;
+        auto dt = convert_dt(base_op_ref.in_lts_[i].get_data_type());
+        auto tag = strides2memory_tag(base_op_ref.in_lts_[i].stride_.size(),
+                base_op_ref.in_lts_[i].stride_, false);
+
+        // 0-dim means scalar input in graph, extend to 1-dim to match behavior.
+        if (dim.empty()) {
+            dim.push_back(1);
+            tag = "a";
+        }
+        op_setting.arg_mds_[arg] = ::std::make_tuple(tag, dim, dt);
+    }
+    for (size_t i = 0; i < base_op_ref.out_lts_.size(); i++) {
+        auto arg = get_prim_arg_name_from_graph_op_output_offset(
+                opkind, static_cast<int>(i));
+        auto dim = base_op_ref.out_lts_[i].shape_;
+        auto dt = convert_dt(base_op_ref.out_lts_[i].get_data_type());
+        auto tag = strides2memory_tag(base_op_ref.out_lts_[i].stride_.size(),
+                base_op_ref.out_lts_[i].stride_, false);
+
+        // 0-dim means scalar input in graph, extend to 1-dim to match behavior.
+        if (dim.empty()) {
+            dim.push_back(1);
+            tag = "a";
+        }
+        op_setting.arg_mds_[arg] = ::std::make_tuple(tag, dim, dt);
+    }
+    return op_setting;
+}
+
+} // namespace custom
+
 namespace binary {
 bool get_binary_prb_vdims(
         const deserialized_op &base_op_ref, prb_vdims_t &prb_vdims) {
-    auto src0_dims = base_op_ref.in_lts_[0].shape_;
-    auto src1_dims = base_op_ref.in_lts_[1].shape_;
-    auto dst_dims = base_op_ref.out_lts_[0].shape_;
-    const auto &ndims = src0_dims.size();
+    // since base_op_ref is a copy from the original
+    // it is safe to modify it
+    deserialized_op &base_op = const_cast<deserialized_op &>(base_op_ref);
+
+    auto &src0_dims = base_op.in_lts_[0].shape_;
+    auto &src1_dims = base_op.in_lts_[1].shape_;
+    auto &dst_dims = base_op.out_lts_[0].shape_;
+    const auto &ndims = dst_dims.size();
     // use Add to implement BiasAdd, need to align channel dims of src1
     if (base_op_ref.kind_ == "BiasAdd") {
         if (ndims == 1 && src0_dims[0] != src1_dims[0] && src1_dims[0] != 1) {
@@ -183,6 +261,9 @@ bool get_binary_prb_vdims(
                 change_format_to_ncx(src0_dims, src1_dims, dst_dims);
             }
         }
+    } else {
+        ::graph::extend_dims(base_op.in_lts_[0], ndims);
+        ::graph::extend_dims(base_op.in_lts_[1], ndims);
     }
 
     prb_vdims = prb_vdims_t({src0_dims, src1_dims});
@@ -254,26 +335,6 @@ bool get_binary_alg(const deserialized_op &base_op_ref, ::binary::alg_t &alg) {
             binary::get_binary_alg(base_op_ref, op_setting.alg.front()), res);
 
     return op_setting;
-}
-
-void set_s8u8_for_prb(::binary::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-
-    auto src0_dt = map_off_to_dt.find(0) == map_off_to_dt.end()
-            ? dnnl_s8
-            : convert_dt(get_data_type(map_off_to_dt.at(0)));
-    auto src1_dt = map_off_to_dt.find(1) == map_off_to_dt.end()
-            ? dnnl_s8
-            : convert_dt(get_data_type(map_off_to_dt.at(1)));
-
-    auto is_quantized_dt = [](dnnl_data_type_t &src_dt) {
-        return src_dt == dnnl_u8 || src_dt == dnnl_s8;
-    };
-
-    prb->sdt[0] = is_quantized_dt(src0_dt) ? src0_dt : src1_dt;
-    prb->sdt[1] = is_quantized_dt(src1_dt) ? src1_dt : src0_dt;
-    prb->ddt = prb->sdt[0];
 }
 
 } // namespace binary
@@ -606,16 +667,6 @@ bool get_conv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
     return op_setting;
 }
 
-void set_s8u8_for_prb(::conv::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
-        prb->dt[offset] = convert_dt(get_data_type(map_off_to_dt.at(offset)));
-    }
-    // add output datatype
-    prb->dt[2] = dnnl_f32;
-}
-
 } // namespace conv
 
 namespace deconv {
@@ -810,16 +861,6 @@ bool get_deconv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
             deconv::get_deconv_wtag(base_op_ref, op_setting.wtag.front()), res);
 
     return op_setting;
-}
-
-void set_s8u8_for_prb(::deconv::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
-        prb->dt[offset] = convert_dt(get_data_type(map_off_to_dt.at(offset)));
-    }
-    // add output datatype
-    prb->dt[2] = dnnl_f32;
 }
 
 } // namespace deconv
@@ -1097,24 +1138,11 @@ bool get_matmul_prb_vdims(
     auto &dst_dims = base_op.out_lts_[0].shape_;
     const auto ndims = dst_dims.size();
 
-    while (src_dims.size() < ndims)
-        src_dims.insert(src_dims.begin(), 1);
-    while (wei_dims.size() < ndims)
-        wei_dims.insert(wei_dims.begin(), 1);
-
-    size_t src_nelem = 1, wei_nelem = 1;
-    for (size_t i = 0; i < src_dims.size(); i++)
-        src_nelem *= src_dims.size();
-    for (size_t i = 0; i < wei_dims.size(); i++)
-        wei_nelem *= wei_dims.size();
-
-    auto &src_strides = base_op.in_lts_[0].stride_;
-    auto &wei_strides = base_op.in_lts_[1].stride_;
-
-    while (src_strides.size() < src_dims.size())
-        src_strides.insert(src_strides.begin(), src_nelem);
-    while (wei_strides.size() < wei_dims.size())
-        wei_strides.insert(wei_strides.begin(), wei_nelem);
+    ::graph::extend_dims(base_op.in_lts_[0], ndims);
+    ::graph::extend_dims(base_op.in_lts_[1], ndims);
+    if (base_op.in_lts_.size() > 2) {
+        ::graph::extend_dims(base_op.in_lts_[2], ndims);
+    }
 
     // transpose
     bool transpose_a = false, transpose_b = false;
@@ -1225,21 +1253,6 @@ bool get_matmul_bia_dt_mask(const deserialized_op &base_op_ref,
             res);
 
     return op_setting;
-}
-
-void set_s8u8_for_prb(::matmul::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-    // The logic below covers cases when one of quantized matmul inputs is not
-    // int8, like u8:f32:dst or f32:s8:dst. Force successful primitive creation
-    // by making both data types of int8 type.
-    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
-        const auto &dt_str = map_off_to_dt.at(offset);
-        if (dt_str == "u8")
-            prb->dt[offset] = convert_dt(get_data_type(dt_str));
-        else
-            prb->dt[offset] = convert_dt(get_data_type("s8"));
-    }
 }
 
 } // namespace matmul
@@ -1385,13 +1398,6 @@ bool get_pool_alg(const deserialized_op &base_op_ref, ::pool::alg_t &alg) {
             get_driver_tag(base_op_ref, op_setting.tag.front()), res);
 
     return op_setting;
-}
-
-void set_s8u8_for_prb(::pool::prb_t *prb,
-        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-        res_t *res) {
-    // since x8f32 is not support by cpu now and generate x8x8 primitive instead
-    prb->dt[0] = prb->dt[1] = convert_dt(get_data_type(map_off_to_dt.at(0)));
 }
 
 } //namespace pool
@@ -1605,29 +1611,7 @@ bool get_reorder_stag_and_dtag(const deserialized_op &base_op_ref,
         std::string &stag, std::string &dtag) {
     bool ret = get_driver_stag_and_dtag(base_op_ref, stag, dtag);
     if (!ret) return false;
-    if (base_op_ref.kind_ == "Reorder") {
-        ret = get_driver_tag(base_op_ref, dtag, true);
-    } else if (base_op_ref.kind_ == "StaticReshape") {
-        // StaticReshape needs to have abx tag for output
-        // StaticReshape: src_lt_strides -> [reorder] -> dense_src_lt_strides
-        //                -> [reshape_md] -> dst_lt_strides
-        ret = get_driver_tag(base_op_ref, stag);
-        dtag = "abx";
-    } else if (base_op_ref.kind_ == "StaticTranspose") {
-        // StaticTranspose: src_lt_strides -> [permute_md] ->permuted_src_lt_strides
-        //                  -> [reorder] -> dst_lt_strides
-        logical_tensor::dims input_strides = base_op_ref.in_lts_[0].stride_;
-        std::vector<int64_t> order;
-        bool has_order = base_op_ref.get_attr_s64_vector(order, "order");
-        if (!has_order) return false;
-        logical_tensor::dims permuted_strides(input_strides.size());
-        for (size_t d = 0; d < input_strides.size(); ++d) {
-            permuted_strides[d] = input_strides[order[d]];
-        }
-        stag = strides2memory_tag(
-                permuted_strides.size(), permuted_strides, true);
-        ret = get_driver_tag(base_op_ref, dtag, true);
-    }
+    ret = get_driver_tag(base_op_ref, dtag, true);
     return ret;
 }
 
@@ -1699,15 +1683,6 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
 
     DNN_GRAPH_CHECK_SETTINGS(
             get_prb_dims(base_op_ref, op_setting.prb_dims), res);
-    if (base_op_ref.kind_ == "StaticReshape") {
-        bool special_zero = false;
-        std::vector<int64_t> shape {};
-        base_op_ref.get_attr_bool(special_zero, "special_zero");
-        base_op_ref.get_attr_s64_vector(shape, "shape");
-        auto it = std::find(shape.begin(), shape.end(), 0);
-        // empty tensor
-        if (it != shape.end() && !special_zero) return op_setting;
-    }
 
     DNN_GRAPH_CHECK_SETTINGS(
             reorder::get_reorder_dt(base_op_ref, op_setting.sdt.front(),

@@ -37,6 +37,7 @@ struct brgemm_matmul_bcast_desc_t {
         : bcast_mask(0)
         , first_bcast_dim(-1)
         , last_bcast_dim(-1)
+        , bcast_across_all_batch_dims(false)
         , first_bcast_dim_to_last_batch_dim_prod(1)
         , bcast_dims_prod(1)
         , batch_dims {0}
@@ -63,12 +64,15 @@ struct brgemm_matmul_bcast_desc_t {
             if (first_bcast_dim == -1) // broadcast_dim > B0
                 first_bcast_dim_to_last_batch_dim_prod /= dst_d_dims[d];
         }
+        bcast_across_all_batch_dims = IMPLICATION(
+                batch > 1, bcast_mask > 0 && bcast_dims_prod == batch);
     }
 
     int bcast_mask; // sets bcast_dim = 1, non_bcast_dim = 0
 
     int first_bcast_dim;
     int last_bcast_dim;
+    bool bcast_across_all_batch_dims;
 
     dim_t first_bcast_dim_to_last_batch_dim_prod;
     dim_t bcast_dims_prod;
@@ -97,6 +101,7 @@ struct brgemm_matmul_conf_t {
     bool with_scales;
     bool with_dst_scales;
     bool s8s8_compensation_required;
+    bool packed_sparse_weights;
     bool is_oscale_per_n;
     brgemm_broadcast_t src_zp_type;
     brgemm_broadcast_t wei_zp_type;
@@ -160,6 +165,7 @@ struct brgemm_matmul_conf_t {
     bool has_zero_point_a, has_zero_point_b, has_zero_point_c;
     bool post_ops_applicable;
     bool transposed_A;
+    bool transposed_B;
     bool blocked_B;
 
     dim_t zp_a_comp_shift_n;
@@ -193,23 +199,26 @@ struct brgemm_matmul_conf_utils_t {
             bool C_any_layout, bool bias_any_layout);
 
     inline bool check_b_layout_blocked_by_n(format_tag_t matrix_b_tag) const {
-        return blocked_B_layouts_allowed
+        return blocked_B_layouts_allowed && !bgmmc.is_runtime_N
                 && utils::one_of(matrix_b_tag, blocked_64n_B_layout_tag,
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
                         blocked_16n_B_layout_tag);
     }
 
     inline bool get_blocked_B() const {
-        return blocked_B_layouts_allowed
+        return blocked_B_layouts_allowed && !bgmmc.is_runtime_N
                 && check_b_layout_blocked_by_n(bgmmc.wei_tag);
     }
 
     inline bool use_buffer_b(bool use_heuristic = true) const {
+        if (bgmmc.is_runtime_N) return true;
+
         if (bgmmc.is_amx)
             // use b_buffer for AMX when:
             // - not bf32 && using non-blocked weights
             // - is bf32
-            return IMPLICATION(!wei_down_convert_to_vnni(), !bgmmc.blocked_B);
+            return IMPLICATION(!wei_down_convert_to_vnni(), !bgmmc.blocked_B)
+                    || bgmmc.packed_sparse_weights;
 
         // Values based on measured performance difference
         // between plain and copy-to-blocked routine.
@@ -238,7 +247,7 @@ struct brgemm_matmul_conf_utils_t {
         // Check if m_block is a prime number from 32 to 64
         const bool is_prime_num
                 = utils::one_of(bgmmc.M_blk, 37, 41, 43, 47, 53, 59, 61);
-        const bool maybe_ldb_tail = bgmmc.N % 16;
+        const bool maybe_ldb_tail = !bgmmc.is_runtime_N && bgmmc.N % 16;
         return is_prime_num && IMPLICATION(bgmmc.M_blk < 48, maybe_ldb_tail);
     }
 

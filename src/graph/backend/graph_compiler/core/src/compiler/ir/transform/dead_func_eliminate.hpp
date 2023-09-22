@@ -24,7 +24,9 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-
+namespace attr_keys {
+constexpr const char *keep_func = "pass.keep_func";
+}
 class dead_func_eliminate_t : public module_pass_t {
 public:
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;

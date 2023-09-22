@@ -18,11 +18,11 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <vector>
 #include <unordered_map>
 
 #include "dnnl_test_common.hpp"
+#include "tests/test_thread.hpp"
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
@@ -307,20 +307,13 @@ protected:
     }
 
     void Test() {
-        std::vector<std::thread> threads;
-        for (int i = 0; i < nthreads; i++) {
-            int step = (ntasks + nthreads - 1) / nthreads;
-            int beg = i * step;
-            int end = std::min(beg + step, ntasks);
-            threads.emplace_back([&, beg, end]() {
-                for (int j = beg; j < end; j++)
-                    tasks_[j]->execute();
-            });
-        }
-
-        for (auto &t : threads) {
-            t.join();
-        }
+        dnnl::impl::parallel(nthreads, [this](int ithr, int nthr) {
+            const int step = (ntasks + nthr - 1) / nthr;
+            const int beg = ithr * step;
+            const int end = std::min(beg + step, ntasks);
+            for (int i = beg; i < end; i++)
+                tasks_[i]->execute();
+        });
 
         for (int i = 0; i < ntasks; i++) {
             tasks_[i]->validate();
@@ -335,19 +328,7 @@ protected:
 };
 
 const int test_concurrency_t::ntasks = 1000;
-const int test_concurrency_t::nthreads = []() {
-    int res = 100;
-#ifdef _OPENMP
-    const int hc = std::thread::hardware_concurrency();
-    // On systems that have many cores this test may not work properly
-    // due to high number of created threads (nthreads * primitive threads).
-    // Only OpenMP runtime is affected (probably only GOMP).
-    // Error message:
-    // libgomp: Thread creation failed: Resource temporarily unavailable
-    res = hc > 60 ? 10 : res;
-#endif
-    return res;
-}();
+const int test_concurrency_t::nthreads = 100;
 
 TEST_F(test_concurrency_t, Basic) {}
 

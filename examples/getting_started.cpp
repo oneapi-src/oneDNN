@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -478,6 +478,9 @@ int main(int argc, char **argv) {
     } catch (std::string &e) {
         std::cout << "Error in the example: " << e << "." << std::endl;
         exit_code = 2;
+    } catch (std::exception &e) {
+        std::cout << "Error in the example: " << e.what() << "." << std::endl;
+        exit_code = 3;
     }
 
     std::cout << "Example " << (exit_code ? "failed" : "passed") << " on "

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "cpu/reorder/simple_reorder.hpp"
+#include "cpu/reorder/simple_sparse_reorder.hpp"
 
 #include "common/impl_list_item.hpp"
 #include "common/memory.hpp"
@@ -55,10 +56,11 @@ struct reorder_impl_key_t {
     }
 
 private:
-    enum { MAX_DT_NUM = 10 };
     size_t value() const {
-        return ((size_t)ndims * MAX_DT_NUM + (size_t)src_dt) * MAX_DT_NUM
-                + (size_t)dst_dt;
+        const size_t dtm = data_type::data_type_max;
+        const size_t m1 = static_cast<size_t>(ndims) * dtm;
+        const size_t m2 = (m1 + static_cast<size_t>(src_dt)) * dtm;
+        return m2 + static_cast<size_t>(dst_dt);
     }
 };
 
@@ -84,6 +86,24 @@ extern const impl_list_map_t &comp_bf16_s8_impl_list_map();
 extern const impl_list_map_t &comp_s8_s8_impl_list_map();
 
 // clang-format off
+
+// Some compilers do not allow guarding implementations with macros
+// in the impl list.
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+
+#if DNNL_X64
+#define REG_SPARSE_SR_X64(idt, ifmt, odt, ofmt) \
+    impl_list_item_t(impl_list_item_t::reorder_type_deduction_helper_t< \
+            simple_sparse_reorder_t<idt, \
+                    std::remove_const<decltype(ifmt)>::type, ifmt, odt, \
+                    std::remove_const<decltype(ofmt)>::type, ofmt>::pd_t>()),
+#else
+#define REG_SPARSE_SR_X64(...)
+#endif
+
+#else
+#define REG_SPARSE_SR_X64(...)
+#endif
 
 #define REG_SR(idt, ifmt, odt, ofmt, ...) \
     impl_list_item_t(impl_list_item_t::reorder_type_deduction_helper_t< \

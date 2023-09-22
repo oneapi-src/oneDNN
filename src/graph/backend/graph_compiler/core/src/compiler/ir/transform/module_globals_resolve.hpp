@@ -25,8 +25,9 @@ namespace graph {
 namespace gc {
 
 namespace attr_keys {
+constexpr const char *static_global = "static_global";
 constexpr const char *module_global_offset = "module_global_offset";
-}
+} // namespace attr_keys
 /**
  * Resolves global variables and tensors to module_globals_pointer + offsets.
  * Also modifies all function arguments defined in the current module by

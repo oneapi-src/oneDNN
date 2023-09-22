@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
 
     uint8_t *ws_ptr = (uint8_t *)ws;
     float *dst_ptr = (float *)dst;
-    float *src_hat_ptr = (float *)src_hat;
 
     const int64_t MB = prb->mb;
     const int64_t C = prb->ic;
@@ -67,7 +66,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
             if (need_ws) ws_ptr[off] = !!res;
             maybe_post_ops(attr, res);
             dst_ptr[off] = res;
-            if (prb->dir & FLAG_BWD) src_hat_ptr[off] = x_hat;
+            if (prb->dir & FLAG_BWD) src_hat.set_elem(off, x_hat);
         }
     });
 }

@@ -68,46 +68,50 @@ struct const_expr_value {
 // The string can contain format specifiers which are provided in VA_ARGS
 // Note: using ##__VAR_ARGS__ is necessary to avoid trailing comma in printf call
 
-#define VFORMAT(stamp, logtype, logsubtype, msg, ...) \
+#define VFORMAT(stamp, apitype, logtype, logsubtype, msg, ...) \
     do { \
         std::string stamp_; \
-        if (get_verbose_timestamp()) stamp_ = "," + std::to_string(stamp); \
-        printf("onednn_verbose%s," CONCAT2(VERBOSE_, logtype) "%s," msg "\n", \
+        if (dnnl::impl::get_verbose_timestamp()) \
+            stamp_ = "," + std::to_string(stamp); \
+        printf("onednn_verbose%s," CONCAT2(VERBOSE_, apitype) "," CONCAT2( \
+                       VERBOSE_, logtype) "%s," msg "\n", \
                 stamp_.c_str(), logsubtype, ##__VA_ARGS__); \
     } while (0)
 
 // Logging info
-#define VINFO(logtype, logsubtype, component, msg, ...) \
+#define VINFO(apitype, logtype, logsubtype, component, msg, ...) \
     do { \
-        if (get_verbose(verbose_t::logtype##_##logsubtype)) \
-            VFORMAT(get_msec(), logtype, VERBOSE_##logsubtype, \
+        if (dnnl::impl::get_verbose(verbose_t::logtype##_##logsubtype)) \
+            VFORMAT(get_msec(), apitype, logtype, VERBOSE_##logsubtype, \
                     #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
                     __LINE__); \
     } while (0)
 
 // Macro for boolean checks
 #define VCONDCHECK( \
-        logtype, logsubtype, component, condition, status, msg, ...) \
+        apitype, logtype, logsubtype, component, condition, status, msg, ...) \
     do { \
         if (!(condition)) { \
-            VINFO(logtype, logsubtype, component, msg, ##__VA_ARGS__); \
+            VINFO(apitype, logtype, logsubtype, component, msg, \
+                    ##__VA_ARGS__); \
             return status; \
         } \
     } while (0)
 
 // Macro for status checks
-#define VCHECK(logtype, logsubtype, component, f, msg, ...) \
+#define VCHECK(apitype, logtype, logsubtype, component, f, msg, ...) \
     do { \
         status_t _status_ = (f); \
-        VCONDCHECK(logtype, logsubtype, component, \
+        VCONDCHECK(apitype, logtype, logsubtype, component, \
                 _status_ == status::success, _status_, msg, ##__VA_ARGS__); \
     } while (0)
 
 // Special syntactic sugar for error, plus flush of the output stream
-#define VERROR(component, msg, ...) \
+#define VERROR(apitype, component, msg, ...) \
     do { \
-        if (get_verbose(verbose_t::error)) { \
-            VFORMAT(get_msec(), error, "", #component "," msg, ##__VA_ARGS__); \
+        if (dnnl::impl::get_verbose(verbose_t::error)) { \
+            VFORMAT(get_msec(), apitype, error, "", #component "," msg, \
+                    ##__VA_ARGS__); \
         } \
         fflush(stdout); \
     } while (0)
@@ -116,9 +120,9 @@ struct const_expr_value {
 // NOTE: the VPROF macro does not check for verbose flags, it is the
 // responsibility of the caller do check those (it should happen
 // anyway to condition collecting stamp/duration)
-#define VPROF(stamp, logtype, logsubtype, info, duration) \
+#define VPROF(stamp, apitype, logtype, logsubtype, info, duration) \
     { \
-        VFORMAT(stamp, logtype, logsubtype, "%s,%g", info, duration); \
+        VFORMAT(stamp, apitype, logtype, logsubtype, "%s,%g", info, duration); \
         fflush(stdout); \
     }
 
@@ -145,7 +149,45 @@ struct verbose_t {
     static uint32_t get_debuginfo(uint32_t flag) { return flag >> 24; }
 };
 
-uint32_t get_verbose(verbose_t::flag_kind kind = verbose_t::none);
+struct component_t {
+    enum flag_kind : uint32_t {
+        none = 0,
+        primitive = 1 << 0,
+        // keep the same order with dnnl_primitive_kind_t
+        reorder = 1 << 1,
+        shuffle = 1 << 2,
+        concat = 1 << 3,
+        sum = 1 << 4,
+        convolution = 1 << 5,
+        deconvolution = 1 << 6,
+        eltwise = 1 << 7,
+        lrn = 1 << 8,
+        batch_normalization = 1 << 9,
+        inner_product = 1 << 10,
+        rnn = 1 << 11,
+        gemm = 1 << 12,
+        binary = 1 << 13,
+        matmul = 1 << 14,
+        resampling = 1 << 15,
+        pooling = 1 << 16,
+        reduction = 1 << 17,
+        prelu = 1 << 18,
+        softmax = 1 << 19,
+        layer_normalization = 1 << 20,
+        group_normalization = 1 << 21,
+        graph = 1 << 22,
+        gemm_api = 1 << 23,
+        all = (uint32_t)-1,
+    };
+};
+
+inline component_t::flag_kind prim_kind2_comp_kind(
+        const primitive_kind_t prim_kind) {
+    return static_cast<component_t::flag_kind>(1 << prim_kind | 1 << 0);
+}
+
+uint32_t get_verbose(verbose_t::flag_kind kind = verbose_t::none,
+        component_t::flag_kind filter_kind = component_t::all);
 
 // Helper to avoid #ifdefs for DNNL_DEV_MODE related logging
 static inline uint32_t get_verbose_dev_mode(
@@ -166,6 +208,7 @@ struct pd_info_t {
         str_ = rhs.str_;
         return *this;
     }
+    ~pd_info_t() = default;
 
     const char *c_str() const { return str_.c_str(); }
     bool is_initialized() const { return is_initialized_; }

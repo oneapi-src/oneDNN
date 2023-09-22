@@ -27,6 +27,9 @@ namespace gc {
 SC_INTERNAL_API void elemwise_bcast_swap(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void broadcast_transform(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API void elemwise_dimension_alignment(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
@@ -45,6 +48,9 @@ SC_INTERNAL_API void batchwise_merge(
 void fuse_ops(sc_graph_t &g, const context_ptr &ctx = get_default_context());
 
 SC_INTERNAL_API void mixed_partition(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
+SC_INTERNAL_API void annotate_config(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
 SC_INTERNAL_API void graph_inline(
@@ -66,6 +72,7 @@ SC_INTERNAL_API void tensor_view_transform(
 
 SC_INTERNAL_API void flatten_conv(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API
 void graph_simplify(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
@@ -90,7 +97,11 @@ SC_INTERNAL_API void shape_relationship_binding(
 
 SC_INTERNAL_API void merge_concats(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API void graph_concat_memory_planning(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
+SC_INTERNAL_API void rl_conv_weight_transform(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
 namespace quantize {
@@ -109,6 +120,12 @@ SC_INTERNAL_API void calculate_op_compensation(
 SC_INTERNAL_API void quantize_inline(
         sc_graph_t &mgr, const context_ptr &ctx = get_default_context());
 } // namespace quantize
+
+SC_INTERNAL_API void fpmath_mode(
+        sc_graph_t &mgr, const context_ptr &ctx = get_default_context());
+
+SC_INTERNAL_API void eliminate_zero_shaped_tensors(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
 } // namespace gc
 } // namespace graph

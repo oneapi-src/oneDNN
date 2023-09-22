@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,14 +71,14 @@ struct ref_shuffle_t : public primitive_t {
     ref_shuffle_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        const int axis_size = pd()->axis_size();
+        const dim_t axis_size = pd()->axis_size();
         const dim_t group_size = pd()->group_size();
         const dim_t transpose_row
                 = pd()->is_fwd() ? group_size : axis_size / group_size;
         const dim_t transpose_col
                 = pd()->is_fwd() ? axis_size / group_size : group_size;
-        rev_transposed_ = (int *)malloc(
-                axis_size * sizeof(int), platform::get_cache_line_size());
+        rev_transposed_ = (dim_t *)malloc(
+                axis_size * sizeof(dim_t), platform::get_cache_line_size());
         if (rev_transposed_ == nullptr) return dnnl_out_of_memory;
         parallel_nd(transpose_col, transpose_row, [&](dim_t i, dim_t j) {
             rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
@@ -106,7 +106,7 @@ private:
     template <int data_type_size>
     status_t execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    int *rev_transposed_ = nullptr;
+    dim_t *rev_transposed_ = nullptr;
 };
 
 } // namespace cpu

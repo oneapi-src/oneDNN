@@ -60,9 +60,7 @@ protected:
 
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
-    // FIXME(qun) improve the cache key
-    constant_cache_t::key_t constant_key_
-            = reinterpret_cast<constant_cache_t::key_t>(this);
+    constant_cache_t::key_t constant_key_ = 0;
 
     std::once_flag once_flag_;
     subgraph_visualizer_t vis_;
@@ -72,19 +70,12 @@ public:
     larger_partition_kernel_t() {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.retain();
-
-        if (enabled_constant_cache()) get_global_constant_cache().retain();
     }
 
     ~larger_partition_kernel_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
         res_cache.release();
-
-        if (enabled_constant_cache()) {
-            get_global_constant_cache().remove_if_exist(constant_key_);
-            get_global_constant_cache().release();
-        }
     }
 
     static void setup_pipeline_stage1(pass_pipeline_t &pipeline) {
@@ -103,7 +94,6 @@ public:
 
         BACKEND_DNNL_ADD_PASS(
                 pipeline, lift_up_weight_reshape_for_depthwiseconv);
-        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         // Fusion and canonicalization passes begin
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
@@ -117,8 +107,10 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_matmul_or_conv);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_predecessor);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
 
         BACKEND_DNNL_ADD_PASS(pipeline, convert_bias_to_f32);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_pool);
@@ -254,6 +246,10 @@ public:
         resource_ctor_ = [this]() {
             return this->memory_planner_.get_exec_args_set().clone();
         };
+
+        constant_key_ = generate_constant_cache_key(part->id(),
+                memory_planner_.get_exec_args_set()
+                        .get_persistent_mem_desc_list());
 
         return status::success;
     }

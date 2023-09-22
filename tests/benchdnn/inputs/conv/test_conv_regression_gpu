@@ -37,4 +37,4 @@ g8mb1ic8id120ih200iw340oc8od120oh200ow340kd3kh3kw3pd1ph1pw1
 g16mb1ic16id120ih200iw340oc16od60oh100ow170kd3kh3kw3sd2sh2sw2pd0ph0pw0
 
 --reset --attr-fpmath=tf32 --dir=BWD_W --stag=axb --dtag=axb mb16ic8id5oc8od3kd5pd1
---reset --cfg=f16 g192mb64ic192ih300oc192oh2kh1sh299
+--reset --dt=f16 g192mb64ic192ih300oc192oh2kh1sh299

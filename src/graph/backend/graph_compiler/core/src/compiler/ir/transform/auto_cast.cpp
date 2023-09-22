@@ -198,7 +198,7 @@ public:
         changed |= dispatch_expr_vector(v->idx_, newidx);
         int max_priori = -100;
         sc_data_type_t target_type;
-        // first find max priotity
+        // first find max priority
         for (auto &idx : newidx) {
             int priori = get_casting_priority(idx->dtype_);
             if (priori > max_priori) {
@@ -206,18 +206,23 @@ public:
                 target_type = idx->dtype_;
             }
         }
+
         std::vector<expr_c> newidx_c;
         newidx_c.reserve(newidx.size());
-        // second pass: cast to max priori dtype
+        // second pass: cast to max priority dtype
         for (auto &idx : newidx) {
             expr_c idx_c = idx;
             changed |= cast_to(idx_c, target_type, v);
             newidx_c.emplace_back(std::move(idx_c));
         }
+
+        auto new_mask = v->mask_.defined() ? dispatch(v->mask_) : expr_c();
+        changed |= !new_mask.ptr_same(v->mask_);
+
         if (changed) {
             return copy_attr(*v,
                     builder::make_indexing(
-                            ptr, newidx_c, v->dtype_.lanes_, v->mask_));
+                            ptr, newidx_c, v->dtype_.lanes_, new_mask));
         } else {
             return std::move(v);
         }
@@ -293,16 +298,21 @@ public:
             case intrin_type::permute:
             case intrin_type::broadcast:
             case intrin_type::permutex2var:
+            case intrin_type::permutexvar:
+            case intrin_type::insert:
+            case intrin_type::extract:
                 // do nothing
                 break;
             case intrin_type::brgemm:
-                COMPILE_ASSERT(
-                        newargs.size() == brgemm_args::NUM_FULL_ARGS_STRIDE,
-                        "Wrong number of arguments for brgemm, expected "
+                COMPILE_ASSERT(v->check_brgemm_arg_size(
+                                       brgemm_args::NUM_FULL_ARGS_STRIDE),
+                        "Wrong number of arguments for brgemm, expected equal "
+                        "or larger than "
                                 << brgemm_args::NUM_FULL_ARGS_STRIDE
                                 << ", but got " << newargs.size() << ".");
                 // the A, B, C are overloaded arguments
-                for (unsigned i = brgemm_args::C + 1; i < newargs.size(); i++) {
+                for (unsigned i = brgemm_args::C + 1;
+                        i < brgemm_args::NUM_FULL_ARGS_STRIDE; i++) {
                     // cast newargs[i] to the expected types
                     expr_c v = newargs[i];
                     // specific process for brgemm, as its runtime kernel is too
@@ -315,12 +325,13 @@ public:
                 }
                 break;
             case intrin_type::list_brgemm:
-                COMPILE_ASSERT(
-                        newargs.size() == brgemm_args::NUM_FULL_ARGS_LIST,
+                COMPILE_ASSERT(v->check_brgemm_arg_size(
+                                       brgemm_args::NUM_FULL_ARGS_LIST),
                         "Wrong number of arguments for list brgemm, expected "
+                        "equal or larger then "
                                 << brgemm_args::NUM_FULL_ARGS_LIST
                                 << ", but got " << newargs.size() << ".");
-                for (unsigned i = 0; i < newargs.size(); i++) {
+                for (unsigned i = 0; i < brgemm_args::NUM_FULL_ARGS_LIST; i++) {
                     // cast newargs[i] to the expected types
                     expr_c v = newargs[i];
                     changed |= cast_to(v, brgemm_args::list_arg_types[i], v);

@@ -51,16 +51,15 @@ struct gen9_eltwise_jit_params_t {
 #if __cplusplus >= 202002L
     bool operator==(const gen9_eltwise_jit_params_t &) const = default;
 #endif
-    serialized_t<gen9_eltwise_jit_params_t> serialize() const {
-        serialized_t<gen9_eltwise_jit_params_t> s {};
+    serialized_t serialize() const {
+        serialized_t s {};
         // Explicitly maintain zero padding to keep the implementation simple and
         // robust
         s.append(*this);
         return s;
     }
 
-    static gen9_eltwise_jit_params_t deserialize(
-            const serialized_t<gen9_eltwise_jit_params_t> &s) {
+    static gen9_eltwise_jit_params_t deserialize(const serialized_t &s) {
         gen9_eltwise_jit_params_t t {};
         deserializer_t d(s);
         d.pop(t);
@@ -113,7 +112,6 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
         status_t init_conf(engine_t *engine);
 
         gen9_eltwise_jit_params_t conf;
-        offsets_t off;
     };
 
     status_t init(engine_t *engine) override {
@@ -170,8 +168,6 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
         status_t init_conf(engine_t *engine);
 
         gen9_eltwise_jit_params_t conf;
-        offsets_t off;
-        bool use_dense;
     };
 
     status_t init(engine_t *engine) override {

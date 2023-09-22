@@ -19,11 +19,8 @@
 #include "gpu/jit/binary_format.hpp"
 
 #include "gpu/jit/conv/gen_convolution.hpp"
-#include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/gen9_wino_convolution.hpp"
 #include "gpu/ocl/ref_convolution.hpp"
-#include "gpu/ocl/xe_lp_x8s8x_1x1_convolution.hpp"
-#include "gpu/ocl/xe_lp_x8s8x_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,23 +34,17 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_CONV_P({
     {{forward}, {
         INSTANCE(jit::gen_convolution_fwd_t)
-        INSTANCE(ocl::xe_lp_x8s8x_1x1_convolution_fwd_t)
-        INSTANCE(ocl::xe_lp_x8s8x_convolution_fwd_t)
         INSTANCE(ocl::gen9_wino_convolution_fwd_t)
-        INSTANCE(ocl::gen9_convolution_fwd_t)
         INSTANCE(ocl::ref_convolution_fwd_t)
         nullptr,
     }},
     {{backward_data}, REG_BWD_D_PK({
         INSTANCE(jit::gen_convolution_bwd_data_t)
-        INSTANCE(ocl::xe_lp_x8s8x_convolution_bwd_data_t)
-        INSTANCE(ocl::gen9_convolution_bwd_data_t)
         INSTANCE(ocl::ref_convolution_bwd_data_t)
         nullptr,
     })},
     {{backward_weights}, REG_BWD_PK({
         INSTANCE(jit::gen_convolution_bwd_weights_t)
-        INSTANCE(ocl::gen9_convolution_bwd_weights_t)
         INSTANCE(ocl::ref_convolution_bwd_weights_t)
         nullptr,
     })},

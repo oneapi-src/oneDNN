@@ -56,7 +56,7 @@ x64::cpu_isa_t brgemm_calc_isa(dim_t K1, dim_t K2, bool is_int8, bool is_bf16) {
     const bool is_amx_bf16 = is_bf16 && x64::mayiuse(x64::avx512_core_amx);
 
     if (is_amx_int8 || is_amx_bf16) {
-        const dim_t padding = (is_int8 ? 4 : (is_bf16 ? 2 : 1));
+        const dim_t padding = is_int8 ? 4 : /* is_bf16 */ 2;
         const auto result = brgemm_calc_k_block_amx(K1, K2, is_int8);
         const auto k1_block_amx = result.first;
         const auto k2_block_amx = result.second;
@@ -176,7 +176,7 @@ dim_t brgemm_calc_m_block_vanilla_rnn(dim_t nthr, dim_t M, dim_t N_blocks,
         const dim_t m_block_end = 8;
 
         float max_decimal_mn = 0.0f;
-        dim_t best_candidate = 0.0;
+        dim_t best_candidate = m_block_start;
         bool found_best_solution = false;
 
         for (dim_t m_block_it = m_block_start; m_block_it >= m_block_end;
@@ -553,7 +553,7 @@ status_t init_brgemm_kernel(x64::brgemm_t *desc, x64::cpu_isa_t isa,
 
     x64::brgemm_kernel_t *_t_ptr;
     CHECK(brgemm_kernel_create(&_t_ptr, *desc));
-    safe_ptr_assign<x64::brgemm_kernel_t>(ker, _t_ptr);
+    CHECK(safe_ptr_assign<x64::brgemm_kernel_t>(ker, _t_ptr));
 
     return status::success;
 };
@@ -1325,6 +1325,10 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
             = types::data_type_size(tmp_matmul_conf_for_reorder.src_dt);
     tmp_matmul_conf_for_reorder.b_dt_sz = tmp_matmul_conf_for_reorder.tr_b_dt_sz
             = types::data_type_size(tmp_matmul_conf_for_reorder.wei_dt);
+    tmp_matmul_conf_for_reorder.copy_B_wei_stride
+            = tmp_matmul_conf_for_reorder.N
+            * tmp_matmul_conf_for_reorder.b_dt_sz;
+    tmp_matmul_conf_for_reorder.transposed_B = false;
     CHECK(matmul::create_brgemm_matmul_copy_b(
             diff_wei.srcatch_gates_reorder_kernel_,
             &tmp_matmul_conf_for_reorder));
@@ -1366,9 +1370,7 @@ status_t rnn_brgemm_t<prop_kind::backward>::init_kernels(
             CHECK(kernel_transpose_single_row_iter_->create_kernel());
 
             if (!is_m_block_equal) {
-                const auto m_block_layer = is_m_block_equal
-                        ? rnn.diff_wei_brgemm.m_block
-                        : rnn.diff_wei_brgemm.M_layer;
+                const auto m_block_layer = rnn.diff_wei_brgemm.M_layer;
                 kernel_transpose_single_row_layer_
                         = utils::make_unique<jit_brgemm_transpose_single_row_t>(
                                 m_block_layer);

@@ -16,3 +16,11 @@ fun:*jit_avx_gemm_f32*
 # same across all threads.
 [thread]
 fun:*setting_t*
+# inconsequential data-race: to avoid overheads during verbose info print, we
+# check a non-atomic variable before the mutex protected initialization.
+[thread]
+fun:*pd_info_t*init*
+# Low impact: itt initializes lock inside critical region, which TSAN
+# flags as data race. tracked by ittapi #94
+[thread]
+fun:*__itt_string_handle_create*

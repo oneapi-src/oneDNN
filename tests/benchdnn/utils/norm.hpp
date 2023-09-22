@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,14 @@ struct norm_t {
             norm_[i] = 0;
     }
 
+    // Used in parallel norm reduction
+    void update(const norm_t &n) {
+        norm_[L1] += n.norm_[L1];
+        norm_[L2] += n.norm_[L2];
+        norm_[L8] = MAX2(norm_[L8], n.norm_[L8]);
+        num_ += n.num_;
+    }
+
     void update(float v) {
         norm_[L1] += ABS(v);
         norm_[L2] += v * v;
@@ -47,6 +55,15 @@ struct norm_t {
 };
 
 struct diff_norm_t {
+    // Used in parallel norm reduction
+    void update(const diff_norm_t &n) {
+        a_.update(n.a_);
+        b_.update(n.b_);
+        diff_.update(n.diff_);
+        diff_.norm_[norm_t::L0]
+                = MAX2(diff_.norm_[norm_t::L0], n.diff_.norm_[norm_t::L0]);
+    }
+
     void update(float a, float b) {
         float diff = a - b;
         a_.update(a);

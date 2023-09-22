@@ -2,17 +2,12 @@
 
 ## General information
 
-The Nvidia backend for oneDNN can be exposed to the user via the
-`dnnl::engine::kind::gpu` engine kind. Currently, for the case when user's
-system has both Intel and Nvidia GPUs, `DNNL_GPU_VENDOR=NVIDIA` flag is used in
-CMake, since the devices are clustered based on the device vendor ID and index
-pattern can not be used to distinguish between Intel GPU and Nvidia GPU.
-However, Intel is working on restructuring the engine creation, so that it would
-be possible to choose engine kind and vendor kind at runtime. Also, it is
-possible to create oneDNN engines using `sycl::device` objects corresponding to
-Nvidia GPUs. The stream in Nvidia backend for oneDNN defines an out-of-order
-SYCL queue by default. Similar to the existing oneDNN API, user can specify an
-in-order queue when creating a stream if needed.
+Support for Nvidia backend is implemented via SYCL CUDA backend. The feature is
+disabled by default. Users must enable it at build time with a CMake option
+`DNNL_GPU_VENDOR=NVIDIA`. The Nvidia GPUs can be used via oneDNN engine
+abstraction. The engine should be created using `dnnl::engine::kind::gpu` engine
+kind or the user can provide a `sycl::device` objects that corresponds to Nvidia
+GPUs.
 
 ## Pre-requisites
 * [oneAPI DPC++ Compiler with support for CUDA](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-nvidia-cuda)

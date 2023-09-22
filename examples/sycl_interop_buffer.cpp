@@ -243,6 +243,9 @@ int main(int argc, char **argv) {
     } catch (std::string &e) {
         std::cout << "Error in the example: " << e << "." << std::endl;
         exit_code = 2;
+    } catch (exception &e) {
+        std::cout << "Error in the example: " << e.what() << "." << std::endl;
+        exit_code = 3;
     }
 
     std::cout << "Example " << (exit_code ? "failed" : "passed") << " on "

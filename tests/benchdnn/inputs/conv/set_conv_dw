@@ -16,3 +16,10 @@
 --batch=shapes_dw_2d_unit-stride_padding
 --batch=shapes_dw_2d_strided_no-padding
 --batch=shapes_dw_2d_strided_padding
+# 3D
+# Non-Spatial dimension test (g,i,o)
+# ngroups = ic = oc
+--batch=shapes_dw_3d_unit-stride_no-padding
+--batch=shapes_dw_3d_unit-stride_padding
+--batch=shapes_dw_3d_strided_no-padding
+--batch=shapes_dw_3d_strided_padding

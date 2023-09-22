@@ -34,10 +34,12 @@
 #include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/x64/jit_avx512_core_amx_conv_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_comp_pad_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_trans_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
+#include "cpu/x64/jit_brgemm_transpose_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -77,75 +79,50 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         // batch sizes info for unrolled kernels
         int bs_c;
         // need custom hasher to use array as key in unordered_map
-        struct hasher {
-            size_t operator()(const std::array<int, 4> &a) const {
+        template <int asize>
+        struct ahasher {
+            size_t operator()(const std::array<int, asize> &a) const {
                 size_t seed = 0;
                 for (auto e : a)
                     seed = hash_combine(seed, e);
                 return seed;
             }
         };
-        std::unordered_map<std::array<int, 4>, int, hasher> batchsizes;
+        template <int asize>
+        using Arrmap = std::unordered_map<std::array<int, asize>, int,
+                ahasher<asize>>;
 
-        inline size_t get_brg_idx(int m, bool do_initialization, bool is_N_tail,
-                bool is_K_tail, int kd_b, int kd_e, int kh_b, int kh_e) const {
-            int bs_idx = 0;
-            if (jcp_.use_uker) {
-                const auto bs = batchsizes.find({kd_b, kd_e, kh_b, kh_e});
-                if (bs == batchsizes.end()) {
-                    assert(!"unregistered batch size");
-                    return 0;
-                }
-                bs_idx = bs->second;
-            }
-            return (((m * bs_c + bs_idx) * 2
-                            + static_cast<int>(do_initialization))
-                                   * 2
-                           + static_cast<int>(is_N_tail))
-                    * 2
-                    + static_cast<int>(is_K_tail);
-        }
+        Arrmap<4> batchsizes;
+        int brg_indices_c {0};
+        Arrmap<8> brg_indices;
 
-        int get_any_brg_idx(bool is_N_tail, bool is_K_tail) const {
-            // return first defined brgemm_descriptor for specified parameters
-            const int M_end = nstl::max(jcp_.M, jcp_.M_tail);
-            const bool N_begin = (jcp_.N == jcp_.N_tail) ? false : is_N_tail;
-            const bool N_end = (jcp_.N == jcp_.N_tail) ? true : is_N_tail;
-            const bool K_begin = (jcp_.K == jcp_.K_tail) ? false : is_K_tail;
-            const bool K_end = (jcp_.K == jcp_.K_tail) ? true : is_K_tail;
-            for_(int m = 0; m < M_end; m++)
-            for_(bool i_init : {false, true})
-            for_(bool i_N_tail : {N_begin, N_end})
-            for_(bool i_K_tail : {K_begin, K_end})
-            for (const auto &key_value_pair : batchsizes) {
-                const int kd_b = key_value_pair.first[0];
-                const int kd_e = key_value_pair.first[1];
-                const int kh_b = key_value_pair.first[2];
-                const int kh_e = key_value_pair.first[3];
-                const auto brg_idx = get_brg_idx(
-                        m, i_init, i_N_tail, i_K_tail, kd_b, kd_e, kh_b, kh_e);
-                if ((*brgemm_descriptors_)[brg_idx]) return brg_idx;
-            }
-            return 0;
-        }
+        void get_kw_range(int ow, int &kw_s, int &kw_full_s, int &kw_full_e,
+                int &kw_e) const;
+        void get_ow_range(int ow, int kw, int &ow_s, int &ow_e) const;
+
+        int get_brg_idx(int m, bool do_initialization, bool is_N_tail,
+                bool is_K_tail, int kd_b, int kd_e, int kh_b, int kh_e) const;
+
+        int get_any_brg_idx(bool is_N_tail, bool is_K_tail) const;
 
         inline int maybe_invert(int k, int K) const {
             return use_inversion ? K - 1 - k : k;
         };
 
+        // This method calculates the value of k_l
         void init_batch(int icc, const char *src_base, const char *wei_base,
                 int n_ic_blocks, int ic_block_s, int iid_b, int iih_b,
                 int iiw_b, const dim_t *const __restrict kw_top_vpads,
                 const dim_t *const __restrict kw_bottom_vpads, int kd_b,
-                int kd_e, int kh_b, int kh_e, int kw_b, int kw_e, int k_l,
+                int kd_e, int kh_b, int kh_e, int kw_b, int kw_e, int &k_l,
                 brgemm_batch_element_t *brg_batch) const;
 
         void get_A_B(int icc, const char *src_base, const char *wei_base,
                 int ic_block_s, int iid_b, int iih_b, int iiw_b, int kd_b,
                 int kh_b, const void *&ptrA, const void *&ptrB) const;
 
-        status_t add_brg_descriptor(int M, int i_N, int i_K, int i_init,
-                int kd_b, int kd_e, int kh_b, int kh_e);
+        status_t add_brg_descriptor(int M, bool is_N_tail, bool is_K_tail,
+                bool do_init, int kd_b, int kd_e, int kh_b, int kh_e);
 
         int ndims = 0;
 
@@ -218,40 +195,38 @@ private:
         return use_inversion ? K - k_inv : k;
     };
 
-    void get_kw_range(
-            int ow, int &kw_s, int &kw_full_s, int &kw_full_e, int &kw_e) const;
-    void get_ow_range(int ow, int kw, int &ow_s, int &ow_e) const;
-
     void ker_base(brgemm_thread_ctx_t &btc) const;
-    void ker_trans(brgemm_thread_ctx_t &btc, char *inp_buffer) const;
+    void ker_trans(brgemm_thread_ctx_t &btc) const;
     void ker_vpad(brgemm_thread_ctx_t &btc) const;
 
     void perform_outwork(const brgemm_thread_ctx_t &btc, char *dst_base,
             const char *bias_w, int ow, int g_oc, bool is_oc_tail, int ker_ow_s,
             int ker_ow_f, int kd_l, int kh_l, bool maybe_do_init,
-            bool do_postwork, bool do_post_comp) const;
+            bool do_postwork, size_t comp_ker_offs, bool do_post_comp) const;
 
     void call_brgemm_kernel(const brgemm_thread_ctx_t &btc,
             const brgemm_kernel_t *brg_ker, int batch_size, char *ptr_C,
             char *ptr_D, const char *bias_w, int g_oc, bool do_postops,
-            int comp_ker_offs, bool do_only_comp) const;
+            size_t comp_ker_offs, bool do_only_comp) const;
 
-    void maybe_conv_inp(int ithr, const char *__restrict src,
-            char *__restrict inp_buffer, uint8_t *__restrict inp_buffer_mask,
-            int g, int n, int icc, int odb, int ohb, int owb, int last_g,
-            int last_n, int last_icc, int last_odb, int last_ohb,
-            int last_owb) const;
+    void maybe_conv_inp(brgemm_thread_ctx_t &btc,
+            const brgemm_thread_ctx_t &last_btc,
+            const char *__restrict src) const;
+
+    void maybe_conv_weights(const exec_ctx_t &ctx,
+            const char *__restrict input_weights,
+            const char *__restrict &wei) const;
 
     status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
     void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);
-    status_t add_brg_kernel(int M, int i_N, int i_K, int i_init, int kd_b,
-            int kd_e, int kh_b, int kh_e);
+    status_t add_brg_kernel(int brg_idx);
 
     status_t cal_compensation(const char *__restrict weights,
             int32_t *src_zp_buffer, int32_t *s8s8_comp_buffer) const;
+    int get_comp_oh(const int oh) const;
     int get_comp_ker_idx(const int kd_b, const int kd_e, const int kh_b,
-            const int kh_e, const int kw_b, const int kw_e) const;
-    int get_comp_offset(const int g, const int ocb, const int ow,
+            const int kh_e, const int kw_b, const int kw_e, const int oh) const;
+    int get_comp_offset(const int g, const int ocb, const int oh, const int ow,
             const int kd_b, const int kd_e, const int kh_b, const int kh_e,
             const int kw_b, const int kw_e) const;
     inline const pd_t *pd() const {
@@ -265,6 +240,10 @@ private:
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_trans_kernel_t>
             copy_to_pbuffer_;
+    std::unique_ptr<jit_avx512_core_amx_copy_to_pbuffer_t>
+            copy_to_relo_pbuffer_;
+    std::unique_ptr<jit_brgemm_relo_copy_to_wbuffer_t> copy_to_relo_wbuffer_;
+
     std::unique_ptr<jit_generator> comp_vpad_pbuffer_;
 
     size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;
@@ -274,13 +253,14 @@ private:
     // pre - calculated values
     std::vector<dim_t> owb_kw_top_vpads;
     std::vector<dim_t> owb_kw_bottom_vpads;
-    std::vector<dim_t> kd_bs, kd_es, kh_bs, kh_es, kw_bs, kw_es;
+    std::vector<dim_t> kd_bs, kd_es, kh_bs, kh_es, kw_bs, kw_es, oh_kh_b,
+            oh_kh_e, comp_oh, comp_oh_kh_b, comp_oh_kh_e;
 
     int KD, KH, KW, EXT_KD, EXT_KH, EXT_KW, KS, KD_BLOCK, KH_BLOCK, KW_BLOCK,
             KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP, OD, OH, OW,
             SD, SH, SW, FP, TP, LP, DD, DH, DW;
     dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz;
-    dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz;
+    dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz, comp_ow_sz;
 
     bool need_compensation;
     bool is_amx;

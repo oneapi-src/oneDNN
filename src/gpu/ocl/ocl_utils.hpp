@@ -163,12 +163,12 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
 
 #define MAYBE_REPORT_ERROR(msg) \
     do { \
-        VERROR(gpu, msg); \
+        VERROR(primitive, gpu, msg); \
     } while (0)
 
 #define MAYBE_REPORT_OCL_ERROR(s) \
     do { \
-        VERROR(ocl, "errcode %d,%s,%s:%d", int(s), \
+        VERROR(primitive, ocl, "errcode %d,%s,%s:%d", int(s), \
                 gpu::ocl::convert_cl_int_to_str(s), __FILENAME__, __LINE__); \
     } while (0)
 
@@ -293,14 +293,18 @@ struct ocl_wrapper_t {
 
     ocl_wrapper_t(const ocl_wrapper_t &other) : t_(other.t_) { do_retain(); }
 
-    ocl_wrapper_t(ocl_wrapper_t &&other) noexcept : t_(std::move(other.t_)) {
-        other.t_ = nullptr;
+    ocl_wrapper_t(ocl_wrapper_t &&other) noexcept : ocl_wrapper_t() {
+        swap(*this, other);
     }
 
     ocl_wrapper_t &operator=(ocl_wrapper_t other) {
-        using std::swap;
-        swap(t_, other.t_);
+        swap(*this, other);
         return *this;
+    }
+
+    friend void swap(ocl_wrapper_t &a, ocl_wrapper_t &b) noexcept {
+        using std::swap;
+        swap(a.t_, b.t_);
     }
 
     ~ocl_wrapper_t() { do_release(); }
@@ -427,8 +431,8 @@ void dump_kernel_binary(cl_kernel ocl_kernel);
 void dump_kernel_binary(
         const engine_t *engine, const compute::kernel_t &binary_kernel);
 
-void debugdump_processed_source(
-        const std::string &source, const std::string &options);
+void debugdump_processed_source(const std::string &source,
+        const std::string &options, const std::string &ocl_options);
 
 status_t get_kernel_arg_types(cl_kernel ocl_kernel,
         std::vector<gpu::compute::scalar_type_t> *arg_types);

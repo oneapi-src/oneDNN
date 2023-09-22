@@ -123,6 +123,7 @@ struct global_scratchpad_t : public scratchpad_t {
     size_t size() const override { return size_; }
 
 private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(global_scratchpad_t);
     thread_local static memory_storage_t *mem_storage_;
     thread_local static size_t size_;
     thread_local static unsigned int reference_count_;

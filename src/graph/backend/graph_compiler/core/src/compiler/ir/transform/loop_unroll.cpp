@@ -21,6 +21,7 @@
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <util/any_map.hpp>
+#include <util/utils.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -54,6 +55,38 @@ public:
         }
         return constant_folder_t()(writable);
     }
+
+    stmt_c visit(for_loop_c v) override {
+        // check of the loop is most inner loop
+        if (!is_inner_loop_.empty()) { is_inner_loop_.back() = false; }
+        is_inner_loop_.push_back(true);
+        auto vv = ir_visitor_t::visit(std::move(v))
+                          .static_as<for_loop_c>()
+                          .remove_const();
+        // fully unroll the loop if loop is most inner
+        // and repeat time <= 8, body size <= 64, unroll size <= 300
+        auto &end = vv->iter_end_;
+        auto &step = vv->step_;
+        auto &begin = vv->iter_begin_;
+        auto is_most_inner = is_inner_loop_.back();
+        if (is_most_inner && begin.isa<constant>() && end.isa<constant>()
+                && step.isa<constant>()) {
+            auto e = end.static_as<constant>()->value_[0].u64;
+            auto s = step.static_as<constant>()->value_[0].u64;
+            auto b = begin.static_as<constant>()->value_[0].u64;
+            auto size = vv->body_.static_as<stmts>()->seq_.size();
+            auto repeat = utils::divide_and_ceil(e - b, s);
+            if (repeat <= 8 && size <= 64 && (repeat * size) <= 300) {
+                vv->attr()[stmt_attr_key::unroll_loop] = 0;
+            }
+        }
+        // end of loop
+        is_inner_loop_.pop_back();
+        return vv;
+    }
+
+private:
+    std::vector<bool> is_inner_loop_;
 };
 
 func_c loop_unroller_t::operator()(func_c f) {

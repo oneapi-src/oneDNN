@@ -42,6 +42,11 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         const int K, const int iim_block, const int iin_block,
         const int iik_block, const int sizeofdtypeA, const int sizeofdtypeC,
         bool is_int8, bool is_f32, bool is_dynamic);
+
+// The function calculate the block of dynamic conv
+int get_dyn_conv_default_block(const bool is_1x1, const int dtype_size,
+        const bool has_pad, const bool is_f32);
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

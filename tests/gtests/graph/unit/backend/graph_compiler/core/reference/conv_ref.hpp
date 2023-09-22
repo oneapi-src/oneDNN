@@ -78,7 +78,7 @@ void compute_ref_direct_fwd(const int64_t MB, const int64_t G, const int64_t OC,
         float *mul_m = nullptr, float *add_m = nullptr, bool bn_relu = false,
         const int64_t OD = 1, const int64_t ID = 1, const int64_t SD = 1,
         const int64_t PD = 0, const int64_t KD = 1, const int64_t DD = 1,
-        const int64_t DH = 1, const int64_t DW = 1) {
+        const int64_t DH = 1, const int64_t DW = 1, bool qconv = false) {
     /* help compiler optimize the code */
 
     const int64_t OCG = OC / G, ICG = IC / G;
@@ -123,7 +123,11 @@ void compute_ref_direct_fwd(const int64_t MB, const int64_t G, const int64_t OC,
 
         if (dir & FLAG_BIA) {
             const size_t bia_off = bia_off_f(G, OC, g, oc);
-            conv_res += ((float *)bia_m)[bia_off];
+            if (qconv) {
+                conv_res += ((int32_t *)bia_m)[bia_off];
+            } else {
+                conv_res += ((float *)bia_m)[bia_off];
+            }
         }
 
         if (bn_relu) {
@@ -675,57 +679,6 @@ T KCDRSckc2KCDRS(T &input, int K_num_blk, int C_num_blk, int D, int R, int S,
     });
 
     return output;
-}
-
-template <typename T>
-bool equal(T &input1, T &input2, double tol = 1e-4) {
-    if (input1.size() != input2.size()) return false;
-    for (unsigned i = 0; i < input1.size(); ++i) {
-        if (std::abs(input1[i] - input2[i]) > tol) {
-            std::cout << std::endl;
-            std::cout << i << " " << input1[i] << " " << input2[i] << std::endl;
-            return false;
-        }
-    }
-    return true;
-}
-
-template <typename T>
-void print_output(T &input1, T &input2, int size = -1) {
-    int input1size, input2size;
-    if (size == -1) {
-        input1size = input1.size();
-        input2size = input2.size();
-    } else {
-        input1size = std::min(size, (int)input1.size());
-        input2size = std::min(size, (int)input2.size());
-    }
-    std::cout << "out: ";
-    for (auto i = 0; i < input1size; ++i) {
-        std::cout << " " << input1[i];
-    }
-    std::cout << std::endl;
-    std::cout << "ref: ";
-    for (auto i = 0; i < input2size; ++i) {
-        std::cout << " " << input2[i];
-    }
-    std::cout << std::endl;
-}
-
-template <typename T>
-bool check_sum(T &input1, T &input2) {
-    float sum1 = 0, sum2 = 0;
-    SC_OMP_CLAUSE("omp parallel for reduction(+ : sum1)")
-    for (int64_t i = 0; i < (int64_t)input1.size(); i++) {
-        sum1 += input1[i];
-    }
-    SC_OMP_CLAUSE("omp parallel for reduction(+ : sum2)")
-    for (int64_t i = 0; i < (int64_t)input2.size(); i++) {
-        sum2 += input2[i];
-    }
-    if (std::abs(sum1 - sum2) < 1e-5) { return true; }
-    std::cout << sum1 << " " << sum2 << std::endl;
-    return false;
 }
 
 #endif

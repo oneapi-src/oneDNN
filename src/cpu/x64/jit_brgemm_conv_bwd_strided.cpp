@@ -712,7 +712,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
         char *inp_buffer = (jcp.exec_type == exec_trans)
                 ? inp_p_buffer + src_dsz * ithr * jcp.inp_buffer_size
                 : nullptr;
-        if (is_amx) {
+        if (is_amx && inp_buffer) {
             // Workaround: for some machines SEGFAULT possible on tile load
             // if the page was not touched before it
             for (dim_t i = 0; i < jcp.inp_buffer_size;
@@ -827,9 +827,9 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::cal_compensation(
 
     if (!jcp.req_cal_comp_pad) return;
 
-    if (jcp.src_zero_point)
+    if (jcp.src_zero_point && src_zp_buffer)
         std::memset(src_zp_buffer, 0, sizeof(int32_t) * jcp.comp_a_buffer_size);
-    if (jcp.s8s8_compensation_required)
+    if (jcp.s8s8_compensation_required && s8s8_comp_buffer)
         std::memset(s8s8_comp_buffer, 0,
                 sizeof(int32_t) * jcp.s8s8_comp_buffer_size);
 
@@ -1053,7 +1053,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::maybe_trans_inp(int ithr,
             / jcp.stride_d;
     od_end = od_start + jcp.od_block;
 
-    const auto rows_to_copy = min(jcp.oh, oh_end) - max(0, oh_start);
+    const auto rows_to_copy = min(jcp.oh, oh_end) - nstl::max(0, oh_start);
     cp.iwb = iwb;
     cp.oc = oc;
     const auto ow_buf = ow;
@@ -1061,16 +1061,16 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::maybe_trans_inp(int ithr,
 
     cp.t_pad = 0;
     cp.b_pad = 0;
-    cp.h_count = max(0, rows_to_copy);
+    cp.h_count = nstl::max(0, rows_to_copy);
 
-    const auto oh_buf = max(0, oh_start);
+    const auto oh_buf = nstl::max(0, oh_start);
 
     inp_offset_start = static_cast<dim_t>(n) * src_d_sz
-            + max(0, oh_start) * src_w_sz
-            + max(0, ow) * jcp.ngroups * jcp.oc_without_padding + g_oc;
+            + nstl::max(0, oh_start) * src_w_sz
+            + nstl::max(0, ow) * jcp.ngroups * jcp.oc_without_padding + g_oc;
     out_offset_start = oh_buf * pbuf_w_sz + ow_buf * jcp.oc_block;
 
-    for (int od = max(0, od_start); od < min(jcp.od, od_end); od++) {
+    for (int od = nstl::max(0, od_start); od < min(jcp.od, od_end); od++) {
         const auto inp_offset = inp_offset_start + od * src_h_sz;
         const auto od_buf = od;
         const auto out_offset = out_offset_start + od_buf * pbuf_h_sz;
@@ -1100,8 +1100,8 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_base(
     const int ocb = btc.occ * jcp.nb_oc_blocking;
     const int oc = ocb * jcp.oc_block;
     const int g_oc = btc.g * jcp.oc + oc;
-    const dim_t iw = btc.iwb * jcp.iw_block + btc.sw;
-    const dim_t iw_raw = btc.iwb * jcp.iw_block;
+    const dim_t iw = static_cast<dim_t>(btc.iwb) * jcp.iw_block + btc.sw;
+    const dim_t iw_raw = static_cast<dim_t>(btc.iwb) * jcp.iw_block;
     const dim_t ih = btc.ih;
     const dim_t id = btc.id;
     const bool is_oc_tail
@@ -1350,7 +1350,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_trans(
     const int g_ic = btc.g * jcp.ic + ic;
     const int ocb = btc.occ * jcp.nb_oc_blocking;
     const int oc = ocb * jcp.oc_block;
-    const dim_t iw = btc.iwb * jcp.iw_block + btc.sw;
+    const dim_t iw = static_cast<dim_t>(btc.iwb) * jcp.iw_block + btc.sw;
     const dim_t ih = btc.ih;
     const dim_t id = btc.id;
 

@@ -87,6 +87,12 @@ uint32_t get_sizeof_etype(sc_data_etype etype) {
     }
 }
 
+std::string etype_to_string(sc_data_etype edtype) {
+    std::stringstream os;
+    os << edtype;
+    return os.str();
+}
+
 uint64_t get_sizeof_type(sc_data_type_t dtype) {
     return get_sizeof_etype(dtype.type_code_) * dtype.lanes_;
 }
@@ -110,6 +116,18 @@ std::string get_error_msg(int errnum) {
     return std::string(strerror_r(errnum, &buffer[0], buffer.size()));
 #endif
 #endif
+}
+
+// select nearest even step
+int get_nearest_vector_step(const int step) {
+    assert(step > 0);
+    int nbits = 0, n = step;
+    while (n) {
+        n = n >> 1;
+        nbits++;
+    }
+    assert(nbits <= 6 || (nbits == 7 && step == 64));
+    return (1 << (nbits - 1)) == step ? step : (1 << nbits);
 }
 
 compiler_configs_t &compiler_configs_t::get() {

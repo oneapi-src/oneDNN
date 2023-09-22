@@ -53,9 +53,7 @@ status_t memory_desc_init_by_tag(memory_desc_t &memory_desc, int ndims,
     md.format_kind = format_kind;
 
     status_t status = success;
-    if (tag == format_tag::undef) {
-        status = invalid_arguments;
-    } else if (tag == format_tag::any) {
+    if (tag == format_tag::any) {
         // nop
     } else if (format_kind == format_kind::blocked) {
         status = memory_desc_wrapper::compute_blocking(md, tag);
@@ -135,6 +133,31 @@ status_t memory_desc_init_by_csr_encoding(memory_desc_t &memory_desc, int ndims,
     md.format_desc.sparse_desc.nnz = nnz;
     md.format_desc.sparse_desc.metadata_types[0] = indices_dt;
     md.format_desc.sparse_desc.metadata_types[1] = pointers_dt;
+
+    memory_desc = md;
+
+    return success;
+}
+
+status_t memory_desc_init_by_packed_encoding(memory_desc_t &memory_desc,
+        int ndims, const dims_t dims, data_type_t data_type, dim_t nnz) {
+    if (ndims == 0) {
+        memory_desc = types::zero_md();
+        return success;
+    }
+
+    bool args_ok = memory_desc_sanity_check(
+            ndims, dims, data_type, format_kind::undef);
+    if (!args_ok) return invalid_arguments;
+
+    auto md = memory_desc_t();
+    md.ndims = ndims;
+    array_copy(md.dims, dims, ndims);
+    md.data_type = data_type;
+    array_copy(md.padded_dims, dims, ndims);
+    md.format_kind = format_kind::sparse;
+    md.format_desc.sparse_desc.encoding = sparse_encoding::packed;
+    md.format_desc.sparse_desc.nnz = nnz;
 
     memory_desc = md;
 
@@ -547,6 +570,19 @@ status_t dnnl_memory_desc_create_with_csr_encoding(memory_desc_t **memory_desc,
     return success;
 }
 
+status_t dnnl_memory_desc_create_with_packed_encoding(
+        memory_desc_t **memory_desc, int ndims, const dims_t dims,
+        data_type_t data_type, dim_t nnz) {
+    if (any_null(memory_desc)) return invalid_arguments;
+
+    auto md = utils::make_unique<memory_desc_t>();
+    if (!md) return out_of_memory;
+    CHECK(memory_desc_init_by_packed_encoding(
+            *md, ndims, dims, data_type, nnz));
+    (*memory_desc) = md.release();
+    return success;
+}
+
 status_t dnnl_memory_desc_create_submemory(memory_desc_t **memory_desc,
         const memory_desc_t *parent_memory_desc, const dims_t dims,
         const dims_t offsets) {
@@ -674,7 +710,8 @@ status_t dnnl_memory_desc_query_v2(
         case query::num_handles_s32:
             if (is_sparse) {
                 switch (md->format_desc.sparse_desc.encoding) {
-                    case sparse_encoding::csr: *(int *)result = 3; break;
+                    case sparse_encoding::csr:
+                    case sparse_encoding::packed: *(int *)result = 3; break;
                     default: assert(!"unknown encoding"); *(int *)result = 0;
                 }
             } else

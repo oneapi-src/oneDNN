@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
 #define CONCAt2(a, b) a##b
@@ -89,7 +90,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
 __kernel void
 ref_softmax_fwd_generic(__global SRC_DATA_T *src, __global DATA_T *dst,
-        __global float *src_scale, __global float *dst_scale) {
+        __global float *src_scale, __global float *dst_scale POST_OP_ARGS) {
 
     const int dim[] = {
             (get_global_id(0) / GROUP_SIZE) % BLOCK_0,
@@ -103,9 +104,6 @@ ref_softmax_fwd_generic(__global SRC_DATA_T *src, __global DATA_T *dst,
     float scale = 1.0f;
 #if WITH_SRC_SCALES
     scale *= src_scale[0];
-#endif
-#if WITH_DST_SCALES
-    scale /= dst_scale[0];
 #endif
 
 #if SUB_GROUP_SIZE == 16
@@ -198,8 +196,9 @@ ref_softmax_fwd_generic(__global SRC_DATA_T *src, __global DATA_T *dst,
     for (int i = begin; i < end; ++i) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
 
+        POST_OP_DATA_T tmp;
         if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
-            dst[data_off] = REF_TO_DST(acc_zero);
+            tmp = (POST_OP_DATA_T)(acc_zero);
         } else {
             float unscaled;
 #if LOGSOFTMAX
@@ -207,12 +206,57 @@ ref_softmax_fwd_generic(__global SRC_DATA_T *src, __global DATA_T *dst,
 #else
             unscaled = d[i - begin] * denom_;
 #endif
-#if DT_S8 == 1 || DT_U8 == 1
-            dst[data_off] = REF_TO_DST(round(scale * unscaled));
-#else
-            dst[data_off] = REF_TO_DST(scale * unscaled);
-#endif
+            tmp = (POST_OP_DATA_T)(scale * unscaled);
         }
+        // post op service
+        POST_OP_DATA_T sum_src;
+#if WITH_SUM
+        sum_src = (POST_OP_DATA_T)DATA_TO_REF(dst[data_off]);
+#endif
+#if NDIMS == 3
+#if IS_CHANNEL_LAST
+        const unsigned po_d2 = (data_off / OC) % SPATIAL_DIM_0;
+#else
+        const unsigned po_d2 = data_off % SPATIAL_DIM_0;
+#endif
+        const unsigned po_d3 = 0;
+        const unsigned po_d4 = 0;
+#elif NDIMS == 4
+#if IS_CHANNEL_LAST
+        const unsigned po_d2 = data_off / OC / SPATIAL_DIM_1;
+        const unsigned po_d3 = (data_off / OC) % SPATIAL_DIM_1;
+#else
+        const unsigned po_d2 = data_off / SPATIAL_DIM_1;
+        const unsigned po_d3 = data_off % SPATIAL_DIM_1;
+#endif
+        const unsigned po_d4 = 0;
+#elif NDIMS == 5
+#if IS_CHANNEL_LAST
+        const unsigned po_d2 = (data_off / OC) / SPATIAL_DIM_1 / SPATIAL_DIM_0;
+        const unsigned po_d3 = (data_off / OC) / SPATIAL_DIM_1;
+        const unsigned po_d4 = (data_off / OC) % SPATIAL_DIM_1;
+#else
+        const unsigned po_d2 = data_off / SPATIAL_DIM_1 / SPATIAL_DIM_0;
+        const unsigned po_d3 = data_off / SPATIAL_DIM_1;
+        const unsigned po_d4 = data_off % SPATIAL_DIM_1;
+#endif
+#else
+        const unsigned po_d2 = 0;
+        const unsigned po_d3 = 0;
+        const unsigned po_d4 = 0;
+#endif
+        const int mb = data_off / SPATIAL_DIMS_SIZE / OC;
+#if IS_CHANNEL_LAST
+        const int oc = data_off % OC;
+#else
+        const int oc = data_off / SPATIAL_DIMS_SIZE;
+#endif
+        APPLY_POST_OPS_SERIAL(tmp, POST_OP_DATA_T, sum_src, POST_OP_DATA_T, mb,
+                1, oc, 1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
+#if WITH_DST_SCALES
+        tmp /= dst_scale[0];
+#endif
+        dst[data_off] = TO_DST(tmp);
     }
 }
 

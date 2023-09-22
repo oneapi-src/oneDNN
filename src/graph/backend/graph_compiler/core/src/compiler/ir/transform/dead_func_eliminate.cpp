@@ -15,6 +15,7 @@
  *******************************************************************************/
 #include "dead_func_eliminate.hpp"
 #include <memory>
+#include <string>
 #include <vector>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/pass_id.hpp>
@@ -94,7 +95,10 @@ const_ir_module_ptr dead_func_eliminate_t::operator()(const_ir_module_ptr f) {
     std::vector<bool> mask;
     mask.reserve(f->get_contents().size());
     for (auto &func : f->get_contents()) {
-        auto keep = met.count(func) != 0;
+        auto keep = met.count(func) != 0
+                || (func->attr_
+                        && func->attr_->get_or_else(
+                                attr_keys::keep_func, false));
         mask.push_back(keep);
         if (!keep) { SC_MODULE_INFO << "removing func " << func->name_; }
     }

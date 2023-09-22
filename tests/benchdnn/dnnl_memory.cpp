@@ -90,7 +90,12 @@ dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
 dnn_mem_t::dnn_mem_t(const dnn_mem_t &rhs, dnnl_data_type_t dt,
         const std::string &tag, dnnl_engine_t engine)
     : dnn_mem_t(rhs.md_, dt, tag, engine) {
-    if (active_) reorder(rhs);
+    if (active_) {
+        int status = reorder(rhs);
+        if (status != OK) {
+            BENCHDNN_PRINT(0, "%s\n", "Reorder in memory constructor failed.");
+        }
+    }
 }
 
 int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
@@ -181,8 +186,12 @@ float dnn_mem_t::get_elem(int64_t idx, int buffer_index) const {
         case dnnl_s32: elem = static_cast<int32_t *>(data)[idx]; break;
         case dnnl_f32: elem = static_cast<float *>(data)[idx]; break;
         case dnnl_f64: elem = static_cast<double *>(data)[idx]; break;
-        case dnnl_f16: elem = static_cast<float16_t *>(data)[idx]; break;
-        case dnnl_bf16: elem = static_cast<bfloat16_t *>(data)[idx]; break;
+        case dnnl_f16:
+            elem = static_cast<dnnl::impl::float16_t *>(data)[idx];
+            break;
+        case dnnl_bf16:
+            elem = static_cast<dnnl::impl::bfloat16_t *>(data)[idx];
+            break;
         default: assert(!"bad data type");
     }
     return elem;
@@ -197,8 +206,8 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
         case dnnl_s32: ((int32_t *)data)[idx] = value; break;
         case dnnl_f32: ((float *)data)[idx] = value; break;
         case dnnl_f64: ((double *)data)[idx] = value; break;
-        case dnnl_f16: ((float16_t *)data)[idx] = value; break;
-        case dnnl_bf16: ((bfloat16_t *)data)[idx] = value; break;
+        case dnnl_f16: ((dnnl::impl::float16_t *)data)[idx] = value; break;
+        case dnnl_bf16: ((dnnl::impl::bfloat16_t *)data)[idx] = value; break;
         default: assert(!"bad data type");
     }
 }
@@ -435,6 +444,15 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dnn_mem_t::init_csr_md(int ndims,
     dnnl_memory_desc_t md {};
     DNN_SAFE_V(dnnl_memory_desc_create_with_csr_encoding(
             &md, ndims, dims, data_type, nnz, indices_dt, pointers_dt));
+    return md;
+}
+
+benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dnn_mem_t::init_sparse_packed_md(
+        int ndims, const dnnl_dims_t dims, dnnl_data_type_t data_type,
+        dnnl_dim_t nnz) {
+    dnnl_memory_desc_t md {};
+    DNN_SAFE_V(dnnl_memory_desc_create_with_packed_encoding(
+            &md, ndims, dims, data_type, nnz));
     return md;
 }
 #endif
@@ -850,8 +868,8 @@ int check_zero_padding(
         case dnnl_data_type_undef:
             return OK;
 
-            CASE(dnnl_bf16, bfloat16_t);
-            CASE(dnnl_f16, float16_t);
+            CASE(dnnl_bf16, dnnl::impl::bfloat16_t);
+            CASE(dnnl_f16, dnnl::impl::float16_t);
             CASE(dnnl_f32, float);
             CASE(dnnl_f64, double);
             CASE(dnnl_s32, int32_t);

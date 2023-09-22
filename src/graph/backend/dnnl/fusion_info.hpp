@@ -197,6 +197,8 @@ public:
                     return mop->get_op()->get_kind()
                             == op_kind::dnnl_convolution;
                 });
+
+        assertm(pos != post_ops_.end(), "cannot find post dw_conv");
         return *pos;
     }
 

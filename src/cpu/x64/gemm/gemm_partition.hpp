@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -171,11 +171,13 @@ static inline std::tuple<int, int> partition_2d_minblk_with_primes(dim_t m,
 
             auto band_m_ite = band_m / p;
             auto band_n_ite = band_n / p;
+            float band_m_ite_f = static_cast<float>(band_m_ite);
+            float band_n_ite_f = static_cast<float>(band_n_ite);
 
             // Try partitioning with block size bm x bn
             auto try_partition = [&](dim_t bm, dim_t bn, bool pick_small) {
-                float ratio_m = (float)band_m_ite / bm;
-                float ratio_n = (float)band_n_ite / bn;
+                float ratio_m = band_m_ite_f / static_cast<float>(bm);
+                float ratio_n = band_n_ite_f / static_cast<float>(bn);
                 bool do_m = false, do_n = false;
 
                 if (ratio_m < 1. && ratio_n >= 1.)
@@ -184,11 +186,13 @@ static inline std::tuple<int, int> partition_2d_minblk_with_primes(dim_t m,
                     do_m = true;
                 else if (ratio_m >= 1. && ratio_n >= 1.) {
                     if (use_aspect_ratio) {
-                        float ratio_goal = (float)um / un;
-                        float try_ratio_m = (float)band_m_ite / band_n
-                                * (1. / ratio_goal);
-                        float try_ratio_n = (float)band_m / band_n_ite
-                                * (1. / ratio_goal);
+                        float ratio_goal = static_cast<float>(um)
+                                / static_cast<float>(un);
+                        float try_ratio_m = band_m_ite_f
+                                / static_cast<float>(band_n)
+                                * (1.f / ratio_goal);
+                        float try_ratio_n = static_cast<float>(band_m)
+                                / band_n_ite_f * (1.f / ratio_goal);
                         if (pick_small) {
                             // Pick either the smaller or larger ratio as appropriate.
                             ((ratio_m < ratio_n) ? do_m : do_n) = true;

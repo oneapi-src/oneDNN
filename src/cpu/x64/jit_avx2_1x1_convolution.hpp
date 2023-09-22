@@ -221,8 +221,8 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
                     cd_dw, src_md, attr_1x1, attr_dw, dw_po_index));
 
             if (jcp_1x1.isa == avx2) {
-                std::unique_ptr<dw_pd_t<avx2>> fusable_pd(
-                        new dw_pd_t<avx2>(&cd_dw, &attr_dw, nullptr));
+                auto fusable_pd = make_unique_pd<dw_pd_t<avx2>>(
+                        &cd_dw, &attr_dw, nullptr);
                 CHECK(fusable_pd->init(engine));
                 jcp_dw = &(fusable_pd->jcp_);
                 dw_conv_pd_ = std::move(fusable_pd);
@@ -231,8 +231,8 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
                 // In this case fuse with sse41 depthwise conv
                 // NOTE: Currently dw f32 kernel is similar for all ISA and can
                 // be fused regardless of ISA if inter-connecting md_ matches.
-                std::unique_ptr<dw_pd_t<sse41>> fusable_pd(
-                        new dw_pd_t<sse41>(&cd_dw, &attr_dw, nullptr));
+                auto fusable_pd = make_unique_pd<dw_pd_t<sse41>>(
+                        &cd_dw, &attr_dw, nullptr);
                 CHECK(fusable_pd->init(engine));
                 jcp_dw = &(fusable_pd->jcp_);
                 dw_conv_pd_ = std::move(fusable_pd);

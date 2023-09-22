@@ -30,12 +30,12 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_SHUFFLE(cond, msg, ...) \
-    VCONDCHECK(create, check, shuffle, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, shuffle, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_SHUFFLE_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, shuffle, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, shuffle, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 namespace {
 status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
@@ -53,10 +53,10 @@ status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
     VCHECK_SHUFFLE(group_size > 0 && group_size <= src_desc->dims[axis],
             VERBOSE_BAD_PARAM, "group_size");
 
-    VCONDCHECK(create, check, shuffle,
+    VCONDCHECK(primitive, create, check, shuffle,
             !memory_desc_wrapper(src_desc).has_runtime_dims_or_strides(),
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
-    VCONDCHECK(create, check, shuffle,
+    VCONDCHECK(primitive, create, check, shuffle,
             !memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides(),
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 

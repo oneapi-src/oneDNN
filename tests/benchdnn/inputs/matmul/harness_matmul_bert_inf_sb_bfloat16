@@ -32,12 +32,12 @@
 --reset
 --skip-impl=ref
 --dt=bf16 --stag=abcd --wtag=abdc --dtag=abcd
-#--attr-post-ops=add:bf16:per_dim_023
+#--attr-post-ops=add:bf16:13
 1x16x384x64:1x16x64x384n"BERT:MM_4*24"
 
 --reset
 --skip-impl=ref
---dt=bf16 --stag=abcd --wtag=abcd --dtag=abcd  
+--dt=bf16 --stag=abcd --wtag=abcd --dtag=abcd
 1x16x384x384:1x16x384x64n"BERT:MM_5*24"
 
 #--reset

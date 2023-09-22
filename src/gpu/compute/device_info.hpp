@@ -71,6 +71,7 @@ enum class device_ext_t : uint64_t {
     khr_int64_extended_atomics        = 1ull << 5,
     khr_local_int32_base_atomics      = 1ull << 6,
     khr_local_int32_extended_atomics  = 1ull << 7,
+    ext_float_atomics                 = 1ull << 8,
     // Intel specific Gen9+
     intel_subgroups              = 1ull << 16,
     intel_required_subgroup_size = 1ull << 17,
@@ -104,6 +105,7 @@ static inline const char *ext2cl_str(device_ext_t ext) {
         CASE(khr_int64_extended_atomics)
         CASE(khr_local_int32_base_atomics)
         CASE(khr_local_int32_extended_atomics)
+        CASE(ext_float_atomics)
 
         CASE(intel_subgroups)
         CASE(intel_required_subgroup_size)
@@ -227,7 +229,7 @@ public:
     int max_exec_size() const { return max_exec_size(gpu_arch()); }
     int max_subgroup_size(data_type_t type = data_type::undef) const;
     static int max_subgroup_size(gpu_arch_t gpu_arch);
-    size_t max_wg_size() const { return max_wg_size_; }
+    size_t max_wg_size(bool large_grf_mode) const;
     int eu_count() const { return eu_count_; }
     int hw_threads() const { return hw_threads_[0]; }
     int hw_threads(bool large_grf_mode) const {
@@ -294,7 +296,7 @@ protected:
     int32_t hw_threads_[2] = {0, 0};
     int32_t eu_count_ = 0;
     int32_t max_eus_per_wg_ = 0;
-    int32_t max_subgroup_size_ = 0;
+    int32_t max_subgroup_size_ = 16;
     int max_exec_size_ = 0;
     size_t max_wg_size_ = 0;
     size_t llc_cache_size_ = 0;

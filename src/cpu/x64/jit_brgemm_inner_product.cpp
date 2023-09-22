@@ -988,7 +988,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     if (jbgp.nthr_oc_b > 1) {
         parallel(num_threads, [&](const int ithr, const int nthr) {
             const int nthr_oc = jbgp.nthr_oc_b <= nthr ? jbgp.nthr_oc_b : 1;
-            if (nthr_oc <= 1) return;
+            const int n_oc_bufs = nstl::min(oc_chunks, nthr_oc);
+            if (n_oc_bufs <= 1) return;
 
             const int ddst_elems = jbgp.LDC * jbgp.os;
             const int reduce_chunk_size = 64;
@@ -1010,7 +1011,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                     : reinterpret_cast<float *>(c_buffer_start);
             int oc_buf_idx = !is_f32_out;
             int oc_buf_end = is_f32_out;
-            for (int oc_buf = oc_buf_idx; oc_buf < nthr_oc - oc_buf_end;
+            for (int oc_buf = oc_buf_idx; oc_buf < n_oc_bufs - oc_buf_end;
                     oc_buf++) {
                 const dim_t c_buf_offt = acc_dt_sz
                         * (oc_buf * jbgp.os * jbgp.LDC + reduce_start);
@@ -1018,7 +1019,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 
                 acc_ker_->accumulate((float *)out_buffer, (float *)c_buffer,
                         elems_to_reduce);
-                if (!is_f32_out && oc_buf == (nthr_oc - oc_buf_end) - 1) {
+                if (!is_f32_out && oc_buf == (n_oc_bufs - oc_buf_end) - 1) {
                     if (is_bf16) {
                         cvt_float_to_bfloat16((bfloat16_t *)dsrc_reduced,
                                 (const float *)out_buffer, elems_to_reduce);
@@ -1250,11 +1251,13 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
         auto p = jit_amx_ip_trans_diff_wei::ctx_t();
 
         const dim_t ext_nb_ic = div_up(jbgp.ic, ext_ic_block_);
-        dim_t icb_shift = (icb * (jbgp.ic_block / ext_ic_block_))
+        dim_t icb_shift
+                = (static_cast<dim_t>(icb) * (jbgp.ic_block / ext_ic_block_))
                 * ext_ic_block_ * ext_oc_block_;
 
-        dim_t ocb_shift = (ocb * (jbgp.oc_block / ext_oc_block_)) * ext_nb_ic
-                * ext_ic_block_ * ext_oc_block_;
+        dim_t ocb_shift
+                = (static_cast<dim_t>(ocb) * (jbgp.oc_block / ext_oc_block_))
+                * ext_nb_ic * ext_ic_block_ * ext_oc_block_;
         dim_t out_offset = ocb_shift + icb_shift;
 
         p.src = get_wei_acc_ptr(ti, ocb, icb, 0);
@@ -1290,8 +1293,8 @@ dim_t brgemm_inner_product_bwd_weights_t<isa>::get_wei_offset(
         int ocb, int icb) const {
     const auto &jbgp = pd()->jbgp_;
     if (jbgp.is_amx) {
-        const dim_t offset
-                = jbgp.kd * jbgp.kh * jbgp.kw * jbgp.ic_block * jbgp.oc_block;
+        const dim_t offset = static_cast<dim_t>(jbgp.kd) * jbgp.kh * jbgp.kw
+                * jbgp.ic_block * jbgp.oc_block;
         return (ocb * jbgp.nb_ic + icb) * offset;
     } else {
         const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
@@ -1460,10 +1463,16 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                         is_bs_tail, kernel_init, is_ic_tail, is_oc_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
 
-        if (kernel_init && (is_ic_tail || is_oc_tail))
+        if (kernel_init && (is_ic_tail || is_oc_tail)) {
+            // Due to big_ic_blk_ok optimization, the ic_block can be larger
+            // than simd_w. last_ic_chunk makes sure we do not overflow.
+            const int last_ic_chunk = nstl::min(
+                    jbgp.ic_block, rnd_up(jbgp.ic - ic, jbgp.simd_w));
             utils::array_set(get_wei_acc_ptr(ti, ocb, icb), 0,
-                    types::data_type_size(jbgp.acc_dt) * jbgp.ic_block
-                            * jbgp.oc_block);
+                    types::data_type_size(jbgp.acc_dt) * jbgp.oc_block
+                            * last_ic_chunk);
+        }
+
         if (nb_os_b > 0 && brg_kernel != nullptr) {
             brgemm_palettes_.maybe_tile_configure(
                     jbgp.is_amx, prev_ker_idx, brg_ker_idx);
@@ -1775,6 +1784,7 @@ template struct brgemm_inner_product_bwd_weights_t<avx512_core_fp16>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core_amx>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core>;
+template struct brgemm_inner_product_bwd_weights_t<avx2>;
 
 } // namespace x64
 } // namespace cpu

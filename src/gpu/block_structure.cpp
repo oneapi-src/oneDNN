@@ -56,6 +56,8 @@ std::vector<block_t> normalize_blocks(
 
 std::vector<block_t> compute_block_structure(
         const memory_desc_wrapper &mdw, bool inner_only, bool do_normalize) {
+    if (mdw.format_kind() == format_kind::undef) return {};
+
     const int ndims = mdw.ndims();
     auto &blocking = mdw.blocking_desc();
     auto *padded_dims = mdw.padded_dims();

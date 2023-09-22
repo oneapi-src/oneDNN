@@ -16,6 +16,7 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#include "gpu/ocl/atomic_reduction.hpp"
 #include "gpu/ocl/combined_reduction.hpp"
 #include "gpu/ocl/ref_reduction.hpp"
 
@@ -27,6 +28,7 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
+        INSTANCE(ocl::atomic_reduction_t)
         INSTANCE(ocl::combined_reduction_t)
         INSTANCE(ocl::ref_reduction_t)
         nullptr,

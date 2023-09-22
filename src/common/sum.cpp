@@ -34,12 +34,12 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
 #define VCHECK_SUM(cond, msg, ...) \
-    VCONDCHECK(create, check, sum, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, sum, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_SUM_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, sum, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, sum, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
@@ -57,7 +57,7 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
 
     const int ndims = src_mds[0]->ndims;
     const dims_t &dims = src_mds[0]->dims;
-    VCONDCHECK(create, check, sum,
+    VCONDCHECK(primitive, create, check, sum,
             !memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides(),
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
@@ -71,7 +71,7 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
                 SRC2STR(i));
         VCHECK_SUM(!memory_desc_wrapper(src_md).format_any(),
                 VERBOSE_UNSUPPORTED_TAG_S, SRC2STR(i));
-        VCONDCHECK(create, check, sum,
+        VCONDCHECK(primitive, create, check, sum,
                 !memory_desc_wrapper(src_md).has_runtime_dims_or_strides(),
                 status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
         for (int d = 0; d < ndims; ++d)

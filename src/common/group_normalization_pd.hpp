@@ -23,7 +23,7 @@
 #include "primitive_desc.hpp"
 
 #define VDISPATCH_GNORM(cond, msg, ...) \
-    VCONDCHECK(create, dispatch, group_normalization, (cond), \
+    VCONDCHECK(primitive, create, dispatch, group_normalization, (cond), \
             status::unimplemented, "%s," msg, this->info(engine), \
             ##__VA_ARGS__)
 
@@ -164,7 +164,8 @@ struct group_normalization_fwd_pd_t : public group_normalization_pd_t {
     const memory_desc_t *stat_md() const { return &stat_md_; }
 
     int n_inputs() const override {
-        return 1 + 2 * stats_is_src() + use_scale() + use_shift();
+        return 1 + 2 * stats_is_src() + use_scale() + use_shift()
+                + n_binary_po_inputs();
     }
     int n_outputs() const override {
         return 1 + (2 * (!stats_is_src())) * is_training();

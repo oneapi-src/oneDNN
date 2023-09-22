@@ -30,9 +30,11 @@ struct jit_brgemm_conv_comp_pad_call_s {
     const void *ptr_in;
     void *ptr_zp_out;
     void *ptr_cp_out;
+    size_t use_inversion;
     size_t kw_l;
     size_t kh_l;
     size_t kd_l;
+    size_t ker_l;
 };
 
 // Kernel is unified to work with fwd and bwd_d conv
@@ -60,6 +62,8 @@ protected:
     const size_t inp_kw_sz_;
     const size_t inp_kh_sz_;
     const size_t inp_kd_sz_;
+    const size_t out_ow_sz_;
+    const size_t out_ker_sz_;
     const int isa_max_regs;
 
     // Register decomposition
@@ -67,15 +71,19 @@ protected:
     const reg64_t reg_in = r15;
     const reg64_t reg_comp_out = r14;
     const reg64_t reg_zp_comp_out = r13;
+    const reg64_t reg_use_inversion = rax;
 
     const reg64_t reg_kd_l = r12;
     const reg64_t reg_kh_l = r11;
     const reg64_t reg_kw_l = r10;
     const reg64_t reg_icb = r9;
+    const reg64_t reg_ker_l = rdx;
 
+    const reg64_t reg_aux_comp_out = r9;
+    const reg64_t reg_aux_zp_comp_out = r10;
     const reg64_t reg_aux_in = r8;
     const reg64_t reg_aux_kh_in = rbx;
-    const reg64_t reg_aux_kw_in = rsi;
+    const reg64_t reg_aux_kd_in = rsi;
     const reg64_t reg_tmp = rax;
 
     Vmm vmm_tmp = Vmm(isa_max_regs - 1);
@@ -94,20 +102,29 @@ protected:
     const Vmm &vmm_tmp_1() const noexcept { return vmm_tmp; }
 
     Vmm accum(const int n_block, const int m, const int n) const;
-    size_t out_oc_offset(const int n) const;
+    size_t out_oc_offset(const int n, const int w) const;
     size_t inp_ic_offset(
             const int m_block, const int icb, const int m, const int n) const;
     int compute_ic_step(
             const int m_max_regs, const int m_block, const int n_block) const;
 
-    void store_accumulators(const int m_block, const int n_block);
+    void store_accumulators(const int m_block, const int n_block,
+            const int ow_b, const int ow_e);
     void zero_accumulators(const int m_block, const int n_block);
     void compute(const int ic_step, const int m_block, const int n_block,
             const int m_tail, const bool is_mb_tail);
     void icb_loop(const int icb, const int icb_tail, const int ic_step,
             const int m_block, const int mb_tail, const int n_block);
-    void khw_loop(const int icb, const int icb_tail, const int ic_step,
+    void kdh_loop(const int icb, const int icb_tail, const int ic_step,
             const int m_block, const int mb_tail, const int n_block);
+    void copy_ow(const int m_block, const int n_block, const int ow_b,
+            const int ow_e);
+    void copy_ow_body(const int n_block, const int ow_b, const int ow_e);
+    void kw_loop(const int icb, const int icb_tail, const int ic_step,
+            const int m_block, const int mb_tail, const int n_block);
+    void kw_loop_trans(const int icb, const int icb_tail, const int ic_step,
+            const int m_block, const int mb_tail, const int n_block,
+            const bool use_inversion);
     void load_params();
     void generate() override;
 };

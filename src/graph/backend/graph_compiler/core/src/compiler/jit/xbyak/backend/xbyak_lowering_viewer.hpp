@@ -206,7 +206,11 @@ private:
     // avx operations
     void handle_avx_movq(const operand &op_dst, const operand &op_src);
     void handle_avx_movss(const operand &op_dst, const operand &op_src);
+    void handle_avx_movsh(const operand &op_dst, const operand &op_src);
     void handle_avx_movps(const operand &op_dst, const operand &op_src);
+    void handle_avx_movph(const operand &op_dst, const operand &op_src);
+    void handle_avx512_kmov(const operand &op_dst, const operand &op_src,
+            const x86_64::cpu_data_type &cpu_dtype);
 
     void handle_avx_add(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
@@ -214,12 +218,17 @@ private:
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_mul(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_mulhl(const operand &op_dst, const operand &op_lhs,
+            const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_div(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_shl(const operand &op_dst, const operand &op_lhs,
             const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype,
             bool variable);
     void handle_avx_shr(const operand &op_dst, const operand &op_lhs,
+            const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype,
+            bool variable);
+    void handle_avx_sar(const operand &op_dst, const operand &op_lhs,
             const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype,
             bool variable);
     void handle_avx_max(const operand &op_dst, const operand &op_lhs,
@@ -246,21 +255,26 @@ private:
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_shuffle(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const operand &op_imm,
-            const x86_64::cpu_data_type &cpu_dtype);
+            const operand &op_bits);
     void handle_avx_permute(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const operand &op_imm,
             const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_gather(const operand &op_dst, const operand &op_ptr,
             const operand &op_idx, const operand &op_msk,
             const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_insert(const operand &op_dst, const operand &op_b,
+            const operand &op_imm, const operand &op_elem_bits);
+    void handle_avx_extract(const operand &op_dst, const operand &op_b,
+            const operand &op_imm, const operand &op_elem_bits);
     void handle_avx_permutex2var(const operand &op_dst, const operand &op_idx,
             const operand &op_src, const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_permutexvar(const operand &op_dst, const operand &op_idx,
+            const operand &op_src, const x86_64::cpu_data_type &cpu_dtype,
+            const operand &bits);
     void handle_avx_unpack_low(const operand &op_dst, const operand &op_lhs,
-            const operand &op_rhs, const operand &op_imm,
-            const x86_64::cpu_data_type &cpu_dtype);
+            const operand &op_rhs, const operand &op_imm);
     void handle_avx_unpack_high(const operand &op_dst, const operand &op_lhs,
-            const operand &op_rhs, const operand &op_imm,
-            const x86_64::cpu_data_type &cpu_dtype);
+            const operand &op_rhs, const operand &op_imm);
     void handle_avx_extract_low(const operand &op_dst, const operand &op_src,
             const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_extract_high(const operand &op_dst, const operand &op_src,
@@ -274,6 +288,8 @@ private:
     void handle_avx_mask_mov(const operand &op_dst, const operand &op_src,
             const operand &op_cond, const x86_64::cpu_data_type &cpu_dtype,
             bool zero);
+    void handle_avx_mov_mask(const operand &op_dst, const operand &op_src,
+            const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_cmov(const operand &op_dst, const operand &op_src,
             const xbyak_condition &code,
             const x86_64::cpu_data_type &cpu_dtype);

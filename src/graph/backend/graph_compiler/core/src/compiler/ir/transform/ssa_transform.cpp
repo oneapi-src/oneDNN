@@ -246,6 +246,9 @@ public:
                         if (the_scope.kind_ != ssa_scope_t::kind::for_loop) {
                             continue;
                         }
+                        if (the_scope.for_depth_ >= cur_scope.for_depth_) {
+                            break;
+                        }
                         auto phi = make_expr<ssa_phi_node>(
                                 std::vector<expr> {cur_val}, false);
                         auto new_ssa_def
@@ -257,13 +260,31 @@ public:
                                 ->for_loop_phi.emplace_back(cur_val);
                     }
                 }
-                auto phi = add_ssa_def(make_expr<ssa_phi_node>(
-                        std::vector<expr> {cur_val}, false));
+                ssa_scope_t *insert_scope = nullptr;
+                size_t scope_idx = 0;
+                for (int64_t itr = scopes_.size() - 1; itr >= 0; --itr) {
+                    if (scopes_[itr].kind_ == ssa_scope_t::kind::for_loop) {
+                        insert_scope = &scopes_[itr];
+                        scope_idx = itr;
+                        break;
+                    }
+                }
+                assert(scope_idx != 0);
+                expr phi;
+                auto phi_expr = make_expr<ssa_phi_node>(
+                        std::vector<expr> {cur_val}, false);
+                if (insert_scope == &scopes_.back()) {
+                    phi = add_ssa_def(phi_expr);
+                } else {
+                    phi = add_ssa_def_to_parent_scope(phi_expr, insert_scope)
+                                  ->var_;
+                }
                 assert(cur_val.isa<var>() || cur_val.isa<tensor>()
                         || cur_val.isa<constant>());
                 rename_temp_var_with_version(phi.checked_as<var>(), v);
                 // update the local var mapping to the phi node
-                insert_local_var(v, phi)->for_loop_phi.emplace_back(phi);
+                insert_local_var(v, phi, scope_idx)
+                        ->for_loop_phi.emplace_back(phi);
                 // remember that we need to update this phi node after for-loop
                 // exits
                 return phi;
@@ -326,15 +347,28 @@ public:
             auto var_info = get_local_var_for_update(v->var_);
             if (!var_info->current_value.defined()
                     || !var_info->current_value->ssa_data_->is_global_) {
-                var_info->current_value = rhs.remove_const();
-                assert(var_info->current_value.isa<var>()
-                        || var_info->current_value.isa<constant>());
-                if (var_info->current_value.isa<var>()) {
+                if (!v->value_.isa<var>()
+                        || get_local_var(v->value_)->defined_scope_idx
+                                == scopes_.size() - 1) {
+                    // if we are sure that RHS will be transformed to a temp
+                    // var in the current scope, we can avoid making a copy of
+                    // the var
+                    var_info->current_value = rhs.remove_const();
+                    assert(var_info->current_value.isa<var>()
+                            || var_info->current_value.isa<constant>());
                     auto cur_value = var_info->current_value.static_as<var>();
                     rename_temp_var_with_version(
                             cur_value, v->var_.static_as<var>());
+                    return stmt_c();
                 }
-                return stmt_c(); // no extra instructions needs to be inserted
+                // make a copy for RHS
+                auto ret = make_def(rhs);
+                auto newvar = ret->var_;
+                rename_temp_var_with_version(
+                        newvar.checked_as<var>(), v->var_.static_as<var>());
+                // update the local var mapping
+                var_info->current_value = newvar;
+                return copy_attr(*v, ret);
             } else {
                 // if is global var
                 return copy_attr(*v,
@@ -457,42 +491,47 @@ public:
             std::map<expr_c, std::vector<expr>, var_cmper_t> updated_vars;
             for (auto &kv : then_scope.vars_) {
                 updated_vars[kv.first].emplace_back(kv.second.current_value);
-                auto parent_var = get_local_var_nothrow(kv.first);
-                if (!parent_var) {
-                    // if it is a var defined in child scope
-                    continue;
-                }
-                // let parent for-loop to remember to reset the phi inputs
-                auto &ph = get_local_var_for_update(kv.first)->for_loop_phi;
-                ph.insert(ph.end(), kv.second.for_loop_phi.begin(),
-                        kv.second.for_loop_phi.end());
             }
             for (auto &kv : else_scope.vars_) {
                 updated_vars[kv.first].emplace_back(kv.second.current_value);
-                auto parent_var = get_local_var_nothrow(kv.first);
-                if (!parent_var) {
-                    // if it is a var defined in child scope
-                    continue;
-                }
-                auto &ph = get_local_var_for_update(kv.first)->for_loop_phi;
-                ph.insert(ph.end(), kv.second.for_loop_phi.begin(),
-                        kv.second.for_loop_phi.end());
             }
             for (auto &kv : updated_vars) {
                 if (kv.first.isa<tensor>()) {
                     // tensors/pointers are immutable, don't need phi
                     continue;
                 }
-                if (kv.second.size() == 1) {
-                    auto parent_var = get_local_var_nothrow(kv.first);
-                    if (!parent_var) {
-                        // if it is a var defined in child scope
-                        continue;
-                    }
-                    if (parent_var->current_value.defined()) {
-                        kv.second.emplace_back(parent_var->current_value);
-                    }
+                auto parent_var = get_local_var_nothrow(kv.first);
+                if (!parent_var) {
+                    // if it is a var defined in child scope
+                    continue;
                 }
+
+                if (kv.second.size() == 1) {
+                    auto current_value = parent_var->current_value;
+                    if (scopes_[parent_var->defined_scope_idx].for_depth_
+                            != scopes_.back().for_depth_) {
+                        // if parent var value is computed outside of the
+                        // current for-loop, we need to build PHI for parent
+                        // value
+                        current_value = visit(kv.first.static_as<var_c>())
+                                                .remove_const();
+                    }
+                    kv.second.emplace_back(current_value);
+                }
+                // if it is a var defined in parent scope
+                // let parent for-loop to remember to reset the phi inputs
+                auto &ph = get_local_var_for_update(kv.first)->for_loop_phi;
+                auto itr = then_scope.vars_.find(kv.first);
+                if (itr != then_scope.vars_.end()) {
+                    ph.insert(ph.end(), itr->second.for_loop_phi.begin(),
+                            itr->second.for_loop_phi.end());
+                }
+                itr = else_scope.vars_.find(kv.first);
+                if (itr != else_scope.vars_.end()) {
+                    ph.insert(ph.end(), itr->second.for_loop_phi.begin(),
+                            itr->second.for_loop_phi.end());
+                }
+
                 if (kv.second.size() == 2) {
                     // if both phi branches has the same value
                     expr same_var;
@@ -528,14 +567,23 @@ public:
                                 parent_var->current_value, nullptr)) {
                         continue;
                     }
+                    expr current_value = parent_var->current_value;
+                    if (scopes_[parent_var->defined_scope_idx].for_depth_
+                            != scopes_.back().for_depth_) {
+                        // if parent var value is computed outside of the
+                        // current for-loop, we need to build PHI for parent
+                        // value
+                        current_value = visit(kv.first.static_as<var_c>())
+                                                .remove_const();
+                    }
                     auto status = get_local_var_for_update(kv.first);
                     auto &ph = status->for_loop_phi;
                     ph.insert(ph.end(), kv.second.for_loop_phi.begin(),
                             kv.second.for_loop_phi.end());
 
                     auto new_phi = make_expr<ssa_phi_node>(
-                            std::vector<expr> {parent_var->current_value,
-                                    kv.second.current_value},
+                            std::vector<expr> {
+                                    current_value, kv.second.current_value},
                             false);
                     auto new_var = add_def_after_current_stmt(new_phi);
                     status->current_value = new_var;

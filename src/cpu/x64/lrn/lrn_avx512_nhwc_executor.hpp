@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,10 +77,10 @@ public:
 
 private:
     std::unique_ptr<jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>> ker_;
-    const int N_;
-    const int C_;
-    const int H_;
-    const int W_;
+    const dim_t N_;
+    const dim_t C_;
+    const dim_t H_;
+    const dim_t W_;
 };
 template <::dnnl::impl::data_type_t d_type, typename PD_T>
 class lrn_avx512_nhwc_executor_bwd_t : public i_lrn_executor_t {
@@ -130,10 +130,10 @@ public:
 
 private:
     std::unique_ptr<jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>> ker_;
-    const int N_;
-    const int C_;
-    const int H_;
-    const int W_;
+    const dim_t N_;
+    const dim_t C_;
+    const dim_t H_;
+    const dim_t W_;
 };
 
 } // namespace lrn

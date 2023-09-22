@@ -532,9 +532,11 @@ expr make_unpack_high(const expr_c &v_a, const expr_c &v_b, int elem_bits = 32);
  * @param v_a the first input value
  * @param v_b the second input value
  * @param v_c the third input value
+ * @param type_bits the number of bits of the data type you want to shuffle
  * @return the created node
  * */
-expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c);
+expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c,
+        const int &type_bits);
 
 /**
  * Makes an permute node
@@ -560,9 +562,68 @@ expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c);
  * @param v_a the first input value
  * @param v_b the second input value
  * @param v_c the third input value
+ * @param type_bits the number of bits of the data type you want to permute
  * @return the created node
  * */
-expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c);
+expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c,
+        const int &type_bits = 128);
+
+/**
+ * Makes an permutexvar node
+ * Using the corresponding bit in idx to Shuffle v.
+ * eg:
+
+ * _mm512_permutexvar_epi8
+ * FOR j := 0 to 63
+ *  i := j*8
+ *  id := idx[i+5:i]*8
+ *   dst[i+7:i] := a[id+7:id]
+ * ENDFOR
+
+ * @param idx the correspoding index
+ * @param v the input value
+ * @param lanes specify the lanes for permutex data. For example: if datatype
+ is u8 and specify lanes is 8, which means you want to permutex 64bit data in
+ v.
+ * @return the created node
+ * */
+expr make_permutexvar(const expr_c &idx, const expr_c &v, const int lanes = 1);
+
+/**
+ * Insert the value into dst at the location specified by imm. Note that if the
+ * data is more than 128bit, the first parameter needs to be twice the number of
+ * bits of the second parameter.
+ *
+ * ep: _mm512_inserti32x8
+ * Operation
+ * dst[511:0] := a[511:0]
+ * CASE imm8[0] OF
+ * 0: dst[255:0] := b[255:0]
+ * 1: dst[511:256] := b[255:0]
+ * ESAC
+ * dst[MAX:512] := 0
+
+ * @param v_a the first input value
+ * @param v_b the second input value
+ * @param imm the location specified value, 0 or 1
+ * @return the created node
+ * */
+expr make_insert(const expr_c &v_a, const expr_c &v_b, const int imm);
+
+/**
+ * Extract the value from input specified by imm.
+ *
+ * dst[7:0] := (a[127:0] >> (imm[3:0] * 8))[7:0]
+ * dst[31:8] := 0
+
+ * @param v_a the input value
+ * @param imm the location specified value, 0 or 1
+ * @param lanes specify the lanes for extracting data. For example: if datatype
+ is u8 and specify lanes is 8, which means you want to extract 64bit data from
+ v_a.
+ * @return the created node
+ * */
+expr make_extract(const expr_c &v_a, const int imm, const int lanes = 1);
 
 /**
  * Makes an gather node
@@ -1063,7 +1124,10 @@ stmt copy_attr(const stmt_base_t &ths, stmt &&newstmt);
 func_t copy_attr(const func_base &ths, func_t &&newfunc);
 
 stmt get_parent_node(const stmt &node);
+// If buffer is tptr, return base tensor, If buffer is tensor, return itself
 tensor get_real_tensor(const expr &buffer);
+// set base tensor of `tptr` with `tsr`
+void set_base_tensor(expr &tptr, const expr &tsr);
 void add_parent_node(const stmt &s, const stmt &ret);
 stmt get_common_parent_node(const stmt &node1, const stmt &node2);
 

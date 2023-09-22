@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1325,7 +1325,7 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
     /* Verify that vlen-sized memory access happens within the tensor's
      * size, otherwise load/store will always spill outside the memory
      * boundary.*/
-    bool safe_load_n_store = IMPLICATION(utils::one_of(isa, avx2, sse41),
+    const bool safe_load_n_store = IMPLICATION(utils::one_of(isa, avx2, sse41),
             jpp.mb * jpp.c * nstl::min(jpp.id, jpp.od)
                             * nstl::min(jpp.ih, jpp.oh)
                             * nstl::min(jpp.iw, jpp.ow)

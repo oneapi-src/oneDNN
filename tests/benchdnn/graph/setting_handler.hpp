@@ -23,6 +23,7 @@
 #include "bnorm/bnorm.hpp"
 #include "concat/concat.hpp"
 #include "conv/conv.hpp"
+#include "custom_driver.hpp"
 #include "deconv/deconv.hpp"
 #include "eltwise/eltwise.hpp"
 #include "lnorm/lnorm.hpp"
@@ -42,18 +43,11 @@ namespace graph {
             const std::unordered_set<size_t> &rewrite_lt_ids, res_t *res); \
     }
 
-#define DECLARE_SET_S8U8_FOR_PRB(driver) \
-    namespace driver { \
-    void set_s8u8_for_prb(::driver::prb_t *prb, \
-            const std::unordered_map<size_t, const std::string> \
-                    &map_off_to_dt, \
-            res_t *res); \
-    }
-
 DECLARE_GET_SETTING(binary);
 DECLARE_GET_SETTING(bnorm);
 DECLARE_GET_SETTING(concat);
 DECLARE_GET_SETTING(conv);
+DECLARE_GET_SETTING(custom);
 DECLARE_GET_SETTING(deconv);
 DECLARE_GET_SETTING(eltwise);
 DECLARE_GET_SETTING(lnorm);
@@ -64,12 +58,6 @@ DECLARE_GET_SETTING(reduction);
 DECLARE_GET_SETTING(reorder);
 DECLARE_GET_SETTING(resampling);
 DECLARE_GET_SETTING(softmax);
-
-DECLARE_SET_S8U8_FOR_PRB(binary);
-DECLARE_SET_S8U8_FOR_PRB(conv);
-DECLARE_SET_S8U8_FOR_PRB(deconv);
-DECLARE_SET_S8U8_FOR_PRB(matmul);
-DECLARE_SET_S8U8_FOR_PRB(pool);
 
 namespace eltwise {
 

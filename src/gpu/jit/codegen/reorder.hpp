@@ -286,6 +286,12 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         if (hw < ngen::HW::XeHPC)
             if (f_to_xf) step = 8;
 
+        //dpasw as well as potential bank conflict allocation permutes registers; -> so use register granularity
+        if (hw < ngen::HW::XeHPC
+                && (!src.check_bounds(0, 64, /*is_dense=*/true)
+                        || !dst.check_bounds(0, 64, /*is_dense=*/true)))
+            step = 8;
+
         if (src_df || dst_df) step = 8;
 
         // Max supported stride is 4.
@@ -492,7 +498,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (src_f && dst_hf) {
         int step = get_step();
         const auto tmp_type = dst_type;
-        const int reg_size = step * 2 * src_stride * dst_type_size;
+        const int reg_size
+                = src.byte_offset() + step * 2 * src_stride * dst_type_size;
         const int nregs = utils::div_up(reg_size, grf_size);
         auto tmp1 = lex_scope.alloc_reg_buf_data(nregs);
         auto tmp2 = lex_scope.alloc_reg_buf_data(nregs);
@@ -515,7 +522,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             const auto align_boundary = grf_size / 2;
             auto tmp_offset = 2 * dst_type_size
                     * (d.getOffset() % (align_boundary / 2));
-            auto t1 = tmp1.subregister(s.getByteOffset(), tmp_type);
+            auto t1 = tmp1.subregister(
+                    s.getByteOffset() % (nregs * grf_size), tmp_type);
             plan(mov, esize, t1(2 * src_stride), s(src_stride));
             if (dst_stride == 1
                     && (s.getByteOffset() != tmp_offset || src_stride != 1)) {

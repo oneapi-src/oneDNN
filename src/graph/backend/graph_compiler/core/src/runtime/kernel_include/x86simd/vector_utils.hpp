@@ -71,6 +71,30 @@ INLINE vec_f32x8 sc_gather(float const *a, vec_s32x8 const &b) {
     return _mm256_i32gather_ps(a, b.v, 4);
 #endif
 }
+#define sc_extract_vec_s8x8(a, imm) _mm_extract_epi8(a.v, imm);
+#define sc_extract_vec_u8x8(a, imm) _mm_extract_epi8(a.v, imm);
+#define sc_extract_vec_s8x16(a, imm) _mm_extract_epi8(a.v, imm);
+#define sc_extract_vec_u8x16(a, imm) _mm_extract_epi8(a.v, imm);
+#define sc_extract_vec_u16x8(a, imm) _mm_extract_epi16(a.v, imm);
+#define sc_extract_vec_s32x8(a, imm) _mm256_extract_epi32(a.v, imm);
+#define sc_insert_vec_s8x16(a, imm) _mm_insert_epi8(a.v, b.v, imm);
+#define sc_insert_vec_u8x16(a, imm) _mm_insert_epi8(a.v, b.v, imm);
+#define sc_insert_vec_u16x8(a, imm) _mm_insert_epi16(a.v, b.v, imm);
+#define sc_insert_vec_s32x8(a, imm) _mm256_insert_epi32(a.v, b.v, imm);
+#define sc_permutexvar_vec_u8x32_64bits(idx, a) \
+    _mm256_permute4x64_epi64(a.v, idx);
+
+#ifndef __AVX512F__
+#define sc_extract_vec_s8x32(a, imm) _mm256_extract_epi8(a.v, imm);
+#define sc_extract_vec_u8x32(a, imm) _mm256_extract_epi8(a.v, imm);
+#define sc_extract_vec_u16x16(a, imm) _mm256_extract_epi16(a.v, imm);
+#define sc_insert_vec_s8x32(a, imm) _mm256_insert_epi8(a.v, b.v, imm);
+#define sc_insert_vec_u8x32(a, imm) _mm256_insert_epi8(a.v, b.v, imm);
+#define sc_insert_vec_u16x16(a, imm) _mm256_insert_epi16(a.v, b.v, imm);
+#define sc_permutexvar_vec_u8x64_64bits(idx, a) \
+    _mm512_permutexvar_epi64(a.v, idx);
+
+#endif
 #endif
 
 #ifdef __AVX512F__
@@ -113,6 +137,9 @@ INLINE vec_u32x16::operator vec_u16x16() const {
 INLINE vec_u16x16::operator vec_u32x16() const {
     return _mm512_cvtepu16_epi32(v);
 }
+INLINE vec_u16x16::operator vec_s32x16() const {
+    return _mm512_cvtepu16_epi32(v);
+}
 INLINE vec_u32x4::operator vec_u16x4() const {
     return _mm_cvtepi32_epi16(v);
 }
@@ -125,6 +152,38 @@ INLINE vec_u32x8::operator vec_u16x8() const {
 INLINE vec_u16x8::operator vec_u32x8() const {
     return _mm256_cvtepu16_epi32(v);
 }
+#ifdef __AVX512FP16__
+INLINE vec_f16x16::operator vec_u16x16() const {
+    return _mm256_cvtph_epu16(v);
+}
+INLINE vec_f16x16::operator vec_f32x16() const {
+    return _mm512_cvtxph_ps(v);
+}
+INLINE vec_f16x8::operator vec_f32x8() const {
+    return _mm256_cvtxph_ps(v);
+}
+INLINE vec_f16x16::operator vec_u32x16() const {
+    return _mm512_cvtph_epu32(v);
+}
+INLINE vec_f16x16::operator vec_s32x16() const {
+    return _mm512_cvtph_epi32(v);
+}
+INLINE vec_f32x16::operator vec_f16x16() const {
+    return _mm512_cvtxps_ph(v);
+}
+INLINE vec_f32x8::operator vec_f16x8() const {
+    return _mm256_cvtxps_ph(v);
+}
+INLINE vec_u16x16::operator vec_f16x16() const {
+    return _mm256_cvtepu16_ph(v);
+}
+INLINE vec_s32x16::operator vec_f16x16() const {
+    return _mm512_cvtepi32_ph(v);
+}
+INLINE vec_u32x16::operator vec_f16x16() const {
+    return _mm512_cvtepu32_ph(v);
+}
+#endif
 
 INLINE vec_u16x32::vec_u16x32(vec_u16x8 const &x) {
     v = _mm512_broadcast_i32x4(x.v);
@@ -136,7 +195,32 @@ INLINE vec_u16x32::vec_u16x32(
         vec_u16x8 const &x, int mask, vec_u16x32 const &src) {
     v = _mm512_mask_broadcast_i32x4(src.v, mask, x.v);
 }
+#ifdef __AVX512DQ__
+#define sc_insert_vec_u16x32(a, b, imm) _mm512_inserti32x8(a.v, b.v, imm);
+#define sc_insert_vec_s8x64(a, b, imm) _mm512_inserti32x8(a.v, b.v, imm);
+#define sc_insert_vec_u8x64(a, b, imm) _mm512_inserti32x8(a.v, b.v, imm);
+#define sc_extract_vec_u16x32(a, imm) _mm512_extracti32x8_epi32(a.v, imm);
+#define sc_extract_vec_s8x64(a, imm) _mm512_extracti32x8_epi32(a.v, imm);
+#define sc_extract_vec_u8x64(a, imm) _mm512_extracti32x8_epi32(a.v, imm);
+#endif
+#ifdef __AVX512VL__
+#define sc_insert_vec_s8x32(a, b, imm) _mm256_inserti32x4(a.v, b.v, imm);
+#define sc_insert_vec_u8x32(a, b, imm) _mm256_inserti32x4(a.v, b.v, imm);
+#define sc_extract_vec_s8x32(a, imm) _mm256_extracti32x4_epi32(a.v, imm);
+#define sc_extract_vec_u8x32(a, imm) _mm256_extracti32x4_epi32(a.v, imm);
 
+#endif
+#ifdef __AVX512VBMI__
+INLINE vec_u8x64 sc_permutexvar(vec_u8x64 const &a, vec_u8x64 const &b) {
+    return _mm512_permutexvar_epi8(a.v, b.v);
+}
+INLINE vec_s8x64 sc_permutexvar(vec_s8x64 const &a, vec_s8x64 const &b) {
+    return _mm512_permutexvar_epi8(a.v, b.v);
+}
+INLINE vec_u16x32 sc_permutexvar(vec_u16x32 const &a, vec_u16x32 const &b) {
+    return _mm512_permutexvar_epi16(a.v, b.v);
+}
+#endif
 template <>
 INLINE vec_s32x16 sc_round_and_cast(const vec_f32x16 &x) {
     return _mm512_cvtps_epi32(x.v);

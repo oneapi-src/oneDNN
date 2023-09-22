@@ -687,6 +687,7 @@ public:
         } else {
             return v;
         }
+
         extras = &v->intrin_attrs_->get<brgemm_args::extra_args_t>(
                 intrin_attr::brgemm_extras);
         COMPILE_ASSERT(extras->is_cpu_, "Found non-CPU brgemm: " << v);

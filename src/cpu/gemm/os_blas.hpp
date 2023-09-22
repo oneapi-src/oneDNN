@@ -46,6 +46,10 @@
 #define USE_MKL_PACKED_GEMM 0
 #define USE_MKL_IGEMM 0
 
+#if defined(USE_ACCELERATE)
+#include "Accelerate.h"
+#else
+
 #if defined(USE_CBLAS)
 
 #if defined(_SX)
@@ -59,6 +63,7 @@ extern "C" {
 #endif
 
 #endif /* defined(USE_CBLAS) */
+#endif /* defined(USE_ACCELERATE) */
 #endif /* defined(USE_MKL) */
 
 #endif /* CPU_GEMM_OS_BLAS_HPP */

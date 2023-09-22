@@ -60,7 +60,7 @@ if(NOT DNNL_ENABLE_JIT_PROFILING)
     endif()
 endif()
 
-if(${DNNL_WERROR} STREQUAL "ON")
+if(DNNL_WERROR)
     # check if warn_unused_result can be used in an alias
     # only try with DNNL_WERROR enabled to avoid spurious warnings
     set(COMPILER_ALLOWS_ALIAS_ATTRIBUTES_SOURCE

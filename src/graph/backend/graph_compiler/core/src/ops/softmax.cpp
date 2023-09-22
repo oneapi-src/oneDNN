@@ -44,8 +44,23 @@ void softmax_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
 
     // input
     graph->make_input(inputs);
+    graph_tensor_ptr fexpinp = inputs[0];
+    // The attribute decides whether softmax uses numerically stable process
+    // version(do x-max(x) first) or not. Default use the numerically stable
+    // version, in some specific cases like mha inference, use the unstable
+    // version.
+    bool numeric_stable = attrs_.get_or_else("numerically_stable", true);
+    if (numeric_stable) {
+        // x - max(x)
+        auto fmax = graph->make("reduce", {inputs[0]}, {},
+                {{"need_mean", false}, {"rd_axis", axis}, {"rd_op", 2}});
+        auto fsub = graph->make(
+                "sub", {inputs[0], fmax->get_outputs()[0]}, {}, {});
+        fexpinp = fsub->get_outputs()[0];
+    }
     // exp(x)
-    auto fexp = graph->make("exp", {inputs[0]}, {}, {});
+    auto fexp = graph->make(
+            "exp", {fexpinp}, {}, {{"overflow_check", !numeric_stable}});
 
     // sum(exp(x))
     auto freduce = graph->make("reduce", {fexp->get_outputs()[0]}, {},

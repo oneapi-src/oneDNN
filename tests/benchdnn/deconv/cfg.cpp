@@ -48,28 +48,37 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
         this->set_range_max(WEI, 2);
     }
 
-    BENCHDNN_PRINT(6, "%s SRC_%s=[%d;%d] : WEI_%s=[%d;%d]\n", "[FILL_CFG]",
+    BENCHDNN_PRINT(6,
+            "[FILL_CFG] SRC_%s=[%d;%d]; WEI_%s=[%d;%d]; DST_%s=[%d;%d];\n",
             dt2str(this->get_dt(SRC)), get_range_min(SRC), get_range_max(SRC),
-            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI));
+            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI),
+            dt2str(this->get_dt(DST)), get_range_min(DST), get_range_max(DST));
 }
 
 // Adjust density based on accumulation chain.
 float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     float density = 1.f;
-    if (!has_bench_mode_bit(mode_bit_t::corr) || density_args.data_kind != SRC)
-        return density;
+    std::string safe_n_acc_str = "N/A";
 
-    const auto safe_n_acc = get_safe_n_acc();
-    assert(safe_n_acc > 0);
+    const data_kind_t allowed_non_dense_kind
+            = output_data_kind_ == DST ? SRC : DST;
 
-    // Bump density for some empiric value for int8 validation to hit saturation
-    // bound.
-    float safe_density = (float)safe_n_acc / density_args.n_acc;
-    if (is_int8()) safe_density *= 3.f;
-    density = MIN2(density, safe_density);
+    if (has_bench_mode_bit(mode_bit_t::corr)
+            && density_args.data_kind == allowed_non_dense_kind) {
+        int64_t safe_n_acc = get_safe_n_acc();
+        assert(safe_n_acc > 0);
+        safe_n_acc_str = std::to_string(safe_n_acc);
 
-    BENCHDNN_PRINT(6, "%s safe_n_acc=%d density=%f\n", "[FILL_CFG]",
-            (int)safe_n_acc, density);
+        // Bump density for some empiric value for int8 validation to hit
+        // saturation bound.
+        float safe_density = (float)safe_n_acc / density_args.n_acc;
+        if (is_int8()) safe_density *= 3.f;
+        density = MIN2(density, safe_density);
+    }
+
+    BENCHDNN_PRINT(6, "[FILL_CFG][%s] n_acc=%lld safe_n_acc=%s; density=%f\n",
+            data_kind2str(density_args.data_kind),
+            (long long)density_args.n_acc, safe_n_acc_str.c_str(), density);
 
     return density;
 }
@@ -105,7 +114,7 @@ cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
     static const cfg_t::cfg_entry_t::cfg_map_t dst_cfg_map = {
             {{dnnl_f64}, {-8, 8}},
             {{dnnl_f32}, {-8, 8}},
-            {{dnnl_bf16}, {-8, 8}},
+            {{dnnl_bf16}, {-4, 4}},
             {{dnnl_f16}, {-4, 4}},
             {{dnnl_s8}, {-4, 4}},
             {{dnnl_u8}, {0, 160}},
@@ -165,6 +174,10 @@ std::string str2cfg(const char *str) {
 
 int handle_legacy_cfg(
         std::vector<dnnl_data_type_t> &dt, const std::string &cfg) {
+    BENCHDNN_PRINT(0, "%s\n",
+            "Warning: `--cfg=CFG` option is deprecated. Use `--dt=DT[:DT:DT] "
+            "instead.");
+
     if (cfg == "f32")
         dt = {dnnl_f32};
     else if (cfg == "f32_wino")

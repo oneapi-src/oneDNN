@@ -18,7 +18,6 @@
 #ifndef GPU_AMD_SYCL_HIP_ENGINE_HPP
 #define GPU_AMD_SYCL_HIP_ENGINE_HPP
 
-#include <rocblas.h>
 #include <stdexcept>
 #include "common/stream.hpp"
 #include "common/thread_local_storage.hpp"
@@ -27,6 +26,7 @@
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_engine_base.hpp"
 #include <hip/hip_runtime.h>
+#include <rocblas/rocblas.h>
 
 namespace dnnl {
 namespace impl {

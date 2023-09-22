@@ -300,6 +300,8 @@ status_t infer_conv_output_shape(op_t *n,
     std::string fil_fmt = n->get_attr<std::string>(op_attr::weights_format);
     std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
 
+    // avoid dividing by zero at below.
+    if (g == 0) return status::invalid_shape;
     // check if src channel / groups == weight input channel
     if (in0.get_src_c(src_fmt) / g != in1.get_weight_i(fil_fmt)) {
         return status::invalid_shape;
@@ -454,6 +456,8 @@ status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
     std::string fil_fmt = n->get_attr<std::string>(op_attr::weights_format);
     std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
 
+    // avoid dividing by zero at below.
+    if (g == 0) return status::invalid_shape;
     // check if src channel / groups == weight output channel
     if (in0.get_src_c(src_fmt) / g != in1.get_weight_o(fil_fmt)) {
         return status::invalid_shape;
@@ -607,6 +611,9 @@ status_t infer_convtranspose_output_shape(op_t *n,
     const auto &pads_end = n->get_attr<dims>(op_attr::pads_end);
     std::string fil_fmt = n->get_attr<std::string>(op_attr::weights_format);
     std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
+
+    // avoid dividing by zero at below.
+    if (g == 0) return status::invalid_shape;
 
     if (!out0.is_shape_unknown()) {
         // check if dst channel / groups == weight output channel
@@ -1148,7 +1155,9 @@ status_t infer_bn_fwd_train_output_shape(op_t *n,
 
     const auto in = logical_tensor_wrapper_t(inputs[0]);
     cvec_int64 input_dims = in.vdims();
-    if (input_dims.size() < 4) return status::invalid_shape;
+    // Graph API supports 0d spatial input of batchnorm at minimum,
+    // of which the input dim size is 2
+    if (input_dims.size() < 2) return status::invalid_shape;
 
     std::string fmt = n->has_attr(op_attr::data_format)
             ? n->get_attr<std::string>(op_attr::data_format)
@@ -1263,8 +1272,6 @@ status_t infer_reduce_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    // check if output shape is already known
-    if (!out0.is_shape_unknown()) return status::success;
 
     if (n->has_attr(op_attr::axes)) {
         auto axes = n->get_attr<dims>(op_attr::axes);
@@ -1298,7 +1305,11 @@ status_t infer_reduce_output_shape(op_t *n,
             shape.erase(std::remove_if(shape.begin(), shape.end(),
                                 [](int64_t d) { return d == 0; }),
                     shape.end());
-        if (shape.empty()) shape.push_back(1);
+        if (!out0.is_shape_unknown()) {
+            if (!validate(shape, out0.vdims())) {
+                return status::invalid_shape;
+            }
+        }
 
         set_shape_and_strides(*outputs[0], shape);
 

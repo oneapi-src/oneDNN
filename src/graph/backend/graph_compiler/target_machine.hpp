@@ -32,8 +32,6 @@
                     ->machine_.cpu_flags_.fAVX512BF16 \
             || ::dnnl::impl::graph::gc::get_default_context() \
                        ->machine_.cpu_flags_.fAVX512AMXBF16) {
-#define REQUIRE_SINGLE_THREAD_BEGIN \
-    if (gc::runtime_config_t::get().get_num_threads() == 1) {
 #define REQUIRE_AMX_BEGIN \
     if (dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512AMXTILE) {
@@ -43,7 +41,6 @@
 #define REQUIRE_AVX512_END }
 #define REQUIRE_VNNI_AMXINT8_END }
 #define REQUIRE_BF16_AMXBF16_END }
-#define REQUIRE_SINGLE_THREAD_END }
 #define REQUIRE_AMX_END }
 #define REQUIRE_AMXBF16_END }
 #endif

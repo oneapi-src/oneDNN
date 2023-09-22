@@ -29,11 +29,13 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
+#include <compiler/ir/graph/dynamic_internal_info.hpp>
 #include <compiler/ir/graph/dynamic_lower_info.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/pass/graph_constant_cache.hpp>
 #include <compiler/ir/graph/trait/may_prefetch.hpp>
+#include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/pass/ir_copy_internal.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
@@ -50,6 +52,7 @@
 #include <ops/matmul_core.hpp>
 #include <ops/reshape.hpp>
 #include <runtime/config.hpp>
+#include <runtime/const_cache_wrapper.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -344,7 +347,13 @@ public:
 static void add_def_comments(const stmt &def_node, graph_tensor *t) {
     std::stringstream ss;
     t->details_.to_string(ss);
-    def_node->attr()["comments"] = std::vector<std::string> {ss.str()};
+    if (auto old_comments
+            = def_node->attr().get_or_null<std::vector<std::string>>(
+                    "comments")) {
+        old_comments->emplace_back(ss.str());
+    } else {
+        def_node->attr()["comments"] = std::vector<std::string> {ss.str()};
+    }
 }
 
 enum op_kinds : int {
@@ -365,7 +374,13 @@ struct general_lower_params_t {
     int &tensor_counter;
     int &global_tensor_counter;
     bool is_graph_dynamic;
+    // the number of lazy initialzied constant tensors in shared const cache
+    size_t num_lazy_init_shared_const_tsr_;
+    // the number of compile-time initialzied constant tensors in shared const
+    // cache
+    size_t num_inited_shared_const_tsr_;
     std::unordered_set<sc_dim> external_dyn_vars;
+    std::vector<expr> &shared_consts;
 };
 
 expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
@@ -402,7 +417,7 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
     } else {
         if (type == info_etype_t::real_tensor
                 && itr->second.tensor_.defined()) {
-            if (gp.is_graph_dynamic) {
+            if (gp.graph.is_dynamic()) {
                 itr->second.tensor_->attr().set(attr_keys::always_trans, true);
             }
             return itr->second.tensor_;
@@ -456,7 +471,7 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         if (is_arg || const_type != const_kind::not_const) {
             itr->second.placeholder_ = tsr;
         }
-        if (gp.is_graph_dynamic) {
+        if (gp.graph.is_dynamic()) {
             tsr->attr().set(attr_keys::always_trans, true);
         }
         // this tensor is an input to a standalone concat op
@@ -507,21 +522,42 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                                            ownerop->get_outputs().end(), t)
                                 - ownerop->get_outputs().begin();
                         cached = cache->at(idx);
+                        if (cached->buf_base_->is_lazy_) {
+                            gp.num_lazy_init_shared_const_tsr_++;
+                        } else {
+                            gp.num_inited_shared_const_tsr_++;
+                        }
                         std::stringstream ss;
                         ss << "shared_const_" << gp.global_tensor_counter++;
                         folded_name = ss.str();
+                        tsr.static_as<tensor>()->name_ = folded_name;
                     } else {
                         folded_name = "folded_const_"
                                 + std::to_string(gp.global_tensor_counter++);
+                        tsr = copy_attr(*tsr,
+                                gp.ret_mod->make_global_stensor(
+                                        tsr.checked_as<tensor>()->elem_dtype_,
+                                        folded_name,
+                                        tsr.checked_as<tensor>()->dims_,
+                                        tsr.checked_as<tensor>()->strides_,
+                                        linkage::private_global, &def_node));
                     }
-                    tsr = copy_attr(*tsr,
-                            gp.ret_mod->make_global_stensor(
-                                    tsr.checked_as<tensor>()->elem_dtype_,
-                                    folded_name,
-                                    tsr.checked_as<tensor>()->dims_,
-                                    tsr.checked_as<tensor>()->strides_,
-                                    linkage::private_global, &def_node));
-                    if (cached) { tsr->attr()["shared_const"] = cached; }
+                    if (cached) {
+                        tsr->attr()[attr_keys::shared_const] = cached;
+                        // const cached tensors are lowered to "local tensors"
+                        // with special marks
+                        def_node = builder::make_var_tensor_def_unattached(tsr);
+                        def_node->attr()["comments"]
+                                = std::vector<std::string> {
+                                        "The tensor is cached in global "
+                                        "constant cache"};
+                        // they are not real local tensors, don't schedule
+                        // buffers
+                        def_node->attr()[attr_keys::tsr_dont_buf_sched] = true;
+                        gp.func_body->seq_.insert(
+                                gp.func_body->seq_.begin(), def_node);
+                        gp.shared_consts.emplace_back(tsr);
+                    }
                     // global tensor does not need cached dynamic var
                     tsr->attr_->set("temp.dyn_placeholder", expr());
                     if (auto const_node
@@ -529,7 +565,7 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                         auto const_value = const_node->get_constant_values();
                         tsr.checked_as<tensor>()->init_value_ = const_value;
                     }
-                    if (gp.is_graph_dynamic) {
+                    if (gp.graph.is_dynamic()) {
                         tsr->attr().set(attr_keys::always_trans, true);
                     }
                     itr->second.tensor_ = tsr;
@@ -743,8 +779,11 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
         auto table_ptr = table_it != table_map.end()
                 ? table_it->second
                 : std::make_shared<op_dispatch_tables_t>();
-        dyn_ker_ptr = builder::make_tensor(
-                func_name, {UINT64_C(1)}, datatypes::pointer);
+        int internal_func_num = get_num_of_internal_funcs(node);
+        // kernel pointer vector the first is outer function.
+        dyn_ker_ptr = builder::make_tensor(func_name,
+                {static_cast<uint64_t>(1 + internal_func_num)},
+                datatypes::index);
         std::vector<expr> query_func_args;
         query_func_args.emplace_back(table_var);
         query_func_args.insert(
@@ -789,12 +828,10 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
                 builder::make_var_tensor_def_unattached(dyn_ker_ptr));
         target_body->seq_.emplace_back(
                 builder::make_evaluate_unattached(query_call));
-        op_dispatch_kernel[node->logical_op_id_]
-                = builder::make_indexing(dyn_ker_ptr, 0);
+        op_dispatch_kernel[node->logical_op_id_] = builder::make_reinterpret(
+                builder::make_indexing(dyn_ker_ptr, 0), datatypes::pointer);
         op_dispatch_kernel[node->logical_op_id_]->attr().set(
                 attr_keys::no_index2var, true);
-        op_dispatch_kernel[node->logical_op_id_]->attr().set(
-                attr_keys::always_trans, true);
     }
     return dyn_ker_ptr;
 }
@@ -878,33 +915,6 @@ void create_op_tensors(general_lower_params_t &gp, std::vector<expr> &ins,
             }
         }
     }
-}
-
-static void create_dispatch_funcs_by_keys(const context_ptr &ctx,
-        ir_module_ptr &ret_mod, const std::string &table_name,
-        const sc_op_ptr &node, const op_dispatch_key_base_t *key,
-        std::vector<expr> &op_dispatch_kernel, int &dyn_idx) {
-    auto cur_table = ret_mod->get_op_table_map()[table_name];
-    assert(cur_table);
-    bool should_compile_later = false;
-    if (!should_compile_later) {
-        // we compile the first format specialization in main module
-        key->set_op_dispatch_key(node, ctx);
-        auto mod = node->get_func(ctx);
-        auto func = mod->get_entry_func();
-        func->attr().set(attr_keys::always_trans, true);
-        func->name_ += "_" + std::to_string(dyn_idx);
-        func->decl_->name_ = func->name_;
-        if (!dyn_idx) {
-            // mark the first function as prototype.
-            op_dispatch_kernel[node->logical_op_id_]->attr().set(
-                    "prototype", func);
-        }
-        ret_mod->merge(*mod);
-        add_dispatch_symbol_to_kernel_table(cur_table, key,
-                op_dispatch_tables_t::op_func_info {func->name_});
-    }
-    dyn_idx++;
 }
 
 static std::string get_dispatch_callee_name(const expr &kernel) {
@@ -1122,6 +1132,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     int tensor_counter = 0;
     int global_tensor_counter = 0;
     auto ret_mod = ir_module_t::from_entry_func(ctx, func);
+    auto use_managed_tp = std::make_shared<bool>(false);
 
     expr dump_out_path;
     if (graph.attrs_.get_or_else("folded_input", false)) {
@@ -1129,9 +1140,13 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     }
     bool is_graph_dynamic = graph.is_dynamic()
             && !graph.attrs_.get_or_else("temp.force_static", false);
+    // the shared constant tensors. They need to be passed to the init_globals()
+    // func
+    std::vector<expr> shared_consts;
     general_lower_params_t gp {ret_mod, ltsr_rtsr, graph, func_body, init_body,
             tensor_counter, global_tensor_counter, is_graph_dynamic,
-            external_dyn_vars};
+            /*num_lazy_init_const_tsr*/ 0, /*num_inited_shared_const_tsr_*/ 0,
+            external_dyn_vars, shared_consts};
     // the set of dynamic var defined in func body.(dynamic reshape)
     std::unordered_set<expr> dyn_var_set;
     // record the node, index is op id.
@@ -1139,6 +1154,16 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     op_dep_matrix_t dep_mat {graph};
     std::vector<std::pair<sc_op_ptr, stmt>> op_execution_log;
     int num_ops = 0;
+    // internal function related
+    bool need_extra_internal_func_arg
+            = !mark_as_main && graph.need_dynamic_internal_query();
+    int total_num_of_internal_funcs = get_num_of_internal_funcs(graph);
+    expr extra_internal_func_arg = builder::make_tensor("extra_internal_funcs",
+            {total_num_of_internal_funcs}, datatypes::index);
+    extra_internal_func_arg->attr()["temp.comments"] = std::string(
+            "Extra tensor arg contains pointer to internal funcs");
+    int cur_internal_idx = 0;
+
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         std::vector<expr> ins, outs;
         // special kinds of Ops that we need to take care of
@@ -1218,18 +1243,39 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 expr kernel_call;
                 std::string callee_name;
                 if (is_graph_dynamic && can_op_be_dispatched(node)) {
+                    auto &base_kernel = op_dispatch_kernel[node->logical_op_id_]
+                                                .checked_as<intrin_call>()
+                                                ->args_[0];
                     assert(is_graph_dynamic);
-                    assert(op_dispatch_kernel[node->logical_op_id_].defined());
-                    callee_name = get_dispatch_callee_name(
-                            op_dispatch_kernel[node->logical_op_id_]);
+                    assert(base_kernel.defined());
+                    callee_name = get_dispatch_callee_name(base_kernel);
                     std::string table_name = callee_name + "_table";
                     int dyn_idx = 0;
+
                     node->get_dispatch_key_set()->for_each_key_process(
                             std::bind(create_dispatch_funcs_by_keys, ctx,
                                     std::ref(ret_mod), table_name, node,
                                     std::placeholders::_1,
-                                    std::ref(op_dispatch_kernel),
-                                    std::ref(dyn_idx)));
+                                    std::ref(op_dispatch_kernel
+                                                    [node->logical_op_id_]),
+                                    std::ref(dyn_idx), use_managed_tp,
+                                    /*internal*/ false));
+                    if (node->need_dynamic_internal_query()) {
+                        node->info_.internal_info_->parti_in_ltsrs_
+                                = graph::extract_detail_from_tensors(
+                                        node->get_inputs());
+                        node->info_.internal_info_->parti_out_ltsrs_
+                                = graph::extract_detail_from_tensors(
+                                        node->get_outputs());
+                        create_internal_dispatch_funcs_by_node(
+                                ctx, ret_mod, table_name, node, use_managed_tp);
+                        assert(base_kernel.isa<indexing>());
+                        auto ker_tsr = base_kernel.static_as<indexing>()->ptr_;
+                        // index 0 is the outer dispatch kernel, elements from
+                        // index 1 are the internal dispatch kernels.
+                        exprargs.emplace_back(
+                                builder::tensor_ptr(ker_tsr, {1}));
+                    }
                     kernel_call = make_expr<call_node>(
                             op_dispatch_kernel[node->logical_op_id_], exprargs);
                 } else {
@@ -1263,11 +1309,13 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     }
                     ret_mod->merge(*mod);
                     auto callee = mod->get_entry_func();
-                    if (graph.is_dynamic()) {
-                        // don't use is_graph_dynamic here.
-                        callee->attr().set(attr_keys::always_trans, true);
-                        callee->decl_->attr().set(
-                                attr_keys::always_trans, true);
+                    if (need_extra_internal_func_arg
+                            && node->need_dynamic_internal_query()) {
+                        int cur_internal_funcs
+                                = get_num_of_internal_funcs(node);
+                        exprargs.emplace_back(builder::tensor_ptr(
+                                extra_internal_func_arg, {cur_internal_idx}));
+                        cur_internal_idx += cur_internal_funcs;
                     }
                     callee_name = callee->name_;
                     kernel_call = builder::make_call(callee, exprargs);
@@ -1335,23 +1383,82 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                         << ", param.size()=" << params.size() << ".");
         params = std::move(new_param);
     }
+    if (need_extra_internal_func_arg) {
+        assert(cur_internal_idx == total_num_of_internal_funcs);
+        params.emplace_back(extra_internal_func_arg);
+    }
     if (!init_body->seq_.empty()) {
-        expr is_init_var = ret_mod->make_global_var(datatypes::boolean,
-                "is_init", linkage::private_global,
-                graph.attrs_.get_or_else("folded_input", false));
-        init_body->seq_.emplace_back(
-                builder::make_assign_unattached(is_init_var, true));
-        func_t init_func = builder::make_func(
-                "__init_const_globals", params, init_body, datatypes::void_t);
+        expr is_init_var;
+        const size_t share_const_is_init_num_stmts = 2;
+        std::vector<stmt> to_insert;
+        if (gp.num_lazy_init_shared_const_tsr_ == 0) {
+            // if there are no lazy inited buffer in shared const
+            is_init_var = ret_mod->make_global_var(datatypes::boolean,
+                    "is_init", linkage::private_global,
+                    graph.attrs_.get_or_else("folded_input", false));
+            init_body->seq_.emplace_back(
+                    builder::make_assign_unattached(is_init_var, true));
+        } else {
+            // need special __is_init local tensor for lazy inited buffer
+            auto is_init_tensor
+                    = builder::make_tensor("__is_init", {1}, datatypes::s32);
+            is_init_tensor->attr()[attr_keys::is_init_for_const_cache] = true;
+            is_init_tensor->attr()[attr_keys::no_index2var] = true;
+            to_insert.emplace_back(
+                    builder::make_var_tensor_def_unattached(is_init_tensor));
+            to_insert.back()->attr()["comments"] = std::vector<std::string> {
+                    "the element of it is auto-filled based on states of "
+                    "shared_const tensors"};
+            to_insert.back()->attr()[attr_keys::is_shared_const_init_stmt]
+                    = true;
+            to_insert.emplace_back(
+                    builder::make_assign_unattached(is_init_tensor[0], 1));
+            to_insert.back()->attr()[attr_keys::is_shared_const_init_stmt]
+                    = true;
+            is_init_var = (is_init_tensor[0] != 0);
+            assert(share_const_is_init_num_stmts == to_insert.size());
+            func_body->seq_.insert(func_body->seq_.begin(), to_insert.begin(),
+                    to_insert.end());
+        }
+        auto params_for_init = params;
+        params_for_init.insert(params_for_init.end(), shared_consts.begin(),
+                shared_consts.end());
+        func_t init_func = builder::make_func("__init_const_globals",
+                params_for_init, init_body, datatypes::void_t);
         init_func->attr()[function_attrs::private_] = true;
         ret_mod->add_func({init_func});
         stmt const_init = builder::make_if_else_unattached(
                 builder::make_logic_not(is_init_var),
                 builder::make_stmts_unattached(
-                        {builder::make_evaluate_unattached(
-                                builder::make_call(init_func, params))}),
+                        {builder::make_evaluate_unattached(builder::make_call(
+                                init_func, params_for_init))}),
                 stmts());
-        func_body->seq_.insert(func_body->seq_.begin(), const_init);
+        // insert the stmt "if (!is_init) {__init_const_globals(...);}"
+        if (gp.num_inited_shared_const_tsr_ + gp.num_lazy_init_shared_const_tsr_
+                == 0) {
+            // if there are no shared const buffers
+            func_body->seq_.insert(func_body->seq_.begin(), const_init);
+        } else {
+            // find the first position in the body after the definition of
+            // shared consts
+            for (auto itr = func_body->seq_.begin() + to_insert.size();;
+                    itr++) {
+                if (itr == func_body->seq_.end()
+                        || !(*itr).cast<define_c>()
+                                    .map([](const define_c &v) {
+                                        return v->var_.as<tensor>();
+                                    })
+                                    .filter([](const tensor &v) {
+                                        return v->attr_
+                                                && v->attr_->has_key(attr_keys::
+                                                                shared_const);
+                                    })
+                                    .has_value()) {
+                    func_body->seq_.insert(itr, const_init);
+                    break;
+                }
+            }
+        }
     }
     func->params_ = std::move(params);
     func->decl_->params_ = func->params_;
@@ -1371,14 +1478,24 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     // 24-core cascade lake, 1.6Gflop is turning point of choosing
     // managed/native thread pool
     auto &rtl_cfg = runtime_config_t::get();
-    bool use_managed_thread_pool = rtl_cfg.managed_thread_pool_
-            && (num_ops > 2 || ctx->use_amx() || graph.is_dynamic()
-                    || rtl_cfg.get_num_threads() == 1
-                    || gflop / rtl_cfg.get_num_threads() > 0.0666f);
+    bool use_managed_thread_pool = false;
+    if (rtl_cfg.managed_thread_pool_) {
+        if (num_ops > 2 || rtl_cfg.get_num_threads() == 1
+                || gflop / rtl_cfg.get_num_threads() > 0.0666f) {
+            use_managed_thread_pool = true;
+        } else if (ctx->use_amx()) {
+            use_managed_thread_pool = true;
+        }
+    }
     ret_mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
             = use_managed_thread_pool;
+    *use_managed_tp = use_managed_thread_pool;
     if (graph_name != default_graph_name) {
         ret_mod->attr_[ir_module_t::attr_key_t::NAME] = graph_name;
+    }
+    if (graph.attrs_.has_key("shared_const_bases")) {
+        ret_mod->attr_[ir_module_t::attr_key_t::SHARED_CONST_BASES]
+                = graph.attrs_["shared_const_bases"];
     }
 
     if (ctx->flags_.graph_default_private_) {

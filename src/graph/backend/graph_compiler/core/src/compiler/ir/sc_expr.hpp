@@ -1359,6 +1359,9 @@ enum class intrin_type {
     shl, // shift left
     shr, // shift right
     permutex2var,
+    permutexvar,
+    insert, // insert the value into dst at the location specified
+    extract, // extract the value from simd value
     gather, // gather elements from memory.
     read_struct, // read field from a struct
     write_struct, // write a field to a struct
@@ -1419,6 +1422,9 @@ public:
 
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
+    // check if size of brgemm args is valid
+    // return `true` if intrinsic not brgemm
+    bool check_brgemm_arg_size(size_t expected_size) const;
 };
 SC_DEFINE_EXPR_NODE_PTR(intrin_call)
 
@@ -1471,6 +1477,8 @@ SC_DEFINE_EXPR_NODE_PTR(func_addr)
 namespace x86_intrin_type {
 enum x86_intrin_type_t {
     avx_broadcast_idx = 0,
+    avx_mask_cast,
+    avx_compare,
     NUM_INTRINSICS,
 };
 } // namespace x86_intrin_type

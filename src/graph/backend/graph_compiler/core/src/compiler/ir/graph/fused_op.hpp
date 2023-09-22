@@ -103,8 +103,12 @@ public:
     void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
     ir_module_ptr get_func(context_ptr ctx) override;
     bool is_valid(const context_ptr &) override;
-    bool compare_contents(const sc_op *other) const override;
-    size_t hash_contents() const override;
+    bool compare_contents(const sc_op *other,
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter) const override;
+    size_t hash_contents(
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter) const override;
     ir_module_ptr try_get_func(const context_ptr &ctx, bool just_check,
             std::vector<sc_op_ptr> &out_failed);
 
@@ -177,6 +181,11 @@ public:
     void schedule_loops(const stmt &body);
 
     // dynamic related
+    // need internal dispatch func.
+    bool need_dynamic_internal_query_impl() const override;
+    // create internal dispatch functions with internal dispatch keys.
+    void create_internal_dispatch_funcs(const context_ptr &ctx,
+            ir_module_ptr &ret_mod, const std::shared_ptr<const bool> &use_mtp);
     // return the indices of tunable op inputs in sub graph.
     std::vector<size_t> get_internal_tunable_input_indices();
     virtual dispatch_set_ptr &get_dispatch_key_set() override;

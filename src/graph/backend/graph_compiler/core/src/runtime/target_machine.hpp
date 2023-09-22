@@ -71,11 +71,13 @@ struct cpu_flags_t : public machine_flags_t {
     bool fAVX512DQ = false; //  AVX512 Doubleword + Quadword
     bool fAVX512IFMA = false; //  AVX512 Integer 52-bit Fused Multiply-Add
     bool fAVX512VNNI = false; //  AVX512 Vector Neural Network Instructions
+    bool fAVX512AMXFP16 = false; // AVX512 Advanced Matrix Extension for f16
     bool fAVX512AMXBF16 = false; // AVX512 Advanced Matrix Extension for bf16
     bool fAVX512AMXTILE = false; // AVX512 Advanced Matrix Extension for tile
     bool fAVX512AMXINT8 = false; // AVX512 Advanced Matrix Extension for int8
     bool fAVX512VBMI = false; //  AVX512 Vector Byte Manipulation Instructions
     bool fAVX512BF16 = false; //  AVX512 BF16 Instructions
+    bool fAVX512FP16 = false; // AVX512 FP16 Instructions
 
     uint8_t family = 0;
     uint8_t model = 0;
@@ -84,6 +86,11 @@ struct cpu_flags_t : public machine_flags_t {
     static const size_t maxNumberCacheLevels = 10;
     std::array<size_t, maxNumberCacheLevels> dataCacheSize_;
     size_t dataCacheLevels_ = 0;
+
+    // guess if the CPU model is spr, emr, gnr or later
+    bool is_spr_like() const { return fAVX512AMXTILE; }
+    // guess if the CPU model is skx, clx, cpx, icx: with AVX512 and without AMX
+    bool is_skx_like() const { return !fAVX512AMXTILE && fAVX512F; }
 
 public:
     size_t getDCacheSize(size_t cache_level) const {

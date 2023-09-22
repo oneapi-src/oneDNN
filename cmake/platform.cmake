@@ -153,6 +153,14 @@ if(MSVC)
     endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR DNNL_WITH_SYCL OR
             CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+        # When using Debug build mode CMake adds '-debug' without any
+        # optimization-level option causing the warning.
+        # We disable the warning for debug build mode.
+        if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+            append(CMAKE_CCXX_FLAGS "-Wno-debug-disables-optimization")
+            # The compiler may issue the corresponding remark.
+            append(CMAKE_CCXX_FLAGS "-Rno-debug-disables-optimization")
+        endif()
         # Default fp-model in icx and dpcpp (unlike clang) may be precise or
         # fast=1 depending on the version.
         append(CMAKE_CCXX_FLAGS "/fp:precise")
@@ -160,6 +168,14 @@ if(MSVC)
         # gets very upset. Tell it that it's okay and that we love it
         # unconditionally.
         append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
+
+        # icx/icpx may issue a recommendation warning on using
+        # -qopenmp over -fopenmp to enable some additional optimizations.
+        # Suppress the warning to avoid breaking the build until we figure out
+        # whether it makes sense to enable those optimizations.
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-recommended-option")
+        # Older compiler versions may not support "-Wno-recommended-option".
+        append(CMAKE_CCXX_FLAGS "-Wno-unknown-warning-option")
     endif()
 elseif(UNIX OR MINGW)
     if(DNNL_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
@@ -183,6 +199,14 @@ elseif(UNIX OR MINGW)
         # gets very upset. Tell it that it's okay and that we love it
         # unconditionally.
         append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
+
+        # icx/icpx may issue a recommendation warning on using
+        # -qopenmp over -fopenmp to enable some additional optimizations.
+        # Suppress the warning to avoid breaking the build until we figure out
+        # whether it makes sense to enable those optimizations.
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-recommended-option")
+        # Older compiler versions may not support "-Wno-recommended-option".
+        append(CMAKE_CCXX_FLAGS "-Wno-unknown-warning-option")
     endif()
 
     platform_unix_and_mingw_common_ccxx_flags(CMAKE_CCXX_FLAGS)

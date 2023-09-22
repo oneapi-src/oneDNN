@@ -432,12 +432,13 @@ object_t ir_mutator_t::_mutate(const for_t &obj) {
     auto init = mutate(obj.init);
     auto bound = mutate(obj.bound);
     auto body = mutate(obj.body);
+    auto step = mutate(obj.step);
 
     if (var.is_same(obj.var) && init.is_same(obj.init)
             && bound.is_same(obj.bound) && body.is_same(obj.body))
         return obj;
 
-    return for_t::make(var, init, bound, body, obj.unroll);
+    return for_t::make(var, init, bound, body, step, obj.unroll);
 }
 
 void ir_visitor_t::_visit(const for_t &obj) {

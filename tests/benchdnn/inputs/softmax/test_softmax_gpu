@@ -31,6 +31,7 @@
 --ddt=s8,u8
 --dir=FWD_I
 --attr-scales=,src:common:128*,dst:common:0.125*,src:common:64*+dst:common:0.5*
+--attr-post-ops=,add:f32:per_oc,linear:0.5:-1,add:f32:common+linear:0.5:-1
 --batch=shapes_2d
 
 --reset

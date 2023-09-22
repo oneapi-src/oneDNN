@@ -166,7 +166,8 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
         }
 
         memory_desc_t want_wei_md = weights_md;
-        memory_desc_init_by_tag(want_wei_md, wei_tag);
+        CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
+
         if (jcp.signed_input && !jcp.is_depthwise) {
             want_wei_md.extra.flags = 0
                     | memory_extra_flags::compensation_conv_s8s8
@@ -375,7 +376,8 @@ void _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
     const int mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
-    const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+    const dim_t scales_count
+            = mask == 0 ? 1 : static_cast<dim_t>(jcp.oc) * jcp.ngroups;
     const dim_t count = nstl::max<dim_t>(scales_count, 16);
     scratchpad.book<float>(key_conv_adjusted_scales, count);
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,6 +97,7 @@ static constexpr_reg InstructionModifier NoSrcDepSet = AccWrEn;
 static constexpr_reg InstructionModifier Breakpoint = InstructionModifier::createDebugCtrl();
 static constexpr_reg InstructionModifier sat = InstructionModifier::createSaturate();
 static constexpr_reg InstructionModifier NoMask = InstructionModifier::createMaskCtrl(true);
+static constexpr_reg InstructionModifier ExBSO = InstructionModifier::createExBSO();
 static constexpr_reg InstructionModifier AutoSWSB = InstructionModifier::createAutoSWSB();
 static constexpr_reg InstructionModifier Serialize = InstructionModifier::createSerialized();
 static constexpr_reg InstructionModifier EOT = InstructionModifier::createEOT();

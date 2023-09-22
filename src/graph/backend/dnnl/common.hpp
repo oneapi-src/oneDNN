@@ -133,6 +133,9 @@ std::string get_format_tag_str(const dnnl::memory::desc &md);
 
 dnnl::memory::format_tag get_format_tag(const dnnl::memory::desc &md);
 
+size_t generate_constant_cache_key(
+        size_t part_id, const std::vector<dnnl::memory::desc> &const_mds);
+
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \
     do { \

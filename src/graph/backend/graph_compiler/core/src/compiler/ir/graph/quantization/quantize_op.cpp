@@ -163,7 +163,8 @@ dequantize_op_t::dequantize_op_t(const std::vector<graph_tensor_ptr> &ins,
     assert(ins.size() == 1);
     assert(ins[0]->details_.dtype_.type_code_ == sc_data_etype::U8
             || ins[0]->details_.dtype_.type_code_ == sc_data_etype::S8
-            || ins[0]->details_.dtype_.type_code_ == sc_data_etype::S32);
+            || ins[0]->details_.dtype_.type_code_ == sc_data_etype::S32
+            || ins[0]->details_.dtype_.type_code_ == sc_data_etype::F32);
     info_.inputs_ = ins;
     if (outs.empty()) {
         // fixme: correctly infer the shape for broadcast
@@ -198,11 +199,16 @@ void dequantize_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         scales_plain_dims[qinfos.channel_axis_]
                 = static_cast<int>(scales.size());
     }
+    auto ins = graph->make_input(inputs);
     auto const_scales = graph->make("constant", {}, {},
             {{"values", scales_ptr}, {"dtype", datatypes::f32},
                     {"plain_dims", scales_plain_dims},
                     {"format", sc_data_format_t()}, {"all_positive", true}});
-    auto f32_cast = graph->make("cast", inputs, {}, {{"dtype", qinfos.dtype_}});
+    auto f32_cast = ins;
+    if (inputs[0]->details_.dtype_.type_code_ != sc_data_etype::F32) {
+        f32_cast = graph->make(
+                "cast", ins->get_outputs(), {}, {{"dtype", qinfos.dtype_}});
+    }
 
     bool all_zero = std::all_of(qinfos.zero_points_.begin(),
             qinfos.zero_points_.end(), [](int x) { return x == 0; });
@@ -272,13 +278,17 @@ void dynamic_quantize_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     auto &inp = inputs[0];
     auto &scales = inputs[1];
     auto inp_op = graph->make_input(inputs);
-    auto div_scale = graph->make("div", {inp, scales}, {}, {});
+    auto bc_axis = scales->details_.get_plain_dims() != sc_dims {1}
+            ? std::vector<int> {qinfos.channel_axis_}
+            : std::vector<int> {};
+    auto div_scale
+            = graph->make("div", {inp, scales}, {}, {{"bc_axis", bc_axis}});
     if (inputs.size() == 3) {
         auto zp_cast = graph->make(
                 "cast", {inputs[2]}, {}, {{"dtype", datatypes::f32}});
         div_scale = graph->make("add",
                 {div_scale->get_outputs()[0], zp_cast->get_outputs()[0]}, {},
-                {});
+                {{"bc_axis", bc_axis}});
     }
     auto int8_cast = graph->make("cast", div_scale->get_outputs(), {},
             {{"dtype", qinfos.dtype_}, {"saturated", true}});
@@ -331,15 +341,18 @@ void dynamic_dequantize_op_t::get_graph_impl(
     auto &scales = inputs[1];
     auto inp_op = graph->make_input(inputs);
     auto f32_cast = graph->make("cast", {inp}, {}, {{"dtype", datatypes::f32}});
+    auto bc_axis = scales->details_.get_plain_dims() != sc_dims {1}
+            ? std::vector<int> {qinfos.channel_axis_}
+            : std::vector<int> {};
     if (inputs.size() == 3) {
         auto zp_cast = graph->make(
                 "cast", {inputs[2]}, {}, {{"dtype", datatypes::f32}});
         f32_cast = graph->make("sub",
                 {f32_cast->get_outputs()[0], zp_cast->get_outputs()[0]}, {},
-                {});
+                {{"bc_axis", bc_axis}});
     }
-    auto mul_scale
-            = graph->make("mul", {f32_cast->get_outputs()[0], scales}, {}, {});
+    auto mul_scale = graph->make("mul", {f32_cast->get_outputs()[0], scales},
+            {}, {{"bc_axis", bc_axis}});
     graph->make_output(mul_scale->get_outputs());
 }
 

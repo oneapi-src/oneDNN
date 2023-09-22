@@ -1562,21 +1562,8 @@ class stmt_simplifier_t : public ir_mutator_t {
 public:
     stmt_simplifier_t(const constraint_set_t &cset) : cset_(cset) {}
 
-    ~stmt_simplifier_t() override {
-        if (!cpp_compat::uncaught_exceptions()) {
-            ir_assert(continue_calls_.empty()) << "Unexpected continue calls.";
-        }
-    }
-
     object_t _mutate(const binary_op_t &obj) override {
         return simplify(obj, cset_);
-    }
-
-    object_t _mutate(const func_call_t &obj) override {
-        if (obj.func.is_equal(funcs::continue_func())) {
-            continue_calls_.push_back(obj);
-        }
-        return ir_mutator_t::_mutate(obj);
     }
 
     object_t _mutate(const if_t &obj) override {
@@ -1633,29 +1620,19 @@ public:
 
     object_t _mutate(const for_t &obj) override {
         object_t new_obj;
-        bool found_continue = false;
-        size_t ncontinue_calls = continue_calls_.size();
-        if (is_zero(obj.init) && is_one(obj.bound)) {
+        auto new_init = simplify(obj.init, cset_);
+        auto new_bound = simplify(obj.bound, cset_);
+        if (is_one(new_bound) && is_zero(new_init)) {
             auto body = substitute(obj.body, obj.var, expr_t(0));
             body = mutate(body);
-            if (continue_calls_.size() > ncontinue_calls) found_continue = true;
-            if (found_continue) {
-                new_obj = for_t::make(
-                        obj.var, obj.init, obj.bound, body, obj.unroll);
-            } else {
-                new_obj = body;
-            }
+            new_obj = body;
         } else {
             auto cset_old = cset_;
             cset_.add_constraint(obj.var >= obj.init);
             cset_.add_constraint(obj.var < obj.bound);
             new_obj = ir_mutator_t::_mutate(obj);
-            if (continue_calls_.size() > ncontinue_calls) found_continue = true;
             cset_ = cset_old;
         }
-
-        // Remove continue call.
-        if (found_continue) continue_calls_.pop_back();
 
         return new_obj;
     }
@@ -1712,7 +1689,6 @@ private:
     }
 
     constraint_set_t cset_;
-    std::vector<stmt_t> continue_calls_;
 };
 
 expr_t simplify_expr(const expr_t &_e, const constraint_set_t &cset) {

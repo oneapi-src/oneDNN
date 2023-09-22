@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, bool is_nspc,
             else if (nthr >= 8 && C_blks <= 32)
                 C_nthr = 8;
             else {
-                C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
+                C_nthr = static_cast<int>(math::gcd((dim_t)nthr, C_blks));
                 // Unroll by channels in JIT kernel
                 if ((C_nthr == C_blks) || (C_nthr == nthr)) C_nthr = 1;
             }
@@ -163,8 +163,8 @@ bool is_spatial_thr(const batch_normalization_pd_t *bdesc, bool is_nspc,
             int num_tensors = bdesc->is_fwd() ? 1 : 2;
             size_t working_set_size
                     = (N * SP * simd_w * data_size) * num_tensors;
-            cache_balance(
-                    working_set_size, C_blks, N, nthr, C_blks_per_iter, iters);
+            cache_balance(working_set_size, C_blks, N, static_cast<int>(nthr),
+                    C_blks_per_iter, iters);
         }
 
         // Spatial threading decision made in this function shall be consistent

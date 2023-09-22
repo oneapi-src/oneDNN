@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,19 +77,19 @@ private:
     }
 
     inline dim_t filter_h_to_input(int ki) {
-        return ki * (jcp.dilate_h + 1) * jcp.iw;
+        return static_cast<dim_t>(ki) * (jcp.dilate_h + 1) * jcp.iw;
     }
 
     inline dim_t get_input_offset(int i_ic, int i_iw) {
         dim_t offset;
         if (utils::one_of(jcp.src_tag, format_tag::ncw, format_tag::nchw,
                     format_tag::ncdhw)) {
-            offset = i_ic * jcp.ih * jcp.iw + i_iw;
+            offset = static_cast<dim_t>(i_ic) * jcp.ih * jcp.iw + i_iw;
         } else if (utils::one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc,
                            format_tag::ndhwc)) {
-            offset = i_iw * jcp.ic * jcp.ngroups + i_ic;
+            offset = static_cast<dim_t>(i_iw) * jcp.ic * jcp.ngroups + i_ic;
         } else {
-            offset = i_iw * jcp.ic_block + i_ic;
+            offset = static_cast<dim_t>(i_iw) * jcp.ic_block + i_ic;
         }
         return sizeof(float) * offset;
     }
@@ -98,9 +98,11 @@ private:
         dim_t offset;
         if (utils::one_of(jcp.dst_tag, format_tag::nwc, format_tag::nhwc,
                     format_tag::ndhwc)) {
-            offset = i_ow * jcp.oc * jcp.ngroups + i_oc_block * jcp.oc_block;
+            offset = static_cast<dim_t>(i_ow) * jcp.oc * jcp.ngroups
+                    + i_oc_block * jcp.oc_block;
         } else {
-            offset = (i_oc_block * jcp.oh * jcp.ow + i_ow) * jcp.oc_block;
+            offset = (static_cast<dim_t>(i_oc_block) * jcp.oh * jcp.ow + i_ow)
+                    * jcp.oc_block;
         }
         return sizeof(float) * offset;
     }

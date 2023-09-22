@@ -35,15 +35,15 @@ jit_avx512_core_brgemm_conv_trans_kernel_t::
                 const jit_brgemm_conv_conf_t &ajcp, const char *name)
     : jit_generator(name), jcp(ajcp) {
     inp_dsz = jcp.src_dsz;
-    ic_block_sz = inp_dsz * jcp.ic_block;
+    ic_block_sz = inp_dsz * jcp.inp_ic_block;
     dst_w_block = dst_w(jcp, jcp.ow_block);
     dst_stride = jcp.copy_block_only ? dst_w_block : jcp.iwp;
     dst_w_offset = jcp.kh_sets * jcp.kw_sets * ic_block_sz;
     dst_h_offset = dst_stride * dst_w_offset;
     iw_size = inp_dsz * jcp.ngroups * jcp.ic_without_padding;
     VL = cpu_isa_traits<avx512_core>::vlen;
-    n_vec = jcp.ic_block / jcp.simd_w;
-    n_tail_vec = (jcp.ic_without_padding % jcp.ic_block) / jcp.simd_w;
+    n_vec = jcp.inp_ic_block / jcp.simd_w;
+    n_tail_vec = (jcp.ic_without_padding % jcp.inp_ic_block) / jcp.simd_w;
 }
 
 int get_inp_size(int dst_size, int ext_k, int stride, int dilate) {
@@ -105,7 +105,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::store(
 
 void jit_avx512_core_brgemm_conv_trans_kernel_t::zero_ic_block(
         bool is_ic_tail, dim_t dst_off) {
-    bool has_block_tail = (jcp.ic_block % jcp.simd_w);
+    bool has_block_tail = (jcp.inp_ic_block % jcp.simd_w);
 
     // TODO: use Xmm or Ymm moves for better small ic efficiency
     auto nvec = is_ic_tail ? n_tail_vec : n_vec;
@@ -123,7 +123,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::zero_ic_block(
 
 void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ic_block(bool is_ic_tail,
         dim_t inp_off = 0, dim_t dst_off = 0, bool do_load = true) {
-    bool has_block_tail = (jcp.ic_block % jcp.simd_w);
+    bool has_block_tail = (jcp.inp_ic_block % jcp.simd_w);
 
     // TODO: use Xmm or Ymm moves for better small ic efficiency
     auto nvec = is_ic_tail ? n_tail_vec : n_vec;
@@ -161,15 +161,16 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
 
     vpxord(zmm_zero, zmm_zero, zmm_zero);
 
-    if (jcp.ic_without_padding % jcp.ic_block) {
-        int tail_size = (jcp.ic_without_padding % jcp.ic_block) % jcp.simd_w;
+    if (jcp.ic_without_padding % jcp.inp_ic_block) {
+        int tail_size
+                = (jcp.ic_without_padding % jcp.inp_ic_block) % jcp.simd_w;
         uint64_t mask = (UINT64_C(1) << tail_size) - 1;
         mov(reg_tmp, mask);
         kmovq(ktail_mask, reg_tmp);
     }
 
-    if (jcp.ic_block % jcp.simd_w) {
-        int block_tail_size = jcp.ic_block % jcp.simd_w;
+    if (jcp.inp_ic_block % jcp.simd_w) {
+        int block_tail_size = jcp.inp_ic_block % jcp.simd_w;
         uint64_t mask = (UINT64_C(1) << block_tail_size) - 1;
         mov(reg_tmp, mask);
         kmovq(kblock_tail_mask, reg_tmp);
@@ -247,7 +248,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
 
     for (int icb = 0; icb < jcp.nb_ic_blocking; icb++) {
         Xbyak::Label ic_tail_label, icb_continue_label;
-        add(reg_ic, jcp.ic_block);
+        add(reg_ic, jcp.inp_ic_block);
         cmp(reg_ic, jcp.ic);
         jg(ic_tail_label, T_NEAR);
 

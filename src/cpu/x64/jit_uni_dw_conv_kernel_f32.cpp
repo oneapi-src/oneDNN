@@ -1388,9 +1388,10 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_step_unroll(
             Vmm vmm_bias = get_bias_reg(ch);
             size_t off_output = static_cast<size_t>(
                     (i * ch_step + ch * simd_w_) * sizeof(float));
-            bool masked_store = is_last_ch && (ch == nb_ch_blocking - 1);
-            bool use_extra_vmm = isa == avx2 && masked_store;
+            const bool masked_store = is_last_ch && (ch == nb_ch_blocking - 1);
+            const bool use_extra_vmm = isa == avx2 && masked_store;
             Vmm vmm_out = use_extra_vmm ? get_output_reg(1) : vmm_bias;
+            MAYBE_UNUSED(use_extra_vmm); // workaround for compiler error (bug?)
             addps_xmm(vmm_bias, vmm_out, vmmword[reg_tmp_output + off_output],
                     masked_store);
         }
@@ -1992,7 +1993,7 @@ void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
     mov(reg_output_baddr, ptr[this->param1 + GET_OFF(output)]);
     mov(reg_filter_baddr, ptr[this->param1 + GET_OFF(filter)]);
 
-    bool set_kmask = isa > avx2 && jcp.ch_tail > 0
+    const bool set_kmask = isa > avx2 && jcp.ch_tail > 0
             && (jcp.with_bias || is_layout_nxc());
     if (set_kmask) {
         // Prepare masks for tail

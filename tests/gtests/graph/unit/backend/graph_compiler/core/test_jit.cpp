@@ -18,13 +18,17 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <stdlib.h>
+#include "context.hpp"
+#include "util/fp16.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #if SC_BUILTIN_JIT_ENABLED
+#include <compiler/jit/xbyak/ir/util/invariant_int.hpp>
 #include <compiler/jit/xbyak/xbyak_jit.hpp>
 #endif
 #if SC_CFAKE_JIT_ENABLED
@@ -40,6 +44,7 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <runtime/config.hpp>
+#include <util/uint128.hpp>
 
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
@@ -443,93 +448,256 @@ TEST(GCCore_CPU_jit_cpp, TestJITVectorShift) {
 }
 
 TEST(GCCore_CPU_jit_cpp, TestJITVectorShuffle) {
-    builder::ir_builder_t builder;
-    _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {1024}),
-            _arg_("B", datatypes::f32, {1024}),
-            _arg_("C", datatypes::f32, {1024}),
-            _arg_("D", datatypes::f32, {1024}),
-            _arg_("E", datatypes::f32, {1024}),
-            _arg_("F", datatypes::f32, {1024})) {
-        _bind_(A, B, C, D, E, F);
-        _for_(i, 0, 1024, 8) {
-            C[span_t({i}, 8)] = builder::make_unpack_high(
-                    A[span_t({i}, 8)], B[span_t({i}, 8)]);
-            D[span_t({i}, 8)] = builder::make_unpack_low(
-                    A[span_t({i}, 8)], B[span_t({i}, 8)]);
-            E[span_t({i}, 8)] = builder::make_shuffle(
-                    A[span_t({i}, 8)], B[span_t({i}, 8)], 68);
-            F[span_t({i}, 8)] = builder::make_permute(
-                    A[span_t({i}, 8)], B[span_t({i}, 8)], 32);
-        }
-    }
-
-    auto engines = get_engines();
-    for (auto &engine : engines) {
-        SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine));
-        auto fptr = engine->get_entry_func(
-                ir_module_t::from_entry_func(get_default_context(), aaa));
-        ASSERT_TRUE(fptr);
-        auto getA = []() {
-            std::vector<float> A(1024);
-            for (int i = 0; i < (int)A.size(); i++) {
-                A[i] = 3 * i;
+    REQUIRE_AVX512()
+    auto test_float_func = []() {
+        builder::ir_builder_t builder;
+        const int type_bits
+                = utils::get_sizeof_type(sc_data_type_t::f32(4)) * 8;
+        const int elem_bits = utils::get_sizeof_type(datatypes::f32) * 8;
+        _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {1024}),
+                _arg_("B", datatypes::f32, {1024}),
+                _arg_("C", datatypes::f32, {1024}),
+                _arg_("D", datatypes::f32, {1024}),
+                _arg_("E", datatypes::f32, {1024}),
+                _arg_("F", datatypes::f32, {1024}),
+                _arg_("H", datatypes::f32, {1024}),
+                _arg_("G", datatypes::f32, {1024})) {
+            _bind_(A, B, C, D, E, F, H, G);
+            _for_(i, 0, 1024, 8) {
+                C[span_t({i}, 8)] = builder::make_unpack_high(
+                        A[span_t({i}, 8)], B[span_t({i}, 8)]);
+                D[span_t({i}, 8)] = builder::make_unpack_low(
+                        A[span_t({i}, 8)], B[span_t({i}, 8)]);
+                E[span_t({i}, 8)] = builder::make_shuffle(
+                        A[span_t({i}, 8)], B[span_t({i}, 8)], 68, elem_bits);
+                F[span_t({i}, 8)] = builder::make_permute(
+                        A[span_t({i}, 8)], B[span_t({i}, 8)], 32, type_bits);
+                H[span_t({i}, 8)] = builder::make_permute(
+                        A[span_t({i}, 8)], B[span_t({i}, 8)], 0x31, type_bits);
+                G[span_t({i}, 8)] = builder::make_shuffle(
+                        A[span_t({i}, 8)], B[span_t({i}, 8)], 0b11, type_bits);
             }
-            return A;
-        };
-        auto getB = []() {
-            std::vector<float> A(1024);
-            for (int i = 0; i < (int)A.size(); i++) {
-                A[i] = 2 * i;
-            }
-            return A;
-        };
-        std::vector<float> C(1024);
-        std::vector<float> D(1024);
-        std::vector<float> E(1024);
-        std::vector<float> F(1024);
-        auto A = getA();
-        auto B = getB();
-        fptr->call<void>(
-                A.data(), B.data(), C.data(), D.data(), E.data(), F.data());
-        for (int i = 0; i < 1024; i += 8) {
-            EXPECT_NEAR(C[i + 0], A[i + 2], 1e-5);
-            EXPECT_NEAR(C[i + 1], B[i + 2], 1e-5);
-            EXPECT_NEAR(C[i + 2], A[i + 3], 1e-5);
-            EXPECT_NEAR(C[i + 3], B[i + 3], 1e-5);
-            EXPECT_NEAR(C[i + 4], A[i + 6], 1e-5);
-            EXPECT_NEAR(C[i + 5], B[i + 6], 1e-5);
-            EXPECT_NEAR(C[i + 6], A[i + 7], 1e-5);
-            EXPECT_NEAR(C[i + 7], B[i + 7], 1e-5);
-
-            EXPECT_NEAR(D[i + 0], A[i + 0], 1e-5);
-            EXPECT_NEAR(D[i + 1], B[i + 0], 1e-5);
-            EXPECT_NEAR(D[i + 2], A[i + 1], 1e-5);
-            EXPECT_NEAR(D[i + 3], B[i + 1], 1e-5);
-            EXPECT_NEAR(D[i + 4], A[i + 4], 1e-5);
-            EXPECT_NEAR(D[i + 5], B[i + 4], 1e-5);
-            EXPECT_NEAR(D[i + 6], A[i + 5], 1e-5);
-            EXPECT_NEAR(D[i + 7], B[i + 5], 1e-5);
-
-            // 0x01000100
-            EXPECT_NEAR(E[i + 0], A[i + 0], 1e-5);
-            EXPECT_NEAR(E[i + 1], A[i + 1], 1e-5);
-            EXPECT_NEAR(E[i + 2], B[i + 0], 1e-5);
-            EXPECT_NEAR(E[i + 3], B[i + 1], 1e-5);
-            EXPECT_NEAR(E[i + 4], A[i + 4], 1e-5);
-            EXPECT_NEAR(E[i + 5], A[i + 5], 1e-5);
-            EXPECT_NEAR(E[i + 6], B[i + 4], 1e-5);
-            EXPECT_NEAR(E[i + 7], B[i + 5], 1e-5);
-            // 0x00100000
-            EXPECT_NEAR(F[i + 0], A[i + 0], 1e-5);
-            EXPECT_NEAR(F[i + 1], A[i + 1], 1e-5);
-            EXPECT_NEAR(F[i + 2], A[i + 2], 1e-5);
-            EXPECT_NEAR(F[i + 3], A[i + 3], 1e-5);
-            EXPECT_NEAR(F[i + 4], B[i + 0], 1e-5);
-            EXPECT_NEAR(F[i + 5], B[i + 1], 1e-5);
-            EXPECT_NEAR(F[i + 6], B[i + 2], 1e-5);
-            EXPECT_NEAR(F[i + 7], B[i + 3], 1e-5);
         }
-    }
+
+        auto engines = get_engines();
+        for (auto &engine : engines) {
+            SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine));
+            auto fptr = engine->get_entry_func(
+                    ir_module_t::from_entry_func(get_default_context(), aaa));
+            ASSERT_TRUE(fptr);
+            auto getA = []() {
+                std::vector<float> A(1024);
+                for (int i = 0; i < (int)A.size(); i++) {
+                    A[i] = 3 * i;
+                }
+                return A;
+            };
+            auto getB = []() {
+                std::vector<float> A(1024);
+                for (int i = 0; i < (int)A.size(); i++) {
+                    A[i] = 2 * i;
+                }
+                return A;
+            };
+            std::vector<float> C(1024);
+            std::vector<float> D(1024);
+            std::vector<float> E(1024);
+            std::vector<float> F(1024);
+            std::vector<float> H(1024);
+            std::vector<float> G(1024);
+
+            auto A = getA();
+            auto B = getB();
+            fptr->call<void>(A.data(), B.data(), C.data(), D.data(), E.data(),
+                    F.data(), H.data(), G.data());
+            for (int i = 0; i < 1024; i += 8) {
+                EXPECT_NEAR(C[i + 0], A[i + 2], 1e-5);
+                EXPECT_NEAR(C[i + 1], B[i + 2], 1e-5);
+                EXPECT_NEAR(C[i + 2], A[i + 3], 1e-5);
+                EXPECT_NEAR(C[i + 3], B[i + 3], 1e-5);
+                EXPECT_NEAR(C[i + 4], A[i + 6], 1e-5);
+                EXPECT_NEAR(C[i + 5], B[i + 6], 1e-5);
+                EXPECT_NEAR(C[i + 6], A[i + 7], 1e-5);
+                EXPECT_NEAR(C[i + 7], B[i + 7], 1e-5);
+
+                EXPECT_NEAR(D[i + 0], A[i + 0], 1e-5);
+                EXPECT_NEAR(D[i + 1], B[i + 0], 1e-5);
+                EXPECT_NEAR(D[i + 2], A[i + 1], 1e-5);
+                EXPECT_NEAR(D[i + 3], B[i + 1], 1e-5);
+                EXPECT_NEAR(D[i + 4], A[i + 4], 1e-5);
+                EXPECT_NEAR(D[i + 5], B[i + 4], 1e-5);
+                EXPECT_NEAR(D[i + 6], A[i + 5], 1e-5);
+                EXPECT_NEAR(D[i + 7], B[i + 5], 1e-5);
+
+                // 0x01000100
+                EXPECT_NEAR(E[i + 0], A[i + 0], 1e-5);
+                EXPECT_NEAR(E[i + 1], A[i + 1], 1e-5);
+                EXPECT_NEAR(E[i + 2], B[i + 0], 1e-5);
+                EXPECT_NEAR(E[i + 3], B[i + 1], 1e-5);
+                EXPECT_NEAR(E[i + 4], A[i + 4], 1e-5);
+                EXPECT_NEAR(E[i + 5], A[i + 5], 1e-5);
+                EXPECT_NEAR(E[i + 6], B[i + 4], 1e-5);
+                EXPECT_NEAR(E[i + 7], B[i + 5], 1e-5);
+                // 0x00100000
+                EXPECT_NEAR(F[i + 0], A[i + 0], 1e-5);
+                EXPECT_NEAR(F[i + 1], A[i + 1], 1e-5);
+                EXPECT_NEAR(F[i + 2], A[i + 2], 1e-5);
+                EXPECT_NEAR(F[i + 3], A[i + 3], 1e-5);
+                EXPECT_NEAR(F[i + 4], B[i + 0], 1e-5);
+                EXPECT_NEAR(F[i + 5], B[i + 1], 1e-5);
+                EXPECT_NEAR(F[i + 6], B[i + 2], 1e-5);
+                EXPECT_NEAR(F[i + 7], B[i + 3], 1e-5);
+                // 0x31
+                EXPECT_NEAR(H[i + 0], A[i + 4], 1e-5);
+                EXPECT_NEAR(H[i + 1], A[i + 5], 1e-5);
+                EXPECT_NEAR(H[i + 2], A[i + 6], 1e-5);
+                EXPECT_NEAR(H[i + 3], A[i + 7], 1e-5);
+                EXPECT_NEAR(H[i + 4], B[i + 4], 1e-5);
+                EXPECT_NEAR(H[i + 5], B[i + 5], 1e-5);
+                EXPECT_NEAR(H[i + 6], B[i + 6], 1e-5);
+                EXPECT_NEAR(H[i + 7], B[i + 7], 1e-5);
+                // 0b11
+                EXPECT_NEAR(G[i + 0], A[i + 4], 1e-5);
+                EXPECT_NEAR(G[i + 1], A[i + 5], 1e-5);
+                EXPECT_NEAR(G[i + 2], A[i + 6], 1e-5);
+                EXPECT_NEAR(G[i + 3], A[i + 7], 1e-5);
+                EXPECT_NEAR(G[i + 4], B[i + 4], 1e-5);
+                EXPECT_NEAR(G[i + 5], B[i + 5], 1e-5);
+                EXPECT_NEAR(G[i + 6], B[i + 6], 1e-5);
+                EXPECT_NEAR(G[i + 7], B[i + 7], 1e-5);
+            }
+        }
+    };
+    auto test_index_func = []() {
+        builder::ir_builder_t builder;
+        const int type_bits
+                = utils::get_sizeof_type(sc_data_type_t::index(2)) * 8;
+        _function_(datatypes::void_t, aaa, _arg_("A", datatypes::index, {1024}),
+                _arg_("B", datatypes::index, {1024}),
+                _arg_("G", datatypes::index, {1024}),
+                _arg_("I", datatypes::index, {1024}), ) {
+            _bind_(A, B, G, I);
+            _for_(i, 0, 1024, 4) {
+                G[span_t({i}, 4)] = builder::make_shuffle(
+                        A[span_t({i}, 4)], B[span_t({i}, 4)], 0b11, type_bits);
+            }
+            _for_(i, 0, 1024, 8) {
+                I[span_t({i}, 8)] = builder::make_shuffle(
+                        A[span_t({i}, 8)], B[span_t({i}, 8)], 0xee, type_bits);
+            }
+        }
+
+        auto engines = get_engines();
+        for (auto &engine : engines) {
+            SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine));
+            auto fptr = engine->get_entry_func(
+                    ir_module_t::from_entry_func(get_default_context(), aaa));
+            ASSERT_TRUE(fptr);
+            auto getA = []() {
+                std::vector<uint64_t> A(1024);
+                for (int i = 0; i < (int)A.size(); i++) {
+                    A[i] = 3 * i;
+                }
+                return A;
+            };
+            auto getB = []() {
+                std::vector<uint64_t> A(1024);
+                for (int i = 0; i < (int)A.size(); i++) {
+                    A[i] = 2 * i;
+                }
+                return A;
+            };
+            std::vector<uint64_t> G(1024);
+            std::vector<uint64_t> I(1024);
+
+            auto A = getA();
+            auto B = getB();
+            fptr->call<void>(A.data(), B.data(), G.data(), I.data());
+
+            for (int i = 0; i < 1024; i += 4) {
+                // 0x1b indexx2
+                EXPECT_NEAR(G[i + 0], A[i + 2], 1e-5);
+                EXPECT_NEAR(G[i + 1], A[i + 3], 1e-5);
+                EXPECT_NEAR(G[i + 2], B[i + 2], 1e-5);
+                EXPECT_NEAR(G[i + 3], B[i + 3], 1e-5);
+            }
+            for (int i = 0; i < 1024; i += 8) {
+                // 0x1b indexx2
+                EXPECT_NEAR(I[i + 0], A[i + 4], 1e-5);
+                EXPECT_NEAR(I[i + 1], A[i + 5], 1e-5);
+                EXPECT_NEAR(I[i + 2], A[i + 6], 1e-5);
+                EXPECT_NEAR(I[i + 3], A[i + 7], 1e-5);
+                EXPECT_NEAR(I[i + 4], B[i + 4], 1e-5);
+                EXPECT_NEAR(I[i + 5], B[i + 5], 1e-5);
+                EXPECT_NEAR(I[i + 6], B[i + 6], 1e-5);
+                EXPECT_NEAR(I[i + 7], B[i + 7], 1e-5);
+            }
+        }
+    };
+    auto test_bf16_func = []() {
+        builder::ir_builder_t builder;
+        const int type_bits
+                = utils::get_sizeof_type(sc_data_type_t::bf16(8)) * 8;
+        _function_(datatypes::void_t, aaa, _arg_("A", datatypes::bf16, {1024}),
+                _arg_("B", datatypes::bf16, {1024}),
+                _arg_("G", datatypes::bf16, {1024})) {
+            _bind_(A, B, G);
+            _for_(i, 0, 1024, 16) {
+                G[span_t({i}, 16)] = builder::make_shuffle(A[span_t({i}, 16)],
+                        B[span_t({i}, 16)], 0b11, type_bits);
+            }
+        }
+
+        auto engines = get_engines();
+        for (auto &engine : engines) {
+            SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine));
+            auto fptr = engine->get_entry_func(
+                    ir_module_t::from_entry_func(get_default_context(), aaa));
+            ASSERT_TRUE(fptr);
+            auto getA = []() {
+                std::vector<uint16_t> A(1024);
+                for (int i = 0; i < (int)A.size(); i++) {
+                    A[i] = 3 * i;
+                }
+                return A;
+            };
+            auto getB = []() {
+                std::vector<uint16_t> A(1024);
+                for (int i = 0; i < (int)A.size(); i++) {
+                    A[i] = 2 * i;
+                }
+                return A;
+            };
+            std::vector<uint16_t> G(1024);
+
+            auto A = getA();
+            auto B = getB();
+            fptr->call<void>(A.data(), B.data(), G.data());
+
+            for (int i = 0; i < 1024; i += 16) {
+                // 0x1b bf16
+                EXPECT_NEAR(G[i + 0], A[i + 8], 1e-5);
+                EXPECT_NEAR(G[i + 1], A[i + 9], 1e-5);
+                EXPECT_NEAR(G[i + 2], A[i + 10], 1e-5);
+                EXPECT_NEAR(G[i + 3], A[i + 11], 1e-5);
+                EXPECT_NEAR(G[i + 4], A[i + 12], 1e-5);
+                EXPECT_NEAR(G[i + 5], A[i + 13], 1e-5);
+                EXPECT_NEAR(G[i + 6], A[i + 14], 1e-5);
+                EXPECT_NEAR(G[i + 7], A[i + 15], 1e-5);
+                EXPECT_NEAR(G[i + 8], B[i + 8], 1e-5);
+                EXPECT_NEAR(G[i + 9], B[i + 9], 1e-5);
+                EXPECT_NEAR(G[i + 10], B[i + 10], 1e-5);
+                EXPECT_NEAR(G[i + 11], B[i + 11], 1e-5);
+                EXPECT_NEAR(G[i + 12], B[i + 12], 1e-5);
+                EXPECT_NEAR(G[i + 13], B[i + 13], 1e-5);
+                EXPECT_NEAR(G[i + 14], B[i + 14], 1e-5);
+                EXPECT_NEAR(G[i + 15], B[i + 15], 1e-5);
+            }
+        }
+    };
+    test_float_func();
+    test_index_func();
+    test_bf16_func();
 }
 
 TEST(GCCore_CPU_jit_cpp, TestJITVectorExp) {
@@ -641,97 +809,6 @@ TEST(GCCore_CPU_jit_cpp, TestJITVectorLoad) {
 }
 
 #ifdef __AVX512F__
-TEST(GCCore_CPU_jit_cpp, TestJITCondition) {
-    builder::ir_builder_t builder;
-
-#define TEST_FUNC( \
-        test_type, test_step, test_dtype, test_const_type, test_func_name) \
-    auto test_func_name = [](const int step, sc_data_type_t dtype_sc, \
-                                  sc_data_type_t sc_const_type) { \
-        _function_(datatypes::void_t, aaa, _arg_("A", dtype_sc, {1024}), \
-                _arg_("B", dtype_sc, {1024}), _arg_("C", dtype_sc, {1024}), \
-                _arg_("D", dtype_sc, {1024}), _arg_("E", dtype_sc, {1024}), \
-                _arg_("F", dtype_sc, {1024})) { \
-            _bind_(A, B, C, D, E, F); \
-            _for_(i, 0, 1024, step) { \
-                E[span_t({i}, step)] = builder::make_select( \
-                        C[span_t({i}, step)] > D[span_t({i}, step)], \
-                        A[span_t({i}, step)], B[span_t({i}, step)]); \
-                F[span_t({i}, step)] = builder::make_select( \
-                        builder::make_constant( \
-                                {UINT64_C(0x03)}, sc_const_type), \
-                        A[span_t({i}, step)], B[span_t({i}, step)]); \
-            } \
-        } \
-        auto engines = get_engines(); \
-        for (auto &engine : engines) { \
-            SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine)); \
-            auto fptr = engine->get_entry_func( \
-                    ir_module_t::from_entry_func(get_default_context(), aaa)); \
-            ASSERT_TRUE(fptr); \
-            auto getC = []() { \
-                std::vector<test_type> A(2048); \
-                for (int i = 0; i < (int)A.size(); i++) { \
-                    A[i] = i % 2; \
-                } \
-                return A; \
-            }; \
-            auto getD = [&]() { \
-                std::vector<test_type> A(2048); \
-                for (int i = 0; i < (int)A.size(); i++) { \
-                    A[i] = 2 * i % step; \
-                } \
-                return A; \
-            }; \
-            auto getA = []() { \
-                std::vector<test_type> A(2048); \
-                for (int i = 0; i < (int)A.size(); i++) { \
-                    A[i] = 2 * i + 100; \
-                } \
-                return A; \
-            }; \
-            auto getB = []() { \
-                std::vector<test_type> A(2048); \
-                for (int i = 0; i < (int)A.size(); i++) { \
-                    A[i] = 2 * i - 100; \
-                } \
-                return A; \
-            }; \
-            std::vector<test_type> E(1024); \
-            std::vector<test_type> F(1024); \
-            auto A = getA(); \
-            auto B = getB(); \
-            auto C = getC(); \
-            auto D = getD(); \
-            fptr->call<void>(A.data(), B.data(), C.data(), D.data(), E.data(), \
-                    F.data()); \
-            for (int i = 0; i < 1024; i++) { \
-                auto expected_e = C[i] > D[i] ? A[i] : B[i]; \
-                auto expected_f = (i % step) < 2 ? A[i] : B[i]; \
-                EXPECT_NEAR(E[i], expected_e, 1e-5); \
-                EXPECT_NEAR(F[i], expected_f, 1e-5); \
-            } \
-        } \
-    }; \
-    test_func_name(test_step, test_dtype, test_const_type);
-
-    TEST_FUNC(float, 8, datatypes::f32, datatypes::u8, test_floatx8)
-    TEST_FUNC(float, 16, datatypes::f32, datatypes::u16, test_floatx16)
-    TEST_FUNC(int32_t, 8, datatypes::s32, datatypes::u8, test_s32x8)
-    TEST_FUNC(int32_t, 16, datatypes::s32, datatypes::u16, test_s32x16)
-    TEST_FUNC(uint32_t, 8, datatypes::u32, datatypes::u8, test_u32x8)
-    TEST_FUNC(uint32_t, 16, datatypes::u32, datatypes::u16, test_u32x16)
-    TEST_FUNC(uint16_t, 8, datatypes::u16, datatypes::u8, test_u16x8)
-    TEST_FUNC(uint16_t, 16, datatypes::u16, datatypes::u16, test_u16x16)
-    TEST_FUNC(uint16_t, 32, datatypes::u16, datatypes::u32, test_u16x32)
-    TEST_FUNC(uint8_t, 16, datatypes::u8, datatypes::u16, test_u8x16)
-    TEST_FUNC(uint8_t, 32, datatypes::u8, datatypes::u32, test_u8x32)
-    TEST_FUNC(uint8_t, 64, datatypes::u8, datatypes::index, test_u8x64)
-    TEST_FUNC(int8_t, 16, datatypes::s8, datatypes::u16, test_s8x16)
-    TEST_FUNC(int8_t, 32, datatypes::s8, datatypes::u32, test_s8x32)
-    TEST_FUNC(int8_t, 64, datatypes::s8, datatypes::index, test_s8x64)
-}
-
 TEST(GCCore_CPU_jit_cpp, TestJITVectorUnpackElemLanes) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::u16, {1024}),
@@ -901,31 +978,7 @@ TEST(GCCore_CPU_jit_cpp, TestJITGlobalTensor) {
     for (auto &engine : engines) {
         SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine));
         auto jitmod = engine->make_jit_module(m, false);
-        statics_table_t *pglobals = nullptr;
-#if SC_BUILTIN_JIT_ENABLED
-        if (auto jmod = dynamic_cast<xbyak_jit_module *>(jitmod.get())) {
-            pglobals = &jmod->globals_;
-        }
-#else
-        if (false) {
-            // make compiler happy
-        }
-#endif
-#if SC_CFAKE_JIT_ENABLED
-        else if (auto jmod = dynamic_cast<cfake_jit_module_t *>(jitmod.get())) {
-            pglobals = &jmod->globals_;
-        }
-#else
-        if (false) {
-            // make compiler happy
-        }
-#endif
-#if defined(SC_LLVM_BACKEND)
-        else if (auto jmod = dynamic_cast<llvm_jit_module *>(jitmod.get())) {
-            pglobals = &jmod->globals_;
-        }
-#endif
-        ASSERT_TRUE(pglobals);
+        statics_table_t *pglobals = &jitmod->globals_;
         auto &globals = *pglobals;
         void *entry = globals.get_or_null("gv");
         ASSERT_NE(entry, nullptr);
@@ -981,8 +1034,8 @@ TEST(GCCore_CPU_jit_cpp, TestJITDispatchTable) {
     auto engines = get_engines();
     for (auto &engine : engines) {
         auto jitm = engine->make_jit_module(m, false);
-        auto bbb_runtime_table = jitm->op_tables_["bbb_table"];
-        auto ccc_runtime_table = jitm->op_tables_["ccc_table"];
+        auto bbb_runtime_table = jitm->code_->op_tables_["bbb_table"];
+        auto ccc_runtime_table = jitm->code_->op_tables_["ccc_table"];
         EXPECT_TRUE(bbb_runtime_table->kernel_dispatch_func_);
         auto runtime_format = uint64_t(sc_data_format_t::MK().to_runtime());
         EXPECT_TRUE(bbb_runtime_table->kernel_table_->get(&runtime_format, 1));
@@ -1006,6 +1059,128 @@ TEST(GCCore_CPU_jit_cpp, TestJITDispatchTable) {
                 ccc_runtime_table.get());
     }
 }
+
+#if SC_BUILTIN_JIT_ENABLED
+TEST(GCCore_CPU_jit_cpp, TestDivisionInvariantInteger) {
+    // Test 64 bit unsigned division by invariant integer
+    const auto mulh_u64 = [](const uint64_t n, const uint64_t m) {
+        return uint64_t((utils::uint128_t(n) * utils::uint128_t(m)) >> 64);
+    };
+    // use random 64 bit numbers to test
+    std::random_device rd;
+    std::mt19937_64 e2(rd());
+    std::uniform_int_distribution<uint64_t> dist64;
+    for (int i = 0; i < 1024; i++) {
+        uint64_t result;
+        uint64_t x = dist64(e2);
+        uint64_t y = dist64(e2) % INT_MAX + 2;
+        // get multiplier
+        const auto mult = xbyak::invariant_int::UintDivMultiplier(y, 64);
+        // use multiplier to div
+        if (mult.power_of_2_) {
+            result = x >> mult.sft_pre_;
+        } else if (mult.compensate_) {
+            uint64_t t = mulh_u64(x, mult.magic_);
+            result = (((x - t) >> mult.sft_pre_) + t) >> mult.sft_post_;
+        } else {
+            uint64_t t = mulh_u64(x >> mult.sft_pre_, mult.magic_);
+            result = t >> mult.sft_post_;
+        }
+        // compare result
+        EXPECT_EQ(result, x / y);
+    }
+
+    // Test 32 bit signed division by invariant integer
+    const auto mulh_s32 = [](const int32_t n, const int32_t m) {
+        return int32_t((int64_t(n) * int64_t(m)) >> 32);
+    };
+    // use random 32 bit numbers to test
+    std::uniform_int_distribution<uint32_t> dist32;
+    for (int i = 0; i < 1024; i++) {
+        int32_t result;
+        int32_t x = int32_t(dist32(e2));
+        int32_t y = int32_t(dist32(e2) % INT_MAX + 2);
+        x = (x % 3 == 0) ? -x : x;
+        y = (y % 3 == 0) ? -y : y;
+        // get multiplier
+        const auto mult = xbyak::invariant_int::SintDivMultiplier(y, 32);
+        // use multiplier to div
+        if (mult.power_of_2_) {
+            auto a = uint32_t(x >> (mult.sft_ - 1)) >> (32 - mult.sft_);
+            result = (int32_t(a) + x) >> mult.sft_;
+            if (mult.negative_) { result = -result; }
+        } else if (mult.compensate_) {
+            int32_t t = mulh_s32(x, (int32_t)mult.magic_);
+            int32_t s = x >> 31;
+            result = ((x + t) >> mult.sft_) - s;
+            if (mult.negative_) { result = -result; }
+        } else {
+            int32_t t = mulh_s32(x, (int32_t)mult.magic_);
+            int32_t s = x >> 31;
+            result = (t >> mult.sft_) - s;
+            if (mult.negative_) { result = -result; }
+        }
+        // compare result
+        EXPECT_EQ(result, x / y);
+    }
+}
+
+TEST(GCCore_CPU_jit_cpp, TestDivisionInvariantIntegerSIMD) {
+    REQUIRE_AVX2();
+    int lanes = get_default_context()->get_max_vector_lanes(sc_data_etype::S32);
+    auto s32xlanes = sc_data_type_t::s32(lanes);
+    //
+    std::random_device rd;
+    std::mt19937_64 e2(rd());
+    std::uniform_int_distribution<uint32_t> dist32;
+    auto gen = [&]() {
+        int32_t x = int32_t(dist32(e2));
+        x = (x % 3 == 0) ? -x : x;
+        return x;
+    };
+    // Test 32 bit signed division by invariant integer
+    for (int i = 0; i < 16; i++) {
+        std::vector<int32_t> host_in(lanes);
+        std::vector<int32_t> host_out(lanes);
+        std::vector<int32_t> host_ref(lanes);
+        //
+        std::generate(host_in.begin(), host_in.end(), gen);
+        //
+        int32_t y = i + 2;
+        y = (y % 3 == 0) ? -y : y;
+        //
+        std::transform(host_in.begin(), host_in.end(), host_ref.begin(),
+                [y](int32_t n) { return n / y; });
+        // Test jit
+        ir_builder_t builder;
+        _function_(datatypes::void_t, foo,
+                _arg_("tensor_in", datatypes::s32, {lanes}),
+                _arg_("tensor_out", datatypes::s32, {lanes})) {
+            _bind_(tensor_in, tensor_out);
+            _var_(out, s32xlanes);
+            out = tensor_in[span_t({0}, lanes)];
+            out = out / make_constant({int64_t(y)}, s32xlanes);
+            tensor_out[span_t({0}, lanes)] = out;
+        }
+        // make and call jit function
+        auto ir_mod = std::make_shared<ir_module_t>(
+                get_default_context(), std::vector<func_t> {foo}, 0);
+        auto je = std::make_shared<xbyak_jit>();
+        auto jm = je->make_jit_module(ir_mod, true);
+        auto jf = jm->get_function("foo");
+        //
+        generic_val generic_args[] = {
+                (void *)(host_in.data()),
+                (void *)(host_out.data()),
+        };
+        jf->call_generic_default(generic_args);
+        // Comapre result
+        for (int i = 0; i < lanes; ++i) {
+            ASSERT_EQ(host_out[i], host_ref[i]);
+        }
+    }
+}
+#endif
 
 #if 0
 

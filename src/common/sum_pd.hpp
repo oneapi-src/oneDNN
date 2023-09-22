@@ -116,6 +116,18 @@ protected:
 
         init_desc();
     }
+    sum_pd_t &operator=(const sum_pd_t &other) {
+        DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+        n_ = other.n_;
+        scales_ = other.scales_;
+        dst_md_ = other.dst_md_;
+        dst_acc_md_ = other.dst_acc_md_;
+        src_mds_ = other.src_mds_;
+        original_dst_md_ = other.original_dst_md_;
+
+        init_desc();
+        return *this;
+    }
 
     // backends could redefine the accumulation tensor if required
     virtual void define_dst_acc_md() {
@@ -180,14 +192,11 @@ private:
             const primitive_attr_t *attr, const memory_desc_t *dst_md, int n, \
             const float *scales, const memory_desc_t *const *src_mds) { \
         using namespace status; \
-        auto _pd = new pd_t(attr, dst_md, n, scales, src_mds); \
+        auto _pd = make_unique_pd<pd_t>(attr, dst_md, n, scales, src_mds); \
         if (_pd == nullptr) return out_of_memory; \
-        if (_pd->init(engine) != success) { \
-            delete _pd; \
-            return unimplemented; \
-        } \
+        CHECK(_pd->init(engine)); \
         CHECK(_pd->init_scratchpad_md()); \
-        return safe_ptr_assign(*sum_pd, _pd); \
+        return safe_ptr_assign(*sum_pd, _pd.release()); \
     } \
     status_t create_primitive( \
             std::pair<std::shared_ptr<primitive_t>, bool> &primitive, \

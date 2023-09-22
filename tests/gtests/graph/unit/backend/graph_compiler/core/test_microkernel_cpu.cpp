@@ -84,7 +84,7 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnBF16) {
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     for (unsigned i = 0; i < C_bf16.size(); i++) {
-        EXPECT_TRUE(std::abs(C_bf16[i] - C_ref[i]) < 1e-4);
+        EXPECT_TRUE(std::abs(C_bf16[i] - C_ref[i]) < 1e-4f);
     }
 }
 
@@ -124,7 +124,7 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnS8S8) {
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     for (unsigned i = 0; i < qC.size(); i++) {
-        EXPECT_TRUE(std::abs(qC[i] - refC[i]) < 1e-4);
+        EXPECT_TRUE(std::abs(qC[i] - refC[i]) < 1e-4f);
     }
 }
 
@@ -157,7 +157,7 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnU8S8) {
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     for (unsigned i = 0; i < qC.size(); i++) {
-        EXPECT_TRUE(std::abs(qC[i] - refC[i]) < 1e-4);
+        EXPECT_TRUE(std::abs(qC[i] - refC[i]) < 1e-4f);
     }
 }
 
@@ -259,9 +259,9 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnPostOpCombined) {
     test_utils::parallel_nd(
             M, N, [&](int m, int n) { refC_f32[m * N + n] += c_zp; });
     EXPECT_TRUE(!std::all_of(qC.begin(), qC.end(),
-            [&](const float &x) { return std::abs(x) < 1e-6; }));
+            [&](const float &x) { return std::abs(x) < 1e-6f; }));
     for (unsigned i = 0; i < qC.size(); i++) {
-        EXPECT_TRUE(std::abs(qC[i] - refC_f32[i]) < 1e-4);
+        EXPECT_TRUE(std::abs(qC[i] - refC_f32[i]) < 1e-4f);
     }
 }
 #endif
@@ -360,7 +360,34 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnRange) {
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     for (unsigned i = 0; i < qC_strd.size(); i++) {
-        EXPECT_TRUE(std::abs(qC_strd[i] - refC[i]) < 1e-4);
-        EXPECT_TRUE(std::abs(qC_list[i] - refC[i]) < 1e-4);
+        EXPECT_TRUE(std::abs(qC_strd[i] - refC[i]) < 1e-4f);
+        EXPECT_TRUE(std::abs(qC_list[i] - refC[i]) < 1e-4f);
     }
+}
+
+template <typename dtype>
+static bool check_brgemm_init(const int &M, const int &LDC, const int M1) {
+    const int buf_size = M * LDC;
+    const int N = LDC / 2;
+    auto buf = alloc_array<dtype>(buf_size);
+    auto ref = buf.copy();
+    for (int i = 0; i < M1; ++i) {
+        for (int j = 0; j < N; ++j) {
+            auto idx = i * LDC + j;
+            ref[idx] = (dtype)0;
+        }
+    }
+
+    auto sc_dtype = sc_data_traits_t<dtype>::type();
+    dnnl_brgemm_init(&buf[0], M1, N, LDC, sc_dtype, 0);
+
+    return (memcmp(&buf[0], &ref[0], M * LDC * sizeof(dtype)) == 0);
+}
+
+TEST(GCCore_CPU_microkernel_cpu_cpp, TestBRGEMMInit) {
+    const int M = 16;
+    const int LDC = 64;
+    EXPECT_TRUE(check_brgemm_init<int8_t>(M, LDC, 3));
+    EXPECT_TRUE(check_brgemm_init<bf16_t>(M, LDC, 5));
+    EXPECT_TRUE(check_brgemm_init<float>(M, LDC, 6));
 }

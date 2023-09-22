@@ -6,9 +6,9 @@
 --attr-post-ops=add:bf16:per_oc,add:f32:per_oc
 10x1:1x20_n"runtime_m_and_binary_po"
 
-# small shape with binary po per_dim_023 broadcast
+# small shape with binary po and mask 13 broadcast
 --reset
 --dt=bf16
 --stag=abcd --wtag=abcd --dtag=abcd
---attr-post-ops=add:bf16:per_dim_023:abcd
-2x2x32x16:2x2x16x64_n"small_shape_with_per_dim_023_binary_po"
+--attr-post-ops=add:bf16:13:abcd
+2x2x32x16:2x2x16x64_n"small_shape_with_binary_po_and_mask_13"

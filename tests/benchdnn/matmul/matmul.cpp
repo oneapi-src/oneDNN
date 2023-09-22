@@ -88,6 +88,9 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
                     return dnn_mem_t::init_csr_md(prb->ndims,
                             weights_rt_dims.data(), dt, nnz, dnnl_s32,
                             dnnl_s32);
+                case dnnl_packed:
+                    return dnn_mem_t::init_sparse_packed_md(
+                            prb->ndims, weights_rt_dims.data(), dt, nnz);
                     break;
                 default: assert(!"unsupported encoding"); return nullptr;
             }
@@ -109,6 +112,7 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto src_d = create_md(prb, SRC);
     auto wei_d = create_md(prb, WEI);
@@ -135,10 +139,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    DNN_SAFE_STATUS(dnnl_matmul_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine,
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_matmul_primitive_desc_create(
+            &init_pd_args.pd, init_pd_args.engine,
             init_pd_args.src_md ? init_pd_args.src_md : src_d, wei_d, bia_d,
-            dst_d, dnnl_attr));
+            dst_d, dnnl_attr)));
 
     return dnnl_success;
 }
@@ -284,8 +288,8 @@ int fill_csr_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
     cfg_t cfg(prb, {SRC, WEI, BIA, DST});
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nnz, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nnz, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
@@ -313,13 +317,24 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
 
-    assert(mem_dt.nelems() == mem_fp.nelems());
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
     auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
     if ((kind == SRC && src_encoding == dnnl_csr)
             || (kind == WEI && wei_encoding == dnnl_csr))
         return fill_csr_data(kind, prb, mem_dt, mem_fp, res);
+
+    bool is_wei_sparse_packed = wei_encoding == dnnl_packed;
+    std::vector<bool> nnz_mask;
+    if (kind == WEI && is_wei_sparse_packed) {
+        nnz_mask.resize(nelems, false);
+        const dnnl_dim_t nnz = query_md_nnz(mem_dt.md_);
+        assert(nnz > 0);
+        for (int i = 0; i < nnz; i++)
+            nnz_mask[i] = true;
+        std::default_random_engine rng(nnz);
+        std::shuffle(nnz_mask.begin(), nnz_mask.end(), rng);
+    }
 #endif
 
     cfg_t::density_args_t density_args;
@@ -328,8 +343,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     const auto density = cfg.get_density(density_args);
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
@@ -348,7 +363,11 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         std::bernoulli_distribution b_dist(density);
 
         // make sure the first element is positive
-        if (idx_start == 0) {
+        if (idx_start == 0
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+                && !is_wei_sparse_packed
+#endif
+        ) {
             float val = 0;
             while (val <= 0)
                 val = gen(int_seed);
@@ -359,7 +378,19 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             bool is_one = density == 1.f ? true : b_dist(b_seed);
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            float val = 0.0f;
+            if (is_wei_sparse_packed && kind == WEI) {
+                is_one = nnz_mask[idx];
+                while (val == 0.0f)
+                    val = gen(int_seed);
+                val *= is_one;
+            } else {
+                val = is_one * gen(int_seed);
+            }
+#else
             float val = is_one * gen(int_seed);
+#endif
             mem_fp.set_elem(
                     idx, round_to_nearest_representable(cfg.get_dt(kind), val));
         }
@@ -382,13 +413,17 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             prb->attr, res, dnnl_matmul, prb->src_dt(), prb->dst_dt());
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_matmul);
 
-    if (is_gpu()) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-        if (!prb->sparse_options.is_def()) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
+    const auto wei_encoding
+            = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
+    if ((is_gpu() && !prb->sparse_options.is_def())
+            || wei_encoding == dnnl_packed) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 #endif
+
+    if (is_gpu()) {
         // GPU supports only single zero-point per tensor.
         if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
                 || prb->attr.zero_points.get(DNNL_ARG_DST).policy
@@ -536,8 +571,10 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         const bool is_sparse_wei = exec_arg == DNNL_ARG_WEIGHTS
                 && wei_encoding != dnnl_sparse_encoding_undef;
+        const bool is_sparse_wei_packed
+                = is_sparse_wei && wei_encoding == dnnl_packed;
 
-        if (is_sparse_src || is_sparse_wei) {
+        if ((is_sparse_src || is_sparse_wei) && !is_sparse_wei_packed) {
             if (is_sparse_src) {
                 auto src_fp_d = create_md(prb, SRC, dnnl_f32);
                 ref_mem_map.emplace(exec_arg, dnn_mem_t(src_fp_d, ref_engine));
@@ -637,9 +674,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(
-                 ref_mem_map, mem_map, prim, prb, res, prb->dir, prim_ref),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res,
+                           prb->dir, prim_ref),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 

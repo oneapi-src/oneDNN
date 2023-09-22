@@ -38,16 +38,6 @@ namespace impl {
 namespace graph {
 namespace compiler_impl {
 
-struct engine_ref_data {
-    std::unordered_map<
-            std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>, int>
-            partition_count_map;
-    std::unordered_map<const graph::engine_t *,
-            std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>>
-            engine_map;
-    std::mutex global_mutex;
-};
-
 class compiler_partition_impl_t : public partition_impl_t {
     friend class compiler_backend_t;
 
@@ -58,8 +48,9 @@ public:
         : graph::partition_impl_t(engine_kind, fpmath_mode, pkind)
         , is_init_(true)
         , pname_(pname) {
-        assertm(fpmath_mode == fpmath_mode::strict,
-                "Compiler backend only allows fpmath mode: strict.");
+        assertm(fpmath_mode == fpmath_mode::strict
+                        || fpmath_mode == fpmath_mode::bf16,
+                "Compiler backend only allows fpmath mode: strict, bf16.");
     }
 
     virtual ~compiler_partition_impl_t() = default;
@@ -135,8 +126,7 @@ public:
             const std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
                     &graph_engine,
             std::vector<gc::runtime::dynamic_tensor_t> &&dyn_inputs,
-            std::vector<gc::runtime::dynamic_tensor_t> &&dyn_outputs,
-            const std::shared_ptr<engine_ref_data> &engine_ref_data_ptr);
+            std::vector<gc::runtime::dynamic_tensor_t> &&dyn_outputs);
     virtual ~compiler_compiled_partition_impl_t();
     graph::status_t execute(const graph::stream_t *astream,
             const std::vector<graph::tensor_t> &inputs,
@@ -153,11 +143,13 @@ public:
 #endif
 
 private:
-    std::shared_ptr<gc::jit_function_t> jit_func_;
+    // Notice: the order of the following graph_engine_ and jit_func_ shall not
+    // be changed, since we need to ensure jit_func_ is destructed before
+    // graph_engine_
     std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
             graph_engine_;
+    std::shared_ptr<gc::jit_function_t> jit_func_;
     std::vector<gc::runtime::dynamic_tensor_t> dyn_inputs_, dyn_outputs_;
-    const std::shared_ptr<engine_ref_data> engine_ref_data_ptr_;
 };
 
 } // namespace compiler_impl

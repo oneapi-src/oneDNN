@@ -85,6 +85,7 @@ conv_sample_t to_conv_sample(
     ret.src_type = to_type(prb.a_data_type);
     ret.dst_type = to_type(prb.c_data_type);
     ret.hw_cfg = to_hw_config(cfg);
+    ret.transpose = prb.ab_swap_transpose;
 
     auto &blk = params.blocking();
     auto shape = get_conv_shape(cfg, /*pad=*/false);

@@ -22,14 +22,23 @@
 
 #define TIME_FUNC(func, res, name) \
     do { \
-        auto &t = res->timer_map.get_timer(name); \
-        t.start(); \
-        func; \
-        t.stamp(); \
+        if (res) { \
+            auto &t = res->timer_map.get_timer(name); \
+            t.start(); \
+            func; \
+            t.stamp(); \
+        } else { \
+            func; \
+        } \
     } while (0)
 
-// Designated timer to calculate time spent on reference computations
 #define TIME_REF(func) TIME_FUNC(func, res, timer::names::ref_timer)
+#define TIME_C_PD(func) TIME_FUNC(func, res, timer::names::cpd_timer)
+#define TIME_C_PRIM(func) TIME_FUNC(func, res, timer::names::cp_timer)
+// Designated timer to calculate time spent on comparison with reference
+#define TIME_COMPARE(func) TIME_FUNC(func, res, timer::names::compare_timer)
+// Designated timer to calculate time spent on filling
+#define TIME_FILL(func) TIME_FUNC(func, res, timer::names::fill_timer)
 
 namespace timer {
 
@@ -75,18 +84,41 @@ struct timer_t {
     double ms_[n_modes], ms_start_;
 };
 
+// Designated timers to support benchdnn performance reporting and general time
+// collection to estimate partial time of certain functional pieces.
 namespace names {
+// Testing objects execution performance.
 const std::string perf_timer = "perf_timer";
+// Driver's reference computations.
 const std::string ref_timer = "compute_ref_timer";
+// Primitive descriptor creation performace.
+const std::string cpd_timer = "create_pd_timer";
+// Primitive creation performace.
+const std::string cp_timer = "create_prim_timer";
+// Driver's comparison.
+const std::string compare_timer = "compare_timer";
+// Driver's memory filling.
+const std::string fill_timer = "fill_timer";
 } // namespace names
 
 struct timer_map_t {
     timer_t &get_timer(const std::string &name);
 
     timer_t &perf_timer() { return get_timer(names::perf_timer); }
+    timer_t &cpd_timer() { return get_timer(names::cpd_timer); }
+    timer_t &cp_timer() { return get_timer(names::cp_timer); }
 
     std::unordered_map<std::string, timer_t> timers;
 };
+
+// Note: in case the tuple below get extended, add enum that will control fields
+// and replace std::get<N> to stg::get<enum::value> to change mapping between
+// type and variable in a single place and not all over the code.
+using service_timers_entry_t = std::tuple</* timer print name = */ std::string,
+        /* supported mode = */ mode_bit_t,
+        /* timer bench name = */ std::string>;
+
+const std::vector<service_timers_entry_t> &get_global_service_timers();
 
 } // namespace timer
 

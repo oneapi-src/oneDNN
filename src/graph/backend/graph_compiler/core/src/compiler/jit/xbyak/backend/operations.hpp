@@ -119,9 +119,27 @@ namespace xbyak {
         } \
     }
 
+#define X86_R64_R64_R64(GEN, INS, OP_1, OP_2, OP_3) \
+    { \
+        /*  */ if (OP_1.is_reg() && OP_2.is_reg() && OP_3.is_reg()) { \
+            (GEN).INS(OP_1.get_reg64(), OP_2.get_reg64(), OP_3.get_reg64()); \
+        } else { \
+            COMPILE_ASSERT(false, \
+                    "Invalid x86_" #INS << ": " << OP_1 << ", " << OP_2 << "," \
+                                        << OP_3); \
+        } \
+    }
+
 /*
  * AVX Instruction Format
  */
+
+#define AVX_R64_X(GEN, INS, OP_1, OP_2) \
+    { \
+        COMPILE_ASSERT(OP_1.is_reg() && OP_2.is_xyz(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
+        (GEN).INS(OP_1.get_reg64(), OP_2.get_xmm()); \
+    }
 
 #define AVX_R32_XM(GEN, INS, OP_1, OP_2) \
     { \
@@ -130,11 +148,45 @@ namespace xbyak {
         (GEN).INS(OP_1.get_reg32(), OP_2.get_operand()); \
     }
 
+#define AVX_R64_XM(GEN, INS, OP_1, OP_2) \
+    { \
+        COMPILE_ASSERT(OP_1.is_reg() && OP_2.is_x_m(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
+        (GEN).INS(OP_1.get_reg64(), OP_2.get_operand()); \
+    }
+
 #define AVX_RM_X_I(GEN, INS, OP_1, OP_2, OP_3) \
     { \
         COMPILE_ASSERT(OP_1.is_r_m() && OP_2.is_xyz() && OP_3.is_imm(), \
                 "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
         (GEN).INS(OP_1.get_operand(), OP_2.get_xmm(), OP_3.get_imm()); \
+    }
+
+#define AVX_X_X_RM_I(GEN, INS, OP_1, OP_2, OP_3, OP_4) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_xyz() \
+                        && (OP_3.is_reg() || OP_3.is_addr()) && OP_4.is_imm(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << "," \
+                                    << OP_3 << "," << OP_4); \
+        (GEN).INS(OP_1.get_xmm(), OP_2.get_xmm(), OP_3.get_operand(), \
+                OP_4.get_imm()); \
+    }
+
+#define AVX_Y_Y_YM_I(GEN, INS, OP_1, OP_2, OP_3, OP_4) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_xyz() \
+                        && (OP_3.is_xyz() || OP_3.is_addr()) && OP_4.is_imm(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << "," \
+                                    << OP_3 << "," << OP_4); \
+        (GEN).INS(OP_1.get_ymm(), OP_2.get_ymm(), OP_3.get_operand(), \
+                OP_4.get_imm()); \
+    }
+
+#define AVX_X_R(GEN, INS, OP_1, OP_2) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_reg(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
+        (GEN).INS(OP_1.get_xmm(), OP_2.get_reg()); \
     }
 
 #define AVX_X_M(GEN, INS, OP_1, OP_2) \
@@ -197,6 +249,14 @@ namespace xbyak {
         (GEN).INS(OP_1.get_xmm(), OP_2.get_xmm(), OP_3.get_operand()); \
     }
 
+#define AVX_Y_Y_YM(GEN, INS, OP_1, OP_2, OP_3) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_xyz() && OP_3.is_x_m(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                    << OP_3); \
+        (GEN).INS(OP_1.get_ymm(), OP_2.get_ymm(), OP_3.get_operand()); \
+    }
+
 #define AVX_X_M_X(GEN, INS, OP_1, OP_2, OP_3) \
     { \
         COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_addr() && OP_3.is_xyz(), \
@@ -223,6 +283,22 @@ namespace xbyak {
         (GEN).INS(OP_1.get_operand(), OP_2.get_ymm(), OP_3.get_imm()); \
     }
 
+#define AVX_Y_YM_I(GEN, INS, OP_1, OP_2, OP_3) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_x_m() && OP_3.is_imm(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                    << OP_3); \
+        (GEN).INS(OP_1.get_ymm(), OP_2.get_operand(), OP_3.get_imm()); \
+    }
+
+#define AVX_YM_Z_I(GEN, INS, OP_1, OP_2, OP_3) \
+    { \
+        COMPILE_ASSERT(OP_1.is_x_m() && OP_2.is_xyz() && OP_3.is_imm(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                    << OP_3); \
+        (GEN).INS(OP_1.get_operand(), OP_2.get_zmm(), OP_3.get_imm()); \
+    }
+
 #define AVX_X_X_XM_I(GEN, INS, OP_1, OP_2, OP_3, OP_4) \
     { \
         COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_xyz() && OP_3.is_x_m() \
@@ -240,6 +316,16 @@ namespace xbyak {
                 "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
                                     << OP_3 << ", " << OP_4); \
         (GEN).INS(OP_1.get_ymm(), OP_2.get_ymm(), OP_3.get_operand(), \
+                OP_4.get_imm()); \
+    }
+
+#define AVX_Z_Z_XM_I(GEN, INS, OP_1, OP_2, OP_3, OP_4) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_xyz() && OP_3.is_x_m() \
+                        && OP_4.is_imm(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                    << OP_3 << ", " << OP_4); \
+        (GEN).INS(OP_1.get_zmm(), OP_2.get_zmm(), OP_3.get_operand(), \
                 OP_4.get_imm()); \
     }
 
@@ -358,6 +444,24 @@ namespace xbyak {
             (GEN).INS(OP_1.get_xmm(), OP_2.get_addr()); \
         } else if (OP_1.is_reg() && OP_2.is_xyz()) { \
             (GEN).INS(OP_1.get_reg32(), OP_2.get_xmm()); \
+        } else if (OP_1.is_addr() && OP_2.is_xyz()) { \
+            (GEN).INS(OP_1.get_addr(), OP_2.get_xmm()); \
+        } else { \
+            COMPILE_ASSERT(false, \
+                    "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
+        } \
+    }
+
+#define AVX_XMR64_XMR64(GEN, INS, OP_1, OP_2) \
+    { \
+        /*  */ if (OP_1.is_xyz() && OP_2.is_xyz()) { \
+            (GEN).INS(OP_1.get_xmm(), OP_2.get_xmm()); \
+        } else if (OP_1.is_xyz() && OP_2.is_reg()) { \
+            (GEN).INS(OP_1.get_xmm(), OP_2.get_reg64()); \
+        } else if (OP_1.is_xyz() && OP_2.is_addr()) { \
+            (GEN).INS(OP_1.get_xmm(), OP_2.get_addr()); \
+        } else if (OP_1.is_reg() && OP_2.is_xyz()) { \
+            (GEN).INS(OP_1.get_reg64(), OP_2.get_xmm()); \
         } else if (OP_1.is_addr() && OP_2.is_xyz()) { \
             (GEN).INS(OP_1.get_addr(), OP_2.get_xmm()); \
         } else { \

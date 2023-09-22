@@ -1892,11 +1892,13 @@ status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
-status_t fuse_post_typecast_to_matmul_or_conv(std::shared_ptr<subgraph_t> &sg) {
+status_t fuse_post_typecast_to_predecessor(std::shared_ptr<subgraph_t> &sg) {
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_matmul
-                && cur_op->get_kind() != op_kind::dnnl_convolution)
+        if (!impl::utils::one_of(cur_op->get_kind(), op_kind::dnnl_matmul,
+                    op_kind::dnnl_convolution, op_kind::dnnl_eltwise,
+                    op_kind::dnnl_binary, op_kind::dnnl_softmax,
+                    op_kind::dnnl_layernorm))
             continue;
         auto out = cur_op->get_output_value(0);
         if (out->get_consumers().size() != 1) continue;
@@ -1907,12 +1909,11 @@ status_t fuse_post_typecast_to_matmul_or_conv(std::shared_ptr<subgraph_t> &sg) {
         if (tc_out->get_consumers().size() > 1) continue;
         if (tc_out->get_consumers().size() == 1) {
             // bf16-int8 mix precision case
-            auto &q_op = tc_out->get_consumers()[0].get_op();
-            if (q_op.get_kind() != op_kind::dnnl_mul_scales) continue;
+            auto &next_next_op = tc_out->get_consumers()[0].get_op();
             out->remove_consumer(next_op, 0);
-            tc_out->remove_consumer(q_op, 0);
-            q_op.connect_input(0, out);
-            out->set_data_type(graph::data_type::f32);
+            tc_out->remove_consumer(next_next_op, 0);
+            next_next_op.connect_input(0, out);
+            out->set_data_type(tc_out->get_logical_tensor().data_type);
             fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
         } else {
             // tc has no consumer in the subgraph
@@ -1920,32 +1921,6 @@ status_t fuse_post_typecast_to_matmul_or_conv(std::shared_ptr<subgraph_t> &sg) {
             cur_op->connect_output(0, tc_out);
             fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
         }
-    }
-
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &fusion_group : fusion_groups)
-        // delete original typecast ops
-        for (auto &del_op : fusion_group) {
-            rewriter.to_remove(del_op->shared_from_this());
-        }
-    rewriter.run();
-    return status::success;
-}
-
-status_t fuse_post_typecast_to_softmax_or_layernorm(
-        std::shared_ptr<subgraph_t> &sg) {
-    std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_softmax
-                && cur_op->get_kind() != op_kind::dnnl_layernorm)
-            continue;
-        auto out = cur_op->get_output_value(0);
-        if (out->get_consumers().size() != 1) continue;
-        auto &next_op = out->get_consumers()[0].get_op();
-        if (!is_typecast(&next_op)) continue;
-        auto tc_out = next_op.get_output_value(0);
-        cur_op->connect_output(0, tc_out);
-        fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
     }
 
     subgraph_rewriter_t rewriter(sg);
@@ -3423,7 +3398,9 @@ impl::status_t lift_up_weight_reshape_for_depthwiseconv(
                 = (wei_format == "OIX") ? wei_dims[0] : wei_dims[ndims - 1];
         const int64_t inputchannel
                 = (wei_format == "OIX") ? wei_dims[1] : wei_dims[ndims - 2];
-        if (outchannel % groups != 0 || inputchannel != 1) continue;
+
+        if (groups == 0 || outchannel % groups != 0 || inputchannel != 1)
+            continue;
 
         if (!op->get_input_value(1)->has_producer()) break;
         op_t *reshape_op = op->get_input_op(1);

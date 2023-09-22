@@ -17,6 +17,11 @@
 #ifndef COMPILER_WORKAROUNDS_HPP
 #define COMPILER_WORKAROUNDS_HPP
 
+#if (defined __GNUC__) && (!defined(__INTEL_COMPILER)) \
+        && (!defined(__INTEL_LLVM_COMPILER)) && (!defined(__clang__major__))
+#define NEED_GCC_WA_CHECK 1
+#endif
+
 // Workaround 01: clang.
 //
 // Clang has an issue [1] with `#pragma omp simd` that might lead to segfault.
@@ -52,8 +57,7 @@
 // jump threading optimization is the culprit, which cannot be disabled on its
 // own. There is no reliable way to reproduce the ICE, therefore it is not clear
 // which __GCC_MINOR__ version fixes issue.
-#if (defined __GNUC__) && (__GNUC__ == 7) && (!defined(__INTEL_COMPILER)) \
-        && (!defined(__clang__major__))
+#if (defined NEED_GCC_WA_CHECK) && (__GNUC__ == 7)
 #define GCC_WA_NO_TREE_DOMINATOR_OPTS 1
 #else
 #define GCC_WA_NO_TREE_DOMINATOR_OPTS 0
@@ -63,9 +67,18 @@
 //
 // GCC 10 & 11 && 12 (at least versiona 10.1, 10.3 & 11.1, 12.2) report false positives
 // in xbyak when -Warray-bounds build setting is on
-#if (!defined(__INTEL_COMPILER) && !defined(__clang__major__)) \
-        && (defined(__GNUC__) && (__GNUC__ >= 10))
+#if (defined NEED_GCC_WA_CHECK) && (__GNUC__ >= 10)
 #pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
+
+// Workaround 05: GCC
+//
+// NOTE: inside lambda, type cast variables captured by reference using
+// either c-like "(type)var" or functional "type(var)" notation in order
+// to avoid gcc7 bug with c++14 standard
+// (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=83204).
+#if (defined NEED_GCC_WA_CHECK) && (__GNUC__ <= 7)
+#define GCC_WA_LAMBDA_C_CAST
 #endif
 
 #endif // COMPILER_WORKAROUNDS_HPP

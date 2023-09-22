@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -142,9 +142,9 @@ static float reduce(float *mem, dim_t size) {
 namespace prelu {
 void set_reduction_buffers(
         const dim_t work_amount, dim_t &group_size, dim_t &buf_size) {
-    float sqrt = std::sqrt(work_amount);
-    group_size = std::ceil(sqrt);
-    buf_size = std::floor(sqrt);
+    float sqrt = std::sqrt(static_cast<float>(work_amount));
+    group_size = static_cast<dim_t>(std::ceil(sqrt));
+    buf_size = static_cast<dim_t>(std::floor(sqrt));
     if (group_size * buf_size < work_amount) group_size++;
 }
 
@@ -191,7 +191,7 @@ void ref_prelu_bwd_t::calculate_scalar(const byte *src, const byte *weights,
 
     const int nthr = pd()->nthr_;
     const dim_t work_amount = data_d.nelems();
-    const int thread_count = nstl::min((dim_t)nthr, work_amount);
+    const int thread_count = nstl::min(nthr, static_cast<int>(work_amount));
 
     std::vector<float> buf_nthr_partial_results(nthr);
 

@@ -18,6 +18,7 @@
 #include <immintrin.h>
 #include <stdint.h>
 #include "common.hpp"
+#include "util/assert.hpp"
 
 class vec_f32x8;
 class vec_s32x8 {
@@ -155,4 +156,5 @@ INLINE vec_s32x8 sc_min(vec_s32x8 const &a, vec_s32x8 const &b) {
 INLINE vec_s32x8 sc_abs(vec_s32x8 const &a) {
     return _mm256_abs_epi32(a.v);
 }
+
 #endif

@@ -151,7 +151,7 @@ public:
     void register_##pattern_class_(graph::pass::pass_registry_t &registry) {
 #define DNNL_BACKEND_REGISTER_PATTERN_DEF_END }
 
-#define MAX_REPETITION 4
+#define MAX_REPETITION 5
 } // namespace pattern
 } // namespace dnnl_impl
 } // namespace graph

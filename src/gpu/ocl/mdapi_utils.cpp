@@ -43,37 +43,43 @@ namespace ocl {
 
 #ifdef DNNL_GPU_ENABLE_MDAPI
 
-static bool open_metrics_device(MetricsDiscovery::IMetricsDevice_1_5 **device) {
+static bool open_metrics_device(MetricsDiscovery::IMetricsDevice_1_5 **device,
+        const std::shared_ptr<void> &lib) {
     static MetricsDiscovery::OpenMetricsDevice_fn func;
-    if (!func) {
-        void *lib = dlopen("libmd.so.1", RTLD_LAZY);
-        *(void **)(&func) = dlsym(lib, "OpenMetricsDevice");
-    }
+    if (!func) { *(void **)(&func) = dlsym(lib.get(), "OpenMetricsDevice"); }
     if (!func) return false;
     auto code = func(device);
     return code == MetricsDiscovery::CC_OK;
 }
 
-static bool close_metrics_device(MetricsDiscovery::IMetricsDevice_1_5 *device) {
+static bool close_metrics_device(MetricsDiscovery::IMetricsDevice_1_5 *device,
+        const std::shared_ptr<void> &lib) {
     static MetricsDiscovery::CloseMetricsDevice_fn func;
-    if (!func) {
-        void *lib = dlopen("libmd.so.1", RTLD_LAZY);
-        *(void **)(&func) = dlsym(lib, "CloseMetricsDevice");
-    }
+    if (!func) { *(void **)(&func) = dlsym(lib.get(), "CloseMetricsDevice"); }
     if (!func) return false;
     auto code = func(device);
     return code == MetricsDiscovery::CC_OK;
+}
+
+static void open_lib(std::shared_ptr<void> &lib) {
+    void *handle = dlopen("libmd.so.1", RTLD_LAZY);
+    if (handle) {
+        lib = std::shared_ptr<void>(handle, [](void *h) {
+            if (h) dlclose(h);
+        });
+    }
 }
 
 class mdapi_helper_impl_t {
 public:
     mdapi_helper_impl_t() {
-        if (!open_metrics_device(&metric_device_)) return;
+        if (!lib) open_lib(lib);
+        if (!open_metrics_device(&metric_device_, lib)) return;
         if (!activate_freq_metric()) return;
         is_initialized_ = true;
     }
 
-    ~mdapi_helper_impl_t() { close_metrics_device(metric_device_); }
+    ~mdapi_helper_impl_t() { close_metrics_device(metric_device_, lib); }
 
     cl_command_queue create_queue(
             cl_context ctx, cl_device_id dev, cl_int *err) const {
@@ -179,6 +185,7 @@ private:
     MetricsDiscovery::IMetricsDevice_1_5 *metric_device_ = nullptr;
     MetricsDiscovery::IMetricSet_1_1 *metric_set_ = nullptr;
     int freq_metric_idx_ = -1;
+    std::shared_ptr<void> lib = nullptr;
 };
 
 static std::shared_ptr<mdapi_helper_impl_t> &mdapi_helper_impl() {

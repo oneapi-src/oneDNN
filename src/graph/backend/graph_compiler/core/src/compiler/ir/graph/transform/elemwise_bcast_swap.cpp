@@ -85,9 +85,10 @@ void elemwise_bcast_swap(sc_graph_t &mgr, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::dfs_topology_sort();
     vis.visit_graph(mgr, [&mgr](op_visitor_t *vis, const sc_op_ptr &node) {
         if (auto add_node = node->dyn_cast<add_op_t>()) {
-            auto bcast_idx = add_node->get_broadcast_input();
-            if (bcast_idx != -1) {
+            auto non_bcast_idx = add_node->get_non_broadcast_input_index(false);
+            if (non_bcast_idx.size() == 1) {
                 assert(add_node->get_inputs().size() == 2);
+                int bcast_idx = 1 - non_bcast_idx[0];
                 if (!check_and_swap(mgr, add_node, 0, bcast_idx, vis)) {
                     check_and_swap(mgr, add_node, 1, bcast_idx, vis);
                 }

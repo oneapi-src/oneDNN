@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <mutex>
 #include <CL/cl_ext.h>
 
@@ -255,9 +256,6 @@ static status_t get_number_devices(cl_program program, size_t *n_devices) {
 
 status_t get_ocl_program_binary_size(
         cl_kernel kernel, cl_device_id device, size_t *size) {
-    size_t device_idx = 0;
-    CHECK(get_ocl_device_index(&device_idx, device));
-
     cl_program program;
     cl_int err = clGetKernelInfo(
             kernel, CL_KERNEL_PROGRAM, sizeof(program), &program, nullptr);
@@ -270,6 +268,19 @@ status_t get_ocl_program_binary_size(
     err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
             sizeof(size_t) * n_devices, binary_sizes.data(), nullptr);
     OCL_CHECK(err);
+
+    // Identify local device index in the list of devices the program was
+    // compiled for. Using global indexing through `get_ocl_device_index` may
+    // fail due to presence of two or more physical devices in the system.
+    std::vector<cl_device_id> devices(n_devices);
+    err = clGetProgramInfo(program, CL_PROGRAM_DEVICES,
+            sizeof(cl_device_id) * n_devices, devices.data(), nullptr);
+    OCL_CHECK(err);
+
+    auto device_it = std::find(devices.begin(), devices.end(), device);
+    if (device_it == devices.end()) return status::invalid_arguments;
+
+    size_t device_idx = std::distance(devices.begin(), device_it);
     (*size) = binary_sizes[device_idx];
     return status::success;
 }
@@ -376,8 +387,8 @@ void dump_kernel_binary(compute::binary_t binary, const std::string &name) {}
 void dump_kernel_binary(cl_kernel) {}
 #endif
 
-void debugdump_processed_source(
-        const std::string &source, const std::string &options) {
+void debugdump_processed_source(const std::string &source,
+        const std::string &options, const std::string &cl_options) {
 #if defined(__linux__) && defined(DNNL_DEV_MODE)
     if (get_verbose(verbose_t::debuginfo) >= 10) {
         auto get_defines = [](const std::string &from) {
@@ -434,6 +445,7 @@ void debugdump_processed_source(
         std::string preprocess_cmd
                 = std::string() + "cpp -P " + o.c_str() + " | clang-format";
         execute_command(preprocess_cmd, source);
+        std::cout << "OCL_ARCH_OPTIONS: " << cl_options << std::endl;
     }
 #endif
 }

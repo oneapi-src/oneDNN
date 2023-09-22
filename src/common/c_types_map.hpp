@@ -154,6 +154,7 @@ const data_type_t s32 = dnnl_s32;
 const data_type_t s8 = dnnl_s8;
 const data_type_t u8 = dnnl_u8;
 const data_type_t boolean = dnnl_boolean;
+const data_type_t data_type_max = dnnl_data_type_max;
 
 // Not exposed through API as all current uses are internal only
 const data_type_t tf32 = static_cast<data_type_t>(1 << 8);
@@ -180,6 +181,7 @@ using sparse_encoding_t = dnnl_sparse_encoding_t;
 namespace sparse_encoding {
 const sparse_encoding_t undef = dnnl_sparse_encoding_undef;
 const sparse_encoding_t csr = dnnl_csr;
+const sparse_encoding_t packed = dnnl_packed;
 } // namespace sparse_encoding
 #else
 // Declare dummy values to avoid guarding internal implementation.
@@ -187,6 +189,7 @@ using sparse_encoding_t = int;
 namespace sparse_encoding {
 const sparse_encoding_t undef = 0;
 const sparse_encoding_t csr = 1;
+const sparse_encoding_t packed = 2;
 } // namespace sparse_encoding
 #endif
 
@@ -199,7 +202,7 @@ const format_kind_t opaque = dnnl_format_kind_opaque;
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 const format_kind_t sparse = dnnl_format_kind_sparse;
 #else
-const format_kind_t sparse = dnnl_format_kind_undef;
+const format_kind_t sparse = static_cast<format_kind_t>(4);
 #endif
 
 // Internal only format kinds.
@@ -758,6 +761,8 @@ const format_tag_t aBdefC16c64b2c = dnnl_aBdefC16c64b2c;
 const format_tag_t aBdefC16c64b4c = dnnl_aBdefC16c64b4c;
 const format_tag_t decbA16a = dnnl_decbA16a;
 const format_tag_t decbA8a = dnnl_decbA8a;
+const format_tag_t defcbA16a = dnnl_defcbA16a;
+const format_tag_t defcbA8a = dnnl_defcbA8a;
 const format_tag_t aCB16c2b = dnnl_aCB16c2b;
 const format_tag_t aCB16c4b = dnnl_aCB16c4b;
 const format_tag_t BA16b2a = dnnl_BA16b2a;
@@ -1682,6 +1687,8 @@ const format_tag_t gIdhwO24i4o = dnnl_gIdhwO24i4o;
 
 const format_tag_t hwioG16g = dnnl_hwioG16g;
 const format_tag_t hwioG8g = dnnl_hwioG8g;
+const format_tag_t dhwioG16g = dnnl_dhwioG16g;
+const format_tag_t dhwioG8g = dnnl_dhwioG8g;
 const format_tag_t Owi24o = dnnl_Owi24o;
 const format_tag_t Ohwi24o = dnnl_Ohwi24o;
 const format_tag_t Odhwi24o = dnnl_Odhwi24o;
@@ -1871,9 +1878,9 @@ const query_t sparse_encoding = dnnl_query_sparse_encoding;
 const query_t nnz_s64 = dnnl_query_nnz_s64;
 const query_t num_handles_s32 = dnnl_query_num_handles_s32;
 #else
-const query_t sparse_encoding = dnnl_query_undef;
-const query_t nnz_s64 = dnnl_query_undef;
-const query_t num_handles_s32 = dnnl_query_undef;
+const query_t sparse_encoding = static_cast<query_t>(266);
+const query_t nnz_s64 = static_cast<query_t>(267);
+const query_t num_handles_s32 = static_cast<query_t>(268);
 #endif
 
 // Internal only query kinds.
@@ -1898,7 +1905,7 @@ const stream_flags_t default_flags = dnnl_stream_default_flags;
 #ifdef DNNL_EXPERIMENTAL_PROFILING
 const stream_flags_t profiling = dnnl_stream_profiling;
 #else
-const stream_flags_t profiling = static_cast<stream_flags_t>(0x4U);
+const stream_flags_t profiling = static_cast<stream_flags_t>(1 << 2);
 #endif
 } // namespace stream_flags
 using stream_t = dnnl_stream;

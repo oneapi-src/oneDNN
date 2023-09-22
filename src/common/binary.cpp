@@ -31,12 +31,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_BINARY(cond, msg, ...) \
-    VCONDCHECK(create, check, binary, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, binary, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 #define VCHECK_BINARY_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, binary, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, binary, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 status_t binary_attr_check(const binary_desc_t &desc, const engine_t *engine,
         const primitive_attr_t *attr) {
@@ -101,13 +101,13 @@ status_t dnnl_binary_primitive_desc_create(
     bod.primitive_kind = primitive_kind::binary;
     bod.alg_kind = alg_kind;
 
-    VCONDCHECK(create, check, binary,
+    VCONDCHECK(primitive, create, check, binary,
             !memory_desc_wrapper(src0_md).has_runtime_dims_or_strides(),
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
-    VCONDCHECK(create, check, binary,
+    VCONDCHECK(primitive, create, check, binary,
             !memory_desc_wrapper(src1_md).has_runtime_dims_or_strides(),
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
-    VCONDCHECK(create, check, binary,
+    VCONDCHECK(primitive, create, check, binary,
             !memory_desc_wrapper(dst_md).has_runtime_dims_or_strides(),
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 

@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 #include "builder.hpp"
+#include <runtime/logging.hpp>
 #include <util/utils.hpp>
 
 namespace dnnl {
@@ -316,6 +317,12 @@ struct SC_INTERNAL_API if_simulator_t {
 
     if_simulator_t(if_iterator_t &other) = delete;
     ~if_simulator_t() {
+        if (!true_block_.defined() || !false_block_.defined()) {
+            SC_WARN << "Cannot generate if statements due to undefined "
+                       "true_block/false_block for if_simulator, could be "
+                       "caused by early destruction from assertion failure";
+            return;
+        }
         stmt false_block = false_block_.checked_as<stmts>()->seq_.empty()
                 ? stmt()
                 : false_block_;
@@ -459,6 +466,20 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
 #define _var_(NAME, DTYPE) \
     ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
             ::dnnl::impl::graph::gc::builder::make_var(DTYPE, #NAME), false); \
+    ::dnnl::impl::graph::gc::builder::get_current_builder() \
+            ->push_var_tensor_def(NAME, linkage::local);
+
+/**
+ * Defines a variable within the current scope with specified name
+ * arguments:
+ *  NAME: the name of the variable, should not be quoted
+ *  VAR_NAME: the name of the tir variable, should be quoted
+ *  DTYPE: sc_data_type_t of the variable
+ * */
+#define _named_var_(NAME, VAR_NAME, DTYPE) \
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
+            ::dnnl::impl::graph::gc::builder::make_var(DTYPE, VAR_NAME), \
+            false); \
     ::dnnl::impl::graph::gc::builder::get_current_builder() \
             ->push_var_tensor_def(NAME, linkage::local);
 

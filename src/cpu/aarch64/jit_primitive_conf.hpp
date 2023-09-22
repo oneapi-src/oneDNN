@@ -496,7 +496,7 @@ struct jit_pool_call_s {
 struct jit_shuffle_conf_t {
     unsigned ndims = 0;
 
-    unsigned mb = 0, c = 0, d = 0, h = 0, w = 0, sp = 0;
+    dim_t mb = 0, c = 0, d = 0, h = 0, w = 0, sp = 0;
 
     unsigned stride_mb = 0;
     unsigned blk_size = 0;

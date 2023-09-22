@@ -902,7 +902,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         for (int p = 0; p < n_parts; p++) {
             const dim_t m_p = rnn.is_fwd ? (parts[p] * oc) : ic;
             const dim_t k_p = rnn.is_fwd ? ic : (parts[p] * oc);
-            const dim_t n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
+            const dim_t n_p
+                    = merge ? static_cast<dim_t>(rnn.mb) * rnn.n_iter : rnn.mb;
             bool pack_part = true;
 
             dnnl_status_t st = dnnl_success;

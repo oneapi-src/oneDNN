@@ -95,11 +95,14 @@ struct deserialized_graph {
     void load(const std::string &pass_config_json);
 
     dnnl::graph::graph to_graph(dnnl::fpmath_mode fpmath_mode) const;
+    const std::vector<size_t> &get_input_ports() const { return input_ports_; };
 
     std::vector<deserialized_op> ops_;
-    std::map<size_t, logical_tensor::dims> graph_inputs_;
+    // record all tensors id and its dims
+    std::map<size_t, logical_tensor::dims> graph_tensors_;
     // reorder logical tensor id to memory tag.
     // memory tag can be abx, axb, or other special tag
+    // need to maintain for further use
     std::map<size_t, std::string> lt_2_mtag_;
     std::vector<size_t> graph_inputs_with_mb_;
 

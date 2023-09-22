@@ -31,12 +31,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_LRN(cond, msg, ...) \
-    VCONDCHECK(create, check, lrn, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__)
+    VCONDCHECK(primitive, create, check, lrn, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__)
 
 #define VCHECK_LRN_UNIMPL(cond, msg, ...) \
-    VCONDCHECK(create, check, lrn, (cond), status::unimplemented, msg, \
-            ##__VA_ARGS__)
+    VCONDCHECK(primitive, create, check, lrn, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__)
 
 namespace {
 status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
@@ -75,7 +75,7 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
     }
-    VCONDCHECK(create, check, lrn, !runtime_dims_or_strides,
+    VCONDCHECK(primitive, create, check, lrn, !runtime_dims_or_strides,
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     ld.src_desc = *src_desc;

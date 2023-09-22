@@ -78,12 +78,18 @@ struct base_cfg_t {
 
         void set_range_min(int new_value) {
             auto it = cfg_map_.find(data_type_);
-            if (it == cfg_map_.end()) { assert(!"entry was not found!"); }
+            if (it == cfg_map_.end()) {
+                assert(!"entry was not found!");
+                return;
+            }
             (*it).second.range_min = new_value;
         }
         void set_range_max(int new_value) {
             auto it = cfg_map_.find(data_type_);
-            if (it == cfg_map_.end()) { assert(!"entry was not found!"); }
+            if (it == cfg_map_.end()) {
+                assert(!"entry was not found!");
+                return;
+            }
             (*it).second.range_max = new_value;
         }
 
@@ -147,7 +153,13 @@ protected:
     }
 
     bool is_int8(data_kind_t dk = WEI) const {
-        return dnnl_data_type_size(cfg_entry_.at(dk).get_dt()) == 1;
+        // This function is designed to bump density for int8 cases to trigger
+        // saturation and rounding. However, with s32 output data type bumped
+        // density can exceed safe f32 reference output value and lead to
+        // mismatching results. Thus, remove x8s8s32 configuration from int8
+        // definition.
+        return dnnl_data_type_size(cfg_entry_.at(dk).get_dt()) == 1
+                && cfg_entry_.at(output_data_kind_).get_dt() != dnnl_s32;
     }
 
     // Find the number of accumulators safe to use with the following equations:
@@ -191,7 +203,8 @@ protected:
         while (safe_n_acc < 1) {
             set_range_min(cur_kind, get_range_min(cur_kind) / 2);
             set_range_max(cur_kind, get_range_max(cur_kind) / 2);
-            int64_t max_value = cfg_entry_.at(SRC).get_range_abs_max()
+            int64_t max_value = static_cast<int64_t>(
+                                        cfg_entry_.at(SRC).get_range_abs_max())
                     * cfg_entry_.at(WEI).get_range_abs_max();
             safe_n_acc = (1LL << get_safe_digits()) / max_value;
             cur_kind = cur_kind == SRC ? WEI : SRC;

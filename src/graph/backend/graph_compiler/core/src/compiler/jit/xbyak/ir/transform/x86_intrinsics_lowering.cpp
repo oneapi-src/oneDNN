@@ -21,12 +21,14 @@
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
-#include <compiler/jit/xbyak/ir/utils.hpp>
+#include <compiler/jit/xbyak/ir/util/invariant_int.hpp>
+#include <compiler/jit/xbyak/ir/util/utils.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
 #include <compiler/jit/xbyak/x86_64/registers.hpp>
 #include <util/any_map.hpp>
 #include <util/array_ref.hpp>
 
+#include "util/utils.hpp"
 #include "x86_intrinsics_lowering.hpp"
 
 namespace dnnl {
@@ -75,6 +77,17 @@ public:
         if (v->var_.isa<var>() && v->init_.defined()) {
             add_defination(v->var_, v->linkage_);
             x86_intrinsics_transform(v->var_, v->init_);
+        } else if (v->var_.isa<tensor>()
+                && v->init_.cast<intrin_call>()
+                           .filter([](const intrin_call &v) {
+                               return v->type_ == intrin_type::reinterpret
+                                       && v->args_.at(0)->dtype_
+                                       == datatypes::index;
+                           })
+                           .has_value()) {
+            // handle tensor A[...] = reintepret(...)
+            auto intri = v->init_.static_as<intrin_call>();
+            add_defination(v->var_, v->linkage_, intri->args_[0]);
         }
         return std::move(v);
     }
@@ -114,7 +127,7 @@ public:
                 transform(dst, {bin->l_, bin->r_},
                         dst->dtype_, //
                         transform_x86_mod_div(xbyak_intrin_type::div),
-                        transform_intrin(xbyak_intrin_type::div));
+                        transform_avx_div());
             } break;
             case sc_expr_type::mod: {
                 auto bin = val.static_as<binary>();
@@ -142,7 +155,7 @@ public:
                 transform(dst, {log->in_, builder::make_constant(UINT64_C(1))},
                         dst->dtype_, //
                         transform_3a_to_2a(xbyak_intrin_type::bit_xor),
-                        transform_mask_logic_not());
+                        transform_disabled("logic_not"));
             } break;
             case sc_expr_type::select: {
                 auto sel = val.static_as<select>();
@@ -210,10 +223,14 @@ public:
                         transform_intrin(xbyak_intrin_type::shl));
             } break;
             case intrin_type::shr: {
+                auto is_uint = (CATE_UINT
+                        == get_etype_category(dst->dtype_.type_code_));
+                auto sft_type = is_uint ? xbyak_intrin_type::shr
+                                        : xbyak_intrin_type::sar;
                 transform(dst, {intrin->args_[0], intrin->args_[1]},
                         dst->dtype_, //
-                        transform_x86_shift(xbyak_intrin_type::shr),
-                        transform_intrin(xbyak_intrin_type::shr));
+                        transform_x86_shift(sft_type),
+                        transform_intrin(sft_type));
             } break;
             case intrin_type::ceil: {
                 transform(dst, {intrin->args_[0]},
@@ -302,9 +319,12 @@ public:
             } break;
             case intrin_type::shuffle: {
                 auto imm = intrin->intrin_attrs_->get<int>("shuffle_imm");
+                auto type_bits = intrin->intrin_attrs_->get<int>("type_bits");
+
                 transform(dst,
                         {intrin->args_[0], intrin->args_[1],
-                                builder::make_constant(imm)},
+                                builder::make_constant(imm),
+                                builder::make_constant(type_bits)},
                         dst->dtype_, //
                         transform_disabled("shuffle"),
                         transform_intrin(xbyak_intrin_type::shuffle));
@@ -322,6 +342,38 @@ public:
                 transform(dst, {intrin->args_[0], intrin->args_[1]},
                         dst->dtype_, //
                         transform_disabled("gather"), transform_gather());
+            } break;
+            case intrin_type::insert: {
+                auto imm = intrin->intrin_attrs_->get<int>("insert_imm");
+                auto elem_bits
+                        = utils::get_sizeof_type(intrin->args_[1]->dtype_) * 8;
+                bool need_to_reg32 = elem_bits < 32;
+                auto insert_val = builder::make_var(
+                        sc_data_type_t::u32(1), "insert_val_");
+                if (need_to_reg32) {
+                    // need reg32
+                    add_defination(insert_val, linkage::local);
+                    add_assignment(insert_val,
+                            builder::make_cast(
+                                    datatypes::u32, intrin->args_[1]));
+                }
+                transform(dst,
+                        {intrin->args_[0],
+                                need_to_reg32 ? insert_val : intrin->args_[1],
+                                builder::make_constant(imm),
+                                builder::make_constant(elem_bits)},
+                        dst->dtype_, //
+                        transform_disabled("insert"),
+                        transform_5a_to_4a(xbyak_intrin_type::insert));
+            } break;
+            case intrin_type::extract: {
+                auto imm = intrin->intrin_attrs_->get<int>("extract_imm");
+                auto elem_bits = utils::get_sizeof_type(intrin->dtype_) * 8;
+                transform(dst,
+                        {intrin->args_[0], builder::make_constant(imm),
+                                builder::make_constant(elem_bits)},
+                        intrin->args_[0]->dtype_, //
+                        transform_disabled("extract"), transform_extract());
             } break;
             case intrin_type::int_and: {
                 transform(dst, {intrin->args_[0], intrin->args_[1]},
@@ -353,6 +405,17 @@ public:
                         dst->dtype_, //
                         transform_disabled("permutex2var"),
                         transform_4a_to_3a(xbyak_intrin_type::permutex2var));
+            } break;
+            case intrin_type::permutexvar: {
+                const int elem_bits
+                        = intrin->intrin_attrs_->get_or_else("lanes", 1)
+                        * utils::get_sizeof_etype(dst->dtype_.type_code_) * 8;
+                transform(dst,
+                        {intrin->args_[0], intrin->args_[1],
+                                builder::make_constant(elem_bits)},
+                        dst->dtype_, //
+                        transform_disabled("permutexvar"),
+                        transform_intrin(xbyak_intrin_type::permutexvar));
             } break;
             case intrin_type::saturated_cast: {
                 transform(dst, {intrin->args_[0]},
@@ -394,6 +457,22 @@ public:
                         get_const_as_int(lanes.static_as<constant>()));
                 transform_broadcast(dst, arg, arg->dtype_);
             } break;
+            case x86_intrin_type::avx_mask_cast: {
+                assert(intrin->args_.size() == 1);
+                transform_avx_mask_cast(dst, intrin->args_[0]);
+            } break;
+            case x86_intrin_type::avx_compare: {
+                assert(intrin->args_.size() == 3);
+                assert(intrin->args_[2].isa<constant_c>());
+                auto c = intrin->args_[2].static_as<constant_c>();
+                auto code = static_cast<xbyak_condition>(c->value_[0].u64);
+                add_assignment(dst,
+                        make_xbyak_intrin(dst->dtype_,
+                                {intrin->args_[0], intrin->args_[1]},
+                                xbyak_intrin_type::cmp_set,
+                                xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(code, dst->dtype_)));
+            } break;
             default:
                 COMPILE_ASSERT(false, "Unknown low level intrinsic!");
                 break;
@@ -403,6 +482,7 @@ public:
     void transform_cast(const expr &dst, const cast &src) {
         const sc_data_type_t src_dtype = src->in_->dtype_;
         const sc_data_type_t dst_dtype = src->dtype_;
+
         if (dst_dtype == sc_data_type_t::bf16(1)
                 && src_dtype == sc_data_type_t::f32(1)) {
             auto bias = builder::make_var(sc_data_type_t::u32(1), "bias");
@@ -558,6 +638,13 @@ public:
         };
     }
 
+    transform_func transform_extract() {
+        return [this](const expr &dst, array_ref<expr> src,
+                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
+            transform_extract(dst, src[0], src[1], src[2]);
+        };
+    }
+
     transform_func transform_broadcast(sc_data_type_t src_dtype) {
         return [this, src_dtype](const expr &dst, array_ref<expr> src,
                        sc_data_type_t dtype, xbyak_intrin_isa isa) {
@@ -583,6 +670,14 @@ public:
         return [this, intrin](const expr &dst, array_ref<expr> src,
                        sc_data_type_t dtype, xbyak_intrin_isa isa) {
             transform_4a_to_3a(dst, src[0], src[1], src[2], intrin, isa);
+        };
+    }
+
+    transform_func transform_5a_to_4a(xbyak_intrin_type intrin) {
+        return [this, intrin](const expr &dst, array_ref<expr> src,
+                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
+            transform_5a_to_4a(
+                    dst, src[0], src[1], src[2], src[3], intrin, isa);
         };
     }
 
@@ -621,17 +716,17 @@ public:
         };
     }
 
+    transform_func transform_avx_div() {
+        return [this](const expr &dst, array_ref<expr> src,
+                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
+            transform_avx_div(dst, src[0], src[1], dtype);
+        };
+    }
+
     transform_func transform_simd_reduce_seq(xbyak_intrin_type intrin) {
         return [this, intrin](const expr &dst, array_ref<expr> src,
                        sc_data_type_t dtype, xbyak_intrin_isa isa) {
             transform_simd_reduce_seq(dst, src[0], dtype, intrin, isa);
-        };
-    }
-
-    transform_func transform_mask_logic_not() {
-        return [this](const expr &dst, array_ref<expr> src,
-                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
-            transform_mask_logic_not(dst, src[0]);
         };
     }
 
@@ -641,8 +736,9 @@ public:
 
     void transform_intrin(const expr &v, array_ref<expr> args,
             xbyak_intrin_type intrin, xbyak_intrin_isa isa) {
-        add_assignment(
-                v, make_xbyak_intrin(v->dtype_, args.as_vector(), intrin, isa));
+        add_assignment(v,
+                make_xbyak_intrin(v->dtype_, args.as_vector(), intrin, isa,
+                        xbyak_intrin_modifier(v->dtype_)));
     }
 
     void transform_intrin_eval(array_ref<expr> args, //
@@ -660,10 +756,21 @@ public:
 
     void transform_3a_to_2a(const expr &dst, const expr &lhs, const expr &rhs,
             xbyak_intrin_type intrin, xbyak_intrin_isa isa) {
+        // x86 operations only support up to 32 bit imm
+        auto load_if_imm_64_bit = [&](const expr &v) -> expr {
+            if (isa == xbyak_intrin_isa::x86 && const_exceed_32bit(v)) {
+                auto imm = builder::make_var(v->dtype_, "__64_bit_imm");
+                add_defination(imm, linkage::local);
+                add_assignment(imm, v);
+                return imm;
+            } else {
+                return v;
+            }
+        };
         // dst = lhs
         add_assignment(dst, lhs);
         // dst = 2a(rhs)
-        transform_intrin(dst, {rhs}, intrin, isa);
+        transform_intrin(dst, {load_if_imm_64_bit(rhs)}, intrin, isa);
     }
 
     void transform_4a_to_3a(const expr &dst, const expr &a, const expr &b,
@@ -672,6 +779,15 @@ public:
         add_assignment(dst, a);
         // dst = 3a(b, c)
         transform_intrin(dst, {b, c}, intrin, isa);
+    }
+
+    void transform_5a_to_4a(const expr &dst, const expr &a, const expr &b,
+            const expr &c, const expr &d, xbyak_intrin_type intrin,
+            xbyak_intrin_isa isa) {
+        // dst = src1
+        add_assignment(dst, a);
+        // dst = 4a(b, c, d)
+        transform_intrin(dst, {b, c, d}, intrin, isa);
     }
 
     void transform_x86_mul(const expr &dst, const expr &lhs, const expr &rhs) {
@@ -735,23 +851,282 @@ public:
         auto rdx = make_physical_reg(dtype, x86_64::regs::rdx);
         add_defination(rax, linkage::local);
         add_defination(rdx, linkage::local);
-        // mov %rax, lhs
-        auto mov_rax = make_stmt<assign_node_t>(rax, lhs);
-        transform_seq_.emplace_back(mov_rax);
-        // unsigned [xor %rdx, %rdx] or signed [CWD/CDQ/CQO]
-        auto sign_ext_rdx = make_stmt<assign_node_t>(rdx,
-                make_xbyak_intrin(
-                        dst->dtype_, {rax}, xbyak_intrin_type::sign_ext));
-        transform_seq_.emplace_back(sign_ext_rdx);
-        // div rhs
-        // mov dst, %rax(div)/%rdx(mod)
-        // Add %rax, %rdx to xbyak_intrin args so, liveness updates
-        // TODO(XXX): if transform normal div constant (not unsigned 2^n) is
-        // worthy
-        auto tmp = load_when_imm(rhs, "__div_imm_tmp");
-        add_assignment(dst,
-                make_xbyak_intrin(dst->dtype_, {tmp, rax, rdx}, intrin,
-                        xbyak_intrin_isa::x86));
+        if (rhs.isa<constant>() && rhs->dtype_ == datatypes::index) {
+            // Get multiplier
+            const auto dtype = dst->dtype_;
+            const auto divisor = rhs.static_as<constant>()->value_[0].u64;
+            const auto mult = invariant_int::UintDivMultiplier(divisor, 64);
+            // gen code for div
+            if (mult.compensate_) {
+                // %rdx = mulh([magic]~%rax, lhs)
+                // %rax = lhs - %rdx
+                // %rax >> [1]
+                // %rdx = %rdx + %rax
+                // %rdx >> [sh_post]
+                // dst = %rdx
+                add_assignment(rax, builder::make_constant(mult.magic_));
+                add_assignment(rdx,
+                        make_xbyak_intrin(dtype, {rax, lhs},
+                                xbyak_intrin_type::mulhl,
+                                xbyak_intrin_isa::x86));
+                add_assignment(rax, lhs);
+                add_assignment(rax,
+                        make_xbyak_intrin(dtype, {rdx}, xbyak_intrin_type::sub,
+                                xbyak_intrin_isa::x86));
+                assert(mult.sft_pre_ == 1);
+                add_assignment(rax,
+                        make_xbyak_intrin(dtype,
+                                {builder::make_constant(mult.sft_pre_)},
+                                xbyak_intrin_type::shr, xbyak_intrin_isa::x86));
+                add_assignment(rdx,
+                        make_xbyak_intrin(dtype, {rax}, xbyak_intrin_type::add,
+                                xbyak_intrin_isa::x86));
+                if (mult.sft_post_ > 0) {
+                    add_assignment(rdx,
+                            make_xbyak_intrin(dtype,
+                                    {builder::make_constant(mult.sft_post_)},
+                                    xbyak_intrin_type::shr,
+                                    xbyak_intrin_isa::x86));
+                }
+            } else {
+                // %rdx = lhs
+                // %rdx >> [sh_pre]
+                // %rdx = mulh([magic]~%rax, %rdx)
+                // %rdx >> [sh_post]
+                add_assignment(rdx, lhs);
+                if (mult.sft_pre_ > 0) {
+                    add_assignment(rdx,
+                            make_xbyak_intrin(dtype,
+                                    {builder::make_constant(mult.sft_pre_)},
+                                    xbyak_intrin_type::shr,
+                                    xbyak_intrin_isa::x86));
+                }
+                add_assignment(rax, builder::make_constant(mult.magic_));
+                add_assignment(rdx,
+                        make_xbyak_intrin(dtype, {rax, rdx},
+                                xbyak_intrin_type::mulhl,
+                                xbyak_intrin_isa::x86));
+                if (mult.sft_post_ > 0) {
+                    add_assignment(rdx,
+                            make_xbyak_intrin(dtype,
+                                    {builder::make_constant(mult.sft_post_)},
+                                    xbyak_intrin_type::shr,
+                                    xbyak_intrin_isa::x86));
+                }
+            }
+            // gen addtional code for mod
+            if (intrin == xbyak_intrin_type::mod) {
+                // %rdx = %rdx * rhs
+                // dst = lhs - %rdx
+                add_assignment(rdx,
+                        make_xbyak_intrin(dtype,
+                                {rdx, builder::make_constant(divisor)},
+                                xbyak_intrin_type::muli,
+                                xbyak_intrin_isa::x86));
+                add_assignment(dst, lhs);
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {rdx}, xbyak_intrin_type::sub,
+                                xbyak_intrin_isa::x86));
+            } else {
+                // dst = %rdx
+                add_assignment(dst, rdx);
+            }
+        } else {
+            // mov %rax, lhs
+            auto mov_rax = make_stmt<assign_node_t>(rax, lhs);
+            transform_seq_.emplace_back(mov_rax);
+            // unsigned [xor %rdx, %rdx] or signed [CWD/CDQ/CQO]
+            auto sign_ext_rdx = make_stmt<assign_node_t>(rdx,
+                    make_xbyak_intrin(
+                            dst->dtype_, {rax}, xbyak_intrin_type::sign_ext));
+            transform_seq_.emplace_back(sign_ext_rdx);
+            // div rhs
+            // mov dst, %rax(div)/%rdx(mod)
+            // Add %rax, %rdx to xbyak_intrin args so liveness updates
+            auto tmp = load_when_imm(rhs, "__div_imm_tmp");
+            add_assignment(dst,
+                    make_xbyak_intrin(dst->dtype_, {tmp, rax, rdx}, intrin,
+                            xbyak_intrin_isa::x86));
+        }
+    }
+
+    void transform_avx_div(const expr &dst, const expr &lhs, const expr &rhs,
+            sc_data_type_t dtype) {
+        // TODO(longsheng): refactor div transfrom before ssa
+        if (rhs.isa<constant>() && rhs->dtype_.is_etype(sc_data_etype::S32)) {
+            const auto const_val = rhs.static_as<constant>()->value_;
+            COMPILE_ASSERT(const_val.size() == 1,
+                    "AVX div by variant constant not supported.")
+            const auto divisor = const_val[0].s64;
+            const auto mult = invariant_int::SintDivMultiplier(divisor, 32);
+            // mulsh
+            const auto transform_mulh_s32 = [this, dtype](const expr &dst,
+                                                    const expr &lhs,
+                                                    uint64_t m) {
+                // mask = (0, -1, 0, -1, ...)
+                // magic = mult.magic_
+                int lanes = lhs->dtype_.lanes_;
+                auto dtype_64 = sc_data_type_t::index(lanes / 2);
+                std::vector<union_val> val(lanes);
+                for (int i = 0; i < lanes; i++) {
+                    val[i] = union_val(int64_t(-(i % 2)));
+                }
+                auto mask_c = builder::make_constant(val, dtype);
+                auto magic_c = builder::make_constant({m}, datatypes::s32);
+                mask_c->attr().set(attr_keys::force_simd_encode, true);
+                magic_c->attr().set(attr_keys::force_simd_encode, true);
+                //
+                auto magic = builder::make_var(dtype, "__magic");
+                auto hi1 = builder::make_var(dtype, "__hi1");
+                auto hi2 = builder::make_var(dtype, "__hi2");
+                add_defination(magic, linkage::local);
+                add_defination(hi1, linkage::local);
+                add_defination(hi2, linkage::local);
+                // magic = broadcast(magic_c)
+                // hi1 = _mm512_mul_epi32(lhs, [magic]);
+                // hi1 = _mm512_srli_epi64(hi1, [32]);
+                // hi2 = _mm512_srli_epi64(lhs, [32]);
+                // hi2 = _mm512_mul_epi32(hi2, [magic]);
+                // hi2 = _mm512_and_si512(hi2, [mask]);
+                // dst = _mm512_or_si512(hi1, hi2);
+                add_assignment(magic,
+                        make_xbyak_intrin(dtype, {magic_c},
+                                xbyak_intrin_type::broadcast,
+                                xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(datatypes::s32)));
+                add_assignment(hi1,
+                        make_xbyak_intrin(dtype, {lhs, magic},
+                                xbyak_intrin_type::mulhl,
+                                xbyak_intrin_isa::avx));
+                add_assignment(hi1,
+                        make_xbyak_intrin(dtype,
+                                {hi1, builder::make_constant(32)},
+                                xbyak_intrin_type::shr, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype_64)));
+                add_assignment(hi2,
+                        make_xbyak_intrin(dtype,
+                                {lhs, builder::make_constant(32)},
+                                xbyak_intrin_type::shr, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype_64)));
+                add_assignment(hi2,
+                        make_xbyak_intrin(dtype, {hi2, magic},
+                                xbyak_intrin_type::mulhl,
+                                xbyak_intrin_isa::avx));
+                add_assignment(hi2,
+                        make_xbyak_intrin(dtype, {hi2, mask_c},
+                                xbyak_intrin_type::bit_and,
+                                xbyak_intrin_isa::avx));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {hi1, hi2},
+                                xbyak_intrin_type::bit_or,
+                                xbyak_intrin_isa::avx));
+                // TODO(longsheng): srl+and+or can combine to vpermi2d in avx512
+            };
+            //
+            if (mult.power_of_2_) {
+                auto sft1 = builder::make_constant(mult.sft_ - 1);
+                auto sft2 = builder::make_constant(32 - mult.sft_);
+                auto sft3 = builder::make_constant(mult.sft_);
+                // dst = sar(lhs, [l - 1])
+                // dst = shr(dst, [N - l])
+                // dst = dst + lhs
+                // dst = sar(dst, [l])
+                // dst = d < 0 ? -dst : dst
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {lhs, sft1},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, sft2},
+                                xbyak_intrin_type::shr, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, lhs},
+                                xbyak_intrin_type::add, xbyak_intrin_isa::avx));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, sft3},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                if (mult.negative_) {
+                    auto simd_zero = builder::make_var(dtype, "__simd_zero");
+                    add_defination(simd_zero, linkage::local);
+                    add_assignment(simd_zero,
+                            make_xbyak_intrin(dtype, {simd_zero, simd_zero},
+                                    xbyak_intrin_type::bit_xor,
+                                    xbyak_intrin_isa::avx));
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {simd_zero, dst},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                }
+            } else if (mult.compensate_) {
+                auto sft = builder::make_constant(mult.sft_);
+                auto bit = builder::make_constant(31);
+                auto xsign = builder::make_var(dtype, "__xsign");
+                add_defination(xsign, linkage::local);
+                // dst = mulsh(lhs, [magic])
+                // dst = dst + lhs
+                // dst = sar(dst, [sft])
+                // xsign = sar(lhs, [N - 1])
+                // dst = d < 0 ? (xsign - dst) : (dst - xsign)
+                transform_mulh_s32(dst, lhs, mult.magic_);
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, lhs},
+                                xbyak_intrin_type::add, xbyak_intrin_isa::avx));
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, sft},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                add_assignment(xsign,
+                        make_xbyak_intrin(dtype, {lhs, bit},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                if (mult.negative_) {
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {xsign, dst},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                } else {
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {dst, xsign},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                }
+            } else {
+                auto sft = builder::make_constant(mult.sft_);
+                auto bit = builder::make_constant(31);
+                auto xsign = builder::make_var(dtype, "__xsign");
+                add_defination(xsign, linkage::local);
+                // dst = mulsh(lhs, [magic])
+                // dst = sar(dst, sft)
+                // xsign = sar(lhs, [N - 1])
+                // dst = d < 0 ? (xsign - dst) : (dst - xsign)
+                transform_mulh_s32(dst, lhs, mult.magic_);
+                add_assignment(dst,
+                        make_xbyak_intrin(dtype, {dst, sft},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                add_assignment(xsign,
+                        make_xbyak_intrin(dtype, {lhs, bit},
+                                xbyak_intrin_type::sar, xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(dtype)));
+                if (mult.negative_) {
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {xsign, dst},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                } else {
+                    add_assignment(dst,
+                            make_xbyak_intrin(dtype, {dst, xsign},
+                                    xbyak_intrin_type::sub,
+                                    xbyak_intrin_isa::avx));
+                }
+            }
+        } else {
+            add_assignment(dst,
+                    make_xbyak_intrin(dst->dtype_, {lhs, rhs},
+                            xbyak_intrin_type::div, xbyak_intrin_isa::avx));
+        }
     }
 
     void transform_simd_reduce_seq(const expr &dst, const expr &src,
@@ -831,17 +1206,27 @@ public:
     }
 
     void transform_gather(const expr &dst, const expr &src, const expr &idx) {
+        auto get_gather_mask = [this](expr mask, sc_data_type_t dst_type) {
+            if (cpu_flags_.fAVX512F) {
+                return cast_when_mask(std::move(mask), dst_type);
+            } else {
+                auto xmm0 = make_physical_reg(dst_type, x86_64::regs::xmm0);
+                add_defination(xmm0, linkage::local);
+                transform_avx_mask_cast(xmm0, mask);
+                return xmm0;
+            }
+        };
         assert(dst->dtype_.lanes_ > 1);
+        // get mask with all bits is 1
+        uint64_t imm = (UINT64_C(1) << (dst->dtype_.lanes_)) - 1;
+        auto mask = builder::make_constant({imm}, datatypes::u32);
+        // get avx512 mask or avx2 mask ymm0
+        auto cond = get_gather_mask(std::move(mask), dst->dtype_);
         // make sure dst and idx use different xmm reg
         auto xmm1 = make_physical_reg(idx->dtype_, x86_64::regs::xmm1);
         auto xmm2 = make_physical_reg(dst->dtype_, x86_64::regs::xmm2);
         add_defination(xmm1, linkage::local);
         add_defination(xmm2, linkage::local);
-        // get mask with all bits is 1
-        uint64_t imm = (UINT64_C(1) << (dst->dtype_.lanes_)) - 1;
-        auto mask = builder::make_constant({imm}, datatypes::u32);
-        // get avx512 mask or avx2 mask ymm0
-        auto cond = cast_when_mask(std::move(mask), dst->dtype_);
         // transform gather intrin
         add_assignment(xmm1, idx);
         add_assignment(xmm2,
@@ -849,6 +1234,13 @@ public:
                         xbyak_intrin_type::gather, xbyak_intrin_isa::avx,
                         xbyak_intrin_modifier(cond, false)));
         add_assignment(dst, xmm2);
+    }
+
+    void transform_extract(const expr &dst, const expr &src, const expr &imm,
+            const expr &elem_bits) {
+        add_assignment(dst,
+                make_xbyak_intrin(dst->dtype_, {src, imm, elem_bits},
+                        xbyak_intrin_type::extract, xbyak_intrin_isa::avx));
     }
 
     void transform_broadcast(
@@ -860,16 +1252,47 @@ public:
                         xbyak_intrin_modifier(src_type)));
     }
 
-    void transform_mask_logic_not(const expr &dst, const expr &src) {
-        // transform AVX2 mask logic not
-        // TODO(xxx): redesign bool vec
-        assert(!cpu_flags_.fAVX512F);
-        auto type = sc_data_type_t(sc_data_etype::U32, 8);
-        auto ones = builder::make_constant({INT64_C(-1)}, type);
-        add_assignment(dst,
-                make_xbyak_intrin(dst->dtype_, {src, ones},
-                        xbyak_intrin_type::bit_xor, xbyak_intrin_isa::avx,
-                        xbyak_intrin_modifier(type)));
+    void transform_avx_mask_cast(const expr &dst, const expr &src) {
+        assert(!cpu_flags_.fAVX512F && cpu_flags_.fAVX2);
+        // avx mask cast can cast scalar to xmm, or xmm to scalar
+        const auto is_scalar_mask = [](const expr &v) {
+            auto type_lane = v->dtype_.lanes_;
+            auto type_code = v->dtype_.type_code_;
+            auto type_size = utils::get_sizeof_etype(type_code);
+            return (type_lane == 1
+                           && utils::is_one_of((int)type_size, 1, 2, 4, 8))
+                    || type_code == sc_data_etype::BOOLEAN;
+        };
+        //
+        if (is_scalar_mask(src)) {
+            auto dtype = dst->dtype_;
+            // TODO(longsheng): optimize imm mask
+            auto tmp = load_when_imm(src, "__msk_tmp_var");
+            switch (utils::get_sizeof_etype(dtype.type_code_)) {
+                case 1: cast_mask8_avx2(dst, tmp, dtype); break;
+                case 2: cast_mask16_avx2(dst, tmp, dtype); break;
+                case 4: cast_mask32_avx2(dst, tmp, dtype); break;
+                default:
+                    COMPILE_ASSERT(false, "Not supported base type: " << dtype);
+            }
+        } else if (is_scalar_mask(dst)) {
+            add_assignment(dst,
+                    make_xbyak_intrin(dst->dtype_, {src}, //
+                            xbyak_intrin_type::mov_mask, //
+                            xbyak_intrin_isa::avx, //
+                            xbyak_intrin_modifier(src->dtype_)));
+            if (src->dtype_.is_etype(sc_data_etype::BF16)
+                    || src->dtype_.is_etype(sc_data_etype::U16)) {
+                assert(cpu_flags_.fBMI2);
+                add_assignment(dst,
+                        make_xbyak_intrin(dst->dtype_,
+                                {dst, builder::make_constant(0x5555)},
+                                xbyak_intrin_type::bmi_pext,
+                                xbyak_intrin_isa::x86));
+            }
+        } else {
+            COMPILE_ASSERT(false, "Invalid avx_mask_cast!");
+        }
     }
 
     // --------------
@@ -897,30 +1320,15 @@ public:
     // If simd cond is not mask type, cast to mask
     expr cast_when_mask(expr cond, sc_data_type_t dtype) {
         auto lanes = dtype.lanes_;
-        if (cond->dtype_ != sc_data_type_t::boolean(lanes)) {
+        if (cpu_flags_.fAVX512F
+                && cond->dtype_ != sc_data_type_t::boolean(lanes)) {
             auto tmp = load_when_imm(cond, "__msk_tmp_var");
-            if (cpu_flags_.fAVX512F) {
-                auto mask = builder::make_var(
-                        sc_data_type_t::boolean(lanes), "__mmask");
-                add_defination(mask, linkage::local);
-                add_assignment(mask,
-                        builder::make_cast(
-                                sc_data_type_t::boolean(lanes), tmp));
-                return mask;
-            } else {
-                auto mask = make_physical_reg(sc_data_type_t::boolean(lanes),
-                        x86_64::regs::xmm0, "_mask");
-                add_defination(mask, linkage::local);
-                switch (utils::get_sizeof_etype(dtype.type_code_)) {
-                    case 1: cast_mask8_avx2(mask, tmp, dtype); break;
-                    case 2: cast_mask16_avx2(mask, tmp, dtype); break;
-                    case 4: cast_mask32_avx2(mask, tmp, dtype); break;
-                    default:
-                        COMPILE_ASSERT(
-                                false, "Not supported base type: " << dtype);
-                }
-                return mask;
-            }
+            auto mask = builder::make_var(
+                    sc_data_type_t::boolean(lanes), "__mmask");
+            add_defination(mask, linkage::local);
+            add_assignment(mask,
+                    builder::make_cast(sc_data_type_t::boolean(lanes), tmp));
+            return mask;
         }
         return cond;
     }
@@ -933,25 +1341,30 @@ public:
         // vpor         ymm0, ymm0, table2
         // vpcmpeqb     ymm1, ymm1, ymm1 // set all bit to 1
         // vpcmpeqb     xmm0, ymm0, ymm1
-        const auto max_lanes = 32;
-        auto mask_type = sc_data_type_t(sc_data_etype::U8, max_lanes);
-        auto bcst_type = sc_data_type_t(sc_data_etype::U8, max_lanes / 2);
-        auto tabl_type = sc_data_type_t(sc_data_etype::U32, 8);
-        //
+        const int mask_lanes = mask->dtype_.lanes_;
+        const int table_len = mask_lanes / 4;
+        assert(utils::is_one_of(mask_lanes, 8, 16, 32));
+        auto mask_type = sc_data_type_t(sc_data_etype::U8, mask_lanes);
+        auto movd_type = sc_data_type_t(sc_data_etype::U8, 16);
+        auto tabl_type = sc_data_type_t(sc_data_etype::U32, table_len);
+        // shuffle table
         const std::vector<union_val> val1
                 = {UINT64_C(0x00000000), UINT64_C(0x00000000),
                         UINT64_C(0x01010101), UINT64_C(0x01010101),
                         UINT64_C(0x02020202), UINT64_C(0x02020202),
                         UINT64_C(0x03030303), UINT64_C(0x03030303)};
-        auto table1 = builder::make_constant(val1, tabl_type);
+        const std::vector<union_val> v1(val1.begin(), val1.begin() + table_len);
+        auto table1 = builder::make_constant(v1, tabl_type);
+        // bit or value
         const std::vector<union_val> val2
                 = {UINT64_C(0xf7fbfdfe), UINT64_C(0x7fbfdfef),
                         UINT64_C(0xf7fbfdfe), UINT64_C(0x7fbfdfef),
                         UINT64_C(0xf7fbfdfe), UINT64_C(0x7fbfdfef),
                         UINT64_C(0xf7fbfdfe), UINT64_C(0x7fbfdfef)};
-        auto table2 = builder::make_constant(val2, tabl_type);
+        const std::vector<union_val> v2(val2.begin(), val2.begin() + table_len);
+        auto table2 = builder::make_constant(v2, tabl_type);
         //
-        auto xmm0 = make_physical_reg(bcst_type, x86_64::regs::xmm0);
+        auto xmm0 = make_physical_reg(movd_type, x86_64::regs::xmm0);
         auto ymm0 = make_physical_reg(mask_type, x86_64::regs::xmm0, "_ymm");
         auto ymm1 = make_physical_reg(mask_type, x86_64::regs::xmm1, "_ymm");
         add_defination(xmm0, linkage::local);
@@ -959,7 +1372,7 @@ public:
         add_defination(ymm1, linkage::local);
         //
         add_assignment(xmm0,
-                make_xbyak_intrin(mask_type, {src}, //
+                make_xbyak_intrin(movd_type, {src}, //
                         xbyak_intrin_type::movd, xbyak_intrin_isa::avx));
         add_assignment(ymm0,
                 make_xbyak_intrin(mask_type, {xmm0}, //
@@ -989,23 +1402,24 @@ public:
         // vpbroadcastw ymm0, xmm0
         // vpand        ymm0, ymm0, table1
         // vpcmpeqw     mask, ymm0, table1
-        const auto max_lanes = 16;
-        auto mask_type = sc_data_type_t(sc_data_etype::U16, max_lanes);
-        auto bcst_type = sc_data_type_t(sc_data_etype::U16, max_lanes / 2);
-        //
+        const int mask_lanes = mask->dtype_.lanes_;
+        assert(utils::is_one_of(mask_lanes, 8, 16));
+        auto mask_type = sc_data_type_t(sc_data_etype::U16, mask_lanes);
+        auto movd_type = sc_data_type_t(sc_data_etype::U16, 8);
+        // bit and value
         std::vector<union_val> val;
-        for (uint32_t i = 0; i < max_lanes; i++) {
+        for (int i = 0; i < mask_lanes; i++) {
             val.emplace_back(UINT64_C(1) << i);
         }
         auto table1 = builder::make_constant(val, mask_type);
         //
-        auto xmm0 = make_physical_reg(bcst_type, x86_64::regs::xmm0);
+        auto xmm0 = make_physical_reg(movd_type, x86_64::regs::xmm0);
         auto ymm0 = make_physical_reg(mask_type, x86_64::regs::xmm0, "_ymm");
         add_defination(xmm0, linkage::local);
         add_defination(ymm0, linkage::local);
         //
         add_assignment(xmm0,
-                make_xbyak_intrin(mask_type, {src}, //
+                make_xbyak_intrin(movd_type, {src}, //
                         xbyak_intrin_type::movd, xbyak_intrin_isa::avx));
         add_assignment(ymm0,
                 make_xbyak_intrin(mask_type, {xmm0}, //
@@ -1027,23 +1441,24 @@ public:
         // vpbroadcastd ymm0, xmm0
         // vpand        ymm0, ymm0, table1
         // vpcmpeqd     mask, ymm0, table1
-        const auto max_lanes = 8;
-        auto mask_type = sc_data_type_t(sc_data_etype::U32, max_lanes);
-        auto bcst_type = sc_data_type_t(sc_data_etype::U32, max_lanes / 2);
-        //
+        const int mask_lanes = mask->dtype_.lanes_;
+        assert(utils::is_one_of(mask_lanes, 4, 8));
+        auto mask_type = sc_data_type_t(sc_data_etype::U32, mask_lanes);
+        auto movd_type = sc_data_type_t(sc_data_etype::U32, 4);
+        // bit and value
         std::vector<union_val> val;
-        for (uint32_t i = 0; i < max_lanes; i++) {
+        for (int i = 0; i < mask_lanes; i++) {
             val.emplace_back(UINT64_C(1) << i);
         }
         auto table1 = builder::make_constant(val, mask_type);
         //
-        auto xmm0 = make_physical_reg(bcst_type, x86_64::regs::xmm0);
+        auto xmm0 = make_physical_reg(movd_type, x86_64::regs::xmm0);
         auto ymm0 = make_physical_reg(mask_type, x86_64::regs::xmm0, "_ymm");
         add_defination(xmm0, linkage::local);
         add_defination(ymm0, linkage::local);
         //
         add_assignment(xmm0,
-                make_xbyak_intrin(mask_type, {src}, //
+                make_xbyak_intrin(movd_type, {src}, //
                         xbyak_intrin_type::movd, xbyak_intrin_isa::avx));
         add_assignment(ymm0,
                 make_xbyak_intrin(mask_type, {xmm0}, //
@@ -1067,9 +1482,9 @@ public:
         transform_seq_.emplace_back(make_stmt<evaluate_node_t>(value));
     }
 
-    void add_defination(const expr &var, linkage link) {
-        transform_seq_.emplace_back(
-                make_stmt<define_node_t>(var, link, expr()));
+    void add_defination(
+            const expr &var, linkage link, const expr &init = expr()) {
+        transform_seq_.emplace_back(make_stmt<define_node_t>(var, link, init));
     }
 
     bool convert_x86_operation(const sc_data_type_t &dtype) {

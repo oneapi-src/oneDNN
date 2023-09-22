@@ -290,6 +290,7 @@ struct cpu_isa_traits<avx512_core_bf16> : public cpu_isa_traits<avx512_core> {
 
 template <>
 struct cpu_isa_traits<avx512_core_amx> {
+    typedef Xbyak::Zmm Vmm;
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx512_core_amx;
     static constexpr const char *user_option_env = "avx512_core_amx";
@@ -304,6 +305,7 @@ struct cpu_isa_traits<avx512_core_fp16> : public cpu_isa_traits<avx512_core> {
 
 template <>
 struct cpu_isa_traits<avx512_core_amx_fp16> {
+    typedef Xbyak::Zmm Vmm;
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx512_core_amx_fp16;
     static constexpr const char *user_option_env = "avx512_core_amx_fp16";
@@ -405,8 +407,8 @@ static inline int isa_max_vlen(cpu_isa_t isa) {
         return cpu_isa_traits<avx2>::vlen;
     else if (is_superset(isa, sse41))
         return cpu_isa_traits<sse41>::vlen;
-    else
-        return 0;
+    assert(!"ISA Error");
+    return 0;
 }
 
 static inline int isa_num_vregs(cpu_isa_t isa) {
@@ -416,8 +418,8 @@ static inline int isa_num_vregs(cpu_isa_t isa) {
         return cpu_isa_traits<avx2>::n_vregs;
     else if (is_superset(isa, sse41))
         return cpu_isa_traits<sse41>::n_vregs;
-    else
-        return 0;
+    assert(!"ISA Error");
+    return 0;
 }
 
 } // namespace

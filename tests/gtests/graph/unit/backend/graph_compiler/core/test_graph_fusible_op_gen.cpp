@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <algorithm>
 #include <iostream>
 #include "context.hpp"
 #include "gtest/gtest.h"
@@ -81,6 +82,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorAdd) {
 TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
     REQUIRE_PARALLEL();
     REQUIRE_AVX();
+    bool is_builtin = is_builtin_test_ctx();
     sc_graph_t mgr;
     auto ins = mgr.make_input(
             {graph_tensor::make({1030}), graph_tensor::make({1030})});
@@ -98,29 +100,39 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
         auto ip0 = builder::tensor_ptr(in0, {0}, {}, true);
         auto ip1 = builder::tensor_ptr(in1, {0}, {}, true);
         auto iter = builder::make_var(datatypes::index, "iter");
-        auto last_axis_offset = builder::make_cast(datatypes::s32, expr(1030UL))
-                - builder::make_cast(datatypes::s32, (iter));
-        // mask = min(max(0, last_dim_len -
-        // last_dim_idx),real_step) To choose [0 ~
-        // step] mask
-        auto cur_step = builder::make_min(
-                builder::make_max(builder::make_constant(0), last_axis_offset),
-                simd_len);
+        auto iter1 = builder::make_var(datatypes::index, "iter1");
+        auto iter2 = builder::make_var(datatypes::index, "iter2");
 
-        auto loop = builder::make_for_loop_unattached(iter, 0, UINT64_C(1030),
+        auto mask = last_dim_generate_mask(
+                iter, expr(1024UL), 1030, simd_len, true);
+
+        auto loop = builder::make_for_loop_unattached(iter, 0, UINT64_C(1024),
                 simd_len,
                 builder::make_stmts_unattached({builder::make_assign_unattached(
-                        op[span_t({iter}, simd_len,
-                                generate_mask_by_step_directly(
-                                        cur_step, simd_len))],
-                        ip0[span_t({iter}, simd_len,
-                                generate_mask_by_step_directly(
-                                        cur_step, simd_len))]
-                                + ip1[span_t({iter}, simd_len,
-                                        generate_mask_by_step_directly(
-                                                cur_step, simd_len))])}),
+                        op[span_t({iter}, simd_len)],
+                        ip0[span_t({iter}, simd_len)]
+                                + ip1[span_t({iter}, simd_len)])}),
                 true, for_type::PARALLEL);
+        auto loop1 = builder::make_for_loop_unattached(iter1, expr(1024UL),
+                UINT64_C(1030), simd_len,
+                builder::make_stmts_unattached({builder::make_assign_unattached(
+                        op[span_t({iter1}, simd_len, mask)],
+                        ip0[span_t({iter1}, simd_len, mask)]
+                                + ip1[span_t({iter1}, simd_len, mask)])}),
+                true, for_type::PARALLEL);
+        auto loop2 = builder::make_for_loop_unattached(iter2, expr(1024UL),
+                UINT64_C(1030), 1,
+                builder::make_stmts_unattached({builder::make_assign_unattached(
+                        op[span_t({iter2}, 1)],
+                        ip0[span_t({iter2}, 1)] + ip1[span_t({iter2}, 1)])}),
+                true, for_type::NORMAL);
         builder.emit(loop);
+        if (is_builtin) {
+            builder.emit(loop1);
+        } else {
+            builder.emit(loop2);
+        }
+
         _return_(true);
     }
     CMP_SIMPLIFIED_IR(addf, bbb);
@@ -140,8 +152,8 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder) {
     ASSERT_TRUE(reorderf);
     builder::ir_builder_t builder;
     for_loop l0, l1, l2;
-    int lanes = get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32);
-    lanes = lanes == 16 ? 1 : lanes;
+    int lanes = std::min(
+            (int)get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32), 8);
     _function_(datatypes::boolean, bbb,
             _arg_("out", datatypes::f32, {2UL, 4UL, 16UL, 16UL}),
             _arg_("in0", datatypes::f32, {8UL, 8UL, 4UL, 8UL})) {
@@ -173,6 +185,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder) {
 
 TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder2) {
     REQUIRE_AVX2();
+    SET_THREADS_OR_SKIP(32);
     sc_graph_t mgr;
     auto ins = mgr.make_input({graph_tensor::make(
             {2048, 32, 64, 16}, sc_data_format_t(format_kinds::ACBD))});
@@ -244,23 +257,23 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder2) {
                 row11 = builder::make_unpack_low(row6, row7);
                 row3 = builder::make_unpack_high(row6, row7);
 
-                row4 = builder::make_shuffle(row8, row9, 68);
-                row5 = builder::make_shuffle(row8, row9, 238);
-                row6 = builder::make_shuffle(row0, row1, 68);
-                row7 = builder::make_shuffle(row0, row1, 238);
-                row8 = builder::make_shuffle(row10, row11, 68);
-                row9 = builder::make_shuffle(row10, row11, 238);
-                row10 = builder::make_shuffle(row2, row3, 68);
-                row11 = builder::make_shuffle(row2, row3, 238);
+                row4 = builder::make_shuffle(row8, row9, 68, 32);
+                row5 = builder::make_shuffle(row8, row9, 238, 32);
+                row6 = builder::make_shuffle(row0, row1, 68, 32);
+                row7 = builder::make_shuffle(row0, row1, 238, 32);
+                row8 = builder::make_shuffle(row10, row11, 68, 32);
+                row9 = builder::make_shuffle(row10, row11, 238, 32);
+                row10 = builder::make_shuffle(row2, row3, 68, 32);
+                row11 = builder::make_shuffle(row2, row3, 238, 32);
 
-                row0 = builder::make_permute(row4, row8, 32);
-                row1 = builder::make_permute(row5, row9, 32);
-                row2 = builder::make_permute(row6, row10, 32);
-                row3 = builder::make_permute(row7, row11, 32);
-                row4 = builder::make_permute(row4, row8, 49);
-                row5 = builder::make_permute(row5, row9, 49);
-                row6 = builder::make_permute(row6, row10, 49);
-                row7 = builder::make_permute(row7, row11, 49);
+                row0 = builder::make_permute(row4, row8, 32, 128);
+                row1 = builder::make_permute(row5, row9, 32, 128);
+                row2 = builder::make_permute(row6, row10, 32, 128);
+                row3 = builder::make_permute(row7, row11, 32, 128);
+                row4 = builder::make_permute(row4, row8, 49, 128);
+                row5 = builder::make_permute(row5, row9, 49, 128);
+                row6 = builder::make_permute(row6, row10, 49, 128);
+                row7 = builder::make_permute(row7, row11, 49, 128);
                 out[span_t({l0, l1, l2, l3, l4, l5}, 8)] = row0;
                 out[span_t({l0, l1, l2, l3, l4 + UINT64_C(1), l5}, 8)] = row1;
                 out[span_t({l0, l1, l2, l3, l4 + UINT64_C(2), l5}, 8)] = row2;
@@ -552,8 +565,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
             _arg_("in", datatypes::f32, {1UL, 2UL, 32UL, 32UL})) {
         _bind_(out, in);
         _for_(fused, 0UL, 64UL, 1UL, for_type::PARALLEL) {
-            _for_(iter0, 0, 1) _for_(iter1, 0, 1) _for_(iter2, 0, 1)
-                    _for_(iter3, 0, UINT64_C(32), simd_len) {
+            _for_(iter3, 0, UINT64_C(32), simd_len) {
                 auto in_ptr = builder::tensor_ptr(in,
                         {fused / UINT64_C(64),
                                 fused / UINT64_C(32) % UINT64_C(2),
@@ -565,7 +577,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
                                 fused % UINT64_C(32), 0},
                         {}, true);
                 expr cur_idx = (iter3
-                        + (iter1 + fused / UINT64_C(32) % UINT64_C(2)) * 32);
+                        + (0 + fused / UINT64_C(32) % UINT64_C(2)) * 32);
                 expr offset = builder::make_min(
                         builder::make_max(35
                                         - builder::make_cast(
@@ -576,18 +588,16 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
                         builder::make_select(offset == simd_len, full_mask,
                                 full_mask >> builder::make_cast(
                                         mask_dtype, simd_len - offset)));
-                out_ptr[span_t({iter0, iter1, iter2, iter3}, simd_len)]
-                        = builder::make_exp(in_ptr[span_t(
-                                {iter0, iter1, iter2, iter3}, simd_len)]);
+                out_ptr[span_t({0, 0, 0, iter3}, simd_len)] = builder::make_exp(
+                        in_ptr[span_t({0, 0, 0, iter3}, simd_len)]);
                 _var_init_(mask_var, mask_dtype, mask_select);
-                out_ptr[span_t({iter0, iter1, iter2, iter3}, simd_len)]
+                out_ptr[span_t({0, 0, 0, iter3}, simd_len)]
                         = builder::make_select(mask_var,
-                                out_ptr[span_t({iter0, iter1, iter2, iter3},
-                                        simd_len)],
+                                out_ptr[span_t({0, 0, 0, iter3}, simd_len)],
                                 mask_zero);
             }
         }
         _return_(true);
     }
-    CMP_SIMPLIFIED_IR(expf2, bbb);
+    CMP_SIMPLIFIED_IR(expf2, constant_folder_t()(bbb));
 }

@@ -19,6 +19,7 @@
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/visitor.hpp>
+#include <ops/fusible/broadcast.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
@@ -94,6 +95,7 @@ static void mark_mask_attr(const sc_op_ptr &op) {
                                    .is_plain()) {
                     continue;
                 }
+                if (use.second->isa<broadcast_op_t>()) { continue; }
                 op->attrs_.set(op_attr_key::use_padded_mask, true);
                 return;
             }

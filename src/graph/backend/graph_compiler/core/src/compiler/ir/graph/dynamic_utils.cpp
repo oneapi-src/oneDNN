@@ -28,13 +28,16 @@
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
+#include <ops/convolution.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/padding.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
+#include <runtime/config.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/hash_dispatch_table.hpp>
 #include <unordered_set>
@@ -89,14 +92,14 @@ void initialize_format_table_with_op(
 }
 
 std::shared_ptr<ir_module_t> op_dispatch_tables_t::op_func_info::lower() {
-    auto mod = op_->get_func(ctx_);
+    ir_module_ptr mod
+            = internal_ ? op_->get_internal_func(ctx_) : op_->get_func(ctx_);
     auto func = mod->get_entry_func();
-    func->attr()[attr_keys::always_trans] = true;
     func->attr()[function_attrs::top_level] = false;
     func->name_ += name_or_postfix_;
     func->decl_->name_ = func->name_;
 
-    mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = true;
+    mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = *use_managed_tp_;
     mod->attr_[ir_module_t::attr_key_t::STATIC_GLOBALS] = true;
     return mod;
 }
@@ -403,7 +406,7 @@ std::vector<sc_op_ptr> get_graph_inner_dispatch_ops(
 }
 
 static int find_padding_impl(const combined_op_dispatch_key_t &key) {
-    for (auto &cur_key : key) {
+    for (auto &cur_key : key.keys_) {
         // reorder
         if (cur_key.in_out_formats_.size() == 2) { return cur_key.impl_; }
     }
@@ -492,6 +495,12 @@ expr call_op_dynamic_query_function(
                 args[2], args[3], args[4], args[5], args[6], args[7], args[8],
                 args[9], args[10], args[11], args[12],
                 args.size() == 13 ? get_ir_null() : args[13]);
+    } else if (op->isa<ops::conv_fwd_core_op_t>()) {
+        assert(args.size() == 13 || args.size() == 14);
+        return builtin::call_conv_fwd_core_query_format(args[0], args[1],
+                args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+                args[9], args[10], args[11], args[12],
+                args.size() == 13 ? get_ir_null() : args[13]);
     } else if (op->isa<unary_elementwise_op_t>()) {
         assert(args.size() == 7);
         return builtin::call_unary_fusible_op_query_format(
@@ -518,11 +527,87 @@ expr call_op_dynamic_query_function(
         return builtin::call_select_op_query_format(args[0], args[1], args[2],
                 args[3], args[4], args[5], args[6], args[7], args[8], args[9],
                 args[10]);
+    } else if (op->isa<padding_op_t>()) {
+        return builtin::call_padding_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
     } else {
         COMPILE_ASSERT(
                 false, "unsupported op query function: " << op->op_name_);
     }
     return expr();
+}
+
+void create_internal_dispatch_funcs_by_node(const context_ptr &ctx,
+        ir_module_ptr &ret_mod, const std::string &table_name,
+        const sc_op_ptr &node, const std::shared_ptr<const bool> &use_mtp) {
+    if (node->isa<mixed_fuse_op_t>()) {
+        node->stc_cast<mixed_fuse_op_t>()->create_internal_dispatch_funcs(
+                ctx, ret_mod, use_mtp);
+    } else if (node->isa<fused_op_t>()) {
+        throw std::runtime_error(
+                "Internal function call does not plan to support old fusion "
+                "manager.");
+    } else {
+        auto internal_keys = node->get_internal_dispatch_key_set(ctx);
+        std::vector<expr> op_dispatch_kernel;
+        int dyn_idx = 0;
+        internal_keys->for_each_key_process(
+                std::bind(create_dispatch_funcs_by_keys, ctx, std::ref(ret_mod),
+                        table_name, node, std::placeholders::_1,
+                        std::ref(op_dispatch_kernel[node->logical_op_id_]),
+                        std::ref(dyn_idx), use_mtp,
+                        /*internal*/ true));
+    }
+}
+
+void create_dispatch_funcs_by_keys(const context_ptr &ctx,
+        ir_module_ptr &ret_mod, const std::string &table_name,
+        const sc_op_ptr &node, const op_dispatch_key_base_t *key,
+        expr &op_dispatch_kernel, int &dyn_idx,
+        const std::shared_ptr<const bool> &use_mtp, bool internal) {
+    auto cur_table = ret_mod->get_op_table_map()[table_name];
+    assert(cur_table);
+    bool should_compile_later = false;
+    if (!should_compile_later) {
+        // we compile the first format specialization in main module
+        key->set_op_dispatch_key(node, ctx);
+        auto mod
+                = internal ? node->get_internal_func(ctx) : node->get_func(ctx);
+        auto func = mod->get_entry_func();
+        if (internal) { func->name_ += "_internal"; }
+        func->name_ += "_" + std::to_string(dyn_idx);
+        func->decl_->name_ = func->name_;
+        if (!dyn_idx && !internal) {
+            // mark the first function as prototype.
+            op_dispatch_kernel->attr().set("prototype", func);
+        }
+        ret_mod->merge(*mod);
+        add_dispatch_symbol_to_kernel_table(cur_table, key,
+                op_dispatch_tables_t::op_func_info {func->name_});
+    }
+    dyn_idx++;
+}
+
+int get_num_of_internal_funcs(const sc_op_ptr &node) {
+    if (node->isa<mixed_fuse_op_t>()) {
+        auto mixed_op = node->stc_cast<mixed_fuse_op_t>();
+        int ret = 0;
+        for (auto &op : mixed_op->sub_graph_.ops_) {
+            if (op->need_dynamic_internal_query()) { ret++; }
+        }
+        return ret;
+    } else if (node->need_dynamic_internal_query()) {
+        return 1;
+    }
+    return 0;
+}
+
+int get_num_of_internal_funcs(const sc_graph_t &graph) {
+    int ret = 0;
+    for (auto &op : graph.ops_) {
+        if (op->need_dynamic_internal_query()) { ret++; }
+    }
+    return ret;
 }
 
 int count_dynamic_dims(const sc_dims &in) {
@@ -541,6 +626,7 @@ bool is_dyn_specific_graph(sc_graph_t &graph) {
     if (graph.dyn_info_ && graph.dyn_info_->is_specific_) { return true; }
     return false;
 }
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

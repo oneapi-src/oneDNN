@@ -1023,7 +1023,7 @@ rnn_bias_prepare_sig_templ(copy_bias_to_scratch) {
     const AOC<T, 3> scratch_bias(
             scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dhc);
 
-    parallel_nd(rnn.n_layer * rnn.n_dir, [&](dim_t i) {
+    parallel_nd(static_cast<dim_t>(rnn.n_layer) * rnn.n_dir, [&](dim_t i) {
         const int off = i * rnn.n_bias * rnn.dhc;
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.n_bias * rnn.dhc; j++)

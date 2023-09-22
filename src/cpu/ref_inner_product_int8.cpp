@@ -91,7 +91,7 @@ status_t ref_inner_product_int8_fwd_t::execute_forward(
     parallel_nd(MB, OC, [&](dim_t mb, dim_t oc) {
         int acc = ker(mb, oc);
 
-        float d = acc;
+        float d = static_cast<float>(acc);
         maybe_oscale(d, oc);
 
         if (bias) {

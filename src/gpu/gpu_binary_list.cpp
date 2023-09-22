@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include "gpu/gpu_impl_list.hpp"
 
 #include "gpu/ocl/gen9_binary.hpp"
+#include "gpu/ocl/multi_po_reorder_binary.hpp"
 #include "gpu/ocl/ref_binary.hpp"
 
 namespace dnnl {
@@ -27,6 +28,7 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_BINARY_P({
+        INSTANCE(ocl::multi_po_reorder_binary)
         INSTANCE(ocl::gen9_binary_t)
         INSTANCE(ocl::ref_binary_t)
         nullptr,

@@ -27,8 +27,8 @@ namespace gpu {
 namespace jit {
 
 struct SizeParams {
-    int64_t batch;
-    int64_t m, n, k;
+    int64_t batch = 0;
+    int64_t m = 0, n = 0, k = 0;
 };
 
 struct EvaluateParams {
@@ -47,13 +47,16 @@ struct DerivedEvaluateParams : public EvaluateParams {
     double threadCount;
     int threadsPerEU;
     int hwThreadCapacity;
-    int hwMinThreadsToFill;
+    int hwThreadsPartialWave;
     int partialWaveCount;
     bool autoatomic;
 };
 
 struct EvaluateAuxOutput {
     int64_t k0 = 0;
+    int wgK = 1;
+    bool kParallel = false;
+    bool kParallelVariable = false;
 };
 
 DerivedEvaluateParams getDerivedParams(
@@ -62,6 +65,8 @@ double evaluate(const kcatalog::Entry &e, const EvaluateParams &p,
         EvaluateAuxOutput &aux);
 double evaluate(const kcatalog::Entry &e, const DerivedEvaluateParams &p,
         EvaluateAuxOutput &aux);
+
+void modifyStrategy(GEMMStrategy &strategy, const EvaluateAuxOutput &aux);
 
 } // namespace jit
 } // namespace gpu

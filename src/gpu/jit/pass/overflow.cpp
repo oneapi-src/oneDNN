@@ -197,8 +197,12 @@ public:
     }
 
     object_t _mutate(const for_t &obj) override {
-        auto lo = to_cpp<int64_t>(obj.init);
-        auto hi = to_cpp<int64_t>(obj.bound) - 1;
+        auto lo = is_const(obj.init)
+                ? to_cpp<int64_t>(obj.init)
+                : ctx_.bound_finder.find_bounds(obj.init).first;
+        auto hi = is_const(obj.bound)
+                ? to_cpp<int64_t>(obj.bound) - 1
+                : ctx_.bound_finder.find_bounds(obj.bound).second;
         ctx_.bound_finder.set_var_bounds(obj.var, {lo, hi});
         return ir_mutator_t::_mutate(obj);
     }

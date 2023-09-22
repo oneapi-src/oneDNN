@@ -127,28 +127,32 @@ INLINE vec_u16x32 sc_max(vec_u16x32 const &a, vec_u16x32 const &b) {
 INLINE vec_u16x32 sc_min(vec_u16x32 const &a, vec_u16x32 const &b) {
     return _mm512_min_epu16(a.v, b.v);
 }
-INLINE vec_u16x32 sc_unpack_low(
-        vec_u16x32 const &a, vec_u16x32 const &b, int lanes) {
-    if (lanes == 16) {
-        return _mm512_unpacklo_epi16(a.v, b.v);
-    } else if (lanes == 32) {
-        return _mm512_unpacklo_epi32(a.v, b.v);
-    } else {
-        // lanes == 64
-        return _mm512_unpacklo_epi64(a.v, b.v);
-    }
+INLINE vec_u16x32 sc_unpack_low_vec_u16x32_16bits(
+        vec_u16x32 const &a, vec_u16x32 const &b) {
+    return _mm512_unpacklo_epi16(a.v, b.v);
 }
 
-INLINE vec_u16x32 sc_unpack_high(
-        vec_u16x32 const &a, vec_u16x32 const &b, int lanes) {
-    if (lanes == 16) {
-        return _mm512_unpackhi_epi16(a.v, b.v);
-    } else if (lanes == 32) {
-        return _mm512_unpackhi_epi32(a.v, b.v);
-    } else {
-        // lanes == 64
-        return _mm512_unpackhi_epi64(a.v, b.v);
-    }
+INLINE vec_u16x32 sc_unpack_low_vec_u16x32_32bits(
+        vec_u16x32 const &a, vec_u16x32 const &b) {
+    return _mm512_unpacklo_epi32(a.v, b.v);
+}
+
+INLINE vec_u16x32 sc_unpack_low_vec_u16x32_64bits(
+        vec_u16x32 const &a, vec_u16x32 const &b) {
+    return _mm512_unpacklo_epi64(a.v, b.v);
+}
+
+INLINE vec_u16x32 sc_unpack_high_vec_u16x32_16bits(
+        vec_u16x32 const &a, vec_u16x32 const &b) {
+    return _mm512_unpackhi_epi16(a.v, b.v);
+}
+INLINE vec_u16x32 sc_unpack_high_vec_u16x32_32bits(
+        vec_u16x32 const &a, vec_u16x32 const &b) {
+    return _mm512_unpackhi_epi32(a.v, b.v);
+}
+INLINE vec_u16x32 sc_unpack_high_vec_u16x32_64bits(
+        vec_u16x32 const &a, vec_u16x32 const &b) {
+    return _mm512_unpackhi_epi64(a.v, b.v);
 }
 #endif
 #endif

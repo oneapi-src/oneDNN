@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 #include "tensor_init.hpp"
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
@@ -84,7 +85,9 @@ public:
 
     void insert_tensor_zero_init(std::vector<stmt_c> &seq, const expr &e) {
         auto tsr = e.as<tensor>();
-        if (tsr.defined() && tsr->init_value_) {
+        if (tsr.defined() && tsr->init_value_
+                && (!tsr->attr_
+                        || !tsr->attr_->has_key(attr_keys::shared_const))) {
             union_val val;
             if (tsr->init_value_
                     == tensor_node::get_zero_tensor_initializer()) {

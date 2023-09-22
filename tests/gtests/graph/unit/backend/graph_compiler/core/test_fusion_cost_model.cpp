@@ -203,8 +203,8 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestVerticalMergeForImageAffine) {
     print_graph(graph, ss, true);
     expected_str
             = R"(graph(v0: f32[1, 64, 56, 56], v1: f32[128, 64, 1, 1], v2: f32[128, 64, 1, 1]) -> [v3: f32[1, 128, 56, 56]] {
-  [v4: f32[1, 128, 56, 56]] = outerloop_1X1X56_partition_conv_fwd_core_relu(v0, v2)
-  [v3: f32[1, 128, 56, 56]] = outerloop_1X1X56_partition_conv_fwd_core_relu_mul(v0, v1, v4)
+  [v4: f32[1, 128, 56, 56]] = outerloop_1X1X1X56_partition_conv_fwd_core_relu(v0, v2)
+  [v3: f32[1, 128, 56, 56]] = outerloop_1X1X1X56_partition_conv_fwd_core_relu_mul(v0, v1, v4)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);

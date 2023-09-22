@@ -61,6 +61,7 @@ static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
         do {
             // amx fp16
             if (max_isa == "AVX512_CORE_AMX_FP16") { break; }
+            tm.cpu_flags_.fAVX512AMXFP16 = false;
             // amx
             if (max_isa == "AVX512_CORE_AMX") { break; }
             tm.cpu_flags_.fAVX512AMXTILE = false;
@@ -68,6 +69,7 @@ static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
             tm.cpu_flags_.fAVX512AMXBF16 = false;
             // avx512 fp16
             if (max_isa == "AVX512_CORE_FP16") { break; }
+            tm.cpu_flags_.fAVX512FP16 = false;
             // avx512 bf16
             if (max_isa == "AVX512_CORE_BF16") { break; }
             tm.cpu_flags_.fAVX512BF16 = false;
@@ -99,6 +101,8 @@ static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
             // use old cpu flags
             tm.cpu_flags_ = old_cpu_flags;
         } while (false);
+        runtime::target_machine_t::set_simd_length_and_max_cpu_threads(
+                tm.cpu_flags_);
     }
     // double check amx by syscall
     if (tm.cpu_flags_.fAVX512AMXTILE
@@ -181,7 +185,8 @@ context_ptr get_default_context() {
         int opt_level = utils::getenv_int(env_names[SC_OPT_LEVEL], 3);
         check_within(
                 opt_level, 0, 3, 3, "Bad optimization level in SC_OPT_LEVEL: ");
-        flags.backend_opt_level = opt_level;
+        flags.opt_level_ = sc_opt_level(opt_level);
+
         if (opt_level == 0) {
             // disable opt passes
             flags.buffer_schedule_ = 0;

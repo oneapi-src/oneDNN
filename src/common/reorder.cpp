@@ -35,8 +35,8 @@ namespace dnnl {
 namespace impl {
 
 #define VCHECK_REORDER(cond, msg, ...) \
-    VCONDCHECK(create, check, reorder, (cond), status::invalid_arguments, msg, \
-            ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, check, reorder, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
 
 namespace {
 engine_t *get_reorder_engine(engine_t *src_engine, engine_t *dst_engine) {
@@ -67,6 +67,11 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
 
     auto s_ek = src_engine->kind();
     auto d_ek = dst_engine->kind();
+
+    // There are no sparse reorders for GPU engine.
+    if (utils::one_of(engine_kind::gpu, s_ek, d_ek)
+            && !impl::is_dense_format_kind({src_md, dst_md}))
+        return status::unimplemented;
 
     VCHECK_REORDER(!memory_desc_wrapper(src_md).format_any(),
             VERBOSE_RUNTIMEDIM_UNSUPPORTED);

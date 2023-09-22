@@ -20,11 +20,11 @@
 #include <cstring>
 #include <mutex>
 
-#include "gpu/jit/conv/config_plan.hpp"
 #include "gpu/jit/conv/grf_usage.hpp"
 #include "gpu/jit/conv/message_patterns.hpp"
 #include "gpu/jit/conv/normalization.hpp"
 #include "gpu/jit/conv/params.hpp"
+#include "gpu/jit/conv/plan.hpp"
 #include "gpu/jit/conv/tiler.hpp"
 #include "gpu/jit/ir/block_2d_utils.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
@@ -194,9 +194,13 @@ status_t conv_problem_t::init(
     ksp = kd * kh * kw;
     isp = id * ih * iw;
     osp = od * oh * ow;
+    auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+            conv_pd->attr()->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
 
-    hw_config_t hw_cfg(engine);
+    hw_config_t hw_cfg(engine, large_grf_mode);
 
+    init_transpose(hw_cfg);
     CHECK(init_abc_data_types(hw_cfg));
     CHECK(init_acc_data_type());
 
@@ -424,9 +428,14 @@ struct nc_block_t {
     // Ideally, this should only depend on data type, direction, mb, c, and g to
     // enable the same src/dst formats and avoid reorders between convolutions
     static nc_block_t get_default_blocking(ngen::HW hw, fma_kind_t fma,
-            type_t type, bool is_dw, int n, int c, int g) {
-        int c_block = (is_dw ? get_default_block(fma, type, g)
-                             : get_default_block(fma, type, c));
+            type_t type, bool is_dw, int n, int c, int g,
+            bool is_output = false) {
+        // Select dst layout to align with fma kind of following conv
+        // for non-depthwise cases.
+        fma_kind_t tmp_fma
+                = (is_output && !is_dw) ? get_default_fma(hw, type) : fma;
+        int c_block = (is_dw ? get_default_block(tmp_fma, type, g)
+                             : get_default_block(tmp_fma, type, c));
         if (g > 1 && !is_dw) {
             if (c % c_block != 0) c_block = 1;
             // Try to use the same layout between group/non-group convolution
@@ -476,7 +485,8 @@ struct goi_block_t {
     }
 
     static goi_block_t get_default_blocking(type_t type, int vec_size,
-            fma_kind_t fma_kind, bool is_bwd_d, int g, int o, int i) {
+            fma_kind_t fma_kind, bool is_bwd_d, int g, int o, int i,
+            bool ab_transpose) {
         int x = o;
         int y = i;
         int g_block = 1;
@@ -495,7 +505,8 @@ struct goi_block_t {
             std::swap(x_block_outer, y_block_outer);
         }
         get_default_blocking(type, vec_size, fma_kind, is_bwd_d, g, x, y,
-                g_block, *x_block, *y_block, *x_block_outer, *y_block_outer);
+                g_block, *x_block, *y_block, *x_block_outer, *y_block_outer,
+                ab_transpose);
         return goi_block_t(fma_kind, is_dw(g, o, i), is_bwd_d, g_block, o_block,
                 i_block, o_block_outer, i_block_outer);
     }
@@ -503,21 +514,28 @@ struct goi_block_t {
     static void get_default_blocking(type_t type, int vec_size,
             fma_kind_t fma_kind, bool is_bwd_d, int g, int x, int y,
             int &g_block, int &x_block, int &y_block, int &x_block_outer,
-            int &y_block_outer) {
+            int &y_block_outer, bool ab_transpose = false) {
         if (is_dw(g, x, y)) {
             g_block = vec_size;
         } else if (fma_kind == fma_kind_t::mad) {
-            x_block = vec_size;
+            x_block = (ab_transpose && is_bwd_d) ? utils::rnd_up_pow2(x)
+                                                 : vec_size;
             y_block = get_default_block(fma_kind, type, y);
         } else {
             int packed_dword_elems = 4 / type.size();
-            x_block = vec_size;
+            x_block = ab_transpose ? utils::rnd_up_pow2(x) : vec_size;
             y_block = packed_dword_elems;
             // Fixing y outer block helps to avoid extra GRF reorders however
             // in small reduction cases it may result in excessive zero
             // padding. In such cases fused reduction can be used. E.g. in
             // non-1x1 small-ic fwd convolution kw and ic can be fused.
-            if (y * type.size() >= 32) y_block_outer = 8;
+            if (y * type.size() >= 32) {
+                if (ab_transpose) {
+                    y_block *= 8;
+                } else {
+                    y_block_outer = 8;
+                }
+            }
         }
     }
 
@@ -567,6 +585,7 @@ std::string maybe_fixup_1st_conv_wei_tag(
 
     if (!cfg.is_dp_fma()) return tag;
     if (!is_small_ic(prb) || prb.is_dw) return tag;
+    if (prb.ab_swap_transpose) return tag;
     if (!prb.is_fwd) return tag;
 
     // Use OhwIXoYi weights for small-channel forward convolution to ensure
@@ -613,12 +632,14 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     auto wei_compute_type = prb.is_bwd_w ? prb.c_data_type : prb.b_data_type;
 
     auto src_blk = nc_block_t::get_default_blocking(cfg.hw(), cfg.fma_kind(),
-            src_compute_type, prb.is_dw, prb.mb, prb.ic, prb.g);
+            src_compute_type, prb.is_dw, prb.mb, prb.ic, prb.g,
+            /*is_output=*/prb.is_bwd_d);
     auto dst_blk = nc_block_t::get_default_blocking(cfg.hw(), cfg.fma_kind(),
-            dst_compute_type, prb.is_dw, prb.mb, prb.oc, prb.g);
+            dst_compute_type, prb.is_dw, prb.mb, prb.oc, prb.g,
+            /*is_output=*/prb.is_fwd);
     auto wei_blk = goi_block_t::get_default_blocking(wei_compute_type,
-            cfg.vec_size(), cfg.fma_kind(), prb.is_bwd_d, prb.g, prb.oc,
-            prb.ic);
+            cfg.vec_size(), cfg.fma_kind(), prb.is_bwd_d, prb.g, prb.oc, prb.ic,
+            prb.ab_swap_transpose);
 
     src_tag = src_blk.tag();
     wei_tag = wei_blk.tag();
@@ -632,6 +653,8 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     auto user_dst_req = get_plain_user_tag(prb, dst_md, /*is_wei=*/false);
     bool src_axb = (user_src_req == "axb");
     bool dst_axb = (user_dst_req == "axb");
+    bool src_abx = (user_src_req == "abx");
+    bool dst_abx = (user_dst_req == "abx");
     bool src_matches = matches_tag(src_md, src_tag);
     bool dst_matches = matches_tag(dst_md, dst_tag);
     bool src_output = prb.is_bwd_d;
@@ -659,6 +682,8 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     if (user_src_tag.empty()) user_src_tag = src_tag;
     if (user_wei_tag.empty()) user_wei_tag = wei_tag;
     if (user_dst_tag.empty()) user_dst_tag = dst_tag;
+    if (src_abx && !src_matches) user_src_tag = "abx";
+    if (dst_abx && !dst_matches) user_dst_tag = "abx";
 }
 
 status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
@@ -756,12 +781,10 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     // spatial dimensions when applicable.
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, bia_layout,
             prb.with_groups, prb.g, prb.ic, prb.oc, prb.is_dw, prb.reduced_dim,
-            /*fuse_spatial=*/false,
             /*add_groups=*/true);
     normalize_conv_layouts(user_src_layout, user_wei_layout, user_dst_layout,
             user_bia_layout, prb.with_groups, prb.g, prb.ic, prb.oc, prb.is_dw,
             prb.reduced_dim,
-            /*fuse_spatial=*/false,
             /*add_groups=*/true);
 
     src.set_compute(src_layout);
@@ -893,7 +916,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
 
 void maybe_override_from_env(conv_config_t &cfg) {
 #ifdef DNNL_DEV_MODE
-    auto cfg_env = dev_getenv("cfg", std::string());
+    auto cfg_env = gpu_utils::dev_getenv("cfg", std::string());
     if (cfg_env.empty()) return;
     cfg.override_set(cfg_env, /*is_env=*/true);
 #else
@@ -931,7 +954,9 @@ status_t init_vec_size(conv_config_t &cfg) {
     int vec_size = cfg.simd();
     if (cfg.fma_kind() == fma_kind_t::mad) {
         int grf_elems = cfg.grf_size() / prb.acc_data_type_size;
-        int vec_dim = (prb.is_fwd || prb.is_bwd_w) ? prb.oc : prb.ic;
+        int vec_dim = prb.ab_swap_transpose
+                ? ((prb.is_bwd_w) ? prb.ic : prb.mb)
+                : ((prb.is_fwd || prb.is_bwd_w) ? prb.oc : prb.ic);
         if (utils::rnd_up(vec_dim, grf_elems) < vec_size) vec_size = grf_elems;
     }
     // SIMD32 produces invalid layouts in bwd_w.
@@ -991,7 +1016,8 @@ bool post_op_layouts_ok(const conv_problem_t &prb) {
 }
 
 bwd_d_optimize_kind_t bwd_d_optimize_kind_hint(const conv_problem_t &prb) {
-    if (!prb.is_bwd_d) return bwd_d_optimize_kind_t::none;
+    bool with_dilation = prb.dh || prb.dw || prb.dd;
+    if (!prb.is_bwd_d || with_dilation) return bwd_d_optimize_kind_t::none;
     if (prb.is_stride1()) {
         // Count how many out-of-bound iw updates are applied.
         int oob_updates = 0;
@@ -1022,7 +1048,10 @@ void init_bwd_d_optimize(conv_config_t &cfg) {
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
         const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr) {
-    hw_config_t hw_cfg(engine);
+    auto *gpu_attr
+            = utils::downcast<gpu_primitive_attr_t *>(attr->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
+    hw_config_t hw_cfg(engine, large_grf_mode);
 
     if (!hw_ok(hw_cfg)) return status::unimplemented;
     if (!data_types_ok(prb, hw_cfg)) return status::unimplemented;
@@ -1098,7 +1127,7 @@ send_pattern_t validate_blocking(
     auto is_match = [&](const block_hint_t<conv_dim_t> &hint) {
         for (auto dim : get_conv_dims(prb.prop_kind())) {
             if (hint[dim]) {
-                if (cfg.iter_dim(dim.str()) % hint[dim]) return false;
+                if (cfg.iter_dim(dim) % hint[dim]) return false;
             }
         }
         return true;
@@ -1136,20 +1165,24 @@ void init_params(conv_config_t &cfg) {
     cfg.tiler().set_params(cfg);
 }
 
-const char **get_kernel_grid_conv_dims(const conv_problem_t &prb, int idx) {
-    static const char *fwd_0[] = {"oc", nullptr};
-    static const char *fwd_1[] = {"g", "osp", "od", "oh", "ow", nullptr};
-    static const char *fwd_2[] = {"mb", nullptr};
-    static const char *bwd_d_0[] = {"ic", nullptr};
-    static const char *bwd_d_1[] = {"g", "id", "ih", "iw", nullptr};
-    static const char *bwd_d_2[] = {"mb", nullptr};
-    static const char *bwd_w_0[] = {"oc", nullptr};
-    static const char *bwd_w_1[]
-            = {"ic", "kd", "kh", "kw", "od", "oh", "ow", nullptr};
-    static const char *bwd_w_2[] = {"g", "mb", nullptr};
-    static const char **fwd[] = {fwd_0, fwd_1, fwd_2};
-    static const char **bwd_d[] = {bwd_d_0, bwd_d_1, bwd_d_2};
-    static const char **bwd_w[] = {bwd_w_0, bwd_w_1, bwd_w_2};
+const conv_tile_t *get_kernel_grid_conv_dims(
+        const conv_problem_t &prb, int idx) {
+    static const conv_tile_t fwd_0({conv_dims::oc});
+    static const conv_tile_t fwd_1(
+            {conv_dims::g, conv_dims::od, conv_dims::oh, conv_dims::ow});
+    static const conv_tile_t fwd_2({conv_dims::mb});
+    static const conv_tile_t bwd_d_0({conv_dims::ic});
+    static const conv_tile_t bwd_d_1(
+            {conv_dims::g, conv_dims::id, conv_dims::ih, conv_dims::iw});
+    static const conv_tile_t bwd_d_2({conv_dims::mb});
+    static const conv_tile_t bwd_w_0({conv_dims::oc});
+    static const conv_tile_t bwd_w_1(
+            {conv_dims::ic, conv_dims::kd, conv_dims::kh, conv_dims::kw,
+                    conv_dims::od, conv_dims::oh, conv_dims::ow});
+    static const conv_tile_t bwd_w_2({conv_dims::g, conv_dims::mb});
+    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
     ir_assert(idx >= 0 && idx < 3);
     if (prb.is_fwd) return fwd[idx];
     if (prb.is_bwd_d) return bwd_d[idx];
@@ -1158,20 +1191,68 @@ const char **get_kernel_grid_conv_dims(const conv_problem_t &prb, int idx) {
     return nullptr;
 }
 
-const char **get_thread_group_grid_conv_dims(
+const conv_tile_t *get_transpose_kernel_grid_conv_dims(
         const conv_problem_t &prb, int idx) {
-    static const char *fwd_0[] = {"oc", nullptr};
-    static const char *fwd_1[] = {"mb", "osp", "ow", nullptr};
-    static const char *fwd_2[] = {"ic", nullptr};
-    static const char *bwd_d_0[] = {"ic", nullptr};
-    static const char *bwd_d_1[] = {"mb", "iw", nullptr};
-    static const char *bwd_d_2[] = {"oc", nullptr};
-    static const char *bwd_w_0[] = {"oc", nullptr};
-    static const char *bwd_w_1[] = {"ic", nullptr};
-    static const char *bwd_w_2[] = {nullptr};
-    static const char **fwd[] = {fwd_0, fwd_1, fwd_2};
-    static const char **bwd_d[] = {bwd_d_0, bwd_d_1, bwd_d_2};
-    static const char **bwd_w[] = {bwd_w_0, bwd_w_1, bwd_w_2};
+    static const conv_tile_t fwd_0({conv_dims::mb});
+    static const conv_tile_t fwd_1({conv_dims::oc});
+    static const conv_tile_t fwd_2(
+            {conv_dims::g, conv_dims::od, conv_dims::oh, conv_dims::ow});
+    static const conv_tile_t bwd_d_0({conv_dims::mb});
+    static const conv_tile_t bwd_d_1({conv_dims::ic});
+    static const conv_tile_t bwd_d_2(
+            {conv_dims::g, conv_dims::id, conv_dims::ih, conv_dims::iw});
+    static const conv_tile_t bwd_w_0(
+            {conv_dims::ic, conv_dims::kd, conv_dims::kh, conv_dims::kw,
+                    conv_dims::od, conv_dims::oh, conv_dims::ow});
+    static const conv_tile_t bwd_w_1({conv_dims::g, conv_dims::mb});
+    static const conv_tile_t bwd_w_2({conv_dims::oc});
+    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
+    ir_assert(idx >= 0 && idx < 3);
+    if (prb.is_fwd) return fwd[idx];
+    if (prb.is_bwd_d) return bwd_d[idx];
+    if (prb.is_bwd_w) return bwd_w[idx];
+    ir_error_not_expected();
+    return nullptr;
+}
+
+const conv_tile_t *get_thread_group_grid_conv_dims(
+        const conv_problem_t &prb, int idx) {
+    static const conv_tile_t fwd_0({conv_dims::oc});
+    static const conv_tile_t fwd_1({conv_dims::mb, conv_dims::ow});
+    static const conv_tile_t fwd_2({conv_dims::ic});
+    static const conv_tile_t bwd_d_0({conv_dims::ic});
+    static const conv_tile_t bwd_d_1({conv_dims::mb, conv_dims::iw});
+    static const conv_tile_t bwd_d_2({conv_dims::oc});
+    static const conv_tile_t bwd_w_0({conv_dims::oc});
+    static const conv_tile_t bwd_w_1({conv_dims::ic});
+    static const conv_tile_t bwd_w_2;
+    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
+    ir_assert(idx >= 0 && idx < 3);
+    if (prb.is_fwd) return fwd[idx];
+    if (prb.is_bwd_d) return bwd_d[idx];
+    if (prb.is_bwd_w) return bwd_w[idx];
+    ir_error_not_expected();
+    return nullptr;
+}
+
+const conv_tile_t *get_transpose_thread_group_grid_conv_dims(
+        const conv_problem_t &prb, int idx) {
+    static const conv_tile_t fwd_0({conv_dims::mb, conv_dims::ow});
+    static const conv_tile_t fwd_1({conv_dims::oc});
+    static const conv_tile_t fwd_2({conv_dims::ic});
+    static const conv_tile_t bwd_d_0({conv_dims::mb, conv_dims::iw});
+    static const conv_tile_t bwd_d_1({conv_dims::ic});
+    static const conv_tile_t bwd_d_2({conv_dims::oc});
+    static const conv_tile_t bwd_w_0({conv_dims::ic});
+    static const conv_tile_t bwd_w_1({conv_dims::oc});
+    static const conv_tile_t bwd_w_2;
+    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
     ir_assert(idx >= 0 && idx < 3);
     if (prb.is_fwd) return fwd[idx];
     if (prb.is_bwd_d) return bwd_d[idx];
@@ -1182,25 +1263,24 @@ const char **get_thread_group_grid_conv_dims(
 
 void init_padded_dims(conv_config_t &cfg) {
     for (auto &d : get_conv_dims(cfg.prb().prop_kind())) {
-        auto name = d.name();
-        int dim = cfg.dim(name);
-        int iter = cfg.iter_dim(name);
-        int tg = cfg.thread_group_dim(name);
-        int loop = cfg.loop_dim(name);
+        int dim = cfg.dim(d);
+        int iter = cfg.iter_dim(d);
+        int tg = cfg.thread_group_dim(d);
+        int loop = cfg.loop_dim(d);
         int blk = iter * tg * loop;
-        int pad_blk = cfg.pad_block(name);
+        int pad_blk = cfg.pad_block(d);
         int padded = utils::rnd_up(dim, math::lcm(blk, pad_blk));
-        cfg.padded_dims().set(name, padded);
+        cfg.padded_dims().set(d, padded);
     }
 }
 
 void init_kernel_grid(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
-    auto get = [&](const char *name) {
-        int padded = cfg.padded_dim(name);
-        int iter = cfg.iter_dim(name);
-        int loop = cfg.loop_dim(name);
-        int tg = cfg.thread_group_dim(name);
+    auto get = [&](const conv_dim_t &d) {
+        int padded = cfg.padded_dim(d);
+        int iter = cfg.iter_dim(d);
+        int loop = cfg.loop_dim(d);
+        int tg = cfg.thread_group_dim(d);
         int tg_block = iter * loop * tg;
         return ir_utils::safe_divide(padded, tg_block);
     };
@@ -1208,25 +1288,29 @@ void init_kernel_grid(conv_config_t &cfg) {
     const int grid_ndims = 3;
     std::vector<int> dims = {1, 1, 1};
     for (int i = 0; i < grid_ndims; i++) {
-        auto **dd = get_kernel_grid_conv_dims(prb, i);
-        for (auto **d = dd; *d; d++)
-            dims[i] *= get(*d);
+        auto *tile = prb.ab_swap_transpose
+                ? get_transpose_kernel_grid_conv_dims(prb, i)
+                : get_kernel_grid_conv_dims(prb, i);
+        for (auto d : *tile)
+            dims[i] *= get(d);
     }
     cfg.set_kernel_grid(grid_info_t(dims, "grid_idx"));
 }
 
 void init_thread_group_grid(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
-    auto get = [&](const char *name) {
-        return cfg.thread_group_dims().get(name);
+    auto get = [&](const conv_dim_t &d) {
+        return cfg.thread_group_dims().get(d);
     };
 
     const int grid_ndims = 3;
     std::vector<int> dims = {1, 1, 1};
     for (int i = 0; i < grid_ndims; i++) {
-        auto **dd = get_thread_group_grid_conv_dims(prb, i);
-        for (auto **d = dd; *d; d++)
-            dims[i] *= get(*d);
+        auto *tile = prb.ab_swap_transpose
+                ? get_transpose_thread_group_grid_conv_dims(prb, i)
+                : get_thread_group_grid_conv_dims(prb, i);
+        for (auto d : *tile)
+            dims[i] *= get(d);
     }
     cfg.set_thread_group_grid(grid_info_t(dims, "tg_idx"));
 }
@@ -1307,11 +1391,11 @@ status_t fixup_config(conv_config_t &cfg) {
 
 template <typename GetFuncT>
 bool in_grid_dims(
-        GetFuncT get_func, const conv_problem_t &prb, const std::string &dim) {
+        GetFuncT get_func, const conv_problem_t &prb, const conv_dim_t &dim) {
     for (int i = 0; i < 3; i++) {
-        auto **dd = get_func(prb, i);
-        for (auto **d = dd; *d; d++)
-            if (*d == dim) return true;
+        auto *tile = get_func(prb, i);
+        for (auto d : *tile)
+            if (d == dim) return true;
     }
     return false;
 }
@@ -1360,16 +1444,15 @@ status_t check_plan(conv_config_t &cfg) {
 
 status_t check_config(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
-    for (auto &kv : cfg.dims().get()) {
-        auto &name = kv.first;
-        int tg = cfg.thread_group_dim(name);
-        int grid = cfg.grid_dim(name);
+    for (auto d : cfg.dims().get()) {
+        int tg = cfg.thread_group_dim(d);
+        int grid = cfg.grid_dim(d);
         if (tg != 1)
-            ir_assert(in_grid_dims(get_thread_group_grid_conv_dims, prb, name))
-                    << name;
+            ir_assert(in_grid_dims(get_thread_group_grid_conv_dims, prb, d))
+                    << d.name();
         if (grid != 1)
-            ir_assert(in_grid_dims(get_kernel_grid_conv_dims, prb, name))
-                    << name;
+            ir_assert(in_grid_dims(get_kernel_grid_conv_dims, prb, d))
+                    << d.name();
     }
     CHECK(check_plan(cfg));
     return status::success;
@@ -1411,7 +1494,7 @@ int conv_config_t::reserved_regs() const {
     return constants::reserved_regs_default;
 }
 
-int conv_config_t::pad_block(const std::string &name) const {
+int conv_config_t::pad_block(const conv_dim_t &d) const {
     auto &src = src_layout().compute();
     auto &wei = wei_layout().compute();
     auto &dst = dst_layout().compute();
@@ -1423,15 +1506,13 @@ int conv_config_t::pad_block(const std::string &name) const {
     int oc_idxs[] = {-1, 1, 2};
     int ic_idxs[] = {2, 2, -1};
     int *idxs = nullptr;
-#define CASE(_name) \
-    if (name == #_name) idxs = _name##_idxs
-    CASE(g);
-    CASE(mb);
-    CASE(oc);
-    CASE(ic);
-#undef CASE
-
-    if (!idxs) return 1;
+    switch (d.kind()) {
+        case conv_dim_kind_t::g: idxs = g_idxs; break;
+        case conv_dim_kind_t::mb: idxs = mb_idxs; break;
+        case conv_dim_kind_t::oc: idxs = oc_idxs; break;
+        case conv_dim_kind_t::ic: idxs = ic_idxs; break;
+        default: return 1;
+    }
 
     int ret = 1;
     for (int i = 0; i < 3; i++) {
@@ -1515,6 +1596,7 @@ std::string conv_config_t::str() const {
     oss << "  Reuse headers:              " << to_string(pipeline().reuse_headers()) << std::endl;
     oss << "  Subtiles:                   " << "A: " << subtiles().a() << ", B: " << subtiles().b() << std::endl;
     oss << "  Estimated GRF usage:        " << estimated_peak_regs << std::endl;
+    oss << "  AB Swap Transpose:          " << to_string(prb().ab_swap_transpose) << std::endl;
     oss << "  Configuration line:         " << get_config_line() << std::endl;
     // clang-format on
     return oss.str();
@@ -1537,18 +1619,14 @@ conv_key_t conv_config_t::key() const {
 
 std::string conv_config_t::blocking_brief_str() const {
     std::ostringstream oss;
-    std::vector<std::string> names;
-    for (auto dim : get_conv_dims(prb().prop_kind())) {
-        names.push_back(dim.name());
-    }
-    std::sort(names.begin(), names.end());
-    for (auto &name : names) {
-        int iter = iter_dim(name);
-        int tg = thread_group_dim(name);
-        int loop = loop_dim(name);
-        int grid = grid_dim(name);
+    for (auto &d : get_conv_dims(prb().prop_kind())) {
+        int iter = iter_dim(d);
+        int tg = thread_group_dim(d);
+        int loop = loop_dim(d);
+        int grid = grid_dim(d);
         if (iter == 1 && loop == 1 && tg == 1) continue;
-        oss << "  Dimension " << name << pad_str(":", -18 + (int)name.length());
+        oss << "  Dimension " << d.name()
+            << pad_str(":", -18 + (int)d.name().length());
         oss << "(grid:" << pad_int(grid, 5) << ") x ";
         oss << "(tg:" << pad_int(tg, 5) << ") x ";
         oss << "(loop:" << pad_int(loop, 5) << ") x ";
@@ -1590,12 +1668,12 @@ const conv_plan_t &conv_config_t::plan() const {
 bool conv_config_t::can_skip_wei_zero_out() const {
     if (!prb().is_bwd_w) return true;
     bmnk_dim_helper_t h(*this);
-    int k_iter_dim = h.iter_dim('k');
-    int k_loop_dim = h.loop_dim('k');
-    int k_tg_dim = h.thread_group_dim('k');
+    int k_iter_dim = h.iter_dim(gemm_dims::k);
+    int k_loop_dim = h.loop_dim(gemm_dims::k);
+    int k_tg_dim = h.thread_group_dim(gemm_dims::k);
     int k_tg_block = k_iter_dim * k_loop_dim * k_tg_dim;
-    int k_padded = padded_dim("mb") * padded_dim("od") * padded_dim("oh")
-            * padded_dim("ow");
+    int k_padded = padded_dim(conv_dims::mb) * padded_dim(conv_dims::od)
+            * padded_dim(conv_dims::oh) * padded_dim(conv_dims::ow);
     return k_tg_block >= k_padded;
 }
 

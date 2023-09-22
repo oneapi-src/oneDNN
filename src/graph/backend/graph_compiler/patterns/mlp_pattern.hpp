@@ -264,7 +264,7 @@ pm::pb_node_t *append_rms_norm_option1(
     auto mul1 = pgraph->append_op(graph::op_kind::Multiply,
             {in_edge(0, input, 0), in_edge(1, rsqrt, 0)});
     auto cast1 = append_single_op_repetition_subgraph(
-            pgraph, graph::op_kind::TypeCast, mul1);
+            pgraph, graph::op_kind::TypeCast, mul1, 0, 3);
     auto mul2 = pgraph->append_op(
             graph::op_kind::Multiply, {in_edge(0, cast1, 0)});
     mul2->allow_external_outputs();
@@ -296,7 +296,7 @@ pm::pb_node_t *append_rms_norm_option2(
     auto mul1 = pgraph->append_op(graph::op_kind::Multiply,
             {in_edge(0, mul1_in, 0), in_edge(1, rsqrt, 0)});
     auto cast1 = append_single_op_repetition_subgraph(
-            pgraph, graph::op_kind::TypeCast, mul1);
+            pgraph, graph::op_kind::TypeCast, mul1, 0, 3);
     auto mul2 = pgraph->append_op(
             graph::op_kind::Multiply, {in_edge(0, cast1, 0)});
     mul2->allow_external_outputs();
@@ -741,6 +741,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
                             MLP_NUM_LAYER_UPPER_BOUND);
                 });
 
+// bart_mlp pattern is causing regression in bert_large model
+// will be added back after resolving the performance issue
+#if 0
 /*
  mlp residual graph, having an extra edge from LayerNorm to Add.
   [IN0](int8)     [IN1](int8)
@@ -998,6 +1001,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pgraph->append_optional(
                             last_layer, {in_edge(0, layernorm_layer3, 0)});
                 });
+#endif
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_gpt_mlp)
         .set_priority(6.5f)

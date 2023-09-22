@@ -33,12 +33,12 @@ status_t cudnn_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-    if (!pd()->attr()->scales_.get(DNNL_ARG_SRC).defined())
+    if (!pd()->attr()->scales_.get(DNNL_ARG_SRC).has_default_values())
         CHECK(stream_utils::copy_input_arg_to_host(ctx, cuda_stream,
                 &host_scales_[0], DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC,
                 sizeof(float)));
 
-    if (!pd()->attr()->scales_.get(DNNL_ARG_DST).defined())
+    if (!pd()->attr()->scales_.get(DNNL_ARG_DST).has_default_values())
         CHECK(stream_utils::copy_input_arg_to_host(ctx, cuda_stream,
                 &host_scales_[1], DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
                 sizeof(float)));

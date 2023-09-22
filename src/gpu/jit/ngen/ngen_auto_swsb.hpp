@@ -70,20 +70,20 @@ enum {
 };
 
 class GeneralizedPipe {
-    uint8_t v;
+    uint16_t v;
 
-    static constexpr uint8_t vInOrder = 0x00;
-    static constexpr uint8_t vSend = 0x40;        // OR'ed with SFID
-    static constexpr uint8_t vSystolic = 0x80;
-    static constexpr uint8_t vMath = 0xC0;
-    static constexpr uint8_t vTypeMask = 0xC0;
+    static constexpr uint16_t vInOrder  = 0x000;
+    static constexpr uint16_t vSend     = 0x100;        // OR'ed with SFID
+    static constexpr uint16_t vSystolic = 0x200;
+    static constexpr uint16_t vMath     = 0x300;
+    static constexpr uint16_t vTypeMask = 0x300;
 
-    GeneralizedPipe(uint8_t v_, int dummy) : v{v_} {}
+    GeneralizedPipe(uint16_t v_, int dummy) : v{v_} {}
 
 public:
-    GeneralizedPipe()                    : v{uint8_t(0)} {}
-    GeneralizedPipe(PipeMask pipe)       : v{uint8_t(vInOrder | pipe)} {}
-    GeneralizedPipe(SharedFunction sfid) : v{uint8_t(vSend | static_cast<uint8_t>(sfid))} {}
+    GeneralizedPipe()                    : v{uint16_t(0)} {}
+    GeneralizedPipe(PipeMask pipe)       : v{uint16_t(vInOrder | pipe)} {}
+    GeneralizedPipe(SharedFunction sfid) : v{uint16_t(vSend | static_cast<uint8_t>(sfid))} {}
 
     static GeneralizedPipe Systolic() { return GeneralizedPipe(vSystolic, 0); }
     static GeneralizedPipe Math()     { return GeneralizedPipe(vMath, 0); }
@@ -347,6 +347,7 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
             else if ((insn.src1Typecode() & lmask) == lmask)
                 mask = PipeMaskL;
         }
+
     } else
         mask = PipeMaskA;
     return mask;
@@ -590,13 +591,14 @@ inline bool intersects(const Dependency<false> &dep1, const Dependency<true> &de
     if (!dep2.swsb) {
         // Region-based dependency. First, quick check based on dependency type:
         //   RAR:     ignore
-        //   WAR/WAW: ignore if both instructions in same GeneralizedPipe (same in-order pipe, or sends with same SFID, etc.)
+        //   WAR/WAW: ignore if both instructions in same in-order pipe, or same out-of-order pipe (WAR only)
         // If not ignorable, check:
         //   * If consumer is in-order, is that pipe still live (unsynchronized) in the producer?
         //   * If producer is in-order, is it close enough to require tracking the dependency?
         //   * Do the producer+consumer regions overlap?
         if (dep1.read() && dep2.read())                                                             return false;
         if (!(dep1.write() && dep2.write() && (dep1.region.checkWAW || dep2.region.checkWAW)))
+        if (dep1.read() || dep1.pipe.inOrder())
         if (dep2.write() && (dep1.pipe == dep2.pipe) && (dep1.pipe != GeneralizedPipe::Math()))     return false;
         if (dep1.pipe.inOrder() && (distance(dep1, dep2, dep1.pipe) >= timeout(dep1.pipe)))         return false;
         if (dep2.region.arf && (dep2.read() || dep2.region.hw == HW::Gen12LP))                      return false;
@@ -1021,7 +1023,7 @@ void DependencyRegion::dump() const
         if (size > 1)
             std::cerr << "-r" << int(base + size - 1);
 
-    auto fullMask = ~uint32_t(0);
+        auto fullMask = ~uint32_t(0);
         bool partial = false;
         for (int ii = 0; ii < size; ii++)
             partial |= (masks[ii] != fullMask);
@@ -1113,7 +1115,7 @@ void DependencyTable<consumer>::dump() const
                         if (i > NPipes)
                             std::cerr << '?';
                         else
-                            std::cerr << "AFILMO"[i % (NPipes + 1)];
+                            std::cerr << "AFILMCO"[i % (NPipes + 1)];
                         break;
                 }
                 std::cerr << ":\t";
@@ -1541,7 +1543,7 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
 
         // Check for cr/ce/sr destination operand, and force A@1 on the next instruction.
         ARFType dstARFType;
-        forceA1Next |= (insn.getARFType(dstARFType, -1) && arfNeedsSync(dstARFType));
+        forceA1Next |= (insn.getARFType(dstARFType, -1, hw) && arfNeedsSync(dstARFType));
 
         if (autoSWSB) {
             // If auto-SWSB has been requested for this instruction, analyze its source operands.
@@ -1585,7 +1587,7 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
                 // Special case: check for cr/sr/ce source operands and force A@1 if any.
                 if (regions[srcN + 1].empty()) {
                     ARFType arfType;
-                    if ((srcN >= 0) && insn.getARFType(arfType, srcN) && arfNeedsSync(arfType)) {
+                    if ((srcN >= 0) && insn.getARFType(arfType, srcN, hw) && arfNeedsSync(arfType)) {
                         generated.depPipe = PipeMaskA;
                         generated.dist = 1;
                     }

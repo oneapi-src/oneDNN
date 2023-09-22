@@ -586,11 +586,11 @@ status_t layout_propagator_for_batchnorm(op_ptr &op,
         scratchpad_index = op->num_outputs() - 2;
         value_ptr workspace_val = op->get_output_value(op->num_outputs() - 1);
         status = fill_layout_info(workspace_val, pd.workspace_desc());
+        if (status != status::success) return status;
     }
 
     value_ptr scratchpad_val = op->get_output_value(scratchpad_index);
     status = fill_layout_info(scratchpad_val, pd.scratchpad_desc());
-    if (status != status::success) return status;
 
     return status;
 }
@@ -875,6 +875,8 @@ status_t layout_propagator_for_to_group(op_ptr &op,
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         dnnl::memory::desc out_md;
         auto groups = op->get_attr<int64_t>(op_attr::groups);
+        // avoid dividing by zero at below.
+        if (groups == 0) return status::invalid_shape;
         if (op->has_attr(op_attr::is_convtranspose)
                 && op->get_attr<bool>(op_attr::is_convtranspose)) {
             auto permuted_weight = transpose(in_md, 0, 1);

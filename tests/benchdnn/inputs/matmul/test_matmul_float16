@@ -77,3 +77,6 @@
 --dt=f16 --bia_dt=f32 --bia_mask=4
 2x20x30:2x30x4
 2x20x30:1x30x4
+
+# regression
+--batch=harness_matmul_regression_float16

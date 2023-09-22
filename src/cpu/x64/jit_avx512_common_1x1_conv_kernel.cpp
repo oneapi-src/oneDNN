@@ -244,7 +244,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
                     : i_ur * reduce_mul + i_reduce;
         } else {
             int rmul = bcast_layout_nxc ? jcp.ic : jcp.ic_block;
-            offt = i_reduce * rmul + i_ur;
+            offt = static_cast<dim_t>(i_reduce) * rmul + i_ur;
         }
         return EVEX_compress_addr(
                 aux_reg_bcast_data, jcp.typesize_in * offt, bcast);

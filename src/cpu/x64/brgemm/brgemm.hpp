@@ -115,7 +115,7 @@ status_t DNNL_API brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 ///     Can be u8, s8, s32, bf16, f16 or fp32
 ///
 status_t DNNL_API brgemm_desc_set_postops(brgemm_t *brg,
-        const primitive_attr_t *attr, const memory_desc_t *dst_md, int LDD,
+        const primitive_attr_t *attr, const memory_desc_t *dst_md, dim_t LDD,
         impl::data_type_t dt_bias = impl::data_type::undef);
 
 /// Adds BRGEMM attributes to BRGEMM descriptor
@@ -164,7 +164,8 @@ status_t DNNL_API brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
 ///
 void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C,
-        void *scratch = nullptr);
+        void *scratch = nullptr,
+        const brgemm_dynamic_values_t *dynamic_values = nullptr);
 
 /// Execute BRGEMM kernel (brgemm_offs and brgemm_strd version)
 ///
@@ -190,7 +191,8 @@ void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
         const brgemm_batch_element_t *batch, void *ptr_C,
-        void *scratch = nullptr);
+        void *scratch = nullptr,
+        const brgemm_dynamic_values_t *dynamic_values = nullptr);
 
 /// Execute BRGEMM kernel (brgemm_addr version)
 ///
@@ -215,7 +217,8 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 ///
 void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
         int bs, const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const brgemm_post_ops_data_t &post_ops_data, void *scratch = nullptr);
+        const brgemm_post_ops_data_t &post_ops_data, void *scratch = nullptr,
+        const brgemm_dynamic_values_t *dynamic_values = nullptr);
 
 /// Execute BRGEMM kernel (brgemm_offs and brgemm_strd version)
 ///
@@ -244,7 +247,8 @@ void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const brgemm_post_ops_data_t &post_ops_data, void *scratch = nullptr);
+        const brgemm_post_ops_data_t &post_ops_data, void *scratch = nullptr,
+        const brgemm_dynamic_values_t *dynamic_values = nullptr);
 
 /// AMX utilities: Creates a palette based on BRGEMM descriptor
 ///

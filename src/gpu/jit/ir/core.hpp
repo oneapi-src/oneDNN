@@ -2009,8 +2009,9 @@ public:
     IR_DECL_STMT_TYPE_ID(for_t)
 
     static stmt_t make(const expr_t &var, const expr_t &init,
-            const expr_t &bound, const stmt_t &body = {}, int unroll = 1) {
-        return stmt_t(new for_t(var, init, bound, body, unroll));
+            const expr_t &bound, const stmt_t &body = {},
+            const expr_t &step = expr_t(1), int unroll = 1) {
+        return stmt_t(new for_t(var, init, bound, body, step, unroll));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -2019,11 +2020,11 @@ public:
 
         return var.is_equal(other.var) && init.is_equal(other.init)
                 && bound.is_equal(other.bound) && body.is_equal(other.body)
-                && (unroll == other.unroll);
+                && step.is_equal(other.step) && (unroll == other.unroll);
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(var, init, bound, body, unroll);
+        return ir_utils::get_hash(var, init, bound, body, step, unroll);
     }
 
     IR_DECLARE_TRAVERSERS()
@@ -2032,16 +2033,18 @@ public:
     expr_t init;
     expr_t bound;
     stmt_t body;
+    expr_t step;
     int unroll;
 
 private:
     for_t(const expr_t &var, const expr_t &init, const expr_t &bound,
-            const stmt_t &body, int unroll)
+            const stmt_t &body, const expr_t &step, int unroll)
         : stmt_impl_t(_type_info())
         , var(var)
         , init(init)
         , bound(bound)
         , body(body)
+        , step(step)
         , unroll(unroll) {}
 };
 

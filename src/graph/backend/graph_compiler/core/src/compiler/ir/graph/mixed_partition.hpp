@@ -60,6 +60,10 @@ constexpr const char *first_prefetch_op = "first_prefetch_op";
 // size_t: used to judge op whether is small workload. If less than threshold,
 // ignore parallelism check of cost model. (Measured by 3D fp32 InstanceNorm)
 constexpr size_t small_op_workload_threshold = 1688UL;
+// Boolean: is the op which could not gather input partitions
+constexpr const char *no_gather_op = "no_gather_op";
+// Boolean: is the op which need to split common anchor into grouped anchor
+constexpr const char *split_anchor_op = "split_anchor_op";
 } // namespace mixed_partition_hint
 
 // different fusion policies prepared for dynamic shape, policies will be JIT
@@ -187,7 +191,7 @@ public:
     // initilize tensor
     void tensor_initialize();
     // replace the specific buffer
-    void replace_buffer(graph_tensor *gt, expr &new_buffer);
+    void replace_buffer(const expr &old_buffer, const expr &new_buffer);
     // get real mem trace, taking consider of tensor shrink and ignore cut
     // buffer except for those in `keep_cut_set`
     std::vector<memory_optim::memory_alloc_trace_t> get_real_mem_trace(
@@ -254,6 +258,31 @@ struct outerloop_axis_binder {
     }
 };
 
+struct mixed_dyn_internal_info_t {
+    // The module records internal functions usually contains repeat
+    // calculations which could be reused like single core brgemm. One partition
+    // could hold multiple ops who have internal functions.
+    ir_module_ptr mod_;
+    // extra parameter for internal func dispatch, a tensor of pointer.
+    expr inter_funcs_param_;
+    // internal call node of internal func.
+    call inter_call_;
+    // internal func node.
+    func_t inter_func_;
+    // single core func.
+    func_t single_core_func_;
+    // extra args for inter call
+    std::vector<expr> inter_call_extra_args_;
+    // extra args for inter func
+    std::vector<expr> inter_func_extra_args_;
+    // extra args of single core func
+    std::vector<expr> single_core_func_extra_args_;
+    // number of functions in partition.
+    int num_func_ = 0;
+    mixed_dyn_internal_info_t(const context_ptr &ctx)
+        : mod_(std::make_shared<ir_module_t>(ctx)) {}
+};
+using mixed_dyn_internal_info_ptr = std::shared_ptr<mixed_dyn_internal_info_t>;
 struct mixed_parti_t : fusion_partition_t {
     /* related to Graph */
     // different from ops_ in base class, it records the sequence of committed
@@ -281,14 +310,12 @@ struct mixed_parti_t : fusion_partition_t {
 
     // Cost Model
     fusion_cost_model_ptr cost_;
-
+    // mixed fusion dyn internal info
+    mixed_dyn_internal_info_ptr dyn_inter_;
     using ptr = std::shared_ptr<mixed_parti_t>;
 
     // append fusion anchor
-    void append_fusion_anchor(const fuse_anchor_map_ptr &fanchor) {
-        fanchor->binded_mxp_ = this;
-        fanchors_.emplace_back(fanchor);
-    }
+    void append_fusion_anchor(const fuse_anchor_map_ptr &fanchor);
 
     void append_fusion_anchor(
             const std::vector<fuse_anchor_map_ptr> &fanchors) {
@@ -321,7 +348,7 @@ struct mixed_parti_t : fusion_partition_t {
 
     bool is_ok_to_add(sc_op *op);
 
-    void add(const sc_op_ptr &op);
+    bool add(const sc_op_ptr &op);
 
     void remove(const sc_op_ptr &op) {
         throw std::runtime_error("remove method is not implemented");
@@ -361,7 +388,8 @@ struct mixed_parti_t : fusion_partition_t {
     bool ready_for_op(sc_op *op) const;
 
     // look up fanchor by op
-    fuse_anchor_map_ptr lookup_anchor_map(sc_op *op) const;
+    fuse_anchor_map_ptr lookup_anchor_map(
+            sc_op *op, bool throw_assert = true) const;
 
     // look up fanchor by stmts
     fuse_anchor_map_ptr lookup_anchor_map(const stmts &ss) const;
@@ -520,7 +548,6 @@ std::vector<mixed_parti_t::ptr> collect_parti_set(
 
 // do mixed partition
 bool do_partition(const context_ptr &ctx, sc_graph_t &g,
-        const op_dep_matrix_t &dep,
         std::vector<mixed_parti_t::ptr> &op_2_partition);
 
 // judge the given graph whether is second time retried graph

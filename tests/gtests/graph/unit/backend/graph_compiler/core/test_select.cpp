@@ -35,48 +35,22 @@
 
 using namespace dnnl::impl::graph::gc;
 
-// select_ref function calculates (cond?then:else)
 static void select_ref(const sc_dims &cond_plain_dims,
         const sc_dims &then_plain_dims, const sc_dims &else_plain_dims,
         const sc_dims &out_plain_dims,
         const std::vector<std::vector<int>> &ternary_bc_axis,
         test_buffer<uint8_t> &cond, test_buffer<float> &then,
         test_buffer<float> &els, test_buffer<float> &out) {
-    sc_dims extended_cond_plain_dims(out_plain_dims.size(), 1);
-    sc_dims extended_then_plain_dims(out_plain_dims.size(), 1);
-    sc_dims extended_else_plain_dims(out_plain_dims.size(), 1);
     auto &cond_plain_axis = ternary_bc_axis[0];
     auto &then_plain_axis = ternary_bc_axis[1];
     auto &else_plain_axis = ternary_bc_axis[2];
 
-    auto get_extended_plain_dims
-            = [&](const std::vector<int> &plain_axis, sc_dims plain_dims,
-                      sc_dims &extended_plain_axis) {
-                  if (plain_axis != std::vector<int> {-1}) {
-                      int offset = out_plain_dims.size() - plain_dims.size();
-                      for (size_t i = 0; i < plain_dims.size(); ++i) {
-                          if (plain_dims[i] == out_plain_dims[i + offset]) {
-                              extended_plain_axis[i + offset] = plain_dims[i];
-                          }
-                      }
-                  }
-              };
-
-    auto flattened_idx_to_ND_idx = [](size_t idx, const sc_dims &strides) {
-        sc_dims ret(strides.size());
-        for (size_t i = 0; i < strides.size(); ++i) {
-            ret[i] = idx / strides[i];
-            idx -= ret[i] * strides[i];
-        }
-        return ret;
-    };
-
-    get_extended_plain_dims(
-            cond_plain_axis, cond_plain_dims, extended_cond_plain_dims);
-    get_extended_plain_dims(
-            then_plain_axis, then_plain_dims, extended_then_plain_dims);
-    get_extended_plain_dims(
-            else_plain_axis, else_plain_dims, extended_else_plain_dims);
+    auto extended_cond_plain_dims = test_utils::get_extended_plain_dims(
+            cond_plain_axis, cond_plain_dims, out_plain_dims);
+    auto extended_then_plain_dims = test_utils::get_extended_plain_dims(
+            then_plain_axis, then_plain_dims, out_plain_dims);
+    auto extended_else_plain_dims = test_utils::get_extended_plain_dims(
+            else_plain_axis, else_plain_dims, out_plain_dims);
 
     sc_dims cond_strides
             = test_utils::compute_dense_stride(extended_cond_plain_dims);
@@ -88,28 +62,19 @@ static void select_ref(const sc_dims &cond_plain_dims,
 
     const size_t total_size = out.size();
     utils::parallel_for(0, total_size, 1, [&](int64_t i) {
-        sc_dims output_idx = flattened_idx_to_ND_idx(i, output_strides);
-        sc_dims cond_idx(output_idx.size());
-        sc_dims then_idx(output_idx.size());
-        sc_dims else_idx(output_idx.size());
-        for (size_t d = 0; d < cond_idx.size(); ++d) {
-            cond_idx[d] = extended_cond_plain_dims[d] == 1 ? 0 : output_idx[d];
+        size_t cond_idx_flattened = 0, then_idx_flattened = 0,
+               else_idx_flattened = 0;
+        size_t idx = i;
+        for (size_t d = 0; d < output_strides.size(); ++d) {
+            auto output_idx = idx / output_strides[d];
+            idx -= output_idx * output_strides[d];
+            size_t cond_idx = extended_cond_plain_dims[d] == 1 ? 0 : output_idx;
+            cond_idx_flattened += cond_idx * cond_strides[d];
+            cond_idx = extended_then_plain_dims[d] == 1 ? 0 : output_idx;
+            then_idx_flattened += cond_idx * then_strides[d];
+            cond_idx = extended_else_plain_dims[d] == 1 ? 0 : output_idx;
+            else_idx_flattened += cond_idx * else_strides[d];
         }
-        for (size_t d = 0; d < then_idx.size(); ++d) {
-            then_idx[d] = extended_then_plain_dims[d] == 1 ? 0 : output_idx[d];
-        }
-        for (size_t d = 0; d < else_idx.size(); ++d) {
-            else_idx[d] = extended_else_plain_dims[d] == 1 ? 0 : output_idx[d];
-        }
-        auto prod_cond = math_utils::vector_mul(cond_idx, cond_strides, false);
-        size_t cond_idx_flattened
-                = std::accumulate(prod_cond.begin(), prod_cond.end(), 0);
-        auto prod_then = math_utils::vector_mul(then_idx, then_strides, false);
-        size_t then_idx_flattened
-                = std::accumulate(prod_then.begin(), prod_then.end(), 0);
-        auto prod_else = math_utils::vector_mul(else_idx, else_strides, false);
-        size_t else_idx_flattened
-                = std::accumulate(prod_else.begin(), prod_else.end(), 0);
         out[i] = cond[cond_idx_flattened] > 0UL ? then[then_idx_flattened]
                                                 : els[else_idx_flattened];
     });
@@ -121,7 +86,6 @@ static void check_select_correctness(const sc_dims &cond_plain_dims,
         sc_data_format_t else_format = sc_data_format_t(),
         sc_data_format_t then_format = sc_data_format_t()) {
     REQUIRE_AVX2(); // llvm stuck when SSE
-    BUILTIN_REQUIRE_AVX512(); // AVX2 acc fail and no int8 mask_mov
     sc_graph_t graph;
     auto input = graph.make_input({std::make_shared<graph_tensor>(nullptr,
                                            cond_format.to_plain(),
@@ -156,7 +120,7 @@ static void check_select_correctness(const sc_dims &cond_plain_dims,
     auto out_plain_dims = output->get_inputs()[0]->details_.get_plain_dims();
     sc_dim out_size = test_utils::product(out_plain_dims);
 
-    auto ternary_bc_axis
+    const auto &ternary_bc_axis
             = dynamic_cast<select_op_t *>(select.get())->get_plain_bc_axis();
 
     auto cond = alloc_array<uint8_t>(cond_size, INIT_RANDOM);
@@ -186,7 +150,6 @@ static void check_distill_bert_mha(const sc_dims &feature_plain_dims,
         sc_data_format_t feature2_format = sc_data_format_t(),
         bool use_then_as_else = false) {
     REQUIRE_AVX2(); // llvm stuck when SSE
-    BUILTIN_REQUIRE_AVX512(); // AVX2 no int16 mask_mov
     sc_graph_t graph;
     auto input = graph.make_input(
             {std::make_shared<graph_tensor>(nullptr, feature_format,
@@ -302,6 +265,10 @@ TEST(GCCore_CPU_select_test, TestCorrectnessNonBlocking) {
             sc_data_format_t(format_kinds::A),
             sc_data_format_t(format_kinds::ACBD));
     //  4D + 4D + 4D
+    check_select_correctness({205, 1, 1, 132}, {205, 1, 1, 132},
+            {205, 1, 1, 132}, sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD));
     check_select_correctness({16, 1, 1, 32}, {16, 1, 1, 32}, {16, 1, 1, 32},
             sc_data_format_t(format_kinds::ABCD),
             sc_data_format_t(format_kinds::ABCD),
@@ -411,16 +378,14 @@ TEST(GCCore_CPU_distill_bert_test, TestFuntionality) {
             sc_data_format_t(format_kinds::ABCD),
             sc_data_format_t(format_kinds::A),
             sc_data_format_t(format_kinds::ACBD), true);
-    check_distill_bert_mha({16, 16, 1, 256}, {16, 16, 256, 48},
-            {16, 16, 256, 48}, {1}, {16, 16, 48, 256},
-            sc_data_format_t(format_kinds::ACBD),
+    check_distill_bert_mha({16, 16, 1, 256}, {16, 16, 256, 48}, {16, 16, 1, 48},
+            {1}, {16, 16, 48, 256}, sc_data_format_t(format_kinds::ACBD),
             sc_data_format_kind_t(0, 3, 1, 2),
             sc_data_format_t(format_kinds::ABCD),
             sc_data_format_t(format_kinds::A),
             sc_data_format_t(format_kinds::ACBD));
-    check_distill_bert_mha({16, 16, 1, 256}, {16, 16, 256, 48},
-            {16, 16, 256, 48}, {1}, {16, 16, 48, 256},
-            sc_data_format_t(format_kinds::ACBD),
+    check_distill_bert_mha({16, 16, 1, 256}, {16, 16, 256, 48}, {16, 16, 1, 48},
+            {1}, {16, 16, 48, 256}, sc_data_format_t(format_kinds::ACBD),
             sc_data_format_kind_t(0, 3, 1, 2),
             sc_data_format_t(format_kinds::ABCD),
             sc_data_format_t(format_kinds::A),

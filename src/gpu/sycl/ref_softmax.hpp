@@ -89,6 +89,7 @@ struct ref_sycl_softmax_bwd_t : public sycl_gpu_primitive_t {
             using namespace data_type;
             bool ok = !is_fwd()
                     && utils::one_of(dst_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
                     && (dst_md(0)->format_desc.blocking.inner_nblks == 0)
                     && dst_md()->data_type == diff_dst_md()->data_type
                     && attr()->has_default_values()

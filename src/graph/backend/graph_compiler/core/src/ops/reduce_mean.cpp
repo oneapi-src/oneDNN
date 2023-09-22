@@ -33,6 +33,7 @@ reduce_mean_op_t::reduce_mean_op_t(
 reduce_mean_op_t::reduce_mean_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     info_.inputs_ = ins;
+    attrs_ = attrs;
     COMPILE_ASSERT(attrs.has_key("rd_axis"),
             "attrs of reduce op should have reduce axis information.");
     if (outs.empty()) {
@@ -58,8 +59,11 @@ reduce_mean_op_t::reduce_mean_op_t(const std::vector<graph_tensor_ptr> &ins,
                 ins[0]->details_.dtype_));
     } else {
         info_.outputs_ = outs;
+        if (ins[0]->details_.get_plain_dims()
+                == outs[0]->details_.get_plain_dims()) {
+            attrs_["keep_dims"] = true;
+        }
     }
-    attrs_ = attrs;
     op_name_ = "reduce_mean";
 }
 

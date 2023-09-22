@@ -74,7 +74,7 @@ status_t ocl_stream_t::init() {
         bool is_out_of_order
                 = (props & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) != 0;
         if (is_out_of_order) {
-            VERROR(ocl,
+            VERROR(common, ocl,
                     "OpenCL kernel profiling is not "
                     "supported with out-of-order queues");
             return status::invalid_arguments;
@@ -251,7 +251,7 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
     }
 
     if (flags() & stream_flags::out_of_order)
-        ocl_event_t::from(out_dep).events = {out_event};
+        ocl_event_t::from(out_dep).events = {std::move(out_event)};
 
     return status::success;
 }
@@ -299,7 +299,7 @@ status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
     }
 
     if (flags() & stream_flags::out_of_order)
-        ocl_event_t::from(out_dep).events = {out_event};
+        ocl_event_t::from(out_dep).events = {std::move(out_event)};
 
     return status::success;
 }

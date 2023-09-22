@@ -51,6 +51,13 @@ public:
             sc_graph_t &mgr, bool s8s8_compensation);
     sc_op_ptr get_constant_compensation(sc_graph_t &mgr);
     shape_rl_vec get_dynamic_shape_relations() const override;
+    bool need_dynamic_internal_query_impl() const override;
+    ir_module_ptr get_internal_func(const context_ptr &ctx) override;
+
+    std::vector<int> get_impl_dispatch_candidates(
+            const context_ptr &ctx) override;
+    dispatch_set_ptr get_internal_dispatch_key_set(
+            const context_ptr &ctx) override;
 
     sc_dims get_bwise_fuse_shrink_dims() override;
 
@@ -75,6 +82,8 @@ public:
 
     void set_config_by_key(
             const op_dispatch_key_t &key, const context_ptr &ctx) override;
+    void set_internal_config_by_key(
+            const impl_op_dispatch_key_t &key, const context_ptr &ctx) override;
     virtual sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
             const std::vector<graph_tensor_ptr> &outs,
             sc_graph_t &mgr) override;

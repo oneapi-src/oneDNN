@@ -114,6 +114,12 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
 ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
     sc_graph_t g;
     g.sync_dynamic_info_with_graph(op->get_owner_graph());
+    if (op->get_owner_graph().attrs_.get_or_else("temp.force_static", false)) {
+        g.attrs_.set("temp.force_static", true);
+    }
+    if (op->get_owner_graph().is_dynamic()) {
+        g.attrs_.set("temp.parent_graph_dynamic", true);
+    }
     std::vector<graph_tensor_ptr> ins;
     std::vector<graph_tensor_ptr> outs;
     for (auto &in : op->get_inputs()) {
@@ -144,7 +150,7 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
             && try_optimize_parti(parti.get(), g, graph2orig_ops)) {
         // redo partition
         std::vector<mixed_parti_t::ptr> op2parti(g.ops_.size());
-        do_partition(ctx, g, op_dep_matrix_t(g), op2parti);
+        do_partition(ctx, g, op2parti);
         // collect legal partition
         auto res = collect_parti_set(op2parti, false);
         // Expect only one partition found
@@ -259,6 +265,35 @@ expr calculate_mask_cur_step(
     return builder::make_min(
             builder::make_max(builder::make_constant(0), last_axis_offset),
             lanes);
+}
+
+// generate mask = var < floor ? 0b1111 : 0b00..111;
+expr last_dim_generate_mask(const expr &iter_var, const expr &floor,
+        expr const &last_dim_len, int const &lanes, bool just_tail_part) {
+    // just_tail_part means that the floor and tail parts of the for loop are
+    // calculated separately. Only the tail part needs to calculate the mask.
+    auto s32_var = cast_to_s32(iter_var);
+    auto s32_floor = cast_to_s32(floor);
+    auto s32_dim_len = cast_to_s32(last_dim_len);
+    expr condition = s32_var < s32_floor;
+    expr tail_len = lanes + s32_var - s32_dim_len;
+    sc_data_type_t var_dtype;
+    uint64_t init_value;
+    choose_mask_vartype_init_value(var_dtype, init_value, lanes);
+    auto full_mask = builder::make_constant({init_value}, var_dtype);
+    if (floor.isa<constant>()) {
+        int floor_int = get_expr_as_int(floor);
+        int dim_len = get_expr_as_int(last_dim_len);
+        int res_mask = init_value >> (lanes + floor_int - dim_len);
+
+        return just_tail_part ? builder::make_cast(var_dtype, res_mask)
+                              : builder::make_select(condition, full_mask,
+                                      builder::make_cast(var_dtype, res_mask));
+    }
+    return just_tail_part
+            ? (full_mask >> builder::make_cast(var_dtype, tail_len))
+            : builder::make_select(condition, full_mask,
+                    (full_mask >> builder::make_cast(var_dtype, tail_len)));
 }
 
 expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
@@ -409,7 +444,7 @@ void create_fusible_output_anchor(stmt &parent, const tensor_slice &dst,
 }
 
 /** Get indexing based on different conditions
- * @param is_last_dim_1 whether the shape len = 1
+ * @param is_lastdim_meet_require whether the shape len >= threshold
  * @param has_tail whether has tail
  * @param input input slice
  * @param input_idx input index
@@ -417,16 +452,18 @@ void create_fusible_output_anchor(stmt &parent, const tensor_slice &dst,
  * @param res_idx the final indexing we want to get
  * @param axis_len length of indexing axis
  * @param iter_var var of indexing axis
+ * @param just_tail_part floor part and tail part is calculated separately
  * */
-expr indexing_from_diff_cond(const bool is_last_dim_1, const bool has_tail,
-        const tensor_slice &input, std::vector<expr> &input_idx,
-        const int32_t lanes, expr &res_idx, const expr &axis_len,
-        const expr &iter_var) {
-    if (is_last_dim_1) {
+expr indexing_from_diff_cond(const bool is_lastdim_meet_require,
+        const bool has_tail, const tensor_slice &input,
+        std::vector<expr> &input_idx, const int32_t lanes, expr &res_idx,
+        const expr &axis_len, const expr &iter_var, const expr &floor,
+        bool just_tail_part) {
+    if (is_lastdim_meet_require) {
         res_idx = builder::make_indexing(input.tptr_, input_idx);
     } else if (has_tail && utils::is_one_of(lanes, 4, 8, 16, 32, 64)) {
-        auto cur_step = calculate_mask_cur_step(axis_len, iter_var, lanes);
-        auto mask = generate_mask_by_step_directly(cur_step, lanes);
+        auto mask = last_dim_generate_mask(
+                iter_var, floor, axis_len, lanes, just_tail_part);
         res_idx = builder::make_indexing(input.tptr_, input_idx, lanes, mask);
     } else {
         res_idx = builder::make_indexing(input.tptr_, input_idx, lanes);
@@ -442,7 +479,24 @@ bool is_op_input_blocking_shape(const sc_op_info_t &info) {
             });
 }
 
-void compute_vectorized_op(sc_graph_t &graph,
+void vec_backend_require(const context_ptr &ctx, bool &use_vectorized) {
+// llvm and g++ will perform special optimization on the scalar version,
+// resulting in the performance of our vectorized version not being as good
+// as the scalar version. Currently, these two backends still maintain the
+// scalar method of tail processing. The builtin will use our vectorized
+// version.
+#if SC_BUILTIN_JIT_ENABLED
+    if (ctx->flags_.jit_kind_ == jit_kind::xbyak) {
+        use_vectorized = true;
+    } else {
+        use_vectorized = false;
+    }
+#else
+    use_vectorized = false;
+#endif
+}
+
+void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
         sc_op_info_t &info, const vectorized_info_t &vx_info,
         const mask_compute_func_t &compute_lanes,
@@ -450,6 +504,8 @@ void compute_vectorized_op(sc_graph_t &graph,
         size_t wkld, bool use_mask, const tensor_slice *expand_loop_by,
         bool unroll_inner_loop) {
     if (!expand_loop_by) { expand_loop_by = &dst; }
+    bool use_vectorized = false;
+    vec_backend_require(ctx, use_vectorized);
     // In order to support non-stride test, we add dense_stride flag.
     // If it is non-stride shape, we just use step = 1 to do
     // this.
@@ -468,8 +524,12 @@ void compute_vectorized_op(sc_graph_t &graph,
     std::vector<expr> dst_idx_tail;
     for (unsigned i = 0; i < expand_loop_by->nslice_dims(); i++) {
         // make the loop var for the for-loop
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + std::to_string(idx++)));
+        iter_vars.emplace_back(
+                range_from_outer_loop(expand_loop_by->get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + std::to_string(idx++)));
         // for each input tensor
         for (size_t j = 0; j < src.size(); j++) {
             auto &src_idx_floor = src_indices_floor.at(j);
@@ -504,8 +564,8 @@ void compute_vectorized_op(sc_graph_t &graph,
         tail_int = get_expr_as_int(tail);
         COMPILE_ASSERT((floor_int + tail_int), "Don't support shape len = 0.");
     }
-
-    int last_axis_mask = -1;
+    const int INVALID_AXIS_MASK = -64;
+    int last_axis_mask = INVALID_AXIS_MASK;
     std::unordered_map<expr, std::pair<expr, expr>> conditions;
     if (use_mask) {
         compute_mask_and_generate_condition(graph, src,
@@ -513,7 +573,7 @@ void compute_vectorized_op(sc_graph_t &graph,
                 info.inputs_[0]->details_.get_format(), iter_vars,
                 vx_info.lanes, conditions, last_axis_mask);
     }
-    if (last_axis_mask != -1 && floor_int > 0) {
+    if (last_axis_mask != INVALID_AXIS_MASK && floor_int > 0) {
         COMPILE_ASSERT(tail_int == 0,
                 "Currently we only support mask in vectorize compute not "
                 "tail.");
@@ -521,36 +581,35 @@ void compute_vectorized_op(sc_graph_t &graph,
     std::vector<stmt> tcur;
     stmt cur;
     int loop_size = static_cast<int>(expand_loop_by->get_shape().size());
+    bool tail_threshold = tail.isa<constant>() && tail_int <= 1;
+    bool use_scalar
+            = !use_vectorized || tail_threshold || lanes == 1 || !dense_stride;
     // recover schedule loop
     for (int i = loop_size - 1; i >= 0; i--) {
         stmt body;
         // currently vx_axis should be last axis
         if (loop_size == vx_info.axis + 1 && i == vx_info.axis) {
-            if (dense_stride) {
+            if (dense_stride && (!floor.isa<constant>() || floor_int)) {
                 bld->push_scope();
-                // if the shape is 1, we don't use mask to process.
-                bool is_last_dim_1 = tail.isa<constant>() && tail_int == 1
-                        && floor_int == 0;
-                // In the dynamic scene, when the input shapes are blocking,
-                // there is no tail.
-                bool has_tail = ((!tail.isa<constant>() && !is_blocking_shape)
-                        || tail_int);
-                indexing_from_diff_cond(is_last_dim_1, has_tail, dst,
-                        dst_idx_floor, lanes, indexed_target_floor, slice_len,
-                        iter_vars.at(i));
+                // if the shape is less than lanes, we don't use mask to
+                // process.
+
+                indexing_from_diff_cond(false, false, dst, dst_idx_floor, lanes,
+                        indexed_target_floor, slice_len, iter_vars.at(i),
+                        floor);
                 std::vector<expr> indexed_input_floor;
                 expr input_floor_idx;
                 for (unsigned j = 0; j < src.size(); j++) {
                     indexed_input_floor.emplace_back(indexing_from_diff_cond(
-                            is_last_dim_1, has_tail, *src.at(j),
-                            src_indices_floor.at(j), lanes, input_floor_idx,
-                            slice_len, iter_vars.at(i)));
+                            false, false, *src.at(j), src_indices_floor.at(j),
+                            lanes, input_floor_idx, slice_len, iter_vars.at(i),
+                            floor));
                 }
                 std::vector<expr::lvalue_proxy_t> target_floor
                         = {expr::lvalue_proxy_t(indexed_target_floor, false)};
                 auto cond_it = conditions.find(iter_vars[i]);
                 if (cond_it != conditions.end()) {
-                    assert(last_axis_mask != -1);
+                    assert(last_axis_mask != INVALID_AXIS_MASK);
                     cur = compute_lanes(indexed_input_floor, target_floor,
                             cond_it->second.first, cond_it->second.second,
                             vx_info.lanes);
@@ -565,42 +624,60 @@ void compute_vectorized_op(sc_graph_t &graph,
                 if (!tail_int)
                     create_fusible_output_anchor(
                             ss, dst, iter_vars, {i + 1}, vx_info, attrs);
-                cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
-                        slice_len, is_last_dim_1 ? expr(1) : expr(int(lanes)),
-                        ss.size() > 1 ? make_stmt<stmts_node_t>(std::move(ss))
-                                      : s,
+                cur = ss.size() > 1 ? make_stmt<stmts_node_t>(std::move(ss))
+                                    : s;
+                if (iter_vars.at(i).isa<var>()) {
+                    cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
+                            floor, expr(lanes), cur, true, for_type::NORMAL);
+                    if (unroll_inner_loop) {
+                        cur->attr()[stmt_attr_key::unroll_loop] = 0;
+                    }
+                }
+                tcur.emplace_back(cur);
+            }
+            if (((!tail.isa<constant>() && !is_blocking_shape) || tail_int)
+                    || !dense_stride) {
+                bld->push_scope();
+
+                std::vector<expr> indexed_input_tail;
+                expr mask;
+                if (!use_scalar) {
+                    mask = last_dim_generate_mask(
+                            tail_var, floor, slice_len, lanes, true);
+                }
+                expr indexed_target_tail = builder::make_indexing(
+                        dst.tptr_, dst_idx_tail, use_scalar ? 1 : lanes, mask);
+                for (unsigned j = 0; j < src.size(); j++) {
+                    indexed_input_tail.emplace_back(builder::make_indexing(
+                            src.at(j)->tptr_, src_indices_tail.at(j),
+                            use_scalar ? 1 : lanes, mask));
+                }
+                std::vector<expr::lvalue_proxy_t> target_tail
+                        = {expr::lvalue_proxy_t(indexed_target_tail, false)};
+                if (use_scalar) {
+                    cur = compute_scalar(indexed_input_tail, target_tail);
+                } else {
+                    cur = compute_lanes(indexed_input_tail, target_tail);
+                }
+                cur->attr()[op_traits::workload_computable_t::workload_number]
+                        = wkld;
+                bld->emit(cur);
+                cur = make_stmt<for_loop_node_t>(tail_var,
+                        !dense_stride ? expr(0) : floor, slice_len,
+                        use_scalar ? expr(1) : expr(lanes), bld->pop_scope(),
                         true, for_type::NORMAL);
                 if (unroll_inner_loop) {
                     cur->attr()[stmt_attr_key::unroll_loop] = 0;
                 }
                 tcur.emplace_back(cur);
-            } else {
-                bld->push_scope();
-                expr indexed_target_tail
-                        = builder::make_indexing(dst.tptr_, dst_idx_tail);
-                std::vector<expr> indexed_input_tail;
-                for (unsigned j = 0; j < src.size(); j++) {
-                    indexed_input_tail.emplace_back(builder::make_indexing(
-                            src.at(j)->tptr_, src_indices_tail.at(j)));
-                }
-                std::vector<expr::lvalue_proxy_t> target_tail
-                        = {expr::lvalue_proxy_t(indexed_target_tail, false)};
-                cur = compute_scalar(indexed_input_tail, target_tail);
-                cur->attr()[op_traits::workload_computable_t::workload_number]
-                        = wkld;
-                bld->emit(cur);
-                cur = make_stmt<for_loop_node_t>(tail_var, expr(0),
-                        do_cast_and_fold(floor + tail), expr(1),
-                        bld->pop_scope(), true, for_type::NORMAL);
-                if (unroll_inner_loop) {
-                    cur->attr()[stmt_attr_key::unroll_loop] = 0;
-                }
-                tcur.emplace_back(cur);
                 // create fusible output anchor as demand
+                std::vector<int> anchor_pos_in_loop(1);
+                anchor_pos_in_loop.emplace_back(i);
                 create_fusible_output_anchor(
                         tcur, dst, iter_vars, {i}, vx_info, attrs);
             }
-        } else {
+        } else if (iter_vars.at(i).isa<var>()) {
+            // Do not generate those dummy loop
             if (!tcur.empty() && tcur[0].defined()) {
                 body = make_stmt<stmts_node_t>(std::move(tcur));
                 tcur.clear();
@@ -643,7 +720,6 @@ void compute_vectorized_op(sc_graph_t &graph,
         }
     }
     if (!tcur.empty() && tcur[0].defined()) {
-        assert(expand_loop_by->get_shape().size() == 1UL);
         // TODO(xxx): currenly we don't add merge_loop attribute for this
         // special case, need stronger loop analysis.
         for (auto &it : tcur) {
@@ -930,7 +1006,8 @@ expr transform_tsr2stsr_with_range(const expr &tsr, const slice_range &range) {
         t = tsr.static_as<tensor>();
         new_strides = t->strides_;
     } else {
-        COMPILE_ASSERT(is_reshaped_tensor(tsr), "reshaped tensor is expected");
+        COMPILE_ASSERT(is_reshaped_tensor(tsr),
+                "reshaped tensor is expected, but got " << tsr);
         t = tsr.static_as<tensorptr>()
                     ->base_.static_as<indexing>()
                     ->ptr_.static_as<tensor>();
@@ -1006,6 +1083,11 @@ float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
     float cal_parallelism = ((stc_loops % run_threads) / float(run_threads));
     if (stc_loops < run_threads) { cal_parallelism += minor_dyn_parallelism; }
     return parallelism ? 1.0f : cal_parallelism;
+}
+
+bool range_from_outer_loop(const std::pair<expr, expr> &range) {
+    return !range.first.isa<constant>() && range.second.isa<constant>()
+            && get_expr_as_int(range.second) == 1;
 }
 
 bool slice_full_on_axis(const sc_dims &dim, const slice_range &ranges,
@@ -1084,6 +1166,25 @@ bool slice_larger_than_bound_on_axis(const slice_range &ranges,
     return true;
 }
 
+bool innermost_slice_with_non_dividable_lanes(const context_ptr &ctx,
+        const slice_range &slice, const sc_data_type_t &dtype, sc_dim &floor,
+        sc_dim &tail) {
+    if (is_dynamic_slice_range_list({slice})) return false;
+    auto shape = get_slice_shape(slice);
+    auto dims = get_expr_to_dims(shape);
+    auto last_dim = dims.back();
+    // check dims except last are all one
+    if (get_dims_product(dims) != (size_t)last_dim) return false;
+    // get max lanes
+    auto lanes = vectorize_step(ctx, dtype.type_code_);
+    if ((last_dim > lanes) && (last_dim % lanes != 0)) {
+        floor = last_dim / lanes * lanes;
+        tail = last_dim % lanes;
+        return true;
+    }
+    return false;
+}
+
 int get_slice_size(const slice_range &ranges, const int dtype_size) {
     auto total_size = dtype_size;
     for (auto &range : ranges) {
@@ -1126,6 +1227,41 @@ std::vector<graph_tensor_ptr> get_sorted_inputs_by_layout_input(
         ret.push_back(inps[i]);
     }
     return ret;
+}
+
+variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code) {
+    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
+        return -std::numeric_limits<float>::infinity();
+    } else if (type_code == sc_data_etype::F16) {
+        return (float)-65504;
+    } else if (type_code == sc_data_etype::U8
+            || type_code == sc_data_etype::U32) {
+        return int64_t(0);
+    } else if (type_code == sc_data_etype::S8) {
+        return int64_t(-128);
+    } else if (type_code == sc_data_etype::S32) {
+        return int64_t(std::numeric_limits<int32_t>::min());
+    } else {
+        COMPILE_ASSERT(0, "unsupported data_etype");
+    }
+}
+
+variant<float, int64_t> numeric_limits_maximum(sc_data_etype type_code) {
+    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
+        return std::numeric_limits<float>::infinity();
+    } else if (type_code == sc_data_etype::F16) {
+        return (float)65504;
+    } else if (type_code == sc_data_etype::S8) {
+        return int64_t(127);
+    } else if (type_code == sc_data_etype::S32) {
+        return int64_t(std::numeric_limits<int32_t>::max());
+    } else if (type_code == sc_data_etype::U8) {
+        return int64_t(255);
+    } else if (type_code == sc_data_etype::U32) {
+        return int64_t(std::numeric_limits<uint32_t>::max());
+    } else {
+        COMPILE_ASSERT(0, "unsupported data_etype");
+    }
 }
 
 } // namespace gc

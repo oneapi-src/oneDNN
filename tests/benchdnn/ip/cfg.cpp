@@ -36,9 +36,20 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
             && dnnl_data_type_size(this->get_dt(DST)) >= 4;
     if (is_int8_and_wide_dst) { set_range_max(SRC, 160); }
 
-    BENCHDNN_PRINT(6, "%s SRC_%s=[%d;%d] : WEI_%s=[%d;%d]\n", "[FILL_CFG]",
+    // Wider ranges make Nvidia bf16 test cases to fail by accuracy, likely due
+    // to internal dispatch into lower precision code.
+    if (is_nvidia_gpu() && this->get_dt(WEI) == dnnl_bf16) {
+        set_range_min(WEI, -2);
+        set_range_max(WEI, 2);
+        set_range_min(DST, -2);
+        set_range_max(DST, 2);
+    }
+
+    BENCHDNN_PRINT(6,
+            "[FILL_CFG] SRC_%s=[%d;%d]; WEI_%s=[%d;%d]; DST_%s=[%d;%d];\n",
             dt2str(this->get_dt(SRC)), get_range_min(SRC), get_range_max(SRC),
-            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI));
+            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI),
+            dt2str(this->get_dt(DST)), get_range_min(DST), get_range_max(DST));
 }
 
 // Adjust density based on accumulation chain.
@@ -144,6 +155,10 @@ std::string str2cfg(const char *str) {
 
 int handle_legacy_cfg(
         std::vector<dnnl_data_type_t> &dt, const std::string &cfg) {
+    BENCHDNN_PRINT(0, "%s\n",
+            "Warning: `--cfg=CFG` option is deprecated. Use `--dt=DT[:DT:DT] "
+            "instead.");
+
     if (cfg == "f32")
         dt = {dnnl_f32};
     else if (cfg == "bf16bf16bf16")

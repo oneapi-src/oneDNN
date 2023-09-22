@@ -23,9 +23,6 @@
 #include <vector>
 
 #include "oneapi/dnnl/dnnl.h"
-#include "src/common/bfloat16.hpp"
-#include "src/common/float16.hpp"
-#include "src/common/nstl.hpp"
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -34,6 +31,7 @@
 #include "utils/compare.hpp"
 #include "utils/dims.hpp"
 #include "utils/dnnl_query.hpp"
+#include "utils/numeric.hpp"
 
 #include "tests/test_thread.hpp"
 
@@ -44,9 +42,10 @@
         dnnl_status_t status__ = f; \
         if (status__ != dnnl_success) { \
             if (s == CRIT || s == WARN) { \
-                BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                        __PRETTY_FUNCTION__, __LINE__, #f, \
-                        status2str(status__), (int)status__); \
+                BENCHDNN_PRINT(0, \
+                        "Error: Fuction '%s' at (%s:%d) returned '%s'\n", \
+                        __FUNCTION__, __FILE__, __LINE__, \
+                        status2str(status__)); \
                 fflush(0); \
                 if (s == CRIT) exit(2); \
             } \
@@ -58,14 +57,15 @@
     do { \
         dnnl_status_t status__ = f; \
         if (status__ != dnnl_success) { \
-            BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                    __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
-                    status2str(status__), (int)status__); \
+            BENCHDNN_PRINT(0, \
+                    "Error: Fuction '%s' at (%s:%d) returned '%s'\n", \
+                    __FUNCTION__, __FILE__, __LINE__, status2str(status__)); \
             fflush(0); \
             exit(2); \
         } \
     } while (0)
 
+// Unlike `DNN_SAFE` this one returns `dnnl_status_t`, not `OK/FAIL`.
 #define DNN_SAFE_STATUS(f) \
     do { \
         dnnl_status_t status__ = f; \
@@ -84,145 +84,6 @@ extern "C" dnnl_status_t dnnl_query_profiling_data(dnnl_stream_t stream,
 
 int check_pd_cache(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_primitive_cache(dnnl_primitive_t p, res_t *res);
-
-/* aux */
-using bfloat16_t = dnnl::impl::bfloat16_t;
-using float16_t = dnnl::impl::float16_t;
-template <dnnl_data_type_t>
-struct prec_traits;
-template <>
-struct prec_traits<dnnl_bf16> {
-    typedef bfloat16_t type;
-};
-template <>
-struct prec_traits<dnnl_f16> {
-    typedef float16_t type;
-};
-template <>
-struct prec_traits<dnnl_f32> {
-    typedef float type;
-};
-
-// XXX: benchdnn infra doesn't support double yet.
-// Use float's max/min/epsilon values to avoid following build warnings:
-// warning C4756: overflow in constant arithmetic.
-// This should be fixed once cpu reference in f64 is added.
-template <>
-struct prec_traits<dnnl_f64> {
-    typedef float type;
-};
-template <>
-struct prec_traits<dnnl_s32> {
-    typedef int32_t type;
-};
-template <>
-struct prec_traits<dnnl_s8> {
-    typedef int8_t type;
-};
-template <>
-struct prec_traits<dnnl_u8> {
-    typedef uint8_t type;
-};
-
-#define CASE_ALL(dt) \
-    switch (dt) { \
-        CASE(dnnl_bf16); \
-        CASE(dnnl_f16); \
-        CASE(dnnl_f32); \
-        CASE(dnnl_f64); \
-        CASE(dnnl_s32); \
-        CASE(dnnl_s8); \
-        CASE(dnnl_u8); \
-        default: assert(!"bad data_type"); \
-    }
-
-/* std::numeric_limits::digits functionality */
-inline int digits_dt(dnnl_data_type_t dt) {
-#define CASE(dt) \
-    case dt: \
-        return dnnl::impl::nstl::numeric_limits< \
-                typename prec_traits<dt>::type>::digits;
-
-    CASE_ALL(dt);
-
-#undef CASE
-    return 0;
-}
-
-inline float epsilon_dt(dnnl_data_type_t dt) {
-#define CASE(dt) \
-    case dt: \
-        return (float)dnnl::impl::nstl::numeric_limits< \
-                typename prec_traits<dt>::type>::epsilon();
-
-    CASE_ALL(dt);
-
-#undef CASE
-
-    return 0;
-}
-
-inline float lowest_dt(dnnl_data_type_t dt) {
-#define CASE(dt) \
-    case dt: \
-        return (float)dnnl::impl::nstl::numeric_limits< \
-                typename prec_traits<dt>::type>::lowest();
-
-    CASE_ALL(dt);
-
-#undef CASE
-
-    return 0;
-}
-
-inline float max_dt(dnnl_data_type_t dt) {
-#define CASE(dt) \
-    case dt: \
-        return (float)dnnl::impl::nstl::numeric_limits< \
-                typename prec_traits<dt>::type>::max();
-
-    CASE_ALL(dt);
-
-#undef CASE
-
-    return 0;
-}
-
-#undef CASE_ALL
-
-#define BENCHDNN_S32_TO_F32_SAT_CONST 2147483520.f
-
-template <dnnl_data_type_t dt>
-inline float saturate_and_round(float val) {
-    const float dt_max = max_dt(dt);
-    const float dt_min = (float)dnnl::impl::nstl::numeric_limits<
-            typename prec_traits<dt>::type>::lowest();
-    if (dt == dnnl_s32 && val >= max_dt(dnnl_s32)) return max_dt(dnnl_s32);
-    if (val > dt_max) val = dt_max;
-    if (val < dt_min) val = dt_min;
-    return mxcsr_cvt(val);
-}
-
-inline bool is_integral_dt(dnnl_data_type_t dt) {
-    return dt == dnnl_s32 || dt == dnnl_s8 || dt == dnnl_u8;
-}
-
-inline float maybe_saturate(dnnl_data_type_t dt, float value) {
-    if (!is_integral_dt(dt)) return value;
-
-    switch (dt) {
-#define CASE(dt) \
-    case dt: return saturate_and_round<dt>(value);
-        CASE(dnnl_s32);
-        CASE(dnnl_s8);
-        CASE(dnnl_u8);
-#undef CASE
-        default: assert(!"bad data_type");
-    }
-    return 0;
-}
-
-float round_to_nearest_representable(dnnl_data_type_t dt, float value);
 
 extern dnnl_engine_kind_t engine_tgt_kind;
 extern size_t engine_index;
@@ -343,6 +204,9 @@ struct init_pd_args_t {
     const_dnnl_memory_desc_t src_md;
 };
 
+int get_cpu_cache_size(size_t &cache_size);
+int get_gpu_cache_size(size_t &cache_size);
+
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
@@ -420,7 +284,8 @@ int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
         } break;
         default: assert(!"unexpected");
     }
-    return FAIL;
+    DNN_SAFE(status, WARN);
+    return OK;
 }
 
 // `fetch_impl` is responsible to provide a valid `pd` under certain conditions:
@@ -503,7 +368,7 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
         SAFE(check_mem_size(pdw, res), WARN);
     if (res->state == SKIPPED) return OK;
 
-    DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN);
+    TIME_C_PRIM(DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN));
     primw.reset(prim);
 
     return OK;
@@ -655,8 +520,8 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         dnnl_primitive_t prim_ref = nullptr) {
 
     for (int i = 0; i < args.size(); ++i) {
-        check_zero_padding(args.dnn_mem(i), args.arg(i), res);
-        check_buffer_overwrite(args.dnn_mem(i), args.arg(i), res);
+        TIME_COMPARE(check_zero_padding(args.dnn_mem(i), args.arg(i), res));
+        TIME_COMPARE(check_buffer_overwrite(args.dnn_mem(i), args.arg(i), res));
     }
 
     TIME_REF(compute_ref(prb, ref_args, prim_ref));
@@ -690,7 +555,7 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         const auto &mem_dt = args.find(arg);
         const auto &mem_fp = ref_args.find(arg);
 
-        cmp.compare(mem_fp, mem_dt, prb->attr, res);
+        TIME_COMPARE(cmp.compare(mem_fp, mem_dt, prb->attr, res));
     }
 }
 
@@ -831,11 +696,16 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
     }
 
     // Prelu post-op.
-    // TODO: currently run-time dimensions are not supported in prelu post-op.
     for (int idx = 0; idx < dnnl_post_ops_len(const_po); ++idx) {
         if (dnnl_post_ops_get_kind(const_po, idx) != dnnl_prelu) continue;
 
-        const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
+        const auto &orig_dst_md = query_md(const_pd, DNNL_ARG_DST);
+        benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_dst_md;
+        if (has_runtime_dims(orig_dst_md)) {
+            prb_dst_md = prb->get_md(DNNL_ARG_DST);
+        }
+        const auto &dst_md = prb_dst_md ? prb_dst_md : orig_dst_md;
+
         const auto ndims = query_md_ndims(dst_md);
         int mask = 0;
         dnnl_dims_t dims = {0};
@@ -935,6 +805,23 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 if (!zp.is_def(exec_arg)) append_zero_points(exec_arg);
             }
         }
+    }
+}
+
+// Drop "destination" memory for in-place case. `args` will take care of setting
+// proper pointers to make in-place mode happen.
+//
+// Placement handling should happen before fast exiting from `no_host_memory`,
+// otherwise, in-place mode will not be switched on.
+template <typename prb_t>
+void update_inplace_memory_args(
+        dnn_mem_map_t &mem_map, const prb_t *prb, dir_t dir) {
+    const bool inplace_fwd = prb->inplace && (prb->dir & FLAG_FWD);
+    const bool inplace_bwd = prb->inplace && (dir & FLAG_BWD);
+    if (inplace_fwd) {
+        mem_map[DNNL_ARG_DST] = dnn_mem_t();
+    } else if (inplace_bwd) {
+        mem_map[DNNL_ARG_DIFF_SRC] = dnn_mem_t();
     }
 }
 

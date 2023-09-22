@@ -75,7 +75,8 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
     // TODO: experiment with g_blocking for perf fine tuning
     int g_blocking = 1;
     int nb_groups = jcp.ngroups / g_blocking;
-    dim_t work_amount = jcp.mb * nb_groups * oc_chunks * jcp.nb_ow;
+    dim_t work_amount
+            = static_cast<dim_t>(jcp.mb) * nb_groups * oc_chunks * jcp.nb_ow;
 
     int nthr = jcp.aligned_threads ? jcp.aligned_threads : jcp.nthr;
     parallel(nthr, [&](const int ithr, const int nthr) {
@@ -175,7 +176,8 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
     // TODO: experiment with g_blocking for perf fine tuning
     int g_blocking = 1;
     int nb_groups = jcp.ngroups / g_blocking;
-    dim_t work_amount = jcp.mb * nb_groups * oc_chunks * jcp.oh * jcp.nb_ow;
+    dim_t work_amount = static_cast<dim_t>(jcp.mb) * nb_groups * oc_chunks
+            * jcp.oh * jcp.nb_ow;
 
     int nthr = jcp.aligned_threads ? jcp.aligned_threads : jcp.nthr;
     parallel(nthr, [&](const int ithr, const int nthr) {
@@ -298,8 +300,8 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
     // TODO: experiment with g_blocking for perf fine tuning
     int g_blocking = 1;
     int nb_groups = jcp.ngroups / g_blocking;
-    dim_t work_amount
-            = jcp.mb * nb_groups * oc_chunks * jcp.od * jcp.oh * jcp.nb_ow;
+    dim_t work_amount = static_cast<dim_t>(jcp.mb) * nb_groups * oc_chunks
+            * jcp.od * jcp.oh * jcp.nb_ow;
 
     int nthr = jcp.aligned_threads ? jcp.aligned_threads : jcp.nthr;
     parallel(nthr, [&](const int ithr, const int nthr) {

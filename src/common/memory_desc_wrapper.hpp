@@ -53,6 +53,12 @@ struct memory_desc_wrapper : public c_compatible {
     bool is_blocking_desc() const {
         return format_kind() == format_kind::blocked;
     }
+
+    bool is_sparse_packed_desc() const {
+        return is_sparse_desc()
+                && sparse_desc().encoding == sparse_encoding::packed;
+    }
+
     bool is_wino_desc() const { return format_kind() == format_kind::wino; }
     bool is_rnn_packed_desc() const {
         return format_kind() == format_kind::rnn_packed;
@@ -60,8 +66,9 @@ struct memory_desc_wrapper : public c_compatible {
     bool is_sparse_desc() const { return format_kind() == format_kind::sparse; }
 
     const blocking_desc_t &blocking_desc() const {
-        assert(is_blocking_desc());
-        return md_->format_desc.blocking;
+        assert(is_blocking_desc() || is_sparse_packed_desc());
+        if (!is_sparse_desc()) return md_->format_desc.blocking;
+        return sparse_desc().packed_desc;
     }
     const wino_desc_t &wino_desc() const {
         assert(is_wino_desc());
@@ -152,13 +159,14 @@ struct memory_desc_wrapper : public c_compatible {
         const auto ndims = this->ndims();
         const auto &pdims = padded_dims();
 
-        auto calculate_size = [ndims, pdims](int cmask, size_t buff_data_size) {
-            assert(utils::one_of(cmask, 1, 2, 3, 5, 13, 27));
-            dim_t prod = 1;
-            for (int d = 0; d < ndims; ++d)
-                if (cmask & (1 << d)) { prod *= pdims[d]; }
-            return (size_t)prod * buff_data_size;
-        };
+        auto calculate_size
+                = [ndims, &pdims](int cmask, size_t buff_data_size) {
+                      assert(utils::one_of(cmask, 1, 2, 3, 5, 13, 27));
+                      dim_t prod = 1;
+                      for (int d = 0; d < ndims; ++d)
+                          if (cmask & (1 << d)) { prod *= pdims[d]; }
+                      return (size_t)prod * buff_data_size;
+                  };
 
         if (extra().flags & compensation_conv_s8s8) {
             return calculate_size(extra().compensation_mask,
@@ -177,6 +185,12 @@ struct memory_desc_wrapper : public c_compatible {
         }
 
         return 0;
+    }
+
+    int blk_size() const {
+        assert(is_blocking_desc() || is_sparse_packed_desc());
+        const auto &bd = blocking_desc();
+        return utils::array_product(bd.inner_blks, bd.inner_nblks);
     }
 
     /** returns the size of the appended buffer when the memory descriptor
@@ -255,7 +269,25 @@ struct memory_desc_wrapper : public c_compatible {
                         const auto ptr_dt = metadata_type(1);
                         return (dims()[0] + 1) * types::data_type_size(ptr_dt);
                     }
-                    default: assert(!"unknown component"); return 0;
+                    default: assert(!"unknown index"); return 0;
+                }
+            } else if (sparse_desc().encoding == sparse_encoding::packed) {
+                // If the size if queried from a user-created memory descriptor.
+                if (blocking_desc().strides[0] == 0) return 0;
+
+                switch (index) {
+                    case 0:
+                        // Return size for values.
+                        return nnz() * data_type_size();
+                    case 1: {
+                        // Return size for offsets.
+                        return (nelems(true) / blk_size()) * sizeof(int64_t);
+                    }
+                    case 2:
+                        // Return size for bitmask. The bitmask has 1 bit
+                        // per each value.
+                        return utils::div_up(nelems(true), CHAR_BIT);
+                    default: assert(!"unknown index"); return 0;
                 }
             } else {
                 assert(!"unknown sparse encoding");
@@ -401,7 +433,7 @@ struct memory_desc_wrapper : public c_compatible {
      * an array \param pos. if \param is_pos_padded is true \param pos
      * represents the position in already padded area */
     dim_t off_v(const dims_t pos, bool is_pos_padded = false) const {
-        assert(is_blocking_desc());
+        assert(is_blocking_desc() || is_sparse_packed_desc());
         const blocking_desc_t &blk = blocking_desc();
 
         dims_t pos_copy = {0};
@@ -413,7 +445,7 @@ struct memory_desc_wrapper : public c_compatible {
         if (blk.inner_nblks > 0) {
             dim_t blk_stride = 1;
             for (int iblk = blk.inner_nblks - 1; iblk >= 0; --iblk) {
-                const int d = blk.inner_idxs[iblk];
+                const dim_t d = blk.inner_idxs[iblk];
 
                 dim_t p;
                 /* switch to faster 32-bit division when possible.
@@ -511,7 +543,7 @@ private:
 
     template <int ORIG_LEN, typename T, typename... Args>
     dim_t _blk_off(T xc, Args... args) const {
-        assert(is_blocking_desc());
+        assert(is_blocking_desc() || is_sparse_packed_desc());
         constexpr int dc = ORIG_LEN - sizeof...(args) - 1;
         return xc * blocking_desc().strides[dc]
                 + _blk_off<ORIG_LEN, Args...>(args...);

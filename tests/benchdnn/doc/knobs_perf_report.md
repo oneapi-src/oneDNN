@@ -80,8 +80,8 @@ Performance profiling options supported:
 
 | Syntax     | Primitives | Description
 | :--        | :--        | :--
-| %@time%    | All        | Time in milliseconds
-| %@clocks%  | All        | Time in clocks
+| %@time%    | All        | Execution time in milliseconds
+| %@clocks%  | All        | Execution time in clocks
 | %@freq%    | All        | Effective CPU frequency computed as `clocks / time`
 | %@ibytes%  | All        | Number of input memories bytes of a problem
 | %@obytes%  | All        | Number of output memories bytes of a problem
@@ -89,6 +89,9 @@ Performance profiling options supported:
 | %@bw%      | All        | Bandwidth computed as `iobytes / time`
 | %@ops%     | Ops based  | Number of ops required (padding is not taken into account)
 | %@flops%   | Ops based  | FLOPS computed as `ops / time`
+| %@cpdtime% | All        | Primitive descriptor creation time in milliseconds. See `Create Time Notes`.
+| %@cptime%  | All        | Primitive creation time in milliseconds. See `Create Time Notes`.
+| %@ctime%   | All        | Total creation time (primitive descriptor + primitive) in milliseconds. See `Create Time Notes`.
 
 Modifiers supported:
 
@@ -103,6 +106,15 @@ Modifiers supported:
 | K     | Kilo (1e3)
 | M     | Mega (1e6)
 | G     | Giga (1e9)
+
+### Create Time Notes
+
+Benchdnn runs two create calls when primitive cache feature is enabled. A timer,
+responsible for collecting create milliseconds, catches both cases. A case when
+primitive cache was not hit can be obtained through the empty or `max` modifier
+(the default). A case when primitive cache was hit can be obtained through the
+`min` modifier. The average modifier for create times is not recommended since
+this time doesn't represent any specific scenario.
 
 ## Examples
 

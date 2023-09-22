@@ -22,22 +22,33 @@
 #include <unordered_map>
 
 #include "dnnl_common.hpp"
-#include "execution_context.hpp"
 #include "graph.hpp"
 #include "ref_partition.hpp"
 
 namespace {
 
 /// Set any layout according to the connection relationship of partitions
-///
+/// @param dg a deserialized graph
 /// @param partitions a list of partitions
 /// @param id_to_set_any_layout a set of ids of logical tensors with any layout
 ///     type
-void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
+void set_any_layout(const graph::deserialized_graph &dg,
+        const std::vector<dnnl::graph::partition> &partitions,
         std::unordered_set<size_t> &id_to_set_any_layout) {
     // mapping from output tensor id to the all supported flags of
     // supported partitions, we may only need outputs' supported flags
     std::unordered_map<size_t, std::vector<bool>> output_to_flag_map;
+    // record in & out of all Reoder ops in the current graph
+    std::unordered_set<size_t> reorder_in_out_ids;
+
+    for (const auto &aop : dg.ops_) {
+        if (aop.kind_ == "Reorder") {
+            // reorder only has one input and one output
+            reorder_in_out_ids.emplace(aop.out_lts_.front().id_);
+            reorder_in_out_ids.emplace(aop.in_lts_.front().id_);
+        }
+    }
+
     for (const auto &p : partitions) {
         for (const auto &out : p.get_output_ports()) {
             size_t id = out.get_id();
@@ -89,8 +100,12 @@ void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
                     flag_vec.begin(), flag_vec.end(), [](bool a) { return a; });
             if (!need_set_any) continue;
 
+            // if current id is not a input of Reorder or a output of Reorder
             // record the id of logical tensor that will be set to ANY layout
-            id_to_set_any_layout.insert(id);
+            auto iter_find = reorder_in_out_ids.find(id);
+            if (iter_find == reorder_in_out_ids.end()) {
+                id_to_set_any_layout.insert(id);
+            }
         }
     }
 }
@@ -358,6 +373,21 @@ std::string case_to_str(const std::string &json_file,
     return s.str();
 }
 
+/// @brief check if the current partition is actually an End op
+/// @param parti the current partition
+/// @param end_op_ids a collection of End op's ids
+/// @return return true, when current partition is an End op
+bool is_single_end_op_partition(const dnnl::graph::partition &parti,
+        const std::vector<size_t> &end_op_ids) {
+    const auto parti_op_ids = parti.get_ops();
+    if (!end_op_ids.empty() && parti_op_ids.size() == 1
+            && std::count(end_op_ids.begin(), end_op_ids.end(),
+                    parti_op_ids.front())) {
+        return true;
+    }
+    return false;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
@@ -365,9 +395,16 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED) return OK;
 
     const auto &dg = prb->dg;
+    const auto graph_in_ports = dg.get_input_ports();
     auto ograph = dg.to_graph(prb->fpmath_mode);
     DNN_GRAPH_SAFE(ograph.finalize(), WARN);
     const auto partitions = ograph.get_partitions();
+    // a collection of End op's id in this graph
+    std::vector<size_t> end_opid_v {};
+    for (const auto &aop : dg.ops_) {
+        if (aop.kind_ == "End") { end_opid_v.emplace_back(aop.id_); }
+    }
+
     if (partitions.empty()) {
         BENCHDNN_PRINT(0, "FAIL: partition empty %d.\n", 0);
         return res->state = FAILED, FAIL;
@@ -375,8 +412,13 @@ int doit(const prb_t *prb, res_t *res) {
     BENCHDNN_PRINT(1, "Partition size %zd.\n", partitions.size());
 
     for (size_t i = 0; i < partitions.size(); ++i) {
+        // Single end op partition is an unsupported partition in the library
         if (!partitions[i].is_supported()) {
             BENCHDNN_PRINT(1, "Partition %zd is unsupported!\n", i);
+            if (is_single_end_op_partition(partitions[i], end_opid_v)) {
+                BENCHDNN_PRINT(1, "Partition %zd is End op!\n", i);
+                continue;
+            }
             res->state = UNIMPLEMENTED;
             return OK;
         }
@@ -420,9 +462,13 @@ int doit(const prb_t *prb, res_t *res) {
     std::unordered_set<size_t> id_to_set_any_layout;
     std::vector<compiled_partition> c_partitions;
     std::vector<std::vector<tensor>> input_ts_all, output_ts_all;
-
-    // mapping from id to tensors
-    tensor_map tm;
+    // Extend the partition_mem_map_t's lifecycle as input_ts/output_ts hold the
+    // same addresses as in partition_mem_map_t for perf mode
+    // TODO: Once the API allocating memory when creating tensors is provided by
+    // the Graph library, use a single partition_mem_map_t object, and move it
+    // inside of the loop, perform tensor copy to input_ts/output_ts when
+    // make_graph_tensor
+    std::vector<partition_mem_map_t> partition_mem_map_v(partitions.size());
 
     // mapping from id to queried logical tensor from compiled partition used to
     // record the logical tensors that are previously enabled with ANY layout
@@ -431,10 +477,17 @@ int doit(const prb_t *prb, res_t *res) {
     // Mark partition outputs id to set as ANY layout. Used in perf mode only
     // to connect partitions in most optimized way avoiding extra reorder.
     if (has_bench_mode_bit(mode_bit_t::perf)) {
-        set_any_layout(partitions, id_to_set_any_layout);
+        set_any_layout(dg, partitions, id_to_set_any_layout);
     }
 
+    // the index offset for current partition compared with the previous partition index
+    size_t idx_offset = 0;
     for (size_t i = 0; i < partitions.size(); ++i) {
+        if (is_single_end_op_partition(partitions[i], end_opid_v)) {
+            idx_offset += 1;
+            continue;
+        }
+
         auto inputs = partitions[i].get_input_ports();
         auto outputs = partitions[i].get_output_ports();
 
@@ -452,98 +505,103 @@ int doit(const prb_t *prb, res_t *res) {
                                partitions[i].compile(inputs, outputs, eng)),
                 WARN);
 
-        record_queried_logical_tensors(
-                outputs, c_partitions[i], id_to_queried_logical_tensors);
+        record_queried_logical_tensors(outputs, c_partitions[i - idx_offset],
+                id_to_queried_logical_tensors);
     }
     if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
+    idx_offset = 0;
     for (size_t i = 0; i < partitions.size(); ++i) {
+        if (is_single_end_op_partition(partitions[i], end_opid_v)) {
+            idx_offset += 1;
+            continue;
+        }
+
         auto inputs = partitions[i].get_input_ports();
         auto outputs = partitions[i].get_output_ports();
-
         // replace input logical tensor with the queried one
         replace_with_queried_logical_tensors(
                 inputs, id_to_queried_logical_tensors);
 
         std::vector<dnnl::graph::tensor> input_ts(inputs.size());
         std::vector<dnnl::graph::tensor> output_ts(outputs.size());
-        partition_mem_map_t partition_mem_map;
-        ref_partition_t ref_partition;
+
+        ref_partition_t ref_partition(dg, partitions[i], inputs, outputs);
+        // Construct memory for both perf & corr modes
+        ref_partition.init_ref(
+                bench_mode, graph_in_ports, partition_mem_map_v[i], res);
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
-            // correctness mode
-            // Pass input and output tensors to construct and run ref partition
-            ref_partition = ref_partition_t(dg, partitions[i], inputs, outputs);
-            ref_partition.run(partition_mem_map, res);
-            if (res->state == FAIL) return FAIL;
-            if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-
-            // unmap memory from host to device
-            map_unmap_partition_mem(partition_mem_map, inputs, UNMAP, res);
-            map_unmap_partition_mem(partition_mem_map, outputs, UNMAP, res);
-            if (res->state == FAIL) {
-                BENCHDNN_PRINT(0,
-                        "FAIL: Fail to unmap memories to host for partition "
-                        "%zu.\n",
-                        i);
+            // correctness mode, run ref partition
+            if (res->state == UNTESTED || res->state == EXECUTED) {
+                ref_partition.exec_ops(res);
+                if (res->state == FAILED) return FAIL;
+                if (res->state == SKIPPED || res->state == UNIMPLEMENTED)
+                    return OK;
+            } else {
+                // once a partition failed on init_ref, terminate whole graph execution
                 return FAIL;
             }
-
-            const op_ref_list_t &op_list = ref_partition.get_partition_ops();
-            const auto &inplace_ports = c_partitions[i].get_inplace_ports();
-
-            if (make_input_tensors(input_ts, partition_mem_map, op_list, inputs)
-                    != OK) {
-                BENCHDNN_PRINT(0,
-                        "FAIL: Fail to construct input tesnors for partition "
-                        "%zu.\n",
-                        i);
-                return res->state = FAILED, FAIL;
-            }
-            if (make_output_tensors(output_ts, partition_mem_map, op_list,
-                        outputs, inplace_ports)
-                    != OK) {
-                BENCHDNN_PRINT(0,
-                        "FAIL: Fail to construct output tesnors for partition "
-                        "%zu.\n",
-                        i);
-                return res->state = FAILED, FAIL;
-            }
-
-        } else {
-            // performance mode
-            // TODO: initialization value should be removed from this interface.
-            input_ts = tm.construct_and_initialize_tensors(
-                    inputs, c_partitions[i], eng, 128);
-            output_ts = tm.construct_and_initialize_tensors(
-                    outputs, c_partitions[i], eng, 0);
         }
+
+        // unmap memory from host to device
+        map_unmap_partition_mem(partition_mem_map_v[i], inputs, UNMAP, res);
+        map_unmap_partition_mem(partition_mem_map_v[i], outputs, UNMAP, res);
+        if (res->state == FAIL) {
+            BENCHDNN_PRINT(0,
+                    "FAIL: Fail to unmap memories to host for partition "
+                    "%zu.\n",
+                    i);
+            return FAIL;
+        }
+
+        const op_ref_list_t &op_list = ref_partition.get_partition_ops();
+        const auto &inplace_ports
+                = c_partitions[i - idx_offset].get_inplace_ports();
+        if (make_input_tensors(
+                    input_ts, partition_mem_map_v[i], op_list, inputs)
+                != OK) {
+            BENCHDNN_PRINT(0,
+                    "FAIL: Fail to construct input tesnors for partition "
+                    "%zu.\n",
+                    i);
+            return res->state = FAILED, FAIL;
+        }
+        if (make_output_tensors(output_ts, partition_mem_map_v[i], op_list,
+                    outputs, inplace_ports)
+                != OK) {
+            BENCHDNN_PRINT(0,
+                    "FAIL: Fail to construct output tesnors for partition "
+                    "%zu.\n",
+                    i);
+            return res->state = FAILED, FAIL;
+        }
+
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
         input_ts_all.emplace_back(input_ts);
         output_ts_all.emplace_back(output_ts);
 
-        c_partitions[i].execute(strm, input_ts, output_ts);
+        c_partitions[i - idx_offset].execute(strm, input_ts, output_ts);
         strm.wait();
 
-        if (has_bench_mode_bit(mode_bit_t::corr)) {
-            // map memory from device back to host
-            map_unmap_partition_mem(partition_mem_map, inputs, MAP, res);
-            map_unmap_partition_mem(partition_mem_map, outputs, MAP, res);
-            if (res->state == FAIL) {
-                BENCHDNN_PRINT(0,
-                        "FAIL: Fail to map memories back to host for partition "
-                        "%zu.\n",
-                        i);
-                return FAIL;
-            }
+        // map memory from device back to host
+        map_unmap_partition_mem(partition_mem_map_v[i], inputs, MAP, res);
+        map_unmap_partition_mem(partition_mem_map_v[i], outputs, MAP, res);
+        if (res->state == FAIL) {
+            BENCHDNN_PRINT(0,
+                    "FAIL: Fail to map memories back to host for partition "
+                    "%zu.\n",
+                    i);
+            return FAIL;
         }
+
         res->state = EXECUTED;
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
-
             // args for correctness check of the last op
-            ref_partition.check_partition_correctness(partition_mem_map, res);
+            ref_partition.check_partition_correctness(
+                    partition_mem_map_v[i], res);
         }
     }
 

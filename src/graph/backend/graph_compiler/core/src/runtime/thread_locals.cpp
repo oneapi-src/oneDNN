@@ -52,22 +52,29 @@ struct thread_local_registry_t {
             }
         }
     }
-    ~thread_local_registry_t() {
-        registry_destroyed = true;
-        release(nullptr);
-    }
+    ~thread_local_registry_t() { release(nullptr); }
 };
 
-static thread_local_registry_t &get_registry() {
-    static thread_local_registry_t registry;
-    return registry;
+struct registry_guard_t {
+    std::shared_ptr<thread_local_registry_t> ptr_
+            = std::make_shared<thread_local_registry_t>();
+    ~registry_guard_t() { registry_destroyed = true; }
+};
+
+static const std::shared_ptr<thread_local_registry_t> &get_registry() {
+    static registry_guard_t registry;
+    return registry.ptr_;
+}
+
+thread_local_buffer_t::additional_t::additional_t() {
+    assert(!registry_destroyed);
+    registry_ = get_registry();
 }
 
 // register itself into registry
 thread_local_buffer_t::thread_local_buffer_t()
     : additional_(std::unique_ptr<additional_t>(new additional_t {})) {
-    assert(!runtime::registry_destroyed);
-    auto &registry = get_registry();
+    auto &registry = *additional_->registry_;
     std::lock_guard<std::mutex> guard(registry.lock_);
     registry.tls_buffers_.emplace_back(this);
     cur_pos_ = registry.tls_buffers_.end();
@@ -83,8 +90,6 @@ thread_local_buffer_t::thread_local_buffer_t()
 // are NEVER called! So we still need to check if registry has already been
 // destructed
 thread_local_buffer_t::~thread_local_buffer_t() {
-    if (runtime::registry_destroyed) { return; }
-    amx_buffer_.release(engine_);
     // C++ compiler will call ~thread_local_buffer_t() first and then call dtor
     // of its fields. Note that after ~thread_local_buffer_t() returns, the
     // lock will be released and dtors of member fields will not be protected by
@@ -92,13 +97,11 @@ thread_local_buffer_t::~thread_local_buffer_t() {
     // pointer from the registry and the registry has no chance to call
     // release() on `this` any more. So there will be only one thread calling
     // dtor/release() on the members at the same time
-    auto &registry = get_registry();
+    auto &registry = *additional_->registry_;
     std::lock_guard<std::mutex> guard(registry.lock_);
     assert(*cur_pos_ = this);
     registry.tls_buffers_.erase(cur_pos_);
 }
-
-thread_local thread_local_buffer_t thread_local_buffer_t::tls_buffer_;
 
 } // namespace runtime
 
@@ -107,7 +110,7 @@ SC_API void release_runtime_memory(runtime::engine_t *engine) {
     // destroyed
     if (runtime::registry_destroyed) { return; }
     auto &registry = runtime::get_registry();
-    registry.release(engine);
+    registry->release(engine);
 }
 
 } // namespace gc

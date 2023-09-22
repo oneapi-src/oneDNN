@@ -17,6 +17,7 @@
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_HPP
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -74,8 +75,7 @@ using shape_rl_vec = std::vector<std::pair<sc_dim, sc_dim>>;
 
 struct dispatch_key_set_base_t;
 using dispatch_set_ptr = std::shared_ptr<dispatch_key_set_base_t>;
-class impl_kind_converter_base_t;
-using impl_kind_converter_ptr = std::shared_ptr<impl_kind_converter_base_t>;
+struct dyn_internal_info_t;
 /** VConst struct record possible varible in constant value, e.g.
  *
  *   const int a = k * b;
@@ -178,7 +178,8 @@ struct sc_op_info_t {
     // prepared for dynamic dispatch during lowering and is created during
     // layout propagation.
     dispatch_set_ptr dispatch_key_set_;
-    impl_kind_converter_ptr impl_converter_;
+    // Extra info for op who could be internal queried.
+    std::shared_ptr<dyn_internal_info_t> internal_info_;
     // current used impl type
     int cur_impl_ = 0;
 };
@@ -199,6 +200,9 @@ constexpr const char *break_post_fuse = "break_post_fuse";
 constexpr const char *break_pre_fuse = "break_pre_fuse";
 // Fuse Anchor
 constexpr const char *inner_anchor = "inner_anchor";
+// Inner anchor created in fusible ops and will be add to mixed partition when
+// committing fusible op.
+constexpr const char *fusible_inner_anchors = "fusible_inner_anchors";
 // Batchwise fused
 constexpr const char *bwise_fuse = "bwise_fuse";
 constexpr const char *bwise_no_fuse = "bwise_no_fuse";
@@ -250,13 +254,23 @@ public:
 
     virtual const dispatch_set_ptr &get_dispatch_key_set() const;
     virtual dispatch_set_ptr &get_dispatch_key_set();
+    // internal query disaptch keys, mainly for impl kind.
+    virtual dispatch_set_ptr get_internal_dispatch_key_set(
+            const context_ptr &ctx);
+    // call impl_func if return true, create the internal info.
+    bool need_dynamic_internal_query();
+    // if the op needs internal query, default false.
+    virtual bool need_dynamic_internal_query_impl() const { return false; }
     void copy_dispatch_key_set_from_op(const sc_op_ptr &other);
     /**
      * Repalces an input logical tensor
      * @param index the index within get_inputs()
      * @param new_input the new logical tensor
+     * @param skip_shape_check whether to check new shape vs original shape, for
+     * padding op the shape could be different
      * */
-    void replace_input(size_t index, const graph_tensor_ptr &new_input);
+    void replace_input(size_t index, const graph_tensor_ptr &new_input,
+            const bool skip_shape_check = false);
 
     // Replaces the current Op in the graph using another Op. All other Ops
     // using the output tensors of current Op will use the corresponding tensors
@@ -349,20 +363,37 @@ public:
      * implementation only compares op_name and attrs. This function does not
      * check the op-tensor connections, which will be checked by the
      * graph_comparer.
+     * @param filter the filter for the attr name. If it returns false, the attr
+     * will be ignored. By default it only filters out keys starting with
+     * "temp."
      * @note we ingore the attrs with keys starting with "temp."
      * @return true if the contents (not including the op connections) are the
      * same
      * */
-    virtual bool compare_contents(const sc_op *other) const;
+    virtual bool compare_contents(const sc_op *other,
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter
+            = nullptr) const;
 
     /**
      * Hash the contents. The default implementation only hashs op_name and
      * attrs. The function can be used to make hash map. When hash conflict
      * happened, we can compare them with `compare_contents`.
+     * @param filter the filter for the attr name. If it returns false, the attr
+     * will be ignored. By default it only filters out keys starting with
+     * "temp."
      * @note we ingore the attrs with keys starting with "temp."
      * @return hash value with size_t datatype.
      * */
-    virtual size_t hash_contents() const;
+    virtual size_t hash_contents(
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter
+            = nullptr) const;
+
+    // the default implementation of hash_contents
+    static size_t standard_hash_contents(const sc_op *p,
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter);
 
     // constructor
     sc_op(const std::string &op_name,
@@ -375,6 +406,9 @@ public:
 
     virtual bool is_valid(const context_ptr &ctx) { return true; }
     virtual ir_module_ptr get_func(context_ptr ctx) = 0;
+    virtual ir_module_ptr get_internal_func(const context_ptr &ctx) {
+        throw std::runtime_error("Unimplement.");
+    }
 
     virtual void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
@@ -421,6 +455,10 @@ public:
         // if false, when an input_op is plain format and has only one use, will
         // set the input's data format to the expected format of the use
         static constexpr const char *is_input_plain = "is_input_plain";
+        // if true, will allow output to be in channel last format
+        static constexpr const char *allow_channel_last_output
+                = "allow_channel_last_output";
+        static constexpr const char *fpmath_mode = "fpmath_mode";
     };
 
     std::vector<sc_op_ptr> ops_;
@@ -454,10 +492,16 @@ public:
      * Hash the contents. The default implementation only hashs ops and
      * attrs. The function can be used to make hash map. When hash conflict
      * happened, we can compare them with `compare_graph`.
+     * @param filter the filter for the attr name. If it returns false, the attr
+     * will be ignored. By default it only filters out keys starting with
+     * "temp."
      * @note we ingore the attrs with keys starting with "temp."
      * @return hash value with size_t datatype.
      * */
-    size_t hash_contents() const;
+    size_t hash_contents(
+            const std::function<bool(const sc_op *, const std::string &)>
+                    &filter
+            = nullptr) const;
 
     // This function removes the Ops with is_removed_=true. And it compresses
     // the ops_ array by removing the holes of removed ops. It finally resets
@@ -495,6 +539,8 @@ public:
     }
     // Get external dynamic vars existed in inputs/outputs.
     std::unordered_set<sc_dim> get_external_dynamic_vars();
+    // Judge if the ops in graph need dynamic internal query
+    bool need_dynamic_internal_query();
     // output op
     std::shared_ptr<sc_op> make_output(
             const std::vector<graph_tensor_ptr> &inputs,

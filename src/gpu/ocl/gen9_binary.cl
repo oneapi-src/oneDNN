@@ -23,6 +23,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global float *src0_scale, __global float *src1_scale) {
 
     int dims0[6] = {0};
+    int local_id = get_sub_group_local_id();
 
     unsigned mid_dim = GWS_GET_MIXED_DIM();
     dims0[5] = mid_dim % DST_D5;
@@ -36,6 +37,10 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     dims0[1] = mid_dim % DST_D1;
     mid_dim /= DST_D1;
     dims0[0] = mid_dim;
+
+#if HAS_TAIL
+    if (dims0[0] > (DST_D0 - 1)) { return; }
+#endif
 
     int src0_off = SRC0_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
@@ -82,14 +87,37 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #if WITH_SUM
     READ_DATA(NVECT, DST, (&dst[0]), (&dst_data[0]), 1);
 #endif
-    dims0[NDIMS - 1] += get_sub_group_local_id();
+
+#if HAS_TAIL
+    unsigned gws_dim = get_global_id(0);
+    int po_dims0[6] = {0};
+    po_dims0[5] = gws_dim % DST_D5;
+    gws_dim /= DST_D5;
+    po_dims0[4] = gws_dim % DST_D4;
+    gws_dim /= DST_D4;
+    po_dims0[3] = gws_dim % DST_D3;
+    gws_dim /= DST_D3;
+    po_dims0[2] = gws_dim % DST_D2;
+    gws_dim /= DST_D2;
+    po_dims0[1] = gws_dim % DST_D1;
+    gws_dim /= DST_D1;
+    if (gws_dim >= DST_D0) { return; }
+    po_dims0[0] = gws_dim;
+#else
+    int po_dims0[6]
+            = {dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]};
+    po_dims0[NDIMS - 1] += local_id;
+#endif
     unroll_for(unsigned idx = 0; idx < NVECT; ++idx) {
         float d_i = tmp[idx];
         float dst_i = dst_data[idx];
-        APPLY_POST_OPS_SERIAL(d_i, float, dst_i, float, dims0[0], 1, dims0[1],
-                1, dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5], 1);
+        APPLY_POST_OPS_SERIAL(d_i, float, dst_i, float, po_dims0[0], 1,
+                po_dims0[1], 1, po_dims0[2], 1, po_dims0[3], 1, po_dims0[4], 1,
+                po_dims0[5], 1);
         tmp[idx] = d_i;
-        dims0[NDIMS - 1] += 16;
+#if !HAS_TAIL
+        po_dims0[NDIMS - 1] += SUB_GROUP_SIZE;
+#endif
     }
 
     WRITE_DATA(NVECT, DST, (&tmp[0]), (&dst[0]));

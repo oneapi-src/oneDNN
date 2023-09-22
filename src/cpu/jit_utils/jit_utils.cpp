@@ -97,7 +97,8 @@ void register_jit_code_vtune(const void *code, size_t code_size,
     }
 #else
     if (flags & DNNL_JIT_PROFILE_VTUNE)
-        VERROR(jit_profiling, "VTune Profiler integration is not supported");
+        VERROR(primitive, jit_profiling,
+                "VTune Profiler integration is not supported");
 #endif
 #else
     UNUSED(code);

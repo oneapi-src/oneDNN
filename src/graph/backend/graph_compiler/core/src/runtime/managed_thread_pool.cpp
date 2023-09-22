@@ -94,7 +94,7 @@ thread_manager::thread_manager() {
 }
 
 static void do_cleanup() {
-    auto &tls = thread_local_buffer_t::tls_buffer_;
+    auto &tls = thread_local_buffer_t::tls_buffer();
     tls.in_managed_thread_pool_ = false;
     auto &need_release_amx = tls.amx_buffer_.need_release_tile_;
     if (need_release_amx) {
@@ -150,7 +150,7 @@ static thread_local thread_manager *current_active_thr_mgr = nullptr;
 #endif
 
 static thread_local_buffer_t &get_tls_helper() {
-    return thread_local_buffer_t::tls_buffer_;
+    return thread_local_buffer_t::tls_buffer();
 }
 
 void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
@@ -220,7 +220,7 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
         throw std::runtime_error("Running SEQ in thread pool");
 #endif
     } else {
-        auto &tls = thread_local_buffer_t::tls_buffer_;
+        auto &tls = thread_local_buffer_t::tls_buffer();
         tls.in_managed_thread_pool_ = true;
         tls.additional_->linear_thread_id_ = 0;
 #ifdef SC_KERNEL_PROFILE
@@ -282,7 +282,7 @@ void sc_parallel_call_managed(
         void (*pfunc)(void *, void *, int64_t, generic_val *),
         uint64_t execution_flags, void *rtl_ctx, void *module_env,
         int64_t begin, int64_t end, int64_t step, generic_val *args) {
-    runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
+    runtime::thread_local_buffer_t::tls_buffer().additional_->is_main_thread_
             = true;
     thread_manager *stream = get_current_active_thr_mgr();
     stream->state.execution_flags = execution_flags;

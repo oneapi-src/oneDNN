@@ -597,7 +597,7 @@ typedef struct ___itt_global
         h->nameW   = name ? _wcsdup(name) : NULL; \
         h->domainA   = NULL; \
         h->domainW   = name ? _wcsdup(domain) : NULL; \
-        h->type = type; \
+        h->type = (int)type; \
         h->index = 0; \
         h->next   = NULL; \
         if (h_tail == NULL) \
@@ -618,7 +618,7 @@ typedef struct ___itt_global
         __itt_fstrdup(domain, domain_copy); \
         h->domainA  = domain_copy; \
         h->domainW   = NULL; \
-        h->type = type; \
+        h->type = (int)type; \
         h->index = 0; \
         h->next   = NULL; \
         if (h_tail == NULL) \

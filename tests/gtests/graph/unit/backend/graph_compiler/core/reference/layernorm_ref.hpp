@@ -28,7 +28,7 @@ namespace gc {
 // TODO(xxx): last dims is default axis to normlization
 inline void ref_layernorm_fwd_with_mean_var(float *out, float *mean, float *var,
         float *in, float *gamma, float *beta, int N, int T, int C,
-        float eps = 1e-5, bool use_scale_shift = false) {
+        float eps = 1e-5f, bool use_scale_shift = false) {
     utils::parallel_for(0, N, 1, [&](int64_t i) {
         for (uint64_t j = 0; j < (uint64_t)T; ++j) {
             float sum = 0.0f;
@@ -54,7 +54,7 @@ inline void ref_layernorm_fwd_with_mean_var(float *out, float *mean, float *var,
 }
 
 inline void ref_layernorm_fwd(float *out, float *in, float *gamma, float *beta,
-        int N, int T, int C, float eps = 1e-5, bool use_scale_shift = false) {
+        int N, int T, int C, float eps = 1e-5f, bool use_scale_shift = false) {
     float mean[N * T];
     float var[N * T];
 
@@ -65,7 +65,7 @@ inline void ref_layernorm_fwd(float *out, float *in, float *gamma, float *beta,
 // TODO(xxx): K and k axis are default axis to normlization
 inline void ref_layernorm_block_fwd_with_mean_var(float *out, float *mean,
         float *var, float *in, float *gamma, float *beta, int M, int K, int m,
-        int k, float eps = 1e-5, bool use_scale_shift = false) {
+        int k, float eps = 1e-5f, bool use_scale_shift = false) {
     utils::parallel_for(0, M, 1, [&](int64_t i) {
         for (uint64_t j = 0; j < (uint64_t)m; ++j) {
             float sum = 0.0f;
@@ -100,7 +100,7 @@ inline void ref_layernorm_block_fwd_with_mean_var(float *out, float *mean,
 }
 
 inline void ref_layernorm_block_fwd(float *out, float *in, float *gamma,
-        float *beta, int M, int K, int m, int k, float eps = 1e-5,
+        float *beta, int M, int K, int m, int k, float eps = 1e-5f,
         bool use_scale_shift = false) {
     float mean[M * 1 * m * 1]; // NOLINT
     float var[M * 1 * m * 1]; // NOLINT

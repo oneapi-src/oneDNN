@@ -84,12 +84,32 @@ inline bool is_amx_dtype(const context_ptr &ctx, const sc_data_type_t &dtype) {
   return ret;
 }
 
+inline bool is_vnni_low_fp(
+  const context_ptr &ctx, const sc_data_type_t &dtype) {
+  return dtype == datatypes::bf16;
+}
+
+inline bool no_vnni_low_fp(
+  const context_ptr &ctx, const sc_data_type_t &dtype) {
+  return dtype == datatypes::f16;
+}
+
+inline bool no_vnni(const context_ptr &ctx, const sc_data_type_t &dtype) {
+  return dtype == datatypes::f32 || dtype == datatypes::f16;
+}
+
 inline std::vector<expr> dims_to_expr(const sc_dims &dim) {
   std::vector<expr> ret;
   for (auto i : dim) {
     ret.emplace_back(dim2unsigned(i));
   }
   return ret;
+}
+
+inline bool is_parallel_space_enough(int work_amount, int nthreads) {
+  return (work_amount > 0
+    && (work_amount % nthreads == 0
+      || utils::divide_and_ceil(work_amount, nthreads) >= 4));
 }
 
 /**
@@ -185,9 +205,19 @@ inline static std::vector<int> get_sub_blocks(const int X, int factor = 2) {
   return sub_blocks;
 }
 
+template <typename T>
+inline static std::vector<int> get_blocks_if_not_satisfy(
+  const int X, int floor, int ceiling, T filter) {
+  auto block_list = utils::get_blocks(X, floor, ceiling);
+  block_list.erase(std::remove_if(block_list.begin(), block_list.end(), filter),
+    block_list.end());
+  if (block_list.empty()) { block_list = utils::get_blocks(X, floor, ceiling); }
+  return block_list;
+}
+
 inline expr get_balance211_length(
   const expr &n, const expr &team, const expr &idx, expr &n_start, expr &T1) {
-  assert(get_expr_as_int(team) >= 1);
+  assert(team.isa<var>() || get_expr_as_int(team) >= 1);
   expr n1 = divide_and_ceil(n, team);
   expr n2 = do_cast_and_fold(n1 - 1);
   T1 = do_cast_and_fold(n - n2 * team);
@@ -226,7 +256,7 @@ inline int get_lanes(
     } else if (C_block / 16 && C_block % 16 == 0) {
       lanes = vectorize_step(ctx, dtype.type_code_, 16);
     }
-  } else if (dtype == datatypes::bf16) {
+  } else if (is_vnni_low_fp(ctx, dtype)) {
     if (C_block / 32 && C_block % 32 == 0) {
       lanes = vectorize_step(ctx, dtype.type_code_, 32);
     } else if (C_block / 16 && C_block % 16 == 0) {
@@ -238,6 +268,48 @@ inline int get_lanes(
     }
   }
   return lanes;
+}
+
+inline uint64_t convert_int_to_mask(const int val) {
+  uint64_t mask = 0;
+  for (int i = 0; i < val; ++i) {
+    mask = mask << 1;
+    mask |= 0x1;
+  }
+  return mask;
+}
+
+inline int get_minimal_lanes(const int val) {
+  COMPILE_ASSERT(val <= 64,
+    "expected to be less than cache line size(64), but got " << val << "!");
+  if (val > 32) {
+    return 64;
+  } else if (val > 16) {
+    return 32;
+  } else {
+    return 16;
+  }
+}
+
+inline sc_data_type_t get_dtype(const int lanes) {
+  sc_data_type_t var_dtype;
+  switch (lanes) {
+    case 16: {
+      var_dtype = datatypes::u16;
+      break;
+    }
+    case 32: {
+      var_dtype = datatypes::u32;
+      break;
+    }
+    case 64: {
+      var_dtype = datatypes::index;
+      break;
+    }
+    default:
+      COMPILE_ASSERT(0, "expected lanes to be 16, 32, 64, but got " << lanes);
+  }
+  return var_dtype;
 }
 
 bool is_prefetch_debug_mode();

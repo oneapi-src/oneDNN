@@ -276,7 +276,7 @@ protected:
 
         const auto &value = it->second.value_;
         // If the entry is not invalidated
-        if (value.get().is_empty()) { return; }
+        if (!value.get().is_empty()) { return; }
 
         // Remove the invalidated entry
         cache_mapper().erase(it);

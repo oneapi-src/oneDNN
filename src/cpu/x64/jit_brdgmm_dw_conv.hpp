@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,11 +42,12 @@ struct brdgmm_dw_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine);
         jit_brdgmm_conv_conf_t jcp_;
         std::vector<brgemm_t> bcps_;
-        size_t buffer_size_ = 0;
+        std::vector<brgemm_batch_element_t> batches_;
+        std::vector<int> bs_;
 
     private:
         status_t init_brdgmm_conf();
-        status_t init_scratchpad();
+        void init_batch_elements();
     };
 
     brdgmm_dw_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}

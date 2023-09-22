@@ -220,6 +220,31 @@ void create_llama_mha(
     UNUSED(matmul_v);
 }
 
+void create_starcoder_mha(
+        const std::shared_ptr<pb_graph_t> &pgraph, bool is_bf16, bool is_int8) {
+    auto matmul_qk = create_dequant_matmul(pgraph, nullptr, is_bf16, is_int8);
+    auto mul = pgraph->append_op(
+            graph::op_kind::Multiply, {in_edge(0, matmul_qk, 0)});
+    auto select
+            = pgraph->append_op(graph::op_kind::Select, {in_edge(1, mul, 0)});
+    auto softmax = pgraph->append_op(
+            graph::op_kind::SoftMax, {in_edge(0, select, 0)});
+    pm::pb_node_t *matmul_v_input = softmax;
+    if (is_int8) {
+        if (is_bf16) {
+            auto cast = pgraph->append_op(
+                    graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
+            matmul_v_input = cast;
+        }
+        auto quantize_softmax = pgraph->append_op(
+                graph::op_kind::Quantize, {in_edge(0, matmul_v_input, 0)});
+        matmul_v_input = quantize_softmax;
+    }
+    auto matmul_v
+            = create_dequant_matmul(pgraph, matmul_v_input, is_bf16, is_int8);
+    UNUSED(matmul_v);
+}
+
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mha_pattern)
 // fp32 MHA pattern
 /*
@@ -890,6 +915,15 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_llama_mha)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     create_llama_mha(pgraph, false, false);
                 });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_starcoder_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_starcoder_mha(pgraph, false, false);
+                });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_mha_pattern)
@@ -1312,6 +1346,15 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_llama_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     create_llama_mha(pgraph, true, false);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_starcoder_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_starcoder_mha(pgraph, true, false);
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
@@ -2286,6 +2329,24 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_llama_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     create_llama_mha(pgraph, true, true);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_starcoder_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::quantized_mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_starcoder_mha(pgraph, false, true);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_starcoder_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::quantized_mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_starcoder_mha(pgraph, true, true);
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 

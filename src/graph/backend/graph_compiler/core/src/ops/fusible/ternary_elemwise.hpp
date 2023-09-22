@@ -28,7 +28,8 @@ namespace gc {
 
 class select_op_t : public fusible_op_t,
                     public op_traits::auto_copyable_t,
-                    public op_traits::may_inplace_t {
+                    public op_traits::may_inplace_t,
+                    public op_traits::may_broadcast_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -47,25 +48,19 @@ public:
             std::vector<std::vector<format_stride_pair>> &supported_outs)
             override;
 
-    std::vector<int> get_bc_axis(const int l, const int r) const;
+    std::vector<int> get_bc_axis(const int axis1, const int axis2) const;
 
-    int get_broadcast_input(const int l, const int r) const;
+    std::vector<int> get_non_broadcast_input_index(
+            bool assert_non_empty) const override;
+
+    int get_ref_input_index(bool assert_determined) const override;
 
     vectorized_info_t &get_vx_info() { return vx_info_; }
-
-    int get_max_input() const;
-
-    const std::vector<std::vector<int>> &get_plain_bc_axis() const {
-        return plain_bc_axis_;
-    }
 
     shape_rl_vec get_dynamic_shape_relations() const override;
 
     void infer_binding_axis(bound_axis_map &bdax_map) override;
     void pre_binding_axis(bound_axis_map &bdax_map) override;
-
-protected:
-    std::vector<std::vector<int>> plain_bc_axis_;
 
 private:
     vectorized_info_t vx_info_;

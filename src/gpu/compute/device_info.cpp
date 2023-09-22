@@ -109,6 +109,10 @@ int device_info_t::max_subgroup_size(data_type_t type) const {
             ((size_t)max_exec_size()) / types::data_type_size(type)));
 }
 
+size_t device_info_t::max_wg_size(bool large_grf_mode) const {
+    return large_grf_mode ? max_wg_size_ / 2 : max_wg_size_;
+}
+
 int device_info_t::threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode) {
     switch (gpu_arch) {
         case gpu::compute::gpu_arch_t::gen9:

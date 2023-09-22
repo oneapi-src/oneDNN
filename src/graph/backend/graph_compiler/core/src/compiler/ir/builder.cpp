@@ -117,17 +117,26 @@ stmt get_common_parent_node(const stmt &node1, const stmt &node2) {
                          ->shared_from_this()};
 }
 
-tensor get_real_tensor(const expr &buffer) {
-    auto tsr = buffer;
-    while (!tsr.isa<tensor>()) {
+expr &get_base_tensor(expr &buffer) {
+    expr *tsr = &buffer;
+    while (!tsr->isa<tensor>()) {
         COMPILE_ASSERT(
-                tsr.isa<tensorptr>(), "Only tensor or tensorptr is accepted")
-        auto base = tsr.static_as<tensorptr>()->base_;
+                tsr->isa<tensorptr>(), "Only tensor or tensorptr is accepted")
+        auto base = tsr->static_as<tensorptr>()->base_;
         COMPILE_ASSERT(base.isa<indexing>(),
                 "tensor_ptr base should be indexing, but got: " << base);
-        tsr = base.static_as<indexing>()->ptr_;
+        tsr = &(base.static_as<indexing>()->ptr_);
     }
-    return tsr.static_as<tensor>();
+    return *tsr;
+}
+
+tensor get_real_tensor(const expr &buffer) {
+    auto buf = buffer;
+    return get_base_tensor(buf).checked_as<tensor>();
+}
+
+void set_base_tensor(expr &tptr, const expr &tsr) {
+    get_base_tensor(tptr) = tsr;
 }
 
 namespace builder {
@@ -230,6 +239,8 @@ expr remake_binary(const expr_c &l, const expr_c &r, const expr_c &original) {
             case intrin_type::int_and:
             case intrin_type::int_or:
             case intrin_type::int_xor:
+            case intrin_type::shl:
+            case intrin_type::shr:
                 return copy_attr(*original,
                         make_expr<intrin_call_node>(orig_type,
                                 std::vector<expr> {
@@ -461,16 +472,18 @@ expr make_unpack_high(const expr_c &v_a, const expr_c &v_b, int elem_bits) {
             any_map_t {{"elem_bits", elem_bits}});
 }
 
-expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c) {
+expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c,
+        const int &type_bits) {
     return make_expr<intrin_call_node>(intrin_type::shuffle,
             std::vector<expr> {v_a.remove_const(), v_b.remove_const()},
-            any_map_t {{"shuffle_imm", v_c}});
+            any_map_t {{"shuffle_imm", v_c}, {"type_bits", type_bits}});
 }
 
-expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c) {
+expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c,
+        const int &type_bits) {
     return make_expr<intrin_call_node>(intrin_type::permute,
             std::vector<expr> {v_a.remove_const(), v_b.remove_const()},
-            any_map_t {{"permute_imm", v_c}});
+            any_map_t {{"permute_imm", v_c}, {"type_bits", type_bits}});
 }
 
 expr make_gather(const expr_c &addr, const expr_c &indices) {
@@ -485,6 +498,24 @@ expr make_permutex2var(
             std::vector<expr> {
                     v_a.remove_const(), v_b.remove_const(), v_c.remove_const()},
             any_map_t());
+}
+
+expr make_permutexvar(const expr_c &idx, const expr_c &v, const int lanes) {
+    return make_expr<intrin_call_node>(intrin_type::permutexvar,
+            std::vector<expr> {idx.remove_const(), v.remove_const()},
+            any_map_t {{"lanes", lanes}});
+}
+
+expr make_insert(const expr_c &v_a, const expr_c &v_b, const int imm) {
+    return make_expr<intrin_call_node>(intrin_type::insert,
+            std::vector<expr> {v_a.remove_const(), v_b.remove_const()},
+            any_map_t {{"insert_imm", imm}});
+}
+
+expr make_extract(const expr_c &v_a, const int imm, const int lanes) {
+    return make_expr<intrin_call_node>(intrin_type::extract,
+            std::vector<expr> {v_a.remove_const()},
+            any_map_t {{"extract_imm", imm}, {"lanes", lanes}});
 }
 
 expr make_read_struct(const expr_c &in, const std::string &struct_name,

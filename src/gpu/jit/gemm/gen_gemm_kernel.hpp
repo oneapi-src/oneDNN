@@ -64,13 +64,18 @@ struct gen_gemm_kernel_desc_t {
     status_t create_generator(
             engine_t *engine, compute::compiled_kernel_t &generator) const;
 
-    serialized_t<gen_gemm_kernel_desc_t> serialize() const {
-        serialized_t<gen_gemm_kernel_desc_t> s {};
+    serialized_t serialize() const {
+        serialized_t s {};
         problem_.serialize(s);
         strategy_.serialize(s);
         return s;
     }
     compute::gpu_arch_t arch() const { return arch_; }
+
+    const kcatalog::Entry &entry() const {
+        assert(entry_ != nullptr);
+        return *entry_;
+    };
 
 protected:
     static Type convert_dnnl_to_kernel_type(data_type_t type) {

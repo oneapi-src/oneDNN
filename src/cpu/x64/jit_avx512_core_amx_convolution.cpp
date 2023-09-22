@@ -808,10 +808,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
     return status::success;
 }
 
-template <data_type_t diff_src_type, data_type_t wei_type,
-        data_type_t diff_dst_type>
-status_t jit_avx512_core_amx_convolution_bwd_data_t<diff_src_type, wei_type,
-        diff_dst_type>::execute_backward(const exec_ctx_t &ctx) const {
+status_t jit_avx512_core_amx_convolution_bwd_data_t::execute_backward(
+        const exec_ctx_t &ctx) const {
     const auto diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
     const auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
@@ -835,11 +833,6 @@ status_t jit_avx512_core_amx_convolution_bwd_data_t<diff_src_type, wei_type,
             memory_desc_wrapper(nullptr) /* no bias */, diff_src_d);
     return status::success;
 }
-
-template struct jit_avx512_core_amx_convolution_bwd_data_t<data_type::bf16,
-        data_type::bf16, data_type::bf16>;
-template struct jit_avx512_core_amx_convolution_bwd_data_t<data_type::f32,
-        data_type::bf16, data_type::bf16>;
 
 status_t jit_avx512_core_amx_convolution_bwd_weights_t::init(engine_t *engine) {
     const auto &j = pd()->jcp_;

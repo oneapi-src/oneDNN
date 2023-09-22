@@ -23,7 +23,6 @@
 #include <vector>
 
 #include <compiler/config/context.hpp>
-#include <compiler/ir/function_pass.hpp>
 #include <compiler/ir/sc_expr.hpp>
 #include <compiler/ir/sc_function.hpp>
 #include <unordered_map>
@@ -39,6 +38,8 @@ struct op_dispatch_tables_t;
 using op_dispatch_tables_ptr = std::shared_ptr<op_dispatch_tables_t>;
 using dispatch_table_map_t
         = std::unordered_map<std::string, op_dispatch_tables_ptr>;
+
+class function_pass_t;
 
 class SC_INTERNAL_API ir_module_t {
     // Items to appear in the module.
@@ -74,6 +75,9 @@ public:
         // bool, default=false. whether the addresses of global tensors and
         // variables will be hardcoded in the JIT'd code
         static constexpr const char *STATIC_GLOBALS = "static_globals";
+        // vector<shared_ptr<shared_const_wrapper>>. The list of base tensors
+        // for shared consts
+        static constexpr const char *SHARED_CONST_BASES = "shared_const_bases";
     };
 
     context_ptr ctx_;

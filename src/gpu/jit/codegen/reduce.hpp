@@ -88,11 +88,12 @@ public:
                             = utils::one_of(s.byte_offset(), 0, grf_size / 2);
                     bool s_is_bf = src_type.is_bf16();
                     bool s_is_hf = src_type.is_f16();
+                    bool d_is_f = dst_type.is_f32();
 
                     if (src_stride != 1 || s_is_hf
                             || (s_is_bf && !s_half_grf_aligned)) {
                         auto tmp_type = src_type;
-                        if (s_is_hf
+                        if ((s_is_hf && d_is_f)
                                 || ((d.offset() != 0 || !s_half_grf_aligned)
                                         && (s_is_bf))) {
                             tmp_type = type_t::f32();
@@ -114,7 +115,8 @@ private:
         layout_t::align_layouts(a, b);
 
         ir_assert(!a.blocks().empty());
-        ir_assert(!b.blocks().empty());
+        // Allow trivial tile for scalar dst.
+        if (b.blocks().empty()) { return tensor_t(dst_layout_.dims()); }
 
         auto &a0 = a.blocks()[0];
         auto &b0 = b.blocks()[0];

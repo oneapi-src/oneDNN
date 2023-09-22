@@ -89,32 +89,26 @@ TEST(GCCore_CPU_commit_op, TestCommitOP) {
                                     true)[span_t({f0, f1}, simd_len)];
                         }
                     }
-                    _for_(f2, 0, 1) {
-                        _for_(f3, 0, 1) {
-                            _for_(f4, 0, 16) {
-                                _for_(f5, 0, 16, simd_len) {
-                                    auto c_ptr = builder::tensor_ptr(
-                                            C, {i, j, 0, 0}, {}, true);
-                                    std::vector<expr> idx = {i, j, 0, 0};
-                                    if (shrink) {
-                                        idx[0] = idx[0] - i;
-                                        idx[1] = idx[1] - j;
-                                        idx[2] = idx[2] - 0;
-                                        idx[3] = idx[3] - 0;
-                                    }
-                                    auto tmp_ptr = builder::tensor_ptr(
-                                            tmp, idx, {}, true);
-                                    tmp_ptr.checked_as<tensorptr>()->shape_
-                                            = {32, 128, 16, 16};
-                                    auto B_ptr = builder::tensor_ptr(
-                                            B, {i, j, 0, 0}, {}, true);
-                                    c_ptr[span_t({f2, f3, f4, f5}, simd_len)]
-                                            = tmp_ptr[span_t({f2, f3, f4, f5},
-                                                      simd_len)]
-                                            + B_ptr[span_t({f2, f3, f4, f5},
-                                                    simd_len)];
-                                }
+                    _for_(f4, 0, 16) {
+                        _for_(f5, 0, 16, simd_len) {
+                            auto c_ptr = builder::tensor_ptr(
+                                    C, {i, j, 0, 0}, {}, true);
+                            std::vector<expr> idx = {i, j, 0, 0};
+                            if (shrink) {
+                                idx[0] = idx[0] - i;
+                                idx[1] = idx[1] - j;
+                                idx[2] = idx[2] - 0;
+                                idx[3] = idx[3] - 0;
                             }
+                            auto tmp_ptr
+                                    = builder::tensor_ptr(tmp, idx, {}, true);
+                            tmp_ptr.checked_as<tensorptr>()->shape_
+                                    = {32, 128, 16, 16};
+                            auto B_ptr = builder::tensor_ptr(
+                                    B, {i, j, 0, 0}, {}, true);
+                            c_ptr[span_t({0, 0, f4, f5}, simd_len)]
+                                    = tmp_ptr[span_t({0, 0, f4, f5}, simd_len)]
+                                    + B_ptr[span_t({0, 0, f4, f5}, simd_len)];
                         }
                     }
                 }

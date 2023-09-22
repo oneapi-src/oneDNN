@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ namespace impl {
 
 output_dims_t make_output_dims(const memory_desc_wrapper &dst_d) {
     output_dims_t od {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
-    for (int i = 0; i < dst_d.ndims(); ++i)
+    for (size_t i = 0; i < static_cast<size_t>(dst_d.ndims()); ++i)
         od[i] = dst_d.dims()[i];
     return od;
 }
@@ -50,12 +50,13 @@ namespace {
 bool is_per_mb_w_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
         const memory_desc_wrapper &dst_d) {
     const auto ndims = dst_d.ndims();
-    const int last_dim = ndims - 1;
+    assert(ndims > 0);
+    const size_t last_dim = static_cast<size_t>(ndims) - 1;
 
     bool per_mb_w_bcast = !mask.test(0) && !mask.test(last_dim);
     if (!per_mb_w_bcast) return false;
 
-    for (int d = 1; d < last_dim; ++d)
+    for (size_t d = 1; d < last_dim; ++d)
         per_mb_w_bcast = per_mb_w_bcast && mask.test(d);
     return per_mb_w_bcast;
 }
@@ -65,12 +66,13 @@ bool is_per_mb_w_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
 bool is_per_w_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
         const memory_desc_wrapper &dst_d) {
     const auto ndims = dst_d.ndims();
-    const int last_dim = ndims - 1;
+    assert(ndims > 0);
+    const size_t last_dim = static_cast<size_t>(ndims) - 1;
 
     bool per_w_bcast = !mask.test(last_dim);
     if (!per_w_bcast) return false;
 
-    for (int d = 0; d < last_dim; ++d)
+    for (size_t d = 0; d < last_dim; ++d)
         per_w_bcast = per_w_bcast && mask.test(d);
     return per_w_bcast;
 }
@@ -81,7 +83,7 @@ bool is_per_w_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
 // but only if corresponding output dimensions are also equal to 1.
 bool is_channel_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
         const memory_desc_wrapper &dst_d) {
-    for (int d = 0; d < dst_d.ndims(); ++d) {
+    for (size_t d = 0; d < static_cast<size_t>(dst_d.ndims()); ++d) {
         if (d == 1 && !mask.test(1)) return false;
         if (d != 1 && mask.test(d) && dst_d.dims()[d] != 1) return false;
     }
@@ -154,7 +156,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     bool all_ones = true;
     bool all_equal = true;
     std::bitset<DNNL_MAX_NDIMS> mask(0);
-    for (int d = 0; d < ndims; d++) {
+    for (size_t d = 0; d < static_cast<size_t>(ndims); d++) {
         const auto &rhs_arg_dim = rhs_arg_md.dims[d];
         if (rhs_arg_md.dims[d] != 1 && rhs_arg_md.dims[d] != output_dims[d])
             return broadcasting_strategy_t::unsupported;

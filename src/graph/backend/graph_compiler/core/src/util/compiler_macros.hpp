@@ -33,4 +33,25 @@
 // bug in parsing of "omp parallel for" in icx compiler
 #define SC_NO_OP()
 
+#if defined(__INTEL_LLVM_COMPILER)
+// the dpcpp spec says that we also need to find existence of
+// SYCL_LANGUAGE_VERSION, which is not true
+#define SC_IS_DPCPP() 1
+#else
+#define SC_IS_DPCPP() 0
+#endif
+
+#if defined(__clang__)
+#define SC_IS_CLANG() 1
+#else
+#define SC_IS_CLANG() 0
+#endif
+
+#ifdef _MSC_VER
+// returns if the compiler is really MSVC (not dpcpp simulation)
+#define SC_IS_MSVC() (!SC_IS_DPCPP() && !SC_IS_CLANG())
+#else
+#define SC_IS_MSVC() 0
+#endif
+
 #endif

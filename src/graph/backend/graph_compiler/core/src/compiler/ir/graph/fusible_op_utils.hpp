@@ -23,6 +23,7 @@
 #include <vector>
 #include "fusible_op.hpp"
 #include "fusion_data.hpp"
+#include "util/variant.hpp"
 #include <unordered_map>
 
 namespace dnnl {
@@ -59,6 +60,8 @@ sc_dims get_expr_to_dims(const std::vector<expr> &dims);
 size_t get_dims_product(const sc_dims &dims);
 // the dim can be squeezed is 1
 int get_number_of_squeeze_dims(const sc_dims &dims);
+
+bool range_from_outer_loop(const std::pair<expr, expr> &range);
 
 bool slice_full_on_axis(const sc_dims &dim, const slice_range &ranges,
         const std::vector<int> &axis);
@@ -103,7 +106,7 @@ using fusion_compute_func_t = std::function<stmt(
         const std::vector<expr> &, std::vector<expr::lvalue_proxy_t> &)>;
 bool is_op_input_blocking_shape(const sc_op_info_t &info);
 
-void compute_vectorized_op(sc_graph_t &graph,
+void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
         sc_op_info_t &info, const vectorized_info_t &vx_info,
         const mask_compute_func_t &compute_lanes,
@@ -122,7 +125,11 @@ expr calculate_mask_cur_step(
 expr indexing_from_diff_cond(const bool is_last_dim_1, const bool has_tail,
         const tensor_slice &input, std::vector<expr> &input_idx,
         const int32_t lanes, expr &res_idx, const expr &axis_len,
-        const expr &iter_var);
+        const expr &iter_var, const expr &floor, bool just_tail_part = false);
+expr last_dim_generate_mask(const expr &iter_var, const expr &floor,
+        expr const &last_dim_len, int const &lanes,
+        bool just_tail_part = false);
+void vec_backend_require(const context_ptr &ctx, bool &use_vectorized);
 void compute_mask_and_generate_condition(sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const sc_dims &plain_dims,
         sc_data_format_t format, const std::vector<expr> &iter_vars, int lanes,
@@ -160,14 +167,14 @@ bool is_dynamic_slice_range_list(const slice_range_list &in_slice_range_list);
 //         B[j, i] = A[i, j];
 //     }
 // }
-// TODO(xxx): currently we mark this penalty on op, we will add loop analysis
-// pass for tensor sequential access analysis in future
+// TODO(xxx): currently we mark this penalty on op, we will add loop
+// analysis pass for tensor sequential access analysis in future
 static constexpr size_t workload_penalty_coefficient = 16UL;
 
 float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
         bool check_use_full_threads = false);
-// return static loop parallelism coefficient to satisfy the parallelism and the
-// related condition expr.
+// return static loop parallelism coefficient to satisfy the parallelism and
+// the related condition expr.
 float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
         expr &cond, bool check_use_full_threads = false);
 expr cast_to_s32(const expr &in);
@@ -178,6 +185,25 @@ bool slice_expr_equals(const expr &in1, const expr &in2);
 // others...]
 std::vector<graph_tensor_ptr> get_sorted_inputs_by_layout_input(
         const sc_op_ptr &op);
+
+/**
+ * @return Bool: return if given slice comes from the inner most anchor with non
+ * dividable lanes
+ * @param ctx: context, used to query max lanes
+ * @param slice: given slice range
+ * @param dtype: data type kind, used to query max lanes
+ * @param floor: if return is True, recording `floor` value for last dims
+ * divided by max lanes
+ * @param tail: if return is True, recording `tail` value for last dims divided
+ * by max lanes
+ * */
+bool innermost_slice_with_non_dividable_lanes(const context_ptr &ctx,
+        const slice_range &slice, const sc_data_type_t &dtype, sc_dim &floor,
+        sc_dim &tail);
+
+variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code);
+variant<float, int64_t> numeric_limits_maximum(sc_data_etype type_code);
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

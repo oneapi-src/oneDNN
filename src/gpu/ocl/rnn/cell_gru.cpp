@@ -32,24 +32,24 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
     data_type_t src_t = this->pd()->src_type;
 
-    cl_ulong cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
+    dim_t cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
             cell_wei_iter_offset, cell_ws_iter_offset2, cell_wei_iter_offset2,
             cell_scratch_offset2;
 
-    set_offsets_fwd_gemm(rnn, iter, dir, lay, src_t, wei_iter_offset_ptr,
+    set_offsets_fwd_gemm(rnn, iter, dir, lay, src_t, wei_iter_offsets,
             ws_states_offset_, cell_ws_iter_offset, cell_ws_lay_offset,
             cell_scratch_offset, cell_wei_iter_offset);
 
     cell_scratch_offset2 = cell_scratch_offset;
 
-    set_gru_offsets_part2(rnn, iter, dir, lay, src_t, wei_iter_offset_ptr,
+    set_gru_offsets_part2(rnn, iter, dir, lay, src_t, wei_iter_offsets,
             ws_states_offset_, cell_wei_iter_offset2, cell_scratch_offset2,
             cell_ws_iter_offset2);
 
     if (aprop == prop_kind::forward) {
         // 1. gemm Wx[0-2],x
         if (!rnn.merge_gemm_layer)
-            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
+            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
                     workspace.ws(), cell_ws_lay_offset, scratch_gates,
                     cell_scratch_offset, gemm_layer_fwd));
 
@@ -74,7 +74,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 scratch_dhG1, bias, tm_scales, diff_bias, PART_TWO));
 
     } else {
-        cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
+        dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off,
                 cell_scr_diff_iter_off, cell_scr_diff_lay_off,
                 cell_diff_wei_iter_off2;
 
@@ -125,7 +125,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                     gemm_diff_wei_layer));
 
             // dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
-            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
+            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
                     scratch_gates, cell_scratch_offset, scratch_diff_states,
                     cell_scr_diff_lay_off, gemm_layer_bwd));
         }

@@ -26,7 +26,7 @@ namespace gc {
 namespace xbyak {
 
 /* *
- * Calculate the liveness of each ir expr, the live range is determined by fist
+ * Calculate the liveness of each ir expr, the live range is determined by first
  * and last use of an expr at stmt ir index.
  * */
 class live_interval_t : public function_pass_t {

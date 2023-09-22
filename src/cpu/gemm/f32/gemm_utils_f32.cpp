@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,8 +56,8 @@ void calc_nthr_nocopy_avx(dim_t m, dim_t n, dim_t k, int nthrs, int *nthrs_m,
     dim_t MB, NB, KB;
 
     nthr = nthrs;
-    nthr_m = (m + BM_NOCOPY_AVX - 1) / BM_NOCOPY_AVX;
-    nthr_n = (n + BN_NOCOPY_AVX - 1) / BN_NOCOPY_AVX;
+    nthr_m = static_cast<int>((m + BM_NOCOPY_AVX - 1) / BM_NOCOPY_AVX);
+    nthr_n = static_cast<int>((n + BN_NOCOPY_AVX - 1) / BN_NOCOPY_AVX);
     nthr_k = 1;
 
     // Partition along K dimension
@@ -94,7 +94,8 @@ void calc_nthr_nocopy_avx(dim_t m, dim_t n, dim_t k, int nthrs, int *nthrs_m,
         if (nthr_m <= nthr_n) {
             nthr_m = (int)sqrt((double)nthr);
             if (nthr_m > (m + BM_SMALL_NOCOPY_AVX - 1) / BM_SMALL_NOCOPY_AVX)
-                nthr_m = (m + BM_SMALL_NOCOPY_AVX - 1) / BM_SMALL_NOCOPY_AVX;
+                nthr_m = static_cast<int>(
+                        (m + BM_SMALL_NOCOPY_AVX - 1) / BM_SMALL_NOCOPY_AVX);
             nthr_n = nthr / nthr_m;
 
             while ((nthr_m > 1) && (nthr_m * nthr_n != nthr)) {
@@ -104,7 +105,8 @@ void calc_nthr_nocopy_avx(dim_t m, dim_t n, dim_t k, int nthrs, int *nthrs_m,
         } else {
             nthr_n = (int)sqrt((double)nthr);
             if (nthr_n > (n + BN_SMALL_NOCOPY_AVX - 1) / BN_SMALL_NOCOPY_AVX)
-                nthr_n = (n + BN_SMALL_NOCOPY_AVX - 1) / BN_SMALL_NOCOPY_AVX;
+                nthr_n = static_cast<int>(
+                        (n + BN_SMALL_NOCOPY_AVX - 1) / BN_SMALL_NOCOPY_AVX);
             nthr_m = nthr / nthr_n;
 
             while ((nthr_n > 1) && (nthr_m * nthr_n != nthr)) {
@@ -121,9 +123,9 @@ void calc_nthr_nocopy_avx(dim_t m, dim_t n, dim_t k, int nthrs, int *nthrs_m,
     KB = (k + nthr_k - 1) / nthr_k + BK_SMALL_NOCOPY_AVX - 1;
     KB -= KB % BK_SMALL_NOCOPY_AVX;
 
-    if (MB * nthr_m > m) nthr_m = (m + MB - 1) / MB;
-    if (NB * nthr_n > n) nthr_n = (n + NB - 1) / NB;
-    if (KB * nthr_k > k) nthr_k = (k + KB - 1) / KB;
+    if (MB * nthr_m > m) nthr_m = static_cast<int>((m + MB - 1) / MB);
+    if (NB * nthr_n > n) nthr_n = static_cast<int>((n + NB - 1) / NB);
+    if (KB * nthr_k > k) nthr_k = static_cast<int>((k + KB - 1) / KB);
 
     *nthrs_m = nthr_m;
     *nthrs_n = nthr_n;
@@ -175,7 +177,7 @@ void calc_nthr_nocopy_avx512_common(dim_t m, dim_t n, dim_t k, int nthrs,
     nthr = nthrs;
 
     int counter = 0;
-    float ratio_float = 1.;
+    float ratio_float = 1.f;
     int ratio = 1;
     nthr = nthrs;
     int nthr_m_gt_n;
@@ -186,7 +188,7 @@ void calc_nthr_nocopy_avx512_common(dim_t m, dim_t n, dim_t k, int nthrs,
     if (dnnl_thr_syncable()) {
         if (n <= 2 * BN_NOCOPY_AVX512_COMMON
                 && m <= 2 * BM_NOCOPY_AVX512_COMMON * nthr && k > m && k > n) {
-            nthr_k = k / BK_NOCOPY_AVX512_COMMON;
+            nthr_k = static_cast<int>(k / BK_NOCOPY_AVX512_COMMON);
             if (nthr_k > nthr / 4) nthr_k = nthr / 4;
             if (nthr_k < 1) nthr_k = 1;
 
@@ -198,19 +200,21 @@ void calc_nthr_nocopy_avx512_common(dim_t m, dim_t n, dim_t k, int nthrs,
             nthr_k = 1;
         }
     }
-    nthr_m = (m + BM_NOCOPY_AVX512_COMMON - 1) / BM_NOCOPY_AVX512_COMMON;
-    nthr_n = (n + BN_NOCOPY_AVX512_COMMON - 1) / BN_NOCOPY_AVX512_COMMON;
+    nthr_m = static_cast<int>(
+            (m + BM_NOCOPY_AVX512_COMMON - 1) / BM_NOCOPY_AVX512_COMMON);
+    nthr_n = static_cast<int>(
+            (n + BN_NOCOPY_AVX512_COMMON - 1) / BN_NOCOPY_AVX512_COMMON);
 
     if (nthr_m < 1) nthr_m = 1;
     if (nthr_n < 1) nthr_n = 1;
 
     nthr_m_gt_n = nthr_m > nthr_n ? 1 : 0;
-    ratio_float = (float)nthr_m / nthr_n;
+    ratio_float = static_cast<float>(nthr_m) / static_cast<float>(nthr_n);
 
     if (nthr_m_gt_n)
         ratio = (int)ratio_float;
     else
-        ratio = (int)(1. / ratio_float);
+        ratio = (int)(1.f / ratio_float);
 
     // scale down nthr_m and nthr_n if they are too large
     while (nthr_m * nthr_n > 4 * nthr) {
@@ -270,8 +274,9 @@ void calc_nthr_nocopy_avx512_common(dim_t m, dim_t n, dim_t k, int nthrs,
             nthr_m = (int)sqrt((double)nthr);
             if (nthr_m > (m + BM_SMALL_NOCOPY_AVX512_COMMON - 1)
                             / BM_SMALL_NOCOPY_AVX512_COMMON)
-                nthr_m = (m + BM_SMALL_NOCOPY_AVX512_COMMON - 1)
-                        / BM_SMALL_NOCOPY_AVX512_COMMON;
+                nthr_m = static_cast<int>(
+                        (m + BM_SMALL_NOCOPY_AVX512_COMMON - 1)
+                        / BM_SMALL_NOCOPY_AVX512_COMMON);
             nthr_n = nthr / nthr_m;
 
             while ((nthr_m > 1) && (nthr_m * nthr_n != nthr)) {
@@ -282,8 +287,9 @@ void calc_nthr_nocopy_avx512_common(dim_t m, dim_t n, dim_t k, int nthrs,
             nthr_n = (int)sqrt((double)nthr);
             if (nthr_n > (n + BN_SMALL_NOCOPY_AVX512_COMMON - 1)
                             / BN_SMALL_NOCOPY_AVX512_COMMON)
-                nthr_n = (n + BN_SMALL_NOCOPY_AVX512_COMMON - 1)
-                        / BN_SMALL_NOCOPY_AVX512_COMMON;
+                nthr_n = static_cast<int>(
+                        (n + BN_SMALL_NOCOPY_AVX512_COMMON - 1)
+                        / BN_SMALL_NOCOPY_AVX512_COMMON);
             nthr_m = nthr / nthr_n;
 
             while ((nthr_n > 1) && (nthr_m * nthr_n != nthr)) {
@@ -300,9 +306,9 @@ void calc_nthr_nocopy_avx512_common(dim_t m, dim_t n, dim_t k, int nthrs,
     KB = (k + nthr_k - 1) / nthr_k + BK_SMALL_NOCOPY_AVX512_COMMON - 1;
     KB -= KB % BK_SMALL_NOCOPY_AVX512_COMMON;
 
-    if (MB * nthr_m > m) nthr_m = (m + MB - 1) / MB;
-    if (NB * nthr_n > n) nthr_n = (n + NB - 1) / NB;
-    if (KB * nthr_k > k) nthr_k = (k + KB - 1) / KB;
+    if (MB * nthr_m > m) nthr_m = static_cast<int>((m + MB - 1) / MB);
+    if (NB * nthr_n > n) nthr_n = static_cast<int>((n + NB - 1) / NB);
+    if (KB * nthr_k > k) nthr_k = static_cast<int>((k + KB - 1) / KB);
 
     *nthrs_m = nthr_m;
     *nthrs_n = nthr_n;

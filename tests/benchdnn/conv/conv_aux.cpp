@@ -67,7 +67,8 @@ int str2desc(desc_t *desc, const char *str) {
      */
 
     desc_t d {0};
-    d.g = 1;
+    d.g = -1;
+    d.has_groups = false;
     d.mb = 2;
     d.sd = d.sh = d.sw = 1;
     d.pd = d.ph = d.pw = -1;
@@ -90,8 +91,6 @@ int str2desc(desc_t *desc, const char *str) {
                 return FAIL; \
             } \
             s += (end_s - s); \
-            /* check any # groups, including one, works correctly */ \
-            if (!strncmp(prb, "g", 1)) d.has_groups = true; \
             if (d.c < 0) { \
                 BENCHDNN_PRINT(0, \
                         "ERROR: `%s` must be positive. Full descriptor " \
@@ -155,7 +154,15 @@ int str2desc(desc_t *desc, const char *str) {
 
 #define CHECK_SET_OR_ZERO(val) CHECK_SET_OR_ZERO_VAL(#val, val)
 
-    CHECK_SET_OR_ZERO(d.g);
+    // Check any number of groups, including one, works correctly.
+    if (d.g >= 0) {
+        CHECK_SET_OR_ZERO(d.g);
+        d.has_groups = true;
+    } else {
+        // Rest of driver pieces rely on the logic that `g` is positive.
+        d.g = 1;
+    }
+
     CHECK_SET_OR_ZERO(d.ic);
     CHECK_SET_OR_ZERO(d.oc);
     CHECK_SET_OR_ZERO(d.sd);

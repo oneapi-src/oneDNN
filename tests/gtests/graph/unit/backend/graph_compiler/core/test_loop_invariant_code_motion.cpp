@@ -18,11 +18,17 @@
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/ssa_visitor.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/loop_invariant_code_motion.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
 #include <util/any_map.hpp>
+#include <util/def.hpp>
+
+#if SC_BUILTIN_JIT_ENABLED
+#include <compiler/jit/xbyak/ir/transform/indexing_transform.hpp>
+#endif
 
 #include <iostream>
 #include "gtest/gtest.h"
@@ -331,10 +337,13 @@ TEST(GCCore_CPU_licm_transform, TestLICMTransformIfNodeHoist) {
         _var_init_(t10, s32, 1);
         _var_init_(t11, datatypes::boolean, true);
         _for_(i, t8, t9, t10) {
-            expr c_6_;
-            _if_(t11) { _var_init_copy_(c_6, s32, A[i]); }
-            _var_init_(c_7, s32, builder::make_phi({0, c_6_}));
-            A[c_7] = c_7;
+            expr c_6 = builder::make_var(s32, "c6");
+            _var_init_(c_5, s32, builder::make_phi({0, c_6}, true));
+            expr c_4_;
+            _if_(t11) { _var_init_copy_(c_4, s32, A[i]); }
+            builder::get_current_builder()->push_var_tensor_def(
+                    c_6, linkage::local, builder::make_phi({c_5, c_4_}));
+            A[c_6] = c_6;
         }
         //
         _var_init_(f, s32, 1);
@@ -344,11 +353,14 @@ TEST(GCCore_CPU_licm_transform, TestLICMTransformIfNodeHoist) {
         _var_init_(t18, s32, 0);
         _var_init_(t22, s32, 0);
         _for_(i, t15, t16, t17) {
+            expr f_10 = builder::make_var(s32, "f10");
             _var_init_(t19, datatypes::boolean, i == t18);
+            _var_init_(f_9, s32, builder::make_phi({f, f_10}, true));
             expr e_1_, e_2_, f_7_;
             _if_(t19) { _var_init_copy_(f_7, s32, 3); }
-            _var_init_(f_8, s32, builder::make_phi({f, f_7_}));
-            _var_init_(t23, datatypes::boolean, f_8 == t22);
+            builder::get_current_builder()->push_var_tensor_def(
+                    f_10, linkage::local, builder::make_phi({f_9, f_7_}));
+            _var_init_(t23, datatypes::boolean, f_10 == t22);
             _if_(t23) { _var_init_copy_(e_1, s32, 1); }
             _else_ { _var_init_copy_(e_2, s32, 2); }
             _var_init_(e_3, s32, builder::make_phi({e_1_, e_2_}));
@@ -419,6 +431,7 @@ TEST(GCCore_CPU_licm_transform, TestLICMTransformIfNodeHoist) {
     }
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
+    std::cout << cmper;
 }
 
 TEST(GCCore_CPU_licm_transform, TestLICMTransformIndexing) {
@@ -641,3 +654,146 @@ TEST(GCCore_CPU_licm_transform, TestLICMTransformAliasTensor) {
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
+
+TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
+    builder::ir_builder_t builder;
+    _function_(s32, ccc, _arg_("A", datatypes::s32, {10000}),
+            _arg_("B", datatypes::s32, {10000})) {
+        _bind_(A, B);
+        _for_(i, 0, 10) {
+            _var_init_(a, datatypes::s32, 0);
+            _if_(i > 0) { a = 2; }
+            A[0] = a;
+            _var_init_(c, datatypes::s32, 1);
+            _var_init_(d, datatypes::s32, 2);
+            _var_init_(e, datatypes::s32, c + d);
+            _if_(0) { e = 5; }
+            A[1] = e;
+            _var_init_(f, datatypes::s32, 0);
+            _if_(0) {
+                B[1] = 2;
+                f = B[0];
+            }
+            A[2] = f;
+        }
+        _return_(0);
+    }
+    ssa_transform_t s;
+    auto out = s(ccc);
+
+    loop_invariant_code_motion_t licm;
+    out = licm(out);
+
+    _function_(s32, expected, _arg_("A", datatypes::s32, {10000}),
+            _arg_("B", datatypes::s32, {10000})) {
+        _bind_(A, B);
+        _var_init_(t0, s32, 0);
+        _var_init_(t1, s32, 10);
+        _var_init_(t2, s32, 1);
+        _var_init_(t3, s32, 0);
+        _var_init_(t7, s32, 0);
+        _var_init_(c, s32, 1);
+        _var_init_(d, s32, 2);
+        _var_init_(e, s32, c + d);
+        expr e2_;
+        _var_init_(t8, s32, 0);
+        _if_(t8) { _var_init_copy_(e2, s32, 5); }
+        _var_init_(e3, s32, builder::make_phi({e, e2_}));
+        _var_init_(t12, s32, 1);
+        _var_init_(t13, s32, 0);
+        _var_init_(t19, s32, 2);
+
+        _for_(i, t0, t1, t2) {
+            _var_init_(a, s32, 0);
+            _var_init_(t4, datatypes::boolean, i > t3);
+            expr a0_;
+            _if_(t4) { _var_init_copy_(a0, s32, 2); }
+            _var_init_(a1, s32, builder::make_phi({a, a0_}));
+            A[t7] = a1;
+            A[t12] = e3;
+            _var_init_(f, s32, 0);
+            expr f4_;
+            _if_(t13) {
+                _var_init_(t14, s32, 1);
+                _var_init_(t15, s32, 2);
+                B[t14] = t15;
+                _var_init_(t16, s32, 0);
+                _var_init_copy_(f4, s32, B[t16]);
+            }
+            _var_init_(f5, s32, builder::make_phi({f, f4_}));
+            A[t19] = f5;
+        }
+
+        _var_init_(t20, s32, 0);
+        _return_(t20);
+    }
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
+
+#if SC_BUILTIN_JIT_ENABLED
+TEST(GCCore_CPU_licm_transform, TestIndexingTransformLICM) {
+    builder::ir_builder_t builder;
+    _function_(datatypes::void_t, original, _arg_("A", f32, {65536UL}),
+            _arg_("B", f32, {65536UL}), _arg_("C", f32, {65536UL})) {
+        _bind_(A, B, C);
+        _for_(idx1, 0UL, 128UL, 1UL) {
+            _for_(idx2, 0UL, 512UL, 1UL) {
+                _var_init_(a, f32, A[(UINT64_C(512) * idx1) + idx2]);
+                _var_init_(b, f32, B[(UINT64_C(512) * idx1) + idx2]);
+                C[(UINT64_C(512) * idx1) + idx2] = a + b;
+            }
+        }
+    }
+
+    constant_folder_t c1(false);
+    auto out = c1(original);
+    xbyak::indexing_transform_t t;
+    out = t(out);
+    constant_folder_t c2(false);
+    out = c2(out);
+    ssa_transform_t s;
+    out = s(out);
+    loop_invariant_code_motion_t licm;
+    out = licm(out);
+
+    auto f32_ptr = f32.get_pointerof();
+    _function_(datatypes::void_t, expected, _arg_("A", f32, {65536UL}),
+            _arg_("B", f32, {65536UL}), _arg_("C", f32, {65536UL})) {
+        _bind_(A, B, C);
+        _var_init_(t0, idx, 0UL);
+        _var_init_(t1, idx, 128UL);
+        _var_init_(t2, idx, 1UL);
+        _var_init_(t3, idx, 0UL);
+        _var_init_(t4, idx, 512UL);
+        _var_init_(t5, idx, 1UL);
+        _var_init_(t6, idx, builder::make_cast(idx, A));
+        _var_init_(t8, idx, 2048UL);
+        _var_init_(t12, idx, builder::make_cast(idx, B));
+        _var_init_(t13, idx, 2048UL);
+        _var_init_(t17, idx, builder::make_cast(idx, C));
+        _var_init_(t18, idx, 2048UL);
+        _for_(idx1, t0, t1, t2) {
+            _var_init_(i1, idx, builder::make_phi({idx1}));
+            _var_init_(t9, idx, (i1 * t8));
+            _var_init_(t10, idx, (t6 + t9));
+            _var_init_(ptr_a, f32_ptr, builder::make_cast(f32_ptr, t10));
+            _var_init_(t14, idx, (i1 * t13));
+            _var_init_(t15, idx, (t12 + t14));
+            _var_init_(ptr_b, f32_ptr, builder::make_cast(f32_ptr, t15));
+            _var_init_(t19, idx, (i1 * t18));
+            _var_init_(t20, idx, (t17 + t19));
+            _var_init_(ptr_c, f32_ptr, builder::make_cast(f32_ptr, t20));
+            _for_(idx2, t3, t4, t5) {
+                _var_init_(a, f32, ptr_a[idx2]);
+                _var_init_(b, f32, ptr_b[idx2]);
+                _var_init_(t22, f32, (a + b));
+                ptr_c[idx2] = t22;
+            }
+        }
+    }
+
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
+#endif

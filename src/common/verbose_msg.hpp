@@ -18,11 +18,17 @@
 #ifndef COMMON_VERBOSE_MSG_HPP
 #define COMMON_VERBOSE_MSG_HPP
 
+// api type strings
+#define VERBOSE_primitive "primitive"
+#define VERBOSE_graph "graph"
+#define VERBOSE_common "common"
+
 // log type strings
 #define VERBOSE_error "error"
 #define VERBOSE_create "create"
 #define VERBOSE_create_nested "create_nested"
 #define VERBOSE_exec "exec"
+#define VERBOSE_compile "compile"
 
 // log subtypes strings
 #define VERBOSE_check ":check"
@@ -73,14 +79,18 @@
 #define VERBOSE_UNSUPPORTED_ZP_CFG "unsupported zero-point configuration"
 #define VERBOSE_UNSUPPORTED_BIAS_CFG "unsupported bias configuration"
 #define VERBOSE_UNSUPPORTED_DT_CFG "unsupported datatype combination"
+#define VERBOSE_UNSUPPORTED_SPARSE_CFG "unsupported sparse md configuration"
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
 #define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"
 
+#define VERBOSE_ISA_SPARSE_ENCODING_MISMATCH \
+    "sparse encoding is not supported on this isa"
 #define VERBOSE_ISA_DT_MISMATCH \
     "datatype configuration not supported on this isa"
 #define VERBOSE_BLOCKING_FAIL "blocking heuristic failed"
 #define VERBOSE_SMALL_SHAPES "small shapes fall back"
 #define VERBOSE_NONTRIVIAL_STRIDE "only trivial strides are supported"
+#define VERBOSE_UNSUPPORTED_MEM_STRIDE "unsupported memory stride"
 
 #endif

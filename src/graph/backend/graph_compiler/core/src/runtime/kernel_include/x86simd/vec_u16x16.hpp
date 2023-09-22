@@ -18,8 +18,13 @@
 #include <immintrin.h>
 #include <stdint.h>
 #include "common.hpp"
+#include "util/assert.hpp"
 class vec_u32x16;
+class vec_s32x16;
 class vec_f32x16;
+#ifdef __AVX512FP16__
+class vec_f16x16;
+#endif
 class vec_u16x16 {
 public:
     union {
@@ -41,6 +46,10 @@ public:
     }
     INLINE vec_u16x16(__m256i const &x) { v = x; }
     INLINE operator vec_u32x16() const;
+    INLINE operator vec_s32x16() const;
+#ifdef __AVX512FP16__
+    INLINE operator vec_f16x16() const;
+#endif
 
     static INLINE vec_u16x16 load(const uint16_t *p) {
         return _mm256_loadu_si256((const __m256i *)p);
@@ -140,4 +149,37 @@ INLINE vec_u16x16 sc_max(vec_u16x16 const &a, vec_u16x16 const &b) {
 INLINE vec_u16x16 sc_min(vec_u16x16 const &a, vec_u16x16 const &b) {
     return _mm256_min_epu16(a.v, b.v);
 }
+INLINE vec_u16x16 sc_unpack_low_vec_u16x16_16bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpacklo_epi16(a.v, b.v);
+}
+INLINE vec_u16x16 sc_unpack_high_vec_u16x16_16bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpackhi_epi16(a.v, b.v);
+}
+INLINE vec_u16x16 sc_unpack_low_vec_u16x16_32bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpacklo_epi32(a.v, b.v);
+}
+INLINE vec_u16x16 sc_unpack_high_vec_u16x16_32bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpackhi_epi32(a.v, b.v);
+}
+INLINE vec_u16x16 sc_unpack_low_vec_u16x16_64bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpacklo_epi64(a.v, b.v);
+}
+INLINE vec_u16x16 sc_unpack_high_vec_u16x16_64bits(
+        vec_u16x16 const &a, vec_u16x16 const &b) {
+    return _mm256_unpackhi_epi64(a.v, b.v);
+}
+
+#define PARAM_U16X16(X) X.v
+#define sc_permute_vec_u16x16(a, b, imm) \
+    _mm256_permute2f128_si256(PARAM_U16X16(a), PARAM_U16X16(b), imm);
+#define sc_shuffle_vec_u16x16_128bits(a, b, imm8) \
+    _mm256_castps_si256( \
+            _mm256_shuffle_f32x4(_mm256_castsi256_ps(PARAM_U16X16(a)), \
+                    _mm256_castsi256_ps(PARAM_U16X16(b)), imm8));
+
 #endif

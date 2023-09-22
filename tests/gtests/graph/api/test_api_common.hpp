@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#include "tests/gtests/dnnl_test_macros.hpp"
+
 #ifdef DNNL_WITH_SYCL
 #include "sycl/sycl_compat.hpp"
 #if __has_include(<sycl/sycl.hpp>)
@@ -45,14 +47,6 @@
 
 using dim_t = int64_t;
 using dims_t = std::vector<dim_t>;
-
-#define SKIP_IF(cond, msg) \
-    do { \
-        if (cond) { \
-            std::cout << "[  SKIPPED ] " << (msg) << std::endl; \
-            GTEST_SKIP(); \
-        } \
-    } while (0)
 
 struct conv_attr_name_t {
     conv_attr_name_t()
@@ -135,6 +129,10 @@ extern dnnl_engine_kind_t api_test_engine_kind;
 #ifdef DNNL_WITH_SYCL
 struct allocator_handle_t {
     dnnl_graph_allocator_t allocator = nullptr;
+
+    allocator_handle_t() = default;
+    allocator_handle_t(const allocator_handle_t &other) = delete;
+    allocator_handle_t &operator=(const allocator_handle_t &other) = delete;
     ~allocator_handle_t() { dnnl_graph_allocator_destroy(allocator); }
     explicit operator bool() const noexcept {
         return static_cast<bool>(allocator);

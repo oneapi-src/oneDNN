@@ -65,13 +65,6 @@ namespace utils {
         return; \
     }
 
-#define REQUIRE_SINGLE_THREAD() \
-    if (::dnnl::impl::graph::gc::runtime_config_t::get().get_num_threads() \
-            != 1) { \
-        GTEST_SKIP(); \
-        return; \
-    }
-
 #define REQUIRE_AMX() \
     if (!::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512AMXTILE) { \
@@ -2915,15 +2908,18 @@ static std::vector<graph::dim_t> extract_filter_info(
 inline graph::logical_tensor_t create_dyn_dequantize(
         utils::id_generator &id_gen, graph_t &agraph,
         const graph::logical_tensor_t &src, const std::string &qtype,
-        int64_t axis) {
+        int64_t axis, graph::dim_t channel_size = 1) {
     graph::op_t dq_op(
             id_gen.get_id(), graph::op_kind::DynamicDequantize, "dequantize");
     dq_op.set_attr<std::string>(op_attr::qtype, qtype);
     dq_op.set_attr<int64_t>(op_attr::axis, axis);
 
     auto dst = utils::logical_tensor_init(id_gen.get_id(), data_type::f32);
-    graph::logical_tensor_t scale_desc
-            = utils::logical_tensor_init(id_gen.get_id(), {1}, data_type::f32);
+    graph::logical_tensor_t scale_desc = utils::logical_tensor_init(
+            id_gen.get_id(),
+            qtype == "per_channel" ? std::vector<graph::dim_t> {channel_size}
+                                   : std::vector<graph::dim_t> {1},
+            data_type::f32);
     dq_op.add_input(src);
     dq_op.add_input(scale_desc);
     dq_op.add_output(dst);
@@ -2986,9 +2982,9 @@ inline graph::logical_tensor_t create_int8_convolution_dyn_quant(
                 id_gen.get_id(), wei_shape, data_type::s8);
         int8_wei.property = property_type::constant;
     }
-
+    int64_t channel_axis = (filter_format == "OIX") ? 0 : 3;
     auto dq_wei = create_dyn_dequantize(id_gen, agraph, int8_wei, "per_channel",
-            (filter_format == "OIX") ? 0 : 3);
+            channel_axis, wei_shape[channel_axis]);
 
     auto dst = utils::logical_tensor_init(id_gen.get_id(), dq_src.data_type);
 
@@ -5280,6 +5276,114 @@ inline void add_llama_concat_subgraph(
         quant_layer.add_input(to3_out);
         quant_layer.add_output(quant_out);
         agraph->add_op(&quant_layer);
+    }
+}
+
+static void construct_starcoder_mha_base(graph::graph_t *agraph,
+        utils::id_generator &id_gen, graph::data_type_t dtype,
+        int batch_size = 1, int query_seq_len = 16, int key_seq_len = 16,
+        int num_head = 32, int head_dim = 4096) {
+    int size_per_head = head_dim / num_head;
+    std::vector<graph::dim_t> COND_MASK_SHAPE {batch_size, 1, 1, key_seq_len};
+    std::vector<graph::dim_t> QUERY_SHAPE {
+            batch_size, query_seq_len, num_head, size_per_head};
+    std::vector<graph::dim_t> KEY_SHAPE {
+            batch_size, 1, size_per_head, key_seq_len};
+    std::vector<graph::dim_t> VALUE_SHAPE {
+            batch_size, query_seq_len, key_seq_len, size_per_head};
+    std::vector<graph::dim_t> CONST_SHAPE {1};
+
+    graph::logical_tensor_t query_matmul_input, key_matmul_input,
+            value_matmul_input;
+    query_matmul_input
+            = utils::logical_tensor_init(id_gen.get_id(), QUERY_SHAPE, dtype);
+    key_matmul_input
+            = utils::logical_tensor_init(id_gen.get_id(), KEY_SHAPE, dtype);
+    value_matmul_input
+            = utils::logical_tensor_init(id_gen.get_id(), VALUE_SHAPE, dtype);
+
+    graph::logical_tensor_t matmul_qk_out;
+    matmul_qk_out = utils::logical_tensor_init(
+            id_gen.get_id(), dtype, graph::layout_type::strided);
+
+    graph::logical_tensor_t fscore_scale, fscore_scale_out;
+    fscore_scale
+            = utils::logical_tensor_init(id_gen.get_id(), CONST_SHAPE, dtype);
+    fscore_scale_out = utils::logical_tensor_init(
+            id_gen.get_id(), dtype, graph::layout_type::strided);
+
+    graph::logical_tensor_t fscore_mask, fscore_mask_else, fscore_select_out,
+            softmax_out;
+    fscore_mask = utils::logical_tensor_init(
+            id_gen.get_id(), COND_MASK_SHAPE, graph::data_type::boolean);
+    fscore_mask_else
+            = utils::logical_tensor_init(id_gen.get_id(), CONST_SHAPE, dtype);
+    fscore_select_out = utils::logical_tensor_init(
+            id_gen.get_id(), dtype, graph::layout_type::strided);
+    softmax_out = utils::logical_tensor_init(
+            id_gen.get_id(), dtype, graph::layout_type::strided);
+
+    graph::logical_tensor_t matmul_v_out;
+    matmul_v_out = utils::logical_tensor_init(
+            id_gen.get_id(), dtype, graph::layout_type::strided);
+
+    graph::op_t matmul_qk {
+            id_gen.get_id(), graph::op_kind::MatMul, "matmul_qk"};
+
+    graph::op_t fscore_rescale {
+            id_gen.get_id(), graph::op_kind::Multiply, "fscore_rescale"};
+    fscore_rescale.set_attr(
+            graph::op_attr::auto_broadcast, std::string("numpy"));
+    graph::op_t fscore_select {
+            id_gen.get_id(), graph::op_kind::Select, "fscore_select"};
+    fscore_select.set_attr(
+            graph::op_attr::auto_broadcast, std::string("numpy"));
+    graph::op_t softmax {id_gen.get_id(), graph::op_kind::SoftMax, "softmax"};
+    softmax.set_attr(graph::op_attr::axis, (int64_t)3);
+
+    graph::op_t matmul_v {id_gen.get_id(), graph::op_kind::MatMul, "matmul_v"};
+
+    matmul_qk.add_input(query_matmul_input);
+    matmul_qk.add_input(key_matmul_input);
+    matmul_qk.add_output(matmul_qk_out);
+    fscore_rescale.add_input(matmul_qk_out);
+    fscore_rescale.add_input(fscore_scale);
+    fscore_rescale.add_output(fscore_scale_out);
+    fscore_select.add_input(fscore_mask);
+    fscore_select.add_input(fscore_scale_out);
+    fscore_select.add_input(fscore_mask_else);
+    fscore_select.add_output(fscore_select_out);
+    softmax.add_input(fscore_select_out);
+    softmax.add_output(softmax_out);
+    matmul_v.add_input(softmax_out);
+    matmul_v.add_input(value_matmul_input);
+    matmul_v.add_output(matmul_v_out);
+
+    agraph->add_op(&matmul_qk);
+    agraph->add_op(&fscore_rescale);
+    agraph->add_op(&fscore_select);
+    agraph->add_op(&softmax);
+    agraph->add_op(&matmul_v);
+}
+
+inline void construct_starcoder_mha_subgraph(graph::graph_t *agraph,
+        utils::id_generator &id_gen, bool use_bf16 = false,
+        bool use_int8 = false, int batch_size = 1, int query_seq_len = 16,
+        int key_seq_len = 16, int num_head = 32, int head_dim = 4096) {
+    construct_starcoder_mha_base(agraph, id_gen,
+            use_bf16 ? graph::data_type::bf16 : graph::data_type::f32,
+            batch_size, query_seq_len, key_seq_len, num_head, head_dim);
+    auto ops = agraph->get_ops();
+    // insert quantize / dequantize / typecast
+    if (use_int8) {
+        for (const auto &op : ops) {
+            if (op->get_kind() == graph::op_kind::MatMul) {
+                insert_quantization_before_op(
+                        agraph, id_gen, op.get(), 0, use_bf16);
+                insert_quantization_before_op(
+                        agraph, id_gen, op.get(), 1, use_bf16);
+            }
+        }
     }
 }
 

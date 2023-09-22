@@ -64,7 +64,12 @@ int get_minibatch(const int &bs, const int &min_os) {
     int minibatch = std::max(sc_dim(1), sc_dim(28) / sc_dim(std::sqrt(min_os)));
     if ((bs / minibatch % num_threads != 0
                 && bs / minibatch < 4 * num_threads)) {
-        return 1;
+        // TODO(zhicong): use a more general way for minibatch image affinity
+        if (bs % num_threads == 0) {
+            return 1;
+        } else {
+            return bs;
+        }
     }
     return bs % minibatch == 0 ? minibatch : 1;
 }
@@ -96,6 +101,8 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
         if (auto op = node->dyn_cast<ops::conv_fwd_core_op_t>()) {
             auto data_plain_shape
                     = op->get_inputs()[0]->details_.get_plain_dims();
+            // do not support dynamic shape
+            if (op->get_inputs()[0]->is_dynamic()) return;
             auto data_origin_shape
                     = op->get_inputs()[0]->details_.get_blocking_dims();
             auto weight_origin_shape
@@ -105,6 +112,8 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
             auto &pads_begin = op->attrs_.has_key("pads_begin")
                     ? op->attrs_.get<sc_dims>("pads_begin")
                     : op->attrs_.get<sc_dims>("paddings");
+            sc_dim groups = op->attrs_.get_or_else("groups", 1);
+            if (groups > 1) { return; }
             auto weight_plain_dims
                     = op->get_inputs()[1]->details_.get_plain_dims();
             auto kh = weight_plain_dims[ndims - 2];

@@ -25,19 +25,16 @@ namespace jit {
 
 // Adds size one spatial dimensions according to input parameters. Spatial
 // dimensions are assumed to be the last dimensions.
-layout_t normalize_conv_spatial(const layout_t &layout, int old_sp_ndims,
-        int reduced_dim, bool fuse_spatial) {
+layout_t normalize_conv_spatial(
+        const layout_t &layout, int old_sp_ndims, int reduced_dim) {
     int old_ndims = layout.ndims();
-    int new_ndims = old_ndims - old_sp_ndims + (fuse_spatial ? 1 : 3);
+    int new_ndims = old_ndims - old_sp_ndims + 3;
 
     dim_assignment_t to_3d(old_ndims, new_ndims);
     for (int i = 0; i < old_ndims; i++) {
         if (i < old_ndims - old_sp_ndims) {
             // Non-spatial dimensions.
             to_3d.assign(i, i);
-        } else if (fuse_spatial) {
-            // Spatial dimensions, fuse to one.
-            to_3d.assign(i, new_ndims - 1);
         } else {
             // Spatial dimensions.
             int sp_idx = 3 - (old_ndims - i);
@@ -126,13 +123,11 @@ layout_t normalize_conv_groups(const layout_t &layout, bool with_groups,
 }
 
 layout_t normalize_conv_layout(const layout_t &_layout, bool with_groups,
-        int groups, bool is_dw, int reduced_dim, bool fuse_spatial,
-        bool add_groups, bool is_wei) {
+        int groups, bool is_dw, int reduced_dim, bool add_groups, bool is_wei) {
     int old_sp_ndims = _layout.ndims() - (with_groups ? 3 : 2);
 
     layout_t layout = _layout;
-    layout = normalize_conv_spatial(
-            layout, old_sp_ndims, reduced_dim, fuse_spatial);
+    layout = normalize_conv_spatial(layout, old_sp_ndims, reduced_dim);
     layout = normalize_conv_groups(
             layout, with_groups, groups, is_dw, add_groups, is_wei);
 
@@ -141,27 +136,23 @@ layout_t normalize_conv_layout(const layout_t &_layout, bool with_groups,
 
 std::vector<dim_t> normalize_conv_dims(std::vector<dim_t> &dims,
         bool with_groups, int groups, bool is_dw, int reduced_dim,
-        bool fuse_spatial, bool add_groups, bool is_wei) {
+        bool add_groups, bool is_wei) {
     layout_t dummy_layout(type_t::u8(), 0, dims);
     return normalize_conv_layout(dummy_layout, with_groups, groups, is_dw,
-            reduced_dim, fuse_spatial, add_groups, is_wei)
+            reduced_dim, add_groups, is_wei)
             .dims();
 }
 
 void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
         layout_t &dst_layout, layout_t &bia_layout, bool with_groups, int g,
-        int ic, int oc, bool is_dw, int reduced_dim, bool fuse_spatial,
-        bool add_groups) {
+        int ic, int oc, bool is_dw, int reduced_dim, bool add_groups) {
     src_layout = normalize_conv_layout(src_layout, /*with_groups=*/false,
-            g > 1 ? src_layout.dim(1) / ic : 1, is_dw, reduced_dim,
-            fuse_spatial, add_groups,
+            g > 1 ? src_layout.dim(1) / ic : 1, is_dw, reduced_dim, add_groups,
             /*is_wei=*/false);
     wei_layout = normalize_conv_layout(wei_layout, with_groups, g, is_dw,
-            reduced_dim,
-            /*fuse_spatial=*/false, add_groups, /*is_wei=*/true);
+            reduced_dim, add_groups, /*is_wei=*/true);
     dst_layout = normalize_conv_layout(dst_layout, /*with_groups=*/false,
-            g > 1 ? dst_layout.dim(1) / oc : 1, is_dw, reduced_dim,
-            fuse_spatial, add_groups,
+            g > 1 ? dst_layout.dim(1) / oc : 1, is_dw, reduced_dim, add_groups,
             /*is_wei=*/false);
     if (add_groups && !bia_layout.is_empty()) {
         ir_assert(bia_layout.ndims() == 1) << bia_layout;
@@ -182,7 +173,7 @@ uint32_t conv_post_op_view_mapper_t::normalize_mask(uint32_t orig_mask) const {
         if ((orig_mask & (1 << i)) != 0) dummy_dims[i] = mask_set_value;
     }
     auto cvt_dims = normalize_conv_dims(dummy_dims, /*with_groups=*/false,
-            prb_.g, prb_.is_dw, prb_.reduced_dim, fuse_spatial_,
+            prb_.g, prb_.is_dw, prb_.reduced_dim,
             /*add_groups=*/false, /*is_wei=*/false);
     // Split channels into groups and channels to match ngcdhw layout.
     if (add_groups) cvt_dims.insert(cvt_dims.begin() + 1, cvt_dims[1]);
@@ -216,12 +207,12 @@ view_t conv_post_op_view_mapper_t::create_view(const memory_desc_t &md) const {
     std::vector<dim_t> padded_dims(md.padded_dims, md.padded_dims + md.ndims);
     maybe_reshape_dims(prb_.ndims, layout, dims, padded_dims);
     layout = normalize_conv_layout(layout, /*with_groups=*/false, prb_.g,
-            prb_.is_dw, prb_.reduced_dim, fuse_spatial_, add_groups,
+            prb_.is_dw, prb_.reduced_dim, add_groups,
             /*is_wei=*/false);
     dims = normalize_conv_dims(dims, /*with_groups=*/false, prb_.g, prb_.is_dw,
-            prb_.reduced_dim, fuse_spatial_, add_groups, /*is_wei=*/false);
+            prb_.reduced_dim, add_groups, /*is_wei=*/false);
     padded_dims = normalize_conv_dims(padded_dims, /*with_groups=*/false,
-            prb_.g, prb_.is_dw, prb_.reduced_dim, fuse_spatial_, add_groups,
+            prb_.g, prb_.is_dw, prb_.reduced_dim, add_groups,
             /*is_wei=*/false);
     ir_assert(layout.ndims() == cp_ndims) << "Incompatible dimensions.";
     uint32_t bound_check_mask = 0;

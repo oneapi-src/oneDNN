@@ -621,6 +621,17 @@ dnnl::memory::format_tag get_format_tag(const dnnl::memory::desc &md) {
     return format_tag;
 }
 
+size_t generate_constant_cache_key(
+        size_t part_id, const std::vector<dnnl::memory::desc> &const_mds) {
+    size_t key = 0;
+    key = hash_combine(key, part_id);
+    for (auto &md : const_mds) {
+        auto md_hash = impl::primitive_hashing::get_md_hash(*md.get());
+        key = hash_combine(key, md_hash);
+    }
+    return key;
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

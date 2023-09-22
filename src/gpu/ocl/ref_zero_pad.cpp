@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -303,7 +303,10 @@ status_t ref_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
                     ctx.stream()->engine());
     const compute::device_info_t *device = engine->device_info();
 
-    const size_t max_local_ws = device->max_wg_size();
+    auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+            pd()->attr()->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
+    const size_t max_local_ws = device->max_wg_size(large_grf_mode);
 
     const auto &dims = mdw.dims();
     const auto nelems = mdw.nelems(true);

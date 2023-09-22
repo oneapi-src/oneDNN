@@ -109,6 +109,22 @@ if(NOT (CMAKE_C_COMPILER_LOADED OR CMAKE_CXX_COMPILER_LOADED OR CMAKE_Fortran_CO
   endif()
 endif()
 
+function(_add_blas_target)
+  if(BLAS_FOUND AND NOT TARGET BLAS::BLAS)
+    add_library(BLAS::BLAS INTERFACE IMPORTED)
+    if(BLAS_LIBRARIES)
+      set_target_properties(BLAS::BLAS PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${BLAS_LIBRARIES}"
+      )
+    endif()
+    if(BLAS_LINKER_FLAGS)
+      set_target_properties(BLAS::BLAS PROPERTIES
+        INTERFACE_LINK_OPTIONS "${BLAS_LINKER_FLAGS}"
+      )
+    endif()
+  endif()
+endfunction()
+
 if(CMAKE_Fortran_COMPILER_LOADED)
   include(${CMAKE_CURRENT_LIST_DIR}/CheckFortranFunctionExists.cmake)
 else()
@@ -125,6 +141,7 @@ if(BLA_PREFER_PKGCONFIG)
   if(PKGC_BLAS_FOUND)
     set(BLAS_FOUND ${PKGC_BLAS_FOUND})
     set(BLAS_LIBRARIES "${PKGC_BLAS_LINK_LIBRARIES}")
+    _add_blas_target()
     return()
   endif()
 endif()
@@ -943,3 +960,5 @@ endif()
 
 cmake_pop_check_state()
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${_blas_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES})
+
+_add_blas_target()

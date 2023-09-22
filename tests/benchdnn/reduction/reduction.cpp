@@ -80,6 +80,7 @@ problem_bounds get_problem_bounds(alg_t alg, dnnl_data_type_t dt) {
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
+    res_t *res = init_pd_args.res;
 
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[0].data(), prb->sdt, prb->stag);
@@ -91,10 +92,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    DNN_SAFE_STATUS(dnnl_reduction_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, alg2alg_kind(prb->alg),
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_reduction_primitive_desc_create(
+            &init_pd_args.pd, init_pd_args.engine, alg2alg_kind(prb->alg),
             init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d, prb->p,
-            prb->eps, dnnl_attr));
+            prb->eps, dnnl_attr)));
 
     return dnnl_success;
 }
@@ -132,8 +133,9 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         value_range = 1000;
     }
 
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         const int64_t idx_start = idx_chunk * chunk_size;
@@ -294,8 +296,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(
+                           ref_mem_map, mem_map, prim, prb, res, prb->dir),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 

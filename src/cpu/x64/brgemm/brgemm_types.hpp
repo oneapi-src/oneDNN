@@ -68,8 +68,10 @@ typedef enum {
 
 typedef enum {
     brgemm_prf_default = 1,
+    brgemm_prf0,
     brgemm_prf1,
     brgemm_prf2,
+    brgemm_prfNTA,
 } brgemm_kernel_prefetching_t;
 
 typedef enum {
@@ -85,8 +87,10 @@ typedef enum {
 } brgemm_kernel_hint_nt_t;
 
 struct brgemm_prf_t {
-    int dist1 = -1;
-    int dist2 = -1;
+    int dist0 {-1};
+    int dist1 {-1};
+    int dist2 {-1};
+    int distNTA {-1};
 };
 
 struct brgemm_batch_element_t {
@@ -213,6 +217,7 @@ struct brgemm_t {
     bool is_dgmm = false; // set to true in brdgmm_desc_init
     bool with_sum = false;
     bool req_cal_comp_pads = false;
+    bool req_comp_pads_with_bd = false;
 
     float sum_scale = 0.0f;
     int32_t sum_zp = 0;
@@ -269,6 +274,10 @@ struct brgemm_t {
     int is_M_tail;
     bool interleave_tilestores_ = false;
     brgemm_prf_t prfA, prfB, prfC;
+    bool is_runtime_lda = false;
+    bool is_runtime_ldb = false;
+    bool is_runtime_ldc = false;
+    bool is_runtime_ldd = false;
 
     static constexpr int MAX_VPAD = 100;
     static constexpr int AMX_TILES_NUM = 8;
@@ -361,6 +370,18 @@ struct brgemm_t {
     bool operator<(const brgemm_t &rhs) const;
 };
 
+struct brgemm_dynamic_values_t {
+    dim_t dynamic_LDA = 0;
+    dim_t dynamic_LDB = 0;
+    dim_t dynamic_LDC = 0;
+    dim_t dynamic_LDD = 0;
+    brgemm_dynamic_values_t(dim_t LDA, dim_t LDB, dim_t LDC, dim_t LDD)
+        : dynamic_LDA(LDA)
+        , dynamic_LDB(LDB)
+        , dynamic_LDC(LDC)
+        , dynamic_LDD(LDD) {}
+};
+
 struct brgemm_kernel_params_t {
     const void *ptr_A;
     const void *ptr_B;
@@ -399,6 +420,10 @@ struct brgemm_kernel_params_t {
     size_t skip_accm = 0;
     int32_t zp_a_val = 1;
     const void *ptr_dst_scales = nullptr;
+    dim_t dynamic_LDA = 0;
+    dim_t dynamic_LDB = 0;
+    dim_t dynamic_LDC = 0;
+    dim_t dynamic_LDD = 0;
 };
 
 template <cpu_isa_t isa, typename Vmm>

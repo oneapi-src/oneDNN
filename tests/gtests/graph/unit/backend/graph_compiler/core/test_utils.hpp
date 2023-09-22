@@ -52,11 +52,44 @@
         return; \
     }
 
+#define SKIP_F16(dtype) \
+    if (dtype == datatypes::f16 \
+            && !::dnnl::impl::graph::gc::get_default_context() \
+                        ->machine_.cpu_flags_.fAVX512AMXFP16 \
+            && !::dnnl::impl::graph::gc::get_default_context() \
+                        ->machine_.cpu_flags_.fAVX512FP16) { \
+        return; \
+    }
+
+#define SKIP_BF16_FP16(dtype) \
+    if ((dtype == datatypes::f16 \
+                && !::dnnl::impl::graph::gc::get_default_context() \
+                            ->machine_.cpu_flags_.fAVX512AMXFP16 \
+                && !::dnnl::impl::graph::gc::get_default_context() \
+                            ->machine_.cpu_flags_.fAVX512FP16) \
+            || (dtype == datatypes::bf16 \
+                    && !::dnnl::impl::graph::gc::get_default_context() \
+                                ->machine_.cpu_flags_.fAVX512AMXBF16 \
+                    && !::dnnl::impl::graph::gc::get_default_context() \
+                                ->machine_.cpu_flags_.fAVX512BF16)) { \
+        return; \
+    }
+
 #define REQUIRE_BF16() \
     if (!::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512AMXBF16 \
             && !::dnnl::impl::graph::gc::get_default_context() \
                         ->machine_.cpu_flags_.fAVX512BF16) { \
+        GTEST_SKIP(); \
+    }
+
+#define REQUIRE_FP16() \
+    if (!(::dnnl::impl::graph::gc::get_default_context() \
+                        ->machine_.cpu_flags_.fAVX512FP16 \
+                || (::dnnl::impl::graph::gc::get_default_context() \
+                                ->machine_.cpu_flags_.fAVX512AMXFP16 \
+                        && ::dnnl::impl::graph::gc::get_default_context() \
+                                   ->machine_.cpu_flags_.fAVX512VNNI))) { \
         GTEST_SKIP(); \
     }
 
@@ -75,6 +108,18 @@
 #define REQUIRE_AVX512() \
     if (!::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512F) { \
+        GTEST_SKIP(); \
+    }
+
+#define REQUIRE_AVX512FP16() \
+    if (!::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512FP16) { \
+        GTEST_SKIP(); \
+    }
+
+#define REQUIRE_AVX512AMXFP16() \
+    if (!::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512AMXFP16) { \
         GTEST_SKIP(); \
     }
 
@@ -99,6 +144,10 @@
                     ->machine_.cpu_flags_.fAVX512VBMI) { \
         GTEST_SKIP(); \
     }
+
+#define IS_AVX512_AVAILABLE() \
+    (::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512F)
 
 #define IS_AMX_AVAILABLE() \
     (::dnnl::impl::graph::gc::get_default_context() \
@@ -392,8 +441,8 @@ static void fill_data(T *buf, size_t size, A val) {
 
 // without gtest interface so we can return count
 template <typename T>
-static int compare_data_count(T *dst, T *ref, size_t size, float rtol = 1e-4,
-        float atol = 1e-6, std::function<void()> on_error = nullptr) {
+static int compare_data_count(T *dst, T *ref, size_t size, float rtol = 1e-4f,
+        float atol = 1e-6f, std::function<void()> on_error = nullptr) {
     bool pass = true;
     std::atomic<int> count(0);
     parallel_nd(size, [&](size_t i) {
@@ -432,6 +481,34 @@ inline void compare_data_single(
 }
 
 template <typename T>
+inline void compare_data_int(
+        const T *dst, const T *ref, int i, float rtol, float atol, bool &pass) {
+    int64_t ref_64 = static_cast<int64_t>(ref[i]);
+    int64_t dst_64 = static_cast<int64_t>(dst[i]);
+    const int64_t diff_64 = dst_64 - ref_64;
+    const double gap = double(rtol)
+                    * (std::abs(ref_64) > std::abs(dst_64) ? std::abs(ref_64)
+                                                           : std::abs(dst_64))
+            + atol;
+    bool good = std::abs(diff_64) <= gap;
+    EXPECT_TRUE(good) << "Index: " << i << ", ref_64=" << ref_64
+                      << ", dst_64=" << dst_64;
+    if (!good) { pass = false; }
+}
+
+template <>
+inline void compare_data_single(const uint8_t *dst, const uint8_t *ref, int i,
+        float rtol, float atol, bool &pass) {
+    compare_data_int(dst, ref, i, rtol, atol, pass);
+}
+
+template <>
+inline void compare_data_single(const int8_t *dst, const int8_t *ref, int i,
+        float rtol, float atol, bool &pass) {
+    compare_data_int(dst, ref, i, rtol, atol, pass);
+}
+
+template <typename T>
 inline void compare_data_fp(
         const T *dst, const T *ref, int i, float rtol, float atol, bool &pass) {
     const float ref_f32 = static_cast<float>(ref[i]);
@@ -462,7 +539,7 @@ inline void compare_data_single(const bf16_t *dst, const bf16_t *ref, int i,
 
 template <typename T>
 inline void compare_data(const T *dst, const T *ref, size_t size,
-        float rtol = 1e-4, float atol = 1e-6,
+        float rtol = 1e-4f, float atol = 1e-6f,
         std::function<void()> on_error = nullptr) {
     bool pass = true;
     parallel_nd(size, [&](size_t i) {
@@ -487,11 +564,11 @@ struct is_vector_like<T, false> {
 
 // compares to vector like containers
 template <typename T1, typename T2>
-inline void compare_data(const T1 &dst, const T2 &ref, float rtol = 1e-4,
+inline void compare_data(const T1 &dst, const T2 &ref, float rtol = 1e-4f,
         typename std::enable_if<is_vector_like<T1>::value
                         && is_vector_like<T2>::value,
                 float>::type atol
-        = 1e-6,
+        = 1e-6f,
         std::function<void()> on_error = nullptr) {
     ASSERT_NE(ref.size(), 0u) << "The ref size is 0";
     ASSERT_EQ(dst.size(), ref.size())
@@ -565,6 +642,35 @@ inline sc_dims compute_dense_stride(const sc_dims &dim) {
         result[i] = result[i + 1] * dim[i + 1];
     }
     return result;
+}
+
+inline sc_dims flattened_idx_to_ndims_idx(size_t idx, const sc_dims &strides) {
+    sc_dims ret(strides.size());
+    for (size_t i = 0; i < strides.size(); ++i) {
+        ret[i] = idx / strides[i];
+        idx -= ret[i] * strides[i];
+    }
+    return ret;
+}
+
+inline sc_dims get_extended_plain_dims(const std::vector<int> &plain_axis,
+        const sc_dims &plain_dims, const sc_dims &out_plain_dims) {
+    sc_dims extended_plain_dims(out_plain_dims.size(), 1);
+    if (plain_axis != std::vector<int> {-1}) {
+        if (plain_axis.size() == 1 && plain_dims.size() == 1) {
+            // bias_add semantics
+            extended_plain_dims[plain_axis[0]] = plain_dims[0];
+        } else {
+            // auto_broadcast semantics
+            int offset = out_plain_dims.size() - plain_dims.size();
+            for (size_t i = 0; i < plain_dims.size(); ++i) {
+                if (plain_dims[i] == out_plain_dims[i + offset]) {
+                    extended_plain_dims[i + offset] = plain_dims[i];
+                }
+            }
+        }
+    }
+    return extended_plain_dims;
 }
 
 inline uint8_t get_dyn_mask(const sc_dims &in) {

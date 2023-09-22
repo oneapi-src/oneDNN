@@ -351,7 +351,7 @@ std::pair<func_t, func_t> get_brgemm_update_funcs(
     return std::pair<func_t, func_t>();
 }
 
-void brgemm_init_update(const expr &A, const expr &B, const expr &C,
+evaluate brgemm_init_update(const expr &A, const expr &B, const expr &C,
         const expr &num, const expr &M, const expr &N, const expr &K,
         const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
         const expr &stride_b, const sc_data_type_t &dtypeA,
@@ -360,14 +360,16 @@ void brgemm_init_update(const expr &A, const expr &B, const expr &C,
         const int &bd_mask_set_num,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
-    builder::get_current_builder()->brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC,
-            stride_a, stride_b, postops_data, c_buf, bd_mask_idx,
-            {brgemm_args::cpu_t {true}, dtypeA, dtypeB,
-                    infer_output_dtype(dtypeA), brg_attrs, bd_mask,
-                    bd_mask_set_num, postops_set});
+    return builder::get_current_builder()
+            ->brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a, stride_b,
+                    postops_data, c_buf, bd_mask_idx,
+                    {brgemm_args::cpu_t {true}, dtypeA, dtypeB,
+                            infer_output_dtype(dtypeA), brg_attrs, bd_mask,
+                            bd_mask_set_num, postops_set})
+            .checked_as<evaluate>();
 }
 
-void brgemm_init_update_allow_fusion(const expr &A, const expr &B,
+evaluate brgemm_init_update_allow_fusion(const expr &A, const expr &B,
         const expr &C, const expr &num, const expr &M, const expr &N,
         const expr &K, const expr &LDA, const expr &LDB, const expr &LDC,
         const expr &stride_a, const expr &stride_b,
@@ -376,34 +378,38 @@ void brgemm_init_update_allow_fusion(const expr &A, const expr &B,
         const expr &bd_mask_idx, const int &bd_mask_set_num,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
-    brgemm_init_update(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a, stride_b,
-            dtypeA, dtypeB, brg_attrs, bd_mask, bd_mask_idx, bd_mask_set_num,
-            postops_set, postops_data, c_buf);
+    auto ret = brgemm_init_update(A, B, C, num, M, N, K, LDA, LDB, LDC,
+            stride_a, stride_b, dtypeA, dtypeB, brg_attrs, bd_mask, bd_mask_idx,
+            bd_mask_set_num, postops_set, postops_data, c_buf)
+                       .checked_as<evaluate>();
     builder::get_current_builder()
             ->get_current_scope()
             .body.back()
             .checked_as<evaluate>()
             ->value_.checked_as<intrin_call>()
             ->intrin_attrs_->set(intrin_attr::allow_brgemm_fusion, true);
+    return ret;
 }
 
-void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
-        const expr &M, const expr &N, const expr &K, const expr &LDA,
-        const expr &LDB, const expr &LDC, const expr &stride_a,
+evaluate brgemm_update(const expr &A, const expr &B, const expr &C,
+        const expr &num, const expr &M, const expr &N, const expr &K,
+        const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
         const expr &stride_b, const sc_data_type_t &dtypeA,
         const sc_data_type_t &dtypeB, const sc_brgemm_attrs_t &brg_attrs,
         const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
         const int &bd_mask_set_num,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
-    builder::get_current_builder()->brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC,
-            stride_a, stride_b, postops_data, c_buf, bd_mask_idx,
-            {brgemm_args::cpu_t {false}, dtypeA, dtypeB,
-                    infer_output_dtype(dtypeA), brg_attrs, bd_mask,
-                    bd_mask_set_num, postops_set});
+    return builder::get_current_builder()
+            ->brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a, stride_b,
+                    postops_data, c_buf, bd_mask_idx,
+                    {brgemm_args::cpu_t {false}, dtypeA, dtypeB,
+                            infer_output_dtype(dtypeA), brg_attrs, bd_mask,
+                            bd_mask_set_num, postops_set})
+            .checked_as<evaluate>();
 }
 
-void brgemm_list_update(const expr &A, const expr &B, const expr &C,
+evaluate brgemm_list_update(const expr &A, const expr &B, const expr &C,
         const expr &num, const expr &M, const expr &N, const expr &K,
         const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
         const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
@@ -416,14 +422,16 @@ void brgemm_list_update(const expr &A, const expr &B, const expr &C,
     A->attr()["list_brgemm_arg"] = true;
     B->attr()[attr_keys::no_index2var] = true;
     B->attr()["list_brgemm_arg"] = true;
-    builder::get_current_builder()->list_brgemm(A, B, C, num, M, N, K, LDA, LDB,
-            LDC, stride_a, stride_b, len, postops_data, c_buf, bd_mask_idx,
-            brgemm_args::extra_args_t(brgemm_args::cpu_t {false}, dtypeA,
-                    dtypeB, infer_output_dtype(dtypeA), brg_attrs, bd_mask,
-                    bd_mask_set_num, postops_set));
+    return builder::get_current_builder()
+            ->list_brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a,
+                    stride_b, len, postops_data, c_buf, bd_mask_idx,
+                    brgemm_args::extra_args_t(brgemm_args::cpu_t {false},
+                            dtypeA, dtypeB, infer_output_dtype(dtypeA),
+                            brg_attrs, bd_mask, bd_mask_set_num, postops_set))
+            .checked_as<evaluate>();
 }
 
-void brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
+evaluate brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
         const expr &num, const expr &M, const expr &N, const expr &K,
         const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
         const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
@@ -436,11 +444,13 @@ void brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
     A->attr()["list_brgemm_arg"] = true;
     B->attr()[attr_keys::no_index2var] = true;
     B->attr()["list_brgemm_arg"] = true;
-    builder::get_current_builder()->list_brgemm(A, B, C, num, M, N, K, LDA, LDB,
-            LDC, stride_a, stride_b, len, postops_data, c_buf, bd_mask_idx,
-            brgemm_args::extra_args_t(brgemm_args::cpu_t {true}, dtypeA, dtypeB,
-                    infer_output_dtype(dtypeA), brg_attrs, bd_mask,
-                    bd_mask_set_num, postops_set));
+    return builder::get_current_builder()
+            ->list_brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a,
+                    stride_b, len, postops_data, c_buf, bd_mask_idx,
+                    brgemm_args::extra_args_t(brgemm_args::cpu_t {true}, dtypeA,
+                            dtypeB, infer_output_dtype(dtypeA), brg_attrs,
+                            bd_mask, bd_mask_set_num, postops_set))
+            .checked_as<evaluate>();
 }
 
 void brgemm_init(
@@ -557,6 +567,34 @@ expr call_managed_matmul_core_query_format(const expr &tb, const expr &out0,
             kernel, impl);
 }
 
+expr call_conv_fwd_core_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &in1, const expr &ori_in0,
+        const expr &ori_in1, const expr &out_format0, const expr &in_format0,
+        const expr &in_format1, const expr &ori_in_format0,
+        const expr &ori_in_format1, const expr &out_size, const expr &kernel,
+        const expr &impl) {
+    static func_t conv_fwd_core_query_f
+            = make_func("query_format_conv_fwd_core_op",
+                    {make_var(datatypes::pointer, "op_table"),
+                            make_var(datatypes::pointer, "out"),
+                            make_var(datatypes::pointer, "inp0"),
+                            make_var(datatypes::pointer, "inp1"),
+                            make_var(datatypes::pointer, "ori_inp0"),
+                            make_var(datatypes::pointer, "ori_inp1"),
+                            make_var(datatypes::pointer, "out_fmt"),
+                            make_var(datatypes::pointer, "inp_fmt0"),
+                            make_var(datatypes::pointer, "inp_fmt1"),
+                            make_var(datatypes::pointer, "ori_inp_fmt0"),
+                            make_var(datatypes::pointer, "ori_inp_fmt1"),
+                            make_var(datatypes::pointer, "out_size"),
+                            make_var(datatypes::pointer, "kernel"),
+                            make_var(datatypes::pointer, "impl")},
+                    stmt(), datatypes::void_t);
+    return conv_fwd_core_query_f(tb, out0, in0, in1, ori_in0, ori_in1,
+            out_format0, in_format0, in_format1, ori_in_format0, ori_in_format1,
+            out_size, kernel, impl);
+}
+
 expr call_unary_fusible_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_format0, const expr &in_format0,
         const expr &out_size, const expr &kernel) {
@@ -570,6 +608,22 @@ expr call_unary_fusible_op_query_format(const expr &tb, const expr &out0,
                     make_var(datatypes::pointer, "kernel")},
             stmt(), datatypes::void_t);
     return unary_query_f(
+            tb, out0, in0, out_format0, in_format0, out_size, kernel);
+}
+
+expr call_padding_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &out_format0, const expr &in_format0,
+        const expr &out_size, const expr &kernel) {
+    static func_t padding_query_f = make_func("query_format_padding_op",
+            {make_var(datatypes::pointer, "op_table"),
+                    make_var(datatypes::pointer, "out"),
+                    make_var(datatypes::pointer, "inp"),
+                    make_var(datatypes::pointer, "out_fmt"),
+                    make_var(datatypes::pointer, "inp_fmt"),
+                    make_var(datatypes::pointer, "out_size"),
+                    make_var(datatypes::pointer, "kernel")},
+            stmt(), datatypes::void_t);
+    return padding_query_f(
             tb, out0, in0, out_format0, in_format0, out_size, kernel);
 }
 

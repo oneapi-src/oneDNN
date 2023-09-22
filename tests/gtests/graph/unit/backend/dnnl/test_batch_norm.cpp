@@ -648,6 +648,259 @@ TEST(Compile, BatchNormBackwardFp32WithSingleOutput) {
     strm->wait();
 }
 
+TEST(Compile, BatchNormForwardTrainingWith1DSpatialInput) {
+
+    using dims = graph::dnnl_impl::dims;
+    using ltw = graph::logical_tensor_wrapper_t;
+    graph::engine_t *engine = get_engine();
+
+    // Tensor dimensions.
+    const graph::dim_t N = 1, // batch size
+            IC = 1, // channels
+            IW = 4; // tensor width
+    dims src_dims = {N, IC, IW};
+    dims scale_dims = {IC};
+    dims shift_dims = {IC};
+    dims mean_dims = {IC};
+    dims variance_dims = {IC};
+
+    // Allocate buffers.
+    test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
+    test::vector<float> scale_data {1.f};
+    test::vector<float> shift_data {2.f};
+    test::vector<float> mean_data {2.5f};
+    test::vector<float> variance_data {1.25f};
+    test::vector<float> dst_data(src_data.size(), 0.0);
+    test::vector<float> dst_mean_var_data(mean_data.size(), 0.0);
+
+    graph::op_t bn_op(graph::op_kind::BatchNormForwardTraining);
+    bn_op.set_attr<float>(graph::op_attr::epsilon, 0.0625);
+    bn_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+
+    // prepare logical tensor
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, src_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t scale = utils::logical_tensor_init(
+            1, scale_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t shift = utils::logical_tensor_init(
+            2, shift_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t mean = utils::logical_tensor_init(
+            3, mean_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t variance = utils::logical_tensor_init(4,
+            variance_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t dst = utils::logical_tensor_init(
+            5, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t running_mean = utils::logical_tensor_init(
+            6, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t running_variance = utils::logical_tensor_init(
+            7, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t batch_mean = utils::logical_tensor_init(
+            8, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t batch_variance = utils::logical_tensor_init(
+            9, graph::data_type::f32, graph::layout_type::strided);
+
+    bn_op.add_input(src);
+    bn_op.add_input(scale);
+    bn_op.add_input(shift);
+    bn_op.add_input(mean);
+    bn_op.add_input(variance);
+    bn_op.add_output(dst);
+    bn_op.add_output(running_mean);
+    bn_op.add_output(running_variance);
+    bn_op.add_output(batch_mean);
+    bn_op.add_output(batch_variance);
+
+    graph::graph_t g(engine->kind());
+    ASSERT_EQ(g.add_op(&bn_op), graph::status::success);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("bn_fw_train_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+    graph::compiled_partition_t cp(p);
+
+    std::vector<const graph::logical_tensor_t *> inputs {
+            &src, &scale, &shift, &mean, &variance};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst, &running_mean,
+            &running_variance, &batch_mean, &batch_variance};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
+
+    auto cp_outputs = cp.get_outputs();
+    ASSERT_EQ(cp_outputs.size(), outputs.size());
+
+    // Shape Infer Correctness Check
+    auto output_dst_dims = ltw(cp_outputs[0]).vdims();
+    dims output_dst_dims_ref {1, 1, 4};
+    ASSERT_TRUE(std::equal(output_dst_dims.begin(), output_dst_dims.end(),
+            output_dst_dims_ref.begin()));
+    auto output_r_mean_dims = ltw(cp_outputs[1]).vdims();
+    auto output_r_var_dims = ltw(cp_outputs[2]).vdims();
+    auto output_b_mean_dims = ltw(cp_outputs[3]).vdims();
+    auto output_b_var_dims = ltw(cp_outputs[4]).vdims();
+    dims output_mean_var_dims_ref {1};
+    ASSERT_TRUE(std::equal(output_r_mean_dims.begin(), output_r_mean_dims.end(),
+            output_mean_var_dims_ref.begin()));
+    ASSERT_TRUE(std::equal(output_r_var_dims.begin(), output_r_var_dims.end(),
+            output_mean_var_dims_ref.begin()));
+    ASSERT_TRUE(std::equal(output_b_mean_dims.begin(), output_b_mean_dims.end(),
+            output_mean_var_dims_ref.begin()));
+    ASSERT_TRUE(std::equal(output_b_var_dims.begin(), output_b_var_dims.end(),
+            output_mean_var_dims_ref.begin()));
+
+    auto output_strides = ltw(cp_outputs[0]).vstrides();
+    dims output_strides_ref {4, 4, 1};
+    ASSERT_TRUE(std::equal(output_strides.begin(), output_strides.end(),
+            output_strides_ref.begin()));
+
+    graph::tensor_t src_ts(src, engine, src_data.data());
+    graph::tensor_t scale_ts(scale, engine, scale_data.data());
+    graph::tensor_t shift_ts(shift, engine, shift_data.data());
+    graph::tensor_t mean_ts(mean, engine, mean_data.data());
+    graph::tensor_t variance_ts(variance, engine, variance_data.data());
+    graph::tensor_t dst_ts(dst, engine, dst_data.data());
+    graph::tensor_t running_mean_ts(dst, engine, dst_mean_var_data.data());
+    graph::tensor_t running_variance_ts(dst, engine, dst_mean_var_data.data());
+    graph::tensor_t batch_mean_ts(dst, engine, dst_mean_var_data.data());
+    graph::tensor_t batch_variance_ts(dst, engine, dst_mean_var_data.data());
+
+    graph::stream_t *strm = get_stream();
+    cp.execute(strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
+            {dst_ts, running_mean_ts, running_variance_ts, batch_mean_ts,
+                    batch_variance_ts});
+    strm->wait();
+}
+
+TEST(Compile, BatchNormForwardTrainingWith0DSpatialInput) {
+
+    using dims = graph::dnnl_impl::dims;
+    using ltw = graph::logical_tensor_wrapper_t;
+    graph::engine_t *engine = get_engine();
+
+    // Tensor dimensions.
+    const graph::dim_t N = 1, // batch size
+            IC = 4; // channels
+    dims src_dims = {N, IC};
+    dims scale_dims = {IC};
+    dims shift_dims = {IC};
+    dims mean_dims = {IC};
+    dims variance_dims = {IC};
+
+    // Allocate buffers.
+    test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
+    test::vector<float> scale_data {1.f, 1.f, 1.f, 1.f};
+    test::vector<float> shift_data {2.f, 2.f, 2.f, 2.f};
+    test::vector<float> mean_data {1.0f, 2.0f, 3.0f, 4.0f};
+    test::vector<float> variance_data {0.f, 0.f, 0.f, 0.f};
+    test::vector<float> dst_data(src_data.size(), 0.0);
+    test::vector<float> dst_mean_var_data(mean_data.size(), 0.0);
+
+    graph::op_t bn_op(graph::op_kind::BatchNormForwardTraining);
+    bn_op.set_attr<float>(graph::op_attr::epsilon, 0.0625);
+    bn_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+
+    // prepare logical tensor
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, src_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t scale = utils::logical_tensor_init(
+            1, scale_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t shift = utils::logical_tensor_init(
+            2, shift_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t mean = utils::logical_tensor_init(
+            3, mean_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t variance = utils::logical_tensor_init(4,
+            variance_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t dst = utils::logical_tensor_init(
+            5, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t running_mean = utils::logical_tensor_init(
+            6, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t running_variance = utils::logical_tensor_init(
+            7, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t batch_mean = utils::logical_tensor_init(
+            8, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t batch_variance = utils::logical_tensor_init(
+            9, graph::data_type::f32, graph::layout_type::strided);
+
+    bn_op.add_input(src);
+    bn_op.add_input(scale);
+    bn_op.add_input(shift);
+    bn_op.add_input(mean);
+    bn_op.add_input(variance);
+    bn_op.add_output(dst);
+    bn_op.add_output(running_mean);
+    bn_op.add_output(running_variance);
+    bn_op.add_output(batch_mean);
+    bn_op.add_output(batch_variance);
+
+    graph::graph_t g(engine->kind());
+    ASSERT_EQ(g.add_op(&bn_op), graph::status::success);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("bn_fw_train_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+    graph::compiled_partition_t cp(p);
+
+    std::vector<const graph::logical_tensor_t *> inputs {
+            &src, &scale, &shift, &mean, &variance};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst, &running_mean,
+            &running_variance, &batch_mean, &batch_variance};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
+
+    auto cp_outputs = cp.get_outputs();
+    ASSERT_EQ(cp_outputs.size(), outputs.size());
+
+    // Shape Infer Correctness Check
+    auto output_dst_dims = ltw(cp_outputs[0]).vdims();
+    dims output_dst_dims_ref {1, 4};
+    ASSERT_TRUE(std::equal(output_dst_dims.begin(), output_dst_dims.end(),
+            output_dst_dims_ref.begin()));
+    auto output_r_mean_dims = ltw(cp_outputs[1]).vdims();
+    auto output_r_var_dims = ltw(cp_outputs[2]).vdims();
+    auto output_b_mean_dims = ltw(cp_outputs[3]).vdims();
+    auto output_b_var_dims = ltw(cp_outputs[4]).vdims();
+    dims output_mean_var_dims_ref {4};
+    ASSERT_TRUE(std::equal(output_r_mean_dims.begin(), output_r_mean_dims.end(),
+            output_mean_var_dims_ref.begin()));
+    ASSERT_TRUE(std::equal(output_r_var_dims.begin(), output_r_var_dims.end(),
+            output_mean_var_dims_ref.begin()));
+    ASSERT_TRUE(std::equal(output_b_mean_dims.begin(), output_b_mean_dims.end(),
+            output_mean_var_dims_ref.begin()));
+    ASSERT_TRUE(std::equal(output_b_var_dims.begin(), output_b_var_dims.end(),
+            output_mean_var_dims_ref.begin()));
+
+    auto output_strides = ltw(cp_outputs[0]).vstrides();
+    dims output_strides_ref {4, 1};
+    ASSERT_TRUE(std::equal(output_strides.begin(), output_strides.end(),
+            output_strides_ref.begin()));
+
+    graph::tensor_t src_ts(src, engine, src_data.data());
+    graph::tensor_t scale_ts(scale, engine, scale_data.data());
+    graph::tensor_t shift_ts(shift, engine, shift_data.data());
+    graph::tensor_t mean_ts(mean, engine, mean_data.data());
+    graph::tensor_t variance_ts(variance, engine, variance_data.data());
+    graph::tensor_t dst_ts(dst, engine, dst_data.data());
+    graph::tensor_t running_mean_ts(dst, engine, dst_mean_var_data.data());
+    graph::tensor_t running_variance_ts(dst, engine, dst_mean_var_data.data());
+    graph::tensor_t batch_mean_ts(dst, engine, dst_mean_var_data.data());
+    graph::tensor_t batch_variance_ts(dst, engine, dst_mean_var_data.data());
+
+    graph::stream_t *strm = get_stream();
+    cp.execute(strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
+            {dst_ts, running_mean_ts, running_variance_ts, batch_mean_ts,
+                    batch_variance_ts});
+    strm->wait();
+}
+
 TEST(Execute, BatchNormInt8) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t &engine = *get_engine();

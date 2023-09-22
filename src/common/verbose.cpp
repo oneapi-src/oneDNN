@@ -99,6 +99,9 @@ void print_header() {
 #ifdef DNNL_WITH_SYCL
         sycl::print_verbose_header();
 #endif
+#ifdef ONEDNN_BUILD_GRAPH
+        graph::utils::print_verbose_header();
+#endif
 #ifdef DNNL_EXPERIMENTAL
         printf("onednn_verbose,info,experimental features are enabled\n");
         printf("onednn_verbose,info,use batch_normalization stats one pass is "
@@ -112,56 +115,137 @@ void print_header() {
                "domain is enabled\n");
 #endif
 
-        printf("onednn_verbose,info,prim_template:");
+        printf("onednn_verbose,primitive,info,template:");
         printf("%soperation,engine,primitive,implementation,prop_"
                "kind,memory_descriptors,attributes,auxiliary,problem_desc,exec_"
                "time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
+
+#ifdef ONEDNN_BUILD_GRAPH
+        printf("onednn_verbose,graph,info,template:");
+        printf("%soperation,engine,partition_id,partition_kind,op_names,"
+               "data_formats,logical_tensors,fpmath_mode,backend,exec_"
+               "time\n",
+                get_verbose_timestamp() ? "timestamp," : "");
+#endif
     }
 }
 
 // hint parameter is the kind of verbose we are querying for
-uint32_t get_verbose(verbose_t::flag_kind verbosity_kind) {
+uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
+        component_t::flag_kind filter_kind) {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #else
+    // we print all verbose by default
+    static int flags = component_t::all;
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
         static std::string user_opt = getenv_string_user("VERBOSE");
 
-        auto update_kind = [&](const std::string &s, int &k) -> int {
+        auto update_kind = [&](const std::string &s, int &k) {
             // Legacy: we accept values 0,1,2
             // 0 and none erase previously set flags, including error
-            if (s == "0" || s == "none") return k = verbose_t::none;
-            if (s == "1") return k |= verbose_t::exec_profile;
+            if (s == "0" || s == "none") k = verbose_t::none;
+            if (s == "1") k |= verbose_t::exec_profile;
             if (s == "2")
-                return k |= verbose_t::exec_profile | verbose_t::create_profile;
-            if (s == "all" || s == "-1") return k |= verbose_t::all;
-            if (s == "error") return k |= verbose_t::error;
+                k |= verbose_t::exec_profile | verbose_t::create_profile;
+            if (s == "all" || s == "-1") k |= verbose_t::all;
+            if (s == "error") k |= verbose_t::error;
             if (s == "check")
-                return k |= verbose_t::create_check | verbose_t::exec_check;
-            if (s == "dispatch") return k |= verbose_t::create_dispatch;
+                k |= verbose_t::create_check | verbose_t::exec_check;
+            if (s == "dispatch") k |= verbose_t::create_dispatch;
             if (s == "profile")
-                return k |= verbose_t::create_profile | verbose_t::exec_profile;
-            if (s == "profile_create") return k |= verbose_t::create_profile;
-            if (s == "profile_exec") return k |= verbose_t::exec_profile;
+                k |= verbose_t::create_profile | verbose_t::exec_profile;
+            if (s == "profile_create") k |= verbose_t::create_profile;
+            if (s == "profile_exec") k |= verbose_t::exec_profile;
             // Enable profiling to external libraries
-            if (s == "profile_externals")
-                return k |= verbose_t::profile_externals;
+            if (s == "profile_externals") k |= verbose_t::profile_externals;
             // we extract debug info debuginfo=XX. ignore if debuginfo is invalid.
             if (s.rfind("debuginfo=", 0) == 0)
-                return k |= verbose_t::make_debuginfo(
-                               std::strtol(s.c_str() + 10, nullptr, 10));
+                k |= verbose_t::make_debuginfo(
+                        std::strtol(s.c_str() + 10, nullptr, 10));
+        };
 
-            // Unknown option is ignored
-            // TODO: exit on unsupported or print a message?
+        auto update_filter = [&](const std::string &s) noexcept -> int {
+            int k = component_t::none;
+            std::regex regexp;
+            try {
+                regexp = std::regex(s);
+            } catch (const std::regex_error &) { return component_t::all; }
+            if (std::regex_search("primitive", regexp)) {
+                k |= component_t::primitive;
+            }
+            if (std::regex_search("reorder", regexp)) {
+                k |= component_t::reorder;
+            }
+            if (std::regex_search("shuffle", regexp)) {
+                k |= component_t::shuffle;
+            }
+            if (std::regex_search("concat", regexp)) {
+                k |= component_t::concat;
+            }
+            if (std::regex_search("sum", regexp)) { k |= component_t::sum; }
+            if (std::regex_search("convolution", regexp)) {
+                k |= component_t::convolution;
+            }
+            if (std::regex_search("deconvolution", regexp)) {
+                k |= component_t::deconvolution;
+            }
+            if (std::regex_search("eltwise", regexp)) {
+                k |= component_t::eltwise;
+            }
+            if (std::regex_search("lrn", regexp)) { k |= component_t::lrn; }
+            if (std::regex_search("batch_normalization", regexp)) {
+                k |= component_t::batch_normalization;
+            }
+            if (std::regex_search("inner_product", regexp)) {
+                k |= component_t::inner_product;
+            }
+            if (std::regex_search("rnn", regexp)) { k |= component_t::rnn; }
+            if (std::regex_search("binary", regexp)) {
+                k |= component_t::binary;
+            }
+            if (std::regex_search("matmul", regexp)) {
+                k |= component_t::matmul;
+            }
+            if (std::regex_search("resampling", regexp)) {
+                k |= component_t::resampling;
+            }
+            if (std::regex_search("pooling", regexp)) {
+                k |= component_t::pooling;
+            }
+            if (std::regex_search("reduction", regexp)) {
+                k |= component_t::reduction;
+            }
+            if (std::regex_search("prelu", regexp)) { k |= component_t::prelu; }
+            if (std::regex_search("softmax", regexp)) {
+                k |= component_t::softmax;
+            }
+            if (std::regex_search("layer_normalization", regexp)) {
+                k |= component_t::layer_normalization;
+            }
+            if (std::regex_search("group_normalization", regexp)) {
+                k |= component_t::group_normalization;
+            }
+            if (std::regex_search("graph", regexp)) { k |= component_t::graph; }
+            if (std::regex_search("gemm_api", regexp)) {
+                k |= component_t::gemm_api;
+            }
             return k;
         };
 
         // we always enable error by default
         int val = verbose_t::error;
-        for (auto &tok : utils::str_split(user_opt, ','))
+        for (auto &tok : utils::str_split(user_opt, ',')) {
+            // update verbose flags
             update_kind(tok, val);
+            // update filter flags
+            if (tok.rfind("filter=", 0) == 0) {
+                auto filter_str = tok.substr(7);
+                if (!filter_str.empty()) { flags = update_filter(filter_str); }
+            }
+        }
 
         // We parse for explicit flags
         verbose.set(val);
@@ -171,7 +255,8 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind) {
     if (verbosity_kind == verbose_t::debuginfo)
         result = verbose_t::get_debuginfo(verbose.get());
     if (result) print_header();
-    return result;
+    bool filter_result = flags & filter_kind;
+    return filter_result ? result : 0;
 #endif
 }
 
@@ -1323,7 +1408,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
     if (is_initialized_) return;
 
     std::call_once(initialization_flag_, [&] {
-// clang-format off
+    // clang-format off
 #define CASE(kind) \
     case primitive_kind::kind: \
         str_ = init_info_##kind(engine, (const kind##_pd_t *)pd); \

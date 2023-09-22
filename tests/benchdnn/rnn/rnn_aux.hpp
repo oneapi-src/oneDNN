@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,8 @@ dnnl_status_t init_rnn_fwd_pd(dnnl_primitive_desc_t *pd, dnnl_engine_t engine,
         const_dnnl_memory_desc_t weights_projection_d,
         const_dnnl_memory_desc_t bias_d, const_dnnl_memory_desc_t dst_layer_d,
         const_dnnl_memory_desc_t dst_iter_d,
-        const_dnnl_memory_desc_t dst_iter_c_d, dnnl_primitive_attr_t attr);
+        const_dnnl_memory_desc_t dst_iter_c_d, dnnl_primitive_attr_t attr,
+        res_t *res);
 
 dnnl_status_t init_rnn_bwd_pd(dnnl_primitive_desc_t *pd, dnnl_engine_t engine,
         const prb_t &prb, dnnl_prop_kind_t prop_kind,
@@ -79,7 +80,8 @@ dnnl_status_t init_rnn_bwd_pd(dnnl_primitive_desc_t *pd, dnnl_engine_t engine,
         const_dnnl_memory_desc_t diff_dst_layer_d,
         const_dnnl_memory_desc_t diff_dst_iter_d,
         const_dnnl_memory_desc_t diff_dst_iter_c_d,
-        const_dnnl_primitive_desc_t hint, dnnl_primitive_attr_t attr);
+        const_dnnl_primitive_desc_t hint, dnnl_primitive_attr_t attr,
+        res_t *res);
 
 void init_buffer(float *buf, int64_t size, float value);
 

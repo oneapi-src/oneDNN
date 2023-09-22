@@ -67,16 +67,9 @@ struct sycl_memory_arg_t {
     // This method must be called only from inside a kernel.
     void *get_pointer() const {
         if (usm_) return usm_;
-
-        // The compiler has changed `get_pointer()` API therefore we have to
-        // handle both old and new versions of the API to avoid breaking user's
-        // applications that use older compiler versions.
-        if constexpr (std::is_same_v<decltype(acc_.get_pointer()),
-                              std::add_pointer_t<typename acc_t::value_type>>) {
-            return const_cast<acc_dt *>(acc_.get_pointer());
-        } else {
-            return acc_.get_pointer().get();
-        }
+        return const_cast<acc_dt *>(
+                acc_.template get_multi_ptr<::sycl::access::decorated::no>()
+                        .get());
     }
 
     bool empty() const { return empty_; }

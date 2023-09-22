@@ -66,6 +66,7 @@ inline int get_mmm_sub_block_floor(const int x) {
     if (x >= 4) { return 4; }
     return 1;
 }
+
 void get_managed_matmul_config(const runtime::target_machine_t &tm,
         int &M_split_num, int &N_split_num, int &M_sub_block, int &N_sub_block,
         int &K_sub_block, int &im_loop_order, const int M, const int N,
@@ -73,18 +74,15 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         const int iik_block, const int sizeofdtypeA, const int sizeofdtypeC,
         bool is_int8, bool is_f32, bool is_dynamic) {
     im_loop_order = 0;
+    bool is_bf16 = !is_int8 && !is_f32;
     const int num_threads = runtime_config_t::get().get_num_threads();
     auto thread_factors = utils::get_factors(num_threads);
     float cost = std::numeric_limits<float>::max();
     int split_n = 1;
     // spr, emr, gnr
-    bool is_seg = tm.cpu_flags_.family == 6
-            && (tm.cpu_flags_.model == 143 || tm.cpu_flags_.model == 207
-                    || tm.cpu_flags_.model == 182);
+    bool is_seg = tm.cpu_flags_.is_spr_like();
     // skx, clx, cpx, icx
-    bool is_scpi = tm.cpu_flags_.family == 6
-            && (tm.cpu_flags_.model == 106 || tm.cpu_flags_.model == 108
-                    || tm.cpu_flags_.model == 85);
+    bool is_scpi = tm.cpu_flags_.is_skx_like();
     auto cal_cost = [&](int i) {
         int num_M_block
                 = utils::divide_and_ceil(M / iim_block, num_threads / i);
@@ -119,6 +117,7 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
                 new_cost = sew * (num_brgemm + i / 2) / num_core + empty_cores;
             }
         } else {
+            auto dxp = 8 * i;
             // give bigger splits on N when N is bigger
             if (N >= 16 * M && N >= 4096 && !is_f32) {
                 // TODO(xianhang): in some mlp shapes, only one or some few
@@ -127,10 +126,25 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
                 // performance. The logic will be refactored after involving
                 // graph-level loop up to make all the matmul use the same split
                 // manner
-                new_cost = sew * (num_brgemm + num_threads / i / 2) / num_core;
-            } else {
-                new_cost = sew * (num_brgemm + 8 * i) / num_core;
+                dxp = num_threads / i / 2;
+            } else if (is_bf16) {
+                // small M, big N, K cases
+                if (M < N && M < K && std::max(N, K) / M >= 8
+                        && thread_factors.size() < 5) {
+                    dxp = num_threads / i;
+                }
+                // big M, small N, K cases
+                else if (M > 4096 && M <= 8192) {
+                    dxp = M / std::max(N, K) <= 4
+                            ? num_threads / i
+                            : (M / std::max(N, K) <= 12 ? i : 8 * i);
+                } else if (iim_block > 32 && iin_block > 32) {
+                    sew = 1024 + 32 * M * i / num_threads / iim_block
+                            + 32 * N / i / iin_block;
+                    dxp = 320 * i;
+                }
             }
+            new_cost = sew * (num_brgemm + dxp) / num_core;
         }
 
         if (new_cost < cost) {
@@ -309,6 +323,8 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         while (K / iik_block / K_split_num < K_sub_block && K_sub_block > 1) {
             K_sub_block--;
         }
+        if (is_f32 && K < 1024) { K_sub_block = 1; }
+        if (is_bf16 && K < 2048) { K_sub_block = 1; }
         int L2_K = utils::divide_and_ceil(
                            utils::divide_and_ceil(single_K, iik_block),
                            K_sub_block)
@@ -327,6 +343,11 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
                             - (P + 1) * sizeofdtypeA * L2_K)
                 / (2 * P * sizeofdtypeC);
         M_sub_block = std::max(1, single_M / L2_MN);
+        if (is_bf16 && N >= K && iim_block > 32 && iin_block > 32) {
+            L2_MN /= 2;
+        } else if (is_f32 && N > 16 * M) {
+            L2_MN *= 2;
+        }
         N_sub_block = std::max(1, single_N / L2_MN);
     } else {
         // sizeofdtypeA * M * K + sizeofdtypeB * N * K <= L2_size
@@ -337,8 +358,11 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
                                             : single_N / single_M)
                 : 1;
         int L2_MN = L2_size / ((1 + P) * sizeofdtypeA * single_K);
-        M_sub_block = std::max(1, single_M / L2_MN);
         N_sub_block = std::max(1, single_N / L2_MN);
+        if (is_bf16 && N >= K && iim_block > 32 && iin_block > 32) {
+            L2_MN *= 4;
+        }
+        M_sub_block = std::max(1, single_M / L2_MN);
         K_sub_block = 1;
     }
     while (M / iim_block / M_split_num < M_sub_block && M_sub_block > 1) {
@@ -352,6 +376,17 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         N_sub_block = get_mmm_sub_block_floor(N_sub_block);
         K_sub_block = 1;
     }
+}
+
+int get_dyn_conv_default_block(const bool is_1x1, const int dtype_size,
+        const bool has_pad, const bool is_f32) {
+    int default_block = 128;
+    auto dtype_block = 4 / dtype_size;
+    if (!is_1x1) {
+        default_block = dtype_block * 32;
+        if (has_pad) { default_block = is_f32 ? 64 : 128; }
+    }
+    return default_block;
 }
 } // namespace gc
 } // namespace graph

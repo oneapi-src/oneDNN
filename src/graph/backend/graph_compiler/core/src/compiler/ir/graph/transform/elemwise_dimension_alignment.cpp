@@ -18,8 +18,7 @@
 #include "../fusible_op.hpp"
 #include "../visitor.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
-#include <ops/fusible/binary_elemwise.hpp>
-#include <ops/fusible/ternary_elemwise.hpp>
+#include <ops/fusible/broadcast.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -31,7 +30,8 @@ static void infer_aligned_shape(const logical_tensor_t &a,
         sc_dims &aligned_shape, std::vector<int> &aligned_axis,
         sc_data_format_t &new_format) {
     assert(a.get_plain_dims().size() > b.get_plain_dims().size());
-    if (plain_bc_axis.empty() || plain_bc_axis == std::vector<int> {-1}) {
+    // skip the case where b's shape == {1}
+    if (plain_bc_axis == std::vector<int> {-1}) {
         aligned_shape = sc_dims {};
         aligned_axis = {};
         new_format = sc_data_format_t();
@@ -85,6 +85,7 @@ static void infer_aligned_shape(const logical_tensor_t &a,
             aligned_axis.push_back(i);
         }
     }
+
     // start infer extended format
     // the logic below wish to let blocking shape having extended dims
     // as its leading dims (having limitation on batch format)
@@ -146,47 +147,20 @@ static void infer_aligned_shape(const logical_tensor_t &a,
 void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::dfs_topology_sort();
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
-        if (auto binary_node = node->dyn_cast<binary_elementwise_op_t>()) {
-            COMPILE_ASSERT(binary_node->info_.inputs_.size() == 2,
-                    "Wrong number of inputs for binary_elementwise_op");
-            const auto &lhs = binary_node->info_.inputs_[0]->details_;
-            const auto &rhs = binary_node->info_.inputs_[1]->details_;
-            sc_dims shape;
-            std::vector<int> aligned_axis;
-            sc_data_format_t format;
-            if (lhs.get_plain_dims().size() < rhs.get_plain_dims().size()) {
-                infer_aligned_shape(rhs, lhs, binary_node->get_plain_bc_axis(),
-                        shape, aligned_axis, format);
-                if (!shape.empty()) {
-                    // insert tensor view
-                    auto ret = graph.make("tensor_view",
-                            {binary_node->info_.inputs_[0]}, {},
-                            {{"shape", shape}, {"format", format},
-                                    {"expand_dim", aligned_axis}});
-                    node->replace_input(0, ret->get_outputs()[0]);
-                }
-            } else if (lhs.get_plain_dims().size()
-                    > rhs.get_plain_dims().size()) {
-                infer_aligned_shape(lhs, rhs, binary_node->get_plain_bc_axis(),
-                        shape, aligned_axis, format);
-                if (!shape.empty()) {
-                    // insert tensor view
-                    auto ret = graph.make("tensor_view",
-                            {binary_node->info_.inputs_[1]}, {},
-                            {{"shape", shape}, {"format", format},
-                                    {"expand_dim", aligned_axis}});
-                    node->replace_input(1, ret->get_outputs()[0]);
-                }
-            }
-        } else if (auto select_node = node->dyn_cast<select_op_t>()) {
-            COMPILE_ASSERT(select_node->info_.inputs_.size() == 3,
-                    "Wrong number of inputs for select_op");
+        if (auto may_broadcast_node
+                = node->dyn_cast<op_traits::may_broadcast_t>()) {
+            COMPILE_ASSERT(
+                    !may_broadcast_node->get_non_broadcast_input_index(false)
+                             .empty(),
+                    "elemwise_dimension_alignment requires the broadcast-able "
+                    "op to have at least 1 non-broadcast input.");
             for (size_t i = 0; i < node->get_inputs().size(); ++i) {
                 auto cur_in_lt = node->get_inputs()[i]->details_;
                 auto cur_out_lt = node->get_outputs()[0]->details_;
                 if (cur_in_lt.get_plain_dims().size()
                         < cur_out_lt.get_plain_dims().size()) {
-                    auto plain_bc_axis = select_node->get_plain_bc_axis()[i];
+                    const auto &plain_bc_axis
+                            = may_broadcast_node->get_plain_bc_axis()[i];
                     sc_dims shape;
                     std::vector<int> aligned_axis;
                     sc_data_format_t format;
@@ -200,6 +174,26 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                                         {"expand_dim", aligned_axis}});
                         node->replace_input(i, ret->get_outputs()[0]);
                     }
+                }
+            }
+        } else if (auto broadcast_op = node->dyn_cast<broadcast_op_t>()) {
+            auto cur_in_lt = node->get_inputs()[0]->details_;
+            auto cur_out_lt = node->get_outputs()[0]->details_;
+            if (cur_in_lt.get_plain_dims().size()
+                    < cur_out_lt.get_plain_dims().size()) {
+                const auto &plain_bc_axis = broadcast_op->get_plain_bc_axis();
+                sc_dims shape;
+                std::vector<int> aligned_axis;
+                sc_data_format_t format;
+                infer_aligned_shape(cur_out_lt, cur_in_lt, plain_bc_axis, shape,
+                        aligned_axis, format);
+                if (!shape.empty()) {
+                    // insert tensor view
+                    auto ret = graph.make("tensor_view",
+                            {node->info_.inputs_[0]}, {},
+                            {{"shape", shape}, {"format", format},
+                                    {"expand_dim", aligned_axis}});
+                    node->replace_input(0, ret->get_outputs()[0]);
                 }
             }
         }

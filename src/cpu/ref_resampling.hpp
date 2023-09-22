@@ -60,6 +60,14 @@ struct ref_resampling_fwd_t : public primitive_t {
     ref_resampling_fwd_t(const pd_t *apd);
     ~ref_resampling_fwd_t();
 
+    status_t init(engine_t *engine) override {
+        ref_post_ops_
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops_) return status::out_of_memory;
+        CHECK(ref_post_ops_->init(pd()->dst_md()));
+        return status::success;
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
@@ -69,7 +77,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_forward(const exec_ctx_t &ctx) const;
 
-    const ref_post_ops_t ref_post_ops_;
+    std::unique_ptr<ref_post_ops_t> ref_post_ops_;
 };
 
 struct ref_resampling_bwd_t : public primitive_t {

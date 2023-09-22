@@ -29,8 +29,8 @@
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <runtime/config.hpp>
+#include <unordered_map>
 #include <util/utils.hpp>
-#include <util/variant.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -41,37 +41,6 @@ static inline any_map_t add_key(const any_map_t &attrs, int rd_op_) {
     auto ret = attrs;
     ret["rd_op"] = rd_op_;
     return ret;
-}
-
-static variant<float, int64_t> numeric_limits_maximum(sc_data_etype type_code) {
-    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
-        return std::numeric_limits<float>::infinity();
-    } else if (type_code == sc_data_etype::S8) {
-        return int64_t(127);
-    } else if (type_code == sc_data_etype::S32) {
-        return int64_t(std::numeric_limits<int32_t>::max());
-    } else if (type_code == sc_data_etype::U8) {
-        return int64_t(255);
-    } else if (type_code == sc_data_etype::U32) {
-        return int64_t(std::numeric_limits<uint32_t>::max());
-    } else {
-        COMPILE_ASSERT(0, "unsupported data_etype");
-    }
-}
-
-static variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code) {
-    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
-        return -std::numeric_limits<float>::infinity();
-    } else if (type_code == sc_data_etype::U8
-            || type_code == sc_data_etype::U32) {
-        return int64_t(0);
-    } else if (type_code == sc_data_etype::S8) {
-        return int64_t(-128);
-    } else if (type_code == sc_data_etype::S32) {
-        return int64_t(std::numeric_limits<int32_t>::min());
-    } else {
-        COMPILE_ASSERT(0, "unsupported data_etype");
-    }
 }
 
 reduce_sum_op_t::reduce_sum_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -184,6 +153,7 @@ void reduce_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     const auto &in_fmt = info_.inputs_[0]->details_.get_format();
+    in_formats.push_back({in_fmt});
     if (keep_dims_) {
         out_formats.push_back({get_reduced_format(in_fmt, plain_rd_axis_,
                 info_.inputs_[0]->details_.get_plain_dims().size())});
@@ -560,9 +530,9 @@ static unary_tir_gen_f get_binary_reduce_by_reduce_op(reduce_operator rdop) {
 // reduce all tensor_slice into sum, NOTE here src is a common
 // tensor_slice but dst maybe whole temp_buffer because output shape of
 // reduction is not equal to src, so it will allocate a new buffer
-static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, reduce_operator rd_op,
-        std::vector<int> rd_axis, bool keep_dims,
+static void compute_block_reduce(sc_graph_t &graph, const sc_op_info_t &info,
+        const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
+        reduce_operator rd_op, std::vector<int> rd_axis, bool keep_dims,
         const vectorized_info_t &vx_info, sc_data_type_t dtype,
         any_map_t &attrs, size_t wkld = 0UL, bool is_dynamic = false) {
     // nested loop vars
@@ -598,8 +568,11 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
     }
 
     for (unsigned i = 0; i < src.at(0)->nslice_dims(); i++) {
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
+        iter_vars.emplace_back(range_from_outer_loop(src.at(0)->get_ranges()[i])
+                        ? expr(0)
+                        : builder::make_var(datatypes::index,
+                                std::string("_fuseiter")
+                                        + fusion_create_idx()));
         src_idx.emplace_back(iter_vars.back());
     }
     // dst.ranges_ is equal to dst.tptr_->dims() in this case, because it
@@ -611,19 +584,34 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
             dst_idx.emplace_back(iter_vars.at(i));
         }
     }
+    const int INVALID_AXIS_MASK = -64;
+    int last_axis_mask = INVALID_AXIS_MASK;
+    std::unordered_map<expr, std::pair<expr, expr>> conditions;
+    compute_mask_and_generate_condition(graph, src,
+            info.inputs_[0]->details_.get_plain_dims(),
+            info.inputs_[0]->details_.get_format(), iter_vars, vx_info.lanes,
+            conditions, last_axis_mask);
     // need mask
     expr mask_directly;
+    auto slice_len = src[0]->get_shape().back();
     int lanes = static_cast<int>(vx_info.lanes);
-    if (last_dim == 1) {
+    auto floor = do_cast_and_fold(slice_len / lanes * lanes);
+    auto tail = do_cast_and_fold(slice_len % lanes);
+    int floor_int = 0;
+    int tail_int = 0;
+    if (floor.isa<constant>()) {
+        floor_int = get_expr_as_int(floor);
+        tail_int = get_expr_as_int(tail);
+        COMPILE_ASSERT((floor_int + tail_int), "Don't support shape len = 0.");
+    }
+    bool is_lastdim_meet_require
+            = tail.isa<constant>() && tail_int == 1 && floor_int == 0;
+    if (is_lastdim_meet_require) {
         lanes = 1;
     } else if (last_dim % lanes) {
         if (rd_op == reduce_operator::add) {
-            auto cur_step = builder::make_min(
-                    builder::make_max(cast_to_s32(src[0]->get_shape().back())
-                                    - cast_to_s32(src_idx.back()),
-                            0),
-                    lanes);
-            mask_directly = generate_mask_by_step_directly(cur_step, lanes);
+            mask_directly = last_dim_generate_mask(
+                    src_idx.back(), floor, slice_len, lanes);
         } else {
             lanes = 1;
         }
@@ -641,6 +629,9 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
     auto reduce_value
             = builder::make_var(sc_data_type_t(dtype.type_code_, lanes),
                     "reduce_" + fusion_create_var_idx());
+    auto inter_padding_var
+            = builder::make_var(sc_data_type_t(dtype.type_code_, lanes),
+                    "reduce_" + fusion_create_var_idx());
 
     union_val value = get_init_val_for_reduce(rd_op, dtype);
     stmt asnode = make_stmt<assign_node_t>(reduce_value,
@@ -648,6 +639,11 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
                     value, sc_data_type_t(dtype.type_code_, lanes)));
     auto define_reduce
             = make_stmt<define_node_t>(reduce_value, linkage::local, expr());
+    stmt padding_middle_asnode = make_stmt<assign_node_t>(inter_padding_var,
+            make_expr<constant_node>(
+                    value, sc_data_type_t(dtype.type_code_, lanes)));
+    auto define_padding_reduce = make_stmt<define_node_t>(
+            inter_padding_var, linkage::local, expr());
 
     // because reduce_op_t use temp register to add up, for rightly write
     // back it may need to reorder reduction for-loop into inner-most
@@ -671,33 +667,85 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
         }
         pre_ax = ax;
     }
+
+    bool is_padding_ir = false;
     for (auto i : new_loop_order) {
         if (i == new_loop_order.front()) {
-            cur = make_stmt<assign_node_t>(reduce_value,
-                    get_binary_by_reduce_op(rd_op)(
-                            indexed_input, reduce_value));
+            auto cond_it = conditions.find(iter_vars[i]);
+            is_padding_ir = cond_it != conditions.end()
+                    && rd_op != reduce_operator::add;
+            // reduce add don't need to consider padding case
+            if (is_padding_ir) {
+                assert(last_axis_mask != INVALID_AXIS_MASK);
+                std::vector<stmt_c> cur_list;
+                cur_list.emplace_back(builder::make_assign_unattached(
+                        inter_padding_var, indexed_input));
+
+                // calculate mask, upper_bound - cur_index
+                auto upper_bound_int = builder::make_cast(
+                        datatypes::s32, cond_it->second.second);
+                auto cur_index_int = builder::make_cast(
+                        datatypes::s32, cond_it->second.first);
+                auto cur_step = builder::make_min(
+                        builder::make_max(builder::make_sub(upper_bound_int,
+                                                  cur_index_int),
+                                0),
+                        lanes);
+                stmt mask_def;
+                auto mask
+                        = generate_mask_var_by_step(mask_def, cur_step, lanes);
+                cur_list.emplace_back(mask_def);
+
+                cur_list.emplace_back(builder::make_assign_unattached(
+                        reduce_value,
+                        builder::make_select(mask,
+                                get_binary_by_reduce_op(rd_op)(
+                                        reduce_value, inter_padding_var),
+                                reduce_value)));
+                cur = builder::make_stmts_unattached(cur_list);
+            } else {
+                cur = make_stmt<assign_node_t>(reduce_value,
+                        get_binary_by_reduce_op(rd_op)(
+                                indexed_input, reduce_value));
+            }
             cur->attr()[op_traits::workload_computable_t::workload_number]
                     = wkld;
         }
-        body = cur.isa<stmts>()
-                ? cur
-                : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
-        // insert mask define.
-        cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), expr(0),
-                src.at(0)->get_shape().at(i),
-                i == static_cast<int>(src.at(0)->nslice_dims() - 1)
-                        ? expr(static_cast<int>(lanes))
-                        : expr(1),
-                std::move(body), true, for_type::NORMAL);
+        // Do not generate those dummy loops
+        if (iter_vars.at(i).isa<var>()) {
+            body = cur.isa<stmts>() ? cur
+                                    : make_stmt<stmts_node_t>(
+                                            std::vector<stmt> {std::move(cur)});
+            // insert mask define.
+            cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
+                    expr(0), src.at(0)->get_shape().at(i),
+                    i == static_cast<int>(src.at(0)->nslice_dims() - 1)
+                            ? expr(static_cast<int>(lanes))
+                            : expr(1),
+                    std::move(body), true, for_type::NORMAL);
+        }
         // the outer-most reduction axis
         if (i == rd_axis.front()) {
-            cur = make_stmt<stmts_node_t>(
-                    std::vector<stmt> {define_reduce, asnode, std::move(cur),
-                            make_stmt<assign_node_t>(indexed_target,
-                                    lanes > 1 && last_axis_reduce
-                                            ? get_binary_reduce_by_reduce_op(
-                                                    rd_op)(reduce_value)
-                                            : reduce_value)});
+            std::vector<stmt_c> res;
+            std::vector<stmt_c> rd_no_padding_assign {define_reduce, asnode,
+                    std::move(cur),
+                    make_stmt<assign_node_t>(indexed_target,
+                            lanes > 1 && last_axis_reduce
+                                    ? get_binary_reduce_by_reduce_op(rd_op)(
+                                            reduce_value)
+                                    : reduce_value)};
+            if (is_padding_ir) {
+                std::vector<stmt_c> rd_padding_assign {
+                        define_padding_reduce, padding_middle_asnode};
+                rd_padding_assign.insert(rd_padding_assign.end(),
+                        rd_no_padding_assign.begin(),
+                        rd_no_padding_assign.end());
+                res = std::move(rd_padding_assign);
+            } else {
+                res = std::move(rd_no_padding_assign);
+            }
+
+            cur = builder::make_stmts_unattached(res);
             // try to create inner anchor for reduce op
             create_fusible_output_anchor(
                     cur, dst, iter_vars, {rd_axis}, vx_info, attrs);
@@ -785,9 +833,9 @@ void reduce_op_t::compute_block(context_ptr ctx,
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
     vx_info_.lanes = vector_lanes;
 
-    compute_block_reduce(inputs, *dst[0], rd_op_, real_rd_axis, keep_dims_,
-            vx_info_, info_.inputs_[0]->details_.dtype_, attrs_, wkld,
-            is_dynamic());
+    compute_block_reduce(get_owner_graph(), info_, inputs, *dst[0], rd_op_,
+            real_rd_axis, keep_dims_, vx_info_,
+            info_.inputs_[0]->details_.dtype_, attrs_, wkld, is_dynamic());
 }
 
 size_t reduce_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
@@ -831,7 +879,8 @@ graph_tensor_ptr reduce_op_t::split_op(
     auto second_out = get_outputs()[0]->copy();
     second_out->producer_owner_ = nullptr;
 
-    bool is_bf16 = get_inputs()[0]->details_.dtype_ == datatypes::bf16;
+    bool is_bf16 = get_inputs()[0]->details_.dtype_ == datatypes::bf16
+            && rd_op_ != reduce_operator::max && rd_op_ != reduce_operator::min;
     if (is_bf16) {
         first_out->details_.dtype_ = datatypes::f32;
         second_out->details_.dtype_ = datatypes::f32;
@@ -963,8 +1012,11 @@ graph_tensor_ptr reduce_compute_op_t::split_op(
 
 sc_op_ptr reduce_compute_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
-    return mgr.make<reduce_compute_op_t>(ins.at(0), outs.at(0), real_rd_axis_,
-            rd_op_, keep_dims_, local_mode_);
+    auto ret = mgr.make<reduce_compute_op_t>(ins.at(0), outs.at(0),
+            real_rd_axis_, rd_op_, keep_dims_, local_mode_);
+    ret->copy_dispatch_key_set_from_op(shared_from_this());
+    ret->attrs_ = attrs_;
+    return ret;
 }
 
 reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
@@ -1079,9 +1131,9 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
         return builder::make_assign_unattached(indexing_nd, result);
     };
 
-    compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_, vx_info_,
-            mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
-            false, inputs[0], /*unroll*/ local_mode_);
+    compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
+            vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
+            attrs_, wkld, false, inputs[0], /*unroll*/ local_mode_);
 }
 
 void reduce_compute_op_t::set_reduce_buffer(const tensor &buf) {
@@ -1112,8 +1164,11 @@ void reduce_collect_op_t::set_reduce_buffer(const tensor &buf) {
 
 sc_op_ptr reduce_collect_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
-    return mgr.make<reduce_collect_op_t>(
+    auto ret = mgr.make<reduce_collect_op_t>(
             ins.at(0), outs.at(0), real_rd_axis_, rd_op_, keep_dims_, op_);
+    ret->copy_dispatch_key_set_from_op(shared_from_this());
+    ret->attrs_ = attrs_;
+    return ret;
 }
 
 void reduce_collect_op_t::infer_slice_ranges(
@@ -1122,9 +1177,13 @@ void reduce_collect_op_t::infer_slice_ranges(
             = search_known_slice_ranges(this, fsmap, stat_map);
     // set the other unknown slice range by achieved known_ranges_list
     slice_range_list &known_ranges_list = known_ranges_map[0];
-    COMPILE_ASSERT(get_inputs()[0]->producer_owner_->isa<reduce_compute_op_t>(),
-            "reduce_collect_op_t can only be placed after reduce_compute_op_t");
-    auto &input = get_inputs()[0]->producer_owner_->get_inputs().at(0);
+    // get producer
+    auto &producer = get_inputs()[0]->producer_owner_;
+    COMPILE_ASSERT(producer->isa<reduce_compute_op_t>(),
+            "reduce_collect_op_t can only be placed after "
+            "reduce_compute_op_t, but got "
+                    << producer->op_name_);
+    auto &input = producer->get_inputs().at(0);
     auto &real_rd_axis = get_rd_axis();
     update_reduce_op_fsmap(this, input, fsmap, stat_map, real_rd_axis);
     if (!stat_map.is_recursive_mode() && stat_map.is_retry()) return;
@@ -1162,7 +1221,7 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             return builder::make_assign_unattached(
                     out[0], get_binary_by_reduce_op(rd_op_)(out[0], in[0]));
         };
-        compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,
+        compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
                 vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
                 attrs_, 0, false, dst[0], /*unroll*/ true);
     } else if (op_ == LAST_AXIS_COLLECT) {
@@ -1187,7 +1246,7 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             return builder::make_assign_unattached(out[0], result);
         };
 
-        compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,
+        compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
                 vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
                 attrs_, 0, false, dst[0]);
     } else {

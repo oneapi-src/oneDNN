@@ -40,22 +40,8 @@ struct conv_fwd_config_t {
   int pack_input = 0;
   int loop_sched = 0;
 
-  int bs_threads = 1;
-  int s_threads = 1;
-  int oc_threads = 1;
-  int s_block = 1;
   conv_fwd_config_t() = default;
-  // new config entry
-  conv_fwd_config_t(int bs_threads, int s_threads, int oc_threads, int oc_block,
-    int ic_block, int s_block)
-    : K_block(oc_block)
-    , C_block(ic_block)
-    , bs_threads(bs_threads)
-    , s_threads(s_threads)
-    , oc_threads(oc_threads)
-    , s_block(s_block) {}
 
-  // old config entry
   conv_fwd_config_t(int K_block, int C_block, int tile_d, int tile_p,
     int tile_q, int tile_os, int pack_input, int loop_sched)
     : K_block(K_block)
@@ -84,12 +70,23 @@ public:
 
   gen_conv_fwd_t(sc_op *owner, const sc_dims &stride, const sc_dims &pads_begin,
     std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
-    : gen_conv_fwd_t(owner, stride, sc_dims {1}, pads_begin, std::move(ins),
-      std::move(outs)) {}
+    : gen_conv_fwd_t(owner, stride, sc_dims {1}, pads_begin, pads_begin,
+      std::move(ins), std::move(outs)) {}
+
+  gen_conv_fwd_t(sc_op *owner, const sc_dims &stride, const sc_dims &pads_begin,
+    const sc_dims &pads_end, std::vector<logical_tensor_t> &&ins,
+    std::vector<logical_tensor_t> &&outs)
+    : gen_conv_fwd_t(owner, stride, sc_dims {1}, pads_begin, pads_end,
+      std::move(ins), std::move(outs)) {}
 
   gen_conv_fwd_t(sc_op *owner, const sc_dims &stride, const sc_dims &dilation,
-    const sc_dims &pads_begin, std::vector<logical_tensor_t> &&ins,
-    std::vector<logical_tensor_t> &&outs);
+    const sc_dims &pads_begin, const sc_dims &pads_end,
+    std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
+
+  void adjust_config_for_parallelisem(
+    const context_ptr &ctx, conv_fwd_config_t &cfg) const;
+  void adjust_config_for_cache_efficiency(
+    const context_ptr &ctx, conv_fwd_config_t &cfg) const;
 
   float get_gflop() const override;
 
@@ -139,7 +136,6 @@ public:
               const std::vector<char> &os_mask = std::vector<char>()
   void compute_1x1_no_pack_input(CONV_ARG_LIST) const;
   void compute_1x1_pack_input(CONV_ARG_LIST) const;
-  void compute_conv1d(CONV_ARG_LIST) const;
   void compute_conv3d_no_padding(CONV_ARG_LIST) const;
   void compute_conv_no_padding(CONV_ARG_LIST) const;
   void compute_conv_padding(CONV_ARG_LIST) const;
@@ -147,21 +143,19 @@ public:
 #undef CONV_ARG_LIST
 
   size_t ndims_ = 0;
+  int groups_ = 1;
   int mb_ = 0, ic_ = 0, id_ = 0, ih_ = 0, iw_ = 0;
   int oc_ = 0, kd_ = 0, kh_ = 0, kw_ = 0;
   int od_ = 0, oh_ = 0, ow_ = 0;
   int sd_ = 0, sh_ = 0, sw_ = 0;
-  int pd_ = 0, ph_ = 0, pw_ = 0;
+  int pd_b_ = 0, ph_b_ = 0, pw_b_ = 0;
+  int pd_e_ = 0, ph_e_ = 0, pw_e_ = 0;
   int dd_ = 0, dh_ = 0, dw_ = 0;
   int actual_os_ = 0, adj_os_ = 0;
   int num_elems_skip_per_ow_ = 0;
-  int default_im_block_ = 64;
-  mutable int im_oc_block_, im_ic_block_, im_s_block_;
   bool try_os_blocking_ = false;
   bool is_1x1_conv_ = false;
   bool is_3d_ = false;
-  bool is_1d_ = false;
-  bool use_conv1d = false;
   bool blocking_input_ = false;
   bool blocking_output_ = false;
   any_map_t attrs_;

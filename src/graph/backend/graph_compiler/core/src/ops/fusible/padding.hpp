@@ -50,6 +50,10 @@ public:
 
     std::vector<expr> get_padding_offsets_exprs();
 
+    shape_rl_vec get_dynamic_shape_relations() const override;
+
+    reflection::shared_general_object_t get_dynamic_runtime_info() override;
+
     stmt get_zero_out_stmt(
             const tensor &out, const slice_range_list &range_list);
 };

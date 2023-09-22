@@ -16,6 +16,7 @@
 
 #include <compiler/ir/graph/fused_op.hpp>
 #include <ops/convolution.hpp>
+#include <ops/templates/conv_rl.hpp>
 #include <ops/templates/utils.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -34,6 +35,8 @@ namespace gc {
 SC_MODULE(graph.pre_padding);
 
 void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
+    if (graph.is_dynamic()) { return; }
+    COMPILE_ASSERT(!graph.is_dynamic(), "PrePadding only support static cases");
     auto visitor = op_visitor_t::dfs_topology_sort(graph.ops_.size());
     auto is_zero_paddings = [](sc_dims &paddings) {
         bool zero_paddings = true;
@@ -59,7 +62,7 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
 
                     // TODO(xurui)
                     // Only support extract padding op from 2d conv for now.
-                    if ((input_dims != 4) || !is_amx_dtype) { return; }
+                    if (((input_dims != 4) || !is_amx_dtype)) { return; }
                     // Only apply to inference
                     bool is_weight_constant
                             = node->get_inputs()[1]
@@ -71,6 +74,10 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
                             || node->get_inputs()[1]->attrs_.get_or_else(
                                     "constant", const_kind::not_const);
                     if (!is_weight_constant) { return; }
+                    if (node->attrs_.get_or_else(
+                                "use_rl", ops::rl_kind::NO_LOWERING)
+                            == ops::rl_kind::FULL_LOWERING)
+                        return;
 
                     auto pads_begin = node->attrs_.has_key("pads_begin")
                             ? node->attrs_.get<sc_dims>("pads_begin")

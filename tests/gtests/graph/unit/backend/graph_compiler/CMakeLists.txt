@@ -40,6 +40,12 @@ file(GLOB_RECURSE TEST_SRC
 ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 )
 
+
+get_property(SC_BUILTIN_ENABLED GLOBAL PROPERTY GRAPH_COMPILER_BUILTIN_ENABLED)
+if(NOT SC_BUILTIN_ENABLED)
+    list(REMOVE_ITEM TEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/core/test_intrisics_combine.cpp)
+endif()
+
 add_library(${OBJ_LIB} OBJECT ${TEST_SRC})
 
 include_directories_with_host_compiler(${OBJ_LIB}

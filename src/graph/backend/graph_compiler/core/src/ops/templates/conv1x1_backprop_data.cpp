@@ -174,7 +174,8 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
   bool loop_sched = config.loop_sched;
   bool is_out_blocking = out_tensors_[0].get_format().is_blocking();
   auto dtype = get_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
 
   if (is_3d) {
     COMPILE_ASSERT(get_weight_dims()[2] == 1 && get_weight_dims()[3] == 1

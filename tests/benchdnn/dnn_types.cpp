@@ -36,6 +36,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/cold_cache.hpp"
 #include "utils/parser.hpp"
 
 #define BENCHDNN_DNNL_ARG_UNDEF 0
@@ -182,9 +183,6 @@ policy_t attr_t::str2policy(const std::string &str) {
     CASE(PER_DIM_1);
     CASE(PER_DIM_01);
     CASE(PER_DIM_2);
-    CASE(PER_DIM_023);
-    CASE(PER_DIM_23);
-    CASE(PER_DIM_03);
     CASE(PER_DIM_3);
     CASE(PER_TENSOR);
 #undef CASE
@@ -199,9 +197,6 @@ const char *attr_t::policy2str(policy_t policy) {
     if (policy == PER_DIM_1) return "per_dim_1";
     if (policy == PER_DIM_01) return "per_dim_01";
     if (policy == PER_DIM_2) return "per_dim_2";
-    if (policy == PER_DIM_023) return "per_dim_023";
-    if (policy == PER_DIM_23) return "per_dim_23";
-    if (policy == PER_DIM_03) return "per_dim_03";
     if (policy == PER_DIM_3) return "per_dim_3";
     if (policy == PER_TENSOR) return "per_tensor";
     assert(!"unknown attr_t::policy_t policy");
@@ -215,9 +210,6 @@ int attr_t::get_default_mask(policy_t policy) {
         case PER_DIM_1: return (1 << 1);
         case PER_DIM_01: return (1 << 0) + (1 << 1);
         case PER_DIM_2: return (1 << 2);
-        case PER_DIM_023: return (1 << 0) + (1 << 2) + (1 << 3);
-        case PER_DIM_23: return (1 << 2) + (1 << 3);
-        case PER_DIM_03: return (1 << 0) + (1 << 3);
         case PER_DIM_3: return (1 << 3);
         case PER_TENSOR: return (1 << DNNL_MAX_NDIMS) - 1;
         case COMMON: return 0;
@@ -235,10 +227,10 @@ int parse_value_and_runtime(float &value, const std::string &s) {
         value = std::stof(s, &scale_pos);
     } catch (const std::invalid_argument &) {
         BENCHDNN_PRINT(0, "%s\n%s \'%s\'; %s\n",
-                "Error: output scale or zero point input value is invalid.",
+                "Error: scale or zero point input value is invalid.",
                 "Given input:", s.c_str(),
                 "Expected input: \'VAL[*]\'. See help for proper syntax.");
-        exit(1);
+        SAFE_V(FAIL);
     }
     if (scale_pos + 1 < s.size()) return FAIL;
     if (scale_pos == s.size()) return OK;
@@ -286,10 +278,19 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     // process policy
-    this->policy = str2policy(parser::get_substr(s, start_pos, ':'));
-    if (this->policy == POLICY_TOTAL) return FAIL;
+    const auto policy_str = parser::get_substr(s, start_pos, ':');
+    this->policy = str2policy(policy_str);
+    if (this->policy == POLICY_TOTAL) {
+        BENCHDNN_PRINT(0, "%s \'%s\' %s\n", "Error: Scale entry policy",
+                policy_str.c_str(), "is not recognized.");
+        SAFE_V(FAIL);
+    }
     if (start_pos == std::string::npos) return OK;
-    if (start_pos >= s.size()) return FAIL; // to catch dangling ':'
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
 
     SAFE(parse_value_and_runtime(
                  this->scale, parser::get_substr(s, start_pos, ':')),
@@ -479,127 +480,26 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks() const {
     std::vector<std::pair<int, int>> v_masks;
     for (int idx = 0; idx < len(); ++idx) {
         const auto &e = this->entry[idx];
-        policy_t policy = policy_t::COMMON;
+        int mask = -1;
         int arg = BENCHDNN_DNNL_ARG_UNDEF;
         if (e.is_binary_kind()) {
-            policy = e.binary.policy;
+            using mask_input_t = entry_t::binary_t::mask_input_t;
+            auto mask_input = e.binary.mask_input;
+            mask = mask_input == mask_input_t::mask
+                    ? e.binary.mask
+                    : attr_t::get_default_mask(e.binary.policy);
             arg = DNNL_ARG_SRC_1;
         } else if (e.is_prelu_kind()) {
-            policy = e.prelu.policy;
+            mask = attr_t::get_default_mask(e.prelu.policy);
             arg = DNNL_ARG_WEIGHTS;
         } else
             continue;
 
-        const auto mask = attr_t::get_default_mask(policy);
+        assert(mask >= 0);
         v_masks.emplace_back(std::make_pair(
                 DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg, mask));
     }
     return v_masks;
-}
-
-int attr_t::post_ops_t::from_str(const std::string &s) {
-    *this = post_ops_t();
-    if (s.empty()) return OK;
-
-    size_t start_pos = 0;
-    while (start_pos != std::string::npos) {
-        auto subs = parser::get_substr(s, start_pos, '+');
-        size_t subs_pos = 0;
-
-        auto kind = str2kind(parser::get_substr(subs, subs_pos, ':'));
-        if (kind == KIND_TOTAL) return FAIL;
-
-        entry.emplace_back(kind);
-        if (subs_pos == std::string::npos) continue;
-        if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-        auto &e = entry.back();
-        if (e.is_sum_kind()) {
-            e.sum.scale = std::stof(parser::get_substr(subs, subs_pos, ':'));
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            auto zp_str = parser::get_substr(subs, subs_pos, ':');
-            e.sum.zero_point = std::stoi(zp_str);
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-            if (std::to_string(e.sum.zero_point) != zp_str) return FAIL;
-
-            e.sum.dt = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
-            // sum dt, if specified, should be defined
-            if (e.sum.dt == dnnl_data_type_undef) return FAIL;
-        } else if (e.is_convolution_kind()) {
-            if (kind == DW) {
-                // `DW` has input of `dw:kXsYpZ`, while rest have `dw_k3sXp1`.
-                const auto str_dw_params
-                        = parser::get_substr(subs, subs_pos, ':');
-                size_t pos = 0, idx = 0;
-
-                pos += idx;
-                if (str_dw_params[pos] != 'k') return FAIL;
-                e.convolution.kernel = std::stoi(&str_dw_params[++pos], &idx);
-
-                pos += idx;
-                if (str_dw_params[pos] != 's') return FAIL;
-                e.convolution.stride = std::stoi(&str_dw_params[++pos], &idx);
-
-                pos += idx;
-                if (str_dw_params[pos] != 'p') return FAIL;
-                e.convolution.padding = std::stoi(&str_dw_params[++pos]);
-
-                if (subs_pos == std::string::npos) continue;
-            }
-
-            e.convolution.dst_dt
-                    = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
-            if (e.convolution.dst_dt == dnnl_data_type_undef) return FAIL;
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            auto scale_str = parser::get_substr(subs, subs_pos, '+');
-            SAFE(e.convolution.wei_scale.from_str(scale_str), WARN);
-            size_t dst_scale_pos = 0;
-            for (int i = 0; i < 2; ++i)
-                dst_scale_pos = scale_str.find(":", dst_scale_pos + 1);
-            if (dst_scale_pos != std::string::npos) {
-                auto dst_scale_str = scale_str.substr(dst_scale_pos + 1);
-                SAFE(e.convolution.dst_scale.from_str(dst_scale_str), WARN);
-            }
-        } else if (e.is_eltwise_kind()) {
-            e.eltwise.alpha
-                    = std::stof(parser::get_substr(subs, subs_pos, ':'));
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            e.eltwise.beta = std::stof(parser::get_substr(subs, subs_pos, ':'));
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-        } else if (e.is_binary_kind()) {
-            e.binary.src1_dt
-                    = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
-            if (e.binary.src1_dt == dnnl_data_type_undef) return FAIL;
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            e.binary.policy
-                    = str2policy(parser::get_substr(subs, subs_pos, ':'));
-            if (e.binary.policy == POLICY_TOTAL) return FAIL;
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            e.binary.tag = parser::get_substr(subs, subs_pos, ':');
-            SAFE(check_tag(e.binary.tag), WARN);
-        } else if (e.is_prelu_kind()) {
-            e.prelu.policy
-                    = str2policy(parser::get_substr(subs, subs_pos, ':'));
-            if (e.prelu.policy == POLICY_TOTAL) return FAIL;
-            if (subs_pos == std::string::npos) continue;
-            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-        }
-        if (subs_pos == std::string::npos) continue;
-        if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-    }
-    return OK;
 }
 
 bool attr_t::is_def(bool skip_fpmath) const {
@@ -737,8 +637,17 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.eltwise.alpha;
         } else if (e.is_binary_kind()) {
             s << ":" << e.binary.src1_dt;
-            if (e.binary.policy != policy_t::COMMON || e.binary.tag != tag::any)
-                s << ":" << e.binary.policy;
+            using mask_input_t
+                    = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+            if (e.binary.mask_input != mask_input_t::none
+                    || e.binary.tag != tag::any) {
+                if (e.binary.mask_input == mask_input_t::mask) {
+                    s << ":" << e.binary.mask;
+                } else {
+                    assert(e.binary.mask_input == mask_input_t::policy);
+                    s << ":" << e.binary.policy;
+                }
+            }
             if (e.binary.tag != tag::any) s << ":" << e.binary.tag;
         } else if (e.is_prelu_kind()) {
             if (e.prelu.policy != policy_t::COMMON) {
@@ -859,6 +768,8 @@ std::ostream &dump_global_params(std::ostream &s) {
     if (canonical || memory_kind != default_memory_kind)
         s << "--memory-kind=" << memory_kind << " ";
 #endif
+    if (canonical || cold_cache_mode != default_cold_cache_mode)
+        s << "--cold-cache=" << cold_cache_mode << " ";
 
     return s;
 }
@@ -914,7 +825,7 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
 
 struct post_ops_rhs_tensor_entry_t {
     dnnl_data_type_t dt;
-    policy_t policy;
+    int mask;
     std::string tag;
     int arg_attr_mask;
 };
@@ -925,10 +836,23 @@ post_ops_rhs_tensor_entry_t get_po_rhs_tensor_entry(
         const attr_t::post_ops_t::entry_t &entry) {
     if (entry.is_prelu_kind()) {
         const auto &prelu = entry.prelu;
-        return {dnnl_f32, prelu.policy, tag::axb, DNNL_ARG_WEIGHTS};
+        const int mask = attr_t::get_default_mask(prelu.policy);
+        return {dnnl_f32, mask, tag::axb, DNNL_ARG_WEIGHTS};
     } else if (entry.is_binary_kind()) {
         const auto &binary = entry.binary;
-        return {binary.src1_dt, binary.policy, binary.tag, DNNL_ARG_SRC_1};
+        using mask_input_t
+                = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+        int mask = -1;
+        switch (binary.mask_input) {
+            // `none` is treated as `policy_t::COMMON`.
+            case mask_input_t::none: mask = 0; break;
+            case mask_input_t::mask: mask = binary.mask; break;
+            case mask_input_t::policy:
+                mask = attr_t::get_default_mask(binary.policy);
+                break;
+            default: assert(!"unknown mask_input value"); break;
+        }
+        return {binary.src1_dt, mask, binary.tag, DNNL_ARG_SRC_1};
     }
 
     return post_ops_rhs_tensor_entry_t {};
@@ -948,8 +872,7 @@ int attr_args_t::prepare_post_ops_mds(
         if (e.is_binary_kind() || e.is_prelu_kind()) {
 
             const auto po_rhs_tensor_entry = get_po_rhs_tensor_entry(e);
-            const int mask
-                    = attr_t::get_default_mask(po_rhs_tensor_entry.policy);
+            const int mask = po_rhs_tensor_entry.mask;
 
             // deduce binary, prelu dims based on input policy
             dnnl_dims_t rhs_tensor_dims = {};
@@ -1244,8 +1167,9 @@ static std::string try_map_tag(
     for (int i = 0; i < (int)tag.size(); i++) {
         char c = tag[i];
         if (!std::isalpha(tag[i])) continue;
-        auto pos = logical_tag.find(std::tolower(c));
+        size_t pos = logical_tag.find(std::tolower(c));
         if (pos == std::string::npos) pos = logical_tag.find(std::toupper(c));
+        if (pos >= logical_tag.size()) SAFE_V(FAIL);
 
         mapped_tag[i]
                 = (char)(tag[i] - std::tolower(c) + 'a' + logical_indices[pos]);
@@ -1538,6 +1462,12 @@ void update_cpu_ref_attrs(attr_t &attr, dnnl_data_type_t new_dt) {
 
         e.binary.src1_dt = new_dt;
         e.binary.tag = tag::abx; // Hardcoded in local fill functions.
+        // Since tag is updated, it might get printed with policy, which means
+        // that mask_input should be specified.
+        using mask_input_t
+                = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+        if (e.binary.mask_input == mask_input_t::none)
+            e.binary.mask_input = mask_input_t::policy;
     }
 }
 

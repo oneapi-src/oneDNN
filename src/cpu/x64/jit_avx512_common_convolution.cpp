@@ -1288,7 +1288,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     int f_pad = jcp.f_pad;
     int t_pad = jcp.t_pad;
 
-    dim_t work_amount = jcp.mb * jcp.od * jcp.oh * jcp.nb_ow;
+    dim_t work_amount
+            = static_cast<dim_t>(jcp.mb) * jcp.od * jcp.oh * jcp.nb_ow;
     dim_t i_work {0}, i_work_end {0};
     balance211(work_amount, jcp.nthr_mb, ti->ithr_mb, i_work, i_work_end);
 

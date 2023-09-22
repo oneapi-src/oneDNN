@@ -19,6 +19,8 @@
 #include <map>
 #include <memory>
 #include <string>
+#include "compiler/config/context.hpp"
+#include "context.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/easy_build.hpp>
 #if SC_CFAKE_JIT_ENABLED
@@ -32,6 +34,8 @@
 #if SC_BUILTIN_JIT_ENABLED
 #include <compiler/jit/xbyak/xbyak_jit.hpp>
 #endif
+#include "util/bf16.hpp"
+#include "util/fp16.hpp"
 #include <runtime/generic_val.hpp>
 #include <runtime/runtime.hpp>
 #include <util/string_utils.hpp>
@@ -49,23 +53,54 @@ using std::shared_ptr;
 using std::string;
 using std::vector;
 
-static map<string, shared_ptr<jit_engine_t>> get_engines() {
-    map<string, shared_ptr<jit_engine_t>> ret;
+static const map<string, shared_ptr<jit_engine_t>> &get_engines() {
+    auto f = []() {
+        map<string, shared_ptr<jit_engine_t>> ret;
 #if SC_CFAKE_JIT_ENABLED
-    ret["cfake_jit"] = make_shared<cfake_jit>();
+        ret["cfake_jit"] = make_shared<cfake_jit>();
 #endif
 #if defined(SC_LLVM_BACKEND)
-    ret["llvm_jit"] = make_shared<llvm_jit>();
+        ret["llvm_jit"] = make_shared<llvm_jit>();
 #endif
 #if SC_BUILTIN_JIT_ENABLED
-    if (get_default_context()->machine_.cpu_flags_.fAVX2) {
-        ret["xbyak_jit"] = make_shared<xbyak_jit>();
-    }
+        if (get_default_context()->machine_.cpu_flags_.fAVX2) {
+            ret["xbyak_jit"] = make_shared<xbyak_jit>();
+        }
 #endif
+        return ret;
+    };
+    static auto ret = f();
     return ret;
 }
 
-static map<string, shared_ptr<jit_engine_t>> test_jit_engines = get_engines();
+static const runtime::cpu_flags_t &test_cpu_flags() {
+    static auto ret = get_default_context()->machine_.cpu_flags_;
+    return ret;
+}
+static const bool is_cpu_support_fp16() {
+    return get_default_context()->machine_.cpu_flags_.fAVX512FP16;
+}
+static bool use_cfake = true;
+
+static bool is_cfake(const std::string &jitname) {
+    return jitname == "cfake_jit";
+}
+
+static bool is_cfake_support_fp16() {
+    // Our cfake uses _Float16, which needs to be supported by g++.
+#if SC_CFAKE_JIT_ENABLED
+    auto f = []() {
+        auto tm = get_default_context()->machine_;
+        cfake_jit::set_target_machine(tm);
+        auto ret = tm.cpu_flags_.fAVX512FP16;
+        return ret;
+    };
+    static bool ret = f();
+    return ret;
+#else
+    return false;
+#endif
+}
 
 static uint16_t get_lanes(
         const sc_data_etype &etype, const uint16_t data_lanes = 16) {
@@ -76,6 +111,7 @@ static uint16_t get_lanes(
 //===========================================================================
 // Pre-defined dataset
 //===========================================================================
+#define DATA_LEN_8 8
 #define DATA_LEN_16 16
 #define DATA_LEN_64 64
 
@@ -85,6 +121,10 @@ static uint16_t get_lanes(
     { 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 }
 #define DATASET_I3 \
     { -16, -15, -14, -13, -12, -11, -10, -9, 8, 7, 6, 5, 4, 3, 2, 1 }
+#define DATASET_I1_8 \
+    { 1, 2, 3, 4, 5, 6, 7, 8 }
+#define DATASET_I1_4 \
+    { 1, 2, 3, 4 }
 #define DATASET_I1_64 \
     { \
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, \
@@ -151,7 +191,7 @@ static uint16_t get_lanes(
 #define SKIP_SCALAR false
 #define TEST_SIMD true
 #define SKIP_SIMD false
-
+static float precision_threshold = 1e-4F;
 //===========================================================================
 // MAKE_OP wrapper
 //===========================================================================
@@ -249,18 +289,27 @@ void TEST_IR_OP(MAKE_EXPR_OP make_op, TYPE *out, TYPE *ref,
         } \
     } else { \
         for (int i = 0; i < data_len; i++) { \
-            EXPECT_NEAR(out[i], ref[i], std::abs(1e-4 * ref[i])); \
+            EXPECT_NEAR( \
+                    out[i], ref[i], std::abs(precision_threshold *ref[i])); \
         } \
     }
     // Make ir module
     ir_builder_t builder;
-    auto ir_mod = std::make_shared<ir_module_t>(get_default_context());
+    auto ctx = get_default_context();
+    auto ir_mod = std::make_shared<ir_module_t>(ctx);
     // Add test functions
     if (SCALAR) { DEFINE_IR_FUNC(test_scalar, 1); }
     if (SIMD) { DEFINE_IR_FUNC(test_simd, lanes); }
     // Run the test
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         const string &je_name = kv.first;
+        if (!use_cfake) {
+            if (je_name == "cfake_jit") continue;
+        }
+        if (is_cpu_support_fp16() && is_cfake(je_name)
+                && !is_cfake_support_fp16()) {
+            continue;
+        }
         ostringstream err_context;
         err_context << "jit_engine_t class '" << je_name << "'";
         SCOPED_TRACE(err_context.str());
@@ -297,7 +346,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestLocalTensor) {
     ir_module_ptr ir_mod
             = ir_module_t::from_entry_func(get_default_context(), foo);
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         const int32_t host_x_in = 42;
         int32_t host_x_out[1] = {0};
 
@@ -348,7 +397,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestTensorAddrPassing) {
 
     generic_val generic_args[] = {(void *)(host_tensor_in), &host_result};
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         host_result = nullptr;
 
         const string &je_name = kv.first;
@@ -415,7 +464,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestSequentialElwiseAdd) {
 
     generic_val generic_args[] = {(void *)(A), (void *)(B), (void *)(C)};
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         for (int i = 0; i < num_elem; ++i) {
             C[i] = float(-1);
         }
@@ -456,7 +505,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestTrivialGenericWrapper) {
     ir_module_ptr ir_mod
             = ir_module_t::from_entry_func(get_default_context(), foo);
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         const string &je_name = kv.first;
 
         ostringstream err_context;
@@ -485,7 +534,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, DISABLED_TestSimpleEntryFunction) {
     ir_module_ptr ir_mod
             = ir_module_t::from_entry_func(get_default_context(), foo);
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         const string &je_name = kv.first;
 
         ostringstream err_context;
@@ -527,7 +576,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestFuncAddrNode) {
     const void *returned_print_int_addr;
     generic_val generic_args[] = {&returned_print_int_addr};
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         const string &je_name = kv.first;
         if (je_name == "llvm_jit") continue;
 
@@ -583,7 +632,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestNamedForLoop) {
     generic_val gv1 = &host_idx_values;
     generic_val generic_args[] = {gv0, gv1};
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         // Initialize buffers to incorrect values...
         host_num_iter = 42;
         host_idx_values[0] = 42;
@@ -653,7 +702,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIfElse) {
     generic_val gv2 = host_second_tested_value;
     generic_val generic_args[] = {gv0, gv1, gv2};
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         // Mark all 4 basic blocks as not-visited...
         host_basic_blocks_visited[0] = 0;
         host_basic_blocks_visited[1] = 0;
@@ -717,7 +766,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestCMPExprSint) {
     ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
             get_default_context(), vector<func_t> {foo}, 0);
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         ostringstream err_context;
         const string &je_name = kv.first;
         err_context << "jit_engine_t class '" << je_name << "'";
@@ -815,7 +864,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestCMPExprUint) {
     ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
             get_default_context(), vector<func_t> {foo}, 0);
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         ostringstream err_context;
         const string &je_name = kv.first;
         err_context << "jit_engine_t class '" << je_name << "'";
@@ -896,6 +945,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBroadcast) {
     const int num_lanes_i16 = get_lanes(sc_data_etype::U16, DATA_LEN_16);
     const int num_lanes_i32 = get_lanes(sc_data_etype::U32, DATA_LEN_16);
     const int num_lanes_f32 = get_lanes(sc_data_etype::F32, DATA_LEN_16);
+    const int num_lanes_f16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
 
     _function_(datatypes::void_t, foo,
             _arg_("tensor_out", datatypes::f32, {num_elems}),
@@ -936,12 +986,27 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBroadcast) {
         }
     }
 
-    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
-            get_default_context(), vector<func_t> {foo}, 0);
-
-    for (auto &kv : test_jit_engines) {
+    _function_(datatypes::void_t, foofp16,
+            _arg_("tensor_f16", datatypes::f16, {num_elems}), ) {
+        _bind_(tensor_f16);
+        union_val valf(42.f);
+        _for_(i, 0, DATA_LEN_16, num_lanes_f16) {
+            tensor_f16[span_t({1 + i}, num_lanes_f16)]
+                    = make_expr<constant_node>(
+                            valf, sc_data_type_t::f16(num_lanes_f16));
+        }
+    }
+    auto ctx = get_default_context();
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(ctx);
+    ir_mod->add_func({foo});
+    if (is_cpu_support_fp16()) { ir_mod->add_func({foofp16}); }
+    for (auto &kv : get_engines()) {
         ostringstream err_context;
         const string &je_name = kv.first;
+        if (is_cpu_support_fp16() && is_cfake(je_name)
+                && !is_cfake_support_fp16()) {
+            continue;
+        }
         err_context << "jit_engine_t class '" << je_name << "'";
         SCOPED_TRACE(err_context.str());
 
@@ -953,6 +1018,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBroadcast) {
         EXPECT_NE(jm, nullptr);
 
         shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+        shared_ptr<jit_function_t> j_foo_fp16 = jm->get_function("foofp16");
 
         EXPECT_NE(j_foo, nullptr);
         if (!j_foo) { continue; }
@@ -987,12 +1053,18 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBroadcast) {
         const float expected_result[num_elems] = {-1, 42, 42, 42, 42, 42, 42,
                 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, -1};
 
+        fp16_t host_tensor_f16[num_elems] = {-1, -1, -1, -1, -1, -1, -1, -1, -1,
+                -1, -1, -1, -1, -1, -1, -1, -1, -1};
+        const fp16_t expected_result_f16[num_elems] = {-1, 42, 42, 42, 42, 42,
+                42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, -1};
         generic_val generic_args[] = {&host_tensor_out, &host_tensor_int8,
                 &host_tensor_uint8, &host_tensor_int32, &host_tensor_uint32,
                 &host_tensor_uint16};
-
+        generic_val generic_args_fp16[] = {&host_tensor_f16};
         j_foo->call_generic_default(generic_args);
-
+        if (is_cpu_support_fp16()) {
+            j_foo_fp16->call_generic_default(generic_args_fp16);
+        }
         for (int i = 0; i < num_elems; ++i) {
             EXPECT_EQ(host_tensor_out[i], expected_result[i]);
             EXPECT_EQ(host_tensor_int8[i], expected_int8[i]);
@@ -1000,6 +1072,9 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBroadcast) {
             EXPECT_EQ(host_tensor_int32[i], expected_int32[i]);
             EXPECT_EQ(host_tensor_uint32[i], expected_uint32[i]);
             EXPECT_EQ(host_tensor_uint16[i], expected_uint16[i]);
+            if (is_cpu_support_fp16()) {
+                EXPECT_EQ(host_tensor_f16[i], expected_result_f16[i]);
+            }
         }
     }
 }
@@ -1025,7 +1100,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicBroadcast) {
     ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
             get_default_context(), vector<func_t> {foo}, 0);
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         ostringstream err_context;
         const string &je_name = kv.first;
         err_context << "jit_engine_t class '" << je_name << "'";
@@ -1085,7 +1160,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicGather) {
     ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
             get_default_context(), vector<func_t> {foo}, 0);
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         ostringstream err_context;
         const string &je_name = kv.first;
         err_context << "jit_engine_t class '" << je_name << "'";
@@ -1122,6 +1197,68 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicGather) {
     }
 }
 
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicpermute2) {
+    REQUIRE_AVX512();
+    ir_builder_t builder;
+
+    const int simd_lanes = 16;
+    const int num_elems = simd_lanes;
+    _function_(datatypes::void_t, foo,
+            _arg_("tensor_out1", datatypes::u16, {num_elems}),
+            _arg_("tensor_out2", datatypes::u16, {num_elems}),
+            _arg_("tensor_src1", datatypes::u16, {num_elems}),
+            _arg_("tensor_src2", datatypes::u16, {num_elems})) {
+        _bind_(tensor_out1, tensor_out2, tensor_src1, tensor_src2);
+        tensor_out1[span_t({0}, simd_lanes)]
+                = make_permute(tensor_src1[span_t({0}, simd_lanes)],
+                        tensor_src2[span_t({0}, simd_lanes)], 0x20, 128);
+        tensor_out2[span_t({0}, simd_lanes)]
+                = make_permute(tensor_src1[span_t({0}, simd_lanes)],
+                        tensor_src2[span_t({0}, simd_lanes)], 0x31, 128);
+    }
+
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+            get_default_context(), vector<func_t> {foo}, 0);
+
+    for (auto &kv : get_engines()) {
+        ostringstream err_context;
+        const string &je_name = kv.first;
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+
+        EXPECT_NE(j_foo, nullptr);
+        if (!j_foo) { continue; }
+
+        uint16_t host_tensor_out1[num_elems] = {0};
+        uint16_t host_tensor_out2[num_elems] = {0};
+        uint16_t host_tensor_src1[num_elems] = DATASET_I1;
+        uint16_t host_tensor_src2[num_elems] = DATASET_I2;
+        const uint16_t expected_result1[num_elems]
+                = {1, 2, 3, 4, 5, 6, 7, 8, 16, 15, 14, 13, 12, 11, 10, 9};
+        const uint16_t expected_result2[num_elems]
+                = {9, 10, 11, 12, 13, 14, 15, 16, 8, 7, 6, 5, 4, 3, 2, 1};
+
+        generic_val generic_args[] = {&host_tensor_out1, &host_tensor_out2,
+                &host_tensor_src1, &host_tensor_src2};
+
+        j_foo->call_generic_default(generic_args);
+
+        for (int i = 0; i < num_elems; ++i) {
+            EXPECT_EQ(host_tensor_out1[i], expected_result1[i]);
+            EXPECT_EQ(host_tensor_out2[i], expected_result2[i]);
+        }
+    }
+}
+
 TEST(GCCore_CPU_jit_engine_equivalence, TestModuleVar) {
     ir_builder_t builder;
 
@@ -1142,7 +1279,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestModuleVar) {
 
     ir_mod->add_func({foo_set_x, foo_get_x});
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         ostringstream err_context;
         const string &je_name = kv.first;
         err_context << "jit_engine_t class '" << je_name << "'";
@@ -1210,7 +1347,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestSubtract8Args) {
     generic_val generic_args[] = {UINT64_C(22), UINT64_C(1), UINT64_C(2),
             UINT64_C(3), UINT64_C(4), UINT64_C(5), UINT64_C(6), &result};
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         const string &je_name = kv.first;
 
         ostringstream err_context;
@@ -1245,12 +1382,12 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicReduceAdd) {
     const int num_elems = 1 + DATA_LEN_16 + 1;
     const int num_lanes_i32 = get_lanes(sc_data_etype::U32, DATA_LEN_16);
     const int num_lanes_f32 = get_lanes(sc_data_etype::F32, DATA_LEN_16);
-
+    const int num_lanes_f16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
     _function_(datatypes::void_t, foo,
             _arg_("tensor_f32_in", datatypes::f32, {num_elems}),
             _arg_("out_f32", datatypes::f32, {1}),
             _arg_("tensor_s32_in", datatypes::s32, {num_elems}),
-            _arg_("out_s32", datatypes::s32, {1})) {
+            _arg_("out_s32", datatypes::s32, {1}), ) {
         _bind_(tensor_f32_in, out_f32, tensor_s32_in, out_s32);
 
         _var_init_(
@@ -1271,10 +1408,204 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicReduceAdd) {
         out_f32[0] = out_var_f32;
     }
 
+    _function_(datatypes::void_t, foofp16,
+            _arg_("tensor_f16_in", datatypes::f16, {num_elems}),
+            _arg_("out_f16", datatypes::f16, {1}), ) {
+        _bind_(tensor_f16_in, out_f16);
+        _var_init_(out_var_f16, sc_data_type_t::f16(1),
+                make_constant({0.f}, datatypes::f16));
+        _for_(i, 0, DATA_LEN_16, num_lanes_f16) {
+            _var_(local_temp, sc_data_type_t::f16(num_lanes_f16));
+            local_temp = tensor_f16_in[span_t({1 + i}, num_lanes_f16)];
+            out_var_f16 = out_var_f16 + make_reduce_add(local_temp);
+        }
+        out_f16[0] = out_var_f16;
+    }
+
+    auto ctx = get_default_context();
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(ctx);
+    ir_mod->add_func({foo});
+    if (is_cpu_support_fp16()) { ir_mod->add_func({foofp16}); }
+    for (auto &kv : get_engines()) {
+        ostringstream err_context;
+        const string &je_name = kv.first;
+        if (is_cpu_support_fp16() && is_cfake(je_name)
+                && !is_cfake_support_fp16()) {
+            continue;
+        }
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+        shared_ptr<jit_function_t> j_foo_fp16 = jm->get_function("foofp16");
+
+        EXPECT_NE(j_foo, nullptr);
+        if (!j_foo) { continue; }
+
+        float host_in[num_elems] = {
+                -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, -1};
+        float host_out = 0;
+        const float expected_out = 136;
+        int32_t host_int32_in[num_elems] = {
+                -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, -1};
+        int32_t host_int32_out = 0;
+        const float expected_int32_out = 136;
+
+        fp16_t host_f16_in[num_elems] = {
+                -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, -1};
+        fp16_t host_f16_out = 0;
+        const fp16_t expected_f16_out = 136;
+
+        generic_val generic_args[] = {
+                host_in,
+                &host_out,
+                host_int32_in,
+                &host_int32_out,
+        };
+        generic_val generic_args_fp16[] = {
+                host_f16_in,
+                &host_f16_out,
+        };
+
+        j_foo->call_generic_default(generic_args);
+        if (is_cpu_support_fp16()) {
+            j_foo_fp16->call_generic_default(generic_args_fp16);
+        }
+
+        EXPECT_EQ(host_out, expected_out);
+        EXPECT_EQ(host_int32_out, expected_int32_out);
+        if (is_cpu_support_fp16()) {
+            EXPECT_EQ(host_f16_out, expected_f16_out);
+        }
+    }
+}
+
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestUnpackHighLow) {
+    REQUIRE_AVX2();
+    const int array_len = 32;
+    ir_builder_t builder;
+    const int data_len = 8;
+    const int data_len_1 = 16;
+
+    _function_(datatypes::void_t, foo, _arg_("x", datatypes::bf16, {data_len}),
+            _arg_("y", datatypes::bf16, {data_len}),
+            _arg_("k", datatypes::bf16, {data_len}),
+            _arg_("z", datatypes::bf16, {data_len}),
+            _arg_("result", datatypes::bf16, {array_len}),
+            _arg_("x_1", datatypes::u8, {data_len_1}),
+            _arg_("y_1", datatypes::u8, {data_len_1}),
+            _arg_("result_1", datatypes::u8, {array_len})) {
+        _bind_(x, y, k, z, result, x_1, y_1, result_1);
+        result[span_t({0}, data_len)] = builder::make_unpack_low(
+                x[span_t({0}, data_len)], y[span_t({0}, data_len)], 16);
+        result[span_t({8}, data_len)] = builder::make_unpack_high(
+                x[span_t({0}, data_len)], y[span_t({0}, data_len)], 16);
+        result[span_t({16}, data_len)] = builder::make_unpack_low(
+                k[span_t({0}, data_len)], z[span_t({0}, data_len)], 16);
+        result[span_t({24}, data_len)] = builder::make_unpack_high(
+                k[span_t({0}, data_len)], z[span_t({0}, data_len)], 16);
+        result_1[span_t({0}, data_len_1)] = builder::make_unpack_low(
+                x_1[span_t({0}, data_len_1)], y_1[span_t({0}, data_len_1)], 8);
+        result_1[span_t({16}, data_len_1)] = builder::make_unpack_high(
+                x_1[span_t({0}, data_len_1)], y_1[span_t({0}, data_len_1)], 8);
+    }
+
     ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
             get_default_context(), vector<func_t> {foo}, 0);
 
-    for (auto &kv : test_jit_engines) {
+    uint16_t x[8] = {1, 3, 5, 7, 9, 11, 13, 15};
+    uint16_t y[8] = {2, 4, 6, 8, 10, 12, 14, 16};
+    uint16_t k[8] = {17, 19, 21, 23, 25, 27, 29, 31};
+    uint16_t z[8] = {18, 20, 22, 24, 26, 28, 30, 32};
+    uint8_t x_1[16]
+            = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31};
+    uint8_t y_1[16]
+            = {2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32};
+    uint16_t result[array_len] = {0};
+    uint16_t expected_result[array_len] = {0};
+    uint8_t result_1[array_len] = {0};
+    for (int i = 0; i < array_len; i++) {
+        expected_result[i] = i + 1;
+    }
+
+    generic_val generic_args[] = {x, y, k, z, &result, x_1, y_1, &result_1};
+
+    for (auto &kv : get_engines()) {
+        const string &je_name = kv.first;
+
+        ostringstream err_context;
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> jf = jm->get_function("foo");
+
+        EXPECT_NE(jf, nullptr);
+        if (!jf) { continue; }
+
+        jf->call_generic_default(generic_args);
+        for (int i = 0; i < array_len; i++) {
+            EXPECT_EQ(result[i], expected_result[i]);
+            EXPECT_EQ(result_1[i], expected_result[i]);
+        }
+    }
+}
+
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicPermutexvar) {
+    REQUIRE_AVX512VBMI();
+    ir_builder_t builder;
+
+    any_map_t reinterpret_attr;
+    expr idx0;
+#define MAKE_IDX_NEW(name, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, \
+        v12, v13, v14, v15) \
+    idx##name = make_expr<intrin_call_node>(intrin_type::reinterpret, \
+            std::vector<expr> {make_expr<constant_node>( \
+                    std::vector<union_val> {UINT64_C(v0), UINT64_C(v1), \
+                            UINT64_C(v2), UINT64_C(v3), UINT64_C(v4), \
+                            UINT64_C(v5), UINT64_C(v6), UINT64_C(v7), \
+                            UINT64_C(v8), UINT64_C(v9), UINT64_C(v10), \
+                            UINT64_C(v11), UINT64_C(v12), UINT64_C(v13), \
+                            UINT64_C(v14), UINT64_C(v15)}, \
+                    sc_data_type_t::u32(16))}, \
+            reinterpret_attr);
+    const int simd_lanes = 64;
+
+    _function_(datatypes::void_t, foo,
+            _arg_("tensor_in", datatypes::u8, {simd_lanes}),
+            _arg_("tensor_in_1", datatypes::u8, {simd_lanes / 2}), ) {
+        _bind_(tensor_in, tensor_in_1);
+        _var_(local_temp, sc_data_type_t::u8(64));
+        _var_(local_temp_1, sc_data_type_t::u8(32));
+        local_temp = tensor_in[span_t({0}, simd_lanes)];
+        local_temp_1 = tensor_in_1[span_t({0}, simd_lanes / 2)];
+        reinterpret_attr[intrin_attr::out_dtype] = sc_data_type_t::u8(64);
+        MAKE_IDX_NEW(0, 0x30201000, 0x31211101, 0x32221202, 0x33231303,
+                0x34241404, 0x35251505, 0x36261606, 0x37271707, 0x38281808,
+                0x39291909, 0x3a2a1a0a, 0x3b2b1b0b, 0x3c2c1c0c, 0x3d2d1d0d,
+                0x3e2e1e0e, 0x3f2f1f0f)
+        tensor_in[span_t({0}, simd_lanes)] = make_permutexvar(idx0, local_temp);
+        tensor_in_1[span_t({0}, simd_lanes / 2)] = make_permutexvar(
+                builder::make_constant(UINT64_C(0b11011000)), local_temp_1, 8);
+    }
+
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+            get_default_context(), vector<func_t> {foo}, 0);
+
+    for (auto &kv : get_engines()) {
         ostringstream err_context;
         const string &je_name = kv.first;
         err_context << "jit_engine_t class '" << je_name << "'";
@@ -1291,28 +1622,276 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicReduceAdd) {
 
         EXPECT_NE(j_foo, nullptr);
         if (!j_foo) { continue; }
+        int rows = 4, cols = 16;
+        int init = 1;
+        uint8_t host_in[simd_lanes] = {0};
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                host_in[i * cols + j] = init++;
+            }
+        }
+        uint8_t host_in_1[simd_lanes / 2] = {0};
+        init = 1;
+        for (int i = 0; i < simd_lanes / 2; i++) {
+            host_in_1[i] = init++;
+        }
+        uint8_t expected_out[simd_lanes] = {1, 17, 33, 49, 2, 18, 34, 50, 3, 19,
+                35, 51, 4, 20, 36, 52, 5, 21, 37, 53, 6, 22, 38, 54, 7, 23, 39,
+                55, 8, 24, 40, 56, 9, 25, 41, 57, 10, 26, 42, 58, 11, 27, 43,
+                59, 12, 28, 44, 60, 13, 29, 45, 61, 14, 30, 46, 62, 15, 31, 47,
+                63, 16, 32, 48, 64};
+        uint8_t expected_out_1[simd_lanes / 2] = {1, 2, 3, 4, 5, 6, 7, 8, 17,
+                18, 19, 20, 21, 22, 23, 24, 9, 10, 11, 12, 13, 14, 15, 16, 25,
+                26, 27, 28, 29, 30, 31, 32};
 
-        float host_in[num_elems] = {
-                -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, -1};
-        float host_out = 0;
-        const float expected_out = 136;
-        int32_t host_int32_in[num_elems] = {
-                -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, -1};
-        int32_t host_int32_out = 0;
-        const float expected_int32_out = 136;
-
-        generic_val generic_args[] = {
-                host_in,
-                &host_out,
-                host_int32_in,
-                &host_int32_out,
-        };
+        generic_val generic_args[] = {&host_in, &host_in_1};
 
         j_foo->call_generic_default(generic_args);
-
-        EXPECT_EQ(host_out, expected_out);
-        EXPECT_EQ(host_int32_out, expected_int32_out);
+        for (int i = 0; i < simd_lanes; i++) {
+            EXPECT_EQ((int)host_in[i], (int)expected_out[i]);
+            if (i < simd_lanes / 2) {
+                EXPECT_EQ((int)host_in_1[i], (int)expected_out_1[i]);
+            }
+        }
     }
+}
+
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicInsert) {
+    REQUIRE_AVX512();
+    ir_builder_t builder;
+    const int simd_lanes = 32;
+#define INSERT_CMP_DATA(type, imm) \
+    type host_in_1[32] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, \
+            16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; \
+    type host_in_2[16] \
+            = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; \
+    const type expected_out_1[32] \
+            = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 1, 2, \
+                    3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; \
+    const type expected_out_0[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, \
+            13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; \
+    generic_val generic_args[] = { \
+            &host_in_1, \
+            &host_in_2, \
+    }; \
+    j_foo->call_generic_default(generic_args); \
+    for (int i = 0; i < simd_lanes; i++) { \
+        if ((imm)&1) { \
+            EXPECT_EQ(host_in_1[i], expected_out_1[i]); \
+        } else { \
+            EXPECT_EQ(host_in_1[i], expected_out_0[i]); \
+        } \
+    }
+
+    auto test_func = [&](const sc_data_type_t &dtype, const int imm) {
+        _function_(datatypes::void_t, foo,
+                _arg_("tensor_in_1", dtype, {simd_lanes}),
+                _arg_("tensor_in_2", dtype, {simd_lanes / 2}), ) {
+            _bind_(tensor_in_1, tensor_in_2);
+            _var_(local_temp_1, sc_data_type_t(dtype.type_code_, simd_lanes));
+            local_temp_1->attr()["can_promote_to_f32"] = false;
+            _var_(local_temp_2,
+                    sc_data_type_t(dtype.type_code_, simd_lanes / 2));
+            local_temp_2->attr()["can_promote_to_f32"] = false;
+            local_temp_1 = tensor_in_1[span_t({0}, simd_lanes)];
+            local_temp_2 = tensor_in_2[span_t({0}, simd_lanes / 2)];
+            tensor_in_1[span_t({0}, simd_lanes)]
+                    = make_insert(local_temp_1, local_temp_2, imm);
+        }
+        for (auto &kv : get_engines()) {
+            ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+                    get_default_context(), vector<func_t> {foo}, 0);
+            ostringstream err_context;
+            const string &je_name = kv.first;
+            err_context << "jit_engine_t class '" << je_name << "'";
+            SCOPED_TRACE(err_context.str());
+            shared_ptr<jit_engine_t> je = kv.second;
+            EXPECT_NE(je, nullptr);
+            if (!je) { continue; }
+            shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+            EXPECT_NE(jm, nullptr);
+            shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+            EXPECT_NE(j_foo, nullptr);
+            if (!j_foo) { continue; }
+            switch (dtype.as_etype()) {
+                case sc_data_etype::U8: {
+                    INSERT_CMP_DATA(uint8_t, imm);
+                } break;
+                case sc_data_etype::S8: {
+                    INSERT_CMP_DATA(int8_t, imm);
+                } break;
+                case sc_data_etype::U16: {
+                    INSERT_CMP_DATA(uint16_t, imm);
+                } break;
+                case sc_data_etype::BF16: {
+                    INSERT_CMP_DATA(uint16_t, imm);
+                } break;
+                default: {
+                    assert(0 && "Do not support this type.");
+                } break;
+            }
+        }
+    };
+    test_func(datatypes::s8, 1); // insert imm = 1
+    test_func(datatypes::s8, 0); // insert imm = 0
+    test_func(datatypes::u8, 1); // insert imm = 1
+    test_func(datatypes::u8, 0); // insert imm = 0
+    test_func(datatypes::bf16, 1); // insert imm = 1
+    test_func(datatypes::bf16, 1); // insert imm = 0
+}
+
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicExtractAVX2) {
+    REQUIRE_AVX2();
+    ir_builder_t builder;
+    const int simd_lanes = 8;
+#define EXTRACT_CMP_DATA(type, imm) \
+    type host_in_1[8] = {1, 2, 3, 4, 5, 6, 7, 8}; \
+    type host_in_2[8] = {0}; \
+    const type expected_out_1 = 1; \
+    const type expected_out_2 = 2; \
+    generic_val generic_args[] = { \
+            &host_in_1, \
+            &host_in_2, \
+    }; \
+    j_foo->call_generic_default(generic_args); \
+    for (int i = 0; i < simd_lanes; i++) { \
+        if ((imm)&1) { \
+            EXPECT_EQ(host_in_2[i], expected_out_2); \
+        } else { \
+            EXPECT_EQ(host_in_2[i], expected_out_1); \
+        } \
+    }
+
+    auto test_func = [&](sc_data_type_t dtype, const int imm) {
+        _function_(datatypes::void_t, foo,
+                _arg_("tensor_in_1", dtype, {simd_lanes}),
+                _arg_("tensor_in_2", dtype, {simd_lanes})) {
+            _bind_(tensor_in_1, tensor_in_2);
+            _var_(local_temp_1, sc_data_type_t(dtype.type_code_, simd_lanes));
+            local_temp_1->attr()["can_promote_to_f32"] = false;
+            local_temp_1 = tensor_in_1[span_t({0}, simd_lanes)];
+            _for_(idx, 0, simd_lanes) {
+                tensor_in_2[span_t({idx}, 1)] = make_extract(local_temp_1, imm);
+            }
+        }
+        for (auto &kv : get_engines()) {
+            ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+                    get_default_context(), vector<func_t> {foo}, 0);
+            ostringstream err_context;
+            const string &je_name = kv.first;
+            err_context << "jit_engine_t class '" << je_name << "'";
+            SCOPED_TRACE(err_context.str());
+            shared_ptr<jit_engine_t> je = kv.second;
+            EXPECT_NE(je, nullptr);
+            if (!je) { continue; }
+            shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+            EXPECT_NE(jm, nullptr);
+            shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+            EXPECT_NE(j_foo, nullptr);
+            if (!j_foo) { continue; }
+            switch (dtype.as_etype()) {
+                case sc_data_etype::U8: {
+                    EXTRACT_CMP_DATA(uint8_t, imm);
+                } break;
+                case sc_data_etype::S8: {
+                    EXTRACT_CMP_DATA(int8_t, imm);
+                } break;
+                case sc_data_etype::U16: {
+                    EXTRACT_CMP_DATA(uint16_t, imm);
+                } break;
+                case sc_data_etype::BF16: {
+                    EXTRACT_CMP_DATA(uint16_t, imm);
+                } break;
+                default: {
+                    assert(0 && "Do not support this type.");
+                } break;
+            }
+        }
+    };
+
+    test_func(datatypes::u8, 1); // extract imm = 1
+    test_func(datatypes::u8, 0); // extract imm = 0
+    test_func(datatypes::u16, 1); // extract imm = 1
+    test_func(datatypes::u16, 0); // extract imm = 0
+    test_func(datatypes::bf16, 1); // extract imm = 1
+    test_func(datatypes::bf16, 0); // extract imm = 0
+}
+
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicInsertAVX2) {
+    REQUIRE_AVX2();
+    ir_builder_t builder;
+    const int simd_lanes = 8;
+#define INSERT_AVX2_CMP_DATA(type) \
+    type x = 1; \
+    type expected_result[8] = {0, 1, 2, 2, 2, 2, 0, 0}; \
+    type result[8] = {0}; \
+    generic_val generic_args[] = {x, &result}; \
+    jf->call_generic_default(generic_args); \
+    for (int i = 0; i < 8; i++) { \
+        ASSERT_EQ(result[i], expected_result[i]); \
+    }
+
+    auto test_func = [&](const sc_data_type_t &dtype) {
+        _function_(datatypes::void_t, foo, _arg_("x", dtype),
+                _arg_("result", dtype, {simd_lanes})) {
+            _bind_(x, result);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 1);
+            x = x + builder::make_cast(dtype, 1);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 2);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 3);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 4);
+            result[span_t({0}, simd_lanes)] = builder::make_insert(
+                    result[span_t({0}, simd_lanes)], x, 5);
+        }
+
+        ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+                get_default_context(), vector<func_t> {foo}, 0);
+
+        for (auto &kv : get_engines()) {
+            const string &je_name = kv.first;
+            if (je_name != "xbyak_jit") continue;
+
+            ostringstream err_context;
+            err_context << "jit_engine_t class '" << je_name << "'";
+            SCOPED_TRACE(err_context.str());
+
+            shared_ptr<jit_engine_t> je = kv.second;
+            EXPECT_NE(je, nullptr);
+            if (!je) { continue; }
+
+            shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+            EXPECT_NE(jm, nullptr);
+
+            shared_ptr<jit_function_t> jf = jm->get_function("foo");
+
+            EXPECT_NE(jf, nullptr);
+            if (!jf) { continue; }
+            switch (dtype.as_etype()) {
+                case sc_data_etype::U8: {
+                    INSERT_AVX2_CMP_DATA(uint8_t);
+                } break;
+                case sc_data_etype::S8: {
+                    INSERT_AVX2_CMP_DATA(int8_t);
+                } break;
+                case sc_data_etype::U16: {
+                    INSERT_AVX2_CMP_DATA(uint16_t);
+                } break;
+                case sc_data_etype::BF16: {
+                    INSERT_AVX2_CMP_DATA(uint16_t);
+                } break;
+                default: {
+                    assert(0 && "Do not support this type.");
+                } break;
+            }
+        }
+    };
+    test_func(datatypes::s8);
+    test_func(datatypes::u8);
+    test_func(datatypes::u16);
 }
 
 TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBF16) {
@@ -1364,7 +1943,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBF16) {
     ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
             get_default_context(), vector<func_t> {foo}, 0);
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         ostringstream err_context;
         const string &je_name = kv.first;
         err_context << "jit_engine_t class '" << je_name << "'";
@@ -1408,6 +1987,103 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBF16) {
     }
 }
 
+TEST(GCCore_CPU_jit_engine_equivalence, TestConstantFP16) {
+    REQUIRE_AVX512FP16();
+    ir_builder_t builder;
+
+    // We'll use over-sized tensors to help us notice errors in the indexing
+    // calculations.
+    const int simd_lanes = 16;
+    const int num_elems = simd_lanes;
+
+    auto make_constf = [](std::initializer_list<float> v, sc_data_type_t type) {
+        std::vector<union_val> val;
+        for (auto i : v) {
+            val.push_back(i);
+        }
+        return make_expr<constant_node>(val, type);
+    };
+
+    const float v1[num_elems] = DATASET_F2;
+    const float v2[num_elems] = DATASET_F1;
+
+    _function_(datatypes::void_t, foo,
+            _arg_("tensor_in", datatypes::f32, {num_elems}),
+            _arg_("tensor_out", datatypes::f32, {num_elems}),
+            _arg_("single_out", datatypes::f32, {num_elems}), ) {
+        _bind_(tensor_in, tensor_out, single_out);
+
+        _var_(local_temp, sc_data_type_t::f16(simd_lanes));
+        local_temp = make_constf(DATASET_F2, sc_data_type_t::f16(simd_lanes));
+        local_temp = local_temp
+                + make_cast(sc_data_type_t::f16(simd_lanes),
+                        tensor_in[span_t({0}, simd_lanes)]);
+        local_temp = local_temp
+                + make_constf(DATASET_F1, sc_data_type_t::f16(simd_lanes));
+        tensor_out[span_t({0}, simd_lanes)]
+                = make_cast(sc_data_type_t::f32(simd_lanes), local_temp);
+
+        _var_(single_tmp, datatypes::f16);
+        for (int i = 0; i < simd_lanes; i++) {
+            single_tmp = make_expr<constant_node>(v1[i], datatypes::f16);
+            single_tmp = single_tmp + make_cast(datatypes::f16, tensor_in[i]);
+            single_tmp = single_tmp
+                    + make_expr<constant_node>(v2[i], datatypes::f16);
+            single_out[i] = make_cast(datatypes::f32, single_tmp);
+        }
+    }
+    auto ctx = get_default_context();
+    ir_module_ptr ir_mod
+            = std::make_shared<ir_module_t>(ctx, vector<func_t> {foo}, 0);
+
+    for (auto &kv : get_engines()) {
+        ostringstream err_context;
+        const string &je_name = kv.first;
+        if (is_cpu_support_fp16() && is_cfake(je_name)
+                && !is_cfake_support_fp16()) {
+            continue;
+        }
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+
+        EXPECT_NE(j_foo, nullptr);
+        if (!j_foo) { continue; }
+
+        float host_tensor_in[num_elems] = DATASET_F3;
+        float host_tensor_out[num_elems] = {
+                -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+        float host_tensor_out_single[num_elems] = {
+                -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+        const float expected_result[num_elems] = {-46.815f, -15.5625f, 1.2525f,
+                8.705f, 13.32f, 15.035f, 16.387f, 19.3125f, 19.175f, 19.294f,
+                20.325f, 22.025f, 26.225f, 33.7406f, 50.1562f, 81.4562f};
+
+        generic_val generic_args[] = {
+                &host_tensor_in,
+                &host_tensor_out,
+                &host_tensor_out_single,
+        };
+
+        j_foo->call_generic_default(generic_args);
+
+        for (int i = 0; i < num_elems; ++i) {
+            EXPECT_NEAR(host_tensor_out[i], (expected_result[i]),
+                    std::abs(1e-1 * (expected_result[i])));
+            EXPECT_NEAR(host_tensor_out_single[i], expected_result[i],
+                    std::abs(1e-1 * expected_result[i]));
+        }
+    }
+}
+
 TEST(GCCore_CPU_jit_engine_equivalence, TestConstDivModMul) {
     ir_builder_t builder;
 
@@ -1428,7 +2104,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstDivModMul) {
 
     generic_val generic_args[] = {x, y, &result};
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         const string &je_name = kv.first;
 
         ostringstream err_context;
@@ -1472,7 +2148,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstExceed32bit) {
 
     generic_val generic_args[] = {&result};
 
-    for (auto &kv : test_jit_engines) {
+    for (auto &kv : get_engines()) {
         const string &je_name = kv.first;
 
         ostringstream err_context;
@@ -1495,6 +2171,118 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestConstExceed32bit) {
         jf->call_generic_default(generic_args);
 
         ASSERT_EQ(result, expected_result);
+    }
+}
+
+TEST(GCCore_CPU_jit_engine_equivalence, TestJITCondition) {
+    REQUIRE_AVX2()
+    builder::ir_builder_t builder;
+    auto is_avx512 = test_cpu_flags().fAVX512F;
+#define TEST_FUNC( \
+        test_type, test_step, test_dtype, test_const_type, test_func_name) \
+    auto test_func_name = [&](const int step, sc_data_type_t dtype_sc, \
+                                  sc_data_type_t sc_const_type) { \
+        _function_(datatypes::void_t, aaa, _arg_("A", dtype_sc, {1024}), \
+                _arg_("B", dtype_sc, {1024}), _arg_("C", dtype_sc, {1024}), \
+                _arg_("D", dtype_sc, {1024}), _arg_("E", dtype_sc, {1024}), \
+                _arg_("F", dtype_sc, {1024})) { \
+            _bind_(A, B, C, D, E, F); \
+            _for_(i, 0, 1024, step) { \
+                E[span_t({i}, step)] = builder::make_select( \
+                        C[span_t({i}, step)] > D[span_t({i}, step)], \
+                        A[span_t({i}, step)], B[span_t({i}, step)]); \
+                F[span_t({i}, step)] = builder::make_select( \
+                        builder::make_constant( \
+                                {UINT64_C(0x03)}, sc_const_type), \
+                        A[span_t({i}, step)], B[span_t({i}, step)]); \
+            } \
+        } \
+        auto ctx = get_default_context(); \
+        for (auto &kv : get_engines()) { \
+            const string &je_name = kv.first; \
+            ostringstream err_context; \
+            err_context << "jit_engine_t class '" << je_name << "'"; \
+            if (is_cfake(je_name) && !use_cfake) { continue; } \
+            if (is_cpu_support_fp16() && is_cfake(je_name) \
+                    && !is_cfake_support_fp16()) { \
+                continue; \
+            } \
+            shared_ptr<jit_engine_t> engine = kv.second; \
+            SCOPED_TRACE(err_context.str()); \
+            auto fptr = engine->get_entry_func( \
+                    ir_module_t::from_entry_func(ctx, aaa)); \
+            ASSERT_TRUE(fptr); \
+            auto getC = []() { \
+                std::vector<test_type> A(2048); \
+                for (int i = 0; i < (int)A.size(); i++) { \
+                    A[i] = i % 2; \
+                } \
+                return A; \
+            }; \
+            auto getD = [&]() { \
+                std::vector<test_type> A(2048); \
+                for (int i = 0; i < (int)A.size(); i++) { \
+                    A[i] = 2 * i % step; \
+                } \
+                return A; \
+            }; \
+            auto getA = []() { \
+                std::vector<test_type> A(2048); \
+                for (int i = 0; i < (int)A.size(); i++) { \
+                    A[i] = 2 * i + 100; \
+                } \
+                return A; \
+            }; \
+            auto getB = []() { \
+                std::vector<test_type> A(2048); \
+                for (int i = 0; i < (int)A.size(); i++) { \
+                    A[i] = 2 * i - 100; \
+                } \
+                return A; \
+            }; \
+            std::vector<test_type> E(1024); \
+            std::vector<test_type> F(1024); \
+            auto A = getA(); \
+            auto B = getB(); \
+            auto C = getC(); \
+            auto D = getD(); \
+            fptr->call<void>(A.data(), B.data(), C.data(), D.data(), E.data(), \
+                    F.data()); \
+            for (int i = 0; i < 1024; i++) { \
+                auto expected_e = C[i] > D[i] ? A[i] : B[i]; \
+                auto expected_f = (i % step) < 2 ? A[i] : B[i]; \
+                EXPECT_NEAR(E[i], expected_e, 1e-5); \
+                EXPECT_NEAR(F[i], expected_f, 1e-5); \
+            } \
+        } \
+    }; \
+    test_func_name(test_step, test_dtype, test_const_type);
+    if (is_avx512) {
+        TEST_FUNC(float, 16, datatypes::f32, datatypes::u16, test_floatx16)
+        TEST_FUNC(int32_t, 16, datatypes::s32, datatypes::u16, test_s32x16)
+        TEST_FUNC(uint32_t, 16, datatypes::u32, datatypes::u16, test_u32x16)
+        TEST_FUNC(uint16_t, 32, datatypes::u16, datatypes::u32, test_u16x32)
+        TEST_FUNC(uint8_t, 64, datatypes::u8, datatypes::index, test_u8x64)
+        TEST_FUNC(int8_t, 64, datatypes::s8, datatypes::index, test_s8x64)
+    }
+    // todo our cfake need avx2 refactor
+    if (!is_avx512) { use_cfake = false; }
+    TEST_FUNC(float, 8, datatypes::f32, datatypes::u8, test_floatx8)
+    TEST_FUNC(int32_t, 8, datatypes::s32, datatypes::u8, test_s32x8)
+    TEST_FUNC(uint32_t, 8, datatypes::u32, datatypes::u8, test_u32x8)
+    TEST_FUNC(uint16_t, 8, datatypes::u16, datatypes::u8, test_u16x8)
+    TEST_FUNC(uint16_t, 16, datatypes::u16, datatypes::u16, test_u16x16)
+    TEST_FUNC(uint8_t, 8, datatypes::u8, datatypes::u8, test_u8x8)
+    TEST_FUNC(uint8_t, 16, datatypes::u8, datatypes::u16, test_u8x16)
+    TEST_FUNC(uint8_t, 32, datatypes::u8, datatypes::u32, test_u8x32)
+    TEST_FUNC(int8_t, 8, datatypes::s8, datatypes::u8, test_s8x8)
+    TEST_FUNC(int8_t, 16, datatypes::s8, datatypes::u16, test_s8x16)
+    TEST_FUNC(int8_t, 32, datatypes::s8, datatypes::u32, test_s8x32)
+    if (!is_avx512) { use_cfake = true; }
+    if (is_cpu_support_fp16()) {
+        TEST_FUNC(fp16_t, 8, datatypes::f16, datatypes::u8, test_f16x8)
+        TEST_FUNC(fp16_t, 16, datatypes::f16, datatypes::u16, test_f16x16)
+        TEST_FUNC(fp16_t, 32, datatypes::f16, datatypes::u32, test_f16x32)
     }
 }
 
@@ -1543,6 +2331,13 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
     TEST_OP(UNARY, EXACT, uint64_t, uint16_t, datatypes::index, datatypes::u16,
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_CAST_TO_U16,
             MAKE_CAST(datatypes::u16), DATASET_I1);
+    if (is_cpu_support_fp16()) {
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        // data_type: fp16_t
+        TEST_OP(UNARY, EXACT, fp16_t, uint16_t, datatypes::f16, datatypes::u16,
+                DATA_LEN_16, num_lanes_fp16, TEST_SCALAR, TEST_SIMD,
+                REF_CAST_TO_U16, MAKE_CAST(datatypes::u16), DATASET_I1);
+    }
 #undef REF_CAST_TO_U16
     //-----------------------------
     // Cast to datatypes::u32
@@ -1551,6 +2346,11 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
     TEST_OP(UNARY, EXACT, uint16_t, uint32_t, datatypes::u16, datatypes::u32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_U32,
             MAKE_CAST(datatypes::u32), DATASET_I1);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(UNARY, EXACT, fp16_t, uint32_t, datatypes::f16, datatypes::u32,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_U32,
+                MAKE_CAST(datatypes::u32), DATASET_I1);
+    }
 #undef REF_CAST_TO_U32
     //-----------------------------
     // Cast to datatypes::index
@@ -1559,6 +2359,12 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
     TEST_OP(UNARY, EXACT, uint8_t, uint64_t, datatypes::u8, datatypes::index,
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_CAST_TO_INDEX,
             MAKE_CAST(datatypes::index), DATASET_I1);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(UNARY, EXACT, fp16_t, uint64_t, datatypes::f16,
+                datatypes::index, DATA_LEN_16, num_lanes, TEST_SCALAR,
+                SKIP_SIMD, REF_CAST_TO_INDEX, MAKE_CAST(datatypes::index),
+                DATASET_I1);
+    }
 #undef REF_CAST_TO_INDEX
     //-----------------------------
     // Cast to datatypes::s32
@@ -1572,7 +2378,41 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
     TEST_OP(UNARY, EXACT, int8_t, int32_t, datatypes::s8, datatypes::s32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_S32,
             MAKE_CAST(datatypes::s32), DATASET_I3);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(UNARY, EXACT, fp16_t, int32_t, datatypes::f16, datatypes::s32,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_CAST_TO_S32,
+                MAKE_CAST(datatypes::s32), DATASET_I3);
+    }
+    // data_type: uint_16
+    TEST_OP(UNARY, EXACT, uint16_t, int32_t, datatypes::u16, datatypes::s32,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_S32,
+            MAKE_CAST(datatypes::s32), DATASET_I1);
 #undef REF_CAST_TO_S32
+    //-----------------------------
+    // Cast to datatypes::f16
+    //-----------------------------
+    if (is_cpu_support_fp16()) {
+#define REF_CAST_TO_F16(IN, LANES, I) (static_cast<fp16_t>(IN[0][I]))
+        TEST_OP(UNARY, EXACT, float, fp16_t, datatypes::f32, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_F3);
+        TEST_OP(UNARY, EXACT, uint32_t, fp16_t, datatypes::u32, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_I1);
+        TEST_OP(UNARY, EXACT, int32_t, fp16_t, datatypes::s32, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_I1);
+        TEST_OP(UNARY, EXACT, uint64_t, fp16_t, datatypes::index,
+                datatypes::f16, DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD,
+                REF_CAST_TO_F16, MAKE_CAST(datatypes::f16), DATASET_I1);
+        TEST_OP(UNARY, EXACT, uint8_t, fp16_t, datatypes::u8, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_I1);
+        TEST_OP(UNARY, EXACT, uint16_t, fp16_t, datatypes::u16, datatypes::f16,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_CAST_TO_F16,
+                MAKE_CAST(datatypes::f16), DATASET_I1);
+#undef REF_CAST_TO_F32
+    }
     //-----------------------------
     // Cast to datatypes::f32
     //-----------------------------
@@ -1593,6 +2433,11 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
     TEST_OP(UNARY, EXACT, float, float, datatypes::f32, datatypes::f32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F32,
             MAKE_CAST(datatypes::f32), DATASET_F3);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(UNARY, EXACT, fp16_t, float, datatypes::f16, datatypes::f32,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F32,
+                MAKE_CAST(datatypes::f32), DATASET_F3);
+    }
 #undef REF_CAST_TO_F32
     //-----------------------------
     // Cast to datatypes::generic
@@ -1604,6 +2449,26 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_CAST_TO_GENERIC,
             MAKE_CAST(datatypes::generic), DATASET_I3);
 #undef REF_CAST_TO_GENERIC
+}
+
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCastAVX2) {
+    REQUIRE_AVX2();
+    const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_8);
+    //-----------------------------
+    // Cast to datatypes::s8
+    //-----------------------------
+#define REF_CAST_TO_S8(IN, LANES, I) (static_cast<int8_t>(IN[0][I]))
+    use_cfake = false;
+    // data_type: sint_32
+    TEST_OP(UNARY, EXACT, int32_t, int8_t, datatypes::s32, datatypes::s8,
+            DATA_LEN_8, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_S8,
+            MAKE_CAST(datatypes::s8), DATASET_I1_8);
+    // data_type: float_32
+    TEST_OP(UNARY, EXACT, float, int8_t, datatypes::f32, datatypes::s8,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_S8,
+            MAKE_CAST(datatypes::s8), DATASET_I1_8);
+    use_cfake = true;
+#undef REF_CAST_TO_S8
 }
 
 TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpAdd) {
@@ -1625,6 +2490,15 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpAdd) {
             datatypes::index, DATA_LEN_16, num_lanes_u64, TEST_SCALAR,
             SKIP_SIMD, REF_ADD, MAKE_BINARY_OP(make_add), DATASET_I1,
             DATASET_I2);
+    if (is_cpu_support_fp16()) {
+        // data_type: fp16
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(BINARY, EXACT, uint16_t, uint16_t, datatypes::f16,
+                datatypes::f16, DATA_LEN_16, num_lanes_fp16, TEST_SCALAR,
+                TEST_SIMD, REF_ADD, MAKE_BINARY_OP(make_add), DATASET_I1,
+                DATASET_I2);
+    }
+
 #undef REF_ADD
 }
 
@@ -1642,6 +2516,13 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpSub) {
             datatypes::index, DATA_LEN_16, num_lanes_u64, TEST_SCALAR,
             SKIP_SIMD, REF_SUB, MAKE_BINARY_OP(make_sub), DATASET_I1,
             DATASET_I2);
+    if (is_cpu_support_fp16()) {
+        // data_type:: float16
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(BINARY, EXACT, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, TEST_SCALAR, TEST_SIMD, REF_SUB,
+                MAKE_BINARY_OP(make_sub), DATASET_I1, DATASET_I2);
+    }
 #undef REF_SUB
 }
 
@@ -1659,6 +2540,13 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpMul) {
             datatypes::index, DATA_LEN_16, num_lanes_u64, TEST_SCALAR,
             SKIP_SIMD, REF_MUL, MAKE_BINARY_OP(make_mul), DATASET_I1,
             DATASET_I2);
+    if (is_cpu_support_fp16()) {
+        // data_type:: float_16
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(BINARY, EXACT, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, TEST_SCALAR, SKIP_SIMD, REF_MUL,
+                MAKE_BINARY_OP(make_mul), DATASET_F1, DATASET_F3);
+    }
 #undef REF_MUL
 }
 
@@ -1676,6 +2564,22 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpDiv) {
             datatypes::index, DATA_LEN_16, num_lanes_u64, TEST_SCALAR,
             SKIP_SIMD, REF_DIV, MAKE_BINARY_OP(make_div), DATASET_I1,
             DATASET_I2);
+    if (test_cpu_flags().fAVX512F) {
+        const int num_lanes_bf16 = get_lanes(sc_data_etype::BF16, DATA_LEN_16);
+        TEST_OP(BINARY, APPROX, bf16_t, bf16_t, datatypes::bf16,
+                datatypes::bf16, DATA_LEN_16, num_lanes_bf16, SKIP_SCALAR,
+                TEST_SIMD, REF_DIV, MAKE_BINARY_OP(make_div), DATASET_F1,
+                DATASET_F2);
+    }
+    if (is_cpu_support_fp16()) {
+        // fp16 div in llvm use fast math, precision 1e-3 can meet require.
+        precision_threshold = 1e-3F;
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(BINARY, APPROX, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, SKIP_SCALAR, TEST_SIMD, REF_DIV,
+                MAKE_BINARY_OP(make_div), DATASET_F1, DATASET_F2);
+        precision_threshold = 1e-4F;
+    }
 #undef REF_DIV
 }
 
@@ -1698,36 +2602,66 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCmp) {
     TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_EQ,
             MAKE_BINARY_OP(make_cmp_eq), DATASET_F3, DATASET_F4);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(BINARY, EXACT, fp16_t, bool, datatypes::f16, datatypes::boolean,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_EQ,
+                MAKE_BINARY_OP(make_cmp_eq), DATASET_F3, DATASET_F4);
+    }
 #undef REF_EQ
 #define REF_NE(IN, LANES, I) (IN[0][I] != IN[1][I])
     // data_type: float32
     TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_NE,
             MAKE_BINARY_OP(make_cmp_ne), DATASET_F3, DATASET_F4);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(BINARY, EXACT, fp16_t, bool, datatypes::f16, datatypes::boolean,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_NE,
+                MAKE_BINARY_OP(make_cmp_ne), DATASET_F3, DATASET_F4);
+    }
 #undef REF_NE
 #define REF_LT(IN, LANES, I) (IN[0][I] < IN[1][I])
     // data_type: float32
     TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_LT,
             MAKE_BINARY_OP(make_cmp_lt), DATASET_F3, DATASET_F4);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(BINARY, EXACT, fp16_t, bool, datatypes::f16, datatypes::boolean,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_LT,
+                MAKE_BINARY_OP(make_cmp_lt), DATASET_F3, DATASET_F4);
+    }
 #undef REF_LT
 #define REF_LE(IN, LANES, I) (IN[0][I] <= IN[1][I])
     // data_type: float32
     TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_LE,
             MAKE_BINARY_OP(make_cmp_le), DATASET_F3, DATASET_F4);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(BINARY, EXACT, fp16_t, bool, datatypes::f16, datatypes::boolean,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_LE,
+                MAKE_BINARY_OP(make_cmp_le), DATASET_F3, DATASET_F4);
+    }
 #undef REF_LE
 #define REF_GT(IN, LANES, I) (IN[0][I] > IN[1][I])
     // data_type: float32
     TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_GT,
             MAKE_BINARY_OP(make_cmp_gt), DATASET_F3, DATASET_F4);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(BINARY, EXACT, fp16_t, bool, datatypes::f16, datatypes::boolean,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_GT,
+                MAKE_BINARY_OP(make_cmp_gt), DATASET_F3, DATASET_F4);
+    }
 #undef REF_GT
 #define REF_GE(IN, LANES, I) (IN[0][I] >= IN[1][I])
     // data_type: float32
     TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
             DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_GE,
             MAKE_BINARY_OP(make_cmp_ge), DATASET_F3, DATASET_F4);
+    if (is_cpu_support_fp16()) {
+        TEST_OP(BINARY, EXACT, fp16_t, bool, datatypes::f16, datatypes::boolean,
+                DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_GE,
+                MAKE_BINARY_OP(make_cmp_ge), DATASET_F3, DATASET_F4);
+    }
 #undef REF_GE
 }
 
@@ -1739,6 +2673,13 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinMin) {
     TEST_OP(BINARY, EXACT, float, float, datatypes::f32, datatypes::f32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_MIN,
             MAKE_BINARY_OP(make_min), DATASET_F1, DATASET_F2);
+    if (is_cpu_support_fp16()) {
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        // data_type: fp16
+        TEST_OP(BINARY, EXACT, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, TEST_SCALAR, TEST_SIMD, REF_MIN,
+                MAKE_BINARY_OP(make_min), DATASET_F1, DATASET_F2);
+    }
 #undef REF_MIN
 }
 
@@ -1750,6 +2691,13 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinMax) {
     TEST_OP(BINARY, EXACT, float, float, datatypes::f32, datatypes::f32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_MAX,
             MAKE_BINARY_OP(make_max), DATASET_F1, DATASET_F2);
+    if (is_cpu_support_fp16()) {
+        // data_type: fp16
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(BINARY, EXACT, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, TEST_SCALAR, TEST_SIMD, REF_MAX,
+                MAKE_BINARY_OP(make_max), DATASET_F1, DATASET_F2);
+    }
 #undef REF_MAX
 }
 
@@ -1761,6 +2709,13 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinFloor) {
     TEST_OP(UNARY, EXACT, float, float, datatypes::f32, datatypes::f32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_FLOOR,
             MAKE_UNARY_OP(make_floor), DATASET_F3);
+    if (is_cpu_support_fp16()) {
+        // data_type: fp16
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(UNARY, EXACT, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, SKIP_SCALAR, TEST_SIMD, REF_FLOOR,
+                MAKE_UNARY_OP(make_floor), DATASET_F3);
+    }
 #undef REF_FLOOR
 }
 
@@ -1772,6 +2727,13 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinCeil) {
     TEST_OP(UNARY, EXACT, float, float, datatypes::f32, datatypes::f32,
             DATA_LEN_16, num_lanes, SKIP_SCALAR, TEST_SIMD, REF_CEIL,
             MAKE_UNARY_OP(make_ceil), DATASET_F3);
+    if (is_cpu_support_fp16()) {
+        // data_type: fp16
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(UNARY, EXACT, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, SKIP_SCALAR, TEST_SIMD, REF_CEIL,
+                MAKE_UNARY_OP(make_ceil), DATASET_F3);
+    }
 #undef REF_CEIL
 }
 
@@ -1805,6 +2767,14 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinFmadd) {
     TEST_OP(TRINARY, APPROX, float, float, datatypes::f32, datatypes::f32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_FMADD,
             MAKE_TRINARY_OP(make_fmadd), DATASET_F1, DATASET_F2, DATASET_F3);
+    if (is_cpu_support_fp16()) {
+        // data_type: fp16
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(TRINARY, APPROX, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, TEST_SCALAR, TEST_SIMD, REF_FMADD,
+                MAKE_TRINARY_OP(make_fmadd), DATASET_F1, DATASET_F2,
+                DATASET_F3);
+    }
 #undef REF_FMADD
 }
 
@@ -1826,6 +2796,19 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinAbs) {
     TEST_OP(UNARY, EXACT, float, float, datatypes::f32, datatypes::f32,
             DATA_LEN_16, num_lanes_f32, TEST_SCALAR, TEST_SIMD, REF_ABS,
             MAKE_UNARY_OP(make_abs), DATASET_F3);
+    if (test_cpu_flags().fAVX512F) {
+        const int num_lanes_bf16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(UNARY, EXACT, bf16_t, bf16_t, datatypes::bf16, datatypes::bf16,
+                DATA_LEN_16, num_lanes_bf16, SKIP_SCALAR, TEST_SIMD, REF_ABS,
+                MAKE_UNARY_OP(make_abs), DATASET_F3);
+    }
+    if (is_cpu_support_fp16()) {
+        // data_type: fp16
+        const int num_lanes_f16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(UNARY, EXACT, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_f16, SKIP_SCALAR, TEST_SIMD, REF_ABS,
+                MAKE_UNARY_OP(make_abs), DATASET_F3);
+    }
 #undef REF_ABS
 }
 
@@ -1837,6 +2820,13 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinRound) {
     TEST_OP(UNARY, EXACT, float, float, datatypes::f32, datatypes::f32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_ROUND,
             MAKE_UNARY_OP(make_round), DATASET_F3);
+    if (is_cpu_support_fp16()) {
+        // data_type: fp16
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(UNARY, EXACT, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, SKIP_SCALAR, TEST_SIMD, REF_ROUND,
+                MAKE_UNARY_OP(make_round), DATASET_F3);
+    }
 #undef REF_ROUND
 }
 
@@ -1901,6 +2891,14 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestMaskMovx8) {
     const expr mask = make_constant({mask_val}, datatypes::u8);
 #define REF_MASK_MOV(IN, LANES, I) \
     ((mask_val & UINT64_C(1) << (I % LANES)) ? IN[0][I] : 0)
+    // data_type: sint_8
+    TEST_OP(UNARY, EXACT, int8_t, int8_t, datatypes::s8, datatypes::s8,
+            DATA_LEN_16, num_lanes, SKIP_SCALAR, TEST_SIMD, REF_MASK_MOV,
+            MAKE_MASK_MOV(mask), DATASET_I1);
+    // data_type: uint_8
+    TEST_OP(UNARY, EXACT, uint8_t, uint8_t, datatypes::u8, datatypes::u8,
+            DATA_LEN_16, num_lanes, SKIP_SCALAR, TEST_SIMD, REF_MASK_MOV,
+            MAKE_MASK_MOV(mask), DATASET_I1);
     // data_type: uint_16
     TEST_OP(UNARY, EXACT, uint16_t, uint16_t, datatypes::u16, datatypes::u16,
             DATA_LEN_16, num_lanes, SKIP_SCALAR, TEST_SIMD, REF_MASK_MOV,

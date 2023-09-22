@@ -229,7 +229,7 @@ protected:
     struct slice_header_t {
         bool packed;
         int trans;
-        int nblk_r, nblk_c;
+        dim_t nblk_r, nblk_c;
         dim_t block_r, block_c;
         size_t off_data;
 
@@ -257,7 +257,7 @@ protected:
         }
 
         void set_blocking(
-                int nblk_r_, int nblk_c_, dim_t block_r_, dim_t block_c_) {
+                dim_t nblk_r_, dim_t nblk_c_, dim_t block_r_, dim_t block_c_) {
             packed = true;
             nblk_r = nblk_r_;
             nblk_c = nblk_c_;

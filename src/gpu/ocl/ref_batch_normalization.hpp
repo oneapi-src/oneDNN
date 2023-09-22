@@ -74,15 +74,14 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
             if (is_training() && (fuse_norm_relu() || fuse_norm_add_relu()))
                 CHECK(init_default_ws(8));
 
-            status_t status = init_conf(engine);
-            if (status != status::success) return status;
+            init_conf(engine);
             init_scratchpad();
 
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
-        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        void init_conf(engine_t *engine);
+        void init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
         bnorm_conf_t conf;
@@ -90,13 +89,13 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
+        if (pd()->has_zero_dim_memory()) return status::success;
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = pd()->init_kernel_ctx(kernel_ctx);
-        CHECK(status);
+        pd()->init_kernel_ctx(kernel_ctx);
 
-        std::vector<const char *> kernel_names = {
-                "ref_bnorm_fwd", nullptr, nullptr, nullptr, nullptr, nullptr};
+        std::vector<const char *> kernel_names
+                = {"ref_bnorm_fwd", nullptr, nullptr, nullptr, nullptr};
         if (pd()->conf.calculate_stats) {
             kernel_names[1] = "calculate_mean";
             kernel_names[2] = "calculate_variance";
@@ -104,20 +103,14 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
             kernel_names[4] = "reduce_variance";
         }
 
-        if (pd()->conf.skip_reduce_stat) {
-            kernel_names[5] = "calculate_mean_variance";
-        }
-
         std::vector<compute::kernel_t> kernels;
-        status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
-        CHECK(status);
+        CHECK(create_kernels(engine, &kernels, kernel_names, kernel_ctx));
 
         kernel_ = kernels[0];
         calculate_mean_kernel_ = kernels[1];
         calculate_variance_kernel_ = kernels[2];
         reduce_mean_kernel_ = kernels[3];
         reduce_variance_kernel_ = kernels[4];
-        calculate_mean_variance_kernel_ = kernels[5];
 
         return status::success;
     }
@@ -171,15 +164,14 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
-            status_t status = init_conf(engine);
-            if (status != status::success) return status;
+            init_conf(engine);
             init_scratchpad();
 
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
-        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        void init_conf(engine_t *engine);
+        void init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
         bnorm_conf_t conf;
@@ -187,17 +179,16 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
+        if (pd()->has_zero_dim_memory()) return status::success;
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = pd()->init_kernel_ctx(kernel_ctx);
-        CHECK(status);
+        pd()->init_kernel_ctx(kernel_ctx);
 
         std::vector<const char *> kernel_names
                 = {"ref_bnorm_bwd", "calculate_stats", "reduce_stats"};
 
         std::vector<compute::kernel_t> kernels;
-        status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
-        CHECK(status);
+        CHECK(create_kernels(engine, &kernels, kernel_names, kernel_ctx));
 
         kernel_ = kernels[0];
         calculate_stats_kernel_ = kernels[1];

@@ -76,14 +76,20 @@ status_t ocl_gpu_engine_t::init(const std::vector<uint8_t> &cache_blob) {
 
 status_t ocl_gpu_engine_t::create_memory_storage(
         memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    auto _storage = new ocl_buffer_memory_storage_t(this);
-    if (_storage == nullptr) return status::out_of_memory;
+    std::unique_ptr<memory_storage_t> _storage;
+
+    if (flags & memory_flags_t::prefer_device_usm) {
+        _storage.reset(new ocl_usm_memory_storage_t(
+                this, usm::ocl_usm_kind_t::device));
+    } else
+        _storage.reset(new ocl_buffer_memory_storage_t(this));
+
+    if (!_storage) return status::out_of_memory;
+
     status_t status = _storage->init(flags, size, handle);
-    if (status != status::success) {
-        delete _storage;
-        return status;
-    }
-    *storage = _storage;
+    if (status != status::success) return status;
+
+    *storage = _storage.release();
     return status::success;
 }
 
@@ -99,7 +105,8 @@ status_t ocl_gpu_engine_t::create_stream(
 namespace {
 
 status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
-        cache_blob_t cache_blob, const std::vector<const char *> &kernel_names,
+        const cache_blob_t &cache_blob,
+        const std::vector<const char *> &kernel_names,
         std::vector<compute::kernel_t> *kernels) {
     auto dev = ocl_engine->device();
     auto ctx = ocl_engine->context();
@@ -171,7 +178,8 @@ cl_int maybe_print_debug_info(
     err = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, log_length,
             log_buf.data(), nullptr);
     assert(err == CL_SUCCESS);
-    VERROR(ocl, "Error during the build of OpenCL program. Build log:\n%s",
+    VERROR(common, ocl,
+            "Error during the build of OpenCL program. Build log:\n%s",
             log_buf.data());
     return err;
 };
@@ -223,7 +231,8 @@ status_t ocl_gpu_engine_t::build_program_from_source(
     std::string pp_code_str = pp_code.str();
     const char *pp_code_str_ptr = pp_code_str.c_str();
 
-    debugdump_processed_source(pp_code_str, options);
+    debugdump_processed_source(
+            pp_code_str, options, dev_info->get_cl_ext_options());
 
     program = make_ocl_wrapper(clCreateProgramWithSource(
             context(), 1, &pp_code_str_ptr, nullptr, &err));
@@ -236,8 +245,7 @@ status_t ocl_gpu_engine_t::build_program_from_source(
 }
 
 status_t ocl_gpu_engine_t::create_binary_from_ocl_source(
-        compute::binary_t &binary,
-        const std::vector<const char *> &kernel_names, const char *code_string,
+        compute::binary_t &binary, const char *code_string,
         const compute::kernel_ctx_t &kernel_ctx) const {
     ocl_wrapper_t<cl_program> program;
     CHECK(build_program_from_source(program, code_string, kernel_ctx));
@@ -251,17 +259,16 @@ status_t ocl_gpu_engine_t::create_compiled_bundle(
         const std::vector<const char *> &kernel_names,
         const compute::kernel_ctx_t &kernel_ctx) const {
 
-    auto sources = map_sources(kernel_names, ocl::get_kernel_source);
-    assert(sources.size() == 1);
-
-    for (auto &kv : sources) {
-        compute::binary_t kernel_binary {};
-        CHECK(create_binary_from_ocl_source(
-                kernel_binary, kv.second, kv.first, kernel_ctx));
-        generator = compute::compiled_bundle_t(kernel_binary);
-        return status::success;
+    const char *source = ocl::get_kernel_source(kernel_names[0]);
+    for (const auto &kernel_name : kernel_names) {
+        assert(ocl::get_kernel_source(kernel_name) == source);
+        MAYBE_UNUSED(kernel_name);
     }
-    return status::runtime_error;
+
+    compute::binary_t kernel_binary {};
+    CHECK(create_binary_from_ocl_source(kernel_binary, source, kernel_ctx));
+    generator = compute::compiled_bundle_t(kernel_binary);
+    return status::success;
 };
 
 status_t ocl_gpu_engine_t::create_compiled_kernel(
@@ -295,7 +302,6 @@ status_t ocl_gpu_engine_t::create_kernels_from_bundle(
 
     kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
-        cl_int err;
         ocl_wrapper_t<cl_kernel> ocl_kernel
                 = clCreateKernel(program, kernel_names[i], &err);
         OCL_CHECK(err);
@@ -334,14 +340,14 @@ status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
 }
 
 status_t ocl_gpu_engine_t::create_kernels_from_cache_blob(
-        cache_blob_t cache_blob, std::vector<compute::kernel_t> &kernels,
+        const cache_blob_t &cache_blob, std::vector<compute::kernel_t> &kernels,
         const std::vector<const char *> &kernel_names) const {
     return create_ocl_kernel_from_cache_blob(
-            this, std::move(cache_blob), kernel_names, &kernels);
+            this, cache_blob, kernel_names, &kernels);
 }
 
 status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
-        jit::jit_generator_base *jitter, cache_blob_t cache_blob) const {
+        jit::jit_generator_base *jitter, const cache_blob_t &cache_blob) const {
     if (!jitter && !cache_blob) return status::invalid_arguments;
 
     const char *kernel_name = jitter ? jitter->kernel_name() : "";
@@ -363,7 +369,7 @@ status_t ocl_gpu_engine_t::create_kernels(
         std::vector<compute::kernel_t> *kernels,
         const std::vector<const char *> &kernel_names,
         const compute::kernel_ctx_t &kernel_ctx,
-        cache_blob_t cache_blob) const {
+        const cache_blob_t &cache_blob) const {
 
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
 

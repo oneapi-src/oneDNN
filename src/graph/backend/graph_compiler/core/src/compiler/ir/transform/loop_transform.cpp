@@ -183,7 +183,7 @@ void for_loop_node_t::unroll(uint64_t factor, const stmt &parent) {
     if (is_const) {
         get_constant_from_for_loop(this, min, max, step, false);
         int64_t loop_len = max - min;
-        if (factor == 0) factor = loop_len / step;
+        if (factor == 0) { factor = utils::divide_and_ceil(loop_len, step); }
         has_remainder = loop_len % (factor * step) != 0
                 || loop_len < ((int64_t)factor * step);
     }
@@ -678,9 +678,14 @@ void for_loop_node_t::parallel_merge(const stmt &parent, const for_loop &ax) {
     body2->seq_.insert(body2->seq_.begin(),
             builder::make_var_tensor_def_unattached(ax->var_, linkage::local,
                     var_ - iter_end_ + ax->iter_begin_));
-    auto if_else = builder::make_if_else_unattached(
-            var_ < iter_end_, std::move(body1), std::move(body2));
-    body_ = builder::make_stmts_unattached({std::move(if_else)});
+    auto if_else
+            = builder::make_if_else_unattached(var_ < iter_end_, body1, body2);
+    body_ = builder::make_stmts_unattached({if_else});
+    // set parent node
+    add_parent_node(body1, if_else);
+    add_parent_node(body2, if_else);
+    add_parent_node(if_else, body_);
+    add_parent_node(body_, node_ptr_from_this());
     iter_end_ = iter_end_ + ax->iter_end_ - ax->iter_begin_;
     ax->var_ = expr();
 }
@@ -739,6 +744,36 @@ std::vector<for_loop> collect_nested_loops(stmt body) {
         }
         break;
     }
+    return ret;
+}
+
+static size_t collect_all_loops_helper(
+        std::vector<for_loop> &ret, const stmt &body) {
+    size_t collected = 0;
+    if (body.isa<stmts>()) {
+        for (auto &smt : body.static_as<stmts>()->seq_) {
+            collected += collect_all_loops_helper(ret, smt);
+        }
+    } else if (body.isa<for_loop>()) {
+        auto loop = body.static_as<for_loop>();
+        ret.push_back(loop);
+        collected++;
+        collected += collect_all_loops_helper(ret, loop->body_);
+    } else if (body.isa<if_else>()) {
+        auto cond = body.static_as<if_else>();
+        if (cond->then_case_.defined()) {
+            collected += collect_all_loops_helper(ret, cond->then_case_);
+        }
+        if (cond->else_case_.defined()) {
+            collected += collect_all_loops_helper(ret, cond->else_case_);
+        }
+    }
+    return collected;
+}
+
+std::vector<for_loop> collect_all_loops(const stmt &body) {
+    std::vector<for_loop> ret;
+    collect_all_loops_helper(ret, body);
     return ret;
 }
 

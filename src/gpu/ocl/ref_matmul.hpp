@@ -50,7 +50,7 @@ struct ref_matmul_t : public gpu_primitive_t {
             wei_dt_ = weights_md(0)->data_type;
             bia_dt_ = with_bias() ? weights_md(1)->data_type : data_type::f32;
 
-            bool ok = is_dense_data()
+            bool ok = is_dense_format_kind()
                     && IMPLICATION(desc()->accum_data_type == s32,
                             attr()->zero_points_.common())
                     && IMPLICATION(desc()->accum_data_type != s32,

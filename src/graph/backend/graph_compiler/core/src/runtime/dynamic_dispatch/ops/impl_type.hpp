@@ -28,6 +28,10 @@ enum impl_kind_t : int {
     normal = 0, // default generate rule
     no_padding = 1, // generate without padding
 };
+enum mmm_impl_kind_t : int {
+    full_k = 0, // full,
+    is_partial = 1, // is partial K
+};
 
 } // namespace gc
 } // namespace graph

@@ -72,7 +72,10 @@ status_t gen_reorder_t::pd_t::init(
     auto skip_mask = dnnl_primitive_attr::skip_mask_t::post_ops
             | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
             | dnnl_primitive_attr::skip_mask_t::scales_runtime;
+    using namespace data_type;
     bool ok = src_engine == dst_engine && src_engine->kind() == engine_kind::gpu
+            && utils::one_of(src_dt, f32, f16, bf16, s32, s8, u8, f64)
+            && utils::one_of(dst_dt, f32, f16, bf16, s32, s8, u8, f64)
             && IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp16))
             && IMPLICATION(src_dt == data_type::bf16,
@@ -115,7 +118,10 @@ status_t gen_reorder_t::pd_t::init(
     if (!check_layout(src_layout)) return status::unimplemented;
     if (!check_layout(dst_layout)) return status::unimplemented;
     if (!compute_engine->mayiuse_ngen_kernels()) return status::unimplemented;
-    exec_config_t exec_cfg(engine);
+    auto *gpu_attr
+            = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
+    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
+    exec_config_t exec_cfg(hw_config_t(engine, large_grf_mode));
     exec_cfg.set_regs(128);
     exec_cfg.set_simd(16);
     cfg = std::make_shared<reorder_config_t>(exec_cfg, src_layout, dst_layout);

@@ -30,11 +30,16 @@ namespace gc {
 /**
  * Inlines function calls with attr["inline_level"] = 2
  * Or manually inline a call_node
+ * @arg needs_index_flatten is we need to run index_flatten to flatten nested
+ * tensor ptr on the changed part of TIR after inlining
  * */
 class func_inliner_t : public module_pass_t {
 public:
+    bool needs_index_flatten_;
+    func_inliner_t(bool needs_index_flatten = true)
+        : needs_index_flatten_(needs_index_flatten) {}
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
-    func_c operator()(func_c f);
+    func_c operator()(func_c f) const;
     /**
      * Inlines the function call and inserts the body to an existing stmt array
      *

@@ -653,7 +653,8 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
         } else {
             // nChw16c, nChw8c format
             parallel(nthr, [&](dim_t ithr, dim_t nthr) {
-                dim_t work_amount = jpp.mb * jpp.nb_c * jpp.oh;
+                dim_t work_amount
+                        = static_cast<dim_t>(jpp.mb) * jpp.nb_c * jpp.oh;
                 if (ithr >= work_amount) return;
 
                 dim_t start {0}, end {0};
@@ -1212,7 +1213,8 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
                             const dim_t ur_bc = nstl::min(
                                     dim_t(jpp.ur_bc), jpp.nb_c - b_c);
                             for (int od = 0; od < jpp.od; ++od) {
-                                const dim_t ik = od * jpp.stride_d;
+                                const dim_t ik
+                                        = static_cast<dim_t>(od) * jpp.stride_d;
                                 const dim_t d_t_overflow
                                         = nstl::max(dim_t(0), jpp.f_pad - ik);
                                 const dim_t d_b_overflow
@@ -1242,7 +1244,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
                     const dim_t ur_bc
                             = nstl::min(dim_t(jpp.ur_bc), jpp.nb_c - b_c);
                     for (int od = 0; od < jpp.od; ++od) {
-                        const dim_t ik = od * jpp.stride_d;
+                        const dim_t ik = static_cast<dim_t>(od) * jpp.stride_d;
                         const dim_t d_t_overflow
                                 = nstl::max(dim_t(0), jpp.f_pad - ik);
                         const dim_t d_b_overflow

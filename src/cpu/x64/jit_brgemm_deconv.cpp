@@ -94,8 +94,8 @@ status_t bwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
     memory_desc_t src_md_patched;
     const auto src_dt = fwd_deconv_d->dst_desc.data_type;
 
-    memory_desc_init_by_md_and_dt(
-            src_md_patched, fwd_deconv_d->dst_desc, src_dt);
+    CHECK(memory_desc_init_by_md_and_dt(
+            src_md_patched, fwd_deconv_d->dst_desc, src_dt));
     src_md = &src_md_patched;
     dst_md = &fwd_deconv_d->src_desc;
     deconv_weights_d = &fwd_deconv_d->weights_desc;
@@ -167,6 +167,13 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             break;
         }
     }
+
+    //TODO: Enable zero points support for bwd w/ stride on AMX
+    const bool has_strides_with_zero_point = has_strides_
+            && !everyone_is(brgemm_broadcast_t::none, get_zp_type(DNNL_ARG_SRC),
+                    get_zp_type(DNNL_ARG_DST));
+    if (is_superset(isa, avx512_core_amx) && has_strides_with_zero_point)
+        return status::unimplemented;
 
     if (has_strides_) {
         CHECK(bwd_conv_desc_create(fwd_deconv_d, &conv_d));

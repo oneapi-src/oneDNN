@@ -24,7 +24,7 @@ inline bool sc_is_trace_enabled() {
     namespace gc = dnnl::impl::graph::gc;
     auto mode = gc::runtime_config_t::get().trace_mode_;
     return (mode == gc::runtime_config_t::trace_mode_t::KERNEL
-                   && gc::runtime::thread_local_buffer_t::tls_buffer_
+                   && gc::runtime::thread_local_buffer_t::tls_buffer()
                                    .additional_->linear_thread_id_
                            == 0)
             || mode == gc::runtime_config_t::trace_mode_t::MULTI_THREAD;
@@ -33,8 +33,8 @@ inline bool sc_is_trace_enabled() {
 inline void sc_make_timer_id(int flops, int num) {
     namespace gc = dnnl::impl::graph::gc;
     if (sc_is_trace_enabled()) {
-        auto &log = gc::runtime::thread_local_buffer_t::tls_buffer_.additional_
-                            ->trace_.trace_logs_.back();
+        auto &log = gc::runtime::thread_local_buffer_t::tls_buffer()
+                            .additional_->trace_.trace_logs_.back();
         log.arg_ = flops;
     }
 }

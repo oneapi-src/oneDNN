@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2023 Intel Corporation
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,8 +38,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     if (nelems == 0) return OK;
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
@@ -95,6 +95,7 @@ int fill_ws(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
+    res_t *res = init_pd_args.res;
 
     const auto src_tag = (dir & FLAG_FWD) ? prb->tag : tag::any;
 
@@ -114,18 +115,18 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     if (dir & FLAG_FWD) {
         auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
                                              : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_pooling_forward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_pooling_forward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, prop_kind, alg,
                 init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
                 prb->strides().data(), prb->kernel().data(),
                 prb->dilations().data(), prb->padding().data(),
-                prb->padding_r().data(), dnnl_attr));
+                prb->padding_r().data(), dnnl_attr)));
     } else {
-        DNN_SAFE_STATUS(dnnl_pooling_backward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_pooling_backward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, alg, src_d, dst_d,
                 prb->strides().data(), prb->kernel().data(),
                 prb->dilations().data(), prb->padding().data(),
-                prb->padding_r().data(), init_pd_args.hint, dnnl_attr));
+                prb->padding_r().data(), init_pd_args.hint, dnnl_attr)));
     }
     return dnnl_success;
 }
@@ -139,15 +140,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-
-#if DNNL_AARCH64_USE_ACL
-    // Since ACL supports only forward pass.
-    // Ref: https://github.com/oneapi-src/oneDNN/issues/1205
-    if (prb->dir & FLAG_BWD) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-#endif
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -157,6 +149,24 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }
+}
+
+// Special function to handle Nvidia libraries issues showing up through the
+// timeline. Not recommended to remove instances to keep working state of any
+// cuda/cuDNN/cuBLAS versions.
+bool cuda_check_correctness(
+        const compare::compare_t::driver_check_func_args_t &args) {
+    if (!is_nvidia_gpu()) return false;
+
+    if (args.dt == dnnl_f16) {
+        // cuDNN bug: it spits f16 min value as -inf, not -65504.
+        return args.exp == lowest_dt(args.dt) && std::isinf(args.got)
+                && std::signbit(args.got);
+    } else if (args.dt == dnnl_s8) {
+        // cuDNN bug: ... and s8 min value as -127 (-INT8_MAX?), not -128.
+        return args.exp == lowest_dt(args.dt) && args.got == -127;
+    }
+    return false;
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
@@ -174,13 +184,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
     const auto pooling_add_check
             = [&](const compare::compare_t::driver_check_func_args_t &args) {
-                  // cuDNN bug: it spits fp16 min value as -inf,
-                  // not -65504.
-                  if (is_nvidia_gpu() && args.dt == dnnl_f16) {
-                      return args.exp == lowest_dt(args.dt)
-                              && std::isinf(args.got) && std::signbit(args.got);
-                  }
-                  return false;
+                  return cuda_check_correctness(args);
               };
     cmp.set_driver_check_function(pooling_add_check);
 }
@@ -225,11 +229,14 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             case DNNL_ARG_DIFF_DST:
                 SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
                 break;
-            case DNNL_ARG_WORKSPACE:
+            case DNNL_ARG_WORKSPACE: {
+                const auto ws_dt
+                        = is_integral_dt(mem.dt()) ? dnnl_s32 : dnnl_f32;
                 ref_mem_map[exec_arg]
-                        = dnn_mem_t(mem.md_, dnnl_s32, tag::abx, ref_engine);
+                        = dnn_mem_t(mem.md_, ws_dt, tag::abx, ref_engine);
                 if (prb->dir & FLAG_FWD) SAFE(fill_ws(prb, mem, ref_mem), WARN);
                 break;
+            }
             case DNNL_ARG_DST:
                 SAFE(!check_md_consistency_with_tag(mem.md_, prb->tag), WARN);
                 break;
@@ -279,9 +286,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(
             mem_map, prb, v_prim[0], supported_exec_args(FLAG_FWD));
-    SAFE(init_ref_memory_args(
-                 ref_mem_map, mem_map, v_prim[0], prb, res, FLAG_FWD),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(
+                           ref_mem_map, mem_map, v_prim[0], prb, res, FLAG_FWD),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 
@@ -298,9 +305,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         // Pass same memory map as we need data from forward on backward.
         init_memory_args<prb_t>(
                 mem_map, prb, v_prim[1], supported_exec_args(FLAG_BWD));
-        SAFE(init_ref_memory_args(
-                     ref_mem_map, mem_map, v_prim[1], prb, res, FLAG_BWD),
-                WARN);
+        TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, v_prim[1],
+                               prb, res, FLAG_BWD),
+                WARN));
 
         args = args_t(mem_map);
         ref_args = args_t(ref_mem_map);

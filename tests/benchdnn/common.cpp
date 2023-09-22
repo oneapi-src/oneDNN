@@ -128,8 +128,15 @@ void parse_result(res_t &res, const char *pstr) {
             bs.listed++;
             break;
         case INITIALIZED:
+            // TODO: workaround for failed fill functions.
+            if (bench_mode != bench_mode_t::init) {
+                state = "FAILED";
+                bs.failed++;
+            } else {
+                bs.passed++;
+            }
+
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            bs.passed++;
             break;
         default: assert(!"unknown state"); SAFE_V(FAIL);
     }
@@ -138,18 +145,23 @@ void parse_result(res_t &res, const char *pstr) {
     assert(bs.tests
             == bs.passed + bs.skipped + bs.mistrusted + bs.failed + bs.listed);
 
+    using bt = timer::timer_t;
+    using namespace timer::names;
+
     if (has_bench_mode_bit(mode_bit_t::perf)) {
-        using bt = timer::timer_t;
         const auto &t = res.timer_map.perf_timer();
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)
-            bs.ms[timer::names::perf_timer][mode] += t.ms((bt::mode_t)mode);
+            bs.ms[perf_timer][mode] += t.ms((bt::mode_t)mode);
     }
 
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
-        using bt = timer::timer_t;
-        const auto &t = res.timer_map.get_timer(timer::names::ref_timer);
-        bs.ms[timer::names::ref_timer][bt::mode_t::sum]
-                += t.sec(bt::mode_t::sum);
+    for (const auto &e : timer::get_global_service_timers()) {
+        const auto &supported_mode_bit = std::get<1>(e);
+        if (!has_bench_mode_bit(supported_mode_bit)) continue;
+
+        const auto &t_name = std::get<2>(e);
+        const auto &t = res.timer_map.get_timer(t_name);
+        // Only summary time is populated to the highest level report.
+        bs.ms[t_name][bt::mode_t::sum] += t.sec(bt::mode_t::sum);
     }
 }
 
@@ -433,12 +445,15 @@ int batch(const char *fname, bench_f bench) {
 
         // shell style comments
         if (str.front() == '#') {
-            std::getline(ifs, str); // take whole commented line out
+            std::string dummy;
+            std::getline(ifs, dummy); // take whole commented line out
             continue;
         }
 
         // shell style line break
         if (continued_line) {
+            if (opts.empty()) SAFE_V(FAIL);
+            if (opts.back().size() + str.size() >= str.max_size()) SAFE_V(FAIL);
             // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             str = opts.back() + str; // update current line with previous
             opts.pop_back(); // take previous line out

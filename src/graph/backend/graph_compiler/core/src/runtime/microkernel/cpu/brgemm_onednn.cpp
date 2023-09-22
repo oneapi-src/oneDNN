@@ -50,19 +50,21 @@ static dnnl_data_type_t convert_dnnl_dtype(int dtype) {
     switch (sc_dtype(dtype)) {
         case sc_dtype::F32: return dnnl_f32;
         case sc_dtype::S32: return dnnl_s32;
+        case sc_dtype::F16: return dnnl_f16;
         case sc_dtype::BF16: return dnnl_bf16;
         case sc_dtype::S8: return dnnl_s8;
         case sc_dtype::U8: return dnnl_u8;
         default:
             throw std::runtime_error(
                     "convert_dnnl_dtype error, currently only support datatype "
-                    "f32/s32/bf16/s8/u8");
+                    "f32/s32/f16/bf16/s8/u8");
     }
 }
 
 static size_t get_dtype_sizeof(int dtype) {
     switch (sc_dtype(dtype)) {
         case sc_dtype::F32: return sizeof(float);
+        case sc_dtype::F16: return sizeof(uint16_t);
         case sc_dtype::S32: return sizeof(int32_t);
         case sc_dtype::BF16: return sizeof(uint16_t);
         case sc_dtype::S8: return sizeof(int8_t);
@@ -70,7 +72,7 @@ static size_t get_dtype_sizeof(int dtype) {
         default:
             throw std::runtime_error(
                     "Get dtype size error, currently only support datatype "
-                    "f32/s32/bf16/s8/u8");
+                    "f32/s32/f16/bf16/s8/u8");
     }
 }
 
@@ -437,6 +439,7 @@ struct brg_desc_safe_t {
             auto fallback_isa = (int)dtype_size == 2 ? avx512_core_bf16
                     : (int)dtype_size == 1           ? avx512_core_vnni
                                                      : isa_undef;
+
             if (dnnl_dtypeA != dnnl_f32 && (arg.K < (4 / (int)dtype_size)))
                 return fallback_isa;
             int max_rd_block = dnnl_dtypeA == dnnl_bf16                  ? 32
@@ -493,6 +496,9 @@ struct brg_desc_safe_t {
             auto itr_pair = palettes_.insert(palette_ptr_t(palette_buffer));
             found_kernel->palette_ = itr_pair.first->ptr_;
             amx_tile_configure(found_kernel->palette_);
+            dnnl::impl::graph::gc::runtime::thread_local_buffer_t::tls_buffer()
+                    .amx_buffer_.cur_palette
+                    = nullptr;
             found_kernel->is_amx_ = true;
         } else {
             found_kernel->palette_ = nullptr;
@@ -718,12 +724,20 @@ void *do_get_amx_tile_buf(const char *palette, gc::runtime::stream_t *stream,
         bool &amx_exclusive, bool &need_config_amx) {
     void *tmp_amx_tile_buf = nullptr;
     auto &tls = gc::runtime::get_tls(stream);
-    amx_exclusive = false;
+    // if using managed thread pool, we can avoid re-config/release within
+    // the kernel
+    bool managed_thread_pool = tls.in_managed_thread_pool_;
+    amx_exclusive = managed_thread_pool;
     if (!amx_exclusive || tls.amx_buffer_.cur_palette != palette) {
         if (need_config_amx) {
             amx_tile_configure(palette);
         } else {
             need_config_amx = true;
+        }
+        if (managed_thread_pool) {
+            tls.amx_buffer_.cur_palette = palette;
+            // tell the thread pool to release amx tile
+            tls.amx_buffer_.need_release_tile_ = true;
         }
     }
 
@@ -880,9 +894,11 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 }
 
+SC_API int dnnl_brgemm_init(
+        void *C, int M, int N, int LDC, int dtypeC, float value) {
 #define BRGEMM_DTYPE_INIT(dtype) \
     if (LDC == N) { \
-        memset(C, (dtype)value, M *N *get_dtype_sizeof(dtypeC)); \
+        memset(C, (dtype)value, M *N *dtype_size); \
     } else { \
         for (int i = 0; i < M; ++i) { \
             for (int j = 0; j < N; ++j) { \
@@ -890,15 +906,16 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
             } \
         } \
     }
-
-SC_API int dnnl_brgemm_init(
-        void *C, int M, int N, int LDC, int dtypeC, float value) {
-    if (get_dtype_sizeof(dtypeC) == 1) {
+    auto dtype_size = get_dtype_sizeof(dtypeC);
+    if (dtype_size == 1) {
         BRGEMM_DTYPE_INIT(uint8_t);
+    } else if (dtype_size == 2) {
+        BRGEMM_DTYPE_INIT(uint16_t);
     } else {
         BRGEMM_DTYPE_INIT(int32_t);
     }
     return 0;
+#undef BRGEMM_DTYPE_INIT
 }
 
 SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,

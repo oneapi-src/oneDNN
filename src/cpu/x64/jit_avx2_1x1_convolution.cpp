@@ -247,7 +247,8 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         for (int i = 0; i < jcp_dw->kh; ++i)
             addrs[i] = pbuf + ((oh_1x1++) % jcp_dw->kh) * row_offset;
 
-        const ptrdiff_t wch_stride = (is_src_layout_nxc ? 1 : jcp_dw->iw)
+        const ptrdiff_t wch_stride
+                = static_cast<ptrdiff_t>(is_src_layout_nxc ? 1 : jcp_dw->iw)
                 * jcp_dw->nb_ch_blocking * jcp_dw->ch_block;
         const auto ocb_end = ocb_start + load_step;
         const int dil_h = jcp_dw->dilate_h + 1;

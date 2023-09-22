@@ -245,7 +245,7 @@ TEST(GCCore_CPU_graph_inplace_transform_cpp, TestBatchNormNoCopy) {
             {graph_tensor::make({input_dims[channel_axis]})});
     auto ins4 = graph.make_input(
             {graph_tensor::make({input_dims[channel_axis]})});
-    std::unordered_map<std::string, any_t> attrs = {{"epsilon", float(1e-5)},
+    std::unordered_map<std::string, any_t> attrs = {{"epsilon", 1e-5f},
             {"momentum", 1.f}, {"data_format", std::string("NXC")}};
     auto relu0 = graph.make("relu", ins0->get_outputs(), {}, {});
     auto relu1 = graph.make("relu", ins1->get_outputs(), {}, {});
@@ -281,7 +281,7 @@ TEST(GCCore_CPU_graph_inplace_transform_cpp, TestBatchNormCopy) {
             {graph_tensor::make({input_dims[channel_axis]})});
     auto ins4 = graph.make_input(
             {graph_tensor::make({input_dims[channel_axis]})});
-    std::unordered_map<std::string, any_t> attrs = {{"epsilon", float(1e-5)},
+    std::unordered_map<std::string, any_t> attrs = {{"epsilon", 1e-5f},
             {"momentum", 1.f}, {"data_format", std::string("NXC")}};
     auto bn = graph.make("batchnorm_forward_training",
             {ins0->get_outputs()[0], ins1->get_outputs()[0],

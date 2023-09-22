@@ -25,8 +25,8 @@
 template <typename prb_t, typename perf_report_t, typename create_func_t,
         typename check_cache_func_t, typename do_func_t>
 struct rnn_task_t {
-    rnn_task_t(std::unique_ptr<prb_t> prb, const std::string &perf_template,
-            const create_func_t &create_func,
+    rnn_task_t(std::shared_ptr<const prb_t> prb,
+            const std::string &perf_template, const create_func_t &create_func,
             const check_cache_func_t &check_cache_func,
             const do_func_t &do_func)
         : prb_(std::move(prb))
@@ -67,7 +67,7 @@ struct rnn_task_t {
     }
 
 private:
-    std::unique_ptr<prb_t> prb_;
+    std::shared_ptr<const prb_t> prb_;
     create_func_t create_func_;
     check_cache_func_t check_cache_func_;
     do_func_t do_func_;

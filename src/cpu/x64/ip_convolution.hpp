@@ -38,7 +38,7 @@ namespace {
 
 status_t reshape_dst(memory_desc_t *o_md, const memory_desc_t *i_md) {
     dims_t reduce {};
-    const dim_t ndims = 2; // dst is always nc for inner product
+    const int ndims = 2; // dst is always nc for inner product
     // conv to ip: remove spatial
     for (int d = 0; d < ndims; ++d)
         reduce[d] = i_md->dims[d];
@@ -49,7 +49,7 @@ status_t reshape_dst(memory_desc_t *o_md, const memory_desc_t *i_md) {
 status_t maybe_reshape_weights(memory_desc_t *o_md, const memory_desc_t *i_md,
         bool with_groups, bool to_ip = false) {
     dims_t reduce {};
-    const dim_t ndims = i_md->ndims + (to_ip ? -1 : +1) * with_groups;
+    const int ndims = i_md->ndims + (to_ip ? -1 : +1) * with_groups;
     if (to_ip) {
         // conv to ip: maybe remove groups
         for (int d = 0; d < ndims; ++d)
@@ -276,8 +276,17 @@ struct ip_convolution_bwd_data_t : public primitive_t {
             if (!it.is_initialized()) return status::out_of_memory;
             while (++it != it.end()) {
                 ip_pd_ = *it;
-                const bool ok = ip_pd_->weights_md()->extra.flags == 0;
-                if (ok) return status::success;
+
+                // Avoid dispatching reference for f16 data-type.
+                const bool is_f16 = weights_md_.data_type == data_type::f16;
+                if (is_f16) {
+                    const std::string impl_name(ip_pd_->name());
+                    if (std::string::npos != impl_name.find("ref"))
+                        return status::unimplemented;
+                } else {
+                    const bool ok = ip_pd_->weights_md()->extra.flags == 0;
+                    if (ok) return status::success;
+                }
             }
             return status::unimplemented;
         }

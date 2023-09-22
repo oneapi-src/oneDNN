@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,11 +17,11 @@
 
 #ifndef GPU_AMD_SYCL_HIP_STREAM_HPP
 #define GPU_AMD_SYCL_HIP_STREAM_HPP
-#include <rocblas.h>
 #include "common/engine.hpp"
 #include "sycl/sycl_stream.hpp"
 #include <hip/hip_runtime.h>
 #include <miopen/miopen.h>
+#include <rocblas/rocblas.h>
 
 namespace dnnl {
 namespace impl {

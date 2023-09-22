@@ -473,12 +473,14 @@ public:
 
     void set_base(const expr_t &base) {
         base_ = base;
-        int factor = get_max_const_factor(base_, constraint_set_t());
-        factor = math::gcd(factor, a_ * tdim_.block());
-        factor = math::gcd(factor, b_ * tdim_.block());
-        if (factor % tdim_.block() != 0)
-            factor = math::gcd(factor, tdim_.block());
-
+        int factor = 1;
+        if (tdim_.vidx(1) == -1) {
+            factor = get_max_const_factor(base_, constraint_set_t());
+            factor = math::gcd(factor, static_cast<int>(a_ * tdim_.block()));
+            factor = math::gcd(factor, static_cast<int>(b_ * tdim_.block()));
+            if (factor % tdim_.block() != 0)
+                factor = math::gcd(factor, static_cast<int>(tdim_.block()));
+        }
         if (factor != tdim_.block()) {
             a_ = a_ * tdim_.block() / factor;
             b_ = b_ * tdim_.block() / factor;
@@ -1610,7 +1612,8 @@ public:
         auto &mod_info = info_.mod_info();
         params_.send_op = send_op;
         params_.type = vlayout.type();
-        ir_assert(hint.type == params_.type) << "Retyping is not supported.";
+        if (hint.type != params_.type)
+            return fail_2d("Retyping is not supported.");
 
         layout_2d_wrapper_t lw(vlayout);
 

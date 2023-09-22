@@ -34,6 +34,7 @@ const_dnnl_memory_desc_t query_md(
 // Particular interface of quering through execution argument and its index.
 const_dnnl_memory_desc_t query_md(
         const_dnnl_primitive_desc_t pd, int index = 0);
+const_dnnl_memory_desc_t query_md(const_dnnl_memory_t memory);
 
 dnnl_engine_t query_engine(const_dnnl_primitive_desc_t pd,
         dnnl_query_t engine_type = dnnl_query_engine);

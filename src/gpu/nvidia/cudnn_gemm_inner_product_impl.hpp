@@ -76,11 +76,6 @@ struct cudnn_gemm_inner_product_fwd_impl_t
     cudnnTensorDescriptor_t y_acc_desc_;
     bool need_reorder_;
 
-    bool ip_using_scratchpad() const override { return (use_acc_dst_ > 0); }
-    virtual bool need_to_transform_filter() const override {
-        return need_reorder_;
-    }
-
     virtual status_t init(engine_t *, inner_product_pd_t *pd, bool with_relu,
             bool with_eltwise, bool with_sum, bool need_reorder) override {
         need_reorder_ = need_reorder;
@@ -168,7 +163,8 @@ struct cudnn_gemm_inner_product_fwd_impl_t
         if (use_acc_dst_) {
             pd->scratchpad_registry().registrar().book(
                     memory_tracking::names::key_iprod_int_dat_in_acc_dt,
-                    memory_desc_wrapper(pd->dst_md()).size(), size_t(1));
+                    memory_desc_wrapper(pd->dst_md()).nelems(),
+                    types::data_type_size(pd->desc()->accum_data_type));
             CHECK(create_and_set_tensor_descriptor(&y_acc_desc_,
                     CUDNN_DATA_FLOAT, ndims_, dims_[io::dst],
                     strides_[io::dst]));
@@ -192,7 +188,6 @@ struct cudnn_gemm_inner_product_fwd_impl_t
             w_arg = transformed_w;
         }
         auto y_dst = use_acc_dst_ ? workspace : y;
-        auto sum_scale = use_acc_dst_ ? 0.0f : sum_scale_;
 
         float scale = 1.0f;
         if (src_scale || wei_scale) {
@@ -210,20 +205,24 @@ struct cudnn_gemm_inner_product_fwd_impl_t
             }
         }
 
+        // If sum for int8 is requested, first, convert dst memory into acc
+        // memory into f32 and using gemm API add it.
+        if (with_sum_ && use_acc_dst_) {
+            float one = 1.0f;
+            float zero = 0.0f;
+            CUDNN_EXECUTE_FUNC(cudnnTransformTensor, cudnn_handle, &one,
+                    tensor_descs_[io::dst], y, &zero, y_acc_desc_, y_dst);
+        }
+
         // do gemm
         CUBLAS_EXECUTE_FUNC(cublasGemmEx, cublas_handle, trans_a_, trans_b_, m_,
                 n_, k_, &scale, w_arg, a_type_, lda_, x, b_type_, ldb_,
-                &sum_scale, y_dst, c_type_, ldc_, compute_type_, algo_);
+                &sum_scale_, y_dst, c_type_, ldc_, compute_type_, algo_);
 
         if (with_bias_) {
             float alpha = 1.0f;
             CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &alpha,
                     tensor_descs_[io::bia], b, &alpha, y_acc_desc_, y_dst);
-        }
-        if (with_sum_ && use_acc_dst_) {
-            float alpha = 1.0f;
-            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &sum_scale_,
-                    tensor_descs_[io::dst], y, &alpha, y_acc_desc_, y_dst);
         }
         if (with_eltwise_) {
             CUDNN_EXECUTE_FUNC(cudnnActivationForward, cudnn_handle, act_desc_,
@@ -278,10 +277,6 @@ struct cudnn_gemm_inner_product_bwd_data_impl_t
       public cudnn_gemm_inner_product_base_t,
       public cudnn_conv_filter_adjustment_base_t {
     bool need_reorder_;
-
-    virtual bool need_to_transform_filter() const override {
-        return need_reorder_;
-    }
 
     virtual status_t init(engine_t *, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
@@ -352,10 +347,6 @@ struct cudnn_gemm_inner_product_bwd_weights_impl_t
     cudnnReduceTensorDescriptor_t reduceTensorDesc_ = nullptr;
     bool wie_tr_;
     bool need_reorder_;
-
-    virtual bool need_to_transform_filter() const override {
-        return need_reorder_;
-    }
 
     virtual ~cudnn_gemm_inner_product_bwd_weights_impl_t() {
         if (reduceTensorDesc_) {

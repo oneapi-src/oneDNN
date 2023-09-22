@@ -350,7 +350,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerMultiInput) {
 }
 
 TEST(GCCore_CPU_fuse_mgr_cpp, TestConcatOP) {
-    REQUIRE_AVX2();
+    REQUIRE_AVX512(); // vec lane is 16 for s32 dtype
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput0 = fusion.make<input_op>(make_tsr({100, 200, 10}));
@@ -386,6 +386,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestConcatOP) {
     do_commit(fusion, {aaa->params_[3]}, {});
 
     ///// Expected func:
+    uint32_t lanes = 16; // for avx512 and s32 dtype
     _function_(datatypes::s32, bbb,
             _arg_("inp0", datatypes::s32, {100, 200, 10}),
             _arg_("inp1", datatypes::s32, {100, 300, 10}),
@@ -397,28 +398,36 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestConcatOP) {
         auto inp1_ptr = builder::tensor_ptr(inp1, {0, 0, 0}, {}, true);
         auto inp2_ptr = builder::tensor_ptr(inp2, {0, 0, 0}, {}, true);
         _for_(ii, 0, 10) {
-            _for_(jj, 0, 200) {
-                _for_(hh, 0, 6) {
-                    out0_ptr[{ii, jj + expr(0), hh}] = inp0_ptr[{ii, jj, hh}];
+            _for_(jj0, 0, 200) {
+                _for_(hh0, 0, 6, int(lanes)) {
+                    auto mask = last_dim_generate_mask(
+                            hh0, 0, 6, int(lanes), true);
+                    out0_ptr[span_t({ii, jj0 + expr(0), hh0}, lanes, mask)]
+                            = inp0_ptr[span_t({ii, jj0, hh0}, lanes, mask)];
                 }
             }
-            _for_(jj, 0, 300) {
-                _for_(hh, 0, 6) {
-                    out0_ptr[{ii, jj + (expr(0) + expr(200)), hh}]
-                            = inp1_ptr[{ii, jj, hh}];
+            _for_(jj1, 0, 300) {
+                _for_(hh1, 0, 6, int(lanes)) {
+                    auto mask = last_dim_generate_mask(
+                            hh1, 0, 6, int(lanes), true);
+                    out0_ptr[span_t({ii, jj1 + (expr(0) + expr(200)), hh1},
+                            lanes, mask)]
+                            = inp1_ptr[span_t({ii, jj1, hh1}, lanes, mask)];
                 }
             }
-            _for_(jj, 0, 400) {
-                _for_(hh, 0, 6) {
-                    out0_ptr[{ii, jj + (expr(0) + expr(200) + expr(300)), hh}]
-                            = inp2_ptr[{ii, jj, hh}];
+            _for_(jj2, 0, 400) {
+                _for_(hh2, 0, 6, int(lanes)) {
+                    auto mask = last_dim_generate_mask(
+                            hh2, 0, 6, int(lanes), true);
+                    out0_ptr[span_t(
+                            {ii, jj2 + (expr(0) + expr(200) + expr(300)), hh2},
+                            lanes, mask)]
+                            = inp2_ptr[span_t({ii, jj2, hh2}, lanes, mask)];
                 }
             }
         }
         _return_(123);
     }
-    auto aaa1 = ir_module_t::from_entry_func(get_default_context(), aaa);
-    auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(aaa1, false);
 
     ir_comparer cmper(true);
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
@@ -554,13 +563,13 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestLeakyReluOP) {
 
     check_leaky_relu(datatypes::f32, 100, 200, 0.01);
     check_leaky_relu(datatypes::f32, 100, 256, 0.01);
-    check_leaky_relu(datatypes::f32, 100, 200, 0.5);
-    check_leaky_relu(datatypes::f32, 100, 256, 0.5);
+    check_leaky_relu(datatypes::f32, 100, 200, 0.5f);
+    check_leaky_relu(datatypes::f32, 100, 256, 0.5f);
 
     check_leaky_relu(datatypes::bf16, 100, 200, 0.01);
     check_leaky_relu(datatypes::bf16, 100, 256, 0.01);
-    check_leaky_relu(datatypes::bf16, 100, 200, 0.5);
-    check_leaky_relu(datatypes::bf16, 100, 256, 0.5);
+    check_leaky_relu(datatypes::bf16, 100, 200, 0.5f);
+    check_leaky_relu(datatypes::bf16, 100, 256, 0.5f);
 }
 
 TEST(GCCore_CPU_fuse_mgr_cpp, TestTanhOP) {
@@ -710,6 +719,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast1) {
 }
 
 TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast2) {
+    bool is_builtin = is_builtin_test_ctx();
     builder::ir_builder_t builder;
     fusion_manager fusion;
     int bc_block = 64;
@@ -745,22 +755,29 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast2) {
         auto out_tptr = builder::tensor_ptr(out, {0, 0, 0}, {}, true);
         _for_(n, 0, 50) {
             _for_(i, 0, bc_block) {
-                _for_(j, 0, 50, int(lanes)) {
-                    auto last_axis_offset
-                            = cast_to_s32(expr(48 + 2)) - cast_to_s32(j);
-                    auto cur_step = builder::make_min(
-                            builder::make_max(builder::make_constant(0),
-                                    last_axis_offset),
-                            int(lanes));
-                    out_tptr[span_t({n, i, j}, lanes,
-                            generate_mask_by_step_directly(
-                                    cur_step, int(lanes)))]
-                            = buf_tptr[span_t({n, i, j}, lanes,
-                                      generate_mask_by_step_directly(
-                                              cur_step, int(lanes)))]
+                _for_(j, 0, 48, int(lanes)) {
+                    out_tptr[span_t({n, i, j}, lanes)]
+                            = buf_tptr[span_t({n, i, j}, lanes)]
                             + builder::make_broadcast(
                                     bc_args_add_tptr[{0, i, 0}],
                                     static_cast<int>(lanes));
+                }
+                if (is_builtin) {
+                    _for_(j, 48, 50, int(lanes)) {
+                        auto mask = last_dim_generate_mask(
+                                j, 48, 50, int(lanes), true);
+                        out_tptr[span_t({n, i, j}, lanes, mask)]
+                                = buf_tptr[span_t({n, i, j}, lanes, mask)]
+                                + builder::make_broadcast(
+                                        bc_args_add_tptr[{0, i, 0}],
+                                        static_cast<int>(lanes));
+                    }
+                } else {
+                    _for_(j, 48, 50, 1) {
+                        out_tptr[span_t({n, i, j}, 1)]
+                                = buf_tptr[span_t({n, i, j}, 1)]
+                                + bc_args_add_tptr[{0, i, 0}];
+                    }
                 }
             }
         }
@@ -778,7 +795,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast3) {
     auto finput = fusion.make<input_op>(make_tsr({50, 100, 200}));
     auto finput_add = fusion.make<input_op>(sc_dims {100}, datatypes::s32);
     auto fadd = fusion.make<add_op_t>(
-            finput->get_outputs()[0], finput_add->get_outputs()[0]);
+            std::vector<graph_tensor_ptr> {
+                    finput->get_outputs()[0], finput_add->get_outputs()[0]},
+            std::vector<graph_tensor_ptr> {},
+            any_map_t {{"bc_axis", std::vector<int> {1}}});
     auto foutput = fusion.make<output_op>(fadd->get_outputs()[0]);
     EXPECT_EQ(fadd->get_outputs()[0], foutput->get_inputs()[0]);
     _function_(datatypes::s32, aaa,
@@ -827,7 +847,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast4) {
     auto finput = fusion.make<input_op>(make_tsr({100}));
     auto finput_add = fusion.make<input_op>(make_tsr({50, 100, 200}));
     auto fadd = fusion.make<sub_op_t>(
-            finput->get_outputs()[0], finput_add->get_outputs()[0]);
+            std::vector<graph_tensor_ptr> {
+                    finput->get_outputs()[0], finput_add->get_outputs()[0]},
+            std::vector<graph_tensor_ptr> {},
+            any_map_t {{"bc_axis", std::vector<int> {1}}});
     auto foutput = fusion.make<output_op>(fadd->get_outputs()[0]);
     EXPECT_EQ(fadd->get_outputs()[0], foutput->get_inputs()[0]);
     _function_(datatypes::s32, aaa,
@@ -1520,11 +1543,12 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerCastBF16) {
             inbf16.data());
 
     for (unsigned i = 0; i < 20 * 259; i++) {
-        if (std::abs(outf32tobf16[i] - inbf16[i]) >= 1e-5) {
+        if (std::abs(outf32tobf16[i] - inbf16[i]) >= 1e-5f) {
             std::cout << outf32tobf16[i] << "\n";
         }
-        EXPECT_TRUE(std::abs(outf32tobf16[i] - float(bf16_t(inf32[i]))) < 1e-5);
-        EXPECT_TRUE(std::abs(outbf16tof32[i] - inbf16[i]) < 1e-5);
+        EXPECT_TRUE(
+                std::abs(outf32tobf16[i] - float(bf16_t(inf32[i]))) < 1e-5f);
+        EXPECT_TRUE(std::abs(outbf16tof32[i] - inbf16[i]) < 1e-5f);
     }
 }
 
@@ -1944,6 +1968,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp1) {
 // computation occurs.
 TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp2) {
     REQUIRE_AVX();
+    bool is_builtin = false;
+    is_builtin = is_builtin_test_ctx();
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1992,50 +2018,77 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp2) {
             _tensor_(_fuse_buf_1, datatypes::f32, {20UL, 1UL, 40UL, 1UL});
             _for_(n_o, 0, 30) {
                 _for_(i, 0, 40) {
-                    _for_(j, 0, 50, lanes) {
+                    _for_(j, 0, 48, lanes) {
                         auto _fuse_buf_0_ptr = builder::tensor_ptr(
                                 _fuse_buf_0, {m_o, n_o, 0, 0}, {}, true);
                         auto inp0_ptr = builder::tensor_ptr(
                                 inp0, {m_o, n_o, 0, 0}, {}, true);
-                        auto last_axis_offset
-                                = cast_to_s32(50) - cast_to_s32(j);
-                        // mask = min(max(0, last_dim_len -
-                        // last_dim_idx),real_step) To choose [0 ~
-                        // step] mask
-                        auto cur_step = builder::make_min(
-                                builder::make_max(builder::make_constant(0),
-                                        last_axis_offset),
-                                lanes);
-                        _fuse_buf_0_ptr[span_t({0, 0, i, j}, lanes,
-                                generate_mask_by_step_directly(
-                                        cur_step, lanes))]
+                        _fuse_buf_0_ptr[span_t({0, 0, i, j}, lanes)]
                                 = builder::make_exp(
-                                        inp0_ptr[span_t({0, 0, i, j}, lanes,
-                                                generate_mask_by_step_directly(
-                                                        cur_step, lanes))]);
+                                        inp0_ptr[span_t({0, 0, i, j}, lanes)]);
                     }
-                }
-                _for_(i, 0, 40) {
-                    _for_(j, 0, 50, lanes) {
+                    if (is_builtin) {
+                        _for_(j, 48, 50, lanes) {
+                            auto _fuse_buf_0_ptr = builder::tensor_ptr(
+                                    _fuse_buf_0, {m_o, n_o, 0, 0}, {}, true);
+                            auto inp0_ptr = builder::tensor_ptr(
+                                    inp0, {m_o, n_o, 0, 0}, {}, true);
+                            auto mask = last_dim_generate_mask(
+                                    j, 48, 50, lanes, true);
+                            _fuse_buf_0_ptr[span_t({0, 0, i, j}, lanes, mask)]
+                                    = builder::make_exp(inp0_ptr[span_t(
+                                            {0, 0, i, j}, lanes, mask)]);
+                        }
+                    } else {
+                        _for_(j, 48, 50, 1) {
+                            auto _fuse_buf_0_ptr = builder::tensor_ptr(
+                                    _fuse_buf_0, {m_o, n_o, 0, 0}, {}, true);
+                            auto inp0_ptr = builder::tensor_ptr(
+                                    inp0, {m_o, n_o, 0, 0}, {}, true);
+                            _fuse_buf_0_ptr[span_t({0, 0, i, j}, 1)]
+                                    = builder::make_exp(
+                                            inp0_ptr[span_t({0, 0, i, j}, 1)]);
+                        }
+                    }
+
+                    _for_(j, 0, 48, lanes) {
                         auto _fuse_buf_0_ptr = builder::tensor_ptr(
-                                _fuse_buf_0, {m_o, n_o, 0, 0}, {}, true);
-                        auto last_axis_offset
-                                = cast_to_s32(50) - cast_to_s32(j);
-                        // mask = min(max(0, last_dim_len -
-                        // last_dim_idx),real_step) To choose [0 ~
-                        // step] mask
-                        auto cur_step = builder::make_min(
-                                builder::make_max(builder::make_constant(0),
-                                        last_axis_offset),
-                                lanes);
-                        auto mask = generate_mask_by_step_directly(
-                                cur_step, lanes);
-                        _fuse_buf_0_ptr[span_t({0, 0, i, j}, lanes, mask)]
+                                _fuse_buf_0, {m_o, n_o, i, 0}, {}, true);
+
+                        _fuse_buf_0_ptr[span_t({0, 0, 0, j}, lanes)]
                                 = builder::make_max(
                                         _fuse_buf_0_ptr[span_t(
-                                                {0, 0, i, j}, lanes, mask)],
+                                                {0, 0, 0, j}, lanes)],
                                         make_expr<constant_node>(0.f,
                                                 sc_data_type_t::f32(lanes)));
+                    }
+                    if (is_builtin) {
+                        _for_(j, 48, 50, lanes) {
+                            auto _fuse_buf_0_ptr = builder::tensor_ptr(
+                                    _fuse_buf_0, {m_o, n_o, i, 0}, {}, true);
+                            auto mask = last_dim_generate_mask(
+                                    j, 48, 50, lanes, true);
+
+                            _fuse_buf_0_ptr[span_t({0, 0, 0, j}, lanes, mask)]
+                                    = builder::make_max(
+                                            _fuse_buf_0_ptr[span_t(
+                                                    {0, 0, 0, j}, lanes, mask)],
+                                            make_expr<constant_node>(0.f,
+                                                    sc_data_type_t::f32(
+                                                            lanes)));
+                        }
+                    } else {
+                        _for_(j, 48, 50, 1) {
+                            auto _fuse_buf_0_ptr = builder::tensor_ptr(
+                                    _fuse_buf_0, {m_o, n_o, i, 0}, {}, true);
+
+                            _fuse_buf_0_ptr[span_t({0, 0, 0, j}, 1)]
+                                    = builder::make_max(
+                                            _fuse_buf_0_ptr[span_t(
+                                                    {0, 0, 0, j}, 1)],
+                                            make_expr<constant_node>(0.f,
+                                                    sc_data_type_t::f32(1)));
+                        }
                     }
                 }
             }
@@ -2049,20 +2102,13 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp2) {
                     _for_(j, 0, 30) {
                         _for_(jj, 0, 50, lanes) {
                             assert(lanes == 16 || lanes == 8);
-                            auto cur_step = builder::make_min(
-                                    builder::make_max(
-                                            builder::make_cast(
-                                                    datatypes::s32, 50)
-                                                    - builder::make_cast(
-                                                            datatypes::s32, jj),
-                                            0),
-                                    lanes);
+                            auto mask
+                                    = last_dim_generate_mask(jj, 48, 50, lanes);
+
                             reduce_sum = builder::make_add(
                                     builder::tensor_ptr(_fuse_buf_0,
-                                            {m_o, 0, 0, 0}, {},
-                                            true)[span_t({i, j, ii, jj}, lanes,
-                                            generate_mask_by_step_directly(
-                                                    cur_step, lanes))],
+                                            {m_o, 0, 0, 0}, {}, true)[span_t(
+                                            {i, j, ii, jj}, lanes, mask)],
                                     reduce_sum);
                         }
                     }
@@ -2075,25 +2121,47 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp2) {
             _for_(i, 0, 1) {
                 _for_(j, 0, 30) {
                     _for_(ii, 0, 40) {
-                        _for_(jj, 0, 50, lanes) {
-                            auto last_axis_offset = cast_to_s32(expr(48 + 2))
-                                    - cast_to_s32(jj);
-                            auto cur_step = builder::make_min(
-                                    builder::make_max(builder::make_constant(0),
-                                            last_axis_offset),
-                                    int(lanes));
-                            expr mask = generate_mask_by_step_directly(
-                                    cur_step, int(lanes));
+                        _for_(jj, 0, 48, lanes) {
                             builder::tensor_ptr(out0, {m_o, 0, 0, 0}, {},
-                                    true)[span_t({i, j, ii, jj}, lanes, mask)]
+                                    true)[span_t({i, j, ii, jj}, lanes)]
                                     = builder::tensor_ptr(inp0, {m_o, 0, 0, 0},
                                               {}, true)[span_t(
-                                              {i, j, ii, jj}, lanes, mask)]
+                                              {i, j, ii, jj}, lanes)]
                                     + builder::make_broadcast(
                                             builder::tensor_ptr(_fuse_buf_1,
                                                     {m_o, 0, 0, 0}, {},
                                                     true)[{i, 0, ii, 0}],
                                             static_cast<int>(lanes));
+                        }
+                        if (is_builtin) {
+                            _for_(jj, 48, 50, lanes) {
+                                auto mask = last_dim_generate_mask(
+                                        jj, 48, 50, lanes, true);
+                                builder::tensor_ptr(
+                                        out0, {m_o, 0, 0, 0}, {}, true)[span_t(
+                                        {i, j, ii, jj}, lanes, mask)]
+                                        = builder::tensor_ptr(inp0,
+                                                  {m_o, 0, 0, 0}, {},
+                                                  true)[span_t(
+                                                  {i, j, ii, jj}, lanes, mask)]
+                                        + builder::make_broadcast(
+                                                builder::tensor_ptr(_fuse_buf_1,
+                                                        {m_o, 0, 0, 0}, {},
+                                                        true)[{i, 0, ii, 0}],
+                                                static_cast<int>(lanes));
+                            }
+                        } else {
+                            _for_(jj, 48, 50, 1) {
+                                builder::tensor_ptr(out0, {m_o, 0, 0, 0}, {},
+                                        true)[span_t({i, j, ii, jj}, 1)]
+                                        = builder::tensor_ptr(inp0,
+                                                  {m_o, 0, 0, 0}, {},
+                                                  true)[span_t(
+                                                  {i, j, ii, jj}, 1)]
+                                        + builder::tensor_ptr(_fuse_buf_1,
+                                                {m_o, 0, 0, 0}, {},
+                                                true)[{i, 0, ii, 0}];
+                            }
                         }
                     }
                 }
@@ -2462,7 +2530,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestVecterizedClampOP) {
         test_utils::compare_data(out_buf, ref_out_buf, 1e-5f, 1e-5f);
     };
     // scalar version
-    // check_clamp(100, 200, false, 0.1, 0.5);
+    // check_clamp(100, 200, false, 0.1f, 0.5f);
 
     // vectorization version
     check_clamp(100, 256, true, 0.1f, 0.5f);
@@ -2694,16 +2762,16 @@ TEST(GCCore_CPU_fuse_mgr_cpp, BenchVectorizedClampOP) {
                   << " milliseconds\n";
     };
     // vectorization version
-    bench_clamp(100, 256, true, 0.1, 0.5);
+    bench_clamp(100, 256, true, 0.1f, 0.5f);
 
     // vectorization version
-    bench_clamp(100, 2560, true, 0.1, 0.5);
+    bench_clamp(100, 2560, true, 0.1f, 0.5f);
 
     // vectorization version
-    bench_clamp(100, 25600, true, 0.1, 0.5);
+    bench_clamp(100, 25600, true, 0.1f, 0.5f);
 
     // vectorization version
-    bench_clamp(100, 512000, true, 0.1, 0.5);
+    bench_clamp(100, 512000, true, 0.1f, 0.5f);
 }
 
 #endif

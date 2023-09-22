@@ -93,19 +93,21 @@ public:
             if (value) {
                 std::lock_guard<std::mutex> lock(
                         global_cache_type_t::get_global_cache()->mutex());
-                std::vector<std::shared_ptr<T>> &thread_instances
-                        = global_cache_type_t::get_global_cache()
-                                  ->data()
-                                  .find(it.first)
-                                  ->second;
-                auto pos = std::find_if(thread_instances.begin(),
-                        thread_instances.end(),
-                        [&](std::shared_ptr<T> &ins) -> bool {
-                            return ins.get() == value.get();
-                        });
-                assertm(pos != thread_instances.end(),
-                        "expected value to exist in cache");
-                thread_instances.erase(pos);
+                auto &data = global_cache_type_t::get_global_cache()->data();
+
+                auto ret = data.find(it.first);
+                if (ret != data.end()) {
+                    std::vector<std::shared_ptr<T>> &thread_instances
+                            = ret->second;
+                    auto pos = std::find_if(thread_instances.begin(),
+                            thread_instances.end(),
+                            [&](std::shared_ptr<T> &ins) -> bool {
+                                return ins.get() == value.get();
+                            });
+                    assertm(pos != thread_instances.end(),
+                            "expected value to exist in cache");
+                    thread_instances.erase(pos);
+                }
             }
         }
         cache.data().clear();
@@ -206,17 +208,20 @@ private:
                     std::lock_guard<std::mutex> lock(global_cache_ref_.mutex());
 
                     // Find the corresponding shared ptr in global table
-                    std::vector<std::shared_ptr<T>> &thread_instances
-                            = global_cache_ref_.data().find(it.first)->second;
-                    auto pos = std::find_if(thread_instances.begin(),
-                            thread_instances.end(),
-                            [&](std::shared_ptr<T> &ins) -> bool {
-                                return ins.get() == value.get();
-                            });
-                    assertm(pos != thread_instances.end(),
-                            "expected value to exist in cache");
-                    // Detroy it
-                    thread_instances.erase(pos);
+                    auto ret = global_cache_ref_.data().find(it.first);
+                    if (ret != global_cache_ref_.data().end()) {
+                        std::vector<std::shared_ptr<T>> &thread_instances
+                                = ret->second;
+                        auto pos = std::find_if(thread_instances.begin(),
+                                thread_instances.end(),
+                                [&](std::shared_ptr<T> &ins) -> bool {
+                                    return ins.get() == value.get();
+                                });
+                        assertm(pos != thread_instances.end(),
+                                "expected value to exist in cache");
+                        // Detroy it
+                        thread_instances.erase(pos);
+                    }
                 }
             }
             global_cache_ref_.release();

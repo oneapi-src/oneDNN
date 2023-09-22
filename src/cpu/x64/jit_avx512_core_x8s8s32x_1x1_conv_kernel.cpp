@@ -966,7 +966,8 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         const int simd_idx = simd_w == 16 ? 0 : simd_w == 8 ? 1 : 2;
         const auto wei_tag = wei_tags[simd_idx][with_groups][ndims - 3];
         memory_desc_t want_wei_md = weights_md;
-        memory_desc_init_by_tag(want_wei_md, wei_tag);
+        CHECK_BOOL(memory_desc_init_by_tag(want_wei_md, wei_tag));
+
         if (jcp.signed_input) {
             want_wei_md.extra.flags = 0 | compensation_conv_s8s8 | scale_adjust;
             want_wei_md.extra.compensation_mask
@@ -1222,7 +1223,8 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
     using namespace dnnl::impl::memory_tracking::names;
 
     const int wei_mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
-    const dim_t scales_count = wei_mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+    const dim_t scales_count
+            = wei_mask == 0 ? 1 : static_cast<dim_t>(jcp.oc) * jcp.ngroups;
     const dim_t count = nstl::max<dim_t>(scales_count, (dim_t)jcp.ic_block);
     scratchpad.book<float>(key_conv_adjusted_scales, count);
 }

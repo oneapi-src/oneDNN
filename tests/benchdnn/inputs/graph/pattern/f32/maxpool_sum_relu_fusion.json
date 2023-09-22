@@ -1,0 +1,216 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 9,
+      "name": "POOL_0",
+      "kind": "MaxPool",
+      "attrs": {
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1
+          ]
+        },
+        "rounding_type": {
+          "type": "string",
+          "value": "floor"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "kernel": {
+          "type": "s64[]",
+          "value": [
+            3,
+            3
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            4,
+            4
+          ],
+          "stride": [
+            2048,
+            16,
+            4,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 169,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 2063,
+      "name": "SUM_1",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "none"
+        }
+      },
+      "inputs": [
+        {
+          "id": 169,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2223,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 4102,
+      "name": "ELTWISE_2",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 2223,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 4262,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

@@ -80,6 +80,13 @@ void bind_vector_to_args(const std::vector<T> &v, T2 &out1, Args &...args) {
     bind_vector_to_args<idx + 1>(v, args...);
 }
 
+template <typename T, typename T2>
+void bind_vector_to_args(const std::vector<T> &v, std::vector<T2> &out) {
+    for (size_t idx = 0; idx < v.size(); idx++) {
+        bind_assigner_t<T2, T>::assign(out[idx], v[idx]);
+    }
+}
+
 template <typename T>
 void args_to_vector(std::vector<T> &v) {}
 
@@ -201,6 +208,16 @@ SC_INTERNAL_API std::string get_error_msg(int errnum);
  * @return the library path, or empty if anything goes wrong
  * */
 SC_INTERNAL_API std::string get_dyn_lib_path(void *addr);
+
+/**
+ * Get the nearest even step of the for loop
+ */
+SC_INTERNAL_API int get_nearest_vector_step(int step);
+
+/**
+ * Get the string of etype.
+ */
+SC_INTERNAL_API std::string etype_to_string(sc_data_etype edtype);
 
 struct SC_INTERNAL_API compiler_configs_t {
     bool print_gen_code_;

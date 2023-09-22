@@ -41,11 +41,10 @@ struct ref_pp_kernel_t : public pp_kernel_t {
             data_type_t acc_dt, const memory_desc_t *dst_md, bool skip_sum)
         : pp_kernel_t(
                 OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum)
-        , ref_post_ops_(this->do_sum_ || this->do_eltwise_ || this->do_binary_
-                                  || this->do_prelu_
-                          ? utils::make_unique<ref_post_ops_t>(
-                                  this->post_ops_, skip_sum)
-                          : nullptr) {}
+        , dst_md_(dst_md)
+        , skip_sum_(skip_sum)
+        , do_postops_(this->do_sum_ || this->do_eltwise_ || this->do_binary_
+                  || this->do_prelu_) {}
 
     void operator()(void *dst, const void *acc, const char *bias,
             const float *scales, float dst_scale, size_t start,
@@ -56,8 +55,19 @@ struct ref_pp_kernel_t : public pp_kernel_t {
             size_t first_mb_matrix_addr_off, const exec_ctx_t &ctx,
             const memory_desc_t &dst_md) const override;
 
+    status_t create_kernel() override {
+        if (!do_postops_) return status::success;
+        ref_post_ops_ = utils::make_unique<ref_post_ops_t>(
+                this->post_ops_, skip_sum_);
+        if (!ref_post_ops_) return status::out_of_memory;
+        return ref_post_ops_->init(dst_md_);
+    }
+
 private:
     std::unique_ptr<ref_post_ops_t> ref_post_ops_;
+    const memory_desc_t *dst_md_;
+    const bool skip_sum_;
+    const bool do_postops_;
 };
 
 void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
@@ -74,8 +84,6 @@ void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
     ref_post_ops_t::args_t args;
     args.ctx = &ctx;
     args.dst_md = &dst_md;
-    const bool apply_postops = this->do_sum_ || this->do_eltwise_
-            || this->do_binary_ || this->do_prelu_;
     auto calculate_dst_value_and_increment_oc =
             [&](const void *acc, void *dst, size_t off, size_t &oc_value,
                     const size_t dst_offset) {
@@ -87,7 +95,7 @@ void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
                             this->bias_data_type_, bias, oc_value);
                     d += b;
                 }
-                if (apply_postops) {
+                if (do_postops_) {
                     if (this->do_sum_)
                         args.dst_val = io::load_float_value(
                                 this->sum_data_type_, dst, off);

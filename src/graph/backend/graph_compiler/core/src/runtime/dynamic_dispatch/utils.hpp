@@ -22,12 +22,13 @@ namespace impl {
 namespace graph {
 namespace gc {
 namespace runtime {
-
+union dispatch_key;
 void deep_copy_dynamic_tensor(
         dynamic_tensor_t *out, const dynamic_tensor_t *in);
 
 uint64_t calculate_blocking_dims(void *placeholder, uint64_t *format);
 
+dispatch_key get_impl_dispatch_key(int impl);
 } // namespace runtime
 } // namespace gc
 } // namespace graph

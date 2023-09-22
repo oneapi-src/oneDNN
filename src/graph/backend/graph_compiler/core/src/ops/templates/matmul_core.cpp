@@ -67,7 +67,8 @@ static void inline validate_cfg(
   matmul_core_config_t &cfg, bool is_amx, sc_data_type_t dtype) {
   if (!is_amx) return;
   if (is_dynamic_dim(cfg.K_block)) { return; }
-  int rd_block = dtype == datatypes::bf16                   ? 32
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(get_default_context(), dtype);
+  int rd_block = is_vnni_low_fp                             ? 32
     : utils::is_one_of(dtype, datatypes::u8, datatypes::s8) ? 64
                                                             : -1;
   if (rd_block == -1) return;
@@ -133,7 +134,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
   const bool is_amx = ctx->use_amx();
   const bool is_int8
     = utils::is_one_of(get_in_dtypes(0), datatypes::u8, datatypes::s8);
-  const bool is_bf16 = get_in_dtypes(0) == datatypes::bf16;
+  const bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, get_in_dtypes(0));
   const int max_block = 64;
   const int min_block = 32;
   const auto A_plain_dims = get_mma_plain_dims();
@@ -153,7 +154,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
     if (K < 32) { cfg.K_block = K; }
   } else {
     if (A_plain_dims[1] < 64) {
-      cfg.K_block = utils::rnd_up(A_plain_dims[1], is_bf16 ? 2 : 4);
+      cfg.K_block = utils::rnd_up(A_plain_dims[1], is_vnni_low_fp ? 2 : 4);
     }
   }
   bool is_cfg_set = false;
@@ -245,7 +246,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
             int pad64_M = ceil64_M - M;
             int pad48_M = ceil48_M - M;
             int pad32_M = ceil32_M - M;
-            if (!(is_amx && is_bf16)) {
+            if (!(is_amx && is_vnni_low_fp)) {
               cfg.M_block = pad48_M >= pad64_M ? (pad64_M > pad32_M ? 32 : 64)
                                                : (pad48_M >= pad32_M ? 32 : 48);
             } else {
@@ -278,7 +279,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
       int pad64_N = ceil64_N - N;
       int pad48_N = ceil48_N - N;
       int pad32_N = ceil32_N - N;
-      if (!(is_amx && is_bf16)) {
+      if (!(is_amx && is_vnni_low_fp)) {
         cfg.N_block = pad48_N >= pad64_N ? (pad64_N > pad32_N ? 32 : 64)
                                          : (pad48_N >= pad32_N ? 32 : 48);
       } else {
@@ -342,15 +343,19 @@ void gen_matmul_core_t::get_and_check_blocks(sc_graph_t &graph,
   if (blocking_axis_.B_k.size() == 1) {
     assert(blocking_axis_.B_n.size() == 1);
     COMPILE_ASSERT(is_config_set, "config must be set with plain input.");
-    COMPILE_ASSERT(inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32,
-      "the datatype of B must be f32 when B is plain.");
+    bool is_f16 = inputs[1].as<tensor>()->elem_dtype_ == datatypes::f16;
+    COMPILE_ASSERT(
+      inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32 || is_f16,
+      "the datatype of B must be f32 or f16 when B is plain.");
     N_block = config.N_block;
   } else {
     N_block = get_expr_as_int(B_dims[blocking_axis_.B_n.back()]);
-    if (utils::is_one_of(inputs[1].as<tensor>()->elem_dtype_, datatypes::u8,
-          datatypes::s8, datatypes::bf16)) {
-      int dtype_block
-        = inputs[1].as<tensor>()->elem_dtype_ == datatypes::bf16 ? 2 : 4;
+    bool is_vnni_low_fp = ops::is_vnni_low_fp(
+      get_default_context(), inputs[1].as<tensor>()->elem_dtype_);
+    if (utils::is_one_of(
+          inputs[1].as<tensor>()->elem_dtype_, datatypes::u8, datatypes::s8)
+      || is_vnni_low_fp) {
+      int dtype_block = is_vnni_low_fp ? 2 : 4;
       if (in_tensors_[1].get_plain_dims().back() % K_block == 0) {
         // padding because of big K_block
         if (K_block < 4 && dtype_block == 4) {
@@ -512,8 +517,10 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(sc_graph_t &graph,
   // update bidx and stride_b according to the format of tensor B
   if (!update_b) {
     if (blocking_axis_.B_k.size() == 1 && blocking_axis_.B_n.size() == 1) {
-      COMPILE_ASSERT(inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32,
-        "the datatype of B must be f32 when B is plain.");
+      bool is_f16 = inputs[1].as<tensor>()->elem_dtype_ == datatypes::f16;
+      COMPILE_ASSERT(
+        inputs[1].as<tensor>()->elem_dtype_ == datatypes::f32 || is_f16,
+        "the datatype of B must be f32 or f16 when B is plain.");
       LDB = 1;
       stride_b = K_block;
       int flag_l_idx = 0, flag_s_idx = 0;
@@ -637,12 +644,13 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   auto A_dtype = get_A_dtype(), B_dtype = get_B_dtype();
   int M_block = 0, K_block = 0, N_block = 0;
   expr M_num_blocks, N_num_blocks, K_num_blocks, B_K_num_blocks;
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, B_dtype);
 
   get_and_check_blocks(graph, inputs, config, M_num_blocks, K_num_blocks,
     M_block, K_block, N_block, B_K_num_blocks, N_num_blocks);
 
   int dtype_block = 1;
-  if (B_dtype == datatypes::bf16) {
+  if (is_vnni_low_fp) {
     dtype_block = 2;
   } else if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
     dtype_block = 4;
@@ -658,45 +666,69 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   expr B = inputs[op_params_t::in_B];
   auto A_dims = A.as<tensor>()->dims_;
   auto B_dims = B.as<tensor>()->dims_;
+  auto C_dims = C.as<tensor>()->dims_;
 
-  std::vector<expr> batch_dims;
-  if (blocking_axis_.A_bs.size() > blocking_axis_.B_bs.size()) {
-    for (auto i : blocking_axis_.A_bs) {
-      batch_dims.emplace_back(A_dims[i]);
-    }
-  } else {
-    for (auto i : blocking_axis_.B_bs) {
-      batch_dims.emplace_back(B_dims[i]);
-    }
+  std::vector<expr> A_batch_dims; // the batch dims of A
+  for (auto i : blocking_axis_.A_bs) {
+    A_batch_dims.emplace_back(A_dims[i]);
   }
-  auto batch_dims_size = batch_dims.size();
-  auto small_batch_dims_size
-    = blocking_axis_.A_bs.size() > blocking_axis_.B_bs.size()
-    ? blocking_axis_.B_bs.size()
-    : blocking_axis_.A_bs.size();
-  std::vector<expr> idxs, idxs_small;
+  std::vector<expr> B_batch_dims; // the batch dims of B
+  for (auto i : blocking_axis_.B_bs) {
+    B_batch_dims.emplace_back(B_dims[i]);
+  }
+  std::vector<expr> C_batch_dims;
+  // the batch dims of output, long and broadcasted.
+  for (auto i : blocking_axis_.C_bs) {
+    C_batch_dims.emplace_back(C_dims[i]);
+  }
+  auto batch_dims_size = C_batch_dims.size();
+  auto A_batch_dims_long = A_batch_dims.size() >= B_batch_dims.size();
+  auto long_batch_dims = A_batch_dims_long ? A_batch_dims : B_batch_dims;
+  auto short_batch_dims = A_batch_dims_long ? B_batch_dims : A_batch_dims;
+  auto short_batch_dims_size = short_batch_dims.size();
+  std::vector<expr> idxs_long, idxs_short, idxs_C;
   std::vector<for_loop> batch_loops;
   std::vector<for_range_simulator_t> ranges;
-  idxs.resize(batch_dims_size);
-  idxs_small.resize(small_batch_dims_size);
+  idxs_long.resize(batch_dims_size);
+  idxs_short.resize(short_batch_dims_size);
+  idxs_C.resize(batch_dims_size);
   batch_loops.resize(batch_dims_size);
   ranges.reserve(batch_dims_size);
   for (size_t i = 0; i < batch_dims_size; i++) {
     ranges.emplace_back(builder::range(
-      batch_loops[i], expr(0), batch_dims[i], expr(1), for_type::PARALLEL));
+      batch_loops[i], expr(0), C_batch_dims[i], expr(1), for_type::PARALLEL));
   }
-  if (!batch_dims.empty()) {
+  if (!C_batch_dims.empty()) {
     _nested_for_(std::move(ranges)) {
       std::vector<std::pair<expr, expr>> batch_tensor_slice_ranges, fidx1,
         fidx2;
+      // index, slice and range at C
       for (size_t i = 0; i < batch_dims_size; i++) {
-        idxs[i] = _0_nested_for.get_var();
-        idxs[i].checked_as<var>()->name_
+        idxs_C[i] = _0_nested_for.get_var();
+        idxs_C[i].checked_as<var>()->name_
           = std::string("idx") + std::to_string(i);
-        batch_tensor_slice_ranges.emplace_back(idxs[i], 1);
+        batch_tensor_slice_ranges.emplace_back(idxs_C[i], 1);
       }
-      idxs_small
-        = {idxs.begin() + batch_dims_size - small_batch_dims_size, idxs.end()};
+      // index at the long dims
+      for (size_t i = 0; i < batch_dims_size; i++) {
+        if (long_batch_dims[i].isa<constant_c>()
+          && get_expr_as_int(long_batch_dims[i]) == 1) {
+          // broadcasted
+          idxs_long[i] = 0;
+        } else {
+          idxs_long[i] = idxs_C[i];
+        }
+      }
+      // index at the short dims
+      for (size_t i = 0; i < short_batch_dims_size; ++i) {
+        if (short_batch_dims[i].isa<constant_c>()
+          && get_expr_as_int(short_batch_dims[i]) == 1) {
+          // broadcasted
+          idxs_short[i] = 0;
+        } else {
+          idxs_short[i] = idxs_C[batch_dims_size - short_batch_dims_size + i];
+        }
+      }
 
       std::vector<std::pair<expr, expr>> fidx3
         = blocking_axis_.C_m.size() == 1 && blocking_axis_.C_n.size() == 1
@@ -708,19 +740,16 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
       _named_for_(lm_c, m_o, 0, M_num_blocks) {
         _named_for_(ln_c, n_o, 0, N_num_blocks) {
           std::vector<expr> aidx
-            = concat_vec(blocking_axis_.A_bs.size() > blocking_axis_.B_bs.size()
-                ? idxs
-                : idxs_small,
+            = concat_vec(A_batch_dims_long ? idxs_long : idxs_short,
               blocking_axis_.A_m.size() == 1 && blocking_axis_.A_k.size() == 1
                 ? std::vector<expr> {m_o * M_block, 0}
                 : std::vector<expr> {m_o, 0, 0, 0});
-          std::vector<expr> bidx = concat_vec(
-            blocking_axis_.A_bs.size() > blocking_axis_.B_bs.size() ? idxs_small
-                                                                    : idxs,
-            blocking_axis_.B_k.size() == 1 && blocking_axis_.B_n.size() == 1
-              ? std::vector<expr> {n_o * N_block, 0}
-              : std::vector<expr> {n_o, 0, 0, 0});
-          std::vector<expr> cidx = concat_vec(idxs,
+          std::vector<expr> bidx
+            = concat_vec(A_batch_dims_long ? idxs_short : idxs_long,
+              blocking_axis_.B_k.size() == 1 && blocking_axis_.B_n.size() == 1
+                ? std::vector<expr> {n_o * N_block, 0}
+                : std::vector<expr> {n_o, 0, 0, 0});
+          std::vector<expr> cidx = concat_vec(idxs_C,
             blocking_axis_.C_m.size() == 1 && blocking_axis_.C_n.size() == 1
               ? std::vector<expr> {m_o * M_block, n_o * N_block}
               : std::vector<expr> {m_o, n_o, 0, 0});
@@ -748,10 +777,10 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
             fidx2, fidx3);
 
           // todo: this is for s8s8 vnni compensation
-          builtin::brgemm_init_update_allow_fusion(tensor_ptr(A, aidx),
-            tensor_ptr(B, bidx), tensor_ptr(C, cidx), K_num_blocks, M_block,
-            N_block, K_block, LDA, LDB, LDC, stride_a, stride_b, A_dtype,
-            B_dtype);
+          auto eval = builtin::brgemm_init_update_allow_fusion(
+            tensor_ptr(A, aidx), tensor_ptr(B, bidx), tensor_ptr(C, cidx),
+            K_num_blocks, M_block, N_block, K_block, LDA, LDB, LDC, stride_a,
+            stride_b, A_dtype, B_dtype);
 
           // this is the gemm output
           if (fusion) {
@@ -794,7 +823,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
         if (!out_tensors_[0].get_format().is_blocking()) {
           LDC = graph.dim_to_expr(in_tensors_[1].get_plain_dims().back());
         }
-        builtin::brgemm_init_update_allow_fusion(
+        auto eval = builtin::brgemm_init_update_allow_fusion(
           tensor_ptr(A,
             !in_tensors_[0].get_format().is_blocking()
               ? std::vector<expr> {m_o * M_block, 0}

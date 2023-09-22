@@ -31,12 +31,12 @@ struct task_executor_t {
             const create_func_t &create_func,
             const check_cache_func_t &check_cache_func,
             const do_func_t &do_func) {
+        static const int nthreads = benchdnn_get_max_threads();
         for (int r = 0; r < repeats_per_prb; r++) {
             tasks_.emplace_back(prb, perf_template, create_func,
                     check_cache_func, do_func, get_idx());
             if (has_bench_mode_modifier(mode_modifier_t::par_create)
-                    && static_cast<int>(tasks_.size())
-                            < benchdnn_get_max_threads())
+                    && static_cast<int>(tasks_.size()) < nthreads)
                 continue;
             flush();
         }

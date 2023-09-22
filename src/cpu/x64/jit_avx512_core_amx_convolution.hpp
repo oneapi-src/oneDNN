@@ -131,8 +131,6 @@ private:
     std::unique_ptr<jit_avx512_core_amx_fwd_kernel_t> kernel_;
 };
 
-template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
-        impl::data_type_t diff_dst_type>
 struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -143,16 +141,17 @@ struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
                 jit_avx512_core_amx_convolution_bwd_data_t);
 
         status_t init(engine_t *engine) {
-            bool is_bf16_convolution = true
-                    && (diff_dst_md_.data_type == data_type::bf16
-                            && weights_md_.data_type == data_type::bf16
-                            && utils::one_of(diff_src_md_.data_type,
-                                    data_type::f32, data_type::bf16))
-                    && attr()->has_default_values();
+            const data_type_t wdt = weights_md_.data_type;
+            bool is_xf16_convolution
+                    = utils::one_of(wdt, data_type::bf16, data_type::f16)
+                    && diff_dst_md_.data_type == wdt
+                    && utils::one_of(
+                            diff_src_md_.data_type, data_type::f32, wdt);
 
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+            bool ok = desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && is_bf16_convolution && !has_zero_dim_memory();
+                    && is_xf16_convolution && !has_zero_dim_memory()
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_amx_bwd_data_kernel_t::init_conf(
@@ -172,10 +171,6 @@ struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
 
     jit_avx512_core_amx_convolution_bwd_data_t(const pd_t *apd)
         : primitive_t(apd) {}
-
-    typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
@@ -301,7 +296,7 @@ private:
         const auto &jcp = kernel_->jcp;
         const int nb_ic = utils::div_up(jcp.ic, 2 * jcp.ic_block);
         const dim_t const_extra_offset
-                = jcp.kw * jcp.ic_block * jcp.oc_block * 2;
+                = static_cast<dim_t>(jcp.kw) * jcp.ic_block * jcp.oc_block * 2;
         dim_t extra_offset = (jcp.ndims == 5) ? kX * jcp.kh * const_extra_offset
                                               : kX * const_extra_offset;
         return (dim_t)((g * jcp.nb_oc + oc_b) * nb_ic + ic_b) * jcp.kd * jcp.kh

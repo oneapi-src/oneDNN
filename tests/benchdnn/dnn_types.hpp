@@ -110,9 +110,6 @@ struct attr_t {
         PER_DIM_1, // ... dims[1] point.
         PER_DIM_01, // ... unique combination of dims[0] and dims[1] points.
         PER_DIM_2, // ... dims[2] point.
-        PER_DIM_023, // ... combination of dims[0], dims[2], dims[3] points.
-        PER_DIM_23, // ... combination of dims[2] and dims[3] points.
-        PER_DIM_03, // ... combination of dims[0] and dims[3] points.
         PER_DIM_3, // ... dims[3] point.
         PER_TENSOR, // ... point in the tensor.
         POLICY_TOTAL // guard
@@ -327,10 +324,18 @@ struct attr_t {
                 arg_scales_t::entry_t wei_scale;
                 arg_scales_t::entry_t dst_scale;
             } convolution;
-            struct {
+            struct binary_t {
+                enum class mask_input_t {
+                    none,
+                    mask,
+                    policy,
+                };
+
                 dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
                 dnnl_data_type_t src1_dt = dnnl_data_type_undef;
                 policy_t policy = policy_t::COMMON;
+                int64_t mask = -1;
+                mask_input_t mask_input = mask_input_t::none;
                 std::string tag = tag::any;
             } binary;
             struct {
@@ -345,8 +350,6 @@ struct attr_t {
         };
 
         post_ops_t() : entry() {}
-
-        int from_str(const std::string &s);
 
         int len() const { return (int)entry.size(); }
         bool is_def() const { return len() == 0; }

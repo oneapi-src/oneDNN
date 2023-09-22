@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -175,6 +175,51 @@ struct jit_brgemm_trans_wei_t {
     virtual ~jit_brgemm_trans_wei_t() {}
 
     const jit_brgemm_primitive_conf_t *conf_;
+};
+
+struct jit_brgemm_relo_copy_to_wbuffer_t : public jit_generator {
+    struct cfg_t {
+        data_type_t wei_dt {data_type_t::dnnl_data_type_undef};
+        int out_oc_block {0};
+        int inp_oc_block {0};
+        int rd {0};
+        bool is_rd_padded_to_block {false};
+        int inp_ocb_offs {0};
+        int last_occ_to_copy {0};
+    };
+
+    struct ctx_t {
+        const char *src {nullptr};
+        char *dst {nullptr};
+        size_t last_ocb {0};
+    };
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_relo_copy_to_wbuffer_t)
+
+    using reg64_t = Xbyak::Reg64;
+
+    jit_brgemm_relo_copy_to_wbuffer_t(const cfg_t &ajcp)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , wjcp(ajcp) {}
+
+private:
+    cfg_t wjcp;
+
+    const reg64_t reg_src = rax;
+    const reg64_t reg_dst = rbx;
+    const reg64_t aux_reg_src = r10;
+    const reg64_t aux_reg_dst = r11;
+    const reg64_t reg_tmp = rdx;
+
+    const Xbyak::Opmask kmask_load = k2;
+
+    const Xbyak::Zmm zmm_src = zmm0;
+    const Xbyak::Zmm zmm_dst = zmm1;
+    const Xbyak::Zmm zmm_zero = zmm2;
+    const Xbyak::Zmm zmm_idx = zmm3;
+
+    void generate() override;
 };
 
 struct jit_amx_ip_trans_diff_wei {

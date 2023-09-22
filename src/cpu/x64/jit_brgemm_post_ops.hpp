@@ -48,7 +48,7 @@ struct brgemm_kernel_diff_bias_t {
 };
 
 #define GET_OFF(field) offsetof(brgemm_kernel_diff_bias_t, field)
-
+template <typename Vmm>
 struct jit_brgemm_kernel_diff_bias_t : public jit_generator {
     jit_brgemm_kernel_diff_bias_t(
             const jit_brgemm_primitive_conf_t &ajbgp, const brgemm_t &abrg)
@@ -80,6 +80,7 @@ private:
     int acc_typesize_;
     int mult_;
 
+    using Vmm_lower_t = typename vreg_traits<Vmm>::Vmm_lower_t;
     using reg64_t = const Xbyak::Reg64;
     // Register decomposition
     const reg64_t param1 = abi_param1;
@@ -91,28 +92,31 @@ private:
     const reg64_t reg_flag = r10;
     const reg64_t reg_mask = rax;
 
+    Xbyak::Label f16_perm_table_;
+    Xbyak::Label mask_label_;
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
     Xbyak::Opmask k_f16_perm_mask = Xbyak::Opmask(4);
-    Xbyak::Zmm vreg_unit = Xbyak::Zmm(31);
-    Xbyak::Zmm vreg_perm = Xbyak::Zmm(30);
+    Vmm vreg_unit = Vmm(31);
+    Vmm vreg_perm = Vmm(30);
+    Vmm vmm_tail_mask = Vmm(15); // use for avx tail loads
 
     const int n_max_regs_ = 4;
 
-    const Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag,
-            bool store, Xbyak::Opmask ktail_mask) {
-        return mask_flag
-                ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
-                : zmm_in;
+    const Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store,
+            Xbyak::Opmask ktail_mask) {
+        return mask_flag && isa_has_masks(brg_.isa_impl)
+                ? (store ? vmm_in | ktail_mask : vmm_in | ktail_mask | T_z)
+                : vmm_in;
     }
 
-    Xbyak::Zmm get_bias_reg(int n) const { return Xbyak::Zmm(n); }
-    Xbyak::Ymm get_bias_reg_lower(int n) const { return Xbyak::Ymm(n); }
-    Xbyak::Zmm get_ddst_reg(int n) const { return Xbyak::Zmm(n + n_max_regs_); }
+    Vmm get_bias_reg(int n) const { return Vmm(n); }
+    Vmm_lower_t get_bias_reg_lower(int n) const { return Vmm_lower_t(n); }
+    Vmm get_ddst_reg(int n) const { return Vmm(n + n_max_regs_); }
 
     void accumulate_bias(int idx, bool mask_flag) {
         auto vddst = get_ddst_reg(idx);
-        auto vddst_load = zmm_mask(vddst, mask_flag, false, k_tail_mask);
+        auto vddst_load = vmm_mask(vddst, mask_flag, false, k_tail_mask);
         auto vbias = get_bias_reg(idx);
         if (ddst_dt_ == data_type::f16) {
             // As we do not have fp16_vnni, we add twice to accumulate
@@ -122,13 +126,16 @@ private:
                         + ddst_typesize_ * mult_ * idx * brg_.ld_block + i * 2];
                 vmovups(vddst_load, addr);
                 vpermw(vddst | k_f16_perm_mask | T_z, vreg_perm, vddst);
-                vcvtph2psx(vddst, Xbyak::Ymm(vddst.getIdx()));
+                vcvtph2psx(vddst, Vmm_lower_t(vddst.getIdx()));
                 vaddps(vbias, vbias, vddst);
             }
         } else {
             auto addr = ptr[aux_reg_ddst
                     + ddst_typesize_ * mult_ * idx * brg_.ld_block];
-            vmovups(vddst_load, addr);
+            if (IMPLICATION(mask_flag, isa_has_masks(brg_.isa_impl)))
+                vmovups(vddst_load, addr);
+            else
+                vmaskmovps(vddst_load, vmm_tail_mask, addr);
             if (ddst_dt_ == data_type::bf16)
                 vdpbf16ps(vbias, vreg_unit, vddst);
             else
@@ -145,7 +152,7 @@ private:
                 vcvtneps2bf16(vbias_lower, vbias);
                 if (mask_flag) {
                     vmovdqu16(addr,
-                            zmm_mask(vbias, mask_flag, true, k_tail_mask));
+                            vmm_mask(vbias, mask_flag, true, k_tail_mask));
                 } else {
                     vmovups(addr, vbias_lower);
                 }
@@ -154,15 +161,17 @@ private:
                 vcvtps2ph(vbias_lower, vbias, 0x4);
                 if (mask_flag) {
                     vmovdqu16(addr,
-                            zmm_mask(vbias, mask_flag, true, k_tail_mask));
+                            vmm_mask(vbias, mask_flag, true, k_tail_mask));
                 } else {
                     vmovups(addr, vbias_lower);
                 }
                 break;
             case data_type::f32:
-                vmovups(addr,
-                        zmm_mask(get_bias_reg(idx), mask_flag, true,
-                                k_tail_mask));
+                if (IMPLICATION(mask_flag, isa_has_masks(brg_.isa_impl)))
+                    vmovups(addr,
+                            vmm_mask(vbias, mask_flag, true, k_tail_mask));
+                else
+                    vmaskmovps(addr, vmm_tail_mask, vbias);
                 break;
             default: assert("Unsupported bias data type");
         }
@@ -186,15 +195,18 @@ private:
             vmovups(vbias, addr);
         }
         if (nb_tail > 0) {
-            auto vbias = zmm_mask(get_bias_reg(n_), true, false, k_tail_mask);
+            auto vbias = vmm_mask(get_bias_reg(n_), true, false, k_tail_mask);
             auto addr = ptr[reg_bias_acc + acc_typesize_ * n_ * brg_.ld_block];
-            vmovups(vbias, addr);
+            if (isa_has_masks(brg_.isa_impl))
+                vmovups(vbias, addr);
+            else
+                vmaskmovps(vbias, vmm_tail_mask, addr);
         }
         jmp(init_done, T_NEAR);
         L(init_zero);
 
         for (int n_ = 0; n_ < n_loop; n_++) {
-            vxorpd(get_bias_reg(n_), get_bias_reg(n_), get_bias_reg(n_));
+            uni_vxorps(get_bias_reg(n_), get_bias_reg(n_), get_bias_reg(n_));
         }
         L(init_done);
 
@@ -225,8 +237,13 @@ private:
         }
         if (nb_tail > 0) {
             auto addr = ptr[reg_bias_acc + acc_typesize_ * n_ * brg_.ld_block];
-            auto vbias = zmm_mask(get_bias_reg(n_), true, true, k_tail_mask);
-            vmovups(addr, vbias);
+            auto vbias = get_bias_reg(n_);
+            if (isa_has_masks(brg_.isa_impl)) {
+                vbias = vmm_mask(vbias, true, true, k_tail_mask);
+                vmovups(addr, vbias);
+            } else {
+                vmaskmovps(addr, vmm_tail_mask, vbias);
+            }
         }
         jmp(store_done, T_NEAR);
 
@@ -239,6 +256,31 @@ private:
         if (nb_tail > 0) store(n_, true);
 
         L(store_done);
+    }
+
+    void init_masks(int tail_length) {
+        if (ddst_dt_ == data_type::f16) {
+            const auto half_mask = size_t((1 << 16) - 1);
+            mov(reg_mask, half_mask);
+            kmovq(k_f16_perm_mask, reg_mask);
+
+            mov(reg_mask, f16_perm_table_);
+            vmovups(vreg_perm | k_f16_perm_mask | T_z, ptr[reg_mask]);
+        }
+
+        if (tail_length == 0) return;
+        if (isa_has_masks(brg_.isa_impl)) {
+            const auto full_mask = size_t {0xffffffffffffffff};
+            const auto tail_mask = size_t((1 << tail_length) - 1);
+            mov(reg_mask, full_mask);
+            kmovq(k_full_mask, reg_mask);
+            mov(reg_mask, tail_mask);
+            kmovq(k_tail_mask, reg_mask);
+
+        } else {
+            mov(reg_mask, mask_label_);
+            vmovups(vmm_tail_mask, ptr[reg_mask]);
+        }
     }
 
     void generate() override {
@@ -254,28 +296,13 @@ private:
             n_loop_tail = n_max_regs_;
         }
 
-        const auto full_mask = size_t {0xffffffffffffffff};
-        const auto tail_mask = size_t((1 << nb_tail) - 1);
-
-        mov(reg_mask, full_mask);
-        kmovq(k_full_mask, reg_mask);
-        mov(reg_mask, tail_mask);
-        kmovq(k_tail_mask, reg_mask);
+        init_masks(nb_tail);
 
         if (ddst_dt_ == data_type::bf16) {
-            auto reg_unit_val = reg_mask.cvt16();
+            auto reg_tmp = rax;
+            auto reg_unit_val = reg_tmp.cvt16();
             mov(reg_unit_val, 0x3f80); // bf16 value of 1.
             vpbroadcastw(vreg_unit, reg_unit_val);
-        }
-
-        Xbyak::Label f16_perm_table;
-        if (ddst_dt_ == data_type::f16) {
-            const auto half_mask = size_t((1 << 16) - 1);
-            mov(reg_mask, half_mask);
-            kmovq(k_f16_perm_mask, reg_mask);
-
-            mov(reg_mask, f16_perm_table);
-            vmovups(vreg_perm | k_f16_perm_mask | T_z, ptr[reg_mask]);
         }
 
         mov(reg_ddst, ptr[param1 + GET_OFF(ptr_diff_dst)]);
@@ -299,9 +326,18 @@ private:
             const uint16_t f16_prm_array[16] = {
                     0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
             align(64);
-            L(f16_perm_table);
+            L(f16_perm_table_);
             for (int i = 0; i < 16; ++i)
                 dw(f16_prm_array[i]);
+        }
+
+        if (!isa_has_masks(brg_.isa_impl) && nb_tail > 0) {
+            align(32);
+            L(mask_label_);
+            for (int i = 0; i < nb_tail; ++i)
+                dd(~uint32_t(0));
+            for (int i = nb_tail; i < brg_.ld_block; ++i)
+                dd(0);
         }
     }
 };
@@ -616,55 +652,56 @@ private:
     void apply_comp(int m_block, int n_block, int tail = 0) {
         auto k_mask = (tail == 0) ? k_full_mask : k_tail_mask;
         const bool has_tail = tail > 0;
-
         if (brg.zp_type_a != brgemm_broadcast_t::none) {
             auto vmm_zp_a_val = vmm_tmp(1);
             mov(reg_zp_a_val, ptr[rsp + reg_zp_a_val_offs_]);
             uni_vpbroadcastd(vmm_zp_a_val, reg_zp_a_val.cvt32());
 
             mov(aux_reg_zp_a_comp, ptr[rsp + aux_reg_zp_a_comp_offs_]);
+            const auto vmm_zp_comp_a = vmm_tmp(0);
+            for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
-                auto vmm_zp_comp_a = vmm_tmp(0);
                 const size_t zp_comp_offset
-                        = sizeof(int32_t) * (n * brg.ld_block);
+                        = sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
                 auto zp_comp_a_addr = is_superset(isa, avx512_core)
                         ? EVEX_compress_addr(aux_reg_zp_a_comp, zp_comp_offset)
                         : ptr[aux_reg_zp_a_comp + zp_comp_offset];
                 if (IMPLICATION(has_tail, isa_has_masks(isa))) {
-                    vmm_zp_comp_a = maybe_mask(
+                    auto vmm_zp_comp_a_masked = maybe_mask(
                             vmm_zp_comp_a, has_tail, false, k_mask);
-                    vmovups(vmm_zp_comp_a, zp_comp_a_addr);
+                    vmovups(vmm_zp_comp_a_masked, zp_comp_a_addr);
                 } else {
-                    load_data(data_type::f32, vmm_zp_comp_a, zp_comp_a_addr,
+                    load_data(data_type::s32, vmm_zp_comp_a, zp_comp_a_addr,
                             tail);
                 }
                 uni_vpmulld(vmm_zp_comp_a, vmm_zp_a_val, zp_comp_a_addr);
-                for (int m = 0; m < m_block; m++) {
-                    auto vmm = vector(m, n, n_block);
-                    uni_vpaddd(vmm, vmm, vmm_zp_comp_a);
-                }
+
+                auto vmm = vector(m, n, n_block);
+                uni_vpaddd(vmm, vmm, vmm_zp_comp_a);
             }
         }
 
         if (brg.req_s8s8_compensation) {
             mov(aux_reg_s8s8_comp, ptr[rsp + aux_reg_s8s8_comp_offs_]);
+            const auto vmm_comp = vmm_tmp(0);
+            for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
-                auto vmm_comp = vmm_tmp(0);
                 const size_t s8s8_comp_offset
-                        = sizeof(int32_t) * (n * brg.ld_block);
+                        = sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
+
                 auto comp_addr = is_superset(isa, avx512_core)
                         ? EVEX_compress_addr(
                                 aux_reg_s8s8_comp, s8s8_comp_offset)
                         : ptr[aux_reg_s8s8_comp + s8s8_comp_offset];
                 if (IMPLICATION(tail > 0, isa_has_masks(isa))) {
-                    vmm_comp = maybe_mask(vmm_comp, tail > 0, false, k_mask);
-                    vmovups(vmm_comp, comp_addr);
+                    auto vmm_comp_masked
+                            = maybe_mask(vmm_comp, tail > 0, false, k_mask);
+                    vmovups(vmm_comp_masked, comp_addr);
                 } else
-                    load_data(data_type::f32, vmm_comp, comp_addr, tail);
-                for (int m = 0; m < m_block; m++) {
-                    auto vmm = vector(m, n, n_block);
-                    uni_vpaddd(vmm, vmm, vmm_comp);
-                }
+                    load_data(data_type::s32, vmm_comp, comp_addr, tail);
+
+                auto vmm = vector(m, n, n_block);
+                uni_vpaddd(vmm, vmm, vmm_comp);
             }
         }
     }
@@ -1032,6 +1069,18 @@ private:
 
             if (brg.alpha != 0)
                 add(reg_in, inp_typesize_ * (m_block * brg.LDC));
+            if (brg.beta != 0) {
+                if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                    mov(reg_zp_a_comp, ptr[rsp + reg_zp_a_comp_offs_]);
+                    add(reg_zp_a_comp, mb_zp_comp_a_offset(m_block));
+                    mov(ptr[rsp + reg_zp_a_comp_offs_], reg_zp_a_comp);
+                }
+                if (brg.req_s8s8_compensation) {
+                    mov(reg_s8s8_comp, ptr[rsp + reg_s8s8_comp_offs_]);
+                    add(reg_s8s8_comp, mb_compensation_offset(m_block));
+                    mov(ptr[rsp + reg_s8s8_comp_offs_], reg_s8s8_comp);
+                }
+            }
             add(reg_out, out_typesize_ * (m_block * LDD_));
         }
         if (mb_tail > 0) loop_by_N(mb_tail, nb2, nb2_tail, nb_tail);

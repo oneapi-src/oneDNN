@@ -73,8 +73,9 @@ static void check_concat_validity(
     }
 }
 
-static void compute_block_concat(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, int64_t axis, size_t wkld = 0UL) {
+static void compute_block_concat(const context_ptr &ctx,
+        const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
+        int64_t axis, size_t wkld = 0UL) {
     // outer nested loop vars
     std::vector<expr> outer_iter(axis);
     // inner nested loop vars
@@ -88,8 +89,10 @@ static void compute_block_concat(const std::vector<const tensor_slice *> &src,
     for (unsigned i = 0; i < dst.nslice_dims(); i++) {
         if (i < static_cast<unsigned>(axis)) { // outer loop
             // make the loop var for the for-loop
-            outer_iter[i] = builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx());
+            outer_iter[i] = range_from_outer_loop(dst.get_ranges()[i])
+                    ? expr(0)
+                    : builder::make_var(datatypes::index,
+                            std::string("_fuseiter") + fusion_create_idx());
             for (unsigned j = 0; j < src.size(); j++) {
                 src_idx[j].emplace_back(outer_iter[i]);
                 dst_idx[j].emplace_back(outer_iter[i]);
@@ -110,29 +113,102 @@ static void compute_block_concat(const std::vector<const tensor_slice *> &src,
             }
         }
     }
-    expr indexed_target;
-    expr indexed_input;
+    expr indexed_dst;
+    expr indexed_src;
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
     std::vector<stmt> tcur;
     for (unsigned j = 0; j < src.size(); j++) {
-        indexed_target = builder::make_indexing(dst.tptr_, dst_idx[j]);
-        indexed_input = builder::make_indexing(src[j]->tptr_, src_idx[j]);
-        stmt cur = make_stmt<assign_node_t>(indexed_target, indexed_input);
-        cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
-        for (int64_t i = static_cast<int64_t>(dst.nslice_dims()) - 1; i >= axis;
-                i--) {
-            auto body = make_stmt<stmts_node_t>(
-                    std::vector<stmt> {std::move(cur)});
-            cur = make_stmt<for_loop_node_t>(inner_iter[i - axis][j], expr(0),
-                    src[j]->get_shape()[i], expr(1), std::move(body), true,
-                    for_type::NORMAL);
+        size_t last_axis = dst.nslice_dims() - 1;
+        auto slice_len = do_cast_and_fold(src[j]->get_shape().at(last_axis));
+        bool is_static = slice_len.isa<constant>();
+        if (is_static) { // static shape case
+            // for the inner-most axis, use vectorization
+            auto dtype = dst.get_base_dtype();
+            auto vec_lanes = vectorize_step(ctx, dtype.type_code_);
+            auto floor = do_cast_and_fold(slice_len / vec_lanes * vec_lanes);
+            auto tail = do_cast_and_fold(slice_len % vec_lanes);
+            int floor_int = get_expr_as_int(floor);
+            int tail_int = get_expr_as_int(tail);
+            COMPILE_ASSERT(
+                    (floor_int + tail_int), "Don't support shape len = 0.");
+            auto cur = builder::make_stmts_unattached({});
+            if (tail_int) { // tail part
+                auto tail_part = builder::make_stmts_unattached({});
+                auto mask = last_dim_generate_mask(
+                        inner_iter[last_axis - axis][j], floor, slice_len,
+                        vec_lanes, true);
+                indexed_dst = builder::make_indexing(
+                        dst.tptr_, dst_idx[j], vec_lanes, mask);
+                indexed_src = builder::make_indexing(
+                        src[j]->tptr_, src_idx[j], vec_lanes, mask);
+                auto assign
+                        = make_stmt<assign_node_t>(indexed_dst, indexed_src);
+                assign->attr()
+                        [op_traits::workload_computable_t::workload_number]
+                        = wkld;
+                tail_part.static_as<stmts>()->seq_.emplace_back(assign);
+                tail_part = make_stmt<for_loop_node_t>(
+                        inner_iter[last_axis - axis][j], floor,
+                        src[j]->get_shape()[last_axis], vec_lanes,
+                        std::move(tail_part), true, for_type::NORMAL);
+                cur.static_as<stmts>()->seq_.emplace_back(tail_part);
+            }
+
+            if (floor_int) { // divisible part
+                auto divisible_part = builder::make_stmts_unattached({});
+                indexed_dst = builder::make_indexing(
+                        dst.tptr_, dst_idx[j], vec_lanes);
+                indexed_src = builder::make_indexing(
+                        src[j]->tptr_, src_idx[j], vec_lanes);
+                auto assign
+                        = make_stmt<assign_node_t>(indexed_dst, indexed_src);
+                assign->attr()
+                        [op_traits::workload_computable_t::workload_number]
+                        = wkld;
+                divisible_part.static_as<stmts>()->seq_.emplace_back(assign);
+                divisible_part = make_stmt<for_loop_node_t>(
+                        inner_iter[last_axis - axis][j], expr(0), floor,
+                        vec_lanes, std::move(divisible_part), true,
+                        for_type::NORMAL);
+                cur.static_as<stmts>()->seq_.emplace_back(divisible_part);
+            }
+
+            // for other inner axes
+            for (int64_t i = static_cast<int64_t>(dst.nslice_dims()) - 2;
+                    i >= axis; i--) {
+                auto body = cur.isa<stmts>()
+                        ? std::move(cur)
+                        : make_stmt<stmts_node_t>(
+                                std::vector<stmt> {std::move(cur)});
+                cur = make_stmt<for_loop_node_t>(inner_iter[i - axis][j],
+                        expr(0), src[j]->get_shape()[i], expr(1),
+                        std::move(body), true, for_type::NORMAL);
+            }
+            tcur.emplace_back(std::move(cur));
+        } else { // dynamic case, use step = 1
+            indexed_dst = builder::make_indexing(dst.tptr_, dst_idx[j]);
+            indexed_src = builder::make_indexing(src[j]->tptr_, src_idx[j]);
+            stmt cur = make_stmt<assign_node_t>(indexed_dst, indexed_src);
+            cur->attr()[op_traits::workload_computable_t::workload_number]
+                    = wkld;
+            for (int64_t i = static_cast<int64_t>(dst.nslice_dims()) - 1;
+                    i >= axis; i--) {
+                auto body = make_stmt<stmts_node_t>(
+                        std::vector<stmt> {std::move(cur)});
+                cur = make_stmt<for_loop_node_t>(inner_iter[i - axis][j],
+                        expr(0), src[j]->get_shape()[i], expr(1),
+                        std::move(body), true, for_type::NORMAL);
+            }
+            tcur.emplace_back(std::move(cur));
         }
-        tcur.emplace_back(std::move(cur));
     }
+
     if (axis) {
         stmt cur = make_stmt<stmts_node_t>(std::move(tcur));
         for (int i = axis - 1; i >= 0; i--) {
+            // Do not generate those dummy loops
+            if (!outer_iter[i].isa<var>()) continue;
             stmt body;
             if (cur.isa<for_loop>()) {
                 body = make_stmt<stmts_node_t>(
@@ -275,18 +351,6 @@ void concat_op_t::prepare_fusion_data(fdata_map &fdmap) {
     check_concat_validity(info_.inputs_, axis_);
 }
 
-// the slice range must be strictly full at axis, which means it starts from 0
-// and covers the full range
-static bool slice_range_full(
-        const slice_range &sr, const sc_dims &dims, int axis) {
-    auto offset = do_cast_and_fold(sr[axis].first);
-    auto range = do_cast_and_fold(sr[axis].second);
-    return offset.isa<constant>()
-            && get_const_as_int(offset.static_as<constant>()) == 0
-            && range.isa<constant>()
-            && get_const_as_int(range.static_as<constant>()) == dims[axis];
-}
-
 void concat_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     // search known ranges from any input of cur fusbile op
@@ -315,26 +379,28 @@ void concat_op_t::infer_slice_ranges(
 
     std::vector<int> required_axis = {int(axis_)};
     for (size_t n = 0; n < slice_size; n++) { // multi-slice index
-        // slice at concat dim should be full
-        if (!slice_range_full(sr[n],
+        // slice at concat axis should be full
+        if (!slice_full_on_axis(
                     info_.inputs_[known_id]->details_.get_blocking_dims(),
-                    axis_)) {
+                    sr[n], {int(axis_)})) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
 
-        // slice_ranges of inputs and output only differ at concat dim
+        // slice_ranges of inputs and output only differ at concat axis.
+        // Since we have already checked the slice_range is full, now we can
+        // safely set its offset to 0 and range to shape.
         for (size_t i = 0; i < get_inputs().size(); ++i) {
-            if (known_ranges_map.find(i) == known_ranges_map.end()) {
-                slice_range sr_i = sr[n];
-                sr_i[axis_].second = dim2unsigned(
-                        info_.inputs_[i]->details_.get_blocking_dims()[axis_]);
-                fsmap.get(get_inputs()[i]).at(n) = sr_i;
-            }
+            slice_range sr_i = sr[n];
+            sr_i[axis_].first = 0;
+            sr_i[axis_].second = int(dim2unsigned(
+                    info_.inputs_[i]->details_.get_blocking_dims()[axis_]));
+            fsmap.get(get_inputs()[i]).at(n) = sr_i;
         }
         slice_range sr_o = sr[n];
-        sr_o[axis_].second = dim2unsigned(
-                info_.outputs_[0]->details_.get_blocking_dims()[axis_]);
+        sr_o[axis_].first = 0;
+        sr_o[axis_].second = int(dim2unsigned(
+                info_.outputs_[0]->details_.get_blocking_dims()[axis_]));
         fsmap.get(get_outputs()[0]).at(n) = sr_o;
     }
 }
@@ -346,7 +412,7 @@ void concat_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
-    compute_block_concat(inputs, *dst[0], axis_, wkld);
+    compute_block_concat(ctx, inputs, *dst[0], axis_, wkld);
 }
 
 transpose_op_t::transpose_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -395,10 +461,10 @@ shape_rl_vec transpose_op_t::get_dynamic_shape_relations() const {
 void transpose_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
-    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     COMPILE_ASSERT(!info_.inputs_[0]->details_.get_format().is_any(),
             "cannot infer output format with any input format");
     auto in_format = info_.inputs_[0]->details_.get_format();
+    auto in_strides = info_.inputs_[0]->details_.get_strides();
     auto in_format_code = in_format.format_code_;
     int batch_dims = info_.inputs_[0]->details_.get_plain_dims().size()
             - in_format_code.norig_dims();
@@ -419,10 +485,10 @@ void transpose_op_t::query_format(context_ptr ctx,
     }
     auto out_format = sc_data_format_t(storage_args, in_format.blocks_);
 
-    in_formats.push_back(std::vector<sc_data_format_t> {in_format});
-    out_formats.push_back(std::vector<sc_data_format_t> {out_format});
-    format_to_dense_format_stride_pair(
-            in_formats, out_formats, supported_ins, supported_outs);
+    supported_ins.resize(1);
+    supported_outs.resize(1);
+    supported_ins[0].emplace_back(std::make_pair(in_format, in_strides));
+    supported_outs[0].emplace_back(std::make_pair(out_format, in_strides));
 }
 
 void transpose_op_t::prepare_fusion_data(fdata_map &fdmap) {
@@ -498,7 +564,7 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
     auto cache_input_format = ins[0]->details_.get_format();
     attrs_ = attrs;
     auto shapes = attrs_.get<sc_dims>("shape");
-    auto format = attrs.get_or_else("format", sc_data_format_t());
+    auto format = attrs_.get_or_else("format", sc_data_format_t());
     int total_shape1 = 1, total_shape2 = 1, total_shape3 = 1;
     for (auto &dim : sc_data_format_t::get_padded_plain_shapes(
                  ins[0]->details_.get_blocking_dims(), cache_input_format)) {
@@ -537,12 +603,16 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
                 = sc_data_format_t(sc_data_format_kind_t::get_plain_by_dims(
                         ins[0]->details_.get_plain_dims().size()));
     }
-    attrs_["cache_input_format"] = cache_input_format;
+    if (!attrs_.has_key("cache_input_format")) {
+        attrs_["cache_input_format"] = cache_input_format;
+    }
     if (format.is_any()) {
         format = sc_data_format_t(sc_data_format_kind_t::get_plain_by_dims(
                 info_.outputs_[0]->details_.get_plain_dims().size()));
+        attrs_["format"] = format;
+    } else if (!attrs_.has_key("format")) {
+        attrs_["format"] = format;
     }
-    attrs_["format"] = format;
     if (is_dynamic()
             && count_dynamic_dims(get_inputs()[0]->details_.get_plain_dims())
                     != count_dynamic_dims(
@@ -556,6 +626,7 @@ tensor_view_op_t::tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes)
 
 bool tensor_view_op_t::try_penetrate(
         sc_data_format_t &new_output_format) const {
+    if (attrs_.get_or_else("forbid_penetrate", false)) { return false; }
     auto input_plain_shapes = info_.inputs_[0]->details_.get_plain_dims();
     auto input_blocking_shapes = info_.inputs_[0]->details_.get_blocking_dims();
     auto input_format = info_.inputs_[0]->details_.get_format();
@@ -775,10 +846,11 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
         expr acc_src_dim_expr = 1;
         const int dyn_len = -2;
         for (int i = src_dims.size() - 1; i >= 0; i--) {
+            auto slice_expr = known_ranges[i].second;
             if (slice_stop) {
                 // check whether slice is full on last several dims
-                if (!known_ranges[i].second.isa<constant_c>()
-                        || get_expr_as_int(known_ranges[i].second) != 1)
+                if (!slice_expr.isa<constant_c>()
+                        || get_expr_as_int(slice_expr) != 1)
                     // if tensor_view deals with inconsequence slice, it will
                     // return empty slice range list to tell fusion manager not
                     // to fuse it
@@ -787,12 +859,29 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
             auto src_expr = src_dims[i];
             if (!(known_ranges[i].first.isa<constant_c>()
                         && get_expr_as_int(known_ranges[i].first) == 0
-                        && slice_expr_equals(
-                                known_ranges[i].second, src_expr))) {
+                        && slice_expr_equals(slice_expr, src_expr))) {
+                // if the last dim is already non-full
+                if (i == static_cast<int>(src_dims.size()) - 1) {
+                    // last dim of dst
+                    auto dst_expr = dst_dims.back();
+                    // double-check legality
+                    if (slice_expr.isa<constant>()
+                            && dst_expr.isa<constant>()) {
+                        auto slice_int = get_expr_as_int(slice_expr);
+                        auto dst_int = get_expr_as_int(dst_expr);
+                        // skip too complex cases to analyze tensorview slice
+                        // range mapping relationship
+                        if ((slice_int > dst_int && slice_int % dst_int != 0)
+                                || (dst_int > slice_int
+                                        && dst_int % slice_int != 0)) {
+                            return slice_range_list {};
+                        }
+                    }
+                }
                 slice_stop = true;
             }
-            if (known_ranges[i].second.isa<constant_c>()) {
-                total_len *= get_expr_as_int(known_ranges[i].second);
+            if (slice_expr.isa<constant_c>()) {
+                total_len *= get_expr_as_int(slice_expr);
             } else {
                 total_len *= dyn_len;
             }
@@ -1110,6 +1199,7 @@ void reshape_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
+    in_formats.push_back({info_.inputs_[0]->details_.get_format()});
     out_formats.push_back({sc_data_format_kind_t::get_plain_by_dims(
             info_.outputs_[0]->details_.get_plain_dims().size())});
     format_to_dense_format_stride_pair(

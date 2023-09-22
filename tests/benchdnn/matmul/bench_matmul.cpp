@@ -138,6 +138,14 @@ int verify_input(const settings_t &s, const settings_t &def) {
         }
     }
 
+    static constexpr int n_vdims_inputs = 2;
+    if (s.prb_vdims.n_inputs() != n_vdims_inputs) {
+        BENCHDNN_PRINT(0,
+                "ERROR: Expected number of dims arguments is `%d`, provided "
+                "`%d`.\n",
+                n_vdims_inputs, s.prb_vdims.n_inputs());
+        SAFE_V(FAIL);
+    }
     return OK;
 }
 
@@ -156,7 +164,7 @@ int bench(int argc, char **argv) {
     using namespace parser;
     static settings_t s;
     static const settings_t def {};
-    driver_task_executor_t task_executor;
+    static driver_task_executor_t task_executor;
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])

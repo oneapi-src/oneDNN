@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ namespace self {
 
 static int check_status_change() {
     {
-        res_t res;
+        res_t res {};
         res.state = EXECUTED;
         dnnl_dims_t dims {10};
         dnn_mem_t m0(1, dims, dnnl_f32, tag::abx, get_cpu_engine());
@@ -39,7 +39,7 @@ static int check_status_change() {
         SELF_CHECK_EQ(res.state, MISTRUSTED);
     }
     {
-        res_t res;
+        res_t res {};
         res.state = EXECUTED;
         dnnl_dims_t dims {10};
         dnn_mem_t m0(1, dims, dnnl_f32, tag::abx, get_cpu_engine());
@@ -53,7 +53,7 @@ static int check_status_change() {
         SELF_CHECK_EQ(res.state, PASSED);
     }
     {
-        res_t res;
+        res_t res {};
         res.state = EXECUTED;
         dnnl_dims_t dims {10};
         dnn_mem_t m0(1, dims, dnnl_f32, tag::abx, get_cpu_engine());
@@ -67,7 +67,7 @@ static int check_status_change() {
         SELF_CHECK_EQ(res.state, FAILED);
     }
     {
-        res_t res;
+        res_t res {};
         res.state = FAILED;
         dnnl_dims_t dims {10};
         dnn_mem_t m0(1, dims, dnnl_f32, tag::abx, get_cpu_engine());
@@ -81,7 +81,7 @@ static int check_status_change() {
         SELF_CHECK_EQ(res.state, FAILED);
     }
     {
-        res_t res;
+        res_t res {};
         res.state = FAILED;
         dnnl_dims_t dims {10};
         dnn_mem_t m0(1, dims, dnnl_f32, tag::abx, get_cpu_engine());
@@ -95,7 +95,7 @@ static int check_status_change() {
         SELF_CHECK_EQ(res.state, FAILED);
     }
     {
-        res_t res;
+        res_t res {};
         res.state = FAILED;
         dnnl_dims_t dims {10};
         dnn_mem_t m0(1, dims, dnnl_f32, tag::abx, get_cpu_engine());

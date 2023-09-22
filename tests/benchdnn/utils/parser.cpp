@@ -14,8 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <cctype>
 
+#include "utils/cold_cache.hpp"
 #include "utils/parser.hpp"
 
 #include "dnnl_common.hpp"
@@ -46,6 +48,254 @@ void add_option_to_help(const std::string &option,
     std::string option_str = get_pattern(option, with_args);
     help_ss << option_str << help_message << "\n";
     help_added.push_back(option);
+}
+
+// Covers all integer parsing routines: `atoi`, `atol, `atoll`, `stoi`, `stol`.
+int64_t stoll_safe(const std::string &s) {
+    int64_t value = 0;
+    try {
+        value = std::stoll(s);
+        if (std::to_string(value).size() != s.size()) {
+            BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                    "Error: Parsed value is expected to be an integer number, "
+                    "not",
+                    s.c_str());
+            SAFE_V(FAIL);
+        }
+    } catch (const std::invalid_argument &) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: Parsed value is expected to be an integer number, not",
+                s.c_str());
+        SAFE_V(FAIL);
+    }
+    return value;
+}
+
+// Covers all float parsing routines: `atof`.
+float stof_safe(const std::string &s) {
+    float value = 0;
+    try {
+        value = std::stof(s);
+        // Can't compare input with output same way. The only way is to check
+        // if input has `e`, `f` and digits. Seems an overkill, let function
+        // decide on parsed output.
+    } catch (const std::invalid_argument &) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: Parsed value is expected to be an floating-point "
+                "number, not",
+                s.c_str());
+        SAFE_V(FAIL);
+    }
+    return value;
+}
+
+attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
+    attr_t::post_ops_t v;
+    if (s.empty()) return v;
+
+    size_t start_pos = 0;
+    while (start_pos != std::string::npos) {
+        auto subs = get_substr(s, start_pos, '+');
+        size_t subs_pos = 0;
+
+        auto kind
+                = attr_t::post_ops_t::str2kind(get_substr(subs, subs_pos, ':'));
+        if (kind == attr_t::post_ops_t::kind_t::KIND_TOTAL) SAFE_V(FAIL);
+
+#define CATCH_DANGLING_SYMBOL \
+    if (subs_pos >= subs.size()) { \
+        BENCHDNN_PRINT(0, "%s \'%s\'\n", \
+                "Error: dangling symbol at the end of input", subs.c_str()); \
+        SAFE_V(FAIL); \
+    }
+
+        v.entry.emplace_back(kind);
+        if (subs_pos == std::string::npos) {
+            if (kind != attr_t::post_ops_t::kind_t::DW) continue;
+
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: depthwise post-op entry didn't recognize 'k', 's', "
+                    "and 'p' values.");
+            SAFE_V(FAIL);
+        }
+        CATCH_DANGLING_SYMBOL;
+
+        auto &e = v.entry.back();
+        if (e.is_sum_kind()) {
+            e.sum.scale
+                    = parser_utils::stof_safe(get_substr(subs, subs_pos, ':'));
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            auto zp_str = get_substr(subs, subs_pos, ':');
+            e.sum.zero_point = parser_utils::stoll_safe(zp_str);
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            const auto dt_str = get_substr(subs, subs_pos, ':');
+            e.sum.dt = str2dt(dt_str.c_str());
+            // sum dt, if specified, should be defined
+            if (e.sum.dt == dnnl_data_type_undef) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: sum post-op data type", dt_str.c_str(),
+                        "is not recognized.");
+                SAFE_V(FAIL);
+            }
+        } else if (e.is_convolution_kind()) {
+            if (kind == attr_t::post_ops_t::kind_t::DW) {
+                // `DW` has input of `dw:kXsYpZ`, while rest have `dw_k3sXp1`.
+                // TODO: remove `dw_k3sXp1` version.
+                const auto str_dw_params = get_substr(subs, subs_pos, ':');
+                size_t pos = 0, idx = 0;
+
+                pos += idx;
+                if (str_dw_params[pos] != 'k') {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: depthwise post-op entry",
+                            &str_dw_params[pos], "is not 'k'.");
+                    SAFE_V(FAIL);
+                }
+                // TODO: some safe handling would help here
+                e.convolution.kernel = std::stoi(&str_dw_params[++pos], &idx);
+                if (e.convolution.kernel <= 0) {
+                    BENCHDNN_PRINT(0, "%s\n",
+                            "Error: depthwise post-op kernel must be greater "
+                            "than 0.");
+                    SAFE_V(FAIL);
+                }
+
+                pos += idx;
+                if (str_dw_params[pos] != 's') {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: depthwise post-op entry",
+                            &str_dw_params[pos], "is not 's'.");
+                    SAFE_V(FAIL);
+                }
+                e.convolution.stride = std::stoi(&str_dw_params[++pos], &idx);
+                if (e.convolution.stride <= 0) {
+                    BENCHDNN_PRINT(0, "%s\n",
+                            "Error: depthwise post-op stride must be greater "
+                            "than 0.");
+                    SAFE_V(FAIL);
+                }
+
+                pos += idx;
+                if (str_dw_params[pos] != 'p') {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: depthwise post-op entry",
+                            &str_dw_params[pos], "is not 'p'.");
+                    SAFE_V(FAIL);
+                }
+                e.convolution.padding = std::stoi(&str_dw_params[++pos]);
+
+                if (subs_pos == std::string::npos) continue;
+            }
+
+            const auto dt_str = get_substr(subs, subs_pos, ':');
+            e.convolution.dst_dt = str2dt(dt_str.c_str());
+            if (e.convolution.dst_dt == dnnl_data_type_undef) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: depthwise post-op data type", dt_str.c_str(),
+                        "is not recognized.");
+                SAFE_V(FAIL);
+            }
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            auto all_scales_str = get_substr(subs, subs_pos, '+');
+            if (e.convolution.wei_scale.from_str(all_scales_str) != OK) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: depthwise post-op weights scale",
+                        all_scales_str.c_str(), "is not recognized.");
+                SAFE_V(FAIL);
+            }
+
+            // TODO: is it legit and working at all?
+            size_t dst_scale_pos = 0;
+            for (int i = 0; i < 2; ++i)
+                dst_scale_pos = all_scales_str.find(":", dst_scale_pos + 1);
+            if (dst_scale_pos != std::string::npos) {
+                auto dst_scale_str = all_scales_str.substr(dst_scale_pos + 1);
+                if (e.convolution.dst_scale.from_str(dst_scale_str) != OK) {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: depthwise post-op scale",
+                            dst_scale_str.c_str(), "is not recognized.");
+                    SAFE_V(FAIL);
+                }
+            }
+        } else if (e.is_eltwise_kind()) {
+            e.eltwise.alpha
+                    = parser_utils::stof_safe(get_substr(subs, subs_pos, ':'));
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            e.eltwise.beta
+                    = parser_utils::stof_safe(get_substr(subs, subs_pos, ':'));
+            if (subs_pos == std::string::npos) continue;
+        } else if (e.is_binary_kind()) {
+            const auto dt_str = get_substr(subs, subs_pos, ':');
+            e.binary.src1_dt = str2dt(dt_str.c_str());
+            if (e.binary.src1_dt == dnnl_data_type_undef) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: binary post-op data type", dt_str.c_str(),
+                        "is not recognized.");
+                SAFE_V(FAIL);
+            }
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            const auto mask_input_str = get_substr(subs, subs_pos, ':');
+            // Check if `mask_input_str` consists of only digits.
+            const bool only_digits = std::all_of(
+                    mask_input_str.cbegin(), mask_input_str.cend(), [](int c) {
+                        assert(c < UINT8_MAX);
+                        return std::isdigit(c);
+                    });
+
+            using mask_input_t
+                    = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+            if (only_digits) {
+                // If digits only, then read it as integer value.
+                e.binary.mask = parser_utils::stoll_safe(mask_input_str);
+                e.binary.mask_input = mask_input_t::mask;
+            } else {
+                // Otherwise, re-direct to policy parsing.
+                e.binary.policy = attr_t::str2policy(mask_input_str);
+                if (e.binary.policy == attr_t::policy_t::POLICY_TOTAL) {
+                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                            "Error: binary post-op policy",
+                            mask_input_str.c_str(),
+                            "is not recognized. Input also is not consisted of "
+                            "only integers to process it as mask directly.");
+                    SAFE_V(FAIL);
+                }
+                e.binary.mask_input = mask_input_t::policy;
+            }
+            if (subs_pos == std::string::npos) continue;
+            CATCH_DANGLING_SYMBOL;
+
+            const auto tag_str = get_substr(subs, subs_pos, ':');
+            e.binary.tag = tag_str;
+            if (check_tag(e.binary.tag) != OK) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n", "Error: binary post-op tag",
+                        tag_str.c_str(), "is not recognized.");
+                SAFE_V(FAIL);
+            }
+        } else if (e.is_prelu_kind()) {
+            const auto policy_str = get_substr(subs, subs_pos, ':');
+            e.prelu.policy = attr_t::str2policy(policy_str);
+            if (e.prelu.policy == attr_t::policy_t::POLICY_TOTAL) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: prelu post-op policy", policy_str.c_str(),
+                        "is not recognized.");
+                SAFE_V(FAIL);
+            }
+        }
+        if (subs_pos == std::string::npos) continue;
+        CATCH_DANGLING_SYMBOL;
+    }
+
+    return v;
 }
 } // namespace parser_utils
 
@@ -162,7 +412,8 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
             = "UINT    (Default: `0`)\n    Overrides mini-batch value "
               "specified in a problem descriptor with `UINT` value.\n    When "
               "set to `0`, takes no effect.\n";
-    return parse_vector_option(mb, def_mb, atoi, str, option_name, help);
+    return parse_vector_option(
+            mb, def_mb, parser_utils::stoll_safe, str, option_name, help);
 }
 
 bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
@@ -171,11 +422,13 @@ bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
             = "POST-OPS\n    Specifies post-ops attribute. `POST-OPS` syntax "
               "is one of those:\n    * SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]\n  "
               "  * ELTWISE[:ALPHA[:BETA[:SCALE]]]\n    * "
-              "DW:KkSsPp[:DST_DT[:OUTPUTSCALE]]\n    * "
-              "BINARY:DT[:POLICY[:TAG]]\n    More details at "
+              "DW:KkSsPp[:DST_DT[:WEI_SCALE[:DST_SCALE]]]\n    * "
+              "BINARY:DT[:MASK_INPUT[:TAG]]\n    More details at "
               "https://github.com/oneapi-src/oneDNN/blob/master/tests/benchdnn/"
               "doc/knobs_attr.md\n";
-    return parse_subattr(po, str, option_name, help);
+    std::vector<attr_t::post_ops_t> def {attr_t::post_ops_t()};
+    return parse_vector_option(po, def, parser_utils::parse_attr_post_ops_func,
+            str, option_name, help);
 }
 
 bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
@@ -228,7 +481,8 @@ bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
     static const std::string help
             = "UINT    (Default: `1`)\n    Specifies axis dimension `UINT` for "
               "an operation.\n";
-    return parse_vector_option(axis, def_axis, atoi, str, option_name, help);
+    return parse_vector_option(
+            axis, def_axis, parser_utils::stoll_safe, str, option_name, help);
 }
 
 bool parse_test_pattern_match(const char *&match, const char *str,
@@ -276,7 +530,8 @@ bool parse_strides(std::vector<vdims_t> &strides,
             + doc_url + "driver_matmul.md\n";
     auto str2strides = [&](const char *str) -> vdims_t {
         vdims_t strides(STRIDES_SIZE);
-        parse_multivector_str(strides, vdims_t(), atoi, str, ':', 'x');
+        parse_multivector_str(
+                strides, vdims_t(), parser_utils::stoll_safe, str, ':', 'x');
         return strides;
     };
     return parse_vector_option(
@@ -377,19 +632,23 @@ void parse_prb_vdims(
     size_t start_pos = 0;
     // `n` is an indicator for a name supplied with dims_t object.
     std::string vdims_str = get_substr(str, start_pos, 'n');
+    // Potential trailing underscore before `n` shouldn't be parsed as dims.
+    if (vdims_str.back() == '_') vdims_str.pop_back();
+
     // Sanity check that dims start with a digit.
     if (!std::isdigit(vdims_str[0])) {
         BENCHDNN_PRINT(0, "%s\n%s \'%s\'\n",
                 "ERROR: dims are expected to start with an integer value.",
                 "Given input:", str.c_str());
-        exit(1);
+        SAFE_V(FAIL);
     }
 
     std::string name;
     if (start_pos != eol) name = str.substr(start_pos);
 
     vdims_t vdims;
-    parse_multivector_str(vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
+    parse_multivector_str(vdims, {dims_t()}, parser_utils::stoll_safe,
+            vdims_str, ':', 'x', /* allow_empty = */ false);
     // Expect at least two inputs provided
     SAFE_V(vdims.size() >= min_inputs ? OK : FAIL);
 
@@ -400,20 +659,11 @@ void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str) {
     size_t start_pos = 0;
     // `n` is an indicator for a name supplied with dims_t object.
     std::string dims_str = get_substr(str, start_pos, 'n');
-    const auto atoi_except = [&](const char *s) {
-        std::string s_(s);
-        int64_t value = 0;
-        try {
-            value = std::stoll(s_);
-        } catch (const std::invalid_argument &) {
-            BENCHDNN_PRINT(0, "%s\n%s \'%s\'\n",
-                    "Error: dims value is expected to be an integer value.",
-                    "Given input:", s_.c_str());
-            exit(1);
-        }
-        return value;
-    };
-    parse_vector_str(prb_dims.dims, dims_t(), atoi_except, dims_str, 'x');
+    // Potential trailing underscore before `n` shouldn't be parsed as dims.
+    if (dims_str.back() == '_') dims_str.pop_back();
+
+    parse_vector_str(
+            prb_dims.dims, dims_t(), parser_utils::stoll_safe, dims_str, 'x');
 
     prb_dims.ndims = static_cast<int>(prb_dims.dims.size());
 
@@ -454,6 +704,40 @@ static bool parse_canonical(
               "default ones.\n";
     return parse_single_value_option(
             canonical, false, str2bool, str, option_name, help);
+}
+
+static bool parse_cold_cache(
+        const char *str, const std::string &option_name = "cold-cache") {
+    static const std::string help
+            = "MODE    (Default: `none`)\n    Instructs the driver to enable a "
+              "cold cache for performance mode.\n    When set to `none` (the "
+              "default), cold cache is disabled.\n    When set to `wei`, cold "
+              "cache is enabled for weights argument only. Targets forward "
+              "propagation kind.\n    When set to `all`, cold cache is enabled "
+              "for each execution argument.\n    When set to `custom`, cold "
+              "cache is enabled for custom arguments which should be specified "
+              "directly in the code. Refer to doc for more details.\n";
+
+    const auto str2cold_cache_mode = [](const std::string &_str) {
+        cold_cache_mode_t cc_mode = default_cold_cache_mode;
+        if (_str == "none") {
+            cc_mode = cold_cache_mode_t::none;
+        } else if (_str == "wei") {
+            cc_mode = cold_cache_mode_t::wei;
+        } else if (_str == "all") {
+            cc_mode = cold_cache_mode_t::all;
+        } else if (_str == "custom") {
+            cc_mode = cold_cache_mode_t::custom;
+        } else {
+            BENCHDNN_PRINT(0, "%s \'%s\'\n%s", "Error: unknown cold cache mode",
+                    _str.c_str(), help.c_str());
+            SAFE_V(FAIL);
+        }
+        return cc_mode;
+    };
+
+    return parse_single_value_option(cold_cache_mode, cold_cache_mode_t::none,
+            str2cold_cache_mode, str, option_name, help);
 }
 
 static bool parse_cpu_isa_hints(
@@ -578,7 +862,8 @@ static bool parse_fix_times_per_prb(
               "is greater than `0`, the number of rounds criterion takes place "
               "over the time criterion.\n";
     bool parsed = parse_single_value_option(fix_times_per_prb,
-            default_fix_times_per_prb, atoi, str, option_name, help);
+            default_fix_times_per_prb, parser_utils::stoll_safe, str,
+            option_name, help);
     if (parsed) fix_times_per_prb = MAX2(0, fix_times_per_prb);
     return parsed;
 }
@@ -589,8 +874,9 @@ static bool parse_max_ms_per_prb(
             = "MS    (Default: `3000`)\n    Specifies the limit in `MS` "
               "milliseconds for performance benchmarking per problem.\n    "
               "`MS` is a positive integer in a range [10, 60000].\n";
-    bool parsed = parse_single_value_option(max_ms_per_prb,
-            default_max_ms_per_prb, atof, str, option_name, help);
+    bool parsed
+            = parse_single_value_option(max_ms_per_prb, default_max_ms_per_prb,
+                    parser_utils::stof_safe, str, option_name, help);
     if (parsed) {
         if (bench_mode == bench_mode_t::perf_fast) {
             BENCHDNN_PRINT(0, "%s\n",
@@ -610,7 +896,8 @@ static bool parse_repeats_per_prb(
             = "N    (Default: `1`)\n    Specifies the number of times to "
               "repeat testing of the problem.\n";
     bool parsed = parse_single_value_option(repeats_per_prb,
-            default_repeats_per_prb, atoi, str, option_name, help);
+            default_repeats_per_prb, parser_utils::stoll_safe, str, option_name,
+            help);
     if (parsed) repeats_per_prb = MAX2(1, repeats_per_prb);
     return parsed;
 }
@@ -787,7 +1074,7 @@ static bool parse_start(
               "`UINT` to start execution. All test cases up to `UINT` will be "
               "skipped.\n";
     return parse_single_value_option(
-            test_start, 0, atoi, str, option_name, help);
+            test_start, 0, parser_utils::stoll_safe, str, option_name, help);
 }
 
 static bool parse_verbose(
@@ -798,12 +1085,12 @@ static bool parse_verbose(
               "details at "
             + doc_url + "knobs_verbose.md\n";
     bool parsed = parse_single_value_option(
-            verbose, 0, atoi, str, option_name, help);
+            verbose, 0, parser_utils::stoll_safe, str, option_name, help);
     if (parsed) return parsed;
 
     const std::string pattern("-v"); // check short option first
     if (pattern.find(str, 0, pattern.size()) != eol) {
-        verbose = atoi(str + pattern.size());
+        verbose = parser_utils::stoll_safe(str + pattern.size());
         return true;
     }
     return false;
@@ -825,10 +1112,11 @@ bool parse_bench_settings(const char *str) {
 
     bool parsed = parse_allow_enum_tags_only(str)
             || parse_attr_same_pd_check(str) || parse_canonical(str)
-            || parse_cpu_isa_hints(str) || parse_engine(str)
-            || parse_fast_ref_gpu(str) || parse_fix_times_per_prb(str)
-            || parse_max_ms_per_prb(str) || parse_repeats_per_prb(str)
-            || parse_mem_check(str) || parse_memory_kind(str) || parse_mode(str)
+            || parse_cold_cache(str) || parse_cpu_isa_hints(str)
+            || parse_engine(str) || parse_fast_ref_gpu(str)
+            || parse_fix_times_per_prb(str) || parse_max_ms_per_prb(str)
+            || parse_repeats_per_prb(str) || parse_mem_check(str)
+            || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_skip_impl(str)
             || parse_start(str) || parse_verbose(str);
 

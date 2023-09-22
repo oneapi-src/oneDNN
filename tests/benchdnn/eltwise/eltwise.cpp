@@ -34,6 +34,7 @@ namespace eltwise {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
+    res_t *res = init_pd_args.res;
 
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt, prb->tag);
@@ -51,10 +52,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
 
-        DNN_SAFE_STATUS(dnnl_eltwise_forward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_eltwise_forward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, prop, alg,
                 init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
-                prb->alpha, prb->beta, dnnl_attr));
+                prb->alpha, prb->beta, dnnl_attr)));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt, tag::any);
@@ -65,10 +66,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                     prb->ndims, prb->dims.data(), prb->dt, prb->tag);
         auto &data_d = prb->use_dst() ? dst_d : src_d;
 
-        DNN_SAFE_STATUS(dnnl_eltwise_backward_primitive_desc_create(
+        TIME_C_PD(DNN_SAFE_STATUS(dnnl_eltwise_backward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, alg, diff_src_d,
                 diff_dst_d, data_d, prb->alpha, prb->beta, init_pd_args.hint,
-                dnnl_attr));
+                dnnl_attr)));
     }
 
     return dnnl_success;
@@ -199,8 +200,8 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     if (nelems == 0) return OK;
 
     /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
+    const int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
     const bool is_log = prb->alg == alg_t::LOG;
 
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
@@ -367,6 +368,7 @@ std::vector<int> supported_exec_args(dir_t dir) {
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
         dnnl_primitive_t prim_ref) {
+    update_inplace_memory_args(mem_map, prb, dir);
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
     const auto &ref_engine = get_cpu_engine();
@@ -400,22 +402,14 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();
     }
 
-    // Drop destination memory for in-place case. `args` will take care of rest.
+    // Unique scenario when driver can utilize inplace but original source is
+    // used for cancellation validation, thus, can't be overwritten. Need to
+    // create proper DST memory if it was dropped from original map.
     const bool inplace_fwd = prb->inplace && (prb->dir & FLAG_FWD);
-    const bool inplace_bwd = prb->inplace && (dir & FLAG_BWD);
     if (inplace_fwd) {
-        mem_map[DNNL_ARG_DST] = dnn_mem_t();
-    } else if (inplace_bwd) {
-        mem_map[DNNL_ARG_DIFF_SRC] = dnn_mem_t();
-    }
-
-    if (!has_bench_mode_bit(mode_bit_t::corr)) return OK;
-
-    // Use inplace reference computation every time.
-    if (dir & FLAG_FWD) {
-        ref_mem_map.emplace(DNNL_ARG_DST, dnn_mem_t());
-    } else {
-        ref_mem_map.emplace(DNNL_ARG_DIFF_SRC, dnn_mem_t());
+        const auto &dst_md = mem_map.at(DNNL_ARG_SRC).md_;
+        ref_mem_map[DNNL_ARG_DST]
+                = dnn_mem_t(dst_md, dnnl_f32, tag::abx, ref_engine);
     }
 
     return OK;
@@ -450,9 +444,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(
             mem_map, prb, v_prim[0], supported_exec_args(FLAG_FWD));
-    SAFE(init_ref_memory_args(
-                 ref_mem_map, mem_map, v_prim[0], prb, res, FLAG_FWD),
-            WARN);
+    TIME_FILL(SAFE(init_ref_memory_args(
+                           ref_mem_map, mem_map, v_prim[0], prb, res, FLAG_FWD),
+            WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 
@@ -468,9 +462,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         // Pass same memory map as we need data from forward on backward.
         init_memory_args<prb_t>(
                 mem_map, prb, v_prim[1], supported_exec_args(FLAG_BWD));
-        SAFE(init_ref_memory_args(
-                     ref_mem_map, mem_map, v_prim[1], prb, res, FLAG_BWD),
-                WARN);
+        TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, v_prim[1],
+                               prb, res, FLAG_BWD),
+                WARN));
 
         args = args_t(mem_map);
         ref_args = args_t(ref_mem_map);

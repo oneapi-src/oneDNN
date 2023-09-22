@@ -31,6 +31,9 @@ struct ocl_event_t final : compute::event_t {
         : events(events) {}
     ocl_event_t(std::vector<ocl_wrapper_t<cl_event>> &&events)
         : events(std::move(events)) {}
+    ocl_event_t(ocl_wrapper_t<cl_event> &&event) {
+        events.emplace_back(std::move(event));
+    }
 
     const ocl_wrapper_t<cl_event> &operator[](size_t i) const {
         return events[i];
@@ -44,6 +47,14 @@ struct ocl_event_t final : compute::event_t {
     static const ocl_event_t &from(const compute::event_t &event) {
         return *utils::downcast<const ocl_event_t *>(&event);
     }
+    std::unique_ptr<compute::event_t> clone() const {
+        return std::unique_ptr<compute::event_t>(new ocl_event_t(*this));
+    }
+
+    void append(const compute::event_t &event) {
+        auto &other = *utils::downcast<const ocl_event_t *>(&event);
+        events.insert(events.end(), other.events.begin(), other.events.end());
+    };
 
     std::vector<ocl_wrapper_t<cl_event>> events;
 };
@@ -69,6 +80,10 @@ struct ocl_context_t final : public gpu::compute::context_t {
         events_ = ocl_event_t(std::move(event));
     }
     void set_deps(ocl_event_t &&events) { events_ = std::move(events); };
+
+    void append_deps(const compute::event_t &event) override {
+        events_.append(event);
+    }
 
 private:
     ocl_event_t events_;

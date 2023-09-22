@@ -24,6 +24,9 @@ where *gnorm-knobs* are:
  - `--attr-scales=STRING` -- per argument scales primitive attribute. No
             scales are set by default. Refer to [attributes](knobs_attr.md) for
             details.
+ - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
+            operations are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
             Default is `false`.

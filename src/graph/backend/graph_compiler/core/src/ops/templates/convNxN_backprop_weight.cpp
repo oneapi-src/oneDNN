@@ -36,9 +36,9 @@ namespace impl {
 namespace graph {
 namespace gc {
 namespace ops {
-static int calculate_q_reduce(int Q, bool is_bf_16) {
+static int calculate_q_reduce(int Q, bool is_vnni_low_fp) {
   int Q_padded = Q % 2 == 0 ? Q : Q + 1;
-  int Q_reduce = is_bf_16 ? Q_padded : Q;
+  int Q_reduce = is_vnni_low_fp ? Q_padded : Q;
   return Q_reduce;
 }
 
@@ -53,8 +53,8 @@ config_ptr gen_convNxN_backprop_weight::get_default_config(
   int N = static_cast<int>(get_data_dims()[0]);
   int P = static_cast<int>(get_grad_dims()[ndims - 2]);
   int Q = static_cast<int>(get_grad_dims()[ndims - 1]);
-  int is_bf16 = (get_dtype() == datatypes::bf16);
-  int Q_reduce = calculate_q_reduce(Q, is_bf16);
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, get_dtype());
+  int Q_reduce = calculate_q_reduce(Q, is_vnni_low_fp);
 
   // while K and C are small, use N_block = 16; K_block = K; C_block = C
   bool large_spatial = (P >= 56 && Q >= 56);
@@ -207,8 +207,8 @@ bool gen_convNxN_backprop_weight::generate_reduce_N(const context_ptr &ctx,
   COMPILE_ASSERT(Q % tile_q == 0, "Q should be divisible by tile_q.");
   bool loop_sched = config.loop_sched;
   auto dtype = get_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
-
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
   // calculate the correct p_o value for brgemm init
   std::vector<int> p_offset(R, 0);
   for (int r = 0; r < R; ++r) {
@@ -409,8 +409,9 @@ bool gen_convNxN_backprop_weight::generate_reduce_W(const context_ptr &ctx,
       C_num_block = utils::divide_and_ceil(C, C_block);
   bool loop_sched = config.loop_sched;
   auto dtype = get_dtype();
-  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
-  int Q_reduce = calculate_q_reduce(Q, dtype == datatypes::bf16);
+  bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
+  int dtype_block = is_vnni_low_fp ? 2 : 1;
+  int Q_reduce = calculate_q_reduce(Q, is_vnni_low_fp);
   int Q_block = Q_reduce / tile_q;
 
   COMPILE_ASSERT(P % tile_p == 0, "P should be divisible by tile_p.");

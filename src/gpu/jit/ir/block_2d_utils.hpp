@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ inline bool block_2d_pitch_ok(const hw_config_t &hw_cfg, int pitch,
     int pitch_bytes = pitch * type_size;
     if (pitch_bytes < 64) return false;
     if (pitch_bytes > (1 << 24)) return false;
-    if (pitch_bytes % 16 != 0) return false;
+    if (pitch_bytes % 8 != 0) return false;
     // To be able to point the base to different rows.
     if (use_xy && pitch_bytes % block_2d_base_alignment(hw_cfg) != 0)
         return false;

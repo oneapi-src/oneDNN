@@ -35,11 +35,16 @@
 #include <immintrin.h>
 #include <stdint.h>
 #ifdef __AVX512F__
+#include "x86simd/vec_f16x16.hpp"
+#include "x86simd/vec_f16x32.hpp"
+#include "x86simd/vec_f16x4.hpp"
+#include "x86simd/vec_f16x8.hpp"
 #include "x86simd/vec_f32x16.hpp"
 #include "x86simd/vec_s32x16.hpp"
 #include "x86simd/vec_s8x64.hpp"
 #include "x86simd/vec_u16x32.hpp"
 #include "x86simd/vec_u32x16.hpp"
+#include "x86simd/vec_u64x8.hpp"
 #include "x86simd/vec_u8x64.hpp"
 #endif
 
@@ -49,6 +54,7 @@
 #include "x86simd/vec_s8x32.hpp"
 #include "x86simd/vec_u16x16.hpp"
 #include "x86simd/vec_u32x8.hpp"
+#include "x86simd/vec_u64x4.hpp"
 #include "x86simd/vec_u8x32.hpp"
 #endif
 
@@ -56,10 +62,13 @@
 #include "x86simd/vec_f32x4.hpp"
 #include "x86simd/vec_s32x4.hpp"
 #include "x86simd/vec_s8x16.hpp"
+#include "x86simd/vec_s8x8.hpp"
 #include "x86simd/vec_u16x4.hpp"
 #include "x86simd/vec_u16x8.hpp"
 #include "x86simd/vec_u32x4.hpp"
+#include "x86simd/vec_u64x2.hpp"
 #include "x86simd/vec_u8x16.hpp"
+#include "x86simd/vec_u8x8.hpp"
 #endif
 
 #ifdef _IS_GCC_12_ABOVE
@@ -121,6 +130,10 @@ DEF_MINMAX(uint8_t)
 DEF_MINMAX(uint16_t)
 DEF_MINMAX(uint32_t)
 DEF_MINMAX(uint64_t)
+#ifdef __AVX512FP16__
+DEF_MINMAX(_Float16)
+DEF_FMADD(_Float16)
+#endif
 DEF_ROUND(float)
 DEF_EXP(float)
 DEF_SQRT(float)

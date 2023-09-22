@@ -40,7 +40,6 @@ class sc_graph_t;
 struct SC_INTERNAL_API logical_tensor_t {
 public:
     sc_data_type_t dtype_;
-    bool is_dynamic_ = false;
     logical_tensor_t() = default;
 
     bool operator==(const logical_tensor_t &other) const {
@@ -59,7 +58,6 @@ public:
         , format_(format)
         , plain_dims_(plain_dims)
         , strides_(strides) {
-        dynamic_update();
         internal_update();
     }
 
@@ -100,7 +98,7 @@ public:
     // gets the size of the tensor in bytes
     size_t get_blocking_byte_size() const;
     // if the tensor is dynamic
-    bool is_dynamic() const { return is_dynamic_; }
+    bool is_dynamic() const;
     // sets the strides
     void set_strides(const sc_dims &strides);
     // sets the data format and stride
@@ -132,8 +130,6 @@ private:
     std::unordered_set<sc_data_format_t> format_candidates_;
     // sync real dims based on plain dims and format
     void internal_update();
-    // update is_dynamic_ by latest plain_dims_
-    void dynamic_update();
 };
 } // namespace gc
 } // namespace graph

@@ -20,6 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 
+#include "cpu/primitive_attr_postops.hpp"
+
 #include "cpu/cpu_group_normalization_pd.hpp"
 
 namespace dnnl {
@@ -49,22 +51,42 @@ struct ref_group_normalization_fwd_t : public primitive_t {
                                     dst_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_GNORM(
-                    attr()->has_default_values(skip_mask_t::scales_runtime)
-                            && attr_scales_ok(),
+                    attr()->has_default_values(skip_mask_t::scales_runtime
+                            | skip_mask_t::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_GNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_GNORM(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
 
             VDISPATCH_GNORM(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
+            bool ok = attr_.set_default_formats(dst_md(0)) == status::success;
+            if (!ok) return status::unimplemented;
+
             return status::success;
+        }
+
+    private:
+        bool post_ops_ok() const {
+            return ref_post_ops_t::primitive_kind_ok(attr()->post_ops_);
         }
     };
 
     using primitive_t::primitive_t;
 
+    status_t init(engine_t *engine) override {
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
+        CHECK(ref_post_ops->init(pd()->dst_md()));
+        return status::success;
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
+
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
@@ -80,18 +102,17 @@ struct ref_group_normalization_bwd_t : public primitive_t {
 
             VDISPATCH_GNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
 
-            VDISPATCH_GNORM(
-                    utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8)
+            VDISPATCH_GNORM(utils::one_of(src_md()->data_type, f32, bf16, f16)
                             && platform::has_data_type_support(
                                     src_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_GNORM(utils::one_of(diff_dst_md()->data_type, f32, bf16,
-                                    f16, s8, u8)
+            VDISPATCH_GNORM(
+                    utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
                             && platform::has_data_type_support(
                                     diff_dst_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_GNORM(utils::one_of(diff_src_md()->data_type, f32, bf16,
-                                    f16, s8, u8)
+            VDISPATCH_GNORM(
+                    utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
                             && platform::has_data_type_support(
                                     diff_src_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);

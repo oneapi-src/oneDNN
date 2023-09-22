@@ -137,18 +137,71 @@ struct rnn_packed_desc_t {
 
 struct sparse_desc_t {
     static constexpr int max_metadata_types = 2;
-    // Sparse encoding.
+    // Each encoding defines the number of handles it requires and their
+    // meaning.
+    //
+    // CSR: Number of handles is 3:
+    //  - 0: values
+    //  - 1: indices
+    //  - 2: pointers
+    //
+    // packed: Number of handles is 3:
+    //  - 0: values
+    //  - 1: offsets
+    //  - 2: bitmask
     sparse_encoding_t encoding;
+
     // Number of non-zero entries.
     dnnl_dim_t nnz;
+
     // Metadata types. Each encoding defines how to interpret these.
     // - CSR: 0th - index data type
     //        1st - pointer data type
+    // - packed: N/A
     dnnl_data_type_t metadata_types[max_metadata_types];
+
+    // The packed sparse encoding is described with `blocking_desc_t` and
+    // can only be initialized by the implementation. The special encoding
+    // `packed` will instruct the implementation to do that.
+    // Storage schema description:
+    //
+    // The same tensor is described by `packed_desc` and `blocking` descriptors
+    // in the absolutely the same way. However, the difference is how the tensor
+    // is stored in the memory. When the tensor is described by `packed_desc`
+    // its content is encoded meaning that there is metadata that is required to
+    // decode the content.
+    //
+    // Encoding process:
+    // - Reorder a dense tensor to the blocked format described by
+    //  `packed_desc`
+    // - Remove all zeroes from the reordered tensor
+    // - Initialize metadata:
+    //   * An array of offsets stores offsets for each block. The block is a
+    //     product of all inner block, e.g. if the `packed_desc` describes a
+    //     format tag BA16a64b4a then the size of the block is 4096 elements
+    //     and the number of blocks is `padded_dims[0] * padded_dims[1] / 4096`.
+    //     When the zeroes get removed we need to store the offset to the
+    //     beginning of the block in the data without zeroes (packed data).
+    //     For example, if the block size is 5 and there are two blocks:
+    //     [01020][01203] then the array of offsets will have the following
+    //     two values: [0,2] because the packed data is stored as [12][123].
+    //     Tne offsets are stored as int64 values
+    //   * A bitmask array stores a mask for all elements in the dense tensors
+    //
+    // Decoding process:
+    // - Identify the block number that needs to be decoded (unpacked)
+    // - Use the block number to find an offset in the packed data
+    // - Use the bitmask to unpack the packed data
+    blocking_desc_t packed_desc;
 };
 
 // Description of extra information stored in memory
 struct memory_extra_desc_t {
+    memory_extra_desc_t()
+        : flags(0)
+        , compensation_mask(0)
+        , scale_adjust(0.0f)
+        , asymm_compensation_mask(0) {}
     // The flags contain arbitrary extra information, such as compensation.
     // @sa dnnl_memory_extra_flags_t
     uint64_t flags;
@@ -184,7 +237,16 @@ status_t memory_desc_permute_axes(memory_desc_t &out_memory_desc,
 // format. Additionally, contains format-specific descriptions of the data
 // layout.
 struct dnnl_memory_desc : public dnnl::impl::c_compatible {
-    dnnl_memory_desc() = default;
+    dnnl_memory_desc()
+        : ndims(0)
+        , dims {}
+        , data_type(dnnl::impl::data_type::undef)
+        , padded_dims {}
+        , padded_offsets {}
+        , offset0(0)
+        , format_kind(dnnl::impl::format_kind::undef)
+        , format_desc {}
+        , extra {} {}
     dnnl_memory_desc(const dnnl_memory_desc &other) = default;
     // Number of dimensions
     int ndims;

@@ -47,6 +47,7 @@ protected:
     size_t getSLMSize() const                                            { return interface_.getSLMSize(); }
 
     void require32BitBuffers()                                           { interface_.require32BitBuffers(); }
+    void requireArbitrationMode(ThreadArbitrationMode mode)              { interface_.requireArbitrationMode(mode); }
     void requireBarrier()                                                { interface_.requireBarrier(); }
     void requireBarriers(int nbarriers)                                  { interface_.requireBarriers(nbarriers); }
     void requireDPAS()                                                   { interface_.requireDPAS(); }
@@ -69,14 +70,14 @@ protected:
     void finalizeInterface()                                             { interface_.finalize(); }
 
     template <typename DT>
-    void newArgument(std::string name)                                   { interface_.newArgument<DT>(name); }
-    void newArgument(std::string name, DataType type,
+    void newArgument(const std::string &name)                            { interface_.newArgument<DT>(name); }
+    void newArgument(const std::string &name, DataType type,
                      ExternalArgumentType exttype = ExternalArgumentType::Scalar,
                      GlobalAccessType access = GlobalAccessType::Default)
     {
         interface_.newArgument(name, type, exttype, access);
     }
-    void newArgument(std::string name, ExternalArgumentType exttype,
+    void newArgument(const std::string &name, ExternalArgumentType exttype,
                      GlobalAccessType access = GlobalAccessType::Default)
     {
         interface_.newArgument(name, exttype, access);
@@ -278,6 +279,7 @@ int getSIMD() const { return ngen::ELFCodeGenerator<hw>::getSIMD(); } \
 int getGRFCount() const { return ngen::ELFCodeGenerator<hw>::getGRFCount(); } \
 size_t getSLMSize() const { return ngen::ELFCodeGenerator<hw>::getSLMSize(); } \
 template <typename... Targs> void require32BitBuffers(Targs&&... args) { ngen::ELFCodeGenerator<hw>::require32BitBuffers(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireArbitrationMode(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireArbitrationMode(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireBarrier(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireBarrier(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireGlobalAtomics(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireGlobalAtomics(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireGRF(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireGRF(std::forward<Targs>(args)...); } \
@@ -342,17 +344,17 @@ std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary(const std::vector<uint8_t> 
     metadata = interface_.generateZeInfo();
 
     // Construct ELF.
-    size_t szKernelName = interface_.getExternalName().length() + 1;
-    size_t szELF = ZebinELF::align(sizeof(ZebinELF) + szKernelName);
-    size_t szMetadata = ZebinELF::align(metadata.size());
-    size_t szKernel = ZebinELF::align(kernel.size());
+    size_t paddedSzKernelName = interface_.getExternalName().length() + 1;
+    size_t paddedSzELF = ZebinELF::align(sizeof(ZebinELF) + paddedSzKernelName);
+    size_t paddedSzMetadata = ZebinELF::align(metadata.size());
+    size_t paddedSzKernel = ZebinELF::align(kernel.size());
 
-    binary.resize(szELF + szMetadata + szKernel);
+    binary.resize(paddedSzELF + paddedSzMetadata + paddedSzKernel);
 
-    (void) new(binary.data()) ZebinELF(szKernelName, szMetadata, szKernel);
+    (void) new(binary.data()) ZebinELF(paddedSzKernelName, metadata.size(), kernel.size());
     utils::copy_into(binary, ZebinELF::kernelNameOffset(), interface_.getExternalName());
-    utils::copy_into(binary, szELF, metadata);
-    utils::copy_into(binary, szELF + szMetadata, kernel);
+    utils::copy_into(binary, paddedSzELF, metadata);
+    utils::copy_into(binary, paddedSzELF + paddedSzMetadata, kernel);
 
     return binary;
 }

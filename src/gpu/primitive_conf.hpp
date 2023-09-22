@@ -380,7 +380,7 @@ struct pool_conf_t {
     bool is_plain;
     bool is_training, is_backward;
     bool use_mb_c_block, use_only_c_block;
-    bool unroll_mb = false;
+    int unroll_mb_count = 1;
     bool vectorize = true;
     int chunks_per_c_block, chunks_per_mb_block;
     int vect_dt_n;
@@ -449,15 +449,17 @@ struct bnorm_conf_t {
     data_type_t data_type;
 
     int ndims;
-    int mb, ic, mb_block, ic_block;
-    int reduce_dim_idx, reduce_dim;
-    int id, ih, iw;
-    int nn, sp, sp_tail, vect_size;
+    dim_t mb, ic, id, ih, iw;
+    int mb_block, ic_block;
+    int reduce_dim_idx;
+    dim_t reduce_dim;
+    dim_t nn, sp;
+    int sp_tail, vect_size;
     int stat_sp_nblocks, stat_sp_tail, stat_sp_block;
     int update_sp_nblocks, update_sp_tail, update_sp_block;
     int reduce_stat_nblocks;
-    bool with_relu, use_16mb_unroll, use_nhwc;
-    int stat_ic;
+    bool with_relu, use_nhwc;
+    dim_t stat_ic;
     bool is_forward, is_backward;
     bool use_scale, use_shift, save_stats, is_training;
     bool calculate_stats, calculate_diff_stats;
@@ -465,7 +467,6 @@ struct bnorm_conf_t {
     bool diff_scale, diff_shift;
     float relu_negative_slope, eps;
     int sub_group_size;
-    bool vectorize_calc_stats;
     bool skip_reduce_stat;
     bool use_stats_one_pass;
     bool nhwc_optimized;
@@ -504,6 +505,10 @@ struct lnorm_conf_t {
     int across_axis;
     int norm_block;
     int num_norm_blocks;
+    int norm_block_fused;
+    int num_norm_blocks_fused;
+    int across_block;
+    int num_across_blocks;
 
     memory_desc_info_t src_md_info;
     memory_desc_info_t dst_md_info;
@@ -511,6 +516,7 @@ struct lnorm_conf_t {
 
     bool use_scale;
     bool use_shift;
+    bool use_fused;
     bool calculate_stats;
     bool save_stats;
     bool vectorize_calc_stats;
@@ -519,8 +525,10 @@ struct lnorm_conf_t {
     float eps;
     int sub_group_size;
     int vect_dt_n;
+    int vect_size_fused;
     int shift_off;
     int n_chunk_size;
+    int finalize_n_chunks;
     int n_chunks;
     int vector_size_scaleshift;
     bool use_src_buffer;
@@ -528,6 +536,7 @@ struct lnorm_conf_t {
     compute::dispatch_t dispatch_scaleshift;
     compute::dispatch_t dispatch_scaleshift_finalize;
     compute::dispatch_t dispatch;
+    compute::dispatch_t dispatch_fused;
 };
 
 // Binary
@@ -555,6 +564,7 @@ struct binary_conf_t {
     bool is_tensor_op;
     compute::dispatch_t dispatch;
     int mb_block;
+    int has_tail;
     int dim0[MAX_NDIMS];
     int src0_bcast_dims[MAX_NDIMS];
     int src1_bcast_dims[MAX_NDIMS];
@@ -573,21 +583,11 @@ struct binary_conf_t {
 };
 
 // Reduction
-struct reduction_phase_t {
-    data_type_t src_type, dst_type;
-    compute::nd_range_t nd_range;
-    compute::kernel_t kernel;
-    dim_t outer_dim_size, reduction_size, inner_dim_size;
-    int vect_size;
-    bool reduce_vector;
-    bool is_final, is_first;
-};
-
 struct reduction_conf_t {
     // Used by reference implementation
     alg_kind_t alg;
-    int ndims, power, div;
-    float eps;
+    int ndims, div;
+    float eps, power;
     dim_t src_dims[MAX_NDIMS], reduce_dims[MAX_NDIMS], dst_dims[MAX_NDIMS];
     bool is_reduction_dim[MAX_NDIMS];
     int hwd_reduction_size, hwd_size;
@@ -596,21 +596,6 @@ struct reduction_conf_t {
     compute::dispatch_t dispatch;
     offsets_t off;
     attr_info_t attr_info;
-
-    // Used by gen9 implementation
-    int initial_hwd_dim, initial_hwd_chunk_size;
-    int final_hwd_dim, final_hwd_chunk_size;
-    int initial_c_chunks, final_c_dim, final_c_chunk_size;
-    int initial_n_chunk_size, initial_n_chunks;
-    int final_n_dim, final_n_chunk_size;
-    bool skip_final_phase;
-    int c_block_size, n_block_size;
-    int vector_size;
-    int sub_group_size;
-    compute::dispatch_t finalize_dispatch;
-
-    // Used by combined implementation
-    std::vector<reduction_phase_t> phases;
 };
 
 // Reorder
@@ -847,9 +832,18 @@ struct concat_conf_t {
     dim_t dst_extern_dim_size;
     dim_t src_extern_dim_sizes[64];
     dim_t offset[64];
+    dim_t padded_offset[64];
+    dim_t n_blocks;
+    dim_t blocks[6];
+    dim_t strides[6];
     dim_t inner_axis;
+    dim_t dst_concat_axis;
+    dim_t dst_padded_concat_axis;
     dim_t dst_offset0;
-    int block;
+    dim_t read_block;
+    dim_t write_block;
+    dim_t gws0_block;
+    dim_t read_overlap;
     int n;
     int simd;
     int data_type_size;
@@ -858,7 +852,7 @@ struct concat_conf_t {
     data_type_t src_type, dst_type;
     compute::dispatch_t dispatch;
     int ndims;
-    memory_desc_info_t src_md_infos[64];
+    memory_desc_info_t src_md_infos[16]; // simple concat does not use this
     memory_desc_info_t dst_md_info;
     int concat_axis;
     int sub_group_size;
@@ -1536,140 +1530,6 @@ inline void maybe_fix_non_uniform_work_sizes(
         if (!has_non_uniform_wg)
             conf.gws_d[i] = utils::rnd_up(conf.gws_d[i], conf.lws_d[i]);
     }
-}
-
-inline void bwd_w_compute_block_sizes(conv_conf_t &conf, engine_t *engine) {
-    const bool is_1stconv = conf.ic_without_padding == 3;
-
-    if (conf.is_depthwise) {
-        conf.odb = 1;
-        conf.ohb = 1;
-        conf.owb = utils::rnd_up(conf.ow, conf.ow_block);
-        conf.ocb = 1;
-        conf.icb = 1;
-        conf.osp_chunk = utils::div_up(conf.od, conf.odb)
-                * utils::div_up(conf.oh, conf.ohb)
-                * utils::div_up(conf.ow, conf.owb);
-
-        conf.mb_chunk = utils::div_up(conf.mb, conf.mb_block);
-        conf.nchunk = conf.osp_chunk * conf.mb_chunk;
-        return;
-    }
-    auto *dev_info = utils::downcast<compute::compute_engine_t *>(engine)
-                             ->device_info();
-    int hw_threads = dev_info->hw_threads();
-    size_t llc_bytes = dev_info->llc_cache_size();
-
-    auto next_candidate = [](int size, int block) {
-        if (size == block) return block;
-        // If size is big enough, then do not care about the remainder.
-        if (block * 16 < size) return block + 1;
-        // Otherwise search for the next divisor.
-        block++;
-        while (size % block != 0)
-            block++;
-        return block;
-    };
-
-    int mb_nb = 1;
-    conf.odb = 1;
-    conf.ohb = 1;
-    conf.owb = 1;
-
-    int mb_nblk = utils::div_up(conf.mb, conf.mb_block);
-    int ic_nblk = utils::div_up(conf.ic, conf.ic_block);
-    int oc_nblk = utils::div_up(conf.oc, conf.oc_block);
-
-    int ic_nb_max = is_1stconv ? 1 : nstl::min(ic_nblk, 16);
-    int oc_nb_max = nstl::min(oc_nblk, 16);
-    int ic_nb = is_1stconv ? 1 : utils::max_div(ic_nblk, ic_nb_max);
-    int oc_nb = utils::max_div(oc_nblk, oc_nb_max);
-
-    int mb_nb_max = 1;
-    if (!is_1stconv && (conf.mb_block == 1) && (conf.ic % 1024 != 0)
-            && (conf.oc % 1024 != 0)) {
-        mb_nb_max = 4;
-    }
-
-    auto get_nthr = [&]() {
-        int nthr = utils::div_up(mb_nblk, mb_nb)
-                * utils::div_up(conf.od, conf.odb)
-                * utils::div_up(conf.oh, conf.ohb)
-                * utils::div_up(conf.ow, conf.owb) * conf.kh * conf.kw * conf.kd
-                * oc_nblk * (is_1stconv ? 1 : ic_nblk) * conf.ngroups;
-        return nthr;
-    };
-
-    auto get_src_dst_size = [&]() {
-        int iwb = conf.ndims < 3 ? 1 : conf.owb + 2 * (conf.kw - 1);
-        int ihb = conf.ndims < 4 ? 1 : conf.ohb + 2 * (conf.kh - 1);
-        int idb = conf.ndims < 5 ? 1 : conf.odb + 2 * (conf.kd - 1);
-
-        size_t ispb = iwb * ihb * idb;
-        size_t ospb = conf.owb * conf.ohb * conf.odb;
-        size_t src_size = sizeof(float) * conf.mb_block
-                * (is_1stconv ? conf.ic : ic_nb * conf.ic_block) * ispb;
-        size_t dst_size = sizeof(float) * conf.mb_block
-                * (oc_nb * conf.oc_block) * ospb;
-
-        int nthr_per_spb
-                = conf.kh * conf.kw * conf.kd * ic_nb * oc_nb * conf.ngroups;
-        size_t sz = (size_t)(src_size + dst_size);
-        if (nthr_per_spb < hw_threads) sz = sz * hw_threads / nthr_per_spb;
-        return sz;
-    };
-
-    auto try_next = [&](int &v, int next) {
-        if (next <= v) return false;
-        int v_old = v;
-        v = next;
-        // Heuristics:
-        // - src and dst size accessed in the inner loops should fit LLC
-        // - Require at least (3 * hw_threads) to spawn to have enough
-        //   parallelism
-        if (get_src_dst_size() > llc_bytes || get_nthr() < 3 * hw_threads) {
-            v = v_old;
-            return false;
-        }
-        return true;
-    };
-
-    if (utils::one_of(conf.ver, ver_nhwc, ver_8ow16c, ver_1stconv))
-        conf.owb = conf.ow_block;
-
-    // Increase spatial tile size as much as possible.
-    for (int i = 0; i < 128; i++) {
-        int owb_next;
-        if (utils::one_of(conf.ver, ver_nhwc, ver_8ow16c, ver_1stconv)) {
-            int ow_padded = utils::rnd_up(conf.ow, conf.ow_block);
-            owb_next = conf.ow_block
-                    * next_candidate(ow_padded / conf.ow_block,
-                            conf.owb / conf.ow_block);
-        } else {
-            owb_next = next_candidate(conf.ow, conf.owb);
-        }
-        try_next(conf.owb, owb_next);
-
-        int ohb_next = next_candidate(conf.oh, conf.ohb);
-        try_next(conf.ohb, ohb_next);
-
-        int odb_next = next_candidate(conf.od, conf.odb);
-        try_next(conf.odb, odb_next);
-
-        int mb_nb_next = next_candidate(mb_nb_max, mb_nb);
-        try_next(mb_nb, mb_nb_next);
-    }
-
-    conf.icb = is_1stconv ? conf.ic : ic_nb * conf.ic_block;
-    conf.ocb = oc_nb * conf.oc_block;
-
-    conf.osp_chunk = utils::div_up(conf.od, conf.odb)
-            * utils::div_up(conf.oh, conf.ohb)
-            * utils::div_up(conf.ow, conf.owb);
-
-    conf.mb_chunk = utils::div_up(mb_nblk, mb_nb);
-
-    conf.nchunk = conf.mb_chunk * conf.osp_chunk;
 }
 
 } // namespace gpu

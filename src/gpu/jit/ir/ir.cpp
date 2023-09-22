@@ -76,7 +76,8 @@ public:
     void _visit(const for_t &obj) override {
         print_indent();
         out_ << "for (" << obj.var << " = " << obj.init << "; " << obj.var
-             << " < " << obj.bound << "; " << obj.var << "++) ";
+             << " < " << obj.bound << "; " << obj.var << " += " << obj.step
+             << ") ";
         if (obj.unroll != 1) out_ << "[unroll: " << obj.unroll << "] ";
         out_ << "{\n";
         add_indent();
@@ -611,8 +612,8 @@ stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body) {
 
     auto *_for = stmt.as_ptr<for_t>();
     if (_for) {
-        return for_t::make(
-                _for->var, _for->init, _for->bound, new_body, _for->unroll);
+        return for_t::make(_for->var, _for->init, _for->bound, new_body,
+                _for->step, _for->unroll);
     }
 
     auto *let = stmt.as_ptr<let_t>();
@@ -832,6 +833,17 @@ int64_t bound_finder_base_t::find_bound_impl(
                                   : e.type().max<int64_t>();
                 }
                 break;
+            }
+            case op_kind_t::_min:
+            case op_kind_t::_max: {
+                auto a = find_bound_impl(binary->a, is_low);
+                auto b = find_bound_impl(binary->b, is_low);
+                if (!is_good_bound(a) || !is_good_bound(b)) return def_bound;
+                auto a_const = to_cpp<int64_t>(a);
+                auto b_const = to_cpp<int64_t>(a);
+                return binary->op_kind == op_kind_t::_min
+                        ? std::min(a_const, b_const)
+                        : std::max(a_const, b_const);
             }
             default: break;
         }

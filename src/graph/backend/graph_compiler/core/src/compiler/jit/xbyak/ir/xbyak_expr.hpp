@@ -71,17 +71,20 @@ enum class xbyak_intrin_type {
     call_arg = 0, // special intrin to represent call arg location (reg/stack)
     sign_ext, // special intrin to represent CWD/CDQ/CQO/XOR before div/idiv
     mask_mov, // special intrin to represent avx512 zero masked move
+    mov_mask, // special intrin for avx move mask 8/32
     test, // special intrin to represent x86 bool logical compare
     cmov, // conditional move
     movd, // reinterpret dword f32 <-> int32
     add,
     sub,
-    mul,
-    muli, // special intrin to represent x86 3-address imul(r, r/m, i)
+    mul, // x86: represent low result 2-address mul(r, r/m)
+    muli, // x86: represent low result 3-address mul(r, r/m, i)
+    mulhl, // x86: represent high/low result rdx:rax = mul(r/rm)~rax
     div,
     mod,
     shl,
     shr,
+    sar,
     min,
     max,
     abs,
@@ -101,6 +104,9 @@ enum class xbyak_intrin_type {
     shuffle,
     permute,
     gather,
+    insert,
+    extract,
+    bmi_pext,
     broadcast,
     reinterpret,
     unpack_low,
@@ -108,6 +114,7 @@ enum class xbyak_intrin_type {
     extract_low,
     extract_high,
     permutex2var,
+    permutexvar,
     saturated_cast,
     round_and_cast,
     NUM_INTRINSICS,

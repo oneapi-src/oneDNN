@@ -41,6 +41,11 @@ namespace impl {
 namespace graph {
 namespace gc {
 
+int binary_elementwise_op_t::get_broadcast_input() const {
+    auto non_bc_input_idx = get_non_broadcast_input_index(true);
+    return non_bc_input_idx.size() > 1 ? -1 : 1 - non_bc_input_idx[0];
+}
+
 static int get_base_input_idx(fusible_op_t *cur) {
     int base_idx = 0;
     if (auto binary_node = cur->dyn_cast<binary_elementwise_op_t>()) {
@@ -49,9 +54,7 @@ static int get_base_input_idx(fusible_op_t *cur) {
     }
     if (auto select_node = cur->dyn_cast<select_op_t>()) {
         // we need to set base_idx to the max input
-        if (select_node->get_max_input() != -1) {
-            base_idx = select_node->get_max_input();
-        }
+        base_idx = select_node->get_non_broadcast_input_index(true)[0];
     }
     COMPILE_ASSERT(base_idx >= 0, "Bad base idx for fusible_op");
     return base_idx;
@@ -105,6 +108,7 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     extract_anchor_from_fmgr_to_parti(&fmgr, parti,
             use_output_mode ? outs : ins,
             use_output_mode ? get_outputs() : get_inputs());
+    search_anchor(parti);
     append_mixed_partition(parti);
 
     auto used_anchor = parti->lookup_anchor_map(this);
@@ -165,7 +169,6 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
 }
 
 void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
-    search_anchor(parti);
     COMPILE_ASSERT(parti->ready_for_op(this),
             "No suitable anchor found for " << op_name_ << "_"
                                             << logical_op_id_);
@@ -203,11 +206,23 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
     // update output buffer info after inner anchor created
     parti->buf_alloc_.update_output_buffer_info(this);
 
+    fuse_anchor_map_ptr committed_anchor = parti->lookup_anchor_map(this);
     if (attrs_.get_or_else(mixed_partition_hint::inplace_optimized_op, false)) {
+        // commit content id to anchor
+        committed_anchor->append_content(static_cast<sc_op *>(this));
         return;
     }
+    commit_into_anchor(committed_anchor.get());
 
-    commit_into_anchor(parti->lookup_anchor_map(this).get());
+    // append op inner anchor into parti
+    if (attrs_.has_key(op_attr_key::fusible_inner_anchors)) {
+        auto op_inner_anchors = attrs_.get<std::vector<fuse_anchor_map_ptr>>(
+                op_attr_key::fusible_inner_anchors);
+        for (const fuse_anchor_map_ptr &op_inner_anchor : op_inner_anchors) {
+            op_inner_anchor->parent_ = committed_anchor;
+            parti->append_fusion_anchor(op_inner_anchor);
+        }
+    }
 }
 
 void fusible_op_t::search_anchor(mixed_parti_t *parti) {
@@ -222,7 +237,8 @@ void fusible_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
             outputs(out_tsrs.size());
     auto ths = this;
     auto wrap_tsr2tsl_ = [&ths](const expr &tsr,
-                                 const slice_range_list &range_list) {
+                                 const slice_range_list &range_list,
+                                 bool is_output = false) {
         std::vector<tensor_slice> multi_tsl;
         if (!range_list.empty()) {
             for (auto &range : range_list) {
@@ -232,6 +248,9 @@ void fusible_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
             COMPILE_ASSERT(ths->isa<reorder_op_t>(),
                     "only reorder op support this case, but got "
                             << ths->op_name_)
+            if (is_output) {
+                ths->attrs_.set(op_attr_key::break_post_fuse, true);
+            }
             multi_tsl.emplace_back(tensor_slice(tsr));
         }
         return multi_tsl;
@@ -246,7 +265,8 @@ void fusible_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
             outputs.begin(),
             [&wrap_tsr2tsl_, &committed_anchor](
                     const graph_tensor_ptr &gt, const expr &tsr) {
-                return wrap_tsr2tsl_(tsr, committed_anchor->fsmap_.get(gt));
+                return wrap_tsr2tsl_(
+                        tsr, committed_anchor->fsmap_.get(gt), true);
             });
     auto in_slice_size = inputs[0].size();
     COMPILE_ASSERT(in_slice_size, "No input slice found for " << op_name_);
@@ -378,60 +398,86 @@ void output_op::prepare_fusion_data(fdata_map &fdmap) {
     outdetail.need_alloc_ = false;
 }
 
-// special handling for union values
-bool constant_op_t::compare_contents(const sc_op *other) const {
-    if (other->op_name_ != op_name_) { return false; }
-    COMPILE_ASSERT(attrs_.has_key("values") && attrs_.has_key("dtype"),
-            "expecting values and dtype in attr");
-    COMPILE_ASSERT(
-            other->attrs_.has_key("values") && other->attrs_.has_key("dtype"),
-            "expecting values and dtype in attr");
-    auto dtype = attrs_.get<sc_data_type_t>("dtype");
-    if (other->attrs_.get<sc_data_type_t>("dtype") != dtype) { return false; }
-    if (attrs_.has_key("format")) {
-        if (!other->attrs_.has_key("format")) { return false; }
-        if (other->attrs_.get<sc_data_format_t>("format")
-                != attrs_.get<sc_data_format_t>("format")) {
-            return false;
-        }
+static void extract_const_op_data(const sc_op *ths,
+        const std::function<bool(const sc_op *, const std::string &)> &filter,
+        const std::shared_ptr<static_data_t> *&out_vales,
+        const sc_data_type_t *&out_dtype, const sc_data_format_t *&out_fmt) {
+    if (!filter || filter(ths, "values")) {
+        out_vales = ths->attrs_.get_or_null<std::shared_ptr<static_data_t>>(
+                "values");
+        COMPILE_ASSERT(out_vales, "expecting values");
     }
-    auto &vals = attrs_.get<std::shared_ptr<static_data_t>>("values");
-    auto &vals2 = other->attrs_.get<std::shared_ptr<static_data_t>>("values");
+    if (!filter || filter(ths, "dtype")) {
+        out_dtype = ths->attrs_.get_or_null<sc_data_type_t>("dtype");
+        COMPILE_ASSERT(out_dtype, "expecting dtype");
+    }
+    if (!filter || filter(ths, "format")) {
+        out_fmt = ths->attrs_.get_or_null<sc_data_format_t>("format");
+    }
+}
+
+// special handling for union values
+bool constant_op_t::compare_contents(const sc_op *other,
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
+    if (other->op_name_ != op_name_) { return false; }
+    const std::shared_ptr<static_data_t> *values = nullptr,
+                                         *other_values = nullptr;
+    const sc_data_type_t *dtype = nullptr, *other_dtype = nullptr;
+    const sc_data_format_t *fmt = nullptr, *other_fmt = nullptr;
+    extract_const_op_data(this, filter, values, dtype, fmt);
+    extract_const_op_data(other, filter, other_values, other_dtype, other_fmt);
+    if (dtype) {
+        if (!other_dtype || *dtype != *other_dtype) { return false; }
+    }
+    if (fmt) {
+        if (!other_fmt || *fmt != *other_fmt) { return false; }
+    }
+    if (!values) { return other_values == nullptr; }
+    // now values must be non-null
+    if (!other_values) { return false; }
+    auto &vals = *values;
+    auto &vals2 = *other_values;
     if (vals->size_ != vals2->size_) { return false; }
 
-    switch (get_type_category_nothrow(dtype)) {
-        case CATE_FLOAT:
-            for (size_t i = 0; i < vals->size_ / 4; i++) {
-                if (static_cast<float *>(vals->data_)[i]
-                        != static_cast<float *>(vals2->data_)[i]) {
-                    return false;
+    if (dtype) {
+        switch (get_type_category_nothrow(*dtype)) {
+            case CATE_FLOAT:
+                for (size_t i = 0; i < vals->size_ / 4; i++) {
+                    if (static_cast<float *>(vals->data_)[i]
+                            != static_cast<float *>(vals2->data_)[i]) {
+                        return false;
+                    }
                 }
-            }
-            break;
-        case CATE_INT:
-        case CATE_UINT:
-            for (size_t i = 0; i < vals->size_ / 4; i++) {
-                if (static_cast<uint32_t *>(vals->data_)[i]
-                        != static_cast<uint32_t *>(vals2->data_)[i]) {
-                    return false;
+                break;
+            case CATE_INT:
+            case CATE_UINT:
+                for (size_t i = 0; i < vals->size_ / 4; i++) {
+                    if (static_cast<uint32_t *>(vals->data_)[i]
+                            != static_cast<uint32_t *>(vals2->data_)[i]) {
+                        return false;
+                    }
                 }
-            }
-            break;
-        default:
-            throw std::runtime_error("Met unexpected dtype for constant");
-            break;
+                break;
+            default:
+                throw std::runtime_error("Met unexpected dtype for constant");
+                break;
+        }
     }
     return true;
 }
 
-size_t constant_op_t::hash_contents() const {
+size_t constant_op_t::hash_contents(
+        const std::function<bool(const sc_op *, const std::string &)> &filter)
+        const {
     size_t seed = 0;
-    COMPILE_ASSERT(attrs_.has_key("values") && attrs_.has_key("dtype"),
-            "expecting values and dtype in attr");
-    if (attrs_.has_key("format")) {
-        hash_combine(seed, attrs_.get<sc_data_format_t>("format"));
-    }
-    auto &vals = attrs_.get<std::shared_ptr<static_data_t>>("values");
+    const std::shared_ptr<static_data_t> *values = nullptr;
+    const sc_data_type_t *dtype = nullptr;
+    const sc_data_format_t *fmt = nullptr;
+    extract_const_op_data(this, filter, values, dtype, fmt);
+    if (fmt) { hash_combine(seed, *fmt); }
+    if (!values) { return seed; }
+    auto &vals = *values;
 
     for (size_t i = 0; i < vals->size_; i++) {
         hash_combine(seed, static_cast<char *>(vals->data_)[i]);

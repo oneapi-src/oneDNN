@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,5 +112,14 @@ inline runtime_kind_t engine_id_t::runtime_kind() const {
 
 } // namespace impl
 } // namespace dnnl
+
+namespace std {
+template <>
+struct hash<dnnl::impl::engine_id_t> {
+    std::size_t operator()(const dnnl::impl::engine_id_t &id) const {
+        return id.hash();
+    }
+};
+} // namespace std
 
 #endif

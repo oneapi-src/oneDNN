@@ -20,6 +20,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/pass/ir_copy_internal.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
+#include <compiler/ir/transform/index_flatten.hpp>
 #include <compiler/ir/util_module_passes.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
@@ -117,8 +118,10 @@ public:
     // the current insertion point within a stmts_node_t
     insertion_point_t *ins_point = nullptr;
     const_ir_module_ptr modu_ = nullptr;
-    func_inliner_impl_t(const const_ir_module_ptr &modu = nullptr)
-        : modu_(modu) {}
+    bool need_index_flatten_;
+    func_inliner_impl_t(
+            bool need_index_flatten, const const_ir_module_ptr &modu = nullptr)
+        : modu_(modu), need_index_flatten_(need_index_flatten) {}
 
     bool is_func_marked_inline(node_base *callee) {
         if (auto f = dynamic_cast<func_base *>(callee)) {
@@ -238,9 +241,13 @@ public:
 
         // fill in the replace map
         std::unordered_map<expr_c, expr> rmap;
+        bool has_tptr_arg = false;
         for (size_t i = 0; i < site->args_.size(); i++) {
             rmap.insert(
                     std::make_pair(the_func->params_.at(i), site->args_.at(i)));
+            // if the arg has tensor ptr, we need to call index flatten in the
+            // new body to make sure nested tptr like "&&a[0][0]" is flattened
+            if (site->args_[i].isa<tensorptr>()) { has_tptr_arg = true; }
         }
         if (modu) {
             auto module_vars = modu->get_module_vars();
@@ -288,6 +295,10 @@ public:
             stmt_c new_body = impl.copy(promote_stmt_to_stmts(the_func->body_));
             // then recursively inline the "call_node"s in the body
             new_body = dispatch(std::move(new_body));
+            if (has_tptr_arg && need_index_flatten_) {
+                // need to flatten the nested tensorptrs
+                new_body = index_flattener_t()(new_body);
+            }
             // push the new stmt in the insertion point
             ins_point->base.insert(itr, std::move(new_body).remove_const());
 
@@ -299,7 +310,7 @@ public:
 
 expr_c func_inliner_t::inline_at(call_c c, std::vector<stmt> &seq,
         size_t insert_idx, const const_ir_module_ptr &modu) {
-    func_inliner_impl_t impl;
+    func_inliner_impl_t impl {false};
     func_inliner_impl_t::insertion_point_t insp {seq, insert_idx};
     impl.ins_point = &insp;
     return impl.inline_at(std::move(c), modu);
@@ -325,7 +336,7 @@ static bool is_simple_func(const func_t &f) {
 }
 
 const_ir_module_ptr func_inliner_t::operator()(const_ir_module_ptr f) {
-    func_inliner_impl_t impl(f);
+    func_inliner_impl_t impl(needs_index_flatten_, f);
     auto mainf = f->get_entry_func();
     for (auto &fu : f->get_contents()) {
         if (fu != mainf && is_simple_func(fu)) {
@@ -337,8 +348,8 @@ const_ir_module_ptr func_inliner_t::operator()(const_ir_module_ptr f) {
     return dispatch_module_on_visitor(&impl, f);
 }
 
-func_c func_inliner_t::operator()(func_c f) {
-    func_inliner_impl_t impl;
+func_c func_inliner_t::operator()(func_c f) const {
+    func_inliner_impl_t impl {needs_index_flatten_};
     return impl.dispatch(std::move(f));
 };
 

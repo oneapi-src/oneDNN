@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
 * Copyright 2020-2023 FUJITSU LIMITED
+* Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -211,8 +212,9 @@ static inline bool mayiuse_atomic() {
     return cpu().isAtomicSupported();
 }
 
-inline bool isa_has_bf16(cpu_isa_t isa) {
-    return false;
+static inline bool mayiuse_bf16() {
+    using namespace Xbyak_aarch64::util;
+    return cpu().isBf16Supported();
 }
 
 } // namespace
