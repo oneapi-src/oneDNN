@@ -103,9 +103,7 @@ private:
 };
 
 struct stream_t {
-    stream_t(dnnl_engine_t engine,
-            dnnl_stream_flags_t flags = dnnl_stream_default_flags,
-            void *interop_obj = nullptr);
+    stream_t(dnnl_engine_t engine, void *interop_obj = nullptr);
     ~stream_t();
     operator dnnl_stream_t() const { return stream_; }
 

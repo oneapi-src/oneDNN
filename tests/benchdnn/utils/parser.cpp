@@ -19,6 +19,7 @@
 
 #include "utils/cold_cache.hpp"
 #include "utils/parser.hpp"
+#include "utils/stream_kind.hpp"
 
 #include "dnnl_common.hpp"
 
@@ -1077,6 +1078,28 @@ static bool parse_start(
             test_start, 0, parser_utils::stoll_safe, str, option_name, help);
 }
 
+static bool parse_stream_kind(
+        const char *str, const std::string &option_name = "stream-kind") {
+    static const std::string help
+            = "KIND    (Default: `def`)\n    Specifies a stream `KIND` to test "
+              "with DPC++ and OpenCL engines through stream flags.\n    "
+              "`KIND` values are `def` (the default flags), `in_order`, or "
+              "`out_of_order`.\n";
+    bool parsed = parse_single_value_option(stream_kind, default_stream_kind,
+            str2stream_kind, str, option_name, help);
+
+#if !defined(DNNL_WITH_SYCL) && DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL
+    if (parsed) {
+        BENCHDNN_PRINT(0,
+                "Error: option `--%s` is supported with DPC++ and OpenCL "
+                "builds only, exiting...\n",
+                option_name.c_str());
+        SAFE_V(FAIL);
+    }
+#endif
+    return parsed;
+}
+
 static bool parse_verbose(
         const char *str, const std::string &option_name = "verbose") {
     static const std::string help
@@ -1118,7 +1141,7 @@ bool parse_bench_settings(const char *str) {
             || parse_repeats_per_prb(str) || parse_mem_check(str)
             || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_skip_impl(str)
-            || parse_start(str) || parse_verbose(str);
+            || parse_start(str) || parse_stream_kind(str) || parse_verbose(str);
 
     // Last condition makes this help message to be triggered once driver_name
     // is already known.

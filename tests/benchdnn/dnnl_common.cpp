@@ -46,6 +46,7 @@
 #include "dnnl_memory.hpp"
 
 #include "utils/cold_cache.hpp"
+#include "utils/stream_kind.hpp"
 
 extern "C" dnnl_status_t dnnl_impl_notify_profiling_complete(
         dnnl_stream_t stream);
@@ -505,19 +506,8 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
     if (!has_bench_mode_bit(mode_bit_t::perf)) return OK;
 
     const auto &engine = get_test_engine();
-    dnnl_stream_flags_t profiling_flags {};
-    const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
-#ifdef DNNL_EXPERIMENTAL_PROFILING
-    profiling_flags = dnnl_stream_profiling;
-#else
-    profiling_flags = static_cast<dnnl_stream_flags_t>(
-            dnnl::impl::stream_flags::profiling);
-#endif
-    const dnnl_stream_flags_t flags = use_profiling
-            ? static_cast<dnnl_stream_flags_t>(
-                    dnnl_stream_default_flags | profiling_flags)
-            : dnnl_stream_default_flags;
-    stream_t stream(engine, flags, ctx.get_interop_obj());
+    stream_t stream(engine, ctx.get_interop_obj());
+
     std::vector<dnnl_exec_arg_t> dnnl_args;
     execute_unmap_args(args, dnnl_args);
 
@@ -1316,8 +1306,7 @@ engine_t::~engine_t() {
     if (is_owner_) DNN_SAFE_V(dnnl_engine_destroy(engine_));
 }
 
-stream_t::stream_t(
-        dnnl_engine_t engine, dnnl_stream_flags_t flags, void *interop_obj) {
+stream_t::stream_t(dnnl_engine_t engine, void *interop_obj) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     if (is_cpu(engine)) {
         auto tp = static_cast<dnnl::threadpool_interop::threadpool_iface *>(
@@ -1327,6 +1316,11 @@ stream_t::stream_t(
         return;
     }
 #endif
+
+    const bool use_profiling = has_bench_mode_bit(mode_bit_t::perf) && is_gpu()
+            && !is_nvidia_gpu() && !is_amd_gpu();
+    dnnl_stream_flags_t flags
+            = stream_kind2stream_flags(stream_kind, use_profiling);
     DNN_SAFE_V(dnnl_stream_create(&stream_, engine, flags));
 }
 

@@ -38,6 +38,7 @@
 #include "dnnl_memory.hpp"
 #include "utils/cold_cache.hpp"
 #include "utils/parser.hpp"
+#include "utils/stream_kind.hpp"
 
 #define BENCHDNN_DNNL_ARG_UNDEF 0
 
@@ -767,6 +768,8 @@ std::ostream &dump_global_params(std::ostream &s) {
 #if defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (canonical || memory_kind != default_memory_kind)
         s << "--memory-kind=" << memory_kind << " ";
+    if (canonical || stream_kind != default_stream_kind)
+        s << "--stream-kind=" << stream_kind << " ";
 #endif
     if (canonical || cold_cache_mode != default_cold_cache_mode)
         s << "--cold-cache=" << cold_cache_mode << " ";

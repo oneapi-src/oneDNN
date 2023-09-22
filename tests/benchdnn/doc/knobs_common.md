@@ -77,6 +77,11 @@ driver. The following common options are supported:
   directly. When using batch files, no difference is observed because batch
   file starts a new cycle underneath, and a scratchpad value is propagated.
 
+* `--stream-kind=KIND` -- Specifies the stream kind to test with DPC++ and
+  OpenCL engines by providing flags to the stream. The queue object is managed
+  inside the library. `KIND` values can be `def` (default), `in_order`, or
+  `out_of_order`. Refer to `dnnl_stream_flags_t` for more information.
+
 * `--repeats-per-prb=N` -- Specifies the number of times to repeat testing of
   the problem. The default is `1`. This option may help to reproduce sporadic
   failures.
