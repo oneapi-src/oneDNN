@@ -78,6 +78,10 @@ logical_tensor::data_type deserialized_lt::get_data_type() const {
         return logical_tensor::data_type::s32;
     } else if (data_type_ == "boolean") {
         return logical_tensor::data_type::boolean;
+    } else if (data_type_ == "f8_e5m2") {
+        return logical_tensor::data_type::f8_e5m2;
+    } else if (data_type_ == "f8_e4m3") {
+        return logical_tensor::data_type::f8_e4m3;
     } else {
         return logical_tensor::data_type::undef;
     }

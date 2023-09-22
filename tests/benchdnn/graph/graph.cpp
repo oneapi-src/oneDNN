@@ -435,6 +435,12 @@ int doit(const prb_t *prb, res_t *res) {
                 case logical_tensor::data_type::f16:
                     in_out_dt.emplace_back(dnnl_f16);
                     break;
+                case logical_tensor::data_type::f8_e5m2:
+                    in_out_dt.emplace_back(dnnl_f8_e5m2);
+                    break;
+                case logical_tensor::data_type::f8_e4m3:
+                    in_out_dt.emplace_back(dnnl_f8_e4m3);
+                    break;
                 default: break;
             }
         }
