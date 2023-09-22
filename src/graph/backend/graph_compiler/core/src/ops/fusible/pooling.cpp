@@ -531,13 +531,6 @@ static void compute_block_pooling(
             then_stmt = cur;
         }
 
-        if (pooling_typ == pooling_type_t::max) {
-            else_stmt = make_stmt<assign_node_t>(pooling_buf_var,
-                    builder::make_max(zero_constant, pooling_buf_var));
-            else_stmt->attr()[op_traits::workload_computable_t::workload_number]
-                    = wkld;
-        }
-
         cur = make_stmt<if_else_node_t>(conds[i], then_stmt, else_stmt);
 
         body = cur.isa<stmts>()

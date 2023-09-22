@@ -228,10 +228,7 @@ inline void compute_pooling_ref_fwd(std::string &pooling_type, const int64_t MB,
             for (int64_t kw = 0; kw < KW; ++kw) {
                 const int64_t ih = oh * SH - PH + kh;
                 const int64_t iw = ow * SW - PW + kw;
-                if (ih < 0 || ih >= IH || iw < 0 || iw >= IW) {
-                    if (pooling_type == "max") d = std::max(d, zero);
-                    continue;
-                }
+                if (ih < 0 || ih >= IH || iw < 0 || iw >= IW) { continue; }
                 int64_t src_off = ih * IW + iw;
                 if (pooling_type == "max")
                     d = std::max(
