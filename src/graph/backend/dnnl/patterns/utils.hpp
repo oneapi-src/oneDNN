@@ -33,6 +33,7 @@ namespace pattern {
 
 template <int64_t N>
 bool check_zps_values(op_t *op) {
+    if (op->has_attr(op_attr::zps) == false) return true;
     auto zps = op->get_attr<std::vector<int64_t>>(op_attr::zps);
     return std::all_of(
             zps.begin(), zps.end(), [](int64_t i) { return i == N; });
