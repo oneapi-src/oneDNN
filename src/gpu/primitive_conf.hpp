@@ -478,16 +478,16 @@ struct bnorm_conf_t {
 
     std::string flags;
     bool bn_tuning;
-    bool is_blocked_16c;
-    bool is_blocked_16n16c;
-    bool is_blocked_32n16c;
-    bool is_nhwc;
-    bool is_overrided_use_fused_atomics_reduction;
-    bool is_overrided_ic_block;
-    bool is_overrided_max_vect_size;
-    bool is_overrided_stat_sp_block;
-    bool is_overrided_update_sp_block;
-    bool is_overrided_update_sp_unroll;
+    bool is_blocked_16c = false;
+    bool is_blocked_16n16c = false;
+    bool is_blocked_32n16c = false;
+    bool is_nhwc = false;
+    bool is_overrided_use_fused_atomics_reduction = false;
+    bool is_overrided_ic_block = false;
+    bool is_overrided_max_vect_size = false;
+    bool is_overrided_stat_sp_block = false;
+    bool is_overrided_update_sp_block = false;
+    bool is_overrided_update_sp_unroll = false;
 
     compute::dispatch_t dispatch_calc_stat;
     compute::dispatch_t dispatch_reduce_stat;

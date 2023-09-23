@@ -172,6 +172,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     if (!conf.nhwc_optimized) return status::unimplemented;
 
     conf.mb_block = 1;
+    conf.is_nhwc = true;
 
     const bool has_padding = !data_mdw.is_dense();
     if (has_padding) return status::unimplemented;
