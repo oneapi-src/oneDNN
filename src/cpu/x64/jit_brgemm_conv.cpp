@@ -283,7 +283,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     brg_strides.stride_a = jcp_.brg_stride_a;
     brg_strides.stride_b = jcp_.brg_stride_b;
     brg.req_cal_comp_pads = jcp_.req_brg_comp_pad;
-    brg.req_comp_pads_with_bd
+    brg.req_comp_pads_with_bcast
             = jcp_.req_cal_comp_pad && jcp_.exec_type != exec_vpad;
     const auto strides_ptr
             = (jcp_.brg_type == brgemm_strd) ? &brg_strides : nullptr;

@@ -34,7 +34,7 @@ struct jit_brgemm_conv_comp_pad_call_s {
     size_t kw_l;
     size_t kh_l;
     size_t kd_l;
-    size_t ker_l;
+    size_t ker_l {1};
 };
 
 // Kernel is unified to work with fwd and bwd_d conv
@@ -121,10 +121,16 @@ protected:
             const int ow_e);
     void copy_ow_body(const int n_block, const int ow_b, const int ow_e);
     void kw_loop(const int icb, const int icb_tail, const int ic_step,
-            const int m_block, const int mb_tail, const int n_block);
-    void kw_loop_trans(const int icb, const int icb_tail, const int ic_step,
             const int m_block, const int mb_tail, const int n_block,
             const bool use_inversion);
+    void kw_loop_base(const int icb, const int icb_tail, const int ic_step,
+            const int m_block, const int mb_tail, const int n_block);
+    void fwd_kw_ow_loop(const int icb, const int icb_tail, const int ic_step,
+            const int m_block, const int mb_tail, const int n_block,
+            const bool use_inversion);
+    void bwd_kw_iw_loop(const int icb, const int icb_tail, const int ic_step,
+            const int m_block, const int mb_tail, const int n_block);
+
     void load_params();
     void generate() override;
 };

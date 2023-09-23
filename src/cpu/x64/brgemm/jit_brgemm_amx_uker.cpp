@@ -786,7 +786,7 @@ void jit_brgemm_amx_uker_base_t::read_params() {
         mov(reg_zp_a_values, ptr[param1 + GET_OFF(zp_a_val)]);
         mov(ptr[rsp + reg_zp_a_values_offs_], reg_zp_a_values);
 
-        if (brg.req_comp_pads_with_bd)
+        if (brg.req_comp_pads_with_bcast)
             mov(reg_zp_comp_pad_a, ptr[param1 + GET_OFF(a_zp_compensations)]);
     }
 
@@ -1248,14 +1248,14 @@ void jit_brgemm_amx_uker_base_t::process_output_range(
 
         if (dq2ps_required) vcvtdq2ps(zmm, zmm);
 
-        if (brg.req_comp_pads_with_bd)
+        if (brg.req_comp_pads_with_bcast)
             apply_comp_pad_to_vector(bi, bdb, bd, ldb, zmm.getIdx());
     }
 
     if (!bi.apply_postops || !some_bd_mask) return;
 
     if (brg.zp_type_a != brgemm_broadcast_t::none
-            && !brg.req_comp_pads_with_bd) {
+            && !brg.req_comp_pads_with_bcast) {
         for (auto bd = bd_start; bd < bd_finish; bd++) {
             if (!is_out_bd(bi.bdi, bdb, bd)) continue;
 
@@ -1937,7 +1937,7 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
         if (bi_shift != nullptr) {
             add(reg_C, bi_shift->bdi->C_shift);
             add(reg_D, bi_shift->bdi->D_shift);
-            if (brg.req_comp_pads_with_bd)
+            if (brg.req_comp_pads_with_bcast)
                 add(reg_zp_comp_pad_a, bi_shift->bdi->zp_comp_pad_a_shift);
         }
     }
@@ -2129,7 +2129,7 @@ void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
         // update reg_C and reg_D if they they were not updated yet
         add(reg_C, bi.bdi->C_shift);
         add(reg_D, bi.bdi->D_shift);
-        if (brg.req_comp_pads_with_bd)
+        if (brg.req_comp_pads_with_bcast)
             add(reg_zp_comp_pad_a, bi.bdi->zp_comp_pad_a_shift);
     }
     interleave_store(bi, true);

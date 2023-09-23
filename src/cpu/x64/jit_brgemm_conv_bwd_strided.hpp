@@ -127,9 +127,13 @@ private:
         int32_t *s8s8_comp_ptr;
     };
 
-    static int get_ker_po_idx(int m, bool do_postwork, bool is_N_tail) {
+    inline static int get_ker_po_idx(int m, bool do_postwork, bool is_N_tail) {
         return (m * 2 + static_cast<int>(do_postwork)) * 2
                 + static_cast<int>(is_N_tail);
+    }
+
+    inline int get_comp_iw(const int iw) const {
+        return utils::div_up(IW, SW) * (iw % SW) + iw / SW;
     }
 
     void get_kw_range(int iw, int iw_raw, int &kw_s, int &kw_full_s,
@@ -144,8 +148,9 @@ private:
             bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
             const void *post_ops_binary_rhs_arg_vec, const float *oscales,
             int32_t src_zp_vals, int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
-            int32_t *s8s8_compensation, bool maybe_do_init, bool do_postwork,
-            bool do_post_comp, const float *dst_scales) const;
+            int32_t *s8s8_compensation, size_t comp_ker_offs,
+            bool maybe_do_init, bool do_postwork, bool do_post_comp,
+            const float *dst_scales) const;
 
     void call_brgemm_kernel(brgemm_bwd_thread_ctx_t &btc, int brg_idx,
             int batch_size, char *ptr_C, char *ptr_D, const char *bias_w,
@@ -199,7 +204,7 @@ private:
     dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz, wei_oc_sz,
             wei_kw_sz, wei_kh_sz, wei_kd_sz, wei_icb_sz;
     dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
-    dim_t comp_icb_sz, comp_ker_sz, comp_kw_sz;
+    dim_t comp_icb_sz, comp_ker_sz, comp_kw_sz, comp_iw_sz;
 
     int oc_chunks;
     bool need_postwork;

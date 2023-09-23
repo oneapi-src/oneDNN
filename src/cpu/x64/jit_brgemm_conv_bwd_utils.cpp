@@ -1563,11 +1563,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = get_zp_type(attr, is_deconv ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC)
             != brgemm_broadcast_t::none;
 
-    // TODO: Extend zero points support to AMX
     const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
 
-    const bool params_ok = IMPLICATION(has_zero_points, !is_amx(jcp.isa))
-            && IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
+    const bool params_ok
+            = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
             && IMPLICATION(jcp.src_zero_point,
                     attr.zero_points_.common(
                             is_deconv ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST))
@@ -1812,8 +1811,9 @@ dim_t precalculate_comp_pad_kernels(const jit_brgemm_conv_conf_t &jcp,
                         }
                     }
                 } else
-                    assert(!"Unsupported exec type.");
-            }
+                    update_kernels(kd_s, kd_f, kh_s, kh_f, 0, KW);
+            } else if (jcp.exec_type == exec_trans && is_amx(jcp.isa))
+                update_kernels(0, 0, 0, 0, 0, 0);
         }
     }
     return k;
@@ -1981,10 +1981,17 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.req_brg_comp_pad = false;
     jcp.req_cal_comp_pad = jcp.src_zero_point || jcp.s8s8_compensation_required;
 
+    // Dispatch the shapes to VNNI for better performance
+    if (jcp.req_cal_comp_pad && jcp.src_zero_point && is_amx(jcp.isa)
+            && jcp.ngroups * jcp.ic * jcp.id * jcp.ih * jcp.iw < 4096
+            && jcp.ic <= 4 && jcp.oc <= 64 && jcp.mb <= 64)
+        return status::unimplemented;
+
     if (jcp.req_cal_comp_pad) {
+        const auto comp_buffer_iw = jcp.exec_type == exec_trans ? jcp.iw : 1;
         jcp.ker_ranges_size = precalculate_comp_pad_kernels(jcp);
         jcp.comp_a_buffer_size = static_cast<dim_t>(jcp.ngroups) * jcp.nb_ic
-                * jcp.ker_ranges_size * jcp.ic_block;
+                * jcp.ker_ranges_size * comp_buffer_iw * jcp.ic_block;
         jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
     }
 
@@ -2020,7 +2027,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_brgemm_primitive_buffer_comp,
                 jcp.s8s8_comp_buffer_size, sizeof(int32_t), 0, P4K);
     }
-    if (jcp.src_zero_point && jcp.req_cal_comp_pad && !is_amx(jcp.isa)) {
+    if (jcp.src_zero_point && jcp.req_cal_comp_pad) {
         scratchpad.book(key_brgemm_primitive_zp_comp_a, jcp.comp_a_buffer_size,
                 sizeof(int32_t), 0, P4K);
     }

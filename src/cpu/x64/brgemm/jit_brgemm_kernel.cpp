@@ -648,7 +648,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::advance_bdb_post_op_regs(int adj_bd_block) {
         add(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(1));
         mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_aux_zp_comp_b);
     }
-    if (brg.req_comp_pads_with_bd
+    if (brg.req_comp_pads_with_bcast
             && brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
         add(reg_aux_zp_comp_a, bdb_compensation_offset(1));
@@ -666,7 +666,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::restore_bdb_post_op_regs(int bd_block2) {
             sub(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(bd_block2 - 1));
             mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_aux_zp_comp_b);
         }
-        if (brg.req_comp_pads_with_bd
+        if (brg.req_comp_pads_with_bcast
                 && brg.zp_type_a != brgemm_broadcast_t::none) {
             mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
             sub(reg_aux_zp_comp_a, bdb_compensation_offset(bd_block2 - 1));
@@ -725,13 +725,13 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_regs_shift(
 template <cpu_isa_t isa, typename Wmm>
 void jit_brgemm_kernel_t<isa, Wmm>::advance_bd_block2_post_op_regs(
         int bd_block2) {
-    if (brg.req_comp_pads_with_bd && brg.req_s8s8_compensation) {
+    if (brg.req_comp_pads_with_bcast && brg.req_s8s8_compensation) {
         mov(reg_compensation, ptr[rsp + reg_comp_offs_]);
         add(reg_compensation, bdb_compensation_offset(bd_block2));
         mov(ptr[rsp + reg_comp_offs_], reg_compensation);
     }
 
-    if (brg.req_comp_pads_with_bd
+    if (brg.req_comp_pads_with_bcast
             && brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(reg_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
         add(reg_zp_comp_a, bdb_zp_comp_a_offset(bd_block2));
@@ -1272,7 +1272,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
         for (int ld = 0; ld < ld_block2; ld++) {
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
             for (int bd = 0; bd < bd_block; bd++) {
-                if (IMPLICATION(!brg.req_comp_pads_with_bd, bd == 0)) {
+                if (IMPLICATION(!brg.req_comp_pads_with_bcast, bd == 0)) {
                     const auto zp_comp_a_addr = ptr[reg_aux_zp_comp_a
                             + bd_zp_comp_a_offset(ld, bd)];
                     if (IMPLICATION(is_tail, isa_has_masks(brg.isa_impl))) {
@@ -1320,7 +1320,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
         for (int ld = 0; ld < ld_block2; ld++) {
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
             for (int bd = 0; bd < bd_block; bd++) {
-                if (IMPLICATION(!brg.req_comp_pads_with_bd, bd == 0)) {
+                if (IMPLICATION(!brg.req_comp_pads_with_bcast, bd == 0)) {
                     const auto comp_addr = ptr[reg_aux_compensation
                             + bd_compensation_offset(ld, bd)];
                     if (IMPLICATION(is_tail,
@@ -1521,8 +1521,11 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
                             add(reg_aux_D, bdb_D_offset(1));
 
                         advance_bdb_post_op_regs(adj_bd_block);
-                        post_processed
-                                |= brg.zp_type_b != brgemm_broadcast_t::none;
+                        post_processed |= utils::one_of(true,
+                                brg.zp_type_b != brgemm_broadcast_t::none,
+                                brg.req_comp_pads_with_bcast
+                                        && brg.zp_type_a
+                                                != brgemm_broadcast_t::none);
                     }
                     if (post_processed) mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                 }

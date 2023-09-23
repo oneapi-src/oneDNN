@@ -217,7 +217,7 @@ struct brgemm_t {
     bool is_dgmm = false; // set to true in brdgmm_desc_init
     bool with_sum = false;
     bool req_cal_comp_pads = false;
-    bool req_comp_pads_with_bd = false;
+    bool req_comp_pads_with_bcast = false;
 
     float sum_scale = 0.0f;
     int32_t sum_zp = 0;
