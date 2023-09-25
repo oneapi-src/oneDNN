@@ -129,13 +129,24 @@ __kernel void ref_gnorm_fwd(__global const SRC_DATA_T *src,
             result_val *= src_scale_val;
 
             // post-op operation
-            GNORM_ACC post_op_acc;
-#if WITH_SUM
-            post_op_acc = DST_TO_REF(dst[idx]);
-#endif
-            APPLY_POST_OPS_SERIAL(result_val, GNORM_ACC, post_op_acc, GNORM_ACC,
-                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1);
+            GNORM_ACC post_op_acc
+                    = WITH_SUM ? DST_TO_REF(dst[idx]) : GNORM_ACC_CONST_0;
 
+// the macro changes meaning of the input parameters with diffrent ndims
+#if NDIMS == 3
+            APPLY_POST_OPS_SERIAL(result_val, GNORM_ACC, post_op_acc, GNORM_ACC,
+                    id_batch, 1, channel, 1, width, 1, 0, 1, 0, 1, 0, 1);
+#elif NDIMS == 4
+            APPLY_POST_OPS_SERIAL(result_val, GNORM_ACC, post_op_acc, GNORM_ACC,
+                    id_batch, 1, channel, 1, height, 1, width, 1, 0, 1, 0, 1);
+#elif NDIMS == 5
+            APPLY_POST_OPS_SERIAL(result_val, GNORM_ACC, post_op_acc, GNORM_ACC,
+                    id_batch, 1, channel, 1, depth, 1, height, 1, width, 1, 0,
+                    1);
+#else
+            APPLY_POST_OPS_SERIAL(result_val, GNORM_ACC, post_op_acc, GNORM_ACC,
+                    id_batch, 1, channel, 1, 0, 1, 0, 1, 0, 1, 0, 1);
+#endif
             result_val *= r_dst_scale_val;
 
             dst[idx] = TO_DST(result_val);
