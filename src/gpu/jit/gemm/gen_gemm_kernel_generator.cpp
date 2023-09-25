@@ -18975,7 +18975,7 @@ void gemm_kernel_generator_t<hw>::gemm(
 
     // Adjust k range for local/global k-reduction.
     if (anyKParallelFixed && !strategy.kParallelVariable) {
-        add(1, state.inputs.k,
+        add(1 | sat, state.inputs.k.ud(),
                 strategy.persistent ? state.fullK : state.inputs.k, -state.h0);
         min_(1, state.inputs.k, state.inputs.k, state.inputs.k0);
 
