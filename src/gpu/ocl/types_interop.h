@@ -31,6 +31,15 @@ typedef struct {
     int64_t array[3];
 } int64x3_t;
 
+// Number of terms usable by a single dispatcher, each defined in ocl_types.h
+#define MAX_NUM_INDEXING_TERMS 10
+
+typedef struct {
+    int64_t sizes[MAX_NUM_INDEXING_TERMS];
+    int64_t strides[MAX_NUM_INDEXING_TERMS];
+    int64_t blocks[MAX_NUM_INDEXING_TERMS];
+} dispatch_gws_rt_params_t;
+
 #define ZERO_PAD_MASK_DATA_TYPE uint8_t
 #define ZERO_PAD_MASK_DT_BITS (8 * sizeof(ZERO_PAD_MASK_DATA_TYPE))
 #define ZERO_PAD_MAX_STEP_SIZE 1536

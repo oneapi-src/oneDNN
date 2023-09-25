@@ -61,6 +61,10 @@ static void set_scalar_arg(::sycl::handler &cgh, int index,
         case scalar_type_t::_int64x3_t:
             cgh.set_arg(index, *static_cast<const int64x3_t *>(value));
             break;
+        case scalar_type_t::_dispatch_gws_rt_params_t:
+            cgh.set_arg(index,
+                    *static_cast<const dispatch_gws_rt_params_t *>(value));
+            break;
         default:
             assert(!"Please add another case");
             throw std::runtime_error("Internal error");

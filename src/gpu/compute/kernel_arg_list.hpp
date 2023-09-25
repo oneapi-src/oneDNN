@@ -56,6 +56,7 @@ enum class scalar_type_t {
     _ushort,
     _zero_pad_mask_t,
     _int64x3_t,
+    _dispatch_gws_rt_params_t,
 };
 
 template <typename T>
@@ -114,6 +115,10 @@ struct scalar_type_traits<zero_pad_mask_t> {
 template <>
 struct scalar_type_traits<int64x3_t> {
     static const auto type = scalar_type_t::_int64x3_t;
+};
+template <>
+struct scalar_type_traits<dispatch_gws_rt_params_t> {
+    static const auto type = scalar_type_t::_dispatch_gws_rt_params_t;
 };
 
 class kernel_arg_t {

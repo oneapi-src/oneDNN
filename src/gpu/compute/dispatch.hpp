@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include "gpu/compute/device_info.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
 #include "gpu/compute/utils.hpp"
+#include "gpu/gpu_primitive_attr.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -78,7 +79,6 @@ public:
             const size_t *grange, const size_t *lrange = nullptr);
     void set_lws(const size_t *lrange);
 
-private:
     // Dimension information necessary for mapping to global work IDs.
     struct dim_info_t {
         // Dimension name to access from a kernel as GWS_GET_<name>().
@@ -105,6 +105,7 @@ private:
         int gws_index;
     };
 
+protected:
     void define_dim_with_md_hint(const std::string &name, int md_hint_index,
             dim_t size, dim_t block = 1);
 

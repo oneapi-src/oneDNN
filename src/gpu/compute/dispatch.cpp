@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,9 +17,11 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
+#include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/dispatch.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
