@@ -39,6 +39,7 @@ struct EvaluateParams {
     bool effective = false;
     bool cConvert = false;
     bool postOps = false;
+    bool batch = false;
 };
 
 struct DerivedEvaluateParams : public EvaluateParams {
