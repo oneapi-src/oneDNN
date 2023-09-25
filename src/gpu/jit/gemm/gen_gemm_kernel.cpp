@@ -322,6 +322,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     eval_params.postOps = (post_ops.len() > 0);
     eval_params.cConvert = (acc_type != c_type);
     eval_params.euCount = eu_count;
+    eval_params.batch = (batch_dims > 0);
 
     entry_ = select(
             gemm_catalog, npatterns, match_params, eval_params, aux_params_);
@@ -447,6 +448,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     eval_params.euCount = eu_count;
     eval_params.postOps = (post_ops.len() > 0);
     eval_params.cConvert = (acc_type != c_type);
+    eval_params.batch = (batch_dims > 0);
 
     entry_ = select(gemm_catalog, match_params, eval_params, aux_params_);
 

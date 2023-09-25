@@ -420,7 +420,7 @@ double evaluateE(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
             }
         }
 
-        if (dp.sizes.batch > 1) return score;
+        if (dp.batch) return score;
 
         int64_t tcount = dp.threadCount;
         if ((tcount != dp.threadCount) || (tcount % dp.hwThreadCapacity != 0)) {
