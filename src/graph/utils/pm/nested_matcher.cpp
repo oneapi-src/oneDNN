@@ -485,6 +485,9 @@ bool match_pattern(op_t *first_op, const std::shared_ptr<pb_graph_t> &pattern,
     match_context_t init_ctx {&global_ctx, pattern.get()};
     binding_t init_bind {BIND_NONE, first_op, 0, pattern.get(), 0};
     std::unordered_map<op_t *, pb_op_t *> matched_op_map;
+    if (first_op->has_attr(op_attr::matched)
+            && first_op->get_attr<bool>(op_attr::matched))
+        return false;
     if (!match_graph(init_bind, &init_ctx, matched_op_map)) { return false; }
 
     fusion_ops = reorder_matched_list(matched_op_map);
