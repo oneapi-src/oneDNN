@@ -174,6 +174,12 @@ is enabled:
 
 > **WARNING**
 >
+> Linux will reset GPU when kernel runtime exceeds several seconds. The user
+> can prevent this behavior by following [instructions](https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/2023-0/gpu-disable-hangcheck.html)
+> on disabling hangcheck for Intel GPU driver. Same behavior [applies](https://learn.microsoft.com/en-us/windows-hardware/drivers/display/timeout-detection-and-recovery)
+> to Windows. The user can prevent this behavior by increasing the [TdrDelay](https://learn.microsoft.com/en-us/windows-hardware/drivers/display/tdr-registry-keys#tdrdelay)
+> setting value.
+>
 > NVIDIA GPU support is experimental. General information, build instructions,
 > and implementation limitations are available in the
 > [NVIDIA backend readme](https://github.com/oneapi-src/oneDNN/blob/master/src/gpu/nvidia/README.md).
