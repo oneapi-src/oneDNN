@@ -332,7 +332,8 @@ pm::pb_node_t *append_rms_norm_option2(
 */
 void create_llama_mlp(const std::shared_ptr<pb_graph_t> &pgraph,
         bool is_bf16 = false, bool is_int8 = false,
-        bool use_rms_norm_alternative = false) {
+        bool use_rms_norm_alternative = false,
+        bool split_smooth_quant = false) {
     auto matmul1 = create_dequant_matmul(pgraph, nullptr, is_bf16, is_int8);
     auto add1
             = pgraph->append_op(graph::op_kind::Add, {in_edge(0, matmul1, 0)});
@@ -341,6 +342,7 @@ void create_llama_mlp(const std::shared_ptr<pb_graph_t> &pgraph,
             ? append_rms_norm_option1(pgraph, add1, is_bf16, is_int8)
             : append_rms_norm_option2(pgraph, add1, is_bf16, is_int8);
 
+    pm::pb_node_t *norm1_for_lhs = norm1, *norm1_for_rhs = norm1;
     if (is_int8) {
         auto extra_cast_before_mul = append_single_op_repetition_subgraph(
                 pgraph, graph::op_kind::TypeCast, norm1);
@@ -350,16 +352,32 @@ void create_llama_mlp(const std::shared_ptr<pb_graph_t> &pgraph,
                 pgraph, graph::op_kind::TypeCast, smooth_quant_mul1, 0, 3);
         auto quant1 = pgraph->append_op(graph::op_kind::Quantize,
                 {in_edge(0, extra_cast_after_mul, 0)});
-        norm1 = quant1;
+        if (split_smooth_quant) {
+            auto smooth_quant_mul1_rhs = append_single_op_repetition_subgraph(
+                    pgraph, graph::op_kind::Multiply, extra_cast_before_mul);
+            auto extra_cast_after_mul_rhs
+                    = append_single_op_repetition_subgraph(pgraph,
+                            graph::op_kind::TypeCast, smooth_quant_mul1_rhs, 0,
+                            3);
+            auto quant1_rhs = pgraph->append_op(graph::op_kind::Quantize,
+                    {in_edge(0, extra_cast_after_mul_rhs, 0)});
+            norm1_for_lhs = quant1;
+            norm1_for_rhs = quant1_rhs;
+        } else {
+            norm1_for_lhs = quant1;
+            norm1_for_rhs = quant1;
+        }
     }
 
-    auto matmul2 = create_dequant_matmul(pgraph, norm1, is_bf16, is_int8);
+    auto matmul2
+            = create_dequant_matmul(pgraph, norm1_for_lhs, is_bf16, is_int8);
     auto silu_sigmoid = pgraph->append_op(
             graph::op_kind::Sigmoid, {in_edge(0, matmul2, 0)});
     auto silu_mul = pgraph->append_op(graph::op_kind::Multiply,
             {in_edge(0, matmul2, 0), in_edge(1, silu_sigmoid, 0)});
 
-    auto matmul3 = create_dequant_matmul(pgraph, norm1, is_bf16, is_int8);
+    auto matmul3
+            = create_dequant_matmul(pgraph, norm1_for_rhs, is_bf16, is_int8);
 
     pm::pb_node_t *mul = pgraph->append_op(graph::op_kind::Multiply,
             {in_edge(0, silu_mul, 0), in_edge(1, matmul3, 0)});
@@ -1063,6 +1081,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_llama_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     create_llama_mlp(pgraph, false, true);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_llama_mlp(pgraph, false, true, false, true);
                 });
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_llama_mlp)
@@ -1076,6 +1098,14 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_llama_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     create_llama_mlp(pgraph, true, true, true);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_llama_mlp(pgraph, true, true, false, true);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_llama_mlp(pgraph, true, true, true, true);
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
