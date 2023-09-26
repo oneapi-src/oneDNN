@@ -41,6 +41,7 @@ static void check_fusible_pooling_fwd(pooling_type_t pool_type, int N, int C,
         bool add_bn_relu = true, int c_block = 1, bool exclude_pad = false,
         bool round_floor = true, std::string auto_pad = auto_pad_options::none,
         bool channel_last = false) {
+    REQUIRE_AVX2();
     int stride_h = strides[0], stride_w = strides[0];
     if (strides.size() > 1) stride_w = strides[1];
 
@@ -590,6 +591,7 @@ static void check_conv_pooling_postops_graph(const std::string &expected_fusion,
         const bool bn_relu = false,
         const std::string auto_pad = auto_pad_options::none,
         const bool check_conv_out = false) {
+    REQUIRE_AVX2();
     int64_t conv_p, conv_q, pool_p, pool_q;
     compute_conv_pooling_outshape(MB, c_block, OC, IC, IH, IW, KH, KW, SH, SW,
             PH, PW, pooling_type, p_KH, p_KW, p_SH, p_SW, p_PH, p_PW,
@@ -825,6 +827,7 @@ static void check_conv_postops_pooling_graph_int8(
         const bool exclude_pad = false,
         const std::string auto_pad = auto_pad_options::none,
         const bool check_conv_out = false) {
+    REQUIRE_VNNI();
     int64_t conv_p, conv_q, pool_p, pool_q;
     compute_conv_pooling_outshape(MB, c_block, OC, IC, IH, IW, KH, KW, SH, SW,
             PH, PW, pooling_type, p_KH, p_KW, p_SH, p_SW, p_PH, p_PW,

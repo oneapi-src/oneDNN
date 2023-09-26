@@ -220,6 +220,7 @@ inline void compute_pooling_ref_fwd(std::string &pooling_type, const int64_t MB,
         const Store_type *src_loc = src_m + (mb * IC + oc) * IH * IW;
 
         int count = 0;
+        SC_UNUSED(count);
         if (pooling_type == "max")
             d = std::numeric_limits<Compute_type>::lowest();
         else
