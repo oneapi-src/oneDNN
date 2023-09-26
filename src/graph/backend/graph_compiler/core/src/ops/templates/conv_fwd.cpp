@@ -109,8 +109,9 @@ void gen_conv_fwd_t::validate_conv_fwd_default_config(
     == loop_sched_list.end()) {
     cfg.loop_sched = loop_sched_list.at(0);
   }
-  if (ops::is_amx_dtype(ctx, get_input_dtype())
-    && cfg.C_block % vnni_blk != 0) {
+  // group convolution will pack the kw * ic and can't be padded in C_block.
+  if (ops::is_amx_dtype(ctx, get_input_dtype()) && cfg.C_block % vnni_blk != 0
+    && attrs_.get_or_else("groups", 1) == 1) {
     cfg.C_block = utils::rnd_up(cfg.C_block, vnni_blk);
   }
 }
