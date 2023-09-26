@@ -361,18 +361,18 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
         return CONCAT3(atomic_fetch_, op, _explicit)( \
                 source, operand, memory_order_relaxed); \
     }
-#if __OPENCL_C_VERSION__ >= 200
-// Atomic operations require:
-// 1. The cl_ext_float_atomics extension (for all float functions)
-// 2. the __opencl_c_ext_fp32_global_atomic_add feature (for float add/sub)
-// 3. the __opencl_c_ext_fp32_global_atomic_min_max feature (for float min/max)
-// All intel GPUs should support these on up-to-date drivers, for all archs
-// gen9 and later
+
+#ifdef cl_ext_float_atomics
+#ifdef __opencl_c_ext_fp32_global_atomic_add
 DECLARE_ATOMIC_OP(add, float)
 DECLARE_ATOMIC_OP(sub, float)
+#endif // __opencl_c_ext_fp32_global_atomic_add
 
+#ifdef __opencl_c_ext_fp32_global_atomic_min_max
 DECLARE_ATOMIC_OP(min, float)
 DECLARE_ATOMIC_OP(max, float)
-#endif
+#endif // __opencl_c_ext_fp32_global_atomic_min_max
+
+#endif // cl_ext_float_atomics
 
 #endif
