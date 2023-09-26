@@ -116,18 +116,11 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     // succeeded, then create CPU memory object wrapping mapped pointers of
     // source and destination and execute CPU reorder. If CPU reorder can't be
     // create, then just execute a regular GPU reorder.
-    //
-    // This optimization is skipped when testing reorder, sum and concat
-    // primitives because they are used specifically to test GPU reorders.
 #if ((DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL) \
         || (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL)) \
         && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    bool is_reorder_related_driver = (driver_name == "reorder"
-            || driver_name == "sum" || driver_name == "concat");
     const auto &cpu_engine = get_cpu_engine();
-    if (!is_reorder_related_driver
-            && (src.engine_kind() == dnnl_gpu
-                    || dst.engine_kind() == dnnl_gpu)) {
+    if (src.engine_kind() == dnnl_gpu || dst.engine_kind() == dnnl_gpu) {
 
         dnnl_status_t status = dnnl_reorder_primitive_desc_create(
                 &r_pd_, src.md_, cpu_engine, dst.md_, cpu_engine, attr);

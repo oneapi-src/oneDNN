@@ -1081,17 +1081,7 @@ void add_md_size(const_dnnl_memory_desc_t md,
         // Correctness pass allocates additional tag::abx f32 memory.
         const bool compare_mem_factor = !check_mem_size_args.want_input
                 && check_mem_size_args.add_ref_size;
-        const auto compare_mem_size = compare_mem_factor * ref_md_size;
-        check_mem_size_args.total_size_cpu += compare_mem_size;
-        // In the `compare_norm(...)` method a service reorder introduced by
-        // `dnn_mem_t got_f32(...)` requires additional memory that should be
-        // taken into account ahead of time. For GPU engine a gpu2cpu reorder
-        // will be called which allocates additional internal scratchpad most of
-        // times to handle reorder, and then perform device2host copy.
-        // Scratchpad is a full copy of f32 destination memory allocated on GPU.
-        if (is_gpu() && compare_mem_size > 0) {
-            check_mem_size_args.sizes.push_back(compare_mem_size);
-        }
+        check_mem_size_args.total_size_cpu += compare_mem_factor * ref_md_size;
     }
 }
 
