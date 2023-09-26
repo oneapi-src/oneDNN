@@ -579,7 +579,9 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     } else {
         K = kh_sets * (ic >= ic_block ? ic_block : 0);
         const auto ic_ceil
-                = exec_type == exec_trans && (!is_bf32) ? simd_w : vnni_block;
+                = exec_type == exec_trans && ic_block % simd_w == 0 && !is_bf32
+                ? simd_w
+                : vnni_block;
         K_tail = kh_sets * rnd_up(ic % ic_block, ic_ceil);
     }
 
