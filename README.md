@@ -12,8 +12,8 @@ experimental support for the following architectures: NVIDIA\* GPU,
 AMD\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
 
 oneDNN is intended for deep learning applications and framework
-developers interested in improving application performance
-on Intel CPUs and GPUs. Deep learning practitioners should use one of the
+developers interested in improving application performance on CPUs and GPUs.
+Deep learning practitioners should use one of the
 [applications enabled with oneDNN](#applications-enabled-with-onednn).
 
 # Table of Contents
