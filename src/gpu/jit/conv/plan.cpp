@@ -2086,7 +2086,6 @@ private:
         return plan_status_t::success;
     }
 
-    // Verifies that SLM loads after k-slicing are at GRF granularity.
     plan_status_t verify_slm_k_slicing() const {
         bmnk_dim_helper_t h(cfg_);
         int k_tg = h.thread_group_dim(gemm_dims::k);
@@ -2112,16 +2111,6 @@ private:
             }
         }
         if (outer != k_tg) return plan_status_t::invalid_slm_k_slicing;
-        auto l_sub = l.map(tensor_t(rem_dims));
-        int bytes = l_sub.type().size();
-        stride_t stride = 1;
-        for (auto &b : l_sub.blocks()) {
-            if (b.stride != stride) break;
-            bytes *= (int)b.block;
-            stride *= b.block;
-        }
-        if (bytes % plan_.grf_size() != 0)
-            return plan_status_t::invalid_slm_k_slicing;
         return plan_status_t::success;
     }
 
