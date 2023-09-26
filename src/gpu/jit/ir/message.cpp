@@ -1157,13 +1157,12 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
         int k_blk = 32 / view.type().size();
         bool is_b0_k = (bmnk_mapper.bmnk_kind(abc_kind, b0.dim_idx)
                 == bmnk_kind_t::k);
-        bool vnni = is_dpas_src1;
         bool transpose = (is_dpas_src1 == is_b0_k);
         int b0_blk = is_b0_k ? k_blk : mn_blk;
         int b1_blk = !is_b0_k ? k_blk : mn_blk;
         if (b0_blk != any_block && b0.block % b0_blk != 0) return hint;
         if (b1_blk != any_block && b1.block % b1_blk != 0) return hint;
-        if (vnni && transpose) return hint;
+        bool vnni = is_dpas_src1 && !transpose;
         hint = get_send_2d_hint(send_op, view.type(), vnni, transpose, b0.block,
                 b1.block, b0_blk, b1_blk);
     } else {
