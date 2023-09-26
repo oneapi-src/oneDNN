@@ -7,8 +7,7 @@ oneDNN is part of oneAPI (https://oneapi.io).
 The library is optimized for Intel(R) Architecture Processors and Intel Graphics.
 
 oneDNN is intended for deep learning applications and framework
-developers interested in improving application performance
-on Intel CPUs and GPUs.
+developers interested in improving application performance on CPUs and GPUs.
 
 This package contains oneDNN v@PROJECT_VERSION@ (@DNNL_VERSION_HASH@).
 
