@@ -807,20 +807,6 @@ int grf_usage_bytes(fma_kind_t fma, int b_iter, int m_iter, int n_iter,
     return abc_size;
 }
 
-int grf_usage_bytes(const conv_config_t &cfg, const conv_params_t &params) {
-    auto &prb = cfg.prb();
-    auto iter = to_gemm(
-            params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
-    int b_iter = iter.at(gemm_dims::b, 1);
-    int m_iter = iter.at(gemm_dims::m, 1);
-    int n_iter = iter.at(gemm_dims::n, 1);
-    int k_iter = iter.at(gemm_dims::k, 1);
-    int abc_size = grf_usage_bytes(cfg.fma_kind(), b_iter, m_iter, n_iter,
-            k_iter, prb.a_data_type_size, prb.b_data_type_size,
-            prb.acc_data_type_size);
-    return abc_size;
-}
-
 int slm_usage_bytes(const conv_config_t &cfg, int b_tg, int m_tg, int n_tg,
         int k_tg, int b_iter, int m_iter, int n_iter, int k_iter) {
     if (cfg.hw() >= ngen::HW::XeHPC) return 0;
@@ -1521,6 +1507,20 @@ std::vector<blocking_scheme_t> get_blocking_schemes(const conv_config_t &cfg) {
 }
 
 } // namespace
+
+int grf_usage_bytes(const conv_config_t &cfg, const conv_params_t &params) {
+    auto &prb = cfg.prb();
+    auto iter = to_gemm(
+            params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
+    int b_iter = iter.at(gemm_dims::b, 1);
+    int m_iter = iter.at(gemm_dims::m, 1);
+    int n_iter = iter.at(gemm_dims::n, 1);
+    int k_iter = iter.at(gemm_dims::k, 1);
+    int abc_size = grf_usage_bytes(cfg.fma_kind(), b_iter, m_iter, n_iter,
+            k_iter, prb.a_data_type_size, prb.b_data_type_size,
+            prb.acc_data_type_size);
+    return abc_size;
+}
 
 enum class tiler_mode_t {
     undef,
@@ -2309,13 +2309,12 @@ public:
 
     void notify_out_of_registers(const conv_config_t &cfg) {
         if (is_tuning_mode()) return;
-        auto &p = params_gen_.cur_params();
-        grf_usage_limit_ = grf_usage_bytes(cfg, p);
+        grf_usage_limit_ = estimate_register_count(cfg) * cfg.grf_size();
     }
 
     bool is_grf_limit_ok(const conv_config_t &cfg) const {
         if (is_tuning_mode() || grf_usage_limit_ == 0) return true;
-        int cur_usage_bytes = grf_usage_bytes(cfg, params_gen_.cur_params());
+        int cur_usage_bytes = estimate_register_count(cfg) * cfg.grf_size();
         return cur_usage_bytes < grf_usage_limit_;
     }
 
