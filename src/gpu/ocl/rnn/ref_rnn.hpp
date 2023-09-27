@@ -35,6 +35,7 @@
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"
 #include "gpu/primitive_conf.hpp"
+#include "gpu/utils.hpp"
 
 // TODO just to debug
 #define WS_NAN_FILLING 0
@@ -80,9 +81,17 @@ struct workspace_t {
                                                 : nullptr) {}
 
     dim_t calc_off_ws_state(
-            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4) const {
-        return OFF5(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
-                conf_.n_iter + 1, i3, conf_.mb, i4, conf_.states_ws_ld);
+            dim_t i0_, dim_t i1, dim_t i2_, dim_t i3, dim_t i4) const {
+        // Logical index into workspace grid
+        auto i0 = i0_ + 1;
+        auto i0_size = conf_.n_layer + 1;
+        auto i2 = i2_ + 1;
+
+        gpu_assert(i0 >= 0) << "Logical index must be larger than 0";
+
+        MAYBE_UNUSED(i0_size);
+        return OFF5(i0, i0_size, i1, conf_.n_dir, i2, conf_.n_iter + 1, i3,
+                conf_.mb, i4, conf_.states_ws_ld);
     }
 
     dim_t calc_off_ws_gates(

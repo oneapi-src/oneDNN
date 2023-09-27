@@ -37,9 +37,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     set_offsets_fwd_gemm(rnn, iter, dir, lay, wei_iter_offsets,
             cell_scratch_offset, cell_wei_iter_offset);
 
-    auto cell_layer = workspace.states(lay, dir, iter + 1);
-    auto cell_iter = workspace.states(lay + 1, dir, iter);
-    auto cell_iter2 = workspace.states(lay + 1, dir, iter + 1);
+    auto cell_layer = workspace.states(lay - 1, dir, iter);
+    auto cell_iter = workspace.states(lay, dir, iter - 1);
+    auto cell_iter2 = workspace.states(lay, dir, iter);
 
     cell_scratch_offset2 = cell_scratch_offset;
 

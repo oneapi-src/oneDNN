@@ -44,11 +44,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
 
-    auto states_t_l = workspace.states(lay + 1, dir, iter + 1);
+    auto states_t_l = workspace.states(lay, dir, iter);
     arg_list.append(rnn_utils::get_storage(states_t_l));
 
-    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
-    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    auto c_states_t_l = workspace.c_states(lay, dir, iter);
+    auto c_states_tm1_l = workspace.c_states(lay, dir, iter - 1);
     arg_list.append(rnn_utils::get_storage(c_states_t_l));
     arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
 
@@ -107,11 +107,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
 
-    auto states_t_l = workspace.states(lay + 1, dir, iter + 1);
+    auto states_t_l = workspace.states(lay, dir, iter);
     arg_list.append(rnn_utils::get_storage(states_t_l));
 
-    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
-    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    auto c_states_t_l = workspace.c_states(lay, dir, iter);
+    auto c_states_tm1_l = workspace.c_states(lay, dir, iter - 1);
     arg_list.append(rnn_utils::get_storage(c_states_t_l));
     arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
 
@@ -171,11 +171,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
 
-    auto states_t1_l = workspace.states(lay + 1, dir, iter + 1);
+    auto states_t1_l = workspace.states(lay, dir, iter);
     arg_list.append(rnn_utils::get_storage(states_t1_l));
 
-    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
-    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    auto c_states_t_l = workspace.c_states(lay, dir, iter);
+    auto c_states_tm1_l = workspace.c_states(lay, dir, iter - 1);
     arg_list.append(rnn_utils::get_storage(c_states_t_l));
     arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
 
@@ -218,13 +218,13 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
 
-    auto states_t1_l = workspace.states(lay + 1, dir, iter + 1);
-    auto states_tm1_l = workspace.states(lay + 1, dir, iter);
+    auto states_t1_l = workspace.states(lay, dir, iter);
+    auto states_tm1_l = workspace.states(lay, dir, iter - 1);
     arg_list.append(rnn_utils::get_storage(
             aprop == prop_kind::forward ? states_t1_l : states_tm1_l));
 
-    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
-    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    auto c_states_t_l = workspace.c_states(lay, dir, iter);
+    auto c_states_tm1_l = workspace.c_states(lay, dir, iter - 1);
     arg_list.append(rnn_utils::get_storage(c_states_t_l));
     arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
 
@@ -284,13 +284,13 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.append(pd()->desc()->alpha);
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
 
-    auto states_t1_l = workspace.states(lay + 1, dir, iter + 1);
-    auto states_tm1_l = workspace.states(lay + 1, dir, iter);
+    auto states_t1_l = workspace.states(lay, dir, iter);
+    auto states_tm1_l = workspace.states(lay, dir, iter - 1);
     arg_list.append(rnn_utils::get_storage(
             aprop == prop_kind::forward ? states_t1_l : states_tm1_l));
 
-    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
-    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    auto c_states_t_l = workspace.c_states(lay, dir, iter);
+    auto c_states_tm1_l = workspace.c_states(lay, dir, iter - 1);
     arg_list.append(rnn_utils::get_storage(c_states_t_l));
     arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
 

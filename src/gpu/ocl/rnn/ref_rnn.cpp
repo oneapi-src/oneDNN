@@ -975,10 +975,11 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             dim_t offset_diff_wei_iter, offset_diff_wei_lay,
                     offset_scratch_diff_lay;
 
-            auto grid_layer
-                    = workspace.states_range(lay, lay, dir, dir, 1, n_iter + 1);
-            auto grid_iter = workspace.states_range(
-                    lay + 1, n_layer + 1, dir, dir, 0, 0);
+            auto grid_layer = workspace.states_range(
+                    lay - 1, lay - 1, dir, dir, 0, n_iter);
+            auto grid_iter
+                    = workspace.states_range(lay, n_layer, dir, dir, -1, -1);
+
             set_offsets_fwd_gemm(rnn, dir, lay, wei_layer_offsets,
                     ws_states_offset_, offset_wei_layer);
             if (aprop == prop_kind::backward) {
