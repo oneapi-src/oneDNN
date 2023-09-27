@@ -945,7 +945,6 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 template <prop_kind_t aprop>
 grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
     const conf_t &rnn = pd()->rnn_conf;
-    data_type_t src_t = pd()->src_type;
     dim_t n_layer = rnn.n_layer;
     dim_t n_dir = rnn.n_dir;
     dim_t n_iter = rnn.n_iter;
@@ -971,14 +970,17 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             dim_t lay = (aprop == prop_kind::forward) ? j : n_layer - j - 1;
 
             // offsets for fwd rnn gemm grid computation
-            dim_t offset_ws_layer, offset_wei_layer, offset_ws_iter;
+            dim_t offset_wei_layer;
             // offsets for bwd rnn gemm grid computation
             dim_t offset_diff_wei_iter, offset_diff_wei_lay,
                     offset_scratch_diff_lay;
 
-            set_offsets_fwd_gemm(rnn, dir, lay, src_t, wei_layer_offsets,
-                    ws_states_offset_, offset_ws_layer, offset_wei_layer,
-                    offset_ws_iter);
+            auto grid_layer
+                    = workspace.states_range(lay, lay, dir, dir, 1, n_iter + 1);
+            auto grid_iter = workspace.states_range(
+                    lay + 1, n_layer + 1, dir, dir, 0, 0);
+            set_offsets_fwd_gemm(rnn, dir, lay, wei_layer_offsets,
+                    ws_states_offset_, offset_wei_layer);
             if (aprop == prop_kind::backward) {
                 dim_t start_diff_src_iter_idx = 0;
                 set_offsets_bwd_gemm(rnn, start_diff_src_iter_idx, dir, lay,
@@ -988,8 +990,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
 
             if (aprop == prop_kind::forward && rnn.merge_gemm_layer) {
                 CHECK(gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
-                        workspace.ws(), offset_ws_layer, scratch_gates, 0,
-                        gemm_layer_fwd));
+                        *grid_layer, 0, scratch_gates, 0, gemm_layer_fwd));
             }
 
             for (dim_t i = 0; i < n_iter; i++) {
@@ -1005,15 +1006,15 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                 CHECK(gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
                         scratch_gates, 0, scratch_diff_states,
                         offset_scratch_diff_lay, gemm_layer_bwd));
-                CHECK(gemm_primitive(engine, ctx, scratch_gates, 0,
-                        workspace.ws(), offset_ws_layer, diff_weights_layer,
-                        offset_diff_wei_lay, gemm_diff_wei_layer));
+                CHECK(gemm_primitive(engine, ctx, scratch_gates, 0, *grid_layer,
+                        0, diff_weights_layer, offset_diff_wei_lay,
+                        gemm_diff_wei_layer));
             }
 
             if (aprop == prop_kind::backward && rnn.merge_gemm_iter) {
-                CHECK(gemm_primitive(engine, ctx, scratch_gates, 0,
-                        workspace.ws(), offset_ws_iter, diff_weights_iter,
-                        offset_diff_wei_iter, gemm_diff_wei_iter));
+                CHECK(gemm_primitive(engine, ctx, scratch_gates, 0, *grid_iter,
+                        0, diff_weights_iter, offset_diff_wei_iter,
+                        gemm_diff_wei_iter));
             }
         }
     }

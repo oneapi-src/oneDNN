@@ -340,17 +340,13 @@ dim_t set_workspace_offsets(const conf_t &rnn, dim_t &ws_gates_offset,
         dim_t &ws_h_state_offset, dim_t &ws_c_state_offset,
         dim_t &ws_grid_comp_onfset, dim_t &ws_bias_offset);
 void set_gru_offsets_part2(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        data_type_t src_t, const std::vector<dim_t> &wei_iter_off_ptr,
-        const dim_t &ws_states_offset_, dim_t &cell_wei_iter_offset,
-        dim_t &cell_scratch_offset, dim_t &cell_ws_iter_offset);
+        const std::vector<dim_t> &wei_iter_off_ptr, dim_t &cell_wei_iter_offset,
+        dim_t &cell_scratch_offset);
 void set_offsets_fwd_gemm(const conf_t &rnn, dim_t dir, dim_t lay,
-        data_type_t src_t, const std::vector<dim_t> &wei_layer_offsets,
-        const dim_t &ws_states_offset_, dim_t &grid_ws_lay_offset,
-        dim_t &grid_wei_lay_offset, dim_t &grid_ws_iter_offset);
+        const std::vector<dim_t> &wei_layer_offsets,
+        const dim_t &ws_states_offset_, dim_t &grid_wei_lay_offset);
 void set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        data_type_t src_t, const std::vector<dim_t> &wei_iter_offsets,
-        const dim_t &ws_states_offset_, dim_t &cell_ws_iter_offset,
-        dim_t &cell_ws_lay_offset, dim_t &cell_scratch_offset,
+        const std::vector<dim_t> &wei_iter_offsets, dim_t &cell_scratch_offset,
         dim_t &cell_wei_iter_offset);
 void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
         dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
