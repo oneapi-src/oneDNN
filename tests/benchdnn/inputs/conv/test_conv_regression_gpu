@@ -27,7 +27,7 @@ mb32ic32ih1oc129oh1kh1ph0
 --stag=axb
 --wtag=any
 --dtag=axb
---attr-zero-points=src:per_dim_1:1*
+--attr-zero-points=src:per_dim_1
 --attr-post-ops=relu:0.1+mul:f32:per_oc+add:f32:per_oc
 g8mb1ic8iw340oc8ow340kw3pw1
 g16mb1ic16iw340oc16ow170kw3sw2pw0

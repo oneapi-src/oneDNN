@@ -4,10 +4,10 @@
 --ddt=s8
 --attr-scales=, \
     src:common:2*, \
-    src:per_dim_0:2*, \
-    src:per_dim_1:3*, \
-    src:per_dim_01:3*, \
-    src:per_tensor:0.7*
+    src:per_dim_0, \
+    src:per_dim_1, \
+    src:per_dim_01, \
+    src:per_tensor
 --oflag=,s8s8_comp:1,zp_comp:1,s8s8_comp:1+zp_comp:1
 --stag=abx,xba,bxa
 --dtag=xba,ABx2b8a4b,ABx4a4b,ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
@@ -34,7 +34,7 @@
 # Special case: no general 0D-spatial support
 --dtag=ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
 80x24
---attr-scales=src:per_dim_01:1* --dtag=ABc2b8a4b 4x4x1
+--attr-scales=src:per_dim_01 --dtag=ABc2b8a4b 4x4x1
 
 # Following tags have no s8s8 compensation support.
 --attr-scales=

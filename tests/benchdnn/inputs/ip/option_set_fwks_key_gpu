@@ -165,7 +165,7 @@
 --reset --allow-enum-tags-only=0 --dir=FWD_I --dt=u8:s8:u8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=binary_mul:f32:per_oc+binary_mul:f32:per_oc+eltwise_linear:20.8438:125.938:1.0 mb16384ic768ih1iw1oc768n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_I --dt=u8:s8:u8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=binary_mul:f32:per_oc+binary_mul:f32:per_oc+eltwise_linear:21.4531:112:1.0 mb16384ic768ih1iw1oc768n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f32 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb64ic2048ih1iw1oc1001n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f32 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb64ic2048ih1iw1oc1001n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb196ic2048ih1iw1oc512n"*18"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb196ic512ih1iw1oc1536n"*18"

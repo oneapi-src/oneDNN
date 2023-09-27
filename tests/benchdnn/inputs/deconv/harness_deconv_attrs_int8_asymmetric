@@ -25,5 +25,5 @@ g1ic16iw5oc3ow5kw3pw1n
 --batch=shapes_3d
 --batch=shapes_dilated
 
---attr-zero-points=src:per_dim_1:1*+dst:per_dim_1:1*,src:common:31*+dst:per_dim_1:1*
+--attr-zero-points=src:per_dim_1+dst:per_dim_1,src:common:31*+dst:per_dim_1
 --batch=shapes_ci # Too slow to validate full set

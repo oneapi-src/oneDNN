@@ -26,11 +26,11 @@
 --batch=shapes_2d
 
 --skip-impl= # TODO: remove when optimized version is added
---attr-zero-points=src:per_dim_1:1*+wei:common:-1*+dst:common:-2*
+--attr-zero-points=src:per_dim_1+wei:common:-1*+dst:common:-2*
 --attr-post-ops=linear:2:1
 --batch=shapes_2d
 
---attr-zero-points=src:common:1*+wei:common:-1*+dst:per_dim_1:2*
+--attr-zero-points=src:common:1*+wei:common:-1*+dst:per_dim_1
 --attr-post-ops=add:f32:per_oc,add:f32:per_tensor
 --batch=shapes_2d
 

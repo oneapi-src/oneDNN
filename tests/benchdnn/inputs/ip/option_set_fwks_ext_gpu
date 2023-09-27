@@ -109,15 +109,15 @@
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_I --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic256ih1iw1oc27n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_I --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic256ih1iw1oc27n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_I --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic256ih1iw1oc27n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic1024ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic1024ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic1024ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic1024ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic1024ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic1024ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic62ih1iw1oc8192n"*1"
 #
@@ -125,19 +125,19 @@
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic1280ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic1280ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic1280ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic1280ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic1280ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic1280ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic1280ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic1280ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic1280ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic25088ih1iw1oc512n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic25088ih1iw1oc512n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic25088ih1iw1oc512n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_I --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic1792ih1iw1oc512n"*1"
 #
@@ -149,10 +149,10 @@
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb3200ic1536ih1iw1oc2404n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb3200ic1536ih1iw1oc602n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb100ic1536ih1iw1oc602n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb100ic1536ih1iw1oc602n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:s8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=binary_mul:f32:per_oc+binary_add:f32:per_oc mb100ic1536ih1iw1oc2404n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb3200ic1536ih1iw1oc602n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb3200ic1536ih1iw1oc602n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:s8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=binary_mul:f32:per_oc+binary_add:f32:per_oc mb3200ic1536ih1iw1oc2404n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb100ic2048ih1iw1oc360n"*1"
@@ -161,17 +161,17 @@
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb3200ic2048ih1iw1oc360n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb3200ic2048ih1iw1oc91n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb100ic2048ih1iw1oc91n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb100ic2048ih1iw1oc91n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:s8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=binary_mul:f32:per_oc+binary_add:f32:per_oc mb100ic2048ih1iw1oc360n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb3200ic2048ih1iw1oc91n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb3200ic2048ih1iw1oc91n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:s8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=binary_mul:f32:per_oc+binary_add:f32:per_oc mb3200ic2048ih1iw1oc360n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb300ic2048ih1iw1oc4n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb300ic2048ih1iw1oc91n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb300ic2048ih1iw1oc4n"*1"
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb300ic2048ih1iw1oc91n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb300ic2048ih1iw1oc4n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb300ic2048ih1iw1oc91n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb5312ic128ih1iw1oc1n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=eltwise_logistic mb5312ic256ih1iw1oc256n"*4"
@@ -181,11 +181,11 @@
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic1536ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic1536ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic1536ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic1536ih1iw1oc1001n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic1536ih1iw1oc1001n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic1536ih1iw1oc1001n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb1024ic3072ih1iw1oc768n"*12"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb1024ic768ih1iw1oc2304n"*12"
@@ -198,15 +198,15 @@
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb1024ic768ih1iw1oc768n"*12"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=binary_mul:f32:per_oc+binary_add:f32:per_oc+eltwise_round+eltwise_linear:0.104596:-13.3882:1.0+eltwise_clip:-13.3882:13.2836:1.0 mb1000ic12544ih1iw1oc1024n"*1"
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb1000ic1024ih1iw1oc324n"*1"
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb1000ic1024ih1iw1oc81n"*1"
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb1000ic12544ih1iw1oc1024n"*3"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb1000ic1024ih1iw1oc324n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb1000ic1024ih1iw1oc81n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb1000ic12544ih1iw1oc1024n"*3"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:u8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=binary_mul:f32:per_oc mb100ic25088ih1iw1oc784n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb100ic2048ih1iw1oc360n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb100ic2048ih1iw1oc91n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb100ic2048ih1iw1oc91n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb100ic2048ih1iw1oc91n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:s8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=binary_mul:f32:per_oc+binary_add:f32:per_oc mb100ic2048ih1iw1oc360n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f32 --stag=abcd --wtag=abcd --dtag=ab mb12288ic128ih1iw1oc128n"*48"
@@ -315,23 +315,23 @@
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic512ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic512ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic512ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic2048ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic2048ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic2048ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic2048ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic2048ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic2048ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic2048ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic2048ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic2048ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic2048ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic2048ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic2048ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic768ih1iw1oc2n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb4096ic3072ih1iw1oc768n"*12"
@@ -341,19 +341,19 @@
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic2048ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic2048ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic2048ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic2048ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic2048ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic2048ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic2048ih1iw1oc1000n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic2048ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic2048ih1iw1oc1000n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic21504ih1iw1oc512n"*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic21504ih1iw1oc512n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic21504ih1iw1oc512n"*1"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb100352ic384ih1iw1oc96n"*2"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb100352ic96ih1iw1oc288n"*2"
@@ -395,16 +395,16 @@
 --reset --allow-enum-tags-only=0 --dir=FWD_I --dt=f16:f16:s8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=eltwise_linear:6.13672:-0.0625:1.0 mb100352ic64ih1iw1oc32n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_I --dt=f16:f16:s8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=eltwise_linear:9.10938:-0.0625:1.0 mb25088ic64ih1iw1oc32n"*1"
 --reset --allow-enum-tags-only=0 --dir=FWD_I --dt=f16:f16:s8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=eltwise_linear:9.32812 mb25088ic64ih1iw1oc32n"*1"
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic256ih1iw1oc1000n"*1"
---reset --allow-enum-tags-only=0 --dir=FWD_I --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb6304ic256ih1iw1oc768n"*7"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic256ih1iw1oc1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_I --dt=s8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb6304ic256ih1iw1oc768n"*7"
 #
 --reset --allow-enum-tags-only=0 --dt=f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=logistic mb32ic440ih1iw1oc2048n"tedlium_dnn4_smbr_nnet.inf.fp16.ov.b32*1"
 --reset --allow-enum-tags-only=0 --dt=f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=logistic mb32ic2048ih1iw1oc2048n"tedlium_dnn4_smbr_nnet.inf.fp16.ov.b32*5"
 --reset --allow-enum-tags-only=0 --dt=f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb32ic2048ih1iw1oc3941n"tedlium_dnn4_smbr_nnet.inf.fp16.ov.b32*1"
 #
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:u8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=eltwise_logistic:0:0:255 --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic440ih1iw1oc2048n"*1"
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic2048ih1iw1oc3941n"*1"
---reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:u8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=eltwise_logistic:0:0:255 --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc:0.5* mb32ic2048ih1iw1oc2048n"*5"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=s8:s8:u8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=eltwise_logistic:0:0:255 --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic440ih1iw1oc2048n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:f16 --stag=abcd --wtag=abcd --dtag=ab --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic2048ih1iw1oc3941n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_B --dt=u8:s8:u8 --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=eltwise_logistic:0:0:255 --attr-scales=src:common:0.5*+dst:common:0.5*+wei:per_oc mb32ic2048ih1iw1oc2048n"*5"
 #
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb32ic768ih1iw1oc1024n"*240"
 --reset --allow-enum-tags-only=0 --dir=FWD_B --dt=f16 --stag=abcd --wtag=abcd --dtag=ab mb960ic512ih1iw1oc37n"*1"
