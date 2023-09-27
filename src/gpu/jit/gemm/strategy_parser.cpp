@@ -40,6 +40,7 @@ AccessType getAccessType(char c) {
         case 'm': return AccessType::Block2D;
         case 't': return AccessType::Block2DTranspose;
         case 'v': return AccessType::Block2DVNNI;
+        case 'c': return AccessType::CacheLine;
         default: throw std::runtime_error("Unknown access type.");
     }
 }
@@ -266,8 +267,12 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.splitCopy = true;
         else if (mod == "sm")
             strategy.coopA = CoopSplit::MN;
+        else if (mod == "ska")
+            strategy.coopA = CoopSplit::FullK;
         else if (mod == "sn")
             strategy.coopB = CoopSplit::MN;
+        else if (mod == "skb")
+            strategy.coopB = CoopSplit::FullK;
         else if (mod == "ni")
             strategy.slmUseIncrCopy = false;
         else if (mod == "ek")
@@ -337,6 +342,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.kParallelLocal = true;
         else if (mod == "akr")
             strategy.kParallelLocal = strategy.shrinkWGK = true;
+        else if (mod == "ikr")
+            strategy.kParallelLocal = strategy.kInterleave = true;
         else if (mod == "fb")
             strategy.fuseBeta = true;
         else if (mod == "fp")
@@ -400,7 +407,10 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
                 strategy.splitBarrier = true;
             } else if (mod.substr(0, 2) == "pk")
                 strategy.kPadding = stoi(mod.substr(2));
-            else if (mod.substr(0, 2) == "ql") {
+            else if (mod.substr(0, 2) == "wx") {
+                strategy.wgPadFactor = stoi(mod.substr(2));
+                strategy.forceWGUpdate = WGFixed;
+            } else if (mod.substr(0, 2) == "ql") {
                 strategy.skewLocalIDs = true;
             } else
                 switch (mod[0]) {

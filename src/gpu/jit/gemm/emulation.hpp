@@ -45,13 +45,13 @@ struct EmulationStrategy {
         if (hw_ >= HW::Gen11) emulateDWxDW = true;
         if (hw_ == HW::Gen12LP) emulate64 = true;
         if (hw_ == HW::XeHPG) emulate64 = true;
-        if (hw_ == HW::Xe2) emulate64_mul = true;
         if (hw_ >= HW::XeHPC) {
             if (hw_ == HW::XeHPC && stepping < SteppingPVCXTB0)
                 emulate64 = noemulate64_shift = true;
             else
                 emulate64_mul = emulate64_logic = true;
         }
+        emulate64_mul |= emulate64;
     }
 };
 
@@ -540,8 +540,7 @@ struct EmulationImplementation {
         bool s1Signed = isSigned(src1.getType());
         auto mulHiType = (s0Signed || s1Signed) ? DataType::d : DataType::ud;
 
-        bool emulate64 = strategy.emulate64;
-        emulate64 |= strategy.emulate64_mul;
+        bool emulate64 = strategy.emulate64_mul;
 
         if (s0Q || s1Q) {
             stub();

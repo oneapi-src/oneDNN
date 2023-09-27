@@ -82,6 +82,7 @@ double evaluateW(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         aux.wgK = std::max(1,
                 std::min(e.driverInfo.wg[LoopK],
                         int(divUp(dp.sizes.k, aux.k0))));
+        if (e.driverInfo.fixedWGK()) aux.wgK = e.driverInfo.wg[LoopK];
     }
 
     if (priority > maxPriority) /* no op */
@@ -128,6 +129,7 @@ double evaluateSCore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         aux.k0 = kthread;
         aux.wgK = std::max(
                 1, std::min(e.driverInfo.wg[LoopK], int(divUp(k, kthread))));
+        if (e.driverInfo.fixedWGK()) aux.wgK = e.driverInfo.wg[LoopK];
     }
 
     double threadsFull = std::floor(threads / capacity) * capacity;
@@ -250,7 +252,9 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
 
     // Choose wgK and per-k thread size.
     aux.wgK = 1;
-    if (aux.kParallel)
+    if (e.driverInfo.fixedWGK())
+        aux.wgK = e.driverInfo.wg[LoopK];
+    else if (aux.kParallel)
         aux.wgK = std::max(1, int(divUp(k, aux.k0)));
     else if (aux.kParallelVariable) {
         /* Variable k-slicing + local k-reduction: use kr only to avoid competing atomics from same subslice */
@@ -335,6 +339,7 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     double etime = (1 - Em) * etimeNoLB + Em * etimeLB;
     etime *= (e.driverInfo.unroll[LoopM] * e.driverInfo.unroll[LoopN]);
     etime *= kthread;
+    etime /= e.driverInfo.wgExpand;
 
     if (!dp.effective) {
         double F = PARAM(Fr0) + double(m) * double(n) * double(k) * PARAM(Fr1);
@@ -502,7 +507,7 @@ DerivedEvaluateParams getDerivedParams(
         }
     }
 
-    auto threadsPerWG = wgM * wgN;
+    auto threadsPerWG = wgM * wgN * e.driverInfo.wgExpand;
     if (!e.driverInfo.kParallelVariable())
         threadsPerWG *= e.driverInfo.wg[LoopK];
 

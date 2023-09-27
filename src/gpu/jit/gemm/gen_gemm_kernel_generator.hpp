@@ -215,6 +215,7 @@ enum class AccessType : uint8_t {
     Block2D, // Use 2D block messages
     Block2DTranspose, // Use 2D block messages with transposition
     Block2DVNNI, // Use 2D block messages with VNNI transform
+    CacheLine, // Use scattered accesses with one element per cache line
 };
 
 static inline bool isBlocklike(AccessType t) {
@@ -543,15 +544,15 @@ struct MaskAssignment {
 
 struct RegisterBlock {
     /* Register layout information. */
-    uint8_t nr, nc; // Size of this block.
-    uint8_t ld; // Leading dimension, in elements.
-    uint8_t offsetR, offsetC; // Row and column offset within matrix block.
+    uint16_t nr, nc; // Size of this block.
+    uint16_t ld; // Leading dimension, in elements.
+    uint16_t offsetR, offsetC; // Row and column offset within matrix block.
     uint8_t colMajor : 1; // Is this block column-major? (columns stored consecutively inside each register)
     uint8_t splitComplex : 1; // True if complex data split into successive real and imaginary parts.
     uint8_t : 6;
     uint8_t crosspack; // Crosspack for this block (1 if none).
-    uint8_t component : 6; // Component # for this block.
-    int8_t cxComponent : 2; // Complex component # for this block (-1 if not complex or interleaved).
+    uint8_t component; // Component # for this block.
+    int8_t cxComponent; // Complex component # for this block (-1 if not complex or interleaved).
     uint16_t bytes; // # of bytes in this block.
     uint16_t offsetBytes; // Byte offset within register block.
 
@@ -586,7 +587,7 @@ struct RegisterBlock {
     MaskInfo rowMask; // Row mask for this block.
     MaskInfo colMask; // Column mask for this block.
 
-    int32_t offsetAddr; // Address offset, for sharing address registers.
+    int32_t offsetAddr; // Address offset, for sharing address registers. For 2D addressing, contains x/y offsets in low/high words.
 
     static constexpr int8_t Interleaved
             = -1; // Value for cxComponent indicating interleaved real/imaginary data.
@@ -608,11 +609,22 @@ struct RegisterBlock {
 
     bool isLoadBlock() const { return simdSize > 0; }
 
+    bool grfAligned() const {
+        return (offsetBytes & ((1 << log2GRFBytes) - 1)) == 0;
+    }
     int nregs() const;
     int offsetReg() const;
 
     void simplify(Type T);
     void compact(Type T);
+
+    ngen::Offset2D offset2D() const {
+        return ngen::Offset2D(
+                int16_t(offsetAddr & 0xFFFF), int16_t(offsetAddr >> 16));
+    }
+    void set2DOffset(int16_t x, int16_t y) {
+        offsetAddr = uint16_t(x) | (uint32_t(uint16_t(y)) << 16);
+    }
 };
 
 struct Address2DParams {
@@ -764,6 +776,7 @@ struct CommonProblem {
 // Strategy parameters shared between different kernel types.
 struct CommonStrategy {
     int subgroupSize = 8; // Subgroup size provided to OpenCL runtime.
+    int GRFs = 128; // # of GRFs to use.
     bool fused = false; // Fused EU handling enabled?
     bool dualGRF = true; // Enable two-GRF instructions.
     bool ieeeDenormals = true; // Enable IEEE-compliant denormals.
@@ -775,18 +788,20 @@ struct CommonStrategy {
     bool multitile = true; // Enable multitile (implicit scaling) support?
     bool wgInSS
             = false; // Pretend to use barriers so that each WG belongs to 1 SS/DSS.
-    int GRFs = 128; // # of GRFs to use.
     bool finalFence = false; // Issue global memory fence before EOT.
     uint8_t pad1[3] = {};
     int pauseCycles
             = 0x0100; // Number of cycles to pause when waiting in a spin-loop.
     bool simulation = false; // For use in simulator?
     bool systolicAvailable = false; // True if systolic array present.
-    uint8_t pad2[2] = {};
+    bool avoidIncConflicts
+            = true; // If true, duplicate address increments across banks to avoid bundle conflicts.
+    uint8_t pad2[1] = {};
     ngen::HW raHW = ngen::HW::
             Unknown; // Pretend to be a different GPU for register allocation purposes.
     ngen::ThreadArbitrationMode arbitrationMode = ngen::ThreadArbitrationMode::
             Default; // Thread arbitration policy to use.
+    int activeThreads = 0; // # of active threads (0 = dynamic).
 
     EmulationStrategy emulate;
     uint8_t pad3[2] = {};
@@ -922,9 +937,10 @@ struct GEMMState;
 
 // How to split A/B amongst threads in a workgroup.
 enum class CoopSplit {
-    K, // Split in k dimension
+    K, // Split in k dimension (within each thread's m/n range)
     MN, // Split in m/n dimensions
     Linear, // Split in linear index order
+    FullK, // Split in k dimension (within the entire workgroup's m/n range)
 };
 
 // Methods for traversing a matrix.
@@ -963,6 +979,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
             0}; // m/n/k workgroup sizes, 0 if unconstrained. Indexed by LoopType.
     WGType forceWGUpdate = WGDynamic; // Force work group update type.
     uint8_t pad1[3] = {};
+    int wgPadFactor = 1; // If > 1, pad workgroup with empty threads.
     MatrixAddressingStrategy A, B, C,
             CO; // Strategies for accessing A/B/C/C offsets.
     int ka_load, kb_load; // How much of A/B is loaded at once, in k dimension
@@ -1017,14 +1034,13 @@ struct GEMMStrategyPOD : public CommonStrategy {
             = CSeparate; // Register layout scheme.
     int nSeparateChunk
             = 0; // If > 0, chunk size for NSeparate, to facilitate switching layouts.
-    bool avoidIncConflicts
-            = true; // If true, duplicate some increment values across banks to avoid bundle conflicts.
     bool kParallel
             = false; // If true, generate k-parallelized kernel using global memory reduction.
     bool kParallelLocal
             = false; // If true, generate k-parallelized kernel using local memory reduction.
     bool shrinkWGK
             = false; //   Shrink wgK automatically to try to fit dispatch in 1 wave?
+    bool kInterleave = false; //   Interleave threads in k dimension?
     bool kParallelVariable
             = false; // If true, generate kernel that uses variable k-parallelization for load balancing.
     bool fuseBeta
@@ -1157,6 +1173,8 @@ struct GEMMStrategy : public GEMMStrategyPOD {
     int ka_inc() const { return slmA ? unrollKSLM : ka_load; }
     int kb_inc() const { return slmB ? unrollKSLM : kb_load; }
 
+    int kInterleaveChunk() const;
+
     bool needsMNLocalIDs() const {
         return xParallel || (slmBuffers > 0) || cooperativePF || kParallelLocal
                 || persistent || namedBarriers[LoopM] || namedBarriers[LoopN]
@@ -1203,6 +1221,8 @@ struct GEMMStrategy : public GEMMStrategyPOD {
     }
     bool needsTempC(const GEMMProblem &problem) const;
 
+    bool checkAdd32Rem() const { return checkAdd32 && emulate.emulate64; }
+
     void serialize(serialized_data_t &s) const {
         GEMMStrategyPOD::serialize(s);
         for (const auto &astrategy : binary)
@@ -1214,6 +1234,8 @@ struct LDMultiples {
     ngen::GRFRange range;
     bool a64 = false;
 };
+
+using LDIncrements = std::vector<std::pair<int, SubregisterPair>>;
 
 // State parameters for GEMM kernels.
 struct GEMMState : public CommonState {
@@ -1300,6 +1322,7 @@ struct GEMMState : public CommonState {
     ngen::GRFRange broadcast_regs;
     std::vector<ngen::GRFRange> tempMul_regs;
     ngen::Subregister i0, j0, h0; // d
+    ngen::Subregister wgI0, wgJ0; // d
     ngen::Subregister threadK0, k0Rem, wgK; // ud
     ngen::Subregister remainders[3]; // d (todo: w)
     ngen::Subregister remaindersFused[2]; // w
@@ -1308,9 +1331,7 @@ struct GEMMState : public CommonState {
     ngen::Subregister remFusedStorage; // d
     ngen::Subregister diagA, diagB, diagC; // d
     SubregisterPair lda, ldb;
-    SubregisterPair lda_ka, ldb_kb; // Cached lda * ka, ldb * kb
-    SubregisterPair lda_ka_prefetch,
-            ldb_kb_prefetch; // Cached lda * ka_pfStride, ldb * kb_pfStride
+    LDIncrements ldaIncrements, ldbIncrements; // Cached lda * ka, ldb * kb
     LDMultiples ldaMultiples, ldbMultiples, ldcMultiples[2];
     int ka_cached = 0, kb_cached = 0; // Multipliers for lda_ka/ldb_kb.
     ngen::Subregister k, K; // d
@@ -1467,13 +1488,14 @@ struct CopyStrategy : public CommonStrategy {
     MatrixAddressingStrategy S, D;
     RemainderHandling remHandlingX,
             remHandlingY; // Remainder handling for X dimension (packed dimension) and Y dimension (length of panel)
-    int s_load, d_load; // # of rows/columns to load from S/store to D at once
+    int s_load = 0,
+        d_load = 0; // # of rows/columns to load from S/store to D at once
     int s_load_masked = 0,
         d_load_masked
             = 0; // Same as s_load/d_load, for use when masking (0 = default = same as {s,d}_load)
     int wgW = 0, wgZ = 0; // Fixed workgroup sizes (0 if variable).
 
-    int unrollX, unrollY; // Unrolls for each dimension.
+    int unrollX = 0, unrollY = 0; // Unrolls for each dimension.
     bool xLoop
             = false; // True to loop over x, false to loop over y within a kernel
 
@@ -1814,10 +1836,13 @@ protected:
     void cmp0(const ngen::InstructionModifier &mod, ngen::RegData src0);
     void syncall();
 
+    void wrdepRanges(const GRFMultirange &rr) {
+        for (auto &r : rr.ranges)
+            wrdep(r);
+    }
     void wrdepRanges(const std::vector<GRFMultirange> &rrs) {
         for (auto &rr : rrs)
-            for (auto &r : rr.ranges)
-                wrdep(r);
+            wrdepRanges(rr);
     }
 
     void addScaled(const ngen::InstructionModifier &mod,
@@ -1869,7 +1894,12 @@ protected:
 
     void simtDoWhileLoop(
             const ngen::InstructionModifier &mod, ngen::Label &dest);
-    void slmBarrier(const ngen::GRF &temp, const ngen::GRF &r0_info = r0);
+    void activeThreadBarrier(const ngen::GRF &temp, const ngen::GRF &r0_info,
+            const CommonStrategy &strategy);
+    void activeThreadBarrierSignal(const ngen::GRF &temp,
+            const ngen::GRF &r0_info, const CommonStrategy &strategy);
+    void slmBarrier(const ngen::GRF &temp, const ngen::GRF &r0_info,
+            const CommonStrategy &strategy);
     void globalMemFence(const ngen::GRF &temp, const ngen::GRF &r0_info,
             const CommonStrategy &strategy);
     void globalMemBarrier(const ngen::GRF &temp, const ngen::GRF &r0_info,
@@ -2152,7 +2182,7 @@ protected:
             const MatrixAddressingStrategy &astrategy,
             const CommonStrategy &strategy, CommonState &state,
             const Address2DParams &params = {},
-            const LDMultiples &ldMultiples = {});
+            const LDMultiples &ldMultiples = {}, int start = 0);
     template <typename I, typename Ir, typename Ic>
     void incAddrShifted(const ngen::GRFRange &addrDst,
             const ngen::GRFRange &addrSrc, I inc, Ir incR, Ic incC,
@@ -2231,7 +2261,7 @@ protected:
             const GRFMultirange &A_regs, const GRFMultirange &B_regs,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
-    void outerProductSystolic(int h, int ha, int hb,
+    void outerProductSystolic(int h, int ha, int hb, int opCount,
             const std::vector<RegisterBlock> &A_layout,
             const std::vector<RegisterBlock> &B_layout,
             const GRFMultirange &A_regs, const GRFMultirange &B_regs,
@@ -2423,11 +2453,20 @@ protected:
             const MatrixAddressingStrategy &Xi_strategy,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
-    SubregisterPair allocIncrement(
-            const GEMMStrategy &strategy, CommonState &state);
+    void calcIncrement(LDIncrements &increments, SubregisterPair &base,
+            int scale, const CommonStrategy &strategy, CommonState &state);
+    SubregisterPair lookupIncrement(const LDIncrements &increments,
+            const SubregisterPair &base, int scale,
+            const CommonStrategy &strategy, CommonState &state,
+            bool *release = nullptr);
+    void gemmFreeIncrements(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state, bool doA = true,
+            bool doB = true);
     void gemmCalcIncrements(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state, int ka_load = 0,
             int kb_load = 0, bool doA = true, bool doB = true);
+    ngen::Subregister gemmMNLinearID(
+            const GEMMStrategy &strategy, GEMMState &state);
     void gemmCalcWorkshareAOffset(ngen::Subregister &off,
             ngen::Subregister &offR, ngen::Subregister &offC,
             const MatrixAddressing &A,
@@ -2459,7 +2498,8 @@ protected:
     void gemmCalcKSLMB(const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state, ngen::Subregister kBase = ngen::Subregister());
     void kLoopAllocBarrierHeader(GEMMState &state);
-    ngen::GRF kLoopGetBarrierHeader(GEMMState &state);
+    ngen::GRF kLoopGetBarrierHeader(
+            const GEMMStrategy &strategy, GEMMState &state);
     void kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state);
     bool kLoopSetup(const GEMMProblem &problem, const GEMMStrategy &strategy,
@@ -2523,7 +2563,8 @@ protected:
     ngen::Subregister gemmCalcKPadding(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     void broadcastToWG(ngen::FlagRegister leaderFlag, ngen::GRF value,
-            CommonState &state, int slmOffset = 0);
+            const CommonStrategy &strategy, CommonState &state,
+            int slmOffset = 0);
     void gemmFusedBetaPOInit(const ngen::Subregister &groupID,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
@@ -2562,9 +2603,10 @@ protected:
     void gemmRestoreOffsets(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmOffsetABC(bool initial, ngen::Subregister i0, ngen::Subregister j0,
-            ngen::Subregister h0, const GEMMProblem &problem,
-            const GEMMStrategy &strategy, GEMMState &state, bool doA = true,
-            bool doB = true, bool doC = true, bool doBinary = false);
+            ngen::Subregister h0, ngen::Subregister i0p, ngen::Subregister j0p,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state, bool doA = true, bool doB = true, bool doC = true,
+            bool doBinary = false);
     void gemmOffsetBatchABC(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmSetupABC(const GEMMProblem &problem, const GEMMStrategy &strategy,

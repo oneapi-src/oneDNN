@@ -52,9 +52,9 @@ enum LoopType : uint8_t {
 
 // WG identifiers.
 enum WGType : uint8_t {
-    WGDynamic = 0, // Dynamic work group size (can shrink or expand)
-    WGFixed = 1, // Fixed work group size
-    WGShrinkable = 2 // Work group size can shrink but not expand
+    WGDynamic = 0, // Dynamic m/n work group size (can shrink or expand)
+    WGFixed = 1, // Fixed m/n work group size
+    WGShrinkable = 2, // m/n work group size can shrink but not expand
 };
 
 // Flags.
@@ -77,6 +77,7 @@ enum DriverInfoFlags : uint32_t {
     = 0x200, // With local k-parallelization, automatically shrink wgK to fit dispatch to GPU.
     FlagAlphaPtr = 0x400, // Pass alpha by pointer.
     FlagBetaPtr = 0x800, // Pass beta by pointer.
+    FlagFixedWGK = 0x1000, // With local k-parallelization, wgK is fixed
 };
 
 // Driver information, shared by all kernel types.
@@ -131,6 +132,9 @@ struct CommonDriverInfo {
         return (loopOrder[0] != LoopNone) && (loopOrder[0] & LoopPersistent);
     }
     bool fixedWG() const { return wgUpdate == WGFixed; }
+    int threadsPerWG() const {
+        return wg[LoopM] * wg[LoopN] * wg[LoopK] * wgExpand;
+    }
     bool kRemainderHandling() const { return flags & FlagKRemainderHandling; }
     bool kParallel() const { return flags & FlagKParallel; }
     bool zParallel() const { return flags & FlagZParallel; }
@@ -144,6 +148,7 @@ struct CommonDriverInfo {
     bool shrinkWGK() const { return flags & FlagShrinkWGK; }
     bool alphaPtr() const { return flags & FlagAlphaPtr; }
     bool betaPtr() const { return flags & FlagBetaPtr; }
+    bool fixedWGK() const { return flags & FlagFixedWGK; }
 
     int wgTile(LoopType l) const { return unroll[l] * wg[l]; }
     int kPadding() const {
