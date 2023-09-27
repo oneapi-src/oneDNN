@@ -94,7 +94,8 @@ int verify_input(const settings_t &s) {
     }
 
     for (const auto &i_cross_engine : s.cross_engine) {
-        if (i_cross_engine != NONE && is_cpu()) {
+        if (i_cross_engine != NONE && is_cpu()
+                && bench_mode != bench_mode_t::list) {
             BENCHDNN_PRINT(0, "%s\n",
                     "ERROR: `cpu` engine does not support anything but "
                     "`--cross-engine=none`.");

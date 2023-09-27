@@ -150,7 +150,7 @@ Run a set of u8s8u8 forward convolutions without bias, skipping
 reference implementations with one common output scale set to 0.5:
 ``` sh
     ./benchdnn --conv --dt=u8:s8:u8 --dir=FWD_D --skip-impl=ref \
-               --attr-scales=dst:common:0.5* --batch=inputs/conv/set_conv_all
+               --attr-scales=dst:common:0.5 --batch=inputs/conv/set_conv_all
 ```
 
 More examples with different driver options can be found at inputs/conv/test_\*

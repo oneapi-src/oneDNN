@@ -4,8 +4,8 @@
 ```
     --attr-scratchpad=MODE
     --attr-fpmath=MATHMODE
-    --attr-scales=ARG:POLICY[:SCALE*][+...]
-    --attr-zero-points=ARG:POLICY:ZEROPOINT*[+...]
+    --attr-scales=ARG:POLICY[:SCALE][+...]
+    --attr-zero-points=ARG:POLICY[:ZEROPOINT][+...]
     --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
                     ELTWISE[:ALPHA[:BETA[:SCALE]]]
                     DW:KkSsPp[:DST_DT[:WEI_SCALE[:DST_SCALE]]]
@@ -13,17 +13,20 @@
                     PRELU[:POLICY]
 ```
 
+## --attr-scratchpad
 `--attr-scratchpad` specifies the scratchpad mode to be used for benchmarking.
 `MODE` values can be `library` (the default) or `user`. Refer to
 [scratchpad primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_scratchpad.html)
 for details.
 
+## --attr-fpmath
 `--attr-fpmath` specifies the fpmath mode to be used for benchmarking.
 `MATHMODE` values can be any of `strict` (the default), `bf16`, `f16`, `tf32`,
 or `any`. Refer to
 [fpmath primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
 for details.
 
+## --attr-scales
 `--attr-scales` defines per memory argument primitive scales attribute.
 `ARG` specifies which memory argument will be modified. Supported values are:
   - `src` or `src0` corresponds to `DNNL_ARG_SRC`.
@@ -63,31 +66,34 @@ scale value. Supported values are:
                      `nelems`. As of now supported only by binary post-ops.
 
 `SCALE` is required for the `common` policy only, and specifies a floating-point
-value which is passed for execution at runtime. For any other policies it
-doesn't take any effect though allowed by parsing routine. Asterisk mark `*`
-is deprecated. It was required to specify runtime value and passed after scale.
+value which is passed for execution at runtime. Specifying a value for any other
+policies will trigger an error.
 
 To specify more than one memory argument for this attribute, `+` delimiter is
 used.
 
+## --attr-zero-points
 `--attr-zero-points` defines zero points per memory argument primitive
 attribute. This attribute is supported only for integer data types as of now.
-`ARG` specifies which memory argument will be modified with zero points.
-`POLICY` has the same semantics and meaning as for `--attr-scales`. `ZEROPOINT`
-is an integer value which will be subtracted from each tensor point. Asterisk
-mark (`*`) is a required addition to `ZEROPOINT` indicating the value will be
-passed to a primitive at run-time. To specify more than one memory argument,
-plus delimiter `+` is used.
 
-`ARG` supported values are:
+`ARG` specifies which memory argument will be modified. Supported values are:
   - `src` corresponds to `DNNL_ARG_SRC`
   - `wei` corresponds to `DNNL_ARG_WEIGHTS`
   - `dst` corresponds to `DNNL_ARG_DST`
 
-`POLICY` supported values are:
+`POLICY` has the same semantics and meaning as for `--attr-scales`. Supported
+values are:
   - `common`
   - `per_dim_1` (for `src` and `dst`)
 
+`ZEROPOINT` is required for the `common` policy only, an specifies an integer
+value which is passed for execution at runtime. Specifying a value for any other
+policies will trigger an error.
+
+To specify more than one memory argument for this attribute, `+` delimiter is
+used.
+
+## --attr-post-ops
 `--attr-post-ops` defines post operations primitive attribute. Depending on
 post operations kind, the syntax differs. To specify more than one post
 operation, plus delimiter `+` is used.
@@ -200,14 +206,14 @@ different physical memory layout combinations {ncw, ncw}, {ncw, nwc},
 ``` sh
     ./benchdnn --reorder --sdt=s8 --ddt=u8 \
                --stag=ncw,nwc --dtag=ncw,nwc \
-               --attr-scales=src:common:2.5* 2x8x8
+               --attr-scales=src:common:2.5 2x8x8
 ```
 
 Run a binary problem with s8 input data and u8 output data in nc layout
 applying scales to both inputs without any post operations:
 ``` sh
     ./benchdnn --binary --sdt=u8:s8 --ddt=u8 --stag=nc:nc \
-               --attr-scales=src:common:1.5*+src1:common:2.5* \
+               --attr-scales=src:common:1.5+src1:common:2.5 \
                100x100:100x100
 ```
 
@@ -217,7 +223,7 @@ relu post-op. The final dst datatype after the fusion in the example below is
 `s8`. The weights datatype is inferred as `s8`, `f32` and `bf16` for int8, f32 
 and bf16 convolutions respectively.
 ``` sh
-  ./benchdnn --conv --cfg=u8s8u8 --attr-scales=dst:per_oc:0.5* \
+  ./benchdnn --conv --cfg=u8s8u8 --attr-scales=dst:per_oc \
              --attr-post-ops=relu+dw_k3s1p1:s8:per_oc:1.5+relu \
              ic16oc16ih4oh4kh1ph0
 ```

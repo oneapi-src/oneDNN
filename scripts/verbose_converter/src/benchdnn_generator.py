@@ -617,18 +617,7 @@ def convert_post_ops(post_ops, prim_kind):
         return po
 
     def convert_dw_post_op(post_op):
-        policy = convert_scale_policy(post_op["scales"]["mask"], prim_kind)
-        po = (
-            post_op["alg"]
-            + ":"
-            + post_op["ksp"]
-            + ":"
-            + post_op["dst_dt"]
-            + ":"
-            + policy
-        )
-        if post_op["scales"]["value"] != None:
-            po += ":" + post_op["scales"]["value"]
+        po = post_op["alg"] + ":" + post_op["ksp"] + ":" + post_op["dst_dt"]
         return po
 
     def convert_eltwise_post_op(post_op):
@@ -685,9 +674,10 @@ def convert_scales(scales, prim_kind):
     res = []
     for arg in scales.keys():
         s = scales[arg]
-        benchdnn_scale = (
-            arg + ":" + convert_scale_policy(s["mask"], prim_kind) + ":0.5*"
-        )
+        policy = convert_scale_policy(s["mask"], prim_kind)
+        benchdnn_scale = arg + ":" + policy
+        if policy == "common":
+            benchdnn_scale += ":0.5"
         res.append(benchdnn_scale)
     return "+".join(res)
 
@@ -696,7 +686,10 @@ def convert_zero_points(zero_points, prim_kind):
     res = []
     for arg in zero_points.keys():
         zp = zero_points[arg]
-        benchdnn_zp = arg + ":" + convert_zp_policy(zp["mask"]) + ":1*"
+        policy = convert_zp_policy(zp["mask"])
+        benchdnn_zp = arg + ":" + policy
+        if policy == "common":
+            benchdnn_zp += ":1"
         res.append(benchdnn_zp)
     return "+".join(res)
 

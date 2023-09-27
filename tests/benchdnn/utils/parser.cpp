@@ -200,29 +200,13 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
                         "is not recognized.");
                 SAFE_V(FAIL);
             }
-            if (subs_pos == std::string::npos) continue;
-            CATCH_DANGLING_SYMBOL;
-
-            auto all_scales_str = get_substr(subs, subs_pos, '+');
-            if (e.convolution.wei_scale.from_str(all_scales_str) != OK) {
-                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
-                        "Error: depthwise post-op weights scale",
-                        all_scales_str.c_str(), "is not recognized.");
+            if (subs_pos < std::string::npos) {
+                const auto leftover = get_substr(subs, subs_pos, '\0');
+                BENCHDNN_PRINT(0,
+                        "Error: no more inputs are expected. Provided: "
+                        "\'%s\'.\n",
+                        leftover.c_str());
                 SAFE_V(FAIL);
-            }
-
-            // TODO: is it legit and working at all?
-            size_t dst_scale_pos = 0;
-            for (int i = 0; i < 2; ++i)
-                dst_scale_pos = all_scales_str.find(":", dst_scale_pos + 1);
-            if (dst_scale_pos != std::string::npos) {
-                auto dst_scale_str = all_scales_str.substr(dst_scale_pos + 1);
-                if (e.convolution.dst_scale.from_str(dst_scale_str) != OK) {
-                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
-                            "Error: depthwise post-op scale",
-                            dst_scale_str.c_str(), "is not recognized.");
-                    SAFE_V(FAIL);
-                }
             }
         } else if (e.is_eltwise_kind()) {
             e.eltwise.alpha
@@ -422,9 +406,8 @@ bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
     static const std::string help
             = "POST-OPS\n    Specifies post-ops attribute. `POST-OPS` syntax "
               "is one of those:\n    * SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]\n  "
-              "  * ELTWISE[:ALPHA[:BETA[:SCALE]]]\n    * "
-              "DW:KkSsPp[:DST_DT[:WEI_SCALE[:DST_SCALE]]]\n    * "
-              "BINARY:DT[:MASK_INPUT[:TAG]]\n    More details at "
+              "  * ELTWISE[:ALPHA[:BETA[:SCALE]]]\n    * DW:KkSsPp[:DST_DT]\n  "
+              "  * BINARY:DT[:MASK_INPUT[:TAG]]\n    More details at "
               "https://github.com/oneapi-src/oneDNN/blob/master/tests/benchdnn/"
               "doc/knobs_attr.md\n";
     std::vector<attr_t::post_ops_t> def {attr_t::post_ops_t()};
@@ -435,7 +418,7 @@ bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
 bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
         const char *str, const std::string &option_name /* = "attr-scales"*/) {
     static const std::string help
-            = "ARG:POLICY[:SCALE[*]][+...]\n    Specifies input scales "
+            = "ARG:POLICY[:SCALE][+...]\n    Specifies input scales "
               "attribute.\n    More details at "
               "https://github.com/oneapi-src/oneDNN/blob/master/tests/benchdnn/"
               "doc/knobs_attr.md\n";
@@ -446,7 +429,7 @@ bool parse_attr_zero_points(std::vector<attr_t::zero_points_t> &zp,
         const char *str,
         const std::string &option_name /* = "attr-zero-points"*/) {
     static const std::string help
-            = "ARG:POLICY:ZEROPOINT[*][+...]\n    Specifies zero-points "
+            = "ARG:POLICY[:ZEROPOINT][+...]\n    Specifies zero-points "
               "attribute.\n    More details at "
               "https://github.com/oneapi-src/oneDNN/blob/master/tests/benchdnn/"
               "doc/knobs_attr.md\n";

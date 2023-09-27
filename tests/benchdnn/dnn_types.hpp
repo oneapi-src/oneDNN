@@ -288,9 +288,6 @@ struct attr_t {
                 } else if (is_eltwise_kind()) {
                     eltwise.alg = kind2dnnl_kind(kind);
                 } else if (is_convolution_kind()) {
-                    convolution.src_scale = arg_scales_t::entry_t();
-                    convolution.wei_scale = arg_scales_t::entry_t();
-                    convolution.dst_scale = arg_scales_t::entry_t();
                     if (kind != DW) {
                         convolution.kernel = 3;
                         convolution.stride = kind == DW_K3S1P1 ? 1 : 2;
@@ -317,9 +314,6 @@ struct attr_t {
                 int stride = 0;
                 int padding = 0;
                 dnnl_data_type_t dst_dt = dnnl_f32;
-                arg_scales_t::entry_t src_scale;
-                arg_scales_t::entry_t wei_scale;
-                arg_scales_t::entry_t dst_scale;
             } convolution;
             struct binary_t {
                 enum class mask_input_t {

@@ -227,15 +227,18 @@ int parse_value_and_runtime(float &value, const std::string &s) {
     try {
         value = std::stof(s, &scale_pos);
     } catch (const std::invalid_argument &) {
-        BENCHDNN_PRINT(0, "%s\n%s \'%s\'; %s\n",
-                "Error: scale or zero point input value is invalid.",
-                "Given input:", s.c_str(),
-                "Expected input: \'VAL[*]\'. See help for proper syntax.");
+        BENCHDNN_PRINT(0, "%s \'%s\'.\n",
+                "Error: scale or zero point input value is expected to be a "
+                "real number. Given input:",
+                s.c_str());
         SAFE_V(FAIL);
     }
-    if (scale_pos + 1 < s.size()) return FAIL;
-    if (scale_pos == s.size()) return OK;
-    if (s.back() != '*') return FAIL;
+    if (scale_pos != s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'. %s \'%g\'.\n",
+                "Error: not every input symbol was processed. Given input:",
+                s.c_str(), "Parsed value:", value);
+        SAFE_V(FAIL);
+    }
     return OK;
 }
 
@@ -287,6 +290,12 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
         SAFE_V(FAIL);
     }
     if (start_pos == std::string::npos) return OK;
+    // No un-`common` policy beyond this point.
+    if (this->policy != COMMON) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "Error: policies but \'common\' do not support extra values.");
+        SAFE_V(FAIL);
+    }
     if (start_pos >= s.size()) {
         BENCHDNN_PRINT(0, "%s \'%s\'\n",
                 "Error: dangling symbol at the end of input", s.c_str());
@@ -296,7 +305,11 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
     SAFE(parse_value_and_runtime(
                  this->scale, parser::get_substr(s, start_pos, ':')),
             WARN);
-    if (this->scale < 0) return FAIL;
+    if (this->scale < 0) {
+        BENCHDNN_PRINT(0, "%s \'%g\'\n",
+                "Error: the scale can't be negative:", this->scale);
+        SAFE_V(FAIL);
+    }
     return OK;
 }
 
@@ -315,13 +328,29 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
             BENCHDNN_PRINT(0,
                     "Error: argument name \'%s\' was not recognized.\n",
                     subs.c_str());
-            return FAIL;
+            SAFE_V(FAIL);
         }
 
         auto policy = str2policy(parser::get_substr(subs, subs_pos, ':'));
-        if (policy == POLICY_TOTAL || subs_pos == std::string::npos
-                || subs_pos >= subs.size())
-            return FAIL;
+        if (policy == POLICY_TOTAL) {
+            BENCHDNN_PRINT(0, "Error: policy \'%s\' was not recognized.\n",
+                    subs.c_str());
+            SAFE_V(FAIL);
+        }
+        if (subs_pos == std::string::npos) {
+            if (policy == COMMON) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Error: \'common\' policy requires an integer input.");
+                SAFE_V(FAIL);
+            }
+            return OK;
+        }
+        if (subs_pos >= subs.size()) {
+            BENCHDNN_PRINT(0,
+                    "Error: dangling symbol at the end of input: \'%s\'\n",
+                    subs.c_str());
+            SAFE_V(FAIL);
+        }
 
         float zp = 0;
         SAFE(parse_value_and_runtime(
@@ -352,7 +381,7 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
             BENCHDNN_PRINT(0,
                     "Error: argument name \'%s\' was not recognized.\n",
                     subs.c_str());
-            return FAIL;
+            SAFE_V(FAIL);
         }
 
         arg_scales_t::entry_t arg_scale;
@@ -569,19 +598,19 @@ std::ostream &operator<<(std::ostream &s, const policy_t &policy) {
 
 std::ostream &operator<<(
         std::ostream &s, const attr_t::arg_scales_t::entry_t &scale) {
-    // TODO: remove '*'
-    s << scale.policy << ":" << scale.scale << '*';
+    s << scale.policy;
+    if (scale.policy == policy_t::COMMON) s << ":" << scale.scale;
     return s;
 }
 
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points) {
     const char *delim = "";
-    // TODO: remove '*'
     for (const auto &point : zero_points.points) {
         s << delim;
-        s << arg2str(point.first) << ":" << point.second.policy << ":"
-          << point.second.value << '*';
+        s << arg2str(point.first) << ":" << point.second.policy;
+        if (point.second.policy == policy_t::COMMON)
+            s << ":" << point.second.value;
         delim = "+";
     }
 
@@ -624,13 +653,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":k" << e.convolution.kernel << "s" << e.convolution.stride
                   << "p" << e.convolution.padding;
             }
-            const auto &c_ws = e.convolution.wei_scale;
-            const auto &c_ds = e.convolution.dst_scale;
-            if (e.convolution.dst_dt != dnnl_f32 || !c_ws.is_def()
-                    || !c_ds.is_def())
+            if (e.convolution.dst_dt != dnnl_f32)
                 s << ":" << e.convolution.dst_dt;
-            if (!c_ws.is_def() || !c_ds.is_def()) s << ":" << c_ws;
-            if (!c_ds.is_def()) s << ":" << c_ds;
         } else if (e.is_eltwise_kind()) {
             if (e.eltwise.beta != 0.f)
                 s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta;
@@ -962,23 +986,6 @@ dnnl_primitive_attr_t create_dnnl_attr(
                 DNN_SAFE_V(dnnl_post_ops_append_dw(ops, wei_dt, bia_dt,
                         e.convolution.dst_dt, e.convolution.kernel,
                         e.convolution.stride, e.convolution.padding));
-
-                // TODO: remove in favor of attr-scales option and update input
-                // files relying on scales in dw post-op string.
-                const auto &wei_scale = e.convolution.wei_scale;
-                int wei_mask = wei_scale.policy2mask(DNNL_ARG_WEIGHTS,
-                        dnnl_convolution, /* has_groups = */ true);
-                if (!wei_scale.is_def())
-                    DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
-                            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
-                            wei_mask));
-
-                const auto &dst_scale = e.convolution.dst_scale;
-                int dst_mask = dst_scale.policy2mask(DNNL_ARG_DST);
-                if (!dst_scale.is_def())
-                    DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
-                            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST, dst_mask));
-
             } else if (e.is_eltwise_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_eltwise(
                         ops, e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));

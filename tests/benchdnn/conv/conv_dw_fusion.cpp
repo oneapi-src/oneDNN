@@ -84,15 +84,11 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
             = prb->attr.scales.get(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
     if (!dw_wei_scale.is_def())
         fusion_attr.scales.set(DNNL_ARG_WEIGHTS, dw_wei_scale);
-    else if (!fused_conv_po.wei_scale.is_def())
-        fusion_attr.scales.set(DNNL_ARG_WEIGHTS, fused_conv_po.wei_scale);
 
     const auto &dw_dst_scale
             = prb->attr.scales.get(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST);
     if (!dw_dst_scale.is_def())
         fusion_attr.scales.set(DNNL_ARG_DST, dw_dst_scale);
-    else if (!fused_conv_po.dst_scale.is_def())
-        fusion_attr.scales.set(DNNL_ARG_DST, fused_conv_po.dst_scale);
 
     for (int i = fusion_index + 1; i < po.len(); ++i) {
         fusion_attr.post_ops.entry.push_back(prb->attr.post_ops.entry[i]);
