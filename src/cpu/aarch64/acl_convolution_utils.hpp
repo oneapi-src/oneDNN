@@ -42,6 +42,10 @@ struct acl_conv_conf_t {
     // If this is true, the result of the convolution goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
     bool use_dst_acc;
+    // Tells that the selected algorithm is Winograd. This is needed because the
+    // algorithm can be set to algorithm::convolution_auto and later on we need to
+    // skip fixed-format protocol as ACL Winograd does not support it.
+    bool alg_winograd;
     arm_compute::TensorInfo src_tensor_info;
     arm_compute::TensorInfo wei_tensor_info;
     arm_compute::TensorInfo bia_tensor_info;

@@ -205,7 +205,7 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     // clang-format on
 
     // ACL Winograd is not prepared for fixed format kernels
-    if (cd.alg_kind == alg_kind::convolution_winograd) {
+    if (acp.alg_winograd) {
         const bool is_1d = ndims == 3;
         const bool is_3d = ndims == 5;
         // Compute Library Winograd unsupported shape scenarios
@@ -370,6 +370,7 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
     // clang-format on
 
     // General Compute Library checks, memory tags are also set there
+    acp.alg_winograd = true;
     CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
 
     const bool shape_ok
