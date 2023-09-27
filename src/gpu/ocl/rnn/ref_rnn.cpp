@@ -867,109 +867,15 @@ status_t _ref_rnn_common_t<aprop>::init_res_storage(
 
 template <prop_kind_t aprop>
 gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
-
-    // FIXME: This should be created once per execute() instead of creating
-    // memory before each gemm call. Each cell type (+prop kind) might have
-    // different number of GEMMs.
-    bool is_lbr = this->pd()->is_lbr();
-    bool is_vanilla_gru = this->pd()->rnn_conf.is_vanilla_gru;
-    bool is_training = !this->pd()->rnn_conf.is_fwd;
-
-    memory_t *weights {nullptr};
-
     // These memory storages provide a mechanism to reuse existing memory
     // storage with an offset. These memory storages don't own attached memory
     std::unique_ptr<memory_storage_t> gemm_A_;
     std::unique_ptr<memory_storage_t> gemm_B_;
     std::unique_ptr<memory_storage_t> gemm_C_;
-    std::unique_ptr<memory_storage_t> workspace;
-    std::unique_ptr<memory_storage_t> scratchpad_gates;
-    std::unique_ptr<memory_storage_t> scratchpad_cell;
-    std::unique_ptr<memory_storage_t> scratchpad_dhG1;
-    std::unique_ptr<memory_storage_t> scratchpad_diff;
 
-    scratchpad_gates
-            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
-
-    if (pd()->rnn_conf.use_workspace) {
-        workspace = ((aprop == prop_kind::forward)
-                        ? ctx.output(DNNL_ARG_WORKSPACE)
-                        : ctx.input(DNNL_ARG_WORKSPACE))
-                            ->memory_storage()
-                            ->clone();
-    } else {
-        workspace = ctx.get_scratchpad_grantor().get_memory_storage(
-                key_rnn_space);
-    }
-
-    if (is_lbr || (is_vanilla_gru && gemm_kind == gemm_diff_wei_iter_2)) {
-        scratchpad_cell
-                = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
-    }
-
-    if (is_vanilla_gru && gemm_kind == gemm_iter_bwd_2) {
-        scratchpad_dhG1 = ctx.get_scratchpad_grantor().get_memory_storage(
-                key_rnn_diff_ht);
-    }
-
-    if (is_training) {
-        scratchpad_diff = ctx.get_scratchpad_grantor().get_memory_storage(
-                key_rnn_diff_states);
-    }
-
-    switch (gemm_kind) {
-        case gemm_iter_fwd:
-        case gemm_layer_fwd:
-        case gemm_iter_fwd_2:
-            weights = (gemm_kind == gemm_layer_fwd)
-                    ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
-                    : ctx.input(DNNL_ARG_WEIGHTS_ITER);
-            gemm_A_ = weights->memory_storage()->clone();
-            gemm_B_ = workspace->clone();
-            if (is_lbr && gemm_kind == gemm_iter_fwd) {
-                gemm_C_ = scratchpad_cell->clone();
-            } else {
-                gemm_C_ = scratchpad_gates->clone();
-            }
-            break;
-        case gemm_iter_bwd:
-        case gemm_iter_bwd_2:
-        case gemm_layer_bwd:
-            weights = (gemm_kind == gemm_layer_bwd)
-                    ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
-                    : ctx.input(DNNL_ARG_WEIGHTS_ITER);
-            gemm_A_ = weights->memory_storage()->clone();
-            if (is_lbr && gemm_kind == gemm_iter_bwd) {
-                gemm_B_ = scratchpad_cell->clone();
-            } else {
-                gemm_B_ = scratchpad_gates->clone();
-            }
-            gemm_C_ = (gemm_kind == gemm_iter_bwd_2) ? scratchpad_dhG1->clone()
-                                                     : scratchpad_diff->clone();
-            break;
-        case gemm_diff_wei_iter:
-        case gemm_diff_wei_layer:
-            weights = (gemm_kind == gemm_diff_wei_iter)
-                    ? ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER)
-                    : ctx.output(DNNL_ARG_DIFF_WEIGHTS_LAYER);
-            if (is_lbr && gemm_kind == gemm_diff_wei_iter) {
-                gemm_A_ = scratchpad_cell->clone();
-            } else {
-                gemm_A_ = scratchpad_gates->clone();
-            }
-            gemm_B_ = workspace->clone();
-            gemm_C_ = weights->memory_storage()->clone();
-            break;
-        case gemm_diff_wei_iter_2:
-            weights = ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER);
-
-            gemm_A_ = scratchpad_gates->clone();
-            gemm_B_ = scratchpad_cell->clone();
-            gemm_C_ = weights->memory_storage()->clone();
-            break;
-        default: assert(!"unknown gemm_kind");
-    }
-
+    gemm_A_ = a.clone();
+    gemm_B_ = b.clone();
+    gemm_C_ = c.clone();
     gemm_A_->set_offset(off_a);
     gemm_B_->set_offset(off_b);
     gemm_C_->set_offset(off_c);
