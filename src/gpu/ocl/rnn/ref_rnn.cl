@@ -145,14 +145,14 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
 
     if (lr) {
         dst = dst_base
-                + off_ws_state(n_layer, n_dir, n_iter, batch, states_ws_ld, 0,
-                        0, it + 1, b, c);
+                + off_ws_state(n_layer, n_dir, n_iter, batch, states_ws_ld, -1,
+                        0, it, b, c);
         dst[0] = src[0];
     }
     if (rl) {
         dst = dst_base
-                + off_ws_state(n_layer, n_dir, n_iter, batch, states_ws_ld, 0,
-                        n_dir - 1, n_iter - it, b, c);
+                + off_ws_state(n_layer, n_dir, n_iter, batch, states_ws_ld, -1,
+                        n_dir - 1, n_iter - it - 1, b, c);
         dst[0] = src[0];
     }
 
@@ -236,7 +236,7 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
     __global INPUT_DATA_T *src = (__global INPUT_DATA_T *)(src_base);
     __global WS_STATE_DATA_T *dst = dst_base;
     int ws_state_offset = off_ws_state(
-            n_layer, n_dir, n_iter, batch, states_ws_ld, lay + 1, dir, 0, b, s);
+            n_layer, n_dir, n_iter, batch, states_ws_ld, lay, dir, -1, b, s);
     if (s < sic) {
         int src_i_offset = src_i_off(strides, lay, dir, b, s);
         dst[ws_state_offset] = src_base
@@ -308,18 +308,19 @@ ref_rnn_copy_res_layer(__global WS_STATE_DATA_T *src_base,
         bool dequantize_at_copy = dequantize && DIRECTION_KIND != SUM;
         dst[dst_l_off(strides, it, b, dir * dhc + s)] = dequantize_at_copy
                 ? TO_DST(((float)src[off_ws_state(n_layer, n_dir, n_iter, batch,
-                                  states_ws_ld, n_layer, dir, it + 1, b, s)]
+                                  states_ws_ld, n_layer - 1, dir, it, b, s)]
                                  - shift)
                         / scale)
                 : src[off_ws_state(n_layer, n_dir, n_iter, batch, states_ws_ld,
-                        n_layer, dir, it + 1, b, s)];
+                        n_layer - 1, dir, it, b, s)];
         dir = 1;
     }
     if (rl) {
 #if DIRECTION_KIND == SUM
         if (dequantize) {
             float val = (float)src[off_ws_state(n_layer, n_dir, n_iter, batch,
-                                states_ws_ld, n_layer, dir, n_iter - it, b, s)]
+                                states_ws_ld, n_layer - 1, dir, n_iter - it - 1,
+                                b, s)]
                     + dst[dst_l_off(strides, it, b, s)];
             val = min(max(val, 0.f), 255.f);
             dst[dst_l_off(strides, it, b, s)]
@@ -328,25 +329,26 @@ ref_rnn_copy_res_layer(__global WS_STATE_DATA_T *src_base,
 #if defined(SRC_DT_U8) && defined(DST_DT_U8)
             dst[dst_l_off(strides, it, b, s)] = convert_uchar_sat(
                     convert_short(src[off_ws_state(n_layer, n_dir, n_iter,
-                            batch, states_ws_ld, n_layer, dir, n_iter - it, b,
-                            s)])
+                            batch, states_ws_ld, n_layer - 1, dir,
+                            n_iter - it - 1, b, s)])
                     + convert_short(dst[dst_l_off(strides, it, b, s)]));
 #else
             ACC_DATA_T temp_src = DST_TO_REF(dst[dst_l_off(strides, it, b, s)]);
             temp_src += DST_TO_REF(src[off_ws_state(n_layer, n_dir, n_iter,
-                    batch, states_ws_ld, n_layer, dir, n_iter - it, b, s)]);
+                    batch, states_ws_ld, n_layer - 1, dir, n_iter - it - 1, b,
+                    s)]);
             dst[dst_l_off(strides, it, b, s)] = REF_TO_DST(temp_src);
 #endif
         }
 #else
         dst[dst_l_off(strides, it, b, dir * dhc + s)] = dequantize
-                ? TO_DST(
-                        ((float)src[off_ws_state(n_layer, n_dir, n_iter, batch,
-                                 states_ws_ld, n_layer, dir, n_iter - it, b, s)]
-                                - shift)
+                ? TO_DST(((float)src[off_ws_state(n_layer, n_dir, n_iter, batch,
+                                  states_ws_ld, n_layer - 1, dir,
+                                  n_iter - it - 1, b, s)]
+                                 - shift)
                         / scale)
                 : src[off_ws_state(n_layer, n_dir, n_iter, batch, states_ws_ld,
-                        n_layer, dir, n_iter - it, b, s)];
+                        n_layer - 1, dir, n_iter - it - 1, b, s)];
 #endif
     }
 #else // BWD
@@ -408,11 +410,11 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
         dst[dst_i_off(strides, lay, dir, b, s)] = dequantize
                 ? TO_OUTPUT(
                         ((float)src[off_ws_state(n_layer, n_dir, n_iter, batch,
-                                 states_ws_ld, lay + 1, dir, n_iter, b, s)]
+                                 states_ws_ld, lay, dir, n_iter - 1, b, s)]
                                 - shift)
                         / scale)
                 : TO_OUTPUT(src[off_ws_state(n_layer, n_dir, n_iter, batch,
-                        states_ws_ld, lay + 1, dir, n_iter, b, s)]);
+                        states_ws_ld, lay, dir, n_iter - 1, b, s)]);
     }
 #if WITH_DST_ITER_C
     __global AUX_DATA_T *src_c = src_c_base;
@@ -422,7 +424,7 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
     if (dst_c_base && s < dhc) {
         dst_c[dst_i_c_off(c_strides, lay, dir, b, s)]
                 = src_c[off_ws_state(n_layer, n_dir, n_iter, batch,
-                        states_ws_ld, lay + 1, dir, n_iter, b, s)];
+                        states_ws_ld, lay, dir, n_iter - 1, b, s)];
     }
 #endif
 
@@ -503,7 +505,7 @@ __kernel void ref_rnn_ws_print(__global ACC_DATA_T *gates_base,
                 printf(" %f",
                         SRC_TO_REF(*(wt
                                 + off_ws_state(n_layer, n_dir, n_iter, batch,
-                                        states_ws_ld, j, dir, i, b, s))));
+                                        states_ws_ld, j - 1, dir, i - 1, b, s))));
             }
             printf("\n");
         }
@@ -540,7 +542,7 @@ __kernel void ref_rnn_ws_print(__global ACC_DATA_T *gates_base,
                 printf(" %f",
                         *(wt
                                 + off_ws_state(n_layer, n_dir, n_iter, batch,
-                                        states_ws_ld, j, dir, i, b, s)));
+                                        states_ws_ld, j - 1, dir, i - 1, b, s)));
             }
             printf("\n");
         }
