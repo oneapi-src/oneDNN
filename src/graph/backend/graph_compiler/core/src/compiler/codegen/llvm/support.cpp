@@ -81,7 +81,7 @@ static const char *handle_cpu_name(runtime::cpu_flags_t &flags) {
 }
 
 std::unique_ptr<TargetMachine> get_llvm_target_machine(
-        CodeGenOpt::Level optlevel) {
+        LLVM_CodeGenOptLevel optlevel) {
     auto target_triple = sys::getProcessTriple();
 
     std::string err;
@@ -124,7 +124,7 @@ std::unique_ptr<TargetMachine> get_llvm_target_machine(
 }
 
 std::unique_ptr<TargetMachine> get_llvm_target_machine(
-        CodeGenOpt::Level optlevel = CodeGenOpt::Level::Default);
+        LLVM_CodeGenOptLevel optlevel = LLVM_CodeGenOptLevel::Default);
 
 codegen_llvm_vis_t::codegen_llvm_vis_t(const context_ptr &ctx,
         LLVMContext &context, const std::string &source_dir,

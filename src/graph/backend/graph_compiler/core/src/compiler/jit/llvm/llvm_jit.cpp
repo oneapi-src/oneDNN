@@ -59,6 +59,12 @@ namespace impl {
 namespace graph {
 namespace gc {
 
+#if SC_LLVM_BACKEND >= 18
+using LLVM_CodeGenOptLevel = llvm::CodeGenOptLevel;
+#else
+using LLVM_CodeGenOptLevel = llvm::CodeGenOpt::Level;
+#endif
+
 static std::string dump_module_to_string(llvm::Module *m) {
     std::string ret;
     llvm::raw_string_ostream os(ret);
@@ -68,7 +74,7 @@ static std::string dump_module_to_string(llvm::Module *m) {
 
 #if SC_LLVM_BACKEND >= 16
 static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
-        llvm::CodeGenOpt::Level llvm_opt) {
+        LLVM_CodeGenOptLevel llvm_opt) {
 #if 0
     // these code are useful for debugging LLVM optimizations
     std::vector<const char *> args {"gc", "-pass-remarks=loop-unroll",
@@ -109,16 +115,16 @@ static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
 
     llvm::OptimizationLevel opt_level = llvm::OptimizationLevel::O3;
     switch (llvm_opt) {
-        case llvm::CodeGenOpt::Level::None:
+        case LLVM_CodeGenOptLevel::None:
             opt_level = llvm::OptimizationLevel::O0;
             break;
-        case llvm::CodeGenOpt::Level::Less:
+        case LLVM_CodeGenOptLevel::Less:
             opt_level = llvm::OptimizationLevel::O1;
             break;
-        case llvm::CodeGenOpt::Level::Default:
+        case LLVM_CodeGenOptLevel::Default:
             opt_level = llvm::OptimizationLevel::O2;
             break;
-        case llvm::CodeGenOpt::Level::Aggressive:
+        case LLVM_CodeGenOptLevel::Aggressive:
             opt_level = llvm::OptimizationLevel::O3;
             break;
     }
@@ -160,7 +166,7 @@ static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
 }
 #endif
 std::unique_ptr<llvm::TargetMachine> get_llvm_target_machine(
-        llvm::CodeGenOpt::Level optlevel);
+        LLVM_CodeGenOptLevel optlevel);
 
 static void *resolve_llvm_symbol(
         llvm::ExecutionEngine *engine, const std::string &name);
@@ -200,7 +206,7 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     }
 
     auto opt = std::min(opt_level_, 3U);
-    auto llvm_opt = static_cast<llvm::CodeGenOpt::Level>(opt);
+    auto llvm_opt = static_cast<LLVM_CodeGenOptLevel>(opt);
 
     llvm::Module *mod_ptr = llvmmod.get();
     auto tm = get_llvm_target_machine(llvm_opt).release();

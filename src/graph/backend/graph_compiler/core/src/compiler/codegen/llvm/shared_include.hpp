@@ -48,7 +48,11 @@
 #else
 #include <llvm/Support/TargetRegistry.h>
 #endif
+#if SC_LLVM_BACKEND >= 17
+#include <llvm/TargetParser/SubtargetFeature.h>
+#else
 #include <llvm/MC/SubtargetFeature.h>
+#endif
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
@@ -95,6 +99,13 @@ using Optional = std::optional<T>;
 using shuffle_idx_t = int;
 #else
 using shuffle_idx_t = uint32_t;
+#endif
+
+using namespace llvm;
+#if SC_LLVM_BACKEND >= 18
+using LLVM_CodeGenOptLevel = llvm::CodeGenOptLevel;
+#else
+using LLVM_CodeGenOptLevel = llvm::CodeGenOpt::Level;
 #endif
 
 } // namespace gc
