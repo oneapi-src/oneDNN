@@ -98,6 +98,10 @@ used.
 post operations kind, the syntax differs. To specify more than one post
 operation, plus delimiter `+` is used.
 
+Operations may be called in any order, e.g. apply `SUM` at first and then apply
+`ELTWISE`, or vice versa - apply `ELTWISE` and then `SUM` it with destination.
+
+### Sum
 `SUM` post operation kind appends operation result to the output. It supports
 optional arguments `SCALE` parsed as a real number, which scales the output
 before appending the result, `ZERO_POINT` parsed as a integer, which shifts the
@@ -105,6 +109,7 @@ output before using the scale and `DATA_TYPE` argument which defines sum data
 type parameter. If invalid or `undef` value of `DATA_TYPE` is specified, an
 error will be returned.
 
+### Eltwise
 `ELTWISE` post operation kind applies one of supported element-wise algorithms
 to the operation result and then stores it. It supports optional arguments
 `ALPHA` and `BETA` parsed as real numbers. To specify `BETA`, `ALPHA` must be
@@ -112,12 +117,47 @@ specified. `SCALE` has same notation and semantics as for `SUM` kind, but
 requires both `ALPHA` and `BETA` to be specified. `SCALE` is applicable only
 when output tensor has integer data type.
 
+`ELTWISE` supported values are:
+- Eltwise operations that support no alpha or beta:
+  - `abs`
+  - `exp`
+  - `exp_dst`
+  - `gelu_erf`
+  - `gelu_tanh`
+  - `log`
+  - `logistic`
+  - `logistic_dst`
+  - `mish`
+  - `round`
+  - `sqrt`
+  - `sqrt_dst`
+  - `square`
+  - `tanh`
+  - `tanh_dst`
+- Eltwise operations that support only alpha:
+  - `elu`
+  - `elu_dst`
+  - `relu`
+  - `relu_dst`
+  - `soft_relu`
+  - `swish`
+- Eltwise operations that support both alpha and beta:
+  - `clip`
+  - `clip_v2`
+  - `clip_v2_dst`
+  - `hardsigmoid`
+  - `hardswish`
+  - `linear`
+  - `pow`
+
+### Depthwise convolution
 `DW:KkSsPp` post operation kind appends depthwise convolution with kernel size
 of `k`, stride size of `s`, and left padding size of `p`.
 These kinds are only applicable for 1x1 2D-spatial main convolution operation.
 They support optional argument `DST_DT`, which defines destination
 tensor data type. Refer to [data types](knobs_dt.md) for details.
 
+### Binary
 `BINARY` post operation kind applies one of supported binary algorithms to the
 operation result and then stores it. It requires mandatory argument of `DT`
 specifying data type of second memory operand. It supports optional argument of
@@ -131,59 +171,24 @@ supported, positioned after `MASK_INPUT`, to specify physical memory format.
 `TAG` values use same notation as in drivers. The default value of `TAG` is
 `any`. Refer to [tags](knobs_tag.md) for details.
 
+`BINARY` supported values are:
+- `add`
+- `div`
+- `eq`
+- `ge`
+- `gt`
+- `le`
+- `lt`
+- `max`
+- `min`
+- `mul`
+- `ne`
+- `sub`
+
+### Prelu
 `PRELU` post operation kind applies forward algorithm to the operations result
 and then stores it. Weights `DT` is always implicitly f32. It supports an
 optional argument of `POLICY` specifying the broadcast policy.
-
-Operations may be called in any order, e.g. apply `SUM` at first and then apply
-`ELTWISE`, or vice versa - apply `ELTWISE` and then `SUM` it with destination.
-
-`ELTWISE` supported values are:
-  - Eltwise operations that support no alpha or beta:
-      - `abs`
-      - `exp`
-      - `exp_dst`
-      - `gelu_erf`
-      - `gelu_tanh`
-      - `log`
-      - `logistic`
-      - `logistic_dst`
-      - `mish`
-      - `round`
-      - `sqrt`
-      - `sqrt_dst`
-      - `square`
-      - `tanh`
-      - `tanh_dst`
-  - Eltwise operations that support only alpha:
-      - `elu`
-      - `elu_dst`
-      - `relu`
-      - `relu_dst`
-      - `soft_relu`
-      - `swish`
-  - Eltwise operations that support both alpha and beta:
-      - `clip`
-      - `clip_v2`
-      - `clip_v2_dst`
-      - `hardsigmoid`
-      - `hardswish`
-      - `linear`
-      - `pow`
-
-`BINARY` supported values are:
-  - `add`
-  - `div`
-  - `eq`
-  - `ge`
-  - `gt`
-  - `le`
-  - `lt`
-  - `max`
-  - `min`
-  - `mul`
-  - `ne`
-  - `sub`
 
 ## Examples:
 
@@ -212,9 +217,9 @@ applying scales to both inputs without any post operations:
 ```
 
 Run a 1x1 convolution fused with depthwise convolution where destination scales
-are set to 0.5 for 1x1 convolution and 1.5 for depthwise post-op followed by a 
-relu post-op. The final dst datatype after the fusion in the example below is 
-`s8`. The weights datatype is inferred as `s8`, `f32` and `bf16` for int8, f32 
+are set to 0.5 for 1x1 convolution and 1.5 for depthwise post-op followed by a
+relu post-op. The final dst datatype after the fusion in the example below is
+`s8`. The weights datatype is inferred as `s8`, `f32` and `bf16` for int8, f32
 and bf16 convolutions respectively.
 ``` sh
   ./benchdnn --conv --cfg=u8s8u8 --attr-scales=dst:per_oc \
