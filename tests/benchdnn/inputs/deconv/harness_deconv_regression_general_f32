@@ -7,3 +7,10 @@
 --dt=f32
 --dir=fwd_b
 mb56_ic2oc3_ih6oh18kh3sh3dh0ph1_iw5ow15kw3sw3dw0pw1_n"2d_strided_with_bias"
+
+# test brgdeconv strided shape that kd/kh block != kd/kh
+--reset
+--skip-impl=ref,x64:gemm
+--dt=f32
+--dir=FWD_B
+mb1ic16ih16oc128oh32kh64sh2ph1
