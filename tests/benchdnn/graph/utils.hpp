@@ -161,8 +161,8 @@ bool is_nxc_lt_arg(const std::string &kind, const int exec_arg);
 int get_prim_arg_name_from_graph_op_output_offset(
         dnnl::graph::op::kind op_kind, size_t output_offset);
 // get primitive's arg name according to graph op's input offset
-int get_prim_arg_name_from_graph_op_input_offset(
-        dnnl::graph::op::kind op_kind, int input_offset, bool use_dst = false);
+int get_prim_arg_name_from_graph_op_input_offset(dnnl::graph::op::kind op_kind,
+        size_t input_offset, bool use_dst = false);
 
 /// Get logical tensor layout type based on string
 ///

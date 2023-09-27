@@ -910,7 +910,7 @@ int get_prim_arg_name_from_graph_op_output_offset(
 }
 
 int get_prim_arg_name_from_graph_op_input_offset(
-        dnnl::graph::op::kind op_kind, int input_offset, bool use_dst) {
+        dnnl::graph::op::kind op_kind, size_t input_offset, bool use_dst) {
     switch (op_kind) {
         case dnnl::graph::op::kind::Add:
         case dnnl::graph::op::kind::BiasAdd:
@@ -924,14 +924,14 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 1)
                 return DNNL_ARG_SRC_1;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
             }
         }
         case dnnl::graph::op::kind::Concat: {
-            return DNNL_ARG_MULTIPLE_SRC + input_offset;
+            return DNNL_ARG_MULTIPLE_SRC + static_cast<int>(input_offset);
         } break;
         case dnnl::graph::op::kind::Convolution:
         case dnnl::graph::op::kind::ConvTranspose:
@@ -943,7 +943,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 2)
                 return DNNL_ARG_BIAS;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -956,7 +956,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 1)
                 return DNNL_ARG_WEIGHTS;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -969,7 +969,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 1)
                 return DNNL_ARG_DIFF_DST;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -981,7 +981,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 1)
                 return DNNL_ARG_WEIGHTS;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -995,7 +995,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 2)
                 return DNNL_ARG_DIFF_DST;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1006,12 +1006,12 @@ int get_prim_arg_name_from_graph_op_input_offset(
                 return DNNL_ARG_DIFF_DST;
             else if (input_offset == 1) {
                 BENCHDNN_PRINT(0,
-                        "Error: no support for input %d of Avg Pool Backward",
+                        "Error: no support for input %zu of Avg Pool Backward",
                         input_offset);
                 assert(false);
                 return -1;
             } else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1024,12 +1024,12 @@ int get_prim_arg_name_from_graph_op_input_offset(
                 return DNNL_ARG_DIFF_DST;
             else if (input_offset == 2) {
                 BENCHDNN_PRINT(0,
-                        "Error: no support for input %d of Max Pool Backward",
+                        "Error: no support for input %zu of Max Pool Backward",
                         input_offset);
                 assert(false);
                 return -1;
             } else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1042,7 +1042,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 1)
                 return DNNL_ARG_DST;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1056,7 +1056,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 2)
                 return DNNL_ARG_SHIFT;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1076,7 +1076,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 5)
                 return DNNL_ARG_SHIFT;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1094,7 +1094,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 4)
                 return DNNL_ARG_SHIFT;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1112,7 +1112,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 4)
                 return DNNL_ARG_VARIANCE;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1130,7 +1130,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 4)
                 return DNNL_ARG_SCALE;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1143,12 +1143,13 @@ int get_prim_arg_name_from_graph_op_input_offset(
                 return DNNL_ARG_DIFF_DST;
             else if (input_offset == 2) {
                 BENCHDNN_PRINT(0,
-                        "Error: no support for input %d of Resampling Backward",
+                        "Error: no support for input %zu of Resampling "
+                        "Backward",
                         input_offset);
                 assert(false);
                 return -1;
             } else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1164,12 +1165,13 @@ int get_prim_arg_name_from_graph_op_input_offset(
             if (input_offset == 0)
                 return DNNL_ARG_SRC;
             else if (input_offset == 1) {
-                BENCHDNN_PRINT(0, "Error: no support for input %d of Reduction",
+                BENCHDNN_PRINT(0,
+                        "Error: no support for input %zu of Reduction",
                         input_offset);
                 assert(false);
                 return -1;
             } else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1192,7 +1194,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 1)
                 return DNNL_ARG_DIFF_DST;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1212,7 +1214,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 2)
                 return DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_FROM;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1226,7 +1228,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 2)
                 return DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_TO;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;
@@ -1240,7 +1242,7 @@ int get_prim_arg_name_from_graph_op_input_offset(
             else if (input_offset == 2)
                 return DNNL_ARG_SRC_1;
             else {
-                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);
                 assert(false);
                 return -1;

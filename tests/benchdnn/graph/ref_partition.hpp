@@ -22,6 +22,7 @@
 #include "dnnl_common.hpp"
 #include "graph_bridge.hpp"
 #include "input_displacer.hpp"
+#include "ref_primitive.hpp"
 #include <unordered_set>
 
 namespace graph {
@@ -47,65 +48,9 @@ public:
     void check_partition_correctness(
             partition_mem_map_t &partition_mem_map, res_t *res);
 
-    // link previous primitive's args to current primitive
-    void link_args(const deserialized_op &cur_op, res_t *res);
-
     // get the reference of ops of the partition
     const op_ref_list_t &get_partition_ops() const {
         return partition_ops_ref_;
-    }
-
-protected:
-    template <typename setting_t, typename prb_t, typename init_pd_func_t,
-            typename supported_exec_args_func_t, typename setup_cmp_func_t>
-    void init_op(const deserialized_op &cur_op, const init_pd_func_t &init_pd,
-            const supported_exec_args_func_t &supported_exec_args,
-            const setup_cmp_func_t &setup_cmp,
-            partition_mem_map_t &graph_mem_map, const engine_t &ref_eng,
-            res_t *res) {
-        setting_t op_setting = get_setting<setting_t>(
-                cur_op, bf16_to_f32_rewrite_lt_id_, res);
-        if (res->state == INVALID_ARGUMENTS) return;
-
-        auto pprb = std::make_shared<prb_t>(op_setting);
-
-        // Memory Preparation Flow:
-        // 1. Generate memory and data from primitive
-        // 2. Replace the data filling if needed
-        // 3. Replace memory from other OP in link_args
-        //      a. If the memory input is an output of other OP
-        //      b. If the memory input is a shared partition input with other OP
-        // 4. The data for execution is finalized and generate graph memory args.
-
-        init_prim<prb_t>(ref_prims_, cur_op, init_pd, supported_exec_args,
-                setup_cmp, pprb, ref_eng, res);
-        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return;
-
-        // prepare graph memory
-        // 1. init tensors based on primitive memories
-        // 2. maintain input and output tensors of the partition
-        int op_id = static_cast<int>(cur_op.id_);
-        auto &mems = std::get<1>(ref_prims_[op_id]);
-
-        // displace the input tensor
-        for (size_t i = 0; i < cur_op.in_lts_.size(); i++) {
-            const auto &in = cur_op.in_lts_[i];
-            int arg = get_prim_arg_name_from_graph_op_input_offset(
-                    opstr2kind(cur_op.kind_), static_cast<int>(i));
-            auto &mem = const_cast<dnn_mem_t &>(
-                    ::std::get<3>(ref_prims_[op_id]).find(arg));
-            data_displacer.displace_input_data(in.id_, mem, res);
-            if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return;
-        }
-
-        link_args(cur_op, res);
-        init_graph_memory_args(mems, graph_mem_map, partition_in_ids_,
-                partition_out_ids_, cur_op, res);
-    }
-
-    template <typename prb_t>
-    void exec_op(const deserialized_op &cur_op, const prb_t *prb, res_t *res) {
-        execute_prim(ref_prims_, cur_op, prb, res);
     }
 
 private:
@@ -137,9 +82,17 @@ private:
     // IDs of logical tensors to replace bf16 data type with fp32.
     std::unordered_set<size_t> bf16_to_f32_rewrite_lt_id_;
 
-    // Objects below are modified during run()
     // reference primitives for a single partition
-    ref_prims_t ref_prims_;
+    std::unordered_map<size_t, ::std::shared_ptr<ref_primitive_t>> ref_prims_;
+
+    // keep the memory for each logical tensor
+    // before the execution of each reference primitive,
+    // replace the args with the memory from this map.
+    std::unordered_map<size_t, const dnn_mem_t &> lt_id_2_mems_;
+    // keep the lt id for fake output which is not supported by primitive
+    std::unordered_set<size_t> fake_lt_ids_;
+
+    std::unordered_map<size_t, const deserialized_lt &> lt_id_2_lt_;
 };
 
 } // namespace graph
