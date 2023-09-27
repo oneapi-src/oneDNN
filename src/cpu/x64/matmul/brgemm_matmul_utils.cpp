@@ -231,15 +231,6 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
                 : memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, acbd, adbc);
 
-        // For cases when the weights tensor is transposed but has
-        // 'dim_size == 1', we can ignore transposition and compute as a plain
-        // format tensor. This removes the need of allocating a scratchpad for
-        // copy_B.
-        if (memory_desc_matches_tag(B_md, transposed_tensor_layout_tag)
-                && memory_desc_matches_tag(B_md, plain_tensor_layout_tag)) {
-            bgmmc.wei_tag = plain_tensor_layout_tag;
-        }
-
         if (format_tag::undef == bgmmc.wei_tag) return status::unimplemented;
     }
 
