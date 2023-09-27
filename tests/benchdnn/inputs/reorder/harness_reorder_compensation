@@ -3,7 +3,7 @@
 --sdt=f32
 --ddt=s8
 --attr-scales=, \
-    src:common:2*, \
+    src:common:2, \
     src:per_dim_0, \
     src:per_dim_1, \
     src:per_dim_01, \
@@ -21,7 +21,7 @@
 --ddt=s8
 
 # Non-grouped cases
---attr-scales=,src:common:2*
+--attr-scales=,src:common:2
 --oflag=,s8s8_comp:1,zp_comp:1,s8s8_comp:1+zp_comp:1
 --stag=abx,xba,bxa
 --dtag=xba,ABx2b8a4b,ABx4a4b,ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
@@ -48,7 +48,7 @@
 --dtag=Adcb16a 32x32x3x3
 
 # Grouped cases
---attr-scales=,src:common:2*
+--attr-scales=,src:common:2
 --oflag=,s8s8_comp:3,zp_comp:3,s8s8_comp:3+zp_comp:3
 --stag=abx,xcab
 --dtag=xcab        2x32x32x3 2x32x32x3x3 16x32x32x3x3x3

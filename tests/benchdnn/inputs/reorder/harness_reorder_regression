@@ -9,5 +9,5 @@
 --skip-impl=ref,simple # ! test jit version only
 --sdt=u8 --ddt=f32
 --stag=abdc --dtag=abcd
---attr-zero-points=src0:common:1*
+--attr-zero-points=src0:common:1
 1x32x128x33

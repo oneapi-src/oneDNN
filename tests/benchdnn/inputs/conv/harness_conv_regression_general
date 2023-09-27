@@ -323,7 +323,7 @@ mb1ic8iw9973oc256ow9973kw9pw2n"brgconv_compensation_bdb_tail"
 --reset
 --dt=s8:s8:s8
 mb1_ic1oc1_ih1kh1ph1_iw1kw1_n"brgemm_conv_comp_pad:1"
---dt=u8:s8:u8 --attr-zero-points=src0:common:1*
+--dt=u8:s8:u8 --attr-zero-points=src0:common:1
 g3mb2_ic6oc96_ih12oh8kh1sh2dh1ph2_iw11ow7kw4sw1dw1pw1_n"brgemm_conv_comp_pad:2"
 
 # test correct creation of post_op jit kernel for sum+elem-wise operation
@@ -340,9 +340,9 @@ g90mb1_ic360oc180_ih12oh16kh1sh1dh1ph2_iw14ow7kw3sw2dw1pw2_n"brgemm_post-op-jit_
 --dir=FWD_I --dt=u8:s8:u8
 --stag=acdb --wtag=any --dtag=acdb
 --attr-post-ops=sum
---attr-zero-points=dst:common:2*
+--attr-zero-points=dst:common:2
 mb1_ic2oc2_ih10oh12kh1sh1dh0ph1_iw7ow7kw1sw1dw0pw0_n"brgemm_post-op-jit_sum-with-zp:1"
---attr-zero-points=dst:common:2*+src:common:1*
+--attr-zero-points=dst:common:2+src:common:1
 mb1ic2ih10iw7oc2oh6ow4kh1kw1sh2sw2ph1pw0dh1dw1_n"brgemm_post-op-jit_sum-with-zp:2"
 
 # test primitive cache correctly dispatching proper CPU ISA
@@ -359,7 +359,7 @@ ic64ih56oc256oh56kh1ph0n"primitive-cache_dispatch_shape-2"
 # test correct wei scale calculation
 --reset
 --skip-impl=ref,x64:gemm
---dt=u8:s8:f32 --attr-scales=wei:common:0.025*
+--dt=u8:s8:f32 --attr-scales=wei:common:0.025
 mb2_ic512_oc64_ih7_oh7_kh1_ph0_n"test_wei-scale_computation"
 
 # brgemm convolution for amx: Some shapes with stride results SegFault
@@ -380,5 +380,5 @@ mb2_g1_ic256ih9oc324oh3kh3sh3ph1n"brgemm_strided_conv_inp_buffer_size"
 --reset
 --skip-impl=ref,x64:gemm
 --dt=u8:s8:f32
---attr-zero-points=src:common:31*+dst:common:15*
+--attr-zero-points=src:common:31+dst:common:15
 ic64ih14oc24oh14kh5ph2_n"zp_with_top_and_bottom_vpad"

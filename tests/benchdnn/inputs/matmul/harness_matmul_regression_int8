@@ -10,10 +10,10 @@
 # verify assertions
 --reset
 --dt=s8:s8:s32,u8:s8:s32
---attr-zero-points=,src:common:1*,wei:common:2*,src:common:1*+wei:common:2* 1x1:1x1
+--attr-zero-points=,src:common:1,wei:common:2,src:common:1+wei:common:2 1x1:1x1
 
 --stag=ab,ba --wtag=ab,ba --dtag=ab
---attr-zero-points=src:common:1*+wei:common:2* 2x2:2x2
+--attr-zero-points=src:common:1+wei:common:2 2x2:2x2
 
 # verify zero-padding for blocked format tags
 --reset

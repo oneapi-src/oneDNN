@@ -4,20 +4,20 @@
 
 --runtime-dim-mask=0,63
 
---attr-scales=src:common:2*, \
+--attr-scales=src:common:2, \
               src:per_dim_0, \
               src:per_dim_1, \
               src:per_dim_01, \
-              dst:common:2*, \
+              dst:common:2, \
               dst:per_dim_0, \
               dst:per_dim_1, \
               dst:per_dim_01, \
-              src:common:4*+dst:common:2*, \
+              src:common:4+dst:common:2, \
               src:per_dim_0+dst:per_dim_0, \
               src:per_dim_1+dst:per_dim_1, \
               src:per_dim_01+dst:per_dim_01, \
-              src:per_dim_1+dst:common:2*, \
-              src:common:4*+dst:per_dim_1
+              src:per_dim_1+dst:common:2, \
+              src:common:4+dst:per_dim_1
 
 --sdt=f32 --ddt=f32,bf16,f16,s8
 --stag=abx,axb

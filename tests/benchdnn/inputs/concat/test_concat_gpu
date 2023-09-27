@@ -78,7 +78,7 @@
 --reset
 --allow-enum-tags-only=0
 --stag=abcd:acbd:acbd --dtag=abcd --axis=1
---attr-scales=,msrc0:common:1.5*,msrc0:common:1.5*+msrc1:common:2.5*
+--attr-scales=,msrc0:common:1.5,msrc0:common:1.5+msrc1:common:2.5
 4x1x1x4:4x1x1x4:4x1x1x4_n"simple_concat_ok"
 4x2x1x4:4x2x1x4:4x2x1x4
 4x1x2x4:4x1x2x4:4x1x2x4
@@ -91,5 +91,5 @@
 --sdt=u8 --ddt=u8
 --stag=nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw:nchw
 --dtag=nchw
---attr-scales=msrc0:common:2*+msrc1:common:3*+msrc2:common:4*+msrc3:common:5*+msrc4:common:6*+msrc5:common:7*+msrc6:common:8*+msrc7:common:9*+msrc8:common:10*+msrc9:common:11*+msrc10:common:12*+msrc11:common:13*+msrc12:common:14*+msrc13:common:15*+msrc14:common:16*+msrc15:common:17*+msrc16:common:18*
+--attr-scales=msrc0:common:2+msrc1:common:3+msrc2:common:4+msrc3:common:5+msrc4:common:6+msrc5:common:7+msrc6:common:8+msrc7:common:9+msrc8:common:10+msrc9:common:11+msrc10:common:12+msrc11:common:13+msrc12:common:14+msrc13:common:15+msrc14:common:16+msrc15:common:17+msrc16:common:18
 1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40

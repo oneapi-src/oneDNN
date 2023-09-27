@@ -304,7 +304,7 @@
 --reset --allow-enum-tags-only=0 --alg=add --sdt=f16:f16 --ddt=f16 --stag=aBcd16b:acdb --dtag=acdb 1x320x64x64:1x320x1x1n"*10"
 --reset --allow-enum-tags-only=0 --alg=add --sdt=f16:f16 --ddt=f16 --stag=aBcd16b:acdb --dtag=acdb 1x640x32x32:1x640x1x1n"*10"
 #
---reset --allow-enum-tags-only=0 --alg=add --sdt=f32:f32 --ddt=u8 --stag=ab:ab --dtag=ab --attr-scales=src0:common:0.5*+src1:common:0.5* 5000x845:1x1n"*400"
+--reset --allow-enum-tags-only=0 --alg=add --sdt=f32:f32 --ddt=u8 --stag=ab:ab --dtag=ab --attr-scales=src0:common:0.5+src1:common:0.5 5000x845:1x1n"*400"
 #
 --reset --allow-enum-tags-only=0 --alg=add --sdt=f16:f16 --ddt=f16 --stag=ABcd32a16b:ABcd32a16b --dtag=ABcd32a16b 32x192x40x40:32x192x40x40n"*6"
 --reset --allow-enum-tags-only=0 --alg=add --sdt=f16:f16 --ddt=f16 --stag=ABcd32a16b:ABcd32a16b --dtag=ABcd32a16b 32x384x20x20:32x384x20x20n"*2"

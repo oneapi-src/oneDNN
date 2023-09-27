@@ -6,14 +6,14 @@
 
 ## s8 binary-po for non-u8 dst dt
 --dt=s8:s8:s32,s8:s8:bf16,s8:s8:s8
---attr-scales=src:common:0.25*+wei:per_oc+dst:common:2.25*
+--attr-scales=src:common:0.25+wei:per_oc+dst:common:2.25
 --attr-post-ops=mul:s8+sum:0.5+relu:0.5,linear:2:1:10,sum:0.5:1:s32
 --mb=2 --batch=set_all
 --mb=0 --batch=shapes_0d
 
 ## u8 binary-po for non-s8 dst dt
 --dt=u8:s8:f32,u8:s8:bf16,u8:s8:u8
---attr-scales=src:common:0.25*+wei:per_oc+dst:common:2.25*
+--attr-scales=src:common:0.25+wei:per_oc+dst:common:2.25
 --attr-post-ops=sum:0.5+mul:u8+relu:0.5,sum,sum:1.5:0:s8,prelu:per_oc
 --mb=2 --batch=set_all
 --mb=0 --batch=shapes_0d
