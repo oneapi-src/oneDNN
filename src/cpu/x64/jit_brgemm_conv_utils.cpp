@@ -988,9 +988,12 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         od_block = 1;
         oh_block = 1;
     } else if (exec_type == exec_trans) {
+        const auto ic_size = is_bf32 ? ic : ic_block;
+        // `ic_block` can't be used in calculation because it's always 16 or 64
+        // for bf32, and it's too low to have good oh_block size.
         const auto w_block_size
-                = 2 * src_dsz * ic_block * iwp + dst_dsz * ow * oc_block;
-        const auto other_size = wei_dsz * kd * kh * kw * ic_block * oc_block
+                = 2 * src_dsz * ic_size * iwp + dst_dsz * ow * oc_block;
+        const auto other_size = wei_dsz * kd * kh * kw * ic_size * oc_block
                 + acc_dsz * 2 * amx_h * oc_block;
         const auto L2_available = nstl::min(static_cast<size_t>(div_up(L2, 2)),
                 other_size > L2 ? 0 : L2 - other_size);
