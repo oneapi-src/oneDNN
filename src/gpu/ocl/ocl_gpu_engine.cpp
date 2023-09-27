@@ -165,12 +165,12 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
 }
 
 cl_int maybe_print_debug_info(
-        cl_int err, cl_program program, cl_device_id dev) {
+        cl_int err_, cl_program program, cl_device_id dev) {
     // Return error code if verbose is not enabled.
-    if (err == CL_SUCCESS || !get_verbose(verbose_t::error)) return err;
+    if (err_ == CL_SUCCESS || !get_verbose(verbose_t::error)) return err_;
 
     size_t log_length = 0;
-    err = clGetProgramBuildInfo(
+    auto err = clGetProgramBuildInfo(
             program, dev, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_length);
     assert(err == CL_SUCCESS);
 
@@ -181,7 +181,8 @@ cl_int maybe_print_debug_info(
     VERROR(common, ocl,
             "Error during the build of OpenCL program. Build log:\n%s",
             log_buf.data());
-    return err;
+    MAYBE_UNUSED(err);
+    return err_;
 };
 
 inline status_t preprocess_headers(
