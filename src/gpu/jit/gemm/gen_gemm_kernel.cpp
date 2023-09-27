@@ -310,9 +310,9 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     auto tags = const_cast<char *>(match_params[0].tags);
     while (*tags)
         tags++;
-    if (lda * problem_.Ta >= 64) *tags++ = kcatalog::ReqBlock2DA;
-    if (ldb * problem_.Tb >= 64) *tags++ = kcatalog::ReqBlock2DB;
-    if (ldc * problem_.Tc >= 64) *tags++ = kcatalog::ReqBlock2DC;
+    if (lda * problem_.Ta <= 16777216) *tags++ = kcatalog::ReqBlock2DA;
+    if (ldb * problem_.Tb <= 16777216) *tags++ = kcatalog::ReqBlock2DB;
+    if (ldc * problem_.Tc <= 16777216) *tags++ = kcatalog::ReqBlock2DC;
     if (has_systolic) *tags++ = kcatalog::ReqSystolic;
 
     if ((mode & mode_tf32)
