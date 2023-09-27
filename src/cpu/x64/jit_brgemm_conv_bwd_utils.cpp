@@ -1082,16 +1082,17 @@ status_t brg_blocking_t::calc_blocks() {
     // results then we need the out buffer
     const auto maybe_use_buffer = (dst_dt != acc_dt || with_sum);
 
+    // kd/kh block should be either kd/kh or a multiple of stride_d/stride_h
     std::vector<int> kd_blocks(1), kh_blocks(1);
     kd_blocks[0] = kd;
     kh_blocks[0] = kh;
     if (kd != 1) {
         kd_blocks.resize(2);
-        kd_blocks[1] = 1;
+        kd_blocks[1] = stride_d;
     }
     if (kh != 1) {
         kh_blocks.resize(2);
-        kh_blocks[1] = 1;
+        kh_blocks[1] = stride_h;
     }
 
     const auto thr_eff_threshold = 0.9f;
