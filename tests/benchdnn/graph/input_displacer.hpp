@@ -17,7 +17,7 @@
 #ifndef BENCHDNN_GRAPH_INPUT_DISPLACER_HPP
 #define BENCHDNN_GRAPH_INPUT_DISPLACER_HPP
 
-#include "graph_bridge.hpp"
+#include "ref_primitive.hpp"
 
 namespace graph {
 
@@ -39,8 +39,8 @@ private:
 
     ::std::unordered_map<size_t, displace_t> quantize_displace;
 
-    int gen_quantize_filling(const ::graph::deserialized_op &main_op,
-            dnn_mem_map_t &mem_map, const ::std::string &dt, res_t *res);
+    int gen_quantize_filling(const ::graph::deserialized_op &main_op, int arg,
+            dnn_mem_t &mem, const ::std::string &dt, res_t *res);
 };
 
 } // namespace graph
