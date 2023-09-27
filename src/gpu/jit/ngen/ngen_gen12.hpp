@@ -22,9 +22,16 @@
 
 struct EncodingTag12 {};
 struct EncodingTagXeHPC {};
-template <HW hw> struct EncodingTag12Dispatch { using tag = EncodingTag12; };
+
+struct Instruction12;
+struct InstructionXeHPC;
+
+template <HW hw> struct EncodingTag12Dispatch       { using tag = EncodingTag12; };
+template <HW hw> struct Instruction12Dispatch       { using type = Instruction12; };
 template <> struct EncodingTag12Dispatch<HW::XeHPC> { using tag = EncodingTagXeHPC; };
-template <> struct EncodingTag12Dispatch<HW::Xe2> { using tag = EncodingTagXeHPC; };
+template <> struct Instruction12Dispatch<HW::XeHPC> { using type = InstructionXeHPC; };
+template <> struct EncodingTag12Dispatch<HW::Xe2>   { using tag = EncodingTagXeHPC; };
+template <> struct Instruction12Dispatch<HW::Xe2>   { using type = InstructionXeHPC; };
 
 class SWSBInfo12
 {
@@ -329,9 +336,9 @@ struct Instruction12 {
             unsigned src0Mods : 2;
             unsigned src0Imm : 1;
             unsigned src2Imm : 1;
-            unsigned dst : 16;              // TernaryOperand12 or immediate
+            unsigned dst : 16;              // TernaryOperand12
             //
-            unsigned src0 : 16;
+            unsigned src0 : 16;             // TernaryOperand12 or immediate
             unsigned src2Type : 3;
             unsigned src1VS0 : 1;
             unsigned src2Mods : 2;
@@ -438,7 +445,7 @@ struct Instruction12 {
     void shiftUIP(int32_t shift)  { branches.uip += shift * sizeof(Instruction12); }
 
     inline autoswsb::DestinationMask destinations(int &jip, int &uip) const;
-    template <bool xeHPC = false>
+    template <typename Tag = EncodingTag12>
     inline bool getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const;
     inline bool getImm32(uint32_t &imm) const;
     inline bool getSendDesc(MessageDescriptor &desc) const;
@@ -460,9 +467,9 @@ struct InstructionXeHPC : public Instruction12 {
     SWSBInfo swsb() const        { return SWSBInfoXeHPC::createFromRaw(commonXeHPC.swsb).decode(opcode()); }
     void setSWSB(SWSBInfo swsb)  { commonXeHPC.swsb = SWSBInfoXeHPC(swsb, opcode()).raw(); }
 
-    template <bool xeHPC = true>
+    template <typename Tag = EncodingTagXeHPC>
     bool getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const {
-        return Instruction12::getOperandRegion<true>(region, opNum);
+        return Instruction12::getOperandRegion<EncodingTagXeHPC>(region, opNum);
     }
 };
 
@@ -473,7 +480,7 @@ static_assert(sizeof(InstructionXeHPC) == 16, "Internal error: InstructionXeHPC 
 static inline unsigned getTypecode12(DataType type)
 {
     static const uint8_t conversionTable[32] = {2,6,1,5,0,4,11,10,3,7,9,13,8,0,4,8,
-                                                14,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
+                                                14,2,2,2,2,2,2,2,2,2,2,2,0,4,0,4};
     return conversionTable[static_cast<unsigned>(type) & 0x1F];
 }
 
@@ -489,7 +496,7 @@ static inline unsigned pow2Encode(unsigned x)
     return (x == 0) ? 0 : (1 + utils::log2(x));
 }
 
-template <bool dest, bool encodeHS = true>
+template <int srcN, bool encodeHS = true>
 static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &rd, EncodingTag12 tag)
 {
     BinaryOperand12 op{0};
@@ -502,26 +509,26 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
         op.indirect.addrOff = rd.getOffset();
         op.indirect.addrReg = rd.getIndirectOff();
         op.indirect.addrMode = 1;
-        if (!dest)
+        if (srcN >= 0)
             op.indirect.vs = (rd.isVxIndirect()) ? 0xFFFF : pow2Encode(rd.getVS());
     } else {
         op.direct.regFile = getRegFile(rd);
         op.direct.subRegNum = rd.getByteOffset();
         op.direct.regNum = rd.getBase();
         op.direct.addrMode = 0;
-        if (!dest)
+        if (srcN >= 0)
             op.direct.vs = pow2Encode(rd.getVS());
     }
 
     if (encodeHS)
         op.direct.hs = pow2Encode(rd.getHS());
 
-    if (!dest) op.direct.width = utils::log2(rd.getWidth());
+    if (srcN >= 0) op.direct.width = utils::log2(rd.getWidth());
 
     return op;
 }
 
-template <bool dest, bool encodeHS = true>
+template <int srcN, bool encodeHS = true>
 static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &rd, EncodingTagXeHPC tag)
 {
     BinaryOperand12 op{0};
@@ -534,7 +541,7 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
         op.indirect.addrOff = (rd.getOffset() >> 1);
         op.indirect.addrReg = rd.getIndirectOff();
         op.indirect.addrMode = 1;
-        if (!dest) {
+        if (srcN >= 0) {
             op.indirect.vs = (rd.isVxIndirect()) ? 0xFFFF : pow2Encode(rd.getVS());
             op.indirectXeHPC.addrOff0 = (rd.getOffset() & 1);
         }
@@ -543,7 +550,7 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
         op.direct.subRegNum = (rd.getByteOffset() >> 1);
         op.direct.regNum = rd.getBase();
         op.direct.addrMode = 0;
-        if (!dest) {
+        if (srcN >= 0) {
             op.directXeHPC.vs = pow2Encode(rd.getVS());
             op.directXeHPC.subRegNum0 = rd.getByteOffset() & 1;
         }
@@ -552,15 +559,15 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
     if (encodeHS)
         op.direct.hs = pow2Encode(rd.getHS());
 
-    if (!dest) op.direct.width = utils::log2(rd.getWidth());
+    if (srcN >= 0) op.direct.width = utils::log2(rd.getWidth());
 
     return op;
 }
 
-template <bool dest, typename Tag>
+template <int srcN, typename Tag>
 static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const ExtendedReg &reg, Tag tag)
 {
-    auto op = encodeBinaryOperand12<dest>(reg.getBase(), tag);
+    auto op = encodeBinaryOperand12<srcN>(reg.getBase(), tag);
     op.direct.subRegNum = reg.getMMENum();
 
     return op;
@@ -755,6 +762,10 @@ static inline void encodeSendExDesc(Instruction12 &i, RegData exdesc, Instructio
 {
     bool encodeSrc1Length = mod.isExBSO();
     bool recordExBSO = mod.isExBSO();
+    if (hw == HW::Xe2 && static_cast<SharedFunction>(i.send.sfid) == SharedFunction::ugm) {
+        encodeSrc1Length = true;
+        recordExBSO = false;
+    }
 
 #ifdef NGEN_SAFE
     // Only a0.x:ud is allowed for extended descriptor.
@@ -799,8 +810,8 @@ static inline DataType decodeRegTypecode12(unsigned dt)
     static const DataType conversionTable[16] = {
         DataType::ub,      DataType::uw,      DataType::ud,      DataType::uq,
         DataType::b,       DataType::w,       DataType::d,       DataType::q,
-        DataType::invalid, DataType::hf,      DataType::f,       DataType::df,
-        DataType::invalid, DataType::bf,      DataType::tf32,    DataType::bf8
+        DataType::bf8,     DataType::hf,      DataType::f,       DataType::df,
+        DataType::invalid, DataType::bf,      DataType::tf32,    DataType::invalid,
     };
     return conversionTable[dt & 0xF];
 }
@@ -815,10 +826,12 @@ inline ARFType normalizeARFType(ARFType type, HW hw)
     return type;
 }
 
-template <bool xeHPC>
+template <typename Tag>
 bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const
 {
     using namespace autoswsb;
+
+    constexpr bool xeHPC = !std::is_same<Tag, EncodingTag12>::value;
 
     auto hw = region.hw;
     auto op = opcode();
@@ -828,13 +841,23 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
         case Opcode::nop_gen12:
         case Opcode::illegal:
             return false;
-        case Opcode::wrdep:
-            if (opNum != 0) return false;
-            BinaryOperand12 o0, o1;
-            o0.bits = binary.src0;
-            o1.bits = binary.src1;
-            region = DependencyRegion(hw, GRF(o0.direct.regNum)-GRF(o1.direct.regNum));
-            return true;
+        case Opcode::directive:
+            switch (opNum) {
+                case -1: {
+                    BinaryOperand12 o;
+                    o.bits = binary.dst;
+                    region = DependencyRegion(hw, 1, GRF(o.direct.regNum));
+                    return true;
+                }
+                case 0: {
+                    BinaryOperand12 o0, o1;
+                    o0.bits = binary.src0;
+                    o1.bits = binary.src1;
+                    region = DependencyRegion(hw, GRF(o0.direct.regNum)-GRF(o1.direct.regNum));
+                    return true;
+                }
+                default: return false;
+            }
         case Opcode::dpas:
         case Opcode::dpasw: {
             unsigned sdepth = 1 << dpas.sdepth;
@@ -846,18 +869,19 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 case -1: {
                     int typebytes = decodeDPASTypecodeBytes12(ternary.dstType);
                     len = (rcount * typebytes + 3) >> 2;
-                    if (typebytes == 8) len = rcount;
                     o.bits = ternary.dst;
                     break;
                 }
                 case 0: {
                     int typebytes = decodeDPASTypecodeBytes12(ternary.src0Type);
                     len = (rcount * typebytes + 3) >> 2;
-                    if (typebytes == 8) len = rcount;
                     o.bits = ternary.src0;
                     break;
                 }
-                case 1:  len = sdepth; o.bits = ternary.src1; break;
+                case 1:
+                    len = sdepth;
+                    o.bits = ternary.src1;
+                    break;
                 case 2: {
                     if (op == Opcode::dpasw) rcount = (rcount + 1) >> 1;
                     o.bits = ternary.src2;
@@ -866,14 +890,13 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                         len = ((sr << 1) + sdepth * rcount * 4 + 63) >> 6;
                     else
                         len = (sr + sdepth * rcount * 4 + 31) >> 5;
-                    if (decodeDPASTypecodeBytes12(ternary.src2Type) == 8)
-                        len = rcount;
                     break;
                 }
                 default: return false;
             }
 
-            region = DependencyRegion(hw, GRFRange(o.direct.regNum, len));
+            unsigned regNum = o.direct.regNum;
+            region = DependencyRegion(hw, GRFRange(regNum, len));
             return true;
         }
         case Opcode::send:
@@ -944,7 +967,8 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             }
             dt |= (ternary.execType << 3);
             if (op == Opcode::madm) o.direct.subRegNum = 0;
-            auto base = GRF(o.direct.regNum).retype(decodeRegTypecode12(dt));
+            unsigned regNum = o.direct.regNum;
+            auto base = GRF(regNum).retype(decodeRegTypecode12(dt));
             auto sr = o.direct.subRegNum;
             if (xeHPC) sr <<= 1;
             auto sub = base[sr / getBytes(base.getType())];
@@ -987,10 +1011,11 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 o.direct.subRegNum = 0;
             auto sr = xeHPC ? ((o.direct.subRegNum << 1) | o.directXeHPC.subRegNum0)
                             : o.direct.subRegNum;
-            auto vs = xeHPC ? o.directXeHPC.vs : o.direct.vs;
-            auto base = GRF(o.direct.regNum).retype(decodeRegTypecode12(dt));
+            auto regNum = o.direct.regNum;
+            auto base = GRF(regNum).retype(decodeRegTypecode12(dt));
             auto sub = base[sr / getBytes(base.getType())];
             auto hs = (1 << o.direct.hs) >> 1;
+            auto vs = xeHPC ? o.directXeHPC.vs : o.direct.vs;
             if (opNum < 0)
                 rd = sub(hs);
             else

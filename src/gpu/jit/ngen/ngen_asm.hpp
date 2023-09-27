@@ -371,7 +371,7 @@ bool AsmInstruction::getOperandRegion(autoswsb::DependencyRegion &region, int op
             case 1: len = sdepth; break;
             case 2:
                 if (op == Opcode::dpasw) rcount = (rcount + 1) >> 1;
-                len = GRF::bytesToGRFs(hw, operand.reg.getByteOffset() + sdepth * rcount * 4 * operand.reg.getDwords());
+                len = GRF::bytesToGRFs(hw, operand.reg.getByteOffset() + sdepth * rcount * 4);
                 break;
             default: return false;
         }
@@ -1446,6 +1446,12 @@ private:
         void bar(const RegData &src0) {
             this->operator()(SyncFunction::bar, InstructionModifier(), src0);
         }
+        void flush() {
+            flush(InstructionModifier());
+        }
+        void flush(const InstructionModifier &mod) {
+            this->operator()(SyncFunction::flush, InstructionModifier(), null);
+        }
         void host(const InstructionModifier &mod = InstructionModifier()) {
             this->operator()(SyncFunction::host, mod);
         }
@@ -1456,209 +1462,26 @@ private:
 public:
     Sync sync;
 
-private:
-    struct Load {
-        AsmCodeGenerator &parent;
-
-        Load(AsmCodeGenerator *parent_) : parent(*parent_) {}
-
-        template <typename DataSpec>
-        void operator()(const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const RegData &addr)
-        {
-            MessageDescriptor desc;
-            ExtendedMessageDescriptor exdesc;
-
-            encodeLoadDescriptors(parent.hardware, desc, exdesc, mod, dst, spec, base, addr);
-            parent.send(mod, dst, addr, exdesc.all, desc.all);
-        }
-
-        template <typename DataSpec>
-        void operator()(const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const GRFDisp &addr)
-        {
-            MessageDescriptor desc;
-            ExtendedMessageDescriptor exdesc;
-
-            encodeLoadDescriptors(parent.hardware, desc, exdesc, mod, dst, spec, base, addr);
-            parent.send(mod, dst, addr.getBase(), exdesc.all, desc.all);
-        }
-
-        template <typename DataSpec>
-        void operator()(SharedFunction sfid, const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const GRFDisp &addr)
-        {
-            MessageDescriptor desc;
-            ExtendedMessageDescriptor exdesc;
-
-            exdesc.parts.sfid = static_cast<unsigned>(sfid);
-            encodeLoadDescriptors(parent.hardware, desc, exdesc, mod, dst, spec, base, addr);
-            exdesc.parts.sfid = static_cast<unsigned>(sfid);
-            parent.send(mod, dst, addr.getBase(), exdesc.all, desc.all);
-        }
-
-        void ugm(const InstructionModifier &mod, const RegData &dst, DataSpecLSC spec, AddressBase base, const GRFDisp &addr)
-        {
-            this->operator()(SharedFunction::ugm, mod, dst, spec, base, addr);
-        }
-        void ugml(const InstructionModifier &mod, const RegData &dst, DataSpecLSC spec, AddressBase base, const GRFDisp &addr)
-        {
-            this->operator()(SharedFunction::ugml, mod, dst, spec, base, addr);
-        }
-        void tgm(const InstructionModifier &mod, const RegData &dst, DataSpecLSC spec, AddressBase base, const GRFDisp &addr)
-        {
-            this->operator()(SharedFunction::tgm, mod, dst, spec, base, addr);
-        }
-        void slm(const InstructionModifier &mod, const RegData &dst, DataSpecLSC spec, AddressBase base, const GRFDisp &addr)
-        {
-            this->operator()(SharedFunction::slm, mod, dst, spec, base, addr);
-        }
-    };
-
-    struct Store {
-        AsmCodeGenerator &parent;
-
-        Store(AsmCodeGenerator *parent_) : parent(*parent_) {}
-
-        template <typename DataSpec>
-        void operator()(const InstructionModifier &mod, const DataSpec &spec, AddressBase base, const RegData &addr, const RegData &data)
-        {
-            MessageDescriptor desc;
-            ExtendedMessageDescriptor exdesc;
-
-            encodeStoreDescriptors(parent.hardware, desc, exdesc, mod, spec, base, addr);
-            parent.sends(mod, NullRegister(), addr, data, exdesc.all, desc.all);
-        }
-
-        template <typename DataSpec>
-        void operator()(const InstructionModifier &mod, const DataSpec &spec, AddressBase base, const GRFDisp &addr, const RegData &data)
-        {
-            MessageDescriptor desc;
-            ExtendedMessageDescriptor exdesc;
-
-            encodeStoreDescriptors(parent.hardware, desc, exdesc, mod, spec, base, addr);
-            parent.sends(mod, NullRegister(), addr.getBase(), data, exdesc.all, desc.all);
-        }
-
-        template <typename DataSpec>
-        void operator()(SharedFunction sfid, const InstructionModifier &mod, const DataSpec &spec, AddressBase base, const GRFDisp &addr, const RegData &data)
-        {
-            MessageDescriptor desc;
-            ExtendedMessageDescriptor exdesc;
-
-            exdesc.parts.sfid = static_cast<unsigned>(sfid);
-            encodeStoreDescriptors(parent.hardware, desc, exdesc, mod, spec, base, addr);
-            exdesc.parts.sfid = static_cast<unsigned>(sfid);
-            parent.sends(mod, NullRegister(), addr.getBase(), data, exdesc.all, desc.all);
-        }
-
-        void ugm(const InstructionModifier &mod, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data)
-        {
-            this->operator()(SharedFunction::ugm, mod, spec, base, addr, data);
-        }
-        void ugml(const InstructionModifier &mod, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data)
-        {
-            this->operator()(SharedFunction::ugml, mod, spec, base, addr, data);
-        }
-        void tgm(const InstructionModifier &mod, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data)
-        {
-            this->operator()(SharedFunction::tgm, mod, spec, base, addr, data);
-        }
-        void slm(const InstructionModifier &mod, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data)
-        {
-            this->operator()(SharedFunction::slm, mod, spec, base, addr, data);
-        }
-    };
-
-    struct Atomic {
-        AsmCodeGenerator &parent;
-
-        Atomic(AsmCodeGenerator *parent_) : parent(*parent_) {}
-
-        template <typename DataSpec>
-        void operator()(AtomicOp op, const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const RegData &addr, const RegData &data = NullRegister())
-        {
-            MessageDescriptor desc;
-            ExtendedMessageDescriptor exdesc;
-
-            encodeAtomicDescriptors(parent.hardware, desc, exdesc, op, mod, dst, spec, base, addr);
-            if (data.isNull())
-                parent.send(mod, dst, addr, exdesc.all, desc.all);
-            else
-                parent.sends(mod, dst, addr, data, exdesc.all, desc.all);
-        }
-        template <typename DataSpec>
-        void operator()(AtomicOp op, const InstructionModifier &mod, const DataSpec &spec, AddressBase base, const RegData &addr, const RegData &data = NullRegister())
-        {
-            (*this)(op, mod, NullRegister(), spec, base, addr, data);
-        }
-
-        template <typename DataSpec>
-        void operator()(AtomicOp op, const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            MessageDescriptor desc;
-            ExtendedMessageDescriptor exdesc;
-
-            encodeAtomicDescriptors(parent.hardware, desc, exdesc, op, mod, dst, spec, base, addr);
-            parent.sends(mod, dst, addr.getBase(), data, exdesc.all, desc.all);
-        }
-        template <typename DataSpec>
-        void operator()(AtomicOp op, const InstructionModifier &mod, const DataSpec &spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            (*this)(op, mod, NullRegister(), spec, base, addr, data);
-        }
-        template <typename DataSpec>
-        void operator()(SharedFunction sfid, AtomicOp op, const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const GRFDisp &addr, const RegData &data)
-        {
-            MessageDescriptor desc;
-            ExtendedMessageDescriptor exdesc;
-
-            exdesc.parts.sfid = static_cast<unsigned>(sfid);
-            encodeAtomicDescriptors(parent.hardware, desc, exdesc, op, mod, dst, spec, base, addr);
-            exdesc.parts.sfid = static_cast<unsigned>(sfid);
-            parent.sends(mod, dst, addr.getBase(), data, exdesc.all, desc.all);
-        }
-
-        void ugm(AtomicOp op, const InstructionModifier &mod, const RegData &dst, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            this->operator()(SharedFunction::ugm, op, mod, dst, spec, base, addr, data);
-        }
-        void ugm(AtomicOp op, const InstructionModifier &mod, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            this->operator()(SharedFunction::ugm, op, mod, NullRegister(), spec, base, addr, data);
-        }
-        void ugml(AtomicOp op, const InstructionModifier &mod, const RegData &dst, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            this->operator()(SharedFunction::ugml, op, mod, dst, spec, base, addr, data);
-        }
-        void ugml(AtomicOp op, const InstructionModifier &mod, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            this->operator()(SharedFunction::ugml, op, mod, NullRegister(), spec, base, addr, data);
-        }
-        void tgm(AtomicOp op, const InstructionModifier &mod, const RegData &dst, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            this->operator()(SharedFunction::tgm, op, mod, dst, spec, base, addr, data);
-        }
-        void tgm(AtomicOp op, const InstructionModifier &mod, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            this->operator()(SharedFunction::tgm, op, mod, NullRegister(), spec, base, addr, data);
-        }
-        void slm(AtomicOp op, const InstructionModifier &mod, const RegData &dst, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            this->operator()(SharedFunction::slm, op, mod, dst, spec, base, addr, data);
-        }
-        void slm(AtomicOp op, const InstructionModifier &mod, DataSpecLSC spec, AddressBase base, const GRFDisp &addr, const RegData &data = NullRegister())
-        {
-            this->operator()(SharedFunction::slm, op, mod, NullRegister(), spec, base, addr, data);
-        }
-    };
-public:
-    Load load;
-    Store store;
-    Atomic atomic;
-
+    void ignoredep(Operand op) {
+        if (hardware >= HW::Gen12LP)
+            opX(Opcode::directive, DataType::ud, InstructionModifier(), GRF(static_cast<int>(op)), NoOperand());
+    }
+    void subdep(Operand op, const GRFRange &r) {
+        ignoredep(op);
+        wrdep(r);
+    }
+    void subdep(Operand op, const GRF &r) {
+        ignoredep(op);
+        wrdep(r);
+    }
     void wrdep(const GRFRange &r) {
+#ifdef NGEN_SAFE
+        if (hardware < HW::Gen12LP) throw unsupported_instruction();
+#endif
         int len = r.getLen();
         for (int o = 0; o < len; o += 32) {
             int thisLen = std::min(len - o, 32);
-            opX(Opcode::wrdep, DataType::ud, InstructionModifier::createAutoSWSB(), null, GRFRange(r.getBase(), thisLen));
+            opX(Opcode::directive, DataType::ud, InstructionModifier::createAutoSWSB(), GRF(static_cast<int>(Directive::wrdep)), r[o] - r[o + thisLen - 1]);
         }
     }
     void wrdep(const GRF &r) {
@@ -1666,6 +1489,8 @@ public:
     }
 
     inline void mark(Label &label)          { streamStack.back()->mark(label, labelManager); }
+
+    using _self = AsmCodeGenerator;
 
 #include "ngen_pseudo.hpp"
 #ifndef NGEN_GLOBAL_REGS
@@ -1724,9 +1549,11 @@ void AsmCodeGenerator::getCode(std::ostream &out)
         if (i.isLabel()) {
             i.dst.label.outputText(out, PrintDetail::full, labelManager);
             out << ':' << std::endl;
+            if (i.dst.label == _labelLocalIDsLoaded)
+                lineNo = 0;
         } else if (i.isComment())
             out << "// " << i.comment << std::endl;
-        else if (i.op != Opcode::wrdep)
+        else if (i.op != Opcode::directive)
             outX(out, i, lineNo++);
     }
 }
@@ -1837,7 +1664,9 @@ void AsmCodeGenerator::outExt(std::ostream &out, const AsmInstruction &i)
 
     if (isGen12) switch (i.opcode()) {
         case Opcode::send:
-        case Opcode::sends:     out << '.' << getMnemonic(static_cast<SharedFunction>(i.ext & 0xF), hardware); break;
+        case Opcode::sendc:
+        case Opcode::sends:
+        case Opcode::sendsc:    out << '.' << getMnemonic(static_cast<SharedFunction>(i.ext & 0xF), hardware); break;
         case Opcode::sync:      out << '.' << static_cast<SyncFunction>(i.ext);                                break;
         case Opcode::bfn:       out << ".0x" << std::hex << i.ext << std::dec;                                 break;
         case Opcode::dpas:
@@ -1920,7 +1749,7 @@ void AsmCodeGenerator::outMods(std::ostream &out,const InstructionModifier &mod,
             if (mod.getThreadCtrl() == ThreadCtrl::Atomic)                printPostMod("Atomic");
             if (!isGen12 && mod.getThreadCtrl() == ThreadCtrl::Switch)    printPostMod("Switch");
             if (!isGen12 && mod.getThreadCtrl() == ThreadCtrl::NoPreempt) printPostMod("NoPreempt");
-            if (mod.isAccWrEn())                                          printPostMod("AccWrEn");
+            if (mod.isAccWrEn() && hardware < HW::XeHPC)                  printPostMod("AccWrEn");
             if (mod.isCompact())                                          printPostMod("Compact");
             if (mod.isBreakpoint())                                       printPostMod("Breakpoint");
             if (mod.isSerialized())                                       printPostMod("Serialize");

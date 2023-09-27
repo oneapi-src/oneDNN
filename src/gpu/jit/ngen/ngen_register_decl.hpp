@@ -154,136 +154,6 @@ PREFIX constexpr ngen::GRF CG::r124; \
 PREFIX constexpr ngen::GRF CG::r125; \
 PREFIX constexpr ngen::GRF CG::r126; \
 PREFIX constexpr ngen::GRF CG::r127; \
-\
-PREFIX constexpr ngen::NullRegister CG::null; \
-PREFIX constexpr ngen::AddressRegister CG::a0; \
-PREFIX constexpr ngen::AccumulatorRegister CG::acc0; \
-PREFIX constexpr ngen::AccumulatorRegister CG::acc1; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc2; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc3; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc4; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc5; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc6; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc7; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc8; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc9; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme0; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme1; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme2; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme3; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme4; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme5; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme6; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme7; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::nomme; \
-PREFIX constexpr ngen::SpecialAccumulatorRegister CG::noacc; \
-PREFIX constexpr ngen::FlagRegister CG::f0; \
-PREFIX constexpr ngen::FlagRegister CG::f1; \
-PREFIX constexpr ngen::FlagRegister CG::f0_0; \
-PREFIX constexpr ngen::FlagRegister CG::f0_1; \
-PREFIX constexpr ngen::FlagRegister CG::f1_0; \
-PREFIX constexpr ngen::FlagRegister CG::f1_1; \
-PREFIX constexpr ngen::ChannelEnableRegister CG::ce0; \
-PREFIX constexpr ngen::StackPointerRegister CG::sp; \
-PREFIX constexpr ngen::StateRegister CG::sr0; \
-PREFIX constexpr ngen::StateRegister CG::sr1; \
-PREFIX constexpr ngen::ControlRegister CG::cr0; \
-PREFIX constexpr ngen::NotificationRegister CG::n0; \
-PREFIX constexpr ngen::InstructionPointerRegister CG::ip; \
-PREFIX constexpr ngen::ThreadDependencyRegister CG::tdr0; \
-PREFIX constexpr ngen::PerformanceRegister CG::tm0; \
-PREFIX constexpr ngen::PerformanceRegister CG::tm1; \
-PREFIX constexpr ngen::PerformanceRegister CG::tm2; \
-PREFIX constexpr ngen::PerformanceRegister CG::tm3; \
-PREFIX constexpr ngen::PerformanceRegister CG::tm4; \
-PREFIX constexpr ngen::PerformanceRegister CG::pm0; \
-PREFIX constexpr ngen::PerformanceRegister CG::tp0; \
-PREFIX constexpr ngen::DebugRegister CG::dbg0; \
-PREFIX constexpr ngen::FlowControlRegister CG::fc0; \
-PREFIX constexpr ngen::FlowControlRegister CG::fc1; \
-PREFIX constexpr ngen::FlowControlRegister CG::fc2; \
-PREFIX constexpr ngen::FlowControlRegister CG::fc3; \
-\
-PREFIX constexpr ngen::InstructionModifier CG::NoDDClr; \
-PREFIX constexpr ngen::InstructionModifier CG::NoDDChk; \
-PREFIX constexpr ngen::InstructionModifier CG::AccWrEn; \
-PREFIX constexpr ngen::InstructionModifier CG::NoSrcDepSet; \
-PREFIX constexpr ngen::InstructionModifier CG::Breakpoint; \
-PREFIX constexpr ngen::InstructionModifier CG::sat; \
-PREFIX constexpr ngen::InstructionModifier CG::NoMask; \
-PREFIX constexpr ngen::InstructionModifier CG::ExBSO; \
-PREFIX constexpr ngen::InstructionModifier CG::AutoSWSB; \
-PREFIX constexpr ngen::InstructionModifier CG::Serialize; \
-PREFIX constexpr ngen::InstructionModifier CG::EOT; \
-PREFIX constexpr ngen::InstructionModifier CG::Align1; \
-PREFIX constexpr ngen::InstructionModifier CG::Align16; \
-PREFIX constexpr ngen::InstructionModifier CG::Atomic; \
-PREFIX constexpr ngen::InstructionModifier CG::Switch; \
-PREFIX constexpr ngen::InstructionModifier CG::NoPreempt; \
-\
-PREFIX constexpr ngen::PredCtrl CG::anyv; \
-PREFIX constexpr ngen::PredCtrl CG::allv; \
-PREFIX constexpr ngen::PredCtrl CG::any2h; \
-PREFIX constexpr ngen::PredCtrl CG::all2h; \
-PREFIX constexpr ngen::PredCtrl CG::any4h; \
-PREFIX constexpr ngen::PredCtrl CG::all4h; \
-PREFIX constexpr ngen::PredCtrl CG::any8h; \
-PREFIX constexpr ngen::PredCtrl CG::all8h; \
-PREFIX constexpr ngen::PredCtrl CG::any16h; \
-PREFIX constexpr ngen::PredCtrl CG::all16h; \
-PREFIX constexpr ngen::PredCtrl CG::any32h; \
-PREFIX constexpr ngen::PredCtrl CG::all32h; \
-\
-PREFIX constexpr ngen::InstructionModifier CG::x_repl; \
-PREFIX constexpr ngen::InstructionModifier CG::y_repl; \
-PREFIX constexpr ngen::InstructionModifier CG::z_repl; \
-PREFIX constexpr ngen::InstructionModifier CG::w_repl; \
-\
-PREFIX constexpr ngen::InstructionModifier CG::ze; \
-PREFIX constexpr ngen::InstructionModifier CG::eq; \
-PREFIX constexpr ngen::InstructionModifier CG::nz; \
-PREFIX constexpr ngen::InstructionModifier CG::ne; \
-PREFIX constexpr ngen::InstructionModifier CG::gt; \
-PREFIX constexpr ngen::InstructionModifier CG::ge; \
-PREFIX constexpr ngen::InstructionModifier CG::lt; \
-PREFIX constexpr ngen::InstructionModifier CG::le; \
-PREFIX constexpr ngen::InstructionModifier CG::ov; \
-PREFIX constexpr ngen::InstructionModifier CG::un; \
-PREFIX constexpr ngen::InstructionModifier CG::eo; \
-\
-PREFIX constexpr ngen::InstructionModifier CG::M0; \
-PREFIX constexpr ngen::InstructionModifier CG::M4; \
-PREFIX constexpr ngen::InstructionModifier CG::M8; \
-PREFIX constexpr ngen::InstructionModifier CG::M12; \
-PREFIX constexpr ngen::InstructionModifier CG::M16; \
-PREFIX constexpr ngen::InstructionModifier CG::M20; \
-PREFIX constexpr ngen::InstructionModifier CG::M24; \
-PREFIX constexpr ngen::InstructionModifier CG::M28; \
-\
-PREFIX constexpr ngen::SBID CG::sb0; \
-PREFIX constexpr ngen::SBID CG::sb1; \
-PREFIX constexpr ngen::SBID CG::sb2; \
-PREFIX constexpr ngen::SBID CG::sb3; \
-PREFIX constexpr ngen::SBID CG::sb4; \
-PREFIX constexpr ngen::SBID CG::sb5; \
-PREFIX constexpr ngen::SBID CG::sb6; \
-PREFIX constexpr ngen::SBID CG::sb7; \
-PREFIX constexpr ngen::SBID CG::sb8; \
-PREFIX constexpr ngen::SBID CG::sb9; \
-PREFIX constexpr ngen::SBID CG::sb10; \
-PREFIX constexpr ngen::SBID CG::sb11; \
-PREFIX constexpr ngen::SBID CG::sb12; \
-PREFIX constexpr ngen::SBID CG::sb13; \
-PREFIX constexpr ngen::SBID CG::sb14; \
-PREFIX constexpr ngen::SBID CG::sb15; \
-\
-PREFIX constexpr ngen::AddressBase CG::A32; \
-PREFIX constexpr ngen::AddressBase CG::A32NC; \
-PREFIX constexpr ngen::AddressBase CG::A64; \
-PREFIX constexpr ngen::AddressBase CG::A64NC; \
-PREFIX constexpr ngen::AddressBase CG::SLM; \
-
-#define NGEN_REGISTER_DECL_EXTRA1(CG,PREFIX) \
 PREFIX constexpr ngen::GRF CG::r128; \
 PREFIX constexpr ngen::GRF CG::r129; \
 PREFIX constexpr ngen::GRF CG::r130; \
@@ -411,9 +281,157 @@ PREFIX constexpr ngen::GRF CG::r251; \
 PREFIX constexpr ngen::GRF CG::r252; \
 PREFIX constexpr ngen::GRF CG::r253; \
 PREFIX constexpr ngen::GRF CG::r254; \
-PREFIX constexpr ngen::GRF CG::r255;
-
-#define NGEN_REGISTER_DECL_EXTRA2(CG,PREFIX) \
+PREFIX constexpr ngen::GRF CG::r255; \
+\
+PREFIX constexpr ngen::NullRegister CG::null; \
+PREFIX constexpr ngen::AddressRegister CG::a0; \
+PREFIX constexpr ngen::AccumulatorRegister CG::acc0; \
+PREFIX constexpr ngen::AccumulatorRegister CG::acc1; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc2; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc3; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc4; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc5; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc6; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc7; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc8; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::acc9; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme0; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme1; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme2; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme3; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme4; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme5; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme6; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::mme7; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::nomme; \
+PREFIX constexpr ngen::SpecialAccumulatorRegister CG::noacc; \
+PREFIX constexpr ngen::FlagRegister CG::f0; \
+PREFIX constexpr ngen::FlagRegister CG::f1; \
+PREFIX constexpr ngen::FlagRegister CG::f2; \
+PREFIX constexpr ngen::FlagRegister CG::f3; \
+PREFIX constexpr ngen::FlagRegister CG::f0_0; \
+PREFIX constexpr ngen::FlagRegister CG::f0_1; \
+PREFIX constexpr ngen::FlagRegister CG::f1_0; \
+PREFIX constexpr ngen::FlagRegister CG::f1_1; \
+PREFIX constexpr ngen::ChannelEnableRegister CG::ce0; \
+PREFIX constexpr ngen::StackPointerRegister CG::sp; \
+PREFIX constexpr ngen::StateRegister CG::sr0; \
+PREFIX constexpr ngen::StateRegister CG::sr1; \
+PREFIX constexpr ngen::ControlRegister CG::cr0; \
+PREFIX constexpr ngen::NotificationRegister CG::n0; \
+PREFIX constexpr ngen::InstructionPointerRegister CG::ip; \
+PREFIX constexpr ngen::ThreadDependencyRegister CG::tdr0; \
+PREFIX constexpr ngen::PerformanceRegister CG::tm0; \
+PREFIX constexpr ngen::PerformanceRegister CG::tm1; \
+PREFIX constexpr ngen::PerformanceRegister CG::tm2; \
+PREFIX constexpr ngen::PerformanceRegister CG::tm3; \
+PREFIX constexpr ngen::PerformanceRegister CG::tm4; \
+PREFIX constexpr ngen::PerformanceRegister CG::pm0; \
+PREFIX constexpr ngen::PerformanceRegister CG::tp0; \
+PREFIX constexpr ngen::DebugRegister CG::dbg0; \
+PREFIX constexpr ngen::FlowControlRegister CG::fc0; \
+PREFIX constexpr ngen::FlowControlRegister CG::fc1; \
+PREFIX constexpr ngen::FlowControlRegister CG::fc2; \
+PREFIX constexpr ngen::FlowControlRegister CG::fc3; \
+\
+PREFIX constexpr ngen::InstructionModifier CG::NoDDClr; \
+PREFIX constexpr ngen::InstructionModifier CG::NoDDChk; \
+PREFIX constexpr ngen::InstructionModifier CG::AccWrEn; \
+PREFIX constexpr ngen::InstructionModifier CG::NoSrcDepSet; \
+PREFIX constexpr ngen::InstructionModifier CG::Breakpoint; \
+PREFIX constexpr ngen::InstructionModifier CG::sat; \
+PREFIX constexpr ngen::InstructionModifier CG::NoMask; \
+PREFIX constexpr ngen::InstructionModifier CG::ExBSO; \
+PREFIX constexpr ngen::InstructionModifier CG::AutoSWSB; \
+PREFIX constexpr ngen::InstructionModifier CG::Serialize; \
+PREFIX constexpr ngen::InstructionModifier CG::EOT; \
+PREFIX constexpr ngen::InstructionModifier CG::Align1; \
+PREFIX constexpr ngen::InstructionModifier CG::Align16; \
+PREFIX constexpr ngen::InstructionModifier CG::Atomic; \
+PREFIX constexpr ngen::InstructionModifier CG::Switch; \
+PREFIX constexpr ngen::InstructionModifier CG::NoPreempt; \
+\
+PREFIX constexpr ngen::PredCtrl CG::anyv; \
+PREFIX constexpr ngen::PredCtrl CG::allv; \
+PREFIX constexpr ngen::PredCtrl CG::any2h; \
+PREFIX constexpr ngen::PredCtrl CG::all2h; \
+PREFIX constexpr ngen::PredCtrl CG::any4h; \
+PREFIX constexpr ngen::PredCtrl CG::all4h; \
+PREFIX constexpr ngen::PredCtrl CG::any8h; \
+PREFIX constexpr ngen::PredCtrl CG::all8h; \
+PREFIX constexpr ngen::PredCtrl CG::any16h; \
+PREFIX constexpr ngen::PredCtrl CG::all16h; \
+PREFIX constexpr ngen::PredCtrl CG::any32h; \
+PREFIX constexpr ngen::PredCtrl CG::all32h; \
+PREFIX constexpr ngen::PredCtrl CG::any; \
+PREFIX constexpr ngen::PredCtrl CG::all; \
+\
+PREFIX constexpr ngen::InstructionModifier CG::x_repl; \
+PREFIX constexpr ngen::InstructionModifier CG::y_repl; \
+PREFIX constexpr ngen::InstructionModifier CG::z_repl; \
+PREFIX constexpr ngen::InstructionModifier CG::w_repl; \
+\
+PREFIX constexpr ngen::InstructionModifier CG::ze; \
+PREFIX constexpr ngen::InstructionModifier CG::eq; \
+PREFIX constexpr ngen::InstructionModifier CG::nz; \
+PREFIX constexpr ngen::InstructionModifier CG::ne; \
+PREFIX constexpr ngen::InstructionModifier CG::gt; \
+PREFIX constexpr ngen::InstructionModifier CG::ge; \
+PREFIX constexpr ngen::InstructionModifier CG::lt; \
+PREFIX constexpr ngen::InstructionModifier CG::le; \
+PREFIX constexpr ngen::InstructionModifier CG::ov; \
+PREFIX constexpr ngen::InstructionModifier CG::un; \
+PREFIX constexpr ngen::InstructionModifier CG::eo; \
+\
+PREFIX constexpr ngen::InstructionModifier CG::M0; \
+PREFIX constexpr ngen::InstructionModifier CG::M4; \
+PREFIX constexpr ngen::InstructionModifier CG::M8; \
+PREFIX constexpr ngen::InstructionModifier CG::M12; \
+PREFIX constexpr ngen::InstructionModifier CG::M16; \
+PREFIX constexpr ngen::InstructionModifier CG::M20; \
+PREFIX constexpr ngen::InstructionModifier CG::M24; \
+PREFIX constexpr ngen::InstructionModifier CG::M28; \
+\
+PREFIX constexpr ngen::SBID CG::sb0; \
+PREFIX constexpr ngen::SBID CG::sb1; \
+PREFIX constexpr ngen::SBID CG::sb2; \
+PREFIX constexpr ngen::SBID CG::sb3; \
+PREFIX constexpr ngen::SBID CG::sb4; \
+PREFIX constexpr ngen::SBID CG::sb5; \
+PREFIX constexpr ngen::SBID CG::sb6; \
+PREFIX constexpr ngen::SBID CG::sb7; \
+PREFIX constexpr ngen::SBID CG::sb8; \
+PREFIX constexpr ngen::SBID CG::sb9; \
+PREFIX constexpr ngen::SBID CG::sb10; \
+PREFIX constexpr ngen::SBID CG::sb11; \
+PREFIX constexpr ngen::SBID CG::sb12; \
+PREFIX constexpr ngen::SBID CG::sb13; \
+PREFIX constexpr ngen::SBID CG::sb14; \
+PREFIX constexpr ngen::SBID CG::sb15; \
+PREFIX constexpr ngen::SBID CG::sb16; \
+PREFIX constexpr ngen::SBID CG::sb17; \
+PREFIX constexpr ngen::SBID CG::sb18; \
+PREFIX constexpr ngen::SBID CG::sb19; \
+PREFIX constexpr ngen::SBID CG::sb20; \
+PREFIX constexpr ngen::SBID CG::sb21; \
+PREFIX constexpr ngen::SBID CG::sb22; \
+PREFIX constexpr ngen::SBID CG::sb23; \
+PREFIX constexpr ngen::SBID CG::sb24; \
+PREFIX constexpr ngen::SBID CG::sb25; \
+PREFIX constexpr ngen::SBID CG::sb26; \
+PREFIX constexpr ngen::SBID CG::sb27; \
+PREFIX constexpr ngen::SBID CG::sb28; \
+PREFIX constexpr ngen::SBID CG::sb29; \
+PREFIX constexpr ngen::SBID CG::sb30; \
+PREFIX constexpr ngen::SBID CG::sb31; \
+PREFIX constexpr ngen::SWSBInfo CG::NoAccSBSet; \
+\
+PREFIX constexpr ngen::AddressBase CG::A32; \
+PREFIX constexpr ngen::AddressBase CG::A32NC; \
+PREFIX constexpr ngen::AddressBase CG::A64; \
+PREFIX constexpr ngen::AddressBase CG::A64NC; \
+PREFIX constexpr ngen::AddressBase CG::SLM; \
+\
 PREFIX constexpr ngen::DataSpecLSC CG::D8; \
 PREFIX constexpr ngen::DataSpecLSC CG::D16; \
 PREFIX constexpr ngen::DataSpecLSC CG::D32; \
@@ -443,6 +461,7 @@ PREFIX constexpr ngen::DataSpecLSC CG::V16T; \
 PREFIX constexpr ngen::DataSpecLSC CG::V32T; \
 PREFIX constexpr ngen::DataSpecLSC CG::V64T; \
 PREFIX constexpr ngen::DataSpecLSC CG::transpose; \
+PREFIX constexpr ngen::DataSpecLSC CG::vnni; \
 PREFIX constexpr ngen::CacheSettingsLSC CG::L1UC_L3UC; \
 PREFIX constexpr ngen::CacheSettingsLSC CG::L1UC_L3C; \
 PREFIX constexpr ngen::CacheSettingsLSC CG::L1C_L3UC; \
@@ -456,47 +475,31 @@ PREFIX constexpr ngen::CacheSettingsLSC CG::L1WT_L3WB; \
 PREFIX constexpr ngen::CacheSettingsLSC CG::L1S_L3WB; \
 PREFIX constexpr ngen::CacheSettingsLSC CG::L1WB_L3WB;
 
-#define NGEN_REGISTER_DECL_EXTRA3(CG,PREFIX) \
-PREFIX constexpr ngen::PredCtrl CG::any; \
-PREFIX constexpr ngen::PredCtrl CG::all; \
-PREFIX constexpr ngen::FlagRegister CG::f2; \
-PREFIX constexpr ngen::FlagRegister CG::f3; \
-PREFIX constexpr ngen::SBID CG::sb16; \
-PREFIX constexpr ngen::SBID CG::sb17; \
-PREFIX constexpr ngen::SBID CG::sb18; \
-PREFIX constexpr ngen::SBID CG::sb19; \
-PREFIX constexpr ngen::SBID CG::sb20; \
-PREFIX constexpr ngen::SBID CG::sb21; \
-PREFIX constexpr ngen::SBID CG::sb22; \
-PREFIX constexpr ngen::SBID CG::sb23; \
-PREFIX constexpr ngen::SBID CG::sb24; \
-PREFIX constexpr ngen::SBID CG::sb25; \
-PREFIX constexpr ngen::SBID CG::sb26; \
-PREFIX constexpr ngen::SBID CG::sb27; \
-PREFIX constexpr ngen::SBID CG::sb28; \
-PREFIX constexpr ngen::SBID CG::sb29; \
-PREFIX constexpr ngen::SBID CG::sb30; \
-PREFIX constexpr ngen::SBID CG::sb31; \
-PREFIX constexpr ngen::SWSBInfo CG::NoAccSBSet; \
-PREFIX constexpr ngen::DataSpecLSC CG::vnni;
-
 #ifndef NGEN_SHORT_NAMES
-#define NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX)
+#define NGEN_REGISTER_DECL_EXTRA1(CG,PREFIX)
 #else
-#define NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX) \
+#define NGEN_REGISTER_DECL_EXTRA1(CG,PREFIX) \
 PREFIX constexpr const ngen::IndirectRegisterFrame &CG::r; \
 PREFIX constexpr const ngen::InstructionModifier &CG::W;
 #endif
 
-#define NGEN_REGISTER_DECL_EXTRA5(CG,PREFIX)
+#define NGEN_REGISTER_DECL_EXTRA2A(CG,PREFIX) \
+PREFIX constexpr ngen::CacheSettingsLSC CG::L1C_L3CC; \
+PREFIX constexpr ngen::CacheSettingsLSC CG::L1UC_L3CC;
+
+#define NGEN_REGISTER_DECL_EXTRA2(CG,PREFIX)
+
+#define NGEN_REGISTER_DECL_EXTRA3(CG,PREFIX)
+
+#define NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX)
 
 #define NGEN_REGISTER_DECL(CG,PREFIX) \
 NGEN_REGISTER_DECL_MAIN(CG,PREFIX) \
 NGEN_REGISTER_DECL_EXTRA1(CG,PREFIX) \
+NGEN_REGISTER_DECL_EXTRA2A(CG,PREFIX) \
 NGEN_REGISTER_DECL_EXTRA2(CG,PREFIX) \
 NGEN_REGISTER_DECL_EXTRA3(CG,PREFIX) \
-NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX) \
-NGEN_REGISTER_DECL_EXTRA5(CG,PREFIX)
+NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX)
 
 #include "ngen.hpp"
 NGEN_REGISTER_DECL(ngen::BinaryCodeGenerator<hw>, template <ngen::HW hw>)

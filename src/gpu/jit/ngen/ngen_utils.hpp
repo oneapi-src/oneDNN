@@ -46,7 +46,7 @@ struct bitcast {
 template <typename T> static inline constexpr14 int bsf(T x)
 {
 #if defined(_MSC_VER)
-    unsigned long index;
+    unsigned long index = 0;
     if (sizeof(T) > 4)
         (void) _BitScanForward64(&index, x);
     else
@@ -63,7 +63,7 @@ template <typename T> static inline constexpr14 int bsf(T x)
 template <typename T> static inline constexpr14 int bsr(T x)
 {
 #if defined(_MSC_VER)
-    unsigned long index;
+    unsigned long index = 0;
     if (sizeof(T) > 4)
         (void) _BitScanReverse64(&index, x);
     else

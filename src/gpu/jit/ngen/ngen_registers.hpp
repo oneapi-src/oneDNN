@@ -224,3 +224,5 @@ static constexpr_reg CacheSettingsLSC L1WT_L3UC = CacheSettingsLSC::L1WT_L3UC;
 static constexpr_reg CacheSettingsLSC L1WT_L3WB = CacheSettingsLSC::L1WT_L3WB;
 static constexpr_reg CacheSettingsLSC L1S_L3WB  = CacheSettingsLSC::L1S_L3WB;
 static constexpr_reg CacheSettingsLSC L1WB_L3WB = CacheSettingsLSC::L1WB_L3WB;
+static constexpr_reg CacheSettingsLSC L1C_L3CC  = CacheSettingsLSC::L1C_L3CC;
+static constexpr_reg CacheSettingsLSC L1UC_L3CC = CacheSettingsLSC::L1UC_L3CC;
