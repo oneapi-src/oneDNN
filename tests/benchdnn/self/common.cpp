@@ -127,20 +127,22 @@ static int check_attr() {
     // depthwise conv section
     {
         std::vector<attr_t::post_ops_t> po;
-        auto st = parse_attr_post_ops(po, "--attr-post-ops=dw_k3s1p1");
+        auto st = parse_attr_post_ops(po, "--attr-post-ops=dw:k3s1p1");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(po[0].len(), 1);
         const auto &e = po[0].entry[0];
-        SELF_CHECK_EQ(e.kind, pk_t::DW_K3S1P1);
+        SELF_CHECK_EQ(e.kind, pk_t::DW);
         const auto &ce = e.convolution;
+        SELF_CHECK_EQ(ce.kernel, 3);
         SELF_CHECK_EQ(ce.stride, 1);
+        SELF_CHECK_EQ(ce.padding, 1);
         SELF_CHECK_EQ(ce.dst_dt, dnnl_f32);
     }
 
     {
         std::vector<attr_t::post_ops_t> po;
         auto st = parse_attr_post_ops(
-                po, "--attr-post-ops=relu:0.5+dw_k3s2p1:s8+linear:2:1");
+                po, "--attr-post-ops=relu:0.5+dw:k3s2p1:s8+linear:2:1");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(po[0].len(), 3);
         auto &e = po[0].entry[0];
@@ -151,9 +153,11 @@ static int check_attr() {
         SELF_CHECK_EQ(ee.beta, 0.f);
 
         e = po[0].entry[1];
-        SELF_CHECK_EQ(e.kind, pk_t::DW_K3S2P1);
+        SELF_CHECK_EQ(e.kind, pk_t::DW);
         const auto &ce = e.convolution;
+        SELF_CHECK_EQ(ce.kernel, 3);
         SELF_CHECK_EQ(ce.stride, 2);
+        SELF_CHECK_EQ(ce.padding, 1);
         SELF_CHECK_EQ(ce.dst_dt, dnnl_s8);
 
         e = po[0].entry[2];
@@ -178,10 +182,12 @@ void append_sum(attr_t::post_ops_t &po, float ascale = 1.f,
     po.entry.push_back(e);
 }
 
-void append_convolution(attr_t::post_ops_t &po, pk_t akind,
-        dnnl_data_type_t adst_dt = dnnl_f32) {
+void append_convolution(attr_t::post_ops_t &po, pk_t akind, int kernel,
+        int stride, int padding, dnnl_data_type_t adst_dt = dnnl_f32) {
     attr_t::post_ops_t::entry_t e(akind);
-    e.convolution.stride = e.kind == pk_t::DW_K3S1P1 ? 1 : 2;
+    e.convolution.kernel = kernel;
+    e.convolution.stride = stride;
+    e.convolution.padding = padding;
     e.convolution.dst_dt = adst_dt;
     po.entry.push_back(e);
 }
@@ -229,14 +235,14 @@ static int check_post_ops2str() {
     SELF_CHECK_EQ(po.len(), 4);
     SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10");
 
-    append_convolution(po, pk_t::DW_K3S1P1);
+    append_convolution(po, pk_t::DW, 3, 1, 1);
     SELF_CHECK_EQ(po.len(), 5);
-    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10+dw_k3s1p1");
+    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10+dw:k3s1p1");
 
-    append_convolution(po, pk_t::DW_K3S2P1, dnnl_s32);
+    append_convolution(po, pk_t::DW, 3, 2, 1, dnnl_s32);
     SELF_CHECK_EQ(po.len(), 6);
     SELF_CHECK_PRINT_EQ(
-            po, "sum+relu+sum:2:1:s8+linear:5:10+dw_k3s1p1+dw_k3s2p1:s32");
+            po, "sum+relu+sum:2:1:s8+linear:5:10+dw:k3s1p1+dw:k3s2p1:s32");
 
     {
         using mi_t = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;

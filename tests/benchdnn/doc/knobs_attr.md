@@ -8,7 +8,7 @@
     --attr-zero-points=ARG:POLICY[:ZEROPOINT][+...]
     --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
                     ELTWISE[:ALPHA[:BETA[:SCALE]]]
-                    DW:KkSsPp[:DST_DT[:WEI_SCALE[:DST_SCALE]]]
+                    DW:KkSsPp[:DST_DT]
                     BINARY:DT[:MASK_INPUT[:TAG]]
                     PRELU[:POLICY]
 ```
@@ -117,12 +117,6 @@ of `k`, stride size of `s`, and left padding size of `p`.
 These kinds are only applicable for 1x1 2D-spatial main convolution operation.
 They support optional argument `DST_DT`, which defines destination
 tensor data type. Refer to [data types](knobs_dt.md) for details.
-Optional argument `WEI_SCALE` defines the semantics of fused depthwise weights
-scale(s) same as for `--attr-scales` with the same syntax except argument is not
-expected. It requires `DST_DT` to be specified.
-Optional argument `DST_SCALE` defines the semantics of fused depthwise
-destination scale same as for `--attr-scales` with the same syntax except
-argument is not expected. It requires `WEI_SCALE` to be specified.
 
 `BINARY` post operation kind applies one of supported binary algorithms to the
 operation result and then stores it. It requires mandatory argument of `DT`
@@ -224,7 +218,7 @@ relu post-op. The final dst datatype after the fusion in the example below is
 and bf16 convolutions respectively.
 ``` sh
   ./benchdnn --conv --cfg=u8s8u8 --attr-scales=dst:per_oc \
-             --attr-post-ops=relu+dw_k3s1p1:s8:per_oc:1.5+relu \
+             --attr-post-ops=relu+dw_k3s1p1:s8+relu \
              ic16oc16ih4oh4kh1ph0
 ```
 

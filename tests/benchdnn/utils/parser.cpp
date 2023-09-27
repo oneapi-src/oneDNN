@@ -143,54 +143,51 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
                 SAFE_V(FAIL);
             }
         } else if (e.is_convolution_kind()) {
-            if (kind == attr_t::post_ops_t::kind_t::DW) {
-                // `DW` has input of `dw:kXsYpZ`, while rest have `dw_k3sXp1`.
-                // TODO: remove `dw_k3sXp1` version.
-                const auto str_dw_params = get_substr(subs, subs_pos, ':');
-                size_t pos = 0, idx = 0;
+            // `DW` has input of `dw:kXsYpZ`.
+            const auto str_dw_params = get_substr(subs, subs_pos, ':');
+            size_t pos = 0, idx = 0;
 
-                pos += idx;
-                if (str_dw_params[pos] != 'k') {
-                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
-                            "Error: depthwise post-op entry",
-                            &str_dw_params[pos], "is not 'k'.");
-                    SAFE_V(FAIL);
-                }
-                // TODO: some safe handling would help here
-                e.convolution.kernel = std::stoi(&str_dw_params[++pos], &idx);
-                if (e.convolution.kernel <= 0) {
-                    BENCHDNN_PRINT(0, "%s\n",
-                            "Error: depthwise post-op kernel must be greater "
-                            "than 0.");
-                    SAFE_V(FAIL);
-                }
-
-                pos += idx;
-                if (str_dw_params[pos] != 's') {
-                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
-                            "Error: depthwise post-op entry",
-                            &str_dw_params[pos], "is not 's'.");
-                    SAFE_V(FAIL);
-                }
-                e.convolution.stride = std::stoi(&str_dw_params[++pos], &idx);
-                if (e.convolution.stride <= 0) {
-                    BENCHDNN_PRINT(0, "%s\n",
-                            "Error: depthwise post-op stride must be greater "
-                            "than 0.");
-                    SAFE_V(FAIL);
-                }
-
-                pos += idx;
-                if (str_dw_params[pos] != 'p') {
-                    BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
-                            "Error: depthwise post-op entry",
-                            &str_dw_params[pos], "is not 'p'.");
-                    SAFE_V(FAIL);
-                }
-                e.convolution.padding = std::stoi(&str_dw_params[++pos]);
-
-                if (subs_pos == std::string::npos) continue;
+            pos += idx;
+            if (str_dw_params[pos] != 'k') {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: depthwise post-op entry", &str_dw_params[pos],
+                        "is not 'k'.");
+                SAFE_V(FAIL);
             }
+            // TODO: some safe handling would help here
+            e.convolution.kernel = std::stoi(&str_dw_params[++pos], &idx);
+            if (e.convolution.kernel <= 0) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Error: depthwise post-op kernel must be greater "
+                        "than 0.");
+                SAFE_V(FAIL);
+            }
+
+            pos += idx;
+            if (str_dw_params[pos] != 's') {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: depthwise post-op entry", &str_dw_params[pos],
+                        "is not 's'.");
+                SAFE_V(FAIL);
+            }
+            e.convolution.stride = std::stoi(&str_dw_params[++pos], &idx);
+            if (e.convolution.stride <= 0) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Error: depthwise post-op stride must be greater "
+                        "than 0.");
+                SAFE_V(FAIL);
+            }
+
+            pos += idx;
+            if (str_dw_params[pos] != 'p') {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
+                        "Error: depthwise post-op entry", &str_dw_params[pos],
+                        "is not 'p'.");
+                SAFE_V(FAIL);
+            }
+            e.convolution.padding = std::stoi(&str_dw_params[++pos]);
+
+            if (subs_pos == std::string::npos) continue;
 
             const auto dt_str = get_substr(subs, subs_pos, ':');
             e.convolution.dst_dt = str2dt(dt_str.c_str());

@@ -225,8 +225,6 @@ struct attr_t {
             SUM,
             // depthwise convolution
             DW,
-            DW_K3S1P1,
-            DW_K3S2P1,
             // eltwise
             ELTWISE_START, // a guard to check kind is eltwise
             ABS,
@@ -288,11 +286,6 @@ struct attr_t {
                 } else if (is_eltwise_kind()) {
                     eltwise.alg = kind2dnnl_kind(kind);
                 } else if (is_convolution_kind()) {
-                    if (kind != DW) {
-                        convolution.kernel = 3;
-                        convolution.stride = kind == DW_K3S1P1 ? 1 : 2;
-                        convolution.padding = 1;
-                    }
                 } else if (is_binary_kind()) {
                     binary.alg = kind2dnnl_kind(kind);
                 }

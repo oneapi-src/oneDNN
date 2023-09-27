@@ -198,7 +198,7 @@ mb1ic16ih2iw70oc1oh1ow10kh2kw3ph0pw0dh0dw29n"bwd_w_check_large-dilation"
 --reset
 --skip-impl=ref_fused_convolution
 --dt=f32,u8:s8:u8
---attr-post-ops=relu+dw_k3s1p1+sqrt
+--attr-post-ops=relu+dw:k3s1p1+sqrt
 ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
 
 --dt=bf16
@@ -207,7 +207,7 @@ ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
 # dw fusion with reorder
 --reset
 --dt=f32
---attr-post-ops=relu+dw_k3s1p1+sqrt
+--attr-post-ops=relu+dw:k3s1p1+sqrt
 ic16oc16_ih10oh6kh1ph0sh2n"dw_fusion_with_reorder"
 
 --reset

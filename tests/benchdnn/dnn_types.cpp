@@ -404,9 +404,7 @@ static po_table_entry_t kind_table[] = {
         // sum
         {pk_t::SUM, {"sum"}, dnnl_alg_kind_undef},
         // depthwise convolution
-        {pk_t::DW, {"dw"}, dnnl_convolution_auto},
-        {pk_t::DW_K3S1P1, {"dw_k3s1p1"}, dnnl_convolution_auto},
-        {pk_t::DW_K3S2P1, {"dw_k3s2p1"}, dnnl_convolution_auto},
+        {pk_t::DW, {"dw"}, dnnl_convolution_direct},
         // eltwise
         {pk_t::ELTWISE_START, {"eltwise_undef"}, dnnl_alg_kind_undef},
         {pk_t::ABS, {"abs", "eltwise_abs"}, dnnl_eltwise_abs},
@@ -551,7 +549,7 @@ bool attr_t::post_ops_t::entry_t::is_sum_kind() const {
     return kind == SUM;
 }
 bool attr_t::post_ops_t::entry_t::is_convolution_kind() const {
-    return kind == DW || kind == DW_K3S1P1 || kind == DW_K3S2P1;
+    return kind == DW;
 }
 bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
     return kind > ELTWISE_START && kind < ELTWISE_END;
@@ -649,10 +647,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.sum.zero_point;
             if (e.sum.dt != dnnl_data_type_undef) s << ":" << e.sum.dt;
         } else if (e.is_convolution_kind()) {
-            if (e.kind == pk_t::DW) {
-                s << ":k" << e.convolution.kernel << "s" << e.convolution.stride
-                  << "p" << e.convolution.padding;
-            }
+            s << ":k" << e.convolution.kernel << "s" << e.convolution.stride
+              << "p" << e.convolution.padding;
             if (e.convolution.dst_dt != dnnl_f32)
                 s << ":" << e.convolution.dst_dt;
         } else if (e.is_eltwise_kind()) {
