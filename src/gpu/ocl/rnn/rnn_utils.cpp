@@ -345,9 +345,8 @@ dim_t rnn_utils::get_workspace_size(const conf_t &rnn) {
 }
 
 void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t dir, dim_t lay,
-        data_type_t src_t, const std::vector<dim_t> &wei_layer_offsets,
-        const dim_t &ws_states_offset_, dim_t &grid_ws_lay_offset,
-        dim_t &grid_wei_lay_offset, dim_t &grid_ws_iter_offset) {
+        const std::vector<dim_t> &wei_layer_offsets,
+        const dim_t &ws_states_offset_, dim_t &grid_wei_lay_offset) {
     // Function overloaded. This function is called by grid execution
     dim_t n_layer = rnn.n_layer;
     dim_t n_dir = rnn.n_dir;
@@ -356,27 +355,13 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t dir, dim_t lay,
             n_dir, rnn.n_parts_weights_layer);
 
     grid_wei_lay_offset = off_weights_lay(lay, dir, 0);
-    grid_ws_lay_offset = (ws_states_offset_
-            + OFF4(lay, n_layer + 1, dir, n_dir, 1, rnn.n_iter + 1, 0,
-                      rnn.mb * rnn.states_ws_ld)
-                    * types::data_type_size(src_t));
-    grid_ws_iter_offset = (ws_states_offset_
-            + OFF4(lay + 1, rnn.n_layers + 1, dir, rnn.n_dir, 0, rnn.n_iter + 1,
-                      0, rnn.mb * rnn.states_ws_ld)
-                    * types::data_type_size(src_t));
     UNUSED(n_layer);
 }
 
 void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir,
-        dim_t lay, data_type_t src_t,
-        const std::vector<dim_t> &wei_iter_offsets,
-        const dim_t &ws_states_offset_, dim_t &cell_ws_iter_offset,
-        dim_t &cell_ws_lay_offset, dim_t &cell_scratch_offset,
-        dim_t &cell_wei_iter_offset) {
+        dim_t lay, const std::vector<dim_t> &wei_iter_offsets,
+        dim_t &cell_scratch_offset, dim_t &cell_wei_iter_offset) {
     dim_t n_layers = rnn.n_layer;
-    dim_t batch = rnn.mb;
-    dim_t n_iter = rnn.n_iter;
-    dim_t n_dir = rnn.n_dir;
 
     if (!wei_iter_offsets.empty()) {
         const AOC<const dim_t, 3> off_weights_iter(wei_iter_offsets.data(),
@@ -388,31 +373,18 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir,
             ? (OFF2(iter, n_iter, 0, rnn.gates_nld * rnn.scratch_gates_ld)
                     * rnn.scratch_gates_elsz)
             : 0;
-    cell_ws_iter_offset = (ws_states_offset_
-            + OFF4(lay + 1, n_layers + 1, dir, n_dir, iter, n_iter + 1, 0,
-                      batch * rnn.states_ws_ld)
-                    * types::data_type_size(src_t));
-    cell_ws_lay_offset = (ws_states_offset_
-            + OFF4(lay, n_layers + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
-                      batch * rnn.states_ws_ld)
-                    * types::data_type_size(src_t));
+
     UNUSED(n_layers);
 }
 
 void rnn_utils::set_gru_offsets_part2(const conf_t &rnn, dim_t iter, dim_t dir,
-        dim_t lay, data_type_t src_t,
-        const std::vector<dim_t> &wei_iter_offsets,
-        const dim_t &ws_states_offset_, dim_t &cell_wei_iter_offset,
-        dim_t &cell_scratch_offset, dim_t &cell_ws_iter_offset) {
+        dim_t lay, const std::vector<dim_t> &wei_iter_offsets,
+        dim_t &cell_wei_iter_offset, dim_t &cell_scratch_offset) {
 
     AOC<const dim_t, 3> off_weights_iter(wei_iter_offsets.data(), rnn.n_layer,
             rnn.n_dir, rnn.n_parts_weights_iter);
     cell_wei_iter_offset = off_weights_iter(lay, dir, 1);
     cell_scratch_offset += 2 * rnn.dhc * rnn.scratch_gates_elsz;
-    cell_ws_iter_offset = (ws_states_offset_
-            + OFF4(lay + 1, rnn.n_layers + 1, dir, rnn.n_dir, iter + 1,
-                      rnn.n_iter + 1, 0, rnn.mb * rnn.states_ws_ld)
-                    * types::data_type_size(src_t));
 }
 
 void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir,

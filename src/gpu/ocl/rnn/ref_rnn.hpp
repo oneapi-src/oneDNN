@@ -106,8 +106,20 @@ struct workspace_t {
     std::unique_ptr<mst> states(dim_t layer, dim_t dir, dim_t time) const {
         if (!states_) return nullptr;
         auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
-                * types::data_type_size(ocl_conf_.src_dt);
+                * conf_.ws_states_elsz;
         return states_->get_sub_storage(off_, conf_.ws_states_cell_size);
+    }
+
+    std::unique_ptr<mst> states_range(dim_t layer_start, dim_t layer_end,
+            dim_t dir_start, dim_t dir_end, dim_t time_start,
+            dim_t time_end) const {
+        if (!states_) return nullptr;
+        auto off_start
+                = calc_off_ws_state(layer_start, dir_start, time_start, 0, 0)
+                * conf_.ws_states_elsz;
+        auto off_end = calc_off_ws_state(layer_end, dir_end, time_end, 0, 0)
+                * conf_.ws_states_elsz;
+        return states_->get_sub_storage(off_start, off_end - off_start);
     }
 
     std::unique_ptr<mst> c_states(dim_t layer, dim_t dir, dim_t time) const {

@@ -35,25 +35,23 @@ template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
     const conf_t &rnn = this->pd()->rnn_conf;
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
-    data_type_t src_t = this->pd()->src_type;
 
-    dim_t cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
-            cell_wei_iter_offset;
+    dim_t cell_scratch_offset, cell_wei_iter_offset;
 
-    set_offsets_fwd_gemm(rnn, iter, dir, lay, src_t, wei_iter_offsets,
-            ws_states_offset_, cell_ws_iter_offset, cell_ws_lay_offset,
+    set_offsets_fwd_gemm(rnn, iter, dir, lay, wei_iter_offsets,
             cell_scratch_offset, cell_wei_iter_offset);
+    auto cell_layer = workspace.states(lay, dir, iter + 1);
+    auto cell_iter = workspace.states(lay + 1, dir, iter);
 
     if (aprop == prop_kind::forward) {
         // call made when cell execution is enabled
         if (!rnn.merge_gemm_layer)
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
-                    workspace.ws(), cell_ws_lay_offset, scratch_gates,
-                    cell_scratch_offset, gemm_layer_fwd));
+                    *cell_layer, 0, scratch_gates, cell_scratch_offset,
+                    gemm_layer_fwd));
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
-                workspace.ws(), cell_ws_iter_offset, scratch_cell, 0,
-                gemm_iter_fwd));
+                *cell_iter, 0, scratch_cell, 0, gemm_iter_fwd));
 
         CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
                 workspace, scratch_gates, scratch_cell, scratch_diff_states,
@@ -73,9 +71,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
 
         if (!rnn.merge_gemm_layer) {
             CHECK(gemm_primitive(engine, ctx, scratch_gates,
-                    cell_scratch_offset, workspace.ws(), cell_ws_lay_offset,
-                    diff_weights_layer, cell_diff_wei_lay_off,
-                    gemm_diff_wei_layer));
+                    cell_scratch_offset, *cell_layer, 0, diff_weights_layer,
+                    cell_diff_wei_lay_off, gemm_diff_wei_layer));
 
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
                     scratch_gates, cell_scratch_offset, scratch_diff_states,
@@ -86,9 +83,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 scratch_cell, 0, scratch_diff_states, cell_scr_diff_iter_off,
                 gemm_iter_bwd));
 
-        CHECK(gemm_primitive(engine, ctx, scratch_cell, 0, workspace.ws(),
-                cell_ws_iter_offset, diff_weights_iter, cell_diff_wei_iter_off,
-                gemm_diff_wei_iter));
+        CHECK(gemm_primitive(engine, ctx, scratch_cell, 0, *cell_iter, 0,
+                diff_weights_iter, cell_diff_wei_iter_off, gemm_diff_wei_iter));
     }
     return status::success;
 }
