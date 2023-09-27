@@ -91,6 +91,8 @@ struct deserialized_op {
     logical_tensor::dims get_NCX_shape(size_t idx, bool input) const;
 };
 
+using op_ref_list_t = std::list<std::reference_wrapper<const deserialized_op>>;
+
 struct deserialized_graph {
     void load(const std::string &pass_config_json);
 

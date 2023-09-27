@@ -20,7 +20,7 @@
 #include <list>
 #include "deserialize.hpp"
 #include "dnnl_common.hpp"
-#include "graph_bridge.hpp"
+#include "graph_memory.hpp"
 #include "input_displacer.hpp"
 #include "ref_primitive.hpp"
 #include <unordered_set>

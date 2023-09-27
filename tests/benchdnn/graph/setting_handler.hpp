@@ -59,6 +59,47 @@ DECLARE_GET_SETTING(reorder);
 DECLARE_GET_SETTING(resampling);
 DECLARE_GET_SETTING(softmax);
 
+template <bool B>
+using req = typename std::enable_if<B, bool>::type;
+
+#define DECLARE_TEMPLATE_GET_SETTING(driver) \
+    template <typename setting_t, \
+            req<std::is_same<setting_t, ::driver::settings_t>::value> = true> \
+    setting_t get_setting(const deserialized_op &base_op_ref, \
+            const std::unordered_set<size_t> &rewrite_lt_ids, res_t *res) { \
+        deserialized_op base_op = base_op_ref; \
+        for (size_t i = 0; i < base_op.in_lts_.size(); i++) { \
+            if (base_op.in_lts_[i].shape_.size() == 0) \
+                base_op.in_lts_[i].shape_.emplace_back(1); \
+            if (base_op.in_lts_[i].stride_.size() == 0) \
+                base_op.in_lts_[i].stride_.emplace_back(1); \
+        } \
+        for (size_t i = 0; i < base_op.out_lts_.size(); i++) { \
+            if (base_op.out_lts_[i].shape_.size() == 0) \
+                base_op.out_lts_[i].shape_.emplace_back(1); \
+            if (base_op.out_lts_[i].stride_.size() == 0) \
+                base_op.out_lts_[i].stride_.emplace_back(1); \
+        } \
+        return driver::get_setting(base_op, rewrite_lt_ids, res); \
+    }
+
+// template to generate driver settings
+DECLARE_TEMPLATE_GET_SETTING(binary);
+DECLARE_TEMPLATE_GET_SETTING(bnorm);
+DECLARE_TEMPLATE_GET_SETTING(concat);
+DECLARE_TEMPLATE_GET_SETTING(conv);
+DECLARE_TEMPLATE_GET_SETTING(custom);
+DECLARE_TEMPLATE_GET_SETTING(deconv);
+DECLARE_TEMPLATE_GET_SETTING(eltwise);
+DECLARE_TEMPLATE_GET_SETTING(lnorm);
+DECLARE_TEMPLATE_GET_SETTING(matmul);
+DECLARE_TEMPLATE_GET_SETTING(pool);
+DECLARE_TEMPLATE_GET_SETTING(prelu);
+DECLARE_TEMPLATE_GET_SETTING(reduction);
+DECLARE_TEMPLATE_GET_SETTING(reorder);
+DECLARE_TEMPLATE_GET_SETTING(resampling);
+DECLARE_TEMPLATE_GET_SETTING(softmax);
+
 namespace eltwise {
 
 bool get_flag_use_dst_for_bwd_compute(const deserialized_op &base_op_ref);
