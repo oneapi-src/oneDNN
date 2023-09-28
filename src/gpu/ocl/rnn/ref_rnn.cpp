@@ -110,6 +110,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.is_int8 = rnn.is_int8;
     ocl_conf.is_training = rnn.is_training;
     ocl_conf.recompute_gates = rnn.recompute_gates;
+    ocl_conf.copy_src_layer = rnn.copy_src_layer;
 
     off.src_layer = gpu::get_outer_strides(src_layer_d);
     ocl_conf.inner_layouts.src_layer = gpu::get_inner_layout(src_layer_d);
@@ -214,6 +215,7 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("WITH_SRC_ITER_C", with_src_iter_c);
     kernel_ctx.define_int("WITH_DST_ITER", with_dst_iter);
     kernel_ctx.define_int("WITH_DST_ITER_C", with_dst_iter_c);
+    kernel_ctx.define_int("COPY_SRC_LAYER", copy_src_layer);
 
     kernel_ctx.define_int("ELEMWISE_BWD_BATCH_BLOCK", elemwise_bwd_batch_block);
     kernel_ctx.define_int("NEED_BIAS_ATOMIC_REDUCE", need_bias_atomic_reduce);
@@ -653,6 +655,16 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                     rnn_conf.states_ws_ld, rnn_conf.scratch_gates_ld,
                     weights_type, src_type, rnn_conf.acc_data_type, false,
                     false, 0.0));
+            if (!rnn_conf.copy_src_layer) {
+                if (off.src_layer[1] != rnn_conf.states_ws_ld)
+                    CHECK(create_gemm_pd(gemm_layer_fwd_src_pd_, n_gates * dhc,
+                            layer_merged_size, slc, rnn_conf.weights_layer_ld,
+                            off.src_layer[1], rnn_conf.scratch_gates_ld,
+                            weights_type, src_type, rnn_conf.acc_data_type,
+                            false, false, 0.0));
+                else
+                    gemm_layer_fwd_src_pd_ = gemm_layer_fwd_pd_;
+            }
             if (rnn_conf.is_vanilla_gru) {
                 CHECK(create_gemm_pd(gemm_iter_fwd_pd_, (n_gates - 1) * dhc,
                         batch, sic, rnn_conf.weights_iter_ld,
@@ -701,6 +713,17 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                             rnn_conf.states_ws_ld, rnn_conf.scratch_gates_ld,
                             weights_type, src_type, rnn_conf.acc_data_type,
                             true, false, 0.0));
+                    if (!rnn_conf.copy_src_layer) {
+                        if (off.src_layer[1] != rnn_conf.states_ws_ld)
+                            CHECK(create_gemm_pd(gemm_layer_fwd_src_pd_,
+                                    n_gates * dhc, layer_merged_size, slc,
+                                    rnn_conf.weights_layer_ld, off.src_layer[1],
+                                    rnn_conf.scratch_gates_ld, weights_type,
+                                    src_type, rnn_conf.acc_data_type, true,
+                                    false, 0.0));
+                        else
+                            gemm_layer_fwd_src_pd_ = gemm_layer_fwd_pd_;
+                    }
                     CHECK(create_gemm_pd(gemm_iter_fwd_pd_, n_gates * dhc,
                             batch, sic, rnn_conf.weights_iter_ld,
                             rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
@@ -729,6 +752,17 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                     rnn_conf.states_ws_ld, rnn_conf.diff_weights_layer_ld,
                     weights_type, src_type, rnn_conf.acc_data_type, false, true,
                     1.0f));
+            if (!rnn_conf.copy_src_layer) {
+                if (off.src_layer[1] != rnn_conf.states_ws_ld)
+                    CHECK(create_gemm_pd(gemm_diff_wei_layer_src_pd_,
+                            n_gates * dhc, slc, layer_merged_size,
+                            rnn_conf.scratch_diff_gates_ld, off.src_layer[1],
+                            rnn_conf.diff_weights_layer_ld, weights_type,
+                            src_type, rnn_conf.acc_data_type, false, true,
+                            1.0f));
+                else
+                    gemm_diff_wei_layer_src_pd_ = gemm_diff_wei_layer_pd_;
+            }
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }
@@ -802,6 +836,9 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
             pd()->gemm_layer_fwd_pd_ ? create_nested_primitive(
                     gemm_layer_fwd_, pd()->gemm_layer_fwd_pd_, engine)
                                      : status::success,
+            pd()->gemm_layer_fwd_src_pd_ ? create_nested_primitive(
+                    gemm_layer_fwd_src_, pd()->gemm_layer_fwd_src_pd_, engine)
+                                         : status::success,
             pd()->gemm_iter_fwd_pd_ ? create_nested_primitive(
                     gemm_iter_fwd_, pd()->gemm_iter_fwd_pd_, engine)
                                     : status::success);
@@ -823,6 +860,12 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
                                     pd()->gemm_iter_bwd_pd_, engine),
                             create_nested_primitive(gemm_diff_wei_layer_,
                                     pd()->gemm_diff_wei_layer_pd_, engine),
+                            (pd()->gemm_diff_wei_layer_src_pd_
+                                            ? create_nested_primitive(
+                                                    gemm_diff_wei_layer_src_,
+                                                    pd()->gemm_diff_wei_layer_src_pd_,
+                                                    engine)
+                                            : status::success),
                             create_nested_primitive(gemm_diff_wei_iter_,
                                     pd()->gemm_diff_wei_iter_pd_, engine),
                             rnn.is_vanilla_gru
@@ -929,6 +972,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             init_gemm_nested_scratchpad(gemm_layer_fwd_, key_gemm_layer_fwd);
             CHECK(gpu_gemm(gemm_layer_fwd_)->execute(gemm_ctx));
             break;
+        case gemm_layer_fwd_src:
+            init_gemm_nested_scratchpad(
+                    gemm_layer_fwd_src_, key_gemm_layer_fwd_src);
+            CHECK(gpu_gemm(gemm_layer_fwd_src_)->execute(gemm_ctx));
+            break;
         case gemm_iter_bwd:
             init_gemm_nested_scratchpad(gemm_iter_bwd_, key_gemm_iter_bwd);
             CHECK(gpu_gemm(gemm_iter_bwd_)->execute(gemm_ctx));
@@ -950,6 +998,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             init_gemm_nested_scratchpad(
                     gemm_diff_wei_layer_, key_gemm_diff_wei_layer);
             CHECK(gpu_gemm(gemm_diff_wei_layer_)->execute(gemm_ctx));
+            break;
+        case gemm_diff_wei_layer_src:
+            init_gemm_nested_scratchpad(
+                    gemm_diff_wei_layer_src_, key_gemm_diff_wei_layer_src);
+            CHECK(gpu_gemm(gemm_diff_wei_layer_src_)->execute(gemm_ctx));
             break;
         case gemm_diff_wei_iter_2:
             init_gemm_nested_scratchpad(
@@ -995,10 +1048,9 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             dim_t offset_diff_wei_iter, offset_diff_wei_lay,
                     offset_scratch_diff_lay;
 
-            auto grid_layer = workspace.states_range(
-                    lay - 1, lay - 1, dir, dir, 0, n_iter);
-            auto grid_iter
-                    = workspace.states_range(lay, n_layer, dir, dir, -1, -1);
+            auto grid_iter = rnn.merge_gemm_iter
+                    ? workspace.states_range(lay, n_layer, dir, dir, -1, -1)
+                    : nullptr;
 
             set_offsets_fwd_gemm(rnn, dir, lay, wei_layer_offsets,
                     ws_states_offset_, offset_wei_layer);
@@ -1011,8 +1063,18 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
 
             if ((aprop == prop_kind::forward || rnn.recompute_gates)
                     && rnn.merge_gemm_layer) {
+                auto grid_layer = (!rnn.copy_src_layer && lay == 0)
+                        ? workspace.src_layer(dir, 0, true)
+                        : workspace.states_range(
+                                lay - 1, lay - 1, dir, dir, 0, n_iter);
+
+                auto gemm_grid_layer_fwd = (!rnn.copy_src_layer && lay == 0)
+                        ? gemm_layer_fwd_src
+                        : gemm_layer_fwd;
+
                 CHECK(gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
-                        *grid_layer, 0, *scratch_gates, 0, gemm_layer_fwd));
+                        *grid_layer, 0, *scratch_gates, 0,
+                        gemm_grid_layer_fwd));
             }
 
             for (dim_t i = 0; i < n_iter; i++) {
@@ -1026,12 +1088,21 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             }
 
             if (aprop == prop_kind::backward && rnn.merge_gemm_layer) {
+                auto grid_layer = (!rnn.copy_src_layer && lay == 0)
+                        ? workspace.src_layer(dir, 0)
+                        : workspace.states(lay - 1, dir, 0);
+
+                auto gemm_diff_wei_grid_layer
+                        = (!rnn.copy_src_layer && lay == 0)
+                        ? gemm_diff_wei_layer_src
+                        : gemm_diff_wei_layer;
+
                 CHECK(gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
                         *scratch_diff_gates, 0, scratch_diff_states,
                         offset_scratch_diff_lay, gemm_layer_bwd));
                 CHECK(gemm_primitive(engine, ctx, *scratch_diff_gates, 0,
                         *grid_layer, 0, diff_weights_layer, offset_diff_wei_lay,
-                        gemm_diff_wei_layer));
+                        gemm_diff_wei_grid_layer));
             }
 
             if (aprop == prop_kind::backward && rnn.merge_gemm_iter) {
@@ -1452,7 +1523,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
                                        : *scratch_workspace;
     const auto &workspace = workspace_t(
-            workspace_, pd()->ocl_conf, pd()->rnn_conf, pd()->off);
+            workspace_, src_layer_native_, pd()->ocl_conf, rnn, pd()->off);
 
     auto scratchpad_fwd_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
@@ -1567,11 +1638,13 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     float shift = (pd()->attr()->rnn_data_qparams_.shift_);
     float scale = (pd()->attr()->rnn_data_qparams_.scale_);
 
-    // we first need to copy the initial states and input into ws
-    CHECK(copy_init_layer(ctx, compute_stream, is_lr, is_rl, batch, dhc, slc,
-            n_iter, n_layer, n_dir, n_states, rnn.states_ws_ld,
-            rnn.scratch_diff_states_ld, workspace.states(), scratch_diff_states,
-            src_layer_native_, diff_dst_layer_native_));
+    if (rnn.copy_src_layer || !is_fwd) {
+        CHECK(copy_init_layer(ctx, compute_stream, is_lr, is_rl, batch, dhc,
+                slc, n_iter, n_layer, n_dir, n_states, rnn.states_ws_ld,
+                rnn.scratch_diff_states_ld, workspace.states(),
+                scratch_diff_states, src_layer_native_,
+                diff_dst_layer_native_));
+    }
     const bool quantize = pd()->with_src_iter()
             && pd()->src_md(1)->data_type == data_type::f32 && rnn.is_int8;
     CHECK(copy_init_iter(ctx, compute_stream, batch, dhc, sic, n_iter, n_layer,

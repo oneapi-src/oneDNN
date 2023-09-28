@@ -69,8 +69,8 @@ int comp_off(int n_dir, int n_bias, int dhc, int i0, int i1, int i2, int i3) {
 // used for the both H- and C-states
 int off_ws_state(int n_layer, int n_dir, int n_iter, int batch,
         int states_ws_ld, int i0_, int i1, int i2_, int i3, int i4) {
-    int i0 = i0_ + 1;
-    int i0_size = n_layer + 1;
+    int i0 = COPY_SRC_LAYER ? i0_ + 1 : i0_;
+    int i0_size = COPY_SRC_LAYER ? n_layer + 1 : n_layer;
     int i2 = i2_ + 1;
     return OFF5(i0, i0_size, i1, n_dir, i2, n_iter + 1, i3, batch, i4,
             states_ws_ld);

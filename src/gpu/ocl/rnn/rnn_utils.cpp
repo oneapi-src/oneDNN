@@ -258,18 +258,64 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
 
+    bool require_copy_src_layer = [&]() {
+        auto src_layer_md = memory_desc_wrapper(rd.src_layer_desc);
+        auto &strides = src_layer_md.strides();
+        auto dt_size = types::data_type_size(src_layer_md.data_type());
+
+        // The GEMM interface assumes input buffers are well aligned. We need to
+        // implement a way to avoid kernels relying on this alignment to remove
+        // this restriction.
+        if ((strides[0] * dt_size) % 8) return true;
+
+        if (rnn.merge_gemm_layer) {
+            // GEMM inputs are represented as 2d inputs. As such, the merged
+            // dimension need to be dense. This restriction could be removed by
+            // using batched GEMM with appropriate strides instead.
+            constexpr int iter_dim = 0, mb_dim = 1;
+            if (strides[iter_dim] != strides[mb_dim] * rnn.mb) return true;
+            if (rnn.exec_dir != rnn_utils::l2r) return true;
+        }
+        return false;
+    }();
+
+    bool prefer_copy_src_layer = [&]() {
+        auto src_layer_md = memory_desc_wrapper(rd.src_layer_desc);
+        auto &strides = src_layer_md.strides();
+        auto dt_size = types::data_type_size(src_layer_md.data_type());
+
+        // Data is already well aligned. Copying does not provide benefit
+        if (strides[1] == rnn.gates_ws_ld) return false;
+
+        // Better to rely on GEMM to emit reorder if it is necessary if there is
+        // limited data reuse
+        const dim_t data_reuse = rnn.n_dir * (rnn.is_training ? 2 : 1);
+        if (!rnn.merge_gemm_layer && data_reuse < 3) return false;
+
+        // Prefer lower memory usage
+        if (src_layer_md.nelems(true) * dt_size >= 8 * 1024 * 1024)
+            return false;
+
+        return true;
+    }();
+
+    bool copy_src_layer = dev_getenv("copy_src_layer", prefer_copy_src_layer)
+            || require_copy_src_layer;
+
+    rnn.copy_src_layer = copy_src_layer;
     rnn.ws_states_cell_size = rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
-    rnn.ws_states_size = (rnn.n_layer + 1) * rnn.n_dir * (rnn.n_iter + 1)
-            * rnn.ws_states_cell_size;
+    rnn.ws_states_size = (copy_src_layer ? rnn.n_layer + 1 : rnn.n_layer)
+            * rnn.n_dir * (rnn.n_iter + 1) * rnn.ws_states_cell_size;
 
     // we do not need a good ld for iter_c as it is not involved in GEMM
     // for now reverting it back to what it was originally
     // TODO: seprate diff_c_offsets from diff-states & seprate h- and c- off
     rnn.ws_c_states_cell_size
             = is_lstm ? rnn.mb * rnn.states_ws_ld * aux_elsz : 0;
-    rnn.ws_c_states_size = is_lstm ? (rnn.n_layer + 1) * rnn.n_dir
+    rnn.ws_c_states_size = is_lstm
+            ? (copy_src_layer ? rnn.n_layer + 1 : rnn.n_layer) * rnn.n_dir
                     * (rnn.n_iter + 1) * rnn.ws_c_states_cell_size
-                                   : 0;
+            : 0;
     rnn.scratch_diff_states_size = is_bwd ? (rnn.n_layer + 1) * rnn.n_dir
                     * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb
                     * rnn.scratch_diff_states_ld * aux_elsz
