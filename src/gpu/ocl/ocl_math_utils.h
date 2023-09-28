@@ -364,6 +364,7 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
 
 #ifdef cl_ext_float_atomics
 #ifdef __opencl_c_ext_fp32_global_atomic_add
+#define HAS_FLOAT_ATOMIC_ADD
 DECLARE_ATOMIC_OP(add, float)
 DECLARE_ATOMIC_OP(sub, float)
 #endif // __opencl_c_ext_fp32_global_atomic_add
@@ -374,5 +375,21 @@ DECLARE_ATOMIC_OP(max, float)
 #endif // __opencl_c_ext_fp32_global_atomic_min_max
 
 #endif // cl_ext_float_atomics
+
+#if __OPENCL_C_VERSION__ >= 200 && !defined(HAS_FLOAT_ATOMIC_ADD)
+inline float atomic_add_global(
+        volatile __global atomic_float *source, float operand) {
+    float old_val = atomic_load_explicit(
+            source, memory_order_relaxed, memory_scope_device);
+    bool success = false;
+    do {
+        float new_val = old_val + operand;
+        success = atomic_compare_exchange_strong_explicit(source, &old_val,
+                new_val, memory_order_acq_rel, memory_order_relaxed,
+                memory_scope_device);
+    } while (!success);
+    return old_val;
+}
+#endif
 
 #endif
