@@ -49,21 +49,26 @@ enum gemm_kind_t {
     gemm_iter_fwd,
     gemm_iter_fwd_2,
     gemm_layer_fwd,
+    gemm_layer_fwd_src,
     gemm_iter_bwd,
     gemm_iter_bwd_2,
     gemm_layer_bwd,
     gemm_diff_wei_iter,
     gemm_diff_wei_iter_2,
-    gemm_diff_wei_layer
+    gemm_diff_wei_layer,
+    gemm_diff_wei_layer_src
 };
 
 struct workspace_t {
     using mst = memory_storage_t;
-    workspace_t(const mst &ws, const rnn_utils::ocl_conf_t &ocl_conf,
-            const rnn_utils::conf_t &conf, const rnn_offsets_t &off)
+    workspace_t(const mst &ws, const mst &src_layer,
+            const rnn_utils::ocl_conf_t &ocl_conf,
+            const rnn_utils::conf_t &conf, const rnn_offsets_t &offsets)
         : ws_(ws)
+        , src_layer_(src_layer)
         , ocl_conf_(ocl_conf)
         , conf_(conf)
+        , offsets_(offsets)
         , gates_(conf.ws_gates_size > 0 ? ws.get_sub_storage(
                          conf.ws_gates_offset, conf.ws_gates_size)
                                         : nullptr)
@@ -78,13 +83,50 @@ struct workspace_t {
                                       : nullptr)
         , grid_comp_(conf.ws_grid_comp_size > 0 ? ws.get_sub_storage(
                              conf.ws_grid_comp_offset, conf.ws_grid_comp_size)
-                                                : nullptr) {}
+                                                : nullptr) {
+        // The packed restriction could be removed by using batched GEMM with
+        // appropriate strides.
+        gpu_assert(IMPLICATION(conf_.merge_gemm_layer && !conf_.copy_src_layer,
+                offsets_.src_layer[0] == offsets_.src_layer[1] * conf_.mb
+                        && conf_.exec_dir == rnn_utils::l2r))
+                << "[ERROR]: GEMM dimensions must be packed in order to "
+                   "perform merge_gemm_layer";
+
+        gpu_assert(IMPLICATION(!conf.copy_src_layer,
+                (offsets_.src_layer[0]
+                        * types::data_type_size(ocl_conf_.src_dt))
+                                % 8
+                        == 0))
+                << "[ERROR]: GEMM interface assumes inputs buffers are well "
+                   "aligned";
+        gpu_assert(offsets_.src_layer[0] < INT_MAX
+                && offsets_.src_layer[1] < INT_MAX
+                && offsets_.src_layer[2] < INT_MAX)
+                << "[UNIMPLEMENTED]: src offsets larger than INT_MAX are not "
+                   "currently supported in ref_rnn.cl";
+    }
+
+    dim_t calc_off_src_layer(dim_t dir, dim_t iter_, dim_t mb) const {
+        auto iter = [&]() {
+            if (conf_.exec_dir == rnn_utils::l2r)
+                return iter_;
+            else if (conf_.exec_dir == rnn_utils::r2l)
+                return conf_.n_iter - iter_ - 1;
+            else if (dir == 1)
+                return conf_.n_iter - iter_ - 1;
+            else
+                return iter_;
+        }();
+
+        // src_layer dimension order: iter, mini-batch, channel
+        return iter * offsets_.src_layer[0] + mb * offsets_.src_layer[1];
+    }
 
     dim_t calc_off_ws_state(
             dim_t i0_, dim_t i1, dim_t i2_, dim_t i3, dim_t i4) const {
         // Logical index into workspace grid
-        auto i0 = i0_ + 1;
-        auto i0_size = conf_.n_layer + 1;
+        auto i0 = conf_.copy_src_layer ? i0_ + 1 : i0_;
+        auto i0_size = conf_.copy_src_layer ? conf_.n_layer + 1 : conf_.n_layer;
         auto i2 = i2_ + 1;
 
         gpu_assert(i0 >= 0) << "Logical index must be larger than 0";
@@ -109,6 +151,15 @@ struct workspace_t {
     }
 
     const mst &ws() const { return ws_; }
+    const mst &src_layer() const { return src_layer_; }
+    std::unique_ptr<mst> src_layer(
+            dim_t dir, dim_t iter, bool all_iter = false) const {
+        auto off_ = calc_off_src_layer(dir, iter, 0)
+                * types::data_type_size(ocl_conf_.src_dt);
+        auto n_cells = all_iter ? conf_.n_iter - iter : 1;
+        auto cell_size = offsets_.src_layer[0];
+        return src_layer_.get_sub_storage(off_, cell_size * n_cells);
+    }
     const mst &gates() const { return rnn_utils::get_storage(gates_); }
     const mst &states() const { return rnn_utils::get_storage(states_); }
 
@@ -162,8 +213,10 @@ struct workspace_t {
 
 private:
     const mst &ws_;
+    const mst &src_layer_;
     const rnn_utils::ocl_conf_t &ocl_conf_;
     const rnn_utils::conf_t &conf_;
+    const rnn_offsets_t &offsets_;
     std::unique_ptr<mst> gates_;
     std::unique_ptr<mst> states_;
     std::unique_ptr<mst> c_states_;
@@ -192,10 +245,12 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         key_gemm_iter_fwd = memory_tracking::names::key_nested_multiple,
         key_gemm_iter_fwd_2,
         key_gemm_layer_fwd,
+        key_gemm_layer_fwd_src,
         key_gemm_iter_bwd,
         key_gemm_iter_bwd_2,
         key_gemm_layer_bwd,
         key_gemm_diff_wei_layer,
+        key_gemm_diff_wei_layer_src,
         key_gemm_diff_wei_iter,
         key_gemm_diff_wei_iter_2,
     };
@@ -224,10 +279,12 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
         std::shared_ptr<primitive_desc_t> gemm_layer_fwd_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_layer_fwd_src_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_bwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_bwd_2_pd_;
         std::shared_ptr<primitive_desc_t> gemm_layer_bwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_diff_wei_layer_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_diff_wei_layer_src_pd_;
         std::shared_ptr<primitive_desc_t> gemm_diff_wei_iter_pd_;
         std::shared_ptr<primitive_desc_t> gemm_diff_wei_iter_2_pd_;
 
@@ -252,6 +309,10 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                 scratchpad.book(key_gemm_layer_fwd,
                         gemm_layer_fwd_pd_->scratchpad_registry());
             }
+            if (gemm_layer_fwd_src_pd_) {
+                scratchpad.book(key_gemm_layer_fwd_src,
+                        gemm_layer_fwd_src_pd_->scratchpad_registry());
+            }
             if (gemm_iter_fwd_pd_) {
                 scratchpad.book(key_gemm_iter_fwd,
                         gemm_iter_fwd_pd_->scratchpad_registry());
@@ -273,6 +334,10 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                             gemm_layer_bwd_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_diff_wei_layer,
                             gemm_diff_wei_layer_pd_->scratchpad_registry());
+                    if (gemm_diff_wei_layer_src_pd_)
+                        scratchpad.book(key_gemm_diff_wei_layer_src,
+                                gemm_diff_wei_layer_src_pd_
+                                        ->scratchpad_registry());
                     scratchpad.book(key_gemm_diff_wei_iter,
                             gemm_diff_wei_iter_pd_->scratchpad_registry());
                     if (rnn_conf.is_vanilla_gru) {
@@ -404,12 +469,14 @@ private:
 
     // ptrs to GEMM primitives
     std::shared_ptr<primitive_t> gemm_layer_fwd_;
+    std::shared_ptr<primitive_t> gemm_layer_fwd_src_;
     std::shared_ptr<primitive_t> gemm_iter_fwd_;
     std::shared_ptr<primitive_t> gemm_iter_fwd_2_;
     std::shared_ptr<primitive_t> gemm_layer_bwd_;
     std::shared_ptr<primitive_t> gemm_iter_bwd_;
     std::shared_ptr<primitive_t> gemm_iter_bwd_2_;
     std::shared_ptr<primitive_t> gemm_diff_wei_layer_;
+    std::shared_ptr<primitive_t> gemm_diff_wei_layer_src_;
     std::shared_ptr<primitive_t> gemm_diff_wei_iter_;
     std::shared_ptr<primitive_t> gemm_diff_wei_iter_2_;
 

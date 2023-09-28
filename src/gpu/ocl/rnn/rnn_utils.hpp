@@ -260,6 +260,8 @@ struct ocl_conf_t {
     bool is_testmode = false;
     bool is_training = false;
     bool recompute_gates = false;
+    bool copy_src_layer = false;
+    uint8_t pad[7] = {};
 };
 
 struct conf_t {
@@ -291,6 +293,7 @@ struct conf_t {
     bool is_fwd, is_training, is_lbr, is_int8, is_testmode, is_vanilla_gru;
     bool use_workspace;
     bool recompute_gates;
+    bool copy_src_layer;
 
     // for test mode (--skip_nonliner=true of benchdnn)
     float tm_cscale;

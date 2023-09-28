@@ -40,7 +40,15 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
 
     set_offsets_fwd_gemm(rnn, iter, dir, lay, wei_iter_offsets,
             cell_scratch_offset, cell_wei_iter_offset);
-    auto cell_layer = workspace.states(lay - 1, dir, iter);
+    auto cell_layer = !rnn.copy_src_layer && lay == 0
+            ? workspace.src_layer(dir, iter)
+            : workspace.states(lay - 1, dir, iter);
+    auto gemm_cell_layer_fwd = !rnn.copy_src_layer && lay == 0
+            ? gemm_layer_fwd_src
+            : gemm_layer_fwd;
+    auto gemm_diff_wei_cell_layer = !rnn.copy_src_layer && lay == 0
+            ? gemm_diff_wei_layer_src
+            : gemm_diff_wei_layer;
     auto cell_iter = workspace.states(lay, dir, iter - 1);
 
     if (aprop == prop_kind::forward) {
@@ -48,7 +56,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         if (!rnn.merge_gemm_layer)
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
                     *cell_layer, 0, *scratch_gates, cell_scratch_offset,
-                    gemm_layer_fwd));
+                    gemm_cell_layer_fwd));
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
                 *cell_iter, 0, scratch_cell, 0, gemm_iter_fwd));
@@ -74,7 +82,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         if (!rnn.merge_gemm_layer) {
             CHECK(gemm_primitive(engine, ctx, *scratch_diff_gates,
                     cell_scratch_diff_off, *cell_layer, 0, diff_weights_layer,
-                    cell_diff_wei_lay_off, gemm_diff_wei_layer));
+                    cell_diff_wei_lay_off, gemm_diff_wei_cell_layer));
 
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
                     *scratch_diff_gates, cell_scratch_diff_off,
