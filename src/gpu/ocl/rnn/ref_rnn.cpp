@@ -192,10 +192,6 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.need_bias_atomic_reduce
             = !ocl_conf.is_fwd && ocl_conf.elemwise_bwd_batch_block < rnn.mb;
 
-    if (ocl_conf.need_bias_atomic_reduce
-            && !device_info.has(compute::device_ext_t::ext_float_atomics))
-        return status::unimplemented;
-
     return status::success;
 }
 
