@@ -1698,6 +1698,17 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (is_depthwise)
         if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
+    // TODO: optimize grouped convolutions with small ic for non-amx kernels
+    const bool is_grouped_small_ic
+            = jcp.prop_kind != prop_kind::backward_weights && with_groups
+            && jcp.ngroups > 1
+            && jcp.ic <= jcp.acc_simd_w
+            // Enable the shapes not supported in direct convs
+            && is_groups_ok(jcp);
+    const bool isa_has_small_group_perf = is_amx(isa) || jcp.isa == avx2;
+    if (is_grouped_small_ic && !isa_has_small_group_perf)
+        if (allow_perf_heuristics(jcp)) return status::unimplemented;
+
     // Dispatch the shapes to VNNI for better performance
     // TODO: optimize the perf of 3d shape with small ic and large spatial
     const auto max_small_shapes_sz = jcp.is_1x1
