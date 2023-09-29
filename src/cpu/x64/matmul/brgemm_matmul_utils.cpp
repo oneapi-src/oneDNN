@@ -597,6 +597,8 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
     const int runtime_M_chunk = bgmmc.lda_big_pow2() ? 2 : 4;
     const int runtime_N_chunk = 2;
     for (int nthr_k = 1; nthr_k <= max_nthr_k; nthr_k++) {
+        int nthr_bmn = bgmmc.nthr / nthr_k;
+
         int num_M_blk = bgmmc.is_runtime_M ? 1 : div_up(bgmmc.M, bgmmc.M_blk);
         int num_N_blk = bgmmc.is_runtime_N ? 1 : div_up(bgmmc.N, bgmmc.N_blk);
         int k_parallel_work = nstl::min(max_k_parallel_work, nthr_k);
@@ -643,15 +645,38 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
             }
         }
 
+        bool found_best_blocking = false;
         for_(int n_blk = bgmmc.N_blk; n_blk >= min_N_blk; n_blk -= 16)
         for_(int m_blk : mblk_candidates)
         for_(int n_ch_sz = desired_N_chunk; n_ch_sz >= 1; n_ch_sz--)
         for (int m_ch_sz = desired_M_chunk; m_ch_sz >= 1; m_ch_sz--, iter++) {
             current_blocking.set_blocking_parameters(
                     nthr_k, n_blk, n_ch_sz, m_blk, m_ch_sz);
-            if (current_blocking.get_blocking_scores()
-                    > best_blocking.get_blocking_scores())
+
+            float cur_score = current_blocking.get_blocking_scores();
+            float bst_score = best_blocking.get_blocking_scores();
+
+            int m_chunks = div_up(bgmmc.M, m_blk * m_ch_sz);
+            int n_chunks = div_up(bgmmc.N, n_blk * n_ch_sz);
+            int work_amount = bgmmc.batch * m_chunks * n_chunks;
+
+            bool skip_config = work_amount < nthr_bmn * 3
+                    && work_amount % nthr_bmn != 0 && max_nthr_k == 1;
+            if (skip_config) continue;
+
+            if (cur_score > bst_score) {
                 best_blocking = current_blocking;
+                found_best_blocking = true;
+            }
+        }
+
+        if (!found_best_blocking) {
+            current_blocking.set_blocking_parameters(
+                    nthr_k, min_N_blk, 1, min_M_blk, 1);
+
+            float cur_score = current_blocking.get_blocking_scores();
+            float bst_score = best_blocking.get_blocking_scores();
+            if (cur_score > bst_score) best_blocking = current_blocking;
         }
     }
 }
@@ -720,19 +745,43 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
         }
     }
 
+    matmul_avx512_blocking_params_t cur_params(matmul, nthr);
     float best_imbalance = 1.f; // reduce
-    for_(int nthr_k = start_nthr_k; nthr_k >= 1; --nthr_k)
-    for_(int n_chunk_size = n_chunks_start; n_chunk_size >= 1; --n_chunk_size)
-    for (int m_blk = max_m_blk; m_blk >= min_m_blk; --m_blk) {
+    for (int nthr_k = start_nthr_k; nthr_k >= 1; --nthr_k) {
+        bool found_best_blocking = false;
+        for_(int n_chunk_size = n_chunks_start; n_chunk_size >= 1;
+                --n_chunk_size)
+        for (int m_blk = max_m_blk; m_blk >= min_m_blk; --m_blk) {
+            cur_params.update_params(
+                    1, m_blk, n_chunk_size, n_blk, 1, k_blk, nthr_k);
 
-        matmul_avx512_blocking_params_t cur_params(matmul, nthr);
-        cur_params.update_params(
-                1, m_blk, n_chunk_size, n_blk, 1, k_blk, nthr_k);
+            float cur_imbalance = cur_params.get_imbalance();
 
-        float cur_imbalance = cur_params.get_imbalance();
-        if (cur_imbalance < best_imbalance) {
-            best_imbalance = cur_imbalance;
-            best_blocking = cur_params;
+            const int m_chunk_size = 1;
+            int m_chunks = div_up(bgmmc.M, m_blk * m_chunk_size);
+            int n_chunks = div_up(bgmmc.N, n_blk * n_chunk_size);
+            int work_amount = bgmmc.batch * m_chunks * n_chunks;
+
+            int nthr_bmn = nthr / nthr_k;
+            bool skip_config = work_amount < nthr_bmn * 3
+                    && work_amount % nthr_bmn != 0 && start_nthr_k == 1;
+            if (skip_config) continue;
+
+            if (cur_imbalance < best_imbalance) {
+                best_imbalance = cur_imbalance;
+                best_blocking = cur_params;
+                found_best_blocking = true;
+            }
+        }
+
+        if (!found_best_blocking) {
+            cur_params.update_params(1, min_m_blk, 1, n_blk, 1, k_blk, nthr_k);
+
+            float cur_imbalance = cur_params.get_imbalance();
+            if (cur_imbalance < best_imbalance) {
+                best_imbalance = cur_imbalance;
+                best_blocking = cur_params;
+            }
         }
     }
     return best_imbalance;
