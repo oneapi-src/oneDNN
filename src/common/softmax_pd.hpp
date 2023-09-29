@@ -22,6 +22,11 @@
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
 
+#define VDISPATCH_SOFTMAX(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, softmax, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 
