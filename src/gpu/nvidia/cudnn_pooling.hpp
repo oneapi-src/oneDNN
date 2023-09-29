@@ -42,6 +42,8 @@ struct cudnn_pooling_common_t {
         const auto src_size = src_wrap.nelems();
         const auto dst_size = dst_wrap.nelems();
 
+        // Add a byte of extra memory in abx case to ensure the hash generated
+        // is different from the axb case. This is a workaround for issue #1727
         const auto tag = get_tag(is_fwd ? *pd->dst_md() : *pd->diff_dst_md());
         dim_t ws_offset = 0;
         if (utils::one_of(tag, format_tag::ab, format_tag::abc,
