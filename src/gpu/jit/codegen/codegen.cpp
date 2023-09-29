@@ -1250,8 +1250,17 @@ private:
                 auto temp = scope_.alloc_reg_buf_data(regs).format(
                         off, ngen::DataType::f, esize);
                 host_->emul(mod, temp, dst, src1);
-                host_->csel(mod | host_->le, dst.reg_data(), temp,
-                        dst.reg_data(), dst.reg_data());
+                // Workaround for regioning restriction.
+                if (esize == 2) {
+                    host_->csel(mod | host_->le, dst.reg_data(),
+                            temp.subregister(0)(1),
+                            dst.reg_buf_data().subregister(0)(1),
+                            dst.reg_buf_data().subregister(0)(1));
+                } else {
+                    host_->csel(mod | host_->le, dst.reg_data(), temp,
+                            dst.reg_data(), dst.reg_data());
+                }
+
                 break;
             }
             default:
