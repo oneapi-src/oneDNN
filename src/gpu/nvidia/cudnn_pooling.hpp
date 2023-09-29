@@ -41,7 +41,15 @@ struct cudnn_pooling_common_t {
 
         const auto src_size = src_wrap.nelems();
         const auto dst_size = dst_wrap.nelems();
-        const dims_t ws_size = {(dim_t)(src_size + dst_size)};
+
+        const auto tag = get_tag(is_fwd ? *pd->dst_md() : *pd->diff_dst_md());
+        dim_t ws_offset = 0;
+        if (utils::one_of(tag, format_tag::ab, format_tag::abc,
+                    format_tag::abcd, format_tag::abcde)) {
+            ws_offset = 1;
+        }
+
+        const dims_t ws_size = {(dim_t)(src_size + dst_size + ws_offset)};
 
         memory_desc_init_by_tag(
                 ws_md, 1, ws_size, src_wrap.data_type(), format_tag::x);
