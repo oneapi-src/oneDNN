@@ -1317,8 +1317,8 @@ stream_t::stream_t(dnnl_engine_t engine, void *interop_obj) {
     }
 #endif
 
-    const bool use_profiling = has_bench_mode_bit(mode_bit_t::perf) && is_gpu()
-            && !is_nvidia_gpu() && !is_amd_gpu();
+    const bool use_profiling = has_bench_mode_bit(mode_bit_t::perf)
+            && is_gpu(engine) && !is_nvidia_gpu(engine) && !is_amd_gpu(engine);
     dnnl_stream_flags_t flags
             = stream_kind2stream_flags(stream_kind, use_profiling);
     DNN_SAFE_V(dnnl_stream_create(&stream_, engine, flags));
