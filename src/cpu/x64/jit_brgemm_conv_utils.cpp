@@ -113,7 +113,6 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     float eff;
     static unsigned L1;
     static unsigned L2;
-    static unsigned L3;
     // These are rough estimates of the latency (relative) of access to various
     // cache levels. This is enough for an estimation of data access cost.
     // TODO: Improve memory access estimates
@@ -372,7 +371,6 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
 
 unsigned brg_blocking_t::L1;
 unsigned brg_blocking_t::L2;
-unsigned brg_blocking_t::L3;
 
 float brg_blocking_t::io_k(dim_t src, dim_t wei, dim_t dst, float n, float pk,
         bool is_broadcast, bool is_shared) const {
@@ -1564,7 +1562,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     brg_blocking_t::L1 = platform::get_per_core_cache_size(1);
     brg_blocking_t::L2 = platform::get_per_core_cache_size(2);
-    brg_blocking_t::L3 = platform::get_per_core_cache_size(2);
 
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
