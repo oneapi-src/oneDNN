@@ -65,9 +65,9 @@ inline float16_t &float16_t::operator=(float f) {
         ee = 0;
         mm = 0;
     } else if (e == 0xFF) {
-        // Preserve inf/nan.
+        // Preserve inf/nan, but set quiet bit for nan (snan->qnan).
         ee = 0x1F;
-        if (m != 0 && mm == 0) mm = 1;
+        if (m != 0) mm |= 0x200;
     } else if (eee > 0 && eee < 0x1F) {
         // Normal range. Perform round to even on mantissa.
         ee = static_cast<uint32_t>(eee);
@@ -116,6 +116,8 @@ inline float16_t::operator float() const {
     } else if (ee == 0x1F) {
         // inf/nan
         e = 0xFF;
+        // set quiet bit for nan (snan->qnan)
+        if (m != 0) m |= 0x400000;
     } else
         e = eee;
 
