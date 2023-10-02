@@ -1074,7 +1074,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
 
         const status_t st = estimate_brgemm_ur();
         if (st != status::success) continue;
-        os_block = sp_block = iw_block;
+        is_block = sp_block = iw_block;
         update_blocks();
 
         eff = est_eff();
@@ -1782,7 +1782,7 @@ dim_t precalculate_comp_pad_kernels(const jit_brgemm_conv_conf_t &jcp,
         auto id_begin = idb * ID_BLOCK;
         auto id_end = nstl::min(ID, id_begin + ID_BLOCK);
         auto ih_begin = ihb * IH_BLOCK;
-        auto ih_end = jcp.is_os_blocking ? ih_begin + 1
+        auto ih_end = jcp.is_is_blocking ? ih_begin + 1
                                          : nstl::min(IH, ih_begin + IH_BLOCK);
         for_(int id = id_begin; id < id_end; id++)
         for_(int ih = ih_begin; ih < ih_end; ih++)
