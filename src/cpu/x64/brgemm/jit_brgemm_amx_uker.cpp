@@ -1014,7 +1014,7 @@ void jit_brgemm_amx_uker_base_t::uni_prefetch(
     if (for_write) {
         switch (pft) {
             case brgemm_prf0: prefetchw(addr); break;
-            case brgemm_prf1: prefetchwt1(addr); break;
+            case brgemm_prf1: prefetcht1(addr); break;
             default: break;
         }
     } else {

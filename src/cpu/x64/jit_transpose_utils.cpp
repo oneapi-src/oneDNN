@@ -772,7 +772,7 @@ void jit_transpose4x16_src::transpose(int nrows) {
 
     auto pf_tr_src_t1 = [this](int i) {
         if (tparams->tr_src_pf1)
-            prefetchwt1(EVEX_compress_addr(reg_tr_src_prf, i * tr_src_stride));
+            prefetcht1(EVEX_compress_addr(reg_tr_src_prf, i * tr_src_stride));
     };
 
     auto src_zmm = [](int i) {
