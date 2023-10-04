@@ -117,6 +117,13 @@
 #define MAYBE_LAST_IC_LOAD_FLOAT_1x16(ptr, idx) LOAD_FLOAT_1x16(&ptr[(idx)])
 #endif
 
+// To align result for scalar and vector type of arguments
+#if VECT_DT_N == 1
+#define ISGREATER(x, y) ((x) > (y) ? -1 : 0)
+#else
+#define ISGREATER(x, y) isgreater((x), (y))
+#endif
+
 #if USE_NHWC
 #define IC_BLOCK_STRIDE IC
 #else

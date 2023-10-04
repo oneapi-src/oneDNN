@@ -339,7 +339,7 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
 #endif
             VECT_INT_T ws_vect[UPDATE_SP_UNROLL];
             unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
-                ws_vect[i] = isgreater(d_vect[i], (VECT_FLOAT_T)0.0f);
+                ws_vect[i] = ISGREATER(d_vect[i], (VECT_FLOAT_T)0.0f);
                 d_vect[i] = select((VECT_FLOAT_T)0.0f, d_vect[i], ws_vect[i]);
             }
 #if IS_TRAINING
@@ -387,7 +387,7 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
 #endif
             int ws_tail[UPDATE_SP_UNROLL];
             unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
-                ws_tail[i] = isgreater(d_tail[i], 0.0f);
+                ws_tail[i] = d_tail[i] > 0.0f ? -1 : 0;
                 d_tail[i] = select(0.0f, d_tail[i], ws_tail[i]);
             }
 #if IS_TRAINING
