@@ -166,13 +166,13 @@ endif()
 
 enable_testing()
 
-include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/include)
+include_directories_with_host_compiler_before(${PROJECT_SOURCE_DIR}/include)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_config.h.in"
     "${PROJECT_BINARY_DIR}/include/oneapi/dnnl/dnnl_config.h"
 )
-include_directories_with_host_compiler(${PROJECT_BINARY_DIR}/include)
+include_directories_with_host_compiler_before(${PROJECT_BINARY_DIR}/include)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/README.binary.in"
