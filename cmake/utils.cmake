@@ -96,9 +96,17 @@ endmacro()
 macro(append_host_compiler_options var opts)
     if(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT")
         if(${var} MATCHES "-fsycl-host-compiler-options")
-            string(REGEX REPLACE
-                "(.*)(-fsycl-host-compiler-options=)\"(.*)\"(.*)"
-                "\\1\\2\"\\3 ${opts}\"\\4" ${var} ${${var}})
+            if("${ARGV2}" STREQUAL "BEFORE") # prepend
+                string(REGEX REPLACE
+                    "(.*)(-fsycl-host-compiler-options=)\"(.*)\"(.*)"
+                    "\\1\\2\"${opts} \\3\"\\4" ${var} ${${var}})
+            elseif("${ARGV2}" STREQUAL "") # append
+                string(REGEX REPLACE
+                    "(.*)(-fsycl-host-compiler-options=)\"(.*)\"(.*)"
+                    "\\1\\2\"\\3 ${opts}\"\\4" ${var} ${${var}})
+            else()
+                message(FATAL_ERROR "Unknown argument: ${ARGV2}")
+            endif()
         else()
             append(${var} "-fsycl-host-compiler-options=\"${opts}\"")
         endif()
@@ -109,6 +117,13 @@ macro(include_directories_with_host_compiler)
     foreach(inc_dir ${ARGV})
         include_directories(${inc_dir})
         append_host_compiler_options(CMAKE_CXX_FLAGS "-I${inc_dir}")
+    endforeach()
+endmacro()
+
+macro(include_directories_with_host_compiler_before)
+    foreach(inc_dir ${ARGV})
+        include_directories(BEFORE ${inc_dir})
+        append_host_compiler_options(CMAKE_CXX_FLAGS "-I${inc_dir}" BEFORE)
     endforeach()
 endmacro()
 
