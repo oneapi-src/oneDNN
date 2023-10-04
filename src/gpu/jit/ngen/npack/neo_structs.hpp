@@ -57,6 +57,7 @@ enum class ProductFamily : uint32_t {
     DG2 = 1270,
     PVC = 1271,
     MTL = 1272,
+    ARL = 1273,
     LNL = 1275,
     LNL_M = 1276
 };

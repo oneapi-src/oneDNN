@@ -210,6 +210,7 @@ inline ngen::ProductFamily decodeProductFamily(ProductFamily family)
     if (family == ProductFamily::DG2) return ngen::ProductFamily::DG2;
     if (family == ProductFamily::MTL) return ngen::ProductFamily::MTL;
     if (family == ProductFamily::PVC) return ngen::ProductFamily::PVC;
+    if (family == ProductFamily::ARL) return ngen::ProductFamily::ARL;
     if (family > ProductFamily::PVC && family <= ProductFamily::LNL_M) return ngen::ProductFamily::GenericXe2;
     return ngen::ProductFamily::Unknown;
 }
@@ -265,6 +266,8 @@ inline ngen::Product decodeHWIPVersion(uint32_t rawVersion)
                 outProduct.family = ngen::ProductFamily::PVC;
             else if (version.release >= 70 && version.release <= 71)
                 outProduct.family = ngen::ProductFamily::MTL;
+            else if (version.release >= 73 && version.release <= 74)
+                outProduct.family = ngen::ProductFamily::ARL;
             break;
         default: outProduct.family = ngen::ProductFamily::Unknown; break;
     }
