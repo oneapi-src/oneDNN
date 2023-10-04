@@ -153,11 +153,12 @@ float8_e4m3_t &float8_e4m3_t::operator=(float f) {
 }
 
 float8_e4m3_t::operator float() const {
-    uint16_t s16 = (raw_bits_ & 0x80) << 8;
-    uint16_t e8 = (raw_bits_ & 0x78) >> 3;
-    uint16_t e16 = (e8 + 8 /* 15 - 7 = e16_bias - e8_bias */) << 10;
-    uint16_t m8 = (raw_bits_ & 0x7);
-    uint16_t m16 = m8 << 7;
+    const uint16_t s8 = (raw_bits_ & 0x80) >> 7;
+    const uint16_t e8 = (raw_bits_ & 0x78) >> 3;
+    const uint16_t m8 = (raw_bits_ & 0x7);
+    uint16_t s16 = s8;
+    uint16_t e16 = e8 + 8; // 8 = 15 - 7 = f16_bias - f8_e4m3_bias
+    uint16_t m16 = m8;
 
     // Need to convert f8_e4m3 denormal into f16 normal.
     if (e8 == 0 && m8 != 0) {
@@ -165,10 +166,18 @@ float8_e4m3_t::operator float() const {
         count = m8 > 0x1 ? 1 : count;
         count = m8 > 0x3 ? 0 : count;
         e16 -= count;
-        m16 = (m16 << (count + 1) & 0x7);
+        m16 = (m16 << (count + 1)) & 0x7;
     } else if (e8 == 0 && m8 == 0) {
+        // set correct exponent for zero
         e16 = 0;
-    } /* e8 == 0xf && m == 0x7, when? */
+    } else if (e8 == 0xf && m8 == 0x7) {
+        // set correct exponent and mantissa for NaN input
+        e16 = 0x1f;
+        m16 = 0x4; // Real Indefinite (a qNaN)
+    }
+    s16 <<= 15;
+    e16 <<= 10;
+    m16 <<= 7;
 
     uint16_t u16 = s16 | e16 | m16;
     auto f16 = utils::bit_cast<float16_t>(u16);
