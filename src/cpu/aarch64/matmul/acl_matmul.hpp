@@ -76,15 +76,21 @@ struct acl_matmul_t : public primitive_t {
                     = utils::everyone_is(data_type::f16, src_md()->data_type,
                               weights_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(data_type::f16);
-            bool ok = is_dense_format_kind()
-                    && utils::one_of(true, is_fp32_ok, is_fp16_ok)
-                    && !has_zero_dim_memory()
-                    && weights_md_.format_kind == format_kind::any
-                    && set_default_formats()
-                    && attr()->has_default_values(
-                            smask_t::oscale | smask_t::post_ops)
-                    && attr_oscale_ok() && !has_runtime_dims_or_strides();
-            if (!ok) return status::unimplemented;
+
+            VDISPATCH_MATMUL(
+                    is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
+            VDISPATCH_MATMUL(utils::one_of(true, is_fp32_ok, is_fp16_ok),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_MATMUL(weights_md_.format_kind == format_kind::any,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_MATMUL(attr()->has_default_values(
+                                     smask_t::oscale | smask_t::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_MATMUL(attr_oscale_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_MATMUL(!has_runtime_dims_or_strides(),
+                    VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
             CHECK(acl_matmul_utils::init_conf_matmul(
                     amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));

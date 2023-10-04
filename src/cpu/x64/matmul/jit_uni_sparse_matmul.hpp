@@ -50,14 +50,21 @@ struct jit_uni_sparse_matmul_t : public primitive_t {
             memory_desc_wrapper src_d(src_md());
             memory_desc_wrapper wei_d(weights_md(0));
 
-            const bool ok
+            const bool problem_dt_correct
                     = utils::everyone_is(f32, src_type, wei_type, dst_type)
                     && src_d.is_sparse_desc() && !wei_d.is_sparse_desc()
-                    && utils::everyone_is(
-                            s32, src_d.metadata_type(0), src_d.metadata_type(1))
-                    && !with_bias() && attr()->has_default_values()
-                    && mayiuse(avx2) && set_default_formats() && formats_ok();
-            return ok ? status::success : status::unimplemented;
+                    && utils::everyone_is(s32, src_d.metadata_type(0),
+                            src_d.metadata_type(1));
+
+            VDISPATCH_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_MATMUL(!with_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_MATMUL(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_MATMUL(mayiuse(avx2), VERBOSE_UNSUPPORTED_ISA);
+            VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_MATMUL(formats_ok(), VERBOSE_UNSUPPORTED_TAG);
+
+            return status::success;
         }
 
         bool formats_ok() const {
