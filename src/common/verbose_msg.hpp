@@ -80,6 +80,7 @@
 #define VERBOSE_UNSUPPORTED_BIAS_CFG "unsupported bias configuration"
 #define VERBOSE_UNSUPPORTED_DT_CFG "unsupported datatype combination"
 #define VERBOSE_UNSUPPORTED_SPARSE_CFG "unsupported sparse md configuration"
+#define VERBOSE_INCOMPATIBLE_GEMM_FMT "incompatible gemm format"
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
 #define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"
