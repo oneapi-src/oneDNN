@@ -185,7 +185,33 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             injector::post_ops_ok_args_t post_ops_args(isa_, accepted_post_ops,
                     attr()->post_ops_, &dst_d, true, true, true, true,
                     softmax_impl::get_supported_bcast_strategies());
-            return !with_sum && injector::post_ops_ok(post_ops_args);
+
+            const auto has_per_oc_bin_po = [&]() {
+                for (size_t i = 0; i < static_cast<size_t>(post_ops.len());
+                        i++) {
+                    const auto &entry = post_ops.entry_[i];
+                    if (!entry.is_like_binary()) continue;
+
+                    const auto &src1_md
+                            = binary_injector::get_src1_desc(entry, dst_d);
+                    const auto &cur_strategy
+                            = get_rhs_arg_broadcasting_strategy(src1_md, dst_d,
+                                    softmax_impl::
+                                            get_supported_bcast_strategies());
+                    if (cur_strategy == broadcasting_strategy_t::per_oc
+                            || cur_strategy
+                                    == broadcasting_strategy_t::per_oc_spatial)
+                        return true;
+                }
+                return false;
+            };
+            // `per_oc` policy is reserved for axis being 1 as it is for the
+            // rest of the library, otherwise, `per_oc` doesn't make any sense.
+            const bool bin_po_ok
+                    = IMPLICATION(has_per_oc_bin_po(), axis() == 1);
+
+            return !with_sum && injector::post_ops_ok(post_ops_args)
+                    && bin_po_ok;
         }
 
         bool is_dense(const cpu_isa_t isa) const {
