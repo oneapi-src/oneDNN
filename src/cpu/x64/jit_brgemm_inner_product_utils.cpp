@@ -1651,8 +1651,8 @@ void jit_brgemm_ip_fwd_conf_t::choose_loop_order() {
 
     // Enable occ_osc_... for f32 and with small os-blocks.
     // TODO: Expand to other precisions and other blocks sizes.
-    const bool is_avx512 = is_superset(isa, avx512_core);
-    if ((os_block < 32 || do_occ_osc) && is_f32_compute && is_avx512)
+    const bool is_avx2 = is_superset(isa, avx2);
+    if ((os_block < 32 || do_occ_osc) && is_f32_compute && is_avx2)
         loop_order = icc_occ_osc_ocb_osb;
 }
 
