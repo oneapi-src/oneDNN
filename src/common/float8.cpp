@@ -153,6 +153,11 @@ float8_e4m3_t &float8_e4m3_t::operator=(float f) {
 }
 
 float8_e4m3_t::operator float() const {
+    float16_t f16 = *this;
+    return static_cast<float>(f16);
+}
+
+float8_e4m3_t::operator float16_t() const {
     const uint16_t s8 = (raw_bits_ & 0x80) >> 7;
     const uint16_t e8 = (raw_bits_ & 0x78) >> 3;
     const uint16_t m8 = (raw_bits_ & 0x7);
@@ -179,9 +184,8 @@ float8_e4m3_t::operator float() const {
     e16 <<= 10;
     m16 <<= 7;
 
-    uint16_t u16 = s16 | e16 | m16;
-    auto f16 = utils::bit_cast<float16_t>(u16);
-    return static_cast<float>(f16);
+    const uint16_t u16 = s16 | e16 | m16;
+    return utils::bit_cast<float16_t>(u16);
 }
 
 } // namespace impl

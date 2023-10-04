@@ -55,6 +55,7 @@ struct float8_e4m3_t {
     float8_e4m3_t DNNL_API &operator=(float16_t f);
 
     DNNL_API operator float() const;
+    DNNL_API operator float16_t() const;
 
     float8_e4m3_t &operator+=(const float a) {
         (*this) = float {*this} + a;
