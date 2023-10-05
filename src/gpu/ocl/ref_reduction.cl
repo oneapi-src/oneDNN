@@ -77,7 +77,7 @@ __kernel void ref_reduce(
     const int dst_off = _DST_OFF(d0, d1, d2, d3, d4, d5);
     if (d0 >= DST_D0 || d1 >= DST_D1 || d2 >= DST_D2 || d3 >= DST_D3
             || d4 >= DST_D4 || d5 >= DST_D5) {
-        dst[dst_off] = DATA_ZERO;
+        dst[dst_off] = TO_DST(0.0f);
         return;
     }
 

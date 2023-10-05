@@ -938,7 +938,7 @@
 #define DST_TO_REF2(x) cvt_bf16_to_f32(x)
 #define DST_TO_REF8(x) cvt_bf16_to_f32(x)
 #define REF_TO_DST(x) cvt_f32_to_bf16(x)
-#define REF_TO_DST8(x) cvt_f32_to_bf16(convert_float8(x))
+#define REF_TO_DST8(x) cvt_f32_to_bf16(x)
 #elif DST_DT_F16
 #define REF_TO_DST(x) convert_half(x)
 #define DST_TO_REF(x) convert_float(x)
@@ -964,7 +964,7 @@
 #define REF_TO_DST8(x) (x)
 #endif
 #if DST_DT_BF16
-#define TO_DST(x) cvt_f32_to_bf16(x)
+#define TO_DST(x) cvt_f32_to_bf16(convert_float(x))
 #define TO_DST2(x) cvt_f32_to_bf16(convert_float2(x))
 #define TO_DST4(x) cvt_f32_to_bf16(convert_float4(x))
 #define TO_DST8(x) cvt_f32_to_bf16(convert_float8(x))

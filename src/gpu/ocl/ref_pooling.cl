@@ -53,7 +53,7 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 
     if (mb >= SRC_D0 || oc >= SRC_D1) {
         const uint dst_off = DST_OFF(mb, oc, od, oh, ow);
-        dst[dst_off] = TO_DST(0.f);
+        dst[dst_off] = TO_DST(0.0f);
 #if ALG_MAX && IS_TRAINING
         ws[dst_off] = 0;
 #endif

@@ -87,7 +87,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 
     if (dims0[0] >= DST_D0) {
         for (int ic = 0; ic < block_size; ++ic) {
-            dst[dst_off] = TO_DST(DATA_ZERO);
+            dst[dst_off] = TO_DST(0.0f);
             dst_off++;
         }
 
@@ -166,7 +166,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         }
 #if DST_D1 != DST_PD1
         for (int ic = 0; ic < min(DST_PD1 - DST_D1, block_size); ic++) {
-            dst[dst_off] = TO_DST(DATA_ZERO);
+            dst[dst_off] = TO_DST(0.0f);
             dst_off++;
         }
 #endif

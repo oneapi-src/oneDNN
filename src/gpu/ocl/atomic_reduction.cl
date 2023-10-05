@@ -181,7 +181,7 @@ atomic_reduce(__global SRC_DATA_T *src, __global ATOMIC(DST_DATA_T) * dst) {
                 + inner_idx * DST_INNER_STRIDE + sglid;
         for (int v = 0; v < VECT_DT_N; v++) {
 #if ATOMIC_REDUCTION_SIZE > 1
-            DST_DATA_T dst_data = TO_DST(convert_float(GET_ELEM(local_acc, v)));
+            DST_DATA_T dst_data = TO_DST(GET_ELEM(local_acc, v));
             DST_DATA_T old_val = ATOMIC_ACCUMULATE(
                     &dst[dst_off + v * SUBGROUP_SIZE], dst_data);
 #else
