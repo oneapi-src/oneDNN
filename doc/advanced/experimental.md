@@ -144,7 +144,7 @@ tensors:
 
 * ab
 
-See the example [here](@ref cpu_matmul_csr.cpp).
+See the example [here](@ref cpu_matmul_csr_cpp).
 
 Benchdnn can be used to test matmul with a CSR input tensor as follows:
 `./benchdnn --matmul --encoding=csr+0.99:: --wtag=ab --dtag=ab 4x1000000:1000000x128`
@@ -167,7 +167,7 @@ architecture (ISA) is supported
 * Only `s8` data type for the weights is supported
 * Only 1 batch dimension is supported
 
-See the example [here](@ref cpu_matmul_weights_compression.cpp).
+See the example [here](@ref cpu_matmul_weights_compression_cpp).
 
 Benchdnn can be used to test matmul with the PACKED weights tensor as follows:
 `./benchdnn --matmul --dt=s8:s8:s32 --encoding=:packed+0.99: 3x512x1024:1x1024x512`

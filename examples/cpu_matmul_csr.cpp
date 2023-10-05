@@ -14,6 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
+/// @example cpu_matmul_csr.cpp
+/// > Annotated version: @ref cpu_matmul_csr_cpp
+///
+/// This C++ API example demonstrates how to create and execute a
+/// [MatMul](@ref dev_guide_matmul) primitive that uses a weights tensor
+/// encoded with the CSR sparse encoding.
+///
+/// @page cpu_matmul_csr_cpp MatMul Primitive Example
+///
+/// @include cpu_matmul_csr.cpp
+
 #include <algorithm>
 #include <cmath>
 #include <iostream>
