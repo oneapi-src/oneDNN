@@ -30,7 +30,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_DEV_MODE                 | ON, **OFF**                                | Enables internal tracing and `debuginfo` logging in verbose output (for oneDNN developers)      |
 | ONEDNN_AARCH64_USE_ACL          | ON, **OFF**                                | Enables integration with Arm Compute Library for AArch64 builds                                 |
 | ONEDNN_BLAS_VENDOR              | **NONE**, ARMPL, ACCELERATE                | Defines an external BLAS library to link to for GEMM-like operations                            |
-| ONEDNN_GPU_VENDOR               | **INTEL**, NVIDIA                          | Defines GPU vendor for GPU engines                                                              |
+| ONEDNN_GPU_VENDOR               | **INTEL**, NVIDIA, AMD                     | Defines GPU vendor for GPU engines                                                              |
 | ONEDNN_DPCPP_HOST_COMPILER      | **DEFAULT**, *GNU C++ compiler executable* | Specifies host compiler executable for SYCL runtime                                             |
 | ONEDNN_LIBRARY_NAME             | **dnnl**, *library name*                   | Specifies name of the library                                                                   |
 
