@@ -159,8 +159,10 @@ struct gpu_kernel_key_container_t : public gpu_kernel_key_impl_t {
             typename std::remove_reference<typename create_signature<decltype(
                     &K::create_generator)>::arg2_type>::type;
 
-    gpu_kernel_key_container_t(const K &t) : key(t) {}
-    gpu_kernel_key_container_t(K &&t) : key(std::move(t)) {}
+    template <typename... Args>
+    gpu_kernel_key_container_t(Args &&...args)
+        : key(std::forward<Args>(args)...) {}
+
     status_t create_generator(
             engine_t *engine, gpu_kernel_value_t &generator) const override {
 
@@ -182,39 +184,14 @@ struct gpu_kernel_key_container_t : public gpu_kernel_key_impl_t {
     K key;
 };
 
-// GPU specific interface for kernel_cache::key_t
-struct gpu_kernel_key_t : public kernel_cache::key_t {
-    template <typename T>
-    gpu_kernel_key_t(T &obj)
-        : kernel_cache::key_t(
-                std::make_shared<gpu_kernel_key_container_t<T>>(obj)) {}
-    gpu_kernel_key_t(const std::shared_ptr<gpu_kernel_key_impl_t> &impl)
-        : kernel_cache::key_t(impl) {}
-    gpu_kernel_key_t(std::shared_ptr<gpu_kernel_key_impl_t> &&impl)
-        : kernel_cache::key_t(std::move(impl)) {}
+template <typename K>
+using trivial_key_container_t = gpu_kernel_key_container_t<trivial_key_t<K>>;
 
-    const gpu_kernel_key_impl_t *impl() const {
-        return utils::downcast<gpu_kernel_key_impl_t *>(impl_.get());
-    };
-
-    status_t get_kernels(engine_t *engine,
-            std::vector<compute::kernel_t> &kernels,
-            const std::vector<const char *> &kernel_names) const {
-        if (!impl()) return status::runtime_error;
-
-        gpu_kernel_value_t generator;
-        CHECK(get_or_create(generator, engine));
-        CHECK(generator.get_kernels(engine, kernels, kernel_names));
-
-        return status::success;
-    };
-
-private:
-    // Interface to the kernel cache to consolidate cache related logic in one
-    // location
-    status_t get_or_create(
-            gpu_kernel_value_t &jit_generator, engine_t *engine) const;
-};
+// Interface to the kernel cache to consolidate cache related logic in one
+// location
+status_t get_cached_kernels(std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
+        engine_t *engine, std::vector<compute::kernel_t> &kernels,
+        const std::vector<const char *> &kernel_names);
 
 } // namespace gpu
 } // namespace impl

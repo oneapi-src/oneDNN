@@ -57,6 +57,8 @@ struct key_t {
     };
     size_t hash() const { return impl_->hash(); };
 
+    key_impl_t *impl() const { return impl_.get(); }
+
     const std::thread::id &thread_id() const { return thread_id_; }
     bool has_runtime_dependencies() const { return has_runtime_dependencies_; }
 

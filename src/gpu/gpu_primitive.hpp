@@ -184,23 +184,17 @@ struct gpu_primitive_t : public primitive_t {
         auto arch = utils::downcast<compute::compute_engine_t *>(engine)
                             ->device_info()
                             ->gpu_arch();
-        return create_kernels(
-                engine, kernels, kernel_names, trivial_key_t<T>(params, arch));
-    }
-    template <typename T>
-    status_t create_kernels(engine_t *engine,
-            std::vector<compute::kernel_t> &kernels,
-            const std::vector<const char *> &kernel_names,
-            const trivial_key_t<T> &params) {
-        if (!params.is_valid()) return status::runtime_error;
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         if (cache_blob())
             return compute_engine->create_kernels_from_cache_blob(
                     cache_blob(), kernels, kernel_names);
 
-        gpu_kernel_key_t key(params);
-        CHECK(key.get_kernels(engine, kernels, kernel_names));
+        auto key = std::make_shared<trivial_key_container_t<T>>(params, arch);
+        if (!key->key.is_valid()) return status::runtime_error;
+
+        CHECK(get_cached_kernels(
+                std::move(key), engine, kernels, kernel_names));
 
         register_kernels(kernels);
 
