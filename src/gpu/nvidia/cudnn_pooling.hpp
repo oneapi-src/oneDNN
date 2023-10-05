@@ -44,7 +44,7 @@ struct cudnn_pooling_common_t {
 
         // Add a byte of extra memory in abx case to ensure the hash generated
         // is different from the axb case. This is a workaround for issue #1727
-        const auto tag = get_tag(is_fwd ? *pd->dst_md() : *pd->diff_dst_md());
+        const auto tag = get_tag(is_fwd ? *pd->src_md() : *pd->diff_src_md());
         dim_t ws_offset = 0;
         if (utils::one_of(tag, format_tag::ab, format_tag::abc,
                     format_tag::abcd, format_tag::abcde)) {
@@ -185,7 +185,7 @@ struct cudnn_pooling_bwd_t : public primitive_t {
                             has_bf16_support(sycl_engine->device()));
             if (!ok) return status::unimplemented;
 
-            init_mem_by_tag(get_tag(diff_dst_md_), diff_src_md_);
+            init_mem_by_tag(get_tag(*hint_fwd_pd_->src_md()), diff_src_md_);
 
             init_ws(this, ws_md_);
             if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
