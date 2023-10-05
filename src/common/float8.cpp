@@ -118,45 +118,9 @@ float8_e4m3_t &float8_e4m3_t::operator=(float16_t f) {
 }
 
 float8_e4m3_t &float8_e4m3_t::operator=(float f) {
-    using namespace utils;
-    // Here the idea is to add a large constant to the float to force the
-    // proper rounding to f8_e4m3 accuracy.
-    int fraw = float2int(f);
-
-    // first we extract the sign and make the input positive
-    unsigned int s8 = (fraw & 0x80000000) >> 24;
-    fraw = fraw & 0x7fffffff;
-
-    // we filter out overflow, nan and underflow
-    // Note: values in [448;464] round to 448, which is representable
-    // So we overflow above 464
-    if (fraw > 0x43e80000) {
-        raw_bits_ = s8 | 0x7f;
-        return *this;
-    }
-    if (fraw <= 0x3a800000) {
-        raw_bits_ = s8;
-        return *this;
-    }
-
-    // compute the rounding shifter by taking its exponent + 0x1p20
-    float shifter = int2float((fraw & 0x7f800000) + 0x0a000000);
-    int is_denorm = shifter < 16384.f; //0x1.0p14f
-    if (is_denorm) shifter = 16384.f; //0x1.0p14f
-
-    float rounded = (int2float(fraw) + shifter) - shifter;
-
-    int e8 = ((float2int(rounded) & 0x7f800000) >> 23) - 120;
-    uint8_t m8 = (float2int(rounded) & 0x007fffff) >> 20;
-
-    // we need to make the implicit f32 mantissa bit explicit for
-    // denorm f8_e4m3
-    if (is_denorm) {
-        m8 = (m8 | 0x00000008) >> (-e8 + 1);
-        e8 = 0;
-    }
-
-    raw_bits_ = s8 | (e8 << 3) | m8;
+    float16_t f16 = f;
+    float8_e4m3_t f8 = f16;
+    raw_bits_ = f8.raw_bits_;
     return *this;
 }
 
