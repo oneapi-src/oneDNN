@@ -87,13 +87,21 @@ float8_e4m3_t &float8_e4m3_t::operator=(float16_t f) {
         return *this;
     }
 
-    // compute the rounding shifter by taking its exponent + 0x1p7
+    // Compute the rounding shifter by taking its exponent + 7.
     // Lucky us, it does not overflow as fraw <= 448.
-    float16_t shifter = (fraw & 0x7c00) + 0x1c00;
-    int is_denorm = shifter < 0x4000; // 0x1.0p1f
-    if (is_denorm) shifter = 0x4000; // 0x1.0p1f
+    // This allows to discard 7 bits of mantissa during addition,
+    // leaving the remaining 3 bits perfectly rounded.
+    constexpr bool is_bitcast = true;
+    float16_t shifter((fraw & 0x7c00) + 0x1c00, is_bitcast);
+    // e8 = e16 - e16_bias + e8_bias = e16 - 15 + 7
+    // e8 will be denorm if e8 <= 0 or e16 + 7 < 16
+    constexpr int exp_threshold = 0x4000; // raw bits of exponent = 16
+    int is_denorm = shifter.raw < exp_threshold;
+    if (is_denorm) shifter.raw = exp_threshold;
 
-    float16_t rounded = (float16_t(fraw) + shifter) - shifter;
+    float16_t rounded = (float16_t(fraw, is_bitcast) + shifter);
+    // separate line to force line above to round to f16
+    rounded = rounded - shifter;
 
     int e8 = ((rounded.raw & 0x7c00) >> 10) - 8;
     uint8_t m8 = (rounded.raw & 0x03ff) >> 7;
