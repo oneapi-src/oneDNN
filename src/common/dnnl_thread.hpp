@@ -268,7 +268,7 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,
  *                                         ithr and nthr
  *  - parallel_nd(dims..., f)            - creates a parallel section and then
  *                                         calls for_nd
- *  - parallel_nd_ext(dims..., f)        - creates a parallel section and then
+ *  - parallel_nd_ext(nthr, dims..., f)  - creates a parallel section and then
  *                                         calls for_nd_ext
  */
 
