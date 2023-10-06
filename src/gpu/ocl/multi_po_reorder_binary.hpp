@@ -42,7 +42,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             if (attr()->scales_.get(DNNL_ARG_SRC_0).is_set_
                     || attr()->scales_.get(DNNL_ARG_SRC_1).is_set_
-                    || attr()->post_ops_.len() > 1) {
+                    || attr()->post_ops_.len() >= 1) {
                 return status::unimplemented;
             }
 
