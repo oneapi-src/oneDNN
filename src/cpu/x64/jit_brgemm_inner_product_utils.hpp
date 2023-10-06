@@ -47,6 +47,7 @@ namespace brgemm_inner_product_utils {
 struct jit_brgemm_ip_conf_t : jit_brgemm_primitive_conf_t {
     // Use kernels and blocking for small os that consume less bandwidth.
     bool use_small_os_kernels = false;
+    bool has_spatial_dims() const;
 
 protected:
     status_t init_conf_base(cpu_isa_t isa, const inner_product_desc_t &ipd,

@@ -104,9 +104,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                         jbgp_.wei_dt, false, false, brgemm_row_major, alpha,
                         vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
 
-                auto LDD = jbgp_.oc_without_padding;
                 CHECK(brgemm_desc_set_postops(
-                        &brg, attr(), &dst_md_, LDD, jbgp_.bia_dt));
+                        &brg, attr(), &dst_md_, jbgp_.LDD, jbgp_.bia_dt));
 
                 brgemm_attr_t brgattr;
                 if (jbgp_.is_amx) {
@@ -274,9 +273,8 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                         dt_b, false, false, brgemm_row_major, alpha, vbeta,
                         jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
 
-                auto LDD = jbgp_.ic_without_padding;
                 CHECK(brgemm_desc_set_postops(
-                        &brg, attr(), &diff_src_md_, LDD, jbgp_.bia_dt));
+                        &brg, attr(), &diff_src_md_, jbgp_.LDD, jbgp_.bia_dt));
                 if (jbgp_.is_amx) {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = bs;
@@ -577,15 +575,14 @@ private:
             int trans_batch, int current_m, int current_k) const;
     void transform_matrix_b_chunk(char *tr_diff_dst, const char *diff_dst,
             int trans_batch, int current_col_size, int current_row_size) const;
-    void transpose_matrix_c_chunk(const thread_info_t *ti, const int ocb,
-            const int icb, int oc_size, int ic_size,
-            bool is_reduction = false) const;
+    void transpose_matrix_c_chunk(const thread_info_t *ti, const dim_t ocb,
+            const dim_t icb, int oc_size, int ic_size, dim_t kd, dim_t kh,
+            dim_t kw, bool is_reduction = false) const;
 
     brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {
             brgemm_inner_product_utils::max_num_brg_kernels_ip};
-    dim_t get_wei_offset(int ocb, int icb) const;
-    char *get_wei_acc_ptr(const thread_info_t *ti, int ocb, int icb,
-            int reduction_buf_idx = -1) const;
+    char *get_wei_acc_ptr(const thread_info_t *ti, dim_t ocb, dim_t icb,
+            dim_t kd, dim_t kh, dim_t kw, int reduction_buf_idx = -1) const;
 
     int ext_ic_block_ = 0;
     int ext_oc_block_ = 0;

@@ -84,6 +84,9 @@ struct jit_brgemm_primitive_conf_t {
     brgemm_kernel_prefetching_t hint_prefetching
             = brgemm_kernel_prefetching_t::brgemm_prf_default;
     bool with_dst_scales;
+
+    // Compute kernel-spatial dimension size.
+    int ks() const { return kd * kh * kw; }
 };
 
 } // namespace x64

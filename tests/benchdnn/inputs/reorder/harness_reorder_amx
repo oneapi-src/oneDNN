@@ -9,6 +9,9 @@
     --dtag=OIdhw16i32o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
     --dtag=OIdhw16i48o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
     --dtag=OIdhw16i64o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+    --dtag=OdhwI16i16o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+    --dtag=OdhwI16i32o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+    --dtag=OdhwI16i64o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
     --dtag=OdhwI16o4i 64x3x7x7x7 32x3x3x3x3
 --stag=goihw,gOhwi16o 
     --dtag=gOIhw16i16o4i 2x64x64x3x3 2x56x56x3x3 2x14x114x3x2
@@ -18,6 +21,9 @@
     --dtag=OIhw16i32o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
     --dtag=OIhw16i48o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
     --dtag=OIhw16i64o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+    --dtag=OhwI16i16o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+    --dtag=OhwI16i32o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+    --dtag=OhwI16i64o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
     --dtag=OhwI16o4i 64x3x7x7 32x3x3x3
 --stag=goiw,gOwi16o 
     --dtag=gOIw16i16o4i 2x64x64x3 2x56x56x3 2x14x114x2
@@ -27,6 +33,9 @@
     --dtag=OIw16i32o4i 64x128x3 55x114x5 32x3x7 24x256x3
     --dtag=OIw16i48o4i 64x128x3 55x114x5 32x3x7 24x256x3
     --dtag=OIw16i64o4i 64x128x3 55x114x5 32x3x7 24x256x3
+    --dtag=OwI16i16o4i 64x128x3 55x114x5 32x3x7 24x256x3
+    --dtag=OwI16i32o4i 64x128x3 55x114x5 32x3x7 24x256x3
+    --dtag=OwI16i64o4i 64x128x3 55x114x5 32x3x7 24x256x3
     --dtag=OwI16o4i 64x3x7 32x3x3
 
 # Matmul blocked B layouts
@@ -40,6 +49,9 @@
              --stag=OIdhw16i32o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
              --stag=OIdhw16i48o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
              --stag=OIdhw16i64o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+             --stag=OdhwI16i16o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+             --stag=OdhwI16i32o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+             --stag=OdhwI16i64o4i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
              --stag=OdhwI16o4i 64x3x7x7x7 32x3x3x3x3
 --dtag=goihw --stag=gOIhw16i16o4i 2x64x64x3x3 2x56x56x3x3 2x14x114x3x2
              --stag=gOhwI16o4i 2x64x3x7x7 2x32x3x3x3
@@ -47,6 +59,9 @@
             --stag=OIhw16i32o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
             --stag=OIhw16i48o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
             --stag=OIhw16i64o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+            --stag=OhwI16i16o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+            --stag=OhwI16i32o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+            --stag=OhwI16i64o4i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
             --stag=OhwI16o4i 64x3x7x7 32x3x3x3
 --dtag=goiw --stag=gOIw16i16o4i 2x64x64x3 2x56x56x3 2x14x114x2
             --stag=gOwI16o4i 2x64x3x7 2x32x3x3
@@ -54,6 +69,9 @@
            --stag=OIw16i32o4i 64x128x3 55x114x5 32x3x7 24x256x3
            --stag=OIw16i48o4i 64x128x3 55x114x5 32x3x7 24x256x3
            --stag=OIw16i64o4i 64x128x3 55x114x5 32x3x7 24x256x3
+           --stag=OwI16i16o4i 64x128x3 55x114x5 32x3x7 24x256x3
+           --stag=OwI16i32o4i 64x128x3 55x114x5 32x3x7 24x256x3
+           --stag=OwI16i64o4i 64x128x3 55x114x5 32x3x7 24x256x3
            --stag=OwI16o4i 64x3x7 32x3x3
 
 # Matmul blocked B layouts
@@ -69,6 +87,9 @@
              --dtag=OIdhw16i32o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
              --dtag=OIdhw16i48o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
              --dtag=OIdhw16i64o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+             --dtag=OdhwI16i16o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+             --dtag=OdhwI16i32o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+             --dtag=OdhwI16i64o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
              --dtag=OdhwI16o2i 64x3x7x7x7 32x3x3x3x3
 --stag=goihw
     --dtag=gOIhw16i16o2i,gOIhw16o16i2o 2x64x64x3x3 2x56x56x3x3 2x14x114x3x2
@@ -78,6 +99,9 @@
     --dtag=OIhw16i32o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
     --dtag=OIhw16i48o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
     --dtag=OIhw16i64o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+    --dtag=OhwI16i16o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+    --dtag=OhwI16i32o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+    --dtag=OhwI16i64o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
     --dtag=OhwI16o2i 64x3x7x7 32x3x3x3
 --stag=goiw
     --dtag=gOIw16i16o2i,gOIw16o16i2o 2x64x64x3 2x56x56x3 2x14x114x2
@@ -87,6 +111,9 @@
     --dtag=OIw16i32o2i 64x128x3 55x114x5 32x3x7 24x256x3
     --dtag=OIw16i48o2i 64x128x3 55x114x5 32x3x7 24x256x3
     --dtag=OIw16i64o2i 64x128x3 55x114x5 32x3x7 24x256x3
+    --dtag=OwI16i16o2i 64x128x3 55x114x5 32x3x7 24x256x3
+    --dtag=OwI16i32o2i 64x128x3 55x114x5 32x3x7 24x256x3
+    --dtag=OwI16i64o2i 64x128x3 55x114x5 32x3x7 24x256x3
     --stag=OwI16o2i 64x3x7 32x3x3
 
 # Matmul blocked B layouts
@@ -101,6 +128,9 @@
              --stag=OIdhw16i32o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
              --stag=OIdhw16i48o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
              --stag=OIdhw16i64o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+             --stag=OdhwI16i16o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+             --stag=OdhwI16i32o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
+             --stag=OdhwI16i64o2i 64x128x3x3x3 55x114x3x7x5 32x3x7x3x5 24x256x3x7x5
              --stag=OdhwI16o2i 64x3x7x7x7 32x3x3x3x3
 --dtag=goihw
     --stag=gOIhw16i16o2i,gOIhw16o16i2o 2x64x64x3x3 2x56x56x3x3 2x14x114x3x2
@@ -110,6 +140,9 @@
     --stag=OIhw16i32o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
     --stag=OIhw16i48o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
     --stag=OIhw16i64o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+    --stag=OhwI16i16o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+    --stag=OhwI16i32o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
+    --stag=OhwI16i64o2i 64x128x3x3 55x114x3x7 32x3x7x3 24x256x3x3
     --stag=OhwI16o2i 64x3x7x7 32x3x3x3
 --dtag=goiw
     --stag=gOIw16i16o2i,gOIw16o16i2o 2x64x64x3 2x56x56x3 2x14x114x2
@@ -119,6 +152,9 @@
     --stag=OIw16i32o2i 64x128x3 55x114x5 32x3x7 24x256x3
     --stag=OIw16i48o2i 64x128x3 55x114x5 32x3x7 24x256x3
     --stag=OIw16i64o2i 64x128x3 55x114x5 32x3x7 24x256x3
+    --stag=OwI16i16o2i 64x128x3 55x114x5 32x3x7 24x256x3
+    --stag=OwI16i32o2i 64x128x3 55x114x5 32x3x7 24x256x3
+    --stag=OwI16i64o2i 64x128x3 55x114x5 32x3x7 24x256x3
     --stag=OwI16o2i 64x3x7 32x3x3
 
 # Matmul blocked B layouts
