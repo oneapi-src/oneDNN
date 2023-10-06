@@ -120,7 +120,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
         long bia_off = offset6D(m, n, d0, d1, d2, d3, bia_stride_m,
                 bia_stride_n, bia_stride_d0, bia_stride_d1, bia_stride_d2,
                 bia_stride_d3);
-        temp += bia[bia_off];
+        temp += BIA_TO_REF(bia[bia_off]);
 #endif // WITH_BIAS
 
         float dst_data;

@@ -21,16 +21,28 @@
 
 #if defined(DST_DT_BF16)
 #define DST_TO_ACC(x) cvt_bf16_to_f32(x)
+#elif defined(DST_DT_BF8)
+#define DST_TO_ACC(x) convert_float(cvt_f8_e5m2_to_hf(x))
+#elif defined(DST_DT_HF8)
+#define DST_TO_ACC(x) convert_float(cvt_f8_e4m3_to_hf(x))
 #else
 #define DST_TO_ACC(x) (x)
 #endif
 #if defined(BIA_DT_BF16)
 #define BIA_TO_ACC(x) cvt_bf16_to_f32(x)
+#elif defined(BIA_DT_BF8)
+#define BIA_TO_ACC(x) convert_float(cvt_f8_e5m2_to_hf(x))
+#elif defined(BIA_DT_HF8)
+#define BIA_TO_ACC(x) convert_float(cvt_f8_e4m3_to_hf(x))
 #else
 #define BIA_TO_ACC(x) (x)
 #endif
 #if defined(SRC_DT_BF16)
 #define SRC_TO_ACC(x) cvt_bf16_to_f32(x)
+#elif defined(SRC_DT_BF8)
+#define SRC_TO_ACC(x) convert_float(cvt_f8_e5m2_to_hf(x))
+#elif defined(SRC_DT_HF8)
+#define SRC_TO_ACC(x) convert_float(cvt_f8_e4m3_to_hf(x))
 #else
 #define SRC_TO_ACC(x) (x)
 #endif

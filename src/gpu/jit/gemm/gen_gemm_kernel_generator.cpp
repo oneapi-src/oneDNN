@@ -100,6 +100,7 @@ bool Type::isSubsetOf(Type T) const {
     if (*this == T) return true;
 
     if (isInteger() && T == bf16) return false;
+    if (isInteger() && T == bf8) return false;
 
     return (size() < T.size());
 }
@@ -351,6 +352,7 @@ static inline void movePipes(Subregister &s, bool sizeCanChange = true) {
     DataType type = s.getType();
 
     switch (type) {
+        case DataType::bf8: type = DataType::ub; break;
         case DataType::bf:
         case DataType::hf: type = DataType::uw; break;
         case DataType::tf32:
@@ -377,6 +379,7 @@ static inline void moveToIntPipe(Subregister &s) {
     DataType type = s.getType();
 
     switch (type) {
+        case DataType::bf8: type = DataType::ub; break;
         case DataType::bf:
         case DataType::hf: type = DataType::uw; break;
         case DataType::q:
@@ -392,6 +395,7 @@ static inline void moveToIntPipe(Subregister &s) {
 
 static inline Type sintType(Type T) {
     switch (T) {
+        case Type::bf8:
         case Type::s8:
         case Type::u8: return Type::s8;
         case Type::bf16:
@@ -422,6 +426,7 @@ static inline DataType withSignedness(DataType dt, bool signedType) {
 // Move register region to integer pipe.
 static inline void moveToIntPipe(int esize, RegData &s) {
     switch (s.getType()) {
+        case DataType::bf8: s.setType(DataType::ub); break;
         case DataType::bf:
         case DataType::hf: s.setType(DataType::uw); break;
         case DataType::q:
@@ -19083,6 +19088,10 @@ void gemm_kernel_generator_t<hw>::gemmAutoTypeConversions(
         GEMMProblem &problem, const GEMMStrategy &strategy) {
     auto &Ta = problem.Ta, &Tb = problem.Tb, &Tc = problem.Tc;
 
+    if (Ta == Type::bf8) Ta = Type::f16;
+    if (Tb == Type::bf8) Tb = Type::f16;
+    if (Tc == Type::bf8) Tc = Type::f16;
+
     if (hw > HW::Gen9 && !strategy.systolic && Tc == Type::f32) {
         if (Ta == Type::f16) Ta = Type::f32;
         if (Tb == Type::f16) Tb = Type::f32;
@@ -25156,24 +25165,36 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                 nelems_real = std::min(nelems_real,
                                         nes_real); // Special case: mixed mode packed downconversion limited to 1 GRF.
 
+                            bool src_bf8
+                                    = (Ts_real.ngen() == ngen::DataType::bf8);
+                            bool dst_bf8
+                                    = (Td_real.ngen() == ngen::DataType::bf8);
+                            bool bf8_align = src_bf8 || dst_bf8;
+                            if (bf8_align) allocTemp();
+
                             // Check if separate conversions are needed due to size changes.
                             auto sconvertCP = (Ts_real.size() / Td_real.size())
                                     * scrosspack;
                             bool sconvert
-                                    = (Td_real.size() == 1 && Ts_real.size() > 1
-                                              && dcrosspack != sconvertCP)
-                                    || (Td_real.size() == 2
-                                            && Ts_real.size() > 2
-                                            && dcrosspack != sconvertCP
-                                            && scrosspack > 1)
-                                    || (Td_real.size() == 1
-                                            && Td_real.isInteger()
-                                            && Ts_real.size() == 4
-                                            && (dreg.getOffset() & 2))
-                                    || (Td_real.size() == 2 && Td_real.isFP()
-                                            && !Ts_real.isFP()
-                                            && dcrosspack != sconvertCP
-                                            && hw > HW::Gen9);
+                                    = ((Td_real.size() == 1
+                                               && Ts_real.size() > 1
+                                               && dcrosspack != sconvertCP)
+                                              || (Td_real.size() == 2
+                                                      && Ts_real.size() > 2
+                                                      && dcrosspack
+                                                              != sconvertCP
+                                                      && scrosspack > 1)
+                                              || (Td_real.size() == 1
+                                                      && Td_real.isInteger()
+                                                      && Ts_real.size() == 4
+                                                      && (dreg.getOffset() & 2))
+                                              || (Td_real.size() == 2
+                                                      && Td_real.isFP()
+                                                      && !Ts_real.isFP()
+                                                      && dcrosspack
+                                                              != sconvertCP
+                                                      && hw > HW::Gen9))
+                                    && !bf8_align;
                             if (sconvert && preserveSrc) stub();
                             auto sregConverted = sconvert
                                     ? sreg.reinterpret(0, Td_real.ngen())(
@@ -25183,12 +25204,14 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                             auto dconvertCP = (Td_real.size() / Ts_real.size())
                                     * dcrosspack;
                             bool dconvert
-                                    = (Ts_real.size() == 1 && Td_real.size() > 1
-                                              && scrosspack != dconvertCP)
-                                    || (Ts_real == Type::f16
-                                            && Td_real.size() > 2
-                                            && (sreg.getOffset() & 1)
-                                            && hw >= HW::XeHP);
+                                    = ((Ts_real.size() == 1
+                                               && Td_real.size() > 1
+                                               && scrosspack != dconvertCP)
+                                              || (Ts_real == Type::f16
+                                                      && Td_real.size() > 2
+                                                      && (sreg.getOffset() & 1)
+                                                      && hw >= HW::XeHP))
+                                    && !bf8_align;
                             auto dregConverted = dconvert
                                     ? dreg.reinterpret(0, Ts_real.ngen())(
                                             dconvertCP)
@@ -25201,8 +25224,59 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                 if (!sconvert && !dconvert)
                                     mmodMov = mmodMov | sat;
                             }
+                            auto cvt_bf8_to_x = [&]() {
+                                mov(nelems_real | modMov, copyTemp[0].ub(),
+                                        sreg.ub()(scrosspack));
+                                shl(nelems_real, copyTemp[1].w(),
+                                        copyTemp[0].b(), 8);
+                                if (Td_real == Type::f16) {
+                                    mov(nelems_real | modMov,
+                                            dreg.uw()(dcrosspack),
+                                            copyTemp[1].uw());
+                                } else if (Td_real == Type::f32) {
+                                    mov(nelems_real | modMov,
+                                            copyTemp[0].sub(0, Td_real.ngen())(
+                                                    1),
+                                            copyTemp[1].hf());
+                                    mov(nelems_real | modMov,
+                                            dreg.ud()(dcrosspack),
+                                            copyTemp[0].ud());
+                                } else
+                                    stub();
+                            };
 
-                            // Finally, copy, with any necessary conjugation and scaling. If doing a raw copy, use another pipe.
+                            auto cvt_x_to_bf8 = [&]() {
+                                auto tmp0 = copyTemp[0].sub(0, Ts_real.ngen());
+                                moveToIntPipe(tmp0);
+                                moveToIntPipe(sreg);
+                                mov(nelems_real | modMov, tmp0(1),
+                                        sreg(scrosspack));
+
+                                if (Ts_real.ngen() == ngen::DataType::hf) {
+
+                                    auto tmp1 = copyTemp[1].bf8();
+                                    mov(nelems_real | modMov, tmp1, tmp0.hf());
+                                    mov(nelems_real | modMov,
+                                            dreg.ub()(dcrosspack), tmp1.ub());
+
+                                } else if (Ts_real.ngen()
+                                        == ngen::DataType::f) {
+
+                                    auto tmp1 = copyTemp[1].sub(
+                                            0, ngen::DataType::hf);
+                                    movePipes(tmp0);
+                                    movePipes(sreg);
+                                    mov(nelems_real | modMov, tmp1(1), tmp0(1));
+                                    mov(nelems_real | modMov, tmp0.bf8(),
+                                            tmp1(1));
+
+                                    mov(nelems_real | modMov,
+                                            dreg.ub()(dcrosspack),
+                                            tmp0.ub()(1));
+                                } else
+                                    stub();
+                            };
+
                             if (!skip) switch (phase) {
                                     case -1:
                                         if (hw == HW::Gen9
@@ -25212,10 +25286,17 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                             rnde(nelems_real, sreg(scrosspack),
                                                     sreg(scrosspack));
                                         }
-                                        if (sconvert)
+                                        if (bf8_align) {
+                                            if (src_bf8) {
+                                                cvt_bf8_to_x();
+                                            } else if (dst_bf8) {
+                                                cvt_x_to_bf8();
+                                            }
+                                        } else if (sconvert) {
                                             mov(nelems_real | modMov,
                                                     sregConverted,
                                                     sreg(scrosspack));
+                                        }
                                         break;
                                     case 0:
                                         if (alpha == 1 || alpha == -1) {
@@ -25268,11 +25349,12 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                                 ? base(1)
                                                                 : base(0, wd,
                                                                         1));
-                                            } else
+                                            } else if (!bf8_align) {
                                                 emov(telems | mmodMov,
                                                         dregConverted,
                                                         sregConverted, strategy,
                                                         state);
+                                            }
                                         } else {
                                             auto realDst = dreg(dcrosspack);
                                             auto effDst = realDst;

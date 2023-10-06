@@ -65,6 +65,10 @@ struct ref_matmul_t : public gpu_primitive_t {
                                 && IMPLICATION(with_bias(),
                                         utils::one_of(
                                                 bia_dt_, f32, u8, s8, s32)))
+                            || ((utils::everyone_is(bf8, src_dt_, wei_dt_)
+                                        || utils::everyone_is(
+                                                hf8, src_dt_, wei_dt_))
+                                    && utils::one_of(dst_dt_, src_dt_, f32))
                             || ((utils::everyone_is(
                                          f32, src_dt_, wei_dt_, dst_dt_)
                                         || (utils::everyone_is(

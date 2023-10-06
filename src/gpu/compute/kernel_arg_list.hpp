@@ -44,6 +44,7 @@ enum class kernel_arg_kind_t {
 enum class scalar_type_t {
     undef,
     _char,
+    _bfloat8,
     _bfloat16,
     _float,
     _half,

@@ -406,13 +406,13 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         int conv_dst_stride = dst_stride;
         int conv_src_stride = src_stride;
         if (do_post_reorder) {
-            if(dst_type_size < conv_dst_type_size) 
+            if (dst_type_size < conv_dst_type_size)
                 conv_dst_stride = conv_dst_type_size / dst_type_size;
         }
         if (do_pre_reorder) {
-            if(conv_src_type_size < src_type_size) 
+            if (conv_src_type_size < src_type_size)
                 conv_src_stride = src_type_size / conv_src_type_size;
-            if(conv_src_type_size > src_type_size) 
+            if (conv_src_type_size > src_type_size)
                 conv_src_stride = conv_src_type_size / src_type_size;
         }
         const int step_nregs
@@ -429,8 +429,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto tmp_src
                     = lex_scope.alloc_reg_buf_data(nregs).format(0, conv_src);
             emit_reorder_1d_tile(hw, host, scope, width, src, src_stride,
-                    tmp_src,
-                    conv_src_stride);
+                    tmp_src, conv_src_stride);
             src = tmp_src;
         }
         if (do_post_reorder) {
@@ -462,7 +461,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                         t1.reinterpret(0, conv_src)(1));
                 plan(mov, 1, d.reinterpret(0, dst_raw)(1),
                         t2.reinterpret(0, dst_raw)(1));
-            // Conversion allowed only with 0 offset, matching stride.
+                // Conversion allowed only with 0 offset, matching stride.
             } else if (some_stride || some_offset) {
                 if (dst_bf8) {
                     auto t1 = tmp1.subregister(0, ngen::DataType::hf);
@@ -475,8 +474,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                             t2.reinterpret(0, dst_raw)(1));
                 } else if (src_bf8) {
                     emit_reorder_1d_tile(hw, host, scope, step,
-                            src.format(i * conv_src_stride, src_raw), conv_src_stride,
-                            tmp1.format(0, src_raw), 1);
+                            src.format(i * conv_src_stride, src_raw),
+                            conv_src_stride, tmp1.format(0, src_raw), 1);
                     auto t1 = tmp1.subregister(0, conv_src);
                     auto t2 = tmp2.subregister(0, conv_dst);
                     plan(mov, esize, t2(1), t1(1));
@@ -488,8 +487,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             }
         }
         if (do_post_reorder) {
-                emit_reorder_1d_tile(
-                        hw, host, scope, width, dst, conv_dst_stride, _dst, dst_stride);
+            emit_reorder_1d_tile(hw, host, scope, width, dst, conv_dst_stride,
+                    _dst, dst_stride);
         }
         return;
     }
