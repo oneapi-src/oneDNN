@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,7 +80,9 @@ status_t template_set_default_params(memory_desc_t &src_md,
 
     auto init_md = [&](memory_desc_t &out_md, const memory_desc_t &in_md) {
         format_tag_t md_tag;
-        if (memory_desc_matches_one_of_tag(in_md, ba, cba, cdba, cdeba))
+        if (memory_desc_matches_one_of_tag(in_md, ab, abc, abcd, abcde))
+            md_tag = utils::pick(ndims - 2, ab, abc, abcd, abcde);
+        else if (memory_desc_matches_one_of_tag(in_md, ba, cba, cdba, cdeba))
             md_tag = utils::pick(ndims - 2, ab, acb, acdb, acdeb);
         else if (memory_desc_matches_one_of_tag(in_md, acb, acdb, acdeb))
             md_tag = utils::pick(ndims - 3, cba, cdba, cdeba);
