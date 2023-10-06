@@ -663,7 +663,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
 
     const char *const __restrict diff_dst = brgemm_ctx.diff_dst;
     const char *const __restrict wei = brgemm_ctx.weights;
-    char *const __restrict dst = brgemm_ctx.dst;
+    char *const __restrict diff_src = brgemm_ctx.diff_src;
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto extra_data_offset
@@ -843,7 +843,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
 
                     auto cp = jit_brgemm_conv_bwd_copy_kernel_call_s();
                     cp.src = btc.out_buffer;
-                    cp.dst = dst
+                    cp.dst = diff_src
                             + data_blk_off(diff_src_d, n,
                                       g * jcp.ic + icb * jcp.ic_block, id, ih,
                                       iw_begin)
@@ -1047,7 +1047,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::call_brgemm_kernel(
         const brgemm_post_ops_data_t post_ops_data {
                 static_cast<const char *>(bias_w),
                 &btc.oscales[jcp.is_ic_scale * g_ic], binary_post_ops_rhs,
-                static_cast<size_t>(g_ic), 0, btc.brgemm_ctx.dst, 0,
+                static_cast<size_t>(g_ic), 0, btc.brgemm_ctx.diff_src, 0,
                 static_cast<void *>(src_zp_ptr), nullptr,
                 static_cast<void *>(dst_zp_ptr), do_skip_accm, src_zp_vals,
                 do_only_comp, do_only_pass_comp, btc.dst_scales};
@@ -1152,8 +1152,8 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_base(
 
     const char *const __restrict weights = btc.brgemm_ctx.weights;
     const char *const __restrict bias = btc.brgemm_ctx.bias;
-    char *const __restrict dst = btc.brgemm_ctx.dst;
-    const auto src = btc.brgemm_ctx.diff_dst;
+    char *const __restrict diff_src = btc.brgemm_ctx.diff_src;
+    const auto diff_dst = btc.brgemm_ctx.diff_dst;
     const std::vector<const void *> &post_ops_binary_rhs_arg_vec
             = btc.brgemm_ctx.post_ops_binary_rhs_arg_vec;
     const int ic = btc.icb * jcp.ic_block;
@@ -1188,8 +1188,9 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_base(
     const auto kd_f = ndims_pick(kd_f_, 1, 1);
     const auto kd_s = ndims_pick(kd_s_, 0, 0);
 
-    const auto src_base = src + src_dsz * (btc.n * src_d_sz + g_oc);
-    char *const __restrict dst_base = dst + dst_dsz * (btc.n * dst_d_sz + g_ic);
+    const auto diff_dst_base = diff_dst + src_dsz * (btc.n * src_d_sz + g_oc);
+    char *const __restrict diff_src_base
+            = diff_src + dst_dsz * (btc.n * dst_d_sz + g_ic);
     const auto wei_base
             = weights + wei_dsz * (btc.g * wei_icb_sz + btc.icb * wei_kd_sz);
     const auto nb_oc_b = nstl::min(jcp.nb_oc_blocking, jcp.nb_oc - ocb)
@@ -1219,7 +1220,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_base(
             const auto src_oc = oc_off;
             const auto wei_oc = oc + oc_off;
             const auto n_ocb_off = i_ocb * k_l;
-            const auto src_base_oc = src_base + src_dsz * src_oc;
+            const auto diff_dst_base_oc = diff_dst_base + src_dsz * src_oc;
             const auto wei_base_oc = wei_base + wei_dsz * wei_oc * jcp.ic_block;
 
             auto k = 0;
@@ -1227,20 +1228,21 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_base(
                 auto od = (id - kd * DD + FP);
                 if (od % SD != 0) continue;
                 od /= SD;
-                const auto src_base_kd = src_base_oc + src_dsz * od * src_h_sz;
+                const auto diff_dst_base_kd
+                        = diff_dst_base_oc + src_dsz * od * src_h_sz;
                 const auto wei_base_kd = wei_base_oc + wei_dsz * kd * wei_kh_sz;
                 for (int kh = kh_b; kh < kh_ee; kh++) {
                     auto oh = (ih - kh * DH + TP);
                     if (oh % SH != 0) continue;
                     oh /= SH;
-                    const auto src_base_kh
-                            = src_base_kd + src_dsz * oh * src_w_sz;
+                    const auto diff_dst_base_kh
+                            = diff_dst_base_kd + src_dsz * oh * src_w_sz;
                     const auto wei_base_kh
                             = wei_base_kd + wei_dsz * kh * wei_kw_sz;
                     for (int kw = kw_b; kw < kw_e; kw += SW) {
                         auto ow = (iw - kw * DW + LP) / SW;
                         // inp_buffer layout is Cdhw<oc_block>c
-                        btc.brg_batch[n_ocb_off + k].ptr.A = src_base_kh
+                        btc.brg_batch[n_ocb_off + k].ptr.A = diff_dst_base_kh
                                 + src_dsz * (ow /*+ jcp.l_ovf*/) * jcp.ngroups
                                         * jcp.oc_without_padding;
                         btc.brg_batch[n_ocb_off + k].vvpad.top = 0;
@@ -1289,7 +1291,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_base(
         k_l = kd_l * kh_l * kw_l;
         const auto iw_l = iw_e - iw_b;
 
-        ptr_D = dst_base
+        ptr_D = diff_src_base
                 + dst_dsz
                         * (btc.id * dst_h_sz + btc.ih * dst_w_sz
                                 + iw_b * jcp.ic_without_padding);
@@ -1330,8 +1332,8 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_base(
         }
 
         const auto iw_ee = iw_b + (M_without_overflow * SW);
-        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.id, btc.ih, iw,
-                iw_raw, g_ic, is_ic_tail, iw_b, iw_ee, kd_l, kh_l,
+        perform_outwork(diff_src_base, diff_src, btc.c_buffer, bias_w, btc.id,
+                btc.ih, iw, iw_raw, g_ic, is_ic_tail, iw_b, iw_ee, kd_l, kh_l,
                 post_ops_binary_rhs_arg_vec.data(), btc.oscales,
                 btc.src_zp_vals, btc.src_zp_comp_ptr, btc.dst_zp_vals,
                 btc.s8s8_comp_ptr, comp_ker_offs, do_init, do_postwork, false,
@@ -1382,9 +1384,9 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_base(
     } else {
         const auto do_init = btc.occ == 0;
         const auto do_postwork = need_postwork && btc.occ == (oc_chunks - 1);
-        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.id, btc.ih, iw,
-                iw_raw, g_ic, is_ic_tail, iw, iw, kd_l_full, kh_l_full,
-                post_ops_binary_rhs_arg_vec.data(), btc.oscales,
+        perform_outwork(diff_src_base, diff_src, btc.c_buffer, bias_w, btc.id,
+                btc.ih, iw, iw_raw, g_ic, is_ic_tail, iw, iw, kd_l_full,
+                kh_l_full, post_ops_binary_rhs_arg_vec.data(), btc.oscales,
                 btc.src_zp_vals, btc.src_zp_comp_ptr, btc.dst_zp_vals,
                 btc.s8s8_comp_ptr, 0, do_init, do_postwork, false,
                 btc.dst_scales);
@@ -1401,7 +1403,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_trans(
 
     const char *const __restrict weights = btc.brgemm_ctx.weights;
     const char *const __restrict bias = btc.brgemm_ctx.bias;
-    char *const __restrict dst = btc.brgemm_ctx.dst;
+    char *const __restrict diff_src = btc.brgemm_ctx.diff_src;
     const std::vector<const void *> &post_ops_binary_rhs_arg_vec
             = btc.brgemm_ctx.post_ops_binary_rhs_arg_vec;
     const int ic = btc.icb * jcp.ic_block;
@@ -1441,9 +1443,9 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_trans(
     const bool is_tail_iwb = btc.iwb == jcp.nb_iw - 1;
     const bool need_out_buffer = jcp.has_uneven_iw && is_tail_iwb;
 
-    char *const __restrict dst_base
-            = (need_out_buffer ? btc.out_buffer
-                               : dst + dst_dsz * (btc.n * dst_d_sz + g_ic));
+    char *const __restrict diff_src_base = (need_out_buffer
+                    ? btc.out_buffer
+                    : diff_src + dst_dsz * (btc.n * dst_d_sz + g_ic));
     char *ptr_C;
     char *ptr_D;
     int kd_b(0), kd_e(0), kh_b(0), kh_e(0), k_l(0);
@@ -1452,7 +1454,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_trans(
             = weights + wei_dsz * (btc.g * wei_icb_sz + btc.icb * wei_kd_sz);
     const dim_t iw_b {iw};
 
-    ptr_D = dst_base
+    ptr_D = diff_src_base
             + dst_dsz
                     * (need_out_buffer
                                     ? btc.sw * jcp.ic_without_padding

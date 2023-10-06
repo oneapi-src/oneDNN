@@ -90,13 +90,13 @@ private:
             : diff_dst(CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST))
             , weights(CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS))
             , bias(CTX_IN_MEM(const char *, DNNL_ARG_BIAS))
-            , dst(CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC))
+            , diff_src(CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC))
             , post_ops_binary_rhs_arg_vec(binary_injector::prepare_binary_args(
                       pd->attr()->post_ops_, ctx)) {}
         const char *const __restrict diff_dst;
         const char *const __restrict weights;
         const char *const __restrict bias;
-        char *const __restrict dst;
+        char *const __restrict diff_src;
         const std::vector<const void *> post_ops_binary_rhs_arg_vec;
     };
 
