@@ -40,8 +40,8 @@ namespace softmax_impl {
 // This class isolates primitive implementation from templates introduced by
 // the kernel.
 struct jit_softmax_kernel_base_t {
-    static jit_softmax_kernel_base_t *create(
-            const softmax_pd_t *pd, const cpu_isa_t isa);
+    static jit_softmax_kernel_base_t *create(const softmax_pd_t *pd,
+            const cpu_isa_t isa, bool axis_is_plain_and_strided);
 
     virtual ~jit_softmax_kernel_base_t() = default;
 
@@ -156,6 +156,8 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                             memory_desc_wrapper(src_md()).is_plain()),
                     "avx2_vnni_2 only supports xf16 on plain layout");
 
+            const memory_desc_wrapper dst_d(dst_md());
+            axis_is_plain_and_strided_ = dst_d.is_plain() && axis_stride() > 1;
             nthr_ = dnnl_get_max_threads();
             init_scratchpad();
 
@@ -165,13 +167,22 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
         int nthr_; // To not exceed the limit in execute used for set up.
         size_t scratch_size_per_thr_ = 0;
         cpu_isa_t isa_ = isa_undef;
+        bool axis_is_plain_and_strided_ = false;
 
     private:
         void init_scratchpad() {
             if (utils::one_of(
                         dst_md()->data_type, data_type::u8, data_type::s8)) {
                 auto scratchpad = scratchpad_registry().registrar();
-                scratch_size_per_thr_ = axis_size(true) * sizeof(float);
+                // When stride != 1, then each thread operates over simd at a
+                // time, thus, increased scratchpad size.
+                dim_t elem_per_thr = 1;
+                if (axis_is_plain_and_strided_) {
+                    // Strided case has scratchpad using a simd_w for an element
+                    elem_per_thr = isa_max_vlen(isa_) / sizeof(float);
+                }
+                scratch_size_per_thr_
+                        = axis_size(true) * elem_per_thr * sizeof(float);
                 scratchpad.template book<char>(
                         memory_tracking::names::key_softmax_interim_store,
                         scratch_size_per_thr_ * nthr_);
@@ -223,7 +234,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             if (!src_d.is_dense(true) || !src_d.only_padded_dim(axis()))
                 return false;
 
-            if (src_d.is_plain()) return bd.strides[axis()] == 1;
+            if (src_d.is_plain()) return true;
 
             // It is fine to use float here as the kernel uses halfs of
             // vector registers.

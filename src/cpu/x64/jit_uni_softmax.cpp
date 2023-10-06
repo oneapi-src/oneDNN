@@ -764,10 +764,561 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
     }
 };
 
+template <cpu_isa_t isa>
+struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
+                                      public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_softmax_strided_kernel_t)
+
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+    const AddressFrame &vmmword = is_superset(isa, avx512_core) ? zword
+            : is_superset(isa, avx)                             ? yword
+                                                                : xword;
+    static constexpr auto vlen = cpu_isa_traits<isa>::vlen;
+    static constexpr auto simd_w_ = vlen / sizeof(float); // bf16 works on ymms
+
+    const memory_desc_wrapper src_d_, dst_d_;
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
+
+    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> exp_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> log_injector_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
+
+    Reg64 reg_param = abi_param1;
+
+    // Not used GPRs: abi_not_param, rdx
+    Reg64 reg_exp_injector_table = rax;
+    Reg64 reg_log_injector_table = rbx;
+    Reg64 reg_src = r8;
+    Reg64 reg_dst = r9;
+    Reg64 reg_src_spat_offt = r10;
+    Reg64 reg_dst_spat_offt = r15;
+    Reg64 reg_interim_spat_offt = rsi;
+    Reg64 reg_reverse_n_elems = r12;
+    Reg64 reg_tmp = r13;
+    Reg64 reg_interim = r14;
+    Reg64 reg_reverse_axis_elems = r11;
+
+    Opmask injector_mask = Opmask(1);
+
+    Vmm tail_vmask = Vmm(0);
+    // Scales are not supported for avx2 and below. Put Ymm16 on purpose to
+    // explode if it gets added. 23-26 are reserved for bf16 emulation.
+    Vmm vsrc_scale = Vmm(is_superset(isa, avx512_core) ? 21 : 16);
+    Vmm vdst_scale = Vmm(is_superset(isa, avx512_core) ? 22 : 16);
+    Vmm vzero = Vmm(is_superset(isa, avx512_core) ? 27 : 11);
+    Vmm vsaturation_ubound = Vmm(is_superset(isa, avx512_core) ? 28 : 12);
+    Vmm vcvt = Vmm(is_superset(isa, avx512_core) ? 29 : 13);
+    Xmm xone = Xmm(14);
+    Vmm vone = Vmm(is_superset(isa, avx512_core) ? 30 : 14);
+    Xmm xneg_flt_max = Xmm(15);
+    Vmm vneg_flt_max = Vmm(is_superset(isa, avx512_core) ? 31 : 15);
+
+    bool is_softmax_ = pd_->is_softmax();
+    bool is_logsoftmax_ = pd_->is_logsoftmax();
+    bool need_scratchpad_;
+    bool with_postops_ = false;
+    bool with_binary_ = false;
+    bool with_eltwise_ = false;
+
+    size_t unroll_inner_size_ = 4;
+    size_t unroll_axis_size_ = 8;
+
+    size_t axis_size_;
+    size_t axis_size_unroll_tail_;
+    size_t axis_stride_;
+    size_t axis_simd_full_;
+    size_t axis_simd_tail_;
+    size_t n_loops_;
+    size_t loop_tail_;
+    size_t src_next_vreg_stride_;
+    size_t interim_next_vreg_stride_;
+    size_t dst_next_vreg_stride_;
+
+    const int bf16_emu_zmm_1_idx_ = 23;
+    const int bf16_emu_zmm_2_idx_ = 24;
+    const int bf16_emu_zmm_3_idx_ = 25;
+    const int bf16_emu_zmm_4_idx_ = 26;
+    const int tail_opmask_idx_ = 2;
+
+    Opmask tail_opmask = Opmask(tail_opmask_idx_);
+
+    void operator()(const call_params_t *p) const override {
+        return jit_generator::operator()(p);
+    }
+
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+    void compute_predefined_variables() {
+        // `axis_simd_full_` is actually `inner_simd_full_`.
+        n_loops_ = axis_simd_full_ / unroll_inner_size_;
+        loop_tail_ = axis_simd_full_ - n_loops_ * unroll_inner_size_;
+
+        axis_size_unroll_tail_ = axis_size_ % unroll_axis_size_;
+
+        src_next_vreg_stride_ = compute_next_vreg_stride(src_d_);
+        interim_next_vreg_stride_ = vlen;
+        dst_next_vreg_stride_ = compute_next_vreg_stride(dst_d_);
+    }
+
+    size_t compute_next_vreg_stride(const memory_desc_wrapper &mdw) {
+        return axis_stride_ * mdw.data_type_size();
+    }
+
+    void load_common_params() {
+        mov(reg_tmp, float2int(1.0f));
+        uni_vmovq(xone, reg_tmp);
+        uni_vbroadcastss(vone, xone);
+        mov(reg_tmp, float2int(-FLT_MAX));
+        uni_vmovq(xneg_flt_max, reg_tmp);
+        uni_vbroadcastss(vneg_flt_max, xneg_flt_max);
+
+#define PARAM_OFF(x) offsetof(call_params_t, x)
+        mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
+        mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
+        if (need_scratchpad_) {
+            mov(reg_interim, ptr[reg_param + PARAM_OFF(interim)]);
+        }
+        if (is_superset(isa, avx512_core)) {
+            mov(reg_tmp, ptr[reg_param + PARAM_OFF(src_scales)]);
+            uni_vmovups(vsrc_scale, ptr[reg_tmp]);
+            mov(reg_tmp, ptr[reg_param + PARAM_OFF(dst_scales)]);
+            uni_vmovups(vdst_scale, ptr[reg_tmp]);
+        }
+    }
+
+    Address src_ptr(size_t offt = 0) {
+        return vmmword[reg_src + reg_src_spat_offt + offt];
+    }
+
+    Address interim_ptr(size_t offt = 0) {
+        return vmmword[reg_interim + reg_interim_spat_offt + offt];
+    }
+
+    Address dst_ptr(size_t offt = 0) {
+        return vmmword[reg_dst + reg_dst_spat_offt + offt];
+    }
+
+    void uni_vaddps_maybe_tail(
+            const Vmm &v1, const Vmm &v2, const Vmm &vtmp, const bool tail) {
+        if (tail) {
+            if (is_superset(isa, avx512_core)) {
+                uni_vaddps(v1 | tail_opmask, v1, v2);
+            } else {
+                uni_vpxor(vtmp, vtmp, vtmp);
+                uni_vblendvps(vtmp, vtmp, v2, tail_vmask);
+                uni_vaddps(v1, v1, vtmp);
+            }
+        } else
+            uni_vaddps(v1, v1, v2);
+    }
+
+    void uni_vmaxps_maybe_tail(
+            const Vmm &v1, const Vmm &v2, const Vmm &vtmp, const bool tail) {
+        if (tail) {
+            if (is_superset(isa, avx512_core)) {
+                uni_vmaxps(v1 | tail_opmask, v1, v2);
+            } else if (is_superset(isa, avx)) {
+                uni_vblendvps(v2, vneg_flt_max, v2, tail_vmask);
+                uni_vmaxps(v1, v1, v2);
+            } else {
+                uni_vmovups(vtmp, v2);
+                uni_vmovups(v2, vneg_flt_max);
+                uni_vblendvps(v2, v2, vtmp, tail_vmask);
+                uni_vmaxps(v1, v1, v2);
+            }
+        } else
+            uni_vmaxps(v1, v1, v2);
+    }
+
+    void store(const Address &addr, const Vmm &vmm, data_type_t dt,
+            bool tail = false) {
+        // Use temporary register in storing when conversion is needed
+        // Or we need to restore data back to fp32 since we apply exp after
+        // storing and data should be fp32
+        const bool need_restore = is_logsoftmax_ && dt != f32;
+        Vmm src_vmm = vmm;
+
+        if (need_restore) {
+            uni_vmovups(vcvt, vmm);
+            src_vmm = vcvt;
+        }
+
+        io_[dt]->store(src_vmm, addr, tail);
+    }
+
+    // The function provides unrolling over axis size. A single compute block
+    // is simd_w by N axis points, where axis is strided in memory. The last
+    // piece would be `axis_size_ % N`. The purpose of the axis size unrolling
+    // is to save on the kernel size, improve the instruction cache rate, and
+    // prevent huge stride accesses.
+    template <typename body_t>
+    void axis_size_loop_unroll(body_t body, int inner_unroll, bool tail) {
+        Label axis_size_body, axis_size_tail;
+
+        mov(reg_reverse_axis_elems, axis_size_);
+
+        L(axis_size_body);
+        {
+            if (axis_size_ >= unroll_axis_size_) {
+                cmp(reg_reverse_axis_elems, unroll_axis_size_);
+                jl(axis_size_tail, T_NEAR);
+
+                body(unroll_axis_size_, inner_unroll, tail);
+
+                add(reg_src_spat_offt,
+                        unroll_axis_size_ * src_next_vreg_stride_);
+                add(reg_interim_spat_offt,
+                        unroll_axis_size_ * interim_next_vreg_stride_);
+                add(reg_dst_spat_offt,
+                        unroll_axis_size_ * dst_next_vreg_stride_);
+
+                sub(reg_reverse_axis_elems, unroll_axis_size_);
+                jmp(axis_size_body);
+            }
+        }
+
+        L(axis_size_tail);
+        {
+            if (axis_size_unroll_tail_) {
+                body(axis_size_unroll_tail_, inner_unroll, tail);
+
+                add(reg_src_spat_offt,
+                        axis_size_unroll_tail_ * src_next_vreg_stride_);
+                add(reg_interim_spat_offt,
+                        axis_size_unroll_tail_ * interim_next_vreg_stride_);
+                add(reg_dst_spat_offt,
+                        axis_size_unroll_tail_ * dst_next_vreg_stride_);
+            }
+        }
+        // Restore initial offsets for the next round.
+        sub(reg_src_spat_offt, axis_size_ * src_next_vreg_stride_);
+        sub(reg_interim_spat_offt, axis_size_ * interim_next_vreg_stride_);
+        sub(reg_dst_spat_offt, axis_size_ * dst_next_vreg_stride_);
+    }
+
+    // The function provides complete softmax algorithm over axis_size_. Stages:
+    // * Fill vmax registers with -FLT_MAX, once before the loop.
+    // * A loop to collect vmax values.
+    // * Reset vsum registers with zeros, once before the loop.
+    // * A loop to collect sum and apply exponent.
+    // * Apply division to use multiplication when storing results.
+    // * A loop to store output after division.
+    // Why loops are needed, see `axis_size_loop_unroll` description.
+    void axis_full_cycle(int unroll_inner, bool tail) {
+        const auto vmax_body = [&](int unroll_axis, int unroll_inner,
+                                       bool tail) {
+            for_(dim_t a = 0; a < unroll_axis; a++)
+            for (int i = 0; i < unroll_inner; i++) {
+                Vmm vreg_tmp_src = Vmm(i + 1);
+                Vmm vmax = get_vmax(vreg_tmp_src, unroll_inner);
+                Vmm vtmp = get_vsum(vreg_tmp_src, unroll_inner);
+                // do maxps directly from memory on f32 avx2 for performance
+                // purpose.
+                if (!tail && is_superset(isa, avx2)
+                        && !is_superset(isa, avx512_core)
+                        && src_d_.data_type() == f32) {
+                    uni_vmaxps(vmax, vmax, src_ptr(get_src_stride(a, i)));
+                } else {
+                    io_[src_d_.data_type()]->load(
+                            src_ptr(get_src_stride(a, i)), vreg_tmp_src, tail);
+                    uni_vmaxps_maybe_tail(vmax, vreg_tmp_src, vtmp, tail);
+                }
+            }
+        };
+
+        const auto vsum_body = [&](int unroll_axis, int unroll_inner,
+                                       bool tail) {
+            for_(dim_t a = 0; a < unroll_axis; a++)
+            for (int i = 0; i < unroll_inner; i++) {
+                Vmm vreg_tmp_src = Vmm(i + 1);
+                Vmm vmax = get_vmax(vreg_tmp_src, unroll_inner);
+                Vmm vsum = get_vsum(vreg_tmp_src, unroll_inner);
+                // AVX2 and below would scratch a register, thus, vmax register
+                // can't be used there. Luckily, tail case only has a single
+                // unroll value, thus, can just use the next reg after `vsum`.
+                Vmm vtmp = tail && !is_superset(isa, avx512_core)
+                        ? Vmm(vsum.getIdx() + 1)
+                        : Vmm();
+
+                io_[src_d_.data_type()]->load(
+                        src_ptr(get_src_stride(a, i)), vreg_tmp_src, tail);
+                uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
+                if (is_logsoftmax_) { // store before applying exp
+                    if (need_scratchpad_)
+                        store(interim_ptr(get_interim_stride(a)), vreg_tmp_src,
+                                f32, tail);
+                    else
+                        store(dst_ptr(get_dst_stride(a, i)), vreg_tmp_src,
+                                dst_d_.data_type(), tail);
+                }
+                exp_injector_->compute_vector(vreg_tmp_src.getIdx());
+                uni_vaddps_maybe_tail(vsum, vreg_tmp_src, vtmp, tail);
+                if (is_softmax_) { // store after applying exp
+                    if (need_scratchpad_)
+                        store(interim_ptr(get_interim_stride(a)), vreg_tmp_src,
+                                f32, tail);
+                    else
+                        store(dst_ptr(get_dst_stride(a, i)), vreg_tmp_src,
+                                dst_d_.data_type(), tail);
+                }
+            }
+        };
+
+        const auto store_body = [&](int unroll_axis, int unroll_inner,
+                                        bool tail) {
+            for_(dim_t a = 0; a < unroll_axis; a++)
+            for (int i = 0; i < unroll_inner; i++) {
+                Vmm vreg_tmp_src = Vmm(i + 1);
+                Vmm vsum = get_vsum(vreg_tmp_src, unroll_inner);
+                if (need_scratchpad_)
+                    io_[f32]->load(interim_ptr(get_interim_stride(a)),
+                            vreg_tmp_src, tail);
+                else
+                    io_[dst_d_.data_type()]->load(
+                            dst_ptr(get_dst_stride(a, i)), vreg_tmp_src, tail);
+
+                if (is_softmax_) uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
+                if (is_logsoftmax_)
+                    uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
+
+                if (is_superset(isa, avx512_core)) {
+                    uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsrc_scale);
+                }
+                if (with_postops_) {
+                    binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+                    if (with_binary_) {
+                        rhs_arg_params.vmm_idx_to_out_addr.emplace(
+                                vreg_tmp_src.getIdx(), dst_ptr());
+                        rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                                vreg_tmp_src.getIdx(), get_dst_stride(a, i));
+                        if (tail)
+                            rhs_arg_params.vmm_tail_idx_.emplace(
+                                    vreg_tmp_src.getIdx());
+                    }
+                    postops_injector_->compute_vector(
+                            vreg_tmp_src.getIdx(), rhs_arg_params);
+                }
+                if (is_superset(isa, avx512_core)) {
+                    uni_vmulps(vreg_tmp_src, vreg_tmp_src, vdst_scale);
+                }
+                store(dst_ptr(get_dst_stride(a, i)), vreg_tmp_src,
+                        dst_d_.data_type(), tail);
+            }
+        };
+
+        // flush to -FLT_MAX before accumulation
+        for (int i = 0; i < unroll_inner; i++) {
+            Vmm vreg_tmp_src = Vmm(i + 1);
+            Vmm vmax = get_vmax(vreg_tmp_src, unroll_inner);
+            uni_vmovups(vmax, vneg_flt_max);
+        }
+
+        axis_size_loop_unroll(vmax_body, unroll_inner, tail);
+
+        // flush to zero before accumulation
+        for (int i = 0; i < unroll_inner; i++) {
+            Vmm vreg_tmp_src = Vmm(i + 1);
+            Vmm vsum = get_vsum(vreg_tmp_src, unroll_inner);
+            uni_vpxor(vsum, vsum, vsum);
+        }
+
+        axis_size_loop_unroll(vsum_body, unroll_inner, tail);
+
+        for (int i = 0; i < unroll_inner; i++) {
+            Vmm vreg_tmp_src = Vmm(i + 1);
+            Vmm vtmp = get_vmax(vreg_tmp_src, unroll_inner);
+            Vmm vsum = get_vsum(vreg_tmp_src, unroll_inner);
+            if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp);
+            if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
+        }
+
+        axis_size_loop_unroll(store_body, unroll_inner, tail);
+
+        add(reg_src_spat_offt,
+                unroll_inner * simd_w_ * src_d_.data_type_size());
+        add(reg_dst_spat_offt,
+                unroll_inner * simd_w_ * dst_d_.data_type_size());
+    }
+
+    // The function provides unrolling over inner size. A single compute block
+    // is simd_w by axis_size_, where axis is strided in memory. The purpose of
+    // inner size unrolling is to improve reading/writing pattern and increase
+    // memory bandwidth.
+    void inner_size_loop_unroll() {
+        Label unroll_loop, unroll_tail_loop, tail_loop, loop_end;
+
+        // reverse_spat_offt to dispatch between labels
+        mov(reg_reverse_n_elems, ptr[reg_param + PARAM_OFF(process_n_elems)]);
+        xor_(reg_src_spat_offt, reg_src_spat_offt);
+        xor_(reg_interim_spat_offt, reg_interim_spat_offt);
+        xor_(reg_dst_spat_offt, reg_dst_spat_offt);
+        L(unroll_loop);
+        {
+            if (n_loops_) {
+                cmp(reg_reverse_n_elems, unroll_inner_size_ * simd_w_);
+                jl(unroll_tail_loop, T_NEAR);
+
+                axis_full_cycle(unroll_inner_size_, false);
+
+                sub(reg_reverse_n_elems, unroll_inner_size_ * simd_w_);
+                jmp(unroll_loop);
+            }
+        }
+
+        L(unroll_tail_loop);
+        {
+            if (loop_tail_) {
+                cmp(reg_reverse_n_elems, loop_tail_ * simd_w_);
+                jl(tail_loop, T_NEAR);
+
+                axis_full_cycle(loop_tail_, false);
+
+                sub(reg_reverse_n_elems, loop_tail_ * simd_w_);
+                // No jump, unroll_tail run once.
+            }
+        }
+
+        L(tail_loop);
+        {
+            if (axis_simd_tail_) {
+                cmp(reg_reverse_n_elems, 1);
+                jl(loop_end, T_NEAR);
+
+                axis_full_cycle(1, true);
+            }
+        }
+
+        L(loop_end);
+    }
+
+    Vmm get_vmax(const Vmm &vmm, int unroll_inner) {
+        return Vmm(vmm.getIdx() + unroll_inner);
+    }
+
+    Vmm get_vsum(const Vmm &vmm, int unroll_inner) {
+        return Vmm(vmm.getIdx() + 2 * unroll_inner);
+    }
+
+    size_t get_src_stride(dim_t axis_idx, int unroll_inner_i) {
+        return src_next_vreg_stride_ * axis_idx
+                + unroll_inner_i * simd_w_ * src_d_.data_type_size();
+    }
+
+    size_t get_dst_stride(dim_t axis_idx, int unroll_inner_i) {
+        return dst_next_vreg_stride_ * axis_idx
+                + unroll_inner_i * simd_w_ * dst_d_.data_type_size();
+    }
+
+    size_t get_interim_stride(dim_t axis_idx) {
+        return interim_next_vreg_stride_ * axis_idx;
+    }
+
+    // TODO: add interleaved support for xf16 on avx2_vnni_2.
+    void forward() { inner_size_loop_unroll(); }
+
+    void generate() override {
+        if (pd_->is_fwd() || is_logsoftmax_)
+            exp_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
+                    alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, true,
+                    reg_exp_injector_table, injector_mask));
+        if (pd_->is_fwd() && is_logsoftmax_) {
+            log_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
+                    alg_kind::eltwise_log, 0.0f, 0.0f, 1.0f, true,
+                    reg_log_injector_table, injector_mask));
+        }
+        if (with_postops_) {
+            static constexpr bool preserve_gpr = true;
+            static constexpr bool preserve_vmm = true;
+            static constexpr bool use_exact_tail_scalar_bcast = true;
+            static constexpr std::size_t tmp_vmm_injector = 0u;
+
+            const binary_injector::rhs_arg_static_params_t rhs_sp {
+                    tmp_vmm_injector, this->r14, this->r15, this->r13,
+                    preserve_gpr, preserve_vmm,
+                    PARAM_OFF(post_ops_binary_rhs_arg_vec), PARAM_OFF(dst_orig),
+                    dst_d_, axis_simd_tail_, tail_opmask,
+                    use_exact_tail_scalar_bcast};
+
+            const binary_injector::static_params_t bsp {
+                    reg_param, get_supported_bcast_strategies(), rhs_sp};
+
+            postops_injector_ = utils::make_unique<
+                    injector::jit_uni_postops_injector_t<isa>>(
+                    this, pd_->attr()->post_ops_, bsp);
+        }
+#undef PARAM_OFF
+
+        compute_predefined_variables();
+        preamble();
+        io_.init_bf16();
+        // Initialize saturation vector register
+        if (is_superset(isa, avx512_core)) {
+            io_.init_saturate_f32({dst_d_.data_type()});
+        }
+        if (exp_injector_) exp_injector_->load_table_addr();
+        if (log_injector_) log_injector_->load_table_addr();
+        if (axis_simd_tail_) io_.prepare_tail_mask();
+        load_common_params();
+        if (pd_->is_fwd()) forward();
+        postamble();
+        if (exp_injector_) exp_injector_->prepare_table();
+        if (log_injector_) log_injector_->prepare_table();
+        if (with_eltwise_ && postops_injector_)
+            postops_injector_->prepare_table();
+    }
+
+    jit_softmax_strided_kernel_t(const softmax_pd_t *pd)
+        : jit_softmax_kernel_base_t(pd)
+        , jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
+        , src_d_(pd_->invariant_src_md())
+        , dst_d_(pd_->dst_md()) {
+        // `axis_stride_`, `axis_simd_full_` and `axis_simd_tail_` are only
+        // different pieces from the dense version.
+        axis_size_ = pd_->axis_size();
+        axis_stride_ = pd_->axis_stride();
+        axis_simd_full_ = axis_stride_ / simd_w_;
+        axis_simd_tail_ = axis_stride_ % simd_w_;
+        need_scratchpad_ = utils::one_of(dst_d_.data_type(), u8, s8);
+        // Scratchpad size is limited to a single simd_w, thus, no unrolling
+        // for such cases.
+        if (need_scratchpad_) unroll_inner_size_ = 1;
+
+        const auto &post_ops = pd_->attr()->post_ops_;
+        with_postops_ = post_ops.len() != 0;
+        with_binary_ = post_ops.find(primitive_kind::binary) != -1;
+        with_eltwise_ = post_ops.find(primitive_kind::eltwise) != -1;
+
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
+                tail_opmask_idx_, tail_vmask.getIdx(), reg_tmp);
+        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx_,
+                bf16_emu_zmm_2_idx_, bf16_emu_zmm_3_idx_, reg_tmp,
+                bf16_emu_zmm_4_idx_);
+        io::io_saturation_conf_t io_saturation_conf(
+                vzero.getIdx(), vsaturation_ubound.getIdx(), reg_tmp);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, isa,
+                {src_d_.data_type(), dst_d_.data_type(), f32 /* stats */},
+                io_conf, io_tail_conf, io_bf16_conf,
+                {{dst_d_.data_type(), io_saturation_conf}});
+    }
+};
+
+// Kernels are split in two implementations since strided version operates over
+// inner dimension processing `simd_w` axes at a time. This implies different
+// registers usage. To avoid collision and simplify the support, having a second
+// class is easier though certain pieces are same.
 jit_softmax_kernel_base_t *jit_softmax_kernel_base_t::create(
-        const softmax_pd_t *pd, const cpu_isa_t isa) {
+        const softmax_pd_t *pd, const cpu_isa_t isa,
+        bool axis_is_plain_and_strided) {
+
 #define HANDLE_ISA(isa_) \
-    if ((isa_) == isa) return new jit_softmax_dense_kernel_t<isa_>(pd)
+    if ((isa_) == isa) { \
+        if (axis_is_plain_and_strided) \
+            return new jit_softmax_strided_kernel_t<isa_>(pd); \
+        else \
+            return new jit_softmax_dense_kernel_t<isa_>(pd); \
+    }
     REG_AVX512_ISA(HANDLE_ISA(avx512_core_fp16));
     REG_AVX512_ISA(HANDLE_ISA(avx512_core_bf16));
     REG_AVX512_ISA(HANDLE_ISA(avx512_core));
@@ -787,8 +1338,11 @@ std::vector<cpu_isa_t> get_supported_isa(bool is_fwd) {
         return {avx512_core_fp16, avx512_core_bf16, avx512_core};
 }
 
+// `per_oc_spatial` cover strided axis case since algorithm requires a single
+// element being broadcasted.
 bcast_set_t get_supported_bcast_strategies() {
     return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+            broadcasting_strategy_t::per_oc_spatial,
             broadcasting_strategy_t::no_broadcast};
 }
 } // namespace softmax_impl
@@ -798,7 +1352,8 @@ jit_uni_softmax_fwd_t::jit_uni_softmax_fwd_t(const pd_t *apd)
 
 status_t jit_uni_softmax_fwd_t::init(engine_t *engine) {
     CHECK(safe_ptr_assign(ker_,
-            softmax_impl::jit_softmax_kernel_base_t::create(pd(), pd()->isa_)));
+            softmax_impl::jit_softmax_kernel_base_t::create(
+                    pd(), pd()->isa_, pd()->axis_is_plain_and_strided_)));
     if (ker_) CHECK(ker_->create_kernel());
     return status::success;
 }
@@ -833,14 +1388,44 @@ status_t jit_uni_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
         inner_stride = bd.inner_blks[bd.inner_nblks - 1];
         inner_size = axis_stride / inner_stride;
     }
-    const auto outer_stride = pd()->axis_size(true) * inner_size;
-    const auto outer_size = src_d.nelems(true) / outer_stride;
-    // Non padded axis size is needed to properly handle zero padding.
-    const auto process_n_elems = pd()->axis_size() * inner_size;
+
+    dim_t outer_stride = pd()->axis_size(true) * inner_size;
+    dim_t outer_size = src_d.nelems(true) / outer_stride;
+    // `process_n_elems` covers:
+    // * Plain dense axis with `axis_size` as a basic block.
+    // * Blocked axis with `axis_size` times `inner_size` to provide proper next
+    //   reg stride. Inner size will be parallelized. Non-padded axis size is
+    //   needed to properly handle zero padding.
+    dim_t process_n_elems = pd()->axis_size() * inner_size;
+    static constexpr int unroll_block_size = 64; // 4 unroll x 16 simd_w
+    dim_t n_unrolled_blocks = 0;
+    dim_t unroll_block_size_tail = axis_stride % unroll_block_size;
+    if (pd()->axis_is_plain_and_strided_) {
+        outer_stride = pd()->axis_size(true) * axis_stride;
+        outer_size = src_d.nelems(true) / outer_stride;
+        if (outer_size == 1) {
+            // Divide inner size by blocks and share a piece between threads.
+            n_unrolled_blocks = utils::div_up(axis_stride, unroll_block_size);
+            inner_size = n_unrolled_blocks;
+            inner_stride = unroll_block_size;
+        } else {
+            // Just give a full inner size, suboptimal but simple. The major
+            // challenge is tailed cases when it involves complex computations
+            // of src/dst offsets and proper number of elements to process.
+            process_n_elems = axis_stride;
+        }
+    }
 
     const int nthr = pd()->nthr_;
-
     const char *dst_orig_ptr = dst;
+
+    if (get_verbose(verbose_t::debuginfo) >= 1)
+        printf("[%s][execute] src=%p dst=%p outer_size=%" PRId64
+               " outer_stride=%" PRId64 " inner_size=%" PRId64
+               " inner_stride=%" PRId64 " axis_stride=%" PRId64 "\n",
+                pd()->impl_name(), src, dst, outer_size, outer_stride,
+                inner_size, inner_stride, axis_stride);
+
     parallel_nd_ext(nthr, outer_size, inner_size,
             [&](int ithr, int, dim_t ou, dim_t in) {
                 dim_t offset = (ou * outer_stride + in * inner_stride);
@@ -850,7 +1435,16 @@ status_t jit_uni_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
                         ? scratchpad_ptr + ithr * pd()->scratch_size_per_thr_
                         : nullptr;
                 softmax_impl::jit_softmax_kernel_base_t::call_params_t p;
-                p.process_n_elems = process_n_elems;
+                if (pd()->axis_is_plain_and_strided_ && outer_size == 1) {
+                    // Special case when inner size is split between threads.
+                    assert(n_unrolled_blocks > 0);
+                    p.process_n_elems
+                            = in == inner_size - 1 && unroll_block_size_tail
+                            ? unroll_block_size_tail
+                            : unroll_block_size;
+                } else {
+                    p.process_n_elems = process_n_elems;
+                }
                 p.src = src_ptr;
                 p.dst = dst_ptr;
                 p.interim = interim_ptr;
@@ -871,7 +1465,8 @@ jit_uni_softmax_bwd_t::jit_uni_softmax_bwd_t(const pd_t *apd)
 
 status_t jit_uni_softmax_bwd_t::init(engine_t *engine) {
     CHECK(safe_ptr_assign(ker_,
-            softmax_impl::jit_softmax_kernel_base_t::create(pd(), pd()->isa_)));
+            softmax_impl::jit_softmax_kernel_base_t::create(
+                    pd(), pd()->isa_, false)));
     if (ker_) CHECK(ker_->create_kernel());
     return status::success;
 }
