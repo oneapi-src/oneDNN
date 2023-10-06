@@ -1174,14 +1174,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
             assert(k <= static_cast<size_t>(jcp.ker_ranges_size));
         };
 
-        for_(int odb = 0; odb < jcp.nb_od; odb++)
+        for_(int od = 0; od < jcp.od; od++)
         for_(int ohb = 0; ohb < jcp.nb_oh; ohb++)
         for (int owb = 0; owb < jcp.nb_ow; owb++) {
-            auto od_begin = odb * jcp.od_block;
-            auto od_end = nstl::min(OD, od_begin + jcp.od_block);
             auto oh_begin = ohb * jcp.oh_block;
             auto oh_end = nstl::min(OH, oh_begin + jcp.oh_block);
-            for_(int od = od_begin; od < od_end; od++)
             for (int oh = oh_begin; oh < oh_end; oh++) {
                 int kw_s {0}, kw_full_s {0}, kw_f {0}, kw_full_f {0};
                 const int ow = owb * jcp.ow_block;
