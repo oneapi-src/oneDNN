@@ -262,6 +262,13 @@ public:
         return rsp + saved_regs_size + first_params_and_return_addr_size;
     }
 
+    // The function is intended for faster and easier debugging.
+    // It inserts int3 instruction which causes a SIGTRAP, which is basically
+    // a breakpoint in a debugger. It's much faster way to dispatch into a
+    // desired place in a JITted kernel instead of going through the `execute`
+    // call stack.
+    void set_breakpoint() { db(0xcc); }
+
     void uni_vzeroupper() {
         if (mayiuse(avx)) vzeroupper();
     }
