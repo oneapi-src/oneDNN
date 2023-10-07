@@ -353,8 +353,12 @@ void create_llama_mlp(const std::shared_ptr<pb_graph_t> &pgraph,
         auto quant1 = pgraph->append_op(graph::op_kind::Quantize,
                 {in_edge(0, extra_cast_after_mul, 0)});
         if (split_smooth_quant) {
+            auto extra_cast_before_mul_rhs
+                    = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::TypeCast, norm1);
             auto smooth_quant_mul1_rhs = append_single_op_repetition_subgraph(
-                    pgraph, graph::op_kind::Multiply, extra_cast_before_mul);
+                    pgraph, graph::op_kind::Multiply,
+                    extra_cast_before_mul_rhs);
             auto extra_cast_after_mul_rhs
                     = append_single_op_repetition_subgraph(pgraph,
                             graph::op_kind::TypeCast, smooth_quant_mul1_rhs, 0,
