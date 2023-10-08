@@ -2380,3 +2380,125 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
 )";
     EXPECT_EQ(ss.str(), expected_str);
 }
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp,
+        TransposeSemanticTensorViewBindAxis) {
+    SET_THREADS_OR_SKIP(64);
+    REQUIRE_AMX();
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+
+    sc_graph_t mlp_graph;
+    auto sigmoid_backprop_in0 = mlp_graph.make_input(
+            {graph_tensor::make({128, 1}, sc_data_format_t())});
+    auto sigmoid_backprop_in1 = mlp_graph.make_input(
+            {graph_tensor::make({128, 1}, sc_data_format_t())});
+    auto transpose_in0 = mlp_graph.make_input(
+            {graph_tensor::make({256, 1}, sc_data_format_t())});
+    auto relu_backprop_in0 = mlp_graph.make_input(
+            {graph_tensor::make({128, 256}, sc_data_format_t())});
+    auto transpose_in1 = mlp_graph.make_input(
+            {graph_tensor::make({512, 256}, sc_data_format_t())});
+    auto transpose_in2 = mlp_graph.make_input(
+            {graph_tensor::make({1024, 512}, sc_data_format_t())});
+    auto relu_backprop_in2 = mlp_graph.make_input(
+            {graph_tensor::make({128, 512}, sc_data_format_t())});
+    auto matmul_in1 = mlp_graph.make_input(
+            {graph_tensor::make({1024, 1024}, sc_data_format_t())});
+    auto matmul_in2 = mlp_graph.make_input(
+            {graph_tensor::make({128, 1024}, sc_data_format_t())});
+
+    auto sigmoid_backprop = mlp_graph.make("sigmoid_backprop",
+            {sigmoid_backprop_in0->get_outputs()[0],
+                    sigmoid_backprop_in1->get_outputs()[0]},
+            {}, {{"use_dst", true}});
+    auto static_transpose0
+            = mlp_graph.make("transpose", {transpose_in0->get_outputs()[0]}, {},
+                    {{"order", std::vector<int> {1, 0}}});
+    auto matmul0 = mlp_graph.make("matmul",
+            {sigmoid_backprop->get_outputs()[0],
+                    static_transpose0->get_outputs()[0]},
+            {}, {});
+    auto static_transpose0_0
+            = mlp_graph.make("transpose", {matmul0->get_outputs()[0]}, {},
+                    {{"order", std::vector<int> {1, 0}}});
+    auto matmul0_0 = mlp_graph.make("matmul",
+            {static_transpose0_0->get_outputs()[0],
+                    relu_backprop_in0->get_outputs()[0]},
+            {}, {});
+    auto relu_backprop1 = mlp_graph.make("relu_backprop",
+            {relu_backprop_in0->get_outputs()[0], matmul0->get_outputs()[0]},
+            {}, {{"use_dst", true}});
+    auto static_transpose1
+            = mlp_graph.make("transpose", {transpose_in1->get_outputs()[0]}, {},
+                    {{"order", std::vector<int> {1, 0}}});
+    auto static_transpose2
+            = mlp_graph.make("transpose", {relu_backprop1->get_outputs()[0]},
+                    {}, {{"order", std::vector<int> {1, 0}}});
+    auto matmul1 = mlp_graph.make("matmul",
+            {relu_backprop1->get_outputs()[0],
+                    static_transpose1->get_outputs()[0]},
+            {}, {});
+    auto matmul2 = mlp_graph.make("matmul",
+            {static_transpose2->get_outputs()[0],
+                    relu_backprop_in2->get_outputs()[0]},
+            {}, {});
+    auto relu_backprop2 = mlp_graph.make("relu_backprop",
+            {relu_backprop_in2->get_outputs()[0], matmul1->get_outputs()[0]},
+            {}, {{"use_dst", true}});
+    auto static_transpose3
+            = mlp_graph.make("transpose", {transpose_in2->get_outputs()[0]}, {},
+                    {{"order", std::vector<int> {1, 0}}});
+    auto static_transpose4
+            = mlp_graph.make("transpose", {relu_backprop2->get_outputs()[0]},
+                    {}, {{"order", std::vector<int> {1, 0}}});
+    auto matmul3 = mlp_graph.make("matmul",
+            {relu_backprop2->get_outputs()[0],
+                    static_transpose3->get_outputs()[0]},
+            {}, {});
+    auto matmul4 = mlp_graph.make("matmul",
+            {static_transpose4->get_outputs()[0], matmul_in2->get_outputs()[0]},
+            {}, {});
+    auto matmul5 = mlp_graph.make("matmul",
+            {matmul3->get_outputs()[0], matmul_in1->get_outputs()[0]}, {}, {});
+    auto static_transpose5
+            = mlp_graph.make("transpose", {matmul3->get_outputs()[0]}, {},
+                    {{"order", std::vector<int> {1, 0}}});
+    auto matmul6 = mlp_graph.make("matmul",
+            {static_transpose5->get_outputs()[0], matmul_in2->get_outputs()[0]},
+            {}, {});
+    auto matmul7 = mlp_graph.make("matmul",
+            {matmul5->get_outputs()[0], matmul_in2->get_outputs()[0]}, {}, {});
+
+    mlp_graph.make_output({matmul0_0->get_outputs()[0]});
+    mlp_graph.make_output({matmul2->get_outputs()[0]});
+    mlp_graph.make_output({matmul4->get_outputs()[0]});
+    mlp_graph.make_output({matmul6->get_outputs()[0]});
+    mlp_graph.make_output({matmul7->get_outputs()[0]});
+
+    graph_driver(mlp_graph, ctx);
+    std::stringstream ss;
+    print_graph(mlp_graph, ss, true);
+    // The reduce op could not be split
+    std::string expected_str_spr
+            = R"(graph(v0: f32[128, 1], v1: f32[128, 1], v2: f32[256, 1], v3: f32[128, 256], v4: f32[512, 256], v5: f32[1024, 512], v6: f32[128, 512], v7: f32[1024, 1024], v8: f32[128, 1024]) -> [v9: f32[256, 256], v10: f32[256, 512], v11: f32[512, 1024], v12: f32[1024, 1024], v13: f32[128, 1024]] {
+  [v14: f32[32, 32, 4, 16]] = outerloop_32X32X4_partition_reorder_select_one(v6)
+  [v15: f32[1024, 512]] = tensor_view(v5)
+  [v16: f32[512, 1024]] = reorder(v15)
+  [v17: f32[512, 256]] = tensor_view(v4)
+  [v18: f32[256, 512]] = reorder(v17)
+  [v19: f32[32, 16, 4, 16]] = outerloop_32X16X4_partition_reorder_select_one(v3)
+  [v20: f32[1, 256]] = tensor_view(v2)
+  [v21: f32[128, 1]] = outerloop_128_partition_mul_sub_mul(v0, v1)
+  [v22: f32[64, 8, 4, 16], v23: f32[64, 8, 4, 16], v24: f32[32, 32, 4, 16]] = outerloop_32_partition_managed_matmul_core_tensor_view_reorder_mul_tensor_view_reorder_managed_matmul_core_mul(v21, v20, v19, v18, v14)
+  [v25: f32[64, 8, 16, 16], v13: f32[128, 1024]] = outerloop_8_partition_reorder_managed_matmul_core_tensor_view_reorder_managed_matmul_core_managed_matmul_core_reorder(v24, v16, v7, v8)
+  [v26: f32[32, 32, 4, 16]] = tensor_view(v24)
+  [v11: f32[512, 1024], v12: f32[1024, 1024]] = outerloop_32X2X1_partition_reorder_managed_matmul_core_reorder_managed_matmul_core_reorder(v26, v8, v25)
+  [v10: f32[256, 512]] = outerloop_64X1X1X1X1_partition_managed_matmul_core_reorder(v23, v6)
+  [v9: f32[256, 256]] = outerloop_64X1X1X1X1_partition_managed_matmul_core_reorder(v22, v3)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str_spr);
+}

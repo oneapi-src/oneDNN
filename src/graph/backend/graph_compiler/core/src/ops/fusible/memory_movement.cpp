@@ -1005,10 +1005,30 @@ void tensor_view_op_t::pre_slice_ranges(
     }
 }
 
+// transpose_axis_map stores the transpose relation of src_axis --> dst_axis
 bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
         const sc_dims &src_dims, const sc_dims &dst_dims,
-        const std::vector<int> &expand_dims = {}) {
+        const std::vector<int> &expand_dims = {},
+        const std::vector<int> &transpose_axis_map = {}) {
     bound_axis dst_axis, tv_axis_map;
+
+    if (!transpose_axis_map.empty()) {
+        bound_axis real_src_axis;
+        COMPILE_ASSERT(src_dims.size() == dst_dims.size()
+                        && src_dims.size() == transpose_axis_map.size(),
+                "src dims, dst dims, and transpose_axis_map shall have the "
+                "same length.")
+        for (auto &bd_ax : src_axis) {
+            std::vector<int> ret;
+            for (auto &ax : bd_ax) {
+                COMPILE_ASSERT(ax < static_cast<int>(transpose_axis_map.size()),
+                        "ax should be less then transpose_axis_map size")
+                ret.emplace_back(transpose_axis_map[ax]);
+            }
+            real_src_axis.emplace_back(ret);
+        }
+        return real_src_axis;
+    }
 
     sc_dims acc_src_dims(src_dims.size()), acc_dst_dims(dst_dims.size());
     sc_dim tmp_acc = 1;
@@ -1071,8 +1091,13 @@ void tensor_view_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     // dst
     auto dst_plain_dims = info_.outputs_[0]->details_.get_plain_dims();
     auto ths = this;
-    auto plain_bd_axis = infer_tensor_view_binding_axis(
-            known_axis_map[0], src_plain_dims, dst_plain_dims);
+    auto order = attrs_.get_or_else("order", std::vector<int> {});
+    std::vector<int> axis_mapping(order.size(), 0);
+    for (size_t i = 0; i < order.size(); ++i) {
+        axis_mapping[order[i]] = i;
+    }
+    auto plain_bd_axis = infer_tensor_view_binding_axis(known_axis_map[0],
+            src_plain_dims, dst_plain_dims, std::vector<int> {}, axis_mapping);
     bdax_map.get(get_outputs()[0]) = plain_bd_axis;
     set_unknown_axis_binding(this, known_axis_map, bdax_map);
 }
@@ -1092,7 +1117,8 @@ void tensor_view_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
         auto ths = this;
         auto plain_bd_axis = infer_tensor_view_binding_axis(outaxis,
                 dst_plain_dims, src_plain_dims,
-                attrs_.get_or_else("expand_dim", std::vector<int> {}));
+                attrs_.get_or_else("expand_dim", std::vector<int> {}),
+                attrs_.get_or_else("order", std::vector<int> {}));
         inpaxis = plain_bd_axis;
         if (auto bd_op
                 = input->producer_owner_
