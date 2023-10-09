@@ -333,6 +333,7 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
 
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
+        if (!kernel_names[i]) continue;
         cl_int err;
         ocl_wrapper_t<cl_kernel> ocl_kernel
                 = clCreateKernel(program, kernel_names[i], &err);

@@ -179,6 +179,7 @@ public:
             const std::vector<const char *> &kernel_names) const {
         kernels = std::vector<kernel_t>(kernel_names.size());
         for (size_t i = 0; i < kernel_names.size(); i++) {
+            if (!kernel_names[i]) continue;
             auto kernel_entry = bundle.find(kernel_names[i]);
             if (kernel_entry == bundle.end()) return status::runtime_error;
             kernels[i] = kernel_entry->second;

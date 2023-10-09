@@ -54,7 +54,7 @@ status_t create_kernels(const compute::compute_engine_t *engine,
 
         // Update kernel list with created kernels.
         for (size_t i = 0; i < kv.second.size(); ++i) {
-            kernel_list.set(kv.second[i], kernels[i]);
+            if (kv.second[i]) kernel_list.set(kv.second[i], kernels[i]);
         }
     }
     return status::success;
