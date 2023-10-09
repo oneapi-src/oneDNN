@@ -39,7 +39,8 @@
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
             const workspace_t &workspace, \
-            const memory_storage_t &scratch_gates, \
+            const memory_storage_t *scratch_gates, \
+            const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
             const memory_storage_t *tm_scales, \
@@ -49,7 +50,8 @@
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
             const workspace_t &workspace, \
-            const memory_storage_t &scratch_gates, \
+            const memory_storage_t *scratch_gates, \
+            const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t &bias, const memory_storage_t *tm_scales, \
@@ -59,7 +61,8 @@
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
             const workspace_t &workspace, \
-            const memory_storage_t &scratch_gates, \
+            const memory_storage_t *scratch_gates, \
+            const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t &scratch_dhG1, \
@@ -71,7 +74,8 @@
             dim_t iter, dim_t wei_layer_offset, \
             const std::vector<dim_t> &wei_iter_offsets, \
             const memory_storage_t &bias, const workspace_t &workspace, \
-            const memory_storage_t &scratch_gates, \
+            const memory_storage_t *scratch_gates, \
+            const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t &scratch_dhG1, \
@@ -85,7 +89,8 @@
 #define grid_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, \
             const memory_storage_t &bias, const workspace_t &workspace, \
-            const memory_storage_t &scratch_gates, \
+            const memory_storage_t *scratch_gates, \
+            const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t &scratch_dhG1, \
@@ -308,9 +313,10 @@ struct conf_t {
     // Element size of each workspace part in bytes
     dim_t ws_gates_elsz, ws_states_elsz, ws_grid_comp_elsz, ws_bias_elsz;
 
-    dim_t scratch_gates_size;
     dim_t n_iter_scratch_gates;
-    dim_t scratch_gates_elsz, scratch_gates_ld;
+    dim_t scratch_gates_size, scratch_gates_elsz, scratch_gates_ld;
+    dim_t scratch_diff_gates_size, scratch_diff_gates_elsz,
+            scratch_diff_gates_ld;
 
     data_type_t acc_data_type;
     dim_t acc_data_type_elsz;
@@ -350,11 +356,12 @@ void set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
         dim_t &cell_wei_iter_offset);
 void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
         dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
-        dim_t &cell_scr_diff_lay_off, dim_t &cell_scr_diff_iter_off);
+        dim_t &cell_scr_diff_lay_off, dim_t &cell_scr_diff_iter_off,
+        dim_t &cell_scratch_offset);
 void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
         dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
         dim_t &cell_scr_diff_lay_off, dim_t &cell_scr_diff_iter_off,
-        dim_t &cell_diff_wei_iter_off2);
+        dim_t &cell_diff_wei_iter_off2, dim_t &cell_scratch_offset);
 void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
         dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
         dim_t &cell_scr_diff_lay_off);
