@@ -237,8 +237,9 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
             auto scratchpad = this->scratchpad_registry().registrar();
             scratchpad.book(key_rnn_space, workspace_size, 1,
                     OCL_BUFFER_ALIGNMENT, 4096);
-            scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 1,
-                    OCL_BUFFER_ALIGNMENT, 4096);
+            if (rnn_conf.scratch_gates_size > 0)
+                scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 1,
+                        OCL_BUFFER_ALIGNMENT, 4096);
             scratchpad.book(key_rnn_cell, rnn_conf.scratch_cell_size, 1,
                     OCL_BUFFER_ALIGNMENT, 4096);
             scratchpad.book(key_rnn_diff_states,
@@ -258,6 +259,9 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                                 gemm_iter_fwd_2_pd_->scratchpad_registry());
                     break;
                 case prop_kind::backward:
+                    scratchpad.book(key_rnn_diff_gates,
+                            rnn_conf.scratch_diff_gates_size, 1,
+                            OCL_BUFFER_ALIGNMENT, 4096);
                     scratchpad.book(key_gemm_iter_bwd,
                             gemm_iter_bwd_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_layer_bwd,

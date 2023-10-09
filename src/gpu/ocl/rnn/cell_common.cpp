@@ -41,47 +41,50 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     if (aprop == prop_kind::forward) {
         if (!rnn.merge_gemm_layer) {
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
-                    *cell_layer, 0, scratch_gates, cell_scratch_offset,
+                    *cell_layer, 0, *scratch_gates, cell_scratch_offset,
                     gemm_layer_fwd));
         }
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
-                *cell_iter, 0, scratch_gates, cell_scratch_offset,
+                *cell_iter, 0, *scratch_gates, cell_scratch_offset,
                 gemm_iter_fwd));
 
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
-                workspace, scratch_gates, scratch_diff_states, scales, bias,
-                tm_scales, diff_bias));
+                workspace, scratch_gates, scratch_diff_gates,
+                scratch_diff_states, scales, bias, tm_scales, diff_bias));
 
     } else { // backward
         dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off,
-                cell_scr_diff_iter_off, cell_scr_diff_lay_off;
+                cell_scr_diff_iter_off, cell_scr_diff_lay_off,
+                cell_scratch_diff_off;
 
         set_offsets_bwd_gemm(rnn, iter, dir, lay, cell_diff_wei_iter_off,
                 cell_diff_wei_lay_off, cell_scr_diff_lay_off,
-                cell_scr_diff_iter_off);
+                cell_scr_diff_iter_off, cell_scratch_diff_off);
 
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
                 ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
-                scratch_diff_states, scales, bias, tm_scales, diff_bias));
+                scratch_diff_gates, scratch_diff_states, scales, bias,
+                tm_scales, diff_bias));
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
-                scratch_gates, cell_scratch_offset, scratch_diff_states,
+                *scratch_diff_gates, cell_scratch_diff_off, scratch_diff_states,
                 cell_scr_diff_iter_off, gemm_iter_bwd));
 
         if (!rnn.merge_gemm_layer) {
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
-                    scratch_gates, cell_scratch_offset, scratch_diff_states,
-                    cell_scr_diff_lay_off, gemm_layer_bwd));
+                    *scratch_diff_gates, cell_scratch_diff_off,
+                    scratch_diff_states, cell_scr_diff_lay_off,
+                    gemm_layer_bwd));
 
-            CHECK(gemm_primitive(engine, ctx, scratch_gates,
-                    cell_scratch_offset, *cell_layer, 0, diff_weights_layer,
+            CHECK(gemm_primitive(engine, ctx, *scratch_diff_gates,
+                    cell_scratch_diff_off, *cell_layer, 0, diff_weights_layer,
                     cell_diff_wei_lay_off, gemm_diff_wei_layer));
         }
 
         if (!rnn.merge_gemm_iter) {
-            CHECK(gemm_primitive(engine, ctx, scratch_gates,
-                    cell_scratch_offset, *cell_iter, 0, diff_weights_iter,
+            CHECK(gemm_primitive(engine, ctx, *scratch_diff_gates,
+                    cell_scratch_diff_off, *cell_iter, 0, diff_weights_iter,
                     cell_diff_wei_iter_off, gemm_diff_wei_iter));
         }
     }

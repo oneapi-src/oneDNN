@@ -272,6 +272,7 @@ enum {
     key_rnn_diff_states,
     key_rnn_gates,
     key_rnn_gates_blocked,
+    key_rnn_diff_gates,
     key_rnn_src_layer_trans,
     key_rnn_src_iter_trans,
     key_rnn_ht,
