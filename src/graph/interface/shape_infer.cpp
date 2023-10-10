@@ -1058,20 +1058,24 @@ status_t identity_output_shape_on_pos(op_t *n,
 status_t infer_bias_backprop_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out = logical_tensor_wrapper_t(outputs[0]);
-    if (!out.is_shape_unknown()) return status::success;
-
     auto in = logical_tensor_wrapper_t(inputs[0]);
     dims input_dims = in.vdims();
     VCHECK_INVALID_SHAPE((input_dims.size() >= 4),
             "%s, should have at least 4 dims, given dims: %zu ",
             op_t::kind2str(n->get_kind()).c_str(), input_dims.size());
 
+    auto out = logical_tensor_wrapper_t(outputs[0]);
     std::string fmt = n->has_attr(op_attr::data_format)
             ? n->get_attr<std::string>(op_attr::data_format)
             : "NXC";
-
     const auto channels = in.get_src_c(fmt);
+
+    if (!out.is_shape_unknown()) {
+        VCHECK_INVALID_SHAPE((channels == out.vdims()[0]),
+                "%s, given output shape is not compatible with channels",
+                op_t::kind2str(n->get_kind()).c_str());
+        return status::success;
+    }
     dims new_out_dims = {channels};
 
     set_shape_and_strides(*outputs[0], new_out_dims);
@@ -1081,20 +1085,25 @@ status_t infer_bias_backprop_output_shape(op_t *n,
 status_t infer_bias_add_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out = logical_tensor_wrapper_t(outputs[0]);
-    if (!out.is_shape_unknown()) return status::success;
 
     auto in = logical_tensor_wrapper_t(inputs[0]);
+    auto out = logical_tensor_wrapper_t(outputs[0]);
+    if (!out.is_shape_unknown()) {
+        VCHECK_INVALID_SHAPE(validate(in.vdims(), out.vdims()),
+                "%s, given input and output shapes are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
+        return status::success;
+    }
+
     dims input_dims = in.vdims();
     VCHECK_INVALID_SHAPE((input_dims.size() >= 2),
             "%s, input should have at least 2 dims, given dims: %zu ",
             op_t::kind2str(n->get_kind()).c_str(), input_dims.size());
 
     auto bias = logical_tensor_wrapper_t(inputs[1]);
-    dims bias_dims = bias.vdims();
-    VCHECK_INVALID_SHAPE((bias_dims.size() == 1),
-            "%s, the bias input should have exactly 1 dim, given dims: %zu ",
-            op_t::kind2str(n->get_kind()).c_str(), bias_dims.size());
+    VCHECK_INVALID_SHAPE((bias.ndims() == 1),
+            "%s, the bias input should have exactly 1 dim, given dims: %d ",
+            op_t::kind2str(n->get_kind()).c_str(), bias.ndims());
 
     // following the spec of convolution, nxc as default format
     std::string fmt = n->has_attr(op_attr::data_format)
@@ -1102,6 +1111,7 @@ status_t infer_bias_add_output_shape(op_t *n,
             : "NXC";
 
     const auto channels = in.get_src_c(fmt);
+    dims bias_dims = bias.vdims();
     VCHECK_INVALID_SHAPE((bias_dims[0] == channels),
             "%s, the bias size should match input channel size, given bias "
             "size: %d ",
@@ -1174,7 +1184,12 @@ status_t infer_select_output_shape(op_t *n,
     auto in2 = logical_tensor_wrapper_t(inputs[2]);
     // check if output shape is already known
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
+    if (!out0.is_shape_unknown()) {
+        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
+                "%s, given input and output shapes are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
+        return status::success;
+    }
 
     const bool shapes_should_match = n->has_attr(op_attr::auto_broadcast)
             ? "none" == n->get_attr<std::string>(op_attr::auto_broadcast)
@@ -1328,7 +1343,6 @@ status_t infer_concat_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
 
     // if only one tensor to concat, out_shape is same as input_shape
     if (inputs.size() == 1) {
@@ -1377,6 +1391,17 @@ status_t infer_concat_output_shape(op_t *n,
 
     std::vector<int64_t> inferred_out_shape(dims, dims + ndims);
     inferred_out_shape[axis] = sum;
+
+    // for known output shape, check if it's reasonable, which requires
+    // inference as well
+    if (!out0.is_shape_unknown()) {
+        VCHECK_INVALID_SHAPE(validate(inferred_out_shape, out0.vdims()),
+                "%s, inferred output shape and shape from logical tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
+        return status::success;
+    }
+
     set_shape_and_strides(*outputs[0], inferred_out_shape);
     return status::success;
 }
@@ -1452,10 +1477,7 @@ status_t infer_reduce_output_shape(op_t *n,
 status_t infer_static_reshape_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
-
     const dims &in_dims = in0.vdims();
     dims out_dims = n->get_attr<dims>(op_attr::shape);
     const bool special_zero = n->get_attr<bool>(op_attr::special_zero);
@@ -1520,12 +1542,14 @@ status_t infer_static_reshape_output_shape(op_t *n,
                 static_cast<int>(out_dims[uncertain_axis]));
     }
 
-    // check if partial set shape aligns with inferred shape
-    if (out0.ndims() != -1) {
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    // check if given or partial set shape aligns with inferred shape
+    if (!out0.is_shape_unknown() || out0.ndims() != -1) {
         VCHECK_INVALID_SHAPE(validate(out_dims, out0.vdims()),
-                "%s, inferred ouptut shape and shape from logical tensor are "
+                "%s, inferred output shape and shape from logical tensor are "
                 "not compatible",
                 op_t::kind2str(n->get_kind()).c_str());
+        if (!out0.is_shape_unknown()) return status::success;
     }
 
     // We should compute output dense strides instead of
@@ -1537,9 +1561,7 @@ status_t infer_static_reshape_output_shape(op_t *n,
 status_t infer_static_transpose_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
 
     const dims &in_dims = in0.vdims();
     const int32_t in_ndims = in0.ndims();
@@ -1585,12 +1607,14 @@ status_t infer_static_transpose_output_shape(op_t *n,
         }
     }
 
-    // check if partial set shape aligns with inferred shape
-    if (out0.ndims() != -1) {
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    // check if given or partial set shape aligns with inferred shape
+    if (!out0.is_shape_unknown() || out0.ndims() != -1) {
         VCHECK_INVALID_SHAPE(validate(out_dims, out0.vdims()),
-                "%s, inferred ouptut shape and shape from logical tensor are "
+                "%s, inferred output shape and shape from logical tensor are "
                 "not compatible",
                 op_t::kind2str(n->get_kind()).c_str());
+        if (!out0.is_shape_unknown()) return status::success;
     }
 
     // We should compute output dense strides instead of
@@ -1606,8 +1630,6 @@ status_t infer_interpolate_output_shape(op_t *n,
     auto in_dims = in.vdims();
     // Number of spatial dimensions
     int spatial_ndim = in.ndims() - 2;
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
 
     std::vector<int64_t> sizes;
     if (n->has_attr(op_attr::sizes)) {
@@ -1653,6 +1675,17 @@ status_t infer_interpolate_output_shape(op_t *n,
             in_dims[i + spatial_dim_start_axis] = sizes[i];
         }
     }
+
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    // if the output is given, check if it's reasonable
+    if (!out0.is_shape_unknown()) {
+        VCHECK_INVALID_SHAPE(validate(in_dims, out0.vdims()),
+                "%s, inferred output shape and shape from logical tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
+        return status::success;
+    }
+
     set_shape_and_strides(*outputs[0], in_dims);
     return status::success;
 }
