@@ -608,13 +608,14 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     // The inputs of create_gemm_pd describe a gemm in column major.
     // Below, we have to transpose the a and b descriptor to describe
     // the GEMM as a row major problem.
-    auto create_gemm_pd
-            = [&](std::shared_ptr<primitive_desc_t> &gemm_pd, dim_t m, dim_t n,
-                      dim_t k, dim_t lda, dim_t ldb, dim_t ldc,
-                      data_type_t a_dt, data_type_t b_dt, data_type_t c_dt,
-                      bool is_B_trans, float beta) -> status_t {
+    auto create_gemm_pd =
+            [&](std::shared_ptr<primitive_desc_t> &gemm_pd, dim_t m, dim_t n,
+                    dim_t k, dim_t lda, dim_t ldb, dim_t ldc, data_type_t a_dt,
+                    data_type_t b_dt, data_type_t c_dt, bool is_A_trans,
+                    bool is_B_trans, float beta) -> status_t {
         memory_desc_t a_md, b_md, c_md;
-        CHECK(create_2d_desc(&b_md, k, m, a_dt, transpose::notrans, lda));
+        CHECK(create_2d_desc(&b_md, k, m, a_dt,
+                is_A_trans ? transpose::trans : transpose::notrans, lda));
         CHECK(create_2d_desc(&a_md, n, k, b_dt,
                 is_B_trans ? transpose::trans : transpose::notrans, ldb));
         CHECK(create_2d_desc(&c_md, n, m, c_dt, transpose::notrans, ldc));
@@ -649,22 +650,24 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                     layer_merged_size, slc, rnn_conf.weights_layer_ld,
                     rnn_conf.states_ws_ld, rnn_conf.scratch_gates_ld,
                     weights_type, src_type, rnn_conf.acc_data_type, false,
-                    0.0));
+                    false, 0.0));
             if (rnn_conf.is_vanilla_gru) {
                 CHECK(create_gemm_pd(gemm_iter_fwd_pd_, (n_gates - 1) * dhc,
                         batch, sic, rnn_conf.weights_iter_ld,
                         rnn_conf.states_ws_ld, rnn_conf.scratch_gates_ld,
                         weights_type, src_type, rnn_conf.acc_data_type, false,
-                        gemm_iter_fwd_beta));
+                        false, gemm_iter_fwd_beta));
                 CHECK(create_gemm_pd(gemm_iter_fwd_2_pd_, dhc, batch, sic,
                         rnn_conf.weights_iter_ld, rnn_conf.states_ws_ld,
                         rnn_conf.scratch_gates_ld, weights_type, src_type,
-                        rnn_conf.acc_data_type, false, gemm_iter_fwd_beta));
+                        rnn_conf.acc_data_type, false, false,
+                        gemm_iter_fwd_beta));
             } else {
                 CHECK(create_gemm_pd(gemm_iter_fwd_pd_, n_gates * dhc, batch,
                         sic, rnn_conf.weights_iter_ld, rnn_conf.states_ws_ld,
                         rnn_conf.gates_ws_ld, weights_type, src_type,
-                        rnn_conf.acc_data_type, false, gemm_iter_fwd_beta));
+                        rnn_conf.acc_data_type, false, false,
+                        gemm_iter_fwd_beta));
             }
             break;
         case prop_kind::backward:
@@ -673,43 +676,44 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                         (n_gates - 1) * dhc, rnn_conf.weights_iter_ld,
                         rnn_conf.scratch_diff_gates_ld,
                         rnn_conf.scratch_diff_states_ld, weights_type, src_type,
-                        rnn_conf.acc_data_type, false, 1.0f));
+                        rnn_conf.acc_data_type, false, false, 1.0f));
                 CHECK(create_gemm_pd(gemm_iter_bwd_2_pd_, sic, batch, dhc,
                         rnn_conf.weights_iter_ld,
                         rnn_conf.scratch_diff_gates_ld,
                         rnn_conf.scratch_diff_states_ld, weights_type, src_type,
-                        rnn_conf.acc_data_type, false, 0.0f));
+                        rnn_conf.acc_data_type, false, false, 0.0f));
                 CHECK(create_gemm_pd(gemm_diff_wei_iter_pd_,
                         (n_gates - 1) * dhc, sic, iter_merged_size,
                         rnn_conf.scratch_diff_gates_ld, rnn_conf.states_ws_ld,
                         rnn_conf.diff_weights_iter_ld, weights_type, src_type,
-                        rnn_conf.acc_data_type, true, 1.0f));
+                        rnn_conf.acc_data_type, false, true, 1.0f));
                 CHECK(create_gemm_pd(gemm_diff_wei_iter_2_pd_, dhc, sic,
                         iter_merged_size, rnn_conf.scratch_diff_gates_ld,
                         rnn_conf.states_ws_ld, rnn_conf.diff_weights_iter_ld,
-                        weights_type, src_type, rnn_conf.acc_data_type, true,
-                        1.0f));
+                        weights_type, src_type, rnn_conf.acc_data_type, false,
+                        true, 1.0f));
             } else {
                 CHECK(create_gemm_pd(gemm_iter_bwd_pd_, sic, batch,
                         n_gates * dhc, rnn_conf.weights_iter_ld,
                         rnn_conf.scratch_diff_gates_ld,
                         rnn_conf.scratch_diff_states_ld, weights_type, src_type,
-                        rnn_conf.acc_data_type, false, gemm_iter_bwd_beta));
+                        rnn_conf.acc_data_type, false, false,
+                        gemm_iter_bwd_beta));
                 CHECK(create_gemm_pd(gemm_diff_wei_iter_pd_, n_gates * dhc, sic,
                         iter_merged_size, rnn_conf.scratch_diff_gates_ld,
                         rnn_conf.states_ws_ld, rnn_conf.diff_weights_iter_ld,
-                        weights_type, src_type, rnn_conf.acc_data_type, true,
-                        1.0f));
+                        weights_type, src_type, rnn_conf.acc_data_type, false,
+                        true, 1.0f));
             }
             CHECK(create_gemm_pd(gemm_layer_bwd_pd_, slc, layer_merged_size,
                     n_gates * dhc, rnn_conf.weights_layer_ld,
                     rnn_conf.scratch_diff_gates_ld,
                     rnn_conf.scratch_diff_states_ld, weights_type, src_type,
-                    rnn_conf.acc_data_type, false, 0.0f));
+                    rnn_conf.acc_data_type, false, false, 0.0f));
             CHECK(create_gemm_pd(gemm_diff_wei_layer_pd_, n_gates * dhc, slc,
                     layer_merged_size, rnn_conf.scratch_diff_gates_ld,
                     rnn_conf.states_ws_ld, rnn_conf.diff_weights_layer_ld,
-                    weights_type, src_type, rnn_conf.acc_data_type, true,
+                    weights_type, src_type, rnn_conf.acc_data_type, false, true,
                     1.0f));
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
