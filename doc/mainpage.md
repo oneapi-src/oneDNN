@@ -9,6 +9,5 @@ such as Arm\* 64-bit Architecture (AArch64) and OpenPOWER\* Power ISA (PPC64)
 is experimental.
 
 oneDNN is intended for deep learning applications and framework
-developers interested in improving application performance
-on Intel CPUs and GPUs. Deep learning practitioners should use one of the
-applications enabled with oneDNN.
+developers interested in improving application performance. Deep learning
+practitioners should use one of the applications enabled with oneDNN.
