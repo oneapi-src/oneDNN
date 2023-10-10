@@ -617,3 +617,99 @@ TEST(GCCore_CPU_const_fold_cpp, TestConstFoldElseBlock) {
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
+
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldSelect) {
+    builder::ir_builder_t builder;
+    const int simd = 8;
+    auto vec_type = sc_data_type_t::f32(simd);
+    expr cmp_true = make_expr<constant_node>(1.f, vec_type)
+            > make_expr<constant_node>(0.f, vec_type);
+    expr cmp_false = make_expr<constant_node>(0.f, vec_type)
+            > make_expr<constant_node>(1.f, vec_type);
+    expr val_one = builder::make_constant({1UL}, vec_type);
+    expr val_zero = builder::make_constant({0UL}, vec_type);
+    expr val_sel = builder::make_constant(
+            {1UL, 0UL, 1UL, 0UL, 1UL, 0UL, 1UL, 0UL}, vec_type);
+
+    _function_(
+            datatypes::void_t, ccc, _arg_("A", datatypes::f32, {10, 20, 32})) {
+        _bind_(A);
+        // Case 1:
+        A[0] = builder::make_select(false, 0, 1);
+        // Case 2:
+        A[1] = builder::make_select(true, 1, 0);
+        // Case 3:
+        A[span_t({2}, simd)]
+                = builder::make_select(cmp_true, val_one, val_zero);
+        // Case 4:
+        A[span_t({10}, simd)]
+                = builder::make_select(cmp_false, val_zero, val_one);
+        // Case 5:
+        A[span_t({18}, simd)] = builder::make_select(cmp_false, val_zero,
+                builder::make_select(cmp_false, val_zero, val_one));
+        // Case 6:
+        A[span_t({26}, simd)] = builder::make_select(
+                builder::make_constant({0UL}, datatypes::u8), val_zero,
+                builder::make_select(
+                        builder::make_constant({0UL}, datatypes::u8), val_zero,
+                        val_one));
+        // Case 7:
+        A[span_t({34}, simd)] = builder::make_select(UINT64_C(0), val_zero,
+                builder::make_select(UINT64_C(0), val_zero, val_one));
+        // Case 8:
+        A[span_t({42}, simd)] = builder::make_select(UINT64_C(0xFF),
+                builder::make_select(UINT64_C(0xFF), val_one, val_zero),
+                val_zero);
+        // Case 9:
+        A[span_t({43}, 1)] = builder::make_select(
+                UINT64_C(0x1), builder::make_select(UINT64_C(0x1), 1, 0), 0);
+        // Case 10:
+        A[span_t({44}, simd)]
+                = builder::make_select(UINT64_C(0b01010101), val_one, val_zero);
+        // case 11:
+        A[span_t({52}, simd)] = builder::make_select(
+                UINT64_C(0xFF), builder::make_exp(val_one), val_zero);
+        // case 12:
+        A[60] = builder::make_select(true, builder::make_exp(1.f), 0.f);
+        // case 13:
+        A[span_t({61}, simd)] = builder::make_select(
+                builder::make_constant({1UL, 0UL, 1UL, 0UL, 1UL, 0UL, 1UL, 0UL},
+                        sc_data_type_t::boolean(8)),
+                val_one, val_zero);
+    }
+    constant_folder_t s {false};
+    auto out = s(ccc);
+
+    _function_(datatypes::void_t, expected,
+            _arg_("A", datatypes::f32, {10, 20, 32})) {
+        _bind_(A);
+        // Case 1:
+        A[0] = 1;
+        // Case 2:
+        A[1] = 1;
+        // Case 3:
+        A[span_t({2}, simd)] = val_one;
+        // Case 4:
+        A[span_t({10}, simd)] = val_one;
+        // Case 5:
+        A[span_t({18}, simd)] = val_one;
+        // Case 6:
+        A[span_t({26}, simd)] = val_one;
+        // Case 7:
+        A[span_t({34}, simd)] = val_one;
+        // Case 8:
+        A[span_t({42}, simd)] = val_one;
+        // Case 9:
+        A[43] = 1;
+        // Case 10:
+        A[span_t({44}, simd)] = val_sel;
+        // Case 11:
+        A[span_t({52}, simd)] = builder::make_exp(val_one);
+        // Case 12:
+        A[60] = builder::make_exp(1.f);
+        // Case 13:
+        A[span_t({61}, simd)] = val_sel;
+    }
+    ir_comparer cmper;
+    EXPECT_TRUE(cmper.compare(out, expected));
+}

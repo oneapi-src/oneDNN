@@ -1707,12 +1707,68 @@ public:
         auto ret = ir_consistent_visitor_t::visit(std::move(v));
         if (ret.isa<select>()) {
             auto node = ret.static_as<select_c>();
-            auto &cond = node->cond_;
-            // Currently only eliminate scalar constant select
-            if (cond->dtype_ == datatypes::boolean && cond.isa<constant>()) {
-                auto c = cond.static_as<constant_c>();
-                bool is_false = is_const_equal_to(c, 0);
-                return is_false ? node->r_ : node->l_;
+            const auto &cond = node->cond_;
+            const auto &left = node->l_;
+            const auto &right = node->r_;
+            const auto &cond_vals = cond.dyn_as<constant_c>()->value_;
+            auto count = left->dtype_.lanes_;
+            if (left.isa<constant>() && right.isa<constant>()
+                    && (cond.isa<constant>())) {
+                const auto &right_vals = right.dyn_as<constant_c>()->value_;
+                const auto &left_vals = left.dyn_as<constant_c>()->value_;
+                std::vector<union_val> vals(count);
+                auto value_size_select
+                        = [](const std::vector<union_val> &vls, size_t itr) {
+                              return vls.size() > 1 ? vls[itr] : vls[0];
+                          };
+                auto cond_select = [](bool cond, const union_val &left,
+                                           const union_val &right) {
+                    return cond ? left : right;
+                };
+                for (size_t itr = 0; itr < count; itr++) {
+                    // Our IR is usually written in the form of
+                    // make_expr<constant_node>(1.f,f32(8)), and its
+                    // constant value size will be 1.
+                    auto cond_value = cond_vals[0].u64;
+                    bool boolean_cond
+                            = value_size_select(cond_vals, itr).u64 > 0UL;
+                    bool uint_cond = ((1ULL << itr) & cond_value);
+                    union_val sel_val;
+                    if (cond->dtype_.type_code_ == sc_data_etype::BOOLEAN) {
+                        sel_val = cond_select(boolean_cond,
+                                value_size_select(left_vals, itr),
+                                value_size_select(right_vals, itr));
+                    } else {
+                        sel_val = cond_select(uint_cond,
+                                value_size_select(left_vals, itr),
+                                value_size_select(right_vals, itr));
+                    }
+                    vals[itr] = sel_val;
+                }
+                return builder::make_constant(vals, ret->dtype_);
+            } else if (cond.isa<constant>()
+                    && cond->dtype_.type_code_ != sc_data_etype::BOOLEAN) {
+                assert(left->dtype_.lanes_
+                        <= utils::get_sizeof_type(cond->dtype_) * 8);
+                bool check_true = true;
+                while (count-- > 0) {
+                    check_true &= (cond_vals[0].u64 >> count) & 1;
+                }
+                bool check_false = cond_vals[0].u64 == 0UL;
+                if (check_true) { return node->l_; }
+                if (check_false) { return node->r_; }
+                return ret;
+            } else if (cond->dtype_.type_code_ == sc_data_etype::BOOLEAN
+                    && cond.isa<constant>()) {
+                bool check_true
+                        = std::all_of(cond_vals.begin(), cond_vals.end(),
+                                [](union_val x) { return x.u64 > 0UL; });
+                bool check_false
+                        = std::all_of(cond_vals.begin(), cond_vals.end(),
+                                [](union_val x) { return x.u64 == 0UL; });
+                if (check_true) { return node->l_; }
+                if (check_false) { return node->r_; }
+                return ret;
             } else if (node->l_.ptr_same(node->r_)
                     || (node->l_.isa<constant>()
                             && node->l_->equals(node->r_))) {
