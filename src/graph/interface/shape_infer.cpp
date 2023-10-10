@@ -1456,13 +1456,6 @@ status_t infer_static_reshape_output_shape(op_t *n,
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
     if (!out0.is_shape_unknown()) return status::success;
 
-    // check if partial set shape aligns with inferred shape
-    if (out0.ndims() != -1) {
-        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
-                "%s, input and output shapes are not compatible",
-                op_t::kind2str(n->get_kind()).c_str());
-    }
-
     const dims &in_dims = in0.vdims();
     dims out_dims = n->get_attr<dims>(op_attr::shape);
     const bool special_zero = n->get_attr<bool>(op_attr::special_zero);
@@ -1527,6 +1520,14 @@ status_t infer_static_reshape_output_shape(op_t *n,
                 static_cast<int>(out_dims[uncertain_axis]));
     }
 
+    // check if partial set shape aligns with inferred shape
+    if (out0.ndims() != -1) {
+        VCHECK_INVALID_SHAPE(validate(out_dims, out0.vdims()),
+                "%s, inferred ouptut shape and shape from logical tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
+    }
+
     // We should compute output dense strides instead of
     // directly copying input strides to it
     set_shape_and_strides(*outputs[0], out_dims);
@@ -1539,13 +1540,6 @@ status_t infer_static_transpose_output_shape(op_t *n,
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
     if (!out0.is_shape_unknown()) return status::success;
-
-    // check if partial set shape aligns with inferred shape
-    if (out0.ndims() != -1) {
-        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
-                "%s, input and output shapes are not compatible",
-                op_t::kind2str(n->get_kind()).c_str());
-    }
 
     const dims &in_dims = in0.vdims();
     const int32_t in_ndims = in0.ndims();
@@ -1590,6 +1584,15 @@ status_t infer_static_transpose_output_shape(op_t *n,
                     axis >= 0 ? in_dims[axis] : in_dims[axis + in_ndims]);
         }
     }
+
+    // check if partial set shape aligns with inferred shape
+    if (out0.ndims() != -1) {
+        VCHECK_INVALID_SHAPE(validate(out_dims, out0.vdims()),
+                "%s, inferred ouptut shape and shape from logical tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
+    }
+
     // We should compute output dense strides instead of
     // directly copying input strides to it
     set_shape_and_strides(*outputs[0], out_dims);
