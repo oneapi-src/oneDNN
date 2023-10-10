@@ -883,11 +883,11 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         int i = i_ + batch_id;
         if (i >= batch) break;
 
-#if CELL_KIND == VANILLA_LSTM
-
         __global SRC_DATA_T *scratch_diff_gates = scratch_diff_gates_base
                 + off_scratch_mem_iter(n_iter_scratch_gates, batch,
                         scratch_diff_gates_ld, dhc, iter);
+
+#if CELL_KIND == VANILLA_LSTM
 
         __global DIFF_DATA_T *diff_states_t_l = diff_states
                 + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
@@ -957,9 +957,6 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 #endif
 
 #elif CELL_KIND == LBR_GRU
-        __global SRC_DATA_T *scratch_diff_gates = scratch_diff_gates_base
-                + off_scratch_mem_iter(n_iter_scratch_gates, batch,
-                        scratch_diff_gates_ld, dhc, iter);
         __global SRC_DATA_T *scratch_gate_r
                 = (__global SRC_DATA_T *)(scr_gate_r);
 
@@ -1029,9 +1026,6 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 
         __global AUX_DATA_T *ws_gates_run
                 = ws_gates + cell_ws_gates(gates_ws_ld, dhc, i, 0, j);
-        __global SRC_DATA_T *scratch_diff_gates = scratch_diff_gates_base
-                + off_scratch_mem(n_iter_scratch_gates, batch,
-                        scratch_diff_gates_ld, dhc, iter, i, 0, j);
 
         __global DIFF_DATA_T *diff_states_t_lp1 = diff_states
                 + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
@@ -1046,20 +1040,21 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         float g = ws_gates_run[0];
 #if IS_TESTMODE
         float tmp = = dH * activation_bwd(g, tm_scales[0], 0.);
-        scratch_diff_gates[0] = TO_INPUT(tmp);
+        scratch_diff_gates[cell_scratch_mem(
+                scratch_diff_gates_ld, dhc, i, 0, j)]
+                = TO_INPUT(tmp);
         diff_bias_acc[0] += tmp;
 #else
         float tmp = dH * activation_bwd(g, alpha, 0.);
-        scratch_diff_gates[0] = TO_INPUT(tmp);
+        scratch_diff_gates[cell_scratch_mem(
+                scratch_diff_gates_ld, dhc, i, 0, j)]
+                = TO_INPUT(tmp);
         diff_bias_acc[0] += tmp;
 #endif
 #if N_BIAS != 1
 #error "Unexpected N_BIAS for VANILLA_RNN"
 #endif
 #elif CELL_KIND == VANILLA_GRU
-        __global SRC_DATA_T *scratch_diff_gates = scratch_diff_gates_base
-                + off_scratch_mem_iter(n_iter_scratch_gates, batch,
-                        scratch_diff_gates_ld, dhc, iter);
         __global DIFF_DATA_T *diff_src_iter = diff_states
                 + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
                         batch, scratch_diff_states_ld, lay, dir, 0, iter, 0, 0);
