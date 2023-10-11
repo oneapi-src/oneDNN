@@ -760,13 +760,10 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     nb_n_block1 = div_up(N, n_block1);
     n_block1_tail = N % n_block1;
 
-    if (brg->brgattr.bs_group > 1) {
-        n_block2 = 1;
-    } else {
-        const int max_n_block2_vmms = 4;
-        const int max_n_block2 = max_n_block2_vmms / n_block1_num_steps;
-        n_block2 = nstl::min(max_n_block2, nb_n_block1);
-    }
+    const int max_n_block2_vmms = 4;
+    const int max_n_block2 = max_n_block2_vmms / n_block1_num_steps;
+    n_block2 = nstl::min(max_n_block2, nb_n_block1);
+    if (brg->brgattr.bs_group > 1) n_block2 = n_block2 % 2 == 0 ? 2 : 1;
 
     nb_n_block2 = div_up(nb_n_block1, n_block2);
     n_block2_tail = nb_n_block1 % n_block2;
@@ -776,8 +773,9 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     m_block1_tail = M % m_block1;
     m_block2 = nstl::min(nb_m_block1,
             brg->brgattr.bs_group > 1
-                    ? max_acc_vmms / (2 * n_block2 * n_block1_num_steps)
-                            - brg->brgattr.bs_group + 1
+                    ? (max_acc_vmms / (n_block2 * n_block1_num_steps)
+                              - brg->brgattr.bs_group + 1)
+                            / 2
                     : max_acc_vmms / (n_block2 * n_block1_num_steps));
     nb_m_block2 = div_up(nb_m_block1, m_block2);
     m_block2_tail = nb_m_block1 % m_block2;

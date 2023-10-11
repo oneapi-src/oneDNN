@@ -643,7 +643,7 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
                 continue;
             }
 
-            // Begin: get number of owb to process and its correspoinding ker_idx
+            // Begin: get number of owb to process and its corresponding ker_idx
             const auto rem_work = end - iwork;
             const int rem_row_owb
                     = saturate(1, jcp.nb_ow - owb, rem_work / chb_work);

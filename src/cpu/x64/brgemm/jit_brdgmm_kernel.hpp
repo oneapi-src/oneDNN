@@ -49,8 +49,9 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
     struct vmm_allocator_helper_t {
         vmm_allocator_helper_t(const brgemm_t &brg)
             : aux_vmm_count_(0)
+            , vmm_tmp_count_(0)
             , compute_vmm_base_idx_(-1)
-            , compute_vmm_count_(1
+            , compute_vmm_count_((grouped_bs(brg) ? 0 : 1)
                       + (!is_fma_embd(brg))
                               * brg.ld_block2 /*n_block*/) // vmm_a + vmm_b
             , idx_vmm_a_(-1)
@@ -60,6 +61,8 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
             , idx_vmm_zp_comp_(-1)
             , idx_vmm_bcast_(-1)
             , idx_vmm_s8s8_comp_(-1) {
+
+            if (brg.with_sum || brg.with_scales) vmm_tmp_count_ = 2;
 
             // assign aux vmms
             if (is_fast_vnni_int8(brg)) idx_vmm_permute_ = aux_vmm_count_++;
@@ -86,8 +89,9 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
             // assign compute vmms
             idx_vmm_a_ = compute_vmm_base_idx_;
             const int max_m = brg.bd_block2 + brg.brgattr.bs_group - 1;
-            const int max_n = brg.ld_block2 - 1;
-            idx_vmm_b_ = vmm_a_idx(brg, max_m, max_n) + !is_fma_embd(brg);
+            const int max_n = brg.ld_block2;
+            idx_vmm_b_
+                    = vmm_a_idx(brg, max_m - 1, max_n - 1) + !is_fma_embd(brg);
         }
         int vnni_substep(const brgemm_t &brg) const {
             return brg.isa_impl == avx2_vnni_2 && brg.is_xf16() ? 2 : 1;
@@ -101,8 +105,7 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
 
         int get_compute_vmm_count() { return compute_vmm_count_; }
         int get_aux_vmm_count() {
-            const int vmm_tmp_count = 2; // vmm_tmp(0) + vmm_tmp(1)
-            return nstl::max(vmm_tmp_count, aux_vmm_count_);
+            return nstl::max(vmm_tmp_count_, aux_vmm_count_);
         }
         int get_idx_vmm_a() {
             assert(idx_vmm_a_ >= 0);
@@ -135,6 +138,7 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
 
     private:
         int aux_vmm_count_;
+        int vmm_tmp_count_;
         int compute_vmm_base_idx_;
         int compute_vmm_count_;
         int idx_vmm_a_;
