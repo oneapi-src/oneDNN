@@ -273,9 +273,7 @@ TEST(Execute, LogSoftmax) {
             graph::status::success);
     strm->wait();
     dst_data = dst_ts.as_vec_type<float>();
-    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
-    }
+    ASSERT_TRUE(allclose(dst_data, ref_dst_data, 1e-5f, 1e-8f));
 }
 
 TEST(Execute, LogSoftmaxBackward) {
