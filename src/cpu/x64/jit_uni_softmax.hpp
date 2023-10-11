@@ -111,11 +111,11 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                     = utils::one_of(dst_dt, f32, bf16, f16, s8, u8);
             VDISPATCH_SOFTMAX(dst_dt_ok, VERBOSE_UNSUPPORTED_DT);
 
-            // TODO: add int8 support for AVX2/SSE41.
+            // TODO: add int8 support for SSE41.
             const bool int8_isa_ok
                     = IMPLICATION((utils::one_of(s8, src_dt, dst_dt)
                                           || utils::one_of(u8, src_dt, dst_dt)),
-                            is_superset(isa_, avx512_core));
+                            is_superset(isa_, avx2));
             VDISPATCH_SOFTMAX(int8_isa_ok, VERBOSE_ISA_DT_MISMATCH);
 
             const bool bf16_isa_ok

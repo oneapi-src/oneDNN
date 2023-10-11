@@ -454,14 +454,26 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                     const auto vreg_tmp_src
                             = i_odd ? vreg_tmp_src_odd : vreg_tmp_src_even;
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                    if (is_logsoftmax_) // store before applying exp
-                        store(dst_ptr(dst_next_vreg_stride_ * (i + i_odd)),
-                                vreg_tmp_src, dst_d_.data_type(), tail);
+                    if (is_logsoftmax_) { // store before applying exp
+                        if (need_scratchpad_)
+                            store(interim_ptr(interim_next_vreg_stride_
+                                          * (i + i_odd)),
+                                    vreg_tmp_src, f32, tail);
+                        else
+                            store(dst_ptr(dst_next_vreg_stride_ * (i + i_odd)),
+                                    vreg_tmp_src, dst_d_.data_type(), tail);
+                    }
                     exp_injector_->compute_vector(vreg_tmp_src.getIdx());
                     uni_vaddps_maybe_tail(vsum, vreg_tmp_src, vtmp, tail);
-                    if (is_softmax_) // store after applying exp
-                        store(dst_ptr(dst_next_vreg_stride_ * (i + i_odd)),
-                                vreg_tmp_src, dst_d_.data_type(), tail);
+                    if (is_softmax_) { // store after applying exp
+                        if (need_scratchpad_)
+                            store(interim_ptr(interim_next_vreg_stride_
+                                          * (i + i_odd)),
+                                    vreg_tmp_src, f32, tail);
+                        else
+                            store(dst_ptr(dst_next_vreg_stride_ * (i + i_odd)),
+                                    vreg_tmp_src, dst_d_.data_type(), tail);
+                    }
                 }
             }
         });
@@ -523,16 +535,22 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 Vmm vreg_tmp_src_even = Vmm(i + 1);
                 Vmm vreg_tmp_src_odd = Vmm(i + 2);
                 vtmp = Vmm(i + 3);
-                if (can_load_two_simdw) {
+                if (can_load_two_simdw && !need_scratchpad_) {
                     io_[dst_d_.data_type()]->load_two_simdw_xf16(
                             dst_ptr(dst_next_vreg_stride_ * i),
                             vreg_tmp_src_even, vreg_tmp_src_odd);
                     io_[dst_d_.data_type()]->merge_interleaved_to_plain(
                             vreg_tmp_src_even, vreg_tmp_src_odd, vtmp);
-                } else
-                    io_[dst_d_.data_type()]->load(
-                            dst_ptr(dst_next_vreg_stride_ * i),
-                            vreg_tmp_src_even, tail);
+                } else {
+                    if (need_scratchpad_)
+                        io_[f32]->load(
+                                interim_ptr(interim_next_vreg_stride_ * i),
+                                vreg_tmp_src_even, tail);
+                    else
+                        io_[dst_d_.data_type()]->load(
+                                dst_ptr(dst_next_vreg_stride_ * i),
+                                vreg_tmp_src_even, tail);
+                }
                 for (int i_odd = 0; i_odd < 2 && i_odd + i < unroll; i_odd++) {
                     const auto vreg_tmp_src
                             = i_odd ? vreg_tmp_src_odd : vreg_tmp_src_even;
@@ -541,6 +559,11 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                     if (is_logsoftmax_)
                         uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
 
+                    if (is_superset(isa, avx2)) {
+                        Vmm vscale = vmax;
+                        uni_vmovups(vscale, ptr[reg_src_scales]);
+                        uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
+                    }
                     if (with_postops_) {
                         binary_injector::rhs_arg_dynamic_params_t
                                 rhs_arg_params;
@@ -556,6 +579,11 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                         }
                         postops_injector_->compute_vector(
                                 vreg_tmp_src.getIdx(), rhs_arg_params);
+                    }
+                    if (is_superset(isa, avx2)) {
+                        Vmm vscale = vmax;
+                        uni_vmovups(vscale, ptr[reg_dst_scales]);
+                        uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
                     }
 
                     store(dst_ptr(dst_next_vreg_stride_ * (i + i_odd)),
@@ -586,7 +614,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 if (is_logsoftmax_)
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
 
-                if (is_superset(isa, avx512_core)) {
+                if (is_superset(isa, avx2)) {
                     Vmm vscale = vmax;
                     uni_vmovups(vscale, ptr[reg_src_scales]);
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
@@ -606,7 +634,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                     postops_injector_->compute_vector(
                             vreg_tmp_src.getIdx(), rhs_arg_params);
                 }
-                if (is_superset(isa, avx512_core)) {
+                if (is_superset(isa, avx2)) {
                     Vmm vscale = vmax;
                     uni_vmovups(vscale, ptr[reg_dst_scales]);
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
@@ -802,10 +830,9 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
     Opmask injector_mask = Opmask(1);
 
     Vmm tail_vmask = Vmm(0);
-    // Scales are not supported for avx2 and below. Put Ymm16 on purpose to
-    // explode if it gets added. 23-26 are reserved for bf16 emulation.
-    Vmm vsrc_scale = Vmm(is_superset(isa, avx512_core) ? 21 : 16);
-    Vmm vdst_scale = Vmm(is_superset(isa, avx512_core) ? 22 : 16);
+    Vmm vsrc_scale = Vmm(is_superset(isa, avx512_core) ? 21 : 9);
+    Vmm vdst_scale = Vmm(is_superset(isa, avx512_core) ? 22 : 10);
+    // 23-26 are reserved for bf16 emulation.
     Vmm vzero = Vmm(is_superset(isa, avx512_core) ? 27 : 11);
     Vmm vsaturation_ubound = Vmm(is_superset(isa, avx512_core) ? 28 : 12);
     Vmm vcvt = Vmm(is_superset(isa, avx512_core) ? 29 : 13);
@@ -879,7 +906,7 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
         if (need_scratchpad_) {
             mov(reg_interim, ptr[reg_param + PARAM_OFF(interim)]);
         }
-        if (is_superset(isa, avx512_core)) {
+        if (is_superset(isa, avx2)) {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(src_scales)]);
             uni_vmovups(vsrc_scale, ptr[reg_tmp]);
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(dst_scales)]);
@@ -1082,7 +1109,7 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
                 if (is_logsoftmax_)
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
 
-                if (is_superset(isa, avx512_core)) {
+                if (is_superset(isa, avx2)) {
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsrc_scale);
                 }
                 if (with_postops_) {
@@ -1099,7 +1126,7 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
                     postops_injector_->compute_vector(
                             vreg_tmp_src.getIdx(), rhs_arg_params);
                 }
-                if (is_superset(isa, avx512_core)) {
+                if (is_superset(isa, avx2)) {
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vdst_scale);
                 }
                 store(dst_ptr(get_dst_stride(a, i)), vreg_tmp_src,
@@ -1253,7 +1280,7 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
         preamble();
         io_.init_bf16();
         // Initialize saturation vector register
-        if (is_superset(isa, avx512_core)) {
+        if (is_superset(isa, avx2)) {
             io_.init_saturate_f32({dst_d_.data_type()});
         }
         if (exp_injector_) exp_injector_->load_table_addr();
@@ -1282,7 +1309,10 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
         need_scratchpad_ = utils::one_of(dst_d_.data_type(), u8, s8);
         // Scratchpad size is limited to a single simd_w, thus, no unrolling
         // for such cases.
-        if (need_scratchpad_) unroll_inner_size_ = 1;
+        if (need_scratchpad_)
+            unroll_inner_size_ = 1;
+        else if (mayiuse(avx2) && !mayiuse(avx512_core))
+            unroll_inner_size_ = 2;
 
         const auto &post_ops = pd_->attr()->post_ops_;
         with_postops_ = post_ops.len() != 0;
