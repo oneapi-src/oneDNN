@@ -2111,6 +2111,20 @@ private:
             }
         }
         if (outer != k_tg) return plan_status_t::invalid_slm_k_slicing;
+
+        if (convert_ngen_arch_to_dnnl(plan_.hw) < compute::gpu_arch_t::xe_hpg) {
+            // Verifies that SLM loads after k-slicing are at GRF granularity.
+            auto l_sub = l.map(tensor_t(rem_dims));
+            int bytes = l_sub.type().size();
+            stride_t stride = 1;
+            for (auto &b : l_sub.blocks()) {
+                if (b.stride != stride) break;
+                bytes *= (int)b.block;
+                stride *= b.block;
+            }
+            if (bytes % plan_.grf_size() != 0)
+                return plan_status_t::invalid_slm_k_slicing;
+        }
         return plan_status_t::success;
     }
 
