@@ -24,6 +24,7 @@
 #include "gpu/compute/context.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/utils.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -85,24 +86,24 @@ public:
     virtual status_t parallel_for(stream_t &stream, const nd_range_t &range,
             const kernel_arg_list_t &arg_list, const event_t &deps,
             event_t &out_dep) {
-        assert(!"unexpected");
+        gpu_assert(false) << "unimplemented function parallel_for() called";
         return status::runtime_error;
     }
 
     virtual status_t parallel_for(
             stream_t &stream, const std::function<void(void *)> &cgf) {
-        assert(!"unexpected");
+        gpu_assert(false) << "unimplemented function parallel_for() called";
         return status::runtime_error;
     }
 
     virtual status_t get_binary_size(
             const engine_t *engine, size_t *binary_size) const {
-        assert(!"unexpected");
+        gpu_assert(false) << "unimplemented function get_binary_size() called";
         return status::runtime_error;
     }
     virtual status_t get_binary(
             const engine_t *engine, compute::binary_t &binary) const {
-        assert(!"unexpected");
+        gpu_assert(false) << "unimplemented function get_binary() called";
         return status::runtime_error;
     }
 

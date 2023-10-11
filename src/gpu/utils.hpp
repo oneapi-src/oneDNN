@@ -20,7 +20,7 @@
 #include <sstream>
 
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
+#include "gpu/compute/device_info.hpp"
 
 // Uncomment this when aborting on ir_assert is desired:
 // #define GPU_ABORT_ON_ERROR
