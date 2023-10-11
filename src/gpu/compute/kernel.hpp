@@ -114,8 +114,14 @@ public:
 
     virtual void save_output_events() {}
 
-    virtual bool is_on(const compute_engine_t &) const = 0;
-    virtual std::string name() const = 0;
+    virtual bool is_on(const compute_engine_t &) const {
+        gpu_assert(false) << "unimplemented function is_on() called";
+        return false;
+    }
+    virtual std::string name() const {
+        gpu_assert(false) << "unimplemented function name() called";
+        return "unknown";
+    }
 };
 
 inline status_t kernel_t::parallel_for(stream_t &stream,
