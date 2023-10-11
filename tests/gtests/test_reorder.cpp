@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2023 Intel Corporation
+* Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,6 +50,10 @@ TEST_P(reorder_simple_test_f32_f32, TestsReorder) {
 TEST_P(reorder_simple_test_s8_s8, TestsReorder) {
     Test();
 }
+
+INSTANTIATE_TEST_SUITE_P(ACLCases, reorder_simple_test_f32_f32,
+        ::testing::Values(cfg_f32 {fmt::cdba, fmt::Acdb8a, {16, 16, 1, 1}},
+                cfg_f32 {fmt::cdba, fmt::Acdb8a, {1, 16, 1, 1}}));
 
 INSTANTIATE_TEST_SUITE_P(CornerCases, reorder_simple_test_f32_f32,
         ::testing::Values(cfg_f32 {fmt::nchw, fmt::nc, {2, 16, 8, 8}, true,
