@@ -36,6 +36,7 @@
 #include <compiler/ir/transform/scope_flatten.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/transform/tensor_inplace_info.hpp>
+#include <compiler/ir/viewer.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <ops/convolution.hpp>
 #include <ops/fusible/memory_movement.hpp>
@@ -1752,6 +1753,39 @@ static size_t get_great_common_loop_size(const std::vector<for_loop> &loop_A,
     return merged_loop_size;
 }
 
+/**
+ * find nested parallel for. E.g.
+ * pfor(){
+ *  tensor a; // optional
+ *  pfor(){
+ *  }
+ * }
+ * */
+class nested_pfor_finder_t : public ir_viewer_t {
+public:
+    using ir_viewer_t::dispatch;
+    using ir_viewer_t::view;
+    // return whether nested pfor exist
+    bool operator()(for_loop_c v) {
+        ir_viewer_t::dispatch(std::move(v));
+        return pfor_cnt_ > 1;
+    }
+    expr_c dispatch(expr_c v) override { return v; }
+
+    void view(for_loop_c f) override {
+        // check pfor
+        if (f->kind_ == for_type::PARALLEL && f->num_threads_ > 0) {
+            pfor_cnt_++;
+        }
+        // to be faster
+        if (pfor_cnt_ > 1) return;
+        ir_viewer_t::view(f);
+    }
+
+private:
+    int pfor_cnt_ = 0;
+};
+
 static bool try_merge_mixed_parti_parallel_inners(
         mixed_parti_t *pa_to_merge, mixed_parti_t *parti_be_merged) {
     pa_to_merge = pa_to_merge->get_root(),
@@ -1789,10 +1823,42 @@ static bool try_merge_mixed_parti_parallel_inners(
     SC_MODULE_INFO << parti_be_merged->func_;
 
     if (check_parti_dep(pa_to_merge, parti_be_merged) == parti_dep::no_dep) {
-        auto last_for = get_last_loop_in_body(
-                outer_loops_to_merge[merged_loop_size - 1]->body_);
-        if (last_for.defined()) {
-            last_for->attr()[stmt_attr_key::no_post_barrier] = true;
+        auto &to_merge_body = outer_loops_to_merge[merged_loop_size - 1]->body_;
+        /**
+         * The thread-shared buffer of the previous pfor and the thread-shared
+         * buffer of the next pfor may share the same memory location after
+         * buffer scheduling and hoist. After removal of barrier, some threads
+         * may work on the previous pfor and others may work on the next pfor,
+         * and they share the same memory localtion. This will cause race
+         * condition. To avoid that, we need to check that:
+         *  1. there are no tensors defined in the immediate body of the merged
+         * pfor.
+         *  2. the buffers inside of the child pfor of the merged pfor must be
+         * the most inner loop (i.e. merged pfor must be second most inner
+         * loop). This is to avoid hoisting of the tensors. */
+        bool barrier_can_remove = true;
+        if (to_merge_body.isa<stmts>()) {
+            for (auto &s : to_merge_body.static_as<stmts>()->seq_) {
+                if (s.isa<define>()) {
+                    // Case 1: if tensor node is defined
+                    if (s.static_as<define>()->var_.isa<tensor>()) {
+                        barrier_can_remove = false;
+                        break;
+                    }
+                } else if (s.isa<for_loop>()) {
+                    // Case 2: nested pfor and potential hoist buffer
+                    if (nested_pfor_finder_t()(s.static_as<for_loop>())) {
+                        barrier_can_remove = false;
+                        break;
+                    }
+                }
+            }
+        }
+        if (barrier_can_remove) {
+            auto last_for = get_last_loop_in_body(to_merge_body);
+            if (last_for.defined()) {
+                last_for->attr()[stmt_attr_key::no_post_barrier] = true;
+            }
         }
     }
 
