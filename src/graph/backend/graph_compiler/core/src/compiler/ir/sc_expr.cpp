@@ -309,7 +309,7 @@ bool constant_node::equals(expr_c v, ir_comparer &ctx) const {
     sc_data_etype etype = dtype_.is_etype_pointer() ? sc_data_etype::POINTER
                                                     : dtype_.type_code_;
     bool is_float_category = dtype_.type_code_ != sc_data_etype::POINTER
-            && get_etype_category(dtype_.type_code_)
+            && get_etype_category_nothrow(dtype_.type_code_)
                     == type_category::CATE_FLOAT;
 
     auto is_values_equals
@@ -319,7 +319,7 @@ bool constant_node::equals(expr_c v, ir_comparer &ctx) const {
                   return std::all_of(v2.begin(), v2.end(),
                           [&v1, &is_float_category](const union_val &x) {
                               return is_float_category ? x.f32 == v1[0].f32
-                                                       : x.s64 == v1[0].s64;
+                                                       : x.u64 == v1[0].u64;
                           });
               };
     // Our IR is usually written in the form of
@@ -341,7 +341,7 @@ bool constant_node::equals(expr_c v, ir_comparer &ctx) const {
                 if (is_float_category) {
                     if (x.f32 != y.f32) { return false; }
                 } else {
-                    if (x.s64 != y.s64) { return false; }
+                    if (x.u64 != y.u64) { return false; }
                 }
                 return true;
             });
