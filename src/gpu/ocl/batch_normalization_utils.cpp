@@ -69,8 +69,6 @@ void init_conf_basic(bnorm_conf_t &conf, const batch_normalization_pd_t *pd) {
     conf.calculate_diff_stats = !pd->use_global_stats();
     conf.diff_scale = (pd->use_scale() && bd.prop_kind == prop_kind::backward);
     conf.diff_shift = (pd->use_shift() && bd.prop_kind == prop_kind::backward);
-
-    conf.use_workaround = false;
 }
 
 } // namespace bn_utils

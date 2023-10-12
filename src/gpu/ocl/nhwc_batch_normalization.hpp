@@ -31,6 +31,10 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+struct nhwc_bnorm_params_t : public bn_lookup_table::params_t {
+    bool use_workaround = false;
+};
+
 struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_batch_normalization_fwd_pd_t {
@@ -85,7 +89,7 @@ struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
-        bn_lookup_table::params_t conf;
+        nhwc_bnorm_params_t conf;
         offsets_t off;
         compute::dispatch_t dispatch_calc_stat;
         compute::dispatch_t dispatch_reduce_stat;
@@ -221,7 +225,7 @@ struct nhwc_batch_normalization_bwd_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
-        bn_lookup_table::params_t conf;
+        nhwc_bnorm_params_t conf;
         offsets_t off;
         compute::dispatch_t dispatch_calc_stat;
         compute::dispatch_t dispatch_reduce_stat;

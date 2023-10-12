@@ -142,8 +142,6 @@ static status_t init_conf_common(bn_lookup_table::params_t &conf,
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
 
-    conf.nhwc_optimized = false;
-
     conf.mb_block = 1;
 
     const bool has_padding = !data_mdw.is_dense();
@@ -173,11 +171,6 @@ static status_t init_conf_common(bn_lookup_table::params_t &conf,
     // TODO: implement it, possible perf boost could be ~ 2x
     if (conf.ic % 8 == 0 && conf.ic % 16 && conf.use_stats_one_pass)
         conf.use_stats_one_pass = false;
-
-    // Used in old universal kernels (blocked or nhwc layout)
-    // TODO: remove once IC tail processing is implemented for NHWC-optimized
-    // kernels and nhwc part is removed from universal kernels
-    conf.use_nhwc = conf.is_nhwc;
 
     if (has_padding
             || !(conf.is_blocked_16c || conf.is_blocked_16n16c
@@ -330,7 +323,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block());
 
-    kernel_ctx.define_int("USE_NHWC", conf.use_nhwc);
+    kernel_ctx.define_int("USE_NHWC", conf.is_nhwc);
     kernel_ctx.define_int("SP", conf.sp);
     kernel_ctx.define_int("SP_TAIL", conf.sp_tail);
     kernel_ctx.define_int("VECT_SIZE", conf.vect_size);
@@ -363,7 +356,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int(
             "REDUCE_IC_SUB_GROUPS", conf.stat_ic / conf.sub_group_size);
     kernel_ctx.define_int("USE_STATS_ONE_PASS", conf.use_stats_one_pass);
-    kernel_ctx.define_int("NHWC_OPTIMIZED", conf.nhwc_optimized);
+    kernel_ctx.define_int("NHWC_OPTIMIZED", false);
     kernel_ctx.define_int("SG_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("UPDATE_SP_UNROLL", conf.update_sp_unroll());
     kernel_ctx.define_int(

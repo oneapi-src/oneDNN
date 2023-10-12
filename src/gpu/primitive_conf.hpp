@@ -450,7 +450,7 @@ struct bnorm_conf_t {
     int stat_sp_nblocks, stat_sp_tail;
     int update_sp_nblocks, update_sp_tail;
     int reduce_stat_nblocks;
-    bool with_relu, use_nhwc;
+    bool with_relu;
     dim_t stat_ic;
     bool is_forward, is_backward;
     bool use_scale, use_shift, save_stats, is_training;
@@ -461,9 +461,7 @@ struct bnorm_conf_t {
     int sub_group_size;
     bool skip_reduce_stat;
     bool use_stats_one_pass;
-    bool nhwc_optimized;
     int calc_stat_ic;
-    bool use_workaround;
 };
 
 // Layer Normalization
