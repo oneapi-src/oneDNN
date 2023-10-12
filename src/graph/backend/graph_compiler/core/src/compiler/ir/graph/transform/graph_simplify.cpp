@@ -225,6 +225,9 @@ void excess_tensor_view_elimination(sc_graph_t &graph, const context_ptr &ctx) {
                     del_node->remove();
                 }
                 if (pre_node->isa<tensor_view_op_t>()) { pre_node->remove(); }
+                if (node->attrs_.has_key("order")) {
+                    node->attrs_.remove("order");
+                }
             }
             vis->update_state_for_visited(node);
         }

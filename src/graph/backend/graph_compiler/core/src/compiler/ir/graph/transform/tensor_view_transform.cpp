@@ -246,7 +246,10 @@ void convert_to_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
             tensor_view_out->producer_owner_ = nullptr;
             auto view = graph.make("tensor_view", node->get_inputs(),
                     {tensor_view_out},
-                    {{"shape", tensor_view_out->details_.get_blocking_dims()}});
+                    {{"shape", tensor_view_out->details_.get_blocking_dims()},
+                            {"order",
+                                    node->attrs_.get<std::vector<int>>(
+                                            "order")}});
             view->copy_dispatch_key_set_from_op(node);
             node->replace_uses_with_and_remove(view);
             vis->update_state_for_visited(view);
