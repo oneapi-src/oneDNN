@@ -529,7 +529,7 @@ struct jit_softmax_kernel_t : jit_softmax_kernel_base_t, public jit_generator {
                                     vreg_tmp_src.getIdx(), dst_ptr());
                             rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
                                     vreg_tmp_src.getIdx(),
-                                    dst_axis_stride_ * i);
+                                    dst_axis_stride_ * (i + i_odd));
                             if (tail)
                                 rhs_arg_params.vmm_tail_idx_.emplace(
                                         vreg_tmp_src.getIdx());
