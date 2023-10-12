@@ -480,11 +480,6 @@ struct bnorm_conf_t {
     bool is_overrided_stat_sp_block = false;
     bool is_overrided_update_sp_block = false;
     bool is_overrided_update_sp_unroll = false;
-
-    compute::dispatch_t dispatch_calc_stat;
-    compute::dispatch_t dispatch_reduce_stat;
-    compute::dispatch_t dispatch;
-    compute::dispatch_t dispatch_reduce_aux;
 };
 
 // Layer Normalization

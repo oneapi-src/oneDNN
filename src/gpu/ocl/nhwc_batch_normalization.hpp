@@ -87,6 +87,10 @@ struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {
 
         bnorm_conf_t conf;
         offsets_t off;
+        compute::dispatch_t dispatch_calc_stat;
+        compute::dispatch_t dispatch_reduce_stat;
+        compute::dispatch_t dispatch;
+        compute::dispatch_t dispatch_reduce_aux;
     };
 
     status_t init(engine_t *engine) override {
@@ -219,6 +223,10 @@ struct nhwc_batch_normalization_bwd_t : public gpu_primitive_t {
 
         bnorm_conf_t conf;
         offsets_t off;
+        compute::dispatch_t dispatch_calc_stat;
+        compute::dispatch_t dispatch_reduce_stat;
+        compute::dispatch_t dispatch;
+        compute::dispatch_t dispatch_reduce_aux;
     };
 
     status_t init(engine_t *engine) override {

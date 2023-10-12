@@ -50,8 +50,8 @@ static size_t get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
     }
 }
 // Local group size adjustment.
-static void adjust_lws_calc_kernel(
-        bnorm_conf_t &conf, engine_t *engine, bool large_grf_mode) {
+static void adjust_lws_calc_kernel(bnorm_conf_t &conf,
+        compute::dispatch_t &dispatch, engine_t *engine, bool large_grf_mode) {
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto eu_count = compute_engine->device_info()->eu_count();
     auto max_lws = compute_engine->device_info()->max_wg_size(large_grf_mode);
@@ -60,7 +60,7 @@ static void adjust_lws_calc_kernel(
 
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     const int max_slm_size = compute::device_info_t::max_slm_size(gpu_arch);
-    auto generated_nd = conf.dispatch_calc_stat.nd_range();
+    auto generated_nd = dispatch.nd_range();
     const size_t *base_gws = generated_nd.global_range();
     const size_t *base_lws = generated_nd.local_range();
 
@@ -96,7 +96,7 @@ static void adjust_lws_calc_kernel(
     }
     tuned_lws[1] = best_val;
 
-    conf.dispatch_calc_stat.set_lws(tuned_lws);
+    dispatch.set_lws(tuned_lws);
 }
 
 static int get_nhwc_ic_block(int ic, int sg_size, int max_ocl_vect_size = 8) {
@@ -153,6 +153,9 @@ static int get_nhwc_sp_block_size(
 }
 
 static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
+        compute::dispatch_t &dispatch_calc_stat,
+        compute::dispatch_t &dispatch_reduce_stat,
+        compute::dispatch_t &dispatch, compute::dispatch_t &dispatch_reduce_aux,
         const batch_normalization_pd_t *pd, engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper data_mdw(
@@ -258,20 +261,20 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.vect_size = get_nhwc_vect_size(
             conf.ic_block, conf.max_vect_size, conf.sub_group_size);
 
-    conf.dispatch_calc_stat = compute_engine->create_dispatch();
-    conf.dispatch_calc_stat.define_dim("STAT_MB", 0, 1);
-    conf.dispatch_calc_stat.define_dim("STAT_SP", 1, conf.stat_sp_nblocks);
-    conf.dispatch_calc_stat.define_dim_with_nesting_level(
+    dispatch_calc_stat = compute_engine->create_dispatch();
+    dispatch_calc_stat.define_dim("STAT_MB", 0, 1);
+    dispatch_calc_stat.define_dim("STAT_SP", 1, conf.stat_sp_nblocks);
+    dispatch_calc_stat.define_dim_with_nesting_level(
             "STAT_IC", 1024, conf.calc_stat_ic);
-    CHECK(conf.dispatch_calc_stat.vectorize_dim(
-            "STAT_IC", conf.sub_group_size));
-    conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
-    conf.dispatch_calc_stat.generate();
+    CHECK(dispatch_calc_stat.vectorize_dim("STAT_IC", conf.sub_group_size));
+    dispatch_calc_stat.set_kernel_attr_suffix("CALC");
+    dispatch_calc_stat.generate();
     if (conf.use_fused_atomics_reduction) {
         auto *gpu_attr
                 = downcast<gpu_primitive_attr_t *>(pd->attr()->gpu_attr_.get());
         bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
-        adjust_lws_calc_kernel(conf, compute_engine, large_grf_mode);
+        adjust_lws_calc_kernel(
+                conf, dispatch_calc_stat, compute_engine, large_grf_mode);
 
         if (!compute_engine->mayiuse(
                     compute::device_ext_t::ext_float_atomics)) {
@@ -279,40 +282,43 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         }
     }
 
-    conf.dispatch_reduce_stat = compute_engine->create_dispatch();
+    dispatch_reduce_stat = compute_engine->create_dispatch();
     int reduce_sub_group_count = 1;
     while (conf.reduce_stat_nblocks % (2 * reduce_sub_group_count) == 0
             && 2 * reduce_sub_group_count * conf.sub_group_size <= 256) {
         reduce_sub_group_count = reduce_sub_group_count * 2;
     }
     conf.stat_ic = reduce_sub_group_count * conf.sub_group_size;
-    conf.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", 0, conf.stat_ic);
-    conf.dispatch_reduce_stat.define_dim("REDUCE_IC_GROUP", 1,
+    dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", 0, conf.stat_ic);
+    dispatch_reduce_stat.define_dim("REDUCE_IC_GROUP", 1,
             rnd_up(conf.ic, conf.sub_group_size) / conf.sub_group_size);
-    CHECK(conf.dispatch_reduce_stat.vectorize_dim(
+    CHECK(dispatch_reduce_stat.vectorize_dim(
             "REDUCE_STAT_IC", conf.sub_group_size));
-    conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
-    conf.dispatch_reduce_stat.generate();
+    dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
+    dispatch_reduce_stat.generate();
 
     conf.sp_tail = rnd_dn(conf.sp, conf.vect_size);
 
-    conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
-    conf.dispatch.define_dim("MB", 0, 1);
-    conf.dispatch.define_dim("SP", 1, conf.update_sp_nblocks);
-    conf.dispatch.define_dim_with_nesting_level("IC", 1024, conf.calc_stat_ic);
-    CHECK(conf.dispatch.vectorize_dim("IC", conf.sub_group_size));
-    conf.dispatch.generate();
+    dispatch = compute_engine->create_dispatch(data_mdw.md_);
+    dispatch.define_dim("MB", 0, 1);
+    dispatch.define_dim("SP", 1, conf.update_sp_nblocks);
+    dispatch.define_dim_with_nesting_level("IC", 1024, conf.calc_stat_ic);
+    CHECK(dispatch.vectorize_dim("IC", conf.sub_group_size));
+    dispatch.generate();
 
-    conf.dispatch_reduce_aux = compute_engine->create_dispatch(data_mdw.md_);
-    conf.dispatch_reduce_aux.define_dim("IC_AUX", 0, conf.ic);
-    conf.dispatch_reduce_aux.set_kernel_attr_suffix("AUX");
-    conf.dispatch_reduce_aux.generate();
+    dispatch_reduce_aux = compute_engine->create_dispatch(data_mdw.md_);
+    dispatch_reduce_aux.define_dim("IC_AUX", 0, conf.ic);
+    dispatch_reduce_aux.set_kernel_attr_suffix("AUX");
+    dispatch_reduce_aux.generate();
 
     return status::success;
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const bnorm_conf_t &conf, const offsets_t &off) {
+        const bnorm_conf_t &conf, const compute::dispatch_t &dispatch_calc_stat,
+        const compute::dispatch_t &dispatch_reduce_stat,
+        const compute::dispatch_t &dispatch,
+        const compute::dispatch_t &dispatch_reduce_aux, const offsets_t &off) {
     kernel_ctx.set_data_type(conf.data_type);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
@@ -370,21 +376,23 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
 
-    def_dispatch(kernel_ctx, conf.dispatch_calc_stat);
-    def_dispatch(kernel_ctx, conf.dispatch_reduce_stat);
-    def_dispatch(kernel_ctx, conf.dispatch_reduce_aux);
-    def_dispatch(kernel_ctx, conf.dispatch);
+    def_dispatch(kernel_ctx, dispatch_calc_stat);
+    def_dispatch(kernel_ctx, dispatch_reduce_stat);
+    def_dispatch(kernel_ctx, dispatch_reduce_aux);
+    def_dispatch(kernel_ctx, dispatch);
 
     return status::success;
 }
 
 status_t nhwc_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(conf, off, this, engine);
+    return init_conf_common(conf, off, dispatch_calc_stat, dispatch_reduce_stat,
+            dispatch, dispatch_reduce_aux, this, engine);
 }
 
 status_t nhwc_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off);
+    return init_kernel_ctx_common(kernel_ctx, conf, dispatch_calc_stat,
+            dispatch_reduce_stat, dispatch, dispatch_reduce_aux, off);
 }
 
 void nhwc_batch_normalization_fwd_t::pd_t::init_scratchpad() {
@@ -459,7 +467,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
         arg_list.set(0, mean);
         arg_list.set(1, variance);
 
-        auto nd_range = conf.dispatch_reduce_aux.nd_range();
+        auto nd_range = pd()->dispatch_reduce_aux.nd_range();
         status = parallel_for(ctx, nd_range, reduce_init_kernel_, arg_list);
         if (status != status::success) return status;
     }
@@ -470,7 +478,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
         calc_mean_arg_list.set(1, *temp_reduce);
         calc_mean_arg_list.set(2, mean);
 
-        auto nd_range_calc_mean = conf.dispatch_calc_stat.nd_range();
+        auto nd_range_calc_mean = pd()->dispatch_calc_stat.nd_range();
 
         status = parallel_for(ctx, nd_range_calc_mean, calculate_mean_kernel_,
                 calc_mean_arg_list);
@@ -479,7 +487,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
         if (conf.use_fused_atomics_reduction) {
             compute::kernel_arg_list_t arg_list;
             arg_list.set(0, mean);
-            auto nd_range = conf.dispatch_reduce_aux.nd_range();
+            auto nd_range = pd()->dispatch_reduce_aux.nd_range();
             status = parallel_for(
                     ctx, nd_range, reduce_final_kernel_, arg_list);
             if (status != status::success) return status;
@@ -488,7 +496,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
             arg_list.set(0, *temp_reduce);
             arg_list.set(1, mean);
 
-            auto nd_range_reduce_mean = conf.dispatch_reduce_stat.nd_range();
+            auto nd_range_reduce_mean = pd()->dispatch_reduce_stat.nd_range();
 
             status = parallel_for(
                     ctx, nd_range_reduce_mean, reduce_mean_kernel_, arg_list);
@@ -501,7 +509,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
         calc_var_arg_list.set(2, *temp_reduce);
         calc_var_arg_list.set(3, variance);
 
-        auto nd_range_calc_var = conf.dispatch_calc_stat.nd_range();
+        auto nd_range_calc_var = pd()->dispatch_calc_stat.nd_range();
 
         status = parallel_for(ctx, nd_range_calc_var,
                 calculate_variance_kernel_, calc_var_arg_list);
@@ -510,7 +518,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
         if (conf.use_fused_atomics_reduction) {
             compute::kernel_arg_list_t arg_list;
             arg_list.set(0, variance);
-            auto nd_range = conf.dispatch_reduce_aux.nd_range();
+            auto nd_range = pd()->dispatch_reduce_aux.nd_range();
             status = parallel_for(
                     ctx, nd_range, reduce_final_kernel_, arg_list);
             if (status != status::success) return status;
@@ -519,7 +527,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
             arg_list.set(0, *temp_reduce);
             arg_list.set(1, variance);
 
-            auto nd_range_reduce_var = conf.dispatch_reduce_stat.nd_range();
+            auto nd_range_reduce_var = pd()->dispatch_reduce_stat.nd_range();
 
             status = parallel_for(ctx, nd_range_reduce_var,
                     reduce_variance_kernel_, arg_list);
@@ -533,7 +541,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
         arg_list.set(2, mean);
         arg_list.set(3, variance);
 
-        auto nd_range_calc_mean = conf.dispatch_calc_stat.nd_range();
+        auto nd_range_calc_mean = pd()->dispatch_calc_stat.nd_range();
 
         status = parallel_for(
                 ctx, nd_range_calc_mean, calculate_mean_var_kernel_, arg_list);
@@ -543,7 +551,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
             compute::kernel_arg_list_t arg_list;
             arg_list.set(0, mean);
             arg_list.set(1, variance);
-            auto nd_range_reduce_final = conf.dispatch_reduce_aux.nd_range();
+            auto nd_range_reduce_final = pd()->dispatch_reduce_aux.nd_range();
 
             status = parallel_for(
                     ctx, nd_range_reduce_final, reduce_final_kernel_, arg_list);
@@ -554,7 +562,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
             arg_list.set(1, mean);
             arg_list.set(2, variance);
 
-            auto nd_range_reduce_mean = conf.dispatch_reduce_stat.nd_range();
+            auto nd_range_reduce_mean = pd()->dispatch_reduce_stat.nd_range();
 
             status = parallel_for(ctx, nd_range_reduce_mean,
                     reduce_mean_var_kernel_, arg_list);
@@ -573,19 +581,21 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
     arg_list.set(8, src_add);
     arg_list.set(9, conf.relu_negative_slope);
 
-    auto nd_range = conf.dispatch.nd_range();
+    auto nd_range = pd()->dispatch.nd_range();
 
     status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
 
 status_t nhwc_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(conf, off, this, engine);
+    return init_conf_common(conf, off, dispatch_calc_stat, dispatch_reduce_stat,
+            dispatch, dispatch_reduce_aux, this, engine);
 }
 
 status_t nhwc_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off);
+    return init_kernel_ctx_common(kernel_ctx, conf, dispatch_calc_stat,
+            dispatch_reduce_stat, dispatch, dispatch_reduce_aux, off);
 }
 
 void nhwc_batch_normalization_bwd_t::pd_t::init_scratchpad() {
@@ -632,7 +642,7 @@ status_t nhwc_batch_normalization_bwd_t::execute_backward(
         arg_list.set(0, diff_scale);
         arg_list.set(1, diff_shift);
 
-        auto nd_range_reduce_init = conf.dispatch_reduce_aux.nd_range();
+        auto nd_range_reduce_init = pd()->dispatch_reduce_aux.nd_range();
         status = parallel_for(
                 ctx, nd_range_reduce_init, reduce_init_kernel_, arg_list);
         if (status != status::success) return status;
@@ -647,7 +657,7 @@ status_t nhwc_batch_normalization_bwd_t::execute_backward(
     calc_stats_arg_list.set(5, diff_scale);
     calc_stats_arg_list.set(6, diff_shift);
 
-    auto nd_range = conf.dispatch_calc_stat.nd_range();
+    auto nd_range = pd()->dispatch_calc_stat.nd_range();
     status = parallel_for(
             ctx, nd_range, calculate_stats_kernel_, calc_stats_arg_list);
     if (status != status::success) return status;
@@ -657,7 +667,7 @@ status_t nhwc_batch_normalization_bwd_t::execute_backward(
         arg_list.set(0, diff_scale);
         arg_list.set(1, variance);
         arg_list.set(2, conf.eps);
-        auto nd_range = conf.dispatch_reduce_aux.nd_range();
+        auto nd_range = pd()->dispatch_reduce_aux.nd_range();
         status = parallel_for(ctx, nd_range, reduce_final_kernel_, arg_list);
         if (status != status::success) return status;
     } else {
@@ -668,7 +678,7 @@ status_t nhwc_batch_normalization_bwd_t::execute_backward(
         arg_list.set(3, variance);
         arg_list.set(4, conf.eps);
 
-        auto nd_range_reduce_stat = conf.dispatch_reduce_stat.nd_range();
+        auto nd_range_reduce_stat = pd()->dispatch_reduce_stat.nd_range();
         status = parallel_for(
                 ctx, nd_range_reduce_stat, reduce_stats_kernel_, arg_list);
         if (status != status::success) return status;
@@ -687,7 +697,7 @@ status_t nhwc_batch_normalization_bwd_t::execute_backward(
     arg_list.set(9, conf.eps);
     arg_list.set(10, diff_src_add);
 
-    nd_range = conf.dispatch.nd_range();
+    nd_range = pd()->dispatch.nd_range();
     status = parallel_for(ctx, nd_range, bwd_kernel_, arg_list);
 
     return status;

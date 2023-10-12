@@ -29,11 +29,13 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static void init_calculate_stats_conf(bnorm_conf_t &conf, engine_t *engine,
+static void init_calculate_stats_conf(bnorm_conf_t &conf,
+        compute::dispatch_t &dispatch_calc_stat,
+        compute::dispatch_t &dispatch_reduce_stat, engine_t *engine,
         const memory_desc_wrapper &data_mdw) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     const int ndims = conf.ndims;
-    conf.dispatch_calc_stat = compute_engine->create_dispatch(data_mdw.md_);
+    dispatch_calc_stat = compute_engine->create_dispatch(data_mdw.md_);
     dim_t calc_dims[5];
     auto &dims = data_mdw.dims();
     calc_dims[0] = dims[0];
@@ -54,27 +56,27 @@ static void init_calculate_stats_conf(bnorm_conf_t &conf, engine_t *engine,
     calc_dims[reduce_dim_idx] = 1;
 
     conf.stat_ic = utils::array_product(calc_dims, 5);
-    conf.dispatch_calc_stat.define_dim(dim_names[0], 0, calc_dims[0]);
-    conf.dispatch_calc_stat.define_dim(dim_names[1], 1, calc_dims[1]);
-    conf.dispatch_calc_stat.define_dim(
+    dispatch_calc_stat.define_dim(dim_names[0], 0, calc_dims[0]);
+    dispatch_calc_stat.define_dim(dim_names[1], 1, calc_dims[1]);
+    dispatch_calc_stat.define_dim(
             dim_names[2], nstl::max(1, ndims - 3), calc_dims[2]);
-    conf.dispatch_calc_stat.define_dim(
+    dispatch_calc_stat.define_dim(
             dim_names[3], nstl::max(1, ndims - 2), calc_dims[3]);
-    conf.dispatch_calc_stat.define_dim(
+    dispatch_calc_stat.define_dim(
             dim_names[4], nstl::max(1, ndims - 1), calc_dims[4]);
 
-    conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
-    conf.dispatch_calc_stat.generate();
+    dispatch_calc_stat.set_kernel_attr_suffix("CALC");
+    dispatch_calc_stat.generate();
 
-    conf.dispatch_reduce_stat = compute_engine->create_dispatch();
-    conf.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", conf.ic);
-    conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
-    conf.dispatch_reduce_stat.generate();
+    dispatch_reduce_stat = compute_engine->create_dispatch();
+    dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", conf.ic);
+    dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
+    dispatch_reduce_stat.generate();
 }
 
-static void init_conf_common(bnorm_conf_t &conf, offsets_t &off,
-        const batch_normalization_pd_t *pd, const memory_desc_wrapper &data_mdw,
-        engine_t *engine) {
+static void init_conf_common(bnorm_conf_t &conf, compute::dispatch_t &dispatch,
+        offsets_t &off, const batch_normalization_pd_t *pd,
+        const memory_desc_wrapper &data_mdw, engine_t *engine) {
 
     const batch_normalization_desc_t &bd = *pd->desc();
     const int ndims = data_mdw.ndims();
@@ -107,18 +109,19 @@ static void init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
-    conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
-    conf.dispatch.define_dim("MB", 0, conf.mb);
-    conf.dispatch.define_dim("IC", 1, conf.ic);
-    conf.dispatch.define_dim("ID", nstl::max(1, ndims - 3), conf.id);
-    conf.dispatch.define_dim("IH", nstl::max(1, ndims - 2), conf.ih);
-    conf.dispatch.define_dim("IW", nstl::max(1, ndims - 1), conf.iw);
+    dispatch = compute_engine->create_dispatch(data_mdw.md_);
+    dispatch.define_dim("MB", 0, conf.mb);
+    dispatch.define_dim("IC", 1, conf.ic);
+    dispatch.define_dim("ID", nstl::max(1, ndims - 3), conf.id);
+    dispatch.define_dim("IH", nstl::max(1, ndims - 2), conf.ih);
+    dispatch.define_dim("IW", nstl::max(1, ndims - 1), conf.iw);
 
-    conf.dispatch.generate();
+    dispatch.generate();
 }
 
 static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const bnorm_conf_t &conf, const offsets_t &off) {
+        const bnorm_conf_t &conf, const compute::dispatch_t &dispatch,
+        const offsets_t &off) {
     kernel_ctx.set_data_type(conf.data_type);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
@@ -149,15 +152,16 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     if (conf.data_type == data_type::s8)
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
 
-    def_dispatch(kernel_ctx, conf.dispatch);
+    def_dispatch(kernel_ctx, dispatch);
 }
 
 void ref_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper data_mdw(src_md());
-    init_conf_common(conf, off, this, data_mdw, engine);
+    init_conf_common(conf, dispatch, off, this, data_mdw, engine);
 
     if (conf.calculate_stats) {
-        init_calculate_stats_conf(conf, engine, data_mdw);
+        init_calculate_stats_conf(conf, dispatch_calc_stat,
+                dispatch_reduce_stat, engine, data_mdw);
     }
 }
 
@@ -166,10 +170,10 @@ void ref_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_FWD", 1);
 
     if (conf.calculate_stats) {
-        def_dispatch(kernel_ctx, conf.dispatch_calc_stat);
-        def_dispatch(kernel_ctx, conf.dispatch_reduce_stat);
+        def_dispatch(kernel_ctx, dispatch_calc_stat);
+        def_dispatch(kernel_ctx, dispatch_reduce_stat);
     }
-    init_kernel_ctx_common(kernel_ctx, conf, off);
+    init_kernel_ctx_common(kernel_ctx, conf, dispatch, off);
 }
 
 void ref_batch_normalization_fwd_t::pd_t::init_scratchpad() {
@@ -232,7 +236,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
         calc_mean_arg_list.set(0, src);
         calc_mean_arg_list.set(1, *temp_reduce);
 
-        auto nd_range_calc_mean = conf.dispatch_calc_stat.nd_range();
+        auto nd_range_calc_mean = pd()->dispatch_calc_stat.nd_range();
 
         CHECK(parallel_for(ctx, nd_range_calc_mean, calculate_mean_kernel_,
                 calc_mean_arg_list));
@@ -241,7 +245,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
         reduce_mean_arg_list.set(0, *temp_reduce);
         reduce_mean_arg_list.set(1, mean);
 
-        auto nd_range_reduce_kernels = conf.dispatch_reduce_stat.nd_range();
+        auto nd_range_reduce_kernels = pd()->dispatch_reduce_stat.nd_range();
 
         CHECK(parallel_for(ctx, nd_range_reduce_kernels, reduce_mean_kernel_,
                 reduce_mean_arg_list));
@@ -251,7 +255,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
         calc_var_arg_list.set(1, mean);
         calc_var_arg_list.set(2, *temp_reduce);
 
-        auto nd_range_calc_var = conf.dispatch_calc_stat.nd_range();
+        auto nd_range_calc_var = pd()->dispatch_calc_stat.nd_range();
 
         CHECK(parallel_for(ctx, nd_range_calc_var, calculate_variance_kernel_,
                 calc_var_arg_list));
@@ -276,7 +280,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     arg_list.set(8, src_add);
     arg_list.set(9, conf.relu_negative_slope);
 
-    auto nd_range = conf.dispatch.nd_range();
+    auto nd_range = pd()->dispatch.nd_range();
 
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
@@ -284,18 +288,19 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
 void ref_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper data_mdw(diff_src_md());
-    init_conf_common(conf, off, this, data_mdw, engine);
+    init_conf_common(conf, dispatch, off, this, data_mdw, engine);
 
-    init_calculate_stats_conf(conf, engine, data_mdw);
+    init_calculate_stats_conf(
+            conf, dispatch_calc_stat, dispatch_reduce_stat, engine, data_mdw);
 }
 
 void ref_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
 
-    def_dispatch(kernel_ctx, conf.dispatch_calc_stat);
-    def_dispatch(kernel_ctx, conf.dispatch_reduce_stat);
+    def_dispatch(kernel_ctx, dispatch_calc_stat);
+    def_dispatch(kernel_ctx, dispatch_reduce_stat);
     kernel_ctx.define_int("IS_BWD", 1);
-    init_kernel_ctx_common(kernel_ctx, conf, off);
+    init_kernel_ctx_common(kernel_ctx, conf, dispatch, off);
 }
 
 void ref_batch_normalization_bwd_t::pd_t::init_scratchpad() {
@@ -339,7 +344,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     calc_stats_arg_list.set(3, ws);
     calc_stats_arg_list.set(4, *temp_reduce);
 
-    auto nd_range = conf.dispatch_calc_stat.nd_range();
+    auto nd_range = pd()->dispatch_calc_stat.nd_range();
 
     CHECK(parallel_for(
             ctx, nd_range, calculate_stats_kernel_, calc_stats_arg_list));
@@ -354,7 +359,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     reduce_stats_arg_list.set(3, variance);
     reduce_stats_arg_list.set(4, conf.eps);
 
-    auto nd_range_reduce_stat = conf.dispatch_reduce_stat.nd_range();
+    auto nd_range_reduce_stat = pd()->dispatch_reduce_stat.nd_range();
 
     CHECK(parallel_for(ctx, nd_range_reduce_stat, reduce_stats_kernel_,
             reduce_stats_arg_list));
@@ -372,7 +377,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     arg_list.set(9, conf.eps);
     arg_list.set(10, diff_src_add);
 
-    nd_range = conf.dispatch.nd_range();
+    nd_range = pd()->dispatch.nd_range();
 
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }

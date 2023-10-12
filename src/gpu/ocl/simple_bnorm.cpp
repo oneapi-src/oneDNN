@@ -70,7 +70,9 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const bnorm_conf_t &conf, const offsets_t &off) {
+        const bnorm_conf_t &conf, const compute::dispatch_t &dispatch_calc_stat,
+        const compute::dispatch_t &dispatch_reduce_stat,
+        const compute::dispatch_t &dispatch, const offsets_t &off) {
     kernel_ctx.set_data_type(conf.data_type);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
@@ -102,10 +104,10 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
 
     if (conf.calculate_stats || conf.is_backward) {
-        def_dispatch(kernel_ctx, conf.dispatch_calc_stat);
-        def_dispatch(kernel_ctx, conf.dispatch_reduce_stat);
+        def_dispatch(kernel_ctx, dispatch_calc_stat);
+        def_dispatch(kernel_ctx, dispatch_reduce_stat);
     }
-    def_dispatch(kernel_ctx, conf.dispatch);
+    def_dispatch(kernel_ctx, dispatch);
     return status::success;
 }
 
@@ -121,7 +123,7 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
     compute::compute_engine_t *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine);
 
-    conf.dispatch_calc_stat = compute_engine->create_dispatch(data_mdw.md_);
+    dispatch_calc_stat = compute_engine->create_dispatch(data_mdw.md_);
     dim_t calc_dims[5];
     auto &dims = data_mdw.dims();
     calc_dims[0] = dims[0];
@@ -169,42 +171,43 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
     conf.vect_size = vector_size;
     calc_dims_blocks[reduce_dim_idx] = conf.reduce_dim / conf.sub_group_size;
 
-    conf.dispatch_calc_stat.define_dim(
+    dispatch_calc_stat.define_dim(
             dim_names[0], 0, calc_dims[0], calc_dims_blocks[0]);
-    conf.dispatch_calc_stat.define_dim(
+    dispatch_calc_stat.define_dim(
             dim_names[1], 1, calc_dims[1], calc_dims_blocks[1]);
-    conf.dispatch_calc_stat.define_dim(dim_names[2], nstl::max(1, ndims - 3),
+    dispatch_calc_stat.define_dim(dim_names[2], nstl::max(1, ndims - 3),
             calc_dims[2], calc_dims_blocks[2]);
-    conf.dispatch_calc_stat.define_dim(dim_names[3], nstl::max(1, ndims - 2),
+    dispatch_calc_stat.define_dim(dim_names[3], nstl::max(1, ndims - 2),
             calc_dims[3], calc_dims_blocks[3]);
-    conf.dispatch_calc_stat.define_dim(dim_names[4], nstl::max(1, ndims - 1),
+    dispatch_calc_stat.define_dim(dim_names[4], nstl::max(1, ndims - 1),
             calc_dims[4], calc_dims_blocks[4]);
 
-    CHECK(conf.dispatch_calc_stat.vectorize_dim(
+    CHECK(dispatch_calc_stat.vectorize_dim(
             reduce_dim_name, conf.sub_group_size));
 
-    conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
-    conf.dispatch_calc_stat.generate();
+    dispatch_calc_stat.set_kernel_attr_suffix("CALC");
+    dispatch_calc_stat.generate();
 
-    conf.dispatch_reduce_stat = compute_engine->create_dispatch();
-    conf.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", conf.ic);
-    conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
-    conf.dispatch_reduce_stat.generate();
+    dispatch_reduce_stat = compute_engine->create_dispatch();
+    dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", conf.ic);
+    dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
+    dispatch_reduce_stat.generate();
 
-    conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
-    conf.dispatch.define_dim("MB", 0, conf.mb);
-    conf.dispatch.define_dim("IC", 1, conf.ic);
-    conf.dispatch.define_dim("ID", nstl::max(1, ndims - 3), conf.id);
-    conf.dispatch.define_dim("IH", nstl::max(1, ndims - 2), conf.ih);
-    conf.dispatch.define_dim("IW", nstl::max(1, ndims - 1), conf.iw);
-    conf.dispatch.generate();
+    dispatch = compute_engine->create_dispatch(data_mdw.md_);
+    dispatch.define_dim("MB", 0, conf.mb);
+    dispatch.define_dim("IC", 1, conf.ic);
+    dispatch.define_dim("ID", nstl::max(1, ndims - 3), conf.id);
+    dispatch.define_dim("IH", nstl::max(1, ndims - 2), conf.ih);
+    dispatch.define_dim("IW", nstl::max(1, ndims - 1), conf.iw);
+    dispatch.generate();
 
     return status::success;
 }
 
 status_t simple_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    CHECK(init_kernel_ctx_common(kernel_ctx, conf, off));
+    CHECK(init_kernel_ctx_common(kernel_ctx, conf, dispatch_calc_stat,
+            dispatch_reduce_stat, dispatch, off));
     kernel_ctx.define_int("IS_FWD", 1);
     return status::success;
 }
@@ -259,7 +262,7 @@ status_t simple_batch_normalization_fwd_t::execute_forward(
     calc_var_arg_list.set(1, mean);
     calc_var_arg_list.set(2, variance);
 
-    auto nd_range_calc_var = conf.dispatch_calc_stat.nd_range();
+    auto nd_range_calc_var = pd()->dispatch_calc_stat.nd_range();
 
     CHECK(parallel_for(ctx, nd_range_calc_var, calculate_mean_variance_kernel_,
             calc_var_arg_list));
@@ -276,7 +279,7 @@ status_t simple_batch_normalization_fwd_t::execute_forward(
     arg_list.set(8, src_add);
     arg_list.set(9, conf.relu_negative_slope);
 
-    auto nd_range = conf.dispatch.nd_range();
+    auto nd_range = pd()->dispatch.nd_range();
 
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
@@ -316,37 +319,37 @@ status_t simple_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
 
     conf.reduce_stat_nblocks = stat_mb_nblocks * stat_sp_nblocks;
 
-    conf.dispatch_calc_stat = compute_engine->create_dispatch();
-    conf.dispatch_calc_stat.define_dim_with_nesting_level(
+    dispatch_calc_stat = compute_engine->create_dispatch();
+    dispatch_calc_stat.define_dim_with_nesting_level(
             "STAT_SP", 2, conf.id * conf.ih * conf.iw, stat_sp_block);
-    conf.dispatch_calc_stat.define_dim_with_nesting_level(
-            "STAT_IC", 1, conf.ic);
-    conf.dispatch_calc_stat.define_dim_with_nesting_level(
+    dispatch_calc_stat.define_dim_with_nesting_level("STAT_IC", 1, conf.ic);
+    dispatch_calc_stat.define_dim_with_nesting_level(
             "STAT_MB", 0, conf.mb, conf.mb_block);
-    CHECK(conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16));
-    conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
-    conf.dispatch_calc_stat.generate();
+    CHECK(dispatch_calc_stat.vectorize_dim("STAT_IC", 16));
+    dispatch_calc_stat.set_kernel_attr_suffix("CALC");
+    dispatch_calc_stat.generate();
 
-    conf.dispatch_reduce_stat = compute_engine->create_dispatch();
-    conf.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", conf.ic);
-    conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
-    conf.dispatch_reduce_stat.generate();
+    dispatch_reduce_stat = compute_engine->create_dispatch();
+    dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", conf.ic);
+    dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
+    dispatch_reduce_stat.generate();
 
-    conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
-    conf.dispatch.define_dim("MB", 0, conf.mb, conf.mb_block);
-    conf.dispatch.define_dim("IC", 1, conf.ic);
-    conf.dispatch.define_dim("ID", nstl::max(1, conf.ndims - 3), conf.id);
-    conf.dispatch.define_dim("IH", nstl::max(1, conf.ndims - 2), conf.ih);
-    conf.dispatch.define_dim("IW", nstl::max(1, conf.ndims - 1), conf.iw);
-    CHECK(conf.dispatch.vectorize_dim("IC", 16));
-    conf.dispatch.generate();
+    dispatch = compute_engine->create_dispatch(data_mdw.md_);
+    dispatch.define_dim("MB", 0, conf.mb, conf.mb_block);
+    dispatch.define_dim("IC", 1, conf.ic);
+    dispatch.define_dim("ID", nstl::max(1, conf.ndims - 3), conf.id);
+    dispatch.define_dim("IH", nstl::max(1, conf.ndims - 2), conf.ih);
+    dispatch.define_dim("IW", nstl::max(1, conf.ndims - 1), conf.iw);
+    CHECK(dispatch.vectorize_dim("IC", 16));
+    dispatch.generate();
 
     return status::unimplemented;
 }
 
 status_t simple_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    CHECK(init_kernel_ctx_common(kernel_ctx, conf, off));
+    CHECK(init_kernel_ctx_common(kernel_ctx, conf, dispatch_calc_stat,
+            dispatch_reduce_stat, dispatch, off));
     kernel_ctx.define_int("IC_BLOCK", 16);
     kernel_ctx.define_int("REDUCE_STAT_NBLOCKS", conf.reduce_stat_nblocks);
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
@@ -396,7 +399,7 @@ status_t simple_batch_normalization_bwd_t::execute_backward(
     calc_stats_arg_list.set(3, ws);
     calc_stats_arg_list.set(4, *temp_reduce);
 
-    auto nd_range = conf.dispatch_calc_stat.nd_range();
+    auto nd_range = pd()->dispatch_calc_stat.nd_range();
 
     CHECK(parallel_for(
             ctx, nd_range, calculate_stats_kernel_, calc_stats_arg_list));
@@ -411,7 +414,7 @@ status_t simple_batch_normalization_bwd_t::execute_backward(
     reduce_stats_arg_list.set(3, variance);
     reduce_stats_arg_list.set(4, conf.eps);
 
-    auto nd_range_reduce_stat = conf.dispatch_reduce_stat.nd_range();
+    auto nd_range_reduce_stat = pd()->dispatch_reduce_stat.nd_range();
 
     CHECK(parallel_for(ctx, nd_range_reduce_stat, reduce_stats_kernel_,
             reduce_stats_arg_list));
@@ -429,7 +432,7 @@ status_t simple_batch_normalization_bwd_t::execute_backward(
     arg_list.set(9, conf.eps);
     arg_list.set(10, diff_src_add);
 
-    nd_range = conf.dispatch.nd_range();
+    nd_range = pd()->dispatch.nd_range();
 
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
