@@ -199,7 +199,7 @@ TEST(GCCore_CPU_combined_dispatch_key_cpp, TestCombinedKeyGraphLinked) {
     auto input3 = graph.make_input({graph_tensor::make({1, 64})}); // bias
     auto input4 = graph.make_input({graph_tensor::make({64, 8})}); // weight2
     auto data_reorder = graph.make("reorder", input1->get_outputs(),
-            {graph_tensor::make({16, 32})}, {});
+            {graph_tensor::make({-1, 32})}, {});
     data_reorder->get_dispatch_key_set() = in_set1;
     auto weight_reorder = graph.make("reorder", input2->get_outputs(),
             {graph_tensor::make({32, 64})}, {});

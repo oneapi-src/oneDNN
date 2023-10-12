@@ -53,7 +53,9 @@ dynamic_transpose_op::dynamic_transpose_op(
         info_.outputs_.emplace_back(graph_tensor::make(outshape,
                 sc_data_format_t(), get_inputs()[0]->details_.dtype_));
     } else {
-        COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims() == outshape,
+        COMPILE_ASSERT(
+                gc::graph::check_shape_equal(
+                        info_.outputs_[0]->details_.get_plain_dims(), outshape),
                 "Dynamic transpose's output shape does not confirm with the "
                 "permutation order.")
     }

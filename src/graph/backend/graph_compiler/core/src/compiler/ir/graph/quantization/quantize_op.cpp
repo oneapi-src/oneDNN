@@ -63,6 +63,48 @@ quantize_infos_t get_quantize_info_from_attrs(const any_map_t &attrs) {
     return infos;
 }
 
+static void check_dynamic_quantization_schema(const quantize_infos_t &qinfos,
+        const std::vector<graph_tensor_ptr> &inputs) {
+    const auto &input = inputs[0];
+    const auto &scales = inputs[1];
+    const auto &zps = inputs.size() == 3 ? inputs[2] : nullptr;
+    COMPILE_ASSERT(scales->details_.dtype_.type_code_ == sc_data_etype::F32,
+            "dynamic quantization's scales shall be f32 dtype.");
+    if (zps) {
+        COMPILE_ASSERT(utils::is_one_of(zps->details_.dtype_.type_code_,
+                               sc_data_etype::U8, sc_data_etype::S8,
+                               sc_data_etype::S32),
+                "dynamic quantization's zps shall be one of u8/s8/s32 dtype.");
+    }
+    if (qinfos.per_channel_) {
+        const auto &channel_size
+                = input->details_.get_plain_dims()[qinfos.channel_axis_];
+        COMPILE_ASSERT(
+                gc::graph::check_shape_equal(scales->details_.get_plain_dims(),
+                        sc_dims {channel_size}),
+                "dynamic quantization op's scale shall confirm with channel "
+                "size in per_channel case.");
+        if (zps) {
+            COMPILE_ASSERT(
+                    gc::graph::check_shape_equal(zps->details_.get_plain_dims(),
+                            sc_dims {channel_size}),
+                    "dynamic quantization op's zps size shall confirm with "
+                    "channel size in per_channel case.");
+        }
+    } else {
+        COMPILE_ASSERT(gc::graph::check_shape_equal(
+                               scales->details_.get_plain_dims(), sc_dims {1}),
+                "dynamic quantization op's scale shall be {1} in "
+                "per_tensor case.");
+        if (zps) {
+            COMPILE_ASSERT(gc::graph::check_shape_equal(
+                                   zps->details_.get_plain_dims(), sc_dims {1}),
+                    "dynamic quantization op's zps shall be {1} in "
+                    "per_tensor case.");
+        }
+    }
+}
+
 quantize_op_t::quantize_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     assert(ins.size() == 1);
@@ -243,19 +285,14 @@ void dequantize_op_t::query_format(context_ptr ctx,
 dynamic_quantize_op_t::dynamic_quantize_op_t(
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
-    assert(ins.size() == 2 || ins.size() == 3);
+    COMPILE_ASSERT(ins.size() == 2 || ins.size() == 3,
+            "dynamic quantize op shall have 2 or 3 inputs.");
     assert(ins[0]->details_.dtype_.type_code_ == sc_data_etype::F32
             || ins[0]->details_.dtype_.type_code_ == sc_data_etype::S32);
-    assert(ins[1]->details_.dtype_.type_code_ == sc_data_etype::F32);
-    if (ins.size() == 3) {
-        assert(utils::is_one_of(ins[2]->details_.dtype_.type_code_,
-                sc_data_etype::U8, sc_data_etype::S8, sc_data_etype::S32));
-        assert(ins[2]->details_.get_plain_dims()
-                == ins[1]->details_.get_plain_dims());
-    }
     info_.inputs_ = ins;
+    const auto qinfos = get_quantize_info_from_attrs(attrs);
+    check_dynamic_quantization_schema(qinfos, info_.inputs_);
     if (outs.empty()) {
-        // fixme: correctly infer the shape for broadcast
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
         info_.outputs_[0]->details_ = ins[0]->details_;
         assert(attrs.has_key(attr_keys::quan_dtype));
@@ -263,6 +300,15 @@ dynamic_quantize_op_t::dynamic_quantize_op_t(
                 = attrs.get<sc_data_type_t>(attr_keys::quan_dtype);
     } else {
         info_.outputs_ = outs;
+        COMPILE_ASSERT(gc::graph::check_shape_equal(
+                               info_.inputs_[0]->details_.get_plain_dims(),
+                               info_.outputs_[0]->details_.get_plain_dims()),
+                "dynamic quantize's output shall have the same shape as "
+                "input.");
+        COMPILE_ASSERT(
+                utils::is_one_of(info_.outputs_[0]->details_.dtype_.type_code_,
+                        sc_data_etype::U8, sc_data_etype::S8),
+                "dynamic quantize's output shall be s8 or u8 dtype.");
     }
     attrs_ = attrs;
     op_name_ = "dynamic_quantize";
@@ -309,21 +355,23 @@ dynamic_dequantize_op_t::dynamic_dequantize_op_t(
     assert(ins[0]->details_.dtype_.type_code_ == sc_data_etype::U8
             || ins[0]->details_.dtype_.type_code_ == sc_data_etype::S8
             || ins[0]->details_.dtype_.type_code_ == sc_data_etype::S32);
-    assert(ins[1]->details_.dtype_.type_code_ == sc_data_etype::F32);
-    if (ins.size() == 3) {
-        assert(utils::is_one_of(ins[2]->details_.dtype_.type_code_,
-                sc_data_etype::U8, sc_data_etype::S8, sc_data_etype::S32));
-        assert(ins[2]->details_.get_plain_dims()
-                == ins[1]->details_.get_plain_dims());
-    }
     info_.inputs_ = ins;
+    const auto qinfos = get_quantize_info_from_attrs(attrs);
+    check_dynamic_quantization_schema(qinfos, info_.inputs_);
     if (outs.empty()) {
-        // fixme: correctly infer the shape for broadcast
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
         info_.outputs_[0]->details_ = ins[0]->details_;
         info_.outputs_[0]->details_.dtype_ = datatypes::f32;
     } else {
         info_.outputs_ = outs;
+        COMPILE_ASSERT(gc::graph::check_shape_equal(
+                               info_.inputs_[0]->details_.get_plain_dims(),
+                               info_.outputs_[0]->details_.get_plain_dims()),
+                "dynamic dequantize's output shall have the same shape as "
+                "input.");
+        COMPILE_ASSERT(info_.outputs_[0]->details_.dtype_.type_code_
+                        == sc_data_etype::F32,
+                "dynamic dequantize's output shall be fp32 dtype.");
     }
     attrs_ = attrs;
     op_name_ = "dynamic_dequantize";

@@ -31,6 +31,10 @@ gelu_op::gelu_op(const std::vector<graph_tensor_ptr> &ins,
                 std::make_shared<graph_tensor>(this, ins[0]->details_));
     } else {
         info_.outputs_ = outs;
+        COMPILE_ASSERT(
+                info_.outputs_.size() == 1, "gelu op shall have only 1 output.")
+        gc::graph::check_logical_tensor_shape_dtype_identical(
+                info_.inputs_[0]->details_, info_.outputs_[0]->details_);
     }
     attrs_ = attrs;
     op_name_ = "gelu";
@@ -40,11 +44,19 @@ gelu_backprop_op::gelu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     COMPILE_ASSERT(ins.size() == 2, "Wrong op input size.\n");
     info_.inputs_ = ins;
+    COMPILE_ASSERT(gc::graph::check_shape_equal(
+                           info_.inputs_[0]->details_.get_plain_dims(),
+                           info_.inputs_[1]->details_.get_plain_dims()),
+            "2 inputs of gelu backprop op shall have the same shape.");
     if (outs.empty()) {
         info_.outputs_.emplace_back(
                 std::make_shared<graph_tensor>(this, ins[0]->details_));
     } else {
         info_.outputs_ = outs;
+        COMPILE_ASSERT(info_.outputs_.size() == 1,
+                "gelu backprop op shall have only 1 output.")
+        gc::graph::check_logical_tensor_shape_dtype_identical(
+                info_.inputs_[0]->details_, info_.outputs_[0]->details_);
     }
     attrs_ = attrs;
     op_name_ = "gelu_backprop";

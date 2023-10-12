@@ -49,11 +49,12 @@ unary_elementwise_op_impl_t::unary_elementwise_op_impl_t(
         info_.outputs_.emplace_back(
                 std::make_shared<graph_tensor>(this, ins[0]->details_));
     } else {
-        COMPILE_ASSERT(outs.size() == 1, "Wrong op output size.\n");
-        COMPILE_ASSERT(outs[0]->details_.get_plain_dims()
-                        == ins[0]->details_.get_plain_dims(),
-                "Wrong op output shapes.\n");
         info_.outputs_ = outs;
+        COMPILE_ASSERT(info_.outputs_.size() == 1, "Wrong op output size.\n");
+        COMPILE_ASSERT(gc::graph::check_shape_equal(
+                               info_.inputs_[0]->details_.get_plain_dims(),
+                               info_.outputs_[0]->details_.get_plain_dims()),
+                "Unary elementwise op's output is incorrect.")
     }
     info_.tensor_share_info_ = {{0, {0}}};
     attrs_ = attrs;

@@ -186,7 +186,9 @@ select_op_t::select_op_t(const std::vector<graph_tensor_ptr> &ins,
     } else {
         info_.outputs_ = outs;
     }
-    COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims() == output_shape,
+    COMPILE_ASSERT(
+            gc::graph::check_shape_equal(
+                    info_.outputs_[0]->details_.get_plain_dims(), output_shape),
             "Select op's output doesn't have the correct shape");
 
     attrs_ = attrs;

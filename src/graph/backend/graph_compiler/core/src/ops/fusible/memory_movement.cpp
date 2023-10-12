@@ -266,6 +266,31 @@ static bool check_slice_on_non_concat_axis_equal(
     return true;
 }
 
+static sc_dims infer_concat_output_shape(
+        const std::vector<graph_tensor_ptr> &inputs, const int &axis) {
+    sc_dims ref_output_shape = inputs[0]->details_.get_plain_dims();
+    sc_data_type_t ref_dtype = inputs[0]->details_.dtype_;
+    sc_dim accumulated_dim = ref_output_shape[axis];
+    for (size_t i = 1; i < inputs.size(); i++) {
+        const auto &input_shape = inputs[i]->details_.get_plain_dims();
+        COMPILE_ASSERT(ref_output_shape.size() == input_shape.size(),
+                "The rank of all inputs of concat op shall match.");
+        COMPILE_ASSERT(inputs[i]->details_.dtype_ == ref_dtype,
+                "The data type of all inputs of concat op shall match.");
+        for (size_t d = 0; d < input_shape.size(); ++d) {
+            if (d == static_cast<size_t>(axis)) {
+                accumulated_dim += input_shape[d];
+            } else {
+                COMPILE_ASSERT(input_shape[d] == ref_output_shape[d],
+                        "The shape of concat inputs on not concated dim shall "
+                        "match.");
+            }
+        }
+    }
+    ref_output_shape[axis] = accumulated_dim;
+    return ref_output_shape;
+}
+
 concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     op_name_ = "concat";
@@ -273,11 +298,12 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
     COMPILE_ASSERT(attrs.has_key("axis"), "Concat axis should be provided.");
     axis_ = attrs.get<int>("axis");
     // We accept negative axis_, but keep it non-negative internally
-    int64_t rank = ins[0]->details_.get_blocking_dims().size();
+    int64_t rank = ins[0]->details_.get_plain_dims().size();
     COMPILE_ASSERT(axis_ >= -rank && axis_ <= rank - 1,
             "Concat axis should be in range [" << -rank << ", " << rank - 1
                                                << "], but get: " << axis_);
     if (axis_ < 0) { axis_ += rank; }
+    int plain_axis = axis_;
     attrs_ = attrs;
     for (auto &in : ins) {
         info_.inputs_.emplace_back(in);
@@ -299,32 +325,23 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
     COMPILE_ASSERT(
             blocking_axes.size() == 1, "The concat axis should not be blocked");
     axis_ = blocking_axes[0];
+    // inferring output plain shape
+    sc_dims output_plain_dim
+            = infer_concat_output_shape(info_.inputs_, plain_axis);
 
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
         info_.outputs_[0]->details_.dtype_ = info_.inputs_[0]->details_.dtype_;
-        auto shape = info_.inputs_[0]->details_.get_blocking_dims();
-        COMPILE_ASSERT(axis_ < int64_t(shape.size()),
-                "Wrong concat axis: " << axis_
-                                      << " exceeds input #0 shape rank: "
-                                      << shape.size());
-        for (unsigned i = 1; i < info_.inputs_.size(); i++) {
-            auto &tmp_shape = info_.inputs_[i]->details_.get_blocking_dims();
-            COMPILE_ASSERT(axis_ < int64_t(tmp_shape.size()),
-                    "Wrong concat axis: " << axis_ << " exceeds input #" << i
-                                          << " shape rank: "
-                                          << tmp_shape.size());
-            shape[axis_] += tmp_shape[axis_];
-        }
-        info_.outputs_[0]->details_.set_blocking_dims(shape);
+        info_.outputs_[0]->details_.set_plain_dims(output_plain_dim);
         info_.outputs_[0]->details_.set_format(
                 info_.inputs_[0]->details_.get_format());
-        auto plain_dims = sc_data_format_t::get_padded_plain_shapes(
-                shape, info_.outputs_[0]->details_.get_format());
-        info_.outputs_[0]->details_.set_plain_dims(plain_dims);
     } else {
         COMPILE_ASSERT(
                 outs.size() == 1, "Only one output is supported for concat op");
+        COMPILE_ASSERT(
+                gc::graph::check_shape_equal(
+                        outs[0]->details_.get_plain_dims(), output_plain_dim),
+                "Concat op's output shape is not correct.");
         info_.outputs_.emplace_back(outs.front());
     }
 }
@@ -415,24 +432,42 @@ void concat_op_t::compute_block(context_ptr ctx,
     compute_block_concat(ctx, inputs, *dst[0], axis_, wkld);
 }
 
+static sc_dims infer_transpose_output_shape(
+        const sc_dims &input_shape, const std::vector<int> &order) {
+    sc_dims output_shape(input_shape.size());
+    for (size_t i = 0; i < input_shape.size(); ++i) {
+        output_shape[i] = input_shape[order[i]];
+    }
+    return output_shape;
+}
+
 transpose_op_t::transpose_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
     : order_(attrs.get<std::vector<int>>("order")) {
     info_.inputs_ = ins;
     info_.outputs_ = outs;
     assert(info_.inputs_.size() == 1);
-    assert(order_.size() == info_.inputs_[0]->details_.get_plain_dims().size());
+    COMPILE_ASSERT(
+            order_.size() == info_.inputs_[0]->details_.get_plain_dims().size(),
+            "Attribute order shall have the same length as input.");
+    auto output_shape = infer_transpose_output_shape(
+            info_.inputs_[0]->details_.get_plain_dims(), order_);
     auto out_format = attrs.get_or_else("out_format", sc_data_format_t());
     if (info_.outputs_.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
-        auto in_dims = info_.inputs_[0]->details_.get_plain_dims();
-        sc_dims out_dims(in_dims.size());
-        for (size_t i = 0; i < in_dims.size(); ++i) {
-            out_dims[i] = in_dims[order_[i]];
-        }
-        info_.outputs_[0]->details_.set_plain_dims(out_dims);
+        info_.outputs_[0]->details_.set_plain_dims(output_shape);
         info_.outputs_[0]->details_.dtype_ = ins[0]->details_.dtype_;
         info_.outputs_[0]->details_.set_format(out_format);
+    } else {
+        COMPILE_ASSERT(info_.outputs_.size() == 1,
+                "Transpose op shall only have 1 output.");
+        COMPILE_ASSERT(gc::graph::check_shape_equal(
+                               info_.outputs_[0]->details_.get_plain_dims(),
+                               output_shape),
+                "Specified transpose op's output shape is incorrect.");
+        COMPILE_ASSERT(info_.outputs_[0]->details_.dtype_
+                        == info_.inputs_[0]->details_.dtype_,
+                "Specified transpose op's output dtype is incorrect.");
     }
     attrs_ = attrs;
     op_name_ = "transpose";

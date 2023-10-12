@@ -227,11 +227,17 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                                             wei_details.dtype_)},
                                     {});
                         }
+                        bool is_per_channel
+                                = out_scales->get_outputs()[0]
+                                          ->details_.get_plain_dims()[0]
+                                > 1;
                         dequantize_node = mgr.make("dynamic_dequantize",
                                 {cur_parent->get_outputs()[0],
                                         out_scales->get_outputs()[0]},
                                 {},
                                 {{attr_keys::quan_dtype, datatypes::f32},
+                                        {attr_keys::per_channel,
+                                                is_per_channel},
                                         {attr_keys::channel_axis,
                                                 output_channel_axis}});
                     } else {

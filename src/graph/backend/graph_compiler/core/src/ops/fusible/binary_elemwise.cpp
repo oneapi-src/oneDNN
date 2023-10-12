@@ -230,7 +230,9 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
         info_.outputs_ = outs;
     }
 
-    COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims() == output_shape,
+    COMPILE_ASSERT(
+            gc::graph::check_shape_equal(
+                    info_.outputs_[0]->details_.get_plain_dims(), output_shape),
             "Binary elementwise op's output shape is not set correctly.");
 
     // user specified bc_axis of the shorter input

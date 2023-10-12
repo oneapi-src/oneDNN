@@ -25,15 +25,61 @@ namespace graph {
 namespace gc {
 namespace ops {
 
+static sc_dim get_channel_size(
+        const any_map_t &attrs, const graph_tensor_ptr &input) {
+    std::string data_format = attrs.get<std::string>("data_format");
+    const auto &input_shape = input->details_.get_plain_dims();
+    sc_dim channel_size = data_format == "NCX"
+            ? input_shape[1]
+            : input_shape[input_shape.size() - 1];
+    return channel_size;
+}
+
+static void validate_channel_related_input(
+        const graph_tensor_ptr &gt, sc_dim channel_size, bool allow_bf16) {
+    COMPILE_ASSERT(gc::graph::check_shape_equal(gt->details_.get_plain_dims(),
+                           sc_dims {channel_size}),
+            "Batchnorm's mean/var/gamma/beta shall have the same shape as "
+            "channel dimension.");
+    if (allow_bf16) {
+        COMPILE_ASSERT(utils::is_one_of(gt->details_.dtype_.type_code_,
+                               sc_data_etype::F32, sc_data_etype::BF16),
+                "Batchnorm's mean/var/gamma/beta shall be with f32 or bf16 "
+                "dtype.");
+    } else {
+        COMPILE_ASSERT(gt->details_.dtype_.type_code_ == sc_data_etype::F32,
+                "Batchnorm's mean/var/gamma/beta shall be with f32 dtype.");
+    }
+}
+
 batchnorm_inference_op::batchnorm_inference_op(
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     info_.inputs_ = ins;
+    COMPILE_ASSERT(info_.inputs_.size() == 3 || info_.inputs_.size() == 5,
+            "batchnorm inference op shall have 3 or 5 inputs.");
+    COMPILE_ASSERT(
+            utils::is_one_of(info_.inputs_[0]->details_.dtype_.type_code_,
+                    sc_data_etype::F32, sc_data_etype::BF16,
+                    sc_data_etype::F16),
+            "batchnorm inference's input shall be one of fp32/bf16/fp16 "
+            "dtype.");
+    sc_dim channel_size = get_channel_size(attrs, info_.inputs_[0]);
+    bool allow_bf16 = (info_.inputs_[0]->details_.dtype_.type_code_
+            == sc_data_etype::BF16);
+    for (size_t i = 1; i < info_.inputs_.size(); ++i) {
+        validate_channel_related_input(
+                info_.inputs_[i], channel_size, allow_bf16);
+    }
     if (outs.empty()) {
         info_.outputs_.emplace_back(
                 std::make_shared<graph_tensor>(this, ins[0]->details_));
     } else {
         info_.outputs_ = outs;
+        COMPILE_ASSERT(info_.outputs_.size() == 1,
+                "batchnorm inference op shall have only 1 output.")
+        gc::graph::check_logical_tensor_shape_dtype_identical(
+                info_.inputs_[0]->details_, info_.outputs_[0]->details_);
     }
     attrs_ = attrs;
     op_name_ = "batchnorm_inference";
@@ -92,11 +138,17 @@ batchnorm_forward_training_op::batchnorm_forward_training_op(
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     info_.inputs_ = ins;
     info_.outputs_ = outs;
-    COMPILE_ASSERT((ins.size() == 5),
-            "batchnorm_forward_training inputs size should be 5.");
-    for (int i = 2; i < 5; i++) {
-        COMPILE_ASSERT(ins[1]->details_.dtype_ == ins[i]->details_.dtype_,
-                "wrong data type");
+    COMPILE_ASSERT(ins.size() == 5,
+            "batchnorm_forward_training's inputs size should be 5.");
+    sc_dim channel_size = get_channel_size(attrs, info_.inputs_[0]);
+    bool allow_bf16 = (info_.inputs_[0]->details_.dtype_.type_code_
+            == sc_data_etype::BF16);
+    for (size_t i = 1; i < info_.inputs_.size(); ++i) {
+        validate_channel_related_input(
+                info_.inputs_[i], channel_size, allow_bf16);
+        COMPILE_ASSERT(info_.inputs_[1]->details_.dtype_
+                        == info_.inputs_[i]->details_.dtype_,
+                "Batchnorm forward training input dtypes shall be consistent.");
     }
     if (outs.empty()) {
         info_.outputs_.emplace_back(
@@ -109,6 +161,12 @@ batchnorm_forward_training_op::batchnorm_forward_training_op(
         COMPILE_ASSERT((outs.size() == 5),
                 "batchnorm_forward_training outputs size should be 5.");
         info_.outputs_ = outs;
+        gc::graph::check_logical_tensor_shape_dtype_identical(
+                info_.inputs_[0]->details_, info_.outputs_[0]->details_);
+        for (size_t i = 1; i < outs.size(); i++) {
+            gc::graph::check_logical_tensor_shape_dtype_identical(
+                    info_.inputs_[1]->details_, info_.outputs_[i]->details_);
+        }
     }
     attrs_ = attrs;
     op_name_ = "batchnorm_forward_training";
@@ -285,6 +343,25 @@ batchnorm_training_backprop_op_t::batchnorm_training_backprop_op_t(
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     info_.inputs_ = ins;
+    COMPILE_ASSERT(info_.inputs_.size() == 5,
+            "Batchnorm backprop op shall have 5 inputs.");
+    COMPILE_ASSERT(ins[0]->details_.get_plain_dims().size() == 4
+                    || ins[0]->details_.get_plain_dims().size() == 5,
+            "Batchnorm backprop op currently only supports 4D or 5D cases.");
+    COMPILE_ASSERT(ins[0]->details_.dtype_ == ins[1]->details_.dtype_,
+            "Batchnorm backprop's src and delta_output must have the "
+            "same dtype.");
+    sc_dim channel_size = get_channel_size(attrs, info_.inputs_[0]);
+    bool allow_bf16 = (info_.inputs_[0]->details_.dtype_.type_code_
+            == sc_data_etype::BF16);
+    for (size_t i = 2; i < info_.inputs_.size(); ++i) {
+        validate_channel_related_input(
+                info_.inputs_[i], channel_size, allow_bf16);
+        COMPILE_ASSERT(info_.inputs_[2]->details_.dtype_
+                        == info_.inputs_[i]->details_.dtype_,
+                "Batchnorm backprop's gamma, mean and variance must "
+                "have the same dtype.");
+    }
     if (outs.empty()) {
         info_.outputs_.emplace_back(
                 std::make_shared<graph_tensor>(this, ins[0]->details_));
@@ -294,18 +371,15 @@ batchnorm_training_backprop_op_t::batchnorm_training_backprop_op_t(
                 std::make_shared<graph_tensor>(this, ins[2]->details_));
     } else {
         info_.outputs_ = outs;
+        COMPILE_ASSERT(info_.outputs_.size() == 3,
+                "Batchnorm backprop op shall have 3 outputs.");
+        gc::graph::check_logical_tensor_shape_dtype_identical(
+                info_.inputs_[0]->details_, info_.outputs_[0]->details_);
+        gc::graph::check_logical_tensor_shape_dtype_identical(
+                info_.inputs_[2]->details_, info_.outputs_[1]->details_);
+        gc::graph::check_logical_tensor_shape_dtype_identical(
+                info_.inputs_[2]->details_, info_.outputs_[2]->details_);
     }
-    COMPILE_ASSERT(info_.inputs_.size() == 5 && info_.outputs_.size() == 3,
-            "Batchnorm backprop op currently only allows 5-input + 3-output "
-            "schema.");
-    COMPILE_ASSERT(ins[0]->details_.get_plain_dims().size() == 4
-                    || ins[0]->details_.get_plain_dims().size() == 5,
-            "Batchnorm backprop op currently only supports 4D or 5D cases.");
-    COMPILE_ASSERT(ins[0]->details_.dtype_ == ins[1]->details_.dtype_,
-            "src and delta_output must have the same dtype.");
-    COMPILE_ASSERT(ins[2]->details_.dtype_ == ins[3]->details_.dtype_
-                    && ins[2]->details_.dtype_ == ins[4]->details_.dtype_,
-            "gamma, mean and variance must have the same dtype.")
     attrs_ = attrs;
     op_name_ = "batchnorm_training_backprop";
 }

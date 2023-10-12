@@ -962,6 +962,26 @@ sc_graph_t make_single_op_graph(const std::string &opname,
     return ret;
 }
 
+bool check_shape_equal(const sc_dims &lhs_shape, const sc_dims &rhs_shape) {
+    if (lhs_shape.size() != rhs_shape.size()) { return false; }
+    if (!std::equal(lhs_shape.begin(), lhs_shape.end(), rhs_shape.begin(),
+                [](const int x, const int y) {
+                    return is_dynamic_dim(x) || is_dynamic_dim(y) || x == y;
+                })) {
+        return false;
+    }
+    return true;
+}
+
+void check_logical_tensor_shape_dtype_identical(
+        const logical_tensor_t &lhs, const logical_tensor_t &rhs) {
+    COMPILE_ASSERT(
+            check_shape_equal(lhs.get_plain_dims(), rhs.get_plain_dims()),
+            "The given logical tensors shall have the same shape.")
+    COMPILE_ASSERT(lhs.dtype_.type_code_ == rhs.dtype_.type_code_,
+            "The given logical tensors shall have the same dtype.")
+}
+
 } // namespace graph
 } // namespace gc
 } // namespace graph

@@ -146,6 +146,8 @@ reorder_op_t::reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
                 this, format, plain_dims, dtype, strides));
     } else {
         info_.outputs_ = outs;
+        gc::graph::check_logical_tensor_shape_dtype_identical(
+                info_.inputs_[0]->details_, info_.outputs_[0]->details_);
     }
     op_name_ = "reorder";
     attrs_ = attrs;

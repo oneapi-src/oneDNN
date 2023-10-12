@@ -87,6 +87,19 @@ func_t create_query_func_decl_for_op(sc_op *op, std::vector<expr> &ins,
 
 ltensors extract_detail_from_tensors(
         const std::vector<std::shared_ptr<graph_tensor>> &);
+
+/**
+ * Checks whether lhs_shape could be identical to rhs_shape
+ * considering dynamic shape use cases
+ * */
+bool check_shape_equal(const sc_dims &lhs_shape, const sc_dims &rhs_shape);
+
+/**
+ * Checks whether lhs and rhs matches for both plain_dims and dtype
+ * considering dynamic shape use cases
+ * */
+void check_logical_tensor_shape_dtype_identical(
+        const logical_tensor_t &lhs, const logical_tensor_t &rhs);
 } // namespace graph
 } // namespace gc
 } // namespace graph

@@ -282,7 +282,8 @@ pooling_op_t::pooling_op_t(const std::vector<graph_tensor_ptr> &ins,
                 ins[0]->details_.dtype_));
     } else {
         COMPILE_ASSERT(outs.size() == 1, "pooling expect 1 output");
-        COMPILE_ASSERT(outs[0]->details_.get_plain_dims() == output_dims,
+        COMPILE_ASSERT(gc::graph::check_shape_equal(
+                               outs[0]->details_.get_plain_dims(), output_dims),
                 "Bad output shape for pooling")
         info_.outputs_ = outs;
     }

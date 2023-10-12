@@ -25,6 +25,7 @@
 #include <compiler/ir/graph/trait/may_broadcast.hpp>
 #include <compiler/ir/graph/trait/may_inplace.hpp>
 #include <compiler/ir/graph/traits.hpp>
+#include <compiler/ir/graph/utils.hpp>
 namespace dnnl {
 namespace impl {
 namespace graph {
