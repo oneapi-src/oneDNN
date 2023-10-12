@@ -142,12 +142,15 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     auto dst_layer_is_trivial_stride
             = dst_layer_d.blocking_desc().strides[0] == (dst_layer_ld * rnn.mb);
 
+    // Does not account for alignment striding
+    dim_t merge_scratch_size_estimate
+            = rnn.gates_ld * rnn.gates_nld * rnn.n_iter;
+    bool is_small_scratch = merge_scratch_size_estimate < 256 * 1024 * 1024;
     rnn.merge_gemm_layer = dev_getenv("merge_gemm_layer",
-            rnn.gates_ld * rnn.gates_nld * rnn.n_iter
-                    < 256 * 1024 * 1024); // Avoid excessive memory usage
+            is_small_scratch); // Avoid excessive memory usage
     rnn.merge_gemm_iter = dev_getenv("merge_gemm_iter",
-            dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru));
-
+            is_small_scratch && dst_layer_is_trivial_stride
+                    && !(rnn.is_fwd || is_gru));
 
     // Decide to copy bias
     rnn.copy_bias = rnn.is_int8;
