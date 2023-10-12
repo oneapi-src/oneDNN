@@ -23,49 +23,6 @@ namespace ocl {
 using namespace bn_lookup_table;
 namespace bn_utils {
 
-// Gets bnorm parameters from BN_PARAMS env value
-// Only used during tuning procedure, BN_TUNING env var must be set
-void maybe_override_bn_conf_params_env(bnorm_conf_t &conf) {
-    auto s_params = getenv_str("BN_PARAMS", "");
-    assert(!s_params.empty());
-    assert(conf.bn_tuning);
-    bnorm_params_t params(s_params);
-    params.override_params(conf);
-}
-// Gets bnorm parameters from a lookup table
-// BN_TUNING env var must be unset or zero;
-void maybe_override_bn_conf_params_table(bnorm_conf_t &conf, engine_t *engine) {
-    assert(!conf.bn_tuning);
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    auto gpu_arch = compute_engine->device_info()->gpu_arch();
-    static bnorm_lookup_table_t table;
-    auto *s_params = table.find(conf, gpu_arch);
-    if (s_params) {
-        bnorm_params_t params(s_params);
-        params.override_params(conf);
-    }
-}
-
-void maybe_override_bn_conf_params(bnorm_conf_t &conf, engine_t *engine) {
-    conf.is_overrided_use_fused_atomics_reduction = false;
-    conf.is_overrided_ic_block = false;
-    conf.is_overrided_max_vect_size = false;
-    conf.is_overrided_stat_sp_block = false;
-    conf.is_overrided_update_sp_block = false;
-    conf.is_overrided_update_sp_unroll = false;
-
-    // Environment var BN_TUNING turns ON/OFF tuning mode
-    conf.bn_tuning = getenv_int("BN_TUNING", 0);
-    if (conf.bn_tuning) {
-        maybe_override_bn_conf_params_env(conf);
-    } else {
-        // TODO: extend to 1pass
-        if (!conf.use_stats_one_pass) {
-            maybe_override_bn_conf_params_table(conf, engine);
-        }
-    }
-}
-
 float get_ss_utilization(int max_ss, const size_t *gws, size_t *lws) {
     const size_t gws_size = gws[0] * gws[1] * gws[2];
     const size_t lws_size = lws[0] * lws[1] * lws[2];

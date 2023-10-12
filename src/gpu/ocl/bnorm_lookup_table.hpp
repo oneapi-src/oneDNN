@@ -30,6 +30,10 @@ namespace gpu {
 namespace ocl {
 namespace bn_lookup_table {
 
+void maybe_override_bn_conf_params_env(bnorm_conf_t &conf);
+void maybe_override_bn_conf_params_table(bnorm_conf_t &conf, engine_t *engine);
+void maybe_override_bn_conf_params(bnorm_conf_t &conf, engine_t *engine);
+
 inline std::string getenv_str(const char *s, const std::string &def) {
     char buf[1024];
     int ret = getenv(s, buf, sizeof(buf));

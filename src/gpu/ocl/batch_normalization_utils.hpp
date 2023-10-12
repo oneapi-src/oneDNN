@@ -25,10 +25,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 namespace bn_utils {
-
-void maybe_override_bn_conf_params_env(bnorm_conf_t &conf);
-void maybe_override_bn_conf_params_table(bnorm_conf_t &conf, engine_t *engine);
-void maybe_override_bn_conf_params(bnorm_conf_t &conf, engine_t *engine);
 float get_ss_utilization(int max_ss, const size_t *gws, size_t *lws);
 float get_thr_utilization(
         int eu_count, int threads_per_eu, int sg_size, const size_t *gws);

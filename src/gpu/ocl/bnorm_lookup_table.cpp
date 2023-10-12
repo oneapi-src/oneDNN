@@ -27,6 +27,43 @@ namespace bn_lookup_table {
 
 using namespace compute;
 
+// Gets bnorm parameters from BN_PARAMS env value
+// Only used during tuning procedure, BN_TUNING env var must be set
+void maybe_override_bn_conf_params_env(bnorm_conf_t &conf) {
+    auto s_params = getenv_str("BN_PARAMS", "");
+    assert(!s_params.empty());
+    assert(conf.bn_tuning);
+    bnorm_params_t params(s_params);
+    params.override_params(conf);
+}
+
+// Gets bnorm parameters from a lookup table
+// BN_TUNING env var must be unset or zero;
+void maybe_override_bn_conf_params_table(bnorm_conf_t &conf, engine_t *engine) {
+    assert(!conf.bn_tuning);
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto gpu_arch = compute_engine->device_info()->gpu_arch();
+    static bnorm_lookup_table_t table;
+    auto *s_params = table.find(conf, gpu_arch);
+    if (s_params) {
+        bnorm_params_t params(s_params);
+        params.override_params(conf);
+    }
+}
+
+void maybe_override_bn_conf_params(bnorm_conf_t &conf, engine_t *engine) {
+    // Environment var BN_TUNING turns ON/OFF tuning mode
+    conf.bn_tuning = getenv_int("BN_TUNING", 0);
+    if (conf.bn_tuning) {
+        maybe_override_bn_conf_params_env(conf);
+    } else {
+        // TODO: extend to 1pass
+        if (!conf.use_stats_one_pass) {
+            maybe_override_bn_conf_params_table(conf, engine);
+        }
+    }
+}
+
 gpu_arch_t to_hw(const std::string &s) {
 
 #define CASE(name) \
