@@ -1881,57 +1881,108 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestPrefetchSelected) {
     EXPECT_TRUE(found);
 }
 
-TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeAndNoBarrier) {
+// loop finder
+class loop_finder_t : public ir_viewer_t {
+public:
+    using ir_viewer_t::dispatch;
+    using ir_viewer_t::view;
+    void operator()(stmt_c v) { ir_viewer_t::dispatch(std::move(v)); }
+    bool has_illegal_var() const { return illegal_loop_var_; }
+    bool has_dummy_range() const { return dummy_loop_range_; }
+    bool has_no_barrier_attr() const { return no_barrier_attr_; }
+    void view(for_loop_c f) override {
+        // check `var_` if var type
+        if (!f->var_.isa<var>()) { illegal_loop_var_ = true; }
+        // check loop range if dummy
+        if (f->iter_begin_.isa<constant>() && f->iter_end_.isa<constant>()
+                && get_expr_as_int(f->iter_begin_) == 0
+                && get_expr_as_int(f->iter_end_) == 1) {
+            dummy_loop_range_ = true;
+        }
+        if (f->attr_
+                && f->attr_->get_or_else(
+                        stmt_attr_key::no_post_barrier, false)) {
+            no_barrier_attr_ = true;
+        }
+        ir_viewer_t::view(f);
+    }
+
+private:
+    bool illegal_loop_var_ = false;
+    bool dummy_loop_range_ = false;
+    bool no_barrier_attr_ = false;
+};
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeAndBarrier) {
     SET_THREADS_OR_SKIP(16);
-    int M = 256, K1 = 2048, N = 1024;
 
-    sc_graph_t graph;
-    auto input0 = graph.make_input(
-            {graph_tensor::make({M, K1}, sc_data_format_t(format_kinds::MK))});
-    auto weight0 = graph.make_input(
-            {graph_tensor::make({K1, N}, sc_data_format_t(format_kinds::KN))});
-    auto weight1 = graph.make_input(
-            {graph_tensor::make({K1, N}, sc_data_format_t(format_kinds::KN))});
-
-    // mmm0
-    auto mmm0 = graph.make("managed_matmul_core",
-            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
-    {
-        ops::managed_matmul_core_config_t cfg = {2, 8, 1, 1, 1, 0};
+    auto make_parallel_mmm_graph = [](bool barrier) {
+        int M = 256, K1 = 2048, N = 1024;
+        sc_graph_t graph;
+        auto input0 = graph.make_input({graph_tensor::make(
+                {M, K1}, sc_data_format_t(format_kinds::MK))});
+        auto weight0 = graph.make_input({graph_tensor::make(
+                {K1, N}, sc_data_format_t(format_kinds::KN))});
+        auto weight1 = graph.make_input({graph_tensor::make(
+                {K1, N}, sc_data_format_t(format_kinds::KN))});
+        ops::managed_matmul_core_config_t cfg0 = {2, 8, 1, 1, 1, 0},
+                                          cfg1 = {2, 4, 1, 1, 1, 0};
+        // mmm0
+        auto mmm0 = graph.make("managed_matmul_core",
+                {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
         mmm0->dyn_cast<op_traits::configurable_t>()->set_config(
-                reflection::general_object_t::make(cfg));
-    }
-    // mmm1
-    auto mmm1 = graph.make("managed_matmul_core",
-            {input0->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
-    {
-        ops::managed_matmul_core_config_t cfg = {2, 4, 1, 1, 1, 0};
+                reflection::general_object_t::make(barrier ? cfg1 : cfg0));
+        // mmm1
+        auto mmm1 = graph.make("managed_matmul_core",
+                {input0->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
         mmm1->dyn_cast<op_traits::configurable_t>()->set_config(
-                reflection::general_object_t::make(cfg));
-    }
-    auto out0 = graph.make_output({mmm0->get_outputs()[0]});
-    graph.make_output({mmm1->get_outputs()[0]});
+                reflection::general_object_t::make(cfg1));
+        graph.make_output({mmm0->get_outputs()[0]});
+        graph.make_output({mmm1->get_outputs()[0]});
+        return graph;
+    };
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
-    // split outmost and merge inners
-    mixed_partition(graph, ctx);
-    auto mixed_op = get_mixed_op_from_graph(graph);
-    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
-    auto &body = mixed_op->parti_list_[0]->func_->body_;
-    auto inner_loop = body.cast<stmts>()
-                              .map([](const stmts &v) {
-                                  return v->seq_.at(0).as<for_loop>();
-                              })
-                              .map([](const for_loop &v) {
-                                  return v->body_.as<stmts>()
-                                          ->seq_.at(0)
-                                          .as<for_loop>();
-                              })
-                              .get_or_else(for_loop());
-    ASSERT_TRUE(inner_loop.defined());
-    ASSERT_TRUE(inner_loop->attr().get_or_else(
-            stmt_attr_key::no_post_barrier, false));
+    bool barrier;
+    {
+        /* Case 0: need barrier */
+        barrier = true;
+        auto graph = make_parallel_mmm_graph(barrier);
+        mixed_partition(graph, ctx);
+        auto mixed_op = get_mixed_op_from_graph(graph);
+        ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+        auto &inner_body
+                = mixed_op->parti_list_[0]->get_outer_loops().back()->body_;
+        // loop attr finder
+        loop_finder_t la_finder;
+        la_finder(inner_body);
+        // `no_post_barrier attr` is not expected
+        ASSERT_FALSE(la_finder.has_no_barrier_attr());
+    }
+    {
+        /* Case 1: remove barrier */
+        barrier = false;
+        auto graph = make_parallel_mmm_graph(barrier);
+        mixed_partition(graph, ctx);
+        auto mixed_op = get_mixed_op_from_graph(graph);
+        ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+        auto &body = mixed_op->parti_list_[0]->func_->body_;
+        auto inner_loop = body.cast<stmts>()
+                                  .map([](const stmts &v) {
+                                      return v->seq_.at(0).as<for_loop>();
+                                  })
+                                  .map([](const for_loop &v) {
+                                      return v->body_.as<stmts>()
+                                              ->seq_.at(0)
+                                              .as<for_loop>();
+                                  })
+                                  .get_or_else(for_loop());
+        ASSERT_TRUE(inner_loop.defined());
+        // `no_post_barrier` attr is expected
+        ASSERT_TRUE(inner_loop->attr().get_or_else(
+                stmt_attr_key::no_post_barrier, false));
+    }
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeNotAppendInputAnchor) {
@@ -2149,31 +2200,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop1) {
                     stmt_attr_key::merge_loop, false));
 }
 
-// loop finder
-class loop_finder_t : public ir_viewer_t {
-public:
-    using ir_viewer_t::dispatch;
-    using ir_viewer_t::view;
-    void operator()(stmt_c v) { ir_viewer_t::dispatch(std::move(v)); }
-    bool has_illegal_var() const { return illegal_loop_var_; }
-    bool has_dummy_range() const { return dummy_loop_range_; }
-    void view(for_loop_c f) override {
-        // check `var_` if var type
-        if (!f->var_.isa<var>()) { illegal_loop_var_ = true; }
-        // check loop range if dummy
-        if (f->iter_begin_.isa<constant>() && f->iter_end_.isa<constant>()
-                && get_expr_as_int(f->iter_begin_) == 0
-                && get_expr_as_int(f->iter_end_) == 1) {
-            dummy_loop_range_ = true;
-        }
-        ir_viewer_t::view(f);
-    }
-
-private:
-    bool illegal_loop_var_ = false;
-    bool dummy_loop_range_ = false;
-};
-
 TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop2) {
     SET_THREADS_OR_SKIP(1);
     int BS = 1, H = 8, W = 8, C = 64;
@@ -2196,6 +2222,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop2) {
     auto mixed_op = get_mixed_op_from_graph(graph);
     ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
     auto &func = mixed_op->parti_list_[0]->func_;
+    // loop var finder
     loop_finder_t lv_finder;
     lv_finder(func->body_);
     // All loop var should be `var` type. `for 0 in (0, 1, 1)` is not expected.
@@ -2230,10 +2257,11 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop3) {
     auto mixed_op = get_mixed_op_from_graph(graph);
     ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
     auto &func = mixed_op->parti_list_[0]->func_;
-    loop_finder_t lv_finder;
-    lv_finder(func->body_);
+    // loop range finder
+    loop_finder_t lr_finder;
+    lr_finder(func->body_);
     // All loop range should not be dummp like (0, 1, 1)
-    EXPECT_FALSE(lv_finder.has_dummy_range());
+    EXPECT_FALSE(lr_finder.has_dummy_range());
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, PoolingLoopReSchedule) {
