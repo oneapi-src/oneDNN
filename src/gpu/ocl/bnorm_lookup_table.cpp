@@ -29,7 +29,7 @@ using namespace compute;
 
 // Gets bnorm parameters from BN_PARAMS env value
 // Only used during tuning procedure, BN_TUNING env var must be set
-void maybe_override_bn_conf_params_env(bnorm_conf_t &conf) {
+void maybe_override_bn_conf_params_env(params_t &conf) {
     auto s_params = getenv_str("BN_PARAMS", "");
     assert(!s_params.empty());
     assert(conf.bn_tuning);
@@ -39,7 +39,7 @@ void maybe_override_bn_conf_params_env(bnorm_conf_t &conf) {
 
 // Gets bnorm parameters from a lookup table
 // BN_TUNING env var must be unset or zero;
-void maybe_override_bn_conf_params_table(bnorm_conf_t &conf, engine_t *engine) {
+void maybe_override_bn_conf_params_table(params_t &conf, engine_t *engine) {
     assert(!conf.bn_tuning);
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
@@ -51,7 +51,7 @@ void maybe_override_bn_conf_params_table(bnorm_conf_t &conf, engine_t *engine) {
     }
 }
 
-void maybe_override_bn_conf_params(bnorm_conf_t &conf, engine_t *engine) {
+void maybe_override_bn_conf_params(params_t &conf, engine_t *engine) {
     // Environment var BN_TUNING turns ON/OFF tuning mode
     conf.bn_tuning = getenv_int("BN_TUNING", 0);
     if (conf.bn_tuning) {
@@ -182,7 +182,7 @@ bnorm_problem_filter_t::bnorm_problem_filter_t(const std::string &s) {
 }
 
 bool bnorm_problem_filter_t::matches(
-        const bnorm_conf_t &conf, const gpu_arch_t &gpu_arch) const {
+        const params_t &conf, const gpu_arch_t &gpu_arch) const {
     if (gpu_arch != hw_) return false;
     if (!matches_dir(conf)) return false;
     if (!matches_tag(conf)) return false;
@@ -192,7 +192,7 @@ bool bnorm_problem_filter_t::matches(
     return true;
 }
 
-bool bnorm_problem_filter_t::matches_dir(const bnorm_conf_t &conf) const {
+bool bnorm_problem_filter_t::matches_dir(const params_t &conf) const {
     // --dir={FWD_D [default], FWD_I, BWD_D, BWD_DW}
     if (dir_.empty()) return conf.is_forward;
     if (dir_ == "FWD_D" || dir_ == "FWD_I" || dir_ == "fwd_d"
@@ -207,7 +207,7 @@ bool bnorm_problem_filter_t::matches_dir(const bnorm_conf_t &conf) const {
     return false;
 }
 
-bool bnorm_problem_filter_t::matches_tag(const bnorm_conf_t &conf) const {
+bool bnorm_problem_filter_t::matches_tag(const params_t &conf) const {
     // --tag={nchw [default], ...}
     bool default_tag = !(conf.is_nhwc || conf.is_blocked_16c
             || conf.is_blocked_16n16c || conf.is_blocked_32n16c);
@@ -226,7 +226,7 @@ bool bnorm_problem_filter_t::matches_tag(const bnorm_conf_t &conf) const {
     return false;
 }
 
-bool bnorm_problem_filter_t::matches_desc(const bnorm_conf_t &conf) const {
+bool bnorm_problem_filter_t::matches_desc(const params_t &conf) const {
     return get_desc_str(conf) == desc_;
 }
 
@@ -291,7 +291,7 @@ add("hw=xe_hpc dir=FWD_D dt=bf16 tag=acdb flags=CH desc=mb256ic64ih56iw56", "far
     // clang-format on
 }
 
-std::string get_desc_str(const bnorm_conf_t &conf) {
+std::string get_desc_str(const params_t &conf) {
     std::ostringstream oss;
     oss << "mb" << conf.mb;
     oss << "ic" << conf.ic;
@@ -301,7 +301,7 @@ std::string get_desc_str(const bnorm_conf_t &conf) {
 }
 
 const char *bnorm_lookup_table_t::find(
-        const bnorm_conf_t &conf, const gpu_arch_t &gpu_arch) const {
+        const params_t &conf, const gpu_arch_t &gpu_arch) const {
     auto key = get_desc_str(conf);
     auto it = map_.find(key);
     if (it == map_.end()) return nullptr;
@@ -341,7 +341,7 @@ bnorm_params_t::bnorm_params_t(const std::string &s) {
     }
 }
 
-void bnorm_params_t::override_params(bnorm_conf_t &conf) const {
+void bnorm_params_t::override_params(params_t &conf) const {
 #define MAYBE_OVERRIDE_INT(param) \
     if (!s_##param##_.empty()) { \
         const int val = std::stoi(s_##param##_); \
@@ -350,7 +350,7 @@ void bnorm_params_t::override_params(bnorm_conf_t &conf) const {
             conf.is_overrided_##param = true; \
         } \
     }
-    MAYBE_OVERRIDE_INT(use_fused_atomics_reduction);
+    MAYBE_OVERRIDE_INT(use_fused_atomics_reduction); // casts int -> bool
     MAYBE_OVERRIDE_INT(max_vect_size);
     MAYBE_OVERRIDE_INT(ic_block);
     MAYBE_OVERRIDE_INT(stat_sp_block);

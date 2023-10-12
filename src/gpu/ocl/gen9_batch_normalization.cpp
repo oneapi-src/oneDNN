@@ -28,7 +28,8 @@ using namespace bn_lookup_table;
 using namespace bn_utils;
 using namespace dnnl::impl::utils;
 
-static bool use_fused_atomics_reduction(bnorm_conf_t &conf, engine_t *engine) {
+static bool use_fused_atomics_reduction(
+        bn_lookup_table::params_t &conf, engine_t *engine) {
     // Currently the fused atomics reduction is targeting to PVC only.
     // Heuristics experimentally selected, based on PVC perf data
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
@@ -38,7 +39,7 @@ static bool use_fused_atomics_reduction(bnorm_conf_t &conf, engine_t *engine) {
             && conf.ic % conf.sub_group_size == 0 && sp / conf.ic > 40;
 }
 
-static size_t get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
+static size_t get_slm_buff_size(bn_lookup_table::params_t &conf, size_t *lws) {
     // Returns size of SLM buffer of nhwc stat calculation kernels.
     const size_t base_size = div_up(conf.ic_block, conf.sub_group_size) * lws[0]
             * lws[1] * lws[2];
@@ -51,7 +52,7 @@ static size_t get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
 }
 
 // Local group size adjustment.
-static void adjust_lws_calc_kernel(bnorm_conf_t &conf,
+static void adjust_lws_calc_kernel(bn_lookup_table::params_t &conf,
         compute::dispatch_t &dispatch, engine_t *engine, bool large_grf_mode) {
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto eu_count = compute_engine->device_info()->eu_count();
@@ -126,8 +127,8 @@ static int get_block_size(bool is_backward, int hw_threads, int nn, int ic,
     return block_size;
 }
 
-static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
-        compute::dispatch_t &dispatch_calc_stat,
+static status_t init_conf_common(bn_lookup_table::params_t &conf,
+        offsets_t &off, compute::dispatch_t &dispatch_calc_stat,
         compute::dispatch_t &dispatch_reduce_stat,
         compute::dispatch_t &dispatch, compute::dispatch_t &dispatch_reduce_aux,
         const batch_normalization_pd_t *pd, engine_t *engine) {
@@ -310,7 +311,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const bnorm_conf_t &conf, const compute::dispatch_t &dispatch_calc_stat,
+        const bn_lookup_table::params_t &conf,
+        const compute::dispatch_t &dispatch_calc_stat,
         const compute::dispatch_t &dispatch_reduce_stat,
         const compute::dispatch_t &dispatch,
         const compute::dispatch_t &dispatch_reduce_aux, const offsets_t &off) {

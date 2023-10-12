@@ -85,7 +85,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
-        bnorm_conf_t conf;
+        bn_lookup_table::params_t conf;
         offsets_t off;
         compute::dispatch_t dispatch_calc_stat;
         compute::dispatch_t dispatch_reduce_stat;
@@ -221,7 +221,7 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
-        bnorm_conf_t conf;
+        bn_lookup_table::params_t conf;
         offsets_t off;
         compute::dispatch_t dispatch_calc_stat;
         compute::dispatch_t dispatch_reduce_stat;

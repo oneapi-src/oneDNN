@@ -442,13 +442,13 @@ struct bnorm_conf_t {
 
     int ndims;
     dim_t mb, ic, id, ih, iw;
-    int mb_block, ic_block;
+    int mb_block;
     int reduce_dim_idx;
     dim_t reduce_dim;
     dim_t nn, sp;
     int sp_tail, vect_size;
-    int stat_sp_nblocks, stat_sp_tail, stat_sp_block;
-    int update_sp_nblocks, update_sp_tail, update_sp_block;
+    int stat_sp_nblocks, stat_sp_tail;
+    int update_sp_nblocks, update_sp_tail;
     int reduce_stat_nblocks;
     bool with_relu, use_nhwc;
     dim_t stat_ic;
@@ -463,23 +463,7 @@ struct bnorm_conf_t {
     bool use_stats_one_pass;
     bool nhwc_optimized;
     int calc_stat_ic;
-    bool use_fused_atomics_reduction;
     bool use_workaround;
-    int update_sp_unroll;
-    int max_vect_size;
-
-    std::string flags;
-    bool bn_tuning;
-    bool is_blocked_16c = false;
-    bool is_blocked_16n16c = false;
-    bool is_blocked_32n16c = false;
-    bool is_nhwc = false;
-    bool is_overrided_use_fused_atomics_reduction = false;
-    bool is_overrided_ic_block = false;
-    bool is_overrided_max_vect_size = false;
-    bool is_overrided_stat_sp_block = false;
-    bool is_overrided_update_sp_block = false;
-    bool is_overrided_update_sp_unroll = false;
 };
 
 // Layer Normalization

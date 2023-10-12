@@ -30,9 +30,32 @@ namespace gpu {
 namespace ocl {
 namespace bn_lookup_table {
 
-void maybe_override_bn_conf_params_env(bnorm_conf_t &conf);
-void maybe_override_bn_conf_params_table(bnorm_conf_t &conf, engine_t *engine);
-void maybe_override_bn_conf_params(bnorm_conf_t &conf, engine_t *engine);
+struct params_t : bnorm_conf_t {
+    int ic_block;
+    int stat_sp_block;
+    int update_sp_block;
+    
+    bool use_fused_atomics_reduction;
+    int update_sp_unroll;
+    int max_vect_size;
+
+    std::string flags;
+    bool bn_tuning;
+    bool is_blocked_16c = false;
+    bool is_blocked_16n16c = false;
+    bool is_blocked_32n16c = false;
+    bool is_nhwc = false;
+    bool is_overrided_use_fused_atomics_reduction = false;
+    bool is_overrided_ic_block = false;
+    bool is_overrided_max_vect_size = false;
+    bool is_overrided_stat_sp_block = false;
+    bool is_overrided_update_sp_block = false;
+    bool is_overrided_update_sp_unroll = false;
+};
+
+void maybe_override_bn_conf_params_env(params_t &conf);
+void maybe_override_bn_conf_params_table(params_t &conf, engine_t *engine);
+void maybe_override_bn_conf_params(params_t &conf, engine_t *engine);
 
 inline std::string getenv_str(const char *s, const std::string &def) {
     char buf[1024];
@@ -56,7 +79,7 @@ inline std::vector<std::string> split(const std::string &s,
     return ret;
 }
 
-std::string get_desc_str(const bnorm_conf_t &conf);
+std::string get_desc_str(const params_t &conf);
 
 enum class op_kind_t {
     undef,
@@ -106,14 +129,14 @@ public:
     using key_t = std::string;
     bnorm_problem_filter_t(const std::string &s);
     key_t key() const { return desc_; }
-    bool matches(const bnorm_conf_t &conf,
-            const compute::gpu_arch_t &gpu_arch) const;
+    bool matches(
+            const params_t &conf, const compute::gpu_arch_t &gpu_arch) const;
 
 private:
-    bool matches_dir(const bnorm_conf_t &conf) const;
-    bool matches_desc(const bnorm_conf_t &conf) const;
-    bool matches_tag(const bnorm_conf_t &conf) const;
-    bool matches_flags(const bnorm_conf_t &conf) const;
+    bool matches_dir(const params_t &conf) const;
+    bool matches_desc(const params_t &conf) const;
+    bool matches_tag(const params_t &conf) const;
+    bool matches_flags(const params_t &conf) const;
 
     std::string dir_;
     type_filter_t type_filter_;
@@ -127,7 +150,7 @@ class bnorm_params_t {
 public:
     bnorm_params_t() = default;
     bnorm_params_t(const std::string &s);
-    void override_params(bnorm_conf_t &conf) const;
+    void override_params(params_t &conf) const;
 
 private:
     std::string s_use_fused_atomics_reduction_;
@@ -141,9 +164,9 @@ private:
 class bnorm_lookup_table_t {
 public:
     bnorm_lookup_table_t();
-    const char *find(const bnorm_conf_t &conf,
-            const compute::gpu_arch_t &gpu_arch) const;
-    void get_params(const bnorm_conf_t &conf, const std::string &params) const;
+    const char *find(
+            const params_t &conf, const compute::gpu_arch_t &gpu_arch) const;
+    void get_params(const params_t &conf, const std::string &params) const;
 
 private:
     struct entry_t {
