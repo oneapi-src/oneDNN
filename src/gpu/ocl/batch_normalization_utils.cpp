@@ -35,16 +35,6 @@ float get_thr_utilization(
     return ((float)gws_size / sg_size) / (eu_count * threads_per_eu);
 }
 
-// Init conf flags for lookup table
-void init_flags_lookup_table(
-        std::string &flags, const batch_normalization_pd_t *pd) {
-    if (pd->use_scale()) flags += 'C';
-    if (pd->use_shift()) flags += 'H';
-    if (pd->stats_is_src() || pd->use_global_stats()) flags += 'G';
-    if (pd->fuse_norm_relu()) flags += 'R';
-    if (pd->fuse_norm_add_relu()) flags += 'A';
-}
-
 // Init basic fields of conf structure
 void init_conf_basic(bnorm_conf_t &conf, const batch_normalization_pd_t *pd) {
     using namespace dnnl::impl::format_tag;

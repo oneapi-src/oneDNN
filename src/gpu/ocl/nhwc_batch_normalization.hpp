@@ -107,7 +107,7 @@ struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {
         if (pd()->conf.calculate_stats) {
             if (pd()->conf.use_stats_one_pass) {
                 kernel_names[1] = "gen9_calc_mean_var_nhwc";
-                if (!pd()->conf.use_fused_atomics_reduction) {
+                if (!pd()->conf.use_fused_atomics_reduction()) {
                     kernel_names[2] = "gen9_reduce_mean_var";
                 } else {
                     kernel_names[2] = "gen9_fused_reduce_init";
@@ -116,7 +116,7 @@ struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {
             } else { // regular algorithm
                 kernel_names[1] = "gen9_calc_mean_nhwc";
                 kernel_names[2] = "gen9_calc_variance_nhwc";
-                if (!pd()->conf.use_fused_atomics_reduction) {
+                if (!pd()->conf.use_fused_atomics_reduction()) {
                     kernel_names[3] = "gen9_reduce_mean";
                     kernel_names[4] = "gen9_reduce_variance";
                 } else {
@@ -133,7 +133,7 @@ struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {
         kernel_ = kernels[0];
         if (pd()->conf.use_stats_one_pass) {
             calculate_mean_var_kernel_ = kernels[1];
-            if (pd()->conf.use_fused_atomics_reduction) {
+            if (pd()->conf.use_fused_atomics_reduction()) {
                 reduce_init_kernel_ = kernels[2];
                 reduce_final_kernel_ = kernels[3];
             } else {
@@ -142,7 +142,7 @@ struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {
         } else {
             calculate_mean_kernel_ = kernels[1];
             calculate_variance_kernel_ = kernels[2];
-            if (pd()->conf.use_fused_atomics_reduction) {
+            if (pd()->conf.use_fused_atomics_reduction()) {
                 reduce_init_kernel_ = kernels[3];
                 reduce_final_kernel_ = kernels[4];
             } else {
@@ -239,7 +239,7 @@ struct nhwc_batch_normalization_bwd_t : public gpu_primitive_t {
 
         kernel_names[0] = "gen9_bnorm_bwd_nhwc";
         kernel_names[1] = "gen9_calculate_stats_nhwc";
-        if (pd()->conf.use_fused_atomics_reduction) {
+        if (pd()->conf.use_fused_atomics_reduction()) {
             kernel_names[2] = "gen9_fused_reduce_init";
             kernel_names[3] = "gen9_fused_reduce_final";
         } else {
@@ -251,7 +251,7 @@ struct nhwc_batch_normalization_bwd_t : public gpu_primitive_t {
 
         bwd_kernel_ = kernels[0];
         calculate_stats_kernel_ = kernels[1];
-        if (pd()->conf.use_fused_atomics_reduction) {
+        if (pd()->conf.use_fused_atomics_reduction()) {
             reduce_init_kernel_ = kernels[2];
             reduce_final_kernel_ = kernels[3];
         } else {

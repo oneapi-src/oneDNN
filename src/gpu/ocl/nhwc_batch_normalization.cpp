@@ -41,8 +41,8 @@ static bool use_fused_atomics_reduction(
 
 static size_t get_slm_buff_size(bn_lookup_table::params_t &conf, size_t *lws) {
     // Returns size of SLM buffer of nhwc stat calculation kernels.
-    const size_t base_size = div_up(conf.ic_block, conf.sub_group_size) * lws[0]
-            * lws[1] * lws[2];
+    const size_t base_size = div_up(conf.ic_block(), conf.sub_group_size)
+            * lws[0] * lws[1] * lws[2];
     if (conf.use_stats_one_pass) {
         return 2 * base_size * 2 * sizeof(float);
     } else {
@@ -205,62 +205,58 @@ static status_t init_conf_common(bn_lookup_table::params_t &conf,
             && gpu_arch == compute::gpu_arch_t::xe_hpg;
     conf.sub_group_size = 16;
 
-    init_flags_lookup_table(conf.flags, pd);
+    conf.flags = static_cast<normalization_flags_t>(pd->desc()->flags);
 
     // Default value is equal to OCL supported max vector size
     // but can be overridden due to performance reason.
-    conf.max_vect_size = 8;
+    if (!conf.max_vect_size_param().is_overridden()) conf.set_max_vect_size(8);
 
     // Attempt to get tunable parameters from a lookup table
     // or from environment in tuning mode
     maybe_override_bn_conf_params(conf, engine);
 
-    if (!conf.is_overrided_use_fused_atomics_reduction) {
-        conf.use_fused_atomics_reduction
-                = use_fused_atomics_reduction(conf, engine);
-    }
+    if (!conf.use_fused_atomics_reduction_param().is_overridden())
+        conf.set_use_fused_atomics_reduction(
+                use_fused_atomics_reduction(conf, engine));
 
-    if (!conf.is_overrided_ic_block) {
-        conf.ic_block = get_nhwc_ic_block(
-                rnd_up(conf.ic, conf.sub_group_size), conf.sub_group_size);
-    }
+    if (!conf.ic_block_param().is_overridden())
+        conf.set_ic_block(get_nhwc_ic_block(
+                rnd_up(conf.ic, conf.sub_group_size), conf.sub_group_size));
 
     // reshape to xc
     conf.sp = conf.mb * conf.id * conf.ih * conf.iw;
 
-    conf.calc_stat_ic = div_up(conf.ic, conf.ic_block) * conf.sub_group_size;
+    conf.calc_stat_ic = div_up(conf.ic, conf.ic_block()) * conf.sub_group_size;
 
     auto eu_count = compute_engine->device_info()->eu_count();
     auto threads_per_eu
             = compute::device_info_t::threads_per_eu(gpu_arch, false);
 
-    if (!conf.is_overrided_stat_sp_block) {
-        conf.stat_sp_block = get_nhwc_sp_block_size(conf.sp, conf.calc_stat_ic,
-                eu_count, threads_per_eu, conf.sub_group_size);
-    }
-
-    if (!conf.is_overrided_update_sp_block) {
-        conf.update_sp_block = conf.stat_sp_block;
-    }
-
-    if (!conf.is_overrided_update_sp_unroll) conf.update_sp_unroll = 1;
-    assert(conf.update_sp_block % conf.update_sp_unroll == 0);
-    assert((conf.sp % conf.update_sp_block) % conf.update_sp_unroll == 0);
+    if (!conf.stat_sp_block_param().is_overridden())
+        conf.set_stat_sp_block(
+                get_nhwc_sp_block_size(conf.sp, conf.calc_stat_ic, eu_count,
+                        threads_per_eu, conf.sub_group_size));
+    if (!conf.update_sp_block_param().is_overridden())
+        conf.set_update_sp_block(conf.stat_sp_block());
+    if (!conf.update_sp_unroll_param().is_overridden())
+        conf.set_update_sp_unroll(1);
+    assert(conf.update_sp_block() % conf.update_sp_unroll() == 0);
+    assert((conf.sp % conf.update_sp_block()) % conf.update_sp_unroll() == 0);
 
     conf.stat_sp_nblocks
-            = rnd_up(conf.sp, conf.stat_sp_block) / conf.stat_sp_block;
+            = rnd_up(conf.sp, conf.stat_sp_block()) / conf.stat_sp_block();
     conf.stat_sp_tail
-            = rnd_dn(conf.sp, conf.stat_sp_block) / conf.stat_sp_block;
+            = rnd_dn(conf.sp, conf.stat_sp_block()) / conf.stat_sp_block();
 
     conf.update_sp_nblocks
-            = rnd_up(conf.sp, conf.update_sp_block) / conf.update_sp_block;
+            = rnd_up(conf.sp, conf.update_sp_block()) / conf.update_sp_block();
     conf.update_sp_tail
-            = rnd_dn(conf.sp, conf.update_sp_block) / conf.update_sp_block;
+            = rnd_dn(conf.sp, conf.update_sp_block()) / conf.update_sp_block();
 
     conf.reduce_stat_nblocks = conf.stat_sp_nblocks;
 
     conf.vect_size = get_nhwc_vect_size(
-            conf.ic_block, conf.max_vect_size, conf.sub_group_size);
+            conf.ic_block(), conf.max_vect_size(), conf.sub_group_size);
 
     dispatch_calc_stat = compute_engine->create_dispatch();
     dispatch_calc_stat.define_dim("STAT_MB", 0, 1);
@@ -270,7 +266,7 @@ static status_t init_conf_common(bn_lookup_table::params_t &conf,
     CHECK(dispatch_calc_stat.vectorize_dim("STAT_IC", conf.sub_group_size));
     dispatch_calc_stat.set_kernel_attr_suffix("CALC");
     dispatch_calc_stat.generate();
-    if (conf.use_fused_atomics_reduction) {
+    if (conf.use_fused_atomics_reduction()) {
         auto *gpu_attr
                 = downcast<gpu_primitive_attr_t *>(pd->attr()->gpu_attr_.get());
         bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
@@ -331,14 +327,14 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("IH", conf.ih);
     kernel_ctx.define_int("IW", conf.iw);
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
-    kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
+    kernel_ctx.define_int("IC_BLOCK", conf.ic_block());
 
     kernel_ctx.define_int("SP", conf.sp);
     kernel_ctx.define_int("SP_TAIL", conf.sp_tail);
     kernel_ctx.define_int("VECT_SIZE", conf.vect_size);
 
-    kernel_ctx.define_int("STAT_SP_BLOCK", conf.stat_sp_block);
-    kernel_ctx.define_int("UPDATE_SP_BLOCK", conf.update_sp_block);
+    kernel_ctx.define_int("STAT_SP_BLOCK", conf.stat_sp_block());
+    kernel_ctx.define_int("UPDATE_SP_BLOCK", conf.update_sp_block());
     kernel_ctx.define_int("STAT_SP_NBLOCKS", conf.stat_sp_nblocks);
     kernel_ctx.define_int("STAT_SP_TAIL", conf.stat_sp_tail);
     kernel_ctx.define_int("REDUCE_STAT_NBLOCKS", conf.reduce_stat_nblocks);
@@ -367,9 +363,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("USE_STATS_ONE_PASS", conf.use_stats_one_pass);
     kernel_ctx.define_int("NHWC_OPTIMIZED", conf.nhwc_optimized);
     kernel_ctx.define_int("SG_SIZE", conf.sub_group_size);
-    kernel_ctx.define_int("UPDATE_SP_UNROLL", conf.update_sp_unroll);
+    kernel_ctx.define_int("UPDATE_SP_UNROLL", conf.update_sp_unroll());
     kernel_ctx.define_int(
-            "FUSED_ATOMICS_REDUCTION", conf.use_fused_atomics_reduction);
+            "FUSED_ATOMICS_REDUCTION", conf.use_fused_atomics_reduction());
     kernel_ctx.define_int("USE_WORKAROUND", conf.use_workaround);
 
     kernel_ctx.add_option("-cl-std=CL2.0");
@@ -463,7 +459,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
     auto &variance = (conf.calculate_stats && !conf.save_stats) ? *tmp_variance
                                                                 : variance_;
 
-    if (conf.calculate_stats && conf.use_fused_atomics_reduction) {
+    if (conf.calculate_stats && conf.use_fused_atomics_reduction()) {
         // Atomics-based reduction requires zeroing mean and variance
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, mean);
@@ -486,7 +482,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
                 calc_mean_arg_list);
         if (status != status::success) return status;
 
-        if (conf.use_fused_atomics_reduction) {
+        if (conf.use_fused_atomics_reduction()) {
             compute::kernel_arg_list_t arg_list;
             arg_list.set(0, mean);
             auto nd_range = pd()->dispatch_reduce_aux.nd_range();
@@ -517,7 +513,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
                 calculate_variance_kernel_, calc_var_arg_list);
         if (status != status::success) return status;
 
-        if (conf.use_fused_atomics_reduction) {
+        if (conf.use_fused_atomics_reduction()) {
             compute::kernel_arg_list_t arg_list;
             arg_list.set(0, variance);
             auto nd_range = pd()->dispatch_reduce_aux.nd_range();
@@ -549,7 +545,7 @@ status_t nhwc_batch_normalization_fwd_t::execute_forward(
                 ctx, nd_range_calc_mean, calculate_mean_var_kernel_, arg_list);
         if (status != status::success) return status;
 
-        if (conf.use_fused_atomics_reduction) {
+        if (conf.use_fused_atomics_reduction()) {
             compute::kernel_arg_list_t arg_list;
             arg_list.set(0, mean);
             arg_list.set(1, variance);
@@ -639,7 +635,7 @@ status_t nhwc_batch_normalization_bwd_t::execute_backward(
     auto &diff_scale = !conf.diff_scale ? *temp_reduce : diff_scale_;
     auto &diff_shift = !conf.diff_shift ? *temp_reduce : diff_shift_;
 
-    if (conf.use_fused_atomics_reduction) {
+    if (conf.use_fused_atomics_reduction()) {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, diff_scale);
         arg_list.set(1, diff_shift);
@@ -664,7 +660,7 @@ status_t nhwc_batch_normalization_bwd_t::execute_backward(
             ctx, nd_range, calculate_stats_kernel_, calc_stats_arg_list);
     if (status != status::success) return status;
 
-    if (conf.use_fused_atomics_reduction) {
+    if (conf.use_fused_atomics_reduction()) {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, diff_scale);
         arg_list.set(1, variance);

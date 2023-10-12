@@ -33,8 +33,7 @@ void maybe_override_bn_conf_params_env(params_t &conf) {
     auto s_params = getenv_str("BN_PARAMS", "");
     assert(!s_params.empty());
     assert(conf.bn_tuning);
-    bnorm_params_t params(s_params);
-    params.override_params(conf);
+    conf.override_set(s_params, /*is_env*/ true);
 }
 
 // Gets bnorm parameters from a lookup table
@@ -45,10 +44,7 @@ void maybe_override_bn_conf_params_table(params_t &conf, engine_t *engine) {
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     static bnorm_lookup_table_t table;
     auto *s_params = table.find(conf, gpu_arch);
-    if (s_params) {
-        bnorm_params_t params(s_params);
-        params.override_params(conf);
-    }
+    if (s_params) { conf.override_set(s_params, /*is_env*/ false); }
 }
 
 void maybe_override_bn_conf_params(params_t &conf, engine_t *engine) {
@@ -138,21 +134,29 @@ std::vector<std::string> &type_filter_t::all_patterns() {
     return ret;
 }
 
-flags_filter_t::flags_filter_t(const std::string &s) {
-    for (auto &p : all_patterns()) {
-        if (s.find(p) != std::string::npos) { patterns_.push_back(p); }
+static std::vector<std::pair<char, normalization_flags_t>> all_patterns = {
+        {'G', normalization_flags::use_global_stats},
+        {'C', normalization_flags::use_scale},
+        {'H', normalization_flags::use_shift},
+        {'R', normalization_flags::fuse_norm_relu},
+        {'A', normalization_flags::fuse_norm_add_relu},
+};
+
+normalization_flags_t flags_from_string(const std::string &s) {
+    int ret = 0;
+    for (const auto &pattern : all_patterns) {
+        if (s.find(pattern.first) != std::string::npos) {
+            ret |= pattern.second;
+        }
     }
+    return normalization_flags_t(ret);
 }
 
-bool flags_filter_t::matches(const std::string &values) const {
-    if (values.size() != patterns_.size()) return false;
-    for (size_t i = 0; i < patterns_.size(); i++) {
-        if (values.find(patterns_[i]) == std::string::npos) return false;
+std::string string_from_flags(normalization_flags_t flags) {
+    std::string ret;
+    for (const auto &pattern : all_patterns) {
+        if (flags & pattern.second) { ret += pattern.first; }
     }
-    return true;
-}
-std::vector<char> &flags_filter_t::all_patterns() {
-    static std::vector<char> ret = {'G', 'C', 'H', 'R', 'A'};
     return ret;
 }
 
@@ -172,7 +176,7 @@ bnorm_problem_filter_t::bnorm_problem_filter_t(const std::string &s) {
         } else if (name == "tag") {
             tag_ = value;
         } else if (name == "flags") {
-            flags_filter_ = flags_filter_t(value);
+            flags_filter_ = flags_from_string(value);
         } else if (name == "desc") {
             desc_ = value;
         } else {
@@ -187,7 +191,7 @@ bool bnorm_problem_filter_t::matches(
     if (!matches_dir(conf)) return false;
     if (!matches_tag(conf)) return false;
     if (!type_filter_.matches({conf.data_type})) return false;
-    if (!flags_filter_.matches(conf.flags)) return false;
+    if (flags_filter_ != conf.flags) return false;
     if (!matches_desc(conf)) return false;
     return true;
 }
@@ -316,47 +320,32 @@ void bnorm_lookup_table_t::add(const char *s_prb, const char *s_params) {
     map_[filter.key()].push_back(entry_t {filter, s_params});
 }
 
-bnorm_params_t::bnorm_params_t(const std::string &s) {
-    auto parts = split(s, " ");
-    for (auto &part : parts) {
-        auto sub_parts = split(part, "=");
-        assert(sub_parts.size() == 2);
-        auto &name = sub_parts[0];
-        auto &value = sub_parts[1];
-        if (name == "far") {
-            s_use_fused_atomics_reduction_ = value;
-        } else if (name == "mv") {
-            s_max_vect_size_ = value;
-        } else if (name == "icb") {
-            s_ic_block_ = value;
-        } else if (name == "sspb") {
-            s_stat_sp_block_ = value;
-        } else if (name == "uspb") {
-            s_update_sp_block_ = value;
-        } else if (name == "uspu") {
-            s_update_sp_unroll_ = value;
-        } else {
-            assert(!"Not expected");
-        }
+int params_t::sort_key(const param_t *param) const {
+    static const char *ordered_params[] = {
+            "far",
+            "icb",
+            "mv",
+            "sspb",
+            "uspb",
+            "uspu",
+            nullptr,
+    };
+    for (const char **p = ordered_params; *p; p++) {
+        if (param->short_name() == *p) return p - ordered_params;
     }
+    return (int)(sizeof(ordered_params) / sizeof(ordered_params[0]));
 }
 
-void bnorm_params_t::override_params(params_t &conf) const {
-#define MAYBE_OVERRIDE_INT(param) \
-    if (!s_##param##_.empty()) { \
-        const int val = std::stoi(s_##param##_); \
-        if (val >= 0) { \
-            conf.param = val; \
-            conf.is_overrided_##param = true; \
-        } \
-    }
-    MAYBE_OVERRIDE_INT(use_fused_atomics_reduction); // casts int -> bool
-    MAYBE_OVERRIDE_INT(max_vect_size);
-    MAYBE_OVERRIDE_INT(ic_block);
-    MAYBE_OVERRIDE_INT(stat_sp_block);
-    MAYBE_OVERRIDE_INT(update_sp_block);
-    MAYBE_OVERRIDE_INT(update_sp_unroll);
-#undef MAYBE_OVERRIDE_INT
+std::string params_t::str() const {
+    std::ostringstream oss;
+    oss << "Fused atomic reduction: " << use_fused_atomics_reduction_.str()
+        << std::endl;
+    oss << "IC block: " << ic_block_.str() << std::endl;
+    oss << "Max vector size: " << max_vect_size_.str() << std::endl;
+    oss << "Stat spatial blocking: " << stat_sp_block_.str() << std::endl;
+    oss << "Update spatial blocking: " << update_sp_block_.str() << std::endl;
+    oss << "Update spatial unrolling: " << update_sp_unroll_.str() << std::endl;
+    return oss.str();
 }
 
 } // namespace bn_lookup_table
