@@ -1657,6 +1657,8 @@ void xbyak_lowering_viewer::handle_avx_add(const operand &op_dst,
         case cpu_data_type::sint_32_x2: {
             XBYAK_GEN(vpaddd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
+        case cpu_data_type::uint_8_x8:
+        case cpu_data_type::sint_8_x8:
         case cpu_data_type::uint_8_x16:
         case cpu_data_type::sint_8_x16: {
             XBYAK_GEN(vpaddb, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
@@ -1931,6 +1933,14 @@ void xbyak_lowering_viewer::handle_avx_min(const operand &op_dst,
         const operand &op_lhs, const operand &op_rhs,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
+        case cpu_data_type::uint_8_x8:
+        case cpu_data_type::uint_8_x16: {
+            XBYAK_GEN(vpminub, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
+        case cpu_data_type::sint_8_x8:
+        case cpu_data_type::sint_8_x16: {
+            XBYAK_GEN(vpminsb, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
         case cpu_data_type::sint_32_x16: {
             assert(cpu_flags_.fAVX512F);
         } // fall-through

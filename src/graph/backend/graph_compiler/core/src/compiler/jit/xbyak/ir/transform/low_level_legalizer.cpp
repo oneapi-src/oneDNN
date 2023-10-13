@@ -66,9 +66,10 @@ public:
     expr_c visit(intrin_call_c v) override {
         auto vv = ir_visitor_t::visit(std::move(v)).static_as<intrin_call_c>();
         auto dst_dtype = vv->dtype_;
+        auto src_dtype = vv->args_[0]->dtype_;
         // TODO(longsheng): reduce no need to cast to f32
         auto can_cast_to_f32 = !dst_dtype.is_etype(sc_data_etype::F32)
-                && (dst_dtype.lanes_ <= max_f32_lanes_);
+                && (src_dtype.lanes_ <= max_f32_lanes_);
         switch (vv->type_) {
             case intrin_type::abs: {
                 // float and bf16

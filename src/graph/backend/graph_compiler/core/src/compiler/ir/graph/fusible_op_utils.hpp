@@ -78,6 +78,17 @@ bool slice_larger_than_bound_on_axis(const slice_range &ranges,
 int get_slice_size(const slice_range &ranges, const int dtype_size = 1);
 
 inline uint16_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
+    // eg: bf16 or s8u8 always promote to f32 or s32 to do calculation, we need
+    // to limited bf16 max lanes is 8 under avx2 environment.
+    auto avx2_lanes_require_dtype = [](const sc_data_etype detype) {
+        return detype == sc_data_etype::BF16 || detype == sc_data_etype::S8
+                || detype == sc_data_etype::U8;
+    };
+    if (!ctx->machine_.cpu_flags_.fAVX512F
+            && avx2_lanes_require_dtype(detype)) {
+        assert(ctx->machine_.cpu_flags_.fAVX2);
+        return std::min(uint16_t(8), ctx->get_max_vector_lanes(detype));
+    }
     return std::min(uint16_t(16), ctx->get_max_vector_lanes(detype));
 }
 bool loop_can_be_fused(const for_loop &loop);

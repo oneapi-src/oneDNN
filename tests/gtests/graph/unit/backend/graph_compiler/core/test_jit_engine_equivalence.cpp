@@ -1894,6 +1894,78 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicInsertAVX2) {
     test_func(datatypes::u16);
 }
 
+TEST(GCCore_CPU_jit_engine_equivalence, TestMaskIndexingAVX2) {
+    REQUIRE_AVX2();
+
+    ir_builder_t builder;
+    const int simd_lanes = 16;
+    const int test_len = simd_lanes - 1;
+
+    _function_(datatypes::void_t, foo, _arg_("a", datatypes::s8, {test_len}),
+            _arg_("b", datatypes::s8, {test_len}),
+            _arg_("c", datatypes::s8, {test_len}),
+            _arg_("d", datatypes::s8, {test_len})) {
+        _bind_(a, b, c, d);
+        auto mask = builder::make_constant(
+                {UINT64_C((1 << simd_lanes) - 1)}, datatypes::u16);
+        a[span_t({0UL}, simd_lanes, mask)] = b[span_t({0UL}, simd_lanes, mask)];
+        d[span_t({0UL}, simd_lanes, mask)]
+                = builder::make_max(a[span_t({0UL}, simd_lanes, mask)],
+                        c[span_t({0UL}, simd_lanes, mask)]);
+    }
+
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+            get_avx2_test_ctx(), vector<func_t> {foo}, 0);
+
+    for (auto &kv : get_engines()) {
+        const string &je_name = kv.first;
+        // just builtin need to test this
+        if (je_name != "xbyak_jit") continue;
+
+        ostringstream err_context;
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> jf = jm->get_function("foo");
+
+        EXPECT_NE(jf, nullptr);
+        if (!jf) { continue; }
+
+        int8_t host_a[test_len] = {0};
+        int8_t host_b[test_len]
+                = {0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+        int8_t host_c[test_len]
+                = {-1, -1, -1, 100, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+        int8_t host_d[test_len] = {0};
+
+        const int8_t exp_a[test_len]
+                = {0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+        const int8_t exp_d[test_len]
+                = {0, 2, 3, 100, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+
+        generic_val generic_args[] = {
+                &host_a,
+                &host_b,
+                &host_c,
+                &host_d,
+        };
+
+        jf->call_generic_default(generic_args);
+
+        for (int i = 0; i < test_len; ++i) {
+            EXPECT_EQ(host_a[i], exp_a[i]);
+            EXPECT_EQ(host_d[i], exp_d[i]);
+        }
+    }
+}
+
 TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBF16) {
     REQUIRE_AVX512();
     ir_builder_t builder;

@@ -38,10 +38,8 @@ public:
 
     avx2_legalizer_impl_t() = default;
 
-    bool is_u8s8_bf16(const sc_data_type_t &dtype) {
-        return dtype.type_code_ == datatypes::bf16.type_code_
-                || dtype.type_code_ == datatypes::u8.type_code_
-                || dtype.type_code_ == datatypes::s8.type_code_;
+    bool is_base_type_less_than_32bit(const sc_data_type_t &dtype) {
+        return utils::get_sizeof_etype(dtype.type_code_) * 8 < 32;
     }
 
     expr_c visit(tensor_c v) override {
@@ -168,7 +166,7 @@ public:
         auto dtype = vv->dtype_;
         if (vv->mask_.defined() && dtype != vv->mask_->dtype_) {
             // We process u8s8 and bf16 datatype one by one like llvm.
-            if (is_u8s8_bf16(dtype)) {
+            if (is_base_type_less_than_32bit(dtype)) {
                 return vv;
             } else {
                 return builder::make_indexing(vv->ptr_, vv->idx_, dtype.lanes_,
@@ -242,7 +240,7 @@ public:
         auto dtype = var->dtype_;
         if (value.defined() && (value->node_type_ == sc_expr_type::indexing)) {
             auto vv = value.static_as<indexing_c>();
-            if (vv->mask_.defined() && is_u8s8_bf16(dtype)) {
+            if (vv->mask_.defined() && is_base_type_less_than_32bit(dtype)) {
                 INTRIN_TYPE = INSERT_INTRIN;
                 std::vector<stmt_c> cur_list, body_list;
                 std::vector<stmt_c> then_block_list;
@@ -303,7 +301,7 @@ public:
                 }
 
                 auto cur_body = builder::make_stmts_unattached(cur_list);
-                return ir_visitor_t::dispatch(std::move(cur_body));
+                return cur_body;
             } else {
                 return stmt();
             }
@@ -315,7 +313,7 @@ public:
         auto dtype = value->dtype_;
         if (var.defined() && (var->node_type_ == sc_expr_type::indexing)) {
             auto vv = var.static_as<indexing_c>();
-            if (vv->mask_.defined() && is_u8s8_bf16(dtype)) {
+            if (vv->mask_.defined() && is_base_type_less_than_32bit(dtype)) {
                 INTRIN_TYPE = EXTRACT_INTRIN;
                 const int extract_bits = 128;
                 std::vector<stmt_c> cur_list, body_list;
@@ -372,7 +370,7 @@ public:
                 }
 
                 auto cur_body = builder::make_stmts_unattached(cur_list);
-                return ir_visitor_t::dispatch(std::move(cur_body));
+                return cur_body;
             } else {
                 return stmt();
             }
@@ -387,7 +385,7 @@ public:
         auto value = defined->init_;
         if (value.defined() && (value->node_type_ == sc_expr_type::indexing)) {
             auto res = insert_byte_by_byte(value, var);
-            return res.defined() ? ir_visitor_t::dispatch(res) : defined;
+            return res.defined() ? res : defined;
         }
         return defined;
     }
@@ -399,11 +397,11 @@ public:
         auto value = assign->value_;
         if (var.defined() && (var->node_type_ == sc_expr_type::indexing)) {
             auto res = extract_byte_by_byte(value, var);
-            return res.defined() ? ir_visitor_t::dispatch(res) : assign;
+            return res.defined() ? res : assign;
         } else if (value.defined()
                 && value->node_type_ == sc_expr_type::indexing) {
             auto res = insert_byte_by_byte(value, var);
-            return res.defined() ? ir_visitor_t::dispatch(res) : assign;
+            return res.defined() ? res : assign;
         }
         return assign;
     }

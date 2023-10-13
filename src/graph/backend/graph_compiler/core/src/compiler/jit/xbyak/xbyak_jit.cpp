@@ -46,6 +46,7 @@
 #include <compiler/jit/xbyak/ir/pass/ir_indexer.hpp>
 #include <compiler/jit/xbyak/ir/pass/live_interval.hpp>
 #include <compiler/jit/xbyak/ir/transform/avx2_legalizer.hpp>
+#include <compiler/jit/xbyak/ir/transform/avx2_mask_indexing_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/indexing_transform.hpp>
@@ -76,6 +77,8 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
     ret.emplace_back(
             module_function_pass_t::make<low_level_legalizer_t>(ctx->machine_));
     ret.emplace_back(module_function_pass_t::make<constant_optimizer_t>());
+    ret.emplace_back(
+            module_function_pass_t::make<avx2_mask_indexing_t>(ctx->machine_));
     ret.emplace_back(
             module_function_pass_t::make<avx2_legalizer_t>(ctx->machine_));
     ret.emplace_back(
