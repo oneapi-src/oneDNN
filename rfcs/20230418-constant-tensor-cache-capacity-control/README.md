@@ -52,8 +52,8 @@ of engine usually has different memory limitation.
 So, we propose to use dedicated cache for different engine kind, and let users
 set different capacity for different engine kind separately.
 
-For multiple devices scenarios, like multi-GPU, whether to use dedicated cache
-for each device is still an open question, we will discuss it in later sections.
+For multiple devices scenarios, like multi-GPU, here we only propose to use same
+cache capacity for each device.
 
 ### Unified cache for all backends
 We propose to implement an unified constant tensor cache in the oneDNN Graph
@@ -76,8 +76,8 @@ Based on above considerations, we proposed to add the following two C++ API and
 corresponding C API to control the capacity of constant tensor cache:
 
 ```cpp
-void set_constant_tensor_cache_capacity(dnnl::engine::kind eng_kind, int64_t capacity);
-int64_t get_constant_tensor_cache_capacity(dnnl::engine::kind eng_kind);
+void set_constant_tensor_cache_capacity(engine::kind kind, size_t size) ;
+size_t get_constant_tensor_cache_capacity(dnnl::engine::kind eng_kind);
 ```
 
 To limit the capacity for a specific engine kind users must call the setter API.
