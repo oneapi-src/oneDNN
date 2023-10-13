@@ -1134,6 +1134,11 @@ public:
     bool ptr_same(const func_t &v) const { return v.get() == get(); }
 };
 
+inline bool operator==(const func_t &v, std::nullptr_t) {
+    // make dpcpp happy in c++20 mode
+    return !v;
+}
+
 // constant version of func_t
 using func_c = std::shared_ptr<const func_base>;
 
