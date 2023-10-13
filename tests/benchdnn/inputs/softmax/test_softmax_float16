@@ -30,3 +30,12 @@
 --axis=0,1
 --batch=set_0d
 --batch=shapes_2d
+
+--dir=FWD_I
+--sdt=s8,u8
+--ddt=f16
+--stag=axb
+--attr-scales=,src:common:128
+--axis=0,1
+--batch=set_0d
+--batch=shapes_2d

@@ -101,6 +101,16 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     // Filling data such way prevents cancellation error for LOGSOFTMAX due to
     // log(sum(x_j)) won't be close to zero as in case of single top-1 value.
 
+    static const std::vector<std::uniform_int_distribution<>> igen_top_fp {
+            std::uniform_int_distribution<>(1, 2),
+            std::uniform_int_distribution<>(2, 5),
+            std::uniform_int_distribution<>(5, 8)};
+    static const std::vector<std::uniform_int_distribution<>> igen_top_int8 {
+            std::uniform_int_distribution<>(1, 1),
+            std::uniform_int_distribution<>(1, 1),
+            std::uniform_int_distribution<>(0, 4)};
+    std::vector<std::uniform_int_distribution<>> igen_top
+            = dnnl_data_type_size(prb->ddt) == 1 ? igen_top_int8 : igen_top_fp;
     // Do fixed partitioning to have same filling for any number of threads.
     const int64_t chunk_size = 64;
     const int64_t n_chunks = div_up(nelems, chunk_size);
@@ -110,17 +120,6 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
         int64_t idx_end = MIN2(idx_start + chunk_size, outer_size);
         std::minstd_rand msr(idx_start + 1);
         msr.discard(1);
-        std::vector<std::uniform_int_distribution<>> igen_top_fp {
-                std::uniform_int_distribution<>(1, 2),
-                std::uniform_int_distribution<>(2, 5),
-                std::uniform_int_distribution<>(5, 8)};
-        std::vector<std::uniform_int_distribution<>> igen_top_int8 {
-                std::uniform_int_distribution<>(1, 1),
-                std::uniform_int_distribution<>(1, 1),
-                std::uniform_int_distribution<>(0, 4)};
-        std::vector<std::uniform_int_distribution<>> igen_top
-                = dnnl_data_type_size(prb->ddt) == 1 ? igen_top_int8
-                                                     : igen_top_fp;
         const int sign = (idx_chunk % 2 != 0 && prb->sdt != dnnl_u8) ? -1 : 1;
         const int exp_ovfl_arg = 88 * sign;
         std::vector<int> top_val {
@@ -220,6 +219,11 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
             * epsilon_dt(trh_dt);
     cmp.set_threshold(trh);
 
+    // LogSoftMax is unstable enough when there are attributes on top.
+    const bool compare_with_norm
+            = (prb->alg == alg_t::LOGSOFTMAX && !prb->attr.is_def());
+    cmp.set_norm_validation_mode(compare_with_norm);
+
     const int64_t axis_size = prb->dims[prb->axis];
     const int64_t n_zeros = (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8)
             ? (axis_size - 1)
@@ -298,7 +302,9 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                         - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
                 bool is_post_ops_arg = (exec_arg & post_ops_range);
                 if (is_post_ops_arg) {
-                    SAFE(binary::fill_mem(exec_arg, mem, ref_mem), WARN);
+                    SAFE(binary::fill_mem(exec_arg, mem, ref_mem,
+                                 /* only_positive = */ true),
+                            WARN);
                 }
             } break;
         }
