@@ -920,6 +920,64 @@ TEST(PatternMatcher, RepetitionFail) {
     EXPECT_FALSE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
 }
 
+TEST(PatternMatcher, RepetitionWithMultiConsumersFail) {
+    /* 
+    Pattern:
+     MatMul
+       \    /
+      [Add/Div]*[1,3]
+
+     Graph:
+          MatMul
+            \   /
+             Add
+            /  \
+          Div  Add
+    */
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pmatmul = graphp->append_op(MatMul);
+    auto repbody = std::make_shared<pb_graph_t>();
+    auto paddordiv = repbody->append_alternation({Add, Divide});
+    paddordiv->allow_internal_inputs();
+    repbody->create_input_port(IN0, paddordiv, IN0);
+    repbody->create_output_port(OUT0, paddordiv, OUT0);
+
+    graphp->append_repetition(
+            repbody, {OUT0, IN0}, 1, 3, {in_edge(IN0, pmatmul, OUT0)});
+
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t add {1, Add, "add"};
+    op_t div {2, Divide, "div"};
+    op_t add2 {3, Add, "add2"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    add.add_input(lt_vec[2]);
+    add.add_input(lt_vec[3]);
+    add.add_output(lt_vec[4]);
+    div.add_input(lt_vec[4]);
+    div.add_input(lt_vec[5]);
+    div.add_output(lt_vec[6]);
+    add2.add_input(lt_vec[4]);
+    add2.add_input(lt_vec[7]);
+    add2.add_output(lt_vec[8]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    ASSERT_EQ(agraph.add_op(&add2), status::success);
+    agraph.finalize();
+    ASSERT_EQ(agraph.num_ops(), 4U);
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    // only matmul+add are fused
+    ASSERT_EQ(fusion_ops.size(), 2U);
+}
+
 //
 // "Optional" is a special case of repetition that repeats one or zero times
 // and constructed with append_optional.
