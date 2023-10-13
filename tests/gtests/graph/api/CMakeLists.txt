@@ -33,6 +33,7 @@ set(API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_engine.cpp
     ${TEST_ALLOCATOR}
+    ${TEST_THREAD}
 )
 
 set(sycl_rt_pattern "(SYCL|DPCPP)")
