@@ -15,7 +15,6 @@
 *******************************************************************************/
 
 #include <algorithm>
-#include <atomic>
 #include <cmath>
 #include <mutex>
 #include <sstream>
@@ -237,15 +236,33 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             = attr.post_ops.find(attr_t::post_ops_t::kind_t::EXP) >= 0;
     const bool has_dst_scale = !attr.scales.get(DNNL_ARG_DST).is_def();
 
-    // Atomics to be updated in parallel section, non-atomics - in sequential.
-    std::atomic<bool> all_ok(true);
-    std::atomic<int64_t> zeros(0);
-    std::atomic<float> max_rdiff(0), max_diff(0);
+    // Idea is to pad nelems to mimic uniform load between available threads.
+    // It allows to make a clear assumption when the last element is processed
+    // and do a sync with global diff_norm object.
+    // The better alternative is to expose `parallel` interface.
+    const auto nthreads = benchdnn_get_max_threads();
+    const auto nelems_per_thread = div_up(nelems, nthreads);
+    const auto nelems_pad = nelems_per_thread * nthreads;
+
+    // These global metrics are updated at the synchronization point.
+    bool global_ok = true;
+    int64_t zeros = 0;
+    float max_rdiff = 0.f;
+    float max_diff = 0.f;
     int64_t n_errors = 0;
     volatile bool from_parallel = true;
     const bool need_dump = verbose >= 99;
 
     const auto compare_point_values = [&](int64_t i) {
+        // Skip padded (non-existent) elements.
+        if (i >= nelems) return;
+
+        // Stats for all validated points per one thread.
+        static thread_local bool ithr_ok = true;
+        static thread_local int64_t ithr_zeros = 0;
+        static thread_local float ithr_max_rdiff = 0.f;
+        static thread_local float ithr_max_diff = 0.f;
+
         driver_check_func_args_t args(exp_mem, got_f32, i, dt, trh_);
 
         bool ok = args.diff == 0.f;
@@ -344,27 +361,45 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         }
 
         // Update compare stats.
-        if (from_parallel && fabsf(args.got) == 0) zeros++;
-        if (from_parallel && verbose >= 6) {
-            max_rdiff = MAX2(max_rdiff.load(), args.rel_diff);
-            max_diff = MAX2(max_diff.load(), args.diff);
+        if (from_parallel) {
+            if (fabsf(args.got) == 0) ithr_zeros++;
+            ithr_max_rdiff = MAX2(ithr_max_rdiff, args.rel_diff);
+            ithr_max_diff = MAX2(ithr_max_diff, args.diff);
         }
 
-        if (!ok && all_ok) all_ok = false;
+        if (!ok && ithr_ok) ithr_ok = false;
         if (!ok && !from_parallel) n_errors++;
 
         const bool dump
-                = need_dump || (!ok && (n_errors < 10 || verbose >= 10));
+                = need_dump || (!ok && (n_errors <= 10 || verbose >= 10));
         if (!from_parallel && dump)
             dump_point_values(got_mem.md_, get_kind_str(), i, args.exp_f32,
                     args.exp, args.got, args.diff, args.rel_diff);
+
+        // Synchronization point, update global stats from thread stats.
+        if (((i + 1) % nelems_per_thread == 0) || (i == nelems - 1)) {
+            static std::mutex m;
+            std::lock_guard<std::mutex> guard(m);
+
+            if (global_ok && !ithr_ok) global_ok = false;
+            ithr_ok = true;
+
+            if (from_parallel) {
+                zeros += ithr_zeros;
+                max_rdiff = MAX2(max_rdiff, ithr_max_rdiff);
+                max_diff = MAX2(max_diff, ithr_max_diff);
+            }
+            ithr_zeros = 0;
+            ithr_max_rdiff = 0.f;
+            ithr_max_diff = 0.f;
+        }
     };
 
     // parallel comparison to speed up the process
-    if (!need_dump) benchdnn_parallel_nd(nelems, compare_point_values);
+    if (!need_dump) benchdnn_parallel_nd(nelems_pad, compare_point_values);
 
     // serial comparison with enabled dumping when needed for nicer output.
-    if (!all_ok || need_dump) {
+    if (!global_ok || need_dump) {
         from_parallel = false;
         for (int64_t i = 0; i < nelems; ++i)
             compare_point_values(i);
@@ -382,17 +417,18 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         // and negative in the output equally.
         zero_trust_percent = (100.f + zero_trust_percent_) / 2.f;
     }
-    if (res->state != FAILED && zeros_percent > zero_trust_percent
-            && nelems >= 10)
-        res->state = MISTRUSTED;
+    bool is_mistrusted = zeros_percent > zero_trust_percent && nelems >= 10;
+    if (res->state != FAILED && is_mistrusted) res->state = MISTRUSTED;
 
-    BENCHDNN_PRINT(6, "[COMPARE_STATS]%s: max_diff:%8g max_rdiff:%8g\n",
-            get_kind_str().c_str(), max_diff.load(), max_rdiff.load());
+    // Status may be propagated from previous tensor. Use stats from cur tensor.
+    BENCHDNN_PRINT((n_errors ? 0 : 6),
+            "[COMPARE_STATS]%s: trh=%g max_diff:%8g max_rdiff:%8g\n",
+            get_kind_str().c_str(), trh_, max_diff, max_rdiff);
 
-    BENCHDNN_PRINT((res->state == MISTRUSTED ? 2 : 6),
+    BENCHDNN_PRINT((is_mistrusted ? 2 : 6),
             "[COMPARE_TRUST]%s: z:%2.0f%% (>%2.0f%%) (z: %ld, total: %ld)\n",
             get_kind_str().c_str(), zeros_percent, zero_trust_percent,
-            (long)zeros.load(), (long)nelems);
+            (long)zeros, (long)nelems);
 
     // Set PASSED if no failure in current or previous checks happened and test
     // can be trusted.
@@ -405,9 +441,8 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         const attr_t &attr, res_t *res) const {
     std::string add_args = std::string(use_norm_ ? "use_norm:true" : "")
             + std::string(op_output_has_nans_ ? "has_nans:true" : "");
-    BENCHDNN_PRINT(6, "[COMPARE]%s: trh=%g zero_trust%%=%.2f%% extra=%s\n",
-            get_kind_str().c_str(), trh_, zero_trust_percent_,
-            add_args.c_str());
+    BENCHDNN_PRINT(6, "[COMPARE]%s: zero_trust%%=%.2f%% extra=%s\n",
+            get_kind_str().c_str(), zero_trust_percent_, add_args.c_str());
     if (use_norm_) return compare_norm(exp_mem, got_mem, attr, res);
     return compare_p2p(exp_mem, got_mem, attr, res);
 }

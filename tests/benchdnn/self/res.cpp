@@ -37,6 +37,14 @@ static int check_status_change() {
         compare::compare_t cmp;
         cmp.compare(m0, m1, attr_t(), &res);
         SELF_CHECK_EQ(res.state, MISTRUSTED);
+
+        // Check that MISTRUSTED can convert into FAILED.
+        for (int i = 0; i < dims[0]; i++) {
+            m0.set_elem(i, i);
+            m1.set_elem(i, i - 1);
+        }
+        cmp.compare(m0, m1, attr_t(), &res);
+        SELF_CHECK_EQ(res.state, FAILED);
     }
     {
         res_t res {};
@@ -44,13 +52,29 @@ static int check_status_change() {
         dnnl_dims_t dims {10};
         dnn_mem_t m0(1, dims, dnnl_f32, tag::abx, get_cpu_engine());
         dnn_mem_t m1(1, dims, dnnl_f32, tag::abx, get_cpu_engine());
+        compare::compare_t cmp;
         for (int i = 0; i < dims[0]; i++) {
             m0.set_elem(i, i);
             m1.set_elem(i, i);
         }
-        compare::compare_t cmp;
         cmp.compare(m0, m1, attr_t(), &res);
         SELF_CHECK_EQ(res.state, PASSED);
+
+        // Check that PASSED can convert into MISTRUSTED.
+        for (int i = 0; i < dims[0]; i++) {
+            m0.set_elem(i, 0);
+            m1.set_elem(i, 0);
+        }
+        cmp.compare(m0, m1, attr_t(), &res);
+        SELF_CHECK_EQ(res.state, MISTRUSTED);
+
+        // Check that MISTRUSTED can't convert into PASSED back.
+        for (int i = 0; i < dims[0]; i++) {
+            m0.set_elem(i, i);
+            m1.set_elem(i, i);
+        }
+        cmp.compare(m0, m1, attr_t(), &res);
+        SELF_CHECK_EQ(res.state, MISTRUSTED);
     }
     {
         res_t res {};
