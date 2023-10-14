@@ -327,19 +327,22 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
         }
     } else {
         if (jcp.is_relo && jcp.relo_conv_weights) {
-            if (is_3d) {
-                assert("!3d not supported by relo");
-                return status::unimplemented;
-            } else if (jcp.relo_type == conv_brgemm_relo_type_t::whi) {
+            if (jcp.relo_type == conv_brgemm_relo_type_t::whi) {
                 if (is_1d)
                     BRGEMM_WEITAG(O, w, i, , 16o, )
-                else
+                else if (is_2d)
                     BRGEMM_WEITAG(O, wh, i, , 16o, )
+                else {
+                    assert(!"3d not supported by relo whi");
+                    return status::unimplemented;
+                }
             } else if (jcp.relo_type == conv_brgemm_relo_type_t::wi) {
                 if (is_1d)
                     BRGEMM_WEITAG(O, w, i, , 16o, )
-                else
+                else if (is_2d)
                     BRGEMM_WEITAG(O, hw, i, , 16o, )
+                else
+                    BRGEMM_WEITAG(O, dhw, i, , 16o, )
             }
         } else {
             jcp.LDB = jcp.oc_block;
