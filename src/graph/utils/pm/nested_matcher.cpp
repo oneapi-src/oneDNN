@@ -20,8 +20,27 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "common/verbose.hpp"
 #include "graph/interface/op_schema.hpp"
 #include "graph/utils/pm/nested_matcher.hpp"
+
+#define DEBUGINFO_HIGH_PM 6
+#define DEBUGINFO_NORMAL_PM 5
+
+// The Pattern matcher logs are only avaliable under DNNL_DEV_MODE
+// TODO(Xinyi): Will consider move to verbose dispatch
+#if defined(DNNL_DEV_MODE)
+#define DEBUg(debug_level, ...) \
+    do { \
+        if (get_verbose(verbose_t::debuginfo, component_t::graph) \
+                >= debug_level) { \
+            __VA_ARGS__ \
+        } \
+    } while (0)
+#else
+#define DEBUg(debug_level, ...)
+#endif
+#define DEBUG(debug_level, ...) DEBUg(debug_level, __VA_ARGS__)
 
 namespace dnnl {
 namespace impl {
@@ -428,19 +447,109 @@ bool check_cyclic(
 
 bool match_node(const binding_t &b, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
-    if (b.bind_op == nullptr) return false;
-    if (b.bind_node == nullptr) return false;
-    if (b.bind_op->get_partition() != nullptr) return false;
-    if (b.bind_op->has_attr(op_attr::matched)) return false;
-    if (!has_commutative_inputs(b.bind_op) && b.bind_op_port != b.bind_port)
+    if (b.bind_op == nullptr) {
+        DEBUG(DEBUGINFO_NORMAL_PM, {
+            printf("\n-----Matching op & node: %s (%s) <=> %s, matching failed",
+                    dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
+                            .c_str(),
+                    b.bind_op->get_name().c_str(),
+                    b.bind_node->get_name().c_str());
+        });
+        DEBUG(DEBUGINFO_HIGH_PM, {
+            printf(" for nullptr bind_op [%s:%i]", __FILE__, __LINE__);
+        });
         return false;
+    }
+    if (b.bind_node == nullptr) {
+        DEBUG(DEBUGINFO_NORMAL_PM, {
+            printf("\n-----Matching op & node: %s (%s) <=> %s, matching failed",
+                    dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
+                            .c_str(),
+                    b.bind_op->get_name().c_str(),
+                    b.bind_node->get_name().c_str());
+        });
+        DEBUG(DEBUGINFO_HIGH_PM, {
+            printf(" for nullptr bind_node [%s:%i]", __FILE__, __LINE__);
+        });
+        return false;
+    }
+    if (b.bind_op->get_partition() != nullptr) {
+        DEBUG(DEBUGINFO_NORMAL_PM, {
+            printf("\n-----Matching op & node: %s (%s) <=> %s, matching failed",
+                    dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
+                            .c_str(),
+                    b.bind_op->get_name().c_str(),
+                    b.bind_node->get_name().c_str());
+        });
+        DEBUG(DEBUGINFO_HIGH_PM, {
+            printf(" for bind_op already belongs to certain partition [%s:%i]",
+                    __FILE__, __LINE__);
+        });
+        return false;
+    }
+    if (b.bind_op->has_attr(op_attr::matched)) {
+        DEBUG(DEBUGINFO_NORMAL_PM, {
+            printf("\n-----Matching op & node: %s (%s) <=> %s, matching failed",
+                    dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
+                            .c_str(),
+                    b.bind_op->get_name().c_str(),
+                    b.bind_node->get_name().c_str());
+        });
+        DEBUG(DEBUGINFO_HIGH_PM, {
+            printf(" for bind_op already matched [%s:%i]", __FILE__, __LINE__);
+        });
+        return false;
+    }
+    if (!has_commutative_inputs(b.bind_op) && b.bind_op_port != b.bind_port) {
+        DEBUG(DEBUGINFO_NORMAL_PM, {
+            printf("\n-----Matching op & node: %s (%s) <=> %s, matching failed",
+                    dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
+                            .c_str(),
+                    b.bind_op->get_name().c_str(),
+                    b.bind_node->get_name().c_str());
+        });
+        DEBUG(DEBUGINFO_HIGH_PM, {
+            printf(" for input is commuted [%s:%i]", __FILE__, __LINE__);
+        });
+        return false;
+    }
 
-    if (!match_node_attributes(b.bind_op, b.bind_node)) return false;
+    if (!match_node_attributes(b.bind_op, b.bind_node)) {
+        DEBUG(DEBUGINFO_NORMAL_PM, {
+            printf("\n-----Matching op & node: %s (%s) <=> %s, matching failed",
+                    dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
+                            .c_str(),
+                    b.bind_op->get_name().c_str(),
+                    b.bind_node->get_name().c_str());
+        });
+        DEBUG(DEBUGINFO_HIGH_PM, {
+            printf(" for attributes of bind_op & bind_node not matched [%s:%i]",
+                    __FILE__, __LINE__);
+        });
+        return false;
+    }
 
     if (!match_node_inputs(b, ctx, matched_op_map)) return false;
 
-    if (check_cyclic(b.bind_op, matched_op_map)) return false;
-
+    if (check_cyclic(b.bind_op, matched_op_map)) {
+        DEBUG(DEBUGINFO_NORMAL_PM, {
+            printf("\n-----Matching op & node: %s (%s) <=> %s, matching failed",
+                    dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
+                            .c_str(),
+                    b.bind_op->get_name().c_str(),
+                    b.bind_node->get_name().c_str());
+        });
+        DEBUG(DEBUGINFO_HIGH_PM, {
+            printf(" for cyclic check failed [%s:%i]", __FILE__, __LINE__);
+        });
+        return false;
+    }
+    DEBUG(DEBUGINFO_NORMAL_PM, {
+        printf("\n-----Matching op & node: %s (%s) <=> %s, matching success",
+                dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
+                        .c_str(),
+                b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
+    });
     if (!match_node_outputs(b.bind_op, b.bind_node, ctx, matched_op_map))
         return false;
 
@@ -488,9 +597,27 @@ bool match_pattern(op_t *first_op, const std::shared_ptr<pb_graph_t> &pattern,
     if (first_op->has_attr(op_attr::matched)
             && first_op->get_attr<bool>(op_attr::matched))
         return false;
-    if (!match_graph(init_bind, &init_ctx, matched_op_map)) { return false; }
+    DEBUG(DEBUGINFO_NORMAL_PM,
+            { printf("Pattern Matching log: Start matching"); });
+    DEBUG(DEBUGINFO_HIGH_PM, { printf("\n"); });
+    if (!match_graph(init_bind, &init_ctx, matched_op_map)) {
+        DEBUG(DEBUGINFO_NORMAL_PM,
+                { printf("\nPattern Matching log: Matching failed \n"); });
+        return false;
+    }
 
     fusion_ops = reorder_matched_list(matched_op_map);
+
+    DEBUG(DEBUGINFO_NORMAL_PM, {
+        printf("\nPattern Matching log: Finish matching, matched ops: ");
+        for (size_t i = 0; i < fusion_ops.size(); i++) {
+            if (i < fusion_ops.size() - 1) {
+                printf("%s, ", fusion_ops[i]->get_name().c_str());
+            } else {
+                printf("%s \n", fusion_ops[i]->get_name().c_str());
+            }
+        }
+    });
 
     return true;
 }
@@ -678,6 +805,14 @@ bool match_graph(const binding_t &bind_arg, match_context_t *ctx,
     switch (bind_arg.bind_kind) {
         case BIND_NONE: {
             local_bind.bind_node = ctx->get_graph()->get_nodes().front();
+            DEBUG(DEBUGINFO_HIGH_PM, {
+                printf("-Matching begins from op & node: %s (%s) <=> %s",
+                        dnnl::impl::graph::op_t::kind2str(
+                                local_bind.bind_op->get_kind())
+                                .c_str(),
+                        local_bind.bind_op->get_name().c_str(),
+                        local_bind.bind_node->get_name().c_str());
+            });
         } break;
         case BIND_IN: {
             auto consumers
@@ -706,14 +841,34 @@ bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     alternation_t *alt_nodes
             = dynamic_cast<alternation_t *>(bind_arg.bind_node);
+    DEBUG(DEBUGINFO_HIGH_PM, {
+        // Every node-matching will go through the graph
+        // from top-down and bottom-up to keep consistency
+        // In case of printing repetively,
+        // we add condition here and elsewhere to limit the print order
+        if (bind_arg.bind_kind == BIND_IN) printf("\n-Now doing alt matching");
+    });
     for (pb_graph_t *alt_node : alt_nodes->get_alternatives()) {
         std::unordered_map<op_t *, pb_op_t *> temp_op_map = matched_op_map;
         binding_t temp_bind = bind_arg;
         temp_bind.bind_node = alt_node;
         match_context_t local_ctx {ctx, temp_bind.bind_node};
+        DEBUG(DEBUGINFO_HIGH_PM, {
+            if (bind_arg.bind_kind == BIND_IN)
+                printf("\n-Matching op & alternation subgraph: %s (%s) <=> %s",
+                        dnnl::impl::graph::op_t::kind2str(
+                                bind_arg.bind_op->get_kind())
+                                .c_str(),
+                        bind_arg.bind_op->get_name().c_str(),
+                        alt_node->get_name().c_str());
+        });
         if (match_graph(temp_bind, &local_ctx, temp_op_map)) {
             matched_op_map = temp_op_map;
             fill_parent_io_map(&local_ctx, bind_arg);
+            DEBUG(DEBUGINFO_HIGH_PM, {
+                if (bind_arg.bind_kind == BIND_IN)
+                    printf("\n-Alternation matching done");
+            });
             if (bind_arg.bind_kind != BIND_OUT) {
                 // alternation is restricted to have only 1 out port
                 if (local_ctx.out_port_map.size() != 1) return false;
@@ -764,12 +919,25 @@ bool repetition_matcher_t::prepare_next_matching_round(
         single_iter_bind_.bind_kind = BIND_IN;
         oport_t oport = pmap_.first;
         op_t *current_op = local_cached_ctx.out_port_map.at(oport).first;
-        if (oport >= current_op->num_outputs()) return true;
+        if (oport >= current_op->num_outputs()) {
+            DEBUG(DEBUGINFO_HIGH_PM, {
+                printf("\n-----oport: %lu exceeds the number of outputs of "
+                       "current_op: %lu [%s:%i]",
+                        oport, current_op->num_outputs(), __FILE__, __LINE__);
+            });
+            return true;
+        }
         std::shared_ptr<value_t> op_out_value
                 = current_op->get_output_value(oport);
         std::vector<value_t::consumer_t> sorted_consumers;
         sorted_consumers = sort_op_consumers(op_out_value);
-        if (sorted_consumers.empty()) return true;
+        if (sorted_consumers.empty()) {
+            DEBUG(DEBUGINFO_HIGH_PM, {
+                printf("\n-----No consumer for next matching round [%s:%i]",
+                        __FILE__, __LINE__);
+            });
+            return true;
+        }
         if (sorted_consumers.size() == 1) {
             op_t *next_op = &(sorted_consumers[0].get_op());
             single_iter_bind_.bind_op = next_op;
@@ -779,7 +947,13 @@ bool repetition_matcher_t::prepare_next_matching_round(
             // if the last node of previous match accepts external
             // output. If no, break
             pb_op_t *current_pb_op = updated_op_map_[current_op];
-            if (!current_pb_op->is_allowing_external_outputs()) return true;
+            if (!current_pb_op->is_allowing_external_outputs()) {
+                DEBUG(DEBUGINFO_HIGH_PM, {
+                    printf("\n-----pb_op not allow external op [%s:%i]",
+                            __FILE__, __LINE__);
+                });
+                return true;
+            }
             // If yes, decide which one of the consumers will be used
             // for next round's match
             iport_t iport = pmap_.second;
@@ -795,7 +969,13 @@ bool repetition_matcher_t::prepare_next_matching_round(
                     break;
                 }
             }
-            if (!next_op) return true;
+            if (!next_op) {
+                DEBUG(DEBUGINFO_HIGH_PM, {
+                    printf("\n-----No next_op for next matching round [%s:%i]",
+                            __FILE__, __LINE__);
+                });
+                return true;
+            }
             single_iter_bind_.bind_op = next_op;
             single_iter_bind_.bind_op_port = next_op_iport;
         }
@@ -926,6 +1106,17 @@ size_t repetition_matcher_t::match_repetition_blocks() {
     while (true) {
         match_context_t local_cached_ctx {rep_global_ctx_};
         std::unordered_map<op_t *, pb_op_t *> local_op_map = updated_op_map_;
+        DEBUG(DEBUGINFO_HIGH_PM, {
+            // Same reason as adding condition of
+            // checking bind_kind == BIND_IN
+            if (forward_match_)
+                printf("\n-Matching op & repetition subgraph: %s (%s) <=> %s",
+                        dnnl::impl::graph::op_t::kind2str(
+                                single_iter_bind_.bind_op->get_kind())
+                                .c_str(),
+                        single_iter_bind_.bind_op->get_name().c_str(),
+                        single_iter_bind_.bind_node->get_name().c_str());
+        });
         if (!match_graph(single_iter_bind_, &local_cached_ctx, local_op_map))
             break;
         if (!verify_current_matching_round(local_cached_ctx, local_op_map))
@@ -958,14 +1149,22 @@ size_t repetition_matcher_t::match_repetition_blocks() {
                     local_cached_ctx.in_port_map.end());
         }
 
-        if (num_rep == max_rep_) break;
+        if (num_rep == max_rep_) {
+            DEBUG(DEBUGINFO_HIGH_PM,
+                    { printf("\n-Attained the max repetition number"); });
+            break;
+        }
 
         // prepare for the next round of matching
+        DEBUG(DEBUGINFO_HIGH_PM,
+                { printf("\n-Prepare next round of rep block match"); });
         bool prepare_fail = prepare_next_matching_round(local_cached_ctx);
 
-        if (prepare_fail) break;
+        if (prepare_fail) {
+            DEBUG(DEBUGINFO_HIGH_PM, printf("\n-Preparation failed"););
+            break;
+        }
     }
-
     return num_rep;
 }
 
@@ -973,13 +1172,21 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     repetition_matcher_t repetition_matcher(
             bind_arg, parent_ctx, matched_op_map);
+    DEBUG(DEBUGINFO_HIGH_PM, {
+        if (bind_arg.bind_kind == BIND_IN) printf("\n-Now doing rep matching");
+    });
 
     size_t num_rep = repetition_matcher.match_repetition_blocks();
+    DEBUG(DEBUGINFO_HIGH_PM, {
+        if (bind_arg.bind_kind == BIND_IN)
+            printf("\n-Matched repetition block in total: %lu", num_rep);
+    });
 
     bool matching_status
             = repetition_matcher.post_repetition_matching(num_rep, bind_arg);
 
     if (!matching_status) return false;
+
     matched_op_map = repetition_matcher.get_updated_op_map();
     return true;
 }
