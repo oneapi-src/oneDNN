@@ -99,7 +99,7 @@ oneDNN only supports Compute Library versions 23.02.1 or later.
 > for more details.
 
 The library is optimized for the following GPUs:
-* Intel Processor Graphics based on Gen9, Gen9.5 and Gen11, and Gen12 architectures
+* Intel UHD Graphics for 11th generation Intel processors or newer
 * Intel Iris(R) Xe graphics (formerly DG1)
 * Intel Arc(TM) graphics (formerly Alchemist and DG2)
 * Intel Data Center GPU Flex Series (formerly Arctic Sound-M)
