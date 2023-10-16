@@ -23,6 +23,7 @@
 #include "patterns/mha_pattern.hpp"
 #include "patterns/misc_pattern.hpp"
 #include "patterns/mlp_pattern.hpp"
+#include "patterns/single_op_pattern.hpp"
 #include "target_machine.hpp"
 
 namespace dnnl {
@@ -41,7 +42,14 @@ size_t compiler_backend_t::get_mem_size(const logical_tensor_t &lt) const {
 }
 
 bool compiler_backend_t::register_passes() {
+    const bool enable_single_op_pattern
+            = graph::utils::getenv_int_internal(
+                      "ENABLE_GRAPH_COMPILER_SINGLE_OP_PATTERN", 0)
+            > 0;
     REQUIRE_AVX512_BEGIN
+    if (enable_single_op_pattern)
+        COMPILER_BACKEND_REGISTER_PASSES_CALL(
+                single_op_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mha_pattern, pass_registry_);
     REQUIRE_AMX_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mlp_pattern, pass_registry_);

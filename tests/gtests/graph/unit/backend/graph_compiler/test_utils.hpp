@@ -79,6 +79,13 @@ namespace utils {
         return; \
     }
 
+#define REQUIRE_SINGLE_OP_PATTERN() \
+    if (!graph::utils::getenv_int_internal( \
+                "ENABLE_GRAPH_COMPILER_SINGLE_OP_PATTERN", 0)) { \
+        GTEST_SKIP(); \
+        return; \
+    }
+
 #define REQUIRE_CPU_ENGINE() \
     impl::engine_t *engine = get_engine(); \
     SKIP_IF(engine->kind() == graph::engine_kind::gpu, "skip on gpu");
@@ -3183,14 +3190,15 @@ inline void construct_int8_convolutional_bottleneck_resblock(
         left = create_int8_convolution_dyn_quant(id_gen, *agraph, src,
                 filter_infos[0][0], filter_infos[0][1], filter_infos[0][2], 1,
                 strides[0], {1, 1}, paddings[0], paddings[0], data_format,
-                filter_format, true, false, 1e-6f, /*no relu*/ false,
-                graph::data_type::u8);
+                filter_format, true, false, 1e-6f,
+                /*no relu*/ false, graph::data_type::u8);
     } else {
         left = utils::create_int8_convolution(id_gen, *agraph, src,
                 filter_infos[0][0], filter_infos[0][1], filter_infos[0][2], 1,
                 strides[0], {1, 1}, paddings[0], paddings[0], data_format,
-                filter_format, true, false, 1e-6f, /*no relu*/ false, scale_src,
-                zp_src, scale_out, zp_out, scale_wei, graph::data_type::u8);
+                filter_format, true, false, 1e-6f,
+                /*no relu*/ false, scale_src, zp_src, scale_out, zp_out,
+                scale_wei, graph::data_type::u8);
     }
 
     auto right = src;
