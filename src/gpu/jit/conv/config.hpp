@@ -30,6 +30,7 @@
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/jit/conv/key.hpp"
 #include "gpu/jit/conv/params.hpp"
+#include "gpu/jit/conv/problem.hpp"
 #include "gpu/jit/ir/config.hpp"
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/hw_config.hpp"
@@ -336,54 +337,32 @@ private:
     const conv_problem_t &prb_;
 };
 
-inline std::unordered_map<std::string, int> to_string_int_map(
-        const std::string &s) {
-    std::unordered_map<std::string, int> ret;
-    int name_beg = -1;
-    int value_beg = -1;
-    for (int pos = 0; pos < (int)s.size() + 1; pos++) {
-        bool prev_digit = pos > 0 && std::isdigit(s[pos - 1]);
-        bool cur_digit = pos < (int)s.size() && std::isdigit(s[pos]);
-        if ((pos == 0 || prev_digit) && !cur_digit) {
-            if (name_beg != -1 && value_beg != -1) {
-                auto key = s.substr(name_beg, value_beg - name_beg);
-                auto value = std::stoi(s.substr(value_beg, pos - value_beg));
-                ret[key] = value;
-            }
-            name_beg = pos;
-            value_beg = -1;
-        }
-        if (!prev_digit && cur_digit) value_beg = pos;
-    }
-    return ret;
-}
-
 class tile_param_t : public param_t {
 public:
-    using value_t = conv_tile_t;
+    using value_t = prb_tile_t;
 
     const value_t &get() const { return tile_; }
 
     bool is_empty() const { return tile_.is_empty(); }
 
-    int get(const conv_dim_t &dim) const { return tile_.at(dim, 1); }
+    int get(const prb_dim_t &dim) const { return tile_.get(dim, 1); }
 
-    int operator()(const conv_dim_t &dim) const { return get(dim); }
+    int operator()(const prb_dim_t &dim) const { return get(dim); }
 
     void set_from_str(const std::string &s) override {
-        tile_ = conv_tile_t();
-        for (auto &kv : to_string_int_map(s)) {
-            tile_[conv_dim_t::from_name(kv.first)] = kv.second;
+        tile_ = prb_tile_t();
+        for (auto &kv : ir_utils::to_string_int_map(s)) {
+            tile_[prb_dim_t::from_name(kv.first)] = kv.second;
         }
     }
 
-    void set(const conv_dim_t &dim, int size) { tile_[dim] = size; }
+    void set(const prb_dim_t &dim, int size) { tile_[dim] = size; }
 
     void set(const value_t &value) { tile_ = value; }
 
     template <typename T>
-    void set(const tile_generic_t<T> &tile) {
-        for (auto d : tile) {
+    void set(const dim_map_t<T, int> &tile) {
+        for (auto &d : tile) {
             set(d.str(), tile[d]);
         }
     }
@@ -790,7 +769,7 @@ public:
     void set_from_str(const std::string &s) override {
         a_ = 1;
         b_ = 1;
-        for (auto &kv : to_string_int_map(s)) {
+        for (auto &kv : ir_utils::to_string_int_map(s)) {
             if (kv.first == "a") {
                 a_ = kv.second;
             } else if (kv.first == "b") {
@@ -917,15 +896,15 @@ public:
     conv_key_t key() const;
 
     // Helper methods.
-    int dim(const conv_dim_t &d) const { return dims()(d); }
+    int dim(const prb_dim_t &d) const { return dims()(d); }
 
-    int iter_dim(const conv_dim_t &d) const { return iter_dims()(d); }
+    int iter_dim(const prb_dim_t &d) const { return iter_dims()(d); }
 
-    int padded_dim(const conv_dim_t &d) const { return padded_dims()(d); }
+    int padded_dim(const prb_dim_t &d) const { return padded_dims()(d); }
 
-    int loop_dim(const conv_dim_t &d) const { return loop_dims()(d); }
+    int loop_dim(const prb_dim_t &d) const { return loop_dims()(d); }
 
-    int thread_group_dim(const conv_dim_t &d) const {
+    int thread_group_dim(const prb_dim_t &d) const {
         return thread_group_dims()(d);
     }
 
@@ -935,9 +914,9 @@ public:
     // compute and store, we still need to pad 8 to 32 and
     // spawn more thread groups to ensure 32c block is
     // properly zero-padded.
-    int pad_block(const conv_dim_t &d) const;
+    int pad_block(const prb_dim_t &d) const;
 
-    int unroll(const conv_dim_t &d) const { return unroll()(d); }
+    int unroll(const prb_dim_t &d) const { return unroll()(d); }
 
     int reserved_regs() const;
 
@@ -981,12 +960,12 @@ public:
         return compute::nd_range_t(gws, lws);
     }
 
-    int grid_dim(const conv_dim_t &dim) const {
+    int grid_dim(const prb_dim_t &dim) const {
         return ir_utils::safe_divide(padded_dim(dim),
                 loop_dim(dim) * thread_group_dim(dim) * iter_dim(dim));
     }
 
-    int iter_dim(std::initializer_list<conv_dim_t> dims) const {
+    int iter_dim(std::initializer_list<prb_dim_t> dims) const {
         int ret = 1;
         for (auto &dim : dims)
             ret *= iter_dim(dim);
@@ -1074,18 +1053,18 @@ public:
                 cfg.prb().ab_swap_transpose);
     }
 
-    int iter_dim(gemm_dim_t d) const { return gemm_iter_.at(d, 1); }
+    int iter_dim(prb_dim_t d) const { return gemm_iter_.get(d, 1); }
 
-    int thread_group_dim(gemm_dim_t d) const {
-        return gemm_thread_group_.at(d, 1);
+    int thread_group_dim(prb_dim_t d) const {
+        return gemm_thread_group_.get(d, 1);
     }
 
-    int loop_dim(gemm_dim_t d) const { return gemm_loop_.at(d, 1); }
+    int loop_dim(prb_dim_t d) const { return gemm_loop_.get(d, 1); }
 
 private:
-    gemm_tile_t gemm_iter_;
-    gemm_tile_t gemm_thread_group_;
-    gemm_tile_t gemm_loop_;
+    prb_tile_t gemm_iter_;
+    prb_tile_t gemm_thread_group_;
+    prb_tile_t gemm_loop_;
 };
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
@@ -1096,13 +1075,12 @@ int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
         bool do_unroll);
 tensor_config_t get_tensor_config(const conv_config_t &cfg);
 int estimate_register_count(const conv_config_t &cfg);
-const conv_tile_t *get_transpose_kernel_grid_conv_dims(
+const prb_tile_t *get_transpose_kernel_grid_conv_dims(
         const conv_problem_t &prb, int idx);
-const conv_tile_t *get_transpose_thread_group_grid_conv_dims(
+const prb_tile_t *get_transpose_thread_group_grid_conv_dims(
         const conv_problem_t &prb, int idx);
-const conv_tile_t *get_kernel_grid_conv_dims(
-        const conv_problem_t &prb, int idx);
-const conv_tile_t *get_thread_group_grid_conv_dims(
+const prb_tile_t *get_kernel_grid_conv_dims(const conv_problem_t &prb, int idx);
+const prb_tile_t *get_thread_group_grid_conv_dims(
         const conv_problem_t &prb, int idx);
 
 } // namespace jit

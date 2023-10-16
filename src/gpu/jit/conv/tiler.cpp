@@ -62,21 +62,14 @@ int tune_level() {
 
 namespace {
 
-using level_t = tile_key_t<level_kind_t>;
-using level_tile_t = tile_generic_t<level_t>;
+using level_t = map_key_t<level_kind_t>;
+using level_tile_t = tile_t<level_t>;
 
 namespace levels {
 level_t loop(level_kind_t::loop);
 level_t thread_group(level_kind_t::thread_group);
 level_t iter(level_kind_t::iter);
 }; // namespace levels
-
-enum class tensor_kind_t {
-    undef,
-    src,
-    wei,
-    dst,
-};
 
 std::vector<tensor_kind_t> input_tensors(const conv_config_t &cfg) {
     std::vector<tensor_kind_t> ret;
@@ -123,37 +116,36 @@ bool any(tile_flags_t a) {
     return a != tile_flags_t::undef;
 }
 
-bool is_reduction_dim(
-        const conv_dim_t &d, prop_kind_t prop, bool is_transpose) {
-    return to_gemm(d, prop, is_transpose) == gemm_dims::k;
+bool is_reduction_dim(const prb_dim_t &d, prop_kind_t prop, bool is_transpose) {
+    return to_gemm(d, prop, is_transpose) == prb_dims::k;
 }
 
-bool is_vectorized_dim(const conv_dim_t &d, const conv_problem_t &prb) {
-    if (prb.is_dw) return d == conv_dims::g;
-    return to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose) == gemm_dims::n;
+bool is_vectorized_dim(const prb_dim_t &d, const conv_problem_t &prb) {
+    if (prb.is_dw) return d == prb_dims::g;
+    return to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose) == prb_dims::n;
 }
 
-int tensor_conv_dim_index(const conv_dim_t &d, tensor_kind_t t) {
-    using namespace conv_dims;
-    std::vector<conv_dim_t> src_dims = {mb, g, ic, id, ih, iw};
-    std::vector<conv_dim_t> wei_dims = {g, oc, ic, kd, kh, kw};
-    std::vector<conv_dim_t> dst_dims = {mb, g, oc, od, oh, ow};
-    std::vector<conv_dim_t> *conv_dims = nullptr;
+int tensor_conv_dim_index(const prb_dim_t &d, tensor_kind_t t) {
+    using namespace prb_dims;
+    std::vector<prb_dim_t> src_dims = {mb, g, ic, id, ih, iw};
+    std::vector<prb_dim_t> wei_dims = {g, oc, ic, kd, kh, kw};
+    std::vector<prb_dim_t> dst_dims = {mb, g, oc, od, oh, ow};
+    std::vector<prb_dim_t> *prb_dims = nullptr;
     switch (t) {
-        case tensor_kind_t::src: conv_dims = &src_dims; break;
-        case tensor_kind_t::wei: conv_dims = &wei_dims; break;
-        case tensor_kind_t::dst: conv_dims = &dst_dims; break;
+        case tensor_kind_t::src: prb_dims = &src_dims; break;
+        case tensor_kind_t::wei: prb_dims = &wei_dims; break;
+        case tensor_kind_t::dst: prb_dims = &dst_dims; break;
         default: ir_error_not_expected();
     }
-    auto it = std::find(conv_dims->begin(), conv_dims->end(), d);
-    if (it == conv_dims->end()) return -1;
-    return (int)(it - conv_dims->begin());
+    auto it = std::find(prb_dims->begin(), prb_dims->end(), d);
+    if (it == prb_dims->end()) return -1;
+    return (int)(it - prb_dims->begin());
 }
 
-std::vector<conv_dim_t> all_conv_dims() {
-    std::vector<conv_dim_t> ret;
-    for (int i = 0; i < conv_dim_t::max_id(); i++) {
-        auto d = conv_dim_t::from_id(i);
+std::vector<prb_dim_t> all_conv_dims() {
+    std::vector<prb_dim_t> ret;
+    for (int i = 0; i < prb_dim_t::max_id(); i++) {
+        auto d = prb_dim_t::from_id(i);
         if (d.is_undef()) continue;
         ret.push_back(d);
     }
@@ -228,7 +220,7 @@ struct div_info_t {
 // Specifies blocking restrictions for a convolution dimension.
 struct tile_info_t {
     tile_info_t() = default;
-    tile_info_t(const conv_dim_t &dim) : dim(dim) {}
+    tile_info_t(const prb_dim_t &dim) : dim(dim) {}
     void add(tile_flags_t f) { flags = flags | f; }
     void remove(tile_flags_t f) { flags = flags & ~f; }
     void set_iter_unit(int unit) { div_info.set_iter_unit(unit); }
@@ -290,7 +282,7 @@ struct tile_info_t {
         return get_loop_blocks(size);
     }
 
-    conv_dim_t dim;
+    prb_dim_t dim;
     tile_flags_t flags = tile_flags_t::undef;
     div_info_t div_info;
 
@@ -308,7 +300,7 @@ struct tile_info_t {
 // Used for fused reduction dimensions with dpas only.
 struct x2_tile_info_t {
     x2_tile_info_t() = default;
-    x2_tile_info_t(const conv_dim_t &dim0, const conv_dim_t &dim1)
+    x2_tile_info_t(const prb_dim_t &dim0, const prb_dim_t &dim1)
         : dim0(dim0), dim1(dim1) {
         ir_assert(dim0 != dim1);
     }
@@ -354,8 +346,8 @@ struct x2_tile_info_t {
         return {std::make_pair(size0, size1)};
     }
 
-    conv_dim_t dim0;
-    conv_dim_t dim1;
+    prb_dim_t dim0;
+    prb_dim_t dim1;
     tile_flags_t flags = tile_flags_t::undef;
     div_info_t d;
     div_info_t d0;
@@ -373,7 +365,7 @@ const layout_t &compute_layout(const conv_config_t &cfg, tensor_kind_t kind) {
 }
 
 int get_layout_unit(const conv_config_t &cfg, const layout_t &layout,
-        tensor_kind_t tensor_kind, const conv_dim_t &d) {
+        tensor_kind_t tensor_kind, const prb_dim_t &d) {
     auto &prb = cfg.prb();
     if (!is_reduction_dim(d, prb.prop_kind(), prb.ab_swap_transpose)) return 1;
     int dim_idx = tensor_conv_dim_index(d, tensor_kind);
@@ -392,7 +384,7 @@ int get_layout_unit(const conv_config_t &cfg, const layout_t &layout,
     return ret;
 }
 
-int get_layout_unit(const conv_config_t &cfg, const conv_dim_t &d) {
+int get_layout_unit(const conv_config_t &cfg, const prb_dim_t &d) {
     int ret = 1;
     for (auto t :
             {tensor_kind_t::src, tensor_kind_t::wei, tensor_kind_t::dst}) {
@@ -427,7 +419,7 @@ public:
         }
     }
 
-    tile_info_t &tile_info(const conv_dim_t &d) {
+    tile_info_t &tile_info(const prb_dim_t &d) {
         auto it = tile_infos_.find(d.id());
         if (it != tile_infos_.end()) return it->second;
         auto &info = tile_infos_[d.id()];
@@ -435,7 +427,7 @@ public:
         return info;
     }
 
-    const tile_info_t &tile_info(const conv_dim_t &d) const {
+    const tile_info_t &tile_info(const prb_dim_t &d) const {
         return tile_infos_.at(d.id());
     }
 
@@ -443,8 +435,8 @@ public:
         return x2_tile_infos_;
     }
 
-    std::vector<conv_dim_t> dims() const {
-        std::vector<conv_dim_t> ret;
+    std::vector<prb_dim_t> dims() const {
+        std::vector<prb_dim_t> ret;
         for (auto &d : all_conv_dims()) {
             if (loop_.has(d) || thread_group_.has(d) || iter_.has(d)) {
                 ret.push_back(d);
@@ -475,7 +467,7 @@ private:
         ir_assert(!_s_dim.empty());
         bool no_min_check = (_s_dim[0] == '#');
         auto s_dim = no_min_check ? _s_dim.substr(1) : _s_dim;
-        auto d = conv_dim_t::from_name(s_dim);
+        auto d = prb_dim_t::from_name(s_dim);
         if (no_min_check) ir_assert(s_tile == "i");
         if (s_tile == "i") {
             add_iter_dim(d);
@@ -493,29 +485,29 @@ private:
         }
     }
 
-    void add_loop_dim(const conv_dim_t &d) {
+    void add_loop_dim(const prb_dim_t &d) {
         loop_[d] = 1;
         auto &info = tile_info(d);
         info.add(tile_flags_t::loop);
     }
 
-    void add_loop_dim_with_span(const conv_dim_t &d) {
+    void add_loop_dim_with_span(const prb_dim_t &d) {
         add_loop_dim(d);
         tile_info(d).add(tile_flags_t::loop_span);
     }
 
-    void add_loop_dim_with_iter_unroll(const conv_dim_t &d) {
+    void add_loop_dim_with_iter_unroll(const prb_dim_t &d) {
         add_loop_dim(d);
         tile_info(d).add(tile_flags_t::loop_iter_unroll);
     }
 
-    void add_thread_group_dim(const conv_dim_t &d) {
+    void add_thread_group_dim(const prb_dim_t &d) {
         thread_group_[d] = 1;
         auto &info = tile_info(d);
         info.add(tile_flags_t::thread_group);
     }
 
-    void add_iter_dim(const conv_dim_t &d) {
+    void add_iter_dim(const prb_dim_t &d) {
         iter_[d] = 1;
         auto &info = tile_info(d);
         info.add(tile_flags_t::iter);
@@ -568,7 +560,7 @@ private:
             int min_m_iter_block_hint = 2;
             for (auto d : iter_) {
                 if (to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose)
-                        != gemm_dims::m)
+                        != prb_dims::m)
                     continue;
                 auto &info = tile_info(d);
                 int blk = std::min(info.min_iter_blk, min_m_iter_block_hint);
@@ -581,8 +573,8 @@ private:
     void finalize_fused_reduction(const conv_config_t &cfg) {
         if (!cfg.is_dp_fma()) return;
         int rdims = 0;
-        conv_dim_t d0;
-        conv_dim_t d1;
+        prb_dim_t d0;
+        prb_dim_t d1;
         for (auto d : iter_) {
             if (!is_reduction_dim(
                         d, cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose))
@@ -614,11 +606,11 @@ private:
         auto &prb = cfg.prb();
         if (prb.is_bwd_w) {
             struct loop_dim_t {
-                conv_dim_t dim;
+                prb_dim_t dim;
                 int size = 0;
 
                 static loop_dim_t *find(
-                        const conv_dim_t &dim, std::vector<loop_dim_t> &dims) {
+                        const prb_dim_t &dim, std::vector<loop_dim_t> &dims) {
                     for (auto &d : dims)
                         if (d.dim == dim) return &d;
                     return nullptr;
@@ -632,7 +624,7 @@ private:
                     continue;
                 loop_dim_t ld;
                 ld.dim = d;
-                ld.size = shape.at(d, 1);
+                ld.size = shape.get(d, 1);
                 if (iter_.has(d))
                     ld.size = utils::div_up(ld.size, iter_dim_hint);
                 loop_dims.push_back(ld);
@@ -646,7 +638,7 @@ private:
             // handle nested loops without fully unrolling them.
             int max_loop_ndims = (cfg.hw() <= ngen::HW::XeHPG ? 1 : 2);
             for (int i = max_loop_ndims; i < (int)loop_dims.size(); i++)
-                loop_dims[i].dim = conv_dim_t();
+                loop_dims[i].dim = prb_dim_t();
 
             for (auto d : loop_) {
                 auto &info = tile_info(d);
@@ -657,9 +649,9 @@ private:
         }
     }
 
-    conv_tile_t loop_;
-    conv_tile_t thread_group_;
-    conv_tile_t iter_;
+    prb_tile_t loop_;
+    prb_tile_t thread_group_;
+    prb_tile_t iter_;
     std::unordered_map<int, tile_info_t> tile_infos_;
     std::vector<x2_tile_info_t> x2_tile_infos_;
 };
@@ -740,7 +732,7 @@ void get_level_tiles(int size0, int size1, const x2_tile_info_t &info,
 }
 
 int inner_block(const conv_config_t &cfg, tensor_kind_t tensor_kind,
-        const conv_dim_t &dim) {
+        const prb_dim_t &dim) {
     int dim_idx = tensor_conv_dim_index(dim, tensor_kind);
     ir_assert(dim_idx != -1);
     auto &layout = compute_layout(cfg, tensor_kind);
@@ -748,7 +740,7 @@ int inner_block(const conv_config_t &cfg, tensor_kind_t tensor_kind,
             dim_idx, /*skip_outer=*/true, /*inner_only=*/false);
 }
 
-int inner_block(const conv_config_t &cfg, const conv_dim_t &dim) {
+int inner_block(const conv_config_t &cfg, const prb_dim_t &dim) {
     int ret = 0;
     for (auto t : input_tensors(cfg)) {
         if (tensor_conv_dim_index(dim, t) == -1) continue;
@@ -759,7 +751,7 @@ int inner_block(const conv_config_t &cfg, const conv_dim_t &dim) {
 }
 
 dim_t inner_stride(const conv_config_t &cfg, tensor_kind_t tensor_kind,
-        const conv_dim_t &dim) {
+        const prb_dim_t &dim) {
     int dim_idx = tensor_conv_dim_index(dim, tensor_kind);
     ir_assert(dim_idx != -1);
     auto &layout = compute_layout(cfg, tensor_kind);
@@ -769,7 +761,7 @@ dim_t inner_stride(const conv_config_t &cfg, tensor_kind_t tensor_kind,
     return 0;
 }
 
-bool is_inner_non_blocked(const conv_config_t &cfg, const conv_dim_t &dim) {
+bool is_inner_non_blocked(const conv_config_t &cfg, const prb_dim_t &dim) {
     for (auto t : input_tensors(cfg)) {
         if (tensor_conv_dim_index(dim, t) == -1) continue;
         if (inner_block(cfg, dim) != 1) continue;
@@ -833,14 +825,14 @@ int slm_usage_bytes_for_params(
             prb.ab_swap_transpose);
     auto iter = to_gemm(
             params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
-    int b_tg = tg.at(gemm_dims::b, 1);
-    int m_tg = tg.at(gemm_dims::m, 1);
-    int n_tg = tg.at(gemm_dims::n, 1);
-    int k_tg = tg.at(gemm_dims::k, 1);
-    int b_iter = iter.at(gemm_dims::b, 1);
-    int m_iter = iter.at(gemm_dims::m, 1);
-    int n_iter = iter.at(gemm_dims::n, 1);
-    int k_iter = iter.at(gemm_dims::k, 1);
+    int b_tg = tg.get(prb_dims::b, 1);
+    int m_tg = tg.get(prb_dims::m, 1);
+    int n_tg = tg.get(prb_dims::n, 1);
+    int k_tg = tg.get(prb_dims::k, 1);
+    int b_iter = iter.get(prb_dims::b, 1);
+    int m_iter = iter.get(prb_dims::m, 1);
+    int n_iter = iter.get(prb_dims::n, 1);
+    int k_iter = iter.get(prb_dims::k, 1);
     return slm_usage_bytes(
             cfg, b_tg, m_tg, n_tg, k_tg, b_iter, m_iter, n_iter, k_iter);
 }
@@ -893,15 +885,15 @@ private:
                     blk.loop(), prb.prop_kind(), prb.ab_swap_transpose);
             auto gemm_tg = to_gemm(
                     blk.thread_group(), prb.prop_kind(), prb.ab_swap_transpose);
-            b_iter = gemm_iter.at(gemm_dims::b, 1);
-            m_iter = gemm_iter.at(gemm_dims::m, 1);
-            n_iter = gemm_iter.at(gemm_dims::n, 1);
-            k_iter = gemm_iter.at(gemm_dims::k, 1);
-            k_loop = gemm_loop.at(gemm_dims::k, 1);
-            b_tg = gemm_tg.at(gemm_dims::b, 1);
-            m_tg = gemm_tg.at(gemm_dims::m, 1);
-            n_tg = gemm_tg.at(gemm_dims::n, 1);
-            k_tg = gemm_tg.at(gemm_dims::k, 1);
+            b_iter = gemm_iter.get(prb_dims::b, 1);
+            m_iter = gemm_iter.get(prb_dims::m, 1);
+            n_iter = gemm_iter.get(prb_dims::n, 1);
+            k_iter = gemm_iter.get(prb_dims::k, 1);
+            k_loop = gemm_loop.get(prb_dims::k, 1);
+            b_tg = gemm_tg.get(prb_dims::b, 1);
+            m_tg = gemm_tg.get(prb_dims::m, 1);
+            n_tg = gemm_tg.get(prb_dims::n, 1);
+            k_tg = gemm_tg.get(prb_dims::k, 1);
             dpas_2x_depth = get_dpas_2x_depth(blk, cfg);
         }
 
@@ -914,7 +906,7 @@ private:
             for (auto d : blk.iter()) {
                 if (to_gemm(d, cfg.prb().prop_kind(),
                             cfg.prb().ab_swap_transpose)
-                        == gemm_dims::k) {
+                        == prb_dims::k) {
                     if (is_inner_non_blocked(cfg, d)) return true;
                 }
             }
@@ -1079,16 +1071,16 @@ private:
         switch (cfg_.bwd_d_optimize_kind()) {
             case bwd_d_optimize_kind_t::none: return true;
             case bwd_d_optimize_kind_t::skip_out_of_bound_w: {
-                int iw_iter = ctx.blk.iter().at(conv_dims::iw, 1);
-                int iw_tg = ctx.blk.thread_group().at(conv_dims::iw, 1);
+                int iw_iter = ctx.blk.iter().get(prb_dims::iw, 1);
+                int iw_tg = ctx.blk.thread_group().get(prb_dims::iw, 1);
                 if (iw_iter != 1 || iw_tg != 1) return false;
                 return true;
             }
             case bwd_d_optimize_kind_t::skip_strided_dh: return true;
             case bwd_d_optimize_kind_t::skip_strided_dhw: {
-                int iw_iter = ctx.blk.iter().at(conv_dims::iw, 1);
+                int iw_iter = ctx.blk.iter().get(prb_dims::iw, 1);
                 if (iw_iter > 1) return false;
-                int iw_tg = ctx.blk.thread_group().at(conv_dims::iw, 1);
+                int iw_tg = ctx.blk.thread_group().get(prb_dims::iw, 1);
                 if (!math::is_pow2(iw_tg)) return false;
                 if ((prb.iw / prb.sw) % iw_tg != 0) return false;
                 return true;
@@ -1100,7 +1092,7 @@ private:
 
     // Checks that the layout can be split based as required by level_blocks.
     static bool layout_dim_ok(prop_kind_t prop, tensor_kind_t tensor_kind,
-            const layout_t &layout, const conv_dim_t &d,
+            const layout_t &layout, const prb_dim_t &d,
             std::vector<std::pair<level_kind_t, int>> level_blocks) {
         if (level_blocks.empty()) return true;
         int dim_idx = tensor_conv_dim_index(d, tensor_kind);
@@ -1139,8 +1131,8 @@ private:
 
     static bool layout_ok(const blocking_t &blk, const layout_t &layout,
             prop_kind_t prop, tensor_kind_t tensor_kind) {
-        for (int i = 0; i < conv_dim_t::max_id(); i++) {
-            auto d = conv_dim_t::from_id(i);
+        for (int i = 0; i < prb_dim_t::max_id(); i++) {
+            auto d = prb_dim_t::from_id(i);
             std::vector<std::pair<level_kind_t, int>> blocks;
             if (blk.iter().has(d))
                 blocks.emplace_back(level_kind_t::iter, blk.iter_dim(d));
@@ -1171,10 +1163,10 @@ private:
     bool check_k_slicing_utilization_ok(const context_t &ctx) const {
         if (!is_enabled(check_kind_t::check_k_slicing_utilization)) return true;
 
-        int b = padded_gemm_shape_.at(gemm_dims::b, 1);
-        int m = padded_gemm_shape_.at(gemm_dims::m, 1);
-        int n = padded_gemm_shape_.at(gemm_dims::n, 1);
-        int k = padded_gemm_shape_.at(gemm_dims::k, 1);
+        int b = padded_gemm_shape_.get(prb_dims::b, 1);
+        int m = padded_gemm_shape_.get(prb_dims::m, 1);
+        int n = padded_gemm_shape_.get(prb_dims::n, 1);
+        int k = padded_gemm_shape_.get(prb_dims::k, 1);
 
         int64_t nthr = 1;
         nthr *= utils::div_up(b, ctx.b_iter);
@@ -1196,7 +1188,7 @@ private:
         int max_blk = 1;
         for (auto d : ctx.blk.iter()) {
             if (to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose)
-                    == gemm_dims::m) {
+                    == prb_dims::m) {
                 int d_blk = inner_block(cfg_, d);
                 max_blk = std::max(max_blk, d_blk);
             }
@@ -1254,8 +1246,8 @@ private:
     const conv_config_t &cfg_;
     uint64_t check_mask_ = 0;
     uint64_t optional_check_mask_ = 0;
-    conv_tile_t padded_shape_;
-    gemm_tile_t padded_gemm_shape_;
+    prb_tile_t padded_shape_;
+    prb_tile_t padded_gemm_shape_;
     int max_tg_size_ = 0;
 };
 
@@ -1265,9 +1257,9 @@ float get_efficiency(const blocking_t &blk, const conv_config_t &cfg) {
     float ret = 1;
     auto shape = get_conv_shape(cfg, /*pad=*/true);
     for (auto d : shape) {
-        int loop = blk.loop().at(d, 1);
-        int tg = blk.thread_group().at(d, 1);
-        int iter = blk.iter().at(d, 1);
+        int loop = blk.loop().get(d, 1);
+        int tg = blk.thread_group().get(d, 1);
+        int iter = blk.iter().get(d, 1);
         int size = shape[d];
         int size_padded = utils::rnd_up(size, loop * tg * iter);
         if (size_padded == size) continue;
@@ -1276,7 +1268,7 @@ float get_efficiency(const blocking_t &blk, const conv_config_t &cfg) {
     return ret;
 }
 
-void set(blocking_t &blk, const conv_dim_t &dim, const level_tile_t &tile) {
+void set(blocking_t &blk, const prb_dim_t &dim, const level_tile_t &tile) {
     if (tile.has(levels::loop)) blk.set_loop(dim, tile[levels::loop]);
     if (tile.has(levels::thread_group))
         blk.set_thread_group(dim, tile[levels::thread_group]);
@@ -1325,12 +1317,12 @@ blocking_scheme_t bwd_w_T_io_I_ikow("l:[mb,oh,ow],T:[oc,ic],i:[ic,kw,oc,ow]");
 // clang-format on
 
 double get_iter_dim_score(
-        const conv_dim_t &dim, const conv_config_t &cfg, int dim_size) {
+        const prb_dim_t &dim, const conv_config_t &cfg, int dim_size) {
     auto &prb = cfg.prb();
-    if (utils::one_of(dim, conv_dims::ow, conv_dims::iw)) {
+    if (utils::one_of(dim, prb_dims::ow, prb_dims::iw)) {
         if (prb.ksp > 1 || dim_size % 16 != 0) return 16 - 1;
         return dim_size;
-    } else if (dim == conv_dims::mb) {
+    } else if (dim == prb_dims::mb) {
         return dim_size;
     } else {
         ir_error_not_expected() << "Unknown dimension: " << dim;
@@ -1338,8 +1330,8 @@ double get_iter_dim_score(
     return 0;
 }
 
-conv_dim_t select_non_blocked_iter_dim(
-        const conv_config_t &cfg, const std::vector<conv_dim_t> &dims) {
+prb_dim_t select_non_blocked_iter_dim(
+        const conv_config_t &cfg, const std::vector<prb_dim_t> &dims) {
     const auto shape = get_conv_shape(cfg, /*pad=*/false);
     std::vector<double> scores;
     for (auto d : dims)
@@ -1348,14 +1340,14 @@ conv_dim_t select_non_blocked_iter_dim(
     return dims[max_it - scores.begin()];
 }
 
-conv_dim_t select_iter_dim(
-        const conv_config_t &cfg, const std::vector<conv_dim_t> &_dims) {
+prb_dim_t select_iter_dim(
+        const conv_config_t &cfg, const std::vector<prb_dim_t> &_dims) {
     bool is_bwd_d_w_opt = utils::one_of(cfg.bwd_d_optimize_kind(),
             bwd_d_optimize_kind_t::skip_strided_dhw,
             bwd_d_optimize_kind_t::skip_out_of_bound_w);
-    std::vector<conv_dim_t> dims;
+    std::vector<prb_dim_t> dims;
     for (auto d : _dims) {
-        if (is_bwd_d_w_opt && d == conv_dims::iw) continue;
+        if (is_bwd_d_w_opt && d == prb_dims::iw) continue;
         dims.push_back(d);
     }
     ir_assert(!dims.empty());
@@ -1391,9 +1383,9 @@ private:
 
 blocking_scheme_list_t get_blocking_schemes_fwd_dw(const conv_config_t &cfg) {
     blocking_scheme_list_t ret;
-    auto m_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
-    bool m_is_mb = (m_iter_dim == conv_dims::mb);
-    bool m_is_ow = (m_iter_dim == conv_dims::ow);
+    auto m_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::ow});
+    bool m_is_mb = (m_iter_dim == prb_dims::mb);
+    bool m_is_ow = (m_iter_dim == prb_dims::ow);
     ret.add(m_is_mb, conv_schemes::fwd_dw_T_w_I_ngk);
     ret.add(m_is_ow, conv_schemes::fwd_dw_T_w_I_wgk);
     return ret;
@@ -1401,9 +1393,9 @@ blocking_scheme_list_t get_blocking_schemes_fwd_dw(const conv_config_t &cfg) {
 
 blocking_scheme_list_t get_blocking_schemes_bwd_d_dw(const conv_config_t &cfg) {
     blocking_scheme_list_t ret;
-    auto m_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::iw});
-    bool m_is_mb = (m_iter_dim == conv_dims::mb);
-    bool m_is_iw = (m_iter_dim == conv_dims::iw);
+    auto m_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::iw});
+    bool m_is_mb = (m_iter_dim == prb_dims::mb);
+    bool m_is_iw = (m_iter_dim == prb_dims::iw);
     ret.add(m_is_mb, conv_schemes::bwd_d_dw_T_w_I_ngk);
     ret.add(m_is_iw, conv_schemes::bwd_d_dw_T_w_I_wgk);
     return ret;
@@ -1411,9 +1403,9 @@ blocking_scheme_list_t get_blocking_schemes_bwd_d_dw(const conv_config_t &cfg) {
 
 blocking_scheme_list_t get_blocking_schemes_bwd_w_dw(const conv_config_t &cfg) {
     blocking_scheme_list_t ret;
-    auto k_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
-    bool k_is_mb = (k_iter_dim == conv_dims::mb);
-    bool k_is_ow = (k_iter_dim == conv_dims::ow);
+    auto k_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::ow});
+    bool k_is_mb = (k_iter_dim == prb_dims::mb);
+    bool k_is_ow = (k_iter_dim == prb_dims::ow);
     ret.add(k_is_mb, conv_schemes::bwd_w_dw_I_gn);
     ret.add(k_is_ow, conv_schemes::bwd_w_dw_I_gw);
     return ret;
@@ -1422,11 +1414,11 @@ blocking_scheme_list_t get_blocking_schemes_bwd_w_dw(const conv_config_t &cfg) {
 blocking_scheme_list_t get_blocking_schemes_fwd(const conv_config_t &cfg) {
     blocking_scheme_list_t ret;
     auto m_iter_dim = cfg.prb().ab_swap_transpose
-            ? conv_dims::oc
-            : select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
-    bool m_is_mb = (m_iter_dim == conv_dims::mb);
-    bool m_is_ow = (m_iter_dim == conv_dims::ow);
-    bool m_is_oc = (m_iter_dim == conv_dims::oc);
+            ? prb_dims::oc
+            : select_iter_dim(cfg, {prb_dims::mb, prb_dims::ow});
+    bool m_is_mb = (m_iter_dim == prb_dims::mb);
+    bool m_is_ow = (m_iter_dim == prb_dims::ow);
+    bool m_is_oc = (m_iter_dim == prb_dims::oc);
     bool ge_xelp = (cfg.hw() >= ngen::HW::XeLP);
     bool small_ic = (is_small_ic(cfg.prb()) && cfg.prb().kw > 1);
     ret.add(m_is_mb, conv_schemes::fwd_T_wo_I_noi);
@@ -1447,11 +1439,11 @@ blocking_scheme_list_t get_blocking_schemes_fwd(const conv_config_t &cfg) {
 blocking_scheme_list_t get_blocking_schemes_bwd_d(const conv_config_t &cfg) {
     blocking_scheme_list_t ret;
     auto m_iter_dim = cfg.prb().ab_swap_transpose
-            ? conv_dims::ic
-            : select_iter_dim(cfg, {conv_dims::mb, conv_dims::iw});
-    bool m_is_mb = (m_iter_dim == conv_dims::mb);
-    bool m_is_iw = (m_iter_dim == conv_dims::iw);
-    bool m_is_ic = (m_iter_dim == conv_dims::ic);
+            ? prb_dims::ic
+            : select_iter_dim(cfg, {prb_dims::mb, prb_dims::iw});
+    bool m_is_mb = (m_iter_dim == prb_dims::mb);
+    bool m_is_iw = (m_iter_dim == prb_dims::iw);
+    bool m_is_ic = (m_iter_dim == prb_dims::ic);
     bool ge_xelp = (cfg.hw() >= ngen::HW::XeLP);
     ret.add(m_is_mb, conv_schemes::bwd_d_T_ni_I_nio);
     ret.add(m_is_mb, conv_schemes::bwd_d_T_wi_I_nio);
@@ -1464,9 +1456,9 @@ blocking_scheme_list_t get_blocking_schemes_bwd_d(const conv_config_t &cfg) {
 
 blocking_scheme_list_t get_blocking_schemes_bwd_w(const conv_config_t &cfg) {
     blocking_scheme_list_t ret;
-    auto k_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
-    bool k_is_mb = (k_iter_dim == conv_dims::mb);
-    bool k_is_ow = (k_iter_dim == conv_dims::ow);
+    auto k_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::ow});
+    bool k_is_mb = (k_iter_dim == prb_dims::mb);
+    bool k_is_ow = (k_iter_dim == prb_dims::ow);
     bool small_ic = is_small_ic(cfg.prb());
     ret.add(k_is_mb, conv_schemes::bwd_w_T_io_I_ion);
     ret.add(k_is_ow, conv_schemes::bwd_w_T_io_I_iow);
@@ -1508,10 +1500,10 @@ int grf_usage_bytes(const conv_config_t &cfg, const conv_params_t &params) {
     auto &prb = cfg.prb();
     auto iter = to_gemm(
             params.blocking().iter(), prb.prop_kind(), prb.ab_swap_transpose);
-    int b_iter = iter.at(gemm_dims::b, 1);
-    int m_iter = iter.at(gemm_dims::m, 1);
-    int n_iter = iter.at(gemm_dims::n, 1);
-    int k_iter = iter.at(gemm_dims::k, 1);
+    int b_iter = iter.get(prb_dims::b, 1);
+    int m_iter = iter.get(prb_dims::m, 1);
+    int n_iter = iter.get(prb_dims::n, 1);
+    int k_iter = iter.get(prb_dims::k, 1);
     int abc_size = grf_usage_bytes(cfg.fma_kind(), b_iter, m_iter, n_iter,
             k_iter, prb.a_data_type_size, prb.b_data_type_size,
             prb.acc_data_type_size);
@@ -1598,13 +1590,13 @@ std::string to_string(tiler_mode_t mode) {
 class level_tile_set_t {
 public:
     level_tile_set_t(
-            const blocking_scheme_t &scheme, const conv_tile_t &padded_shape) {
+            const blocking_scheme_t &scheme, const prb_tile_t &padded_shape) {
         dims_ = scheme.dims();
         int ndims = (int)dims_.size();
         tiles_.resize(ndims);
         deps_.resize(ndims, -1);
 
-        auto to_idx = [&](const conv_dim_t &d) {
+        auto to_idx = [&](const prb_dim_t &d) {
             for (int i = 0; i < ndims; i++)
                 if (dims_[i] == d) return i;
             ir_error_not_expected();
@@ -1704,12 +1696,12 @@ private:
 
     std::vector<std::vector<level_tile_t>> tiles_;
     std::vector<int> deps_;
-    std::vector<conv_dim_t> dims_;
+    std::vector<prb_dim_t> dims_;
 };
 
 class blocking_generator_t {
 public:
-    blocking_generator_t(int target_blockings, const conv_tile_t &padded_shape,
+    blocking_generator_t(int target_blockings, const prb_tile_t &padded_shape,
             const std::vector<blocking_scheme_t> &schemes, int *total_blockings)
         : schemes_(schemes) {
         UNUSED(target_blockings);
@@ -1910,9 +1902,9 @@ void sort_by_model_scores(params_generator_t &params_gen,
 
 struct indexed_dim_t {
     indexed_dim_t() = default;
-    indexed_dim_t(const gemm_dim_t &dim) : dim_(dim) {}
+    indexed_dim_t(const prb_dim_t &dim) : dim_(dim) {}
     bool is_empty() const { return values_.empty(); }
-    const gemm_dim_t &dim() const { return dim_; }
+    const prb_dim_t &dim() const { return dim_; }
 
     void add(int value) { values_.emplace(value, -1); }
 
@@ -1930,21 +1922,21 @@ struct indexed_dim_t {
         return it->second;
     }
 
-    gemm_dim_t dim_;
+    prb_dim_t dim_;
     std::map<int, int> values_;
 };
 
 struct indexed_tile_t {
     indexed_tile_t() {
-        for (int i = 0; i < gemm_dim_t::max_id(); i++) {
-            auto d = gemm_dim_t::from_id(i);
+        for (int i = 0; i < prb_dim_t::max_id(); i++) {
+            auto d = prb_dim_t::from_id(i);
             dim_mappers_[i] = indexed_dim_t(d);
         }
     }
 
-    void add(gemm_dim_t d, int value) { dim_mappers_[d.id()].add(value); }
+    void add(prb_dim_t d, int value) { dim_mappers_[d.id()].add(value); }
 
-    void add(const gemm_tile_t &t) {
+    void add(const prb_tile_t &t) {
         for (auto d : t) {
             add(d, t[d]);
         }
@@ -1955,20 +1947,20 @@ struct indexed_tile_t {
             if (!d.is_empty()) d.finalize();
     }
 
-    int to_index(const gemm_dim_t &d, int value) const {
+    int to_index(const prb_dim_t &d, int value) const {
         return dim_mappers_[d.id()].to_index(value);
     }
 
-    std::vector<int> to_index(const gemm_tile_t &t) const {
+    std::vector<int> to_index(const prb_tile_t &t) const {
         std::vector<int> ret;
         for (auto &m : dim_mappers_) {
             if (m.is_empty()) continue;
-            ret.push_back(to_index(m.dim(), t.at(m.dim(), 1)));
+            ret.push_back(to_index(m.dim(), t.get(m.dim(), 1)));
         }
         return ret;
     }
 
-    std::array<indexed_dim_t, gemm_dim_t::max_id()> dim_mappers_;
+    std::array<indexed_dim_t, prb_dim_t::max_id()> dim_mappers_;
 };
 
 std::vector<std::vector<int>> to_indexed(

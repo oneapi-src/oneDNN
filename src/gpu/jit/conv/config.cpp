@@ -25,6 +25,7 @@
 #include "gpu/jit/conv/normalization.hpp"
 #include "gpu/jit/conv/params.hpp"
 #include "gpu/jit/conv/plan.hpp"
+#include "gpu/jit/conv/problem.hpp"
 #include "gpu/jit/conv/tiler.hpp"
 #include "gpu/jit/ir/block_2d_utils.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
@@ -1106,15 +1107,15 @@ void init_pipeline(conv_config_t &cfg) {
     cfg.pipeline().set(do_unroll, cfg.plan().reuse_headers);
 }
 
-send_pattern_t<conv_dim_t> validate_blocking(const conv_config_t &cfg,
+send_pattern_t<prb_dim_t> validate_blocking(const conv_config_t &cfg,
         conv_stride_layout_t::input_tensor_t tensor, bool check_2d) {
-    using send_pattern = send_pattern_t<conv_dim_t>;
+    using send_pattern = send_pattern_t<prb_dim_t>;
     const compute::gpu_arch_t arch
             = convert_ngen_arch_to_dnnl(cfg.hw_cfg().hw());
     auto &prb = cfg.prb();
 
-    auto is_match = [&](const send_hint_t<conv_dim_t> &hint) {
-        for (auto dim : get_conv_dims(prb.prop_kind())) {
+    auto is_match = [&](const send_hint_t<prb_dim_t> &hint) {
+        for (auto dim : conv_index_dims(prb.prop_kind())) {
             if (hint[dim]) {
                 if (cfg.iter_dim(dim) % hint[dim]) return false;
             }
@@ -1123,11 +1124,11 @@ send_pattern_t<conv_dim_t> validate_blocking(const conv_config_t &cfg,
     };
 
     struct pattern_match_t {
-        pattern_match_t(send_pattern pattern,
-                std::vector<send_hint_t<conv_dim_t>> hints)
+        pattern_match_t(
+                send_pattern pattern, std::vector<send_hint_t<prb_dim_t>> hints)
             : pattern(pattern), hints(std::move(hints)) {};
         send_pattern pattern;
-        std::vector<send_hint_t<conv_dim_t>> hints;
+        std::vector<send_hint_t<prb_dim_t>> hints;
     };
 
     auto layout = conv_stride_layout_t(cfg.prb(), tensor);
@@ -1135,10 +1136,10 @@ send_pattern_t<conv_dim_t> validate_blocking(const conv_config_t &cfg,
     auto idiom = [&] {
         switch (arch) {
             case compute::gpu_arch_t::xe_hpc:
-                return uniform_send_idiom_t<conv_dim_t>(
+                return uniform_send_idiom_t<prb_dim_t>(
                         /*min_bytes=*/256, check_2d);
             default:
-                return uniform_send_idiom_t<conv_dim_t>(
+                return uniform_send_idiom_t<prb_dim_t>(
                         /*min_bytes=*/128, check_2d);
         }
     }();
@@ -1147,7 +1148,7 @@ send_pattern_t<conv_dim_t> validate_blocking(const conv_config_t &cfg,
         auto all_hints = idiom.get_hints(layout);
         if (!all_hints.empty()) {
             dim_t max = 0;
-            std::vector<send_hint_t<conv_dim_t>> max_hints = {};
+            std::vector<send_hint_t<prb_dim_t>> max_hints = {};
             for (auto &h : all_hints) {
                 auto hint_size = h.size();
                 if (max < hint_size) {
@@ -1184,24 +1185,23 @@ void init_params(conv_config_t &cfg) {
     cfg.tiler().set_params(cfg);
 }
 
-const conv_tile_t *get_kernel_grid_conv_dims(
+const prb_tile_t *get_kernel_grid_conv_dims(
         const conv_problem_t &prb, int idx) {
-    static const conv_tile_t fwd_0({conv_dims::oc});
-    static const conv_tile_t fwd_1(
-            {conv_dims::g, conv_dims::od, conv_dims::oh, conv_dims::ow});
-    static const conv_tile_t fwd_2({conv_dims::mb});
-    static const conv_tile_t bwd_d_0({conv_dims::ic});
-    static const conv_tile_t bwd_d_1(
-            {conv_dims::g, conv_dims::id, conv_dims::ih, conv_dims::iw});
-    static const conv_tile_t bwd_d_2({conv_dims::mb});
-    static const conv_tile_t bwd_w_0({conv_dims::oc});
-    static const conv_tile_t bwd_w_1(
-            {conv_dims::ic, conv_dims::kd, conv_dims::kh, conv_dims::kw,
-                    conv_dims::od, conv_dims::oh, conv_dims::ow});
-    static const conv_tile_t bwd_w_2({conv_dims::g, conv_dims::mb});
-    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
-    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
-    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
+    static const prb_tile_t fwd_0({prb_dims::oc});
+    static const prb_tile_t fwd_1(
+            {prb_dims::g, prb_dims::od, prb_dims::oh, prb_dims::ow});
+    static const prb_tile_t fwd_2({prb_dims::mb});
+    static const prb_tile_t bwd_d_0({prb_dims::ic});
+    static const prb_tile_t bwd_d_1(
+            {prb_dims::g, prb_dims::id, prb_dims::ih, prb_dims::iw});
+    static const prb_tile_t bwd_d_2({prb_dims::mb});
+    static const prb_tile_t bwd_w_0({prb_dims::oc});
+    static const prb_tile_t bwd_w_1({prb_dims::ic, prb_dims::kd, prb_dims::kh,
+            prb_dims::kw, prb_dims::od, prb_dims::oh, prb_dims::ow});
+    static const prb_tile_t bwd_w_2({prb_dims::g, prb_dims::mb});
+    static const prb_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const prb_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const prb_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
     ir_assert(idx >= 0 && idx < 3);
     if (prb.is_fwd) return fwd[idx];
     if (prb.is_bwd_d) return bwd_d[idx];
@@ -1210,24 +1210,23 @@ const conv_tile_t *get_kernel_grid_conv_dims(
     return nullptr;
 }
 
-const conv_tile_t *get_transpose_kernel_grid_conv_dims(
+const prb_tile_t *get_transpose_kernel_grid_conv_dims(
         const conv_problem_t &prb, int idx) {
-    static const conv_tile_t fwd_0({conv_dims::mb});
-    static const conv_tile_t fwd_1({conv_dims::oc});
-    static const conv_tile_t fwd_2(
-            {conv_dims::g, conv_dims::od, conv_dims::oh, conv_dims::ow});
-    static const conv_tile_t bwd_d_0({conv_dims::mb});
-    static const conv_tile_t bwd_d_1({conv_dims::ic});
-    static const conv_tile_t bwd_d_2(
-            {conv_dims::g, conv_dims::id, conv_dims::ih, conv_dims::iw});
-    static const conv_tile_t bwd_w_0(
-            {conv_dims::ic, conv_dims::kd, conv_dims::kh, conv_dims::kw,
-                    conv_dims::od, conv_dims::oh, conv_dims::ow});
-    static const conv_tile_t bwd_w_1({conv_dims::g, conv_dims::mb});
-    static const conv_tile_t bwd_w_2({conv_dims::oc});
-    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
-    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
-    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
+    static const prb_tile_t fwd_0({prb_dims::mb});
+    static const prb_tile_t fwd_1({prb_dims::oc});
+    static const prb_tile_t fwd_2(
+            {prb_dims::g, prb_dims::od, prb_dims::oh, prb_dims::ow});
+    static const prb_tile_t bwd_d_0({prb_dims::mb});
+    static const prb_tile_t bwd_d_1({prb_dims::ic});
+    static const prb_tile_t bwd_d_2(
+            {prb_dims::g, prb_dims::id, prb_dims::ih, prb_dims::iw});
+    static const prb_tile_t bwd_w_0({prb_dims::ic, prb_dims::kd, prb_dims::kh,
+            prb_dims::kw, prb_dims::od, prb_dims::oh, prb_dims::ow});
+    static const prb_tile_t bwd_w_1({prb_dims::g, prb_dims::mb});
+    static const prb_tile_t bwd_w_2({prb_dims::oc});
+    static const prb_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const prb_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const prb_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
     ir_assert(idx >= 0 && idx < 3);
     if (prb.is_fwd) return fwd[idx];
     if (prb.is_bwd_d) return bwd_d[idx];
@@ -1236,20 +1235,20 @@ const conv_tile_t *get_transpose_kernel_grid_conv_dims(
     return nullptr;
 }
 
-const conv_tile_t *get_thread_group_grid_conv_dims(
+const prb_tile_t *get_thread_group_grid_conv_dims(
         const conv_problem_t &prb, int idx) {
-    static const conv_tile_t fwd_0({conv_dims::oc});
-    static const conv_tile_t fwd_1({conv_dims::mb, conv_dims::ow});
-    static const conv_tile_t fwd_2({conv_dims::ic});
-    static const conv_tile_t bwd_d_0({conv_dims::ic});
-    static const conv_tile_t bwd_d_1({conv_dims::mb, conv_dims::iw});
-    static const conv_tile_t bwd_d_2({conv_dims::oc});
-    static const conv_tile_t bwd_w_0({conv_dims::oc});
-    static const conv_tile_t bwd_w_1({conv_dims::ic});
-    static const conv_tile_t bwd_w_2;
-    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
-    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
-    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
+    static const prb_tile_t fwd_0({prb_dims::oc});
+    static const prb_tile_t fwd_1({prb_dims::mb, prb_dims::ow});
+    static const prb_tile_t fwd_2({prb_dims::ic});
+    static const prb_tile_t bwd_d_0({prb_dims::ic});
+    static const prb_tile_t bwd_d_1({prb_dims::mb, prb_dims::iw});
+    static const prb_tile_t bwd_d_2({prb_dims::oc});
+    static const prb_tile_t bwd_w_0({prb_dims::oc});
+    static const prb_tile_t bwd_w_1({prb_dims::ic});
+    static const prb_tile_t bwd_w_2;
+    static const prb_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const prb_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const prb_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
     ir_assert(idx >= 0 && idx < 3);
     if (prb.is_fwd) return fwd[idx];
     if (prb.is_bwd_d) return bwd_d[idx];
@@ -1258,20 +1257,20 @@ const conv_tile_t *get_thread_group_grid_conv_dims(
     return nullptr;
 }
 
-const conv_tile_t *get_transpose_thread_group_grid_conv_dims(
+const prb_tile_t *get_transpose_thread_group_grid_conv_dims(
         const conv_problem_t &prb, int idx) {
-    static const conv_tile_t fwd_0({conv_dims::mb, conv_dims::ow});
-    static const conv_tile_t fwd_1({conv_dims::oc});
-    static const conv_tile_t fwd_2({conv_dims::ic});
-    static const conv_tile_t bwd_d_0({conv_dims::mb, conv_dims::iw});
-    static const conv_tile_t bwd_d_1({conv_dims::ic});
-    static const conv_tile_t bwd_d_2({conv_dims::oc});
-    static const conv_tile_t bwd_w_0({conv_dims::ic});
-    static const conv_tile_t bwd_w_1({conv_dims::oc});
-    static const conv_tile_t bwd_w_2;
-    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
-    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
-    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
+    static const prb_tile_t fwd_0({prb_dims::mb, prb_dims::ow});
+    static const prb_tile_t fwd_1({prb_dims::oc});
+    static const prb_tile_t fwd_2({prb_dims::ic});
+    static const prb_tile_t bwd_d_0({prb_dims::mb, prb_dims::iw});
+    static const prb_tile_t bwd_d_1({prb_dims::ic});
+    static const prb_tile_t bwd_d_2({prb_dims::oc});
+    static const prb_tile_t bwd_w_0({prb_dims::ic});
+    static const prb_tile_t bwd_w_1({prb_dims::oc});
+    static const prb_tile_t bwd_w_2;
+    static const prb_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const prb_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const prb_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
     ir_assert(idx >= 0 && idx < 3);
     if (prb.is_fwd) return fwd[idx];
     if (prb.is_bwd_d) return bwd_d[idx];
@@ -1281,7 +1280,7 @@ const conv_tile_t *get_transpose_thread_group_grid_conv_dims(
 }
 
 void init_padded_dims(conv_config_t &cfg) {
-    for (auto &d : get_conv_dims(cfg.prb().prop_kind())) {
+    for (auto &d : conv_index_dims(cfg.prb().prop_kind())) {
         int dim = cfg.dim(d);
         int iter = cfg.iter_dim(d);
         int tg = cfg.thread_group_dim(d);
@@ -1295,7 +1294,7 @@ void init_padded_dims(conv_config_t &cfg) {
 
 void init_kernel_grid(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
-    auto get = [&](const conv_dim_t &d) {
+    auto get = [&](const prb_dim_t &d) {
         int padded = cfg.padded_dim(d);
         int iter = cfg.iter_dim(d);
         int loop = cfg.loop_dim(d);
@@ -1318,7 +1317,7 @@ void init_kernel_grid(conv_config_t &cfg) {
 
 void init_thread_group_grid(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
-    auto get = [&](const conv_dim_t &d) {
+    auto get = [&](const prb_dim_t &d) {
         return cfg.thread_group_dims().get(d);
     };
 
@@ -1418,7 +1417,7 @@ status_t fixup_config(conv_config_t &cfg) {
 
 template <typename GetFuncT>
 bool in_grid_dims(
-        GetFuncT get_func, const conv_problem_t &prb, const conv_dim_t &dim) {
+        GetFuncT get_func, const conv_problem_t &prb, const prb_dim_t &dim) {
     for (int i = 0; i < 3; i++) {
         auto *tile = get_func(prb, i);
         for (auto d : *tile)
@@ -1435,7 +1434,7 @@ status_t check_plan(conv_config_t &cfg) {
 
 #ifdef DNNL_DEV_MODE
     auto &prb = cfg.prb();
-    using send_pattern = send_pattern_t<conv_dim_t>;
+    using send_pattern = send_pattern_t<prb_dim_t>;
     send_pattern a_load_pattern;
     send_pattern b_load_pattern;
     bool a_2d = plan.uses_2d_load(abc_kind_t::a);
@@ -1524,7 +1523,7 @@ int conv_config_t::reserved_regs() const {
     return constants::reserved_regs_default;
 }
 
-int conv_config_t::pad_block(const conv_dim_t &d) const {
+int conv_config_t::pad_block(const prb_dim_t &d) const {
     auto &src = src_layout().compute();
     auto &wei = wei_layout().compute();
     auto &dst = dst_layout().compute();
@@ -1537,10 +1536,10 @@ int conv_config_t::pad_block(const conv_dim_t &d) const {
     int ic_idxs[] = {2, 2, -1};
     int *idxs = nullptr;
     switch (d.kind()) {
-        case conv_dim_kind_t::g: idxs = g_idxs; break;
-        case conv_dim_kind_t::mb: idxs = mb_idxs; break;
-        case conv_dim_kind_t::oc: idxs = oc_idxs; break;
-        case conv_dim_kind_t::ic: idxs = ic_idxs; break;
+        case prb_dim_kind_t::g: idxs = g_idxs; break;
+        case prb_dim_kind_t::mb: idxs = mb_idxs; break;
+        case prb_dim_kind_t::oc: idxs = oc_idxs; break;
+        case prb_dim_kind_t::ic: idxs = ic_idxs; break;
         default: return 1;
     }
 
@@ -1615,7 +1614,7 @@ conv_key_t conv_config_t::key() const {
 
 std::string conv_config_t::blocking_brief_str() const {
     std::ostringstream oss;
-    for (auto &d : get_conv_dims(prb().prop_kind())) {
+    for (auto &d : conv_index_dims(prb().prop_kind())) {
         int iter = iter_dim(d);
         int tg = thread_group_dim(d);
         int loop = loop_dim(d);
@@ -1672,12 +1671,12 @@ const conv_plan_t &conv_config_t::plan() const {
 bool conv_config_t::can_skip_wei_zero_out() const {
     if (!prb().is_bwd_w) return true;
     bmnk_dim_helper_t h(*this);
-    int k_iter_dim = h.iter_dim(gemm_dims::k);
-    int k_loop_dim = h.loop_dim(gemm_dims::k);
-    int k_tg_dim = h.thread_group_dim(gemm_dims::k);
+    int k_iter_dim = h.iter_dim(prb_dims::k);
+    int k_loop_dim = h.loop_dim(prb_dims::k);
+    int k_tg_dim = h.thread_group_dim(prb_dims::k);
     int k_tg_block = k_iter_dim * k_loop_dim * k_tg_dim;
-    int k_padded = padded_dim(conv_dims::mb) * padded_dim(conv_dims::od)
-            * padded_dim(conv_dims::oh) * padded_dim(conv_dims::ow);
+    int k_padded = padded_dim(prb_dims::mb) * padded_dim(prb_dims::od)
+            * padded_dim(prb_dims::oh) * padded_dim(prb_dims::ow);
     return k_tg_block >= k_padded;
 }
 
