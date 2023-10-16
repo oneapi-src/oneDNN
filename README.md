@@ -179,10 +179,14 @@ is enabled:
 > on disabling hangcheck for Intel GPU driver. Same behavior [applies](https://learn.microsoft.com/en-us/windows-hardware/drivers/display/timeout-detection-and-recovery)
 > to Windows. The user can prevent this behavior by increasing the [TdrDelay](https://learn.microsoft.com/en-us/windows-hardware/drivers/display/tdr-registry-keys#tdrdelay)
 > setting value.
+
+> **WARNING**
 >
 > NVIDIA GPU support is experimental. General information, build instructions,
 > and implementation limitations are available in the
 > [NVIDIA backend readme](https://github.com/oneapi-src/oneDNN/blob/master/src/gpu/nvidia/README.md).
+
+> **WARNING**
 >
 > AMD GPU support is experimental. General information, build instructions,
 > and implementation limitations are available in the
