@@ -43,3 +43,4 @@
 --reset --allow-enum-tags-only=0 --prop=FWD_D --alg=VANILLA_LSTM --direction=left2right --flags= --cfg=f32 --trivial-strides=true l1t275mb2sic1024slc2048dhc1024dic1024n"*1"
 --reset --allow-enum-tags-only=0 --prop=FWD_D --alg=VANILLA_LSTM --direction=left2right --flags= --cfg=f32 --trivial-strides=true l1t549mb2sic1024slc1024dhc1024dic1024n"*1"
 --reset --allow-enum-tags-only=0 --prop=FWD_D --alg=VANILLA_LSTM --direction=left2right --flags= --cfg=f32 --trivial-strides=true l1t549mb2sic1024slc240dhc1024dic1024n"*1"
+--reset --allow-enum-tags-only=0 --prop=FWD_I,FWD_D,BWD_DW --alg=VANILLA_LSTM --direction=left2right --flags= --cfg=bf16f32 --trivial-strides=true l1t1046mb512sic1024slc1024dhc1024dic1024
