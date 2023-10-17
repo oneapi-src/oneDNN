@@ -709,6 +709,13 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_1_NCX) {
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 128, 64, 64, 56, 56, 3, 3,
             {1, 2}, {1, 1}, {1, 2}, false, true, true, false);
 }
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_2) {
+    REQUIRE_AMX();
+    check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 1, 1, 1, 1, 1, 1, 3, 3,
+            {1, 1}, {1, 1}, {1, 1}, {1, 1}, false, true, false, true);
+    check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 1, 1, 1, 1, 1, 1, 3, 3,
+            {1, 1}, {1, 1}, {1, 1}, {1, 1}, false, true, false, false);
+}
 
 #define conv_padding_support_NXC 0
 
@@ -1140,6 +1147,11 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_10) {
             3, 5, 5, 5, 5, {2, 2}, {1, 1}, {3, 3}, {3, 3}, false, true);
     check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 1, 16,
             3, 5, 5, 5, 5, {2, 2}, {1, 1}, {3, 3}, {2, 2}, false, true);
+}
+TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_11) {
+    REQUIRE_AMX();
+    check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 1, 1, 1,
+            1, 3, 3, 3, {1, 1}, {1, 1}, {1, 0}, {1, 0}, false, true);
 }
 
 TEST(GCCore_CPU_qconv2d_u8s8s32_rl_bias, padding_1) {

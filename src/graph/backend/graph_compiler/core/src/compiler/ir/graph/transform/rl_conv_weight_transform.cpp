@@ -55,9 +55,14 @@ static bool use_rl(const context_ptr &ctx, const sc_data_type_t &data_dtype,
                             int x) { return x <= weight_dims[ndims - 1]; });
     auto ic = weight_dims[1];
     auto kw = weight_dims[ndims - 1];
+    auto iw = data_dims[ndims - 1];
+
+    // Note: the current rl algorithm expects kw <= iw for init aux buffer
+    // handling
     return (!is_1x1 && ndims == 4 && is_small_padding && (ic <= (tile_col / 2))
             && ((ic % vnni_blk != 0 && kw * ic <= threshold)
-                    || (ic % vnni_blk == 0)));
+                    || (ic % vnni_blk == 0))
+            && kw <= iw);
 }
 
 static void query_accu_info_for_rl(const context_ptr &ctx,
