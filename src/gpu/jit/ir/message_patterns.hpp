@@ -204,7 +204,7 @@ struct send_hint_t {
     bool is_uniform_2d() const { return type_id_ == uniform_2d; }
     send_type_id_t get_type() const { return type_id_; }
     void set_type(send_type_id_t type) {
-        ir_assert(type_id_ == send_type_id_t::empty);
+        ir_assert(utils::one_of(type_id_, type, send_type_id_t::empty));
         type_id_ = type;
     }
     dim_t ref_2d_width() const { return block_width / type_size_; }
