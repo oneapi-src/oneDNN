@@ -32,6 +32,7 @@ struct jit_brgemm_conv_bwd_copy_kernel_call_s {
     size_t num_ic;
 };
 
+template <typename Vmm>
 struct jit_avx512_core_brgemm_conv_bwd_copy_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_brgemm_conv_bwd_copy_kernel_t)
 
@@ -41,6 +42,7 @@ struct jit_avx512_core_brgemm_conv_bwd_copy_kernel_t : public jit_generator {
             const jit_brgemm_conv_conf_t &ajcp);
 
 protected:
+    static constexpr bool is_zmm_ = std::is_same<Vmm, Xbyak::Zmm>::value;
     const jit_brgemm_conv_conf_t &jcp;
     const reg64_t inp_ptr = r15;
     const reg64_t dst_ptr = r14;
@@ -50,10 +52,12 @@ protected:
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblock_tail_mask = Xbyak::Opmask(3);
 
-    const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(0);
-    void load(const Xbyak::Xmm &x, const Xbyak::Address &addr);
+    const Vmm vmm_tmp = Vmm(0);
+    void load(
+            const Vmm &x, const Xbyak::Address &addr, const int load_size = 0);
 
-    void store(const Xbyak::Address &addr, const Xbyak::Xmm &x);
+    void store(
+            const Xbyak::Address &addr, const Vmm &x, const int store_size = 0);
     void generate() override;
 };
 

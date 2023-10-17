@@ -189,11 +189,15 @@ private:
     brgemm_containers::brgemm_palette_container_t brgemm_palettes_;
 
     std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops<isa>>> kernels_po_;
+
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+
     std::unique_ptr<jit_avx512_core_brgemm_conv_bwd_trans_kernel::
-                    jit_avx512_core_brgemm_conv_bwd_trans_kernel_t>
+                    jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>>
             copy_to_pbuffer_;
+
     std::unique_ptr<jit_avx512_core_brgemm_conv_bwd_copy_kernel::
-                    jit_avx512_core_brgemm_conv_bwd_copy_kernel_t>
+                    jit_avx512_core_brgemm_conv_bwd_copy_kernel_t<Vmm>>
             copy_to_output_buffer_;
     std::unique_ptr<jit_generator> comp_vpad_pbuffer_;
 

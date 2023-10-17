@@ -590,11 +590,12 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::init(
 
     if (jcp.exec_type == exec_trans) {
         CHECK(safe_ptr_assign(copy_to_pbuffer_,
-                new jit_avx512_core_brgemm_conv_bwd_trans_kernel_t(jcp)));
+                new jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>(jcp)));
         CHECK(copy_to_pbuffer_->create_kernel());
         if (jcp.has_uneven_iw) {
             CHECK(safe_ptr_assign(copy_to_output_buffer_,
-                    new jit_avx512_core_brgemm_conv_bwd_copy_kernel_t(jcp)));
+                    new jit_avx512_core_brgemm_conv_bwd_copy_kernel_t<Vmm>(
+                            jcp)));
             CHECK(copy_to_output_buffer_->create_kernel());
         }
     }

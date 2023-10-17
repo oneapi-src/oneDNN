@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ struct jit_brgemm_conv_bwd_trans_kernel_call_s {
     size_t b_pad;
 };
 
+template <typename Vmm>
 struct jit_avx512_core_brgemm_conv_bwd_trans_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
             jit_avx512_core_brgemm_conv_bwd_trans_kernel_t)
@@ -46,6 +47,7 @@ struct jit_avx512_core_brgemm_conv_bwd_trans_kernel_t : public jit_generator {
             const jit_brgemm_conv_conf_t &ajcp, const char *name = jit_name());
 
 protected:
+    static constexpr bool is_zmm_ = std::is_same<Vmm, Xbyak::Zmm>::value;
     jit_brgemm_conv_conf_t jcp;
     dim_t inp_dsz;
     dim_t oc_block_sz;
@@ -73,16 +75,18 @@ protected:
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblock_tail_mask = Xbyak::Opmask(3);
 
-    const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(0);
-    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(1);
+    const Vmm vmm_tmp = Vmm(0);
+    const Vmm vmm_zero = Vmm(1);
 
-    void load(const Xbyak::Xmm &x, const Xbyak::Address &addr);
+    void load(
+            const Vmm &x, const Xbyak::Address &addr, const int load_size = 0);
 
-    void store(const Xbyak::Address &addr, const Xbyak::Xmm &x);
+    void store(
+            const Xbyak::Address &addr, const Vmm &x, const int store_size = 0);
 
     void zero_oc_block(bool is_oc_tail, dim_t dst_off);
-    void copy_oc_block(
-            bool is_oc_tail, dim_t inp_off, dim_t dst_off, bool do_load);
+    void copy_oc_block(bool is_oc_tail, dim_t inp_off = 0, dim_t dst_off = 0,
+            bool do_load = true);
     void generate() override;
     void copy_iw_block(bool is_oc_tail);
     void copy_iw_block_body(int lpad, int iw_len, int ow_len, bool is_oc_tail);

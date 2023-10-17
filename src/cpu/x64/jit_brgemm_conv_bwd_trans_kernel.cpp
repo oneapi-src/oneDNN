@@ -30,7 +30,8 @@ namespace jit_avx512_core_brgemm_conv_bwd_trans_kernel {
 
 #define GET_OFF(field) offsetof(jit_brgemm_conv_bwd_trans_kernel_call_s, field)
 
-jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::
+template <typename Vmm>
+jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::
         jit_avx512_core_brgemm_conv_bwd_trans_kernel_t(
                 const jit_brgemm_conv_conf_t &ajcp, const char *name)
     : jit_generator(name), jcp(ajcp) {
@@ -41,18 +42,22 @@ jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::
     dst_w_offset = oc_block_sz;
     dst_h_offset = dst_stride * dst_w_offset;
     ow_size = inp_dsz * jcp.ngroups * jcp.oc_without_padding;
-    VL = cpu_isa_traits<avx512_core>::vlen;
+    VL = vreg_traits<Vmm>::vlen;
     n_vec = jcp.oc_block / jcp.simd_w;
     n_tail_vec = (jcp.oc_without_padding % jcp.oc_block) / jcp.simd_w;
 }
 
-int jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::inp_w(int out_w) const {
+template <typename Vmm>
+int jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::inp_w(
+        int out_w) const {
     const auto res = div_up(out_w + jcp.l_pad % jcp.stride_w, jcp.stride_w)
             + (jcp.ext_kw - 1 - jcp.l_pad % jcp.stride_w) / jcp.stride_w;
     return res;
 }
 
-int jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::inp_w_start(int iwb) const {
+template <typename Vmm>
+int jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::inp_w_start(
+        int iwb) const {
     const auto sw = jcp.l_pad % jcp.stride_w;
     const auto kw = (jcp.kw - 1) % jcp.stride_w;
     const auto kw_x = (jcp.kw - 1) - nstl::modulo(kw - sw, jcp.stride_w);
@@ -62,8 +67,10 @@ int jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::inp_w_start(int iwb) const {
 }
 
 // use different vmovdqu32/16/8 due to case when tail mask used
-void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::load(
-        const Xbyak::Xmm &x, const Xbyak::Address &addr) {
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::load(
+        const Vmm &x, const Xbyak::Address &addr, const int load_size) {
+    assert(!is_zmm_ && "only Zmm registers allowed");
     switch (jcp.src_dt) {
         case f32:
         case s32: vmovdqu32(x, addr); break;
@@ -75,8 +82,10 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::load(
     }
 }
 
-void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::store(
-        const Xbyak::Address &addr, const Xbyak::Xmm &x) {
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::store(
+        const Xbyak::Address &addr, const Vmm &x, const int store_size) {
+    assert(!is_zmm_ && "only Zmm registers allowed");
     switch (jcp.src_dt) {
         case f32:
         case s32: vmovdqu32(addr, x); break;
@@ -88,50 +97,86 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::store(
     }
 }
 
-void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::zero_oc_block(
+template <>
+void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Xbyak::Ymm>::load(
+        const Xbyak::Ymm &x, const Xbyak::Address &addr, const int load_size) {
+    load_bytes(x, addr, jcp.src_dsz * load_size, true);
+}
+
+template <>
+void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Xbyak::Ymm>::store(
+        const Xbyak::Address &addr, const Xbyak::Ymm &x, const int store_size) {
+    store_bytes(x, addr, jcp.src_dsz * store_size);
+}
+
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::zero_oc_block(
         bool is_oc_tail, dim_t dst_off) {
     bool has_block_tail = (jcp.oc_block % jcp.simd_w);
 
     // TODO: use Xmm or Ymm moves for better small oc efficiency
     auto nvec = is_oc_tail ? n_tail_vec : n_vec;
     for (int iv = 0; iv < nvec; iv++)
-        store(ptr[aux_dst_ptr + dst_off + iv * VL], zmm_zero);
+        store(ptr[aux_dst_ptr + dst_off + iv * VL], vmm_zero, jcp.simd_w);
     const auto last_dst_off = aux_dst_ptr + dst_off + nvec * VL;
-    if (has_block_tail)
-        store(ptr[last_dst_off] | kblock_tail_mask | T_z, zmm_zero);
-    else if (is_oc_tail)
-        store(ptr[last_dst_off], zmm_zero);
+    if (has_block_tail) {
+        if (is_zmm_)
+            store(ptr[last_dst_off] | kblock_tail_mask | T_z, vmm_zero);
+        else {
+            const int block_tail = jcp.oc_block % jcp.simd_w;
+            store(ptr[last_dst_off], vmm_zero, block_tail);
+        }
+    } else if (is_oc_tail)
+        store(ptr[last_dst_off], vmm_zero, jcp.simd_w);
 }
 
-void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::copy_oc_block(
-        bool is_oc_tail, dim_t inp_off = 0, dim_t dst_off = 0,
-        bool do_load = true) {
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::copy_oc_block(
+        bool is_oc_tail, dim_t inp_off, dim_t dst_off, bool do_load) {
     bool has_block_tail = (jcp.oc_block % jcp.simd_w);
-
     // TODO: use Xmm or Ymm moves for better small oc efficiency
     auto nvec = is_oc_tail ? n_tail_vec : n_vec;
     for (int iv = 0; iv < nvec; iv++) {
-        if (do_load) load(zmm_tmp, ptr[aux_inp_ptr + inp_off + iv * VL]);
-        store(ptr[aux_dst_ptr + dst_off + iv * VL], zmm_tmp);
+        if (do_load)
+            load(vmm_tmp, ptr[aux_inp_ptr + inp_off + iv * VL], jcp.simd_w);
+        store(ptr[aux_dst_ptr + dst_off + iv * VL], vmm_tmp, jcp.simd_w);
     }
     const auto last_inp_off = aux_inp_ptr + inp_off + nvec * VL;
     const auto last_dst_off = aux_dst_ptr + dst_off + nvec * VL;
 
     if (is_oc_tail) {
-        auto zmm_tmp_mask = zmm_tmp | ktail_mask | T_z;
-        if (do_load) load(zmm_tmp_mask, ptr[last_inp_off]);
-        if (has_block_tail)
-            store(ptr[last_dst_off] | kblock_tail_mask | T_z, zmm_tmp);
-        else
-            store(ptr[last_dst_off], zmm_tmp);
+        if (is_zmm_) {
+            auto vmm_tmp_mask = vmm_tmp | ktail_mask | T_z;
+            if (do_load) load(vmm_tmp_mask, ptr[last_inp_off]);
+            if (has_block_tail)
+                store(ptr[last_dst_off] | kblock_tail_mask | T_z, vmm_tmp);
+            else
+                store(ptr[last_dst_off], vmm_tmp);
+        } else {
+            const int oc_tail
+                    = (jcp.oc_without_padding % jcp.oc_block) % jcp.simd_w;
+            if (do_load) load(vmm_tmp, ptr[last_inp_off], oc_tail);
+            if (has_block_tail) {
+                const int block_tail = jcp.oc_block % jcp.simd_w;
+                store(ptr[last_dst_off], vmm_tmp, block_tail);
+            } else
+                store(ptr[last_dst_off], vmm_tmp, jcp.simd_w);
+        }
     } else if (has_block_tail) {
-        auto zmm_tmp_mask = zmm_tmp | kblock_tail_mask | T_z;
-        if (do_load) load(zmm_tmp_mask, ptr[last_inp_off]);
-        store(ptr[last_dst_off] | kblock_tail_mask | T_z, zmm_tmp);
+        if (is_zmm_) {
+            auto vmm_tmp_mask = vmm_tmp | kblock_tail_mask | T_z;
+            if (do_load) load(vmm_tmp_mask, ptr[last_inp_off]);
+            store(ptr[last_dst_off] | kblock_tail_mask | T_z, vmm_tmp);
+        } else {
+            const int block_tail = jcp.oc_block % jcp.simd_w;
+            if (do_load) load(vmm_tmp, ptr[last_inp_off], block_tail);
+            store(ptr[last_dst_off], vmm_tmp, block_tail);
+        }
     }
 }
 
-void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::generate() {
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::generate() {
     preamble();
 
     mov(inp_ptr, ptr[param1 + GET_OFF(src)]);
@@ -142,16 +187,16 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::generate() {
     mov(reg_iwb, ptr[param1 + GET_OFF(iwb)]);
     mov(reg_oc, ptr[param1 + GET_OFF(oc)]);
 
-    vpxord(zmm_zero, zmm_zero, zmm_zero);
+    uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
 
-    if (jcp.oc_without_padding % jcp.oc_block) {
+    if (is_zmm_ && jcp.oc_without_padding % jcp.oc_block) {
         int tail_size = (jcp.oc_without_padding % jcp.oc_block) % jcp.simd_w;
         uint64_t mask = (UINT64_C(1) << tail_size) - 1;
         mov(reg_tmp, mask);
         kmovq(ktail_mask, reg_tmp);
     }
 
-    if (jcp.oc_block % jcp.simd_w) {
+    if (is_zmm_ && jcp.oc_block % jcp.simd_w) {
         int block_tail_size = jcp.oc_block % jcp.simd_w;
         uint64_t mask = (UINT64_C(1) << block_tail_size) - 1;
         mov(reg_tmp, mask);
@@ -244,7 +289,8 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::generate() {
     postamble();
 }
 
-void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::copy_iw_block(
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::copy_iw_block(
         bool is_oc_tail) {
     if (jcp.l_ovf > 0) {
         for (dim_t ind_w = 0; ind_w < jcp.l_ovf; ind_w++)
@@ -353,7 +399,8 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::copy_iw_block(
     L(copy_block_done_label);
 }
 
-void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::copy_iw_block_body(
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::copy_iw_block_body(
         int lpad, int iw_len, int ow_len, bool is_oc_tail) {
     const auto dst_width = inp_w(iw_len) + lpad;
     for (dim_t ind_w = 0; ind_w < dst_width; ind_w++) {
@@ -367,6 +414,9 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t::copy_iw_block_body(
         }
     }
 }
+
+template struct jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Xbyak::Ymm>;
+template struct jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Xbyak::Zmm>;
 
 } // namespace jit_avx512_core_brgemm_conv_bwd_trans_kernel
 } // namespace x64
