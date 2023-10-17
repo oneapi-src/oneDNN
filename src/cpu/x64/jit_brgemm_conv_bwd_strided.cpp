@@ -1077,11 +1077,14 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::maybe_trans_inp(int ithr,
     const auto &jcp = _pd->jcp_;
     const auto ocb = occ * jcp.nb_oc_blocking;
 
-    // This function does not work correctly if spatial block is not divisible
-    // by corresponding stride.
+    // This function does not work correctly if spatial block is lower than
+    // spatial size and not divisible by corresponding stride.
     // TODO: drop this restriction.
-    assert(jcp.iw_block % jcp.stride_w == 0 && jcp.ih_block % jcp.stride_h == 0
-            && jcp.id_block % jcp.stride_d == 0);
+    assert(IMPLICATION(jcp.iw_block < jcp.iw, jcp.iw_block % jcp.stride_w == 0)
+            && IMPLICATION(
+                    jcp.ih_block < jcp.ih, jcp.ih_block % jcp.stride_h == 0)
+            && IMPLICATION(
+                    jcp.id_block < jcp.id, jcp.id_block % jcp.stride_d == 0));
 
     if (last_g == g && last_n == n && last_occ == occ && last_idb == idb
             && last_ihb == ihb && last_iwb == iwb)
