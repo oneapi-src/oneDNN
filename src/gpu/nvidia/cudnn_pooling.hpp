@@ -35,34 +35,15 @@ namespace nvidia {
 struct cudnn_pooling_common_t {
     template <typename pd_t>
     void init_ws(const pd_t *pd, memory_desc_t &ws_md) {
-        bool is_fwd = pd->is_fwd();
-        memory_desc_wrapper src_wrap(is_fwd ? pd->src_md() : pd->diff_src_md());
-        memory_desc_wrapper dst_wrap(is_fwd ? pd->dst_md() : pd->diff_dst_md());
+        memory_desc_wrapper src_wrap(pd->invariant_src_md());
+        memory_desc_wrapper dst_wrap(pd->invariant_dst_md());
 
-        const auto src_size = src_wrap.nelems();
-        const auto dst_size = dst_wrap.nelems();
+        const auto src_size = src_wrap.size();
+        const auto dst_size = dst_wrap.size();
         const dims_t ws_size = {(dim_t)(src_size + dst_size)};
 
         memory_desc_init_by_tag(
-                ws_md, 1, ws_size, src_wrap.data_type(), format_tag::x);
-    }
-
-    status_t init_mem_by_tag(format_tag_t tag, memory_desc_t &md) {
-        if (tag == format_tag::undef) { return status::unimplemented; }
-        CHECK(memory_desc_init_by_tag(md, tag));
-        return status::success;
-    }
-
-    format_tag_t get_tag(const memory_desc_t &md) const {
-        using namespace format_tag;
-        auto tag = memory_desc_matches_one_of_tag(md, ab, abc, abcd,
-                abcde, // NCHW derivatives
-                ba, bca, bcda, bcdea, cba, cdba,
-                cdeba, // IO and spatial derivatives
-                acb, acdb, acdeb, // NHWC derivatives
-                aBcd16b, aBcde16b, aBcd8b, aBcde8b, aBcd4b,
-                aBcde4b); // blocked layouts
-        return tag;
+                ws_md, 1, ws_size, data_type::u8, format_tag::x);
     }
 };
 
@@ -174,8 +155,6 @@ struct cudnn_pooling_bwd_t : public primitive_t {
                                            diff_src_md()->data_type),
                             has_bf16_support(sycl_engine->device()));
             if (!ok) return status::unimplemented;
-
-            init_mem_by_tag(get_tag(diff_dst_md_), diff_src_md_);
 
             init_ws(this, ws_md_);
             if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
