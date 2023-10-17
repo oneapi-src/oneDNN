@@ -1907,7 +1907,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestMaskIndexingAVX2) {
             _arg_("d", datatypes::s8, {test_len})) {
         _bind_(a, b, c, d);
         auto mask = builder::make_constant(
-                {UINT64_C((1 << simd_lanes) - 1)}, datatypes::u16);
+                {UINT64_C((1 << test_len) - 1)}, datatypes::u16);
         a[span_t({0UL}, simd_lanes, mask)] = b[span_t({0UL}, simd_lanes, mask)];
         d[span_t({0UL}, simd_lanes, mask)]
                 = builder::make_max(a[span_t({0UL}, simd_lanes, mask)],
