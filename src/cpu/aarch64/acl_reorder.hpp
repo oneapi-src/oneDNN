@@ -102,11 +102,10 @@ struct acl_reorder_fwd_t : public primitive_t {
                 return status::unimplemented;
 
             // Create and check primitive descriptor
-            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+            auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
             if (_pd == nullptr) return status::out_of_memory;
             if (_pd->init(engine, src_engine, dst_engine) != status::success) {
-                delete _pd;
                 return status::unimplemented;
             }
 
@@ -226,7 +225,7 @@ struct acl_reorder_fwd_t : public primitive_t {
             // Init scratch memory, not used so 0 in this implementation
             _pd->init_scratchpad_md();
 
-            return safe_ptr_assign(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd.release());
         } // create
 
         friend dnnl::impl::impl_list_item_t;
