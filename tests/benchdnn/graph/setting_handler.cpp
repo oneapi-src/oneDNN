@@ -292,11 +292,15 @@ bool get_binary_sdt_and_ddt(const deserialized_op &base_op_ref,
 
 bool get_binary_stag_and_dtag(
         const deserialized_op &base_op_ref, ::binary::settings_t &op_setting) {
-    std::string tag;
-    get_driver_tag(base_op_ref, tag);
-    // src0, src1, dst have same tag.
-    op_setting.stag = {{tag, tag}};
-    op_setting.dtag.front() = tag;
+    // src1, src2 and dst could have different tags.
+    std::string stag0, stag1, dtag;
+    if (!get_driver_tag_by_idx(base_op_ref, dtag, 0, true)
+            || !get_driver_tag_by_idx(base_op_ref, stag1, 1, false)
+            || !get_driver_tag_by_idx(base_op_ref, stag0, 0, false)) {
+        return false;
+    }
+    op_setting.stag = {{stag0, stag1}};
+    op_setting.dtag.front() = dtag;
     return true;
 }
 
