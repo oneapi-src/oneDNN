@@ -573,11 +573,18 @@ void skip_unimplemented_data_type(
             || (is_cpu() && has_data_type_support(dnnl_f16)
                     && IMPLICATION(
                             !(dir & FLAG_INF), has_training_support(dnnl_f16)));
-
+    const bool has_f8_e5m2_support = is_gpu()
+            || (is_cpu() && has_data_type_support(dnnl_f8_e5m2)
+                    && (dir & FLAG_INF));
+    const bool has_f8_e4m3_support = is_gpu()
+            || (is_cpu() && has_data_type_support(dnnl_f8_e4m3)
+                    && (dir & FLAG_FWD));
 #else
     const bool has_bf16_support = is_gpu();
     // f16 is supported on GPU for inference only.
     const bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
+    const bool has_f8_e5m2_support = is_gpu();
+    const bool has_f8_e4m3_support = is_gpu();
 #endif
 
     for (const auto &i_dt : v_dt) {
@@ -586,6 +593,8 @@ void skip_unimplemented_data_type(
             case dnnl_bf16: need_skip = !has_bf16_support; break;
             case dnnl_f16: need_skip = !has_f16_support; break;
             case dnnl_f64: need_skip = !has_f64_support; break;
+            case dnnl_f8_e5m2: need_skip = !has_f8_e5m2_support; break;
+            case dnnl_f8_e4m3: need_skip = !has_f8_e4m3_support; break;
             default: break;
         }
         if (need_skip) {
