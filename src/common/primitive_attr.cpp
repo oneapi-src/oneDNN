@@ -357,9 +357,13 @@ bool post_ops_t::check_sum_consistency(const data_type_t dst_dt,
             && check_sum_consistent_quantization(dst_dt, is_int8);
 }
 
-status_t primitive_attr_t::set_fpmath_mode(fpmath_mode_t fpmath_mode) {
+status_t primitive_attr_t::set_fpmath_mode(
+        fpmath_mode_t fpmath_mode, bool force) {
     auto st = check_fpmath_mode(fpmath_mode);
-    if (st == success) fpmath_mode_ = fpmath_mode;
+    if (st == success) {
+        fpmath_mode_ = fpmath_mode;
+        force_fpmath_ = force;
+    }
     return st;
 }
 
@@ -433,7 +437,13 @@ status_t dnnl_primitive_attr_get_fpmath_mode(
 status_t dnnl_primitive_attr_set_fpmath_mode(
         primitive_attr_t *attr, fpmath_mode_t mode) {
     if (any_null(attr)) return invalid_arguments;
-    return attr->set_fpmath_mode(mode);
+    return attr->set_fpmath_mode(mode, false);
+}
+
+status_t dnnl_primitive_attr_set_fpmath_mode_v2(
+        primitive_attr_t *attr, fpmath_mode_t mode, int force_fpmath) {
+    if (any_null(attr)) return invalid_arguments;
+    return attr->set_fpmath_mode(mode, force_fpmath);
 }
 
 status_t dnnl_primitive_attr_get_accumulation_mode(

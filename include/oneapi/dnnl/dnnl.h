@@ -306,7 +306,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_deterministic(
 /// Sets the deterministic primitive attribute value.
 ///
 /// @param attr Primitive attributes.
-/// @param value Boolean value to set deterministic attribute
+/// @param value Boolean value to set deterministic attribute.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_deterministic(
@@ -335,6 +335,22 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_accumulation_mode(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_accumulation_mode(
         dnnl_primitive_attr_t attr, dnnl_accumulation_mode_t mode);
+
+/// Sets the floating-point math mode primitive attributes.
+///
+/// @param attr Primitive attributes.
+/// @param mode FP math mode. The possible values are:
+///     #dnnl_fpmath_mode_strict (default),
+///     #dnnl_fpmath_mode_bf16,
+///     #dnnl_fpmath_mode_f16,
+///     #dnnl_fpmath_mode_tf32,
+///     #dnnl_fpmath_mode_any.
+/// @param force Boolean. Forces the use of floating-point arithmetic
+///     for integer primitives
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_fpmath_mode_v2(
+        dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t mode, int force);
 
 /// Returns the primitive attributes scratchpad mode.
 ///

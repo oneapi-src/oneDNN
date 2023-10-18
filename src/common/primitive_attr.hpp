@@ -700,7 +700,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         return ret;
     }
 
-    dnnl::impl::status_t set_fpmath_mode(dnnl::impl::fpmath_mode_t fpmath_mode);
+    dnnl::impl::status_t set_fpmath_mode(
+            dnnl::impl::fpmath_mode_t fpmath_mode, bool force);
     dnnl::impl::status_t set_accumulation_mode(
             dnnl::impl::accumulation_mode_t am);
     dnnl::impl::status_t set_scratchpad_mode(
@@ -733,6 +734,23 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         return is_compat && can_downconvert();
     }
 
+    bool mayiconvert(
+            dnnl::impl::data_type_t dt_from, dnnl::impl::data_type_t dt_to) {
+        if (dnnl::impl::types::is_integral_dt(dt_from)) {
+            // integer inputs can be converted only:
+            // - if force_fpmath_ is enabled, and
+            // - to an fp type compatible with fpmath mode
+            return force_fpmath_
+                    && mayidownconvert(dnnl::impl::data_type::f32, dt_to);
+        } else {
+            // fp inputs can be converted only:
+            // - if target datatype is bigger
+            // - or if fpmath mode allows the conversion
+            return dnnl::impl::is_fpsubtype(dt_from, dt_to)
+                    || mayidownconvert(dt_from, dt_to);
+        }
+    }
+
     // NOTE: make sure that the types below have overloaded comparison operator
     dnnl::impl::runtime_scales_t output_scales_;
     dnnl::impl::arg_scales_t scales_;
@@ -741,6 +759,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::fpmath_mode_t fpmath_mode_;
     dnnl::impl::accumulation_mode_t acc_mode_;
     bool deterministic_;
+    bool force_fpmath_;
     dnnl::impl::post_ops_t post_ops_;
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
     dnnl::impl::scales_t rnn_weights_qparams_;
