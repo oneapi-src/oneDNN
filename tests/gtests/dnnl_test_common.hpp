@@ -68,6 +68,8 @@
 
 using dnnl::impl::bfloat16_t;
 using dnnl::impl::float16_t;
+using dnnl::impl::float8_e4m3_t;
+using dnnl::impl::float8_e5m2_t;
 
 #ifdef DNNL_ENABLE_MEM_DEBUG
 #define DNNL_CHECK(f) \
