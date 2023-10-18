@@ -117,6 +117,50 @@ private:
     const Xbyak::Reg64 reg64_aux_;
 };
 
+enum f32_convert_mode_t {
+    f8_e5m2_to_f16,
+    f8_e4m3_to_f16,
+    f8_e5m2_to_f32,
+    f8_e4m3_to_f32,
+    f16_to_f8_e5m2,
+    f16_to_f8_e4m3,
+    f32_to_f8_e5m2,
+    f32_to_f8_e4m3,
+    f16_to_f32,
+    f32_to_f16,
+};
+
+struct jit_cvt_fp8_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_cvt_fp8_t)
+
+    jit_cvt_fp8_t(f32_convert_mode_t mode);
+
+private:
+    const Xbyak::Xmm xmm_out = xmm0;
+    const Xbyak::Xmm xmm_inp = xmm1;
+    const Xbyak::Xmm xmm_aux1 = xmm2;
+    const Xbyak::Xmm xmm_aux2 = xmm3;
+    const Xbyak::Xmm xmm_aux3 = xmm4;
+    const Xbyak::Opmask kmask_aux = k1;
+    const Xbyak::Reg64 reg64_aux = abi_not_param1;
+    const Xbyak::Reg64 reg64_out = abi_param1;
+    const Xbyak::Reg64 reg64_inp = abi_param2;
+    void generate() override;
+    std::unique_ptr<fp8_emulation_base_t> fp8_emu_;
+    f32_convert_mode_t mode_;
+};
+
+bool try_cvt_f8_e5m2_to_f32(float *out, const float8_e5m2_t *inp);
+bool try_cvt_f8_e4m3_to_f32(float *out, const float8_e4m3_t *inp);
+bool try_cvt_f8_e5m2_to_f16(float16_t *out, const float8_e5m2_t *inp);
+bool try_cvt_f8_e4m3_to_f16(float16_t *out, const float8_e4m3_t *inp);
+bool try_cvt_f16_to_f8_e5m2(float8_e5m2_t *out, const float16_t *inp);
+bool try_cvt_f16_to_f8_e4m3(float8_e4m3_t *out, const float16_t *inp);
+bool try_cvt_f32_to_f8_e5m2(float8_e5m2_t *out, const float *inp);
+bool try_cvt_f32_to_f8_e4m3(float8_e4m3_t *out, const float *inp);
+bool try_cvt_f16_to_f32(float *out, const float16_t *inp);
+bool try_cvt_f32_to_f16(float16_t *out, const float *inp);
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl

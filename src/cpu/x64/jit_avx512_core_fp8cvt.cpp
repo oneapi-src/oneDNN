@@ -301,6 +301,169 @@ void fp8_emulation_e4m3_t::tabulate(const data_type_t dt,
     }
 }
 
+jit_cvt_fp8_t::jit_cvt_fp8_t(f32_convert_mode_t mode)
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_fp16)
+    , mode_(mode) {
+    switch (mode) {
+        case f8_e5m2_to_f16:
+        case f8_e5m2_to_f32:
+        case f16_to_f8_e5m2:
+        case f32_to_f8_e5m2:
+            safe_ptr_assign(fp8_emu_,
+                    new fp8_emulation_e5m2_t(
+                            this, xmm_aux1, xmm_aux3, kmask_aux, reg64_aux));
+            break;
+        case f8_e4m3_to_f16:
+        case f8_e4m3_to_f32:
+        case f16_to_f8_e4m3:
+        case f32_to_f8_e4m3:
+            safe_ptr_assign(fp8_emu_,
+                    new fp8_emulation_e4m3_t(
+                            this, xmm_aux1, xmm_aux2, xmm_aux3, reg64_aux));
+            break;
+        case f16_to_f32:
+        case f32_to_f16: break;
+        default: assert(!"Invalid mode!");
+    }
+    create_kernel();
+}
+
+void jit_cvt_fp8_t::generate() {
+    switch (mode_) {
+        case f8_e5m2_to_f32:
+        case f8_e4m3_to_f32:
+            movzx(reg64_aux, byte[reg64_inp]);
+            vmovq(xmm_inp, reg64_aux);
+            fp8_emu_->vcvt_f8_to_f32(xmm_out, xmm_inp);
+            vmovss(dword[reg64_out], xmm_out);
+            break;
+        case f8_e5m2_to_f16:
+        case f8_e4m3_to_f16:
+            movzx(reg64_aux, byte[reg64_inp]);
+            vmovq(xmm_inp, reg64_aux);
+            fp8_emu_->vcvt_f8_to_f16(xmm_out, xmm_inp);
+            vmovw(word[reg64_out], xmm_out);
+            break;
+        case f16_to_f8_e5m2:
+        case f16_to_f8_e4m3:
+            vmovw(xmm_inp, word[reg64_inp]);
+            fp8_emu_->vcvt_f16_to_f8(xmm_out, xmm_inp);
+            vpextrb(byte[reg64_out], xmm_out, 0);
+            break;
+        case f32_to_f8_e5m2:
+        case f32_to_f8_e4m3:
+            vmovss(xmm_inp, dword[reg64_inp]);
+            fp8_emu_->vcvt_f32_to_f8(xmm_out, xmm_inp);
+            vpextrb(byte[reg64_out], xmm_out, 0);
+            break;
+        case f16_to_f32:
+            vmovw(xmm_inp, word[reg64_inp]);
+            vcvtph2psx(xmm_out, xmm_inp);
+            vmovss(dword[reg64_out], xmm_out);
+            break;
+        case f32_to_f16:
+            vmovss(xmm_inp, dword[reg64_inp]);
+            vcvtps2phx(xmm_out, xmm_inp);
+            vmovw(word[reg64_out], xmm_out);
+            break;
+        default: assert(!"Invalid mode!");
+    }
+    ret();
+    switch (mode_) {
+        case f8_e5m2_to_f16:
+        case f8_e4m3_to_f16:
+        case f8_e5m2_to_f32:
+        case f8_e4m3_to_f32:
+        case f16_to_f8_e5m2:
+        case f16_to_f8_e4m3:
+        case f32_to_f8_e5m2:
+        case f32_to_f8_e4m3: fp8_emu_->prepare_table(); break;
+        case f16_to_f32:
+        case f32_to_f16: break;
+        default: assert(!"Invalid mode!");
+    }
+}
+
+bool try_cvt_f8_e5m2_to_f32(float *out, const float8_e5m2_t *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f8_e5m2_to_f32);
+    cvt(out, inp);
+    return true;
+}
+
+bool try_cvt_f8_e4m3_to_f32(float *out, const float8_e4m3_t *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f8_e4m3_to_f32);
+    cvt(out, inp);
+    return true;
+}
+
+bool try_cvt_f8_e5m2_to_f16(float16_t *out, const float8_e5m2_t *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f8_e5m2_to_f16);
+    cvt(out, inp);
+    return true;
+}
+
+bool try_cvt_f8_e4m3_to_f16(float16_t *out, const float8_e4m3_t *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f8_e4m3_to_f16);
+    cvt(out, inp);
+    return true;
+}
+
+bool try_cvt_f16_to_f8_e5m2(float8_e5m2_t *out, const float16_t *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f16_to_f8_e5m2);
+    cvt(out, inp);
+    return true;
+}
+
+bool try_cvt_f16_to_f8_e4m3(float8_e4m3_t *out, const float16_t *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f16_to_f8_e4m3);
+    cvt(out, inp);
+    return true;
+}
+
+bool try_cvt_f32_to_f8_e5m2(float8_e5m2_t *out, const float *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f32_to_f8_e5m2);
+    cvt(out, inp);
+    return true;
+}
+
+bool try_cvt_f32_to_f8_e4m3(float8_e4m3_t *out, const float *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f32_to_f8_e4m3);
+    cvt(out, inp);
+    return true;
+}
+
+bool try_cvt_f16_to_f32(float *out, const float16_t *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f16_to_f32);
+    cvt(out, inp);
+    return true;
+}
+
+bool try_cvt_f32_to_f16(float16_t *out, const float *inp) {
+    if (!mayiuse(cpu_isa_t::avx512_core_fp16)) return false;
+
+    static const jit_cvt_fp8_t cvt(f32_to_f16);
+    cvt(out, inp);
+    return true;
+}
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
