@@ -136,6 +136,11 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
                     dnnl::impl::accumulation_mode::relaxed,
                     dnnl::impl::accumulation_mode::any)));
     CHECK_ARG(this->defined(defined_mask));
+    if (force_fpmath_) {
+        bool fpmath_mode_ok = IMPLICATION((bool)(~mask & smask_t::fpmath_mode),
+                fpmath_mode_ == get_fpmath_mode());
+        CHECK_ARG(fpmath_mode_ok);
+    }
     return ok;
 #undef CHECK_MASK
 #undef CHECK_ARG

@@ -619,7 +619,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         : scratchpad_mode_(dnnl::impl::scratchpad_mode::library)
         , fpmath_mode_(dnnl::impl::get_fpmath_mode())
         , acc_mode_(dnnl::impl::accumulation_mode::strict)
-        , deterministic_(false) {}
+        , deterministic_(false)
+        , force_fpmath_(false) {}
     ~dnnl_primitive_attr() = default;
 
     dnnl_primitive_attr *clone() const {
@@ -641,6 +642,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         fpmath_mode_ = other.fpmath_mode_;
         acc_mode_ = other.acc_mode_;
         deterministic_ = other.deterministic_;
+        force_fpmath_ = other.force_fpmath_;
         post_ops_ = other.post_ops_;
         rnn_data_qparams_ = other.rnn_data_qparams_;
         CHECK(rnn_weights_qparams_.copy_from(other.rnn_weights_qparams_));
@@ -669,7 +671,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         sum_dt = 1u << 10,
         rnn_weights_projection_qparams = 1u << 11,
         gpu_attr = 1u << 12,
-        accumulation_mode = 1u << 13
+        accumulation_mode = 1u << 13,
+        fpmath_mode = 1u << 14,
     };
 
     /** Returns true if the attributes have default values.
@@ -686,6 +689,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                 && fpmath_mode_ == rhs.fpmath_mode_
                 && acc_mode_ == rhs.acc_mode_
                 && deterministic_ == rhs.deterministic_
+                && force_fpmath_ == rhs.force_fpmath_
                 && output_scales_ == rhs.output_scales_
                 && scales_ == rhs.scales_ && zero_points_ == rhs.zero_points_
                 && post_ops_ == rhs.post_ops_
