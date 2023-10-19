@@ -218,34 +218,8 @@ int attr_t::get_default_mask(policy_t policy) {
     }
 }
 
-// This function takes input string, extracts float value and asteriks, if
-// present, from the string. Updates @value with extracted values.
-// TODO: remove asteriks from all inputs and update doc.
-int parse_value_and_runtime(float &value, const std::string &s) {
-    // process value
-    size_t scale_pos = 0;
-    try {
-        value = std::stof(s, &scale_pos);
-    } catch (const std::invalid_argument &) {
-        BENCHDNN_PRINT(0, "%s \'%s\'.\n",
-                "Error: scale or zero point input value is expected to be a "
-                "real number. Given input:",
-                s.c_str());
-        SAFE_V(FAIL);
-    }
-    if (scale_pos != s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'. %s \'%g\'.\n",
-                "Error: not every input symbol was processed. Given input:",
-                s.c_str(), "Parsed value:", value);
-        SAFE_V(FAIL);
-    }
-    return OK;
-}
-
-int attr_t::arg_scales_t::entry_t::policy2mask(
-        int arg, dnnl_primitive_kind_t prim_kind, bool has_groups) const {
-    const auto policy = this->policy;
-
+int attr_t::policy2mask(int arg, policy_t policy,
+        dnnl_primitive_kind_t prim_kind, bool has_groups) {
     if (arg != DNNL_ARG_WEIGHTS || policy == policy_t::COMMON)
         return attr_t::get_default_mask(policy);
 
@@ -274,6 +248,29 @@ int attr_t::arg_scales_t::entry_t::policy2mask(
         SAFE(FAIL, CRIT);
         return -1;
     }
+}
+
+// This function takes input string, extracts float value and asteriks, if
+// present, from the string. Updates @value with extracted values.
+int parse_value_and_runtime(float &value, const std::string &s) {
+    // process value
+    size_t scale_pos = 0;
+    try {
+        value = std::stof(s, &scale_pos);
+    } catch (const std::invalid_argument &) {
+        BENCHDNN_PRINT(0, "%s \'%s\'.\n",
+                "Error: scale or zero point input value is expected to be a "
+                "real number. Given input:",
+                s.c_str());
+        SAFE_V(FAIL);
+    }
+    if (scale_pos != s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'. %s \'%g\'.\n",
+                "Error: not every input symbol was processed. Given input:",
+                s.c_str(), "Parsed value:", value);
+        SAFE_V(FAIL);
+    }
+    return OK;
 }
 
 int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
@@ -944,7 +941,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
                             == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
             int mask = (is_wei_arg && e.policy != policy_t::COMMON)
                     ? attr_args.get_mask(arg_name)
-                    : e.policy2mask(arg_name);
+                    : attr_t::policy2mask(arg_name, e.policy);
 
             DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
                     dnnl_attr, arg_name, mask));

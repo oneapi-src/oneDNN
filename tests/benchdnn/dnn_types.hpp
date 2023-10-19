@@ -118,6 +118,9 @@ struct attr_t {
     static policy_t str2policy(const std::string &str);
     static const char *policy2str(policy_t policy);
     static int get_default_mask(policy_t policy);
+    static int policy2mask(int arg, policy_t policy,
+            dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
+            bool has_groups = false);
 
     struct zero_points_t {
         struct entry_t {
@@ -178,10 +181,6 @@ struct attr_t {
 
             bool is_def() const { return policy == COMMON && scale == 1.f; }
 
-            int policy2mask(int arg,
-                    dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
-                    bool has_groups = false) const;
-
             policy_t policy = COMMON;
             float scale = 1.f;
         };
@@ -197,7 +196,7 @@ struct attr_t {
                 dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
                 bool has_groups = false) const {
             const auto &e = get(arg);
-            return e.policy2mask(arg, prim_kind, has_groups);
+            return attr_t::policy2mask(arg, e.policy, prim_kind, has_groups);
         }
 
         bool is_def(int arg) const {
