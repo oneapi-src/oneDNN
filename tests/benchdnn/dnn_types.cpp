@@ -219,7 +219,8 @@ int attr_t::get_default_mask(policy_t policy) {
 }
 
 int attr_t::policy2mask(int arg, policy_t policy,
-        dnnl_primitive_kind_t prim_kind, bool has_groups) {
+        dnnl_primitive_kind_t prim_kind, const_dnnl_memory_desc_t wei_md,
+        bool has_groups) {
     if (arg != DNNL_ARG_WEIGHTS || policy == policy_t::COMMON)
         return attr_t::get_default_mask(policy);
 
@@ -236,8 +237,7 @@ int attr_t::policy2mask(int arg, policy_t policy,
         }
     } else if (prim_kind == dnnl_matmul) {
         switch (policy) {
-            // TODO: add batch dimension?
-            case PER_OC: return attr_t::get_default_mask(PER_DIM_1);
+            case PER_OC: return (1 << (query_md_ndims(wei_md) - 1));
             default: SAFE(FAIL, CRIT); return -1;
         }
     } else {

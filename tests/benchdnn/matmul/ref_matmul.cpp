@@ -45,8 +45,8 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     assert(IMPLICATION(has_dst_scale, dst_scales.nelems() == 1));
     float src_scale = has_src_scale ? src_scales.get_elem(0) : 1.f;
     float dst_scale = has_dst_scale ? 1.f / dst_scales.get_elem(0) : 1.f;
-    const int wei_scale_mask
-            = prb->attr.scales.get_mask(DNNL_ARG_WEIGHTS, dnnl_matmul);
+    const int wei_scale_mask = prb->attr.scales.get_mask(
+            DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.md_);
 
     const bool has_src_zp = !prb->attr.zero_points.get(DNNL_ARG_SRC).is_def();
     const bool has_wei_zp

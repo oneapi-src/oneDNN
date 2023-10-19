@@ -44,7 +44,7 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
     float src_scale = has_src_scale ? src_scales.get_elem(0) : 1.f;
     float dst_scale = has_dst_scale ? 1.f / dst_scales.get_elem(0) : 1.f;
     const int wei_scale_mask = prb->attr.scales.get_mask(
-            DNNL_ARG_WEIGHTS, dnnl_convolution, prb->has_groups);
+            DNNL_ARG_WEIGHTS, dnnl_convolution, wei_m.md_, prb->has_groups);
 
     const bool has_src_zp = !prb->attr.zero_points.get(DNNL_ARG_SRC).is_def();
     const bool has_dst_zp = !prb->attr.zero_points.get(DNNL_ARG_DST).is_def();
@@ -158,7 +158,7 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
     float src_scale = has_src_scale ? src_scales.get_elem(0) : 1.f;
     float dst_scale = has_dst_scale ? 1.f / dst_scales.get_elem(0) : 1.f;
     const int wei_scale_mask = prb->attr.scales.get_mask(
-            DNNL_ARG_WEIGHTS, dnnl_convolution, prb->has_groups);
+            DNNL_ARG_WEIGHTS, dnnl_convolution, wei_m.md_, prb->has_groups);
 
     const bool has_src_zp = !prb->attr.zero_points.get(DNNL_ARG_SRC).is_def();
     const bool has_dst_zp = !prb->attr.zero_points.get(DNNL_ARG_DST).is_def();

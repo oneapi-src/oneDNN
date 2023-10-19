@@ -120,7 +120,7 @@ struct attr_t {
     static int get_default_mask(policy_t policy);
     static int policy2mask(int arg, policy_t policy,
             dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
-            bool has_groups = false);
+            const_dnnl_memory_desc_t wei_md = nullptr, bool has_groups = false);
 
     struct zero_points_t {
         struct entry_t {
@@ -194,9 +194,11 @@ struct attr_t {
 
         int get_mask(int arg,
                 dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
+                const_dnnl_memory_desc_t wei_md = nullptr,
                 bool has_groups = false) const {
             const auto &e = get(arg);
-            return attr_t::policy2mask(arg, e.policy, prim_kind, has_groups);
+            return attr_t::policy2mask(
+                    arg, e.policy, prim_kind, wei_md, has_groups);
         }
 
         bool is_def(int arg) const {
