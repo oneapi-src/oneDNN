@@ -288,6 +288,34 @@ attr_t::deterministic_t parse_attr_deterministic_func(const std::string &s) {
     return v;
 }
 
+attr_t::fpmath_mode_t parse_attr_fpmath_mode_func(const std::string &s) {
+    attr_t::fpmath_mode_t v;
+    if (s.empty()) return v;
+
+    size_t start_pos = 0;
+    auto subs = get_substr(s, start_pos, ':');
+    v.mode = str2fpmath_mode(subs.c_str());
+    if (start_pos == std::string::npos) return v;
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
+
+    if (start_pos != std::string::npos) {
+        subs = get_substr(s, start_pos, '\0');
+        v.force = str2bool(subs.c_str());
+
+        if (start_pos != std::string::npos) {
+            BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                    "Error: dangling symbol at the end of input", s.c_str());
+            SAFE_V(FAIL);
+        }
+    }
+
+    return v;
+}
+
 } // namespace parser_utils
 
 // vector types
@@ -456,14 +484,15 @@ bool parse_attr_scratchpad_mode(
             str2scratchpad_mode, str, option_name, help);
 }
 
-bool parse_attr_fpmath_mode(std::vector<dnnl_fpmath_mode_t> &fpmath_mode,
-        const std::vector<dnnl_fpmath_mode_t> &def_fpmath_mode, const char *str,
-        const std::string &option_name /* = "attr-fpmath"*/) {
+bool parse_attr_fpmath_mode(std::vector<attr_t::fpmath_mode_t> &fpmath_mode,
+        const std::vector<attr_t::fpmath_mode_t> &def_fpmath_mode,
+        const char *str, const std::string &option_name /* = "attr-fpmath"*/) {
     static const std::string help
-            = "MODE    (Default: `strict`)\n    Specifies fpmath_mode "
-              "attribute. `MODE` values can be `strict` or `bf16`.\n";
-    return parse_vector_option(fpmath_mode, def_fpmath_mode, str2fpmath_mode,
-            str, option_name, help);
+            = "MODE[:FORCE]    (Default: `strict[:false]`)\n    Specifies "
+              "fpmath_mode attribute. `MODE` values can be `strict` or "
+              "`bf16`. `FORCE` values can be `true` or `false`.\n";
+    return parse_vector_option(fpmath_mode, def_fpmath_mode,
+            parser_utils::parse_attr_fpmath_mode_func, str, option_name, help);
 }
 
 bool parse_attr_acc_mode(std::vector<dnnl_accumulation_mode_t> &acc_mode,

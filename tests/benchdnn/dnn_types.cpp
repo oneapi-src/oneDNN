@@ -503,8 +503,7 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks() const {
 bool attr_t::is_def(bool skip_fpmath) const {
     return scales.is_def() && zero_points.is_def() && post_ops.is_def()
             && scratchpad_mode == get_default_scratchpad_mode()
-            && IMPLICATION(!skip_fpmath, fpmath_mode == dnnl_fpmath_mode_strict)
-            && acc_mode == dnnl_accumulation_mode_strict
+            && IMPLICATION(!skip_fpmath, fpmath_mode.is_def())
             && deterministic.is_def();
 }
 
@@ -659,8 +658,9 @@ std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, dnnl_fpmath_mode_t fm) {
-    s << fpmath_mode2str(fm);
+std::ostream &operator<<(std::ostream &s, const attr_t::fpmath_mode_t &fm) {
+    s << fpmath_mode2str(fm.mode);
+    if (fm.force) s << ":" << bool2str(fm.force);
     return s;
 }
 
@@ -683,7 +683,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
             s << "--attr-post-ops=" << attr.post_ops << " ";
         if (attr.scratchpad_mode != attr_t::get_default_scratchpad_mode())
             s << "--attr-scratchpad=" << attr.scratchpad_mode << " ";
-        if (attr.fpmath_mode != dnnl_fpmath_mode_strict)
+        if (!attr.fpmath_mode.is_def())
             s << "--attr-fpmath=" << attr.fpmath_mode << " ";
         if (attr.acc_mode != dnnl_accumulation_mode_strict)
             s << "--attr-acc-mode=" << attr.acc_mode << " ";
@@ -1016,8 +1016,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
     DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
             dnnl_attr, attr.scratchpad_mode));
 
-    DNN_SAFE_V(
-            dnnl_primitive_attr_set_fpmath_mode(dnnl_attr, attr.fpmath_mode));
+    DNN_SAFE_V(dnnl_primitive_attr_set_fpmath_mode_v2(
+            dnnl_attr, attr.fpmath_mode.mode, attr.fpmath_mode.force));
 
     DNN_SAFE_V(dnnl_primitive_attr_set_accumulation_mode(
             dnnl_attr, attr.acc_mode));

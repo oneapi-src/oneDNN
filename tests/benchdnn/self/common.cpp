@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,6 +70,12 @@ static int check_attr2str() {
     attr.scales.set(DNNL_ARG_SRC_1,
             attr_t::arg_scales_t::entry_t(policy_t::COMMON, 3.f));
     SELF_CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.2+src1:common:3 ");
+
+    attr = attr_t();
+    attr.fpmath_mode.set(dnnl_fpmath_mode_strict, true);
+    SELF_CHECK_PRINT_EQ(attr, "--attr-fpmath=strict:true ");
+    attr.fpmath_mode.set(dnnl_fpmath_mode_bf16, false);
+    SELF_CHECK_PRINT_EQ(attr, "--attr-fpmath=bf16 ");
 
     return OK;
 }
@@ -175,6 +181,34 @@ static int check_attr() {
         SELF_CHECK_EQ(ee.alg, dnnl_eltwise_linear);
         SELF_CHECK_EQ(ee.alpha, 2.f);
         SELF_CHECK_EQ(ee.beta, 1.f);
+    }
+
+    {
+        std::vector<attr_t::fpmath_mode_t> fm, fm_def;
+        auto st = parse_attr_fpmath_mode(
+                fm, fm_def, "--attr-fpmath=strict:true");
+        SELF_CHECK_EQ(st, true);
+        SELF_CHECK_EQ(fm[0].mode, dnnl_fpmath_mode_strict);
+        SELF_CHECK_EQ(fm[0].force, true);
+    }
+
+    {
+        std::vector<attr_t::fpmath_mode_t> fm, fm_def;
+        auto st = parse_attr_fpmath_mode(fm, fm_def, "--attr-fpmath=bf16");
+        SELF_CHECK_EQ(st, true);
+        SELF_CHECK_EQ(fm[0].mode, dnnl_fpmath_mode_bf16);
+        SELF_CHECK_EQ(fm[0].force, false);
+    }
+
+    {
+        // Updating the default values and expect them to be returned.
+        std::vector<attr_t::fpmath_mode_t> fm, fm_def;
+        fm_def.emplace_back();
+        fm_def[0].set(dnnl_fpmath_mode_bf16, true);
+        auto st = parse_attr_fpmath_mode(fm, fm_def, "--attr-fpmath=");
+        SELF_CHECK_EQ(st, true);
+        SELF_CHECK_EQ(fm[0].mode, dnnl_fpmath_mode_bf16);
+        SELF_CHECK_EQ(fm[0].force, true);
     }
 
 #undef SELF_CHECK_ATTR_ZP

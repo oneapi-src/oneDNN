@@ -325,9 +325,23 @@ struct attr_t {
         bool enabled;
     };
 
+    struct fpmath_mode_t {
+        fpmath_mode_t() = default;
+
+        void set(dnnl_fpmath_mode_t mode, bool force = false) {
+            this->mode = mode;
+            this->force = force;
+        }
+        bool is_def() const {
+            return mode == dnnl_fpmath_mode_strict && force == false;
+        }
+
+        dnnl_fpmath_mode_t mode = dnnl_fpmath_mode_strict;
+        bool force = false;
+    };
+
     attr_t()
         : scratchpad_mode(get_default_scratchpad_mode())
-        , fpmath_mode(dnnl_fpmath_mode_strict)
         , acc_mode(dnnl_accumulation_mode_strict) {}
 
     template <typename First, typename... Rest>
@@ -340,7 +354,7 @@ struct attr_t {
     void insert(const zero_points_t &zp) { this->zero_points = zp; }
     void insert(const post_ops_t &po) { this->post_ops = po; }
     void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
-    void insert(dnnl_fpmath_mode_t fpm) { this->fpmath_mode = fpm; }
+    void insert(const fpmath_mode_t &fpm) { this->fpmath_mode = fpm; }
     void insert(dnnl_accumulation_mode_t am) { this->acc_mode = am; }
     void insert(const deterministic_t &d) { this->deterministic = d; }
 
@@ -359,7 +373,7 @@ struct attr_t {
     zero_points_t zero_points;
     post_ops_t post_ops;
     dnnl_scratchpad_mode_t scratchpad_mode;
-    dnnl_fpmath_mode_t fpmath_mode;
+    fpmath_mode_t fpmath_mode;
     dnnl_accumulation_mode_t acc_mode;
     deterministic_t deterministic;
 
@@ -474,7 +488,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm);
-std::ostream &operator<<(std::ostream &s, dnnl_fpmath_mode_t fm);
+std::ostream &operator<<(std::ostream &s, const attr_t::fpmath_mode_t &fm);
 std::ostream &operator<<(std::ostream &s, dnnl_accumulation_mode_t am);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 

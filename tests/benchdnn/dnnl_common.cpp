@@ -1401,7 +1401,7 @@ dnnl_data_type_t deduce_cfg_data_type(
 
     if ((dk == SRC || dk == WEI) && dt_ == dnnl_f32) {
         // Update data type based on fpmath-mode attribute
-        switch (attr.fpmath_mode) {
+        switch (attr.fpmath_mode.mode) {
             case dnnl_fpmath_mode_strict: break;
             case dnnl_fpmath_mode_bf16: dt_ = dnnl_bf16; break;
             case dnnl_fpmath_mode_tf32: dt_ = dnnl_bf16; break;

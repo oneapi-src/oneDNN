@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,9 +59,10 @@ struct settings_t : public base_settings_t {
 
 // TODO evaluate prb_t struct
 struct prb_t {
-    prb_t(const deserialized_graph &dg, dnnl_fpmath_mode_t fpmath_mode)
+    prb_t(const deserialized_graph &dg,
+            const attr_t::fpmath_mode_t &fpmath_mode)
         : dg(dg) {
-        switch (fpmath_mode) {
+        switch (fpmath_mode.mode) {
             case dnnl_fpmath_mode_strict:
                 this->fpmath_mode = dnnl::fpmath_mode::strict;
                 break;

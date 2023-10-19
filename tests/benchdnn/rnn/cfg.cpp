@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -334,10 +334,10 @@ CFG(f32s8f32f32) {
 
 const dt_conf_t &dt_conf_t::create(const std::string &str, const attr_t &attr) {
     if (str == "f32") {
-        if (dnnl::impl::utils::one_of(attr.fpmath_mode, dnnl_fpmath_mode_bf16,
-                    dnnl_fpmath_mode_tf32))
+        if (dnnl::impl::utils::one_of(attr.fpmath_mode.mode,
+                    dnnl_fpmath_mode_bf16, dnnl_fpmath_mode_tf32))
             return conf_bf32;
-        if (attr.fpmath_mode == dnnl_fpmath_mode_f16) return conf_f16_math;
+        if (attr.fpmath_mode.mode == dnnl_fpmath_mode_f16) return conf_f16_math;
     }
     for (const auto cfg : cfg_list)
         if (cfg->str() == str) return *cfg;
