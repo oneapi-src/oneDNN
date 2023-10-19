@@ -119,7 +119,8 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
             kmovw(kTail, (1 << ncolumns) - 1);
             src_load = src_zmm(i) | kTail | T_z;
         }
-        vmovups(src_load, EVEX_compress_addr(reg_src, i * src_stride));
+        vmovups(src_load,
+                EVEX_compress_addr_safe(reg_src, i * src_stride, reg_tmp));
     };
 
     auto store = [&](Zmm r, int i) {
@@ -870,6 +871,7 @@ private:
     reg64_t reg_loop_batch = r12;
     reg64_t reg_tr_src_tmp = r13;
     reg32_t regw_tmp = r14d;
+    reg64_t reg_tmp = r14;
 
     void transpose_16x16(int nrows, int ncolumns = transpose_size);
     void generate() override;
