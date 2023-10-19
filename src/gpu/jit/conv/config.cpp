@@ -298,7 +298,7 @@ std::string conv_problem_t::desc_str(bool print_mb) const {
     return oss.str();
 }
 
-int param_t::sort_key() const {
+int prim_config_t::sort_key(const param_t *param) const {
     static const char *ordered_params[] = {
             "exec-cfg",
             "fma",
@@ -315,7 +315,7 @@ int param_t::sort_key() const {
             nullptr,
     };
     for (const char **p = ordered_params; *p; p++) {
-        if (short_name() == *p) return p - ordered_params;
+        if (param->short_name() == *p) return p - ordered_params;
     }
     return (int)(sizeof(ordered_params) / sizeof(ordered_params[0]));
 }

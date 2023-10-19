@@ -77,7 +77,6 @@ public:
     bool is_env_overridden(const std::string &key) const {
         return is_overridden_impl(key, /*only_env=*/true);
     }
-    int sort_key() const;
     virtual std::string str() const {
         ir_error_not_expected();
         return std::string();
@@ -338,6 +337,8 @@ public:
 #undef DECL_PARAM
 #undef DECL_PARAM2
 
+    int sort_key(const param_t *param) const;
+
 protected:
     std::vector<std::function<const param_t *(const prim_config_t *)>>
             get_params_;
@@ -365,8 +366,8 @@ protected:
             ret.push_back(gp(this));
         if (do_sort) {
             std::sort(ret.begin(), ret.end(),
-                    [](const param_t *a, const param_t *b) {
-                        return a->sort_key() < b->sort_key();
+                    [this](const param_t *a, const param_t *b) {
+                        return sort_key(a) < sort_key(b);
                     });
         }
         return ret;
