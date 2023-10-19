@@ -842,15 +842,26 @@ status_t infer_pool_bwd_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs) {
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    const bool is_maxpool = n->get_kind() == op_kind::MaxPoolBackward;
 
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
-        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
+        dims src_shape;
+        if (is_maxpool) {
+            // maxpool bwd
+            src_shape = in0.vdims();
+        } else if (n->has_attr(op_attr::src_shape)) {
+            // avgpool bwd with src_shape attribute
+            src_shape = n->get_attr<dims>(op_attr::src_shape);
+        } else {
+            // should not reach here. As dnnl backend does not support runtime input for avgpool bwd now, should return unimplemented
+            return status::unimplemented;
+        }
+        VCHECK_INVALID_SHAPE(validate(src_shape, out0.vdims()),
                 "%s, input and output shapes are not compatible",
                 op_t::kind2str(n->get_kind()).c_str());
     }
 
-    const bool is_maxpool = n->get_kind() == op_kind::MaxPoolBackward;
     if (is_maxpool) {
         // We should compute output dense strides instead of directly copying
         // input strides to it
