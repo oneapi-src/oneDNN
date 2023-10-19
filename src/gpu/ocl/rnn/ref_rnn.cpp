@@ -1158,11 +1158,13 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         const memory_storage_t &input,
         const memory_storage_t &diff_dst_layer) const {
 
+    int32_t unused_ld = 0;
+
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
         arg_list.append(ws_states);
         arg_list.append(input);
-        arg_list.append(scratch_diff_states);
+        arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(into<int32_t>(lr));
         arg_list.append(into<int32_t>(rl));
 
@@ -1174,7 +1176,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
         arg_list.append(into<int32_t>(states_ws_ld));
-        arg_list.append(into<int32_t>(scratch_diff_states_ld));
+        arg_list.append(unused_ld);
         rnn_utils::append_strides(arg_list, pd()->off.src_layer, 1);
 
         return parallel_for(ctx,
@@ -1182,7 +1184,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
                 copy_init_layer_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
-        arg_list.append(ws_states);
+        arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(diff_dst_layer);
         arg_list.append(scratch_diff_states);
         arg_list.append(0);
@@ -1195,7 +1197,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_layer));
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
-        arg_list.append(into<int32_t>(states_ws_ld));
+        arg_list.append(unused_ld);
         arg_list.append(into<int32_t>(scratch_diff_states_ld));
         rnn_utils::append_strides(arg_list, pd()->off.diff_dst_layer, 2);
 
@@ -1217,6 +1219,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         const memory_storage_t &diff_dst_iter_c, const float shift,
         const float scale, const bool quantize) const {
 
+    int32_t unused_ld = 0;
     if (aprop == prop_kind::forward) {
         dim_t max_d = std::max(dhc, sic);
         compute::kernel_arg_list_t arg_list;
@@ -1224,7 +1227,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(ws.c_states());
         arg_list.append(firstit_states);
         arg_list.append(firstit_c_states);
-        arg_list.append(scratch_diff_states);
+        arg_list.append(memory_storage_t::empty_storage());
 
         arg_list.append(into<int32_t>(batch));
         arg_list.append(into<int32_t>(dhc));
@@ -1234,7 +1237,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
         arg_list.append(into<int32_t>(states_ws_ld));
-        arg_list.append(into<int32_t>(scratch_diff_states_ld));
+        arg_list.append(unused_ld);
 
         rnn_utils::append_strides(arg_list, pd()->off.src_iter, 4);
         if (pd()->ocl_conf.with_src_iter_c)
@@ -1248,8 +1251,8 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
                 copy_init_iter_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
-        arg_list.append(ws.states());
-        arg_list.append(ws.c_states());
+        arg_list.append(memory_storage_t::empty_storage());
+        arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(diff_dst_iter);
         arg_list.append(diff_dst_iter_c);
         arg_list.append(scratch_diff_states);
@@ -1261,7 +1264,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_layer));
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
-        arg_list.append(into<int32_t>(states_ws_ld));
+        arg_list.append(unused_ld);
         arg_list.append(into<int32_t>(scratch_diff_states_ld));
 
         rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter, 4);
@@ -1286,11 +1289,12 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         const memory_storage_t &ws_states, const float shift, const float scale,
         const bool dequantize) const {
 
+    int32_t unused_ld = 0;
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
         arg_list.append(ws_states);
         arg_list.append(dst_last_layer);
-        arg_list.append(scratch_diff_states);
+        arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(into<int32_t>(lr));
         arg_list.append(into<int32_t>(rl));
 
@@ -1302,7 +1306,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
         arg_list.append(into<int32_t>(states_ws_ld));
-        arg_list.append(into<int32_t>(scratch_diff_states_ld));
+        arg_list.append(unused_ld);
 
         rnn_utils::append_strides(arg_list, pd()->off.dst_layer, 3);
 
@@ -1313,7 +1317,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
                 copy_res_layer_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
-        arg_list.append(ws_states);
+        arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(diff_src_layer);
         arg_list.append(scratch_diff_states);
         arg_list.append(into<int32_t>(lr));
@@ -1326,7 +1330,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_layer));
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
-        arg_list.append(into<int32_t>(states_ws_ld));
+        arg_list.append(unused_ld);
         arg_list.append(into<int32_t>(scratch_diff_states_ld));
         rnn_utils::append_strides(arg_list, pd()->off.diff_src_layer, 3);
 
@@ -1347,13 +1351,14 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         const memory_storage_t &diff_src_iter_c, const workspace_t &ws,
         const float shift, const float scale, const bool dequantize) const {
 
+    int32_t unused_ld = 0;
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
         arg_list.append(ws.states());
         arg_list.append(ws.c_states());
         arg_list.append(dst_last_iter);
         arg_list.append(dst_last_iter_c);
-        arg_list.append(scratch_diff_states);
+        arg_list.append(memory_storage_t::empty_storage());
 
         arg_list.append(into<int32_t>(batch));
         arg_list.append(into<int32_t>(dhc));
@@ -1363,7 +1368,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
         arg_list.append(into<int32_t>(states_ws_ld));
-        arg_list.append(into<int32_t>(scratch_diff_states_ld));
+        arg_list.append(unused_ld);
 
         rnn_utils::append_strides(arg_list, pd()->off.dst_iter, 4);
         if (pd()->ocl_conf.with_dst_iter_c)
@@ -1378,8 +1383,8 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
     } else {
         dim_t max_d = std::max(dhc, sic);
         compute::kernel_arg_list_t arg_list;
-        arg_list.append(ws.states());
-        arg_list.append(ws.c_states());
+        arg_list.append(memory_storage_t::empty_storage());
+        arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(diff_src_iter);
         arg_list.append(diff_src_iter_c);
         arg_list.append(scratch_diff_states);
@@ -1391,7 +1396,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_layer));
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
-        arg_list.append(into<int32_t>(states_ws_ld));
+        arg_list.append(unused_ld);
         arg_list.append(into<int32_t>(scratch_diff_states_ld));
 
         rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter, 4);
