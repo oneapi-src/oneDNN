@@ -53,7 +53,10 @@ struct ref_matmul_t : public primitive_t {
                     && utils::one_of(src_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
                     && utils::one_of(wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
                     && utils::one_of(dst_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
-                    && src_type == wei_type
+                    && (src_type == wei_type || utils::one_of(wei_type, u8, s8))
+                    /* int8 weights decompression support */
+                    && IMPLICATION(utils::one_of(wei_type, u8, s8),
+                            attr_.mayiconvert(wei_type, src_type))
                     && IMPLICATION(src_type == f32, dst_type == f32)
                     && IMPLICATION(src_type == bf16,
                             utils::one_of(dst_type, f32, bf16))
