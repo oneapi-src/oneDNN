@@ -46,14 +46,20 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
 
     // Check attributes
     const data_type_t src_dt = desc.src_desc.data_type;
+    const data_type_t wei_dt = desc.weights_desc.data_type;
     const data_type_t dst_dt = desc.dst_desc.data_type;
 
+    auto attr_mask = smask_t::post_ops | smask_t::sum_dt;
     // Matmul supports scales for floating point data types
-    auto attr_mask
-            = smask_t::post_ops | smask_t::sum_dt | smask_t::scales_runtime;
+    attr_mask |= smask_t::scales_runtime;
 
     const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8);
     if (is_int8) attr_mask |= smask_t::zero_points_runtime;
+
+    // Matmul supports zero points for floating point data types as part of weights decompression
+    const bool wei_is_int8
+            = utils::one_of(wei_dt, data_type::s8, data_type::u8);
+    if (!is_int8 && wei_is_int8) attr_mask |= smask_t::zero_points_runtime;
 
     VCHECK_MATMUL_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);

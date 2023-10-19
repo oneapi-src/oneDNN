@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,7 +51,8 @@ struct ref_matmul_t : public primitive_t {
 
             bool ok = is_dense_format_kind()
                     && utils::one_of(src_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
-                    && utils::one_of(wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
+                    && utils::one_of(
+                            wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3, u8, s8)
                     && utils::one_of(dst_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
                     && (src_type == wei_type || utils::one_of(wei_type, u8, s8))
                     /* int8 weights decompression support */
@@ -77,6 +78,7 @@ struct ref_matmul_t : public primitive_t {
                             )
                     && platform::has_data_type_support(src_type)
                     && attr()->has_default_values(smask_t::scales_runtime
+                                    | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_type)
                     && attr_.post_ops_.check_sum_consistency(dst_type,

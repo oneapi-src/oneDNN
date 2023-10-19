@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,12 +65,34 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t K = helper.K();
     const dim_t batch = helper.batch();
 
+    // Weights decompression
+    DEFINE_ZERO_POINTS_BUFFER(wei_zero_points, DNNL_ARG_WEIGHTS);
+    const bool with_wei_decompression
+            = utils::one_of(weights_d.data_type(), data_type::s8, data_type::u8)
+            && pd()->attr()->force_fpmath_;
+    const auto &attr_zps = pd()->attr()->zero_points_;
+    const bool with_wei_zero_points
+            = !attr_zps.has_default_values(DNNL_ARG_WEIGHTS);
+    const dim_t wei_zero_points_stride
+            = attr_zps.common(DNNL_ARG_WEIGHTS) ? 0 : 1;
+
     const int src_mask
             = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
     const int wei_mask
             = utils::get_dims_mask(dst_d.dims(), weights_d.dims(), ndims);
     const int bia_mask
             = utils::get_dims_mask(dst_d.dims(), bia_d.dims(), ndims);
+
+    // arg scales section
+    const auto &attr_scales = pd()->attr()->scales_;
+    const bool with_src_scales
+            = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
+    const bool with_wei_scales
+            = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
+    const bool with_dst_scales
+            = !attr_scales.get(DNNL_ARG_DST).has_default_values();
+    const dim_t wei_scale_stride
+            = attr_scales.get(DNNL_ARG_WEIGHTS).mask_ == 0 ? 0 : 1;
 
     // mm kernel
     auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
@@ -90,8 +112,14 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             const auto weights_off = weights_d.off_v(weights_dims_idx);
             const float s
                     = io::load_float_value(src_d.data_type(), src, src_off);
-            const float w = io::load_float_value(
+            float w = io::load_float_value(
                     weights_d.data_type(), weights, weights_off);
+            // weights decompression should happen before the operation
+            if (with_wei_decompression) {
+                if (with_wei_zero_points)
+                    w -= wei_zero_points[wei_zero_points_stride * n];
+                if (with_wei_scales) w *= wei_scales[wei_scale_stride * n];
+            }
             acc += s * w;
         }
         return acc;
@@ -105,17 +133,6 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         return io::load_float_value(bia_d.data_type(), bias, bias_off);
     };
 
-    // arg scales section
-    const auto &attr_scales = pd()->attr()->scales_;
-    const bool with_src_scales
-            = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
-    const bool with_wei_scales
-            = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
-    const bool with_dst_scales
-            = !attr_scales.get(DNNL_ARG_DST).has_default_values();
-    const dim_t wei_scale_stride
-            = attr_scales.get(DNNL_ARG_WEIGHTS).mask_ == 0 ? 0 : 1;
-
     auto sum_dt = pd()->attr()->post_ops_.get_sum_dt(dst_d.data_type());
 
     // computations
@@ -126,7 +143,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         utils::l_dims_by_l_offset(dst_dims_idx, l_offset, dst_d.dims(), ndims);
         float d = ker(dst_dims_idx, m, n);
         if (with_src_scales) d *= src_scales[0];
-        if (with_wei_scales) d *= wei_scales[wei_scale_stride * n];
+        if (with_wei_scales && !with_wei_decompression)
+            d *= wei_scales[wei_scale_stride * n];
         if (bias) d += ker_bias(dst_dims_idx);
 
         const auto dst_off = dst_d.off_v(dst_dims_idx);
