@@ -97,7 +97,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
             dst_dims[ITER_DIM_IDX]++, src_dims[ITER_DIM_IDX]++) {
         int part;
         int src_off;
-        __global SRC_DATA_T *src;
+        const __global SRC_DATA_T *src;
         INIT_FLOAT_SCALE;
 
         if (IS_IN_PART(0)) SET_DIMS(0, 0)
