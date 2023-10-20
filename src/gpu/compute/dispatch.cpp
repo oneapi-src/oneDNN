@@ -181,12 +181,13 @@ void dispatch_t::def_kernel_macros(kernel_ctx_t &kernel_ctx) const {
                 utils::format("%s_STRIDE%d", gws_prefix.c_str(), i),
                 get_gws_stride(i));
 
-        bool is_zero = (dims_[i].size == 1);
+        bool is_zero = dims_[i].size <= 1;
+        bool is_zero_stride = get_gws_stride(i) == 0;
         bool is_outermost = (i == ndims_ - 1)
                 || dims_[i + 1].gws_index != dims_[i].gws_index;
-        const char *op_name = is_zero ? "GWS_OP_ZERO"
-                : is_outermost        ? "GWS_OP_FIRST"
-                                      : "GWS_OP_MOD";
+        const char *op_name = is_zero || is_zero_stride ? "GWS_OP_ZERO"
+                : is_outermost                          ? "GWS_OP_FIRST"
+                                                        : "GWS_OP_MOD";
         kernel_ctx.add_option(
                 utils::format("-D%s_OP%d=%s", gws_prefix.c_str(), i, op_name));
         kernel_ctx.define_int(utils::format("%s_DIM%d", gws_prefix.c_str(), i),
