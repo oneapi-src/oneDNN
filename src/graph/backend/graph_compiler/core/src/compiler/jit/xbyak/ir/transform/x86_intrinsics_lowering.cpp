@@ -1408,6 +1408,7 @@ public:
         auto movd_type = sc_data_type_t(sc_data_etype::U16, 8);
         // bit and value
         std::vector<union_val> val;
+        val.reserve(mask_lanes);
         for (int i = 0; i < mask_lanes; i++) {
             val.emplace_back(UINT64_C(1) << i);
         }
@@ -1447,6 +1448,7 @@ public:
         auto movd_type = sc_data_type_t(sc_data_etype::U32, 4);
         // bit and value
         std::vector<union_val> val;
+        val.reserve(mask_lanes);
         for (int i = 0; i < mask_lanes; i++) {
             val.emplace_back(UINT64_C(1) << i);
         }

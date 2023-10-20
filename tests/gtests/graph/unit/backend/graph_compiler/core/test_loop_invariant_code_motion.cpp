@@ -675,6 +675,11 @@ TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
                 f = B[0];
             }
             A[2] = f;
+            _for_(jj, 0, 10) {
+                _var_init_(h, datatypes::s32, 0);
+                _if_(i > 0) { h = 2; }
+                A[0] = h;
+            }
         }
         _return_(0);
     }
@@ -702,6 +707,11 @@ TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
         _var_init_(t12, s32, 1);
         _var_init_(t13, s32, 0);
         _var_init_(t19, s32, 2);
+        _var_init_(t20, s32, 0);
+        _var_init_(t21, s32, 10);
+        _var_init_(t22, s32, 1);
+        _var_init_(t23, s32, 0);
+        _var_init_(t24, s32, 0);
 
         _for_(i, t0, t1, t2) {
             _var_init_(a, s32, 0);
@@ -722,10 +732,17 @@ TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
             }
             _var_init_(f5, s32, builder::make_phi({f, f4_}));
             A[t19] = f5;
+            _var_init_(h, s32, 0);
+            _var_init_(i6, idx, builder::make_phi({i}));
+            _var_init_(t25, datatypes::boolean, i6 > t23);
+            expr h_7_;
+            _if_(t25) { _var_init_copy_(h_7, s32, 2); }
+            _var_init_(h_8, s32, builder::make_phi({h, h_7_}));
+            _for_(jj, t20, t21, t22) { A[t24] = h_8; }
         }
 
-        _var_init_(t20, s32, 0);
-        _return_(t20);
+        _var_init_(t26, s32, 0);
+        _return_(t26);
     }
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
