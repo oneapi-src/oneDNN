@@ -719,17 +719,6 @@ status_t brdgmm_blocking(brgemm_t *brg) {
 
     const int max_vregs = isa_num_vregs(brg->isa_impl);
 
-    // Note: using avx512_core template, but calculation uses 'brg->isa_impl'
-    // which is dynamic i.e. uses values AVX2, AVX2_VNNI, etc. depending on the
-    // configuration.
-    const int aux_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
-            Xbyak::Zmm>::get_aux_vmm_count(*brg);
-    const int compute_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
-            Xbyak::Zmm>::get_compute_vmm_count(*brg);
-    const int bf16_emu_vregs = brg->is_bf16_emu * 4;
-    const int max_acc_vmms
-            = max_vregs - nstl::max(compute_vregs + aux_vregs, bf16_emu_vregs);
-
     const int simd_w = isa_max_vlen(brg->isa_impl) / brg->typesize_C;
     const bool is_avx2_vnni_2_xf16
             = brg->is_xf16() && brg->isa_impl == avx2_vnni_2;
@@ -771,6 +760,17 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     m_block1 = 1;
     nb_m_block1 = M / m_block1;
     m_block1_tail = M % m_block1;
+
+    // Note: using avx512_core template, but calculation uses 'brg->isa_impl'
+    // which is dynamic i.e. uses values AVX2, AVX2_VNNI, etc. depending on the
+    // configuration.
+    const int aux_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
+            Xbyak::Zmm>::get_aux_vmm_count(*brg);
+    const int compute_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
+            Xbyak::Zmm>::get_compute_vmm_count(*brg);
+    const int bf16_emu_vregs = brg->is_bf16_emu * 4;
+    const int max_acc_vmms
+            = max_vregs - nstl::max(compute_vregs + aux_vregs, bf16_emu_vregs);
     m_block2 = nstl::min(nb_m_block1,
             brg->brgattr.bs_group > 1
                     ? (max_acc_vmms / (n_block2 * n_block1_num_steps)
