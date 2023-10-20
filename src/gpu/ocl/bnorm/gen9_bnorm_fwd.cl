@@ -145,7 +145,7 @@ __kernel void gen9_calc_mean_var(__global DATA_T *src,
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_mean(__global DATA_T *src, __global float *reduce_temp,
-        __global float *mean) {
+        volatile __global atomic_float *mean) {
 
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
@@ -281,7 +281,7 @@ __kernel void gen9_calc_mean(__global DATA_T *src, __global float *reduce_temp,
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
-        __global float *reduce_temp, __global float *variance) {
+        __global float *reduce_temp, __global atomic_float *variance) {
 
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
