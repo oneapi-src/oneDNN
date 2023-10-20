@@ -36,7 +36,7 @@ __kernel void ref_shuffle(__global DATA_T *src, __global DATA_T *dst) {
     src += SRC_OFFSET0;
     dst += DST_OFFSET0;
 
-    int d[5];
+    int d[6];
     d[0] = GWS_GET_D0();
     d[1] = GWS_GET_D1();
     d[2] = GWS_GET_D2();
