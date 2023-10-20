@@ -422,6 +422,9 @@ status_t insert_reshape_for_ndx2d_matmul(std::shared_ptr<subgraph_t> &sg) {
         auto src_dims = logical_tensor_wrapper_t(
                 cur_op->get_input_value(0)->get_logical_tensor())
                                 .vdims();
+        auto wei_dims = logical_tensor_wrapper_t(
+                cur_op->get_input_value(1)->get_logical_tensor())
+                                .vdims();
         dims expected_dims {-1, src_dims.back()};
         auto reshape_op = std::make_shared<op_t>(op_kind::dnnl_reshape);
         reshape_op->set_attr<bool>(op_attr::special_zero, false);
@@ -431,9 +434,9 @@ status_t insert_reshape_for_ndx2d_matmul(std::shared_ptr<subgraph_t> &sg) {
         rewriter.insert_op_before(reshape_op, cur_op, 0);
 
         dims expected_dims2(src_dims);
-        expected_dims2[expected_dims2.size() - 1] = 0;
+        expected_dims2[expected_dims2.size() - 1] = wei_dims.back();
         auto reshape_op2 = std::make_shared<op_t>(op_kind::dnnl_reshape);
-        reshape_op2->set_attr<bool>(op_attr::special_zero, true);
+        reshape_op2->set_attr<bool>(op_attr::special_zero, false);
         reshape_op2->set_attr<std::vector<int64_t>>(
                 op_attr::shape, expected_dims2);
         rewriter.insert_op_after(reshape_op2, cur_op, 0);
