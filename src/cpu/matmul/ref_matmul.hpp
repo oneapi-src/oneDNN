@@ -79,7 +79,8 @@ struct ref_matmul_t : public primitive_t {
                     && platform::has_data_type_support(src_type)
                     && attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::zero_points_runtime
-                                    | smask_t::post_ops | smask_t::sum_dt,
+                                    | smask_t::post_ops | smask_t::sum_dt
+                                    | smask_t::fpmath_mode,
                             dst_type)
                     && attr_.post_ops_.check_sum_consistency(dst_type,
                             /* is_int8 */ false)
