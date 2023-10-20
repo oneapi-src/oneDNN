@@ -419,11 +419,6 @@ inline std::string to_string(bool b) {
     return b ? "True" : "False";
 }
 
-inline bool to_bool(const std::string &s) {
-    if (s == "0" || s == "false") return false;
-    return true;
-}
-
 inline std::vector<std::string> split(const std::string &s,
         const std::string &delimiter = std::string(1, ' ')) {
     size_t beg = 0;

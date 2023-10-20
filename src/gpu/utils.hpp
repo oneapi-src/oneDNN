@@ -91,6 +91,9 @@ private:
                     __FILE__, __LINE__, #cond)
 #endif
 
+#define gpu_error_not_expected() gpu_assert(false) << "Not expected. "
+#define gpu_except_not_implemented(msg) throw std::runtime_error(msg)
+
 template <typename out_type, typename in_type,
         typename std::enable_if<!std::is_fundamental<out_type>::value
                 || !std::is_fundamental<in_type>::value>::type>
@@ -176,6 +179,11 @@ inline compute::gpu_arch_t dev_getenv(const char *s, compute::gpu_arch_t arch,
 #else
     return arch;
 #endif
+}
+
+inline bool to_bool(const std::string &s) {
+    if (s == "0" || s == "false") return false;
+    return true;
 }
 
 } // namespace gpu_utils
