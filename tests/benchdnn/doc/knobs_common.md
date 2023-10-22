@@ -159,7 +159,8 @@ changes the implementation dispatching which is an undesired behavior. When
 ### --fast-ref
 `--fast-ref=BOOL` instructs the driver to use an optimized implementation
 from the library as a reference path for correctness comparison when `BOOL` is
-`true` (the default).
+`true` (the default). Refer to [additional documentation](knob_use_fast_ref.md)
+for more information.
 
 ## Performance mode settings
 
