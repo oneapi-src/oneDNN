@@ -32,7 +32,6 @@
 #include "gpu/gpu_rnn_pd.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 #include "gpu/utils.hpp"
@@ -57,171 +56,6 @@ enum gemm_kind_t {
     gemm_diff_wei_iter_2,
     gemm_diff_wei_layer,
     gemm_diff_wei_layer_src
-};
-
-struct workspace_t {
-    using mst = memory_storage_t;
-    workspace_t(const mst &ws, const mst &src_layer,
-            const rnn_utils::ocl_conf_t &ocl_conf,
-            const rnn_utils::conf_t &conf, const rnn_offsets_t &offsets)
-        : ws_(ws)
-        , src_layer_(src_layer)
-        , ocl_conf_(ocl_conf)
-        , conf_(conf)
-        , offsets_(offsets)
-        , gates_(conf.ws_gates_size > 0 ? ws.get_sub_storage(
-                         conf.ws_gates_offset, conf.ws_gates_size)
-                                        : nullptr)
-        , states_(conf.ws_states_size > 0 ? ws.get_sub_storage(
-                          conf.ws_states_offset, conf.ws_states_size)
-                                          : nullptr)
-        , c_states_(conf.ws_c_states_size > 0 ? ws.get_sub_storage(
-                            conf.ws_c_state_offset, conf.ws_c_states_size)
-                                              : nullptr)
-        , bias_(conf.ws_bias_size > 0 ? ws.get_sub_storage(
-                        conf.ws_bias_offset, conf.ws_bias_size)
-                                      : nullptr)
-        , grid_comp_(conf.ws_grid_comp_size > 0 ? ws.get_sub_storage(
-                             conf.ws_grid_comp_offset, conf.ws_grid_comp_size)
-                                                : nullptr) {
-        // The packed restriction could be removed by using batched GEMM with
-        // appropriate strides.
-        gpu_assert(IMPLICATION(conf_.merge_gemm_layer && !conf_.copy_src_layer,
-                offsets_.src_layer[0] == offsets_.src_layer[1] * conf_.mb
-                        && conf_.exec_dir == rnn_utils::l2r))
-                << "[ERROR]: GEMM dimensions must be packed in order to "
-                   "perform merge_gemm_layer";
-
-        gpu_assert(IMPLICATION(!conf.copy_src_layer,
-                (offsets_.src_layer[0]
-                        * types::data_type_size(ocl_conf_.src_dt))
-                                % 8
-                        == 0))
-                << "[ERROR]: GEMM interface assumes inputs buffers are well "
-                   "aligned";
-        gpu_assert(offsets_.src_layer[0] < INT_MAX
-                && offsets_.src_layer[1] < INT_MAX
-                && offsets_.src_layer[2] < INT_MAX)
-                << "[UNIMPLEMENTED]: src offsets larger than INT_MAX are not "
-                   "currently supported in ref_rnn.cl";
-    }
-
-    dim_t calc_off_src_layer(dim_t dir, dim_t iter_, dim_t mb) const {
-        auto iter = [&]() {
-            if (conf_.exec_dir == rnn_utils::l2r)
-                return iter_;
-            else if (conf_.exec_dir == rnn_utils::r2l)
-                return conf_.n_iter - iter_ - 1;
-            else if (dir == 1)
-                return conf_.n_iter - iter_ - 1;
-            else
-                return iter_;
-        }();
-
-        // src_layer dimension order: iter, mini-batch, channel
-        return iter * offsets_.src_layer[0] + mb * offsets_.src_layer[1];
-    }
-
-    dim_t calc_off_ws_state(
-            dim_t i0_, dim_t i1, dim_t i2_, dim_t i3, dim_t i4) const {
-        // Logical index into workspace grid
-        auto i0 = conf_.copy_src_layer ? i0_ + 1 : i0_;
-        auto i0_size = conf_.copy_src_layer ? conf_.n_layer + 1 : conf_.n_layer;
-        auto i2 = i2_ + 1;
-
-        gpu_assert(i0 >= 0) << "Logical index must be larger than 0";
-
-        MAYBE_UNUSED(i0_size);
-        return OFF5(i0, i0_size, i1, conf_.n_dir, i2, conf_.n_iter + 1, i3,
-                conf_.mb, i4, conf_.states_ws_ld);
-    }
-
-    dim_t calc_off_ws_gates(
-            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4, dim_t i5) const {
-        return i0 * conf_.n_dir * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
-                + i1 * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
-                + i2 * conf_.mb * conf_.gates_ws_ld + i3 * conf_.gates_ws_ld
-                + i4 * conf_.dhc + i5;
-    }
-
-    dim_t calc_off_ws_grid_offset(
-            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4) const {
-        return OFF5(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
-                conf_.n_iter + 1, i3, conf_.mb, i4, conf_.dhc);
-    }
-
-    const mst &ws() const { return ws_; }
-    const mst &src_layer() const { return src_layer_; }
-    std::unique_ptr<mst> src_layer(
-            dim_t dir, dim_t iter, bool all_iter = false) const {
-        auto off_ = calc_off_src_layer(dir, iter, 0)
-                * types::data_type_size(ocl_conf_.src_dt);
-        auto n_cells = all_iter ? conf_.n_iter - iter : 1;
-        auto cell_size = offsets_.src_layer[0];
-        return src_layer_.get_sub_storage(off_, cell_size * n_cells);
-    }
-    const mst &gates() const { return rnn_utils::get_storage(gates_); }
-    const mst &states() const { return rnn_utils::get_storage(states_); }
-
-    std::unique_ptr<mst> states(dim_t layer, dim_t dir, dim_t time) const {
-        if (!states_) return nullptr;
-        auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
-                * conf_.ws_states_elsz;
-        return states_->get_sub_storage(off_, conf_.ws_states_cell_size);
-    }
-
-    std::unique_ptr<mst> states_range(dim_t layer_start, dim_t layer_end,
-            dim_t dir_start, dim_t dir_end, dim_t time_start,
-            dim_t time_end) const {
-        if (!states_) return nullptr;
-        auto off_start
-                = calc_off_ws_state(layer_start, dir_start, time_start, 0, 0)
-                * conf_.ws_states_elsz;
-        auto off_end = calc_off_ws_state(layer_end, dir_end, time_end, 0, 0)
-                * conf_.ws_states_elsz;
-        return states_->get_sub_storage(off_start, off_end - off_start);
-    }
-
-    std::unique_ptr<mst> c_states(dim_t layer, dim_t dir, dim_t time) const {
-        if (!c_states_) return nullptr;
-        // conf_.aux_data_type is float for all datatypes except f16
-        // so can be used for lstm_elemwise_u8s8 case as well
-        auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
-                * types::data_type_size(conf_.aux_data_type);
-        return c_states_->get_sub_storage(off_, conf_.ws_c_states_cell_size);
-    }
-
-    std::unique_ptr<mst> gates(dim_t layer, dim_t dir, dim_t time) const {
-        if (!gates_) return nullptr;
-
-        auto off_ = calc_off_ws_gates(layer, dir, time, 0, 0, 0)
-                * types::data_type_size(conf_.aux_data_type);
-        return gates_->get_sub_storage(off_, conf_.ws_gates_cell_size);
-    }
-
-    std::unique_ptr<mst> grid_comp(dim_t layer, dim_t dir, dim_t time) const {
-        if (!grid_comp_) return nullptr;
-
-        auto off_ = calc_off_ws_grid_offset(layer, dir, time, 0, 0)
-                * types::data_type_size(conf_.aux_data_type);
-        return grid_comp_->get_sub_storage(off_, conf_.ws_per_cell);
-    }
-
-    const mst &c_states() const { return rnn_utils::get_storage(c_states_); }
-    const mst &bias() const { return rnn_utils::get_storage(bias_); }
-    const mst &grid_comp() const { return rnn_utils::get_storage(grid_comp_); }
-
-private:
-    const mst &ws_;
-    const mst &src_layer_;
-    const rnn_utils::ocl_conf_t &ocl_conf_;
-    const rnn_utils::conf_t &conf_;
-    const rnn_offsets_t &offsets_;
-    std::unique_ptr<mst> gates_;
-    std::unique_ptr<mst> states_;
-    std::unique_ptr<mst> c_states_;
-    std::unique_ptr<mst> bias_;
-    std::unique_ptr<mst> grid_comp_;
 };
 
 template <prop_kind_t aprop>
@@ -422,7 +256,8 @@ private:
             compute::compute_stream_t *compute_stream, dim_t n_layer,
             dim_t n_dir, dim_t batch, dim_t sic, dim_t dhc, dim_t n_iter,
             dim_t n_states, dim_t states_ws_ld, dim_t scratch_diff_states_ld,
-            const workspace_t &ws, const memory_storage_t &scratch_diff_states,
+            const rnn_utils::workspace_t &ws,
+            const memory_storage_t &scratch_diff_states,
             const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
             const memory_storage_t &diff_dst_iter,
@@ -446,14 +281,15 @@ private:
             const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
             const memory_storage_t &diff_src_iter,
-            const memory_storage_t &diff_src_iter_c, const workspace_t &ws,
-            const float shift, const float scale, const bool dequantize) const;
+            const memory_storage_t &diff_src_iter_c,
+            const rnn_utils::workspace_t &ws, const float shift,
+            const float scale, const bool dequantize) const;
     status_t ws_set(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const dim_t ws_offset,
             const int ws_part, const float val, const dim_t size) const;
     status_t ws_print(const exec_ctx_t &ctx, compute::compute_stream_t *s,
-            const workspace_t &workspace) const;
+            const rnn_utils::workspace_t &workspace) const;
 
     compute::kernel_t ws_print_kernel_;
 

@@ -1211,7 +1211,8 @@ template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, dim_t batch, dim_t dhc,
         dim_t sic, dim_t n_iter, dim_t n_layer, dim_t n_dir, dim_t n_states,
-        dim_t states_ws_ld, dim_t scratch_diff_states_ld, const workspace_t &ws,
+        dim_t states_ws_ld, dim_t scratch_diff_states_ld,
+        const rnn_utils::workspace_t &ws,
         const memory_storage_t &scratch_diff_states,
         const memory_storage_t &firstit_states,
         const memory_storage_t &firstit_c_states,
@@ -1348,8 +1349,9 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         const memory_storage_t &dst_last_iter,
         const memory_storage_t &dst_last_iter_c,
         const memory_storage_t &diff_src_iter,
-        const memory_storage_t &diff_src_iter_c, const workspace_t &ws,
-        const float shift, const float scale, const bool dequantize) const {
+        const memory_storage_t &diff_src_iter_c,
+        const rnn_utils::workspace_t &ws, const float shift, const float scale,
+        const bool dequantize) const {
 
     int32_t unused_ld = 0;
     if (aprop == prop_kind::forward) {
@@ -1427,7 +1429,7 @@ status_t _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream,
-        const workspace_t &workspace_) const {
+        const rnn_utils::workspace_t &workspace_) const {
     // This is only for use in DNNL_DEV_MODE
     assert(is_dev_mode());
     if (!is_dev_mode()) return status::runtime_error;
@@ -1527,7 +1529,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
                     ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
                                        : *scratch_workspace;
-    const auto &workspace = workspace_t(
+    const auto &workspace = rnn_utils::workspace_t(
             workspace_, src_layer_native_, pd()->ocl_conf, rnn, pd()->off);
 
     auto scratchpad_fwd_gates
