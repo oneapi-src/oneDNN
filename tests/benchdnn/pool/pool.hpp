@@ -84,8 +84,6 @@ private:
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
-std::string str2cfg(const char *str);
-
 struct settings_t : public base_settings_t {
     settings_t() = default;
 
@@ -97,7 +95,6 @@ struct settings_t : public base_settings_t {
     desc_t desc {};
 
     std::vector<dir_t> dir {FWD_D};
-    std::vector<std::string> cfg {std::string()};
     std::vector<std::vector<dnnl_data_type_t>> dt {{dnnl_f32}};
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {max};
@@ -233,9 +230,6 @@ struct cfg_t : public base_cfg_t {
 
     cfg_entry_t::cfg_map_t get_cfg_map(data_kind_t kind) const override;
 };
-
-int handle_legacy_cfg(
-        std::vector<dnnl_data_type_t> &dt, const std::string &cfg);
 
 inline int64_t src_off_f(const prb_t *prb, int64_t mb, int64_t ic, int64_t id,
         int64_t ih, int64_t iw) {

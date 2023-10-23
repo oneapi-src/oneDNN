@@ -386,4 +386,4 @@ ic64ih14oc24oh14kh5ph2_n"zp_with_top_and_bottom_vpad"
 # test dimensions transformation for case with input channels not divided by simd_w
 --reset
 --skip-impl=ref,x64:gemm
---dir=FWD_I --cfg=bf16bf16f32 mb1_ic48oc16_ih8kh2sh2ph0
+--dir=FWD_I --dt=bf16:bf16:f32 mb1_ic48oc16_ih8kh2sh2ph0

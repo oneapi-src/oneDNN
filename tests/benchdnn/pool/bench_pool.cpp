@@ -41,8 +41,7 @@ using driver_task_executor_t = task_executor_t<prb_t, perf_report_t,
 void check_correctness(
         const settings_t &s, driver_task_executor_t &task_executor) {
     for_(const auto &i_dir : s.dir)
-    for_(const auto &i_dt_ : s.dt)
-    for_(const auto &i_cfg : s.cfg)
+    for_(const auto &i_dt : s.dt)
     for_(const auto &i_tag : s.tag)
     for_(const auto &i_alg : s.alg)
     for_(const auto &i_mb : s.mb)
@@ -54,11 +53,6 @@ void check_correctness(
         auto attr = settings_t::get_attr(
                 i_post_ops, i_scratchpad_mode, i_acc_mode);
 
-        auto i_dt = i_dt_;
-        if (!i_cfg.empty() && i_dt.size() == 1 && i_dt[0] == dnnl_f32) {
-            handle_legacy_cfg(i_dt, i_cfg);
-        }
-
         const prb_t prb(s.desc, i_dir, i_dt, i_tag, i_alg, attr, i_ctx_init,
                 i_ctx_exe, i_mb);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
@@ -69,18 +63,6 @@ void check_correctness(
 }
 
 int verify_input(const settings_t &s) {
-    for_(const auto &i_dt : s.dt)
-    for (const auto &i_cfg : s.cfg) {
-        if (i_cfg.empty()) continue;
-
-        if (i_dt.size() != 1 || i_dt[0] != dnnl_f32) {
-            BENCHDNN_PRINT(0, "%s\n",
-                    "ERROR: `dt` and `cfg` knobs are incompatible with each "
-                    "other. Specify only one of them at a time.");
-            return FAIL;
-        }
-    }
-
     static constexpr int n_inputs = 2;
     for (const auto &i_dt : s.dt) {
         if (i_dt.size() != 1 && i_dt.size() != n_inputs) {
@@ -106,7 +88,6 @@ int bench(int argc, char **argv) {
                 || parse_batch(bench, argv[0])
                 || parse_dir(s.dir, def.dir, argv[0])
                 || parse_multi_dt(s.dt, def.dt, argv[0], "dt")
-                || parse_cfg(s.cfg, def.cfg, str2cfg, argv[0])
                 || parse_tag(s.tag, def.tag, argv[0])
                 || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
