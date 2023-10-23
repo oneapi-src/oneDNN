@@ -650,7 +650,7 @@ public:
         a_ = false;
         b_ = false;
         bool ab_set = false;
-        auto parts = ir_utils::split(s, ".");
+        auto parts = gpu_utils::split(s, ".");
         for (auto &p : parts) {
             if (utils::one_of(p, "a", "b", "ab", "ba")) {
                 ab_set = true;
@@ -714,7 +714,7 @@ public:
         a_ = false;
         b_ = false;
         bool ab_set = false;
-        auto parts = ir_utils::split(s, ".");
+        auto parts = gpu_utils::split(s, ".");
         for (auto &p : parts) {
             if (utils::one_of(p, "a", "b", "ab", "ba")) {
                 ab_set = true;

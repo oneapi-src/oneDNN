@@ -420,13 +420,14 @@ public:
     blocking_scheme_t() = default;
     blocking_scheme_t(const std::string &s) {
         ir_assert(s[s.length() - 1] == ']');
-        auto parts = ir_utils::split(s.substr(0, s.length() - 1), "],");
+        auto parts = gpu_utils::split(s.substr(0, s.length() - 1), "],");
         for (auto &p : parts) {
-            auto p_parts = ir_utils::split(p, ":");
+            auto p_parts = gpu_utils::split(p, ":");
             auto &key = p_parts[0];
             auto &vec = p_parts[1];
             ir_assert(vec[0] == '[');
-            auto s_dims = ir_utils::split(vec.substr(1, vec.length() - 1), ",");
+            auto s_dims
+                    = gpu_utils::split(vec.substr(1, vec.length() - 1), ",");
             for (auto &s : s_dims)
                 set(key, s);
         }
@@ -1544,7 +1545,7 @@ conv_tiler_params_t &tiler_params() {
         conv_tiler_params_t ret;
         auto s_opts = gpu_utils::dev_getenv("tiler", std::string());
         if (s_opts.empty()) return ret;
-        auto opts = ir_utils::split(s_opts, ",");
+        auto opts = gpu_utils::split(s_opts, ",");
         for (auto &opt : opts) {
             if (opt.empty()) continue;
             if (opt == "list") {
@@ -1563,7 +1564,7 @@ conv_tiler_params_t &tiler_params() {
                 ret.mode = tiler_mode_t::tune;
                 continue;
             }
-            auto sub_opts = ir_utils::split(opt, ":");
+            auto sub_opts = gpu_utils::split(opt, ":");
             ir_assert((int)sub_opts.size() == 2);
             auto &key = sub_opts[0];
             auto &value = sub_opts[1];

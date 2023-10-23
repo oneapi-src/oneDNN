@@ -419,21 +419,6 @@ inline std::string to_string(bool b) {
     return b ? "True" : "False";
 }
 
-inline std::vector<std::string> split(const std::string &s,
-        const std::string &delimiter = std::string(1, ' ')) {
-    size_t beg = 0;
-    size_t end = 0;
-    std::vector<std::string> ret;
-    do {
-        end = s.find(delimiter, beg);
-        size_t len
-                = (end == std::string::npos) ? std::string::npos : (end - beg);
-        ret.push_back(s.substr(beg, len));
-        beg = end + delimiter.size();
-    } while (end != std::string::npos);
-    return ret;
-}
-
 inline std::string to_lower(const std::string &s) {
     auto ret = s;
     std::transform(ret.begin(), ret.end(), ret.begin(),
@@ -442,7 +427,7 @@ inline std::string to_lower(const std::string &s) {
 }
 
 inline std::string add_indent(const std::string &s, const std::string &indent) {
-    auto lines = split(s, "\n");
+    auto lines = gpu_utils::split(s, "\n");
     std::ostringstream oss;
     for (int i = 0; i < (int)lines.size(); i++) {
         if (i > 0) oss << std::endl;

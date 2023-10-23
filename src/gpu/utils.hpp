@@ -186,6 +186,21 @@ inline bool to_bool(const std::string &s) {
     return true;
 }
 
+inline std::vector<std::string> split(const std::string &s,
+        const std::string &delimiter = std::string(1, ' ')) {
+    size_t beg = 0;
+    size_t end = 0;
+    std::vector<std::string> ret;
+    do {
+        end = s.find(delimiter, beg);
+        size_t len
+                = (end == std::string::npos) ? std::string::npos : (end - beg);
+        ret.push_back(s.substr(beg, len));
+        beg = end + delimiter.size();
+    } while (end != std::string::npos);
+    return ret;
+}
+
 } // namespace gpu_utils
 } // namespace gpu
 } // namespace impl
