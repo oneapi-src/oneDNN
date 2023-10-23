@@ -677,8 +677,11 @@ TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
             A[2] = f;
             _for_(jj, 0, 10) {
                 _var_init_(h, datatypes::s32, 0);
+                _var_init_(h_tmp, datatypes::s32, 0);
                 _if_(i > 0) { h = 2; }
+                h_tmp = h + 1;
                 A[0] = h;
+                A[1] = h_tmp;
             }
         }
         _return_(0);
@@ -711,7 +714,9 @@ TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
         _var_init_(t21, s32, 10);
         _var_init_(t22, s32, 1);
         _var_init_(t23, s32, 0);
+        _var_init_(t27, s32, 1);
         _var_init_(t24, s32, 0);
+        _var_init_(t28, s32, 1);
 
         _for_(i, t0, t1, t2) {
             _var_init_(a, s32, 0);
@@ -738,7 +743,11 @@ TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
             expr h_7_;
             _if_(t25) { _var_init_copy_(h_7, s32, 2); }
             _var_init_(h_8, s32, builder::make_phi({h, h_7_}));
-            _for_(jj, t20, t21, t22) { A[t24] = h_8; }
+            _var_init_(h_tmp, s32, h_8 + t27);
+            _for_(jj, t20, t21, t22) {
+                A[t24] = h_8;
+                A[t28] = h_tmp;
+            }
         }
 
         _var_init_(t26, s32, 0);
