@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,7 +87,9 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         zp.get(DNNL_ARG_WEIGHTS, &mask_wei);
         zp.get(DNNL_ARG_DST, &mask_dst);
 
-        VCHECK_MATMUL_UNIMPL(mask_wei == 0
+        VCHECK_MATMUL_UNIMPL(
+                (mask_wei == 0
+                        || (mask_wei == 1 << (desc.weights_desc.ndims - 1)))
                         && (mask_src == 0
                                 || (desc.src_desc.ndims == 2
                                         && mask_src == 1 << 1))

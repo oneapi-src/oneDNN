@@ -52,10 +52,11 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const bool has_wei_zp
             = !prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).is_def();
     const bool has_dst_zp = !prb->attr.zero_points.get(DNNL_ARG_DST).is_def();
-    assert(IMPLICATION(has_wei_zp, wei_zps.nelems() == 1));
-    const int wei_zp = has_wei_zp ? wei_zps.get_elem(0) : 0;
+
     const int src_zp_mask = attr_t::get_default_mask(
             prb->attr.zero_points.get(DNNL_ARG_SRC).policy);
+    const int wei_zp_mask = attr_t::get_default_mask(
+            prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).policy);
     const int dst_zp_mask = attr_t::get_default_mask(
             prb->attr.zero_points.get(DNNL_ARG_DST).policy);
 
@@ -85,6 +86,9 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
                 = dst_m.get_scale_idx(mb, src_broadcast_mask, batch_ndims);
         const int64_t wei_mb
                 = dst_m.get_scale_idx(mb, wei_broadcast_mask, batch_ndims);
+
+        int wei_zp = has_wei_zp ? wei_zps.get_elem(wei_zp_mask > 0 ? n : 0) : 0;
+
         for (int64_t k = 0; k < K; ++k) {
             int src_zp = has_src_zp ? src_zps.get_elem(src_zp_mask > 0 ? k : 0)
                                     : 0;
