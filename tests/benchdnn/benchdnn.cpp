@@ -68,7 +68,8 @@ int default_fix_times_per_prb {0};
 int repeats_per_prb {default_repeats_per_prb};
 int default_repeats_per_prb {1};
 
-bool fast_ref_gpu {DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE};
+bool default_fast_ref {DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE};
+bool fast_ref {default_fast_ref};
 
 bool allow_enum_tags_only {true};
 int test_start {0};

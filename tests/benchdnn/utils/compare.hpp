@@ -88,7 +88,7 @@ private:
     // they may be relevant in specific cases. This is a hint to utilize
     // additional checks despite attributes are not set.
     bool has_eltwise_post_op_ = false;
-    // `fast_ref_gpu` enables optimized primitive to be used instead of
+    // `fast_ref` enables optimized primitive to be used instead of
     // reference. In this case `ref_mem` should also be reordered to a plain
     // layout for proper comparison.
     bool has_prim_ref_ = false;

@@ -118,7 +118,8 @@ extern int default_fix_times_per_prb; // 0, rely on time criterion
 extern int repeats_per_prb; // test repeats per prb
 extern int default_repeats_per_prb; // default test repeats per prb
 
-extern bool fast_ref_gpu;
+extern bool fast_ref;
+extern bool default_fast_ref;
 extern bool allow_enum_tags_only;
 extern int test_start;
 

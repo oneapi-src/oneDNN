@@ -473,7 +473,7 @@ void compute_ref_bwd_w(
     }
 
     // Need to transpose data in weights back for proper comparison. This step
-    // is done here as it's not needed for fast-ref-gpu.
+    // is done here as it's not needed for fast-ref.
     transpose_data_wei(prb, args.find(DNNL_ARG_DIFF_WEIGHTS_1),
             args.find(DNNL_ARG_DIFF_WEIGHTS));
 

@@ -90,7 +90,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
 int init_prim_ref(
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref, const prb_t *prb) {
-    if (!(has_bench_mode_bit(mode_bit_t::corr) && is_gpu() && fast_ref_gpu))
+    if (!(has_bench_mode_bit(mode_bit_t::corr) && is_gpu() && fast_ref))
         return OK;
 
     // Create a new copy of prb to avoid potentially corrupting the test by

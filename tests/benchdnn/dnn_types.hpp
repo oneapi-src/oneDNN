@@ -558,7 +558,7 @@ inline void maybe_post_ops(
     maybe_post_ops(attr, val, sum_val, std::vector<float>());
 }
 
-// When using fast-ref-gpu option, reference expects everything to be in f32
+// When using fast-ref option, reference expects everything to be in f32
 // data type and also no additional memories coming from runtime attributes.
 // That's why we update all data types to f32 and remove all runtime arguments
 // to makes them constant when possible.

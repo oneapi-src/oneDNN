@@ -772,20 +772,45 @@ static bool parse_engine(
     return true;
 }
 
-static bool parse_fast_ref_gpu(
-        const char *str, const std::string &option_name = "fast-ref-gpu") {
+static bool parse_fast_ref(
+        const char *str, const std::string &option_name = "fast-ref") {
     static const std::string help
             = "BOOL    (Default: `true`)\n    Instructs the driver to use "
               "faster reference path when doing correctness testing for "
               "`--engine=gpu`.\n    When set to `true`, the library best fit "
               "CPU implementation is used to compute the reference path.\n";
     bool parsed = parse_single_value_option(
-            fast_ref_gpu, true, str2bool, str, option_name, help);
+            fast_ref, default_fast_ref, str2bool, str, option_name, help);
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-    if (parsed && fast_ref_gpu) {
-        fast_ref_gpu = false;
+    if (parsed && fast_ref) {
+        fast_ref = false;
         fprintf(stderr,
-                "%s driver: WARNING: option `fast_ref_gpu` is not supported "
+                "%s driver: WARNING: option `fast_ref` is not supported "
+                "for GPU only configurations.\n",
+                driver_name.c_str());
+    }
+#endif
+    return parsed;
+}
+
+// TODO: remove
+static bool parse_fast_ref_gpu(
+        const char *str, const std::string &option_name = "fast-ref-gpu") {
+    bool parsed = parse_single_value_option(fast_ref, default_fast_ref,
+            str2bool, str, option_name, std::string());
+
+    static bool msg_printed = false;
+    if (parsed && !msg_printed) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "Warning: \'--fast-ref-gpu\' is deprecated. Use \'--fast-ref\' "
+                "instead.");
+        msg_printed = true;
+    }
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    if (parsed && fast_ref) {
+        fast_ref = false;
+        fprintf(stderr,
+                "%s driver: WARNING: option `fast_ref` is not supported "
                 "for GPU only configurations.\n",
                 driver_name.c_str());
     }
@@ -1146,10 +1171,11 @@ bool parse_bench_settings(const char *str) {
     bool parsed = parse_allow_enum_tags_only(str)
             || parse_attr_same_pd_check(str) || parse_canonical(str)
             || parse_cold_cache(str) || parse_cpu_isa_hints(str)
-            || parse_engine(str) || parse_fast_ref_gpu(str)
-            || parse_fix_times_per_prb(str) || parse_max_ms_per_prb(str)
-            || parse_num_streams(str) || parse_repeats_per_prb(str)
-            || parse_mem_check(str) || parse_memory_kind(str) || parse_mode(str)
+            || parse_engine(str) || parse_fast_ref(str)
+            || parse_fast_ref_gpu(str) || parse_fix_times_per_prb(str)
+            || parse_max_ms_per_prb(str) || parse_num_streams(str)
+            || parse_repeats_per_prb(str) || parse_mem_check(str)
+            || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_skip_impl(str)
             || parse_start(str) || parse_stream_kind(str) || parse_verbose(str);
 

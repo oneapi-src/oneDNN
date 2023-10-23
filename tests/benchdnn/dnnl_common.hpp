@@ -124,7 +124,7 @@ inline const engine_t &get_test_engine() {
 }
 
 // Engine used to run all reference native implementations and CPU
-// implementations used by `--fast-ref-gpu` option.
+// implementations used by `--fast-ref` option.
 inline const engine_t &get_cpu_engine() {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
     // In case of lacking CPU engine, just re-use testing one.

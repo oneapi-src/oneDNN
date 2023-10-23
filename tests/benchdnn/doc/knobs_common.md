@@ -156,8 +156,8 @@ names mismatch for two descriptors. It indicates that appending an attribute
 changes the implementation dispatching which is an undesired behavior. When
 `BOOL` is `false` (the default), the check is disabled.
 
-### --fast-ref-gpu
-`--fast-ref-gpu=BOOL` instructs the driver to use an optimized implementation
+### --fast-ref
+`--fast-ref=BOOL` instructs the driver to use an optimized implementation
 from the library as a reference path for correctness comparison when `BOOL` is
 `true` (the default).
 
