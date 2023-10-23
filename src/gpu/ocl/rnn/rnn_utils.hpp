@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 #include "gpu/serialization.hpp"
 
@@ -38,7 +39,7 @@
 #define elemwise_sig(f) \
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
-            const workspace_t &workspace, \
+            const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_diff_states, \
@@ -49,7 +50,7 @@
 #define elemwise_sig_gru_lbr(f) \
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
-            const workspace_t &workspace, \
+            const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
@@ -60,7 +61,7 @@
 #define elemwise_sig_gru(f) \
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
-            const workspace_t &workspace, \
+            const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
@@ -73,7 +74,8 @@
     status_t f(engine_t *engine, const exec_ctx_t &ctx, dim_t dir, dim_t lay, \
             dim_t iter, dim_t wei_layer_offset, \
             const std::vector<dim_t> &wei_iter_offsets, \
-            const memory_storage_t &bias, const workspace_t &workspace, \
+            const memory_storage_t &bias, \
+            const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
@@ -88,7 +90,8 @@
 
 #define grid_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, \
-            const memory_storage_t &bias, const workspace_t &workspace, \
+            const memory_storage_t &bias, \
+            const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
@@ -390,6 +393,170 @@ inline void append_strides(compute::kernel_arg_list_t &arg_list,
         arg_list.append((cl_int)strides[d]);
     }
 }
+
+struct workspace_t {
+    using mst = memory_storage_t;
+    workspace_t(const mst &ws, const mst &src_layer, const ocl_conf_t &ocl_conf,
+            const conf_t &conf, const rnn_offsets_t &offsets)
+        : ws_(ws)
+        , src_layer_(src_layer)
+        , ocl_conf_(ocl_conf)
+        , conf_(conf)
+        , offsets_(offsets)
+        , gates_(conf.ws_gates_size > 0 ? ws.get_sub_storage(
+                         conf.ws_gates_offset, conf.ws_gates_size)
+                                        : nullptr)
+        , states_(conf.ws_states_size > 0 ? ws.get_sub_storage(
+                          conf.ws_states_offset, conf.ws_states_size)
+                                          : nullptr)
+        , c_states_(conf.ws_c_states_size > 0 ? ws.get_sub_storage(
+                            conf.ws_c_state_offset, conf.ws_c_states_size)
+                                              : nullptr)
+        , bias_(conf.ws_bias_size > 0 ? ws.get_sub_storage(
+                        conf.ws_bias_offset, conf.ws_bias_size)
+                                      : nullptr)
+        , grid_comp_(conf.ws_grid_comp_size > 0 ? ws.get_sub_storage(
+                             conf.ws_grid_comp_offset, conf.ws_grid_comp_size)
+                                                : nullptr) {
+        // The packed restriction could be removed by using batched GEMM with
+        // appropriate strides.
+        gpu_assert(IMPLICATION(conf_.merge_gemm_layer && !conf_.copy_src_layer,
+                offsets_.src_layer[0] == offsets_.src_layer[1] * conf_.mb
+                        && conf_.exec_dir == l2r))
+                << "[ERROR]: GEMM dimensions must be packed in order to "
+                   "perform merge_gemm_layer";
+
+        gpu_assert(IMPLICATION(!conf.copy_src_layer,
+                (offsets_.src_layer[0]
+                        * types::data_type_size(ocl_conf_.src_dt))
+                                % 8
+                        == 0))
+                << "[ERROR]: GEMM interface assumes inputs buffers are well "
+                   "aligned";
+        gpu_assert(offsets_.src_layer[0] < INT_MAX
+                && offsets_.src_layer[1] < INT_MAX
+                && offsets_.src_layer[2] < INT_MAX)
+                << "[UNIMPLEMENTED]: src offsets larger than INT_MAX are not "
+                   "currently supported in ref_rnn.cl";
+    }
+
+    dim_t calc_off_src_layer(dim_t dir, dim_t iter_, dim_t mb) const {
+        auto iter = [&]() {
+            if (conf_.exec_dir == l2r)
+                return iter_;
+            else if (conf_.exec_dir == r2l)
+                return conf_.n_iter - iter_ - 1;
+            else if (dir == 1)
+                return conf_.n_iter - iter_ - 1;
+            else
+                return iter_;
+        }();
+
+        // src_layer dimension order: iter, mini-batch, channel
+        return iter * offsets_.src_layer[0] + mb * offsets_.src_layer[1];
+    }
+
+    dim_t calc_off_ws_state(
+            dim_t i0_, dim_t i1, dim_t i2_, dim_t i3, dim_t i4) const {
+        // Logical index into workspace grid
+        auto i0 = conf_.copy_src_layer ? i0_ + 1 : i0_;
+        auto i0_size = conf_.copy_src_layer ? conf_.n_layer + 1 : conf_.n_layer;
+        auto i2 = i2_ + 1;
+
+        gpu_assert(i0 >= 0) << "Logical index must be larger than 0";
+
+        MAYBE_UNUSED(i0_size);
+        return OFF5(i0, i0_size, i1, conf_.n_dir, i2, conf_.n_iter + 1, i3,
+                conf_.mb, i4, conf_.states_ws_ld);
+    }
+
+    dim_t calc_off_ws_gates(
+            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4, dim_t i5) const {
+        return i0 * conf_.n_dir * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
+                + i1 * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
+                + i2 * conf_.mb * conf_.gates_ws_ld + i3 * conf_.gates_ws_ld
+                + i4 * conf_.dhc + i5;
+    }
+
+    dim_t calc_off_ws_grid_offset(
+            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4) const {
+        return OFF5(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
+                conf_.n_iter + 1, i3, conf_.mb, i4, conf_.dhc);
+    }
+
+    const mst &ws() const { return ws_; }
+    const mst &src_layer() const { return src_layer_; }
+    std::unique_ptr<mst> src_layer(
+            dim_t dir, dim_t iter, bool all_iter = false) const {
+        auto off_ = calc_off_src_layer(dir, iter, 0)
+                * types::data_type_size(ocl_conf_.src_dt);
+        auto n_cells = all_iter ? conf_.n_iter - iter : 1;
+        auto cell_size = offsets_.src_layer[0];
+        return src_layer_.get_sub_storage(off_, cell_size * n_cells);
+    }
+    const mst &gates() const { return get_storage(gates_); }
+    const mst &states() const { return get_storage(states_); }
+
+    std::unique_ptr<mst> states(dim_t layer, dim_t dir, dim_t time) const {
+        if (!states_) return nullptr;
+        auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
+                * conf_.ws_states_elsz;
+        return states_->get_sub_storage(off_, conf_.ws_states_cell_size);
+    }
+
+    std::unique_ptr<mst> states_range(dim_t layer_start, dim_t layer_end,
+            dim_t dir_start, dim_t dir_end, dim_t time_start,
+            dim_t time_end) const {
+        if (!states_) return nullptr;
+        auto off_start
+                = calc_off_ws_state(layer_start, dir_start, time_start, 0, 0)
+                * conf_.ws_states_elsz;
+        auto off_end = calc_off_ws_state(layer_end, dir_end, time_end, 0, 0)
+                * conf_.ws_states_elsz;
+        return states_->get_sub_storage(off_start, off_end - off_start);
+    }
+
+    std::unique_ptr<mst> c_states(dim_t layer, dim_t dir, dim_t time) const {
+        if (!c_states_) return nullptr;
+        // conf_.aux_data_type is float for all datatypes except f16
+        // so can be used for lstm_elemwise_u8s8 case as well
+        auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
+                * types::data_type_size(conf_.aux_data_type);
+        return c_states_->get_sub_storage(off_, conf_.ws_c_states_cell_size);
+    }
+
+    std::unique_ptr<mst> gates(dim_t layer, dim_t dir, dim_t time) const {
+        if (!gates_) return nullptr;
+
+        auto off_ = calc_off_ws_gates(layer, dir, time, 0, 0, 0)
+                * types::data_type_size(conf_.aux_data_type);
+        return gates_->get_sub_storage(off_, conf_.ws_gates_cell_size);
+    }
+
+    std::unique_ptr<mst> grid_comp(dim_t layer, dim_t dir, dim_t time) const {
+        if (!grid_comp_) return nullptr;
+
+        auto off_ = calc_off_ws_grid_offset(layer, dir, time, 0, 0)
+                * types::data_type_size(conf_.aux_data_type);
+        return grid_comp_->get_sub_storage(off_, conf_.ws_per_cell);
+    }
+
+    const mst &c_states() const { return get_storage(c_states_); }
+    const mst &bias() const { return get_storage(bias_); }
+    const mst &grid_comp() const { return get_storage(grid_comp_); }
+
+private:
+    const mst &ws_;
+    const mst &src_layer_;
+    const ocl_conf_t &ocl_conf_;
+    const conf_t &conf_;
+    const rnn_offsets_t &offsets_;
+    std::unique_ptr<mst> gates_;
+    std::unique_ptr<mst> states_;
+    std::unique_ptr<mst> c_states_;
+    std::unique_ptr<mst> bias_;
+    std::unique_ptr<mst> grid_comp_;
+};
 
 } // namespace rnn_utils
 
