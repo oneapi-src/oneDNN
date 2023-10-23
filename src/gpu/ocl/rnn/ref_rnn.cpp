@@ -961,52 +961,58 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
     switch (gemm_kind) {
         case gemm_iter_fwd:
-            init_gemm_nested_scratchpad(gemm_iter_fwd_, key_gemm_iter_fwd);
+            init_gemm_nested_scratchpad(
+                    gemm_iter_fwd_, rnn_utils::scratch_t::key_gemm_iter_fwd);
             CHECK(gpu_gemm(gemm_iter_fwd_)->execute(gemm_ctx));
             break;
         case gemm_iter_fwd_2:
-            init_gemm_nested_scratchpad(gemm_iter_fwd_2_, key_gemm_iter_fwd_2);
+            init_gemm_nested_scratchpad(gemm_iter_fwd_2_,
+                    rnn_utils::scratch_t::key_gemm_iter_fwd_2);
             CHECK(gpu_gemm(gemm_iter_fwd_2_)->execute(gemm_ctx));
             break;
         case gemm_layer_fwd:
-            init_gemm_nested_scratchpad(gemm_layer_fwd_, key_gemm_layer_fwd);
+            init_gemm_nested_scratchpad(
+                    gemm_layer_fwd_, rnn_utils::scratch_t::key_gemm_layer_fwd);
             CHECK(gpu_gemm(gemm_layer_fwd_)->execute(gemm_ctx));
             break;
         case gemm_layer_fwd_src:
-            init_gemm_nested_scratchpad(
-                    gemm_layer_fwd_src_, key_gemm_layer_fwd_src);
+            init_gemm_nested_scratchpad(gemm_layer_fwd_src_,
+                    rnn_utils::scratch_t::key_gemm_layer_fwd_src);
             CHECK(gpu_gemm(gemm_layer_fwd_src_)->execute(gemm_ctx));
             break;
         case gemm_iter_bwd:
-            init_gemm_nested_scratchpad(gemm_iter_bwd_, key_gemm_iter_bwd);
+            init_gemm_nested_scratchpad(
+                    gemm_iter_bwd_, rnn_utils::scratch_t::key_gemm_iter_bwd);
             CHECK(gpu_gemm(gemm_iter_bwd_)->execute(gemm_ctx));
             break;
         case gemm_iter_bwd_2:
-            init_gemm_nested_scratchpad(gemm_iter_bwd_2_, key_gemm_iter_bwd_2);
+            init_gemm_nested_scratchpad(gemm_iter_bwd_2_,
+                    rnn_utils::scratch_t::key_gemm_iter_bwd_2);
             CHECK(gpu_gemm(gemm_iter_bwd_2_)->execute(gemm_ctx));
             break;
         case gemm_layer_bwd:
-            init_gemm_nested_scratchpad(gemm_layer_bwd_, key_gemm_layer_bwd);
+            init_gemm_nested_scratchpad(
+                    gemm_layer_bwd_, rnn_utils::scratch_t::key_gemm_layer_bwd);
             CHECK(gpu_gemm(gemm_layer_bwd_)->execute(gemm_ctx));
             break;
         case gemm_diff_wei_iter:
-            init_gemm_nested_scratchpad(
-                    gemm_diff_wei_iter_, key_gemm_diff_wei_iter);
+            init_gemm_nested_scratchpad(gemm_diff_wei_iter_,
+                    rnn_utils::scratch_t::key_gemm_diff_wei_iter);
             CHECK(gpu_gemm(gemm_diff_wei_iter_)->execute(gemm_ctx));
             break;
         case gemm_diff_wei_layer:
-            init_gemm_nested_scratchpad(
-                    gemm_diff_wei_layer_, key_gemm_diff_wei_layer);
+            init_gemm_nested_scratchpad(gemm_diff_wei_layer_,
+                    rnn_utils::scratch_t::key_gemm_diff_wei_layer);
             CHECK(gpu_gemm(gemm_diff_wei_layer_)->execute(gemm_ctx));
             break;
         case gemm_diff_wei_layer_src:
-            init_gemm_nested_scratchpad(
-                    gemm_diff_wei_layer_src_, key_gemm_diff_wei_layer_src);
+            init_gemm_nested_scratchpad(gemm_diff_wei_layer_src_,
+                    rnn_utils::scratch_t::key_gemm_diff_wei_layer_src);
             CHECK(gpu_gemm(gemm_diff_wei_layer_src_)->execute(gemm_ctx));
             break;
         case gemm_diff_wei_iter_2:
-            init_gemm_nested_scratchpad(
-                    gemm_diff_wei_iter_2_, key_gemm_diff_wei_iter_2);
+            init_gemm_nested_scratchpad(gemm_diff_wei_iter_2_,
+                    rnn_utils::scratch_t::key_gemm_diff_wei_iter_2);
             CHECK(gpu_gemm(gemm_diff_wei_iter_2_)->execute(gemm_ctx));
             break;
         default: assert(!"unknown gemm_kind"); return status::runtime_error;
@@ -1045,20 +1051,18 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             // offsets for fwd rnn gemm grid computation
             dim_t offset_wei_layer;
             // offsets for bwd rnn gemm grid computation
-            dim_t offset_diff_wei_iter, offset_diff_wei_lay,
-                    offset_scratch_diff_lay;
+            dim_t offset_diff_wei_iter, offset_diff_wei_lay;
 
             auto grid_iter = rnn.merge_gemm_iter
                     ? workspace.states_range(lay, n_layer, dir, dir, -1, -1)
                     : nullptr;
 
-            set_offsets_fwd_gemm(rnn, dir, lay, wei_layer_offsets,
-                    ws_states_offset_, offset_wei_layer);
+            set_offsets_fwd_gemm(
+                    rnn, dir, lay, wei_layer_offsets, offset_wei_layer);
             if (aprop == prop_kind::backward) {
                 dim_t start_diff_src_iter_idx = 0;
                 set_offsets_bwd_gemm(rnn, start_diff_src_iter_idx, dir, lay,
-                        offset_diff_wei_iter, offset_diff_wei_lay,
-                        offset_scratch_diff_lay);
+                        offset_diff_wei_iter, offset_diff_wei_lay);
             }
 
             if ((aprop == prop_kind::forward || rnn.recompute_gates)
@@ -1073,7 +1077,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                         : gemm_layer_fwd;
 
                 CHECK(gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
-                        *grid_layer, 0, *scratch_gates, 0,
+                        *grid_layer, 0, *scratch.gates(), 0,
                         gemm_grid_layer_fwd));
             }
 
@@ -1081,10 +1085,8 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                 dim_t iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
                 CHECK((this->*cell_func)(engine, ctx, dir, lay, iter,
                         offset_wei_layer, wei_iter_offsets, bias, workspace,
-                        scratch_gates, scratch_diff_gates, scratch_cell,
-                        scratch_diff_states, scratch_dhG1, wei_layer, wei_iter,
-                        diff_weights_layer, diff_weights_iter, diff_bias,
-                        scales, tm_scales));
+                        scratch, wei_layer, wei_iter, diff_weights_layer,
+                        diff_weights_iter, diff_bias, scales, tm_scales));
             }
 
             if (aprop == prop_kind::backward && rnn.merge_gemm_layer) {
@@ -1097,16 +1099,20 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                         ? gemm_diff_wei_layer_src
                         : gemm_diff_wei_layer;
 
+                // TODO: Fix sub-buffer size
+                auto diff_states
+                        = scratch.diff_states(lay, dir, rnn.n_states, 0);
+
                 CHECK(gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
-                        *scratch_diff_gates, 0, scratch_diff_states,
-                        offset_scratch_diff_lay, gemm_layer_bwd));
-                CHECK(gemm_primitive(engine, ctx, *scratch_diff_gates, 0,
+                        *scratch.diff_gates(), 0, *diff_states, 0,
+                        gemm_layer_bwd));
+                CHECK(gemm_primitive(engine, ctx, *scratch.diff_gates(), 0,
                         *grid_layer, 0, diff_weights_layer, offset_diff_wei_lay,
                         gemm_diff_wei_grid_layer));
             }
 
             if (aprop == prop_kind::backward && rnn.merge_gemm_iter) {
-                CHECK(gemm_primitive(engine, ctx, *scratch_diff_gates, 0,
+                CHECK(gemm_primitive(engine, ctx, *scratch.diff_gates(), 0,
                         *grid_iter, 0, diff_weights_iter, offset_diff_wei_iter,
                         gemm_diff_wei_iter));
             }
@@ -1154,7 +1160,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         dim_t batch, dim_t dhc, dim_t slc, dim_t n_iter, dim_t n_layer,
         dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
         dim_t scratch_diff_states_ld, const memory_storage_t &ws_states,
-        const memory_storage_t &scratch_diff_states,
+        const memory_storage_t *scratch_diff_states,
         const memory_storage_t &input,
         const memory_storage_t &diff_dst_layer) const {
 
@@ -1186,7 +1192,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         compute::kernel_arg_list_t arg_list;
         arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(diff_dst_layer);
-        arg_list.append(scratch_diff_states);
+        arg_list.append(*scratch_diff_states);
         arg_list.append(0);
         arg_list.append(0);
 
@@ -1213,7 +1219,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         dim_t sic, dim_t n_iter, dim_t n_layer, dim_t n_dir, dim_t n_states,
         dim_t states_ws_ld, dim_t scratch_diff_states_ld,
         const rnn_utils::workspace_t &ws,
-        const memory_storage_t &scratch_diff_states,
+        const memory_storage_t *scratch_diff_states,
         const memory_storage_t &firstit_states,
         const memory_storage_t &firstit_c_states,
         const memory_storage_t &diff_dst_iter,
@@ -1256,7 +1262,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(diff_dst_iter);
         arg_list.append(diff_dst_iter_c);
-        arg_list.append(scratch_diff_states);
+        arg_list.append(*scratch_diff_states);
 
         arg_list.append(into<int32_t>(batch));
         arg_list.append(into<int32_t>(dhc));
@@ -1284,7 +1290,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         dim_t batch, dim_t dhc, dim_t slc, dim_t n_iter, dim_t n_layer,
         dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
         dim_t scratch_diff_states_ld,
-        const memory_storage_t &scratch_diff_states,
+        const memory_storage_t *scratch_diff_states,
         const memory_storage_t &dst_last_layer,
         const memory_storage_t &diff_src_layer,
         const memory_storage_t &ws_states, const float shift, const float scale,
@@ -1320,7 +1326,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         compute::kernel_arg_list_t arg_list;
         arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(diff_src_layer);
-        arg_list.append(scratch_diff_states);
+        arg_list.append(*scratch_diff_states);
         arg_list.append(into<int32_t>(lr));
         arg_list.append(into<int32_t>(rl));
 
@@ -1345,7 +1351,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, dim_t batch, dim_t dhc,
         dim_t sic, dim_t n_iter, dim_t n_layer, dim_t n_dir, dim_t n_states,
         dim_t states_ws_ld, dim_t scratch_diff_states_ld,
-        const memory_storage_t &scratch_diff_states,
+        const memory_storage_t *scratch_diff_states,
         const memory_storage_t &dst_last_iter,
         const memory_storage_t &dst_last_iter_c,
         const memory_storage_t &diff_src_iter,
@@ -1389,7 +1395,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(memory_storage_t::empty_storage());
         arg_list.append(diff_src_iter);
         arg_list.append(diff_src_iter_c);
-        arg_list.append(scratch_diff_states);
+        arg_list.append(*scratch_diff_states);
 
         arg_list.append(into<int32_t>(batch));
         arg_list.append(into<int32_t>(dhc));
@@ -1532,33 +1538,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     const auto &workspace = rnn_utils::workspace_t(
             workspace_, src_layer_native_, pd()->ocl_conf, rnn, pd()->off);
 
-    auto scratchpad_fwd_gates
-            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
-    auto scratchpad_diff_gates
-            = ctx.get_scratchpad_grantor().get_memory_storage(
-                    key_rnn_diff_gates);
-    memory_storage_t *scratch_gates = scratchpad_fwd_gates
-            ? scratchpad_fwd_gates.get()
-            : scratchpad_diff_gates.get();
-    memory_storage_t *scratch_diff_gates = scratchpad_diff_gates.get();
-
-    empty_memory_storage_t empty_mem;
-    auto scratchpad_cell
-            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
-
-    auto &scratch_cell = this->pd()->is_lbr() || is_vanilla_gru
-            ? *scratchpad_cell
-            : empty_mem;
-
-    auto scratchpad_diff_states
-            = ctx.get_scratchpad_grantor().get_memory_storage(
-                    key_rnn_diff_states);
-    auto &scratch_diff_states = is_fwd ? empty_mem : *scratchpad_diff_states;
-
-    auto scratchpad_dhG1
-            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_diff_ht);
-    auto &scratch_dhG1
-            = (!is_fwd && is_vanilla_gru) ? *scratchpad_dhG1 : empty_mem;
+    const auto scratch
+            = rnn_utils::scratch_t(rnn, ctx.get_scratchpad_grantor());
 
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
     auto &diff_src_iter_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER);
@@ -1649,14 +1630,14 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
         CHECK(copy_init_layer(ctx, compute_stream, is_lr, is_rl, batch, dhc,
                 slc, n_iter, n_layer, n_dir, n_states, rnn.states_ws_ld,
                 rnn.scratch_diff_states_ld, workspace.states(),
-                scratch_diff_states, src_layer_native_,
+                scratch.diff_states(), src_layer_native_,
                 diff_dst_layer_native_));
     }
     const bool quantize = pd()->with_src_iter()
             && pd()->src_md(1)->data_type == data_type::f32 && rnn.is_int8;
     CHECK(copy_init_iter(ctx, compute_stream, batch, dhc, sic, n_iter, n_layer,
             n_dir, n_states, rnn.states_ws_ld, rnn.scratch_diff_states_ld,
-            workspace, scratch_diff_states, src_iter_native_,
+            workspace, scratch.diff_states(), src_iter_native_,
             src_c_iter_native_, diff_dst_iter_native_, diff_dst_iter_c_native_,
             shift, scale, quantize));
 
@@ -1670,11 +1651,9 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     // run the execution on the grid
     CHECK((this->*grid_computation)(engine, ctx, bias_native_, workspace,
-            scratch_gates, scratch_diff_gates, scratch_cell,
-            scratch_diff_states, scratch_dhG1, wei_layer_native_,
-            wei_iter_native_, diff_weights_layer_native_,
-            diff_weights_iter_native_, diff_bias_native_, scales_buf,
-            tm_scales_buf));
+            scratch, wei_layer_native_, wei_iter_native_,
+            diff_weights_layer_native_, diff_weights_iter_native_,
+            diff_bias_native_, scales_buf, tm_scales_buf));
 
     DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(ctx, compute_stream, workspace);
@@ -1685,16 +1664,16 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             = pd()->dst_md(0)->data_type == data_type::f32 && rnn.is_int8;
     CHECK(copy_res_layer(ctx, compute_stream, is_lr, is_rl, batch, dhc, slc,
             n_iter, n_layer, n_dir, n_states, rnn.states_ws_ld,
-            rnn.scratch_diff_states_ld, scratch_diff_states,
+            rnn.scratch_diff_states_ld, scratch.diff_states(),
             dst_last_layer_native_, diff_src_layer_native_, workspace.states(),
             shift, scale, dequantize_l));
     const bool dequantize_i = pd()->with_dst_iter()
             && pd()->dst_md(1)->data_type == data_type::f32 && rnn.is_int8;
     CHECK(copy_res_iter(ctx, compute_stream, batch, dhc, sic, n_iter, n_layer,
             n_dir, n_states, rnn.states_ws_ld, rnn.scratch_diff_states_ld,
-            scratch_diff_states, dst_last_iter_native_, dst_last_iter_c_native_,
-            diff_src_iter_native_, diff_src_iter_c_native_, workspace, shift,
-            scale, dequantize_i));
+            scratch.diff_states(), dst_last_iter_native_,
+            dst_last_iter_c_native_, diff_src_iter_native_,
+            diff_src_iter_c_native_, workspace, shift, scale, dequantize_i));
 
     return status::success;
 };

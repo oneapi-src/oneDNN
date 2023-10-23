@@ -32,6 +32,7 @@
 #include "gpu/gpu_rnn_pd.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 #include "gpu/utils.hpp"
@@ -75,19 +76,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
                     gpu_rnn_fwd_pd_t, gpu_rnn_bwd_pd_t>::type;
-    enum {
-        key_gemm_iter_fwd = memory_tracking::names::key_nested_multiple,
-        key_gemm_iter_fwd_2,
-        key_gemm_layer_fwd,
-        key_gemm_layer_fwd_src,
-        key_gemm_iter_bwd,
-        key_gemm_iter_bwd_2,
-        key_gemm_layer_bwd,
-        key_gemm_diff_wei_layer,
-        key_gemm_diff_wei_layer_src,
-        key_gemm_diff_wei_iter,
-        key_gemm_diff_wei_iter_2,
-    };
 
     struct pd_t : public base_pd_t {
 
@@ -128,62 +116,20 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
             auto scratchpad = this->scratchpad_registry().registrar();
             scratchpad.book(key_rnn_space, workspace_size, 1,
                     OCL_BUFFER_ALIGNMENT, 4096);
-            if (rnn_conf.scratch_gates_size > 0)
-                scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 1,
-                        OCL_BUFFER_ALIGNMENT, 4096);
-            scratchpad.book(key_rnn_cell, rnn_conf.scratch_cell_size, 1,
-                    OCL_BUFFER_ALIGNMENT, 4096);
-            scratchpad.book(key_rnn_diff_states,
-                    rnn_conf.scratch_diff_states_size, 1, OCL_BUFFER_ALIGNMENT,
-                    4096);
-            scratchpad.book(key_rnn_diff_ht, rnn_conf.scratch_dhG1_size, 1,
-                    OCL_BUFFER_ALIGNMENT, 4096);
-            // book scratchpad for nested primitives
-            if (gemm_layer_fwd_pd_) {
-                scratchpad.book(key_gemm_layer_fwd,
-                        gemm_layer_fwd_pd_->scratchpad_registry());
-            }
-            if (gemm_layer_fwd_src_pd_) {
-                scratchpad.book(key_gemm_layer_fwd_src,
-                        gemm_layer_fwd_src_pd_->scratchpad_registry());
-            }
-            if (gemm_iter_fwd_pd_) {
-                scratchpad.book(key_gemm_iter_fwd,
-                        gemm_iter_fwd_pd_->scratchpad_registry());
-            }
-
-            switch (aprop) {
-                case prop_kind::forward:
-                    if (rnn_conf.is_vanilla_gru)
-                        scratchpad.book(key_gemm_iter_fwd_2,
-                                gemm_iter_fwd_2_pd_->scratchpad_registry());
-                    break;
-                case prop_kind::backward:
-                    scratchpad.book(key_rnn_diff_gates,
-                            rnn_conf.scratch_diff_gates_size, 1,
-                            OCL_BUFFER_ALIGNMENT, 4096);
-                    scratchpad.book(key_gemm_iter_bwd,
-                            gemm_iter_bwd_pd_->scratchpad_registry());
-                    scratchpad.book(key_gemm_layer_bwd,
-                            gemm_layer_bwd_pd_->scratchpad_registry());
-                    scratchpad.book(key_gemm_diff_wei_layer,
-                            gemm_diff_wei_layer_pd_->scratchpad_registry());
-                    if (gemm_diff_wei_layer_src_pd_)
-                        scratchpad.book(key_gemm_diff_wei_layer_src,
-                                gemm_diff_wei_layer_src_pd_
-                                        ->scratchpad_registry());
-                    scratchpad.book(key_gemm_diff_wei_iter,
-                            gemm_diff_wei_iter_pd_->scratchpad_registry());
-                    if (rnn_conf.is_vanilla_gru) {
-                        scratchpad.book(key_gemm_iter_bwd_2,
-                                gemm_iter_bwd_2_pd_->scratchpad_registry());
-                        scratchpad.book(key_gemm_diff_wei_iter_2,
-                                gemm_diff_wei_iter_2_pd_
-                                        ->scratchpad_registry());
-                    }
-                    break;
-                default: assert(!"unknown prop_kind");
-            }
+            rnn_utils::scratch_t::book(scratchpad, rnn_conf,
+                    {
+                            gemm_iter_fwd_pd_.get(),
+                            gemm_iter_fwd_2_pd_.get(),
+                            gemm_layer_fwd_pd_.get(),
+                            gemm_layer_fwd_src_pd_.get(),
+                            gemm_iter_bwd_pd_.get(),
+                            gemm_iter_bwd_2_pd_.get(),
+                            gemm_layer_bwd_pd_.get(),
+                            gemm_diff_wei_layer_pd_.get(),
+                            gemm_diff_wei_layer_src_pd_.get(),
+                            gemm_diff_wei_iter_pd_.get(),
+                            gemm_diff_wei_iter_2_pd_.get(),
+                    });
         }
     }; // struct pd_t : public base_pd_t
 
@@ -249,7 +195,7 @@ private:
             dim_t n_iter, dim_t batch, dim_t slc, dim_t dhc, dim_t n_layer,
             dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
             dim_t scratch_diff_states_ld, const memory_storage_t &ws_states,
-            const memory_storage_t &scratch_diff_states,
+            const memory_storage_t *scratch_diff_states,
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
     status_t copy_init_iter(const exec_ctx_t &ctx,
@@ -257,7 +203,7 @@ private:
             dim_t n_dir, dim_t batch, dim_t sic, dim_t dhc, dim_t n_iter,
             dim_t n_states, dim_t states_ws_ld, dim_t scratch_diff_states_ld,
             const rnn_utils::workspace_t &ws,
-            const memory_storage_t &scratch_diff_states,
+            const memory_storage_t *scratch_diff_states,
             const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
             const memory_storage_t &diff_dst_iter,
@@ -268,7 +214,7 @@ private:
             dim_t n_iter, dim_t batch, dim_t slc, dim_t dhc, dim_t n_layer,
             dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
             dim_t scratch_diff_states_ld,
-            const memory_storage_t &scratch_diff_states,
+            const memory_storage_t *scratch_diff_states,
             const memory_storage_t &dst_last_layer,
             const memory_storage_t &diff_src_layer,
             const memory_storage_t &ws_states, const float shift,
@@ -277,7 +223,7 @@ private:
             compute::compute_stream_t *compute_stream, dim_t n_layer,
             dim_t n_dir, dim_t batch, dim_t sic, dim_t dhc, dim_t n_iter,
             dim_t n_states, dim_t states_ws_ld, dim_t scratch_diff_states_ld,
-            const memory_storage_t &scratch_diff_states,
+            const memory_storage_t *scratch_diff_states,
             const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
             const memory_storage_t &diff_src_iter,

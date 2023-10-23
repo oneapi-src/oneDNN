@@ -42,7 +42,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
         arg_list.append(*scratch_gates);
     } else {
         arg_list.append(*scratch_diff_gates);
-        arg_list.append(*scratch_gates);
+        arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
     arg_list.append(bias);
     arg_list.append(pd()->desc()->alpha);
@@ -88,7 +88,9 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
     if (aprop != dnnl_forward) {
-        arg_list.append(scratch_diff_states);
+        arg_list.append(*scratch_diff_states);
+        arg_list.append(*scratch_diff_states_iter);
+        arg_list.append(*scratch_diff_states_layer);
         arg_list.append(diff_bias);
         rnn_utils::append_strides(arg_list, pd()->off.diff_bias, 4);
     }
@@ -115,7 +117,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
         arg_list.append(*scratch_gates);
     } else {
         arg_list.append(*scratch_diff_gates);
-        arg_list.append(*scratch_gates);
+        arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
     arg_list.append(bias);
     arg_list.append(pd()->desc()->alpha);
@@ -160,7 +162,9 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
     if (aprop != dnnl_forward) {
-        arg_list.append(scratch_diff_states);
+        arg_list.append(*scratch_diff_states);
+        arg_list.append(*scratch_diff_states_iter);
+        arg_list.append(*scratch_diff_states_layer);
         arg_list.append(diff_bias);
         rnn_utils::append_strides(arg_list, pd()->off.diff_bias, 4);
     }
@@ -186,7 +190,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
         arg_list.append(*scratch_gates);
     } else {
         arg_list.append(*scratch_diff_gates);
-        arg_list.append(*scratch_gates);
+        arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
     arg_list.append(scales ? *scales : memory_storage_t::empty_storage());
     arg_list.append(bias);
@@ -246,7 +250,7 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
         arg_list.append(*scratch_gates);
     } else {
         arg_list.append(*scratch_diff_gates);
-        arg_list.append(*scratch_gates);
+        arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
     arg_list.append(bias);
     arg_list.append(pd()->desc()->alpha);
@@ -296,7 +300,9 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     }
     arg_list.append(scratch_cell);
     if (aprop != dnnl_forward) {
-        arg_list.append(scratch_diff_states);
+        arg_list.append(*scratch_diff_states);
+        arg_list.append(*scratch_diff_states_iter);
+        arg_list.append(*scratch_diff_states_layer);
         arg_list.append(diff_bias);
         rnn_utils::append_strides(arg_list, pd()->off.diff_bias, 4);
     }
@@ -323,7 +329,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
         arg_list.append(*scratch_gates);
     } else {
         arg_list.append(*scratch_diff_gates);
-        arg_list.append(*scratch_gates);
+        arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
     arg_list.append(bias);
     arg_list.append(pd()->desc()->alpha);
@@ -372,9 +378,11 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     }
     arg_list.append(part);
     if (aprop != dnnl_forward) {
-        arg_list.append(scratch_cell);
-        arg_list.append(scratch_dhG1);
-        arg_list.append(scratch_diff_states);
+        arg_list.append(*scratch_cell);
+        arg_list.append(*scratch_dhG1);
+        arg_list.append(*scratch_diff_states);
+        arg_list.append(*scratch_diff_states_iter);
+        arg_list.append(*scratch_diff_states_layer);
         arg_list.append(diff_bias);
         rnn_utils::append_strides(arg_list, pd()->off.diff_bias, 4);
     }

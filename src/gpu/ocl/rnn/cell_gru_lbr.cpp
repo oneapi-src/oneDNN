@@ -36,10 +36,10 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
     const conf_t &rnn = this->pd()->rnn_conf;
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
 
-    dim_t cell_scratch_offset, cell_wei_iter_offset;
+    dim_t cell_wei_iter_offset;
 
-    set_offsets_fwd_gemm(rnn, iter, dir, lay, wei_iter_offsets,
-            cell_scratch_offset, cell_wei_iter_offset);
+    set_offsets_fwd_gemm(
+            rnn, iter, dir, lay, wei_iter_offsets, cell_wei_iter_offset);
     auto cell_layer = !rnn.copy_src_layer && lay == 0
             ? workspace.src_layer(dir, iter)
             : workspace.states(lay - 1, dir, iter);
@@ -51,50 +51,55 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
             : gemm_diff_wei_layer;
     auto cell_iter = workspace.states(lay, dir, iter - 1);
 
+    auto scratch_gates_owner = scratch.gates(iter);
+    auto scratch_gates = scratch_gates_owner.get();
+
     if (aprop == prop_kind::forward) {
         // call made when cell execution is enabled
         if (!rnn.merge_gemm_layer)
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
-                    *cell_layer, 0, *scratch_gates, cell_scratch_offset,
-                    gemm_cell_layer_fwd));
+                    *cell_layer, 0, *scratch_gates, 0, gemm_cell_layer_fwd));
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
-                *cell_iter, 0, scratch_cell, 0, gemm_iter_fwd));
+                *cell_iter, 0, *scratch.cell(), 0, gemm_iter_fwd));
 
         CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
-                workspace, scratch_gates, scratch_diff_gates, scratch_cell,
-                scratch_diff_states, bias, tm_scales, diff_bias));
+                workspace, scratch_gates, nullptr, *scratch.cell(), nullptr,
+                nullptr, nullptr, bias, tm_scales, diff_bias));
 
     } else {
-        dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off,
-                cell_scr_diff_iter_off, cell_scr_diff_lay_off,
-                cell_scratch_diff_off;
+        dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off;
 
         set_offsets_bwd_gemm(rnn, iter, dir, lay, cell_diff_wei_iter_off,
-                cell_diff_wei_lay_off, cell_scr_diff_lay_off,
-                cell_scr_diff_iter_off, cell_scratch_diff_off);
+                cell_diff_wei_lay_off);
+
+        auto diff_states = scratch.diff_states(lay, dir, 0, iter);
+        auto diff_states_layer = scratch.diff_states(lay + 1, dir, 0, iter);
+        auto diff_states_iter = scratch.diff_states(lay, dir, 0, iter + 1);
+
+        auto diff_states0 = scratch.diff_states(lay, dir, 0, iter);
+        auto diff_states1 = scratch.diff_states(lay, dir, rnn.n_states, iter);
+        auto diff_gates = scratch.diff_gates(iter);
 
         CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
                 ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
-                scratch_diff_gates, scratch_cell, scratch_diff_states, bias,
+                diff_gates.get(), *scratch.cell(), diff_states.get(),
+                diff_states_iter.get(), diff_states_layer.get(), bias,
                 tm_scales, diff_bias));
 
         if (!rnn.merge_gemm_layer) {
-            CHECK(gemm_primitive(engine, ctx, *scratch_diff_gates,
-                    cell_scratch_diff_off, *cell_layer, 0, diff_weights_layer,
-                    cell_diff_wei_lay_off, gemm_diff_wei_cell_layer));
+            CHECK(gemm_primitive(engine, ctx, *diff_gates, 0, *cell_layer, 0,
+                    diff_weights_layer, cell_diff_wei_lay_off,
+                    gemm_diff_wei_cell_layer));
 
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
-                    *scratch_diff_gates, cell_scratch_diff_off,
-                    scratch_diff_states, cell_scr_diff_lay_off,
-                    gemm_layer_bwd));
+                    *diff_gates, 0, *diff_states1, 0, gemm_layer_bwd));
         }
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
-                scratch_cell, 0, scratch_diff_states, cell_scr_diff_iter_off,
-                gemm_iter_bwd));
+                *scratch.cell(), 0, *diff_states0, 0, gemm_iter_bwd));
 
-        CHECK(gemm_primitive(engine, ctx, scratch_cell, 0, *cell_iter, 0,
+        CHECK(gemm_primitive(engine, ctx, *scratch.cell(), 0, *cell_iter, 0,
                 diff_weights_iter, cell_diff_wei_iter_off, gemm_diff_wei_iter));
     }
     return status::success;

@@ -42,7 +42,9 @@
             const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
-            const memory_storage_t &scratch_diff_states, \
+            const memory_storage_t *scratch_diff_states, \
+            const memory_storage_t *scratch_diff_states_iter, \
+            const memory_storage_t *scratch_diff_states_layer, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
             const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
@@ -54,7 +56,9 @@
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
-            const memory_storage_t &scratch_diff_states, \
+            const memory_storage_t *scratch_diff_states, \
+            const memory_storage_t *scratch_diff_states_iter, \
+            const memory_storage_t *scratch_diff_states_layer, \
             const memory_storage_t &bias, const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
 
@@ -64,9 +68,11 @@
             const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
-            const memory_storage_t &scratch_cell, \
-            const memory_storage_t &scratch_diff_states, \
-            const memory_storage_t &scratch_dhG1, \
+            const memory_storage_t *scratch_cell, \
+            const memory_storage_t *scratch_diff_states, \
+            const memory_storage_t *scratch_diff_states_iter, \
+            const memory_storage_t *scratch_diff_states_layer, \
+            const memory_storage_t *scratch_dhG1, \
             const memory_storage_t &bias, const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias, int part) const
 
@@ -76,11 +82,7 @@
             const std::vector<dim_t> &wei_iter_offsets, \
             const memory_storage_t &bias, \
             const rnn_utils::workspace_t &workspace, \
-            const memory_storage_t *scratch_gates, \
-            const memory_storage_t *scratch_diff_gates, \
-            const memory_storage_t &scratch_cell, \
-            const memory_storage_t &scratch_diff_states, \
-            const memory_storage_t &scratch_dhG1, \
+            const rnn_utils::scratch_t &scratch, \
             const memory_storage_t &wei_layer, \
             const memory_storage_t &wei_iter, \
             const memory_storage_t &diff_weights_layer, \
@@ -92,11 +94,7 @@
     status_t f(engine_t *engine, const exec_ctx_t &ctx, \
             const memory_storage_t &bias, \
             const rnn_utils::workspace_t &workspace, \
-            const memory_storage_t *scratch_gates, \
-            const memory_storage_t *scratch_diff_gates, \
-            const memory_storage_t &scratch_cell, \
-            const memory_storage_t &scratch_diff_states, \
-            const memory_storage_t &scratch_dhG1, \
+            const rnn_utils::scratch_t &scratch, \
             const memory_storage_t &wei_layer, \
             const memory_storage_t &wei_iter, \
             const memory_storage_t &diff_weights_layer, \
@@ -357,21 +355,15 @@ void set_gru_offsets_part2(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
         dim_t &cell_scratch_offset);
 void set_offsets_fwd_gemm(const conf_t &rnn, dim_t dir, dim_t lay,
         const std::vector<dim_t> &wei_layer_offsets,
-        const dim_t &ws_states_offset_, dim_t &grid_wei_lay_offset);
+        dim_t &grid_wei_lay_offset);
 void set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        const std::vector<dim_t> &wei_iter_offsets, dim_t &cell_scratch_offset,
+        const std::vector<dim_t> &wei_iter_offsets,
         dim_t &cell_wei_iter_offset);
 void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
         dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
-        dim_t &cell_scr_diff_lay_off, dim_t &cell_scr_diff_iter_off,
-        dim_t &cell_scratch_offset);
+        dim_t &cell_diff_wei_iter_off2);
 void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
-        dim_t &cell_scr_diff_lay_off, dim_t &cell_scr_diff_iter_off,
-        dim_t &cell_diff_wei_iter_off2, dim_t &cell_scratch_offset);
-void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
-        dim_t &cell_scr_diff_lay_off);
+        dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off);
 dim_t get_workspace_size(const conf_t &rnn);
 status_t set_expected_desc(
         conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
@@ -556,6 +548,178 @@ private:
     std::unique_ptr<mst> c_states_;
     std::unique_ptr<mst> bias_;
     std::unique_ptr<mst> grid_comp_;
+};
+
+struct scratch_t {
+    using mst = memory_storage_t;
+
+    enum {
+        key_gemm_iter_fwd = memory_tracking::names::key_nested_multiple,
+        key_gemm_iter_fwd_2,
+        key_gemm_layer_fwd,
+        key_gemm_layer_fwd_src,
+        key_gemm_iter_bwd,
+        key_gemm_iter_bwd_2,
+        key_gemm_layer_bwd,
+        key_gemm_diff_wei_layer,
+        key_gemm_diff_wei_layer_src,
+        key_gemm_diff_wei_iter,
+        key_gemm_diff_wei_iter_2,
+    };
+
+    scratch_t(const conf_t &conf, const memory_tracking::grantor_t &scratchpad)
+        : conf_(conf) {
+        using namespace memory_tracking::names;
+        gates_ = scratchpad.get_memory_storage(key_rnn_gates);
+        diff_gates_ = scratchpad.get_memory_storage(key_rnn_diff_gates);
+        cell_ = scratchpad.get_memory_storage(key_rnn_cell);
+        diff_states_ = scratchpad.get_memory_storage(key_rnn_diff_states);
+        diff_ht_ = scratchpad.get_memory_storage(key_rnn_diff_ht);
+    }
+
+    struct gemm_pds {
+        const primitive_desc_t *iter_fwd_pd;
+        const primitive_desc_t *iter_fwd_2_pd;
+        const primitive_desc_t *layer_fwd_pd;
+        const primitive_desc_t *layer_fwd_src_pd;
+        const primitive_desc_t *iter_bwd_pd;
+        const primitive_desc_t *iter_bwd_2_pd;
+        const primitive_desc_t *layer_bwd_pd;
+        const primitive_desc_t *diff_wei_layer_pd;
+        const primitive_desc_t *diff_wei_layer_src_pd;
+        const primitive_desc_t *diff_wei_iter_pd;
+        const primitive_desc_t *diff_wei_iter_2_pd;
+    };
+
+    static void book(memory_tracking::registrar_t &scratchpad,
+            const conf_t &rnn_conf, const gemm_pds &gemms) {
+        using namespace memory_tracking::names;
+        if (rnn_conf.scratch_gates_size > 0)
+            scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 1,
+                    OCL_BUFFER_ALIGNMENT, 4096);
+        scratchpad.book(key_rnn_cell, rnn_conf.scratch_cell_size, 1,
+                OCL_BUFFER_ALIGNMENT, 4096);
+        scratchpad.book(key_rnn_diff_states, rnn_conf.scratch_diff_states_size,
+                1, OCL_BUFFER_ALIGNMENT, 4096);
+        scratchpad.book(key_rnn_diff_ht, rnn_conf.scratch_dhG1_size, 1,
+                OCL_BUFFER_ALIGNMENT, 4096);
+        // book scratchpad for nested primitives
+        if (gemms.layer_fwd_pd) {
+            scratchpad.book(key_gemm_layer_fwd,
+                    gemms.layer_fwd_pd->scratchpad_registry());
+        }
+        if (gemms.layer_fwd_src_pd) {
+            scratchpad.book(key_gemm_layer_fwd_src,
+                    gemms.layer_fwd_src_pd->scratchpad_registry());
+        }
+        if (gemms.iter_fwd_pd) {
+            scratchpad.book(key_gemm_iter_fwd,
+                    gemms.iter_fwd_pd->scratchpad_registry());
+        }
+
+        if (rnn_conf.is_fwd) {
+            if (rnn_conf.is_vanilla_gru)
+                scratchpad.book(key_gemm_iter_fwd_2,
+                        gemms.iter_fwd_2_pd->scratchpad_registry());
+        } else {
+            scratchpad.book(key_rnn_diff_gates,
+                    rnn_conf.scratch_diff_gates_size, 1, OCL_BUFFER_ALIGNMENT,
+                    4096);
+            scratchpad.book(key_gemm_iter_bwd,
+                    gemms.iter_bwd_pd->scratchpad_registry());
+            scratchpad.book(key_gemm_layer_bwd,
+                    gemms.layer_bwd_pd->scratchpad_registry());
+            scratchpad.book(key_gemm_diff_wei_layer,
+                    gemms.diff_wei_layer_pd->scratchpad_registry());
+            if (gemms.diff_wei_layer_src_pd)
+                scratchpad.book(key_gemm_diff_wei_layer_src,
+                        gemms.diff_wei_layer_src_pd->scratchpad_registry());
+            scratchpad.book(key_gemm_diff_wei_iter,
+                    gemms.diff_wei_iter_pd->scratchpad_registry());
+            if (rnn_conf.is_vanilla_gru) {
+                scratchpad.book(key_gemm_iter_bwd_2,
+                        gemms.iter_bwd_2_pd->scratchpad_registry());
+                scratchpad.book(key_gemm_diff_wei_iter_2,
+                        gemms.diff_wei_iter_2_pd->scratchpad_registry());
+            }
+        }
+    }
+
+    dim_t calc_off_gates(dim_t iter) const {
+        return conf_.n_iter_scratch_gates != 1 ? iter * conf_.mb
+                        * conf_.scratch_gates_ld * conf_.scratch_gates_elsz
+                                               : 0;
+    };
+
+    const mst *gates() const {
+        // Reuse diff_gates_ when possible to reduce memory consumption
+        gpu_assert(gates_ || diff_gates_);
+        return (conf_.is_fwd || conf_.recompute_gates)
+                ? (gates_ ? gates_.get() : diff_gates_.get())
+                : nullptr;
+    }
+    std::unique_ptr<mst> gates(dim_t iter) const {
+        auto g = gates();
+        if (g == nullptr) return nullptr;
+
+        auto off = calc_off_gates(iter);
+        auto cell_size
+                = conf_.mb * conf_.scratch_gates_ld * conf_.scratch_gates_elsz;
+        return g->get_sub_storage(off, cell_size);
+    }
+
+    dim_t calc_off_diff_gates(dim_t iter) const {
+        return conf_.n_iter_scratch_gates != 1
+                ? iter * conf_.mb * conf_.scratch_diff_gates_ld
+                        * conf_.scratch_diff_gates_elsz
+                : 0;
+    };
+    const mst *diff_gates() const { return diff_gates_.get(); }
+
+    std::unique_ptr<mst> diff_gates(dim_t iter) const {
+        auto g = diff_gates();
+        if (g == nullptr) return nullptr;
+
+        auto off = calc_off_diff_gates(iter);
+        auto cell_size = conf_.mb * conf_.scratch_diff_gates_ld
+                * conf_.scratch_diff_gates_elsz;
+        return g->get_sub_storage(off, cell_size);
+    }
+
+    const mst *cell() const { return cell_.get(); }
+
+    dim_t calc_off_diff_state(
+            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4, dim_t i5) const {
+        gpu_assert(i0 >= 0) << "Logical index must be larger than 0";
+
+        return OFF6(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
+                conf_.n_states + 1, i3, conf_.n_iter + 1, i4, conf_.mb, i5,
+                conf_.scratch_diff_states_ld);
+    }
+
+    const mst *diff_states() const { return diff_states_.get(); }
+
+    std::unique_ptr<mst> diff_states(
+            dim_t layer, dim_t dir, dim_t state, dim_t iter) const {
+        int aux_elsz = conf_.aux_data_type == data_type::f16 ? sizeof(cl_half)
+                                                             : sizeof(float);
+        if (!diff_states_) return nullptr;
+        auto off
+                = calc_off_diff_state(layer, dir, state, iter, 0, 0) * aux_elsz;
+        auto cell_size = conf_.mb * conf_.scratch_diff_states_ld * aux_elsz;
+        return diff_states_->get_sub_storage(off, cell_size);
+    }
+
+    const mst *diff_ht() const { return diff_ht_.get(); }
+
+private:
+    const conf_t &conf_;
+
+    std::unique_ptr<mst> gates_;
+    std::unique_ptr<mst> diff_gates_;
+    std::unique_ptr<mst> cell_;
+    std::unique_ptr<mst> diff_states_;
+    std::unique_ptr<mst> diff_ht_;
 };
 
 } // namespace rnn_utils
