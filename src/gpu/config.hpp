@@ -152,6 +152,87 @@ public:
     }
 };
 
+class container_config_t {
+public:
+    virtual ~container_config_t() = default;
+    virtual std::string str() const = 0;
+
+    virtual void override_set(const std::string &s, bool is_env) {
+        auto params = get_all_params();
+        auto parts = gpu_utils::split(s);
+        for (auto &p : parts) {
+            if (p.empty()) continue;
+            auto sub_parts = gpu_utils::split(p, "=");
+            gpu_assert(sub_parts.size() == 2);
+            auto &key = sub_parts[0];
+            auto &value = sub_parts[1];
+            bool found = false;
+            for (auto *p : params) {
+                if (p->accepts_key(key)) {
+                    p->override_set(key, value, is_env);
+                    found = true;
+                    break;
+                }
+            }
+            // TODO: Get access to ir_info() and ir_warning() to use in
+            // case of overriden/unknown parameters.
+            gpu_assert(found) << "Unknown parameter";
+        }
+    }
+
+    virtual int sort_key(const param_t *param) const = 0;
+
+protected:
+    std::vector<std::function<const param_t *(const container_config_t *)>>
+            get_params_;
+
+    struct param_init_t {};
+    param_init_t register_param(
+            std::function<const param_t *(const container_config_t *)> f) {
+        get_params_.emplace_back(std::move(f));
+        return param_init_t();
+    }
+
+    std::vector<param_t *> get_all_params(bool do_sort = false) {
+        auto *this_const = const_cast<const container_config_t *>(this);
+        std::vector<param_t *> ret;
+        for (auto *p : this_const->get_all_params(do_sort)) {
+            ret.push_back(const_cast<param_t *>(p));
+        }
+        return ret;
+    }
+
+    std::vector<const param_t *> get_all_params(bool do_sort = false) const {
+        std::vector<const param_t *> ret;
+        for (auto &gp : get_params_)
+            ret.push_back(gp(this));
+        if (do_sort) {
+            std::sort(ret.begin(), ret.end(),
+                    [this](const param_t *a, const param_t *b) {
+                        return sort_key(a) < sort_key(b);
+                    });
+        }
+        return ret;
+    }
+
+    std::string get_config_line() const {
+        std::ostringstream oss;
+        auto params = get_all_params(/*do_sort=*/true);
+        bool is_first = true;
+        for (auto *p : params) {
+            if (!p->is_overridable()) continue;
+            auto keys = p->accepted_keys();
+            for (auto &k : keys) {
+                if (p->is_default(k)) continue;
+                if (!is_first) oss << " ";
+                oss << p->str(k);
+                is_first = false;
+            }
+        }
+        return oss.str();
+    }
+};
+
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

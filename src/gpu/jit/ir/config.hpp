@@ -47,7 +47,7 @@ public:
     }
 
     void set_from_str(const std::string &s) override {
-        auto parts = ir_utils::split(s, ".");
+        auto parts = gpu_utils::split(s, ".");
         switch ((int)parts.size()) {
             case 1:
                 compute_unnormalized_tag_ = parts[0];
@@ -158,33 +158,10 @@ public:
     }
 };
 
-class prim_config_t {
+class prim_config_t : public container_config_t {
 public:
-    virtual ~prim_config_t() = default;
-    virtual std::string str() const = 0;
-
-    void override_set(const std::string &s, bool is_env) {
-        auto params = get_all_params();
-        auto parts = gpu_utils::split(s);
-        for (auto &p : parts) {
-            if (p.empty()) continue;
-            auto sub_parts = gpu_utils::split(p, "=");
-            ir_assert(sub_parts.size() == 2);
-            auto &key = sub_parts[0];
-            auto &value = sub_parts[1];
-            bool found = false;
-            for (auto *p : params) {
-                if (p->accepts_key(key)) {
-                    ir_info() << "Override " << p->name() << ": " << key << "="
-                              << value << std::endl;
-                    p->override_set(key, value, is_env);
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) ir_warning() << "Unknown parameter: " << p << std::endl;
-        }
-    }
+    ~prim_config_t() override = default;
+    std::string str() const override = 0;
 
     void set_zp_cfg(const zero_points_config_t &zp_cfg) { zp_cfg_ = zp_cfg; }
     const zero_points_config_t &zp_cfg() const { return zp_cfg_; }
@@ -216,63 +193,17 @@ public:
 #undef DECL_PARAM
 #undef DECL_PARAM2
 
-    int sort_key(const param_t *param) const;
+    int sort_key(const param_t *param) const override;
 
 protected:
-    std::vector<std::function<const param_t *(const prim_config_t *)>>
-            get_params_;
     zero_points_config_t zp_cfg_;
-
-    struct param_init_t {};
-    param_init_t register_param(
-            std::function<const param_t *(const prim_config_t *)> f) {
-        get_params_.emplace_back(std::move(f));
-        return param_init_t();
-    }
-
-    std::vector<param_t *> get_all_params(bool do_sort = false) {
-        auto *this_const = const_cast<const prim_config_t *>(this);
-        std::vector<param_t *> ret;
-        for (auto *p : this_const->get_all_params(do_sort)) {
-            ret.push_back(const_cast<param_t *>(p));
-        }
-        return ret;
-    }
-
-    std::vector<const param_t *> get_all_params(bool do_sort = false) const {
-        std::vector<const param_t *> ret;
-        for (auto &gp : get_params_)
-            ret.push_back(gp(this));
-        if (do_sort) {
-            std::sort(ret.begin(), ret.end(),
-                    [this](const param_t *a, const param_t *b) {
-                        return sort_key(a) < sort_key(b);
-                    });
-        }
-        return ret;
-    }
-
-    std::string get_config_line() const {
-        std::ostringstream oss;
-        auto params = get_all_params(/*do_sort=*/true);
-        bool is_first = true;
-        for (auto *p : params) {
-            if (!p->is_overridable()) continue;
-            auto keys = p->accepted_keys();
-            for (auto &k : keys) {
-                if (p->is_default(k)) continue;
-                if (!is_first) oss << " ";
-                oss << p->str(k);
-                is_first = false;
-            }
-        }
-        return oss.str();
-    }
 
 #define INIT_PARAM(name) \
     name##_param_t name##_; \
-    param_init_t name##_init_ = register_param( \
-            [](const prim_config_t *c) { return &c->name##_; });
+    param_init_t name##_init_ \
+            = register_param([](const container_config_t *c) { \
+                  return &static_cast<const prim_config_t *>(c)->name##_; \
+              });
     INIT_PARAM(exec_cfg)
     INIT_PARAM(src_layout)
     INIT_PARAM(dst_layout)

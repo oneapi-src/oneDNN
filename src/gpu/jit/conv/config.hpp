@@ -1056,9 +1056,10 @@ private:
 
 #define INIT_PARAM(name) \
     name##_param_t name##_; \
-    param_init_t name##_init_ = register_param([](const prim_config_t *c) { \
-        return &((const conv_config_t *)c)->name##_; \
-    });
+    param_init_t name##_init_ \
+            = register_param([](const container_config_t *c) { \
+                  return &((const conv_config_t *)c)->name##_; \
+              });
 
     INIT_PARAM(bia_layout)
     INIT_PARAM(bwd_d_optimize_kind)
