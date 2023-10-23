@@ -91,18 +91,6 @@ int off_ws_grid_offset(int n_layer, int n_dir, int n_iter, int batch, int dhc,
         int i0, int i1, int i2, int i3, int i4) {
     return OFF5(i0, n_layer + 1, i1, n_dir, i2, n_iter + 1, i3, batch, i4, dhc);
 }
-int off_scratch_mem_iter(int n_iter_scratch_gates, int batch,
-        int scratch_gates_ld, int dhc, int iter) {
-    // if no merge gemm, scratch_gates contain data for single cell,
-    // so we ignore iter dim
-    return (n_iter_scratch_gates == 1) ? 0 : iter * batch * scratch_gates_ld;
-}
-int off_scratch_mem(int n_iter_scratch_gates, int batch, int scratch_gates_ld,
-        int dhc, int iter, int i1, int i2, int i3) {
-    return off_scratch_mem_iter(
-                   n_iter_scratch_gates, batch, scratch_gates_ld, dhc, iter)
-            + i1 * scratch_gates_ld + i2 * dhc + i3;
-}
 int off_ker_bias(int n_gates, int dhc, int i0, int i1) {
     return OFF2(i0, n_gates, i1, dhc);
 }
