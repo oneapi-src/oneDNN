@@ -75,6 +75,7 @@ protected:
     const Xbyak::Opmask kblock_tail_mask = Xbyak::Opmask(3);
 
     const Xbyak::Zmm zmm_zero = Xbyak::Zmm(0);
+    const Xbyak::Zmm zmm_s8s8_shift = Xbyak::Zmm(0);
 
     void load(const Xbyak::Xmm &x, const Xbyak::Address &addr);
 

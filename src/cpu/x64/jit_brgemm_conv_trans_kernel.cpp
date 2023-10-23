@@ -105,19 +105,20 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::store(
 void jit_avx512_core_brgemm_conv_trans_kernel_t::zero_ic_block(
         bool is_ic_tail, dim_t dst_off) {
     bool has_block_tail = (jcp.inp_ic_block % jcp.simd_w);
+    auto zmm = jcp.s8s8_compensation_required ? zmm_s8s8_shift : zmm_zero;
 
     // TODO: use Xmm or Ymm moves for better small ic efficiency
     auto nvec = is_ic_tail ? n_tail_vec : n_vec;
     for (int iv = 0; iv < nvec; iv++)
-        store(ptr[aux_dst_ptr + dst_off + iv * VL], zmm_zero);
+        store(ptr[aux_dst_ptr + dst_off + iv * VL], zmm);
     const auto last_dst_off = aux_dst_ptr + dst_off + nvec * VL;
     if (is_ic_tail) {
         if (has_block_tail)
-            store(ptr[last_dst_off] | kblock_tail_mask | T_z, zmm_zero);
+            store(ptr[last_dst_off] | kblock_tail_mask | T_z, zmm);
         else
-            store(ptr[last_dst_off], zmm_zero);
+            store(ptr[last_dst_off], zmm);
     } else if (has_block_tail)
-        store(ptr[last_dst_off] | kblock_tail_mask | T_z, zmm_zero);
+        store(ptr[last_dst_off] | kblock_tail_mask | T_z, zmm);
 }
 
 void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ic_block(dim_t zidx,
@@ -175,6 +176,10 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
         uint64_t mask = (UINT64_C(1) << block_tail_size) - 1;
         mov(reg_tmp, mask);
         kmovq(kblock_tail_mask, reg_tmp);
+    }
+    if (jcp.s8s8_compensation_required) {
+        mov(reg_tmp, -128);
+        vpbroadcastb(zmm_s8s8_shift, reg_tmp.cvt8());
     }
 
     auto icb_loop_body = [&](bool is_ic_tail) {
