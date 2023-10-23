@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -183,7 +183,7 @@ xe_hpc_systolic_gemm_copy(long m, long k, global ELEMENT *a_packed,
     GET_A_SUM_ADDRESS;
 
     uint4 zero = 0;
-    intel_sub_group_block_write4(a_sum, zero);
+    intel_sub_group_block_write4((global uint *)a_sum, zero);
 }
 
 #elif !COPY_TRANS
@@ -412,9 +412,9 @@ xe_hpc_systolic_gemm_copy(long k, long n, global ELEMENT *b_packed,
     GET_B_SUM_ADDRESS;
 
     uint2 zero = 0;
-    intel_sub_group_block_write2(b_sum, zero);
+    intel_sub_group_block_write2((__global uint *)b_sum, zero);
 #if UNROLL_N > 32
-    intel_sub_group_block_write(b_sum + 32, zero.s0);
+    intel_sub_group_block_write((__global uint *)b_sum + 32, zero.s0);
 #endif
 }
 
