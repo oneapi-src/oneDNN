@@ -117,8 +117,6 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.wic = nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc));
 
     rnn.gates_ld = rnn.dhc * rnn.n_gates;
-    rnn.gates_nld = rnn.mb;
-    rnn.states_nld = rnn.mb;
 
     // Set the correct number of weights parts
     rnn.n_parts_weights_layer = 1;
@@ -143,8 +141,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             = dst_layer_d.blocking_desc().strides[0] == (dst_layer_ld * rnn.mb);
 
     // Does not account for alignment striding
-    dim_t merge_scratch_size_estimate
-            = rnn.gates_ld * rnn.gates_nld * rnn.n_iter;
+    dim_t merge_scratch_size_estimate = rnn.gates_ld * rnn.mb * rnn.n_iter;
     bool is_small_scratch = merge_scratch_size_estimate < 256 * 1024 * 1024;
     rnn.merge_gemm_layer = dev_getenv("merge_gemm_layer",
             is_small_scratch); // Avoid excessive memory usage
@@ -347,16 +344,14 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     bool need_scratch_gates = is_fwd
             || (rnn.recompute_gates
                     && rnn.scratch_gates_elsz != rnn.scratch_diff_gates_elsz);
-    rnn.scratch_gates_size = need_scratch_gates
-            ? rnn.n_iter_scratch_gates * rnn.gates_nld * rnn.scratch_gates_ld
-                    * rnn.scratch_gates_elsz
-            : 0;
-    rnn.scratch_diff_gates_size = is_bwd
-            ? rnn.n_iter_scratch_gates * rnn.gates_nld
+    rnn.scratch_gates_size = need_scratch_gates ? rnn.n_iter_scratch_gates
+                    * rnn.mb * rnn.scratch_gates_ld * rnn.scratch_gates_elsz
+                                                : 0;
+    rnn.scratch_diff_gates_size = is_bwd ? rnn.n_iter_scratch_gates * rnn.mb
                     * rnn.scratch_diff_gates_ld * rnn.scratch_diff_gates_elsz
-            : 0;
+                                         : 0;
     rnn.scratch_dhG1_size = (rd.cell_kind == alg_kind::vanilla_gru && is_bwd)
-            ? rnn.gates_nld * rnn.scratch_diff_states_ld * sizeof(float)
+            ? rnn.mb * rnn.scratch_diff_states_ld * sizeof(float)
             : 0;
     rnn.ws_bias_size
             = rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dhc * aux_elsz;
@@ -364,13 +359,12 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     // For intermediate step in post-gemm fwd lbr gru
     rnn.scratch_cell_size = [&]() {
         if (rnn.is_lbr && is_fwd) {
-            return rnn.gates_nld * rnn.scratch_gates_ld
-                    * rnn.scratch_gates_elsz;
+            return rnn.mb * rnn.scratch_gates_ld * rnn.scratch_gates_elsz;
         } else if (rnn.is_lbr && is_bwd) {
-            return rnn.gates_nld * rnn.scratch_diff_gates_ld
+            return rnn.mb * rnn.scratch_diff_gates_ld
                     * rnn.scratch_diff_gates_elsz;
         } else if (rd.cell_kind == alg_kind::vanilla_gru && is_bwd) {
-            return rnn.states_nld * rnn.states_ws_ld * rnn.ws_states_elsz;
+            return rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
         } else {
             return static_cast<dim_t>(0);
         }
@@ -456,7 +450,7 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir,
     }
 
     cell_scratch_offset = (rnn.merge_gemm_iter || rnn.merge_gemm_layer)
-            ? (OFF2(iter, n_iter, 0, rnn.gates_nld * rnn.scratch_gates_ld)
+            ? (OFF2(iter, n_iter, 0, rnn.mb * rnn.scratch_gates_ld)
                     * rnn.scratch_gates_elsz)
             : 0;
 
@@ -509,12 +503,11 @@ void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir,
 
     cell_scr_diff_iter_off
             = OFF5(lay, n_layers + 1, dir, n_dir, 0, n_states + 1, iter,
-                      n_iter + 1, 0,
-                      rnn.states_nld * rnn.scratch_diff_states_ld)
+                      n_iter + 1, 0, rnn.mb * rnn.scratch_diff_states_ld)
             * sizeof(float);
-    cell_scr_diff_lay_off = OFF5(lay, n_layers + 1, dir, n_dir, n_states,
-                                    n_states + 1, iter, n_iter + 1, 0,
-                                    rnn.states_nld * rnn.scratch_diff_states_ld)
+    cell_scr_diff_lay_off
+            = OFF5(lay, n_layers + 1, dir, n_dir, n_states, n_states + 1, iter,
+                      n_iter + 1, 0, rnn.mb * rnn.scratch_diff_states_ld)
             * sizeof(float);
     cell_diff_wei_lay_off
             = OFF3(lay, n_layers, dir, n_dir, 0,
@@ -526,7 +519,7 @@ void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir,
             * sizeof(float);
 
     cell_scratch_offset = (rnn.merge_gemm_iter || rnn.merge_gemm_layer)
-            ? (OFF2(iter, n_iter, 0, rnn.gates_nld * rnn.scratch_diff_gates_ld)
+            ? (OFF2(iter, n_iter, 0, rnn.mb * rnn.scratch_diff_gates_ld)
                     * rnn.scratch_diff_gates_elsz)
             : 0;
 

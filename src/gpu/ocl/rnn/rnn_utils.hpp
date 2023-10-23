@@ -274,7 +274,7 @@ struct conf_t {
     dim_t mb;
     dim_t slc, sic, dhc, dlc, wic;
 
-    dim_t gates_ld, gates_nld, gates_ws_ld, arch_ld;
+    dim_t gates_ld, gates_ws_ld, arch_ld;
 
     dim_t n_parts_weights_layer, parts_weights_layer[DNNL_RNN_MAX_N_PARTS];
     dim_t n_parts_weights_iter, parts_weights_iter[DNNL_RNN_MAX_N_PARTS];
@@ -292,7 +292,7 @@ struct conf_t {
     dim_t diff_weights_layer_ld, diff_weights_layer_nld;
     dim_t weights_iter_ld, weights_iter_nld;
     dim_t diff_weights_iter_ld, diff_weights_iter_nld;
-    dim_t states_nld, states_ws_ld, scratch_diff_states_ld;
+    dim_t states_ws_ld, scratch_diff_states_ld;
     bool is_fwd, is_training, is_lbr, is_int8, is_testmode, is_vanilla_gru;
     bool use_workspace;
     bool recompute_gates;
