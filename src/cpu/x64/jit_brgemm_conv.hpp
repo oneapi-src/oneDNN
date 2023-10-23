@@ -272,6 +272,7 @@ private:
     dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz;
     dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz, comp_ow_sz;
 
+    bool is_relo_with_relo_weights;
     bool need_compensation;
     bool is_amx;
 };

@@ -2000,7 +2000,9 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
         //TODO: support 3d cases
         const bool relo_supported_shape
                 = everyone_is(0, jcp.dilate_h, jcp.dilate_w)
-                && jcp.trans_dim_koef == 1 && jcp.ndims < 5 && !use_inversion;
+                && jcp.trans_dim_koef == 1 && jcp.ndims < 5 && !use_inversion
+                && IMPLICATION(jcp.s8s8_compensation_required,
+                        everyone_is(0, jcp.t_pad, jcp.b_pad));
 
         bool perf_relo = false;
         const float rnd_rd_whi = rnd_up(rd_whi, jcp.simd_w);
@@ -2212,9 +2214,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
             = (jcp.s8s8_compensation_required || jcp.src_zero_point)
             && !everyone_is(0, jcp.t_pad, jcp.back_pad, jcp.f_pad, jcp.b_pad,
                     jcp.l_pad, jcp.r_pad);
-    //TODO: Enable src zp w/ padding when using relo_conv_weights
-    if (compensation_w_padding && jcp.is_relo() && jcp.relo_conv_weights)
-        return status::unimplemented;
 
     // For padding shapes, we calculate the comp along with the computation
     // inside brgemm kernel when output size is small to get optimal perf

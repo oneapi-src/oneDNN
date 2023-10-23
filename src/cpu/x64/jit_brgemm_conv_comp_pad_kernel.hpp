@@ -35,6 +35,7 @@ struct jit_brgemm_conv_comp_pad_call_s {
     size_t kh_l;
     size_t kd_l;
     size_t ker_l {1};
+    size_t last_ocb {1};
 };
 
 // Kernel is unified to work with fwd and bwd_d conv
@@ -135,6 +136,59 @@ protected:
     void generate() override;
 };
 
+template <typename Vmm>
+struct jit_uni_brgemm_conv_relo_comp_pad_kernel_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_brgemm_conv_relo_comp_pad_kernel_t)
+    using reg64_t = const Xbyak::Reg64;
+
+    jit_uni_brgemm_conv_relo_comp_pad_kernel_t(
+            const jit_brgemm_conv_conf_t &ajcp);
+    ~jit_uni_brgemm_conv_relo_comp_pad_kernel_t() = default;
+
+protected:
+    jit_brgemm_conv_conf_t jcp_;
+    const int inp_dsz_;
+    const int out_dsz_;
+    const int inp_oc_block_;
+    const size_t inp_ic_sz_;
+    const size_t inp_kw_sz_;
+    const size_t inp_kh_sz_;
+    const size_t inp_oc_sz_;
+    const size_t out_ow_sz_;
+    const size_t out_ker_sz_;
+    const int isa_max_regs_;
+
+    // Register decomposition
+    const reg64_t param1 = abi_param1;
+    const reg64_t reg_in = r15;
+    const reg64_t reg_comp_out = r14;
+    const reg64_t reg_zp_comp_out = r13;
+    const reg64_t reg_kh_l = r12;
+
+    const reg64_t reg_aux_zp_comp_out = r11;
+    const reg64_t reg_aux_comp_out = r10;
+    const reg64_t reg_aux_in = r9;
+    const reg64_t reg_ker_l = rsi;
+    const reg64_t reg_last_ocb = rbx;
+    const reg64_t reg_tmp = rax;
+
+    Vmm vmm_tmp = Vmm(isa_max_regs_ - 1);
+    Vmm vmm_cp_shift = Vmm(isa_max_regs_ - 2);
+
+    const int n_max_regs_ = 4;
+
+    Vmm accum(const int n, const bool has_s8s8_shift = false) const;
+    size_t out_oc_offset(const int n, const int w) const;
+    size_t inp_ic_offset(const int kw, const int ic, const int m) const;
+    void zero_accumulators(const int n_block);
+    void store_accumulators(const int n_block, const int ow_b, const int ow_e);
+    void store(const int n_block, const int ow_b, const int ow_e);
+    void kw_loop(const int n_block);
+    void compute(const int n_block, const int kw_b, const int kw_e);
+    void load_params();
+
+    void generate() override;
+};
 } // namespace jit_uni_brgemm_conv_comp_pad_kernel
 
 } // namespace x64

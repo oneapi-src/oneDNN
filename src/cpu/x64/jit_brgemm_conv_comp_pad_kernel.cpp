@@ -518,9 +518,205 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::generate() {
 
     postamble();
 }
+template <typename Vmm>
+size_t jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::out_oc_offset(
+        const int n, const int w) const {
+    return static_cast<size_t>(out_dsz_) * n * inp_oc_block_ + w * out_ow_sz_;
+}
+template <typename Vmm>
+size_t jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::inp_ic_offset(
+        const int kw, const int ic, const int n) const {
+    return static_cast<size_t>(kw) * inp_kw_sz_ + n * inp_oc_sz_
+            + ic * inp_ic_sz_;
+}
+
+template <typename Vmm>
+Vmm jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::accum(
+        const int n, const bool has_s8s8_shift) const {
+    return has_s8s8_shift ? Vmm(n_max_regs_ + n) : Vmm(n);
+}
+template <typename Vmm>
+void jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::zero_accumulators(
+        const int n_block) {
+    for (int n = 0; n < n_block; ++n) {
+        auto vmm = accum(n);
+        uni_vpxor(vmm, vmm, vmm);
+    }
+}
+template <typename Vmm>
+void jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::store_accumulators(
+        const int n_block, const int ow_b, const int ow_e) {
+    if (jcp_.src_zero_point) {
+        for_(int n = 0; n < n_block; n++)
+        for (int w = ow_b; w < ow_e; w++) {
+            auto vmm = accum(n);
+            const auto offset = out_oc_offset(n, w);
+            auto zp_addr = ptr[reg_aux_zp_comp_out + offset];
+            vmovups(zp_addr, vmm);
+        }
+    }
+
+    if (jcp_.s8s8_compensation_required) {
+        for_(int n = 0; n < n_block; n++)
+        for (int w = ow_b; w < ow_e; w++) {
+            auto vmm = accum(n, true);
+            const auto offset = out_oc_offset(n, w);
+            auto cp_addr = ptr[reg_aux_comp_out + offset];
+            vmovups(cp_addr, vmm);
+        }
+    }
+}
+
+template <typename Vmm>
+void jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::store(
+        const int n_block, const int ow_b, const int ow_e) {
+    mov(reg_aux_zp_comp_out, reg_zp_comp_out);
+    mov(reg_aux_comp_out, reg_comp_out);
+    mov(reg_ker_l, ptr[param1 + GET_OFF(ker_l)]);
+
+    Xbyak::Label label_ker_loop, label_done;
+    L_aligned(label_ker_loop);
+    {
+        cmp(reg_ker_l, 0);
+        je(label_done, T_NEAR);
+        store_accumulators(n_block, ow_b, ow_e);
+        if (jcp_.src_zero_point) add(reg_aux_zp_comp_out, out_ker_sz_);
+        if (jcp_.s8s8_compensation_required) add(reg_aux_comp_out, out_ker_sz_);
+        dec(reg_ker_l);
+        jmp(label_ker_loop, T_NEAR);
+    }
+    L_aligned(label_done);
+}
+
+template <typename Vmm>
+void jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::kw_loop(
+        const int n_block) {
+    vector<int> ow_kw_b(jcp_.ow, -1);
+    vector<int> ow_kw_e(jcp_.ow, -1);
+    const auto DW = jcp_.dilate_w + 1;
+    for (int ow = 0; ow < jcp_.ow; ow++) {
+        const auto iiw = ow * jcp_.stride_w - jcp_.l_pad;
+        const auto kw_s = div_up(nstl::max(0, -iiw), DW);
+        const auto kw_f = jcp_.kw
+                - div_up(nstl::max(0, iiw - jcp_.iw + (jcp_.kw - 1) * DW + 1),
+                        DW);
+        ow_kw_b[ow] = kw_s;
+        ow_kw_e[ow] = kw_f;
+    }
+
+    for (int ow = 0; ow < jcp_.ow;) {
+        const auto kw_b = ow_kw_b[ow];
+        const auto kw_e = ow_kw_e[ow];
+        int ow_e = ow + 1;
+        while (ow_e < jcp_.ow) {
+            if (ow_kw_b[ow_e] != kw_b || ow_kw_e[ow_e] != kw_e) break;
+            ow_e++;
+        }
+        if (kw_b < kw_e) {
+            zero_accumulators(n_block);
+            compute(n_block, kw_b, kw_e);
+            store(n_block, ow, ow_e);
+        }
+        ow = ow_e;
+    }
+}
+
+template <typename Vmm>
+void jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::compute(
+        const int n_block, const int kw_b, const int kw_e) {
+    Xbyak::Label label_kh_loop, label_end;
+    mov(reg_kh_l, ptr[param1 + GET_OFF(kh_l)]);
+    mov(reg_aux_in, reg_in);
+
+    L_aligned(label_kh_loop);
+    {
+        cmp(reg_kh_l, 0);
+        je(label_end, T_NEAR);
+        for_(int kw = kw_b; kw < kw_e; kw++)
+        for_(int n = 0; n < n_block; n++)
+        for (int ic = 0; ic < jcp_.ic; ic++) {
+            auto vmm = accum(n);
+            const auto offs = inp_ic_offset(kw, ic, n);
+            auto addr = EVEX_compress_addr(reg_aux_in, offs);
+            vpmovsxbd(vmm_tmp, addr);
+            vpsubd(vmm, vmm, vmm_tmp);
+        }
+        add(reg_aux_in, inp_kh_sz_);
+        dec(reg_kh_l);
+        jmp(label_kh_loop, T_NEAR);
+    }
+    L_aligned(label_end);
+
+    // Apply s8s8 shift to accumulators
+    if (jcp_.s8s8_compensation_required) {
+        for (int n = 0; n < n_block; n++) {
+            vpmulld(accum(n, true), accum(n), vmm_cp_shift);
+        }
+    }
+}
+
+template <typename Vmm>
+void jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::load_params() {
+    mov(reg_in, ptr[param1 + GET_OFF(ptr_in)]);
+    mov(reg_zp_comp_out, ptr[param1 + GET_OFF(ptr_zp_out)]);
+    mov(reg_comp_out, ptr[param1 + GET_OFF(ptr_cp_out)]);
+    mov(reg_last_ocb, ptr[param1 + GET_OFF(last_ocb)]);
+}
+
+template <typename Vmm>
+void jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::generate() {
+    preamble();
+
+    load_params();
+
+    // fill registers with byte 128
+    const auto reg32_scratch = reg_tmp.cvt32();
+    mov(reg32_scratch, 128);
+    uni_vpbroadcastd(vmm_cp_shift, reg32_scratch);
+
+    const int last_oc_block = nstl::min(
+            jcp_.oc_block, jcp_.oc - (jcp_.nb_oc - 1) * jcp_.oc_block);
+    const int max_n_block = div_up(jcp_.oc_block, inp_oc_block_);
+    const int last_n_block = div_up(last_oc_block, inp_oc_block_);
+
+    Xbyak::Label label_last_ocb, label_done;
+
+    cmp(reg_last_ocb, 0);
+    jnz(label_last_ocb, T_NEAR);
+    kw_loop(max_n_block);
+    jmp(label_done, T_NEAR);
+
+    L_aligned(label_last_ocb);
+    kw_loop(last_n_block);
+
+    L_aligned(label_done);
+
+    postamble();
+}
+
+template <typename Vmm>
+jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Vmm>::
+        jit_uni_brgemm_conv_relo_comp_pad_kernel_t(
+                const jit_brgemm_conv_conf_t &ajcp)
+    : jit_generator(jit_name())
+    , jcp_(ajcp)
+    , inp_dsz_(jcp_.wei_dsz)
+    , out_dsz_(jcp_.acc_dsz)
+    , inp_oc_block_(static_cast<size_t>(16))
+    , inp_ic_sz_(static_cast<size_t>(inp_dsz_) * inp_oc_block_)
+    , inp_kw_sz_(static_cast<size_t>(inp_ic_sz_) * jcp_.ic
+              * (jcp_.is_relo_whi() ? jcp_.kh : 1))
+    , inp_kh_sz_(static_cast<size_t>(inp_ic_sz_) * jcp_.ic
+              * (jcp_.is_relo_whi() ? 1 : jcp_.kw))
+    , inp_oc_sz_(static_cast<size_t>(inp_ic_sz_) * jcp_.ic * jcp_.kh * jcp_.kw)
+    , out_ow_sz_(static_cast<size_t>(out_dsz_) * jcp_.oc_block)
+    , out_ker_sz_(static_cast<size_t>(out_ow_sz_) * jcp_.ow)
+    , isa_max_regs_(isa_num_vregs(jcp_.isa)) {}
 
 template struct jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Zmm>;
 template struct jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Ymm>;
+template struct jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Xbyak::Zmm>;
+template struct jit_uni_brgemm_conv_relo_comp_pad_kernel_t<Xbyak::Ymm>;
 
 } // namespace jit_uni_brgemm_conv_comp_pad_kernel
 

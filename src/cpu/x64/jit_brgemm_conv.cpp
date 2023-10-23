@@ -928,6 +928,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
 
     need_compensation = (jcp.src_zero_point || jcp.s8s8_compensation_required)
             && !jcp.req_brg_comp_pad;
+    is_relo_with_relo_weights = jcp.is_relo() && jcp.relo_conv_weights;
 
     // ---- Initialize arrays ---------------------
     brgemm_kernels_.resize(_pd->brgs_sz_);
@@ -975,7 +976,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
         CHECK(copy_to_relo_pbuffer_->create_kernel());
     }
 
-    if (jcp.is_relo() && jcp.relo_conv_weights) {
+    if (is_relo_with_relo_weights) {
         jit_brgemm_relo_copy_to_wbuffer_t::cfg_t wjcp;
         wjcp.wei_dt = jcp.wei_dt;
         wjcp.out_oc_block = jcp.oc_block;
@@ -994,15 +995,28 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     }
 
     if (jcp.req_cal_comp_pad) {
-        if (is_superset(isa, avx512_core))
-            CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
-                    new jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Zmm>(
-                            jcp)));
-        else {
-            assert(one_of(isa, avx2_vnni, avx2_vnni_2));
-            CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
-                    new jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Ymm>(
-                            jcp)));
+        if (is_relo_with_relo_weights) {
+            if (is_superset(isa, avx512_core))
+                CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
+                        new jit_uni_brgemm_conv_relo_comp_pad_kernel_t<
+                                Xbyak::Zmm>(jcp)));
+            else {
+                assert(one_of(isa, avx2_vnni, avx2_vnni_2));
+                CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
+                        new jit_uni_brgemm_conv_relo_comp_pad_kernel_t<
+                                Xbyak::Ymm>(jcp)));
+            }
+        } else {
+            if (is_superset(isa, avx512_core))
+                CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
+                        new jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Zmm>(
+                                jcp)));
+            else {
+                assert(one_of(isa, avx2_vnni, avx2_vnni_2));
+                CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
+                        new jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Ymm>(
+                                jcp)));
+            }
         }
         CHECK(comp_vpad_pbuffer_->create_kernel());
     }
@@ -1456,9 +1470,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
     vector<int> adjusted_k;
     vector<int> adjusted_k_l;
     int k = 0;
+    const bool has_relo_large_spatial /* heuristic*/
+            = is_relo_with_relo_weights && jcp.oc_block * jcp.ow > 10240;
     while (k < ker_vpad_sz) {
         int next_k = k + 1;
-        while (next_k < ker_vpad_sz) {
+        while (!has_relo_large_spatial && next_k < ker_vpad_sz) {
             if (kd_bs[next_k] != kd_bs[k] || kd_es[next_k] != kd_es[k]
                     || kh_bs[next_k] != kh_bs[k] || kh_es[next_k] != kh_es[k]
                     || kw_bs[next_k] != kw_bs[k] || kw_es[next_k] != kw_es[k])
@@ -1500,17 +1516,34 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
             const auto kw_b = maybe_invert_range(kw_bb, kw_ee, KW);
             const auto kw_e = maybe_invert_range(kw_ee, kw_bb, KW);
 
+            const auto inp_oc_block
+                    = is_relo_with_relo_weights ? 16 : jcp.oc_block;
+            const auto wei_ocb = is_relo_with_relo_weights
+                    ? ocb * div_up(jcp.oc_block, inp_oc_block)
+                    : ocb;
+            const auto nb_oc = is_relo_with_relo_weights
+                    ? div_up(jcp.oc_block, inp_oc_block)
+                    : jcp.nb_oc;
+            const auto wei_offs = is_relo_with_relo_weights
+                    ? (jcp.is_relo_wi()
+                                    ? ((((g * nb_oc + wei_ocb) * KD) + kd_b)
+                                                      * KH
+                                              + kh_b)
+                                            * KW * jcp.ic * inp_oc_block
+                                    : (((g * nb_oc + wei_ocb) * KH * KW) + kh_b)
+                                            * jcp.ic * inp_oc_block)
+                    : g * _pd->wei_g_stride + wei_ocb * _pd->wei_ocb_stride
+                            + kd_b * _pd->wei_kd_stride
+                            + kh_b * _pd->wei_kh_stride
+                            + kw_b * _pd->wei_kw_stride;
             const auto buffer_offs
                     = g * comp_ocb_sz + ocb * comp_ker_sz + k * comp_kw_sz;
-            const auto wei_offs = g * _pd->wei_g_stride
-                    + ocb * _pd->wei_ocb_stride + kd_b * _pd->wei_kd_stride
-                    + kh_b * _pd->wei_kh_stride + kw_b * _pd->wei_kw_stride;
             if (jcp.src_zero_point && src_zp_buffer)
                 std::memset(&src_zp_buffer[buffer_offs], 0,
-                        sizeof(int32_t) * k_l * comp_kw_sz);
+                        sizeof(int32_t) * comp_kw_sz);
             if (jcp.s8s8_compensation_required && s8s8_comp_buffer)
                 std::memset(&s8s8_comp_buffer[buffer_offs], 0,
-                        sizeof(int32_t) * k_l * comp_kw_sz);
+                        sizeof(int32_t) * comp_kw_sz);
 
             jit_brgemm_conv_comp_pad_call_s p;
 
@@ -1518,6 +1551,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
             p.kh_l = kh_e - kh_b;
             p.kw_l = kw_e - kw_b;
             p.ker_l = k_l;
+            p.last_ocb = ocb == jcp.nb_oc - 1;
             p.use_inversion = use_inversion;
             p.ptr_in = &weights[wei_offs];
             p.ptr_zp_out = jcp.src_zero_point ? &src_zp_buffer[buffer_offs]
@@ -2184,6 +2218,12 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
             && oh_l <= jcp.oh_block);
 
     const auto ker_i = (jcp.is_os_blocking ? oh_l * ow_l : ow_l);
+    const auto comp_iih = ndims_pick(btc.oh * SH - TP, btc.oh * SH - TP, 0);
+    const auto comp_kh_s_ = div_up(nstl::max(0, -comp_iih), DH);
+    const auto comp_kh_f_
+            = KH - div_up(nstl::max(0, comp_iih - IH + (KH - 1) * DH + 1), DH);
+    const auto comp_kh_s = ndims_pick(comp_kh_s_, comp_kh_s_, 0);
+    const auto comp_kh_f = ndims_pick(comp_kh_f_, comp_kh_f_, 1);
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      size_t comp_ker_offs, bool do_postops) {
@@ -2229,11 +2269,9 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
                 && kh_e == kh_f;
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
-        const auto comp_kh_s
-                = jcp.is_os_blocking ? ndims_pick(kh_s_, kh_s_, 0) : kh_s;
         const auto comp_ker_offs = do_postwork
                 ? get_comp_offset(btc.g, btc.ocb, btc.oh, ow_b, kd_s, kd_f,
-                        comp_kh_s, kh_f, 0, KW)
+                        comp_kh_s, comp_kh_f, 0, KW)
                 : 0;
 
         if (nb_ic_b > 0) {
