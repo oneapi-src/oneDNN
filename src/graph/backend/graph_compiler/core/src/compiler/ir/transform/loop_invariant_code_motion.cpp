@@ -317,34 +317,19 @@ struct var_property_set_t : public ssa_viewer_t {
     using ir_viewer_t::view;
     var_c cur_property_var;
     bool find_property_var = false;
-    std::unordered_set<expr_c> visited_set;
-    std::vector<expr_c> modified_vars;
+    std::unordered_set<expr_c> &visited_set;
+    std::vector<expr_c> &modified_vars;
 
-    void view(ssa_phi_c v) override { ssa_viewer_t::view(v); }
+    var_property_set_t(std::unordered_set<expr_c> &set_vars,
+            std::vector<expr_c> &changed_vars)
+        : visited_set(set_vars), modified_vars(changed_vars) {}
+
+    void view(ssa_phi_c v) override { // ssa phi already have proper attribute
+    }
 
     void view(stmts_c v) override {
         for (auto &s : v->seq_) {
             dispatch(s);
-        }
-        if (!modified_vars.empty()) {
-            expr_c x = modified_vars.back();
-            auto x_owner = x->ssa_data_->get_owner();
-            if (x_owner.defined()) {
-                auto *x_licm_data
-                        = x_owner->temp_data()
-                                  .get_or_null<licm_analysis_data_t>();
-                if (x_licm_data) {
-                    auto x_stmt = x_licm_data->parent_->node_ptr_from_this()
-                                          .remove_const();
-                    cur_property_var = x.dyn_as<var_c>();
-                    modified_vars.pop_back();
-                    if (x_stmt.defined()) { dispatch(x_stmt); }
-                } else {
-                    modified_vars.pop_back();
-                }
-            } else {
-                modified_vars.pop_back();
-            }
         }
     }
 
@@ -353,8 +338,9 @@ struct var_property_set_t : public ssa_viewer_t {
             if (v.ptr_same(cur_property_var)) { find_property_var = true; }
         }
     }
-    void process_vars_property(expr &var, expr &value, bool is_define,
-            licm_analysis_data_t *v_licm) {
+    void process_vars_property(
+            expr &var, expr &value, licm_analysis_data_t *v_licm) {
+        if (var.defined() && visited_set.count(var)) { return; }
         if (value.defined()) {
             find_property_var = false;
             dispatch(value);
@@ -364,19 +350,7 @@ struct var_property_set_t : public ssa_viewer_t {
                     auto property_var_prop
                             = property_var_owner->temp_data()
                                       .get_or_null<licm_analysis_data_t>();
-                    licm_analysis_data_t *cur_licm;
-                    if (is_define) {
-                        cur_licm = v_licm;
-                    } else {
-                        auto var_owner = get_owner<expr>(var);
-                        if (!var_owner.defined()) {
-                            find_property_var = false;
-                            return;
-                        }
-                        cur_licm = var_owner->temp_data()
-                                           .get_or_null<licm_analysis_data_t>();
-                    }
-
+                    licm_analysis_data_t *cur_licm = v_licm;
                     if (!visited_set.count(var) && cur_licm != nullptr) {
                         cur_licm->dep_vars_.insert(
                                 property_var_prop->dep_vars_.begin(),
@@ -391,19 +365,15 @@ struct var_property_set_t : public ssa_viewer_t {
         }
     }
 
-    void view(assign_c v) override {
-        process_vars_property(v.remove_const()->var_, v.remove_const()->value_,
-                false, v->temp_data().get_or_null<licm_analysis_data_t>());
-    }
-
     void view(define_c v) override {
         process_vars_property(v.remove_const()->var_, v.remove_const()->init_,
-                false, v->temp_data().get_or_null<licm_analysis_data_t>());
+                v->temp_data().get_or_null<licm_analysis_data_t>());
     }
 };
 
 static void set_loop_var_stmt_dep_var(std::vector<expr_c> &cur_loop_vars_,
-        std::vector<expr> &phi_values, stmt &owner) {
+        std::vector<expr> &phi_values, stmt &owner,
+        std::unordered_set<expr_c> &modified_vars) {
     for (int j = cur_loop_vars_.size() - 1; j >= 0; j--) {
         auto &x = cur_loop_vars_[j];
         var_exist_analysis_t loop_var_analysis;
@@ -427,12 +397,8 @@ static void set_loop_var_stmt_dep_var(std::vector<expr_c> &cur_loop_vars_,
                                           .get<licm_analysis_data_t>()
                                           .parent_->node_ptr_from_this()
                                           .remove_const();
-                        // propagation
                         if (parent_stmt.defined()) {
-                            var_property_set_t property_set;
-                            property_set.cur_property_var
-                                    = phi_values[i].dyn_as<var_c>();
-                            property_set.dispatch(parent_stmt);
+                            modified_vars.insert(phi_values[0]);
                         }
                     }
                 }
@@ -449,10 +415,15 @@ struct non_loop_phi_volatile_set_t : public ssa_viewer_t {
     std::vector<expr> phi_values;
     // used to avoid visit repeatly
     std::unordered_set<expr_c> visited_set;
+    // modified_vars
+    std::unordered_set<expr_c> &changed_vars;
 
     non_loop_phi_volatile_set_t(const std::vector<expr_c> &loop_vars_,
-            const std::vector<expr> &values_phi)
-        : cur_loop_vars_(loop_vars_), phi_values(values_phi) {}
+            const std::vector<expr> &values_phi,
+            std::unordered_set<expr_c> &modified_vars)
+        : cur_loop_vars_(loop_vars_)
+        , phi_values(values_phi)
+        , changed_vars(modified_vars) {}
 
     void view(var_c v) override {
         if (visited_set.count(v)) { return; }
@@ -462,7 +433,8 @@ struct non_loop_phi_volatile_set_t : public ssa_viewer_t {
                 [&v](expr_c &x) { return x.dyn_as<var_c>().ptr_same(v); });
         // non loop var need to find whether relate with loop var
         if (is_loopvar == cur_loop_vars_.end() && owner.defined()) {
-            set_loop_var_stmt_dep_var(cur_loop_vars_, phi_values, owner);
+            set_loop_var_stmt_dep_var(
+                    cur_loop_vars_, phi_values, owner, changed_vars);
             if (visited_set.count(v) == 0 && !v->ssa_data_->is_garbage()) {
                 visited_set.insert(v);
                 dispatch(owner);
@@ -481,6 +453,8 @@ struct non_loop_phi_volatile_set_t : public ssa_viewer_t {
 
 static void process_with_non_loop_phi(std::vector<expr> &phi_values,
         ssa_phi_c &phi, std::vector<expr_c> &cur_loop_vars_) {
+    std::unordered_set<expr_c> modified_vars_set;
+    std::vector<expr_c> modified_vars;
     for (size_t i = 1; i < phi_values.size(); i++) {
         auto owner = phi_values[i]->ssa_data_->get_owner();
         if (owner.defined()) {
@@ -508,19 +482,39 @@ static void process_with_non_loop_phi(std::vector<expr> &phi_values,
                                                .remove_const();
                     // propagation
                     if (parent_stmt.defined()) {
-                        var_property_set_t property_set;
-                        property_set.cur_property_var
-                                = phi_values[0].dyn_as<var_c>();
-                        property_set.dispatch(parent_stmt);
+                        modified_vars_set.insert(phi_values[0]);
                     }
                 }
             }
             // Find vars that may be affected by loop var
-            non_loop_phi_volatile_set_t vlt_set(cur_loop_vars_, phi_values);
+            non_loop_phi_volatile_set_t vlt_set(
+                    cur_loop_vars_, phi_values, modified_vars_set);
             vlt_set.dispatch(cur_owner_scope);
             // need to find more accurate owner that have loop var
-            set_loop_var_stmt_dep_var(
-                    cur_loop_vars_, phi_values, cur_owner_scope);
+            set_loop_var_stmt_dep_var(cur_loop_vars_, phi_values,
+                    cur_owner_scope, modified_vars_set);
+        }
+    }
+    // propagation
+    modified_vars.reserve(modified_vars_set.size());
+    for (auto &x : modified_vars_set) {
+        modified_vars.emplace_back(x);
+    }
+    while (!modified_vars.empty()) {
+        auto x = modified_vars.back();
+        modified_vars.pop_back();
+        auto cur_owner = x->ssa_data_->get_owner();
+        if (cur_owner.defined()) {
+            auto parent_stmt = cur_owner->temp_data()
+                                       .get<licm_analysis_data_t>()
+                                       .parent_->node_ptr_from_this()
+                                       .remove_const();
+            if (parent_stmt.defined()) {
+                var_property_set_t property_set(
+                        modified_vars_set, modified_vars);
+                property_set.cur_property_var = x.dyn_as<var_c>();
+                property_set.dispatch(parent_stmt);
+            }
         }
     }
 }
