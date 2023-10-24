@@ -1038,6 +1038,8 @@ public:
 
     void set_params_id(int id);
     conv_params_t params() const;
+    void set_bufs_hint(int bufs_hint);
+    int bufs_hint() const;
 
     void set_tiler(const std::shared_ptr<conv_tiler_t> &tiler);
     const conv_tiler_t &tiler() const;
@@ -1053,6 +1055,7 @@ private:
     std::shared_ptr<conv_plan_t> plan_;
     std::shared_ptr<conv_tiler_t> tiler_;
     int params_id_ = -1;
+    int bufs_hint_ = -1;
 
 #define INIT_PARAM(name) \
     name##_param_t name##_; \

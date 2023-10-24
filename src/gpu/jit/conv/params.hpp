@@ -342,8 +342,11 @@ conv_tile_t get_conv_shape(const conv_config_t &cfg, bool pad);
 
 class conv_params_t {
 public:
+    static const int bufs_hint_undef = -1;
+
     conv_params_t() = default;
-    conv_params_t(const blocking_t &blocking) : blocking_(blocking) {}
+    conv_params_t(const blocking_t &blocking, int bufs_hint = bufs_hint_undef)
+        : blocking_(blocking), bufs_hint_(bufs_hint) {}
     conv_params_t(const conv_config_t &cfg);
     int id() const { return id_; }
     const blocking_t &blocking() const { return blocking_; }
@@ -360,7 +363,7 @@ public:
 private:
     int id_ = -1;
     blocking_t blocking_;
-    int bufs_ = -1;
+    int bufs_hint_ = bufs_hint_undef;
 };
 
 } // namespace jit
