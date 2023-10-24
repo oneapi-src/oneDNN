@@ -126,17 +126,7 @@ bool is_reduction_dim(
 
 bool is_vectorized_dim(const conv_dim_t &d, const conv_problem_t &prb) {
     if (prb.is_dw) return d == conv_dims::g;
-    bool transpose = prb.ab_swap_transpose;
-    switch (prb.prop_kind()) {
-        case prop_kind::forward:
-            return (transpose ? d == conv_dims::mb : d == conv_dims::oc);
-        case prop_kind::backward_data:
-            return (transpose ? d == conv_dims::mb : d == conv_dims::ic);
-        case prop_kind::backward_weights:
-            return (transpose ? d == conv_dims::ic : d == conv_dims::oc);
-        default: ir_error_not_expected();
-    }
-    return false;
+    return to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose) == gemm_dims::n;
 }
 
 int tensor_conv_dim_index(const conv_dim_t &d, tensor_kind_t t) {
@@ -874,6 +864,7 @@ public:
 
     bool is_ok(const blocking_t &blk) const {
         context_t ctx(blk, cfg_);
+        if (!check_vec_ok(ctx)) return false;
         if (!check_tg_size_ok(ctx)) return false;
         if (!check_dpas_ok(ctx)) return false;
         if (!check_grf_usage_ok(ctx)) return false;
@@ -945,6 +936,7 @@ private:
     };
 
     enum class check_kind_t : int {
+        check_vec,
         check_tg_size,
         check_dpas,
         check_grf_usage,
@@ -977,6 +969,7 @@ private:
         set_check(optional_check_mask_, check_kind_t::limit_k_iter);
         set_check(optional_check_mask_,
                 check_kind_t::check_k_slicing_utilization);
+        set_check(check_kind_t::check_vec);
         set_check(check_kind_t::check_tg_size);
         set_check(check_kind_t::check_dpas);
         set_check(check_kind_t::check_grf_usage);
@@ -1007,6 +1000,16 @@ private:
 
     bool is_optional(check_kind_t check) const {
         return (optional_check_mask_ & (1ULL << (int)check)) != 0;
+    }
+
+    bool check_vec_ok(const context_t &ctx) const {
+        if (!is_enabled(check_kind_t::check_vec)) return true;
+
+        int vec_ndims = 0;
+        for (auto d : ctx.blk.iter()) {
+            if (is_vectorized_dim(d, cfg_.prb())) vec_ndims++;
+        }
+        return vec_ndims == 1;
     }
 
     bool check_tg_size_ok(const context_t &ctx) const {
