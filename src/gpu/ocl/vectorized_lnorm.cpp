@@ -43,7 +43,6 @@ bool is_fused_kernel_applicable(lnorm_conf_t &conf,
 
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     memory_desc_wrapper src_mdw(pd->src_md());
-    memory_desc_wrapper dst_mdw(pd->src_md());
     memory_desc_wrapper stat_mdw(pd->stat_md());
     auto eu_count = compute_engine->device_info()->eu_count();
     auto max_eus_per_wg = device_info_t::max_eus_per_wg(gpu_arch);
@@ -53,9 +52,11 @@ bool is_fused_kernel_applicable(lnorm_conf_t &conf,
     const size_t max_slm_size = device_info_t::max_slm_size(gpu_arch);
 
     // Plain layout only
-    if (!(src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
-                && stat_mdw.matches_one_of_tag(a, ab)))
-        return false;
+    const bool is_plain = src_mdw.matches_one_of_tag(ab, abc)
+            && stat_mdw.matches_one_of_tag(a, ab)
+            // kernel does not support M x 1 x N layout
+            && IMPLICATION(src_mdw.ndims() == 3, src_mdw.dims()[1] != 1);
+    if (!is_plain) return false;
 
     const int desired_sg_size = 16; // based on PVC performance data
     conf.sub_group_size = mayiuse_sg(desired_sg_size, engine)
