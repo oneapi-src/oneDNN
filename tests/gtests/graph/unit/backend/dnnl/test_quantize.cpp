@@ -620,7 +620,7 @@ TEST(Execute, QuantizeZeroVolume) {
     ASSERT_EQ(graph::logical_tensor_wrapper_t(lt).size(), 0U);
 
     test_tensor src_ts(src_lt, engine, src);
-    test_tensor dst_ts(dst_lt, engine, dst);
+    test_tensor dst_ts(lt, engine, dst);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
