@@ -180,7 +180,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     strategy.A.base = strategy.A_prefetch.base = getAddressBase(asA);
     strategy.B.base = strategy.B_prefetch.base = getAddressBase(asB);
     strategy.C.base = strategy.C_prefetch.base = getAddressBase(asC);
-    strategy.CO.base = (hw >= HW::XeHPC) ? AddressBase::createA64(true)
+    strategy.CO.base = (hw >= HW::XeHPG) ? AddressBase::createA64(true)
                                          : AddressBase::createBTS(0);
     strategy.A.newDP = bool(std::isupper(accessA));
     strategy.B.newDP = bool(std::isupper(accessB));
@@ -193,6 +193,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     strategy.unalignedAccB = getAccessType(accessBUnaligned);
     strategy.A.cachingW = CacheSettingsLSC::Default;
     strategy.B.cachingW = CacheSettingsLSC::Default;
+    strategy.CO.cachingR = CacheSettingsLSC::L1C_L3C;
     strategy.A_prefetch.prefetch = true;
     strategy.B_prefetch.prefetch = true;
     strategy.C_prefetch.prefetch = true;
@@ -240,9 +241,10 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.systolic = true;
         else if (mod == "dw")
             strategy.dpasw = true;
-        else if (mod == "fs")
+        else if (mod == "fs") {
             strategy.fixedSystolic = strategy.systolic = true;
-        else if (mod == "ar")
+            strategy.CO.base = AddressBase::createBTS(0);
+        } else if (mod == "ar")
             strategy.altCRemainder = true;
         else if (mod == "sr") {
             strategy.altCRemainder = false;
