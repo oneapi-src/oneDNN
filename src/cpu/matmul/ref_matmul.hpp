@@ -86,8 +86,20 @@ struct ref_matmul_t : public primitive_t {
                             /* is_int8 */ false)
                     && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_scales_ok() && set_default_formats()
+                    && zero_points_ok()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
+        }
+
+        bool zero_points_ok() const {
+            /* weights decompression requires zero points support */
+            int mask_wei = 0;
+            attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
+            const int ndims = src_md(0)->ndims;
+
+            return attr()->zero_points_.has_default_values(DNNL_ARG_SRC)
+                    && attr()->zero_points_.has_default_values(DNNL_ARG_DST)
+                    && (mask_wei == 0 || mask_wei == (1 << (ndims - 1)));
         }
     };
 
