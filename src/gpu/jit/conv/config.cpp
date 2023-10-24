@@ -1372,9 +1372,12 @@ void init_slm(conv_config_t &cfg) {
     bool enable_b = cfg.plan().slm.has_b();
     if (enable_a || enable_b) {
         auto &tg = cfg.thread_group_grid();
-        bufs = slm_bufs_hint(prb, tg.dim(1), tg.dim(0),
-                cfg.zp_cfg().do_src_compensation, enable_a, enable_b,
-                cfg.pipeline().do_unroll());
+        bufs = cfg.bufs_hint();
+        if (bufs == conv_params_t::bufs_hint_undef) {
+            bufs = slm_bufs_hint(prb, tg.dim(1), tg.dim(0),
+                    cfg.zp_cfg().do_src_compensation, enable_a, enable_b,
+                    cfg.pipeline().do_unroll());
+        }
         gmem_bufs = (cfg.is_dp_fma() && cfg.pipeline().do_unroll()) ? 2 : 1;
     }
     gmem_bufs = std::min(cfg.plan().max_gmem_bufs, gmem_bufs);
@@ -1389,7 +1392,11 @@ void init_prefetch(conv_config_t &cfg) {
 
     if (!enable_a && !enable_b) return;
 
-    int bufs = cfg.prb().is_f32_conv() ? 2 : 3;
+    int bufs = 0;
+    bufs = cfg.bufs_hint();
+    if (bufs == conv_params_t::bufs_hint_undef) {
+        bufs = cfg.prb().is_f32_conv() ? 2 : 3;
+    }
     cfg.prefetch().set(bufs, enable_a, enable_b);
 }
 
@@ -1677,6 +1684,14 @@ conv_params_t conv_config_t::params() const {
     auto ret = conv_params_t(*this);
     ret.set_id(params_id_);
     return ret;
+}
+
+void conv_config_t::set_bufs_hint(int bufs_hint) {
+    bufs_hint_ = bufs_hint;
+}
+
+int conv_config_t::bufs_hint() const {
+    return bufs_hint_;
 }
 
 void conv_config_t::set_tiler(const std::shared_ptr<conv_tiler_t> &tiler) {

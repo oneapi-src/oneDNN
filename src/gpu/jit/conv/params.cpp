@@ -274,9 +274,6 @@ conv_tile_t get_conv_shape(const conv_config_t &cfg, bool pad) {
 }
 
 conv_params_t::conv_params_t(const conv_config_t &cfg) {
-    bufs_ = 0;
-    if (cfg.slm()) bufs_ = cfg.slm().bufs();
-    if (cfg.prefetch()) bufs_ = cfg.prefetch().bufs();
     for (auto &d : get_conv_dims(cfg.prb().prop_kind())) {
         int loop = cfg.loop_dims()(d);
         int tg = cfg.thread_group_dims()(d);
@@ -299,16 +296,17 @@ void conv_params_t::apply_to(conv_config_t &cfg) const {
         cfg.thread_group_dims().set(blocking_.thread_group());
     if (!cfg.iter_dims().is_overridden()) cfg.iter_dims().set(blocking_.iter());
     cfg.set_params_id(id_);
+    cfg.set_bufs_hint(bufs_hint_);
 }
 
 void conv_params_t::serialize(std::ostream &out) const {
     blocking_.serialize(out);
-    ir_utils::serialize(bufs_, out);
+    ir_utils::serialize(bufs_hint_, out);
 }
 
 void conv_params_t::deserialize(std::istream &in) {
     blocking_.deserialize(in);
-    bufs_ = ir_utils::deserialize<int>(in);
+    bufs_hint_ = ir_utils::deserialize<int>(in);
 }
 
 std::string conv_params_t::str(bool csv) const {

@@ -56,6 +56,10 @@ std::string to_string(level_kind_t kind) {
     return oss.str();
 }
 
+int tune_level() {
+    return gpu_utils::dev_getenv("gpu_conv_tune", 0);
+}
+
 namespace {
 
 using level_t = tile_key_t<level_kind_t>;
@@ -1369,141 +1373,129 @@ conv_dim_t select_iter_dim(
     return *dims.begin();
 }
 
-std::vector<blocking_scheme_t> get_blocking_schemes_fwd_dw(
-        const conv_config_t &cfg) {
-    std::vector<blocking_scheme_t> ret;
+class blocking_scheme_list_t {
+public:
+    void add(bool filter, const blocking_scheme_t &scheme) {
+        if (tune_level() == 0) {
+            if (!filter) return;
+        }
+        schemes_.push_back(scheme);
+    }
+
+    const std::vector<blocking_scheme_t> &get() const { return schemes_; }
+
+private:
+    std::vector<blocking_scheme_t> schemes_;
+};
+
+blocking_scheme_list_t get_blocking_schemes_fwd_dw(const conv_config_t &cfg) {
+    blocking_scheme_list_t ret;
     auto m_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
-    if (m_iter_dim == conv_dims::mb) {
-        ret.push_back(conv_schemes::fwd_dw_T_w_I_ngk);
-    } else {
-        ret.push_back(conv_schemes::fwd_dw_T_w_I_wgk);
-    }
+    bool m_is_mb = (m_iter_dim == conv_dims::mb);
+    bool m_is_ow = (m_iter_dim == conv_dims::ow);
+    ret.add(m_is_mb, conv_schemes::fwd_dw_T_w_I_ngk);
+    ret.add(m_is_ow, conv_schemes::fwd_dw_T_w_I_wgk);
     return ret;
 }
 
-std::vector<blocking_scheme_t> get_blocking_schemes_bwd_d_dw(
-        const conv_config_t &cfg) {
-    std::vector<blocking_scheme_t> ret;
+blocking_scheme_list_t get_blocking_schemes_bwd_d_dw(const conv_config_t &cfg) {
+    blocking_scheme_list_t ret;
     auto m_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::iw});
-    if (m_iter_dim == conv_dims::mb) {
-        ret.push_back(conv_schemes::bwd_d_dw_T_w_I_ngk);
-    } else {
-        ret.push_back(conv_schemes::bwd_d_dw_T_w_I_wgk);
-    }
+    bool m_is_mb = (m_iter_dim == conv_dims::mb);
+    bool m_is_iw = (m_iter_dim == conv_dims::iw);
+    ret.add(m_is_mb, conv_schemes::bwd_d_dw_T_w_I_ngk);
+    ret.add(m_is_iw, conv_schemes::bwd_d_dw_T_w_I_wgk);
     return ret;
 }
 
-std::vector<blocking_scheme_t> get_blocking_schemes_bwd_w_dw(
-        const conv_config_t &cfg) {
-    std::vector<blocking_scheme_t> ret;
+blocking_scheme_list_t get_blocking_schemes_bwd_w_dw(const conv_config_t &cfg) {
+    blocking_scheme_list_t ret;
     auto k_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
-    if (k_iter_dim == conv_dims::mb) {
-        ret.push_back(conv_schemes::bwd_w_dw_I_gn);
-    } else {
-        ret.push_back(conv_schemes::bwd_w_dw_I_gw);
-    }
+    bool k_is_mb = (k_iter_dim == conv_dims::mb);
+    bool k_is_ow = (k_iter_dim == conv_dims::ow);
+    ret.add(k_is_mb, conv_schemes::bwd_w_dw_I_gn);
+    ret.add(k_is_ow, conv_schemes::bwd_w_dw_I_gw);
     return ret;
 }
 
-std::vector<blocking_scheme_t> get_blocking_schemes_fwd(
-        const conv_config_t &cfg) {
-    std::vector<blocking_scheme_t> ret;
+blocking_scheme_list_t get_blocking_schemes_fwd(const conv_config_t &cfg) {
+    blocking_scheme_list_t ret;
     auto m_iter_dim = cfg.prb().ab_swap_transpose
             ? conv_dims::oc
             : select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
-    if (m_iter_dim == conv_dims::mb) {
-        ret.push_back(conv_schemes::fwd_T_wo_I_noi);
-        ret.push_back(conv_schemes::fwd_T_no_I_noi);
-        if (cfg.hw() >= ngen::HW::XeLP)
-            ret.push_back(conv_schemes::fwd_T_i_I_noi);
-    } else if (m_iter_dim == conv_dims::oc) {
-        ret.push_back(conv_schemes::fwd_T_wn_I_wnoi);
-        if (cfg.hw() >= ngen::HW::XeLP) {
-            ret.push_back(conv_schemes::fwd_T_i_I_noi);
-            ret.push_back(conv_schemes::fwd_T_iw_I_wnoi);
-        }
-    } else {
-        ret.push_back(conv_schemes::fwd_T_wo_I_woi);
-        if (cfg.hw() >= ngen::HW::XeLP)
-            ret.push_back(conv_schemes::fwd_T_i_I_woi);
-    }
-    if (is_small_ic(cfg.prb()) && cfg.prb().kw > 1) {
-        if (m_iter_dim == conv_dims::mb) {
-            ret.push_back(conv_schemes::fwd_T_wo_I_noki);
-        } else if (m_iter_dim == conv_dims::oc) {
-            ret.push_back(conv_schemes::fwd_T_w_I_woki);
-            ret.push_back(conv_schemes::fwd_T_w_I_noki);
-        } else {
-            ret.push_back(conv_schemes::fwd_T_wo_I_woki);
-        }
-    }
+    bool m_is_mb = (m_iter_dim == conv_dims::mb);
+    bool m_is_ow = (m_iter_dim == conv_dims::ow);
+    bool m_is_oc = (m_iter_dim == conv_dims::oc);
+    bool ge_xelp = (cfg.hw() >= ngen::HW::XeLP);
+    bool small_ic = (is_small_ic(cfg.prb()) && cfg.prb().kw > 1);
+    ret.add(m_is_mb, conv_schemes::fwd_T_wo_I_noi);
+    ret.add(m_is_mb, conv_schemes::fwd_T_no_I_noi);
+    ret.add(m_is_mb && ge_xelp, conv_schemes::fwd_T_i_I_noi);
+    ret.add(m_is_oc, conv_schemes::fwd_T_wn_I_wnoi);
+    ret.add(m_is_oc && ge_xelp, conv_schemes::fwd_T_i_I_noi);
+    ret.add(m_is_oc && ge_xelp, conv_schemes::fwd_T_iw_I_wnoi);
+    ret.add(m_is_ow, conv_schemes::fwd_T_wo_I_woi);
+    ret.add(m_is_ow && ge_xelp, conv_schemes::fwd_T_i_I_woi);
+    ret.add(m_is_mb && small_ic, conv_schemes::fwd_T_wo_I_noki);
+    ret.add(m_is_oc && small_ic, conv_schemes::fwd_T_w_I_woki);
+    ret.add(m_is_oc && small_ic, conv_schemes::fwd_T_w_I_noki);
+    ret.add(m_is_ow && small_ic, conv_schemes::fwd_T_wo_I_woki);
     return ret;
 }
 
-std::vector<blocking_scheme_t> get_blocking_schemes_bwd_d(
-        const conv_config_t &cfg) {
-    std::vector<blocking_scheme_t> ret;
+blocking_scheme_list_t get_blocking_schemes_bwd_d(const conv_config_t &cfg) {
+    blocking_scheme_list_t ret;
     auto m_iter_dim = cfg.prb().ab_swap_transpose
             ? conv_dims::ic
             : select_iter_dim(cfg, {conv_dims::mb, conv_dims::iw});
-    if (m_iter_dim == conv_dims::mb) {
-        ret.push_back(conv_schemes::bwd_d_T_ni_I_nio);
-        ret.push_back(conv_schemes::bwd_d_T_wi_I_nio);
-        if (cfg.hw() >= ngen::HW::XeLP)
-            ret.push_back(conv_schemes::bwd_d_T_o_I_nio);
-    } else {
-        ret.push_back(conv_schemes::bwd_d_T_wi_I_wio);
-        if (cfg.hw() >= ngen::HW::XeLP)
-            ret.push_back(conv_schemes::bwd_d_T_o_I_wio);
-        if (m_iter_dim == conv_dims::ic)
-            ret.push_back(conv_schemes::bwd_d_T_w_I_on);
-    }
+    bool m_is_mb = (m_iter_dim == conv_dims::mb);
+    bool m_is_iw = (m_iter_dim == conv_dims::iw);
+    bool m_is_ic = (m_iter_dim == conv_dims::ic);
+    bool ge_xelp = (cfg.hw() >= ngen::HW::XeLP);
+    ret.add(m_is_mb, conv_schemes::bwd_d_T_ni_I_nio);
+    ret.add(m_is_mb, conv_schemes::bwd_d_T_wi_I_nio);
+    ret.add(m_is_mb && ge_xelp, conv_schemes::bwd_d_T_o_I_nio);
+    ret.add(m_is_iw, conv_schemes::bwd_d_T_wi_I_wio);
+    ret.add(m_is_iw && ge_xelp, conv_schemes::bwd_d_T_o_I_wio);
+    ret.add(m_is_ic, conv_schemes::bwd_d_T_w_I_on);
     return ret;
 }
 
-std::vector<blocking_scheme_t> get_blocking_schemes_bwd_w(
-        const conv_config_t &cfg) {
-    std::vector<blocking_scheme_t> ret;
+blocking_scheme_list_t get_blocking_schemes_bwd_w(const conv_config_t &cfg) {
+    blocking_scheme_list_t ret;
     auto k_iter_dim = select_iter_dim(cfg, {conv_dims::mb, conv_dims::ow});
-    if (k_iter_dim == conv_dims::mb) {
-        ret.push_back(conv_schemes::bwd_w_T_io_I_ion);
-    } else {
-        ret.push_back(conv_schemes::bwd_w_T_io_I_iow);
-    }
-    if (is_small_ic(cfg.prb())) {
-        if (k_iter_dim == conv_dims::mb) {
-            ret.push_back(conv_schemes::bwd_w_T_io_I_kon);
-            ret.push_back(conv_schemes::bwd_w_T_io_I_ikon);
-        } else {
-            ret.push_back(conv_schemes::bwd_w_T_io_I_ikow);
-        }
-    }
+    bool k_is_mb = (k_iter_dim == conv_dims::mb);
+    bool k_is_ow = (k_iter_dim == conv_dims::ow);
+    bool small_ic = is_small_ic(cfg.prb());
+    ret.add(k_is_mb, conv_schemes::bwd_w_T_io_I_ion);
+    ret.add(k_is_ow, conv_schemes::bwd_w_T_io_I_iow);
+    ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_kon);
+    ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_ikon);
+    ret.add(k_is_ow && small_ic, conv_schemes::bwd_w_T_io_I_ikow);
     return ret;
 }
 
-std::vector<blocking_scheme_t> get_blocking_schemes_dw_impl(
-        const conv_config_t &cfg) {
+blocking_scheme_list_t get_blocking_schemes_dw_impl(const conv_config_t &cfg) {
     auto &prb = cfg.prb();
     if (prb.is_fwd) return get_blocking_schemes_fwd_dw(cfg);
     if (prb.is_bwd_d) return get_blocking_schemes_bwd_d_dw(cfg);
     if (prb.is_bwd_w) return get_blocking_schemes_bwd_w_dw(cfg);
     ir_error_not_expected();
-    return std::vector<blocking_scheme_t>();
+    return blocking_scheme_list_t();
 }
 
-std::vector<blocking_scheme_t> get_blocking_schemes_impl(
-        const conv_config_t &cfg) {
+blocking_scheme_list_t get_blocking_schemes_impl(const conv_config_t &cfg) {
     auto &prb = cfg.prb();
     if (prb.is_dw) return get_blocking_schemes_dw_impl(cfg);
     if (prb.is_fwd) return get_blocking_schemes_fwd(cfg);
     if (prb.is_bwd_d) return get_blocking_schemes_bwd_d(cfg);
     if (prb.is_bwd_w) return get_blocking_schemes_bwd_w(cfg);
     ir_error_not_expected();
-    return std::vector<blocking_scheme_t>();
+    return blocking_scheme_list_t();
 }
 
 std::vector<blocking_scheme_t> get_blocking_schemes(const conv_config_t &cfg) {
-    auto ret = get_blocking_schemes_impl(cfg);
+    auto ret = get_blocking_schemes_impl(cfg).get();
     for (auto &s : ret)
         s.finalize(cfg);
     return ret;
@@ -1731,7 +1723,7 @@ public:
         }
     }
 
-    std::vector<blocking_t> blockings(const conv_config_t &cfg) const {
+    std::vector<blocking_t> blockings() const {
         return std::vector<blocking_t>(blockings_.begin(), blockings_.end());
     }
 
@@ -1869,8 +1861,13 @@ private:
         blocking_generator_t bg(tiler_params().tune_iters, padded_shape,
                 schemes, total_blockings);
         bg.generate(cfg);
-        auto blockings = bg.blockings(cfg);
-        return std::vector<conv_params_t>(blockings.begin(), blockings.end());
+        auto blockings = bg.blockings();
+        std::vector<conv_params_t> ret;
+        for (auto &b : bg.blockings()) {
+            ret.emplace_back(b);
+            if (tune_level() > 0) ret.emplace_back(b, 0);
+        }
+        return ret;
     }
 
     std::vector<conv_params_t> params_vec_;
