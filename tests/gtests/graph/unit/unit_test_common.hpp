@@ -84,7 +84,7 @@ private:
     struct deletor_wrapper {
         deletor_wrapper(dnnl::impl::graph::allocator_t *alc) : alc_(alc) {}
         void operator()(void *p) {
-            if (!p) {
+            if (p) {
 #ifdef DNNL_WITH_SYCL
                 alc_->deallocate(p, get_device(), get_context(), {});
 #else
