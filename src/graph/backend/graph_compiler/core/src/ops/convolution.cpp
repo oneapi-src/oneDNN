@@ -976,13 +976,18 @@ conv_fwd_core_op_t::get_dynamic_runtime_info() {
     sc_dims stride = attrs_.get<sc_dims>("strides");
     sc_dims stride_dims(ndims_ - 2, stride[0]);
     if (stride.size() > 1) { stride_dims = stride; }
+    auto dilations = get_dilations(attrs_);
+    sc_dims dilation_dims(ndims_ - 2, dilations[0]);
+    if (dilations.size() > 1) { dilation_dims = dilations; }
 
     auto dyn_info = ndims_ == 5
             ? dyn_conv_fwd_runtime_info_t(stride[0], stride[1], stride[2],
                     pads_begin[0], pads_begin[1], pads_begin[2], pads_end[0],
-                    pads_end[1], pads_end[2])
+                    pads_end[1], pads_end[2], dilation_dims[0],
+                    dilation_dims[1], dilation_dims[2])
             : dyn_conv_fwd_runtime_info_t(stride[0], stride[1], pads_begin[0],
-                    pads_begin[1], pads_end[0], pads_end[1]);
+                    pads_begin[1], pads_end[0], pads_end[1], dilation_dims[0],
+                    dilation_dims[1]);
     reflection::shared_general_object_t info
             = reflection::general_object_t::make(dyn_info);
     return info;

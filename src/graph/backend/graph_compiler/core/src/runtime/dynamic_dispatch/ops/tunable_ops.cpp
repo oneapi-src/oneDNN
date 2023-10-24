@@ -415,16 +415,18 @@ extern "C" void infer_shape_conv_fwd_op(void *out, void *data, void *weight,
             op_info.pads_begin_d, op_info.pads_begin_h, op_info.pads_begin_w};
     int pads_end[3]
             = {op_info.pads_end_d, op_info.pads_end_h, op_info.pads_end_w};
-
-    //  P = (H + padding_h * 2 - R) / stride_h + 1;
-    //  Q = (W + padding_w * 2 - S) / stride_w + 1;
+    int dilations[3]
+            = {op_info.dilation_d, op_info.dilation_h, op_info.dilation_w};
     int offset = data_ndims == 5 ? -2 : -1;
+    auto calc_out_shapes = [](int i, int k, int pb, int pe, int s, int d) {
+        auto r = (i + pb + pe - d * (k - 1) - 1) / s + 1;
+        return r;
+    };
     for (int i = 2; i < out_ndims; i++) {
         out_dyn_tsr->dims_[i]
-                = (data_dims[i] + pads_begin[i + offset] + pads_end[i + offset]
-                          - weight_dyn_tsr->dims_[i])
-                        / strides[i + offset]
-                + 1;
+                = calc_out_shapes(data_dims[i], weight_dyn_tsr->dims_[i],
+                        pads_begin[i + offset], pads_end[i + offset],
+                        strides[i + offset], dilations[i + offset]);
     }
     out_dyn_tsr->dims_[1] = OC;
 }

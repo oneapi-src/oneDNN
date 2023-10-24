@@ -36,10 +36,15 @@ struct dyn_conv_fwd_runtime_info_t {
     int pads_end_h = 0;
     int pads_end_w = 0;
 
+    int dilation_d = 1;
+    int dilation_h = 1;
+    int dilation_w = 1;
+
     dyn_conv_fwd_runtime_info_t() = default;
     dyn_conv_fwd_runtime_info_t(int stride_d, int stride_h, int stride_w,
             int pads_begin_d, int pads_begin_h, int pads_begin_w,
-            int pads_end_d, int pads_end_h, int pads_end_w)
+            int pads_end_d, int pads_end_h, int pads_end_w, int dilation_d,
+            int dilation_h, int dilation_w)
         : stride_d(stride_d)
         , stride_h(stride_h)
         , stride_w(stride_w)
@@ -48,16 +53,22 @@ struct dyn_conv_fwd_runtime_info_t {
         , pads_begin_w(pads_begin_w)
         , pads_end_d(pads_end_d)
         , pads_end_h(pads_end_h)
-        , pads_end_w(pads_end_w) {}
+        , pads_end_w(pads_end_w)
+        , dilation_d(dilation_d)
+        , dilation_h(dilation_h)
+        , dilation_w(dilation_w) {}
 
     dyn_conv_fwd_runtime_info_t(int stride_h, int stride_w, int pads_begin_h,
-            int pads_begin_w, int pads_end_h, int pads_end_w)
+            int pads_begin_w, int pads_end_h, int pads_end_w, int dilation_h,
+            int dilation_w)
         : stride_h(stride_h)
         , stride_w(stride_w)
         , pads_begin_h(pads_begin_h)
         , pads_begin_w(pads_begin_w)
         , pads_end_h(pads_end_h)
-        , pads_end_w(pads_end_w) {}
+        , pads_end_w(pads_end_w)
+        , dilation_h(dilation_h)
+        , dilation_w(dilation_w) {}
 };
 
 struct dyn_padding_runtime_info_t {

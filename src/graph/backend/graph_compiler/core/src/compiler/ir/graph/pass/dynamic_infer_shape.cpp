@@ -109,6 +109,8 @@ SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
                     auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
                     auto &stride = node->attrs_.get<sc_dims>("strides");
                     auto dilations = get_dilations(node->attrs_);
+                    sc_dims dilation_dims(data->ndims_ - 2, dilations[0]);
+                    if (dilations.size() > 1) { dilation_dims = dilations; }
                     auto &pads_begin = node->attrs_.has_key("pads_begin")
                             ? node->attrs_.get<sc_dims>("pads_begin")
                             : node->attrs_.get<sc_dims>("paddings");
@@ -118,11 +120,13 @@ SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
                     auto dyn_conv_info = data->ndims_ == 4
                             ? dyn_conv_fwd_runtime_info_t(stride[0], stride[1],
                                     pads_begin[0], pads_begin[1], pads_end[0],
-                                    pads_end[1])
+                                    pads_end[1], dilation_dims[0],
+                                    dilation_dims[1])
                             : dyn_conv_fwd_runtime_info_t(stride[0], stride[1],
                                     stride[2], pads_begin[0], pads_begin[1],
                                     pads_begin[2], pads_end[0], pads_end[1],
-                                    pads_end[2]);
+                                    pads_end[2], dilation_dims[0],
+                                    dilation_dims[1], dilation_dims[2]);
                     infer_shape_conv_fwd_op(out, data, weight, dyn_conv_info);
                     print_shapes(node->op_name_, out);
                 } else if (node->isa<unary_elementwise_op_t>()
