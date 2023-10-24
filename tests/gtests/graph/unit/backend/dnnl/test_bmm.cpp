@@ -811,7 +811,7 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
 
             p.compile(&cp, lt_ins, lt_outs, engine);
 
-            std::vector<float> div_src1_data(1);
+            std::vector<bfloat16_t> div_src1_data(1);
             test_tensor src_ts(src, engine, src_data);
             test_tensor weight_ts(weight, engine, weight_data);
             test_tensor div_src1_ts(div_src1, engine, div_src1_data);
@@ -977,7 +977,7 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
 
             p.compile(&cp, lt_ins, lt_outs, engine);
 
-            std::vector<float> div_src1_data(1);
+            std::vector<bfloat16_t> div_src1_data(1);
             test_tensor src_ts(src, engine, src_data);
             test_tensor weight_ts(weight, engine, weight_data);
             test_tensor div_src1_ts(div_src1, engine, div_src1_data);
