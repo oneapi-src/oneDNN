@@ -1091,7 +1091,7 @@ status_t brg_blocking_t::calc_blocks() {
     // results then we need the out buffer
     const auto maybe_use_buffer = (dst_dt != acc_dt || with_sum);
 
-    // kd/kh block should be either a multiple of kd/kh or kd/kh
+    // kd/kh block should be either kd/kh or a multiple of stride_d/stride_h
     std::vector<int> kd_blocks(1), kh_blocks(1);
     kd_blocks[0] = kd;
     kh_blocks[0] = kh;
