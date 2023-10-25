@@ -1018,19 +1018,7 @@ bool post_op_layouts_ok(const conv_problem_t &prb) {
 bwd_d_optimize_kind_t bwd_d_optimize_kind_hint(const conv_problem_t &prb) {
     bool with_dilation = prb.dh || prb.dw || prb.dd;
     if (!prb.is_bwd_d || with_dilation) return bwd_d_optimize_kind_t::none;
-    if (prb.is_stride1()) {
-        // Count how many out-of-bound iw updates are applied.
-        int oob_updates = 0;
-        int iw_oob_idx = prb.ow - prb.pw;
-        for (int iw = iw_oob_idx; iw < prb.iw; iw++) {
-            for (int kw = 0; kw < prb.kw; kw++) {
-                if (iw + prb.pw - kw * (1 + prb.dw) >= prb.ow) oob_updates++;
-            }
-        }
-        double eff = 1 - oob_updates / (prb.iw * (double)prb.kw);
-        if (eff < 0.85) return bwd_d_optimize_kind_t::skip_out_of_bound_w;
-        return bwd_d_optimize_kind_t::none;
-    }
+    if (prb.is_stride1()) return bwd_d_optimize_kind_t::none;
 
     auto hint = bwd_d_optimize_kind_t::skip_strided_dhw;
     if (prb.iw % prb.sw != 0 || prb.mb < 16)
