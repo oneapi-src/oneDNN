@@ -161,13 +161,6 @@ struct attr_t {
             return it == points.end() ? entry_t() : it->second;
         }
 
-        std::unordered_map<int, entry_t>::const_iterator begin() const {
-            return points.begin();
-        }
-        std::unordered_map<int, entry_t>::const_iterator end() const {
-            return points.end();
-        }
-
         zero_points_t() : points() {} // needed for debug icc190 build;
         std::unordered_map<int, entry_t> points;
     };
