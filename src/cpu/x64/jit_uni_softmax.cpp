@@ -113,6 +113,8 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
     bool with_postops_ = false;
     bool with_binary_ = false;
     bool with_eltwise_ = false;
+    bool with_src_scales_ = false;
+    bool with_dst_scales_ = false;
 
     size_t unroll_regs_ = 4;
 
@@ -559,7 +561,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                     if (is_logsoftmax_)
                         uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
 
-                    if (is_superset(isa, avx2)) {
+                    if (with_src_scales_) {
                         Vmm vscale = vmax;
                         uni_vmovups(vscale, ptr[reg_src_scales]);
                         uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
@@ -580,7 +582,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                         postops_injector_->compute_vector(
                                 vreg_tmp_src.getIdx(), rhs_arg_params);
                     }
-                    if (is_superset(isa, avx2)) {
+                    if (with_dst_scales_) {
                         Vmm vscale = vmax;
                         uni_vmovups(vscale, ptr[reg_dst_scales]);
                         uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
@@ -614,7 +616,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 if (is_logsoftmax_)
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
 
-                if (is_superset(isa, avx2)) {
+                if (with_src_scales_) {
                     Vmm vscale = vmax;
                     uni_vmovups(vscale, ptr[reg_src_scales]);
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
@@ -634,7 +636,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                     postops_injector_->compute_vector(
                             vreg_tmp_src.getIdx(), rhs_arg_params);
                 }
-                if (is_superset(isa, avx2)) {
+                if (with_dst_scales_) {
                     Vmm vscale = vmax;
                     uni_vmovups(vscale, ptr[reg_dst_scales]);
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
@@ -777,6 +779,12 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         with_binary_ = post_ops.find(primitive_kind::binary) != -1;
         with_eltwise_ = post_ops.find(primitive_kind::eltwise) != -1;
 
+        const auto &attr_scales = pd_->attr()->scales_;
+        with_src_scales_ = is_superset(isa, avx2)
+                && !attr_scales.get(DNNL_ARG_SRC).has_default_values();
+        with_dst_scales_ = is_superset(isa, avx2)
+                && !attr_scales.get(DNNL_ARG_DST).has_default_values();
+
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
                 tail_opmask_idx_, tail_vmask.getIdx(), reg_tmp);
@@ -847,6 +855,8 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
     bool with_postops_ = false;
     bool with_binary_ = false;
     bool with_eltwise_ = false;
+    bool with_src_scales_ = false;
+    bool with_dst_scales_ = false;
 
     size_t unroll_inner_size_ = 4;
     size_t unroll_axis_size_ = 8;
@@ -906,9 +916,11 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
         if (need_scratchpad_) {
             mov(reg_interim, ptr[reg_param + PARAM_OFF(interim)]);
         }
-        if (is_superset(isa, avx2)) {
+        if (with_src_scales_) {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(src_scales)]);
             uni_vmovups(vsrc_scale, ptr[reg_tmp]);
+        }
+        if (with_dst_scales_) {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(dst_scales)]);
             uni_vmovups(vdst_scale, ptr[reg_tmp]);
         }
@@ -1109,7 +1121,7 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
                 if (is_logsoftmax_)
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
 
-                if (is_superset(isa, avx2)) {
+                if (with_src_scales_) {
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsrc_scale);
                 }
                 if (with_postops_) {
@@ -1126,7 +1138,7 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
                     postops_injector_->compute_vector(
                             vreg_tmp_src.getIdx(), rhs_arg_params);
                 }
-                if (is_superset(isa, avx2)) {
+                if (with_dst_scales_) {
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vdst_scale);
                 }
                 store(dst_ptr(get_dst_stride(a, i)), vreg_tmp_src,
@@ -1318,6 +1330,12 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
         with_postops_ = post_ops.len() != 0;
         with_binary_ = post_ops.find(primitive_kind::binary) != -1;
         with_eltwise_ = post_ops.find(primitive_kind::eltwise) != -1;
+
+        const auto &attr_scales = pd_->attr()->scales_;
+        with_src_scales_ = is_superset(isa, avx2)
+                && !attr_scales.get(DNNL_ARG_SRC).has_default_values();
+        with_dst_scales_ = is_superset(isa, avx2)
+                && !attr_scales.get(DNNL_ARG_DST).has_default_values();
 
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
