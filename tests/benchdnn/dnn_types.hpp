@@ -162,7 +162,7 @@ struct attr_t {
         }
 
         zero_points_t() : points() {} // needed for debug icc190 build;
-        std::unordered_map<int, entry_t> points;
+        std::map<int, entry_t> points;
     };
 
     struct arg_scales_t {
