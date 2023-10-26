@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,8 +25,7 @@ public:
     dnnl_graph_tensor() = default;
 
     dnnl_graph_tensor(const dnnl::impl::graph::logical_tensor_t &lt,
-            const dnnl::impl::graph::engine_t *eng, void *handle)
-        : lt_(lt), eng_(eng), handle_(handle) {}
+            const dnnl::impl::graph::engine_t *eng, void *handle);
 
     bool is(dnnl::impl::graph::data_type_t dtype) const {
         return dtype == lt_.data_type;
@@ -36,17 +35,19 @@ public:
     typename std::add_pointer<Value>::type get_data_handle() const {
         return is(get_data_type<Value>())
                 ? reinterpret_cast<typename std::add_pointer<Value>::type>(
-                        handle_)
+                        handle_.get())
                 : nullptr;
     }
 
-    void *get_data_handle() const { return handle_; }
+    void *get_data_handle() const { return handle_.get(); }
 
     void *get_data_handle_if_is(dnnl::impl::graph::data_type_t type) const {
-        return is(type) ? handle_ : nullptr;
+        return is(type) ? handle_.get() : nullptr;
     }
 
-    void set_data_handle(void *handle) { handle_ = handle; }
+    void set_data_handle(void *handle) {
+        handle_.reset(handle, dummy_destructor);
+    }
 
     const dnnl::impl::graph::logical_tensor_t &get_logical_tensor() const {
         return lt_;
@@ -57,6 +58,10 @@ public:
     const dnnl::impl::graph::engine_t *get_engine() const { return eng_; }
 
 private:
+    static dnnl::impl::graph::status_t dummy_destructor(void *) {
+        return dnnl::impl::graph::status::success;
+    }
+
     template <typename T>
     dnnl::impl::graph::data_type_t get_data_type() const {
         if (std::is_same<T, float>::value)
@@ -72,7 +77,8 @@ private:
     dnnl::impl::graph::logical_tensor_t lt_
             = dnnl::impl::graph::zero_logical_tensor();
     const dnnl::impl::graph::engine_t *eng_ {nullptr};
-    void *handle_ {nullptr};
+
+    std::shared_ptr<void> handle_ {nullptr};
 };
 
 #endif

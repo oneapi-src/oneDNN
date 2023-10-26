@@ -178,6 +178,12 @@ dnnl_status_t DNNL_API dnnl_graph_logical_tensor_is_equal(
 /// @param logical_tensor Description for this tensor.
 /// @param engine Engine to use.
 /// @param handle Handle of the memory buffer to use as an underlying storage.
+///     - A pointer to the user-allocated buffer. In this case the library
+///       doesn't own the buffer.
+///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+///       allocate the buffer for the tensor. In this case the library
+///       owns the buffer.
+///     - DNNL_MEMORY_NONE to create tensor without an underlying buffer.
 /// @returns #dnnl_success on success or a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_graph_tensor_create(dnnl_graph_tensor_t *tensor,

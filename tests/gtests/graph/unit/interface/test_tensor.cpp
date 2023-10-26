@@ -61,6 +61,10 @@ TEST(Tensor, DnnlGraphTensorCreate) {
 
     ASSERT_EQ_SAFE(dnnl_graph_tensor_create(&tensor, nullptr, &engine, handle),
             graph::status::invalid_arguments, DESTROY_TENSOR(tensor));
+
+    ASSERT_EQ_SAFE(dnnl_graph_tensor_create(
+                           &tensor, &lt, &engine, DNNL_MEMORY_ALLOCATE),
+            graph::status::success, DESTROY_TENSOR(tensor));
 }
 
 TEST(Tensor, DnnlGraphTensorSetDataHandle) {

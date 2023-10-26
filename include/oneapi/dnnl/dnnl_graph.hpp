@@ -563,6 +563,12 @@ public:
     /// @param lt The given logical tensor
     /// @param aengine Engine to store the data on.
     /// @param handle Handle of memory buffer to use as an underlying storage.
+    ///     - A pointer to the user-allocated buffer. In this case the library
+    ///       doesn't own the buffer.
+    ///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+    ///       allocate the buffer for the tensor. In this case the library
+    ///       owns the buffer.
+    ///     - DNNL_MEMORY_NONE to create tensor without an underlying buffer.
     tensor(const logical_tensor &lt, const engine &aengine, void *handle) {
         dnnl_graph_tensor_t t = nullptr;
         error::wrap_c_api(

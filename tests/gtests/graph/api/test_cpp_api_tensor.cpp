@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "oneapi/dnnl/dnnl_common_types.h"
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_types.h"
 
@@ -85,6 +86,12 @@ TEST(APITensor, CreateWithShape) {
     tensor t_5 {lt_0, eng, nullptr};
     t_5.set_data_handle(handle5);
     ASSERT_EQ(t_5.get_data_handle(), handle5);
+
+    // without handle
+    logical_tensor lt_6 {id, data_type::f32, logical_tensor::dims {3, 4, 5, 6},
+            layout_type::strided};
+    tensor t_6(lt_6, eng, DNNL_MEMORY_ALLOCATE);
+    EXPECT_TRUE(t_6.get_data_handle() != nullptr);
 }
 
 TEST(APITensor, ShallowCopy) {

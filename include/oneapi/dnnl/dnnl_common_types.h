@@ -205,6 +205,19 @@ typedef struct {
 
 /// @} dnnl_api_service
 
+/// @addtogroup dnnl_api_memory
+/// @{
+
+/// Special pointer value that indicates that a memory object should not have
+/// an underlying buffer.
+#define DNNL_MEMORY_NONE (NULL)
+
+/// Special pointer value that indicates that the library needs to allocate an
+/// underlying buffer for a memory object.
+#define DNNL_MEMORY_ALLOCATE ((void *)(size_t)-1)
+
+/// @} dnnl_api_memory
+
 /// @} dnnl_api_common
 
 /// @} dnnl_api
