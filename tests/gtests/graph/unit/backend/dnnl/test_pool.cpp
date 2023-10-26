@@ -1317,6 +1317,38 @@ TEST(ExecuteSubgraphInt8, MaxpoolAsymmetric) {
                 /*atol*/ 1.f));
 }
 
+TEST(Partition, InvalidInputNumForAvgPoolBackward) {
+    using dims = dnnl::impl::graph::dnnl_impl::dims;
+    graph::engine_t *eng = get_engine();
+
+    graph::op_t avg_pool_bwd_op(graph::op_kind::AvgPoolBackward);
+    avg_pool_bwd_op.set_attr<dims>(graph::op_attr::strides, {2, 2});
+    avg_pool_bwd_op.set_attr<dims>(graph::op_attr::kernel, {2, 2});
+    avg_pool_bwd_op.set_attr<dims>(graph::op_attr::pads_begin, {1, 1});
+    avg_pool_bwd_op.set_attr<dims>(graph::op_attr::pads_end, {1, 1});
+    avg_pool_bwd_op.set_attr<bool>(graph::op_attr::exclude_pad, false);
+    avg_pool_bwd_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+
+    // prepare logical tensor
+    graph::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+            0, {1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t src_lt
+            = utils::logical_tensor_init(1, {1, 4}, graph::data_type::s32);
+    graph::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            2, {1, 1, 4, 4}, graph::data_type::f32, graph::layout_type::any);
+
+    avg_pool_bwd_op.add_input(diff_dst_lt);
+    avg_pool_bwd_op.add_input(src_lt);
+    avg_pool_bwd_op.add_output(diff_src_lt);
+
+    graph::graph_t g(eng->kind());
+    ASSERT_EQ(g.add_op(&avg_pool_bwd_op), graph::status::success);
+    g.finalize();
+    graph::pass::pass_base_ptr apass = get_pass("avg_pool_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 0U);
+}
+
 struct pool_binary_params_t {
     graph::op_kind_t pool_kind;
     graph::op_kind_t binary_kind;
