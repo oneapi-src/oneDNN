@@ -134,17 +134,14 @@ struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
         size_t offset = padded_dims[0] * padded_dims[1];
 
         int total_blocks = offset / 4096;
-        int16_t *comp_tile_len_ptr = reinterpret_cast<int16_t *>(output);
+        using comp_tile_len_type = int;
+        comp_tile_len_type *comp_tile_len_ptr = reinterpret_cast<comp_tile_len_type *>(output);
         int comp_tile_len_index = 0;
         int cl_length = 0;
-        // TODO: why 2 / 64?
         // Wasting memory space due to allocation a buffer for the whole tensor?
-        int output_offset = ceil((float)total_blocks * 2 / 64.0);
-
-        size_t offset_2 = static_cast<size_t>(ceil((float)total_blocks * 2 / 64.0)) * 64;
-        uint64_t *bitmask_ptr = reinterpret_cast<uint64_t *>(output + offset + offset_2);
-
-        auto outp = &output[output_d.blk_off(0, 0, 0, 0) + output_offset * 64];
+        int output_offset = ceil((float)total_blocks * sizeof(comp_tile_len_type) / 64.0) * 64;
+        uint64_t *bitmask_ptr = reinterpret_cast<uint64_t *>(output + output_offset + offset);
+        auto outp = &output[output_d.blk_off(0, 0, 0, 0) + output_offset];
 
         // TODO: add threading.
         for (int O = 0; O < NB_OC; O++) {
@@ -184,7 +181,7 @@ struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
                         if (count % 64 == 0) { bitmask_idx++; }
                     }
                 }
-                int16_t cl = (int16_t)ceil(non_zeros / 64.0);
+                comp_tile_len_type cl = (comp_tile_len_type)ceil(non_zeros / 64.0);
                 comp_tile_len_index++;
                 cl_length = comp_tile_len_ptr[comp_tile_len_index - 1] + cl;
                 int unsed_bytes_in_cl = 64 - (non_zeros % 64);

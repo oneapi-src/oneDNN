@@ -254,8 +254,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                 const dim_t wei_offset = wei_cur_ocb
                         + wei_ic_stride * (icb + b * ic_blocks_per_batch);
                 if (jbgp.weights_compressed) {
-                    const int16_t *compressed_tile_lengths_ptr
-                            = reinterpret_cast<const int16_t *>(weights);
+                    using comp_tile_len_type = int;
+                    const comp_tile_len_type *compressed_tile_lengths_ptr
+                            = reinterpret_cast<const comp_tile_len_type *>(weights);
                     int compressed_weights_offset = wei_offset / 4096;
 
                     auto dcomp_params = brgemm_decomp_kernel_params_t();

@@ -1364,8 +1364,9 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
         if (jbgp.weights_compressed) {
             jbgp.weights_compressed = true;
             int total_blocks = (jbgp.oc * jbgp.ic) / 4096;
+            using comp_tile_len_type = int;
             jbgp.weights_starting_offset
-                    = ceil((float)total_blocks * 2 / 64.0) * 64;
+                    = ceil((float)total_blocks * sizeof(comp_tile_len_type) / 64.0) * 64;
             jbgp.weight_comp_bitmask_off = jbgp.weights_starting_offset + jbgp.ic * jbgp.oc;
         }
     } else if (is_bf16) {

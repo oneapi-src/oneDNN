@@ -236,7 +236,9 @@ struct memory_desc_wrapper : public c_compatible {
                 // assert(matches_tag(format_tag::OI16i64o4i)); - TODO: enable for sparse packed.
                 const size_t metadata = padded_dims()[0] * padded_dims()[1] / 64
                         * sizeof(uint64_t);
-                size_t comp_tile_data_size = ceil(static_cast<float>(padded_dims()[0] * padded_dims()[1]) / (64 * 64 * 32)) * 64;
+                using comp_tile_len_type = int;
+                size_t comp_tile_data_size = ceil(static_cast<float>(padded_dims()[0] * padded_dims()[1])
+                        / (64 * 64 * (64 / sizeof(comp_tile_len_type)))) * 64;
                 return comp_tile_data_size + (padded_dims()[0] * padded_dims()[1] * data_type_size())
                         + metadata + 1000;
                         // todo: [av] why 1000?
