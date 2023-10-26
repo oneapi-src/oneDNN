@@ -2005,7 +2005,8 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
     const bool is_f32 = wjcp.wei_dt == data_type::f32;
 
     // required for use of VPERMB instruction
-    assert(IMPLICATION(!is_xf16, cpu().has(Xbyak::util::Cpu::tAVX512_VBMI)));
+    assert(IMPLICATION(
+            !(is_xf16 || is_f32), cpu().has(Xbyak::util::Cpu::tAVX512_VBMI)));
     assert(wjcp.inp_oc_block == 16);
 
     preamble();
