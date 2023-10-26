@@ -174,7 +174,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             brgattr.hint_expected_B_size = vN * vK * bs;
             brgattr.hint_expected_C_size = vM * vN * bs;
             brgattr.hint_innermost_loop = brgemm_innermost_undef;
-            brgattr.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
+            brgattr.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf0;
         }
 
         CHECK(brgemm_desc_set_attr(&brg, brgattr));

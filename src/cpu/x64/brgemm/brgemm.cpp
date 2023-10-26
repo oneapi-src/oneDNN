@@ -451,6 +451,9 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
     if (brgattr.hint_innermost_loop != brgemm_innermost_undef)
         brg->innermost_loop = brgattr.hint_innermost_loop;
 
+    if (brgattr.hint_prefetching == brgemm_kernel_prefetching_t::brgemm_prf0
+            && brg->prfC.dist0 < 0)
+        brg->prfC.dist0 = 0;
     if (brgattr.hint_prefetching == brgemm_kernel_prefetching_t::brgemm_prf1
             && brg->prfC.dist1 < 0)
         brg->prfC.dist1 = 0;

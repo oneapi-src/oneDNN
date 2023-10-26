@@ -1417,7 +1417,7 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
     jbgp.use_uker = true;
     jbgp.use_interleave_stores = jbgp.use_uker;
     if (jbgp.use_uker)
-        jbgp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
+        jbgp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf0;
     CHECK(set_or_check_tags());
     CHECK(attr.set_default_formats(&dst_md));
 

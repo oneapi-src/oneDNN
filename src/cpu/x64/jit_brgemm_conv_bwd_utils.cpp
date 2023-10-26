@@ -1892,7 +1892,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (is_amx(isa) && (/* heuristic */ jcp.kw_sets == 1 && jcp.iw < 256)) {
         jcp.use_M_mask = 0;
 
-        jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
+        jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf0;
 
         // assuming 2x2 decomposition in amx brgemm kernel
         // and overlap of input by kw
