@@ -725,7 +725,8 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
         0, oh_expr_, 0, ow_, config.K_block, oc_, blocking_output_, is_3d_);
     }
     create_anchor(fusion, output, n, 1, 0, groups_ * K_num_block, 0, od_, 0,
-      oh_expr_, 0, ow_, config.K_block, oc_, blocking_output_, is_3d_);
+      oh_expr_, 0, ow_, config.K_block, groups_ * oc_, blocking_output_,
+      is_3d_);
   }
 }
 
@@ -2651,7 +2652,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
       } else if (groups_ > 1 && oc_split == 1) {
         create_anchor(fusion, output, n, 1, groups_ * K_num_block, K_num_block,
           0, od_, 0, oh_, 0, ow_, config.K_block,
-          K_num_block / oc_split * config.K_block, blocking_output_, is_3d_);
+          groups_ * K_num_block / oc_split * config.K_block, blocking_output_,
+          is_3d_);
       } else { /*noops as discontiguous slice for groups >1 && outer_k > 1*/
       }
     }
