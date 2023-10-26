@@ -38,7 +38,9 @@ std::vector<int> may_broadcast_t::get_auto_broadcast_bc_axis(
     for (size_t i = 0; i < input_rank; ++i) {
         // TODO(yifei): consider whether input_shape[i] != 1 is
         // necessary here
-        if (input_shape[i] == output_shape[i + offset]) {
+        if (input_shape[i] == output_shape[i + offset]
+                || (is_dynamic_dim(input_shape[i])
+                        && is_dynamic_dim(output_shape[i + offset]))) {
             bc_axis.emplace_back(i + offset);
         }
     }
