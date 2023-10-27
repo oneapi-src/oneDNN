@@ -10053,9 +10053,14 @@ bool gemm_kernel_generator_t<hw>::gemmFinalizeSums(const GEMMProblem &problem,
         ABs_strategySLM[isB] = ABs_strategySLMAtomic[isB];
         ABs_strategySLM[isB].atomic = false;
 
+        int maxRBlock = 0;
+        if (hw == HW::Gen12LP && !isB && !A_coopSplitM)
+            maxRBlock
+                    = 8; /* Workaround for Gen12LP HW bug with SIMD16 untyped SLM reads */
+
         ok = ok
                 && getRegLayout(Tc, ABs_layoutSLM[isB], r, c, false, false,
-                        true, AvoidFragment, 0, 0, ABs_SLM[isB],
+                        true, AvoidFragment, maxRBlock, 0, ABs_SLM[isB],
                         ABs_strategySLMAtomic[isB])
                 && matchLayouts(Tc, ABs_layoutSLM[isB], *ABs_layout[isB]);
 
