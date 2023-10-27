@@ -197,7 +197,6 @@ static void check_managed_matmul(const managed_gemm_params_t &param,
             = input_dtype == datatypes::bf16 && weight_dtype == datatypes::bf16;
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = 1;
 
     M = real_input_dims[input_dims.size() - 2];
     N = real_weight_dims[weight_dims.size() - 1];

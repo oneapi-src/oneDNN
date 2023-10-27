@@ -60,7 +60,7 @@ public:
     shape_rl_vec get_dynamic_shape_relations() const override;
 
     void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
 
 private:
     vectorized_info_t vx_info_;

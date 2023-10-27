@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <compiler/ir/graph/fusion_data.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/trait/may_broadcast.hpp>
 #include <compiler/ir/graph/trait/may_inplace.hpp>
@@ -31,16 +32,16 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-struct infer_status_map_t;
 struct tensor_slice;
 
 /**
  * A fuser will do actual code injection on the fusion point. It will be managed
  * by the fusion manager.
  * */
-class fusible_op_t : public sc_op,
-                     public op_traits::workload_computable_t,
-                     public op_traits::mixed_partition_acceptable {
+class SC_INTERNAL_API fusible_op_t
+    : public sc_op,
+      public op_traits::workload_computable_t,
+      public op_traits::mixed_partition_acceptable {
 public:
     // when fusible_op_t is as a started op in the graph/subgraph, query_format
     // return certain format.
@@ -50,10 +51,6 @@ public:
             override;
     ir_module_ptr get_func(context_ptr ctx) override;
 
-    // prepares the Op's anchor-irrelevant internal states for generating IR for
-    // the input shapes. Also propagates the tensor slice shapes from input to
-    // output in the fusion data
-    virtual void prepare_fusion_data(fdata_map &fdmap) = 0;
     /**
      * 'infer_slice_ranges' is used to infer slice ranges for all fusible op in
      * fusion manger, espically helpful for input arg op, because it could not
@@ -62,24 +59,25 @@ public:
      * slice range may be changed, e.g. reduce_op_t or movement type ops. we
      * need to address for this speciall condition. Actually,
      * 'infer_slice_ranges' can be viewed as `post_slice_ranges` and very simple
-     * `pre_slice_ranges` with only one previous op inferred.
+     * `pre_infer_slice_ranges` with only one previous op inferred.
      * */
-    virtual void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map)
+    virtual infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap)
             = 0;
 
-    void search_anchor(mixed_parti_t *parti) override;
-
     /**
-     * 'pre_slice_ranges' is used to infer slice ranges especially
+     * 'pre_infer_slice_ranges' is used to infer slice ranges especially
      * for pre-op fusion. As mentioned above `infer_slice_ranges` can infer
      * slice for input arg op, however, if sometimes the input of one fusible op
      * is a sub fusion graph, it is expected to infer input slice by given
      * output slice.
      * */
-    virtual void pre_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map)
+    virtual infer_status_code pre_infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap)
             = 0;
+
+    void search_anchor(mixed_parti_t *parti) override;
+
     /**
      * Does the actual code injection to the current func on an input
      * and output tensor slices.
@@ -106,11 +104,11 @@ public:
 
     void append_mixed_partition(mixed_parti_t *parti) override;
 
-    void commit_into_anchor(fuse_anchor_map_t *committed_anchor) override;
+    void commit_into_anchor(fusion_anchor_t *committed_anchor) override;
 
     void infer_binding_axis(bound_axis_map &bdax_map) override {}
 
-    void pre_binding_axis(bound_axis_map &bdax_map) override {}
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override {}
 
     ~fusible_op_t() override = default;
 
@@ -125,21 +123,23 @@ using fusion_op_ptr = std::shared_ptr<fusible_op_t>;
             const std::vector<const tensor_slice *> &inputs) override;
 
 #define DECLARE_QUERY_AND_COMPUTE() \
-    virtual void prepare_fusion_data(fdata_map &fdmap) override; \
-    virtual void infer_slice_ranges( \
-            fslice_map &fsmap, infer_status_map_t &stat_map) override; \
-    virtual void pre_slice_ranges( \
-            fslice_map &fsmap, infer_status_map_t &stat_map) override; \
+    virtual infer_status_code infer_slice_ranges( \
+            const context_ptr &ctx, fslice_map &fsmap) override; \
+    virtual infer_status_code pre_infer_slice_ranges( \
+            const context_ptr &ctx, fslice_map &fsmap) override; \
     virtual void compute_block(context_ptr ctx, \
             const std::vector<tensor_slice *> &dst, \
             const std::vector<const tensor_slice *> &inputs) override;
 
 #define DECLARE_QUERY_AND_DEFAULT_COMPUTE() \
-    virtual void prepare_fusion_data(fdata_map &fdmap) override; \
-    virtual void infer_slice_ranges( \
-            fslice_map &fsmap, infer_status_map_t &stat_map) override {} \
-    virtual void pre_slice_ranges( \
-            fslice_map &fsmap, infer_status_map_t &stat_map) override {} \
+    virtual infer_status_code infer_slice_ranges( \
+            const context_ptr &ctx, fslice_map &fsmap) override { \
+        return infer_status_code::OK; \
+    } \
+    virtual infer_status_code pre_infer_slice_ranges( \
+            const context_ptr &ctx, fslice_map &fsmap) override { \
+        return infer_status_code::OK; \
+    } \
     virtual void compute_block(context_ptr ctx, \
             const std::vector<tensor_slice *> &dst, \
             const std::vector<const tensor_slice *> &inputs) override {}
@@ -167,9 +167,6 @@ public:
     input_op(const std::vector<graph_tensor_ptr> &outs);
 
     void initialize_dynamic_placeholder();
-    const bool is_arg_input() {
-        return attrs_.get_or_else("temp.arg_input", false);
-    }
 };
 
 /**
@@ -259,7 +256,6 @@ struct vectorized_info_t {
 class binary_elementwise_op_t : public fusible_op_t,
                                 public op_traits::may_inplace_t,
                                 public op_traits::may_broadcast_t,
-                                public op_traits::batchwise_shrinkable_t,
                                 public op_traits::brgemm_fusion_acceptable_t,
                                 public op_traits::auto_copyable_with_trait_t<
                                         op_traits::brgemm_fusion_acceptable_t> {
@@ -278,7 +274,6 @@ inline bool is_broadcast_op(const sc_op *op) {
 class unary_elementwise_op_t : public fusible_op_t,
                                public op_traits::may_inplace_t,
                                public op_traits::brgemm_fusion_acceptable_t,
-                               public op_traits::batchwise_shrinkable_t,
                                public op_traits::auto_copyable_with_trait_t<
                                        op_traits::brgemm_fusion_acceptable_t> {
 };

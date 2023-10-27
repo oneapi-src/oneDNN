@@ -67,12 +67,11 @@ bool gt_map_t<valT>::haskey(const graph_tensor_ptr &v) const {
     return haskey(v.get());
 }
 
-template struct gt_map_t<fusion_data_t>;
 template struct gt_map_t<slice_range_list>;
 template struct gt_map_t<graph_tensor_ptr>;
 template struct gt_map_t<std::vector<int>>;
 template struct gt_map_t<expr>;
-template struct gt_map_t<fuse_anchor_map_t *>;
+template struct gt_map_t<fusion_anchor_t *>;
 template struct gt_map_t<bound_axis>;
 
 sc_op_ptr op_traits::auto_copyable_t::copy(

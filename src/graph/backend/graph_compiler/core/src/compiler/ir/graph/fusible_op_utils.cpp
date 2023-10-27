@@ -22,9 +22,8 @@
 #include <limits>
 #include <memory>
 #include <utility>
+#include "anchor_loop_generator.hpp"
 #include "fusible_op.hpp"
-#include "fusion_mgr.hpp"
-#include "outer_loop_generator.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/mixed_partition.hpp>
@@ -84,33 +83,6 @@ static std::vector<tensor_slice> make_tensor_slice(sc_graph_t &graph,
     return expected;
 }
 
-ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
-        const context_ptr &ctx, bool check_parallel) {
-    fusion_manager fmgr;
-    fmgr.get_graph().sync_dynamic_info_with_graph(op->get_owner_graph());
-    std::vector<graph_tensor_ptr> ins;
-    std::vector<graph_tensor_ptr> outs;
-    for (auto &in : op->get_inputs()) {
-        ins.emplace_back(fmgr.make<input_op>(in->details_)->get_outputs()[0]);
-    }
-    for (auto &out : op->get_outputs()) {
-        outs.emplace_back(
-                std::make_shared<graph_tensor>(nullptr, out->details_));
-    }
-    auto copyable = op->dyn_cast<op_traits::copyable_t>();
-    COMPILE_ASSERT(
-            copyable, "The fusible op should be copyable: " << op->op_name_);
-    auto copied = copyable->copy(ins, outs, fmgr.get_graph());
-    copied->info_.cur_impl_ = op->info_.cur_impl_;
-    COMPILE_ASSERT(copied->get_outputs().size() == 1,
-            "Currently only support 1 output only");
-    fmgr.make<output_op>(copied->get_outputs()[0]);
-    auto base_idx = gen.get_base_tsr_idx();
-    fmgr.put_input_first(
-            fmgr.get_graph().get_input_ops()[base_idx]->dyn_cast<input_op>());
-    return lower_fusion_manager(ctx, &gen, op, &fmgr, check_parallel);
-}
-
 ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
     sc_graph_t g;
     g.sync_dynamic_info_with_graph(op->get_owner_graph());
@@ -139,9 +111,11 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
             "Currently only support 1 output only");
     g.make_output(outs);
     g.attrs_.set(mixed_partition_hint::single_op_graph, true);
+    g.attrs_.set(mixed_partition_hint::optimized_sub_graph,
+            is_optimized_sub_graph(op->get_owner_graph()));
     // create dummy parti
-    auto parti = std::make_shared<mixed_parti_t>(ctx,
-            std::const_pointer_cast<sc_op>(op->shared_from_this()), nullptr);
+    auto parti = std::make_shared<mixed_parti_t>(
+            ctx, std::const_pointer_cast<sc_op>(op->shared_from_this()));
     // create graph-to-original ops maping
     std::unordered_map<sc_op_ptr, sc_op_ptr> graph2orig_ops
             = {{copied, op->shared_from_this()}};
@@ -169,11 +143,19 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
         }
     } else {
         parti = std::make_shared<mixed_parti_t>(ctx,
-                std::const_pointer_cast<sc_op>(copied->shared_from_this()),
-                std::make_shared<op_dep_matrix_t>(g));
+                std::const_pointer_cast<sc_op>(copied->shared_from_this()));
     }
     auto mx_op = parti->transform_to_mixed_op();
     mx_op->set_owner_graph(&g);
+    // copy op name
+    mx_op->op_name_ = op->op_name_;
+    // if layer name set
+    if (auto layer_name
+            = op->attrs_.get_or_null<std::string>(op_attr_key::layer_name)) {
+        COMPILE_ASSERT(!layer_name->empty() && isalpha(layer_name->front()),
+                "Bad layername: " << *layer_name);
+        mx_op->op_name_ = *layer_name;
+    }
     // copy logigcal id
     mx_op->logical_op_id_ = op->logical_op_id_;
     return mx_op->get_func(ctx);
@@ -387,62 +369,6 @@ void compute_mask_and_generate_condition(sc_graph_t &graph,
     }
 }
 
-void create_fusible_output_anchor(std::vector<stmt> &parent,
-        const tensor_slice &dst, const std::vector<expr> &loop_vars,
-        const std::vector<int> &anchor_pos_in_loop,
-        const vectorized_info_t &vx_info, any_map_t &attrs) {
-    if (attrs.has_key(op_attr_key::inner_anchor)) {
-        // insert inner anchor (cache-level)
-        auto tsr = dst.get_real_tensor();
-        auto range = dst.get_ranges();
-        if (range.size() != loop_vars.size()) return;
-        COMPILE_ASSERT(std::all_of(anchor_pos_in_loop.begin(),
-                               anchor_pos_in_loop.end(),
-                               [&loop_vars](int pos) {
-                                   return pos >= 0
-                                           && pos <= static_cast<int>(
-                                                      loop_vars.size());
-                               }),
-                "Could not create fusible output anchor at loop position: "
-                        << utils::print_vector(anchor_pos_in_loop)
-                        << ", due to only " << loop_vars.size()
-                        << " loops found")
-        // reset offset
-        for (size_t j = 0; j < loop_vars.size(); j++) {
-            if (anchor_pos_in_loop.end()
-                    != std::find(anchor_pos_in_loop.begin(),
-                            anchor_pos_in_loop.end(), static_cast<int>(j)))
-                continue;
-            if (!range[j].second.isa<constant>()) return;
-            if (get_expr_as_int(range[j].second) == 1) continue;
-            if (!range[j].first.isa<constant>()) return;
-            range[j].first = loop_vars[j];
-            range[j].second = ((static_cast<int>(j) == vx_info.axis)
-                            ? expr(int(vx_info.lanes))
-                            : expr(1));
-        }
-        auto s = make_stmt<stmts_node_t>(std::vector<stmt> {});
-        auto fanchor = fuse_anchor_t(s,
-                std::make_pair(std::vector<tensor_slice> {tensor_slice(
-                                       tsr, std::move(range))},
-                        std::vector<tensor_slice> {}));
-        // redirect gen_fanchor
-        attrs[op_attr_key::inner_anchor] = fanchor;
-        parent.emplace_back(s);
-    }
-}
-
-void create_fusible_output_anchor(stmt &parent, const tensor_slice &dst,
-        const std::vector<expr> &loop_vars,
-        const std::vector<int> &anchor_pos_in_loop,
-        const vectorized_info_t &vx_info, any_map_t &attrs) {
-    std::vector<stmt> ss = parent.isa<stmts>() ? parent.static_as<stmts>()->seq_
-                                               : std::vector<stmt> {parent};
-    create_fusible_output_anchor(
-            ss, dst, loop_vars, anchor_pos_in_loop, vx_info, attrs);
-    parent = make_stmt<stmts_node_t>(std::move(ss));
-}
-
 /** Get indexing based on different conditions
  * @param is_lastdim_meet_require whether the shape len >= threshold
  * @param has_tail whether has tail
@@ -619,13 +545,7 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
                 cur->attr()[op_traits::workload_computable_t::workload_number]
                         = wkld;
                 bld->emit(cur);
-                stmt s = bld->pop_scope();
-                auto ss = std::vector<stmt> {s};
-                if (!tail_int)
-                    create_fusible_output_anchor(
-                            ss, dst, iter_vars, {i + 1}, vx_info, attrs);
-                cur = ss.size() > 1 ? make_stmt<stmts_node_t>(std::move(ss))
-                                    : s;
+                cur = bld->pop_scope();
                 if (iter_vars.at(i).isa<var>()) {
                     cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
                             floor, expr(lanes), cur, true, for_type::NORMAL);
@@ -670,11 +590,6 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
                     cur->attr()[stmt_attr_key::unroll_loop] = 0;
                 }
                 tcur.emplace_back(cur);
-                // create fusible output anchor as demand
-                std::vector<int> anchor_pos_in_loop(1);
-                anchor_pos_in_loop.emplace_back(i);
-                create_fusible_output_anchor(
-                        tcur, dst, iter_vars, {i}, vx_info, attrs);
             }
         } else if (iter_vars.at(i).isa<var>()) {
             // Do not generate those dummy loop
@@ -755,8 +670,7 @@ bool loop_can_be_fused(const for_loop &loop) {
     return get_expr_as_int(loop->step_) == INT64_C(1);
 }
 
-slice_range_map search_known_slice_ranges(
-        sc_op *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
+slice_range_map search_known_input_slice(sc_op *cur, fslice_map &fsmap) {
     slice_range_map known_ranges_map;
     auto input_size = cur->get_inputs().size();
     for (size_t i = 0; i < input_size; i++) {
@@ -765,38 +679,23 @@ slice_range_map search_known_slice_ranges(
             known_ranges_map[i] = fsmap.get(input);
         }
     }
-    if (known_ranges_map.empty()) {
-        stat_map.append_ops_by_status(cur, infer_status_code::UNKNOWN);
-    }
     return known_ranges_map;
 }
 
-void set_unknown_slice_ranges(fusible_op_t *cur,
-        const slice_range_map &known_ranges_map, fslice_map &fsmap,
-        infer_status_map_t &stat_map) {
+void set_unknown_input_slice(fusible_op_t *cur,
+        const slice_range_map &known_ranges_map, fslice_map &fsmap) {
     // set other unknown ranges.
     auto input_size = cur->get_inputs().size();
     for (size_t i = 0; i < input_size; i++) {
         auto input = cur->get_inputs()[i];
         auto &inp_slice = fsmap.get(input);
-        if (input->producer_owner_->isa<input_op>()
-                && input->producer_owner_->dyn_cast<input_op>()
-                           ->is_arg_input()) {
+        if (inp_slice.empty()) {
             inp_slice = *utils::find_map_value(known_ranges_map, i).get();
-        } else {
-            if (inp_slice.empty()) {
-                inp_slice = *utils::find_map_value(known_ranges_map, i).get();
-                if (!stat_map.is_recursive_mode()) continue;
-                if (auto inp_op
-                        = input->producer_owner_->dyn_cast<fusible_op_t>()) {
-                    inp_op->pre_slice_ranges(fsmap, stat_map);
-                }
-            }
         }
     }
 }
 
-std::unordered_map<int, bound_axis> search_known_bound_axis(
+std::unordered_map<int, bound_axis> search_known_input_axis(
         sc_op *cur, bound_axis_map &bdax_map) {
     std::unordered_map<int, bound_axis> known_axis_map;
     auto input_size = cur->get_inputs().size();
@@ -823,7 +722,7 @@ void call_output_user_axis_binding(sc_op *cur, bound_axis_map &bdax_map) {
     }
 }
 
-void set_unknown_axis_binding(sc_op *cur,
+void set_unknown_binding_axis(sc_op *cur,
         const std::unordered_map<int, bound_axis> &known_axis_map,
         bound_axis_map &bdax_map) {
     // set other unknown axis.
@@ -837,7 +736,7 @@ void set_unknown_axis_binding(sc_op *cur,
             if (producer->isa<input_op>()) continue;
             if (auto inp_op = producer->dyn_cast<
                               op_traits::mixed_partition_acceptable>()) {
-                inp_op->pre_binding_axis(bdax_map);
+                inp_op->pre_infer_binding_axis(bdax_map);
                 // in avoid of more than one users cases
                 call_output_user_axis_binding(producer, bdax_map);
             }

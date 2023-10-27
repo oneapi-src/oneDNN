@@ -23,7 +23,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
@@ -541,31 +541,31 @@ static inline int get_oc_split_factor(const int mb, const int data_size,
   return oc_split;
 }
 
-static inline void create_anchor(fusion_manager *fusion, expr &output,
-  const expr &n, const int n_len, const expr &k, const int k_len, const expr &d,
-  const int d_len, const expr &p, const expr &p_len, const expr &q,
-  const int q_len, const int K_block, const int inner_k_len,
-  const bool blocking_output, const bool is_3d) {
+static inline void create_anchor(fusion_anchor_mgr_t *fusion,
+  const graph_tensor_ptr &output_gt, const expr &n, const int n_len,
+  const expr &k, const int k_len, const expr &d, const int d_len, const expr &p,
+  const expr &p_len, const expr &q, const int q_len, const int K_block,
+  const int inner_k_len, const bool blocking_output, const bool is_3d) {
   if (fusion) {
     if (is_3d) {
-      fusion->create_output_fusion_anchor({tensor_slice(output,
-        blocking_output ? slice_range {{n, n_len}, {k, k_len}, {d, d_len},
-          {p, p_len}, {q, q_len}, {0, K_block}}
-                        : slice_range {{n, n_len}, {d, d_len}, {p, p_len},
-                          {q, q_len}, {k * K_block, inner_k_len}})});
+      fusion->create_fusion_anchor(slice_map {{output_gt.get(),
+        blocking_output ? slice_range_list {{{n, n_len}, {k, k_len}, {d, d_len},
+          {p, p_len}, {q, q_len}, {0, K_block}}}
+                        : slice_range_list {{{n, n_len}, {d, d_len}, {p, p_len},
+                          {q, q_len}, {k * K_block, inner_k_len}}}}});
     } else {
-      fusion->create_output_fusion_anchor({tensor_slice(output,
-        blocking_output ? slice_range {{n, n_len}, {k, k_len}, {p, p_len},
-          {q, q_len}, {0, K_block}}
-                        : slice_range {{n, n_len}, {p, p_len}, {q, q_len},
-                          {k * K_block, inner_k_len}})});
+      fusion->create_fusion_anchor(slice_map {{output_gt.get(),
+        blocking_output ? slice_range_list {{{n, n_len}, {k, k_len}, {p, p_len},
+          {q, q_len}, {0, K_block}}}
+                        : slice_range_list {{{n, n_len}, {p, p_len}, {q, q_len},
+                          {k * K_block, inner_k_len}}}}});
     }
   }
 }
 
 #define CONV_ARG_LIST \
   const context_ptr &ctx, const conv_fwd_config_t &config, \
-    fusion_manager *fusion, expr &output, const expr &input, \
+    fusion_anchor_mgr_t *fusion, expr &output, const expr &input, \
     const expr &weight, std::vector<for_loop> &loops, const int K_num_block, \
     const int C_num_block, const int os, const int kpack, \
     const bool use_os_blocking, const bool pack_rows, const expr &os_acc_size, \
@@ -689,44 +689,49 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
                       1 /*useless*/, 1 /*useless*/, C_num_block,
                       get_input_dtype(), get_weight_dtype(), brg_attrs);
                   }
-                  create_anchor(fusion, output, n, 1, g * K_num_block + k, 1,
-                    d_o * config.tile_d + d_i, 1, p_o * config.tile_p + p_i, 1,
-                    q_o * config.tile_q, config.tile_q, config.K_block,
-                    config.K_block, blocking_output_, is_3d_);
+                  create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                    g * K_num_block + k, 1, d_o * config.tile_d + d_i, 1,
+                    p_o * config.tile_p + p_i, 1, q_o * config.tile_q,
+                    config.tile_q, config.K_block, config.K_block,
+                    blocking_output_, is_3d_);
                 }
-                create_anchor(fusion, output, n, 1, g * K_num_block + k, 1,
-                  d_o * config.tile_d + d_i, 1, p_o * config.tile_p,
-                  config.tile_p, q_o * config.tile_q, config.tile_q,
-                  config.K_block, config.K_block, blocking_output_, is_3d_);
+                create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                  g * K_num_block + k, 1, d_o * config.tile_d + d_i, 1,
+                  p_o * config.tile_p, config.tile_p, q_o * config.tile_q,
+                  config.tile_q, config.K_block, config.K_block,
+                  blocking_output_, is_3d_);
               }
               if (is_3d_) {
-                create_anchor(fusion, output, n, 1, g * K_num_block + k, 1,
-                  d_o * config.tile_d, config.tile_d, p_o * config.tile_p,
-                  config.tile_p, q_o * config.tile_q, config.tile_q,
-                  config.K_block, config.K_block, blocking_output_, true);
+                create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                  g * K_num_block + k, 1, d_o * config.tile_d, config.tile_d,
+                  p_o * config.tile_p, config.tile_p, q_o * config.tile_q,
+                  config.tile_q, config.K_block, config.K_block,
+                  blocking_output_, true);
               }
             }
-            create_anchor(fusion, output, n, 1, g * K_num_block + k, 1,
-              d_o * config.tile_d, config.tile_d, p_o * config.tile_p,
-              config.tile_p, 0, ow_, config.K_block, config.K_block,
-              blocking_output_, is_3d_);
+            create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+              g * K_num_block + k, 1, d_o * config.tile_d, config.tile_d,
+              p_o * config.tile_p, config.tile_p, 0, ow_, config.K_block,
+              config.K_block, blocking_output_, is_3d_);
           }
           if (is_3d_) {
-            create_anchor(fusion, output, n, 1, g * K_num_block + k, 1, 0, od_,
-              p_o * config.tile_p, config.tile_p, 0, ow_, config.K_block,
-              config.K_block, blocking_output_, true);
+            create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+              g * K_num_block + k, 1, 0, od_, p_o * config.tile_p,
+              config.tile_p, 0, ow_, config.K_block, config.K_block,
+              blocking_output_, true);
           }
         }
-        create_anchor(fusion, output, n, 1, g * K_num_block + k, 1, 0, od_, 0,
-          oh_expr_, 0, ow_, config.K_block, config.K_block, blocking_output_,
-          is_3d_);
+        create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+          g * K_num_block + k, 1, 0, od_, 0, oh_expr_, 0, ow_, config.K_block,
+          config.K_block, blocking_output_, is_3d_);
       }
-      create_anchor(fusion, output, n, 1, g * K_num_block, K_num_block, 0, od_,
-        0, oh_expr_, 0, ow_, config.K_block, oc_, blocking_output_, is_3d_);
+      create_anchor(fusion, owner_->get_outputs()[0], n, 1, g * K_num_block,
+        K_num_block, 0, od_, 0, oh_expr_, 0, ow_, config.K_block, oc_,
+        blocking_output_, is_3d_);
     }
-    create_anchor(fusion, output, n, 1, 0, groups_ * K_num_block, 0, od_, 0,
-      oh_expr_, 0, ow_, config.K_block, groups_ * oc_, blocking_output_,
-      is_3d_);
+    create_anchor(fusion, owner_->get_outputs()[0], n, 1, 0,
+      groups_ * K_num_block, 0, od_, 0, oh_expr_, 0, ow_, config.K_block,
+      groups_ * oc_, blocking_output_, is_3d_);
   }
 }
 
@@ -838,44 +843,33 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
             config.K_block, config.C_block, LDA, config.K_block, LDC,
             1 /*useless*/, 1 /*useless*/, C_num_block, get_input_dtype(),
             get_weight_dtype(), brg_attrs);
-          if (fusion) {
-            fusion->create_output_fusion_anchor({blocking_output_
-                ? tensor_slice(output,
-                  {{n, 1}, {g * K_num_block + k, 1},
-                    {p_o * config.tile_p, config.tile_p}, {0, ow_},
-                    {0, config.K_block}})
-                : tensor_slice(output,
-                  {{n, 1}, {p_o * config.tile_p, config.tile_p}, {0, ow_},
-                    {(g * K_num_block + k) * config.K_block,
-                      config.K_block}})});
-          }
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            blocking_output_
+              ? slice_range {{n, 1}, {g * K_num_block + k, 1},
+                {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                {0, config.K_block}}
+              : slice_range {{n, 1}, {p_o * config.tile_p, config.tile_p},
+                {0, ow_},
+                {(g * K_num_block + k) * config.K_block, config.K_block}});
         }
-        if (fusion) {
-          fusion->create_output_fusion_anchor({blocking_output_
-              ? tensor_slice(output,
-                {{n, 1}, {g * K_num_block + k, 1}, {0, oh_expr_}, {0, ow_},
-                  {0, config.K_block}})
-              : tensor_slice(output,
-                {{n, 1}, {0, oh_expr_}, {0, ow_},
-                  {(g * K_num_block + k) * config.K_block, config.K_block}})});
-        }
-      }
-      if (fusion) {
-        fusion->create_output_fusion_anchor({tensor_slice(output,
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
           blocking_output_
-            ? slice_range {{n, 1}, {g * K_num_block, K_num_block}, {0, oh_},
+            ? slice_range {{n, 1}, {g * K_num_block + k, 1}, {0, oh_expr_},
               {0, ow_}, {0, config.K_block}}
-            : slice_range {
-              {n, 1}, {0, oh_}, {0, ow_}, {g * K_num_block, oc_}})});
+            : slice_range {{n, 1}, {0, oh_expr_}, {0, ow_},
+              {(g * K_num_block + k) * config.K_block, config.K_block}});
       }
-    }
-    if (fusion) {
-      fusion->create_output_fusion_anchor({tensor_slice(output,
+      create_fusion_anchor(fusion, owner_->get_outputs()[0],
         blocking_output_
-          ? slice_range {{n, 1}, {0, groups_ * K_num_block}, {0, oh_}, {0, ow_},
-            {0, config.K_block}}
-          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, groups_ * oc_}})});
+          ? slice_range {{n, 1}, {g * K_num_block, K_num_block}, {0, oh_},
+            {0, ow_}, {0, config.K_block}}
+          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {g * K_num_block, oc_}});
     }
+    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+      blocking_output_
+        ? slice_range {{n, 1}, {0, groups_ * K_num_block}, {0, oh_}, {0, ow_},
+          {0, config.K_block}}
+        : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, groups_ * oc_}});
   }
 }
 
@@ -960,100 +954,80 @@ void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
                     1 /*useless*/, 1 /*useless*/, kd_ * kh_ * kw_ * C_num_block,
                     get_input_dtype(), get_weight_dtype(), brg_attrs);
 
-                  if (fusion) {
-                    fusion->create_output_fusion_anchor({tensor_slice(output,
-                      blocking_output_
-                        ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
-                          {d_o * config.tile_d + d_i, 1},
-                          {p_o * config.tile_p + p_i, 1},
-                          {q_o * config.tile_q, config.tile_q},
-                          {0, config.K_block}}
-                        : slice_range {{n, 1}, {d_o * config.tile_d + d_i, 1},
-                          {p_o * config.tile_p + p_i, 1},
-                          {q_o * config.tile_q, config.tile_q},
-                          {(g * K_num_block + k_o) * config.K_block,
-                            config.K_block}})});
-                  }
-                }
-                if (fusion) {
-                  fusion->create_output_fusion_anchor({tensor_slice(output,
+                  create_fusion_anchor(fusion, owner_->get_outputs()[0],
                     blocking_output_
                       ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
                         {d_o * config.tile_d + d_i, 1},
-                        {p_o * config.tile_p, config.tile_p},
+                        {p_o * config.tile_p + p_i, 1},
                         {q_o * config.tile_q, config.tile_q},
                         {0, config.K_block}}
                       : slice_range {{n, 1}, {d_o * config.tile_d + d_i, 1},
-                        {p_o * config.tile_p, config.tile_p},
+                        {p_o * config.tile_p + p_i, 1},
                         {q_o * config.tile_q, config.tile_q},
                         {(g * K_num_block + k_o) * config.K_block,
-                          config.K_block}})});
+                          config.K_block}});
                 }
-              }
-              if (fusion) {
-                fusion->create_output_fusion_anchor({tensor_slice(output,
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   blocking_output_
                     ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
-                      {d_o * config.tile_d, config.tile_d},
+                      {d_o * config.tile_d + d_i, 1},
                       {p_o * config.tile_p, config.tile_p},
                       {q_o * config.tile_q, config.tile_q}, {0, config.K_block}}
-                    : slice_range {{n, 1}, {d_o * config.tile_d, config.tile_d},
+                    : slice_range {{n, 1}, {d_o * config.tile_d + d_i, 1},
                       {p_o * config.tile_p, config.tile_p},
                       {q_o * config.tile_q, config.tile_q},
                       {(g * K_num_block + k_o) * config.K_block,
-                        config.K_block}})});
+                        config.K_block}});
               }
-            }
-            if (fusion) {
-              fusion->create_output_fusion_anchor({tensor_slice(output,
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
                 blocking_output_
                   ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
                     {d_o * config.tile_d, config.tile_d},
-                    {p_o * config.tile_p, config.tile_p}, {0, ow_},
-                    {0, config.K_block}}
+                    {p_o * config.tile_p, config.tile_p},
+                    {q_o * config.tile_q, config.tile_q}, {0, config.K_block}}
                   : slice_range {{n, 1}, {d_o * config.tile_d, config.tile_d},
-                    {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                    {p_o * config.tile_p, config.tile_p},
+                    {q_o * config.tile_q, config.tile_q},
                     {(g * K_num_block + k_o) * config.K_block,
-                      config.K_block}})});
+                      config.K_block}});
             }
-          }
-          if (fusion) {
-            fusion->create_output_fusion_anchor({tensor_slice(output,
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
               blocking_output_
-                ? slice_range {{n, 1}, {g * K_num_block + k_o, 1}, {0, od_},
+                ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
+                  {d_o * config.tile_d, config.tile_d},
                   {p_o * config.tile_p, config.tile_p}, {0, ow_},
                   {0, config.K_block}}
-                : slice_range {{n, 1}, {0, od_},
+                : slice_range {{n, 1}, {d_o * config.tile_d, config.tile_d},
                   {p_o * config.tile_p, config.tile_p}, {0, ow_},
-                  {(g * K_num_block + k_o) * config.K_block,
-                    config.K_block}})});
+                  {(g * K_num_block + k_o) * config.K_block, config.K_block}});
           }
-        }
-        if (fusion) {
-          fusion->create_output_fusion_anchor({tensor_slice(output,
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
             blocking_output_
               ? slice_range {{n, 1}, {g * K_num_block + k_o, 1}, {0, od_},
-                {0, oh_}, {0, ow_}, {0, config.K_block}}
-              : slice_range {{n, 1}, {0, od_}, {0, oh_}, {0, ow_},
-                {(g * K_num_block + k_o) * config.K_block, config.K_block}})});
+                {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                {0, config.K_block}}
+              : slice_range {{n, 1}, {0, od_},
+                {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                {(g * K_num_block + k_o) * config.K_block, config.K_block}});
         }
-      }
-      if (fusion) {
-        fusion->create_output_fusion_anchor({tensor_slice(output,
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
           blocking_output_
-            ? slice_range {{n, 1}, {g * K_num_block, K_num_block}, {0, od_},
+            ? slice_range {{n, 1}, {g * K_num_block + k_o, 1}, {0, od_},
               {0, oh_}, {0, ow_}, {0, config.K_block}}
-            : slice_range {
-              {n, 1}, {0, od_}, {0, oh_}, {0, ow_}, {g * K_num_block, oc_}})});
+            : slice_range {{n, 1}, {0, od_}, {0, oh_}, {0, ow_},
+              {(g * K_num_block + k_o) * config.K_block, config.K_block}});
       }
-    }
-    if (fusion) {
-      fusion->create_output_fusion_anchor({tensor_slice(output,
-        blocking_output_ ? slice_range {{n, 1}, {0, groups_ * K_num_block},
+      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+        blocking_output_ ? slice_range {{n, 1}, {g * K_num_block, K_num_block},
           {0, od_}, {0, oh_}, {0, ow_}, {0, config.K_block}}
                          : slice_range {{n, 1}, {0, od_}, {0, oh_}, {0, ow_},
-                           {0, groups_ * oc_}})});
+                           {g * K_num_block, oc_}});
     }
+    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+      blocking_output_ ? slice_range {{n, 1}, {0, groups_ * K_num_block},
+        {0, od_}, {0, oh_}, {0, ow_}, {0, config.K_block}}
+                       : slice_range {{n, 1}, {0, od_}, {0, oh_}, {0, ow_},
+                         {0, groups_ * oc_}});
   }
 }
 
@@ -1161,8 +1135,8 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                 kh_ * kw_ * C_num_block, get_input_dtype(), get_weight_dtype(),
                 brg_attrs, os_mask, o_o, os / config.tile_os);
               auto os_num_block = os / config.tile_os;
-              if (fusion && !pack_rows) {
-                fusion->create_output_fusion_anchor({tensor_slice(output,
+              if (!pack_rows) {
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   blocking_output_
                     ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
                       {o_o * config.tile_os / ow_, 1},
@@ -1171,9 +1145,9 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                     : slice_range {{n, 1}, {o_o * config.tile_os / ow_, 1},
                       {o_o * config.tile_os % ow_, config.tile_os},
                       {(g * K_num_block + k_o) * config.K_block,
-                        config.K_block}})});
-              } else if (fusion && oh_ % os_num_block == 0) {
-                fusion->create_output_fusion_anchor({tensor_slice(output,
+                        config.K_block}});
+              } else if (oh_ % os_num_block == 0) {
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   blocking_output_
                     ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
                       {o_o * (oh_ / os_num_block), (oh_ / os_num_block)},
@@ -1182,23 +1156,21 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                       {o_o * (oh_ / os_num_block), (oh_ / os_num_block)},
                       {0, ow_},
                       {(g * K_num_block + k_o) * config.K_block,
-                        config.K_block}})});
+                        config.K_block}});
               }
             }
-            if (fusion) {
-              // Note: slice tensor might across multi-rows with
-              // non-rectangular shapes. Currently, we just promote the fusion
-              // anchor to higher level of loop, which will consume larger
-              // buffer and is non-optimal This can be optimized in next
-              // version of fusion manager.
-              fusion->create_output_fusion_anchor({tensor_slice(output,
-                blocking_output_
-                  ? slice_range {{n, 1}, {g * K_num_block + k_o, 1}, {0, oh_},
-                    {0, ow_}, {0, config.K_block}}
-                  : slice_range {{n, 1}, {0, oh_}, {0, ow_},
-                    {(g * K_num_block + k_o) * config.K_block,
-                      config.K_block}})});
-            }
+
+            // Note: slice tensor might across multi-rows with
+            // non-rectangular shapes. Currently, we just promote the fusion
+            // anchor to higher level of loop, which will consume larger
+            // buffer and is non-optimal This can be optimized in next
+            // version of fusion manager.
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              blocking_output_
+                ? slice_range {{n, 1}, {g * K_num_block + k_o, 1}, {0, oh_},
+                  {0, ow_}, {0, config.K_block}}
+                : slice_range {{n, 1}, {0, oh_}, {0, ow_},
+                  {(g * K_num_block + k_o) * config.K_block, config.K_block}});
           }
         } else {
           _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
@@ -1272,80 +1244,68 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                     1 /*useless*/, 1 /*useless*/, list_size, get_input_dtype(),
                     get_weight_dtype(), brg_attrs);
 
-                  if (fusion) {
-                    fusion->create_output_fusion_anchor({tensor_slice(output,
-                      blocking_output_
-                        ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
-                          {p_o * config.tile_p + p_i, 1},
-                          {q_o * config.tile_q, config.tile_q},
-                          {0, config.K_block}}
-                        : slice_range {{n, 1}, {p_o * config.tile_p + p_i, 1},
-                          {q_o * config.tile_q, config.tile_q},
-                          {(g * K_num_block + k_o) * config.K_block,
-                            config.K_block}})});
-                  }
-                }
-                if (fusion) {
-                  fusion->create_output_fusion_anchor({tensor_slice(output,
+                  create_fusion_anchor(fusion, owner_->get_outputs()[0],
                     blocking_output_
                       ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
-                        {p_o * config.tile_p, config.tile_p},
+                        {p_o * config.tile_p + p_i, 1},
                         {q_o * config.tile_q, config.tile_q},
                         {0, config.K_block}}
-                      : slice_range {{n, 1},
-                        {p_o * config.tile_p, config.tile_p},
+                      : slice_range {{n, 1}, {p_o * config.tile_p + p_i, 1},
                         {q_o * config.tile_q, config.tile_q},
                         {(g * K_num_block + k_o) * config.K_block,
-                          config.K_block}})});
+                          config.K_block}});
                 }
-              }
-              if (fusion) {
-                fusion->create_output_fusion_anchor({tensor_slice(output,
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   blocking_output_
                     ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
-                      {p_o * config.tile_p, config.tile_p}, {0, ow_},
-                      {0, config.K_block}}
+                      {p_o * config.tile_p, config.tile_p},
+                      {q_o * config.tile_q, config.tile_q}, {0, config.K_block}}
                     : slice_range {{n, 1}, {p_o * config.tile_p, config.tile_p},
-                      {0, ow_},
+                      {q_o * config.tile_q, config.tile_q},
                       {(g * K_num_block + k_o) * config.K_block,
-                        config.K_block}})});
+                        config.K_block}});
               }
-            }
-            if (fusion) {
-              fusion->create_output_fusion_anchor({tensor_slice(output,
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
                 blocking_output_
-                  ? slice_range {{n, 1},
-                    {g * K_num_block + outer_k * K_num_block / oc_split,
-                      K_num_block / oc_split},
+                  ? slice_range {{n, 1}, {g * K_num_block + k_o, 1},
                     {p_o * config.tile_p, config.tile_p}, {0, ow_},
                     {0, config.K_block}}
                   : slice_range {{n, 1}, {p_o * config.tile_p, config.tile_p},
                     {0, ow_},
-                    {(g * K_num_block + outer_k * K_num_block / oc_split)
-                        * config.K_block,
-                      K_num_block / oc_split * config.K_block}})});
+                    {(g * K_num_block + k_o) * config.K_block,
+                      config.K_block}});
             }
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              blocking_output_
+                ? slice_range {{n, 1},
+                  {g * K_num_block + outer_k * K_num_block / oc_split,
+                    K_num_block / oc_split},
+                  {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                  {0, config.K_block}}
+                : slice_range {{n, 1}, {p_o * config.tile_p, config.tile_p},
+                  {0, ow_},
+                  {(g * K_num_block + outer_k * K_num_block / oc_split)
+                      * config.K_block,
+                    K_num_block / oc_split * config.K_block}});
           }
         }
       }
-      if (fusion) {
-        if (groups_ == 1) {
-          fusion->create_output_fusion_anchor({tensor_slice(output,
-            blocking_output_
-              ? slice_range {{n, 1},
-                {outer_k * K_num_block / oc_split, K_num_block / oc_split},
-                {0, oh_}, {0, ow_}, {0, config.K_block}}
-              : slice_range {{n, 1}, {0, oh_}, {0, ow_},
-                {outer_k * K_num_block / oc_split * config.K_block,
-                  K_num_block / oc_split * config.K_block}})});
-        } else if (groups_ > 1 && oc_split == 1) {
-          fusion->create_output_fusion_anchor({tensor_slice(output,
-            blocking_output_
-              ? slice_range {{n, 1}, {0, groups_ * K_num_block}, {0, oh_},
-                {0, ow_}, {0, config.K_block}}
-              : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, groups_ * oc_}})});
-        } else { /*noops as discontiguous slice for groups >1 && outer_k > 1*/
-        }
+
+      if (groups_ == 1) {
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          blocking_output_ ? slice_range {{n, 1},
+            {outer_k * K_num_block / oc_split, K_num_block / oc_split},
+            {0, oh_}, {0, ow_}, {0, config.K_block}}
+                           : slice_range {{n, 1}, {0, oh_}, {0, ow_},
+                             {outer_k * K_num_block / oc_split * config.K_block,
+                               K_num_block / oc_split * config.K_block}});
+      } else if (groups_ > 1 && oc_split == 1) {
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          blocking_output_
+            ? slice_range {{n, 1}, {0, groups_ * K_num_block}, {0, oh_},
+              {0, ow_}, {0, config.K_block}}
+            : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, groups_ * oc_}});
+      } else { /*noops as discontiguous slice for groups >1 && outer_k > 1*/
       }
     }
   }
@@ -1713,45 +1673,34 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                   }
                 }
               }
-              if (fusion) {
-                // tile_q * K_block
-                fusion->create_output_fusion_anchor({tensor_slice(output,
-                  {{n, 1}, {g * K_num_block + k_o, 1},
-                    {p_o * config.tile_p + p_i, 1},
-                    {q_o * config.tile_q, config.tile_q},
-                    {0, config.K_block}})});
-              }
-            }
-            if (fusion) {
-              // tile_p * tile_q * K_block
-              fusion->create_output_fusion_anchor({tensor_slice(output,
+              // tile_q * K_block
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
                 {{n, 1}, {g * K_num_block + k_o, 1},
-                  {p_o * config.tile_p, config.tile_p},
-                  {q_o * config.tile_q, config.tile_q}, {0, config.K_block}})});
+                  {p_o * config.tile_p + p_i, 1},
+                  {q_o * config.tile_q, config.tile_q}, {0, config.K_block}});
             }
-          }
-          if (fusion) {
-            // tile_p * ow * K_block
-            fusion->create_output_fusion_anchor({tensor_slice(output,
+            // tile_p * tile_q * K_block
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
               {{n, 1}, {g * K_num_block + k_o, 1},
-                {p_o * config.tile_p, config.tile_p}, {0, ow_},
-                {0, config.K_block}})});
+                {p_o * config.tile_p, config.tile_p},
+                {q_o * config.tile_q, config.tile_q}, {0, config.K_block}});
           }
+          // tile_p * ow * K_block
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            {{n, 1}, {g * K_num_block + k_o, 1},
+              {p_o * config.tile_p, config.tile_p}, {0, ow_},
+              {0, config.K_block}});
         }
-        if (fusion) {
-          // oh * ow * K_block
-          fusion->create_output_fusion_anchor({tensor_slice(output,
-            {{n, 1}, {g * K_num_block + k_o, 1}, {0, oh_}, {0, ow_},
-              {0, config.K_block}})});
-        }
+        // oh * ow * K_block
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          {{n, 1}, {g * K_num_block + k_o, 1}, {0, oh_}, {0, ow_},
+            {0, config.K_block}});
       }
     }
-    if (fusion) {
-      // oc * oh * ow * K_block
-      fusion->create_output_fusion_anchor({tensor_slice(output,
-        {{n, 1}, {0, groups_ * K_num_block}, {0, oh_}, {0, ow_},
-          {0, config.K_block}})});
-    }
+    // oc * oh * ow * K_block
+    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+      {{n, 1}, {0, groups_ * K_num_block}, {0, oh_}, {0, ow_},
+        {0, config.K_block}});
   }
 }
 
@@ -1761,8 +1710,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   for_loop &ln = loops.at(0), &lg = loops.at(1), &lk = loops.at(2),
            &ld = loops.at(3), &lp = loops.at(4), &lok = loops.at(5);
 
-  // no need to include groups for LDA as it's used by sub-tensor instead of
-  // origin input tensor.
+  // no need to include groups for LDA as it's used by sub-tensor
+  // instead of origin input tensor.
   const auto LDA = blocking_input_ ? config.C_block : ic_;
   const auto LDC = blocking_output_ ? config.K_block : oc_ * groups_;
 
@@ -1776,7 +1725,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   int src_row_tile_size = (config.tile_q - 1) * sw_ + dw_ * (kw_ - 1) + 1;
   typedef enum { LEFT_PAD = 0, BOTH_PAD, RIGHT_PAD } pad_kind;
 
-  // some shapes might have less pad than given at the end of current axis
+  // some shapes might have less pad than given at the end of current
+  // axis
   auto get_num_pad_end = [](int ip, int k, int s, int p) {
     int remaining = (ip - k) % s;
     int num_pad_end = (remaining == 0)
@@ -1811,7 +1761,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   bool use_var_bs = attrs_.get_or_else("use_var_bs", true);
   auto use_rl = attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING);
 
-  // TODO(xxx): fix inverse filter correctness issue when use_var_bs==true
+  // TODO(xxx): fix inverse filter correctness issue when
+  // use_var_bs==true
   if (inverse_filter_) { use_var_bs = false; }
 
   int list_size = kd_ * kh_ * kw_;
@@ -1830,7 +1781,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
 
   _tensor_(pbuffer, dtype_input, {src_row_tile_size, LDA});
   if (!use_var_bs) {
-    // when not using var_bs, define a unified zero-buffer for padding.
+    // when not using var_bs, define a unified zero-buffer for
+    // padding.
     builtin::mem_zero(pbuffer, src_row_tile_size * LDA, dtype_input);
   }
 
@@ -2018,8 +1970,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                   config.C_block, LDA, dtype_input, 0);
                               }
 
-                              // mapping dst to src_padded then mapping to
-                              // original src to copy the origin elements.
+                              // mapping dst to src_padded then
+                              // mapping to original src to copy the
+                              // origin elements.
                               _for_(j, left_pad, tile_size_exclude_right_pad) {
                                 _for_(k, 0, config.C_block, (int)lanes) {
                                   if (is_3d_) {
@@ -2088,7 +2041,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                     use_var_bs ? (sub_tsr_h * num_kw + wi)
                                                : (hi * num_kw + wi));
                                 }
-                                // TODO(xxx): pack input for dilated conv
+                                // TODO(xxx): pack input for dilated
+                                // conv
                                 A_list[idx] = tensor_ptr(g_sub_tensor,
                                   is_3d_ ? std::vector<expr> {tid, sub_tsr_d,
                                     sub_tsr_h, wi * dw_ * kw_step, 0}
@@ -2157,8 +2111,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                         _for_(idx, 0, sh_) {
                           m_idx = modified_indices[idx];
                           actual_idx = g_cur_indices[{tid, m_idx}];
-                          // update necessary row of sub-tensor according
-                          // to actual_idx
+                          // update necessary row of sub-tensor
+                          // according to actual_idx
                           _if_(cur_tile_begin < y_unpad_left) {
                             _if_(y_unpad_right >= 0
                               && cur_tile_end <= y_unpad_right) {
@@ -2194,8 +2148,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                           }
                         }
 
-                        // update A_list with reusable sub-tensor using
-                        // cur_indices, no padding on depth or height axis.
+                        // update A_list with reusable sub-tensor
+                        // using cur_indices, no padding on depth or
+                        // height axis.
                         _for_(di, 0, kd) {
                           _for_(hi, 0, kh_) {
                             _var_(sub_tsr_idx, datatypes::index);
@@ -2332,9 +2287,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                             }
                           }
 
-                          // 1.1) The middle region which don't need to copy
-                          // input rows but just refer to original input
-                          // buffer.
+                          // 1.1) The middle region which don't need
+                          // to copy input rows but just refer to
+                          // original input buffer.
                           _if_(cur_tile_begin >= y_unpad_left
                             && cur_tile_end <= y_unpad_right) {
                             _for_(di, d_unpad_begin_idx, d_unpad_end_idx) {
@@ -2381,8 +2336,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                   d_unpad_begin_idx, d_unpad_end_idx);
                               }
                               _else_ {
-                                // num_d_pad == 0 && num_h_pad == 0, reuse
-                                // sub-tsr
+                                // num_d_pad == 0 && num_h_pad == 0,
+                                // reuse sub-tsr
                                 update_sub_tensor(kd_);
                               }
                             }
@@ -2476,7 +2431,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
 
                               _if_(
                                 h_pad_begin_idx == 0 && h_unpad_end_idx < kh_) {
-                                // Add zero-padding tensorptr to A_list
+                                // Add zero-padding tensorptr to
+                                // A_list
                                 _for_(hi, h_unpad_end_idx, kh_) {
                                   _for_(wi, 0, num_kw) {
                                     _var_(idx, datatypes::u32);
@@ -2570,7 +2526,6 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                               }
                             }
                           };
-
                           fill_A_and_B_list();
                           if (use_var_bs) {
                             do_var_bs_for_2d(kd_, kh_);
@@ -2582,78 +2537,82 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                     }
 
                     // tile_q * K_block
-                    create_anchor(fusion, output, n, 1, g * K_num_block + k_o,
-                      1, d_o * config.tile_d + d_i, 1,
+                    create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                      g * K_num_block + k_o, 1, d_o * config.tile_d + d_i, 1,
                       p_o * config.tile_p + p_i, 1, q_o * config.tile_q,
                       config.tile_q, config.K_block, config.K_block,
                       blocking_output_, is_3d_);
                   }
                   // tile_p * tile_q *K_block
-                  create_anchor(fusion, output, n, 1, g * K_num_block + k_o, 1,
-                    d_o * config.tile_d + d_i, 1, p_o * config.tile_p,
-                    config.tile_p, q_o * config.tile_q, config.tile_q,
-                    config.K_block, config.K_block, blocking_output_, is_3d_);
+                  create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                    g * K_num_block + k_o, 1, d_o * config.tile_d + d_i, 1,
+                    p_o * config.tile_p, config.tile_p, q_o * config.tile_q,
+                    config.tile_q, config.K_block, config.K_block,
+                    blocking_output_, is_3d_);
                 }
                 if (reuse_sub_tensor) {
                   // oh_ * tile_q * K_block
-                  create_anchor(fusion, output, n, 1, g * K_num_block + k_o, 1,
-                    d_o * config.tile_d + d_i, 1, 0, oh_, q_o * config.tile_q,
-                    config.tile_q, config.K_block, config.K_block,
-                    blocking_output_, is_3d_);
+                  create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                    g * K_num_block + k_o, 1, d_o * config.tile_d + d_i, 1, 0,
+                    oh_, q_o * config.tile_q, config.tile_q, config.K_block,
+                    config.K_block, blocking_output_, is_3d_);
                 } else {
                   // tile_p * ow_ * K_block
-                  create_anchor(fusion, output, n, 1, g * K_num_block + k_o, 1,
-                    d_o * config.tile_d + d_i, 1, p_o * config.tile_p,
-                    config.tile_p, 0, ow_, config.K_block, config.K_block,
-                    blocking_output_, is_3d_);
+                  create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                    g * K_num_block + k_o, 1, d_o * config.tile_d + d_i, 1,
+                    p_o * config.tile_p, config.tile_p, 0, ow_, config.K_block,
+                    config.K_block, blocking_output_, is_3d_);
                 }
               }
               if (is_3d_) {
                 if (reuse_sub_tensor) {
                   // tile_d * oh_ * tile_q * K_block
-                  create_anchor(fusion, output, n, 1, g * K_num_block + k_o, 1,
-                    d_o * config.tile_d, config.tile_d, 0, oh_,
-                    q_o * config.tile_q, config.tile_q, config.K_block,
-                    config.K_block, blocking_output_, true);
+                  create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                    g * K_num_block + k_o, 1, d_o * config.tile_d,
+                    config.tile_d, 0, oh_, q_o * config.tile_q, config.tile_q,
+                    config.K_block, config.K_block, blocking_output_, true);
                 } else {
                   // tile_d * tile_p * ow_ * K_block
-                  create_anchor(fusion, output, n, 1, g * K_num_block + k_o, 1,
-                    d_o * config.tile_d, config.tile_d, p_o * config.tile_p,
-                    config.tile_p, 0, ow_, config.K_block, config.K_block,
-                    blocking_output_, true);
+                  create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                    g * K_num_block + k_o, 1, d_o * config.tile_d,
+                    config.tile_d, p_o * config.tile_p, config.tile_p, 0, ow_,
+                    config.K_block, config.K_block, blocking_output_, true);
                 }
               }
             }
             if (is_3d_) {
               if (reuse_sub_tensor) {
                 // od_ * oh_ * tile_q * K_block
-                create_anchor(fusion, output, n, 1, g * K_num_block + k_o, 1, 0,
-                  od_, 0, oh_, q_o * config.tile_q, config.tile_q,
-                  config.K_block, config.K_block, blocking_output_, true);
+                create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                  g * K_num_block + k_o, 1, 0, od_, 0, oh_, q_o * config.tile_q,
+                  config.tile_q, config.K_block, config.K_block,
+                  blocking_output_, true);
               } else {
                 // od_ * tile_p * ow_ * K_block
-                create_anchor(fusion, output, n, 1, g * K_num_block + k_o, 1, 0,
-                  od_, p_o * config.tile_p, config.tile_p, 0, ow_,
-                  config.K_block, config.K_block, blocking_output_, true);
+                create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+                  g * K_num_block + k_o, 1, 0, od_, p_o * config.tile_p,
+                  config.tile_p, 0, ow_, config.K_block, config.K_block,
+                  blocking_output_, true);
               }
             }
           }
           // od_ * oh_ * ow_ * K_block
-          create_anchor(fusion, output, n, 1, g * K_num_block + k_o, 1, 0, od_,
-            0, oh_, 0, ow_, config.K_block, config.K_block, blocking_output_,
-            is_3d_);
+          create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+            g * K_num_block + k_o, 1, 0, od_, 0, oh_, 0, ow_, config.K_block,
+            config.K_block, blocking_output_, is_3d_);
         }
       }
       // od_ *oh_ *ow_ *oc
       if (groups_ == 1) {
-        create_anchor(fusion, output, n, 1, outer_k * K_num_block / oc_split,
-          K_num_block / oc_split, 0, od_, 0, oh_, 0, ow_, config.K_block,
-          K_num_block / oc_split * config.K_block, blocking_output_, is_3d_);
+        create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+          outer_k * K_num_block / oc_split, K_num_block / oc_split, 0, od_, 0,
+          oh_, 0, ow_, config.K_block, K_num_block / oc_split * config.K_block,
+          blocking_output_, is_3d_);
       } else if (groups_ > 1 && oc_split == 1) {
-        create_anchor(fusion, output, n, 1, groups_ * K_num_block, K_num_block,
-          0, od_, 0, oh_, 0, ow_, config.K_block,
-          groups_ * K_num_block / oc_split * config.K_block, blocking_output_,
-          is_3d_);
+        create_anchor(fusion, owner_->get_outputs()[0], n, 1,
+          groups_ * K_num_block, K_num_block, 0, od_, 0, oh_, 0, ow_,
+          config.K_block, groups_ * K_num_block / oc_split * config.K_block,
+          blocking_output_, is_3d_);
       } else { /*noops as discontiguous slice for groups >1 && outer_k > 1*/
       }
     }
@@ -2733,7 +2692,7 @@ void gen_conv_fwd_t::schedule_loops(context_ptr ctx,
 }
 
 bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
-  fusion_manager *fusion, const std::vector<expr> &inputs,
+  fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
   const std::vector<expr> &outputs, std::vector<for_loop> &loops) const {
   COMPILE_ASSERT(inputs.size() == 2,
     "Expecting 2 inputs for conv, but got " << inputs.size() << " inputs.");
@@ -2808,7 +2767,8 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
     "full reduce lowering should be dispatched to conv_rl!");
   if (use_rl == ops::rl_kind::KW_LOWERING) {
     COMPILE_ASSERT(C_block == ic_,
-      "C_block should be same as ic for kw_lowering, but got C_block="
+      "C_block should be same as ic for kw_lowering, but got "
+      "C_block="
         << C_block << " ic=" << ic_ << ".");
   }
 

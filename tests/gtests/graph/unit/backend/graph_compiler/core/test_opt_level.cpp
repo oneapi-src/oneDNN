@@ -92,7 +92,7 @@ TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel) {
                 data_dims, weight_dims, gamma_dims, beta_dims);
         auto temp_ctx = std::make_shared<context_t>(*get_test_ctx());
         temp_ctx->flags_.opt_level_ = sc_opt_level::lv0;
-        temp_ctx->flags_.mixed_fusion_ = true;
+        temp_ctx->flags_.fusion_level_ = fusion_opt_level::lv0;
         graph_driver(graph, temp_ctx);
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -154,7 +154,7 @@ TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel) {
                 data_dims, weight_dims, gamma_dims, beta_dims);
         auto temp_ctx = std::make_shared<context_t>(*get_test_ctx());
         temp_ctx->flags_.opt_level_ = sc_opt_level::lv1;
-        temp_ctx->flags_.mixed_fusion_ = true;
+        temp_ctx->flags_.fusion_level_ = fusion_opt_level::lv1;
         graph_driver(graph, temp_ctx);
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -199,7 +199,7 @@ TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel) {
                 data_dims, weight_dims, gamma_dims, beta_dims);
         auto temp_ctx = std::make_shared<context_t>(*get_test_ctx());
         temp_ctx->flags_.opt_level_ = sc_opt_level::lv2;
-        temp_ctx->flags_.mixed_fusion_ = true;
+        temp_ctx->flags_.fusion_level_ = fusion_opt_level::lv2;
         graph_driver(graph, temp_ctx);
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -238,7 +238,7 @@ TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel) {
                 data_dims, weight_dims, gamma_dims, beta_dims);
         auto temp_ctx = std::make_shared<context_t>(*get_test_ctx());
         temp_ctx->flags_.opt_level_ = sc_opt_level::lv3;
-        temp_ctx->flags_.mixed_fusion_ = true;
+        temp_ctx->flags_.fusion_level_ = fusion_opt_level::lv3;
         graph_driver(graph, temp_ctx);
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -286,7 +286,7 @@ TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel2) {
         auto graph = get_parallel_merge_mlp_graph();
         auto temp_ctx = std::make_shared<context_t>(*get_test_ctx());
         temp_ctx->flags_.opt_level_ = sc_opt_level::lv0;
-        temp_ctx->flags_.mixed_fusion_ = true;
+        temp_ctx->flags_.fusion_level_ = fusion_opt_level::lv0;
         graph_driver(graph, temp_ctx);
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -313,7 +313,7 @@ TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel2) {
         auto graph = get_parallel_merge_mlp_graph();
         auto temp_ctx = std::make_shared<context_t>(*get_test_ctx());
         temp_ctx->flags_.opt_level_ = sc_opt_level::lv1;
-        temp_ctx->flags_.mixed_fusion_ = true;
+        temp_ctx->flags_.fusion_level_ = fusion_opt_level::lv1;
         graph_driver(graph, temp_ctx);
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -335,7 +335,7 @@ TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel2) {
         auto graph = get_parallel_merge_mlp_graph();
         auto temp_ctx = std::make_shared<context_t>(*get_test_ctx());
         temp_ctx->flags_.opt_level_ = sc_opt_level::lv2;
-        temp_ctx->flags_.mixed_fusion_ = true;
+        temp_ctx->flags_.fusion_level_ = fusion_opt_level::lv2;
         graph_driver(graph, temp_ctx);
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -356,7 +356,7 @@ TEST(GCCore_CPU_opt_level_cpp, TestCompilerOptLevel2) {
         auto graph = get_parallel_merge_mlp_graph();
         auto temp_ctx = std::make_shared<context_t>(*get_test_ctx());
         temp_ctx->flags_.opt_level_ = sc_opt_level::lv3;
-        temp_ctx->flags_.mixed_fusion_ = true;
+        temp_ctx->flags_.fusion_level_ = fusion_opt_level::lv3;
         graph_driver(graph, temp_ctx);
         std::stringstream ss;
         print_graph(graph, ss, true);

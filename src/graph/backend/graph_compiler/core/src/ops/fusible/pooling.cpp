@@ -294,15 +294,10 @@ pooling_op_t::pooling_op_t(const std::vector<graph_tensor_ptr> &ins,
         const pooling_type_t &pl_type, const any_map_t &attrs)
     : pooling_op_t(ins, outs, add_pl_type(attrs, static_cast<int>(pl_type))) {}
 
-void pooling_op_t::prepare_fusion_data(fdata_map &fdmap) {
-    fdmap.get(info_.inputs_[0]).use_count_++;
-}
-
-void pooling_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code pooling_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
 
     // judge whether input dims full on w and h (and d)
     auto real_required_axis = get_real_pooling_axis_form_tensor(
@@ -311,8 +306,7 @@ void pooling_op_t::infer_slice_ranges(
     for (auto &range_list : known_ranges_map[0]) {
         if (!slice_full_on_axis(
                     in_blocked_dims, range_list, real_required_axis)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
     }
 
@@ -322,24 +316,19 @@ void pooling_op_t::infer_slice_ranges(
 
     // return final result
     fsmap.get(info_.outputs_[0]) = output_ranges_list;
+    return infer_status_code::OK;
 }
 
-void pooling_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code pooling_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     if (fsmap.get(get_inputs()[0]).empty()) {
         slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
         slice_range_list input_slice_list = infer_pool_slice_ranges(
                 info_.inputs_[0], known_ranges_list, channel_last_);
-        if (input_slice_list.size() != 1) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
-        }
+        if (input_slice_list.size() != 1) { return infer_status_code::RETRY; }
         fsmap.get(get_inputs()[0]) = input_slice_list;
-        if (auto inp_op
-                = info_.inputs_[0]->producer_owner_->dyn_cast<fusible_op_t>()) {
-            inp_op->pre_slice_ranges(fsmap, stat_map);
-        }
     }
+    return infer_status_code::OK;
 }
 
 static void compute_block_pooling(
@@ -544,7 +533,7 @@ static void compute_block_pooling(
 
     // build outter loop to generate pooling result
     stmt target_assign;
-    std::vector<fuse_anchor_map_ptr> inner_anchors;
+    std::vector<fusion_anchor_ptr> inner_anchors;
     std::vector<stmt> inital_stmts = {define_pool_buf_var, pooling_buf_asnode};
     if (pooling_typ == pooling_type_t::avg && exclude_pad) {
         stmt define_kernel_size_var = make_stmt<define_node_t>(
@@ -599,7 +588,7 @@ static void compute_block_pooling(
             fslice_map fsmap;
             fsmap.get(output_tensor) = slice_range_list {inner_slice};
             inner_anchors.emplace_back(
-                    std::make_shared<fuse_anchor_map_t>(anchor_stmt, fsmap));
+                    std::make_shared<fusion_anchor_t>(anchor_stmt, fsmap));
         }
 
         cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), 0,
@@ -834,14 +823,10 @@ void pooling_backprop_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-void pooling_backprop_op_t::prepare_fusion_data(fdata_map &fdmap) {
-    fdmap.get(info_.inputs_[0]).use_count_++;
-}
-void pooling_backprop_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code pooling_backprop_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
 
     // judge inputs' dims full on w and h (and d)
     auto real_required_axis = get_real_pooling_axis_form_tensor(
@@ -850,8 +835,7 @@ void pooling_backprop_op_t::infer_slice_ranges(
     for (auto &range_list : known_ranges_map[0]) {
         if (!slice_full_on_axis(
                     in_blocked_dims, range_list, real_required_axis)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
     }
 
@@ -869,9 +853,12 @@ void pooling_backprop_op_t::infer_slice_ranges(
     auto o_ranges_list = infer_pool_slice_ranges(
             info_.outputs_[0], known_ranges_map[0], channel_last_);
     fsmap.get(info_.outputs_[0]) = o_ranges_list;
+    return infer_status_code::OK;
 }
-void pooling_backprop_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {}
+infer_status_code pooling_backprop_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
+    return infer_status_code::FAIL;
+}
 
 static void pooling_backward_fill_zero_dst(const tensor_slice &dst,
         pooling_type_t pooling_typ, sc_data_type_t in_dtype,

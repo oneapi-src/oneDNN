@@ -23,7 +23,7 @@
 #include "gtest/gtest.h"
 #include <compiler/codegen/codegen_c.hpp>
 #include <compiler/ir/graph/driver.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/graph/lowering.hpp>
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>

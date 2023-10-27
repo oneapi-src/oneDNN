@@ -97,7 +97,7 @@ TEST(GCCore_CPU_module_globals_resolver_t, TestGlobalTensorExtract) {
         _bind_(ctx, mod_data, args);
         _var_(scalar_gv, datatypes::f32);
         _tensor_(gv1, datatypes::f32, 30);
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(mod_data, {64UL});
         scalar_gv = 2.0f;
         gv1[0] = 1.0f;
@@ -163,12 +163,14 @@ TEST(GCCore_CPU_module_globals_resolver_t, TestGlobalSharedTensor) {
         args = 1.0f;
         _tensor_(__is_init, datatypes::s32, 1);
         builder.get_current_scope()
-                .body.back()
+                .as_seq()
+                .back()
                 ->attr()[attr_keys::is_shared_const_init_stmt]
                 = true;
         __is_init[0] = 1;
         builder.get_current_scope()
-                .body.back()
+                .as_seq()
+                .back()
                 ->attr()[attr_keys::is_shared_const_init_stmt]
                 = true;
 
@@ -194,7 +196,7 @@ TEST(GCCore_CPU_module_globals_resolver_t, TestGlobalSharedTensor) {
             _arg_("args", datatypes::f32)) {
         _bind_(stream, moddata, args);
         _tensor_(handles, datatypes::index, UINT64_C(3));
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(moddata, {0UL});
         args = 1.0f;
         _tensor_(__is_init, datatypes::s32, 1);
@@ -205,19 +207,19 @@ TEST(GCCore_CPU_module_globals_resolver_t, TestGlobalSharedTensor) {
         _tensor_(base2, datatypes::u8, UINT64_C(128));
 
         _tensor_(A, datatypes::f32, 16);
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(base0, {0UL});
         _tensor_(B, datatypes::f32, 16);
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(base0, {64UL});
         _tensor_(C, datatypes::f32, 16);
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(base1, {0UL});
         _tensor_(D, datatypes::f32, 16);
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(base1, {64UL});
         _tensor_(E, datatypes::f32, 16);
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(base2, {64UL});
     }
 

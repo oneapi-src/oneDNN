@@ -22,7 +22,8 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
@@ -636,7 +637,7 @@ void gen_matmul_core_t::schedule_loops(context_ptr ctx,
 }
 
 bool gen_matmul_core_t::generate(context_ptr ctx,
-  const matmul_core_config_t &config, fusion_manager *fusion,
+  const matmul_core_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init
@@ -783,23 +784,11 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
             stride_b, A_dtype, B_dtype);
 
           // this is the gemm output
-          if (fusion) {
-            std::vector<tensor_slice> fusion_inputs
-              = {tensor_slice(C, std::vector<std::pair<expr, expr>>(fidx1))};
-            fusion->create_output_fusion_anchor(fusion_inputs);
-          }
+          create_fusion_anchor(fusion, owner_->get_outputs()[0], fidx1);
         }
-        if (fusion) {
-          std::vector<tensor_slice> fusion_inputs
-            = {tensor_slice(C, std::vector<std::pair<expr, expr>>(fidx2))};
-          fusion->create_output_fusion_anchor(fusion_inputs);
-        }
+        create_fusion_anchor(fusion, owner_->get_outputs()[0], fidx2);
       }
-      if (fusion) {
-        std::vector<tensor_slice> fusion_inputs
-          = {tensor_slice(C, std::vector<std::pair<expr, expr>>(fidx3))};
-        fusion->create_output_fusion_anchor(fusion_inputs);
-      }
+      create_fusion_anchor(fusion, owner_->get_outputs()[0], fidx3);
     }
   } else {
     _named_for_(lm_c, m_o, 0, M_num_blocks, 1, for_type::PARALLEL) {
@@ -841,39 +830,39 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
           stride_b, A_dtype, B_dtype);
 
         // this is the gemm output
-        if (fusion) {
-          fusion->create_output_fusion_anchor({tensor_slice(C,
-            !out_tensors_[0].get_format().is_blocking()
-              ? std::vector<std::pair<expr, expr>> {{m_o * M_block, M_block},
-                {n_o * N_block, N_block}}
-              : std::vector<std::pair<expr, expr>> {
-                {m_o, 1}, {n_o, 1}, {0, M_block}, {0, N_block}})});
-        }
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          !out_tensors_[0].get_format().is_blocking()
+            ? slice_range {{m_o * M_block, M_block}, {n_o * N_block, N_block}}
+            : slice_range {{m_o, 1}, {n_o, 1}, {0, M_block}, {0, N_block}});
       }
       // this is the gemm output
-      if (fusion
-        && (bwise_fusion_
-          || (M_num_blocks.isa<constant>()
-            && get_expr_as_int(M_num_blocks)
-              >= runtime_config_t::get().get_num_threads()))) {
-        fusion->create_output_fusion_anchor({tensor_slice(C,
+      if (M_num_blocks.isa<constant>()
+        && get_expr_as_int(M_num_blocks)
+          >= runtime_config_t::get().get_num_threads()) {
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
           !out_tensors_[0].get_format().is_blocking()
-            ? std::vector<std::pair<expr, expr>> {{m_o * M_block, M_block},
+            ? slice_range {{m_o * M_block, M_block},
               {0, N_num_blocks * N_block}}
-            : std::vector<std::pair<expr, expr>> {
-              {m_o, 1}, {0, N_num_blocks}, {0, M_block}, {0, N_block}})});
+            : slice_range {
+              {m_o, 1}, {0, N_num_blocks}, {0, M_block}, {0, N_block}});
       }
     }
   }
 
   loops = concat_vec(batch_loops, {lm_c, ln_c});
 
-  // bind loop with axis
-  bound_axis bd_axis;
-  for (size_t i = 0; i < out_tensors_[0].get_plain_dims().size(); i++) {
-    bd_axis.emplace_back(std::vector<int> {static_cast<int>(i)});
+  if (!owner_->need_dynamic_internal_query() && fusion) {
+    // bind loop with axis
+    bound_axis bd_axis;
+    for (size_t i = 0; i < out_tensors_[0].get_plain_dims().size(); i++) {
+      bd_axis.emplace_back(std::vector<int> {static_cast<int>(i)});
+    }
+    // get binded mxp
+    auto mxp = fusion->get_binded_mxp();
+    COMPILE_ASSERT(mxp, "No binded partition found")
+    // bind loop with axis
+    mxp->init_axis_binder(owner_->get_outputs()[0], bd_axis);
   }
-  loops[0]->attr()[stmt_attr_key::loop_axis_hint] = bd_axis;
 
   return true;
 }

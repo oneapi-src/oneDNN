@@ -23,7 +23,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/graph/trait/configurable.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
@@ -707,7 +707,7 @@ void gen_nested_conv_fwd_t::generate_brgemm(const expr &im_s_block,
 
 #define CONV_ARG_LIST \
   const context_ptr &ctx, const nested_conv_fwd_config_t &config, \
-    fusion_manager *fusion, expr &output, const expr &input, \
+    fusion_anchor_mgr_t *fusion, expr &output, const expr &input, \
     const expr &weight, std::vector<for_loop> &loops, const int os, \
     const int kpack, const bool use_os_blocking, const bool pack_rows, \
     const expr &os_acc_size, const std::vector<char> &os_mask
@@ -939,40 +939,36 @@ void gen_nested_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                               stride_b, stride_c, get_input_dtype(),
                               get_weight_dtype(), brg_attrs);
                           }
-                          if (fusion && ic_used_threads == 1
-                            && ic_num_block_pt == 1) {
+                          if (ic_used_threads == 1 && ic_num_block_pt == 1) {
                             _if_(o_ic == (ic_num_block - 1)) {
-                              fusion->create_output_fusion_anchor(
-                                {tensor_slice(output,
-                                  std::vector<std::pair<expr, expr>> {{n, 1UL},
-                                    {s, im_s_block},
-                                    {oc * im_oc_block, im_oc_block}})});
+                              create_fusion_anchor(fusion,
+                                owner_->get_outputs()[0],
+                                slice_range {{n, 1UL}, {s, im_s_block},
+                                  {oc * im_oc_block, im_oc_block}});
                             }
                           }
                         }
                       }
-                      if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                      if (ic_used_threads == 1 && ic_num_block_pt == 1
                         && oc_block * oc_used_threads == oc_) {
                         _if_(o_ic == (ic_num_block - 1)) {
-                          fusion->create_output_fusion_anchor(
-                            {tensor_slice(output,
-                              std::vector<std::pair<expr, expr>> {{n, 1UL},
-                                {s, im_s_block},
-                                {(poc * oc_num_block_pt * oc_block / im_oc_block
-                                   + o_oc * oc_block / im_oc_block)
-                                    * im_oc_block,
-                                  oc_block}})});
+                          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                            slice_range {{n, 1UL}, {s, im_s_block},
+                              {(poc * oc_num_block_pt * oc_block / im_oc_block
+                                 + o_oc * oc_block / im_oc_block)
+                                  * im_oc_block,
+                                oc_block}});
                         }
                       }
                     }
                   }
-                  if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                  if (ic_used_threads == 1 && ic_num_block_pt == 1
                     && oc_block * oc_used_threads == oc_
                     && s_block * os_used_threads == os_
                     && s_block % (origin_oh * origin_ow) == 0) {
                     _if_(o_ic == (ic_num_block - 1)) {
-                      fusion->create_output_fusion_anchor({tensor_slice(output,
-                        std::vector<std::pair<expr, expr>> {{n, 1UL},
+                      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                        slice_range {{n, 1UL},
                           {(ps * s_num_block_pt * s_block / im_s_block
                              + o_s * s_block / im_s_block)
                               * im_s_block,
@@ -980,7 +976,7 @@ void gen_nested_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                           {(poc * oc_num_block_pt * oc_block / im_oc_block
                              + o_oc * oc_block / im_oc_block)
                               * im_oc_block,
-                            oc_block}})});
+                            oc_block}});
                     }
                   }
                 }
@@ -990,8 +986,8 @@ void gen_nested_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
               if (false && fusion && ic_used_threads == 1
                 && oc_block * oc_used_threads == oc_
                 && s_block * os_used_threads == os_) {
-                fusion->create_output_fusion_anchor({tensor_slice(output,
-                  std::vector<std::pair<expr, expr>> {{n, 1UL},
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                  slice_range {{n, 1UL},
                     {(ps * s_num_block_pt * s_block / im_s_block
                        + o_s * s_block / im_s_block)
                         * im_s_block,
@@ -999,34 +995,31 @@ void gen_nested_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                     {(poc * oc_num_block_pt * oc_block / im_oc_block
                        + o_oc * oc_block / im_oc_block)
                         * im_oc_block,
-                      oc_block}})});
+                      oc_block}});
               }
             }
           }
 
-          if (fusion && oc_threads == 1 && ic_threads == 1 && s_threads == 1) {
-            fusion->create_output_fusion_anchor({tensor_slice(output,
-              std::vector<std::pair<expr, expr>> {
-                {pbs, 1UL}, {0, os_}, {0, oc_}})});
+          if (oc_threads == 1 && ic_threads == 1 && s_threads == 1) {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              slice_range {{pbs, 1UL}, {0, os_}, {0, oc_}});
           }
         } // final reduce
-        if (fusion && oc_threads == 1 && s_threads == 1) {
-          fusion->create_output_fusion_anchor({tensor_slice(output,
-            std::vector<std::pair<expr, expr>> {
-              {pbs, 1UL}, {0, os_}, {0, oc_}})});
+        if (oc_threads == 1 && s_threads == 1) {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            slice_range {{pbs, 1UL}, {0, os_}, {0, oc_}});
         }
       }
-      if (fusion && s_threads == 1) {
-        fusion->create_output_fusion_anchor({tensor_slice(output,
-          std::vector<std::pair<expr, expr>> {
-            {pbs, 1UL}, {0, os_}, {0, oc_}})});
+      if (s_threads == 1) {
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          slice_range {{pbs, 1UL}, {0, os_}, {0, oc_}});
       }
     }
-    if (fusion && mb_ > 1) {
+    if (mb_ > 1) {
       // when mb_ == 1, no need fuse in here or the conv is flattened conv which
       // cannot be fused in bs
-      fusion->create_output_fusion_anchor({tensor_slice(output,
-        std::vector<std::pair<expr, expr>> {{pbs, 1UL}, {0, os_}, {0, oc_}})});
+      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+        slice_range {{pbs, 1UL}, {0, os_}, {0, oc_}});
     }
   }
   loops = {lpbs, lps, lpoc, lpic};
@@ -1300,49 +1293,43 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
                                       get_weight_dtype(), brg_attrs);
                                   }
 
-                                  if (fusion && ic_used_threads == 1
+                                  if (ic_used_threads == 1
                                     && ic_num_block_pt == 1) {
                                     _if_(o_ic == (ic_num_block - 1)) {
-                                      fusion->create_output_fusion_anchor(
-                                        {blocking_output_
-                                            ? tensor_slice(output,
-                                              {{n, 1UL}, {oc, 1},
-                                                {h, im_h_block},
-                                                {w, im_w_block},
-                                                {0, im_oc_block}})
-                                            : tensor_slice(output,
-                                              {{n, 1UL}, {h, im_h_block},
-                                                {w, im_w_block},
-                                                {oc * im_oc_block,
-                                                  im_oc_block}})});
+                                      create_fusion_anchor(fusion,
+                                        owner_->get_outputs()[0],
+                                        blocking_output_
+                                          ? slice_range {{n, 1UL}, {oc, 1},
+                                            {h, im_h_block}, {w, im_w_block},
+                                            {0, im_oc_block}}
+                                          : slice_range {{n, 1UL},
+                                            {h, im_h_block}, {w, im_w_block},
+                                            {oc * im_oc_block, im_oc_block}});
                                     }
                                   }
                                 }
                               }
-                              if (fusion && ic_used_threads == 1
-                                && ic_num_block_pt == 1
+                              if (ic_used_threads == 1 && ic_num_block_pt == 1
                                 && oc_block * oc_used_threads == oc_) {
                                 _if_(o_ic == (ic_num_block - 1)) {
                                   expr anch_c = poc * oc_num_block_pt * oc_block
                                       / im_oc_block
                                     + o_oc * oc_block / im_oc_block;
-                                  fusion->create_output_fusion_anchor(
-                                    {blocking_output_ ? tensor_slice(output,
-                                       {{n, 1UL}, {anch_c, 1}, {h, im_h_block},
-                                         {w, im_w_block}, {0, im_oc_block}})
-                                                      : tensor_slice(output,
-                                                        {{n, 1UL},
-                                                          {h, im_h_block},
-                                                          {w, im_w_block},
-                                                          {anch_c * im_oc_block,
-                                                            oc_block}})});
+                                  create_fusion_anchor(fusion,
+                                    owner_->get_outputs()[0],
+                                    blocking_output_
+                                      ? slice_range {{n, 1UL}, {anch_c, 1},
+                                        {h, im_h_block}, {w, im_w_block},
+                                        {0, im_oc_block}}
+                                      : slice_range {{n, 1UL}, {h, im_h_block},
+                                        {w, im_w_block},
+                                        {anch_c * im_oc_block, oc_block}});
                                 }
                               }
                             }
                           }
 
-                          if (fusion && ic_used_threads == 1
-                            && ic_num_block_pt == 1
+                          if (ic_used_threads == 1 && ic_num_block_pt == 1
                             && oc_block * oc_used_threads == oc_
                             && w_block * ow_used_threads == ow_) {
                             _if_(o_ic == (ic_num_block - 1)) {
@@ -1353,21 +1340,21 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
                                 = (pw * w_num_block_pt * w_block / im_w_block
                                     + o_w * w_block / im_w_block)
                                 * im_w_block;
-                              fusion->create_output_fusion_anchor(
-                                {blocking_output_
-                                    ? tensor_slice(output,
-                                      {{n, 1UL}, {anch_c, 1}, {h, im_h_block},
-                                        {anch_w, w_block}, {0, im_oc_block}})
-                                    : tensor_slice(output,
-                                      {{n, 1UL}, {h, im_h_block},
-                                        {anch_w, w_block},
-                                        {anch_c * im_oc_block, oc_block}})});
+                              create_fusion_anchor(fusion,
+                                owner_->get_outputs()[0],
+                                blocking_output_
+                                  ? slice_range {{n, 1UL}, {anch_c, 1},
+                                    {h, im_h_block}, {anch_w, w_block},
+                                    {0, im_oc_block}}
+                                  : slice_range {{n, 1UL}, {h, im_h_block},
+                                    {anch_w, w_block},
+                                    {anch_c * im_oc_block, oc_block}});
                             }
                           }
                         }
                       }
 
-                      if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                      if (ic_used_threads == 1 && ic_num_block_pt == 1
                         && oc_block * oc_used_threads == oc_
                         && w_block * ow_used_threads == ow_
                         && h_block * oh_used_threads == oh_) {
@@ -1384,13 +1371,14 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
                                 + o_w * w_block / im_w_block)
                             * im_w_block;
 
-                          fusion->create_output_fusion_anchor({blocking_output_
-                              ? tensor_slice(output,
-                                {{n, 1UL}, {anch_c, 1}, {anch_h, h_block},
-                                  {anch_w, w_block}, {0, im_oc_block}})
-                              : tensor_slice(output,
-                                {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
-                                  {anch_c * im_oc_block, oc_block}})});
+                          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                            blocking_output_
+                              ? slice_range {{n, 1UL}, {anch_c, 1},
+                                {anch_h, h_block}, {anch_w, w_block},
+                                {0, im_oc_block}}
+                              : slice_range {{n, 1UL}, {anch_h, h_block},
+                                {anch_w, w_block},
+                                {anch_c * im_oc_block, oc_block}});
                         }
                       }
                     }
@@ -1401,51 +1389,47 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
               }
             }
 
-            if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1
+            if (oc_threads == 1 && h_threads == 1 && w_threads == 1
               && ic_threads == 1) {
-              fusion->create_output_fusion_anchor({blocking_output_
-                  ? tensor_slice(output,
-                    {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
-                      {0, ow_}, {0, im_oc_block}})
-                  : tensor_slice(
-                    output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                blocking_output_
+                  ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block},
+                    {0, oh_expr_}, {0, ow_}, {0, im_oc_block}}
+                  : slice_range {
+                    {pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
             }
           }
-          if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1) {
-            fusion->create_output_fusion_anchor({blocking_output_
-                ? tensor_slice(output,
-                  {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
-                    {0, im_oc_block}})
-                : tensor_slice(
-                  output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+          if (oc_threads == 1 && h_threads == 1 && w_threads == 1) {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              blocking_output_
+                ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block},
+                  {0, oh_expr_}, {0, ow_}, {0, im_oc_block}}
+                : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
           }
         }
-        if (fusion && h_threads == 1 && w_threads == 1) {
-          fusion->create_output_fusion_anchor({blocking_output_
-              ? tensor_slice(output,
-                {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
-                  {0, im_oc_block}})
-              : tensor_slice(
-                output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+        if (h_threads == 1 && w_threads == 1) {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            blocking_output_
+              ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
+                {0, ow_}, {0, im_oc_block}}
+              : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
         }
       }
 
-      if (fusion && h_threads == 1) {
-        fusion->create_output_fusion_anchor({blocking_output_
-            ? tensor_slice(output,
-              {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
-                {0, im_oc_block}})
-            : tensor_slice(
-              output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+      if (h_threads == 1) {
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          blocking_output_
+            ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
+              {0, ow_}, {0, im_oc_block}}
+            : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
       }
     }
-    if (fusion && mb_ > 1) {
-      fusion->create_output_fusion_anchor(
-        {blocking_output_ ? tensor_slice(output,
-           {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
-             {0, im_oc_block}})
-                          : tensor_slice(output,
-                            {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+    if (mb_ > 1) {
+      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+        blocking_output_
+          ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
+            {0, ow_}, {0, im_oc_block}}
+          : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
     }
   }
   loops = {lpbs, lph, lpw, lpoc, lpic};
@@ -1625,41 +1609,36 @@ void gen_nested_conv_fwd_t::dynamic_compute_1x1_pack_input_nested(
                                     im_oc_block, ic_block, o_ic,
                                     ic_num_block_pt, A_list, B_list,
                                     tensor_ptr(output, output_pos), LDA, LDC);
-                                  if (fusion) {
-                                    fusion->create_output_fusion_anchor(
-                                      {tensor_slice(output,
-                                        {{n, 1UL}, {h, im_h_block},
-                                          {w, im_w_block},
-                                          {oc * im_oc_block, im_oc_block}})},
-                                      0);
-                                  }
+                                  create_fusion_anchor(fusion,
+                                    owner_->get_outputs()[0],
+                                    {{n, 1UL}, {h, im_h_block}, {w, im_w_block},
+                                      {oc * im_oc_block, im_oc_block}});
                                 } // i_w
                               } // check h_boundary
-                              if (fusion && oc_block * oc_used_threads == oc_) {
+                              if (oc_block * oc_used_threads == oc_) {
                                 _if_(o_ic == (ic_num_block - 1)) {
-                                  fusion->create_output_fusion_anchor(
-                                    {tensor_slice(output,
-                                      {{n, 1UL}, {h, im_h_block}, {0, ow_expr_},
-                                        {oc * im_oc_block, im_oc_block}})});
+                                  create_fusion_anchor(fusion,
+                                    owner_->get_outputs()[0],
+                                    {{n, 1UL}, {h, im_h_block}, {0, ow_expr_},
+                                      {oc * im_oc_block, im_oc_block}});
                                 }
                               }
                             } // i_h
-                            if (fusion && oc_block * oc_used_threads == oc_) {
+                            if (oc_block * oc_used_threads == oc_) {
                               _if_(o_ic == (ic_num_block - 1)) {
                                 expr anchor_h
                                   = (ph * h_num_block_pt * h_block / im_h_block
                                       + o_h * h_block / im_h_block)
                                   * im_h_block;
-                                fusion->create_output_fusion_anchor(
-                                  {tensor_slice(output,
-                                    {{n, 1UL}, {anchor_h, h_block},
-                                      {0, ow_expr_},
-                                      {oc * im_oc_block, im_oc_block}})});
+                                create_fusion_anchor(fusion,
+                                  owner_->get_outputs()[0],
+                                  {{n, 1UL}, {anchor_h, h_block}, {0, ow_expr_},
+                                    {oc * im_oc_block, im_oc_block}});
                               }
                             }
                           } // check i_oc
                         } // i_oc
-                        if (fusion && oc_block * oc_used_threads == oc_) {
+                        if (oc_block * oc_used_threads == oc_) {
                           _if_(h_block * oh_used_threads == oh_expr_) {
                             expr anchor_h
                               = (ph * h_num_block_pt * h_block / im_h_block
@@ -1667,45 +1646,45 @@ void gen_nested_conv_fwd_t::dynamic_compute_1x1_pack_input_nested(
                               * im_h_block;
                             expr anchor_c = poc * oc_num_block_pt * oc_block
                               + o_oc * oc_block;
-                            fusion->create_output_fusion_anchor(
-                              {tensor_slice(output,
-                                {{n, 1UL}, {anchor_h, h_block}, {0, ow_expr_},
-                                  {anchor_c, oc_block}})});
+                            create_fusion_anchor(fusion,
+                              owner_->get_outputs()[0],
+                              {{n, 1UL}, {anchor_h, h_block}, {0, ow_expr_},
+                                {anchor_c, oc_block}});
                           }
                         }
                       } // check innermost
                     } // o_ic
                   } // o_oc
                 } // o_w
-                if (fusion && oc_block * oc_used_threads == oc_) {
+                if (oc_block * oc_used_threads == oc_) {
                   _if_(h_block * oh_used_threads == oh_expr_) {
                     expr anchor_h
                       = ph * h_num_block_pt * h_block + o_h * h_block;
                     expr anchor_c = poc * oc_num_block_pt * oc_block;
-                    fusion->create_output_fusion_anchor({tensor_slice(output,
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
                       {{pbs, 1UL}, {anchor_h, h_block}, {0, ow_expr_},
-                        {anchor_c, oc_num_block_pt * oc_block}})});
+                        {anchor_c, oc_num_block_pt * oc_block}});
                   }
                 }
               } // o_h
             } // check single core
-            if (fusion && oc_threads == 1 && h_threads == 1) {
-              fusion->create_output_fusion_anchor({tensor_slice(
-                output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_}, {0, oc_}})});
+            if (oc_threads == 1 && h_threads == 1) {
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_}, {0, oc_}});
             }
           } // pic
         } // poc
-        if (fusion && h_threads == 1) {
+        if (h_threads == 1) {
           expr anchor_h = ph * h_num_block_pt * h_block;
-          fusion->create_output_fusion_anchor({tensor_slice(
-            output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_}, {0, oc_}})});
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_}, {0, oc_}});
         }
       } // pw
     } // ph
     // TODO(xurui) disable the anchor fow now for dynamic bottleneck.
-    // if (fusion && mb_ > 1) {
-    //   fusion->create_output_fusion_anchor({tensor_slice(
-    //     output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_}, {0, oc_}})});
+    // _if_(mb_expr_ > 1) {
+    //   create_fusion_anchor(fusion, owner_->get_outputs()[0],
+    //     {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_}, {0, oc_}});
     // }
   } // pbs
   loops = {lpbs, lph, lpw, lpoc, lpic};
@@ -1934,65 +1913,59 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
                                         brg_attrs);
                                     }
 
-                                    if (fusion && ic_used_threads == 1
+                                    if (ic_used_threads == 1
                                       && ic_num_block_pt == 1) {
                                       _if_(o_ic == (ic_num_block - 1)) {
-                                        fusion->create_output_fusion_anchor(
-                                          {blocking_output_
-                                              ? tensor_slice(output,
-                                                {{n, 1UL}, {oc, 1},
-                                                  {h + im_h_i, 1},
-                                                  {w, im_w_block},
-                                                  {0, im_oc_block}})
-                                              : tensor_slice(output,
-                                                {{n, 1UL}, {h + im_h_i, 1},
-                                                  {w, im_w_block},
-                                                  {oc * im_oc_block,
-                                                    im_oc_block}})});
+                                        create_fusion_anchor(fusion,
+                                          owner_->get_outputs()[0],
+                                          blocking_output_
+                                            ? slice_range {{n, 1UL}, {oc, 1},
+                                              {h + im_h_i, 1}, {w, im_w_block},
+                                              {0, im_oc_block}}
+                                            : slice_range {{n, 1UL},
+                                              {h + im_h_i, 1}, {w, im_w_block},
+                                              {oc * im_oc_block, im_oc_block}});
                                       }
                                     }
                                   }
                                 }
 
-                                if (fusion && ic_used_threads == 1) {
+                                if (ic_used_threads == 1) {
                                   _if_(o_ic == (ic_num_block - 1)) {
-                                    fusion->create_output_fusion_anchor(
-                                      {blocking_output_ ? tensor_slice(output,
-                                         {{n, 1UL}, {oc, 1}, {h, im_h_block},
-                                           {w, im_w_block}, {0, im_oc_block}})
-                                                        : tensor_slice(output,
-                                                          {{n, 1UL},
-                                                            {h, im_h_block},
-                                                            {w, im_w_block},
-                                                            {oc * im_oc_block,
-                                                              im_oc_block}})});
+                                    create_fusion_anchor(fusion,
+                                      owner_->get_outputs()[0],
+                                      blocking_output_
+                                        ? slice_range {{n, 1UL}, {oc, 1},
+                                          {h, im_h_block}, {w, im_w_block},
+                                          {0, im_oc_block}}
+                                        : slice_range {{n, 1UL},
+                                          {h, im_h_block}, {w, im_w_block},
+                                          {oc * im_oc_block, im_oc_block}});
                                   }
                                 }
                               }
                             }
-                            if (fusion && ic_used_threads == 1
-                              && ic_num_block_pt == 1
+                            if (ic_used_threads == 1 && ic_num_block_pt == 1
                               && oc_block * oc_used_threads == oc_) {
                               _if_(o_ic == (ic_num_block - 1)) {
                                 expr anch_c = poc * oc_num_block_pt * oc_block
                                     / im_oc_block
                                   + o_oc * oc_block / im_oc_block;
-                                fusion->create_output_fusion_anchor(
-                                  {blocking_output_
-                                      ? tensor_slice(output,
-                                        {{n, 1UL}, {anch_c, 1}, {h, im_h_block},
-                                          {w, im_w_block}, {0, im_oc_block}})
-                                      : tensor_slice(output,
-                                        {{n, 1UL}, {h, im_h_block},
-                                          {w, im_w_block},
-                                          {anch_c * im_oc_block, oc_block}})});
+                                create_fusion_anchor(fusion,
+                                  owner_->get_outputs()[0],
+                                  blocking_output_
+                                    ? slice_range {{n, 1UL}, {anch_c, 1},
+                                      {h, im_h_block}, {w, im_w_block},
+                                      {0, im_oc_block}}
+                                    : slice_range {{n, 1UL}, {h, im_h_block},
+                                      {w, im_w_block},
+                                      {anch_c * im_oc_block, oc_block}});
                               }
                             }
                           }
                         }
 
-                        if (fusion && ic_used_threads == 1
-                          && ic_num_block_pt == 1
+                        if (ic_used_threads == 1 && ic_num_block_pt == 1
                           && oc_block * oc_used_threads == oc_
                           && w_block * ow_used_threads == ow_) {
                           _if_(o_ic == (ic_num_block - 1)) {
@@ -2003,20 +1976,20 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
                               = (pw * w_num_block_pt * w_block / im_w_block
                                   + o_w * w_block / im_w_block)
                               * im_w_block;
-                            fusion->create_output_fusion_anchor(
-                              {blocking_output_
-                                  ? tensor_slice(output,
-                                    {{n, 1UL}, {anch_c, 1}, {h, im_h_block},
-                                      {anch_w, w_block}, {0, im_oc_block}})
-                                  : tensor_slice(output,
-                                    {{n, 1UL}, {h, im_h_block},
-                                      {anch_w, w_block},
-                                      {anch_c * im_oc_block, oc_block}})});
+                            create_fusion_anchor(fusion,
+                              owner_->get_outputs()[0],
+                              blocking_output_
+                                ? slice_range {{n, 1UL}, {anch_c, 1},
+                                  {h, im_h_block}, {anch_w, w_block},
+                                  {0, im_oc_block}}
+                                : slice_range {{n, 1UL}, {h, im_h_block},
+                                  {anch_w, w_block},
+                                  {anch_c * im_oc_block, oc_block}});
                           }
                         }
                       }
 
-                      if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                      if (ic_used_threads == 1 && ic_num_block_pt == 1
                         && oc_block * oc_used_threads == oc_
                         && w_block * ow_used_threads == ow_
                         && h_block * oh_used_threads == oh_) {
@@ -2032,13 +2005,14 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
                             = (pw * w_num_block_pt * w_block / im_w_block
                                 + o_w * w_block / im_w_block)
                             * im_w_block;
-                          fusion->create_output_fusion_anchor({blocking_output_
-                              ? tensor_slice(output,
-                                {{n, 1UL}, {anch_c, 1}, {anch_h, h_block},
-                                  {anch_w, w_block}, {0, im_oc_block}})
-                              : tensor_slice(output,
-                                {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
-                                  {anch_c * im_oc_block, oc_block}})});
+                          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                            blocking_output_
+                              ? slice_range {{n, 1UL}, {anch_c, 1},
+                                {anch_h, h_block}, {anch_w, w_block},
+                                {0, im_oc_block}}
+                              : slice_range {{n, 1UL}, {anch_h, h_block},
+                                {anch_w, w_block},
+                                {anch_c * im_oc_block, oc_block}});
                         }
                       }
                     }
@@ -2049,52 +2023,48 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
               }
             }
 
-            if (fusion && oc_threads == 1 && ic_threads == 1 && h_threads == 1
+            if (oc_threads == 1 && ic_threads == 1 && h_threads == 1
               && w_threads == 1) {
-              fusion->create_output_fusion_anchor({blocking_output_
-                  ? tensor_slice(output,
-                    {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
-                      {0, ow_}, {0, im_oc_block}})
-                  : tensor_slice(
-                    output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                blocking_output_
+                  ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block},
+                    {0, oh_expr_}, {0, ow_}, {0, im_oc_block}}
+                  : slice_range {
+                    {pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
             }
           }
-          if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1) {
-            fusion->create_output_fusion_anchor({blocking_output_
-                ? tensor_slice(output,
-                  {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
-                    {0, im_oc_block}})
-                : tensor_slice(
-                  output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+          if (oc_threads == 1 && h_threads == 1 && w_threads == 1) {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              blocking_output_
+                ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block},
+                  {0, oh_expr_}, {0, ow_}, {0, im_oc_block}}
+                : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
           }
         }
 
-        if (fusion && h_threads == 1 && w_threads == 1) {
-          fusion->create_output_fusion_anchor({blocking_output_
-              ? tensor_slice(output,
-                {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
-                  {0, im_oc_block}})
-              : tensor_slice(
-                output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+        if (h_threads == 1 && w_threads == 1) {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            blocking_output_
+              ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
+                {0, ow_}, {0, im_oc_block}}
+              : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
         }
       }
 
-      if (fusion && h_threads == 1) {
-        fusion->create_output_fusion_anchor({blocking_output_
-            ? tensor_slice(output,
-              {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
-                {0, im_oc_block}})
-            : tensor_slice(
-              output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+      if (h_threads == 1) {
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          blocking_output_
+            ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
+              {0, ow_}, {0, im_oc_block}}
+            : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
       }
     }
-    if (fusion && mb_ > 1) {
-      fusion->create_output_fusion_anchor(
-        {blocking_output_ ? tensor_slice(output,
-           {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
-             {0, im_oc_block}})
-                          : tensor_slice(output,
-                            {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
+    if (mb_ > 1) {
+      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+        blocking_output_
+          ? slice_range {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
+            {0, ow_}, {0, im_oc_block}}
+          : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
     }
   }
   loops = {lpbs, lph, lpw, lpoc, lpic};
@@ -2302,26 +2272,22 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_os_blocking_nested(
                             get_input_dtype(), get_weight_dtype(), brg_attrs,
                             os_mask, im_s_block_idx, os / im_s_block);
 
-                          if (fusion && ic_used_threads == 1
-                            && ic_num_block_pt == 1) {
+                          if (ic_used_threads == 1 && ic_num_block_pt == 1) {
                             _if_(o_ic == (ic_num_block - 1)) {
                               auto os_num_block = os / im_s_block;
                               if (oh_ % os_num_block == 0) {
-                                fusion->create_output_fusion_anchor(
-                                  {blocking_output_
-                                      ? tensor_slice(output,
-                                        {{n, 1UL}, {oc, 1},
-                                          {im_s_block_idx
-                                              * (oh_ / os_num_block),
-                                            (oh_ / os_num_block)},
-                                          {0, ow_}, {0, im_oc_block}})
-                                      : tensor_slice(output,
-                                        {{n, 1UL},
-                                          {im_s_block_idx
-                                              * (oh_ / os_num_block),
-                                            (oh_ / os_num_block)},
-                                          {0, ow_},
-                                          {oc * im_oc_block, im_oc_block}})});
+                                create_fusion_anchor(fusion,
+                                  owner_->get_outputs()[0],
+                                  blocking_output_
+                                    ? slice_range {{n, 1UL}, {oc, 1},
+                                      {im_s_block_idx * (oh_ / os_num_block),
+                                        (oh_ / os_num_block)},
+                                      {0, ow_}, {0, im_oc_block}}
+                                    : slice_range {{n, 1UL},
+                                      {im_s_block_idx * (oh_ / os_num_block),
+                                        (oh_ / os_num_block)},
+                                      {0, ow_},
+                                      {oc * im_oc_block, im_oc_block}});
                               }
                             }
                           }
@@ -2333,54 +2299,45 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_os_blocking_nested(
               }
             }
 
-            if (fusion && oc_threads == 1 && ic_threads == 1
-              && s_threads == 1) {
-              fusion->create_output_fusion_anchor({blocking_output_
-                  ? tensor_slice(output,
-                    {{pbs, 1UL},
-                      {outer_k * oc_ / im_oc_block / oc_split,
-                        oc_ / im_oc_block / oc_split},
-                      {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                  : tensor_slice(output,
-                    {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                      {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+            if (oc_threads == 1 && ic_threads == 1 && s_threads == 1) {
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                blocking_output_ ? slice_range {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                                 : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                                   {outer_k * oc_ / oc_split, oc_ / oc_split}});
             }
           }
 
-          if (fusion && oc_threads == 1 && s_threads == 1) {
-            fusion->create_output_fusion_anchor({blocking_output_
-                ? tensor_slice(output,
-                  {{pbs, 1UL},
-                    {outer_k * oc_ / im_oc_block / oc_split,
-                      oc_ / im_oc_block / oc_split},
-                    {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                : tensor_slice(output,
-                  {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                    {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+          if (oc_threads == 1 && s_threads == 1) {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              blocking_output_ ? slice_range {{pbs, 1UL},
+                {outer_k * oc_ / im_oc_block / oc_split,
+                  oc_ / im_oc_block / oc_split},
+                {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                               : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                                 {outer_k * oc_ / oc_split, oc_ / oc_split}});
           }
         }
-        if (fusion && s_threads == 1) {
-          fusion->create_output_fusion_anchor({blocking_output_
-              ? tensor_slice(output,
-                {{pbs, 1UL},
-                  {outer_k * oc_ / im_oc_block / oc_split,
-                    oc_ / im_oc_block / oc_split},
-                  {0, oh_}, {0, ow_}, {0, im_oc_block}})
-              : tensor_slice(output,
-                {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                  {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+        if (s_threads == 1) {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            blocking_output_ ? slice_range {{pbs, 1UL},
+              {outer_k * oc_ / im_oc_block / oc_split,
+                oc_ / im_oc_block / oc_split},
+              {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                             : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                               {outer_k * oc_ / oc_split, oc_ / oc_split}});
         }
       }
-      if (fusion && mb_ > 1) {
-        fusion->create_output_fusion_anchor(
-          {blocking_output_ ? tensor_slice(output,
-             {{pbs, 1UL},
-               {outer_k * oc_ / im_oc_block / oc_split,
-                 oc_ / im_oc_block / oc_split},
-               {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                            : tensor_slice(output,
-                              {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                                {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+      if (mb_ > 1) {
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          blocking_output_ ? slice_range {{pbs, 1UL},
+            {outer_k * oc_ / im_oc_block / oc_split,
+              oc_ / im_oc_block / oc_split},
+            {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                           : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                             {outer_k * oc_ / oc_split, oc_ / oc_split}});
       }
     }
   }
@@ -2613,48 +2570,45 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
                                             tensor_ptr(output_tmp, output_pos),
                                             LDA, LDC);
 
-                                          if (fusion && ic_used_threads == 1
+                                          if (ic_used_threads == 1
                                             && ic_num_block_pt == 1) {
                                             _if_(o_ic == (ic_num_block - 1)) {
-                                              fusion
-                                                ->create_output_fusion_anchor(
-                                                  {blocking_output_
-                                                      ? tensor_slice(output,
-                                                        {{n, 1UL}, {oc, 1},
-                                                          {h + im_h_i, 1},
-                                                          {w, real_im_w_block},
-                                                          {0, im_oc_block}})
-                                                      : tensor_slice(output,
-                                                        {{n, 1UL},
-                                                          {h + im_h_i, 1},
-                                                          {w, real_im_w_block},
-                                                          {oc * im_oc_block,
-                                                            im_oc_block}})});
+                                              create_fusion_anchor(fusion,
+                                                owner_->get_outputs()[0],
+                                                blocking_output_
+                                                  ? slice_range {{n, 1UL},
+                                                    {oc, 1}, {h + im_h_i, 1},
+                                                    {w, real_im_w_block},
+                                                    {0, im_oc_block}}
+                                                  : slice_range {{n, 1UL},
+                                                    {h + im_h_i, 1},
+                                                    {w, real_im_w_block},
+                                                    {oc * im_oc_block,
+                                                      im_oc_block}});
                                             }
                                           } // im_h_i
                                         }
                                       }
-                                      if (fusion && ic_used_threads == 1
+                                      if (ic_used_threads == 1
                                         && ic_num_block_pt == 1) {
                                         _if_(o_ic == (ic_num_block - 1)) {
-                                          fusion->create_output_fusion_anchor(
-                                            {blocking_output_
-                                                ? tensor_slice(output,
-                                                  {{n, 1UL}, {oc, 1},
-                                                    {h, real_im_h_block},
-                                                    {w, real_im_w_block},
-                                                    {0, im_oc_block}})
-                                                : tensor_slice(output,
-                                                  {{n, 1UL},
-                                                    {h, real_im_h_block},
-                                                    {w, real_im_w_block},
-                                                    {oc * im_oc_block,
-                                                      im_oc_block}})});
+                                          create_fusion_anchor(fusion,
+                                            owner_->get_outputs()[0],
+                                            blocking_output_
+                                              ? slice_range {{n, 1UL}, {oc, 1},
+                                                {h, real_im_h_block},
+                                                {w, real_im_w_block},
+                                                {0, im_oc_block}}
+                                              : slice_range {{n, 1UL},
+                                                {h, real_im_h_block},
+                                                {w, real_im_w_block},
+                                                {oc * im_oc_block,
+                                                  im_oc_block}});
                                         }
                                       }
                                     } // i_oc
                                   }
-                                  if (fusion && ic_used_threads == 1
+                                  if (ic_used_threads == 1
                                     && ic_num_block_pt == 1
                                     && oc_block * oc_used_threads == oc_) {
                                     _if_(o_ic == (ic_num_block - 1)) {
@@ -2663,23 +2617,23 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
                                         + o_oc * oc_block / im_oc_block
                                         + outer_k * oc_block / im_oc_block
                                           / oc_split;
-                                      fusion->create_output_fusion_anchor(
-                                        {blocking_output_
-                                            ? tensor_slice(output,
-                                              {{n, 1UL}, {anch_c, 1},
-                                                {h, real_im_h_block},
-                                                {w, real_im_w_block},
-                                                {0, im_oc_block}})
-                                            : tensor_slice(output,
-                                              {{n, 1UL}, {h, real_im_h_block},
-                                                {w, real_im_w_block},
-                                                {anch_c * im_oc_block,
-                                                  im_oc_block}})});
+                                      create_fusion_anchor(fusion,
+                                        owner_->get_outputs()[0],
+                                        blocking_output_
+                                          ? slice_range {{n, 1UL}, {anch_c, 1},
+                                            {h, real_im_h_block},
+                                            {w, real_im_w_block},
+                                            {0, im_oc_block}}
+                                          : slice_range {{n, 1UL},
+                                            {h, real_im_h_block},
+                                            {w, real_im_w_block},
+                                            {anch_c * im_oc_block,
+                                              im_oc_block}});
                                     }
                                   }
                                 } // i_w
                               }
-                              if (fusion && !is_dynamic_dim(ow_)
+                              if (!is_dynamic_dim(ow_)
                                 && get_expr_as_int(w_block)
                                     * get_expr_as_int(ow_used_threads)
                                   == ow_
@@ -2693,26 +2647,22 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
                                       / oc_split;
                                   expr anch_w = pw * w_num_block_pt * w_block
                                     + o_w * w_block;
-
-                                  fusion->create_output_fusion_anchor(
-                                    {blocking_output_ ? tensor_slice(output,
-                                       {{n, 1UL}, {anch_c, 1},
-                                         {h, real_im_h_block},
-                                         {anch_w, w_block}, {0, im_oc_block}})
-                                                      : tensor_slice(output,
-                                                        {{n, 1UL},
-                                                          {h, real_im_h_block},
-                                                          {anch_w, w_block},
-                                                          {anch_c * im_oc_block,
-                                                            oc_block}})});
+                                  create_fusion_anchor(fusion,
+                                    owner_->get_outputs()[0],
+                                    blocking_output_
+                                      ? slice_range {{n, 1UL}, {anch_c, 1},
+                                        {h, real_im_h_block}, {anch_w, w_block},
+                                        {0, im_oc_block}}
+                                      : slice_range {{n, 1UL},
+                                        {h, real_im_h_block}, {anch_w, w_block},
+                                        {anch_c * im_oc_block, oc_block}});
                                 }
                               }
                             } // i_h
                           }
 
-                          if (fusion && ic_used_threads == 1
-                            && ic_num_block_pt == 1 && !is_dynamic_dim(oh_)
-                            && !is_dynamic_dim(ow_)
+                          if (ic_used_threads == 1 && ic_num_block_pt == 1
+                            && !is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)
                             && oc_block * oc_used_threads == oc_
                             && get_expr_as_int(h_block)
                                 * get_expr_as_int(oh_used_threads)
@@ -2729,18 +2679,17 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
                                 = ph * h_num_block_pt * h_block + o_h * h_block;
                               expr anch_w = (pw * w_num_block_pt * w_block
                                 + o_w * w_block);
-                              fusion->create_output_fusion_anchor(
-                                {blocking_output_
-                                    ? tensor_slice(output,
-                                      {{n, 1UL}, {anch_c, 1},
-                                        {anch_h, oh_ / oh_used_threads},
-                                        {anch_w, ow_ / ow_used_threads},
-                                        {0, im_oc_block}})
-                                    : tensor_slice(output,
-                                      {{n, 1UL},
-                                        {anch_h, oh_ / oh_used_threads},
-                                        {anch_w, ow_ / ow_used_threads},
-                                        {anch_c * im_oc_block, oc_block}})});
+                              create_fusion_anchor(fusion,
+                                owner_->get_outputs()[0],
+                                blocking_output_
+                                  ? slice_range {{n, 1UL}, {anch_c, 1},
+                                    {anch_h, oh_ / oh_used_threads},
+                                    {anch_w, ow_ / ow_used_threads},
+                                    {0, im_oc_block}}
+                                  : slice_range {{n, 1UL},
+                                    {anch_h, oh_ / oh_used_threads},
+                                    {anch_w, ow_ / ow_used_threads},
+                                    {anch_c * im_oc_block, oc_block}});
                             }
                           }
                         } // o_ic
@@ -2750,72 +2699,62 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
                 }
               }
 
-              if (fusion && oc_threads == 1 && ic_threads == 1 && h_threads == 1
+              if (oc_threads == 1 && ic_threads == 1 && h_threads == 1
                 && w_threads == 1 && !is_dynamic_dim(oh_)
                 && !is_dynamic_dim(ow_)) {
-                fusion->create_output_fusion_anchor({blocking_output_
-                    ? tensor_slice(output,
-                      {{pbs, 1UL},
-                        {outer_k * oc_ / im_oc_block / oc_split,
-                          oc_ / im_oc_block / oc_split},
-                        {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                    : tensor_slice(output,
-                      {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                        {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                  blocking_output_
+                    ? slice_range {{pbs, 1UL},
+                      {outer_k * oc_ / im_oc_block / oc_split,
+                        oc_ / im_oc_block / oc_split},
+                      {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                    : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                      {outer_k * oc_ / oc_split, oc_ / oc_split}});
               }
             }
 
-            if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1
+            if (oc_threads == 1 && h_threads == 1 && w_threads == 1
               && !is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)) {
-              fusion->create_output_fusion_anchor({blocking_output_
-                  ? tensor_slice(output,
-                    {{pbs, 1UL},
-                      {outer_k * oc_ / im_oc_block / oc_split,
-                        oc_ / im_oc_block / oc_split},
-                      {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                  : tensor_slice(output,
-                    {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                      {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                blocking_output_ ? slice_range {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                                 : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                                   {outer_k * oc_ / oc_split, oc_ / oc_split}});
             }
           }
-          if (fusion && h_threads == 1 && w_threads == 1 && !is_dynamic_dim(oh_)
+          if (h_threads == 1 && w_threads == 1 && !is_dynamic_dim(oh_)
             && !is_dynamic_dim(ow_)) {
-            fusion->create_output_fusion_anchor({blocking_output_
-                ? tensor_slice(output,
-                  {{pbs, 1UL},
-                    {outer_k * oc_ / im_oc_block / oc_split,
-                      oc_ / im_oc_block / oc_split},
-                    {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                : tensor_slice(output,
-                  {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                    {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              blocking_output_ ? slice_range {{pbs, 1UL},
+                {outer_k * oc_ / im_oc_block / oc_split,
+                  oc_ / im_oc_block / oc_split},
+                {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                               : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                                 {outer_k * oc_ / oc_split, oc_ / oc_split}});
           }
         }
 
-        if (fusion && h_threads == 1 && !is_dynamic_dim(oh_)
-          && !is_dynamic_dim(ow_)) {
-          fusion->create_output_fusion_anchor({blocking_output_
-              ? tensor_slice(output,
-                {{pbs, 1UL},
-                  {outer_k * oc_ / im_oc_block / oc_split,
-                    oc_ / im_oc_block / oc_split},
-                  {0, oh_}, {0, ow_}, {0, im_oc_block}})
-              : tensor_slice(output,
-                {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                  {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+        if (h_threads == 1 && !is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)) {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            blocking_output_ ? slice_range {{pbs, 1UL},
+              {outer_k * oc_ / im_oc_block / oc_split,
+                oc_ / im_oc_block / oc_split},
+              {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                             : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                               {outer_k * oc_ / oc_split, oc_ / oc_split}});
         }
       }
-      if (fusion && !is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)) {
+      if (!is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)) {
         _if_(mb_expr_ > 1) {
-          fusion->create_output_fusion_anchor({blocking_output_
-              ? tensor_slice(output,
-                {{pbs, 1UL},
-                  {outer_k * oc_ / im_oc_block / oc_split,
-                    oc_ / im_oc_block / oc_split},
-                  {0, oh_}, {0, ow_}, {0, im_oc_block}})
-              : tensor_slice(output,
-                {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                  {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            blocking_output_ ? slice_range {{pbs, 1UL},
+              {outer_k * oc_ / im_oc_block / oc_split,
+                oc_ / im_oc_block / oc_split},
+              {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                             : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                               {outer_k * oc_ / oc_split, oc_ / oc_split}});
         }
       }
     }
@@ -3066,46 +3005,42 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
                                           brg_attrs);
                                       }
 
-                                      if (fusion && ic_used_threads == 1
+                                      if (ic_used_threads == 1
                                         && ic_num_block_pt == 1) {
                                         _if_(o_ic == (ic_num_block - 1)) {
-                                          fusion->create_output_fusion_anchor(
-                                            {blocking_output_
-                                                ? tensor_slice(output,
-                                                  {{n, 1UL}, {oc, 1},
-                                                    {h + im_h_i, 1},
-                                                    {w, im_w_block},
-                                                    {0, im_oc_block}})
-                                                : tensor_slice(output,
-                                                  {{n, 1UL}, {h + im_h_i, 1},
-                                                    {w, im_w_block},
-                                                    {oc * im_oc_block,
-                                                      im_oc_block}})});
+                                          create_fusion_anchor(fusion,
+                                            owner_->get_outputs()[0],
+                                            blocking_output_
+                                              ? slice_range {{n, 1UL}, {oc, 1},
+                                                {h + im_h_i, 1},
+                                                {w, im_w_block},
+                                                {0, im_oc_block}}
+                                              : slice_range {{n, 1UL},
+                                                {h + im_h_i, 1},
+                                                {w, im_w_block},
+                                                {oc * im_oc_block,
+                                                  im_oc_block}});
                                         }
                                       }
                                     }
                                   }
-                                  if (fusion && ic_used_threads == 1
+                                  if (ic_used_threads == 1
                                     && ic_num_block_pt == 1) {
                                     _if_(o_ic == (ic_num_block - 1)) {
-                                      fusion->create_output_fusion_anchor(
-                                        {blocking_output_
-                                            ? tensor_slice(output,
-                                              {{n, 1UL}, {oc, 1},
-                                                {h, im_h_block},
-                                                {w, im_w_block},
-                                                {0, im_oc_block}})
-                                            : tensor_slice(output,
-                                              {{n, 1UL}, {h, im_h_block},
-                                                {w, im_w_block},
-                                                {oc * im_oc_block,
-                                                  im_oc_block}})});
+                                      create_fusion_anchor(fusion,
+                                        owner_->get_outputs()[0],
+                                        blocking_output_
+                                          ? slice_range {{n, 1UL}, {oc, 1},
+                                            {h, im_h_block}, {w, im_w_block},
+                                            {0, im_oc_block}}
+                                          : slice_range {{n, 1UL},
+                                            {h, im_h_block}, {w, im_w_block},
+                                            {oc * im_oc_block, im_oc_block}});
                                     }
                                   }
                                 }
                               }
-                              if (fusion && ic_used_threads == 1
-                                && ic_num_block_pt == 1
+                              if (ic_used_threads == 1 && ic_num_block_pt == 1
                                 && oc_block * oc_used_threads == oc_) {
                                 _if_(o_ic == (ic_num_block - 1)) {
                                   expr anch_c = poc * oc_num_block_pt * oc_block
@@ -3113,23 +3048,21 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
                                     + o_oc * oc_block / im_oc_block
                                     + outer_k * oc_block / im_oc_block
                                       / oc_split;
-                                  fusion->create_output_fusion_anchor(
-                                    {blocking_output_ ? tensor_slice(output,
-                                       {{n, 1UL}, {anch_c, 1}, {h, im_h_block},
-                                         {w, im_w_block}, {0, im_oc_block}})
-                                                      : tensor_slice(output,
-                                                        {{n, 1UL},
-                                                          {h, im_h_block},
-                                                          {w, im_w_block},
-                                                          {anch_c * im_oc_block,
-                                                            oc_block}})});
+                                  create_fusion_anchor(fusion,
+                                    owner_->get_outputs()[0],
+                                    blocking_output_
+                                      ? slice_range {{n, 1UL}, {anch_c, 1},
+                                        {h, im_h_block}, {w, im_w_block},
+                                        {0, im_oc_block}}
+                                      : slice_range {{n, 1UL}, {h, im_h_block},
+                                        {w, im_w_block},
+                                        {anch_c * im_oc_block, oc_block}});
                                 }
                               }
                             }
                           }
 
-                          if (fusion && ic_used_threads == 1
-                            && ic_num_block_pt == 1
+                          if (ic_used_threads == 1 && ic_num_block_pt == 1
                             && oc_block * oc_used_threads == oc_
                             && w_block * ow_used_threads == ow_) {
                             _if_(o_ic == (ic_num_block - 1)) {
@@ -3141,21 +3074,20 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
                                 = (pw * w_num_block_pt * w_block / im_w_block
                                     + o_w * w_block / im_w_block)
                                 * im_w_block;
-                              fusion->create_output_fusion_anchor(
-                                {blocking_output_
-                                    ? tensor_slice(output,
-                                      {{n, 1UL}, {anch_c, 1}, {h, im_h_block},
-                                        {anch_w, w_block}, {0, im_oc_block}})
-                                    : tensor_slice(output,
-                                      {{n, 1UL}, {h, im_h_block},
-                                        {anch_w, w_block},
-                                        {anch_c * im_oc_block, oc_block}})});
+                              create_fusion_anchor(fusion,
+                                owner_->get_outputs()[0],
+                                blocking_output_
+                                  ? slice_range {{n, 1UL}, {anch_c, 1},
+                                    {h, im_h_block}, {anch_w, w_block},
+                                    {0, im_oc_block}}
+                                  : slice_range {{n, 1UL}, {h, im_h_block},
+                                    {anch_w, w_block},
+                                    {anch_c * im_oc_block, oc_block}});
                             }
                           }
                         }
 
-                        if (fusion && ic_used_threads == 1
-                          && ic_num_block_pt == 1
+                        if (ic_used_threads == 1 && ic_num_block_pt == 1
                           && oc_block * oc_used_threads == oc_
                           && w_block * ow_used_threads == ow_
                           && h_block * oh_used_threads == oh_) {
@@ -3172,15 +3104,15 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
                               = (pw * w_num_block_pt * w_block / im_w_block
                                   + o_w * w_block / im_w_block)
                               * im_w_block;
-                            fusion->create_output_fusion_anchor(
-                              {blocking_output_
-                                  ? tensor_slice(output,
-                                    {{n, 1UL}, {anch_c, 1}, {anch_h, h_block},
-                                      {anch_w, w_block}, {0, im_oc_block}})
-                                  : tensor_slice(output,
-                                    {{n, 1UL}, {anch_h, h_block},
-                                      {anch_w, w_block},
-                                      {anch_c * im_oc_block, oc_block}})});
+                            create_fusion_anchor(fusion,
+                              owner_->get_outputs()[0],
+                              blocking_output_
+                                ? slice_range {{n, 1UL}, {anch_c, 1},
+                                  {anch_h, h_block}, {anch_w, w_block},
+                                  {0, im_oc_block}}
+                                : slice_range {{n, 1UL}, {anch_h, h_block},
+                                  {anch_w, w_block},
+                                  {anch_c * im_oc_block, oc_block}});
                           }
                         }
                       }
@@ -3191,67 +3123,58 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
                 }
               }
 
-              if (fusion && oc_threads == 1 && ic_threads == 1 && h_threads == 1
+              if (oc_threads == 1 && ic_threads == 1 && h_threads == 1
                 && w_threads == 1) {
-                fusion->create_output_fusion_anchor({blocking_output_
-                    ? tensor_slice(output,
-                      {{pbs, 1UL},
-                        {outer_k * oc_ / im_oc_block / oc_split,
-                          oc_ / im_oc_block / oc_split},
-                        {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                    : tensor_slice(output,
-                      {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                        {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                  blocking_output_
+                    ? slice_range {{pbs, 1UL},
+                      {outer_k * oc_ / im_oc_block / oc_split,
+                        oc_ / im_oc_block / oc_split},
+                      {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                    : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                      {outer_k * oc_ / oc_split, oc_ / oc_split}});
               }
             }
 
-            if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1) {
-              fusion->create_output_fusion_anchor({blocking_output_
-                  ? tensor_slice(output,
-                    {{pbs, 1UL},
-                      {outer_k * oc_ / im_oc_block / oc_split,
-                        oc_ / im_oc_block / oc_split},
-                      {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                  : tensor_slice(output,
-                    {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                      {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+            if (oc_threads == 1 && h_threads == 1 && w_threads == 1) {
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                blocking_output_ ? slice_range {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                                 : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                                   {outer_k * oc_ / oc_split, oc_ / oc_split}});
             }
           }
-          if (fusion && h_threads == 1 && w_threads == 1) {
-            fusion->create_output_fusion_anchor({blocking_output_
-                ? tensor_slice(output,
-                  {{pbs, 1UL},
-                    {outer_k * oc_ / im_oc_block / oc_split,
-                      oc_ / im_oc_block / oc_split},
-                    {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                : tensor_slice(output,
-                  {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                    {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+          if (h_threads == 1 && w_threads == 1) {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              blocking_output_ ? slice_range {{pbs, 1UL},
+                {outer_k * oc_ / im_oc_block / oc_split,
+                  oc_ / im_oc_block / oc_split},
+                {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                               : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                                 {outer_k * oc_ / oc_split, oc_ / oc_split}});
           }
         }
 
-        if (fusion && h_threads == 1) {
-          fusion->create_output_fusion_anchor({blocking_output_
-              ? tensor_slice(output,
-                {{pbs, 1UL},
-                  {outer_k * oc_ / im_oc_block / oc_split,
-                    oc_ / im_oc_block / oc_split},
-                  {0, oh_}, {0, ow_}, {0, im_oc_block}})
-              : tensor_slice(output,
-                {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                  {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+        if (h_threads == 1) {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            blocking_output_ ? slice_range {{pbs, 1UL},
+              {outer_k * oc_ / im_oc_block / oc_split,
+                oc_ / im_oc_block / oc_split},
+              {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                             : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                               {outer_k * oc_ / oc_split, oc_ / oc_split}});
         }
       }
-      if (fusion && mb_ > 1) {
-        fusion->create_output_fusion_anchor(
-          {blocking_output_ ? tensor_slice(output,
-             {{pbs, 1UL},
-               {outer_k * oc_ / im_oc_block / oc_split,
-                 oc_ / im_oc_block / oc_split},
-               {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                            : tensor_slice(output,
-                              {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                                {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+      if (mb_ > 1) {
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          blocking_output_ ? slice_range {{pbs, 1UL},
+            {outer_k * oc_ / im_oc_block / oc_split,
+              oc_ / im_oc_block / oc_split},
+            {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                           : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                             {outer_k * oc_ / oc_split, oc_ / oc_split}});
       }
     }
   }
@@ -3267,10 +3190,10 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
   for_loop &loh, for_loop &low, for_loop &looc, for_loop &loic, for_loop &lioc,
   for_loop &lih, for_loop &liw, const int oc_split, const int src_row_tile_size,
   const uint32_t lanes, const nested_conv_fwd_config_t &config,
-  fusion_manager *fusion, const int ic_used_threads, const int oh_used_threads,
-  const int ow_used_threads, const int y_unpad_top, const int y_unpad_bottom,
-  const int y_unpad_left, const int y_unpad_right, const int iw_padded,
-  const int kpack) const {
+  fusion_anchor_mgr_t *fusion, const int ic_used_threads,
+  const int oh_used_threads, const int ow_used_threads, const int y_unpad_top,
+  const int y_unpad_bottom, const int y_unpad_left, const int y_unpad_right,
+  const int iw_padded, const int kpack) const {
   auto h_block = config.h_block;
   auto w_block = config.w_block;
   auto im_h_block = config.im_h_block;
@@ -3653,55 +3576,52 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                             }
                           }
 
-                          if (fusion && ic_used_threads == 1
-                            && ic_num_block_pt == 1) {
+                          if (ic_used_threads == 1 && ic_num_block_pt == 1) {
                             _if_(o_ic == (ic_num_block - 1)) {
-                              fusion->create_output_fusion_anchor(
-                                {blocking_output_
-                                    ? tensor_slice(output,
-                                      {{n, 1UL}, {oc, 1}, {h + im_h_i, 1},
-                                        {w, im_w_block}, {0, im_oc_block}})
-                                    : tensor_slice(output,
-                                      {{n, 1UL}, {h + im_h_i, 1},
-                                        {w, im_w_block},
-                                        {oc * im_oc_block, im_oc_block}})});
+                              create_fusion_anchor(fusion,
+                                owner_->get_outputs()[0],
+                                blocking_output_
+                                  ? slice_range {{n, 1UL}, {oc, 1},
+                                    {h + im_h_i, 1}, {w, im_w_block},
+                                    {0, im_oc_block}}
+                                  : slice_range {{n, 1UL}, {h + im_h_i, 1},
+                                    {w, im_w_block},
+                                    {oc * im_oc_block, im_oc_block}});
                             }
                           }
                         } // im_h_i
                       }
-                      if (fusion && ic_used_threads == 1
-                        && ic_num_block_pt == 1) {
+                      if (ic_used_threads == 1 && ic_num_block_pt == 1) {
                         _if_(o_ic == (ic_num_block - 1)) {
-                          fusion->create_output_fusion_anchor({blocking_output_
-                              ? tensor_slice(output,
-                                {{n, 1UL}, {oc, 1}, {h, im_h_block},
-                                  {w, im_w_block}, {0, im_oc_block}})
-                              : tensor_slice(output,
-                                {{n, 1UL}, {h, im_h_block}, {w, im_w_block},
-                                  {oc * im_oc_block, im_oc_block}})});
+                          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                            blocking_output_
+                              ? slice_range {{n, 1UL}, {oc, 1}, {h, im_h_block},
+                                {w, im_w_block}, {0, im_oc_block}}
+                              : slice_range {{n, 1UL}, {h, im_h_block},
+                                {w, im_w_block},
+                                {oc * im_oc_block, im_oc_block}});
                         }
                       }
                     } // i_w
                   }
 
-                  if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                  if (ic_used_threads == 1 && ic_num_block_pt == 1
                     && w_block * ow_used_threads == ow_) {
                     _if_(o_ic == (ic_num_block - 1)) {
                       expr anch_w = (pw * w_num_block_pt * w_block / im_w_block
                                       + o_w * w_block / im_w_block)
                         * im_w_block;
-                      fusion->create_output_fusion_anchor({blocking_output_
-                          ? tensor_slice(output,
-                            {{n, 1UL}, {oc, 1}, {h, im_h_block},
-                              {anch_w, w_block}, {0, im_oc_block}})
-                          : tensor_slice(output,
-                            {{n, 1UL}, {h, im_h_block}, {anch_w, w_block},
-                              {oc * im_oc_block, im_oc_block}})});
+                      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                        blocking_output_ ? slice_range {{n, 1UL}, {oc, 1},
+                          {h, im_h_block}, {anch_w, w_block}, {0, im_oc_block}}
+                                         : slice_range {{n, 1UL},
+                                           {h, im_h_block}, {anch_w, w_block},
+                                           {oc * im_oc_block, im_oc_block}});
                     }
                   }
                 } // i_h
 
-                if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                if (ic_used_threads == 1 && ic_num_block_pt == 1
                   && h_block * oh_used_threads == oh_
                   && w_block * ow_used_threads == ow_) {
                   _if_(o_ic == (ic_num_block - 1)) {
@@ -3711,19 +3631,18 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                     expr anch_w = (pw * w_num_block_pt * w_block / im_w_block
                                     + o_w * w_block / im_w_block)
                       * im_w_block;
-                    fusion->create_output_fusion_anchor({blocking_output_
-                        ? tensor_slice(output,
-                          {{n, 1UL}, {oc, 1}, {anch_h, h_block},
-                            {anch_w, w_block}, {0, im_oc_block}})
-                        : tensor_slice(output,
-                          {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
-                            {oc * im_oc_block, im_oc_block}})});
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                      blocking_output_
+                        ? slice_range {{n, 1UL}, {oc, 1}, {anch_h, h_block},
+                          {anch_w, w_block}, {0, im_oc_block}}
+                        : slice_range {{n, 1UL}, {anch_h, h_block},
+                          {anch_w, w_block}, {oc * im_oc_block, im_oc_block}});
                   }
                 }
               } // ioc
             }
 
-            if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+            if (ic_used_threads == 1 && ic_num_block_pt == 1
               && h_block * oh_used_threads == oh_
               && w_block * ow_used_threads == ow_) {
               _if_(o_ic == (ic_num_block - 1)) {
@@ -3736,13 +3655,12 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                 expr anch_oc = poc * oc_num_block_pt * oc_block / im_oc_block
                   + o_oc * oc_block / im_oc_block
                   + outer_k * oc_block / im_oc_block / oc_split;
-                fusion->create_output_fusion_anchor({blocking_output_
-                    ? tensor_slice(output,
-                      {{n, 1UL}, {anch_oc, 1}, {anch_h, h_block},
-                        {anch_w, w_block}, {0, im_oc_block}})
-                    : tensor_slice(output,
-                      {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
-                        {anch_oc * im_oc_block, im_oc_block}})});
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                  blocking_output_
+                    ? slice_range {{n, 1UL}, {anch_oc, 1}, {anch_h, h_block},
+                      {anch_w, w_block}, {0, im_oc_block}}
+                    : slice_range {{n, 1UL}, {anch_h, h_block},
+                      {anch_w, w_block}, {anch_oc * im_oc_block, im_oc_block}});
               }
             } // o_ic
           }
@@ -3761,7 +3679,7 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
   const int ic_num_block_pt, const expr &pbuffer, for_loop &loh, for_loop &low,
   for_loop &looc, for_loop &loic, for_loop &lioc, for_loop &lih, for_loop &liw,
   const int oc_split, const expr &src_row_tile_size, const uint32_t lanes,
-  const nested_conv_fwd_config_t &config, fusion_manager *fusion,
+  const nested_conv_fwd_config_t &config, fusion_anchor_mgr_t *fusion,
   const int ic_used_threads, const int oc_used_threads,
   const expr &oh_used_threads, const expr &ow_used_threads,
   const expr &y_unpad_top, const expr &y_unpad_bottom, const expr &y_unpad_left,
@@ -4155,39 +4073,37 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                                 dtypeInput, dtypeWeight, brg_attrs);
                             }
                           }
-                          if (fusion && ic_used_threads == 1
-                            && ic_num_block_pt == 1) {
+                          if (ic_used_threads == 1 && ic_num_block_pt == 1) {
                             _if_(o_ic == (ic_num_block - 1)) {
-                              fusion->create_output_fusion_anchor(
-                                {blocking_output_
-                                    ? tensor_slice(output,
-                                      {{n, 1}, {oc, 1}, {h + im_h_i, 1},
-                                        {w, real_im_w_block}, {0, im_oc_block}})
-                                    : tensor_slice(output,
-                                      {{n, 1UL}, {h + im_h_i, 1},
-                                        {w, real_im_w_block},
-                                        {oc * im_oc_block, im_oc_block}})});
+                              create_fusion_anchor(fusion,
+                                owner_->get_outputs()[0],
+                                blocking_output_
+                                  ? slice_range {{n, 1}, {oc, 1},
+                                    {h + im_h_i, 1}, {w, real_im_w_block},
+                                    {0, im_oc_block}}
+                                  : slice_range {{n, 1UL}, {h + im_h_i, 1},
+                                    {w, real_im_w_block},
+                                    {oc * im_oc_block, im_oc_block}});
                             }
                           } // im_h_i
                         }
                       }
-                      if (fusion && ic_used_threads == 1
-                        && ic_num_block_pt == 1) {
+                      if (ic_used_threads == 1 && ic_num_block_pt == 1) {
                         _if_(o_ic == (ic_num_block - 1)) {
-                          fusion->create_output_fusion_anchor({blocking_output_
-                              ? tensor_slice(output,
-                                {{n, 1UL}, {oc, 1}, {h, real_im_h_block},
-                                  {w, real_im_w_block}, {0, im_oc_block}})
-                              : tensor_slice(output,
-                                {{n, 1UL}, {h, real_im_h_block},
-                                  {w, real_im_w_block},
-                                  {oc * im_oc_block, im_oc_block}})});
+                          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                            blocking_output_
+                              ? slice_range {{n, 1UL}, {oc, 1},
+                                {h, real_im_h_block}, {w, real_im_w_block},
+                                {0, im_oc_block}}
+                              : slice_range {{n, 1UL}, {h, real_im_h_block},
+                                {w, real_im_w_block},
+                                {oc * im_oc_block, im_oc_block}});
                         }
                       } // i_w
                     }
                   }
 
-                  if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                  if (ic_used_threads == 1 && ic_num_block_pt == 1
                     && !is_dynamic_dim(ow_)
                     && get_expr_as_int(w_block)
                         * get_expr_as_int(ow_used_threads)
@@ -4195,18 +4111,19 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                     _if_(o_ic == (ic_num_block - 1)) {
                       expr anch_w
                         = pw * w_num_block_pt * w_block + o_w * w_block;
-                      fusion->create_output_fusion_anchor({blocking_output_
-                          ? tensor_slice(output,
-                            {{n, 1UL}, {oc, 1}, {h, real_im_h_block},
-                              {anch_w, w_block}, {0, im_oc_block}})
-                          : tensor_slice(output,
-                            {{n, 1UL}, {h, real_im_h_block}, {anch_w, w_block},
-                              {oc * im_oc_block, im_oc_block}})});
+                      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                        blocking_output_
+                          ? slice_range {{n, 1UL}, {oc, 1},
+                            {h, real_im_h_block}, {anch_w, w_block},
+                            {0, im_oc_block}}
+                          : slice_range {{n, 1UL}, {h, real_im_h_block},
+                            {anch_w, w_block},
+                            {oc * im_oc_block, im_oc_block}});
                     }
                   }
                 } // i_h
 
-                if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                if (ic_used_threads == 1 && ic_num_block_pt == 1
                   && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)
                   && get_expr_as_int(w_block) * get_expr_as_int(ow_used_threads)
                     == ow_
@@ -4215,19 +4132,18 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                   _if_(o_ic == (ic_num_block - 1)) {
                     expr anch_h = ph * h_num_block_pt * h_block + o_h * h_block;
                     expr anch_w = pw * w_num_block_pt * w_block + o_w * w_block;
-                    fusion->create_output_fusion_anchor({blocking_output_
-                        ? tensor_slice(output,
-                          {{n, 1UL}, {oc, 1}, {anch_h, h_block},
-                            {anch_w, w_block}, {0, im_oc_block}})
-                        : tensor_slice(output,
-                          {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
-                            {oc * im_oc_block, im_oc_block}})});
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                      blocking_output_
+                        ? slice_range {{n, 1UL}, {oc, 1}, {anch_h, h_block},
+                          {anch_w, w_block}, {0, im_oc_block}}
+                        : slice_range {{n, 1UL}, {anch_h, h_block},
+                          {anch_w, w_block}, {oc * im_oc_block, im_oc_block}});
                   }
                 } // i_oc
               }
             }
 
-            if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+            if (ic_used_threads == 1 && ic_num_block_pt == 1
               && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)
               && get_expr_as_int(w_block) * get_expr_as_int(ow_used_threads)
                 == ow_
@@ -4240,21 +4156,20 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                 expr anch_oc = poc * oc_num_block_pt * oc_block / im_oc_block
                   + o_oc * oc_block / im_oc_block
                   + outer_k * oc_block / im_oc_block / oc_split;
-                fusion->create_output_fusion_anchor({blocking_output_
-                    ? tensor_slice(output,
-                      {{n, 1UL}, {anch_oc, 1}, {anch_h, h_block},
-                        {anch_w, w_block}, {0, im_oc_block}})
-                    : tensor_slice(output,
-                      {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
-                        {anch_oc * im_oc_block, im_oc_block}})});
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                  blocking_output_
+                    ? slice_range {{n, 1UL}, {anch_oc, 1}, {anch_h, h_block},
+                      {anch_w, w_block}, {0, im_oc_block}}
+                    : slice_range {{n, 1UL}, {anch_h, h_block},
+                      {anch_w, w_block}, {anch_oc * im_oc_block, im_oc_block}});
               }
             }
           }
         }
       }
     }
-  }
-}
+  } // namespace ops
+} // namespace gc
 void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
   CONV_ARG_LIST) const {
   int num_threads = runtime_config_t::get().get_num_threads();
@@ -4439,71 +4354,62 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
                   cond_tail_h, cond_tail_w, oc_block, ic_block);
               }
 
-              if (fusion && oc_threads == 1 && ic_threads == 1 && h_threads == 1
+              if (oc_threads == 1 && ic_threads == 1 && h_threads == 1
                 && w_threads == 1 && !is_dynamic_dim(ow_)
                 && !is_dynamic_dim(oh_)) {
-                fusion->create_output_fusion_anchor({blocking_output_
-                    ? tensor_slice(output,
-                      {{pbs, 1UL},
-                        {outer_k * oc_ / im_oc_block / oc_split,
-                          oc_ / im_oc_block / oc_split},
-                        {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                    : tensor_slice(output,
-                      {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                        {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                  blocking_output_
+                    ? slice_range {{pbs, 1UL},
+                      {outer_k * oc_ / im_oc_block / oc_split,
+                        oc_ / im_oc_block / oc_split},
+                      {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                    : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                      {outer_k * oc_ / oc_split, oc_ / oc_split}});
               }
             }
 
-            if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1
+            if (oc_threads == 1 && h_threads == 1 && w_threads == 1
               && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)) {
-              fusion->create_output_fusion_anchor({blocking_output_
-                  ? tensor_slice(output,
-                    {{pbs, 1UL},
-                      {outer_k * oc_ / im_oc_block / oc_split,
-                        oc_ / im_oc_block / oc_split},
-                      {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                  : tensor_slice(output,
-                    {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                      {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                blocking_output_ ? slice_range {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                                 : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                                   {outer_k * oc_ / oc_split, oc_ / oc_split}});
             }
           }
-          if (fusion && h_threads == 1 && w_threads == 1 && !is_dynamic_dim(ow_)
+          if (h_threads == 1 && w_threads == 1 && !is_dynamic_dim(ow_)
             && !is_dynamic_dim(oh_)) {
-            fusion->create_output_fusion_anchor({blocking_output_
-                ? tensor_slice(output,
-                  {{pbs, 1UL},
-                    {outer_k * oc_ / im_oc_block / oc_split,
-                      oc_ / im_oc_block / oc_split},
-                    {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}})
-                : tensor_slice(output,
-                  {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
-                    {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              blocking_output_
+                ? slice_range {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}}
+                : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
+                  {outer_k * oc_ / oc_split, oc_ / oc_split}});
           }
         }
 
-        if (fusion && h_threads == 1 && !is_dynamic_dim(ow_)
-          && !is_dynamic_dim(oh_)) {
-          fusion->create_output_fusion_anchor({blocking_output_
-              ? tensor_slice(output,
-                {{pbs, 1UL},
-                  {outer_k * oc_ / im_oc_block / oc_split,
-                    oc_ / im_oc_block / oc_split},
-                  {0, oh_}, {0, ow_}, {0, im_oc_block}})
-              : tensor_slice(output,
-                {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                  {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+        if (h_threads == 1 && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)) {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            blocking_output_ ? slice_range {{pbs, 1UL},
+              {outer_k * oc_ / im_oc_block / oc_split,
+                oc_ / im_oc_block / oc_split},
+              {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                             : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                               {outer_k * oc_ / oc_split, oc_ / oc_split}});
         }
       }
-      if (fusion && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)) {
-        fusion->create_output_fusion_anchor(
-          {blocking_output_ ? tensor_slice(output,
-             {{pbs, 1UL},
-               {outer_k * oc_ / im_oc_block / oc_split,
-                 oc_ / im_oc_block / oc_split},
-               {0, oh_}, {0, ow_}, {0, im_oc_block}})
-                            : tensor_slice(output,
-                              {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                                {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+      if (!is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)) {
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          blocking_output_ ? slice_range {{pbs, 1UL},
+            {outer_k * oc_ / im_oc_block / oc_split,
+              oc_ / im_oc_block / oc_split},
+            {0, oh_}, {0, ow_}, {0, im_oc_block}}
+                           : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                             {outer_k * oc_ / oc_split, oc_ / oc_split}});
       }
     }
   }
@@ -4556,7 +4462,7 @@ void gen_nested_conv_fwd_t::schedule_loops(context_ptr ctx,
 }
 
 bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
-  const nested_conv_fwd_config_t &config, fusion_manager *fusion,
+  const nested_conv_fwd_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   COMPILE_ASSERT(inputs.size() == 2,

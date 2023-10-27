@@ -15,9 +15,9 @@
  *******************************************************************************/
 
 #include "fusion_anchor.hpp"
+#include <string>
 #include "fusible_op_utils.hpp"
 #include "mixed_partition.hpp"
-#include "tunable_op.hpp"
 #include <util/optional_find.hpp>
 
 SC_MODULE(graph.fusion_anchor);
@@ -39,14 +39,14 @@ static stmt get_parent_loop_or_node(const stmt_c &node) {
     return cur_node;
 }
 
-stmt fuse_anchor_map_t::get_parent_loop() const {
+stmt fusion_anchor_t::get_parent_loop() const {
     return get_parent_loop_or_node(anchor_position_);
 }
 
-void fuse_anchor_map_t::append_content(anchor_content_t content) {
+void fusion_anchor_t::append_content(anchor_content_t content) {
     std::vector<anchor_content_t> contents;
     // if content is fusion anchor, need to append all of its contents
-    if (auto fanchor = content.as_or_null<fuse_anchor_map_t *>()) {
+    if (auto fanchor = content.as_or_null<fusion_anchor_t *>()) {
         contents = (*fanchor)->get_contents();
     }
     contents.emplace_back(content);
@@ -61,10 +61,64 @@ void fuse_anchor_map_t::append_content(anchor_content_t content) {
     }
 }
 
-void fuse_anchor_map_t::attach_parent_anchor(
-        const std::shared_ptr<fuse_anchor_map_t> &parent,
-        const std::shared_ptr<fuse_anchor_map_t> &repl_parent) {
+void fusion_anchor_t::clear_content(anchor_content_t content) {
+    if (auto fanchor = content.as_or_null<fusion_anchor_t *>()) {
+        COMPILE_ASSERT((*fanchor)->get_contents().empty(),
+                "the content of fusion anchor is not empty")
+    }
+    auto erase_content = [](fusion_anchor_t *fanchor,
+                                 const anchor_content_t &content,
+                                 bool assert_last) {
+        auto iter = fanchor->content_number_map_.find(content);
+        // erase
+        if (iter != fanchor->content_number_map_.end()) {
+            COMPILE_ASSERT(!assert_last
+                            || iter->second + 1
+                                    == fanchor->content_number_map_.size(),
+                    "erased content is not last one")
+            fanchor->content_number_map_.erase(iter);
+        }
+    };
+    // recursively remove content from parent anchor
+    auto root = this;
+    while (root) {
+        erase_content(root, content, root == this);
+        root = root->parent_.get();
+    }
+}
+
+static void inherit_parent_offset(
+        slice_range_list &cur_value, const slice_range_list &parent_value) {
+    // if slice range list size is not equal
+    if (cur_value.size() != parent_value.size()) return;
+    for (size_t i = 0; i < cur_value.size(); i++) {
+        auto &cur_slice = cur_value[i];
+        auto &parent_slice = parent_value[i];
+        COMPILE_ASSERT(cur_slice.size() == parent_slice.size(),
+                "slice range size is not equal for the same graph "
+                "tensor")
+        for (size_t j = 0; j < cur_slice.size(); j++) {
+            // inherit offset
+            cur_slice[j].first = do_cast_and_fold(
+                    parent_slice[j].first + cur_slice[j].first);
+        }
+    }
+}
+
+void fusion_anchor_t::attach_parent_anchor(
+        const std::shared_ptr<fusion_anchor_t> &parent,
+        const std::shared_ptr<fusion_anchor_t> &repl_parent,
+        bool inherit_offset) {
     if (!parent) return;
+    if (inherit_offset) {
+        for (auto &kv : fsmap_.datamap_) {
+            auto &gt = kv.first;
+            auto &cur_value = kv.second;
+            if (parent->fsmap_.hasvalue(gt)) {
+                inherit_parent_offset(cur_value, parent->fsmap_.get(gt));
+            }
+        }
+    }
     auto root = this;
     while (root->parent_ && (root->parent_ != repl_parent)) {
         COMPILE_ASSERT(root != root->parent_.get(),
@@ -76,7 +130,7 @@ void fuse_anchor_map_t::attach_parent_anchor(
     parent->append_content(root);
 }
 
-void fuse_anchor_map_t::merge(const std::shared_ptr<fuse_anchor_map_t> &other) {
+void fusion_anchor_t::merge(const std::shared_ptr<fusion_anchor_t> &other) {
     fsmap_.datamap_.insert(
             other->fsmap_.datamap_.begin(), other->fsmap_.datamap_.end());
     blocked_gt_set_.insert(
@@ -90,7 +144,7 @@ void fuse_anchor_map_t::merge(const std::shared_ptr<fuse_anchor_map_t> &other) {
     }
 }
 
-bool fuse_anchor_map_t::has_view_of(sc_op *op) {
+bool fusion_anchor_t::has_view_of(sc_op *op) {
     auto op_anchor = binded_mxp_->op_anchor_map_[op];
     if (!op_anchor) return true;
     while (true) {
@@ -129,7 +183,7 @@ bool fuse_anchor_map_t::has_view_of(sc_op *op) {
     }
 }
 
-bool fuse_anchor_map_t::check_dep_for_op(const sc_op *op) {
+bool fusion_anchor_t::check_dep_for_op(const sc_op *op) {
     if (op->isa<input_op>() || op->isa<constant_op_t>()) return true;
     auto parti = binded_mxp_;
     auto dep_m = parti->dep_m_;
@@ -151,7 +205,7 @@ bool fuse_anchor_map_t::check_dep_for_op(const sc_op *op) {
     return true;
 }
 
-bool fuse_anchor_map_t::validate_input_for_op(
+bool fusion_anchor_t::validate_input_for_op(
         const sc_op *op, const std::unordered_set<graph_tensor_ptr> &known_gt) {
     auto fanchor = this;
     return std::all_of(op->get_inputs().begin(), op->get_inputs().end(),
@@ -170,7 +224,7 @@ bool fuse_anchor_map_t::validate_input_for_op(
                 if (!fanchor->has_view_of(dep_op)) return false;
 
                 slice_range_list inferred_slice = fanchor->fsmap_.get(gt);
-                fuse_anchor_map_t *cur = fanchor;
+                fusion_anchor_t *cur = fanchor;
 
                 COMPILE_ASSERT(!dep_op->get_inputs().empty(),
                         dep_op->op_name_ << " op has no input")
@@ -197,7 +251,7 @@ bool fuse_anchor_map_t::validate_input_for_op(
             });
 }
 
-void fuse_anchor_map_t::forbid_op(
+void fusion_anchor_t::forbid_op(
         const sc_op *op, const std::unordered_set<graph_tensor_ptr> &known_gt) {
     auto fanchor = this;
     std::for_each(op->get_inputs().begin(), op->get_inputs().end(),
@@ -215,7 +269,7 @@ void fuse_anchor_map_t::forbid_op(
             });
 }
 
-bool fuse_anchor_map_t::check_input_for_op(
+bool fusion_anchor_t::check_input_for_op(
         const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt) {
     auto fanchor = this;
     bool input_blocked = false;
@@ -238,7 +292,7 @@ bool fuse_anchor_map_t::check_input_for_op(
     return !(input_blocked || known_gt.empty());
 }
 
-bool fuse_anchor_map_t::is_small_op_workload(const sc_op *op) {
+bool fusion_anchor_t::is_small_op_workload(const sc_op *op) {
     if (op->is_dynamic() || !op->isa<fusible_op_t>()) return false;
     auto fusible_op = op->dyn_cast<const fusible_op_t>();
     // collect inputs and outputs
@@ -272,7 +326,7 @@ bool fuse_anchor_map_t::is_small_op_workload(const sc_op *op) {
     return wkld < mixed_partition_hint::small_op_workload_threshold;
 }
 
-void fuse_iter_anchor_map_t::commit(const stmt &s) {
+void iter_fusion_anchor_t::commit(const stmt &s) {
     if (cached_iter_anchor_.empty()) {
         if (dispatch_helper_.isa<stmts>()) {
             anchor_position_->seq_.insert(anchor_position_->seq_.end(),
@@ -306,7 +360,7 @@ void fuse_iter_anchor_map_t::commit(const stmt &s) {
     if (iter_cnt_ == iter_size_) iter_cnt_ = 0;
 }
 
-void fuse_grouped_anchor_map_t::commit(const stmt &s) {
+void grouped_fusion_anchor_t::commit(const stmt &s) {
     auto pos = anchor_position_->seq_.at(group_cnt_).checked_as<stmts>();
     if (s.isa<stmts>()) {
         pos->seq_.insert(pos->seq_.end(), s.static_as<stmts>()->seq_.begin(),
@@ -318,7 +372,7 @@ void fuse_grouped_anchor_map_t::commit(const stmt &s) {
     if (group_cnt_ == group_size_) group_cnt_ = 0;
 }
 
-stmt fuse_grouped_anchor_map_t::get_parent_loop() const {
+stmt grouped_fusion_anchor_t::get_parent_loop() const {
     // use last group anchor which is always the largest anchor
     stmt cur_node = anchor_position_->seq_.front();
     if (group_size_ == 1) {
@@ -336,30 +390,41 @@ stmt fuse_grouped_anchor_map_t::get_parent_loop() const {
 }
 
 void fusion_anchor_mgr_t::create_fusion_anchor(const slice_map &fsmap,
-        const fuse_anchor_map_ptr &parent, bool is_input_anchor) {
+        const fusion_anchor_ptr &parent, bool is_input_anchor) {
     COMPILE_ASSERT(!fsmap.empty(), "fusion anchor init slice not found")
     // create anchor placeholder in IR
     auto bld = builder::get_current_builder();
     auto pos = bld->push_anchor();
+
+    auto fusion_anchor = std::make_shared<fusion_anchor_t>(
+            pos, fslice_map(fsmap), parent, is_input_anchor);
     // append to fanchor list
-    fanchor_list_.emplace_back(std::make_shared<fuse_anchor_map_t>(
-            pos, fslice_map(fsmap), parent, is_input_anchor));
+    fanchor_list_.emplace_back(fusion_anchor);
+    if (binded_mxp_) {
+        // if binded, directly append to mxp
+        binded_mxp_->append_fusion_anchor(fusion_anchor);
+    }
 }
 
 void fusion_anchor_mgr_t::create_fusion_anchor(const expr &iter_var,
         const slice_map &fsmap, const stmt &dispatch_helper,
-        const fuse_anchor_map_ptr &parent, bool is_input_anchor) {
+        const fusion_anchor_ptr &parent, bool is_input_anchor) {
     // create anchor placeholder in IR
     auto bld = builder::get_current_builder();
     auto pos = bld->push_anchor();
+
+    auto iter_anchor = std::make_shared<iter_fusion_anchor_t>(iter_var, pos,
+            fslice_map(fsmap), dispatch_helper, parent, is_input_anchor);
     // append to fanchor list
-    fanchor_list_.emplace_back(std::make_shared<fuse_iter_anchor_map_t>(
-            iter_var, pos, fslice_map(fsmap), dispatch_helper, parent,
-            is_input_anchor));
+    fanchor_list_.emplace_back(iter_anchor);
+    if (binded_mxp_) {
+        // if binded, directly append to mxp
+        binded_mxp_->append_fusion_anchor(iter_anchor);
+    }
 }
 
 void fusion_anchor_mgr_t::create_fusion_anchor(int group_id,
-        const slice_map &fsmap, const fuse_anchor_map_ptr &parent,
+        const slice_map &fsmap, const fusion_anchor_ptr &parent,
         bool is_input_anchor) {
     COMPILE_ASSERT(!fsmap.empty(), "grouped fusion anchor init slice not found")
     COMPILE_ASSERT(
@@ -392,22 +457,50 @@ void fusion_anchor_mgr_t::create_fusion_anchor(int group_id,
         // update group size
         group_anchor->group_size_++;
     } else {
-        auto new_grouped_anchor = std::make_shared<fuse_grouped_anchor_map_t>(
+        auto new_grouped_anchor = std::make_shared<grouped_fusion_anchor_t>(
                 builder::make_stmts_unattached({pos}).checked_as<stmts>(),
                 fslice_map(fsmap), parent, is_input_anchor);
         // append to fanchor list
         fanchor_list_.emplace_back(new_grouped_anchor);
+        if (binded_mxp_) {
+            // if binded, directly append to mxp
+            binded_mxp_->append_fusion_anchor(new_grouped_anchor);
+        }
         // cache to grouped anchor map
         grouped_id_map_.insert(std::make_pair(group_id, new_grouped_anchor));
     }
 }
 
-fuse_anchor_map_ptr try_convert_anchor(
-        const context_ptr &ctx, const fuse_anchor_map_ptr &fanchor) {
+void fusion_anchor_mgr_t::create_fusion_anchor(const graph_tensor_ptr &gt,
+        const slice_range &slice, const fusion_anchor_ptr &parent,
+        bool is_input_anchor) {
+    create_fusion_anchor(slice_map {{gt.get(), slice_range_list {slice}}},
+            parent, is_input_anchor);
+}
+
+void fusion_anchor_mgr_t::create_fusion_anchor(const expr &tsr,
+        const slice_range &slice, const fusion_anchor_ptr &parent,
+        bool is_input_anchor) {
+    // lookup graph tensor
+    auto iter = get_binded_mxp()->buf_alloc_.b2g_map_.find(tsr);
+    COMPILE_ASSERT(iter != get_binded_mxp()->buf_alloc_.b2g_map_.end(),
+            "No buffer to graph tensor mapping found for " << tsr)
+    auto gt = iter->second;
+    create_fusion_anchor(slice_map {{gt.get(), slice_range_list {slice}}},
+            parent, is_input_anchor);
+}
+
+void create_fusion_anchor(fusion_anchor_mgr_t *fusion,
+        const graph_tensor_ptr &gt, const slice_range &slice) {
+    if (fusion) { fusion->create_fusion_anchor(gt, slice); }
+}
+
+fusion_anchor_ptr try_convert_anchor(
+        const context_ptr &ctx, const fusion_anchor_ptr &fanchor) {
     // Currently, it only converts common anchor. When all kinds of fusion
     // anchor supported, this method should become one of member function
     auto &anchor_type = *fanchor;
-    if (typeid(anchor_type) != typeid(fuse_anchor_map_t)) return fanchor;
+    if (typeid(anchor_type) != typeid(fusion_anchor_t)) return fanchor;
 
     auto &datamap = fanchor->fsmap_.datamap_;
     if (datamap.size() != 1 || datamap.begin()->second.size() != 1)
@@ -465,7 +558,7 @@ fuse_anchor_map_ptr try_convert_anchor(
         root = root->parent_;
     }
     // make gourped anchor
-    return std::make_shared<fuse_grouped_anchor_map_t>(new_pos,
+    return std::make_shared<grouped_fusion_anchor_t>(new_pos,
             fslice_map(datamap), parent_anchor, fanchor->is_input_anchor());
 }
 

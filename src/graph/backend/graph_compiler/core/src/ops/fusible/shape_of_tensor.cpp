@@ -69,8 +69,8 @@ void shape_of_tensor_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-void shape_of_tensor_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code shape_of_tensor_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     // judge if it is the first op in partition then use the outmost anchor
     if (fsmap.datamap_.size() == 1) {
         auto src_dim = get_inputs()[0]->details_.get_blocking_dims();
@@ -81,13 +81,13 @@ void shape_of_tensor_op_t::infer_slice_ranges(
         // check the slice range whether meet the outmost anchor
         for (auto &src_range : fsmap.get(get_inputs()[0])) {
             if (!slice_full_on_axis(src_dim, src_range, required_axis)) {
-                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-                return;
+                return infer_status_code::RETRY;
             }
         }
     }
     fsmap.get(get_outputs()[0])
             = slice_range_list {{std::make_pair(expr(0), expr(1))}};
+    return infer_status_code::OK;
 }
 
 static int get_constant_padded_shape(

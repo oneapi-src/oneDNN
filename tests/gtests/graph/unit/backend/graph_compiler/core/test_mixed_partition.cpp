@@ -476,7 +476,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseOptimizedReduce2) {
     graph.make_output(reduce0->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
+
     graph_driver_before_fusion(graph, ctx);
     bool found = false;
     for (auto &op : graph.ops_) {
@@ -525,7 +525,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphPartitionRingRiskCheck1) {
     ret = graph.make_output(ret->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     graph_inline(graph, ctx);
     ops::managed_matmul_core_config_t cfg = {1, 1, 1, 1, 2, 0};
     for (auto &op : graph.ops_) {
@@ -617,7 +616,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphBreakOpPreFusion2) {
     graph.make_output(add0->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = false;
     mixed_partition(graph, ctx);
     std::stringstream ss;
@@ -656,7 +654,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestaxisBinding1) {
     graph.make_output(add1->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     graph_driver(graph, ctx);
     std::stringstream ss;
     print_graph(graph, ss, true);
@@ -710,7 +707,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestaxisBinding2) {
     graph.make_output(mmm1->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     graph_driver(graph, ctx);
     std::stringstream ss;
     print_graph(graph, ss, true);
@@ -754,7 +750,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy0) {
     auto out1 = graph.make_output(relu1->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     auto f1 = lower_graph(ctx, graph, {input0, weight0, input1, out0, out1});
     auto fptr1 = jit_engine_t::make(ctx)->get_entry_func(f1);
@@ -835,7 +830,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy1) {
     }
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     auto f1 = lower_graph(ctx, graph, {input0, weight0, weight1, out0, out1});
     auto fptr1 = jit_engine_t::make(ctx)->get_entry_func(f1);
@@ -923,14 +917,12 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy2) {
     std::vector<float> pass_output1_data(M * K3);
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = false;
     sc_graph_t graph1;
     auto f1 = get_two_consective_mmm(M, K1, K2, K3, ctx, graph1);
     auto fptr1 = jit_engine_t::make(ctx)->get_entry_func(f1);
     fptr1->call_default(&input0_data[0], &weight0_data[0], &weight1_data[0],
             &ori_output0_data[0], &ori_output1_data[0]);
 
-    ctx->flags_.mixed_fusion_ = true;
     sc_graph_t graph2;
     auto f2 = get_two_consective_mmm(M, K1, K2, K3, ctx, graph2);
     std::stringstream ss;
@@ -1055,7 +1047,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy3) {
     ref_relu(ori_output2_data.data(), ori_output2_data.data(),
             ori_output2_data.size());
 
-    ctx->flags_.mixed_fusion_ = true;
     sc_graph_t graph;
     auto f = get_three_consective_mmm(M, K1, K2, K3, K4, ctx, graph);
 
@@ -1092,7 +1083,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
     auto out0 = graph.make_output(mmm1->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     // split outmost and merge inners
     mixed_partition(graph, ctx);
     auto mixed_op = get_mixed_op_from_graph(graph);
@@ -1143,7 +1133,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
     }
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     auto f1 = lower_graph(ctx, graph, {input, weight, out});
     auto fptr1 = jit_engine_t::make(ctx)->get_entry_func(f1);
@@ -1455,7 +1444,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestUserDefinedShrintTensor) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestInputFusionAnchor1) {
     sc_graph_t graph;
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
+
     auto input = graph.make_input(
             {graph_tensor::make({128, 32}, sc_data_format_t::MK())});
     auto weight = graph.make_input(
@@ -1491,7 +1480,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestInputFusionAnchor1) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestInputFusionAnchor2) {
     sc_graph_t graph;
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
+
     auto input = graph.make_input(
             {graph_tensor::make({128, 16}, sc_data_format_t::MK())});
     auto weight = graph.make_input(
@@ -1530,7 +1519,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestInputFusionAnchor2) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically1) {
     sc_graph_t graph;
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
+
     auto input0 = graph.make_input(
             {graph_tensor::make({4, 4096}, sc_data_format_t::MK())});
     auto weight0 = graph.make_input(
@@ -1578,7 +1567,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically1) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically2) {
     sc_graph_t graph;
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
+
     auto input0 = graph.make_input(
             {graph_tensor::make({4, 4096}, sc_data_format_t::MK())});
     auto weight0 = graph.make_input(
@@ -1666,7 +1655,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically3) {
     graph.make_output(mm1->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     graph_driver(graph, ctx);
     std::stringstream ss;
@@ -1705,7 +1693,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically4) {
     graph.make_output(bmm0->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
+
     ctx->flags_.use_cost_model_ = true;
     graph_driver(graph, ctx);
     std::vector<sc_op_ptr> lower_args(graph.get_output_ops());
@@ -1758,12 +1746,11 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
     auto out0 = graph.make_output(add0->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
-    ctx->flags_.opt_level_ = sc_opt_level::lv2;
+    // skip parallel merge
+    ctx->flags_.fusion_level_ = fusion_opt_level::lv2;
     graph_driver(graph, ctx);
     std::stringstream ss;
     print_graph(graph, ss, true);
-    // Actually, mmm0 and mmm1 would still be merged during later parallel merge
     std::string expected_str
             = R"(graph(v0: f32[4, 4096], v1: f32[4096, 11008], v2: f32[4096, 11008]) -> [v3: f32[4, 11008]] {
   [v4: f32[4, 11008]] = outerloop_1X16X1X1X16_partition_managed_matmul_core_relu(v0, v2)
@@ -1784,8 +1771,10 @@ public:
         : tunable_op_t(op_name, producer_lt, {producer_lt[0]->copy()}, attrs) {}
 
     body_generator_ptr create_generator() override { return nullptr; }
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override {}
+    infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override {
+        throw std::runtime_error("Not implemented");
+    }
 
     std::vector<int> query_prefetch(const context_ptr &ctx, bool is_global,
             const std::vector<tensor_slice> &ins) override {
@@ -1943,7 +1932,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeAndBarrier) {
     };
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     bool barrier;
     {
         /* Case 0: need barrier */
@@ -2014,7 +2002,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeNotAppendInputAnchor) {
     graph.make_output({mmm1->get_outputs()[0]});
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     graph_driver(graph, ctx);
     auto mixed_op = get_mixed_op_from_graph(graph);
     // mmm0 and mmm1 both have input anchor, which is under outer loop when
@@ -2063,7 +2050,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
     };
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
 
     // Case 1
@@ -2136,7 +2122,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CommitPaddingToContentOfAnchor) {
     graph.make_output(addd0->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
 
     graph_driver_before_fusion(graph, ctx);
@@ -2174,7 +2159,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop1) {
     graph.make_output({reo0->get_outputs()[0]});
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     mixed_partition(graph, ctx);
 
@@ -2215,7 +2199,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop2) {
     graph.make_output(radd0->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     mixed_partition(graph, ctx);
 
@@ -2250,7 +2233,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop3) {
     graph.make_output({relu0->get_outputs()[0]});
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     mixed_partition(graph, ctx);
 
@@ -2285,8 +2267,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, PoolingLoopReSchedule) {
     // relu
     auto relu0 = graph.make("relu", pooling_out->get_outputs(), {}, {});
     graph.make_output({relu0->get_outputs()[0]});
-
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     layout_propagation(graph, ctx);
     mixed_partition(graph, ctx);
@@ -2325,7 +2305,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, ComplexTensorViewInferSlice) {
     auto relu2 = graph.make("relu", {radd0->get_outputs()[0]}, {}, {});
     graph.make_output({relu2->get_outputs()[0]});
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
 
     graph_driver_before_fusion(graph, ctx);
@@ -2365,7 +2344,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
     auto relu1 = graph.make("relu", {radd0->get_outputs()[0]}, {}, {});
     graph.make_output({relu1->get_outputs()[0]});
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
 
     graph_driver_before_fusion(graph, ctx);
@@ -2387,7 +2365,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
     REQUIRE_AMX();
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
 
     sc_graph_t mlp_graph;

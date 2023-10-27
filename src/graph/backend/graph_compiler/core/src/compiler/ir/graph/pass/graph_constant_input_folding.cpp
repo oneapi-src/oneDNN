@@ -25,6 +25,7 @@
 #include <compiler/ir/statics_table.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <runtime/const_cache_wrapper.hpp>
+#include <runtime/context.hpp>
 #include <unordered_map>
 
 SC_MODULE(graph.pass.const_input_fold);

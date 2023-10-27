@@ -25,7 +25,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <runtime/config.hpp>
 #include <util/any_map.hpp>
 #include <util/math_utils.hpp>
@@ -304,8 +304,8 @@ void gen_nested_conv1x1_backprop_data_t::
     const expr &bs_idx, const expr &s_idx, const expr &ic_idx,
     const expr &oc_idx, const int stride_d, const int stride_h,
     const int stride_w, const expr &A, const expr &B, const expr &C,
-    int dtype_block, fusion_manager *fusion, const expr &bs_s, const expr &s_s,
-    const expr &ic_s, std::vector<int> &BS_anchor_info,
+    int dtype_block, fusion_anchor_mgr_t *fusion, const expr &bs_s,
+    const expr &s_s, const expr &ic_s, std::vector<int> &BS_anchor_info,
     std::vector<int> &S_anchor_info, std::vector<int> &IC_anchor_info,
     const bool is_out_blocking, bool is_partial, const expr &oc_s) const {
   expr BS_sub_block = config.bs_num_blocks,
@@ -402,14 +402,12 @@ void gen_nested_conv1x1_backprop_data_t::
                 if (fusion && !is_partial) {
                   // TODO(zhangyan): consider more fusion cases.
                   if (ori_W % stride_w == 0 && ori_H % stride_h == 0) {
-                    fusion->create_output_fusion_anchor({tensor_slice(C,
-                      std::vector<std::pair<expr, expr>> {
-                        {bs_start_idx, 1},
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                      slice_range {{bs_start_idx, 1},
                         {m_start_idx / ori_W * stride_h, stride_h},
                         {m_start_idx % ori_W * stride_w,
                           im_ow_block_ * stride_w},
-                        {n_start_idx, im_ic_block_},
-                      })});
+                        {n_start_idx, im_ic_block_}});
                   }
                 } // if fusion
               } // im_ic
@@ -426,18 +424,16 @@ void gen_nested_conv1x1_backprop_data_t::
             && IC_anchor_info[1] / im_ic_block_ % config.ic_num_blocks
               == 0) { // no imbalance
             if (ori_H % stride_h == 0 && ori_W % stride_w == 0) {
-              fusion->create_output_fusion_anchor({tensor_slice(C,
-                std::vector<std::pair<expr, expr>> {
-                  {bs_idx + o_bs * BS / BS_sub_block,
-                    BS_anchor_info[1] / config.bs_num_blocks},
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                slice_range {{bs_idx + o_bs * BS / BS_sub_block,
+                               BS_anchor_info[1] / config.bs_num_blocks},
                   {(s_idx + o_s * OS / S_sub_block) / ori_W * stride_h,
                     S_anchor_info[1] / config.spatial_num_blocks / ori_W
                       * stride_h},
                   {(s_idx + o_s * OS / S_sub_block) % ori_W * stride_w,
                     ori_W * stride_w},
                   {ic_idx + o_ic * IC / IC_sub_block,
-                    IC_anchor_info[1] / config.ic_num_blocks},
-                })});
+                    IC_anchor_info[1] / config.ic_num_blocks}});
             }
           }
         } // if fusion
@@ -451,7 +447,7 @@ void gen_nested_conv1x1_backprop_data_t::
 }
 
 bool gen_nested_conv1x1_backprop_data_t::generate(context_ptr ctx,
-  const nested_conv_bwd_data_config_t &config, fusion_manager *fusion,
+  const nested_conv_bwd_data_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init OP param
@@ -665,10 +661,10 @@ bool gen_nested_conv1x1_backprop_data_t::generate(context_ptr ctx,
               && S_block_size == S_ib_block_size
               && IC_block_size == IC_ib_block_size) {
               if (OH % stride_h == 0 && OW % stride_w) {
-                fusion->create_output_fusion_anchor({tensor_slice(del_input,
-                  {{bs_idx, BS_block_size},
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                  slice_range {{bs_idx, BS_block_size},
                     {s_idx / OW * stride_h, S_block_size / OW * stride_w},
-                    {s_idx % OW, OW * stride_w}, {ic_idx, IC_block_size}})});
+                    {s_idx % OW, OW * stride_w}, {ic_idx, IC_block_size}});
               }
             }
           } // if fusion

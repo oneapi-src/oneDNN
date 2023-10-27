@@ -52,13 +52,10 @@ using sc_op_ptr = std::shared_ptr<sc_op>;
 
 // the additional data related to fusion manager, attached to logical_tensor_t
 struct tensor_slice;
-struct fusion_data_t;
-struct fuse_state_t;
-struct fuse_anchor_map_t;
+struct fusion_anchor_t;
 
 template <typename valT>
 struct gt_map_t;
-using fdata_map = gt_map_t<fusion_data_t>;
 using gt2gt_map = gt_map_t<graph_tensor_ptr>;
 using gt2axis_map = gt_map_t<std::vector<int>>;
 using gt2buf_map = gt_map_t<expr>;
@@ -170,10 +167,6 @@ using ltensors = std::vector<logical_tensor_t>;
 struct sc_op_info_t {
     std::vector<graph_tensor_ptr> outputs_;
     std::vector<graph_tensor_ptr> inputs_;
-    // todo: move the 2 fields below to fusion data
-    /* the map of <output index, input index vector> decribes the sharing
-     relationship between input and output tensors */
-    std::unordered_map<int, std::vector<int>> tensor_share_info_;
     // set of all dynamic dispatch keys combinations of op, this field is mainly
     // prepared for dynamic dispatch during lowering and is created during
     // layout propagation.
@@ -203,15 +196,6 @@ constexpr const char *inner_anchor = "inner_anchor";
 // Inner anchor created in fusible ops and will be add to mixed partition when
 // committing fusible op.
 constexpr const char *fusible_inner_anchors = "fusible_inner_anchors";
-// Batchwise fused
-constexpr const char *bwise_fuse = "bwise_fuse";
-constexpr const char *bwise_no_fuse = "bwise_no_fuse";
-// `bwise_skip_fuse` differs with `bwise_no_fuse` in that it is often used as
-// temporarily status check
-constexpr const char *bwise_skip_fuse = "bwise_skip_fuse";
-constexpr const char *bwise_break_pre_fuse = "bwise_break_pre_fuse";
-constexpr const char *bwise_break_post_fuse = "bwise_break_post_fuse";
-constexpr const char *bwise_no_strided_dims = "bwise_no_strided_dims";
 // the name of the layer. Will be used to name the IR function
 constexpr const char *layer_name = "temp.name";
 // op marked with not_redundant will not be removed in horizontal same op

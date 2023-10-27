@@ -24,10 +24,9 @@
 #include "memory_movement.hpp"
 #include "reorder.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/anchor_loop_generator.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
-#include <compiler/ir/graph/outer_loop_generator.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
@@ -69,17 +68,7 @@ ir_module_ptr reorder_op_t::get_func(context_ptr ctx) {
     if (is_dynamic_reorder_inplace(this, ctx)) {
         return inplaced_reorder_get_func(this, ctx);
     }
-    if (ctx->flags_.mixed_fusion_) return fusible_op_get_func(this, ctx);
-    top_level_anchor_generator_t gen;
-    auto ret = fusible_op_get_func(this, gen, ctx, false);
-    auto func = ret->get_entry_func();
-    auto body = func->body_.as<stmts>();
-    COMPILE_ASSERT(body.defined(), "Expecting a body");
-    COMPILE_ASSERT(body->seq_.size() <= 2, "Expecting 2 stmt in reorder body");
-    auto loop = body->seq_[0].as<for_loop>();
-    COMPILE_ASSERT(loop.defined(), "Expecting a for loop in reorder body");
-    loop->kind_ = for_type::PARALLEL;
-    return ret;
+    return fusible_op_get_func(this, ctx);
 }
 
 void reorder_op_t::query_format(context_ptr ctx,
@@ -183,105 +172,6 @@ void reorder_op_t::update_fuse_attr() {
             attrs_.set(op_attr_key::break_pre_fuse, true);
         }
     }
-}
-
-void reorder_op_t::prepare_fusion_data(fdata_map &fdmap) {
-    auto &in_detail0 = fdmap.get(info_.inputs_[0]);
-    in_detail0.use_count_++;
-}
-
-sc_dims reorder_op_t::get_bwise_fuse_shrink_dims() {
-    if (check_padding()) return {};
-    bool use_out_loop = use_output_loop();
-    // depends on loop mode
-    auto gt = use_out_loop ? get_outputs()[0] : get_inputs()[0];
-    int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
-            gt, false);
-    auto fmt = gt->details_.get_format();
-    // check aother gt legalize
-    auto gt_blocks = fmt.get_blocked_axis();
-    auto another_gt = use_out_loop ? get_inputs()[0] : get_outputs()[0];
-    auto another_fmt = another_gt->details_.get_format();
-    auto another_gt_blocks = another_fmt.get_blocked_axis();
-    auto p2b_map = another_fmt.format_code_.collect_p2b_mapping();
-    int cnt = 0, no_stride_cnt = 0;
-    bool bwise_strided = false;
-    for (; cnt < offset; cnt++) {
-        auto plain_pos = fmt.format_code_.get(cnt);
-        // check can shrink another gt
-        if (gt_blocks[plain_pos].empty()
-                && !another_gt_blocks[plain_pos].empty())
-            break;
-        if (!gt_blocks[plain_pos].empty()
-                && !another_gt_blocks[plain_pos].empty()) {
-            auto gt_remaining_dims_prod = gt_blocks[plain_pos].front();
-            auto another_gt_blocks_prod = another_gt_blocks[plain_pos].front();
-            if (gt_remaining_dims_prod < another_gt_blocks_prod
-                    || gt_remaining_dims_prod % another_gt_blocks_prod != 0)
-                break;
-        }
-        // check strided
-        if (!bwise_strided) {
-            if (p2b_map[plain_pos].front() != cnt)
-                bwise_strided = true;
-            else if (cnt > 0) {
-                if (!gt_blocks[plain_pos].empty()
-                        && another_gt_blocks[plain_pos].empty()) {
-                    bwise_strided = true;
-                } else if (!gt_blocks[plain_pos].empty()
-                        && !another_gt_blocks[plain_pos].empty()) {
-                    auto gt_remaining_dims_prod = gt_blocks[plain_pos].front();
-                    auto another_gt_blocks_prod
-                            = another_gt_blocks[plain_pos].front();
-                    if (gt_remaining_dims_prod != another_gt_blocks_prod)
-                        bwise_strided = true;
-                }
-            }
-            if (bwise_strided) no_stride_cnt = cnt;
-        }
-    }
-    if (bwise_strided) {
-        attrs_.set(use_out_loop ? op_attr_key::bwise_break_pre_fuse
-                                : op_attr_key::bwise_break_post_fuse,
-                true);
-        attrs_.set(op_attr_key::bwise_no_strided_dims,
-                sc_dims {gt->details_.get_blocking_dims().begin(),
-                        gt->details_.get_blocking_dims().begin()
-                                + no_stride_cnt});
-    }
-    return {gt->details_.get_blocking_dims().begin(),
-            gt->details_.get_blocking_dims().begin() + cnt};
-};
-
-void reorder_op_t::collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) {
-    bool use_out_loop = use_output_loop();
-    auto &ins = get_inputs()[0];
-    auto &out = get_outputs()[0];
-    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
-            bw_lt_map, use_out_loop ? out : ins, bw_size);
-    auto &plain_dims = bw_lt_map.get(use_out_loop ? out : ins)
-                               ->details_.get_plain_dims();
-    // set the another one
-    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
-            bw_lt_map, use_out_loop ? ins : out, plain_dims);
-}
-
-void reorder_op_t::collect_shrinked_axis_map(
-        int bw_size, gt2axis_map &bw_axis_map) {
-    bool use_out_loop = use_output_loop();
-    // depends on loop mode
-    auto gt = use_out_loop ? get_outputs()[0] : get_inputs()[0];
-    record_shrinked_axis(bw_axis_map, gt, bw_size);
-    auto another_gt = use_out_loop ? get_inputs()[0] : get_outputs()[0];
-    auto fmt = gt->details_.get_format();
-    auto p2b_map = another_gt->details_.get_format()
-                           .format_code_.collect_p2b_mapping();
-    std::vector<int> bw_axis;
-    bw_axis.reserve(bw_size);
-    for (int i = 0; i < bw_size; i++) {
-        bw_axis.emplace_back(p2b_map[fmt.format_code_.get(i)].front());
-    }
-    record_shrinked_axis(bw_axis_map, another_gt, bw_axis);
 }
 
 // This function will try to merge multi slice range
@@ -832,20 +722,18 @@ void find_vectorized_axis(std::vector<expr> const &blocking_dims_expr,
     int len_from_last \
             = target_format.format_code_.ndims() - 1 - origin_axis_vectorized; \
     bool must_recheck = len_from_last > 0; \
-    bool optimized_slice_check = !stat_map.is_recursive_mode() \
-            && support_optimized_kernel(stat_map.get_context()); \
-    bool special_slice_check = !stat_map.is_recursive_mode() \
-            && (support_optimized_kernel(stat_map.get_context()) \
-                    || must_recheck); \
+    bool optimized_slice_check = support_optimized_kernel(ctx); \
+    bool special_slice_check \
+            = (support_optimized_kernel(ctx) || must_recheck); \
     len_from_last += optimized_slice_check \
-            ? meet_vnni_reorder_require(stat_map.get_context()) ? 3 : 2 \
+            ? meet_vnni_reorder_require(ctx) ? 3 : 2 \
             : 1;
 
 // infer reorder slice according input_slice
-void reorder_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code reorder_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     // has been pre-inferred, skip
-    if (!fsmap.get(get_outputs()[0]).empty()) return;
+    if (!fsmap.get(get_outputs()[0]).empty()) return infer_status_code::OK;
     auto &input_format = get_input_format();
     auto &output_format = get_output_format();
     COMPILE_ASSERT(input_format.is_convertible(output_format),
@@ -853,34 +741,30 @@ void reorder_op_t::infer_slice_ranges(
                     << input_format << " to output format " << output_format
                     << ".");
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
+    if (known_ranges_map.empty()) return infer_status_code::RETRY;
 
+    auto input_slice_list = known_ranges_map[0];
     std::vector<int> required_axis(
             get_inputs()[0]->details_.get_blocking_dims().size(), 0);
     for (auto i = 0UL; i < get_inputs()[0]->details_.get_blocking_dims().size();
             i++) {
         required_axis[i] = i;
     }
-    for (auto &src_range : fsmap.get(get_inputs()[0])) {
+    for (auto &src_range : input_slice_list) {
         if (!get_inputs()[0]->details_.is_dynamic()
                 && !slice_divisible_on_axis(
                         get_inputs()[0]->details_.get_blocking_dims(),
                         src_range, required_axis)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
     }
-
-    if (known_ranges_map.empty()) return;
-    auto input_slice_list = known_ranges_map[0];
 
     SLICE_RAGNE_CHECK_INIT_DATA()
     if (special_slice_check
             && !check_required_slice(
                     get_inputs()[0], input_slice_list, len_from_last)) {
-        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-        return;
+        return infer_status_code::RETRY;
     }
 
     slice_range_list reorder_ranges_list;
@@ -897,79 +781,55 @@ void reorder_op_t::infer_slice_ranges(
                 reorder_ranges_list);
     }
 
-    // TODO(yunfei) remove this if scope when old fusion mgr is deprecated
-    if (reorder_ranges_list.empty()) {
-        for (auto &user : get_outputs()[0]->uses_) {
-            if (user.second->isa<output_op>()) {
-                continue;
-            } else if (stat_map.is_recursive_mode() && !check_padding()) {
-                user.second->attrs_.set(op_attr_key::fused_mode_hint,
-                        op_attr_key::break_pre_fuse);
-                stat_map.append_ops_by_status(
-                        user.second.get(), infer_status_code::FAIL);
-                return;
-            }
-        }
-    } else {
-        if (optimized_slice_check
-                && !check_required_slice(
-                        get_outputs()[0], reorder_ranges_list, len_from_last)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
-        }
+    if (!reorder_ranges_list.empty() && optimized_slice_check
+            && !check_required_slice(
+                    get_outputs()[0], reorder_ranges_list, len_from_last)) {
+        return infer_status_code::RETRY;
     }
     fsmap.get(get_outputs()[0]) = reorder_ranges_list;
+    return infer_status_code::OK;
 }
 
 // pre-infer reorder slice according output_slice
-void reorder_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code reorder_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
     auto &input_format = get_input_format();
     auto &output_format = get_output_format();
     SLICE_RAGNE_CHECK_INIT_DATA()
     // deal with begining reorder op, which use output loop
-    if (!stat_map.is_recursive_mode() && fsmap.datamap_.size() == 1) {
+    if (fsmap.datamap_.size() == 1) {
         if (!use_output_loop()
                 || (special_slice_check
                         && !check_required_slice(get_outputs()[0],
                                 known_ranges_list, len_from_last))) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return infer_status_code::RETRY;
         }
-        return;
+        return infer_status_code::OK;
     }
-    if (is_dynamic()) {
-        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-        return;
-    }
+    if (is_dynamic()) { return infer_status_code::RETRY; }
     if (fsmap.get(get_inputs()[0]).empty()) {
         if (check_padding()) {
-            if (!use_output_loop() || stat_map.is_recursive_mode()) {
-                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            }
-            return;
+            if (!use_output_loop()) { return infer_status_code::RETRY; }
+            return infer_status_code::OK;
         }
         slice_range_list input_slice_list;
         infer_reorder_slice(known_ranges_list, get_output_format(),
                 get_input_format(), input_slice_list);
         if (input_slice_list.size() != 1 || !support_output_loop()) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
         fsmap.get(get_inputs()[0]) = input_slice_list;
-        // recursively pre-infer
-        info_.inputs_[0]
-                ->producer_owner_->dyn_cast<fusible_op_t>()
-                ->pre_slice_ranges(fsmap, stat_map);
     }
+    return infer_status_code::OK;
 }
 
 void reorder_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     infer_identical_binding_axis(this, bdax_map);
 }
 
-void reorder_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
-    pre_identical_binding_axis(this, bdax_map);
+void reorder_op_t::pre_infer_binding_axis(bound_axis_map &bdax_map) {
+    pre_infer_identical_binding_axis(this, bdax_map);
 }
 
 std::vector<expr> get_reorder_stride2stride_indexes(
@@ -1958,9 +1818,6 @@ bool reorder_op_t::use_output_loop() const {
         if (!get_input_format().is_blocking()) return true;
     }
     if (attrs_.get_or_else(op_attr_key::break_pre_fuse, false)) return true;
-    if (auto inp = get_inputs()[0]->producer_owner_->dyn_cast<input_op>()) {
-        return inp->is_arg_input();
-    }
     return false;
 }
 

@@ -71,7 +71,7 @@ public:
     const expr &ic_s) const;
 
   bool generate(context_ptr ctx, const nested_conv_bwd_data_config_t &config,
-    fusion_manager *fusion, const std::vector<expr> &inputs,
+    fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
 
@@ -82,8 +82,8 @@ public:
     const expr &bs_idx, const expr &s_idx, const expr &ic_idx,
     const expr &oc_idx, const int stride_d, const int stride_h,
     const int stride_w, const expr &A, const expr &B, const expr &C,
-    int dtype_block, fusion_manager *fusion, const expr &bs_s, const expr &s_s,
-    const expr &ic_s, std::vector<int> &BS_anchor_info,
+    int dtype_block, fusion_anchor_mgr_t *fusion, const expr &bs_s,
+    const expr &s_s, const expr &ic_s, std::vector<int> &BS_anchor_info,
     std::vector<int> &S_anchor_info, std::vector<int> &IC_anchor_info,
     const bool is_out_blocking, bool is_partial = false,
     const expr &oc_s = 0) const;

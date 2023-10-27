@@ -74,7 +74,6 @@ void check_qconv(conv_fwd_config_t cfg, int N, int G, int K, int C, int H,
                     << C << "), K(" << K << "), G(" << G << ").");
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
 
     auto src_dtype = sc_data_traits_t<src_type>::type();
@@ -390,7 +389,6 @@ void check_rl_qconv(conv_fwd_rl_config_t cfg, int N, int G, int K, int C, int H,
     COMPILE_ASSERT(default_cfg, "only default cfg is supported!");
     // use new fusion manager
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     int stride_h = stride[0], stride_w = stride[0];
     if (stride.size() == 2) { stride_w = stride[1]; }

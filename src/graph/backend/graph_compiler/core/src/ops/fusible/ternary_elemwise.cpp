@@ -25,7 +25,6 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
 #include <unordered_map>
 #include <util/utils.hpp>
 
@@ -286,15 +285,13 @@ void select_op_t::query_format(context_ptr ctx,
 
 // The logic below might be suitable for most fusible op, which has same
 // slice ranges on inputs and outputs
-void select_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code select_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     COMPILE_ASSERT(
             get_inputs().size() == 3, "Select op is expected to have 3 inputs");
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
-    if (known_ranges_map.empty()) return;
-    auto &outslice = fsmap.get(get_outputs()[0]);
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
+    if (known_ranges_map.empty()) return infer_status_code::RETRY;
     // if unkown slice ranges exist.
     int maxtensor_idx = get_ref_input_index(true);
     if (known_ranges_map.size() < get_inputs().size()) {
@@ -350,12 +347,6 @@ void select_op_t::infer_slice_ranges(
                     known_ranges_map[remaining_idx] = bc_range_list;
                 }
             }
-            // set the other unknown slice range by achieved
-            // known_ranges_list
-            set_unknown_slice_ranges(this, known_ranges_map, fsmap, stat_map);
-            // set outputs slice range
-            outslice = known_ranges_map[maxtensor_idx];
-            return;
         } else {
             auto it = std::find(known_idx.begin(), known_idx.end(), 1);
             COMPILE_ASSERT(it != known_idx.end(), "No known idx found.");
@@ -367,17 +358,19 @@ void select_op_t::infer_slice_ranges(
             }
         }
         // set the other unknown slice range by achieved known_ranges_list
-        set_unknown_slice_ranges(this, known_ranges_map, fsmap, stat_map);
+        set_unknown_input_slice(this, known_ranges_map, fsmap);
     }
     // set outputs slice range
+    auto &outslice = fsmap.get(get_outputs()[0]);
     outslice = known_ranges_map[maxtensor_idx > -1 ? maxtensor_idx : 1];
+    return infer_status_code::OK;
 }
 
 void select_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     COMPILE_ASSERT(
             get_inputs().size() == 3, "Select op is expected to have 3 inputs");
     // search known axis from any input of cur fusbile op
-    auto known_axis_map = search_known_bound_axis(this, bdax_map);
+    auto known_axis_map = search_known_input_axis(this, bdax_map);
     if (!bdax_map.get(get_outputs()[0]).empty()) return;
 
     // if unkown slice ranges exist.
@@ -489,10 +482,10 @@ void select_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     bdax_map.get(get_outputs()[0])
             = known_axis_map[maxtensor_idx > -1 ? maxtensor_idx : 1];
     // set the other unknown axis binding by achieved known_axis_map
-    set_unknown_axis_binding(this, known_axis_map, bdax_map);
+    set_unknown_binding_axis(this, known_axis_map, bdax_map);
 }
 
-void select_op_t::pre_binding_axis(bound_axis_map &bdax_map) {}
+void select_op_t::pre_infer_binding_axis(bound_axis_map &bdax_map) {}
 
 std::vector<int> select_op_t::get_bc_axis(
         const int axis1, const int axis2) const {
@@ -870,11 +863,10 @@ void select_op_t::compute_block(context_ptr ctx,
 }
 
 // Pure virtual function in fusible_op_t class.
-void select_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {}
-
-// Pure virtual function in fusible_op_t class.
-void select_op_t::prepare_fusion_data(fdata_map &fdmap) {}
+infer_status_code select_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
+    throw std::runtime_error("Not implemented");
+}
 
 OP_REGISTER(select_op_t, select)
 

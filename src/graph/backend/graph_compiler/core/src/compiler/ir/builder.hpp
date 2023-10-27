@@ -55,19 +55,20 @@ public:
      * statements in a basic-block into a stmts node.
      * */
     struct basic_block_t {
-        std::vector<stmt> body;
+        stmts body;
         /**
          * Appends a stmt into the BB
          * @param stmt the statement
          * */
         void emit(const stmt &stmt);
         /**
-         * Compose a stmts node with the stmt that are previously
-         * pushed into this BB. Will clear the `body` field
-         * @return the composed stmts
+         * Get the contained body and clear this field
+         * @return the `body` stmts
          * */
         stmt get();
-        basic_block_t() = default;
+        // return `seq_` field of `body`, which is std::vector<stmt> type
+        std::vector<stmt> &as_seq() { return body->seq_; }
+        basic_block_t();
         basic_block_t(basic_block_t &&other) : body(std::move(other.body)) {}
     };
 

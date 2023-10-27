@@ -148,20 +148,19 @@ void padding_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-void padding_op_t::prepare_fusion_data(fdata_map &fdmap) {}
+infer_status_code padding_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
+    throw std::runtime_error("Not implemented");
+}
 
-void padding_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {}
-
-void padding_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code padding_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
 
     if (attrs_.get_or_else(op_attr_key::break_post_fuse, false)) {
         fsmap.get(get_outputs()[0]) = known_ranges_map[0];
-        return;
+        return infer_status_code::OK;
     }
 
     size_t slice_size = known_ranges_map[0].size();
@@ -172,8 +171,7 @@ void padding_op_t::infer_slice_ranges(
     // check the slice range whether meet the demand of padding op
     for (auto &src_range : fsmap.get(input)) {
         if (!slice_full_on_axis(src_dim, src_range, required_axis)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
     }
     slice_range_list ranges_list(slice_size);
@@ -197,6 +195,7 @@ void padding_op_t::infer_slice_ranges(
         }
     }
     fsmap.get(get_outputs()[0]) = std::move(ranges_list);
+    return infer_status_code::OK;
 }
 
 void padding_op_t::compute_block(context_ptr ctx,

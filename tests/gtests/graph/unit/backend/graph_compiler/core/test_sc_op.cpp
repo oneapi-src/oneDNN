@@ -16,7 +16,8 @@
 
 #include <vector>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusible_op.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <gtest/gtest.h>
 #include <unordered_map>

@@ -35,21 +35,21 @@ namespace gc {
 
 struct mixed_parti_t;
 
-using anchor_content_t = variant<sc_op *, fuse_anchor_map_t *>;
-struct op_or_fuse_anchor_map_hasher {
+using anchor_content_t = variant<sc_op *, fusion_anchor_t *>;
+struct anchor_content_hasher {
     size_t operator()(const anchor_content_t &v) const {
         return std::hash<void *>()(v.cast<void *>());
     }
 };
 
-struct op_or_fuse_anchor_map_cmper {
+struct anchor_content_cmper {
     bool operator()(
             const anchor_content_t &v, const anchor_content_t &v2) const {
         return v.cast<void *>() == v2.cast<void *>();
     }
 };
 
-struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
+struct fusion_anchor_t : std::enable_shared_from_this<fusion_anchor_t> {
 private:
     // control whether the fusion anchor is output anchor or input, default is
     // output anchor.
@@ -62,32 +62,31 @@ public:
     fslice_map fsmap_;
 
     // parent anchor
-    std::shared_ptr<fuse_anchor_map_t> parent_;
+    std::shared_ptr<fusion_anchor_t> parent_;
 
     /* Updated when inferring */
     // blocked graph tensor set, the reason why not use empty gt for judgement
     // is to distinguish non-visited gt and visited-but-failed gt
     std::unordered_set<graph_tensor_ptr> blocked_gt_set_;
     // borrowed fanchor map, must be the parent for current anchor
-    std::unordered_map<graph_tensor_ptr, std::shared_ptr<fuse_anchor_map_t>>
+    std::unordered_map<graph_tensor_ptr, std::shared_ptr<fusion_anchor_t>>
             borrowed_fanchor_map_;
 
     /* Updated when committing */
     // content-to-number mapping under current fusion anchor scope, includes
     // either op and anchor
-    std::unordered_map<anchor_content_t, size_t, op_or_fuse_anchor_map_hasher,
-            op_or_fuse_anchor_map_cmper>
+    std::unordered_map<anchor_content_t, size_t, anchor_content_hasher,
+            anchor_content_cmper>
             content_number_map_;
 
-    fuse_anchor_map_t() = default;
-    fuse_anchor_map_t(stmts pos, const fslice_map &fsmap,
-            const std::shared_ptr<fuse_anchor_map_t> &parent = nullptr,
+    fusion_anchor_t() = default;
+    fusion_anchor_t(stmts pos, const fslice_map &fsmap,
+            const std::shared_ptr<fusion_anchor_t> &parent = nullptr,
             bool is_input_anchor = false)
         : is_input_anchor_(is_input_anchor)
         , anchor_position_(std::move(pos))
-        , fsmap_(std::move(fsmap))
-        , parent_(parent) {
-        if (parent) { parent_->append_content(this); }
+        , fsmap_(std::move(fsmap)) {
+        if (parent) { attach_parent_anchor(parent, nullptr, true); }
     };
 
     mixed_parti_t *const get_binded_mxp() const { return binded_mxp_; }
@@ -129,25 +128,29 @@ public:
     // append content including either fusion anchor or sc op
     void append_content(anchor_content_t content);
 
-    void attach_parent_anchor(const std::shared_ptr<fuse_anchor_map_t> &parent,
-            const std::shared_ptr<fuse_anchor_map_t> &repl_parent);
+    // clear content
+    void clear_content(anchor_content_t content);
 
-    fuse_anchor_map_t *get_root() const {
+    void attach_parent_anchor(const std::shared_ptr<fusion_anchor_t> &parent,
+            const std::shared_ptr<fusion_anchor_t> &repl_parent = nullptr,
+            bool inherit_offset = false);
+
+    fusion_anchor_t *get_root() const {
         auto root = this;
         while (root->parent_) {
             COMPILE_ASSERT(root != root->parent_.get(),
                     "Ring parent anchor relationship found");
             root = root->parent_.get();
         }
-        return const_cast<fuse_anchor_map_t *>(root);
+        return const_cast<fusion_anchor_t *>(root);
     }
 
-    void merge(const std::shared_ptr<fuse_anchor_map_t> &other);
+    void merge(const std::shared_ptr<fusion_anchor_t> &other);
 
     template <typename T>
     bool isa() const {
-        static_assert(is_base_of_t<fuse_anchor_map_t, T>::value,
-                "T is not a subclass of fuse_anchor_map.");
+        static_assert(is_base_of_t<fusion_anchor_t, T>::value,
+                "T is not a subclass of fusion_anchor.");
         return dynamic_cast<const T *>(this);
     }
 
@@ -161,7 +164,7 @@ public:
         return dynamic_cast<T *>(this);
     }
 
-    virtual ~fuse_anchor_map_t() = default;
+    virtual ~fusion_anchor_t() = default;
 
     // This function will find the nearest parent 'for_loop' node for fusion
     // anchor
@@ -185,7 +188,7 @@ public:
      *    }
      * }
      * */
-    bool is_parent_for(const fuse_anchor_map_t *cur) const {
+    bool is_parent_for(const fusion_anchor_t *cur) const {
         if (!cur) return false;
         if (is_input_anchor_ != cur->is_input_anchor_) return false;
         while (cur->parent_) {
@@ -195,7 +198,7 @@ public:
         return false;
     }
 
-    bool is_parent_for(const std::shared_ptr<fuse_anchor_map_t> &cur) const {
+    bool is_parent_for(const std::shared_ptr<fusion_anchor_t> &cur) const {
         return is_parent_for(cur.get());
     }
 
@@ -211,7 +214,7 @@ public:
      *    }
      * }
      * */
-    bool is_sibling_for(const fuse_anchor_map_t *other) const {
+    bool is_sibling_for(const fusion_anchor_t *other) const {
         if (is_input_anchor_ != other->is_input_anchor_) return false;
         if (is_parent_for(other)) return false;
         auto this_loop = get_parent_loop();
@@ -225,7 +228,7 @@ public:
         return false;
     }
 
-    bool is_sibling_for(const std::shared_ptr<fuse_anchor_map_t> &other) const {
+    bool is_sibling_for(const std::shared_ptr<fusion_anchor_t> &other) const {
         return is_sibling_for(other.get());
     }
 
@@ -244,7 +247,7 @@ public:
      *    }
      * }
      * */
-    bool is_cousin_for(const fuse_anchor_map_t *cur) const {
+    bool is_cousin_for(const fusion_anchor_t *cur) const {
         if (is_input_anchor_ != cur->is_input_anchor_) return false;
         return !(this->is_parent_for(cur) || cur->is_parent_for(this)
                        || this->is_sibling_for(cur)
@@ -255,7 +258,7 @@ public:
                                    .defined());
     }
 
-    bool is_cousin_for(const std::shared_ptr<fuse_anchor_map_t> &cur) const {
+    bool is_cousin_for(const std::shared_ptr<fusion_anchor_t> &cur) const {
         return is_cousin_for(cur.get());
     }
 
@@ -296,7 +299,7 @@ public:
     bool is_small_op_workload(const sc_op *op);
 };
 
-using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;
+using fusion_anchor_ptr = std::shared_ptr<fusion_anchor_t>;
 
 /**
  * iter_anchor represents irregular slice range which is binded with loop iter.
@@ -306,7 +309,7 @@ using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;
  * @param dispatch_helper_: the helper for IR dispatch
  * @param iter_cnt_: built-in iter counter
  * */
-struct fuse_iter_anchor_map_t : fuse_anchor_map_t {
+struct iter_fusion_anchor_t : fusion_anchor_t {
 private:
     // iterated var
     expr iter_;
@@ -316,11 +319,11 @@ private:
     size_t iter_cnt_;
 
 public:
-    fuse_iter_anchor_map_t(expr iter_var, stmts pos, const fslice_map &fsmap,
+    iter_fusion_anchor_t(expr iter_var, stmts pos, const fslice_map &fsmap,
             stmt dispatch_helper = stmt(),
-            const fuse_anchor_map_ptr &parent = nullptr,
+            const fusion_anchor_ptr &parent = nullptr,
             bool is_input_anchor = false)
-        : fuse_anchor_map_t(pos, fsmap, parent, is_input_anchor)
+        : fusion_anchor_t(pos, fsmap, parent, is_input_anchor)
         , iter_(std::move(iter_var))
         , dispatch_helper_(std::move(dispatch_helper)) {
         COMPILE_ASSERT(
@@ -363,7 +366,7 @@ public:
  * @param group_pos_: real group anchor position used to commit code
  * @param group_cnt_: built-in group counter
  * */
-struct fuse_grouped_anchor_map_t : fuse_anchor_map_t {
+struct grouped_fusion_anchor_t : fusion_anchor_t {
 private:
     size_t group_size_;
     size_t group_cnt_;
@@ -371,10 +374,10 @@ private:
 public:
     friend class fusion_anchor_mgr_t;
 
-    fuse_grouped_anchor_map_t(stmts pos, const fslice_map &fsmap,
-            const fuse_anchor_map_ptr &parent = nullptr,
+    grouped_fusion_anchor_t(stmts pos, const fslice_map &fsmap,
+            const fusion_anchor_ptr &parent = nullptr,
             bool is_input_anchor = false)
-        : fuse_anchor_map_t(pos, fsmap, parent, is_input_anchor) {
+        : fusion_anchor_t(pos, fsmap, parent, is_input_anchor) {
         COMPILE_ASSERT(
                 !fsmap.empty(), "grouped fusion anchor init slice not found")
         group_size_ = fsmap.datamap_.begin()->second.size();
@@ -419,34 +422,57 @@ using slice_map = std::unordered_map<graph_tensor *, slice_range_list>;
 
 class fusion_anchor_mgr_t {
 private:
-    std::unordered_map<int, std::shared_ptr<fuse_grouped_anchor_map_t>>
+    // binded mixed partition
+    mixed_parti_t *binded_mxp_ = nullptr;
+    // maintain fusion anchor list
+    std::vector<fusion_anchor_ptr> fanchor_list_;
+    // grouped id mapping
+    std::unordered_map<int, std::shared_ptr<grouped_fusion_anchor_t>>
             grouped_id_map_;
 
 public:
     fusion_anchor_mgr_t() = default;
-    // maintain fusion anchor list
-    std::vector<fuse_anchor_map_ptr> fanchor_list_;
+    fusion_anchor_mgr_t(mixed_parti_t *binded_mxp) : binded_mxp_(binded_mxp) {};
+
+    void create_fusion_anchor(const graph_tensor_ptr &gt,
+            const slice_range &slice, const fusion_anchor_ptr &parent = nullptr,
+            bool is_input_anchor = false);
+
+    void create_fusion_anchor(const expr &tsr, const slice_range &slice,
+            const fusion_anchor_ptr &parent = nullptr,
+            bool is_input_anchor = false);
 
     // create basic fusion anchor
     void create_fusion_anchor(const slice_map &fsmap,
-            const fuse_anchor_map_ptr &parent = nullptr,
+            const fusion_anchor_ptr &parent = nullptr,
             bool is_input_anchor = false);
 
     // create iterated fusion anchor
     void create_fusion_anchor(const expr &iter_var, const slice_map &fsmap,
             const stmt &dispatch_helper = stmt(),
-            const fuse_anchor_map_ptr &parent = nullptr,
+            const fusion_anchor_ptr &parent = nullptr,
             bool is_input_anchor = false);
 
     // create grouped fusion anchor
     void create_fusion_anchor(int group_id, const slice_map &fsmap,
-            const fuse_anchor_map_ptr &parent = nullptr,
+            const fusion_anchor_ptr &parent = nullptr,
             bool is_input_anchor = false);
+
+    // get contained fusion anchor list
+    const std::vector<fusion_anchor_ptr> &get_fusion_anchor() const {
+        return fanchor_list_;
+    }
+
+    // get binded mxp
+    mixed_parti_t *const get_binded_mxp() const { return binded_mxp_; }
 };
 
+// create fusion anchor utils, usually used in template
+void create_fusion_anchor(fusion_anchor_mgr_t *fusion,
+        const graph_tensor_ptr &gt, const slice_range &slice);
 // split common anchor into grouped anchor
-fuse_anchor_map_ptr try_convert_anchor(
-        const context_ptr &ctx, const fuse_anchor_map_ptr &fanchor);
+fusion_anchor_ptr try_convert_anchor(
+        const context_ptr &ctx, const fusion_anchor_ptr &fanchor);
 
 } // namespace gc
 } // namespace graph

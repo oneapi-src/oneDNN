@@ -235,29 +235,29 @@ TEST(GCCore_CPU_copier_cpp, TestCopierStmt) {
     bld.push_scope();
     _var_(a, datatypes::f32);
     a = 1.23f;
-    check(bld.get_current_scope().body.back());
+    check(bld.get_current_scope().as_seq().back());
 
     _if_(a == 1.23f) { a = 1.23f; }
     _else_ { a = 123.0f; }
-    check(bld.get_current_scope().body.back());
+    check(bld.get_current_scope().as_seq().back());
 
     _if_(a == 1.23f) { a = 1.23f; }
-    check(bld.get_current_scope().body.back());
+    check(bld.get_current_scope().as_seq().back());
 
     _return_();
-    check(bld.get_current_scope().body.back());
+    check(bld.get_current_scope().as_seq().back());
 
     _return_(1.2345f);
-    check(bld.get_current_scope().body.back());
+    check(bld.get_current_scope().as_seq().back());
 
     _for_(i, 0, 10, 20, for_type::PARALLEL) { a = i; }
-    check(bld.get_current_scope().body.back());
+    check(bld.get_current_scope().as_seq().back());
 
     _var_(va, datatypes::boolean);
-    check(bld.get_current_scope().body.back());
+    check(bld.get_current_scope().as_seq().back());
 
     _var_ex_(vb, datatypes::boolean, linkage::local, expr(true));
-    check(bld.get_current_scope().body.back());
+    check(bld.get_current_scope().as_seq().back());
 }
 
 TEST(GCCore_CPU_copier_cpp, TestCopierVar) {

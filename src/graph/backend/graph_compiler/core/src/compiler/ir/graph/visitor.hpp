@@ -209,8 +209,6 @@ public:
      * */
     enum class sort_rule : int {
         same_kind = 0,
-        fusion_anchor,
-        preop_fusion,
         // TODO(xxx): Add other pre-defined rules here.
     };
 
@@ -255,10 +253,6 @@ public:
      * for Loop Merge Pass, we can make them as neighboring as possible.
      * */
     static rule_func create_same_kind_rule();
-
-    static rule_func create_fusion_anchor_rule();
-
-    static rule_func create_preop_fusion_rule();
 };
 
 // count amount of tuneable op

@@ -113,10 +113,12 @@ dynamic_reshape_op::dynamic_reshape_op(const std::vector<graph_tensor_ptr> &ins,
         auto &details = info_.outputs_[0]->details_;
         COMPILE_ASSERT(details.dtype_ == info_.inputs_[0]->details_.dtype_,
                 "Reshape: input/output dtype does not match");
-        COMPILE_ASSERT(details.get_plain_dims() == outshape,
-                "Reshape: Expecting output shape = "
-                        << utils::print_vector(outshape) << ", given: "
-                        << utils::print_vector(details.get_plain_dims()));
+        if (!ins[0]->is_dynamic()) {
+            COMPILE_ASSERT(details.get_plain_dims() == outshape,
+                    "Reshape: Expecting output shape = "
+                            << utils::print_vector(outshape) << ", given: "
+                            << utils::print_vector(details.get_plain_dims()));
+        }
     }
 }
 void dynamic_reshape_op::query_format(context_ptr ctx,

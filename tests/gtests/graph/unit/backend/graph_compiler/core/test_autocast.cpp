@@ -33,7 +33,7 @@ TEST(GCCore_CPU_auto_cast_cpp, TestAutoCastBinary) {
     _tensor_(t, datatypes::f32, {100});
     _var_(tptr, datatypes::pointer);
     tptr = t;
-    EXPECT_EQ(auto_caster_t()(builder.get_current_scope().body.back())
+    EXPECT_EQ(auto_caster_t()(builder.get_current_scope().as_seq().back())
                       .checked_as<assign>()
                       ->value_->dtype_,
             datatypes::pointer);
@@ -91,7 +91,7 @@ TEST(GCCore_CPU_auto_cast_cpp, TestAutoCastBinary) {
                     make_cast(datatypes::f32,
                             make_expr<constant_node>(
                                     INT64_C(1), datatypes::s8)))));
-    builder.get_current_scope().body.clear();
+    builder.get_current_scope().as_seq().clear();
 
     // intrin
     any_map_t attr;

@@ -41,9 +41,7 @@ inline sc_dims get_dilations(const any_map_t &attr) {
     return dilations;
 }
 
-class SC_INTERNAL_API conv_fwd_core_op_t
-    : public tunable_op_t,
-      public op_traits::batchwise_shrinkable_t {
+class SC_INTERNAL_API conv_fwd_core_op_t : public tunable_op_t {
 public:
     conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
@@ -74,12 +72,8 @@ public:
     sc_op_ptr get_constant_compensation(sc_graph_t &g);
     bool use_nested_conv_fwd_generator();
     bool use_conv1d();
-    sc_dims get_bwise_fuse_shrink_dims() override;
-    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
-    void collect_shrinked_axis_map(
-            int bw_size, gt2axis_map &bw_axis_map) override;
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+    infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override;
 
     void set_config_by_key(
             const op_dispatch_key_t &key, const context_ptr &ctx) override;
@@ -109,10 +103,10 @@ public:
             override;
     body_generator_ptr create_generator() override;
     float get_gflop() override;
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override {
+    infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override {
         // TODO(XXX)
-        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+        return infer_status_code::FAIL;
     }
     bool use_nested_generator();
 
@@ -131,10 +125,10 @@ public:
             override;
     body_generator_ptr create_generator() override;
     float get_gflop() override;
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override {
+    infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override {
         // TODO(XXX)
-        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+        return infer_status_code::FAIL;
     }
     bool use_nested_generator();
 

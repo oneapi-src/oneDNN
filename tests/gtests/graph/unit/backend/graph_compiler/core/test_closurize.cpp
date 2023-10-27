@@ -233,7 +233,11 @@ TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrierPinMemory) {
             _tensor_(B, datatypes::f32, 100);
             tester_B = B;
             _tensor_(C, datatypes::f32, 100);
-            builder.get_current_scope().body.back().checked_as<define>()->init_
+            builder.get_current_scope()
+                    .as_seq()
+                    .back()
+                    .checked_as<define>()
+                    ->init_
                     = builder::tensor_ptr(B, {0UL});
             _evaluate_call_(aaa, A);
             _evaluate_call_(bbb, C, t);
@@ -253,7 +257,11 @@ TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrierPinMemory) {
                 _arg_("t", datatypes::pointer, {100})) {
             _bind_(t);
             _tensor_(A, datatypes::f32, 100);
-            builder.get_current_scope().body.back().checked_as<define>()->init_
+            builder.get_current_scope()
+                    .as_seq()
+                    .back()
+                    .checked_as<define>()
+                    ->init_
                     = t[0];
             _for_(i, 0, 10, 2, for_type::PARALLEL) { A[i] = 0.0f; }
             _return_(true);

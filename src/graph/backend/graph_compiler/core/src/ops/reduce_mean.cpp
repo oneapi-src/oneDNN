@@ -25,10 +25,7 @@ namespace gc {
 reduce_mean_op_t::reduce_mean_op_t(
         graph_tensor_ptr v, const std::vector<int> &rd_axis, bool keep_dims)
     : reduce_mean_op_t({std::move(v)}, {},
-            {{"rd_axis", rd_axis}, {"keep_dims", keep_dims}}) {
-    // default is need_allocate
-    info_.tensor_share_info_ = {};
-}
+            {{"rd_axis", rd_axis}, {"keep_dims", keep_dims}}) {}
 
 reduce_mean_op_t::reduce_mean_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {

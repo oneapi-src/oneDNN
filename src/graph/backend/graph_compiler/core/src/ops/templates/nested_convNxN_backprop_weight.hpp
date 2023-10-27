@@ -46,8 +46,6 @@ public:
   using parent = body_generator_t<nested_conv_bwd_weight_config_t>;
   using parent::generate;
 
-  bool bwise_fusion_ = false;
-
   gen_nested_convNXN_bwd_weight_t(sc_op *owner, const sc_dims &stride,
     const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
     std::vector<logical_tensor_t> &&outs);
@@ -85,10 +83,10 @@ public:
     int stride_w, int R, int S, const expr &sh_idx, const expr &sw_idx,
     const expr &o_bs, const expr &o_od, const expr &o_oh, const expr &o_ow,
     const expr &obs_offset, const expr &oc_offset, const expr &oh_offset,
-    const expr &ow_offset, fusion_manager *fusion) const;
+    const expr &ow_offset, fusion_anchor_mgr_t *fusion) const;
 
   bool generate(context_ptr ctx, const nested_conv_bwd_weight_config_t &config,
-    fusion_manager *fusion, const std::vector<expr> &inputs,
+    fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
 

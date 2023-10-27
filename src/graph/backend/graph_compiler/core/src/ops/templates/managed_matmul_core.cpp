@@ -26,7 +26,8 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/dynamic_internal_info.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
@@ -811,10 +812,10 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
   const logical_tensor_t &tc, const managed_matmul_core_config_t &config,
   const expr &M, const expr &N, const expr &K, const expr &m_idx,
   const expr &n_idx, const expr &k_idx, const expr &A, expr &B, const expr &C,
-  int dtype_block, fusion_manager *fusion, const expr &m_s, const expr &n_s,
-  std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
-  std::vector<int> &K_anchor_info, bool is_partial, const expr &k_s,
-  bool is_dynamic) const {
+  int dtype_block, fusion_anchor_mgr_t *fusion, const expr &m_s,
+  const expr &n_s, std::vector<int> &M_anchor_info,
+  std::vector<int> &N_anchor_info, std::vector<int> &K_anchor_info,
+  bool is_partial, const expr &k_s, bool is_dynamic) const {
   expr M_sub_block = config.M_sub_block, N_sub_block = config.N_sub_block,
        K_sub_block = config.K_sub_block;
   if (config.im_loop_order == 0) {
@@ -993,7 +994,7 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
             }
             if (fusion && !is_partial) {
               _if_(k_b == K_sub_block - 1) {
-                fusion->create_output_fusion_anchor({tensor_slice(C,
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   !tc.get_format().is_blocking()
                     ? std::vector<std::pair<expr, expr>> {{m_start_idx,
                                                             expr(iim_block_)},
@@ -1001,7 +1002,7 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
                     : std::vector<std::pair<expr, expr>> {
                       {m_start_idx / iim_block_, 1},
                       {n_start_idx / iin_block_, 1}, {0, expr(iim_block_)},
-                      {0, expr(iin_block_)}})});
+                      {0, expr(iin_block_)}});
               }
             }
           }
@@ -1015,7 +1016,7 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
           && N_anchor_info[1] / iin_block_ % config.N_sub_block == 0) {
           // case 1: no imbalance on single core, X_sub_block can be
           // dividedevenly
-          fusion->create_output_fusion_anchor({tensor_slice(C,
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
             !tc.get_format().is_blocking()
               ? std::vector<std::pair<expr, expr>> {{m_idx
                                                         + m_b_idx * iim_block_,
@@ -1028,7 +1029,7 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
                   M_anchor_info[1] / iim_block_ / config.M_sub_block},
                 {(n_idx + n_b_idx * iin_block_) / expr(iin_block_),
                   N_anchor_info[1] / iin_block_ / config.N_sub_block},
-                {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
+                {0, expr(iim_block_)}, {0, expr(iin_block_)}});
         } else {
           slice_range_list mm_multi_slice;
           // order:X_anchor_info[1] -> X_anchor_info[2]
@@ -1133,8 +1134,10 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
           expr anchor_iter;
           stmt scope_helper;
           std::tie(anchor_iter, scope_helper) = gen_iter_anchor();
-          fusion->create_output_fusion_anchor(
-            anchor_iter, C, mm_multi_slice, scope_helper);
+          fusion->create_fusion_anchor(anchor_iter,
+            slice_map {{owner_->get_outputs()[0].get(),
+              slice_range_list {mm_multi_slice}}},
+            scope_helper);
         }
       }
     }
@@ -1172,7 +1175,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
   const managed_matmul_core_config_t &config, const expr &M, const expr &N,
   const expr &K, const expr &m_idx, const expr &n_idx, const expr &k_idx,
   const expr &A, const expr &B, const expr &C, int dtype_block,
-  fusion_manager *fusion, const expr &m_s, const expr &n_s,
+  fusion_anchor_mgr_t *fusion, const expr &m_s, const expr &n_s,
   std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
   bool is_partial, const expr &k_s, bool is_dynamic,
   const expr &N_block_size_expr) const {
@@ -1219,8 +1222,10 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
                 {k_start_idx / iik_block_, K / iik_block_ / K_sub_block},
                 {0, iik_block_ / dtype_block}, {0, iin_block_}};
               if (dtype_block > 1) { B_slice.push_back({0, dtype_block}); }
-              fusion->create_input_fusion_anchor(
-                {tensor_slice(B, std::move(B_slice))});
+              fusion->create_fusion_anchor(
+                slice_map {
+                  {owner_->get_inputs()[1].get(), slice_range_list {B_slice}}},
+                nullptr, true);
             }
             std::vector<expr> aidx = ta.get_format() == sc_data_format_t::MK()
               ? std::vector<expr> {m_start_idx, k_start_idx}
@@ -1278,7 +1283,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
             }
             if (fusion && !is_partial) {
               _if_(k_b == K_sub_block - 1) {
-                fusion->create_output_fusion_anchor({tensor_slice(C,
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   !tc.get_format().is_blocking()
                     ? std::vector<std::pair<expr, expr>> {{m_start_idx,
                                                             expr(iim_block_)},
@@ -1286,19 +1291,22 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
                     : std::vector<std::pair<expr, expr>> {
                       {m_start_idx / iim_block_, 1},
                       {n_start_idx / iin_block_, 1}, {0, expr(iim_block_)},
-                      {0, expr(iin_block_)}})});
+                      {0, expr(iin_block_)}});
               }
             }
           }
           if (fusion && !is_partial && config.N_split_num == 1
             && config.N_sub_block == 1 && config.im_loop_order == 0) {
             _if_(k_b == K_sub_block - 1) {
-              fusion->create_output_fusion_anchor({tensor_slice(C,
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
                 !tc.get_format().is_blocking()
-                  ? std::vector<std::pair<expr,
-                    expr>> {{m_idx + m_b_idx * iim_block_
-                                + ((m_o + tid) % m_o_end) * iim_block_,
-                              expr(iim_block_)},
+                  ? std::vector<std::pair<expr, expr>> {{m_idx
+                                                            + m_b_idx
+                                                              * iim_block_
+                                                            + ((m_o + tid)
+                                                                % m_o_end)
+                                                              * iim_block_,
+                                                          expr(iim_block_)},
                     {0, utils::rnd_up(ori_N, iin_block_)}}
                   : std::vector<std::pair<expr, expr>> {
                     {(m_idx + m_b_idx * iim_block_
@@ -1306,7 +1314,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
                         / iim_block_,
                       1},
                     {0, utils::divide_and_ceil(ori_N, iin_block_)},
-                    {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
+                    {0, expr(iim_block_)}, {0, expr(iin_block_)}});
             }
           }
         }
@@ -1319,7 +1327,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
           && N_anchor_info[1] / iin_block_ % config.N_sub_block == 0) {
           // case 1: no imbalance on single core, X_sub_block can be
           // dividedevenly
-          fusion->create_output_fusion_anchor({tensor_slice(C,
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
             !tc.get_format().is_blocking()
               ? std::vector<std::pair<expr, expr>> {{m_idx
                                                         + m_b_idx * iim_block_,
@@ -1332,7 +1340,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
                   M_anchor_info[1] / iim_block_ / config.M_sub_block},
                 {(n_idx + n_b_idx * iin_block_) / expr(iin_block_),
                   N_anchor_info[1] / iin_block_ / config.N_sub_block},
-                {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
+                {0, expr(iim_block_)}, {0, expr(iin_block_)}});
         } else {
           slice_range_list mm_multi_slice;
           // order:X_anchor_info[1] -> X_anchor_info[2]
@@ -1437,8 +1445,10 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
           expr anchor_iter;
           stmt scope_helper;
           std::tie(anchor_iter, scope_helper) = gen_iter_anchor();
-          fusion->create_output_fusion_anchor(
-            anchor_iter, C, mm_multi_slice, scope_helper);
+          fusion->create_fusion_anchor(anchor_iter,
+            slice_map {{owner_->get_outputs()[0].get(),
+              slice_range_list {mm_multi_slice}}},
+            scope_helper);
         }
       }
     }
@@ -1460,7 +1470,7 @@ std::vector<expr> gen_managed_matmul_core_t::get_extra_args_from_func(
 }
 
 func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
-  const managed_matmul_core_config_t &config, fusion_manager *fusion,
+  const managed_matmul_core_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   auto &graph = owner_->get_owner_graph();
@@ -1723,7 +1733,7 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
 
                 if (fusion && !is_partial_) {
                   _if_(k_b == K_sub_block - 1) {
-                    fusion->create_output_fusion_anchor({tensor_slice(C,
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
                       !tc.get_format().is_blocking()
                         ? std::vector<std::pair<expr, expr>> {{m_start_idx,
                                                                 expr(m_block)},
@@ -1731,7 +1741,7 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
                         : std::vector<std::pair<expr, expr>> {
                           {m_start_idx / iim_block_, 1},
                           {n_start_idx / iin_block_, 1}, {0, expr(iim_block_)},
-                          {0, expr(iin_block_)}})});
+                          {0, expr(iin_block_)}});
                   }
                 }
               }
@@ -1765,14 +1775,10 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
  iix_block_.
  * */
 bool gen_managed_matmul_core_t::generate(context_ptr ctx,
-  const managed_matmul_core_config_t &config, fusion_manager *fusion,
+  const managed_matmul_core_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   sc_graph_t &graph = owner_->get_owner_graph();
-  if (!ctx->flags_.mixed_fusion_) {
-    SC_MODULE_WARN << "Managed matmul core has some conflicts with old fusion "
-                      "strategy, which may lead to wrong calculation.";
-  }
   // Init
   int M_split_num = config.M_split_num, N_split_num = config.N_split_num;
   int num_threads = runtime_config_t::get().get_num_threads();
@@ -1898,10 +1904,13 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             if (fusion && in_tensors_[0].get_format().is_blocking()
               && (M * K * sizeofdtypeA <= 1024 * 1024
                 || K * sizeofdtypeA <= 1024)) {
-              fusion->create_input_fusion_anchor({tensor_slice(A,
-                {{m_idx / iim_block_,
-                   utils::divide_and_ceil(M_block_size, iim_block_)},
-                  {0, K / iik_block_}, {0, iim_block_}, {0, iik_block_}})});
+              fusion->create_fusion_anchor(
+                slice_map {{owner_->get_inputs()[0].get(),
+                  slice_range_list {
+                    {{m_idx / iim_block_,
+                       utils::divide_and_ceil(M_block_size, iim_block_)},
+                      {0, K / iik_block_}, {0, iim_block_}, {0, iik_block_}}}}},
+                nullptr, true);
             }
             if (in_tensors_[0].get_format() == sc_data_format_t::NK()
               && is_A_vnni_low_fp) {
@@ -2011,13 +2020,13 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           if (M_block_size == M_ib_block_size
             && N_block_size == N_ib_block_size) {
             if (out_tensors_[0].get_format().is_blocking()) {
-              fusion->create_output_fusion_anchor({tensor_slice(C,
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
                 {{m_idx / expr(iim_block_), M_block_size / iim_block_},
                   {n_idx / expr(iin_block_), N_block_size / iin_block_},
-                  {0, iim_block_}, {0, iin_block_}})});
+                  {0, iim_block_}, {0, iin_block_}});
             } else {
-              fusion->create_output_fusion_anchor({tensor_slice(
-                C, {{m_idx, M_block_size}, {n_idx, N_block_size}})});
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                {{m_idx, M_block_size}, {n_idx, N_block_size}});
             }
           } else if (M_block_size == M_ib_block_size) {
             // differnt length on N
@@ -2036,8 +2045,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             expr middle_anchor_iter;
             stmt scope_helper;
             std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
-            fusion->create_output_fusion_anchor(
-              middle_anchor_iter, C, mm_multi_slice, scope_helper);
+            fusion->create_fusion_anchor(middle_anchor_iter,
+              slice_map {{owner_->get_outputs()[0].get(),
+                slice_range_list {mm_multi_slice}}},
+              scope_helper);
           } else if (N_block_size == N_ib_block_size) {
             // different length on M
             mm_multi_slice.pop_back();
@@ -2055,8 +2066,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             expr middle_anchor_iter;
             stmt scope_helper;
             std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
-            fusion->create_output_fusion_anchor(
-              middle_anchor_iter, C, mm_multi_slice, scope_helper);
+            fusion->create_fusion_anchor(middle_anchor_iter,
+              slice_map {{owner_->get_outputs()[0].get(),
+                slice_range_list {mm_multi_slice}}},
+              scope_helper);
           } else {
             // different length on both M and N
             auto gen_iter_anchor = [&]() {
@@ -2077,8 +2090,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             expr middle_anchor_iter;
             stmt scope_helper;
             std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
-            fusion->create_output_fusion_anchor(
-              middle_anchor_iter, C, mm_multi_slice, scope_helper);
+            fusion->create_fusion_anchor(middle_anchor_iter,
+              slice_map {{owner_->get_outputs()[0].get(),
+                slice_range_list {mm_multi_slice}}},
+              scope_helper);
           }
         }
       }
@@ -2086,13 +2101,13 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
       if (fusion) {
         if (M_block_size == M_ib_block_size) {
           if (out_tensors_[0].get_format().is_blocking()) {
-            fusion->create_output_fusion_anchor({tensor_slice(C,
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
               {{m_idx / expr(iim_block_), M_block_size / iim_block_},
                 {0, utils::divide_and_ceil(N, iin_block_)},
-                {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
+                {0, expr(iim_block_)}, {0, expr(iin_block_)}});
           } else {
-            fusion->create_output_fusion_anchor(
-              {tensor_slice(C, {{m_idx, M_block_size}, {0, N}})});
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              {{m_idx, M_block_size}, {0, N}});
           }
         } else {
           slice_range_list mm_multi_slice;
@@ -2120,8 +2135,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           expr outer_anchor_iter;
           stmt scope_helper;
           std::tie(outer_anchor_iter, scope_helper) = gen_iter_anchor();
-          fusion->create_output_fusion_anchor(
-            outer_anchor_iter, C, mm_multi_slice, scope_helper);
+          fusion->create_fusion_anchor(outer_anchor_iter,
+            slice_map {{owner_->get_outputs()[0].get(),
+              slice_range_list {mm_multi_slice}}},
+            scope_helper);
         }
       }
     }
@@ -2193,11 +2210,14 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           if (!is_dynamic) {
             if (fusion && in_tensors_[0].get_format().is_blocking()
               && (K_block_size == K_ib_block_size) && M * K <= 1024 * 1024) {
-              fusion->create_input_fusion_anchor({tensor_slice(A,
-                {{m_idx / iim_block_,
-                   utils::divide_and_ceil(M_block_size, iim_block_)},
-                  {k_idx / iik_block_, K_block_size / iik_block_},
-                  {0, iim_block_}, {0, iik_block_}})});
+              fusion->create_fusion_anchor(
+                slice_map {{owner_->get_inputs()[0].get(),
+                  slice_range_list {
+                    {{m_idx / iim_block_,
+                       utils::divide_and_ceil(M_block_size, iim_block_)},
+                      {k_idx / iik_block_, K_block_size / iik_block_},
+                      {0, iim_block_}, {0, iik_block_}}}}},
+                nullptr, true);
             }
             if (in_tensors_[0].get_format() == sc_data_format_t::NK()
               && is_A_vnni_low_fp) {
@@ -2454,10 +2474,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               }
             }
             if (fusion && !is_dynamic) {
-              fusion->create_output_fusion_anchor({tensor_slice(C,
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
                 {{m_idx / expr(iim_block) + lm, 1},
                   {n_idx / expr(iin_block) + ln, 1}, {0, expr(iim_block)},
-                  {0, expr(iin_block)}})});
+                  {0, expr(iin_block)}});
             }
           }
           reduce_loop->attr()["dont_prefetch"] = true;
@@ -2507,13 +2527,13 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             if (M_block_size == M_ib_block_size
               && N_block_size == N_ib_block_size) {
               if (out_tensors_[0].get_format().is_blocking()) {
-                fusion->create_output_fusion_anchor({tensor_slice(C,
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   {{m_idx / expr(iim_block_), M_block_size / iim_block_},
                     {n_idx / expr(iin_block_), N_block_size / iin_block_},
-                    {0, iim_block_}, {0, iin_block_}})});
+                    {0, iim_block_}, {0, iin_block_}});
               } else {
-                fusion->create_output_fusion_anchor({tensor_slice(
-                  C, {{m_idx, M_block_size}, {n_idx, N_block_size}})});
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                  {{m_idx, M_block_size}, {n_idx, N_block_size}});
               }
             } else if (M_block_size == M_ib_block_size) {
               // differnt length on N
@@ -2532,8 +2552,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               expr inner_anchor_iter;
               stmt scope_helper;
               std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
-              fusion->create_output_fusion_anchor(
-                inner_anchor_iter, C, mm_multi_slice, scope_helper);
+              fusion->create_fusion_anchor(inner_anchor_iter,
+                slice_map {{owner_->get_outputs()[0].get(),
+                  slice_range_list {mm_multi_slice}}},
+                scope_helper);
             } else if (N_block_size == N_ib_block_size) {
               // different length on M
               mm_multi_slice.pop_back();
@@ -2551,8 +2573,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               expr inner_anchor_iter;
               stmt scope_helper;
               std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
-              fusion->create_output_fusion_anchor(
-                inner_anchor_iter, C, mm_multi_slice, scope_helper);
+              fusion->create_fusion_anchor(inner_anchor_iter,
+                slice_map {{owner_->get_outputs()[0].get(),
+                  slice_range_list {mm_multi_slice}}},
+                scope_helper);
             } else {
               // different length on both M and N
               auto gen_iter_anchor = [&]() {
@@ -2573,8 +2597,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               expr inner_anchor_iter;
               stmt scope_helper;
               std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
-              fusion->create_output_fusion_anchor(
-                inner_anchor_iter, C, mm_multi_slice, scope_helper);
+              fusion->create_fusion_anchor(inner_anchor_iter,
+                slice_map {{owner_->get_outputs()[0].get(),
+                  slice_range_list {mm_multi_slice}}},
+                scope_helper);
             }
           }
         }
@@ -2583,13 +2609,13 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
       if (fusion && !is_dynamic && N_split_num == 1) {
         if (M_block_size == M_ib_block_size) {
           if (out_tensors_[0].get_format().is_blocking()) {
-            fusion->create_output_fusion_anchor({tensor_slice(C,
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
               {{m_idx / expr(iim_block_), M_block_size / iim_block_},
                 {0, utils::divide_and_ceil(N, iin_block_)},
-                {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
+                {0, expr(iim_block_)}, {0, expr(iin_block_)}});
           } else {
-            fusion->create_output_fusion_anchor(
-              {tensor_slice(C, {{m_idx, M_block_size}, {0, N}})});
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              {{m_idx, M_block_size}, {0, N}});
           }
         } else {
           slice_range_list mm_multi_slice;
@@ -2617,8 +2643,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           expr outer_anchor_iter;
           stmt scope_helper;
           std::tie(outer_anchor_iter, scope_helper) = gen_iter_anchor();
-          fusion->create_output_fusion_anchor(
-            outer_anchor_iter, C, mm_multi_slice, scope_helper);
+          fusion->create_fusion_anchor(outer_anchor_iter,
+            slice_map {{owner_->get_outputs()[0].get(),
+              slice_range_list {mm_multi_slice}}},
+            scope_helper);
         }
       }
     }
@@ -2628,9 +2656,15 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   mloop->attr()[stmt_attr_key::parallel_loop_balanced]
     = M_block_size == M_ib_block_size;
 
-  mloop->attr()[stmt_attr_key::loop_axis_hint]
-    = bound_axis {{0}, {1}, {}, {0}, {1}};
-  loops = {mloop};
+  if (!owner_->need_dynamic_internal_query() && fusion) {
+    // get binded mxp
+    auto mxp = fusion->get_binded_mxp();
+    COMPILE_ASSERT(mxp, "No binded partition found")
+    // bind loop with axis
+    mxp->init_axis_binder(
+      owner_->get_outputs()[0], bound_axis {{0}, {1}, {}, {0}, {1}});
+  }
+
   return true;
 }
 } // namespace ops

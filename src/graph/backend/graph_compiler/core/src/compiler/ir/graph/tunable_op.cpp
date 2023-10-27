@@ -124,38 +124,25 @@ ir_module_ptr tunable_op_t::get_func(context_ptr ctx) {
 func_t tunable_op_t::get_func(mixed_parti_t *parti,
         const std::vector<expr> &ins, const std::vector<expr> &outs) {
     bool need_inner_query = need_dynamic_internal_query();
-    auto copy_from_fmgr = [&](fusion_manager &fmgr) {
-        // record output anchor
-        extract_anchor_from_fmgr_to_parti(&fmgr, parti, outs, get_outputs(),
-                parti->ready_for_op(this) ? parti->lookup_anchor_map(this)
-                                          : nullptr);
-        // record input anchor if necessary
-        if (parti->empty()) {
-            extract_anchor_from_fmgr_to_parti(
-                    &fmgr, parti, ins, get_inputs(), nullptr);
-        }
-    };
+
     auto gen_body = [&](const body_generator_ptr &gen_ptr) {
         set_config_if_empty(parti->ctx_, gen_ptr.get());
-        fusion_manager fmgr;
+        fusion_anchor_mgr_t fmgr(parti);
         builder::ir_builder_t bld;
         bld.push_scope();
         std::vector<for_loop> loops;
         bool status = gen_ptr->generate(
                 parti->ctx_, config_data_.data_.get(), &fmgr, ins, outs, loops);
-        assert(status);
-
-        auto body = bld.pop_scope();
-        copy_from_fmgr(fmgr);
-        // bind outer_loop with axis
-        if (!need_inner_query && !loops.empty() && (loops[0].get())
-                && loops[0]->attr().has_key(stmt_attr_key::loop_axis_hint)) {
-            auto bd_axis = loops[0]->attr().get<bound_axis>(
-                    stmt_attr_key::loop_axis_hint);
-            loops[0]->attr().remove(stmt_attr_key::loop_axis_hint);
-            // init axis binder
-            parti->ax_binder_.init(get_outputs()[0], bd_axis);
+        // attach parent anchor if necessary
+        if (parti->ready_for_op(this)) {
+            auto committed_anchor = parti->lookup_anchor_map(this);
+            for (auto &template_anchor : fmgr.get_fusion_anchor()) {
+                template_anchor->attach_parent_anchor(
+                        committed_anchor, nullptr, true);
+            }
         }
+        assert(status);
+        auto body = bld.pop_scope();
         return body;
     };
 
@@ -167,14 +154,14 @@ func_t tunable_op_t::get_func(mixed_parti_t *parti,
             parti->dyn_inter_
                     = std::make_shared<mixed_dyn_internal_info_t>(parti->ctx_);
         }
-        fusion_manager fmgr;
+        fusion_anchor_mgr_t fmgr(parti);
         std::vector<for_loop> loops;
         func_t single_core_func = gen_ptr->get_single_core_func(
                 parti->ctx_, config_data_.data_.get(), &fmgr, ins, outs, loops);
         parti->dyn_inter_->single_core_func_ = single_core_func;
         parti->dyn_inter_->single_core_func_extra_args_
                 = gen_ptr->get_extra_args_from_func(single_core_func);
-        copy_from_fmgr(fmgr);
+
         auto common_args = outs;
         common_args.insert(common_args.end(), ins.begin(), ins.end());
         std::for_each(
@@ -247,7 +234,7 @@ void tunable_op_t::search_anchor(mixed_parti_t *parti) {
     search_op_anchor_in_parti(this, parti);
 }
 
-void tunable_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
+void tunable_op_t::commit_into_anchor(fusion_anchor_t *committed_anchor) {
     auto parti = committed_anchor->get_binded_mxp();
     std::vector<expr> ins, outs;
     std::tie(ins, outs) = parti->buf_alloc_.get_buffer(this);
@@ -296,18 +283,26 @@ void tunable_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
     node_ptr_map def_to_call_map;
     for (size_t i = 0; i < ins.size(); i++) {
         def_to_call_map[strd_ins[i].impl] = tptr_ins[i].impl;
+        parti->buf_alloc_.b2g_map_[strd_ins[i]] = get_inputs()[i];
     }
     for (size_t i = 0; i < outs.size(); i++) {
         def_to_call_map[strd_outs[i].impl] = tptr_outs[i].impl;
+        parti->buf_alloc_.b2g_map_[strd_outs[i]] = get_outputs()[i];
     }
+    // commit content id to anchor firstly
+    committed_anchor->append_content(static_cast<sc_op *>(this));
+    // fusible fusion anchor would also be created following op template
     auto func = get_func(parti, strd_ins, strd_outs);
+    for (auto &stsr : strd_ins) {
+        parti->buf_alloc_.b2g_map_.erase(stsr);
+    }
+    for (auto &stsr : strd_outs) {
+        parti->buf_alloc_.b2g_map_.erase(stsr);
+    }
 
     // replace strided tensor with tensorptr
     mxp_replacer_t(def_to_call_map).replace_func(func);
     committed_anchor->commit_stmt(func->body_);
-
-    // commit content id to anchor
-    committed_anchor->append_content(static_cast<sc_op *>(this));
 }
 
 void tunable_op_t::set_config(const config_ptr &config) {

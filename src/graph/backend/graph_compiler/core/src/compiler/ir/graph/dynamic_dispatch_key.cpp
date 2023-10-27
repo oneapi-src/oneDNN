@@ -120,13 +120,8 @@ bool combined_op_dispatch_key_t::operator!=(
 
 void combined_op_dispatch_key_t::set_op_dispatch_key(
         const sc_op_ptr &node, const context_ptr &ctx) const {
-    assert(node->isa<fused_op_t>() || node->isa<mixed_fuse_op_t>());
-    if (node->isa<fused_op_t>()) {
-        node->stc_cast<fused_op_t>()->update_internal_graph_format(*this, ctx);
-    } else {
-        node->stc_cast<mixed_fuse_op_t>()->update_internal_graph_format(
-                *this, ctx);
-    }
+    assert(node->isa<mixed_fuse_op_t>());
+    node->stc_cast<mixed_fuse_op_t>()->update_internal_graph_format(*this, ctx);
 }
 
 bool dispatch_key_cmper_t::operator()(

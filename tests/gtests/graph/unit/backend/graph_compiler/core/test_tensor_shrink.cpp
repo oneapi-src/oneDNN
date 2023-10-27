@@ -35,7 +35,7 @@ TEST(GCCore_CPU_tensor_shrink_cpp, TestTensorShrink) {
         _for_(i, 0, 100) {
             auto placeholder
                     = builder::make_stmts_unattached({}).checked_as<stmts>();
-            builder.get_current_scope().body.emplace_back(placeholder);
+            builder.get_current_scope().as_seq().emplace_back(placeholder);
             tsr1[{i, 10}] = 10;
             tsr2[{i, 10}] = 10;
             tsr3[{i, 10}] = 10;
@@ -59,7 +59,7 @@ TEST(GCCore_CPU_tensor_shrink_cpp, TestTensorShrink) {
     {
         _tensor_(tsr1_sh, datatypes::f32, 1, 190);
         _tensor_(tsr2, datatypes::f32, 100, 200);
-        builder.get_current_scope().body.emplace_back(
+        builder.get_current_scope().as_seq().emplace_back(
                 builder::make_stmts_unattached({}));
         _var_(ptr, datatypes::pointer);
         expr ptr2;
@@ -88,7 +88,7 @@ TEST(GCCore_CPU_tensor_shrink_cpp, TestTensorShrinkUnroll) {
         _named_for_(loop, i, 0, 1) {
             auto placeholder
                     = builder::make_stmts_unattached({}).checked_as<stmts>();
-            builder.get_current_scope().body.emplace_back(placeholder);
+            builder.get_current_scope().as_seq().emplace_back(placeholder);
             tsr1[{i, 10}] = i;
             tsr1->attr()[tensor_shrinker_attrs::should_shrink]
                     = tensor_shrinker_t::shrink_info_t {
@@ -177,7 +177,11 @@ TEST(GCCore_CPU_tensor_shrink_cpp, TestTensorShrinkFail) {
     builder.push_scope();
     {
         _tensor_(tsr1, datatypes::f32, 100, 200);
-        builder.get_current_scope().body.back().checked_as<define>()->linkage_
+        builder.get_current_scope()
+                .as_seq()
+                .back()
+                .checked_as<define>()
+                ->linkage_
                 = linkage::static_local;
         tsr1[{0, 10}] = 10;
         tsr1->attr()[tensor_shrinker_attrs::should_shrink]
@@ -200,7 +204,7 @@ TEST(GCCore_CPU_tensor_shrink_cpp, TestTensorShrinkBRGEMM) {
             _for_(j, 0, 200) {
                 auto placeholder = builder::make_stmts_unattached({})
                                            .checked_as<stmts>();
-                builder.get_current_scope().body.emplace_back(placeholder);
+                builder.get_current_scope().as_seq().emplace_back(placeholder);
                 expr orig_LDC = 200 * 300;
                 builtin::brgemm_update(builder::tensor_ptr(A, {i, j, 0, 0}),
                         builder::tensor_ptr(B, {i, j, 0, 0}),

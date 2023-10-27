@@ -662,12 +662,18 @@ expr make_stensor(const std::string &name, const std::vector<expr_c> &dims,
     return make_tensor(name, dims, dtype, addrspace, init_value, strides);
 }
 
+builder_impl_t::basic_block_t::basic_block_t() {
+    body = builder::make_stmts_unattached({}).checked_as<stmts>();
+}
+
 void builder_impl_t::basic_block_t::emit(const stmt &stmt) {
-    body.push_back(stmt);
+    body->seq_.emplace_back(stmt);
+    // auto attach parent node
+    add_parent_node(stmt, body);
 }
 
 stmt builder_impl_t::basic_block_t::get() {
-    return make_stmt<stmts_node_t>(std::move(body));
+    return std::move(body);
 }
 
 builder_impl_t::basic_block_t &builder_impl_t::get_current_scope() {
@@ -684,9 +690,6 @@ void builder_impl_t::emit(const stmt &s) {
 
 stmt builder_impl_t::pop_scope() {
     auto ret = scopes.back().get();
-    for (auto &s : ret.checked_as<stmts>()->seq_) {
-        add_parent_node(s, ret);
-    }
     add_parent_node(ret, stmt());
     scopes.pop_back();
     return ret;

@@ -18,6 +18,7 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_MAP_HPP
 
 #include <vector>
+#include "graph.hpp"
 #include <unordered_map>
 
 namespace dnnl {
@@ -73,6 +74,8 @@ struct gt_map_t {
     void clear() { datamap_.clear(); }
     // return true if empty
     bool empty() const { return datamap_.empty(); }
+    // erase by key
+    void erase(const graph_tensor_ptr k) { datamap_.erase(k.get()); }
     gt_map_t &operator=(const gt_map_t &other) = delete;
 };
 } // namespace gc

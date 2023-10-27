@@ -22,7 +22,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <util/any_map.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
@@ -146,7 +146,7 @@ void gen_conv_bwd_t::schedule_loops(context_ptr ctx,
 }
 
 bool gen_conv_bwd_t::generate(context_ptr ctx,
-  const conv_bwd_data_config_t &config, fusion_manager *fusion,
+  const conv_bwd_data_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init

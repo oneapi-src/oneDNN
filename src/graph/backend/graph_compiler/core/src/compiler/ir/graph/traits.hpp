@@ -30,10 +30,10 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-class fusion_manager;
+class fusion_anchor_mgr_t;
 struct brgemm_fusion_register;
 struct mixed_parti_t;
-struct fuse_anchor_map_t;
+struct fusion_anchor_t;
 
 namespace op_traits {
 struct copyable_t : public virtual op_base_trait_t {
@@ -110,7 +110,7 @@ struct workload_computable_t : public virtual op_base_trait_t {
 // the OP can accept a fusion manager to do post fusion
 struct post_fusion_acceptable_t : public virtual op_base_trait_t {
     virtual ir_module_ptr get_func(context_ptr ctx,
-            const std::shared_ptr<fusion_manager> &fuse_mgr,
+            const std::shared_ptr<fusion_anchor_mgr_t> &fuse_mgr,
             const std::string &func_name)
             = 0;
 };
@@ -143,71 +143,6 @@ struct may_quantize_t : public virtual op_base_trait_t {
     bool need_compensation_ = true;
 };
 
-// the Op may cause batchwisely merged
-struct batchwise_shrinkable_t : public virtual op_base_trait_t {
-    /** Here, batchwise dims means safety loop ranges E.g.
-     * 1. Reduce op:
-     *  - Outs: [28,32,56,56]
-     *  - Ins: [28,1,56,1]
-     *  - Return: [28]
-     * 2. Binary Ops:
-     *  - Outs: [28,32,56,56]
-     *  - Ins: [28,1,56,1] + [28,32,56,56]
-     *  - Return: [28,32,56,56]
-     * 3. Reorder Ops:
-     *  - Outs: [28,16,56,56,2]
-     *  - Ins: [28,32,56,56]
-     *  - Return: [28,16,56,56]
-     * 4. Tensorview Ops:
-     *  - Outs: [28,32,56,56]
-     *  - Ins: [28,16,2,56,56]
-     *  - Return: [28]
-     * */
-
-    // this function must ensure all graph tensor of this op is able to be
-    // shrinked by shrinkable dims.
-    virtual sc_dims get_bwise_fuse_shrink_dims() = 0;
-
-    virtual sc_op_ptr bw_shrinked_copy(
-            gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph);
-
-    virtual sc_op_ptr bw_shrinked_copy(gt2gt_map &bw_lt_map,
-            sc_graph_t &shrinked_graph, const any_map_t &changed_attr);
-
-    // this function collect shrinked graph tensor map in order to set new plain
-    // dims.
-    virtual void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map);
-
-    virtual void collect_shrinked_axis_map(
-            int bw_size, gt2axis_map &bw_axis_map);
-
-    static graph_tensor_ptr shrink_gt(
-            const graph_tensor_ptr &orig_gt, int shrink_offset);
-
-    static sc_data_format_t shrink_format_by_plain_dims(
-            const graph_tensor_ptr &orig_gt, const sc_dims &plain_dims);
-
-    static void record_shrinked_gt(gt2gt_map &bw_lt_map,
-            const graph_tensor_ptr &gt, int shrink_offset);
-
-    static void record_shrinked_gt(gt2gt_map &bw_lt_map,
-            const graph_tensor_ptr &gt, const sc_dims &plain_dims);
-
-    static void record_shrinked_axis(
-            gt2axis_map &bw_axis_map, const graph_tensor_ptr &gt, int bw_size);
-
-    static void record_shrinked_axis(gt2axis_map &bw_axis_map,
-            const graph_tensor_ptr &gt, const std::vector<int> &axis);
-
-    /** this function return shrinkable offset, it should satisfy two
-     * conditions:
-     *  1. no padding axis. E.g. [16,15] -> [2,2,8,8]  return 2, due to 2*8!=15
-     *  2. only touch block_num, rather than any block_size axis.
-     * */
-    static int get_shrinkable_offset(
-            const graph_tensor_ptr &gt, bool aggresive_mode = true);
-};
-
 struct mixed_partition_acceptable : public virtual op_base_trait_t {
     // create a new partition for current op
     virtual void create_mixed_partition(mixed_parti_t *parti) = 0;
@@ -219,13 +154,13 @@ struct mixed_partition_acceptable : public virtual op_base_trait_t {
     virtual void search_anchor(mixed_parti_t *parti) = 0;
 
     // commit current op into given partition
-    virtual void commit_into_anchor(fuse_anchor_map_t *committed_anchor) = 0;
+    virtual void commit_into_anchor(fusion_anchor_t *committed_anchor) = 0;
 
     // infer binding axis from inputs to outputs
     virtual void infer_binding_axis(bound_axis_map &bdax_map) = 0;
 
     // infer binding axis from outputs to inputs
-    virtual void pre_binding_axis(bound_axis_map &bdax_map) = 0;
+    virtual void pre_infer_binding_axis(bound_axis_map &bdax_map) = 0;
 };
 
 struct data_compensation_t : public virtual op_base_trait_t {};

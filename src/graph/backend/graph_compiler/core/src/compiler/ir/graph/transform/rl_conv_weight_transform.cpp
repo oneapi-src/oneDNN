@@ -16,6 +16,7 @@
 
 #include "../visitor.hpp"
 #include "transform.hpp"
+#include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <ops/convolution.hpp>
 #include <ops/templates/conv_rl.hpp>

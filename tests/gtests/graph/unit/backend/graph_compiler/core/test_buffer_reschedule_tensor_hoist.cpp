@@ -94,17 +94,21 @@ TEST(GCCore_CPU_buffer_reschedule_tensor_hoist_cpp,
         _tensor_(hoisted_rescheduled_0, datatypes::s8, {UINT64_C(16384)});
         _for_(i, 0, 1024, 1, for_type::PARALLEL, 4) {
             _tensor_(rescheduled_0, datatypes::s8, {UINT64_C(4096)});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(hoisted_rescheduled_0.get(),
                             {(builder::make_get_group_id(UINT64_C(0))
                                     * UINT64_C(4096))});
             _tensor_(C, datatypes::f32, {UINT64_C(1024)});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(rescheduled_0.get(), {UINT64_C(0)});
             _for_(j, 0, 128, 1, for_type::PARALLEL, 2) {
                 _tensor_(rescheduled_1, datatypes::s8, {UINT64_C(1024)});
                 _tensor_(D, datatypes::f32, {UINT64_C(256)});
-                bld.get_current_scope().body.back().checked_as<define>()->init_
+                bld.get_current_scope()
+                        .as_seq()
+                        .back()
+                        .checked_as<define>()
+                        ->init_
                         = builder::tensor_ptr(
                                 rescheduled_1.get(), {UINT64_C(0)});
                 B[i * 2] = C[i] + D[j] + A[i * 3];
@@ -130,7 +134,11 @@ TEST(GCCore_CPU_buffer_reschedule_tensor_hoist_cpp,
             _tensor_(C, datatypes::f32, {UINT64_C(1024)});
             _for_(j, 0, 1024, 1, for_type::PARALLEL, 2) {
                 _tensor_(D, datatypes::f32, {UINT64_C(1024)});
-                bld.get_current_scope().body.back().checked_as<define>()->init_
+                bld.get_current_scope()
+                        .as_seq()
+                        .back()
+                        .checked_as<define>()
+                        ->init_
                         = builder::tensor_ptr(A_Input, {UINT64_C(1024)});
                 B_Output[j] = C[i] + D[j];
             }
@@ -148,13 +156,17 @@ TEST(GCCore_CPU_buffer_reschedule_tensor_hoist_cpp,
         _tensor_(hoisted_C, datatypes::f32, {UINT64_C(2048)});
         _for_(i, 0, 1024, 1, for_type::PARALLEL, 2) {
             _tensor_(C, datatypes::f32, {UINT64_C(1024)});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(hoisted_C.get(),
                             {(builder::make_get_group_id(UINT64_C(0))
                                     * UINT64_C(1024))});
             _for_(j, 0, 1024, 1, for_type::PARALLEL, 2) {
                 _tensor_(D, datatypes::f32, {UINT64_C(1024)});
-                bld.get_current_scope().body.back().checked_as<define>()->init_
+                bld.get_current_scope()
+                        .as_seq()
+                        .back()
+                        .checked_as<define>()
+                        ->init_
                         = builder::tensor_ptr(A_Input, {UINT64_C(1024)});
                 B_Output[j] = C[i] + D[j];
             }
@@ -193,28 +205,36 @@ TEST(GCCore_CPU_buffer_reschedule_tensor_hoist_cpp,
         _tensor_(hoisted_rescheduled_0, datatypes::s8, {UINT64_C(1792)});
         _for_(i, 0, 100, 1, for_type::PARALLEL, 4) {
             _tensor_(rescheduled_0, datatypes::s8, {UINT64_C(448)});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(hoisted_rescheduled_0.get(),
                             {(builder::make_get_group_id(UINT64_C(0))
                                     * UINT64_C(448))});
             _tensor_(A, datatypes::f32, {UINT64_C(100)});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(rescheduled_0.get(), {UINT64_C(0)});
             _for_(j, 0, 100, 1, for_type::PARALLEL, 2) {
                 _tensor_(rescheduled_1, datatypes::s8, {UINT64_C(448)});
                 _tensor_(B, datatypes::f32, {UINT64_C(100)});
-                bld.get_current_scope().body.back().checked_as<define>()->init_
+                bld.get_current_scope()
+                        .as_seq()
+                        .back()
+                        .checked_as<define>()
+                        ->init_
                         = builder::tensor_ptr(
                                 rescheduled_1.get(), {UINT64_C(0)});
                 B[j] = A[j] + 1;
             }
             _tensor_(A2, datatypes::f32, {UINT64_C(100)});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(rescheduled_0.get(), {UINT64_C(0)});
             _for_(j, 0, 100, 1, for_type::PARALLEL, 2) {
                 _tensor_(rescheduled_2, datatypes::s8, {UINT64_C(448)});
                 _tensor_(B2, datatypes::f32, {UINT64_C(100)});
-                bld.get_current_scope().body.back().checked_as<define>()->init_
+                bld.get_current_scope()
+                        .as_seq()
+                        .back()
+                        .checked_as<define>()
+                        ->init_
                         = builder::tensor_ptr(
                                 rescheduled_2.get(), {UINT64_C(0)});
                 B2[j] = A2[j] + 2;

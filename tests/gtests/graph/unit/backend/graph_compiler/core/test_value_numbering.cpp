@@ -238,13 +238,13 @@ TEST(GCCore_CPU_value_numbering, TestValueNumberingFor) {
             A[t5] = t12;
 
             _var_init_(d2, s32, 0);
-            auto d2_def = bld.get_current_scope().body.back();
+            auto d2_def = bld.get_current_scope().as_seq().back();
             _var_init_(d3, s32, d2 + 1);
             d2_def.checked_as<define>()->init_
                     = builder::make_phi({d, d3}, true);
 
             _var_init_(c4, s32, 0);
-            auto c4_def = bld.get_current_scope().body.back();
+            auto c4_def = bld.get_current_scope().as_seq().back();
             _var_init_(c5, s32, c4 + 1);
             c4_def.checked_as<define>()->init_
                     = builder::make_phi({c, c5}, true);

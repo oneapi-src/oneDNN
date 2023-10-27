@@ -32,7 +32,6 @@ TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, ConcatInputShapeZero1) {
     REQUIRE_AVX2();
     SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     sc_graph_t graph0;
     int A = 32, B0 = 32, B1 = 0, C = 128;
@@ -78,7 +77,6 @@ TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, ConcatInputShapeZero2) {
     REQUIRE_AVX2();
     SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     sc_graph_t graph0;
     int A = 4, B0 = 34, B1 = 0, C = 32, D = 128;
@@ -112,7 +110,6 @@ TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, AddInputShapeZero) {
     REQUIRE_AVX2();
     SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     int A = 32, B0 = 0, B1 = 32, C = 128;
     auto input0_data = alloc_array<float>(1);

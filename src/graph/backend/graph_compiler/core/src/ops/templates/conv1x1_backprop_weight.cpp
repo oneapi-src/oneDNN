@@ -24,7 +24,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <runtime/config.hpp>
@@ -212,7 +212,7 @@ void gen_conv1x1_backprop_weight_t::schedule_loops(context_ptr ctx,
 }
 
 bool gen_conv1x1_backprop_weight_t::generate(context_ptr ctx,
-  const conv_bwd_weight_config_t &config, fusion_manager *fusion,
+  const conv_bwd_weight_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   COMPILE_ASSERT(
@@ -227,7 +227,7 @@ bool gen_conv1x1_backprop_weight_t::generate(context_ptr ctx,
 }
 
 bool gen_conv1x1_backprop_weight_t::generate_reduce_N(const context_ptr &ctx,
-  const conv_bwd_weight_config_t &config, fusion_manager *fusion,
+  const conv_bwd_weight_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init
@@ -379,16 +379,14 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_N(const context_ptr &ctx,
             }
           }
         }
-        if (fusion) {
-          if (is_3d) {
-            fusion->create_output_fusion_anchor({tensor_slice(del_weight,
-              {{l_k_o, 1}, {l_c_o, 1}, {0, 1}, {0, 1}, {0, 1}, {0, K_block},
-                {0, C_block}})});
-          } else {
-            fusion->create_output_fusion_anchor({tensor_slice(del_weight,
-              {{l_k_o, 1}, {l_c_o, 1}, {0, 1}, {0, 1}, {0, K_block},
-                {0, C_block}})});
-          }
+        if (is_3d) {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            {{l_k_o, 1}, {l_c_o, 1}, {0, 1}, {0, 1}, {0, 1}, {0, K_block},
+              {0, C_block}});
+        } else {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            {{l_k_o, 1}, {l_c_o, 1}, {0, 1}, {0, 1}, {0, K_block},
+              {0, C_block}});
         }
       }
     }
@@ -400,7 +398,7 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_N(const context_ptr &ctx,
 }
 
 bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL(const context_ptr &ctx,
-  const conv_bwd_weight_config_t &config, fusion_manager *fusion,
+  const conv_bwd_weight_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init
@@ -634,16 +632,14 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL(const context_ptr &ctx,
             }
           }
         }
-        if (fusion) {
-          if (is_3d) {
-            fusion->create_output_fusion_anchor({tensor_slice(del_weight,
-              {{l_k_o, 1}, {l_c_o, 1}, {0, 1}, {0, 1}, {0, 1}, {0, C_block},
-                {0, K_block}})});
-          } else {
-            fusion->create_output_fusion_anchor({tensor_slice(del_weight,
-              {{l_k_o, 1}, {l_c_o, 1}, {0, 1}, {0, 1}, {0, C_block},
-                {0, K_block}})});
-          }
+        if (is_3d) {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            {{l_k_o, 1}, {l_c_o, 1}, {0, 1}, {0, 1}, {0, 1}, {0, C_block},
+              {0, K_block}});
+        } else {
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            {{l_k_o, 1}, {l_c_o, 1}, {0, 1}, {0, 1}, {0, C_block},
+              {0, K_block}});
         }
       }
     }
@@ -653,7 +649,7 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL(const context_ptr &ctx,
 }
 
 bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
-  const conv_bwd_weight_config_t &config, fusion_manager *fusion,
+  const conv_bwd_weight_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init
@@ -823,9 +819,8 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
             auto loop = ln->fuse(ld)->fuse(lp);
             loop->attr().set(stmt_attr_key::no_loop_fuse, true);
             trace_guard_t trg(ctx, "post_fusion");
-            fusion->create_output_fusion_anchor({tensor_slice(real_out_tmp_buf,
-              {{oc, 1}, {ic, 1}, {0, 1}, {0, 1}, {0, OC_block},
-                {0, IC_block}})});
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              {{oc, 1}, {ic, 1}, {0, 1}, {0, 1}, {0, OC_block}, {0, IC_block}});
           }
         }
       }
@@ -862,17 +857,15 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
               }
             }
           }
-          if (fusion) {
-            trace_guard_t trg(ctx, "post_fusion");
-            if (is_3d) {
-              fusion->create_output_fusion_anchor({tensor_slice(out,
-                {{l_oc, 1}, {l_ic, 1}, {0, 1}, {0, 1}, {0, 1}, {0, OC_block},
-                  {0, IC_block}})});
-            } else {
-              fusion->create_output_fusion_anchor({tensor_slice(out,
-                {{l_oc, 1}, {l_ic, 1}, {0, 1}, {0, 1}, {0, OC_block},
-                  {0, IC_block}})});
-            }
+          trace_guard_t trg(ctx, "post_fusion");
+          if (is_3d) {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              {{l_oc, 1}, {l_ic, 1}, {0, 1}, {0, 1}, {0, 1}, {0, OC_block},
+                {0, IC_block}});
+          } else {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              {{l_oc, 1}, {l_ic, 1}, {0, 1}, {0, 1}, {0, OC_block},
+                {0, IC_block}});
           }
         }
       }

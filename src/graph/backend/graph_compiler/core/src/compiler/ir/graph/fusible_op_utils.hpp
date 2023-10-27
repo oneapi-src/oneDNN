@@ -24,6 +24,8 @@
 #include "fusible_op.hpp"
 #include "fusion_data.hpp"
 #include "util/variant.hpp"
+#include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <unordered_map>
 
 namespace dnnl {
@@ -39,22 +41,22 @@ enum class cmp_res : int {
 };
 
 using slice_range_map = std::unordered_map<int, slice_range_list>;
-slice_range_map search_known_slice_ranges(
-        sc_op *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
-void set_unknown_slice_ranges(fusible_op_t *cur,
-        const slice_range_map &known_ranges_map, fslice_map &fsmap,
-        infer_status_map_t &stat_map);
-void infer_binary_slice_ranges(
-        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
+slice_range_map search_known_input_slice(sc_op *cur, fslice_map &fsmap);
+void set_unknown_input_slice(fusible_op_t *cur,
+        const slice_range_map &known_ranges_map, fslice_map &fsmap);
 
-std::unordered_map<int, bound_axis> search_known_bound_axis(
+infer_status_code infer_binary_slice_ranges(
+        fusible_op_t *cur, fslice_map &fsmap);
+
+std::unordered_map<int, bound_axis> search_known_input_axis(
         sc_op *cur, bound_axis_map &bdax_map);
-void set_unknown_axis_binding(sc_op *cur,
+void set_unknown_binding_axis(sc_op *cur,
         const std::unordered_map<int, bound_axis> &known_axis_map,
         bound_axis_map &bdax_map);
 
 void infer_identical_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
-void pre_identical_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
+void pre_infer_identical_binding_axis(
+        fusible_op_t *cur, bound_axis_map &bdax_map);
 
 sc_dims get_expr_to_dims(const std::vector<expr> &dims);
 size_t get_dims_product(const sc_dims &dims);
@@ -93,10 +95,6 @@ inline uint16_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
 }
 bool loop_can_be_fused(const for_loop &loop);
 
-class outer_loop_generator_t;
-// depracated api, use old fusion mgr to lowering single fusible op
-ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
-        const context_ptr &ctx, bool check_parallel);
 // use new fusion mgr to lowering single fusible op
 ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx);
 
@@ -161,11 +159,6 @@ std::vector<int> transform_axis_blocking2plain(
 
 std::string fusion_create_var_idx();
 std::string fusion_create_idx();
-
-void create_fusible_output_anchor(stmt &parent, const tensor_slice &dst,
-        const std::vector<expr> &loop_vars,
-        const std::vector<int> &anchor_pos_in_loop,
-        const vectorized_info_t &vx_info, any_map_t &attrs);
 
 cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
         const slice_range_list &right_slice_range_list);

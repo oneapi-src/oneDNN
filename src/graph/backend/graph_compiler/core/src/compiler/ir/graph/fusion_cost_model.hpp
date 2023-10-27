@@ -29,7 +29,7 @@ namespace gc {
 
 class sc_op;
 struct mixed_parti_t;
-struct fuse_anchor_map_t;
+struct fusion_anchor_t;
 enum class parti_merge_kind;
 enum class dynamic_fusion_policy_t;
 
@@ -62,7 +62,7 @@ public:
             = 0;
     // make decision for op and fusion anchor
     virtual bool make_decision_for_op(
-            const sc_op *op, const std::shared_ptr<fuse_anchor_map_t> &fanchor)
+            const sc_op *op, const std::shared_ptr<fusion_anchor_t> &fanchor)
             = 0;
     virtual expr get_fusion_policy_condition() const { return false; }
 };
@@ -83,7 +83,7 @@ public:
             size_t merge_loop_size, parti_merge_kind merge_kind) override;
     // make decision for op and fusion anchor
     bool make_decision_for_op(const sc_op *op,
-            const std::shared_ptr<fuse_anchor_map_t> &fanchor) override;
+            const std::shared_ptr<fusion_anchor_t> &fanchor) override;
 };
 
 struct dynamic_fusion_cost_model_t : public fusion_cost_model_base_t {
@@ -102,7 +102,7 @@ public:
             size_t merge_loop_size, parti_merge_kind merge_kind) override;
     // make decision for op and fusion anchor
     bool make_decision_for_op(const sc_op *op,
-            const std::shared_ptr<fuse_anchor_map_t> &fanchor) override;
+            const std::shared_ptr<fusion_anchor_t> &fanchor) override;
 };
 
 using fusion_cost_model_ptr = std::shared_ptr<fusion_cost_model_base_t>;

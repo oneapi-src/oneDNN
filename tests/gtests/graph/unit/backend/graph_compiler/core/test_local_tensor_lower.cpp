@@ -78,7 +78,11 @@ TEST(GCCore_CPU_local_tensor_lower, TestLocalTensorLowering) {
         _bind_(ctx, globals, args);
 
         auto set_buffer = [&builder, &ctx](bool is_parallel, expr sz) {
-            builder.get_current_scope().body.back().checked_as<define>()->init_
+            builder.get_current_scope()
+                    .as_seq()
+                    .back()
+                    .checked_as<define>()
+                    ->init_
                     = get_cpu_temp_malloc_func(is_parallel)(ctx, std::move(sz));
         };
 
@@ -168,7 +172,7 @@ TEST(GCCore_CPU_local_tensor_lower, TestSharedConst) {
             _arg_("args", datatypes::f32)) {
         _bind_(stream, moddata, args);
         _tensor_(__shared_const_handle, datatypes::index, UINT64_C(2));
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(moddata, {0UL});
         args = 1.0f;
         _tensor_(__is_init, datatypes::s32, 1);
@@ -177,14 +181,16 @@ TEST(GCCore_CPU_local_tensor_lower, TestSharedConst) {
         _tensor_(normal, datatypes::u8, UINT64_C(256));
         _tensor_(base0, datatypes::u8, UINT64_C(32));
         auto &attr1 = builder.get_current_scope()
-                              .body.back()
+                              .as_seq()
+                              .back()
                               .checked_as<define>()
                               ->var_->attr();
         attr1[attr_keys::shared_const] = graph_tsr1;
         attr1[attr_keys::shared_const_base_idx] = size_t(0);
         _tensor_(base1, datatypes::u8, UINT64_C(256));
         auto &attr2 = builder.get_current_scope()
-                              .body.back()
+                              .as_seq()
+                              .back()
                               .checked_as<define>()
                               ->var_->attr();
         attr2[attr_keys::shared_const] = graph_tsr2;
@@ -199,26 +205,26 @@ TEST(GCCore_CPU_local_tensor_lower, TestSharedConst) {
             _arg_("args", datatypes::f32)) {
         _bind_(stream, moddata, args);
         _tensor_(__shared_const_handle, datatypes::index, UINT64_C(2));
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(moddata, {0UL});
         args = 1.0f;
         _tensor_(__is_init, datatypes::s32, 1);
         __is_init[0] = 1;
 
         _tensor_(normal, datatypes::u8, UINT64_C(256));
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = get_cpu_temp_malloc_func(false)(stream.get(), UINT64_C(256));
         _tensor_(base0, datatypes::u8, UINT64_C(32));
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::make_reinterpret(
                         __shared_const_handle[UINT64_C(0)], datatypes::pointer);
         _tensor_(base1, datatypes::u8, UINT64_C(256));
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = get_acquire_const_cache_func()(stream,
                         __shared_const_handle[UINT64_C(1)], UINT64_C(256),
                         __is_init);
         _tensor_(normal2, datatypes::u8, UINT64_C(256));
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = get_cpu_temp_malloc_func(false)(stream.get(), UINT64_C(256));
         _evaluate_call_(get_cpu_temp_free_func(false), stream, normal2);
         _evaluate_call_(get_release_const_cache_func(), stream,
@@ -238,7 +244,10 @@ TEST(GCCore_CPU_local_tensor_lower, TestAlias) {
     local_tensor_lowering_cpu_t pass {128};
 
     auto set_buffer = [&builder](const expr &base, uint64_t sz) {
-        auto def = builder.get_current_scope().body.back().checked_as<define>();
+        auto def = builder.get_current_scope()
+                           .as_seq()
+                           .back()
+                           .checked_as<define>();
         def->init_ = builder::tensor_ptr(base, {sz});
     };
 

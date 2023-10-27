@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/graph/fusible_op.hpp>
+#include <compiler/ir/graph/fusion_data.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -49,7 +50,6 @@ enum class reduce_operator : int {
 // reduce op
 class reduce_op_t : public fusible_op_t,
                     public op_traits::auto_copyable_t,
-                    public op_traits::batchwise_shrinkable_t,
                     public op_traits::maybe_split_optimized_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
@@ -80,11 +80,6 @@ public:
     size_t compute_workload(const std::vector<shape_dtype_pair> &,
             const std::vector<shape_dtype_pair> &) override;
 
-    sc_dims get_bwise_fuse_shrink_dims() override;
-    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
-    void collect_shrinked_axis_map(
-            int bw_size, gt2axis_map &bw_axis_map) override;
-
     // returns true if the reduce_op can be splitted into reduce_compute +
     // reduce_collect
     bool can_split_op() const override;
@@ -94,7 +89,7 @@ public:
     shape_rl_vec get_dynamic_shape_relations() const override;
 
     void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
 
 private:
     // the axis which need reduction
@@ -149,13 +144,12 @@ public:
 
 class reduce_impl_op_t : public fusible_op_t {
 public:
-    void prepare_fusion_data(fdata_map &fdmap) override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
             std::vector<std::vector<format_stride_pair>> &supported_outs)
             override;
-    void pre_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+    infer_status_code pre_infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override;
 
     reduce_impl_op_t(const graph_tensor_ptr &in,
             const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
@@ -166,7 +160,7 @@ public:
     const reduce_operator get_rd_op() const { return rd_op_; }
 
     void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
 
     // set the attributes of the reduce buffer, like init values
     virtual void set_reduce_buffer(const tensor &buf) = 0;
@@ -206,8 +200,8 @@ class reduce_compute_op_t : public reduce_impl_op_t,
                             public op_traits::maybe_split_optimized_t {
 public:
     bool local_mode_;
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+    infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override;
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;
     reduce_compute_op_t(const graph_tensor_ptr &in,
@@ -230,8 +224,8 @@ class reduce_collect_op_t : public reduce_impl_op_t,
                             public op_traits::copyable_t {
 public:
     enum kind { NOOP, LAST_AXIS_COLLECT, COPY } op_;
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+    infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override;
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;
     reduce_collect_op_t(const graph_tensor_ptr &in,

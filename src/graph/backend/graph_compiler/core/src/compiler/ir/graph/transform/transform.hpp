@@ -42,11 +42,6 @@ SC_INTERNAL_API void layout_propagation(
 SC_INTERNAL_API void pre_padding(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
-SC_INTERNAL_API void batchwise_merge(
-        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
-
-void fuse_ops(sc_graph_t &g, const context_ptr &ctx = get_default_context());
-
 SC_INTERNAL_API void mixed_partition(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
@@ -75,9 +70,6 @@ SC_INTERNAL_API void flatten_conv(
 
 SC_INTERNAL_API
 void graph_simplify(
-        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
-
-void horizontal_merge(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
 SC_INTERNAL_API void global_reschedule(

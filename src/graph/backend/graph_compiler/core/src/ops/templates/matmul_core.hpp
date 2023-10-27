@@ -55,8 +55,6 @@ public:
   using parent = body_generator_t<matmul_core_config_t>;
   using parent::generate;
 
-  bool bwise_fusion_ = false;
-
   gen_matmul_core_t(sc_op *owner, std::vector<logical_tensor_t> &&ins,
     std::vector<logical_tensor_t> &&outs);
 
@@ -103,7 +101,7 @@ public:
   sc_data_type_t get_C_dtype() const { return out_tensors_[0].dtype_; }
 
   bool generate(context_ptr ctx, const matmul_core_config_t &config,
-    fusion_manager *fusion, const std::vector<expr> &inputs,
+    fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
   config_ptr get_default_config(context_ptr ctx) const override;

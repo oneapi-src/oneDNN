@@ -384,7 +384,8 @@ evaluate brgemm_init_update_allow_fusion(const expr &A, const expr &B,
                        .checked_as<evaluate>();
     builder::get_current_builder()
             ->get_current_scope()
-            .body.back()
+            .as_seq()
+            .back()
             .checked_as<evaluate>()
             ->value_.checked_as<intrin_call>()
             ->intrin_attrs_->set(intrin_attr::allow_brgemm_fusion, true);

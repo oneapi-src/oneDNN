@@ -147,7 +147,6 @@ static void check_fusible_pooling_fwd(pooling_type_t pool_type, int N, int C,
     auto bn_add = alloc_array<float>(C);
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     graph_driver(mgr, ctx);
 
@@ -619,8 +618,7 @@ static void check_conv_pooling_postops_graph(const std::string &expected_fusion,
                     OC, IC, IH, IW, KH, KW, SH, SW, PH, PW, pooling_type, p_KH,
                     p_KW, p_SH, p_SW, p_PH, p_PW, fuse_arg_ops, exclude_pad,
                     bn_relu, auto_pad, c_block, check_conv_out);
-    auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
+    auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.use_cost_model_ = true;
     graph_driver(g, ctx);
 
@@ -890,8 +888,7 @@ static void check_conv_postops_pooling_graph_int8(
             IH, IW, KH, KW, SH, SW, PH, PW, pooling_type, p_KH, p_KW, p_SH,
             p_SW, p_PH, p_PW, fuse_arg_ops, qinfos, exclude_pad, auto_pad,
             c_block);
-    auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
+    auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.use_cost_model_ = true;
     graph_driver(g, ctx);
     // check graph

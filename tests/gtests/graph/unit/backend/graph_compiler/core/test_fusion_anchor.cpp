@@ -32,23 +32,6 @@
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
 
-static void do_commit(const sc_graph_t &g, const func_t &func,
-        const fusion_anchor_mgr_t &fmgr) {
-    auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
-    auto parti = std::make_shared<mixed_parti_t>(
-            ctx, func, fmgr, std::make_shared<op_dep_matrix_t>(g));
-    op_visitor_t visitor
-            = op_visitor_t::dfs_topology_speculative_sort(g.ops_.size());
-    visitor.visit_graph(
-            g, [&parti](op_visitor_t *visitor, const sc_op_ptr &op) {
-                if (op->isa<input_op>() || op->isa<output_op>()) return;
-                if (parti->empty()) parti->buf_alloc_.allocate_buffer(op.get());
-                parti->add(op);
-            });
-    parti->transform_to_mixed_op();
-}
-
 TEST(GCCore_CPU_fusion_anchor_cpp, TestGroupedFusionAnchor) {
     sc_graph_t g;
     sc_dims input_dims = {20, 35, 32, 16};
@@ -84,7 +67,7 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestGroupedFusionAnchor) {
     }
 
     // commit graph to existed TIR function body with fusion anchor mgr
-    do_commit(g, aaa, fmgr);
+    commit_graph_to_func(g, aaa, fmgr);
 
     int lanes = fadd->stc_cast<binary_elementwise_op_impl_t>()->get_lanes();
 
@@ -208,7 +191,7 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestDynamicFusionAnchor) {
     }
 
     // commit graph to existed TIR function body with fusion anchor mgr
-    do_commit(g, aaa, fmgr);
+    commit_graph_to_func(g, aaa, fmgr);
 
     int lanes = fadd->stc_cast<binary_elementwise_op_impl_t>()->get_lanes();
 
@@ -276,7 +259,6 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor1) {
     auto fout = g.make_output(fmul->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     do_mixed_partition(ctx, g);
 
@@ -286,7 +268,7 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor1) {
     ASSERT_TRUE(parti->fanchors_.size() == 1);
     auto fanchor = parti->fanchors_[0];
     // grouped anchor is expected
-    auto grouped_anchor = fanchor->dyn_cast<fuse_grouped_anchor_map_t>();
+    auto grouped_anchor = fanchor->dyn_cast<grouped_fusion_anchor_t>();
     ASSERT_TRUE(grouped_anchor);
     // own two group size
     ASSERT_TRUE(
@@ -315,7 +297,6 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor2) {
     auto fout = g.make_output(freduce->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     do_mixed_partition(ctx, g);
 
@@ -325,7 +306,7 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor2) {
     ASSERT_TRUE(parti->fanchors_.size() == 1);
     auto fanchor = parti->fanchors_[0];
     // grouped anchor is not expected
-    auto grouped_anchor = fanchor->dyn_cast<fuse_grouped_anchor_map_t>();
+    auto grouped_anchor = fanchor->dyn_cast<grouped_fusion_anchor_t>();
     ASSERT_FALSE(grouped_anchor);
 }
 
@@ -348,7 +329,6 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor3) {
     auto fout = g.make_output(fmul->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     do_mixed_partition(ctx, g);
 
@@ -357,8 +337,8 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor3) {
     auto parti = mixed_op->parti_list_[0];
     // No grouped anchor is expected explicitly
     ASSERT_TRUE(std::all_of(parti->fanchors_.begin(), parti->fanchors_.end(),
-            [](const fuse_anchor_map_ptr &fanchor) {
-                return !fanchor->isa<fuse_grouped_anchor_map_t>();
+            [](const fusion_anchor_ptr &fanchor) {
+                return !fanchor->isa<grouped_fusion_anchor_t>();
             }));
     // check tensor shrink info for fadd
     auto body
@@ -399,7 +379,6 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor4) {
     auto fout = g.make_output(frelu1->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.use_cost_model_ = true;
     do_mixed_partition(ctx, g);
 

@@ -24,7 +24,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <ops/templates/commit_op.hpp>
 #include <runtime/config.hpp>
 #include <runtime/parallel.hpp>
@@ -191,7 +191,8 @@ void gen_nested_convNxN_backprop_data_t::inner_loop_call(const context_ptr &ctx,
   const expr &bs_block, int od_block, const expr &ih_block, int OW,
   int stride_h, int stride_w, int padding_h, int padding_w, int R, int S,
   int IC, int OC, int OH, int IW, const expr &obs_offset, const expr &oc_offset,
-  const expr &ic_offset, const expr &ih_offset, fusion_manager *fusion) const {
+  const expr &ic_offset, const expr &ih_offset,
+  fusion_anchor_mgr_t *fusion) const {
   COMPILE_ASSERT(OW == im_ow_block_, "Use fixed config OW == im_ow_block_.");
   COMPILE_ASSERT(OC == im_oc_block_, "Use fixed config OC == im_oc_block_.");
   int num = oc_block / im_oc_block_;
@@ -293,26 +294,22 @@ void gen_nested_convNxN_backprop_data_t::inner_loop_call(const context_ptr &ctx,
               std::vector<expr> temp_output_index {ow_copy, ic_copy};
               delta_input[span_t(delta_input_index, lanes)]
                 = temp_delta_input[span_t(temp_output_index, lanes)];
-              if (fusion) {
-                fusion->create_output_fusion_anchor({tensor_slice(delta_input,
-                  {{obs_offset + i_bs, 1}, {ih_idx, 1}, {iw_idx, 1},
-                    {ic_offset + i_ic * im_ic_block_ + ic_copy, lanes}})});
-              }
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                slice_range {{obs_offset + i_bs, 1}, {ih_idx, 1}, {iw_idx, 1},
+                  {ic_offset + i_ic * im_ic_block_ + ic_copy, lanes}});
             }
           }
         }
-        if (fusion) {
-          fusion->create_output_fusion_anchor({tensor_slice(delta_input,
-            {{obs_offset + i_bs, 1}, {ih_idx, 1}, {0, IW},
-              {ic_offset + i_ic * im_ic_block_, im_ic_block_}})});
-        }
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          slice_range {{obs_offset + i_bs, 1}, {ih_idx, 1}, {0, IW},
+            {ic_offset + i_ic * im_ic_block_, im_ic_block_}});
       }
     }
   }
 }
 
 bool gen_nested_convNxN_backprop_data_t::generate(context_ptr ctx,
-  const nested_conv_bwd_data_config_t &config, fusion_manager *fusion,
+  const nested_conv_bwd_data_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   int padding_h = padding_[0], padding_w = padding_[0];

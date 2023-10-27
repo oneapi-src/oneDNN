@@ -20,6 +20,7 @@
 #include <vector>
 #include "quantize_op.hpp"
 #include <compiler/ir/graph/graph.hpp>
+#include <compiler/ir/graph/utils.hpp>
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
 namespace dnnl {

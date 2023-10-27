@@ -23,7 +23,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <ops/templates/commit_op.hpp>
 #include <runtime/config.hpp>
@@ -227,7 +227,7 @@ void gen_nested_convNXN_bwd_weight_t::inner_loop_call(const context_ptr &ctx,
   int stride_w, int R, int S, const expr &sh_idx, const expr &sw_idx,
   const expr &o_bs, const expr &o_od, const expr &o_oh, const expr &o_ow,
   const expr &obs_offset, const expr &oc_offset, const expr &oh_offset,
-  const expr &ow_offset, fusion_manager *fusion) const {
+  const expr &ow_offset, fusion_anchor_mgr_t *fusion) const {
   int BS = delta_output_lt.get_plain_dims()[0];
   int OC = delta_output_lt.get_plain_dims()[1];
   int OH = delta_output_lt.get_plain_dims()[2];
@@ -348,11 +348,10 @@ void gen_nested_convNXN_bwd_weight_t::inner_loop_call(const context_ptr &ctx,
                     dtype, dtype);
                 }
                 if (fusion && temp_weight_idx.size() == 2) {
-                  fusion->create_output_fusion_anchor(
-                    {tensor_slice(real_delta_weight_buf,
-                      {{real_delta_weight_buf_index[0], 1},
-                        {real_delta_weight_buf_index[1], 0}, {lr, 1}, {ls, 1},
-                        {0, im_ic_block_}, {0, im_oc_block_}})});
+                  create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                    slice_range {{real_delta_weight_buf_index[0], 1},
+                      {real_delta_weight_buf_index[1], 0}, {lr, 1}, {ls, 1},
+                      {0, im_ic_block_}, {0, im_oc_block_}});
                 }
               }
             }
@@ -364,7 +363,7 @@ void gen_nested_convNXN_bwd_weight_t::inner_loop_call(const context_ptr &ctx,
 }
 
 bool gen_nested_convNXN_bwd_weight_t::generate(context_ptr ctx,
-  const nested_conv_bwd_weight_config_t &config, fusion_manager *fusion,
+  const nested_conv_bwd_weight_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // set padding && stride, if d does not exist, set padding == 0 && stride ==
@@ -549,13 +548,11 @@ bool gen_nested_convNXN_bwd_weight_t::generate(context_ptr ctx,
                 temp_delta_weight[span_t(temp_delta_weight_idx, lanes)]);
             }
           }
-          if (fusion) {
-            fusion->create_output_fusion_anchor({tensor_slice(delta_weight,
-              {{p_ic * ic_single_core / im_ic_block_ + ic_outer_idx, 1},
-                {p_oc * oc_single_core / im_oc_block_ + oc_outer_idx, 1},
-                {r_idx, 1}, {s_idx, 1}, {ic_block_idx, 1},
-                {0, im_oc_block_}})});
-          }
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            slice_range {
+              {p_ic * ic_single_core / im_ic_block_ + ic_outer_idx, 1},
+              {p_oc * oc_single_core / im_oc_block_ + oc_outer_idx, 1},
+              {r_idx, 1}, {s_idx, 1}, {ic_block_idx, 1}, {0, im_oc_block_}});
         }
       }
     }

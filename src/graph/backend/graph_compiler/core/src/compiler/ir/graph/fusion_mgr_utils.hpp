@@ -18,7 +18,7 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_FUSION_MGR_UTILS_HPP
 #include <functional>
 #include <vector>
-#include "fusion_mgr.hpp"
+#include "fusion_anchor.hpp"
 namespace dnnl {
 namespace impl {
 namespace graph {

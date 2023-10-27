@@ -30,8 +30,7 @@ namespace ops {
 
 class SC_INTERNAL_API managed_matmul_core_op_t
     : public tunable_op_t,
-      public op_traits::may_prefetch_t,
-      public op_traits::batchwise_shrinkable_t {
+      public op_traits::may_prefetch_t {
 public:
     managed_matmul_core_op_t(const std::vector<graph_tensor_ptr> &producer_lt,
             const std::vector<graph_tensor_ptr> &consumer_lt,
@@ -59,16 +58,10 @@ public:
     dispatch_set_ptr get_internal_dispatch_key_set(
             const context_ptr &ctx) override;
 
-    sc_dims get_bwise_fuse_shrink_dims() override;
-
-    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
-
-    void collect_shrinked_axis_map(
-            int bw_size, gt2axis_map &bw_axis_map) override;
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override {
+    infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override {
         // TODO(XXX)
-        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+        return infer_status_code::FAIL;
     }
 
     std::vector<int> query_prefetch(const context_ptr &ctx, bool is_global,
@@ -78,7 +71,7 @@ public:
             const std::vector<expr> &func_args, const std::vector<expr> &ins,
             const std::vector<int> &indices) override;
     void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
 
     void set_config_by_key(
             const op_dispatch_key_t &key, const context_ptr &ctx) override;

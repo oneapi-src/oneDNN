@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <vector>
+#include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/graph_op.hpp>
 
 namespace dnnl {

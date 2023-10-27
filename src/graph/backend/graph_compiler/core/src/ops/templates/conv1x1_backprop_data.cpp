@@ -22,7 +22,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <util/any_map.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
@@ -142,7 +142,7 @@ void gen_conv1x1_backprop_data_t::schedule_loops(context_ptr ctx,
 }
 
 bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
-  const conv_bwd_data_config_t &config, fusion_manager *fusion,
+  const conv_bwd_data_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init
@@ -291,40 +291,32 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                   dtype, dtype);
 
                 if (is_3d) {
-                  if (fusion) {
-                    if (!is_out_blocking) {
-                      fusion->create_output_fusion_anchor({tensor_slice(
-                        del_input,
-                        {{n, 1}, {d_o * tile_d * stride_d + C_shift_d, tile_d},
-                          {p_o * tile_p * stride_h + C_shift_h, tile_p},
-                          {q_o * tile_q * stride_w + C_shift_w, tile_q},
-                          {c_o * C_block, C_block}})});
-                    } else {
-                      fusion->create_output_fusion_anchor(
-                        {tensor_slice(del_input,
-                          {{n, 1}, {c_o, 1},
-                            {d_o * tile_d * stride_d + C_shift_d, tile_d},
-                            {p_o * tile_p * stride_h + C_shift_h, tile_p},
-                            {q_o * tile_q * stride_w + C_shift_w, tile_q},
-                            {0, C_block}})});
-                    }
+                  if (!is_out_blocking) {
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                      {{n, 1}, {d_o * tile_d * stride_d + C_shift_d, tile_d},
+                        {p_o * tile_p * stride_h + C_shift_h, tile_p},
+                        {q_o * tile_q * stride_w + C_shift_w, tile_q},
+                        {c_o * C_block, C_block}});
+                  } else {
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                      {{n, 1}, {c_o, 1},
+                        {d_o * tile_d * stride_d + C_shift_d, tile_d},
+                        {p_o * tile_p * stride_h + C_shift_h, tile_p},
+                        {q_o * tile_q * stride_w + C_shift_w, tile_q},
+                        {0, C_block}});
                   }
                 } else {
-                  if (fusion) {
-                    if (!is_out_blocking) {
-                      fusion->create_output_fusion_anchor({tensor_slice(
-                        del_input,
-                        {{n, 1}, {p_o * tile_p * stride_h + C_shift_h, tile_p},
-                          {q_o * tile_q * stride_w + C_shift_w, tile_q},
-                          {c_o * C_block, C_block}})});
-                    } else {
-                      fusion->create_output_fusion_anchor(
-                        {tensor_slice(del_input,
-                          {{n, 1}, {c_o, 1},
-                            {p_o * tile_p * stride_h + C_shift_h, tile_p},
-                            {q_o * tile_q * stride_w + C_shift_w, tile_q},
-                            {0, C_block}})});
-                    }
+                  if (!is_out_blocking) {
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                      {{n, 1}, {p_o * tile_p * stride_h + C_shift_h, tile_p},
+                        {q_o * tile_q * stride_w + C_shift_w, tile_q},
+                        {c_o * C_block, C_block}});
+                  } else {
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                      {{n, 1}, {c_o, 1},
+                        {p_o * tile_p * stride_h + C_shift_h, tile_p},
+                        {q_o * tile_q * stride_w + C_shift_w, tile_q},
+                        {0, C_block}});
                   }
                 }
               }
@@ -461,28 +453,26 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                     (int)utils::divide_and_ceil(K_block, dtype_block)
                       * dtype_block * C_block,
                     dtype, dtype);
-                  if (fusion && W % stride_w == 0 && H % stride_h == 0
+                  if (W % stride_w == 0 && H % stride_h == 0
                     && D % stride_d == 0) {
                     // when D(H, W) is not devisible by stride_d(stride_h,
                     // stride_w), there will be non-constant value on
                     // tensor_slice, we need to put the fusion anchor outside
                     // this loop
                     if (!is_out_blocking) {
-                      fusion->create_output_fusion_anchor(
-                        {tensor_slice(del_input,
-                          std::vector<std::pair<expr, expr>> {{n, 1},
-                            {d_o * tile_d * stride_d, tile_d * stride_d},
-                            {p_o * tile_p * stride_h, tile_p * stride_h},
-                            {q_o * tile_q * stride_w, tile_q * stride_w},
-                            {c_o * C_block, C_block}})});
+                      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                        std::vector<std::pair<expr, expr>> {{n, 1},
+                          {d_o * tile_d * stride_d, tile_d * stride_d},
+                          {p_o * tile_p * stride_h, tile_p * stride_h},
+                          {q_o * tile_q * stride_w, tile_q * stride_w},
+                          {c_o * C_block, C_block}});
                     } else {
-                      fusion->create_output_fusion_anchor(
-                        {tensor_slice(del_input,
-                          std::vector<std::pair<expr, expr>> {{n, 1}, {c_o, 1},
-                            {d_o * tile_d * stride_d, tile_d * stride_d},
-                            {p_o * tile_p * stride_h, tile_p * stride_h},
-                            {q_o * tile_q * stride_w, tile_q * stride_w},
-                            {0, C_block}})});
+                      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                        std::vector<std::pair<expr, expr>> {{n, 1}, {c_o, 1},
+                          {d_o * tile_d * stride_d, tile_d * stride_d},
+                          {p_o * tile_p * stride_h, tile_p * stride_h},
+                          {q_o * tile_q * stride_w, tile_q * stride_w},
+                          {0, C_block}});
                     }
                   }
                 } else {
@@ -583,93 +573,87 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                     (int)utils::divide_and_ceil(K_block, dtype_block)
                       * dtype_block * C_block,
                     dtype, dtype);
-                  if (fusion && W % stride_w == 0 && H % stride_h == 0) {
+                  if (W % stride_w == 0 && H % stride_h == 0) {
                     // when H(W) is not devisible by stride_h(stride_w), there
                     // will be non-constant value on tensor_slice, we need to
                     // put the fusion anchor outside this loop
                     if (!is_out_blocking) {
-                      fusion->create_output_fusion_anchor(
-                        {tensor_slice(del_input,
-                          std::vector<std::pair<expr, expr>> {{n, 1},
-                            {p_o * tile_p * stride_h, tile_p * stride_h},
-                            {q_o * tile_q * stride_w, tile_q * stride_w},
-                            {c_o * C_block, C_block}})});
+                      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                        std::vector<std::pair<expr, expr>> {{n, 1},
+                          {p_o * tile_p * stride_h, tile_p * stride_h},
+                          {q_o * tile_q * stride_w, tile_q * stride_w},
+                          {c_o * C_block, C_block}});
                     } else {
-                      fusion->create_output_fusion_anchor(
-                        {tensor_slice(del_input,
-                          std::vector<std::pair<expr, expr>> {{n, 1}, {c_o, 1},
-                            {p_o * tile_p * stride_h, tile_p * stride_h},
-                            {q_o * tile_q * stride_w, tile_q * stride_w},
-                            {0, C_block}})});
+                      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                        std::vector<std::pair<expr, expr>> {{n, 1}, {c_o, 1},
+                          {p_o * tile_p * stride_h, tile_p * stride_h},
+                          {q_o * tile_q * stride_w, tile_q * stride_w},
+                          {0, C_block}});
                     }
                   }
                 }
               }
-              if (fusion && H % stride_h == 0) {
+              if (H % stride_h == 0) {
                 // when H is not devisible by stride_h, there will be
                 // non-constant value on tensor_slice, we need to put the fusion
                 // anchor outside this loop
                 if (is_3d) {
                   if (D % stride_d == 0) {
                     if (!is_out_blocking) {
-                      fusion->create_output_fusion_anchor(
-                        {tensor_slice(del_input,
-                          {{n, 1}, {d_o * tile_d * stride_d, tile_d * stride_d},
-                            {p_o * tile_p * stride_h, tile_p * stride_h},
-                            {0, W}, {c_o * C_block, C_block}})});
+                      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                        {{n, 1}, {d_o * tile_d * stride_d, tile_d * stride_d},
+                          {p_o * tile_p * stride_h, tile_p * stride_h}, {0, W},
+                          {c_o * C_block, C_block}});
                     } else {
-                      fusion->create_output_fusion_anchor(
-                        {tensor_slice(del_input,
-                          {{n, 1}, {c_o, 1},
-                            {d_o * tile_d * stride_d, tile_d * stride_d},
-                            {p_o * tile_p * stride_h, tile_p * stride_h},
-                            {0, W}, {0, C_block}})});
+                      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                        {{n, 1}, {c_o, 1},
+                          {d_o * tile_d * stride_d, tile_d * stride_d},
+                          {p_o * tile_p * stride_h, tile_p * stride_h}, {0, W},
+                          {0, C_block}});
                     }
                   }
                 } else {
                   if (!is_out_blocking) {
-                    fusion->create_output_fusion_anchor({tensor_slice(del_input,
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
                       {{n, 1}, {p_o * tile_p * stride_h, tile_p * stride_h},
-                        {0, W}, {c_o * C_block, C_block}})});
+                        {0, W}, {c_o * C_block, C_block}});
                   } else {
-                    fusion->create_output_fusion_anchor({tensor_slice(del_input,
+                    create_fusion_anchor(fusion, owner_->get_outputs()[0],
                       {{n, 1}, {c_o, 1},
                         {p_o * tile_p * stride_h, tile_p * stride_h}, {0, W},
-                        {0, C_block}})});
+                        {0, C_block}});
                   }
                 }
               }
             }
-            if (fusion && is_3d && D % stride_d == 0) {
+            if (is_3d && D % stride_d == 0) {
               if (!is_out_blocking) {
-                fusion->create_output_fusion_anchor({tensor_slice(del_input,
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   {{n, 1}, {d_o * tile_d * stride_d, tile_d * stride_d}, {0, H},
-                    {0, W}, {c_o * C_block, C_block}})});
+                    {0, W}, {c_o * C_block, C_block}});
               } else {
-                fusion->create_output_fusion_anchor({tensor_slice(del_input,
+                create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   {{n, 1}, {c_o, 1},
                     {d_o * tile_d * stride_d, tile_d * stride_d}, {0, H},
-                    {0, W}, {0, C_block}})});
+                    {0, W}, {0, C_block}});
               }
             }
           }
-          if (fusion) {
-            if (is_3d) {
-              if (!is_out_blocking) {
-                fusion->create_output_fusion_anchor({tensor_slice(del_input,
-                  {{n, 1}, {0, D}, {0, H}, {0, W}, {c_o * C_block, C_block}})});
-              } else {
-                fusion->create_output_fusion_anchor({tensor_slice(del_input,
-                  {{n, 1}, {c_o, 1}, {0, D}, {0, H}, {0, W}, {0, C_block}})});
-              }
+          if (is_3d) {
+            if (!is_out_blocking) {
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                {{n, 1}, {0, D}, {0, H}, {0, W}, {c_o * C_block, C_block}});
             } else {
-              if (!is_out_blocking) {
-                fusion->create_output_fusion_anchor({tensor_slice(del_input,
-                  {{n, 1}, {0, H}, {0, W}, {c_o * C_block, C_block}})});
-              } else {
-                fusion->create_output_fusion_anchor({tensor_slice(del_input,
-                  {{n, 1}, {c_o, 1}, {0, H}, {0, W}, {0, C_block}})});
-              }
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                {{n, 1}, {c_o, 1}, {0, D}, {0, H}, {0, W}, {0, C_block}});
+            }
+          } else {
+            if (!is_out_blocking) {
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                {{n, 1}, {0, H}, {0, W}, {c_o * C_block, C_block}});
+            } else {
+              create_fusion_anchor(fusion, owner_->get_outputs()[0],
+                {{n, 1}, {c_o, 1}, {0, H}, {0, W}, {0, C_block}});
             }
           }
         }

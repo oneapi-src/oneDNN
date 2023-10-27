@@ -37,6 +37,7 @@ enum class jit_kind {
 };
 
 enum class sc_opt_level : int { lv0 = 0, lv1, lv2, lv3 };
+enum class fusion_opt_level : int { lv0 = 0, lv1, lv2, lv3 };
 
 struct scflags_t {
     enum class brgemm_t : int { dnnl = 0, max_num };
@@ -57,7 +58,7 @@ struct scflags_t {
     bool print_ir_ = false;
     bool ssa_passes_ = false;
     bool prefetch_ = true;
-    bool mixed_fusion_ = true;
+    fusion_opt_level fusion_level_ = fusion_opt_level::lv3;
     bool use_cost_model_ = true;
     bool debug_info_ = false;
     // whether jit supports directly generating amx intrinsics instead of using

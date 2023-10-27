@@ -52,7 +52,8 @@ TEST(GCCore_CPU_ssa_transform, TestSSATransform) {
         _tensor_(gtsr, s32, 100);
         builder::get_current_builder()
                 ->get_current_scope()
-                .body.back()
+                .as_seq()
+                .back()
                 .checked_as<define>()
                 ->init_
                 = builder::tensor_ptr(A, {100}); // simulate global tensor
@@ -112,7 +113,8 @@ TEST(GCCore_CPU_ssa_transform, TestSSATransform) {
             _tensor_(gtsr, s32, 100);
             builder::get_current_builder()
                     ->get_current_scope()
-                    .body.back()
+                    .as_seq()
+                    .back()
                     .checked_as<define>()
                     ->init_
                     = builder::tensor_ptr(A, {t100});

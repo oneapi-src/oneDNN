@@ -62,8 +62,8 @@ public:
     DECLARE_QUERY_AND_COMPUTE();
     std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
     get_inplace_map() override;
-    binary_elementwise_op_impl_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            elt_operator elt_op, int inplace = 0);
+    binary_elementwise_op_impl_t(
+            graph_tensor_ptr lhs, graph_tensor_ptr rhs, elt_operator elt_op);
     binary_elementwise_op_impl_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
 
@@ -93,29 +93,20 @@ public:
     std::vector<int> get_bc_axis() const;
     vectorized_info_t &get_vx_info() { return vx_info_; }
 
-    sc_dims get_bwise_fuse_shrink_dims() override;
-
-    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
-
-    void collect_shrinked_axis_map(
-            int bw_size, gt2axis_map &bw_axis_map) override;
-
     void infer_binding_axis(bound_axis_map &bdax_map) override;
 
-    void pre_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
 
 private:
     elt_operator elt_op_;
-    int inplace_;
     vectorized_info_t vx_info_;
 };
 
 class add_op_t : public binary_elementwise_op_impl_t {
 public:
-    add_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 0)
+    add_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs)
         : binary_elementwise_op_impl_t(
-                std::move(lhs), std::move(rhs), elt_operator::ADD, inplace) {
+                std::move(lhs), std::move(rhs), elt_operator::ADD) {
         alg_kind_ = brgemm::binary_add;
     }
     add_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -129,10 +120,9 @@ public:
 
 class sub_op_t : public binary_elementwise_op_impl_t {
 public:
-    sub_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 0)
+    sub_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs)
         : binary_elementwise_op_impl_t(
-                std::move(lhs), std::move(rhs), elt_operator::SUB, inplace) {
+                std::move(lhs), std::move(rhs), elt_operator::SUB) {
         alg_kind_ = brgemm::binary_sub;
     }
     sub_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -146,10 +136,9 @@ public:
 
 class mul_op_t : public binary_elementwise_op_impl_t {
 public:
-    mul_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 0)
+    mul_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs)
         : binary_elementwise_op_impl_t(
-                std::move(lhs), std::move(rhs), elt_operator::MUL, inplace) {
+                std::move(lhs), std::move(rhs), elt_operator::MUL) {
         alg_kind_ = brgemm::binary_mul;
     }
     mul_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -163,10 +152,9 @@ public:
 
 class div_op_t : public binary_elementwise_op_impl_t {
 public:
-    div_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 0)
+    div_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs)
         : binary_elementwise_op_impl_t(
-                std::move(lhs), std::move(rhs), elt_operator::DIV, inplace) {
+                std::move(lhs), std::move(rhs), elt_operator::DIV) {
         alg_kind_ = brgemm::binary_div;
     }
     div_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -180,10 +168,9 @@ public:
 
 class min_op_t : public binary_elementwise_op_impl_t {
 public:
-    min_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 0)
+    min_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs)
         : binary_elementwise_op_impl_t(
-                std::move(lhs), std::move(rhs), elt_operator::MIN, inplace) {
+                std::move(lhs), std::move(rhs), elt_operator::MIN) {
         alg_kind_ = brgemm::binary_min;
     }
     min_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -197,10 +184,9 @@ public:
 
 class max_op_t : public binary_elementwise_op_impl_t {
 public:
-    max_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 0)
+    max_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs)
         : binary_elementwise_op_impl_t(
-                std::move(lhs), std::move(rhs), elt_operator::MAX, inplace) {
+                std::move(lhs), std::move(rhs), elt_operator::MAX) {
         alg_kind_ = brgemm::binary_max;
     }
     max_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -216,10 +202,9 @@ public:
 // squared_diff should support both elementwise and broad-cast mode.
 class squared_diff_op_t : public binary_elementwise_op_impl_t {
 public:
-    squared_diff_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 0)
-        : binary_elementwise_op_impl_t(std::move(lhs), std::move(rhs),
-                elt_operator::SQD_DIFF, inplace) {}
+    squared_diff_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs)
+        : binary_elementwise_op_impl_t(
+                std::move(lhs), std::move(rhs), elt_operator::SQD_DIFF) {}
     squared_diff_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : binary_elementwise_op_impl_t(ins, outs, attrs) {
@@ -231,10 +216,9 @@ public:
 // parameter version of leaky_relu.
 class prelu_op_t : public binary_elementwise_op_impl_t {
 public:
-    prelu_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 0)
+    prelu_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs)
         : binary_elementwise_op_impl_t(
-                std::move(lhs), std::move(rhs), elt_operator::PRELU, inplace) {}
+                std::move(lhs), std::move(rhs), elt_operator::PRELU) {}
     prelu_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : binary_elementwise_op_impl_t(ins, outs, attrs) {

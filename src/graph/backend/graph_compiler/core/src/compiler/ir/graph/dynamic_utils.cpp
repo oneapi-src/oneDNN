@@ -20,6 +20,7 @@
 #include "dynamic_lower_info.hpp"
 #include "utils.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
@@ -345,11 +346,7 @@ runtime::dynamic_tensor_t convert_graph_tensor_to_dynamic_tensor(
 static bool need_query_next_first(const sc_op_ptr &node) {
     bool has_tail_reorder = node->isa<reorder_op_t>();
     std::vector<sc_op_ptr> out_ops;
-    if (node->isa<fused_op_t>()) {
-        out_ops = node->stc_cast<fused_op_t>()
-                          ->mgr_->get_graph()
-                          .get_output_ops();
-    } else if (node->isa<mixed_fuse_op_t>()) {
+    if (node->isa<mixed_fuse_op_t>()) {
         out_ops = node->stc_cast<mixed_fuse_op_t>()
                           ->sub_graph_.get_output_ops();
     }
@@ -543,10 +540,6 @@ void create_internal_dispatch_funcs_by_node(const context_ptr &ctx,
     if (node->isa<mixed_fuse_op_t>()) {
         node->stc_cast<mixed_fuse_op_t>()->create_internal_dispatch_funcs(
                 ctx, ret_mod, use_mtp);
-    } else if (node->isa<fused_op_t>()) {
-        throw std::runtime_error(
-                "Internal function call does not plan to support old fusion "
-                "manager.");
     } else {
         auto internal_keys = node->get_internal_dispatch_key_set(ctx);
         std::vector<expr> op_dispatch_kernel;

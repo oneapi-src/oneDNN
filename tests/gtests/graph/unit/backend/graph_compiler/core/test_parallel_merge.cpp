@@ -54,7 +54,8 @@ static func_t get_func(
 static void set_no_barrier(const char *next_func) {
     builder::get_current_builder()
             ->get_current_scope()
-            .body.back()
+            .as_seq()
+            .back()
             ->attr()[attr_keys::no_post_barrier]
             = next_func;
 }

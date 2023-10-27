@@ -120,16 +120,16 @@ INLINE __mmask8 operator!=(vec_u8x8 const &a, vec_u8x8 const &b) {
     return _mm_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_NE);
 }
 INLINE __mmask8 operator>(vec_u8x8 const &a, vec_u8x8 const &b) {
-    return _mm_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_GT);
+    return _mm_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_GT);
 }
 INLINE __mmask8 operator<(vec_u8x8 const &a, vec_u8x8 const &b) {
-    return _mm_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_LT);
+    return _mm_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_LT);
 }
 INLINE __mmask8 operator>=(vec_u8x8 const &a, vec_u8x8 const &b) {
-    return _mm_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_GE);
+    return _mm_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_GE);
 }
 INLINE __mmask8 operator<=(vec_u8x8 const &a, vec_u8x8 const &b) {
-    return _mm_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_LE);
+    return _mm_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_LE);
 }
 INLINE vec_u8x8 sc_select(
         __mmask8 mask8, vec_u8x8 const &a, vec_u8x8 const &b) {
@@ -151,10 +151,10 @@ INLINE vec_u8x8 sc_select(
 // operator /
 
 INLINE vec_u8x8 sc_max(vec_u8x8 const &a, vec_u8x8 const &b) {
-    return _mm_max_epi8(a.v, b.v);
+    return _mm_max_epu8(a.v, b.v);
 }
 INLINE vec_u8x8 sc_min(vec_u8x8 const &a, vec_u8x8 const &b) {
-    return _mm_min_epi8(a.v, b.v);
+    return _mm_min_epu8(a.v, b.v);
 }
 INLINE vec_u8x8 sc_abs(vec_u8x8 const &a) {
     return _mm_abs_epi8(a.v);

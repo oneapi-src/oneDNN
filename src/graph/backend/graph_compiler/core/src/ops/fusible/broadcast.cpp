@@ -129,19 +129,16 @@ void broadcast_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-void broadcast_op_t::prepare_fusion_data(fdata_map &fdmap) {}
-
 std::vector<int> broadcast_op_t::get_bc_axis() const {
     if (plain_bc_axis_ == std::vector<int> {-1}) return plain_bc_axis_;
     return transform_axis_plain2blocking(info_.outputs_[0], plain_bc_axis_);
 }
 
-void broadcast_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code broadcast_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
-    if (known_ranges_map.empty()) return;
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
+    if (known_ranges_map.empty()) return infer_status_code::RETRY;
 
     slice_range_list known_ranges_list = known_ranges_map[0];
     // derive outputs slice range
@@ -165,15 +162,13 @@ void broadcast_op_t::infer_slice_ranges(
         }
     }
     fsmap.get(this->get_outputs()[0]) = ranges_list;
+    return infer_status_code::OK;
 }
 
-void broadcast_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code broadcast_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     auto &outslice = fsmap.get(get_outputs()[0]);
-    if (outslice.empty()) {
-        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-        return;
-    }
+    if (outslice.empty()) return infer_status_code::RETRY;
     auto &input_slice = fsmap.get(get_inputs()[0]);
     if (input_slice.empty()) {
         auto out_dims = this->get_outputs()[0]->details_.get_blocking_dims();
@@ -187,12 +182,8 @@ void broadcast_op_t::pre_slice_ranges(
                 ranges_list[i].emplace_back(expr(0), expr(1));
             }
         }
-        if (stat_map.is_recursive_mode()) {
-            get_inputs()[0]
-                    ->producer_owner_->dyn_cast<fusible_op_t>()
-                    ->pre_slice_ranges(fsmap, stat_map);
-        }
     }
+    return infer_status_code::OK;
 }
 
 void broadcast_op_t::compute_block(context_ptr ctx,

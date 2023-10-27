@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/graph/fusible_op.hpp>
+#include <compiler/ir/graph/fusion_data.hpp>
 
 #define DECLARE_COMPUTE_ELEMENT() expr compute_element(expr in) override;
 
@@ -33,15 +34,13 @@ class unary_elementwise_op_impl_t : public unary_elementwise_op_t {
 public:
     std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
     get_inplace_map() override;
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override;
-    void pre_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+    infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override;
+    infer_status_code pre_infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override;
 
     void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_binding_axis(bound_axis_map &bdax_map) override;
-
-    void prepare_fusion_data(fdata_map &fdmap) override;
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
 
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;
@@ -57,9 +56,10 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     vectorized_info_t &get_vx_info() { return vx_info_; }
 
+    uint32_t get_lanes() const { return vx_info_.lanes; }
+
     virtual expr compute_element(expr in) = 0;
 
-    sc_dims get_bwise_fuse_shrink_dims() override;
     shape_rl_vec get_dynamic_shape_relations() const override;
 
 private:

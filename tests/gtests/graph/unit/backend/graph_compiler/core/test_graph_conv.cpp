@@ -52,7 +52,6 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionWithBias) {
             "conv_fwd", in->get_outputs(), {out0}, any_map_t(attrs));
     auto out = graph.make_output(conv->get_outputs());
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = 1;
     // The conv1d graph is different from the reference
     graph.attrs_["no_conv1d"] = true;
     graph_driver(graph, ctx);
@@ -99,7 +98,7 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionNXCXIO) {
   [v4: f32[1, 1, 1, 64]] = tensor_view(v2)
   [v5: f32[1, 1, 1, 1, 16, 64]] = tensor_view(v1)
   [v6: f32[64, 32, 32, 16]] = tensor_view(v0)
-  [v3: f32[64, 32, 32, 64]] = conv_fwd_core_tensor_view_add(v6, v5, v4)
+  [v3: f32[64, 32, 32, 64]] = outerloop_64X1X1X32_partition_conv_fwd_core_tensor_view_add(v6, v5, v4)
 }
 )";
     EXPECT_EQ(ss.str(), expected_graph);
@@ -192,7 +191,6 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolution1DFusion) {
 
     sc_op_ptr out = g.make_output(final_out->get_outputs());
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = 1;
     graph_driver(g, ctx);
     std::stringstream ss;
     print_graph(g, ss, true, false, true, false);
@@ -211,6 +209,7 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolution1DFusion) {
 }
 
 TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionWithDilation) {
+    SET_THREADS_OR_SKIP(56);
     int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 3, S = 3, dilation = 2;
     sc_dims input_dims {N, H, W, IC};
     sc_dims filter_dims {R, S, IC, OC};
@@ -239,7 +238,7 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionWithDilation) {
   [v4: f32[1, 1, 1, 1, 64]] = tensor_view(v2)
   [v5: f32[1, 1, 3, 3, 16, 64]] = tensor_view(v1)
   [v6: f32[64, 1, 32, 32, 16]] = tensor_view(v0)
-  [v7: f32[64, 1, 28, 28, 64]] = conv_fwd_core_tensor_view_add(v6, v5, v4)
+  [v7: f32[64, 1, 28, 28, 64]] = outerloop_1X64X1X28X1_partition_conv_fwd_core_tensor_view_add(v6, v5, v4)
   [v3: f32[64, 28, 28, 64]] = tensor_view(v7)
 }
 )";
@@ -248,7 +247,7 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionWithDilation) {
   [v4: f32[1, 1, 1, 64]] = tensor_view(v2)
   [v5: f32[1, 1, 3, 3, 16, 64]] = tensor_view(v1)
   [v6: f32[64, 32, 32, 16]] = tensor_view(v0)
-  [v3: f32[64, 28, 28, 64]] = conv_fwd_core_tensor_view_add(v6, v5, v4)
+  [v3: f32[64, 28, 28, 64]] = outerloop_1X64X1X28X1_partition_conv_fwd_core_tensor_view_add(v6, v5, v4)
 }
 )";
     EXPECT_TRUE(ss.str() == expected_graph_plain
@@ -285,7 +284,7 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionNXCXIODifferentHW) {
   [v4: f32[1, 1, 1, 64]] = tensor_view(v2)
   [v5: f32[1, 1, 1, 1, 16, 64]] = tensor_view(v1)
   [v6: f32[64, 128, 32, 16]] = tensor_view(v0)
-  [v3: f32[64, 128, 32, 64]] = conv_fwd_core_tensor_view_add(v6, v5, v4)
+  [v3: f32[64, 128, 32, 64]] = outerloop_64X1X1X128_partition_conv_fwd_core_tensor_view_add(v6, v5, v4)
 }
 )";
     EXPECT_EQ(ss.str(), expected_graph);
@@ -470,8 +469,7 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionBwdDataWithInverseWeight) {
   [v3: f32[3, 3, 64, 64]] = tensor_view(v1)
   [v4: f32[1, 1, 3, 3, 64, 64]] = reorder(v3)
   [v5: f32[8, 32, 32, 64]] = tensor_view(v0)
-  [v6: f32[8, 32, 32, 64]] = conv_fwd_core(v5, v4)
-  [v2: f32[8, 32, 32, 64]] = tensor_view(v6)
+  [v2: f32[8, 32, 32, 64]] = partition_conv_fwd_core_tensor_view(v5, v4)
 }
 )";
     EXPECT_EQ(ss.str(), expected_graph);

@@ -150,7 +150,6 @@ TEST(GCCore_CPU_concat_op_t_cpp, FourDimsConcatAxis2) {
             = calc_ref_output(input0_data, input1_data, input2_data);
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     builder::ir_builder_t bld;
     sc_graph_t graph0;
     auto in0 = graph0.make_input({graph_tensor::make({A, B, C0, D},
@@ -190,7 +189,6 @@ TEST(GCCore_CPU_concat_op_t_cpp, FourDimsConcatAxis2) {
 TEST(GCCore_CPU_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     builder::ir_builder_t bld;
 
     int M0 = 32, M1 = 256, K = 128, N = 64;
@@ -269,7 +267,6 @@ TEST(GCCore_CPU_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
 TEST(GCCore_CPU_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     builder::ir_builder_t bld;
 
     int M = 64, K = 128, N0 = 256, N1 = 32;
@@ -404,7 +401,6 @@ TEST(GCCore_CPU_concat_op_t_cpp, InceptionLikeTopoConv) {
     std::vector<float> ref_output0_data(
             N * (Cout0 + Cout1 + Cout2) * Hin * Win);
 
-    ctx->flags_.mixed_fusion_ = true;
     graph_driver(graph0, ctx);
     auto ir_mod
             = lower_graph(ctx, graph0, {in0, weight0, weight1, weight2, out});
@@ -412,7 +408,6 @@ TEST(GCCore_CPU_concat_op_t_cpp, InceptionLikeTopoConv) {
     fptr0->call_default(&input0_data[0], &weight0_data[0], &weight1_data[0],
             &weight2_data[0], &graph_output0_data[0]);
 
-    ctx->flags_.mixed_fusion_ = false;
     graph_driver(graph1, ctx);
     auto ir_mod1 = lower_graph(ctx, graph1,
             {graph1.get_input_ops()[0], graph1.get_input_ops()[1],
@@ -429,7 +424,6 @@ TEST(GCCore_CPU_concat_op_t_cpp, ConcatPermuteConcat) {
     REQUIRE_AVX2();
     SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     int N = 32, L = 1024, D = 256;
     sc_graph_t graph0;
@@ -511,7 +505,6 @@ TEST(GCCore_CPU_concat_op_t_cpp, CheckVectorized) {
     REQUIRE_AVX2();
     SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     for (bool inner_most : std::vector<bool> {true, false}) {
         sc_graph_t graph0 = build_single_concat_graph(inner_most);
@@ -528,7 +521,6 @@ TEST(GCCore_CPU_concat_op_t_cpp, DeqConv_Concat) {
     REQUIRE_AMX();
     SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     sc_graph_t graph0;
     // concat input
     auto in0 = graph0.make_input({graph_tensor::make({1, 64, 56, 56},
@@ -589,7 +581,6 @@ TEST(GCCore_CPU_concat_op_t_cpp, DeqConv_DeqConv_Concat) {
     REQUIRE_AMX();
     SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
 
     sc_graph_t graph0;
     // conv0 input feature

@@ -45,7 +45,7 @@ using namespace dnnl::impl::graph::gc;
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Standalone) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
-    ctx->flags_.mixed_fusion_ = true;
+
     sc_graph_t g;
     auto input_shape = sc_dims {64, 256, 56, 56};
     auto paddings = sc_dims {4, 4};
@@ -79,7 +79,7 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Graph) {
     REQUIRE_AMX();
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
-    ctx->flags_.mixed_fusion_ = true;
+
     sc_graph_t g;
     auto input = g.make_input({graph_tensor::make(
             {9, 256, 56, 56}, sc_data_format_t::NCHW(), datatypes::bf16)});
@@ -134,7 +134,6 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Graph) {
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_NoInplace) {
     SET_THREADS_OR_SKIP(32);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
     auto input = g.make_input({graph_tensor::make(
             {64, 56, 56}, sc_data_format_t(), datatypes::u8)});
@@ -166,7 +165,7 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_NoInplace) {
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
-    ctx->flags_.mixed_fusion_ = true;
+
     sc_graph_t g;
     auto input_shape = sc_dims {1, 64, 14, 14};
     auto weight_shape_1 = sc_dims {64, 64, 1, 1};
@@ -238,7 +237,7 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
-    ctx->flags_.mixed_fusion_ = true;
+
     sc_graph_t g;
     auto input_shape = sc_dims {16, 374, 66, 66};
     auto weight_shape_1 = sc_dims {52, 374, 1, 1};
@@ -329,7 +328,7 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding) {
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Asym_Padding) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
-    ctx->flags_.mixed_fusion_ = true;
+
     sc_graph_t g;
     auto input_shape = sc_dims {1, 64, 224, 224};
     auto weight_shape_1 = sc_dims {64, 64, 1, 1};
@@ -420,7 +419,7 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Asym_Padding) {
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Fuse) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
-    ctx->flags_.mixed_fusion_ = true;
+
     sc_graph_t g;
     auto input_shape = sc_dims {1, 1, 4, 4};
     auto weight_shape = sc_dims {1, 1, 3, 3};

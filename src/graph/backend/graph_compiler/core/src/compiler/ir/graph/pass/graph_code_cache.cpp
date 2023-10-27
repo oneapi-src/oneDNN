@@ -289,7 +289,6 @@ SC_INTERNAL_API void graph_code_cache(sc_graph_t &mgr, const context_ptr &ctx) {
             });
     mgr.attrs_["shared_const_bases"] = bases;
     mgr.attrs_["shared_const_tensors"] = shared_tsr;
-    if (!ctx->flags_.mixed_fusion_) { return; }
     auto cache_mgr = get_cache_mgr();
     auto ghash
             = mgr.hash_contents(prehashed_graph_for_code_share_t::attr_filter);

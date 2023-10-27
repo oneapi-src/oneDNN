@@ -114,7 +114,6 @@ body_generator_ptr matmul_core_op_t::create_generator() {
     auto mat_gen = utils::make_unique<gen_matmul_core_t>(this,
             graph::extract_detail_from_tensors(get_inputs()),
             graph::extract_detail_from_tensors(get_outputs()));
-    mat_gen->bwise_fusion_ = attrs_.get_or_else(op_attr_key::bwise_fuse, false);
     return std::move(mat_gen);
 }
 
@@ -930,139 +929,13 @@ shape_rl_vec matmul_core_op_t::get_shape_relations_impl(
     return ret;
 }
 
-sc_dims matmul_core_op_t::get_bwise_fuse_shrink_dims() {
-    // Currently fordbid N-axis fuse, skip check weight
-    auto out_fmt = info_.outputs_[0]->details_.get_format(),
-         inp_fmt = info_.inputs_[0]->details_.get_format();
-    auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
-    int bs_size = batch_dims_.size();
-
-    auto out_p2b_map = out_fmt.format_code_.collect_p2b_mapping(),
-         inp_p2b_map = inp_fmt.format_code_.collect_p2b_mapping();
-
-    COMPILE_ASSERT(out_p2b_map.size() >= 2,
-            "Matmul core output should at least have MN dimension")
-    // validate input according shrinked output graph tensor
-    int cnt = 0;
-    for (; cnt < bs_size; cnt++) {
-        auto plain_pos = out_fmt.format_code_.get(cnt);
-        if (out_p2b_map[plain_pos].front() != cnt
-                || inp_p2b_map[plain_pos].front() != cnt)
-            break;
-    }
-    return {output_dims.begin(), output_dims.begin() + cnt};
-}
-
-void matmul_core_op_t::collect_shrinked_lt_map(
-        int bw_size, gt2gt_map &bw_lt_map) {
-    // set output
-    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
-            bw_lt_map, get_outputs()[0], bw_size);
-    auto &out_plain_dims
-            = bw_lt_map.get(get_outputs()[0])->details_.get_plain_dims();
-    auto old_inp_dims = get_inputs()[0]->details_.get_plain_dims();
-    auto old_wei_dims = get_inputs()[1]->details_.get_plain_dims();
-    // MK
-    sc_dims inp_plain_dims = {
-            out_plain_dims.at(out_plain_dims.size() - 2), old_inp_dims.back()};
-    // KN
-    sc_dims wei_plain_dims
-            = {old_wei_dims.at(old_wei_dims.size() - 2), out_plain_dims.back()};
-
-    int bs_out = out_plain_dims.size() - 2;
-    int bs_inp = old_inp_dims.size() - 2;
-    int bs_wei = old_wei_dims.size() - 2;
-
-    for (int i = 1; i <= bs_out; i++) {
-        if (i <= bs_inp) {
-            inp_plain_dims.insert(inp_plain_dims.begin(),
-                    out_plain_dims.at(out_plain_dims.size() - 2 - i));
-        }
-        if (i <= bs_wei) {
-            wei_plain_dims.insert(wei_plain_dims.begin(),
-                    out_plain_dims.at(out_plain_dims.size() - 2 - i));
-        }
-    }
-    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
-            bw_lt_map, get_inputs()[0], inp_plain_dims);
-    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
-            bw_lt_map, get_inputs()[1], wei_plain_dims);
-}
-
-void matmul_core_op_t::collect_shrinked_axis_map(
-        int bw_size, gt2axis_map &bw_axis_map) {
-    auto ins = get_inputs()[0], wei = get_inputs()[1], out = get_outputs()[0];
-    int bs_inp = get_inputs()[0]->details_.get_plain_dims().size() - 2;
-    int bs_wei = get_inputs()[1]->details_.get_plain_dims().size() - 2;
-    int bs_out = get_outputs()[0]->details_.get_plain_dims().size() - 2;
-    auto get_idx = [](const graph_tensor_ptr &gt) {
-        std::vector<int> batch;
-        auto fmt = gt->details_.get_format();
-        auto p2b_map = fmt.format_code_.collect_p2b_mapping();
-        for (size_t i = 0; i < p2b_map.size() - 2; i++) {
-            batch.insert(batch.end(), p2b_map[i].begin(), p2b_map[i].end());
-        }
-        std::vector<std::vector<int>> ret;
-        ret.emplace_back(batch);
-        ret.emplace_back(p2b_map[p2b_map.size() - 2]);
-        ret.emplace_back(p2b_map[p2b_map.size() - 1]);
-        return ret;
-    };
-
-    auto BMK = get_idx(ins), BKN = get_idx(wei), BMN = get_idx(out);
-
-    auto get_idx_type = [](const std::vector<std::vector<int>> &map, int idx) {
-        for (size_t i = 0; i < map.size(); i++) {
-            if (std::find(map[i].begin(), map[i].end(), idx) != map[i].end())
-                return static_cast<int>(i);
-        }
-        assert(0); // should never goto here
-        return -1;
-    };
-    std::vector<int> BMK_idx, BKN_idx;
-    for (int i = 0; i < bw_size; i++) {
-        int idx_type = get_idx_type(BMN, i);
-        if (idx_type == 0) {
-            auto find_iter = std::find(BMN[0].begin(), BMN[0].end(), i);
-            int batch_idx = std::distance(BMN[0].begin(), find_iter);
-            // reversed position
-            int batch_idx_rev = bs_out - batch_idx;
-            if (batch_idx_rev <= bs_inp) {
-                BMK_idx.emplace_back(BMK[idx_type][bs_inp - batch_idx_rev]);
-            } else {
-                BMK_idx.emplace_back(-1);
-            }
-            if (batch_idx_rev <= bs_wei) {
-                BKN_idx.emplace_back(BKN[idx_type][bs_wei - batch_idx_rev]);
-            } else {
-                BKN_idx.emplace_back(-1);
-            }
-        } else if (idx_type == 1) {
-            BMK_idx.emplace_back(BMK[idx_type][0]);
-            BKN_idx.emplace_back(-1);
-        } else if (idx_type == 2) {
-            BMK_idx.emplace_back(-1);
-            BKN_idx.emplace_back(BKN[idx_type][0]);
-        }
-    }
-
-    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
-            bw_axis_map, ins, BMK_idx);
-    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
-            bw_axis_map, wei, BKN_idx);
-    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
-            bw_axis_map, out, bw_size);
-}
-
-void matmul_core_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
+infer_status_code matmul_core_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
 
     // assume input is known
     if (known_ranges_map[0].empty() && known_ranges_map[1].empty()) {
-        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-        return;
+        return infer_status_code::RETRY;
     }
 
     auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size(),
@@ -1084,16 +957,12 @@ void matmul_core_op_t::infer_slice_ranges(
             = get_mm_blocking_axis(get_inputs()[0]->details_,
                     get_inputs()[1]->details_, get_outputs()[0]->details_);
     if (!known_ranges_map[0].empty()) {
-        if (known_ranges_map[0].size() > 1) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
-        }
+        if (known_ranges_map[0].size() > 1) { return infer_status_code::RETRY; }
         inp_slice = known_ranges_map[0][0];
         // check whether do M-axis fusion
         bool M_axis_fuse = false;
         if (get_inputs()[0]->details_.get_format().is_blocking()
                 && (blocking_axis.A_m.size() == blocking_axis.C_m.size())) {
-            auto ctx = stat_map.get_context();
             if (ctx && ctx->flags_.use_cost_model_ && batch_dims_.empty()) {
                 const int run_threads
                         = runtime_config_t::get().get_num_threads();
@@ -1119,30 +988,24 @@ void matmul_core_op_t::infer_slice_ranges(
                 blocking_axis.A_k.end());
         // Currently, support fuse batch dims and outer-most m_o
         if (!slice_full_on_axis(inp_dims, inp_slice, required_axis)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
     }
     if (!known_ranges_map[1].empty()) {
-        if (known_ranges_map[1].size() > 1) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
-        }
+        if (known_ranges_map[1].size() > 1) { return infer_status_code::RETRY; }
         wei_slice = known_ranges_map[1][0];
         auto required_axis = blocking_axis.B_k;
         required_axis.insert(required_axis.end(), blocking_axis.B_n.begin(),
                 blocking_axis.B_n.end());
         // Currently, only fuse batch dims
         if (!slice_full_on_axis(wei_dims, wei_slice, required_axis)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
     }
 
     if (!known_ranges_map[0].empty() && known_ranges_map[1].empty()) {
         if (inp_plain_size < wei_plain_size) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
         auto wei_size = wei_dims_expr.size();
         wei_slice.resize(wei_size);
@@ -1162,8 +1025,7 @@ void matmul_core_op_t::infer_slice_ranges(
     }
     if (known_ranges_map[0].empty() && !known_ranges_map[1].empty()) {
         if (inp_plain_size > wei_plain_size) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
         auto inp_size = inp_dims_expr.size();
         inp_slice.resize(inp_size);
@@ -1212,11 +1074,13 @@ void matmul_core_op_t::infer_slice_ranges(
     fsmap.get(get_inputs()[0]) = slice_range_list {inp_slice};
     fsmap.get(get_inputs()[1]) = slice_range_list {wei_slice};
     fsmap.get(get_outputs()[0]) = slice_range_list {out_slice};
+
+    return infer_status_code::OK;
 }
 
 void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
     // search known axis from any input of cur fusbile op
-    auto known_axis_map = search_known_bound_axis(cur, bdax_map);
+    auto known_axis_map = search_known_input_axis(cur, bdax_map);
 
     bound_axis &inp_axis = known_axis_map[0], &wei_axis = known_axis_map[1],
                &out_axis = bdax_map.get(cur->get_outputs()[0]);
@@ -1288,7 +1152,7 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
             out_axis.emplace_back(ret_o);
         }
     }
-    set_unknown_axis_binding(cur, known_axis_map, bdax_map);
+    set_unknown_binding_axis(cur, known_axis_map, bdax_map);
 }
 
 void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
@@ -1334,7 +1198,7 @@ void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
             inpaxis = in_axis;
             if (auto bd_op = input->producer_owner_->dyn_cast<
                              op_traits::mixed_partition_acceptable>()) {
-                bd_op->pre_binding_axis(bdax_map);
+                bd_op->pre_infer_binding_axis(bdax_map);
             }
         }
     }
@@ -1344,7 +1208,7 @@ void matmul_core_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     infer_matmul_binding_axis(this, bdax_map);
 }
 
-void matmul_core_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
+void matmul_core_op_t::pre_infer_binding_axis(bound_axis_map &bdax_map) {
     pre_matmul_binding_axis(this, bdax_map);
 }
 

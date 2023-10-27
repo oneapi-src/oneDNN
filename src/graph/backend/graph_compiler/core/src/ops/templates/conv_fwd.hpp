@@ -114,7 +114,7 @@ public:
   sc_data_type_t get_output_dtype() const { return out_tensors_[0].dtype_; }
 
   bool generate(context_ptr ctx, const conv_fwd_config_t &config,
-    fusion_manager *fusion, const std::vector<expr> &inputs,
+    fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
   config_ptr get_default_config(context_ptr ctx) const override;
@@ -128,7 +128,7 @@ public:
 
 #define CONV_ARG_LIST \
   const context_ptr &ctx, const conv_fwd_config_t &config, \
-    fusion_manager *fusion, expr &output, const expr &input, \
+    fusion_anchor_mgr_t *fusion, expr &output, const expr &input, \
     const expr &weight, std::vector<for_loop> &loops, const int K_num_block, \
     const int C_num_block, const int os, \
     const int kpack = 1, const bool use_os_blocking = false, \

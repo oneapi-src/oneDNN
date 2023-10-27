@@ -109,8 +109,7 @@ private:
  *    dimension expansion (e.g. [a, b] --> [1, 1, a, b])
  * */
 class tensor_view_op_t : public movement_op_t,
-                         public op_traits::auto_copyable_t,
-                         public op_traits::batchwise_shrinkable_t {
+                         public op_traits::auto_copyable_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -126,12 +125,9 @@ public:
     std::vector<expr> get_shapes_expr();
     bool try_penetrate(sc_data_format_t &new_output_format) const;
     shape_rl_vec get_dynamic_shape_relations() const override;
-    sc_dims get_bwise_fuse_shrink_dims() override;
-    sc_op_ptr bw_shrinked_copy(
-            gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph) override;
 
     void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
 
 private:
     sc_dims shapes_;
@@ -178,9 +174,7 @@ private:
     sc_dims shapes_;
 };
 
-class reorder_op_t : public movement_op_t,
-                     public op_traits::auto_copyable_t,
-                     public op_traits::batchwise_shrinkable_t {
+class reorder_op_t : public movement_op_t, public op_traits::auto_copyable_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -215,12 +209,8 @@ public:
     bool support_output_loop() const;
     bool support_optimized_kernel(const context_ptr &ctx) const;
     bool meet_vnni_reorder_require(const context_ptr &ctx) const;
-    sc_dims get_bwise_fuse_shrink_dims() override;
-    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
-    void collect_shrinked_axis_map(
-            int bw_size, gt2axis_map &bw_axis_map) override;
     void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
 
 private:
     sc_dims plain_dims_;

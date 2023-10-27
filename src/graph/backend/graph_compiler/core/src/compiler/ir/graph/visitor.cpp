@@ -19,7 +19,7 @@
 #include <utility>
 #include "fusible_op.hpp"
 #include "fusible_op_utils.hpp"
-#include "fusion_mgr.hpp"
+#include "fusion_anchor.hpp"
 #include "tunable_op.hpp"
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <ops/fusible/memory_movement.hpp>
@@ -155,12 +155,6 @@ void op_sorting_visitor_t::visit_by_rules(sc_graph_t &graph,
             // opportunity to loop merge pass
             case sort_rule::same_kind:
                 f_rule_list.emplace_back(create_same_kind_rule());
-                break;
-            case sort_rule::fusion_anchor:
-                f_rule_list.emplace_back(create_fusion_anchor_rule());
-                break;
-            case sort_rule::preop_fusion:
-                f_rule_list.emplace_back(create_preop_fusion_rule());
                 break;
             default: break;
         }
@@ -307,77 +301,6 @@ op_sorting_visitor_t::rule_func op_sorting_visitor_t::create_same_kind_rule() {
                     move_op_from_to(op_seq, dep_matrix, cur_idx, pre_idx);
                 }
                 pre_idx = cur_idx;
-            }
-        }
-    };
-}
-
-op_sorting_visitor_t::rule_func
-op_sorting_visitor_t::create_fusion_anchor_rule() {
-    /**
-     * The sorted rule will be three steps
-     * 1. inquire fusion_anchor of each op,
-     * 2. sort op by ascending fusion_anchor
-     * 3. reset fusion_anchor for op which following up the reduce_op_t
-     * */
-    return [](std::vector<sc_op_ptr> &op_seq,
-                   const op_dep_matrix_t &dep_matrix) {
-        // automatically skip
-        if (op_seq.empty()) return;
-
-        // sorted op similar to insertion sorting by op anchor level
-        for (int i = 1; i < static_cast<int>(op_seq.size()); i++) {
-            auto cur_op = op_seq[i]->dyn_cast<fusible_op_t>();
-            for (int j = i - 1; j >= 0; j--) {
-                auto pre_op = op_seq[j]->dyn_cast<fusible_op_t>();
-                if (cur_op->anchor_id_ < pre_op->anchor_id_) {
-                    if (move_op_from_to(op_seq, dep_matrix, i, j)) break;
-                }
-            }
-        }
-    };
-}
-
-op_sorting_visitor_t::rule_func
-op_sorting_visitor_t::create_preop_fusion_rule() {
-    return [](std::vector<sc_op_ptr> &op_seq,
-                   const op_dep_matrix_t &dep_matrix) {
-        // automatically skip
-        if (op_seq.empty()) return;
-        std::vector<sc_op_ptr> anchor_input_list;
-        for (auto &cur : op_seq) {
-            if (auto input_cur = cur->dyn_cast<input_op>()) {
-                if (!input_cur->is_arg_input()) {
-                    anchor_input_list.emplace_back(cur);
-                }
-            }
-        }
-
-        auto can_move_forward = [&dep_matrix, &anchor_input_list](sc_op *cur) {
-            auto is_depend
-                    = [&dep_matrix](const std::vector<sc_op_ptr> &input_list,
-                              sc_op *cur) {
-                          for (auto &x : input_list) {
-                              int input_id = x->logical_op_id_;
-                              int target_id = cur->logical_op_id_;
-                              if (dep_matrix.lookup(input_id, target_id) == 1) {
-                                  return true;
-                              }
-                          }
-                          return false;
-                      };
-
-            bool is_depend_anchor = is_depend(anchor_input_list, cur);
-
-            if (is_depend_anchor) { return true; }
-            return false;
-        };
-
-        // move all ops related to anchor input to the begining of op_seq
-        int top_pos = 0;
-        for (int i = 1; i < static_cast<int>(op_seq.size()); i++) {
-            if (can_move_forward(op_seq[i].get())) {
-                move_op_from_to(op_seq, dep_matrix, i, top_pos++, true);
             }
         }
     };

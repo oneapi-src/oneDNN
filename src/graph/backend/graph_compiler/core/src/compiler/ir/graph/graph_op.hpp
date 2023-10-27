@@ -32,7 +32,6 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-class fusion_manager;
 
 class graph_op_t : public sc_op {
 public:

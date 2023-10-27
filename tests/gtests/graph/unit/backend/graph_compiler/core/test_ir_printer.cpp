@@ -43,15 +43,15 @@ TEST(GCCore_CPU_printer_cpp, TestTrackPosPrinter) {
         _tensor_(E, datatypes::f32, 100, 20);
         _tensor_(F, datatypes::f32, len);
         _tensor_(F_view, datatypes::s32, 10);
-        builder.get_current_scope().body.back().checked_as<define>()->init_
+        builder.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(F, {3});
-        builder.get_current_scope().body.back()->attr()["comments"]
+        builder.get_current_scope().as_seq().back()->attr()["comments"]
                 = std::vector<std::string> {"hello", "hi"};
         _named_for_(li, i, 0, shape1) {
             _named_for_(lj, j, 0, shape1) {
                 _named_for_(lk, k, 0, shape1) {
                     C[{i, j}] = C[{i, j}] + A[{i, k}] * B[{k, j}];
-                    the_assign = builder.get_current_scope().body.back();
+                    the_assign = builder.get_current_scope().as_seq().back();
                 }
             }
         }

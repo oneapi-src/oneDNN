@@ -373,7 +373,6 @@ TEST(GCCore_CPU_graph_reshape_cpp, TestSingleExecution) {
     auto out = g.make_output(reshape_op->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     graph_driver(g, ctx);
     auto f = lower_graph(ctx, g, {out, in});
     auto fptr = jit_engine_t::make(ctx)->get_entry_func(f, true);

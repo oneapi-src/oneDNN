@@ -93,13 +93,13 @@ TEST(GCCore_CPU_tensor_inplace_cpp, TestSimpleSchedule) {
         _bind_(C);
         _tensor_(sched, datatypes::s8, UINT64_C(1344));
         _tensor_(A, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(0)});
         _tensor_(B, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(448)});
         _tensor_(temp1, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(896)});
         A[0] = 1;
         B[0] = 1;
@@ -109,18 +109,18 @@ TEST(GCCore_CPU_tensor_inplace_cpp, TestSimpleSchedule) {
         C[0] = A[0];
 
         _tensor_(D, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(0)});
         // check that we cannot reuse D for temp1, because call of aaa is not
         // the first use of temp1
         _evaluate_call_(aaa->decl_, D, B, temp1);
 
         _tensor_(E, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(896)});
         E[0] = 1;
         _tensor_(temp2, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(896)});
         // we can reuse E for temp1
         _evaluate_call_(bbb->decl_, E, B, temp2);

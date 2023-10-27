@@ -46,8 +46,6 @@ public:
   using parent = body_generator_t<nested_conv_bwd_data_config_t>;
   using parent::generate;
 
-  bool bwise_fusion_ = false;
-
   gen_nested_convNxN_backprop_data_t(sc_op *owner, const sc_dims &stride,
     const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
     std::vector<logical_tensor_t> &&outs);
@@ -80,10 +78,10 @@ public:
     int od_block, const expr &ih_block, int OW, int stride_h, int stride_w,
     int padding_h, int padding_w, int R, int S, int IC, int OC, int IH, int IW,
     const expr &obs_offset, const expr &oc_offset, const expr &ic_offset,
-    const expr &ih_offset, fusion_manager *fusion) const;
+    const expr &ih_offset, fusion_anchor_mgr_t *fusion) const;
 
   bool generate(context_ptr ctx, const nested_conv_bwd_data_config_t &config,
-    fusion_manager *fusion, const std::vector<expr> &inputs,
+    fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
 

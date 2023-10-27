@@ -83,7 +83,7 @@ public:
   sc_data_type_t get_output_dtype() const { return out_tensors_[0].dtype_; }
 
   bool generate(context_ptr ctx, const conv_fwd_rl_config_t &config,
-    fusion_manager *fusion, const std::vector<expr> &inputs,
+    fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
   config_ptr get_default_config(context_ptr ctx) const override;

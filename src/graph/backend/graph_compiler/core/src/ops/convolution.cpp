@@ -66,8 +66,8 @@ sc_data_type_t conv_fwd_core_op_t::infer_out_dtype(
     }
 }
 
-void conv_fwd_core_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code conv_fwd_core_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     bool is_weight_constant
             = info_.inputs_[1]->producer_owner_->isa<constant_op_t>()
             || info_.inputs_[1]->producer_owner_->attrs_.get_or_else(
@@ -77,8 +77,7 @@ void conv_fwd_core_op_t::infer_slice_ranges(
     if (attrs_.has_key("inverse_filter")
             || !attrs_.get_or_else("image_affinity", true)
             || !is_weight_constant || is_dynamic()) {
-        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
-        return;
+        return infer_status_code::FAIL;
     }
     int C_block = 1;
     int K_block = 1;
@@ -100,12 +99,10 @@ void conv_fwd_core_op_t::infer_slice_ranges(
             tile_p = tcfg.tile_p;
         }
     }
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
     // assume input is known
     if (known_ranges_map[0].empty() && known_ranges_map[1].empty()) {
-        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-        return;
+        return infer_status_code::RETRY;
     }
     auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size();
     auto wei_plain_dim = use_rl != ops::rl_kind::NO_LOWERING
@@ -164,13 +161,11 @@ void conv_fwd_core_op_t::infer_slice_ranges(
             inp_tmp = known_ranges_map[0][0];
             if (!slice_full_on_axis(inp_dims, inp_tmp,
                         in_p2b_map[1])) { // full on C
-                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-                return;
+                return infer_status_code::RETRY;
             }
             if (!slice_full_on_axis(inp_dims, inp_tmp,
                         in_p2b_map[3])) { // full on W
-                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-                return;
+                return infer_status_code::RETRY;
             }
             if (!slice_divisible_by_factor(
                         inp_tmp, {in_p2b_map[2].back()}, tile_p)
@@ -179,8 +174,7 @@ void conv_fwd_core_op_t::infer_slice_ranges(
                             data_dtype == datatypes::f32
                                     ? 1
                                     : 2)) { // dividable on H
-                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-                return;
+                return infer_status_code::RETRY;
             }
 
             for (auto i = 0UL; i < in_p2b_map.size(); i++) {
@@ -214,8 +208,7 @@ void conv_fwd_core_op_t::infer_slice_ranges(
                 required_axis.emplace_back(i);
             }
             if (!slice_full_on_axis(wei_dims, wei_slice, required_axis)) {
-                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-                return;
+                return infer_status_code::RETRY;
             }
         }
         for (unsigned i = 0; i < wei_dims.size(); i++) {
@@ -247,8 +240,7 @@ void conv_fwd_core_op_t::infer_slice_ranges(
                 required_axis.emplace_back(i);
             }
             if (!slice_full_on_axis(inp_dims, inp_tmp, required_axis)) {
-                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-                return;
+                return infer_status_code::RETRY;
             }
             inp_slice.emplace_back(known_ranges_map[0][0][0]);
             out_slice.emplace_back(known_ranges_map[0][0][0]);
@@ -263,8 +255,7 @@ void conv_fwd_core_op_t::infer_slice_ranges(
                 required_axis.emplace_back(i);
             }
             if (!slice_full_on_axis(wei_dims, wei_slice, required_axis)) {
-                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-                return;
+                return infer_status_code::RETRY;
             }
         }
         for (unsigned i = 1; i < inp_dims.size(); i++) {
@@ -283,6 +274,7 @@ void conv_fwd_core_op_t::infer_slice_ranges(
         fsmap.get(get_inputs()[1]) = slice_range_list {wei_slice};
         fsmap.get(get_outputs()[0]) = slice_range_list {out_slice};
     }
+    return infer_status_code::OK;
 }
 
 void conv_fwd_core_op_t::infer_out_tensor_details() {
@@ -1036,66 +1028,6 @@ sc_op_ptr conv_fwd_core_op_t::do_compensations(
         sc_graph_t &mgr, const context_ptr &ctx) {
     need_compensation_ = false;
     return shared_from_this();
-}
-
-// TODO(baihui): this is only for 2d conv
-void conv_fwd_core_op_t::collect_shrinked_lt_map(
-        int bw_size, gt2gt_map &bw_lt_map) {
-    auto data_plain_dims = get_inputs()[0]->details_.get_plain_dims();
-    auto weight_plain_dims = get_inputs()[1]->details_.get_plain_dims();
-    auto out_plain_dims = get_outputs()[0]->details_.get_plain_dims();
-    auto data_blocking_dims = get_inputs()[0]->details_.get_blocking_dims();
-    auto out_blocking_dims = get_outputs()[0]->details_.get_blocking_dims();
-    sc_dims input_dims
-            = {1, data_plain_dims[1], data_plain_dims[2], data_plain_dims[3]};
-    sc_dims out_dims
-            = {1, out_plain_dims[1], out_plain_dims[2], out_plain_dims[3]};
-    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
-            bw_lt_map, get_outputs()[0], out_dims);
-    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
-            bw_lt_map, get_inputs()[0], input_dims);
-    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
-            bw_lt_map, get_inputs()[1], weight_plain_dims);
-}
-
-void conv_fwd_core_op_t::collect_shrinked_axis_map(
-        int bw_size, gt2axis_map &bw_axis_map) {
-    auto data = get_inputs()[0], weight = get_inputs()[1],
-         out = get_outputs()[0];
-    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
-            bw_axis_map, data, std::vector<int> {0});
-    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
-            bw_axis_map, weight, std::vector<int> {-1});
-    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
-            bw_axis_map, out, std::vector<int> {0});
-}
-
-sc_dims conv_fwd_core_op_t::get_bwise_fuse_shrink_dims() {
-    const int L2_size = 1024 * 1024 * 2;
-    auto weight_dims = get_inputs()[1]->details_.get_plain_dims();
-    auto data_dims = get_inputs()[0]->details_.get_plain_dims();
-    auto out_dims = get_outputs()[0]->details_.get_plain_dims();
-    const int dtype_sz = get_inputs()[1]->details_.dtype_ == datatypes::f32 ? 4
-            : get_inputs()[1]->details_.dtype_ == datatypes::bf16           ? 2
-                                                                            : 1;
-    const int weight_size_byte = weight_dims[0] * weight_dims[1]
-            * weight_dims[2] * weight_dims[3] * dtype_sz;
-    const int data_size_byte
-            = data_dims[1] * data_dims[2] * data_dims[3] * dtype_sz;
-    const int output_size_byte
-            = out_dims[1] * out_dims[2] * out_dims[3] * dtype_sz;
-    bool enable_bwise = true;
-    if (weight_size_byte >= L2_size / 4) {
-        if (weight_size_byte >= L2_size / 2 || data_dims[1] >= 1024) {
-            enable_bwise = false;
-        }
-    }
-    sc_dims ret = {0};
-    if (enable_bwise) {
-        auto out_blocking_dims = get_outputs()[0]->details_.get_blocking_dims();
-        ret = {out_blocking_dims[0]};
-    }
-    return ret;
 }
 
 conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(

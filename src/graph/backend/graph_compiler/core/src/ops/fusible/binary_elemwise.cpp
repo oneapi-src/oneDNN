@@ -23,9 +23,9 @@
 #include <utility>
 #include "binary_elemwise.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/brgemm_fusion.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/dynamic_dispatch/ops/impl_type.hpp>
@@ -52,24 +52,24 @@ binary_elementwise_op_impl_t::get_inplace_map() {
     return {{0, std::move(ret)}};
 }
 
-void infer_binary_slice_ranges(
-        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code infer_binary_slice_ranges(
+        fusible_op_t *cur, fslice_map &fsmap) {
     COMPILE_ASSERT(cur->get_inputs().size() == 2, "binary op is expected");
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(cur, fsmap, stat_map);
-    if (known_ranges_map.empty()) return;
-    auto &outslice = fsmap.get(cur->get_outputs()[0]);
+    slice_range_map known_ranges_map = search_known_input_slice(cur, fsmap);
+    if (known_ranges_map.empty()) return infer_status_code::RETRY;
     // if unkown slice ranges exist.
     if (known_ranges_map.size() < cur->get_inputs().size()) {
         int unknown_idx
                 = known_ranges_map.find(0) != known_ranges_map.end() ? 1 : 0;
         known_ranges_map[unknown_idx] = known_ranges_map[1 - unknown_idx];
         // set the other unknown slice range by achieved known_ranges_list
-        set_unknown_slice_ranges(cur, known_ranges_map, fsmap, stat_map);
+        set_unknown_input_slice(cur, known_ranges_map, fsmap);
     }
     // set outputs slice range
+    auto &outslice = fsmap.get(cur->get_outputs()[0]);
     outslice = known_ranges_map[0];
+    return infer_status_code::OK;
 }
 
 static slice_range_list infer_broadcast_arg_slice(
@@ -153,39 +153,6 @@ static sc_data_type_t infer_output_dtype(
     return a;
 }
 
-void binary_elementwise_op_impl_t::set_inplace_info() {
-    // legalize inplace
-    auto lhs_const = dynamic_cast<constant_op_t *>(
-            info_.inputs_.at(0)->producer_owner_);
-    auto rhs_const = dynamic_cast<constant_op_t *>(
-            info_.inputs_.at(1)->producer_owner_);
-    inplace_ = attrs_.get_or_else("inplace", 0);
-    auto non_bc_indices = get_non_broadcast_input_index(false);
-    // inplace 0-th input
-    if (inplace_ == 0
-            && (lhs_const
-                    || std::find(
-                               non_bc_indices.begin(), non_bc_indices.end(), 0)
-                            == non_bc_indices.end())) {
-        inplace_ = -1;
-    }
-    // inplace 1-th input
-    else if (inplace_ == 1
-            && (rhs_const
-                    || std::find(
-                               non_bc_indices.begin(), non_bc_indices.end(), 1)
-                            == non_bc_indices.end())) {
-        inplace_ = -1;
-    }
-    COMPILE_ASSERT(inplace_ >= -1 && inplace_ <= 1,
-            "Binary elementwise op only have two inputs, but got "
-                    << inplace_ << "-th input to be inplaced.");
-
-    info_.tensor_share_info_ = (inplace_ == -1)
-            ? std::unordered_map<int, std::vector<int>> {}
-            : std::unordered_map<int, std::vector<int>> {{0, {inplace_}}};
-}
-
 binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
@@ -253,14 +220,11 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
                         output_shape);
         plain_bc_axis_[1 - ref_idx] = input_bc_axis;
     }
-
-    set_inplace_info();
 }
 
-binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(graph_tensor_ptr lhs,
-        graph_tensor_ptr rhs, elt_operator elt_op, int inplace)
-    : binary_elementwise_op_impl_t(
-            {std::move(lhs), std::move(rhs)}, {}, {{"inplace", inplace}}) {
+binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
+        graph_tensor_ptr lhs, graph_tensor_ptr rhs, elt_operator elt_op)
+    : binary_elementwise_op_impl_t({std::move(lhs), std::move(rhs)}, {}, {}) {
     elt_op_ = elt_op;
     switch (elt_op) {
         case elt_operator::ADD: op_name_ = "add"; break;
@@ -369,25 +333,12 @@ void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-void binary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {
-    COMPILE_ASSERT(!op_name_.empty(), "op_name or elt_operator is not set.\n");
-    COMPILE_ASSERT(info_.outputs_.size() == 1, "Wrong op output size.\n");
-    auto &output = info_.outputs_[0];
-    auto &outdetail = fdmap.get(output);
-    auto &in_detail0 = fdmap.get(info_.inputs_[0]);
-    auto &in_detail1 = fdmap.get(info_.inputs_[1]);
-
-    in_detail0.use_count_++;
-    in_detail1.use_count_++;
-}
-
-void binary_elementwise_op_impl_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code binary_elementwise_op_impl_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     COMPILE_ASSERT(get_inputs().size() == 2, "binary op is expected");
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
-    if (known_ranges_map.empty()) return;
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
+    if (known_ranges_map.empty()) return infer_status_code::RETRY;
     // double-check all known case
     if (known_ranges_map.size() == get_inputs().size()) {
         // check whether slice size is matched
@@ -398,10 +349,9 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
                     ? 1
                     : 0;
             known_ranges_map.erase(erase_input_id);
-            fsmap.datamap_.erase(get_inputs()[erase_input_id].get());
+            fsmap.erase(get_inputs()[erase_input_id]);
         }
     }
-    auto &outslice = fsmap.get(get_outputs()[0]);
     // if unkown slice ranges exist.
     if (known_ranges_map.size() < get_inputs().size()) {
         int unknown_idx
@@ -428,30 +378,23 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
                         known_ranges_map[1 - unknown_idx], bc_axis, keep_dims);
                 known_ranges_map[unknown_idx] = std::move(bc_arg_range_list);
             }
-            // set the other unknown slice range by achieved known_ranges_list
-            set_unknown_slice_ranges(this, known_ranges_map, fsmap, stat_map);
-            // set outputs slice range
-            outslice = known_ranges_map[1 - bc_input_idx];
-            return;
         } else {
             known_ranges_map[unknown_idx] = known_ranges_map[1 - unknown_idx];
         }
         // set the other unknown slice range by achieved known_ranges_list
-        set_unknown_slice_ranges(this, known_ranges_map, fsmap, stat_map);
+        set_unknown_input_slice(this, known_ranges_map, fsmap);
     }
     // set outputs slice range
+    auto &outslice = fsmap.get(get_outputs()[0]);
     int bc_idx = get_broadcast_input();
-    outslice = known_ranges_map[bc_idx > -1 ? (1 - bc_idx)
-                                            : (inplace_ > -1 ? inplace_ : 0)];
+    outslice = known_ranges_map[bc_idx > -1 ? (1 - bc_idx) : 0];
+    return infer_status_code::OK;
 }
 
-void binary_elementwise_op_impl_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code binary_elementwise_op_impl_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     auto &outslice = fsmap.get(get_outputs()[0]);
-    if (outslice.empty()) {
-        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-        return;
-    }
+    if (outslice.empty()) { return infer_status_code::RETRY; }
     // check broadcast
     int bc_input_idx = get_broadcast_input();
     for (size_t i = 0; i < get_inputs().size(); i++) {
@@ -470,18 +413,15 @@ void binary_elementwise_op_impl_t::pre_slice_ranges(
             } else {
                 inpslice = outslice;
             }
-            if (stat_map.is_recursive_mode()) {
-                input->producer_owner_->dyn_cast<fusible_op_t>()
-                        ->pre_slice_ranges(fsmap, stat_map);
-            }
         }
     }
+    return infer_status_code::OK;
 }
 
 void binary_elementwise_op_impl_t::infer_binding_axis(
         bound_axis_map &bdax_map) {
     // search known axis from any input of cur fusbile op
-    auto known_axis_map = search_known_bound_axis(this, bdax_map);
+    auto known_axis_map = search_known_input_axis(this, bdax_map);
     if (!bdax_map.get(get_outputs()[0]).empty()) return;
 
     if (known_axis_map.size() < get_inputs().size()) {
@@ -546,14 +486,14 @@ void binary_elementwise_op_impl_t::infer_binding_axis(
     // set outputs slice range
     int bc_idx = get_broadcast_input();
     bdax_map.get(get_outputs()[0])
-            = known_axis_map[bc_idx > -1 ? (1 - bc_idx)
-                                         : (inplace_ > -1 ? inplace_ : 0)];
+            = known_axis_map[bc_idx > -1 ? (1 - bc_idx) : 0];
 
     // set the other unknown slice range by achieved known_ranges_list
-    set_unknown_axis_binding(this, known_axis_map, bdax_map);
+    set_unknown_binding_axis(this, known_axis_map, bdax_map);
 }
 
-void binary_elementwise_op_impl_t::pre_binding_axis(bound_axis_map &bdax_map) {
+void binary_elementwise_op_impl_t::pre_infer_binding_axis(
+        bound_axis_map &bdax_map) {
     auto &outaxis = bdax_map.get(get_outputs()[0]);
     COMPILE_ASSERT(!outaxis.empty(),
             "Unknown output axis found, could not pre bind axis")
@@ -592,7 +532,7 @@ void binary_elementwise_op_impl_t::pre_binding_axis(bound_axis_map &bdax_map) {
             }
             if (auto bd_op = input->producer_owner_->dyn_cast<
                              op_traits::mixed_partition_acceptable>()) {
-                bd_op->pre_binding_axis(bdax_map);
+                bd_op->pre_infer_binding_axis(bdax_map);
             }
         }
     }
@@ -648,76 +588,6 @@ shape_rl_vec binary_elementwise_op_impl_t::get_dynamic_shape_relations() const {
         }
     }
     return ret;
-}
-
-sc_dims binary_elementwise_op_impl_t::get_bwise_fuse_shrink_dims() {
-    auto &in0_detail = info_.inputs_[0]->details_;
-    auto &in1_detail = info_.inputs_[1]->details_;
-    auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
-    int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
-            info_.outputs_[0]);
-    return {output_dims.begin(), output_dims.begin() + offset};
-}
-
-void binary_elementwise_op_impl_t::collect_shrinked_lt_map(
-        int bw_size, gt2gt_map &bw_lt_map) {
-    int bc_idx = get_broadcast_input();
-    if (bc_idx == -1)
-        op_traits::batchwise_shrinkable_t::collect_shrinked_lt_map(
-                bw_size, bw_lt_map);
-    std::vector<graph_tensor_ptr> new_ins;
-    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
-            bw_lt_map, get_outputs()[0], bw_size);
-    auto old_ins = get_inputs();
-    bool keep_dims = get_inputs()[0]->details_.get_blocking_dims().size()
-            == get_inputs()[1]->details_.get_blocking_dims().size();
-    auto bc_axis = get_bc_axis();
-    int valid_size = 0;
-    for (auto &ax : bc_axis) {
-        if (ax < bw_size)
-            valid_size++;
-        else
-            break;
-    }
-    for (size_t i = 0; i < get_inputs().size(); i++) {
-        op_traits::batchwise_shrinkable_t::record_shrinked_gt(bw_lt_map,
-                get_inputs()[i],
-                static_cast<int>(i) == bc_idx && !keep_dims ? valid_size
-                                                            : bw_size);
-    }
-}
-
-void binary_elementwise_op_impl_t::collect_shrinked_axis_map(
-        int bw_size, gt2axis_map &bw_axis_map) {
-    int bc_idx = get_broadcast_input();
-    if (bc_idx == -1)
-        op_traits::batchwise_shrinkable_t::collect_shrinked_axis_map(
-                bw_size, bw_axis_map);
-    std::vector<graph_tensor_ptr> new_ins;
-    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
-            bw_axis_map, get_outputs()[0], bw_size);
-    auto old_ins = get_inputs();
-    bool keep_dims = get_inputs()[0]->details_.get_blocking_dims().size()
-            == get_inputs()[1]->details_.get_blocking_dims().size();
-    auto bc_axis = get_bc_axis();
-    std::vector<int> bw_axis;
-    for (int i = 0; i < bw_size; i++) {
-        auto iter = std::find(bc_axis.begin(), bc_axis.end(), i);
-        if (iter != bc_axis.end()) {
-            bw_axis.emplace_back(iter - bc_axis.begin());
-        } else {
-            bw_axis.emplace_back(-1);
-        }
-    }
-    for (size_t i = 0; i < get_inputs().size(); i++) {
-        if (static_cast<int>(i) == bc_idx && !keep_dims) {
-            op_traits::batchwise_shrinkable_t::record_shrinked_axis(
-                    bw_axis_map, get_inputs()[i], bw_axis);
-        } else {
-            op_traits::batchwise_shrinkable_t::record_shrinked_axis(
-                    bw_axis_map, get_inputs()[i], bw_size);
-        }
-    }
 }
 
 void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,

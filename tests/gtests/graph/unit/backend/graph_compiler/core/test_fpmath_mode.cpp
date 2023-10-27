@@ -126,7 +126,6 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestMatmulCast2bf16) {
         return g;
     };
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g = get_graph();
     g.attrs_["fpmath_mode"] = 1;
     graph_inline(g, ctx);
@@ -222,7 +221,6 @@ TEST(GCCore_CPU_fpmath_mode_cpp, TestMLPInstanceNorm) {
         return g;
     };
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g = get_graph();
     g.attrs_["fpmath_mode"] = 1;
     graph_inline(g, ctx);

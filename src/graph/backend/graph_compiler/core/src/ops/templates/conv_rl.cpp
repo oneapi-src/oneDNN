@@ -20,7 +20,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <runtime/config.hpp>
 #include <util/any_map.hpp>
 #include <util/reflection.hpp>
@@ -169,7 +169,7 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
 }
 
 bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
-  const conv_fwd_rl_config_t &config, fusion_manager *fusion,
+  const conv_fwd_rl_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   COMPILE_ASSERT(inputs.size() == 2,
@@ -503,28 +503,24 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
             ctx->flags_.kernel_optim_ == 1 ? brg_attrs : sc_brgemm_attrs_t());
         }
 
-        if (fusion) {
-          // brgemm_m * brgemm_n
-          trace_guard_t trg(ctx, "post-op fusion");
-          fusion->create_output_fusion_anchor({tensor_slice(output,
-            groups_ > 1 ? slice_range {{n_o, 1}, {g, 1},
-              {p * config.brgemm_m, config.brgemm_m}, {q, 1},
-              {k_o * config.brgemm_n, config.brgemm_n}}
-                        : slice_range {{n_o, 1},
-                          {p * config.brgemm_m, config.brgemm_m}, {q, 1},
-                          {(g * K_num_block + k_o) * config.brgemm_n,
-                            config.brgemm_n}})});
-        }
-      }
-      if (fusion) {
-        // brgemm_m * oc_
-        fusion->create_output_fusion_anchor({tensor_slice(output,
+        // brgemm_m * brgemm_n
+        trace_guard_t trg(ctx, "post-op fusion");
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
           groups_ > 1
             ? slice_range {{n_o, 1}, {g, 1},
-              {p * config.brgemm_m, config.brgemm_m}, {q, 1}, {0, oc_}}
+              {p * config.brgemm_m, config.brgemm_m}, {q, 1},
+              {k_o * config.brgemm_n, config.brgemm_n}}
             : slice_range {{n_o, 1}, {p * config.brgemm_m, config.brgemm_m},
-              {q, 1}, {g * oc_, oc_}})});
+              {q, 1},
+              {(g * K_num_block + k_o) * config.brgemm_n, config.brgemm_n}});
       }
+      // brgemm_m * oc_
+      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+        groups_ > 1
+          ? slice_range {{n_o, 1}, {g, 1},
+            {p * config.brgemm_m, config.brgemm_m}, {q, 1}, {0, oc_}}
+          : slice_range {{n_o, 1}, {p * config.brgemm_m, config.brgemm_m},
+            {q, 1}, {g * oc_, oc_}});
     }
   };
 
@@ -546,22 +542,23 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
             update_aux_buf(aux_buf, n_o, g, q, 0);
           }
           do_compute(aux_buf, n_o, g, q, 0);
-          if (fusion) {
-            // oh_ * oc_
-            fusion->create_output_fusion_anchor({tensor_slice(output,
-              groups_ > 1
-                ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {q, 1}, {0, oc_}}
-                : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}})});
-          }
+          // oh_ * oc_
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
+            groups_ > 1
+              ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {q, 1}, {0, oc_}}
+              : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}});
         }
-        if (fusion && mb_ * groups_ >= num_threads) {
+        if (mb_ * groups_ >= num_threads) {
           // oh_ * ow_ * oc_
-          fusion->create_output_fusion_anchor({tensor_slice(output,
+          create_fusion_anchor(fusion, owner_->get_outputs()[0],
             groups_ > 1
               ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {0, ow_}, {0, oc_}}
-              : slice_range {{n_o, 1}, {0, oh_}, {0, ow_}, {g * oc_, oc_}})});
+              : slice_range {{n_o, 1}, {0, oh_}, {0, ow_}, {g * oc_, oc_}});
         }
       }
+      // oh_ * ow_ * oc_
+      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+        {{n_o, 1}, {0, oh_}, {0, ow_}, {0, oc_}});
     }
     lq->attr().set(stmt_attr_key::no_loop_fuse, true);
   } else {
@@ -588,22 +585,22 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
               update_aux_buf(aux_buf, n_o, g, q, init_idx);
             }
             do_compute(aux_buf, n_o, g, q, init_idx);
-            if (fusion) {
-              // oh_ * oc_
-              fusion->create_output_fusion_anchor({tensor_slice(output,
-                groups_ > 1
-                  ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {q, 1}, {0, oc_}}
-                  : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}})});
-            }
+            // oh_ * oc_
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              groups_ > 1
+                ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {q, 1}, {0, oc_}}
+                : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}});
           }
-          if (fusion && mb_ * groups_ >= num_threads) {
-            fusion->create_output_fusion_anchor({tensor_slice(output,
+          if (mb_ * groups_ >= num_threads) {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
               groups_ > 1 ? slice_range {{n_o, 1}, {g, 1}, {0, oh_},
                 {0, ow_e - ow_b}, {0, oc_}}
                           : slice_range {{n_o, 1}, {0, oh_}, {0, ow_e - ow_b},
-                            {g * oc_, oc_}})});
+                            {g * oc_, oc_}});
           }
         }
+        create_fusion_anchor(fusion, owner_->get_outputs()[0],
+          {{n_o, 1}, {0, oh_}, {0, ow_e - ow_b}, {0, oc_}});
       }
     }
   }

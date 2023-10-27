@@ -33,10 +33,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace horizontal_merge_type {
-constexpr int no_merge = 0;
-}
-class fusion_manager;
+
 struct mixed_parti_t;
 
 struct fusion_partition_t : std::enable_shared_from_this<fusion_partition_t> {
@@ -80,87 +77,6 @@ struct fusion_partition_t : std::enable_shared_from_this<fusion_partition_t> {
 
     // merge the ops in "other" to "this"
     void merge(const ptr &other) const;
-};
-
-// inputs: base op inputs, additional args inputs (should be in the same order
-// of the input ops in fmgr)
-// outputs: If need to keep base op output, base op output will be the first
-// element in the outs. Then the output of fmgr
-class fused_op_t : public graph_op_t,
-                   public op_traits::copyable_t,
-                   public op_traits::batchwise_shrinkable_t {
-public:
-    std::shared_ptr<fusion_manager> mgr_;
-    sc_graph_t main_op_;
-    std::vector<bool> keep_outputs_ = {false};
-    // for dispatch
-    sc_op_ptr main_dispatch_op_;
-    op_traits::post_fusion_acceptable_t *get_main_op() const;
-    fused_op_t(const std::string &name, sc_graph_t &&main_op,
-            std::shared_ptr<fusion_manager> fuse_mgr,
-            const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
-    ir_module_ptr get_func(context_ptr ctx) override;
-    bool is_valid(const context_ptr &) override;
-    bool compare_contents(const sc_op *other,
-            const std::function<bool(const sc_op *, const std::string &)>
-                    &filter) const override;
-    size_t hash_contents(
-            const std::function<bool(const sc_op *, const std::string &)>
-                    &filter) const override;
-    ir_module_ptr try_get_func(const context_ptr &ctx, bool just_check,
-            std::vector<sc_op_ptr> &out_failed);
-
-    sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
-            const std::vector<graph_tensor_ptr> &outs,
-            sc_graph_t &mgr) override;
-
-    sc_dims get_bwise_fuse_shrink_dims() override;
-    sc_op_ptr bw_shrinked_copy(
-            gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph) override;
-    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
-    void collect_shrinked_axis_map(
-            int bw_size, gt2axis_map &bw_axis_map) override;
-
-    // dynamic related
-    virtual dispatch_set_ptr &get_dispatch_key_set() override;
-    // Return vector of inner ops who has effective dispatch keys like tunable
-    // op/reorder op(dispatch alg). total_key_num is the pointer to number of
-    // input/output dispatch key inside(optional). The return value is mainly
-    // used for combined dispatch key construction.
-    virtual std::vector<sc_op_ptr> get_inner_dispatch_ops(int *total_key_num);
-    void update_internal_graph_format(
-            const combined_op_dispatch_key_t &key, const context_ptr &ctx);
-    ir_module_ptr get_dynamic_query_func(const context_ptr &ctx);
-};
-
-using horizontal_ops_idx_list = std::vector<
-        std::pair<sc_op_ptr, std::tuple<std::vector<int>, std::vector<int>>>>;
-
-class horizontal_fused_op_t : public graph_op_t {
-public:
-    horizontal_fused_op_t(const std::string &name,
-            const horizontal_ops_idx_list &ops_idx_list,
-            const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    horizontal_ops_idx_list ops_idx_list_;
-    ir_module_ptr get_func(context_ptr ctx) override;
-    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
-    void schedule_loops(const stmt &body);
-};
-
-class batchwise_fused_op_t : public graph_op_t {
-public:
-    batchwise_fused_op_t(const std::string &name, const sc_dims &bw_dims,
-            const sc_graph_t &bw_graph,
-            const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    sc_dims bw_dims_;
-    sc_graph_t bw_graph_;
-    ir_module_ptr get_func(context_ptr ctx) override;
-    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
-    void schedule_loops(const stmt &body);
 };
 
 class mixed_fuse_op_t : public graph_op_t,

@@ -23,7 +23,6 @@
 #include "fused_op.hpp"
 #include "fusion_anchor.hpp"
 #include "fusion_cost_model.hpp"
-#include "fusion_mgr.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/transform/static_memory_planner.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
@@ -47,8 +46,6 @@ constexpr const char *cut_buffer = "cut_buffer";
 constexpr const char *no_inplace = "no_inplace";
 // Boolean: is optimized sub graph
 constexpr const char *optimized_sub_graph = "optimized_sub_graph";
-// Boolean: can optimize outer loop
-constexpr const char *optimized_outer_loop = "optimized_outer_loop";
 // Boolean: is single op graph
 constexpr const char *single_op_graph = "single_op_graph";
 // Boolean: is begining op of pre-op fuse
@@ -133,7 +130,7 @@ public:
     void replace_func(func_t &func) {
         if (func) { dispatch_impl(func); }
     }
-    void replace_anchor(const std::vector<fuse_anchor_map_ptr> &fanchors);
+    void replace_anchor(const std::vector<fusion_anchor_ptr> &fanchors);
 };
 
 struct mxp_buffer_allocator {
@@ -143,7 +140,7 @@ private:
 public:
     gt2buf_map g2b_map_; // record graph tensor to ir tensor/tensorptr
             // mapping(maybe n-to-one)
-    std::unordered_map<expr, fuse_anchor_map_ptr>
+    std::unordered_map<expr, fusion_anchor_ptr>
             tsr2anch_map_; // real tensor-to-anchor mapping
     std::unordered_map<expr, graph_tensor_ptr>
             b2g_map_; // buffer-to-gt mapping(one-to-one)
@@ -182,7 +179,7 @@ public:
      * */
     void merge(mxp_buffer_allocator &other,
             std::unordered_map<expr, expr> &buffer_map,
-            const std::pair<fuse_anchor_map_ptr, fuse_anchor_map_ptr>
+            const std::pair<fusion_anchor_ptr, fusion_anchor_ptr>
                     &common_buffer_anchor_pair);
     // clear buffer allocator
     void clear();
@@ -199,7 +196,7 @@ public:
     // calculate real buffer usage size, taking consider of buffer schedule
     size_t get_real_buffer_usage() const;
     // get real anchor for the specfic buffer
-    fuse_anchor_map_ptr get_real_anchor_for_buffer(const expr &buffer) const;
+    fusion_anchor_ptr get_real_anchor_for_buffer(const expr &buffer) const;
     // get shrinked info for buffer
     slice_range get_shrinked_info(const expr &buffer) const;
     // query buffer inplace and set hint for IR pass
@@ -299,14 +296,14 @@ struct mixed_parti_t : fusion_partition_t {
     // current partition, but the name and argument maybe not confirmed until
     // final mixed_fused_op created.
     func_t func_;
-    // the fanchor only manage the shared pointer of fuse_anchor_map struct,
+    // the fanchor only manage the shared pointer of fusion_anchor struct,
     // during the whole lifetime of mixed_parti_t, it will not copy any
-    // fuse_anchor_map struct.
-    std::vector<fuse_anchor_map_ptr> fanchors_;
+    // fusion_anchor struct.
+    std::vector<fusion_anchor_ptr> fanchors_;
     // manage graph tensor to real tensor mapping
     mxp_buffer_allocator buf_alloc_ = mxp_buffer_allocator(this);
     // record the anchor to op mapping
-    std::unordered_map<sc_op *, fuse_anchor_map_ptr> op_anchor_map_;
+    std::unordered_map<sc_op *, fusion_anchor_ptr> op_anchor_map_;
 
     // Cost Model
     fusion_cost_model_ptr cost_;
@@ -315,10 +312,9 @@ struct mixed_parti_t : fusion_partition_t {
     using ptr = std::shared_ptr<mixed_parti_t>;
 
     // append fusion anchor
-    void append_fusion_anchor(const fuse_anchor_map_ptr &fanchor);
+    void append_fusion_anchor(const fusion_anchor_ptr &fanchor);
 
-    void append_fusion_anchor(
-            const std::vector<fuse_anchor_map_ptr> &fanchors) {
+    void append_fusion_anchor(const std::vector<fusion_anchor_ptr> &fanchors) {
         for (auto &fanchor : fanchors) {
             append_fusion_anchor(fanchor);
         }
@@ -340,11 +336,10 @@ struct mixed_parti_t : fusion_partition_t {
      * void merge(const ptr &other);
      * */
 
-    mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op,
-            const dep_mat_ptr &dep_m);
+    mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op);
 
     mixed_parti_t(const context_ptr &ctx, const func_t &func,
-            const fusion_anchor_mgr_t &fmgr, const dep_mat_ptr &dep_m);
+            const fusion_anchor_mgr_t &fmgr, const sc_graph_t &graph);
 
     bool is_ok_to_add(sc_op *op);
 
@@ -376,7 +371,7 @@ struct mixed_parti_t : fusion_partition_t {
     // get outer loops of which body(stmts) contains only one stmt or two with
     // the second one is empty fanchor
     std::vector<for_loop> get_outer_loops(
-            fuse_anchor_map_ptr fanchor = nullptr) const;
+            fusion_anchor_ptr fanchor = nullptr) const;
 
     void try_split_outermost_loop(int64_t block);
     void try_split_outermost_loop_on_num_threads(int64_t num_groups);
@@ -388,34 +383,34 @@ struct mixed_parti_t : fusion_partition_t {
     bool ready_for_op(sc_op *op) const;
 
     // look up fanchor by op
-    fuse_anchor_map_ptr lookup_anchor_map(
+    fusion_anchor_ptr lookup_anchor_map(
             sc_op *op, bool throw_assert = true) const;
 
     // look up fanchor by stmts
-    fuse_anchor_map_ptr lookup_anchor_map(const stmts &ss) const;
+    fusion_anchor_ptr lookup_anchor_map(const stmts &ss) const;
 
     // look up sub fanchor by parent fanchor
-    std::vector<fuse_anchor_map_ptr> lookup_sub_anchor_map(
-            const fuse_anchor_map_ptr &parent_fanchor) const;
+    std::vector<fusion_anchor_ptr> lookup_sub_anchor_map(
+            const fusion_anchor_ptr &parent_fanchor) const;
 
     // get anchor inside given loop
-    fuse_anchor_map_ptr get_anchor_inside_loop(
+    fusion_anchor_ptr get_anchor_inside_loop(
             const for_loop &loop, bool input_anchor = false) const;
 
     /// get next inner loop including anchor
     for_loop get_next_inner_loop_with_anchor(const for_loop &cur_loop,
-            const fuse_anchor_map_ptr &target_fanchor = nullptr) const;
+            const fusion_anchor_ptr &target_fanchor = nullptr) const;
 
     // clear all contents of given fanchor, but not erase it from
     // fanchor list
-    void clear_fanchor(fuse_anchor_map_ptr &fanchor);
+    void clear_fanchor(fusion_anchor_ptr &fanchor);
 
     // clear all unused fanchor, and erase them from fanchor list
     void clear_fanchors();
 
     // try to bind given op with given fanchor, if suitable fanchor exists, it
     // will compare two fanchor and select smaller one
-    void set_anchor_for_op(sc_op *op, const fuse_anchor_map_ptr &fanchor_map);
+    void set_anchor_for_op(sc_op *op, const fusion_anchor_ptr &fanchor_map);
 
     // schedule buffer
     void buffer_schedule();
@@ -497,6 +492,7 @@ struct mixed_parti_t : fusion_partition_t {
         return cost_->get_fusion_policy_condition();
     }
 
+    // get host graph
     sc_graph_t &get_host_graph() const {
         COMPILE_ASSERT(
                 !committed_ops_.empty(), "No op contained in current partition")
@@ -505,6 +501,12 @@ struct mixed_parti_t : fusion_partition_t {
 
     // transform partition to mixed fuse op
     std::shared_ptr<mixed_fuse_op_t> transform_to_mixed_op();
+
+    // init axis binder
+    void init_axis_binder(const graph_tensor_ptr &base_gt,
+            const std::vector<int> &init_axis, bool using_block = false);
+    void init_axis_binder(const graph_tensor_ptr &base_gt,
+            const bound_axis &init_axis, bool using_block = false);
 };
 
 enum class parti_merge_kind : int {
@@ -512,12 +514,6 @@ enum class parti_merge_kind : int {
     horizontal = 1,
     parallel = 2,
 };
-
-// This is a bridge function
-void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
-        mixed_parti_t *parti, std::vector<expr> ir_tsrs,
-        std::vector<graph_tensor_ptr> gtsrs,
-        const fuse_anchor_map_ptr &parent_fanchor = nullptr);
 
 void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti);
 
@@ -556,6 +552,11 @@ inline bool is_optimized_sub_graph(sc_graph_t &g) {
             mixed_partition_hint::optimized_sub_graph, false);
 }
 
+// judge the given graph whether is the graph containing only one op
+inline bool is_single_op_graph(sc_graph_t &g) {
+    return g.attrs_.get_or_else(mixed_partition_hint::single_op_graph, false);
+}
+
 bool concat_memory_planning_on_graph(sc_graph_t &graph);
 
 // try optimize partition, such as reduce_op optimization
@@ -567,6 +568,9 @@ mixed_fuse_op_t *get_mixed_op_from_graph(sc_graph_t &graph);
 
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
 
+// commit graph to TIR, usually used in UT
+void commit_graph_to_func(const sc_graph_t &g, const func_t &func,
+        const fusion_anchor_mgr_t &fmgr);
 } // namespace gc
 } // namespace graph
 } // namespace impl

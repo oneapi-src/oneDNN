@@ -23,9 +23,10 @@
 #include "test_utils.hpp"
 #include "gtest/gtest.h"
 #include <compiler/ir/graph/driver.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/graph/lowering.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
+#include <compiler/ir/graph/trait/may_broadcast.hpp>
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/jit/jit.hpp>
 #include <util/any_map.hpp>

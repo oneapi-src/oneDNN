@@ -21,7 +21,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_data.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/trait/configurable.hpp>
 #include <compiler/ir/graph/traits.hpp>
@@ -34,6 +34,7 @@ namespace graph {
 namespace gc {
 struct op_dispatch_key_t;
 struct impl_op_dispatch_key_t;
+
 class SC_INTERNAL_API tunable_op_t
     : public sc_op,
       public op_traits::copyable_t,
@@ -53,7 +54,7 @@ public:
     bool is_valid(const context_ptr &) override;
 
     ir_module_ptr get_func(context_ptr ctx,
-            const std::shared_ptr<fusion_manager> &fuse_mgr,
+            const std::shared_ptr<fusion_anchor_mgr_t> &fuse_mgr,
             const std::string &func_name) override {
         throw std::runtime_error("unimplemented");
     }
@@ -79,7 +80,7 @@ public:
 
     void search_anchor(mixed_parti_t *parti) override;
 
-    void commit_into_anchor(fuse_anchor_map_t *committed_anchor) override;
+    void commit_into_anchor(fusion_anchor_t *committed_anchor) override;
 
     config_ptr_vec get_dynamic_config_candidates(
             const context_ptr &ctx) override;
@@ -94,12 +95,12 @@ public:
 
     void append_mixed_partition(mixed_parti_t *parti) override;
 
-    virtual void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map)
+    virtual infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap)
             = 0;
 
     void infer_binding_axis(bound_axis_map &bdax_map) override {}
-    void pre_binding_axis(bound_axis_map &bdax_map) override {}
+    void pre_infer_binding_axis(bound_axis_map &bdax_map) override {}
 
 protected:
     config_ptr config_data_;

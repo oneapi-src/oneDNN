@@ -65,7 +65,6 @@ TEST(GCCore_CPU_compiler_driver, TestCodeReuse) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.const_share_ = true;
-    ctx->flags_.mixed_fusion_ = true;
 
     auto g1 = make_graph(0, 1, 1.23f);
     auto mod1

@@ -50,7 +50,11 @@ class dep_printer_t : public ir_viewer_t {
 } // namespace ut
 
 static std::shared_ptr<stmt_base_t> get_builder_top() {
-    return builder::get_current_builder()->get_current_scope().body.back().impl;
+    return builder::get_current_builder()
+            ->get_current_scope()
+            .as_seq()
+            .back()
+            .impl;
 }
 
 static void check_dep(const std::shared_ptr<stmt_base_t> &ptr,

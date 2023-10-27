@@ -212,14 +212,15 @@ TEST(GCCore_CPU_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
     auto in_b = g.make_input(
             {graph_tensor::make({64, 32}, sc_data_format_t::KN())});
 
-    auto mmm = g.make<customized_matmul_core_op_t>(
+    auto mmm = std::make_shared<customized_matmul_core_op_t>(
             std::vector<graph_tensor_ptr> {
                     in_a->get_outputs()[0], in_b->get_outputs()[0]},
             std::vector<graph_tensor_ptr> {graph_tensor::make({-1, 32})},
             any_map_t());
+    g.add(mmm);
     auto out = g.make_output(mmm->get_outputs());
     // disable copy during fusion as copy may remake op with op name.
-    g.attrs_.set("temp.disable_graph_fusion", 1);
+    ctx->flags_.opt_level_ = sc_opt_level::lv0;
     graph_driver(g, ctx);
     std::vector<sc_op_ptr> gargs {out, in_a, in_b};
     auto modu = lower_graph(ctx, g, gargs);

@@ -30,7 +30,7 @@ namespace graph {
 namespace gc {
 
 using config_ptr = reflection::shared_general_object_t;
-class fusion_manager;
+class fusion_anchor_mgr_t;
 class sc_op;
 struct graph_tensor;
 struct tensor_slice;
@@ -70,14 +70,14 @@ struct body_generator_base_t {
      * @return generate status, e.g. success.
      * */
     virtual bool generate(context_ptr ctx, const void *config,
-            fusion_manager *fusion, const std::vector<expr> &inputs,
+            fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
             const std::vector<expr> &outputs,
             std::vector<for_loop> &loops) const = 0;
     /**
      * Get the single core calculation function e.g. wrapped brgemm.
      */
     virtual func_t get_single_core_func(context_ptr ctx, const void *config,
-            fusion_manager *fusion, const std::vector<expr> &inputs,
+            fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
             const std::vector<expr> &outputs,
             std::vector<for_loop> &loops) const {
         return nullptr;
@@ -159,26 +159,27 @@ struct body_generator_t : public body_generator_base_t {
         return is_valid_config(ctx, *reinterpret_cast<const TConfig *>(config));
     }
     virtual bool generate(context_ptr ctx, const TConfig &config,
-            fusion_manager *fusion, const std::vector<expr> &inputs,
+            fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
             const std::vector<expr> &outputs,
             std::vector<for_loop> &loops) const = 0;
 
-    bool generate(context_ptr ctx, const void *config, fusion_manager *fusion,
-            const std::vector<expr> &inputs, const std::vector<expr> &outputs,
+    bool generate(context_ptr ctx, const void *config,
+            fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
+            const std::vector<expr> &outputs,
             std::vector<for_loop> &loops) const override {
         return generate(ctx, *reinterpret_cast<const TConfig *>(config), fusion,
                 inputs, outputs, loops);
     }
 
     virtual func_t get_single_core_func(context_ptr ctx, const TConfig &config,
-            fusion_manager *fusion, const std::vector<expr> &inputs,
+            fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
             const std::vector<expr> &outputs,
             std::vector<for_loop> &loops) const {
         return nullptr;
     }
 
     func_t get_single_core_func(context_ptr ctx, const void *config,
-            fusion_manager *fusion, const std::vector<expr> &inputs,
+            fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
             const std::vector<expr> &outputs,
             std::vector<for_loop> &loops) const override {
         return get_single_core_func(ctx,

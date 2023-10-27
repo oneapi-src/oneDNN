@@ -25,11 +25,10 @@
 
 #include "memory_movement.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/anchor_loop_generator.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
-#include <compiler/ir/graph/outer_loop_generator.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <unordered_map>
@@ -41,11 +40,7 @@ namespace impl {
 namespace graph {
 namespace gc {
 ir_module_ptr reshape_op_t::get_func(context_ptr ctx) {
-    if (ctx->flags_.mixed_fusion_) return fusible_op_get_func(this, ctx);
-    top_level_anchor_generator_t gen;
-    attrs_.set(op_attr_key::no_fuse, true);
-    auto ret = fusible_op_get_func(this, gen, ctx, true);
-    return ret;
+    return fusible_op_get_func(this, ctx);
 }
 
 static void check_concat_validity(
@@ -364,24 +359,15 @@ void concat_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-void concat_op_t::prepare_fusion_data(fdata_map &fdmap) {
-    COMPILE_ASSERT(info_.outputs_.size() == 1, "Wrong op output size.\n");
-    auto &in_detail0 = fdmap.get(info_.inputs_[0]);
-    in_detail0.use_count_++;
-    check_concat_validity(info_.inputs_, axis_);
-}
-
-void concat_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code concat_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
-    if (known_ranges_map.empty()) return;
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
+    if (known_ranges_map.empty()) return infer_status_code::RETRY;
     if (known_ranges_map.size() > 1) {
         // slice of multiple inputs are given
         if (!check_slice_on_non_concat_axis_equal(known_ranges_map, axis_)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
     }
     auto known_id = known_ranges_map.begin()->first; // input id
@@ -403,8 +389,7 @@ void concat_op_t::infer_slice_ranges(
         if (!slice_full_on_axis(
                     info_.inputs_[known_id]->details_.get_blocking_dims(),
                     sr[n], {int(axis_)})) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+            return infer_status_code::RETRY;
         }
 
         // slice_ranges of inputs and output only differ at concat axis.
@@ -423,10 +408,13 @@ void concat_op_t::infer_slice_ranges(
                 info_.outputs_[0]->details_.get_blocking_dims()[axis_]));
         fsmap.get(get_outputs()[0]).at(n) = sr_o;
     }
+    return infer_status_code::OK;
 }
 
-void concat_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {}
+infer_status_code concat_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
+    throw std::runtime_error("Not implemented");
+}
 
 void concat_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
@@ -529,17 +517,13 @@ void transpose_op_t::query_format(context_ptr ctx,
     supported_outs[0].emplace_back(std::make_pair(out_format, in_strides));
 }
 
-void transpose_op_t::prepare_fusion_data(fdata_map &fdmap) {
+infer_status_code transpose_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     throw std::runtime_error("Not implemented");
 }
 
-void transpose_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
-    throw std::runtime_error("Not implemented");
-}
-
-void transpose_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code transpose_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     throw std::runtime_error("Not implemented");
 }
 
@@ -848,11 +832,6 @@ void tensor_view_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-void tensor_view_op_t::prepare_fusion_data(fdata_map &fdmap) {
-    auto &in_detail0 = fdmap.get(info_.inputs_[0]);
-    in_detail0.use_count_++;
-}
-
 slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
         const slice_range_list &known_ranges_list,
         const std::vector<expr> &src_tv_dims,
@@ -981,16 +960,14 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
     return ret;
 }
 
-void tensor_view_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code tensor_view_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     if (share_gt_with_op<output_op>(get_inputs()[0])) {
-        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
-        return;
+        return infer_status_code::FAIL;
     }
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
-    if (known_ranges_map.empty()) return;
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
+    if (known_ranges_map.empty()) return infer_status_code::RETRY;
     slice_range_list known_ranges_list = known_ranges_map[0];
 
     if (fsmap.get(get_outputs()[0]).empty()) {
@@ -1005,19 +982,16 @@ void tensor_view_op_t::infer_slice_ranges(
         auto tv_slice = infer_tensor_view_slice(
                 graph, known_ranges_list, src_dims, dst_dims);
 
-        if (tv_slice.empty()) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
-        }
+        if (tv_slice.empty()) { return infer_status_code::RETRY; }
         fsmap.get(get_outputs()[0]) = tv_slice;
     }
+    return infer_status_code::OK;
 }
 
-void tensor_view_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code tensor_view_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     if (share_gt_with_op<output_op>(get_inputs()[0])) {
-        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
-        return;
+        return infer_status_code::FAIL;
     }
     if (fsmap.get(get_inputs()[0]).empty()) {
         slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
@@ -1028,19 +1002,13 @@ void tensor_view_op_t::pre_slice_ranges(
         // dst
         auto dst_dims
                 = info_.outputs_[0]->details_.get_blocking_dims_expr(graph);
-        // NOTE: pre_slice_ranges use shapes as src_dims
+        // NOTE: pre_infer_slice_ranges use shapes as src_dims
         auto tv_slice = infer_tensor_view_slice(
                 graph, known_ranges_list, dst_dims, src_dims);
-        if (tv_slice.empty()) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
-        }
+        if (tv_slice.empty()) { return infer_status_code::RETRY; }
         fsmap.get(get_inputs()[0]) = tv_slice;
-        // recursively pre-infer
-        info_.inputs_[0]
-                ->producer_owner_->dyn_cast<fusible_op_t>()
-                ->pre_slice_ranges(fsmap, stat_map);
     }
+    return infer_status_code::OK;
 }
 
 // transpose_axis_map stores the transpose relation of src_axis --> dst_axis
@@ -1122,7 +1090,7 @@ bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
 }
 
 void tensor_view_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
-    auto known_axis_map = search_known_bound_axis(this, bdax_map);
+    auto known_axis_map = search_known_input_axis(this, bdax_map);
     if (!bdax_map.get(get_outputs()[0]).empty()) return;
     // src
     auto src_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
@@ -1137,10 +1105,10 @@ void tensor_view_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     auto plain_bd_axis = infer_tensor_view_binding_axis(known_axis_map[0],
             src_plain_dims, dst_plain_dims, std::vector<int> {}, axis_mapping);
     bdax_map.get(get_outputs()[0]) = plain_bd_axis;
-    set_unknown_axis_binding(this, known_axis_map, bdax_map);
+    set_unknown_binding_axis(this, known_axis_map, bdax_map);
 }
 
-void tensor_view_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
+void tensor_view_op_t::pre_infer_binding_axis(bound_axis_map &bdax_map) {
     auto &outaxis = bdax_map.get(get_outputs()[0]);
     COMPILE_ASSERT(!outaxis.empty(),
             "Unknown output axis found, could not pre bind axis")
@@ -1161,41 +1129,9 @@ void tensor_view_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
         if (auto bd_op
                 = input->producer_owner_
                           ->dyn_cast<op_traits::mixed_partition_acceptable>()) {
-            bd_op->pre_binding_axis(bdax_map);
+            bd_op->pre_infer_binding_axis(bdax_map);
         }
     }
-}
-
-sc_dims tensor_view_op_t::get_bwise_fuse_shrink_dims() {
-    auto old_dims = info_.inputs_[0]->details_.get_blocking_dims();
-    auto new_dims = get_shapes();
-    sc_dims bw_dims;
-    int offset
-            = std::min(op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
-                               info_.inputs_[0]),
-                    op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
-                            info_.outputs_[0]));
-    int common_size = std::min(old_dims.size(), new_dims.size());
-    for (int i = 0; i < std::min(common_size, offset); i++) {
-        if (old_dims[i] == new_dims[i])
-            bw_dims.emplace_back(new_dims[i]);
-        else
-            break;
-    }
-    return bw_dims;
-}
-
-sc_op_ptr tensor_view_op_t::bw_shrinked_copy(
-        gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph) {
-    auto ins = get_inputs()[0];
-    auto cache_input_format = ins->details_.get_format();
-    COMPILE_ASSERT(bw_lt_map.haskey(ins),
-            "tensor_view_op: new input graph tensor not found in map")
-    auto plain_shape = sc_data_format_t::get_padded_plain_shapes(
-            bw_lt_map.get(ins)->details_.get_blocking_dims(),
-            cache_input_format);
-    return op_traits::batchwise_shrinkable_t::bw_shrinked_copy(
-            bw_lt_map, shrinked_graph, {{"shape", plain_shape}});
 }
 
 void tensor_view_op_t::compute_block(context_ptr ctx,
@@ -1231,20 +1167,21 @@ reshape_op_t::reshape_op_t(const std::vector<graph_tensor_ptr> &ins,
         shapes_ = outs[0]->details_.get_plain_dims();
     }
 }
-void reshape_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {}
-void reshape_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
-    if (known_ranges_map.empty()) return;
-    if (known_ranges_map[0].size() != 1) return;
+infer_status_code reshape_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
+    throw std::runtime_error("Not implemented");
+}
+
+infer_status_code reshape_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
+    if (known_ranges_map.empty() || known_ranges_map[0].size() != 1)
+        return infer_status_code::RETRY;
     auto blocking_dims = info_.inputs_[0]->details_.get_blocking_dims();
     std::vector<int> axis(blocking_dims.size());
     std::iota(axis.begin(), axis.end(), 0);
     if (!slice_full_on_axis(blocking_dims, known_ranges_map[0][0], axis)) {
-        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-        return;
+        return infer_status_code::RETRY;
     }
     // fake infer slice
     std::vector<std::pair<expr, expr>> ranges;
@@ -1254,11 +1191,9 @@ void reshape_op_t::infer_slice_ranges(
         ranges.emplace_back(expr(0), expr(dim2unsigned(shapes[i])));
     }
     fsmap.get(get_outputs()[0]).push_back(ranges);
+    return infer_status_code::OK;
 }
-void reshape_op_t::prepare_fusion_data(fdata_map &fdmap) {
-    auto &in_detail0 = fdmap.get(info_.inputs_[0]);
-    in_detail0.use_count_++;
-}
+
 void reshape_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
@@ -1355,44 +1290,11 @@ void split_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-void split_op_t::prepare_fusion_data(fdata_map &fdmap) {
-    auto &in_detail0 = info_.inputs_[0];
-    fdmap.get(in_detail0).use_count_++;
-    COMPILE_ASSERT(info_.outputs_.size() > 1,
-            "Split op output size should bigger than 1.\n");
-    auto dims = in_detail0->details_.get_blocking_dims();
-    auto dims_size = dims.size();
-    COMPILE_ASSERT(dims_size > dim_, "Split dim is not available.\n");
-    sc_dim total_split = 0;
-    for (auto num : shapes_) {
-        total_split += num;
-    }
-    COMPILE_ASSERT(total_split == dims[dim_],
-            "Split shapes are not matched with input.\n");
-    for (unsigned i = 0; i < info_.outputs_.size(); i++) {
-        auto &output = info_.outputs_[i];
-        sc_dims out_dims(dims_size);
-        std::vector<expr> tmp_shape;
-        auto &outdetail = fdmap.get(output);
-        for (unsigned j = 0; j < dims_size; j++) {
-            if (j != dim_) {
-                tmp_shape.emplace_back(dim2unsigned(dims[j]));
-                out_dims.emplace_back(
-                        info_.inputs_[0]->details_.get_blocking_dims()[j]);
-            } else {
-                tmp_shape.emplace_back(dim2unsigned(shapes_[i]));
-                out_dims.emplace_back(shapes_[i]);
-            }
-        }
-    }
-}
-
-void split_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
+infer_status_code split_op_t::infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map
-            = search_known_slice_ranges(this, fsmap, stat_map);
-    if (known_ranges_map.empty()) return;
+    slice_range_map known_ranges_map = search_known_input_slice(this, fsmap);
+    if (known_ranges_map.empty()) return infer_status_code::RETRY;
     size_t slice_size = known_ranges_map[0].size();
     slice_range_list split_ranges_list = known_ranges_map[0];
     for (size_t i = 0; i < get_outputs().size(); i++) {
@@ -1416,10 +1318,13 @@ void split_op_t::infer_slice_ranges(
             }
         }
     }
+    return infer_status_code::OK;
 }
 
-void split_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {}
+infer_status_code split_op_t::pre_infer_slice_ranges(
+        const context_ptr &ctx, fslice_map &fsmap) {
+    throw std::runtime_error("Not implemented");
+}
 
 void compute_block_split(const std::vector<const tensor_slice *> &src,
         const std::vector<tensor_slice *> &dst, unsigned dim,

@@ -48,7 +48,7 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestSimpleSchedule) {
         _tensor_(b, datatypes::f32, {50});
         // make a staic local tensor here. This tensor should not be touched
         _tensor_(static_v, datatypes::f32, {100});
-        bld.get_current_scope().body.back().checked_as<define>()->linkage_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->linkage_
                 = linkage::static_local;
 
         _var_(scalar, datatypes::f32);
@@ -85,7 +85,7 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestSimpleSchedule) {
         _tensor_(b, datatypes::f32, {100UL});
         // make a staic local tensor here. This tensor should not be touched
         _tensor_(static_v, datatypes::f32, {100});
-        bld.get_current_scope().body.back().checked_as<define>()->linkage_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->linkage_
                 = linkage::static_local;
 
         _var_(scalar, datatypes::f32);
@@ -128,11 +128,11 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestSimpleSchedule) {
         _tensor_(a, datatypes::f32, {100});
         // tensor b
         _tensor_(b, datatypes::f32, {50});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(rescheduled, {0UL});
         // make a staic local tensor here. This tensor should not be touched
         _tensor_(static_v, datatypes::f32, {100});
-        bld.get_current_scope().body.back().checked_as<define>()->linkage_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->linkage_
                 = linkage::static_local;
 
         _var_(scalar, datatypes::f32);
@@ -143,19 +143,19 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestSimpleSchedule) {
 
         // tensor c
         _tensor_(c, datatypes::f32, {100});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(rescheduled, {256UL});
         c[0] = b[0];
 
         // tensor d
         _tensor_(d, datatypes::f32, {100});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(rescheduled, {256UL});
         d[0] = c[0];
 
         // tensor e
         _tensor_(e, datatypes::f32, {100});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(rescheduled, {0UL});
         b[10] = 2;
         e[0] = d[0];
@@ -165,7 +165,7 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestSimpleSchedule) {
         scalar = e[0];
 
         _tensor_(int8, datatypes::s8, {100});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(rescheduled, {0UL});
         int8[0] = external[0];
         external[0] = int8[0];
@@ -195,10 +195,10 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestSimpleSchedule) {
     {
         _tensor_(rescheduled, datatypes::s8, {320UL});
         _tensor_(a, datatypes::f32, {10});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(rescheduled, {0UL});
         _tensor_(b, datatypes::f32, {50});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(rescheduled, {64UL});
         a[0] = external[0]; // 2...1
         b[0] = a[0]; // 4...3
@@ -386,30 +386,38 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestThreadLocal) {
     {
         _tensor_(resch, datatypes::s8, {640UL});
         _tensor_(a, datatypes::f32, {50UL});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(resch.get(), {0UL});
         a[0] = 0;
         _for_(i, 0, 10) {
             _tensor_(b, datatypes::f32, {50UL});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(resch.get(), {0UL});
             b[0] = 1;
             _tensor_(c, datatypes::f32, {20UL});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(resch.get(), {512UL});
             c[10] = b[0];
             _tensor_(f, datatypes::f32, {50UL});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(resch.get(), {256UL});
             _for_(j, 0, 100, 1, for_type::PARALLEL) {
                 // parallel scope 1
                 _tensor_(resch_in_parallel_0, datatypes::s8, {384UL});
                 _tensor_(d, datatypes::f32, {50UL});
-                bld.get_current_scope().body.back().checked_as<define>()->init_
+                bld.get_current_scope()
+                        .as_seq()
+                        .back()
+                        .checked_as<define>()
+                        ->init_
                         = builder::tensor_ptr(resch_in_parallel_0.get(), {0UL});
                 d[10] = 2;
                 _tensor_(e, datatypes::f32, {20UL});
-                bld.get_current_scope().body.back().checked_as<define>()->init_
+                bld.get_current_scope()
+                        .as_seq()
+                        .back()
+                        .checked_as<define>()
+                        ->init_
                         = builder::tensor_ptr(resch_in_parallel_0.get(), {0UL});
                 e[0] = d[10];
                 f[0] = 1;
@@ -417,14 +425,16 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestThreadLocal) {
                 _for_(k, 0, 200) {
                     _tensor_(g, datatypes::f32, {50UL});
                     bld.get_current_scope()
-                            .body.back()
+                            .as_seq()
+                            .back()
                             .checked_as<define>()
                             ->init_
                             = builder::tensor_ptr(
                                     resch_in_parallel_0.get(), {128UL});
                     _tensor_(h, datatypes::f32, {50UL});
                     bld.get_current_scope()
-                            .body.back()
+                            .as_seq()
+                            .back()
                             .checked_as<define>()
                             ->init_
                             = builder::tensor_ptr(
@@ -439,19 +449,27 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestThreadLocal) {
             // parallel scope 2
             _tensor_(resch_in_parallel_2, datatypes::s8, {320UL});
             _tensor_(m, datatypes::f32, {50UL});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(resch_in_parallel_2.get(), {0UL});
             _tensor_(n, datatypes::f32, {20UL});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(resch_in_parallel_2.get(), {0UL});
             m[0] = 3;
             n[0] = m[0];
             _for_(j, 0, 100) {
                 _tensor_(p, datatypes::f32, {50UL});
-                bld.get_current_scope().body.back().checked_as<define>()->init_
+                bld.get_current_scope()
+                        .as_seq()
+                        .back()
+                        .checked_as<define>()
+                        ->init_
                         = builder::tensor_ptr(resch_in_parallel_2.get(), {0UL});
                 _tensor_(q, datatypes::f32, {10UL});
-                bld.get_current_scope().body.back().checked_as<define>()->init_
+                bld.get_current_scope()
+                        .as_seq()
+                        .back()
+                        .checked_as<define>()
+                        ->init_
                         = builder::tensor_ptr(
                                 resch_in_parallel_2.get(), {256UL});
                 p[0] = 3;
@@ -597,10 +615,10 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestDeadWriteDiffScope) {
         bld.push_scope();
         bld.emit(bld.pop_scope());
         _tensor_(d, datatypes::f32, {50UL});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(resch_0.get(), {0UL});
         _tensor_(e, datatypes::f32, {50UL});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(resch_0.get(), {0UL});
         _for_(i, 0, 10, 1, for_type::PARALLEL) {
             // normal schedule
@@ -696,38 +714,38 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestListBrgemm) {
     {
         _tensor_(scheduled, datatypes::s8, {1216UL});
         _tensor_(a, datatypes::f32, {100});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(scheduled.get(), {256UL});
         _tensor_(b, datatypes::f32, {50});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(scheduled.get(), {704UL});
         _tensor_(c, datatypes::f32, {50});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(scheduled.get(), {960UL});
         _tensor_(d, datatypes::f32, {50});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(scheduled.get(), {256UL});
         _tensor_(e, datatypes::f32, {50});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(scheduled.get(), {960UL});
 
         _tensor_(l_a, datatypes::pointer, {1});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(scheduled.get(), {0UL});
         l_a[0] = builder::make_cast(
                 datatypes::pointer, builder::tensor_ptr(a, {1}));
         _tensor_(l_b, datatypes::pointer, {1});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(scheduled.get(), {64UL});
         l_b[0] = builder::make_cast(
                 datatypes::pointer, builder::tensor_ptr(b, {1}));
         _tensor_(l_c, datatypes::pointer, {1});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(scheduled.get(), {128UL});
         l_c[0] = builder::make_cast(
                 datatypes::pointer, builder::tensor_ptr(c, {1}));
         _tensor_(l_d, datatypes::pointer, {1});
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(scheduled.get(), {192UL});
         l_d[0] = builder::make_cast(datatypes::pointer, d);
 
@@ -773,16 +791,16 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestForScope) {
         _tensor_(scheduled, datatypes::s8, {512UL});
         _for_(i, 0, 10) {
             _tensor_(a, datatypes::f32, {50});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(scheduled.get(), {0UL});
             _tensor_(b, datatypes::f32, {50});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(scheduled.get(), {256UL});
             a[0] = 1;
             b[0] = a[0];
             builtin::print_float(a[0]);
             _tensor_(c, datatypes::f32, {50});
-            bld.get_current_scope().body.back().checked_as<define>()->init_
+            bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                     = builder::tensor_ptr(scheduled.get(), {0UL});
             c[0] = b[0];
             builtin::print_float(b[0]);
@@ -822,13 +840,13 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestTempBufferInplace) {
         _bind_(C);
         _tensor_(sched, datatypes::s8, UINT64_C(896));
         _tensor_(A, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(0)});
         _tensor_(B, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(448)});
         _tensor_(temp1, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(0)});
         A[0] = 1;
         B[0] = 1;
@@ -849,14 +867,14 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestAlreadyScheduled) {
         _tensor_(A_base, datatypes::f32, 100);
         A_base.get()->attr()[attr_keys::can_be_scheduled] = true;
         _tensor_(A, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(A_base, {UINT64_C(0)});
         A[0] = 1;
 
         _tensor_(B_base, datatypes::f32, 100);
         B_base.get()->attr()[attr_keys::can_be_scheduled] = true;
         _tensor_(B, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(B_base, {UINT64_C(0)});
         B[0] = 1;
         C[0] = A[0];
@@ -865,7 +883,7 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestAlreadyScheduled) {
         _tensor_(D_base, datatypes::f32, 100);
         D_base.get()->attr()[attr_keys::can_be_scheduled] = true;
         _tensor_(D, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(D_base, {UINT64_C(0)});
         C[0] = D[0];
     }
@@ -877,18 +895,18 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestAlreadyScheduled) {
         _bind_(C);
         _tensor_(sched, datatypes::s8, UINT64_C(896));
         _tensor_(A_base, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(0)});
         _tensor_(A, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(A_base, {UINT64_C(0)});
         A[0] = 1;
 
         _tensor_(B_base, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(448)});
         _tensor_(B, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(B_base, {UINT64_C(0)});
         B[0] = 1;
         C[0] = A[0];
@@ -896,10 +914,10 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestAlreadyScheduled) {
 
         // D can reuse A
         _tensor_(D_base, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(0)});
         _tensor_(D, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(D_base, {UINT64_C(0)});
         C[0] = D[0];
     }
@@ -936,16 +954,16 @@ TEST(GCCore_CPU_buffer_schedule_cpp, TestInplaceOutputArg) {
         out->attr()["write_buffer"] = true;
         _tensor_(sched, datatypes::s8, UINT64_C(448));
         _tensor_(A, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(sched, {UINT64_C(0)});
         A[0] = 1;
         _tensor_(B, datatypes::f32, 100);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(out, {UINT64_C(0)});
         auto id_B = alias_info::get_or_create_alias_info(*B.get());
         B[0] = 1;
         _tensor_(C, datatypes::f32, 50);
-        bld.get_current_scope().body.back().checked_as<define>()->init_
+        bld.get_current_scope().as_seq().back().checked_as<define>()->init_
                 = builder::tensor_ptr(out, {UINT64_C(0)});
         auto id_C = alias_info::get_or_create_alias_info(*C.get());
         C->attr()[attr_keys::tensor_inplace_hint]

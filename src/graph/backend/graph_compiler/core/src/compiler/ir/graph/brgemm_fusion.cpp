@@ -14,25 +14,21 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include "brgemm_fusion.hpp"
+#include <utility>
 #include "../builder.hpp"
 #include "../intrinsics.hpp"
 #include "../pass/ir_copy.hpp"
 #include "../viewer.hpp"
-#include "fusion_mgr.hpp"
+#include "fusion_anchor.hpp"
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
+#include <unordered_map>
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-void fusion_manager::break_brgemm_fusion() {
-    brg_fusion_reg_.can_register_next_ = false;
-}
-
-bool fusion_manager::can_register_brgemm_fusion(const stmt &body) {
-    return brg_fusion_reg_.can_register_brgemm_fusion(body);
-}
 
 class valid_brgemm_finder_t : public ir_viewer_t {
 public:

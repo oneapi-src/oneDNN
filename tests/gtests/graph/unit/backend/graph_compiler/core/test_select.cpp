@@ -23,7 +23,7 @@
 #include "test_utils.hpp"
 #include "gtest/gtest.h"
 #include <compiler/ir/graph/driver.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/graph/lowering.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/sc_data_format.hpp>
@@ -189,7 +189,7 @@ static void check_distill_bert_mha(const sc_dims &feature_plain_dims,
 
     auto output = graph.make_output(reorder->get_outputs());
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.mixed_fusion_ = true;
+
     graph_driver(graph, ctx);
     ir_module_ptr mod = lower_graph(ctx, graph, {input, output});
     auto fptr = jit_engine_t::make(ctx)->get_entry_func(mod, true);

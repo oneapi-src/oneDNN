@@ -53,11 +53,12 @@ public:
             std::vector<std::vector<format_stride_pair>> &supported_ins,
             std::vector<std::vector<format_stride_pair>> &supported_outs)
             override;
-    void prepare_fusion_data(fdata_map &fdmap) override {};
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override;
-    void pre_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override {}
+    infer_status_code infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override;
+    infer_status_code pre_infer_slice_ranges(
+            const context_ptr &ctx, fslice_map &fsmap) override {
+        return infer_status_code::OK;
+    }
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;
 

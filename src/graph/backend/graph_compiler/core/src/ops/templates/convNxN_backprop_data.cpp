@@ -22,7 +22,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/fusion_anchor.hpp>
 #include <util/any_map.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
@@ -94,7 +94,7 @@ void gen_convNxN_backprop_data::schedule_loops(context_ptr ctx,
 }
 
 bool gen_convNxN_backprop_data::generate(context_ptr ctx,
-  const conv_bwd_data_config_t &config, fusion_manager *fusion,
+  const conv_bwd_data_config_t &config, fusion_anchor_mgr_t *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // initialize paddings and strides on fwd_input
@@ -185,14 +185,12 @@ bool gen_convNxN_backprop_data::generate(context_ptr ctx,
               }
             }
           }
-          if (fusion) {
-            if (!is_out_blocking) {
-              fusion->create_output_fusion_anchor({tensor_slice(del_input,
-                {{n, 1}, {0, H}, {0, W}, {c_o * C_block, C_block}})});
-            } else {
-              fusion->create_output_fusion_anchor({tensor_slice(
-                del_input, {{n, 1}, {c_o, 1}, {0, H}, {0, W}, {0, C_block}})});
-            }
+          if (!is_out_blocking) {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              {{n, 1}, {0, H}, {0, W}, {c_o * C_block, C_block}});
+          } else {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              {{n, 1}, {c_o, 1}, {0, H}, {0, W}, {0, C_block}});
           }
         }
       }
@@ -373,14 +371,12 @@ bool gen_convNxN_backprop_data::generate(context_ptr ctx,
               }
             }
           }
-          if (fusion) {
-            if (!is_out_blocking) {
-              fusion->create_output_fusion_anchor({tensor_slice(del_input,
-                {{n, 1}, {0, H}, {0, W}, {c_o * C_block, C_block}})});
-            } else {
-              fusion->create_output_fusion_anchor({tensor_slice(
-                del_input, {{n, 1}, {c_o, 1}, {0, H}, {0, W}, {0, C_block}})});
-            }
+          if (!is_out_blocking) {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              {{n, 1}, {0, H}, {0, W}, {c_o * C_block, C_block}});
+          } else {
+            create_fusion_anchor(fusion, owner_->get_outputs()[0],
+              {{n, 1}, {c_o, 1}, {0, H}, {0, W}, {0, C_block}});
           }
         }
       }
