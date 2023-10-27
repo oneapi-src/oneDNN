@@ -42,6 +42,8 @@ public:
 
     int64_t get_axis() { return axis_; }
 
+    void set_format_and_axis();
+
     // For each input tensor, concat optimization pass will try to make the
     // parent op directly write it into the output of concat; If so, we mark the
     // corresponding input as invalid (false). For the input tensor that cannot

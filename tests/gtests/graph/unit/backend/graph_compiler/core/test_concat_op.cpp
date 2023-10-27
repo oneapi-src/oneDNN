@@ -639,10 +639,10 @@ TEST(GCCore_CPU_concat_op_t_cpp, DeqConv_DeqConv_Concat) {
             = R"(graph(v0: u8[1, 128, 56, 56], v1: s8[32, 128, 3, 3], v2: u8[1, 64, 56, 56], v3: s8[16, 64, 3, 3]) -> [v4: f32[1, 48, 56, 56]] {
   [v5: s8[1, 1, 3, 3, 16, 16, 4]] = reorder(v3)
   [v6: u8[1, 56, 56, 64]] = reorder(v2)
-  [v7: f32[1, 16, 56, 56]] = partition_quantized_conv_fwd_core_cast_reorder(v6, v5)
+  [v7: f32[1, 56, 56, 16]] = partition_quantized_conv_fwd_core_cast(v6, v5)
   [v8: s8[1, 1, 3, 3, 32, 32, 4]] = reorder(v1)
   [v9: u8[1, 56, 56, 128]] = reorder(v0)
-  [v4: f32[1, 48, 56, 56]] = partition_quantized_conv_fwd_core_cast_reorder_concat(v9, v8, v7)
+  [v4: f32[1, 48, 56, 56]] = partition_quantized_conv_fwd_core_cast_concat_reorder(v9, v8, v7)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);

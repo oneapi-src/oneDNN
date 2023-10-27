@@ -296,38 +296,15 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
     op_name_ = "concat";
     COMPILE_ASSERT(!ins.empty(), "Inputs to concat should be non-empty");
     COMPILE_ASSERT(attrs.has_key("axis"), "Concat axis should be provided.");
-    axis_ = attrs.get<int>("axis");
-    // We accept negative axis_, but keep it non-negative internally
-    int64_t rank = ins[0]->details_.get_plain_dims().size();
-    COMPILE_ASSERT(axis_ >= -rank && axis_ <= rank - 1,
-            "Concat axis should be in range [" << -rank << ", " << rank - 1
-                                               << "], but get: " << axis_);
-    if (axis_ < 0) { axis_ += rank; }
-    int plain_axis = axis_;
     attrs_ = attrs;
     for (auto &in : ins) {
         info_.inputs_.emplace_back(in);
     }
     is_input_valid_ = std::vector<bool>(info_.inputs_.size(), true);
-    if (info_.inputs_[0]->details_.get_format().get_format_category()
-            == sc_format_category::non_blocking) {
-        ori_format_ = info_.inputs_[0]->details_.get_format();
-    } else {
-        // if the input has any/block/vnni format, use plain format when concat
-        ori_format_ = sc_data_format_t::get_plain_by_dims(
-                (int)info_.inputs_[0]->details_.get_plain_dims().size());
-    }
-
-    // here axis_ is in plain format (because it is copied from llga bridge)
-    // we need to transform it to blocking format
-    std::vector<int> blocking_axes
-            = ori_format_.format_code_.collect_p2b_mapping()[axis_];
-    COMPILE_ASSERT(
-            blocking_axes.size() == 1, "The concat axis should not be blocked");
-    axis_ = blocking_axes[0];
+    set_format_and_axis();
     // inferring output plain shape
     sc_dims output_plain_dim
-            = infer_concat_output_shape(info_.inputs_, plain_axis);
+            = infer_concat_output_shape(info_.inputs_, attrs.get<int>("axis"));
 
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
@@ -346,6 +323,31 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
     }
 }
 
+void concat_op_t::set_format_and_axis() {
+    if (info_.inputs_[0]->details_.get_format().get_format_category()
+            == sc_format_category::non_blocking) {
+        ori_format_ = info_.inputs_[0]->details_.get_format();
+    } else {
+        // if the input has any/block/vnni format, use plain format when concat
+        ori_format_ = sc_data_format_t::get_plain_by_dims(
+                (int)info_.inputs_[0]->details_.get_plain_dims().size());
+    }
+    // here axis_ is in plain format (because it is copied from llga bridge)
+    // we need to transform it to blocking format
+    axis_ = attrs_.get<int>("axis");
+    // We accept negative axis_, but keep it non-negative internally
+    int64_t rank = info_.inputs_[0]->details_.get_plain_dims().size();
+    COMPILE_ASSERT(axis_ >= -rank && axis_ <= rank - 1,
+            "Concat axis should be in range [" << -rank << ", " << rank - 1
+                                               << "], but get: " << axis_);
+    if (axis_ < 0) { axis_ += rank; }
+    std::vector<int> blocking_axes
+            = ori_format_.format_code_.collect_p2b_mapping()[axis_];
+    COMPILE_ASSERT(
+            blocking_axes.size() == 1, "The concat axis should not be blocked");
+    axis_ = blocking_axes[0];
+}
+
 concat_op_t::concat_op_t(
         const std::vector<graph_tensor_ptr> &candidates, int axis)
     : concat_op_t(candidates, {}, any_map_t({{"axis", axis}})) {}
@@ -353,6 +355,7 @@ concat_op_t::concat_op_t(
 void concat_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    set_format_and_axis();
     std::vector<std::vector<sc_data_format_t>> in_formats(
             info_.inputs_.size(), {ori_format_});
     std::vector<std::vector<sc_data_format_t>> out_formats(
