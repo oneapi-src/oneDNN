@@ -781,15 +781,15 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
       }
       input1 = input_tmp.static_as<tensor>();
     } else {
-      _tensor_(input_tmp, get_input_dtype(), {mb_expr_, oh_expr_, ow_, ic_});
+      _tensor_(
+        input_tmp, get_input_dtype(), {mb_expr_, oh_expr_, ow_, groups_ * ic_});
       _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
         _named_for_(lp, p, 0, oh_expr_) {
           _for_(q, 0, ow_) {
             _named_for_(lg, g, 0, groups_) {
               _for_(c_i, 0, ic_, (int)lanes) {
-                input_tmp[span_t({n, p, q, g * C_num_block + c_i}, lanes)]
-                  = input[span_t(
-                    {n, p * sh_, q * sw_, g * C_num_block + c_i}, lanes)];
+                input_tmp[span_t({n, p, q, g * ic_ + c_i}, lanes)]
+                  = input[span_t({n, p * sh_, q * sw_, g * ic_ + c_i}, lanes)];
               }
             }
           }

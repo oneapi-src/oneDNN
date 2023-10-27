@@ -1052,6 +1052,32 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dilation) {
     return;
 }
 
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_with_groups) {
+    std::vector<std::vector<int>> workload_list = {
+            // N, G, K, C, H, W, R, S, stride, padding, dilation
+            {1, 4, 8, 8, 12, 12, 1, 1, 2, 0, 1},
+            {14, 2, 48, 48, 114, 114, 1, 1, 2, 0, 1},
+    };
+    for (auto &wl : workload_list) {
+        int idx = 0;
+        auto N = wl[idx++];
+        auto G = wl[idx++];
+        auto K = wl[idx++];
+        auto C = wl[idx++];
+        auto H = wl[idx++];
+        auto W = wl[idx++];
+        auto R = wl[idx++];
+        auto S = wl[idx++];
+        auto stride = wl[idx++];
+        auto padding = wl[idx++];
+        auto dilation = wl[idx++];
+        check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), N, G, K, C,
+                H, W, R, S, {stride, stride}, {padding, padding},
+                {padding, padding}, {dilation, dilation}, false, false, false,
+                true, false, true);
+    }
+}
+
 TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_groups) {
     std::vector<std::vector<int>> workload_list = {
             // N, G, K, C, H, W, R, S, stride, padding, dilation
