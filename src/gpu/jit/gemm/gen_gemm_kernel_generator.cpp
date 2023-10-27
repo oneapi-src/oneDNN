@@ -172,7 +172,7 @@ static inline bool hasNativeAtomicAdd(HW hw, Type T,
         return false;
 }
 
-static inline int slmCapacity(HW hw) {
+static inline size_t slmCapacity(HW hw) {
     switch (hw) {
         case HW::Gen9:
         case HW::Gen11: return 65536;
@@ -183,6 +183,13 @@ static inline int slmCapacity(HW hw) {
         case HW::Xe2: return 393216;
         default: return 0;
     }
+}
+
+static inline size_t maxSLMPerWG(HW hw, int grfCount) {
+    auto slmMax = slmCapacity(hw);
+    if (hw <= HW::XeHPG && grfCount <= 128)
+        slmMax = std::min<size_t>(slmMax, 65536);
+    return slmMax;
 }
 
 static inline int threadsPerEU(HW hw, const CommonStrategy &strategy) {
@@ -464,26 +471,6 @@ void RegisterBlock::simplify(Type T) {
             ld = crosspack;
             crosspack = 1;
         }
-    }
-}
-
-GRFMultirange GRFMultirange::subrange(
-        HW hw, Type T, const RegisterBlock &block) const {
-    int ne = elementsPerGRF(hw, T);
-    int ldGRFs = div_up(block.ld, ne);
-    int ldUsedGRFs = div_up(block.colMajor ? block.nr : block.nc, ne);
-    int td = block.colMajor ? block.nc : block.nr;
-
-    if (ldUsedGRFs >= ldGRFs)
-        return subrange(block.offsetReg(), block.nregs());
-    else {
-        int offReg = block.offsetReg();
-        GRFMultirange result = subrange(offReg, ldUsedGRFs);
-        for (int y = 1; y < td; y++) {
-            offReg += ldGRFs;
-            result.append(subrange(offReg, ldUsedGRFs));
-        }
-        return result;
     }
 }
 
@@ -2112,6 +2099,26 @@ static Subregister getOriginAddr(const vector<RegisterBlock> &layout,
     return Subregister();
 }
 
+GRFMultirange GRFMultirange::subrange(
+        HW hw, Type T, const RegisterBlock &block) const {
+    int ne = elementsPerGRF(hw, T);
+    int ldGRFs = div_up(block.ld, ne);
+    int ldUsedGRFs = div_up(block.colMajor ? block.nr : block.nc, ne);
+    int td = block.colMajor ? block.nc : block.nr;
+
+    if (ldUsedGRFs >= ldGRFs)
+        return subrange(block.offsetReg(), block.nregs());
+    else {
+        int offReg = block.offsetReg();
+        GRFMultirange result = subrange(offReg, ldUsedGRFs);
+        for (int y = 1; y < td; y++) {
+            offReg += ldGRFs;
+            result.append(subrange(offReg, ldUsedGRFs));
+        }
+        return result;
+    }
+}
+
 static inline int maxScatteredSIMD(
         HW hw, const MatrixAddressingStrategy &astrategy) {
     if (astrategy.newDP) return GRF::bytes(hw) >> 1;
@@ -3041,6 +3048,7 @@ bool gemm_kernel_generator_t<hw>::getSubblock(Type T, RegisterBlock &blockDst,
         int x1Unclamped, int x2Unclamped, bool overrunOK,
         const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
+    auto Telem = T;
     auto effAccessType = effectiveAccessType(atype, astrategy, blockSrc);
     blockDst = blockSrc;
 
@@ -3112,7 +3120,7 @@ bool gemm_kernel_generator_t<hw>::getSubblock(Type T, RegisterBlock &blockDst,
 
         blockDst.calcBytes(T, astrategy);
     } else {
-        blockDst.offsetBytes += x1 * T * blockSrc.crosspack;
+        blockDst.offsetBytes += x1 * Telem * blockSrc.crosspack;
 
         if (blockSrc.isLoadBlock()) switch (effAccessType) {
                 case AccessType::Block:
@@ -7210,8 +7218,8 @@ void gemm_kernel_generator_t<hw>::outerProductSystolic(int h, int ha, int hb,
     bool rsFix = (strategy.readSuppressionWA
             && hasMasking(globalCM ? A_layout : B_layout));
     bool canAtomicNon8x8 = (hw >= HW::XeHPC);
-
     bool sum = globalCM ? state.systolicSumA : state.systolicSumB;
+    bool snake = strategy.fmaBoustrophedon && !sum;
 
     RegisterBlock sumBlock;
     sumBlock.colMajor = globalCM;
@@ -7231,9 +7239,10 @@ void gemm_kernel_generator_t<hw>::outerProductSystolic(int h, int ha, int hb,
     const int compA = 0, compB = 0;
     const int incompCount = 1, oncompCount = 1;
 
-    // Split x loop for k-chaining.
+    // Split x loop for k-chaining or boustrophedon ordering.
+    bool reverse = false;
     int nx1 = 1;
-    if (opCount > ksys) nx1 = rcountMax * (strategy.dpasw ? 2 : 1);
+    if (opCount > ksys || snake) nx1 = rcountMax * (strategy.dpasw ? 2 : 1);
 
     for (int y = 0; y < ny; y += yinc) {
         Subregister A0, B0, C0;
@@ -7266,8 +7275,10 @@ void gemm_kernel_generator_t<hw>::outerProductSystolic(int h, int ha, int hb,
                      : dpas(mod, sdepth, rc, C0, C0, V0, N0);
         };
 
-        for (int oncomp = 0; oncomp < oncompCount; oncomp++) {
-            for (int x0 = 0; x0 < nx + sum; x0 += nx1) {
+        for (int oncomp = 0; oncomp < oncompCount;
+                oncomp++, reverse = !reverse) {
+            for (int x0_ = 0; x0_ < nx + sum; x0_ += nx1) {
+                int x0 = (snake && reverse) ? (nx - nx1 - x0_) : x0_;
                 for (int hh = 0; hh < opCount; hh += ksys) {
                     for (int x1 = 0; x1 < nx1 && x0 + x1 < nx + sum; x1++) {
                         for (int incomp = 0; incomp < incompCount; incomp++) {
@@ -11569,6 +11580,7 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaScale(
     }
 
     mark(lScaleDone);
+    if (strategy.fused) join(simt);
 
     auto &lastCRange = state.C_regs[state.C_buffers - 1];
     auto lastC = lastCRange[lastCRange.getLen() - 1];
@@ -11681,13 +11693,15 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaWaitCompletion(
     auto header = state.ra.alloc().uq();
     auto data = state.ra.alloc().ud();
     auto &addr = state.statusFlagAddr;
+    bool simtCF = strategy.fused;
+    int simt = simtCF ? 16 : 1;
 
     status << "Wait for beta scaling" << status_stream::endl;
 
     and_(1 | nz | f1[0], null.ud(), state.inputs.flags, FlagDidBeta);
     if (checkIfEnabled)
         and_(1 | ze | f1[1], null.ud(), state.inputs.flags, FlagKPartitioned);
-    and_(1 | nz | state.flagAP, null.ud(), state.inputs.flags, FlagLeader);
+    and_(simt | nz | state.flagAP, null.ud(), state.inputs.flags, FlagLeader);
     if (strategy.fuseBeta && !strategy.altFusedBeta)
         and_(1 | nz | f0[1], null.ud(), state.inputs.flags, FlagSkipBetaCheck);
 
@@ -11697,8 +11711,9 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaWaitCompletion(
             lSkipCheck); /* If we did beta scaling ourselves, no need to check */
     if (checkIfEnabled)
         jmpi(1 | f1[1], lSkipCheck); /* C tile isn't shared; no need to check */
-    jmpi(1 | ~state.flagAP,
-            lCheckDone); /* Followers wait for leader to check */
+    simtCF ? goto12(16 | ~state.flagAP,
+            lCheckDone) /* Followers wait for leader to check */
+           : jmpi(1 | ~state.flagAP, lCheckDone);
     if (strategy.fuseBeta && !strategy.altFusedBeta)
         jmpi(1 | f0[1],
                 lFinalDec); /* If beta scaling known to be complete, just decrement counter */
@@ -11709,8 +11724,9 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaWaitCompletion(
     else
         atomic(AtomicOp::dec, 1, data, scattered_dword(), A64, header);
 
-    cmp(1 | gt | state.flagAP, data.d(), 0);
-    jmpi(1 | state.flagAP, lCheckDone);
+    cmp(simt | gt | state.flagAP, data.d(0), 0);
+    simtCF ? goto12(16 | state.flagAP, lCheckDone)
+           : jmpi(1 | state.flagAP, lCheckDone);
 
     mark(lCheckAgain);
 
@@ -11722,13 +11738,15 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaWaitCompletion(
     } else
         load(1, data, scattered_dword(), A64, header); /* no L1 */
 
-    cmp(1 | gt | state.flagAP, data.d(), 0);
-    jmpi(1 | state.flagAP, lFinalDec);
+    cmp(simt | gt | state.flagAP, data.d(0), 0);
+    simtCF ? goto12(16 | state.flagAP, lFinalDec)
+           : jmpi(1 | state.flagAP, lFinalDec);
 
     pause(strategy);
     jmpi(1, lCheckAgain);
 
     mark(lFinalDec);
+    if (simtCF) join(16);
 
     if (hw >= HW::XeHPG)
         atomic(AtomicOp::dec, 1, D32 | CacheSettingsLSC::L1UC_L3C, A64, header);
@@ -11736,6 +11754,7 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaWaitCompletion(
         atomic(AtomicOp::dec, 1, scattered_dword(), A64, header);
 
     mark(lCheckDone);
+    if (simtCF) join(16);
 
     useTempAndR0(state, [&](GRF temp, GRF r0_info) {
         activeThreadBarrier(temp, r0_info, strategy);
@@ -14623,7 +14642,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(
 static inline int block2DCMinAlignment(HW hw, const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
     if (hw == HW::Xe2)
-        return 64; /* Workaround for overstringent emulation alignment checks */
+        return 64; /* Workaround for overstringent Cobalt alignment checks */
     return isTransposing(astrategy.accessType) ? 4 : 8;
 }
 
@@ -16574,6 +16593,7 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
                     COperation::UpdateStore, modProblem, modStrategy, modState))
             return false;
         mark(labelSkipCUpdate);
+        if (strategy.fused) join(16);
 
         useTempAndR0(modState, [&](GRF temp, GRF r0_info) {
             globalMemBarrier(temp, r0_info, strategy);
@@ -16593,8 +16613,8 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
 
         and_(1 | nz | f0[0], null.ud(), state.inputs.flags, FlagLeader);
         mov(1 | sat, kDone, state.wgK);
-        add<uint64_t>(
-                1, header, state.statusFlagAddr, strategy.fuseBeta ? 64 : 0);
+        eadd<uint64_t>(1, header, state.statusFlagAddr,
+                strategy.fuseBeta ? 64 : 0, strategy, state);
         if (hw >= HW::XeHPG)
             atomic(AtomicOp::add, 1 | f0[0], kDone, D32, A64, header, kDone);
         else
@@ -17261,6 +17281,10 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
         interface.requireBarrier();
     }
 
+    size_t slm = maxSLMPerWG(hw, strategy.GRFs);
+    if (slmSize > slm || slmPerK * strategy.wg[LoopK] > slm)
+        throw std::runtime_error("Strategy requests more SLM than available");
+
     if (strategy.fixedWG(problem)) {
         auto wgX = strategy.wg[strategy.loopOrder[0]];
         auto wgY = strategy.wg[strategy.loopOrder[1]];
@@ -17672,6 +17696,7 @@ size_t gemm_kernel_generator_t<hw>::gemmPerKSLMSize(
         int concurrentK = std::max(
                 1, threadsPerEU(hw, strategy) * eusPerSubslice(hw) / mnThreads);
         slmSize = rounddown_pow2(slmCapacity(hw) / concurrentK);
+        slmSize = std::min(slmSize, maxSLMPerWG(hw, strategy.GRFs));
         if (!problem.sumA && !problem.sumB)
             slmSize = std::min<size_t>(slmSize,
                     strategy.wgTile(LoopM) * strategy.wgTile(LoopN)
@@ -20221,8 +20246,10 @@ void gemm_kernel_generator_t<hw>::gemmSuperkernel(
 // Get driver information from this strategy.
 template <HW hw>
 CommonDriverInfo gemm_kernel_generator_t<hw>::driverInfo(
-        const GEMMProblem &problem, const GEMMStrategy &strategy) {
+        GEMMProblem problem, const GEMMStrategy &strategy) {
     CommonDriverInfo info;
+
+    gemmAutoTypeConversions(problem, strategy);
 
     info.subgroupSize = strategy.subgroupSize;
     info.fusedLoop = strategy.fused ? strategy.fusedLoop : LoopNone;
@@ -20275,6 +20302,7 @@ CommonDriverInfo gemm_kernel_generator_t<hw>::driverInfo(
         info.flags |= FlagFixedWGK;
     if (problem.alpha.pointer()) info.flags |= FlagAlphaPtr;
     if (problem.beta.pointer()) info.flags |= FlagBetaPtr;
+    info.flags |= (strategy.fillGoal << FlagShiftFillGoal) & FlagMaskFillGoal;
     info.slm = int(gemmSLMSize(problem, strategy));
     info.perKSLM = int(gemmPerKSLMSize(problem, strategy));
     info.alignment[0] = problem.A.alignment;

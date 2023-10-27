@@ -78,6 +78,9 @@ enum DriverInfoFlags : uint32_t {
     FlagAlphaPtr = 0x400, // Pass alpha by pointer.
     FlagBetaPtr = 0x800, // Pass beta by pointer.
     FlagFixedWGK = 0x1000, // With local k-parallelization, wgK is fixed
+    FlagMaskFillGoal
+    = 0xF0000, // Fraction of available thread slots to fill, in sixteenths
+    FlagShiftFillGoal = 16, //   (starting bit)
 };
 
 // Driver information, shared by all kernel types.
@@ -153,6 +156,11 @@ struct CommonDriverInfo {
     int wgTile(LoopType l) const { return unroll[l] * wg[l]; }
     int kPadding() const {
         return (kParallel() || kParallelVariable()) ? blockingAlt[LoopK] : 0;
+    }
+
+    float fillGoal() const {
+        auto sixteenths = (flags & FlagMaskFillGoal) >> FlagShiftFillGoal;
+        return (sixteenths > 0) ? (sixteenths / 16.0f) : 1.0f;
     }
 };
 

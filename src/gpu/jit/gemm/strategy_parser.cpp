@@ -85,26 +85,34 @@ CacheSettingsLSC getCaching(char l1, char l3) {
     }
 }
 
+CacheSettingsLSC getCachingEntry(std::stringstream &s, HW hw) {
+    {
+        char l1, l3;
+        s >> l1 >> l3;
+        return getCaching(l1, l3);
+    }
+}
+
 void getCaching(
         std::stringstream &s, HW hw, MatrixAddressingStrategy &astrategy) {
     auto &cachingR = astrategy.cachingR;
     auto &cachingW = astrategy.cachingW;
 
     cachingR = CacheSettingsLSC::L1C_L3C;
-    cachingW = (hw >= HW::XeHPC) ? CacheSettingsLSC::L1UC_L3WB
-                                 : CacheSettingsLSC::L1WB_L3WB;
+    cachingW = CacheSettingsLSC::L1WB_L3WB;
+
+    if (hw >= HW::XeHPC) cachingW = CacheSettingsLSC::L1UC_L3WB;
 
     if (s.peek() == '{') {
-        char eat, l1, l3;
-        s >> eat >> l1 >> l3 >> eat;
-        if (eat != '}' && eat != '/')
-            throw std::runtime_error("Invalid caching syntax");
-        cachingR = getCaching(l1, l3);
+        char eat;
+        s >> eat;
+        cachingR = getCachingEntry(s, hw);
+        s >> eat;
         if (eat == '/') {
-            s >> l1 >> l3 >> eat;
-            if (eat != '}') throw std::runtime_error("Invalid caching syntax");
-            cachingW = getCaching(l1, l3);
+            cachingW = getCachingEntry(s, hw);
+            s >> eat;
         }
+        if (eat != '}') throw std::runtime_error("Invalid caching syntax");
     }
 }
 
@@ -291,6 +299,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.atomicFMA = strategy.extendedAtomicFMA = true;
         else if (mod == "st")
             strategy.stallAfterLoad = true;
+        else if (mod == "fx")
+            strategy.fmaBoustrophedon = true;
         else if (mod == "ch")
             strategy.checkAdd32 = true;
         else if (mod == "ws")
@@ -352,7 +362,11 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.fusePostOps = true;
         else if (mod == "afb")
             strategy.fuseBeta = strategy.altFusedBeta = true;
-        else if (mod == "au")
+        else if (mod == "fg") {
+            float fillGoal;
+            s >> fillGoal;
+            strategy.fillGoal = fillGoal * 16;
+        } else if (mod == "au")
             strategy.C.atomic = strategy.CO.atomic = true;
         else if (mod == "nau")
             strategy.C.atomic = strategy.CO.atomic = strategy.autoatomic

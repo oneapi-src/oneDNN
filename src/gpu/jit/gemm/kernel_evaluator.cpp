@@ -265,7 +265,10 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         /* Variable k-slicing disabled: use kr to fill GPU as much as possible */
         if (threads < capacity && !noKR)
             aux.wgK = roundDownSmallPow2(std::floor(capacity / threads));
-    } else
+    } else if (e.driverInfo.shrinkWGK())
+        aux.wgK = roundUpSmallPow2(std::ceil(capacity * e.driverInfo.wg[LoopK]
+                * e.driverInfo.fillGoal() / threads));
+    else
         aux.wgK = e.driverInfo.wg[LoopK];
 
     aux.wgK = std::min(aux.wgK, e.driverInfo.wg[LoopK]);

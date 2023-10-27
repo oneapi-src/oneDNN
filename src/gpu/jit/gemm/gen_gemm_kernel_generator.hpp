@@ -973,6 +973,9 @@ struct GEMMStrategyPOD : public CommonStrategy {
     WalkOrder cWalkOrder = WalkOrder::HW2D; // Order for traversing tiles of C
     bool persistent = false; // Use persistent thread model?
     bool reverse[2] = {false, false}; // Reverse m/n walk order?
+    bool fmaBoustrophedon
+            = false; // Use boustrophedon ordering inside FMA/DPAS blocks?
+    uint8_t pad0[3] = {};
     int fmaSIMD = 0; // Vector length for FMA (0 = default = 2 GRFs).
     int kChain = 1; // # of FMAs to chain in k dimension.
     int wg[3] = {0, 0,
@@ -1038,9 +1041,11 @@ struct GEMMStrategyPOD : public CommonStrategy {
             = false; // If true, generate k-parallelized kernel using global memory reduction.
     bool kParallelLocal
             = false; // If true, generate k-parallelized kernel using local memory reduction.
-    bool shrinkWGK
-            = false; //   Shrink wgK automatically to try to fit dispatch in 1 wave?
     bool kInterleave = false; //   Interleave threads in k dimension?
+    bool shrinkWGK
+            = false; //   Shrink wgK automatically to try to fit dispatch in 1 wave (or smaller)?
+    int fillGoal
+            = 0; //     With shrinkWGK, try to fill this fraction of available thread slots, measured in sixteenths (0 = default).
     bool kParallelVariable
             = false; // If true, generate kernel that uses variable k-parallelization for load balancing.
     bool fuseBeta
@@ -1594,7 +1599,7 @@ public:
             const ngen::InterfaceHandler &interface_);
 
     static CommonDriverInfo driverInfo(
-            const GEMMProblem &problem, const GEMMStrategy &strategy);
+            GEMMProblem problem, const GEMMStrategy &strategy);
     static CommonDriverInfo driverInfo(const GEMMSuperkernelProblem &problem,
             const GEMMStrategy &strategy);
     static CommonDriverInfo driverInfo(
@@ -2633,7 +2638,7 @@ protected:
             GEMMState &state, bool inSK = false);
     void gemmInitState(GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state, bool inSK = false);
-    void gemmAutoTypeConversions(
+    static void gemmAutoTypeConversions(
             GEMMProblem &problem, const GEMMStrategy &strategy);
     void gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
 
