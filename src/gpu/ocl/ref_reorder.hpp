@@ -51,11 +51,11 @@ struct ref_reorder_t : public gpu_primitive_t {
                 return status::unimplemented;
 
             using namespace data_type;
-            if (!utils::one_of(
-                        src_md()->data_type, f32, f16, bf16, bf8, hf8, s32, s8, u8, f64))
+            if (!utils::one_of(src_md()->data_type, f32, f16, bf16, f8_e5m2,
+                        f8_e4m3, s32, s8, u8, f64))
                 return status::unimplemented;
-            if (!utils::one_of(
-                        dst_md()->data_type, f32, f16, bf16, bf8, hf8, s32, s8, u8, f64))
+            if (!utils::one_of(dst_md()->data_type, f32, f16, bf16, f8_e5m2,
+                        f8_e4m3, s32, s8, u8, f64))
                 return status::unimplemented;
 
             if (!IMPLICATION(

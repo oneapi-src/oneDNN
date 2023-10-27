@@ -207,8 +207,10 @@ enum class type_kind_t {
     s64,
 
     // Floating point types.
-    bf8,
-    hf8,
+    bf8 = 10,
+    f8_e5m2 = 10,
+    hf8 = 11,
+    f8_e4m3 = 11,
     bf16,
     f16,
     tf32,
@@ -388,8 +390,8 @@ public:
         switch ((int)dt) {
 #define CASE(x) \
     case data_type::x: kind_ = type_kind_t::x; break;
-            CASE(bf8);
-            CASE(hf8);
+            CASE(f8_e5m2);
+            CASE(f8_e4m3);
             CASE(bf16);
             CASE(f16);
             CASE(tf32);

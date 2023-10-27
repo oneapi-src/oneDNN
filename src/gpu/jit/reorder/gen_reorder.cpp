@@ -66,17 +66,18 @@ status_t gen_reorder_t::pd_t::init(
                         || zp_cfg.is_common_dst_zero_point);
     };
     auto is_bf16_or_f32_or_bf8 = [](data_type_t dt) {
-        return utils::one_of(dt, data_type::bf16, data_type::f32, data_type::bf8);
+        return utils::one_of(
+                dt, data_type::bf16, data_type::f32, data_type::f8_e5m2);
     };
-    bool any_hf8 = utils::one_of(data_type::hf8, dst_dt, src_dt);
+    bool any_hf8 = utils::one_of(data_type::f8_e4m3, dst_dt, src_dt);
     bool has_native_bf16 = device_info->has_native(data_type::bf16);
     auto skip_mask = dnnl_primitive_attr::skip_mask_t::post_ops
             | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
             | dnnl_primitive_attr::skip_mask_t::scales_runtime;
     using namespace data_type;
     bool ok = src_engine == dst_engine && src_engine->kind() == engine_kind::gpu
-            && utils::one_of(src_dt, f32, f16, bf16, bf8, s32, s8, u8, f64)
-            && utils::one_of(dst_dt, f32, f16, bf16, bf8, s32, s8, u8, f64)
+            && utils::one_of(src_dt, f32, f16, bf16, f8_e5m2, s32, s8, u8, f64)
+            && utils::one_of(dst_dt, f32, f16, bf16, f8_e5m2, s32, s8, u8, f64)
             && IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
                     device_info->has_native(data_type::f16))
             && IMPLICATION(src_dt == data_type::bf16,

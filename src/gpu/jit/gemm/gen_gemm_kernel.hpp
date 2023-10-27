@@ -85,7 +85,7 @@ protected:
             case data_type::f32: return Type::f32;
             case data_type::f16: return Type::f16;
             case data_type::bf16: return Type::bf16;
-            case data_type::bf8: return Type::bf8;
+            case data_type::f8_e5m2: return Type::bf8;
             case data_type::s32: return Type::s32;
             case data_type::u8: return Type::u8;
             case data_type::s8: return Type::s8;

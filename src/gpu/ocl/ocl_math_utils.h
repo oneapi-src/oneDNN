@@ -55,10 +55,10 @@ void __builtin_IB_simd_block_write_8_global_l(__global ulong *, ulong8);
 void __builtin_IB_simd_block_write_16_global_h(__global ushort *, ushort16);
 
 #if MATH_UTILS_DECLARE_HF8
-// Emulation functions for hf8 <-> f16 conversion.
-uchar __attribute__((overloadable)) cvt_hf_to_hf8(half f) {
+// Emulation functions for f8_e4m3 <-> f16 conversion.
+uchar __attribute__((overloadable)) cvt_hf_to_f8_e4m3(half f) {
     // Here the idea is to add a large constant to the float16_t to force the
-    // proper rounding to hf8 accuracy.
+    // proper rounding to f8_e4m3 accuracy.
     uchar raw_bits = 0;
     ushort fraw = as_ushort(f);
 
@@ -94,7 +94,7 @@ uchar __attribute__((overloadable)) cvt_hf_to_hf8(half f) {
     uchar m8 = (rounded & 0x03ff) >> 7;
 
     // we need to make the implicit f32 mantissa bit explicit for
-    // denorm hf8
+    // denorm f8_e4m3
     if (is_denorm) {
         m8 = (m8 | 0x08) >> (-e8 + 1);
         e8 = 0;
@@ -104,39 +104,39 @@ uchar __attribute__((overloadable)) cvt_hf_to_hf8(half f) {
     return raw_bits;
 }
 
-uchar2 __attribute__((overloadable)) cvt_hf_to_hf8(half2 f) {
+uchar2 __attribute__((overloadable)) cvt_hf_to_f8_e4m3(half2 f) {
     uchar2 r;
     for (int i = 0; i < 2; i++) {
-        r[i] = cvt_hf_to_hf8(f[i]);
+        r[i] = cvt_hf_to_f8_e4m3(f[i]);
     }
     return r;
 }
 
-uchar4 __attribute__((overloadable)) cvt_hf_to_hf8(half4 f) {
+uchar4 __attribute__((overloadable)) cvt_hf_to_f8_e4m3(half4 f) {
     uchar4 r;
     for (int i = 0; i < 4; i++) {
-        r[i] = cvt_hf_to_hf8(f[i]);
+        r[i] = cvt_hf_to_f8_e4m3(f[i]);
     }
     return r;
 }
 
-uchar8 __attribute__((overloadable)) cvt_hf_to_hf8(half8 f) {
+uchar8 __attribute__((overloadable)) cvt_hf_to_f8_e4m3(half8 f) {
     uchar8 r;
     for (int i = 0; i < 8; i++) {
-        r[i] = cvt_hf_to_hf8(f[i]);
+        r[i] = cvt_hf_to_f8_e4m3(f[i]);
     }
     return r;
 }
 
-uchar16 __attribute__((overloadable)) cvt_hf_to_hf8(half16 f) {
+uchar16 __attribute__((overloadable)) cvt_hf_to_f8_e4m3(half16 f) {
     uchar16 r;
     for (int i = 0; i < 16; i++) {
-        r[i] = cvt_hf_to_hf8(f[i]);
+        r[i] = cvt_hf_to_f8_e4m3(f[i]);
     }
     return r;
 }
 
-half __attribute__((overloadable)) cvt_hf8_to_hf(uchar b) {
+half __attribute__((overloadable)) cvt_f8_e4m3_to_hf(uchar b) {
     uchar raw_bits_ = b;
     ushort s8 = (raw_bits_ & 0x80) >> 7;
     ushort e8 = (raw_bits_ & 0x78) >> 3;
@@ -145,7 +145,7 @@ half __attribute__((overloadable)) cvt_hf8_to_hf(uchar b) {
     ushort e16 = e8 + 8; /* 15 - 7 = e16_bias - e8_bias */
     ushort m16 = m8;
 
-    // Need to convert hf8 denormal into f16 normal.
+    // Need to convert f8_e4m3 denormal into f16 normal.
     if (e8 == 0 && m8 != 0) {
         ushort count = 2;
         count = m8 > 0x1 ? 1 : count;
@@ -166,34 +166,34 @@ half __attribute__((overloadable)) cvt_hf8_to_hf(uchar b) {
     return as_half(u16);
 }
 
-half2 __attribute__((overloadable)) cvt_hf8_to_hf(uchar2 b) {
+half2 __attribute__((overloadable)) cvt_f8_e4m3_to_hf(uchar2 b) {
     half2 f;
     for (int i = 0; i < 2; i++) {
-        f[i] = cvt_hf8_to_hf(b[i]);
+        f[i] = cvt_f8_e4m3_to_hf(b[i]);
     }
     return f;
 }
 
-half4 __attribute__((overloadable)) cvt_hf8_to_hf(uchar4 b) {
+half4 __attribute__((overloadable)) cvt_f8_e4m3_to_hf(uchar4 b) {
     half4 f;
     for (int i = 0; i < 4; i++) {
-        f[i] = cvt_hf8_to_hf(b[i]);
+        f[i] = cvt_f8_e4m3_to_hf(b[i]);
     }
     return f;
 }
 
-half8 __attribute__((overloadable)) cvt_hf8_to_hf(uchar8 b) {
+half8 __attribute__((overloadable)) cvt_f8_e4m3_to_hf(uchar8 b) {
     half8 f;
     for (int i = 0; i < 8; i++) {
-        f[i] = cvt_hf8_to_hf(b[i]);
+        f[i] = cvt_f8_e4m3_to_hf(b[i]);
     }
     return f;
 }
 
-half16 __attribute__((overloadable)) cvt_hf8_to_hf(uchar16 b) {
+half16 __attribute__((overloadable)) cvt_f8_e4m3_to_hf(uchar16 b) {
     half16 f;
     for (int i = 0; i < 16; i++) {
-        f[i] = cvt_hf8_to_hf(b[i]);
+        f[i] = cvt_f8_e4m3_to_hf(b[i]);
     }
     return f;
 }
@@ -202,8 +202,8 @@ half16 __attribute__((overloadable)) cvt_hf8_to_hf(uchar16 b) {
 // clang-format on
 
 #if MATH_UTILS_DECLARE_BF8
-// Emulation functions for bf8 <-> f16 conversion.
-uchar __attribute__((overloadable)) cvt_hf_to_bf8(half f) {
+// Emulation functions for f8_e5m2 <-> f16 conversion.
+uchar __attribute__((overloadable)) cvt_hf_to_f8_e5m2(half f) {
     // we just need to apply rounding
     ushort fraw = as_ushort(f);
     ushort naninf_mask = 0x7c00;
@@ -228,71 +228,71 @@ uchar __attribute__((overloadable)) cvt_hf_to_bf8(half f) {
     return raw_bits;
 }
 
-uchar2 __attribute__((overloadable)) cvt_hf_to_bf8(half2 f) {
+uchar2 __attribute__((overloadable)) cvt_hf_to_f8_e5m2(half2 f) {
     uchar2 r;
     for (int i = 0; i < 2; i++) {
-        r[i] = cvt_hf_to_bf8(f[i]);
+        r[i] = cvt_hf_to_f8_e5m2(f[i]);
     }
     return r;
 }
 
-uchar4 __attribute__((overloadable)) cvt_hf_to_bf8(half4 f) {
+uchar4 __attribute__((overloadable)) cvt_hf_to_f8_e5m2(half4 f) {
     uchar4 r;
     for (int i = 0; i < 4; i++) {
-        r[i] = cvt_hf_to_bf8(f[i]);
+        r[i] = cvt_hf_to_f8_e5m2(f[i]);
     }
     return r;
 }
 
-uchar8 __attribute__((overloadable)) cvt_hf_to_bf8(half8 f) {
+uchar8 __attribute__((overloadable)) cvt_hf_to_f8_e5m2(half8 f) {
     uchar8 r;
     for (int i = 0; i < 8; i++) {
-        r[i] = cvt_hf_to_bf8(f[i]);
+        r[i] = cvt_hf_to_f8_e5m2(f[i]);
     }
     return r;
 }
 
-uchar16 __attribute__((overloadable)) cvt_hf_to_bf8(half16 f) {
+uchar16 __attribute__((overloadable)) cvt_hf_to_f8_e5m2(half16 f) {
     uchar16 r;
     for (int i = 0; i < 16; i++) {
-        r[i] = cvt_hf_to_bf8(f[i]);
+        r[i] = cvt_hf_to_f8_e5m2(f[i]);
     }
     return r;
 }
 
-half __attribute__((overloadable)) cvt_bf8_to_hf(uchar b) {
+half __attribute__((overloadable)) cvt_f8_e5m2_to_hf(uchar b) {
     uchar2 iraw = {0, b};
     return as_half(iraw);
 }
 
-half2 __attribute__((overloadable)) cvt_bf8_to_hf(uchar2 b) {
+half2 __attribute__((overloadable)) cvt_f8_e5m2_to_hf(uchar2 b) {
     half2 f;
     for (int i = 0; i < 2; i++) {
-        f[i] = cvt_bf8_to_hf(b[i]);
+        f[i] = cvt_f8_e5m2_to_hf(b[i]);
     }
     return f;
 }
 
-half4 __attribute__((overloadable)) cvt_bf8_to_hf(uchar4 b) {
+half4 __attribute__((overloadable)) cvt_f8_e5m2_to_hf(uchar4 b) {
     half4 f;
     for (int i = 0; i < 4; i++) {
-        f[i] = cvt_bf8_to_hf(b[i]);
+        f[i] = cvt_f8_e5m2_to_hf(b[i]);
     }
     return f;
 }
 
-half8 __attribute__((overloadable)) cvt_bf8_to_hf(uchar8 b) {
+half8 __attribute__((overloadable)) cvt_f8_e5m2_to_hf(uchar8 b) {
     half8 f;
     for (int i = 0; i < 8; i++) {
-        f[i] = cvt_bf8_to_hf(b[i]);
+        f[i] = cvt_f8_e5m2_to_hf(b[i]);
     }
     return f;
 }
 
-half16 __attribute__((overloadable)) cvt_bf8_to_hf(uchar16 b) {
+half16 __attribute__((overloadable)) cvt_f8_e5m2_to_hf(uchar16 b) {
     half16 f;
     for (int i = 0; i < 16; i++) {
-        f[i] = cvt_bf8_to_hf(b[i]);
+        f[i] = cvt_f8_e5m2_to_hf(b[i]);
     }
     return f;
 }

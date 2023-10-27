@@ -1082,11 +1082,11 @@ inline void def_data_type(
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=uchar -D%s_DT_U8", str, str));
             break;
-        case data_type::hf8:
+        case data_type::f8_e4m3:
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=uchar -D%s_DT_HF8", str, str));
             break;
-        case data_type::bf8:
+        case data_type::f8_e5m2:
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=uchar -D%s_DT_BF8", str, str));
             break;

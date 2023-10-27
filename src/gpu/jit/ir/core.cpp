@@ -97,8 +97,8 @@ data_type_t to_dnnl(const type_t &type) {
     ir_assert(type.elems() == 1) << type;
     ir_assert(!type.is_ptr() == 1) << type;
     switch (type.kind()) {
-        case type_kind_t::bf8: return data_type::bf8;
-        case type_kind_t::hf8: return data_type::hf8;
+        case type_kind_t::bf8: return data_type::f8_e5m2;
+        case type_kind_t::hf8: return data_type::f8_e4m3;
         case type_kind_t::bf16: return data_type::bf16;
         case type_kind_t::f16: return data_type::f16;
         case type_kind_t::tf32: return data_type::tf32;
