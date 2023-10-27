@@ -126,10 +126,10 @@ context_ptr get_default_context() {
 
 #if defined(SC_LLVM_BACKEND)
         jit_kind jit = jit_kind::llvm;
+#elif SC_BUILTIN_JIT_ENABLED
+        jit_kind jit = jit_kind::xbyak;
 #elif SC_CFAKE_JIT_ENABLED
         jit_kind jit = jit_kind::cfake;
-#else
-        jit_kind jit = jit_kind::xbyak;
 #endif
         {
             const char *jit_env_var_name = env_names[SC_CPU_JIT];
@@ -160,10 +160,10 @@ context_ptr get_default_context() {
                                    << ", setting to default value="
 #if defined(SC_LLVM_BACKEND)
                                       "llvm";
-#elif SC_CFAKE_JIT_ENABLED
-                                      "cfake";
 #elif SC_BUILTIN_JIT_ENABLED
                                       "builtin";
+#elif SC_CFAKE_JIT_ENABLED
+                                      "cfake";
 #endif
                 }
             }
