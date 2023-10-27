@@ -1290,3 +1290,38 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_kl_with_groups, padding_3) {
     check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 3, 18,
             36, 13, 13, 5, 5, {1, 1}, {1, 1}, {4, 4}, {4, 4}, false, true);
 }
+TEST(GCCore_CPU_qconv2d_bf16bf16f32_kl_with_groups, no_padding_1) {
+    REQUIRE_AMX();
+    check_rl_qconv<bf16_t, bf16_t, float>(conv_fwd_rl_config_t(), 1, 2, 8, 32,
+            14, 14, 3, 3, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, true);
+}
+TEST(GCCore_CPU_qconv2d_bf16bf16f32_kl_with_groups, no_padding_2) {
+    REQUIRE_AMX();
+    check_rl_qconv<bf16_t, bf16_t, float>(conv_fwd_rl_config_t(), 1, 3, 9, 36,
+            13, 13, 3, 3, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, true);
+}
+TEST(GCCore_CPU_qconv2d_bf16bf16f32_kl_with_groups, no_padding_3) {
+    REQUIRE_AMX();
+    check_rl_qconv<bf16_t, bf16_t, float>(conv_fwd_rl_config_t(), 1, 2, 8, 12,
+            13, 13, 5, 5, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, true);
+}
+TEST(GCCore_CPU_qconv2d_bf16bf16f32_kl_with_groups, padding_1) {
+    REQUIRE_AMX();
+    check_rl_qconv<bf16_t, bf16_t, float>(conv_fwd_rl_config_t(), 1, 2, 8, 32,
+            13, 13, 3, 3, {2, 2}, {1, 1}, {1, 1}, {1, 1}, false, true);
+}
+TEST(GCCore_CPU_qconv2d_bf16bf16f32_kl_with_groups, padding_2) {
+    REQUIRE_AMX();
+    check_rl_qconv<bf16_t, bf16_t, float>(conv_fwd_rl_config_t(), 1, 4, 8, 48,
+            13, 13, 3, 3, {2, 2}, {1, 1}, {2, 3}, {3, 2}, false, true);
+}
+TEST(GCCore_CPU_qconv2d_bf16bf16f32_kl_with_groups, padding_3) {
+    REQUIRE_AMX();
+    check_rl_qconv<bf16_t, bf16_t, float>(conv_fwd_rl_config_t(), 1, 3, 9, 18,
+            13, 13, 5, 5, {1, 1}, {1, 1}, {4, 4}, {4, 4}, false, true);
+}
+TEST(GCCore_CPU_qconv2d_bf16bf16f32_kl_with_groups, padding_4) {
+    REQUIRE_AMX();
+    check_rl_qconv<bf16_t, bf16_t, float>(conv_fwd_rl_config_t(), 1, 2, 4, 4,
+            13, 13, 5, 5, {1, 1}, {1, 1}, {4, 4}, {4, 4}, false, true);
+}

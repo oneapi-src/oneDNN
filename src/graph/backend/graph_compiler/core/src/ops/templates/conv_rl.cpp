@@ -137,7 +137,6 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
   LDA_ = kw_ * ic_ * sw_;
   actual_iw_ = (ow_ - 1) * sw_ + kw_;
   actual_ih_ = (oh_ - 1) * sh_ + kh_;
-  auto input_dtype = get_input_dtype();
 
   COMPILE_ASSERT(pt_ <= kh_ && pb_ <= kh_ && pl_ <= kw_ && pr_ <= kw_,
     "Not support the case of padding > filter_size!");
@@ -159,9 +158,12 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
     + extra_padding_;
   aux_buf_size_ = (actual_ih_ - 1) * kw_ * ic_ + last_row_size;
 
-  init_lanes_ = (kw_ - pl_) * ic_ * utils::get_sizeof_type(input_dtype);
-  update_lanes_ = sw_ * ic_ * utils::get_sizeof_type(input_dtype);
-  assert(init_lanes_ <= cache_line_size && update_lanes_ <= cache_line_size);
+  init_lanes_ = (kw_ - pl_) * ic_;
+  update_lanes_ = sw_ * ic_;
+  assert(
+    init_lanes_ * utils::get_sizeof_type(get_input_dtype()) <= cache_line_size
+    && update_lanes_ * utils::get_sizeof_type(get_input_dtype())
+      <= cache_line_size);
   init_mask_ = convert_int_to_mask(init_lanes_);
   update_mask_ = convert_int_to_mask(update_lanes_);
 }
@@ -276,8 +278,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     for (int i = 0; i < num_threads; ++i) {
       int start_iw = get_start_pos(i, num_threads, ow_) * sw_;
       int cur_pl = std::min(kw_, std::max(0, pl_ - start_iw));
-      int init_lanes
-        = (kw_ - cur_pl) * ic_ * utils::get_sizeof_type(input_dtype);
+      int init_lanes = (kw_ - cur_pl) * ic_;
       init_mask_tsr[i] = convert_int_to_mask(init_lanes);
       init_lanes_tsr[i] = init_lanes;
     }
@@ -287,7 +288,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
                         const expr &q, const expr &init_idx, const expr &tid) {
     // only need to copy the valid area as all the remaining padding
     // areas are already zero-out
-    int max_lanes = kw_ * ic_ * utils::get_sizeof_type(input_dtype);
+    int max_lanes = kw_ * ic_;
     max_lanes = std::min(lanes, get_minimal_lanes(max_lanes));
     expr init_mask_expr = builder::make_cast(get_dtype(max_lanes), init_mask_);
     expr cur_pl = pl_;
@@ -331,7 +332,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
               }
             }
             if (remainder > 0) {
-              auto remainder_mask = convert_int_to_mask(remainder);
+              auto remainder_mask = builder::make_cast(
+                get_dtype(lanes), convert_int_to_mask(remainder));
               aux_buf[span_t(
                 {(actual_ih_ - 1) * kw_ * ic_ + copy_with_simd + pl * ic_},
                 lanes, remainder_mask)]
