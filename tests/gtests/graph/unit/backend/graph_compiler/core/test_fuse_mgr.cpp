@@ -30,6 +30,7 @@
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
+#include <compiler/ir/transform/buffer_schedule_utils.hpp>
 #include <compiler/ir/transform/loop_merge.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/simplify.hpp>

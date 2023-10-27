@@ -1348,6 +1348,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     COMPILE_ASSERT(itr != ltsr_rtsr.end(),
                             "Cannot find the input op in the generated "
                             "function");
+                    itr->second.tensor_->attr()["read_buffer"] = true;
                     new_param.emplace_back(itr->second.tensor_);
                 }
             } else if (auto outop = v->dyn_cast<output_op>()) {
@@ -1356,6 +1357,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     COMPILE_ASSERT(itr != ltsr_rtsr.end(),
                             "Cannot find the output op in the generated "
                             "function");
+                    itr->second.tensor_->attr()["write_buffer"] = true;
                     new_param.emplace_back(itr->second.tensor_);
                 }
             } else {

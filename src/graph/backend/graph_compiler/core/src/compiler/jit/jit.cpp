@@ -50,7 +50,9 @@ std::shared_ptr<jit_function_t> jit_engine_t::get_entry_func(
     auto jm = make_jit_module(ir_mod, generic);
     COMPILE_ASSERT(ir_mod->get_entry_func(),
             "Expecting an ir_module with entry function");
-    return jm->get_function(ir_mod->get_entry_func()->name_);
+    auto jit_func = jm->get_function(ir_mod->get_entry_func()->name_);
+    if (jm->code_) { jit_func->inplace_pairs_ = jm->code_->inplace_pairs_; }
+    return jit_func;
 }
 
 std::unique_ptr<jit_engine_t> jit_engine_t::make(const context_ptr &ctx) {
@@ -122,6 +124,12 @@ void jit_module_code::postprocess(
     update_runtime_data(ir_mod, globals);
     if (ir_mod->get_entry_func()) {
         entry_func_name_ = ir_mod->get_entry_func()->name_;
+
+        // pairs of {out arg, in arg} that out arg can inplace in arg
+        inplace_pairs_ = any_map_t::fetch_or_else(
+                ir_mod->get_entry_func()->attr_.get(),
+                function_attrs::inplace_hint,
+                std::vector<std::pair<size_t, size_t>>());
     }
 }
 void jit_module_code::update_op_dispatch_table(

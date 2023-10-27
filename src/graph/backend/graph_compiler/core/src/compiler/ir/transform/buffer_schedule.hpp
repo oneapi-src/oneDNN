@@ -18,6 +18,7 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_BUFFER_SCHEDULE_HPP
 
 #include <utility>
+#include <vector>
 #include "../function_pass.hpp"
 #include <compiler/config/context.hpp>
 
@@ -53,17 +54,6 @@ constexpr const char *buf_sched_top_scope = "pass.buf_sched_top_level_scope";
 // whether the tensor can be scheduled even if there are complex accesses to it
 constexpr const char *can_be_scheduled = "can_be_scheduled";
 } // namespace attr_keys
-
-namespace special_ticks {
-// the tensor is never accessed
-static constexpr int64_t TICK_NOT_EXIST = -2;
-// the tensor has complicated access pattern: have you assigned a tensor to a
-// pointer?
-static constexpr int64_t COMPLICATED_ACCESS = -1;
-// the tensor was declared in for loop, and its lifetime is complicated. But can
-// be merged with other buffers with hints
-static constexpr int64_t HINT_IN_LOOP = -3;
-} // namespace special_ticks
 
 /**
  * Schedule tensor buffers to reuse them if they are no longer needed.

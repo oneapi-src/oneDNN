@@ -98,6 +98,8 @@ public:
     }
 
     using generic_wrapper_t = void (*)(generic_val *);
+
+    std::vector<std::pair<size_t, size_t>> inplace_pairs_;
 };
 
 struct cached_const_graph_tensor;
@@ -128,6 +130,9 @@ public:
     virtual ~jit_module_code() = default;
     void postprocess(
             const const_ir_module_ptr &ir_mod, statics_table_t &globals);
+
+    // pairs of {input arg idx, output arg index} of the main entry func
+    std::vector<std::pair<size_t, size_t>> inplace_pairs_;
 
 protected:
     // update runtime data with same lifetime as jit module like kerenl
