@@ -65,9 +65,9 @@ template <typename T> static inline constexpr14 int bsr(T x)
 #if defined(_MSC_VER)
     unsigned long index = 0;
     if (sizeof(T) > 4)
-        (void) _BitScanReverse64(&index, x);
+        (void) _BitScanReverse64(&index, __int64(x));
     else
-        (void) _BitScanReverse(&index, x);
+        (void) _BitScanReverse(&index, (unsigned long) x);
     return index;
 #else
     if (sizeof(T) > 4)
@@ -102,7 +102,7 @@ template <typename T> static inline constexpr14 T roundup_pow2(T x)
 
 template <typename T> static inline constexpr14 T rounddown_pow2(T x)
 {
-    return (x <= 1) ? x : (1 << bsr(x));
+    return (x <= 1) ? x : (T(1) << bsr(x));
 }
 
 template <typename T> static inline constexpr bool is_zero_or_pow2(T x)
