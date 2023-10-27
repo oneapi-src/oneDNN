@@ -24,6 +24,12 @@ namespace impl {
 namespace graph {
 namespace gc {
 
+namespace attr_keys {
+// bool. Applied on stmts_node. If true, the ir_simplifier will not remove the
+// stmts.
+constexpr const char *preserve_stmts = "preserve_stmts";
+} // namespace attr_keys
+
 /**
  * Remove empty stmts nodes in parent stmts nodes. Simplify for nodes if
  * boundaris are constants/loop body is empty. Simplify if-else nodes if

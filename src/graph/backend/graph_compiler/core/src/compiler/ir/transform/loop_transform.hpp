@@ -43,7 +43,7 @@ void remove_parallel(func_t body, bool ignore_nested_parallel = false);
  * Only loop 1 and 3 are returned.
  * @param body the stmts for collection
  * */
-std::vector<for_loop> collect_loops(stmt body);
+std::vector<for_loop> collect_loops(const stmt &body);
 
 /**
  * Collect nested loops inside this body.

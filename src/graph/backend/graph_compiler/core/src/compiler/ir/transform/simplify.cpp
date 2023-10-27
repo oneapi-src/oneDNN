@@ -183,7 +183,9 @@ public:
             changed |= !ret.ptr_same(s);
         }
         pnewseq = parent_seq;
-        if (parent_is_stmts) {
+        bool preserve = v->attr_
+                && v->attr_->get_or_else(attr_keys::preserve_stmts, false);
+        if (!preserve && parent_is_stmts) {
             // if we have no definitions in the current scope and direct parent
             // is a stmts, promote to parent seq
             parent_seq->insert(parent_seq->end(), newseq.begin(), newseq.end());
