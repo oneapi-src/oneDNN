@@ -2502,3 +2502,39 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
 )";
     EXPECT_EQ(ss.str(), expected_str_spr);
 }
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, InferSliceForBMMWithBroadcast) {
+    SET_THREADS_OR_SKIP(8);
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input({graph_tensor::make(
+            {8, 16, 64, 128}, sc_data_format_t(), sc_data_type_t::u8())});
+    // explicit broadcast semantic on weight side
+    auto weight0 = graph.make_input({graph_tensor::make(
+            {8, 1, 128, 64}, sc_data_format_t(), sc_data_type_t::s8())});
+
+    any_map_t attrs({{"transpose_a", false}, {"transpose_b", false},
+            {"output2d", false}, {"use_mmm", false}});
+    // bmm
+    auto bmm = graph.make("matmul_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, attrs);
+    ops::matmul_core_config_t cfg = {32, 32, 32};
+    bmm->dyn_cast<ops::matmul_core_op_t>()->set_config(
+            reflection::general_object_t::make(cfg));
+    graph.make_output({bmm->get_outputs()[0]});
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.use_cost_model_ = true;
+
+    graph_driver_before_fusion(graph, ctx);
+    mixed_partition(graph, ctx);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    // The matmul op could not be fused into reorder op along weight side
+    std::string expected_str
+            = R"(graph(v0: u8[8, 16, 64, 128], v1: s8[8, 1, 128, 64]) -> [v2: s32[8, 16, 64, 64]] {
+  [v3: s8[8, 1, 2, 4, 8, 32, 4]] = reorder(v1)
+  [v2: s32[8, 16, 64, 64]] = matmul_core(v0, v3)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+}

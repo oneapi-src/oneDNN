@@ -1140,6 +1140,7 @@ void matmul_core_op_t::infer_slice_ranges(
     }
 
     if (!known_ranges_map[0].empty() && known_ranges_map[1].empty()) {
+        // implicit broadcast semantic
         if (inp_plain_size < wei_plain_size) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
@@ -1151,9 +1152,21 @@ void matmul_core_op_t::infer_slice_ranges(
             if (std::find(
                         blocking_axis.B_bs.begin(), blocking_axis.B_bs.end(), i)
                     != blocking_axis.B_bs.end()) {
-                wei_slice[i]
-                        = inp_slice[blocking_axis.A_bs[blocking_axis.A_bs.size()
-                                - 1 - bs_cnt]];
+                int bs_idx_inp
+                        = blocking_axis
+                                  .A_bs[blocking_axis.A_bs.size() - 1 - bs_cnt];
+                // explicit broadcast semantic
+                if (inp_dims[bs_idx_inp] < wei_dims[i]) {
+                    stat_map.append_ops_by_status(
+                            this, infer_status_code::RETRY);
+                    return;
+                } else if (inp_dims[bs_idx_inp] == wei_dims[i]) {
+                    wei_slice[i] = inp_slice[bs_idx_inp];
+                } else {
+                    COMPILE_ASSERT(
+                            wei_dims[i] == 1, "broadcast weight is expected")
+                    wei_slice[i] = std::make_pair(expr(0), expr(1));
+                }
                 bs_cnt++;
             } else {
                 wei_slice[i] = std::make_pair(expr(0), wei_dims_expr[i]);
@@ -1161,6 +1174,7 @@ void matmul_core_op_t::infer_slice_ranges(
         }
     }
     if (known_ranges_map[0].empty() && !known_ranges_map[1].empty()) {
+        // implicit broadcast semantic
         if (inp_plain_size > wei_plain_size) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
@@ -1172,9 +1186,21 @@ void matmul_core_op_t::infer_slice_ranges(
             if (std::find(
                         blocking_axis.A_bs.begin(), blocking_axis.A_bs.end(), i)
                     != blocking_axis.A_bs.end()) {
-                inp_slice[i]
-                        = wei_slice[blocking_axis.B_bs[blocking_axis.B_bs.size()
-                                - 1 - bs_cnt]];
+                int bs_idx_wei
+                        = blocking_axis
+                                  .B_bs[blocking_axis.B_bs.size() - 1 - bs_cnt];
+                // explicit broadcast semantic
+                if (wei_dims[bs_idx_wei] < inp_dims[i]) {
+                    stat_map.append_ops_by_status(
+                            this, infer_status_code::RETRY);
+                    return;
+                } else if (wei_dims[bs_idx_wei] == inp_dims[i]) {
+                    inp_slice[i] = wei_slice[bs_idx_wei];
+                } else {
+                    COMPILE_ASSERT(
+                            inp_dims[i] == 1, "broadcast input is expected")
+                    inp_slice[i] = std::make_pair(expr(0), expr(1));
+                }
                 bs_cnt++;
             } else {
                 inp_slice[i] = std::make_pair(expr(0), inp_dims_expr[i]);
