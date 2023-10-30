@@ -291,6 +291,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
                                     in_edge(1, key_transpose, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::f32>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -746,7 +748,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fake_int8_mha_pattern)
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
                                     in_edge(1, key_transpose, 0)});
-
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::f32>);
                     auto fquantize = pgraph->append_alternation(
                             {graph::op_kind::Quantize,
                                     graph::op_kind::DynamicQuantize},
@@ -1427,6 +1430,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
                                     in_edge(1, key_transpose, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::f32>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -1549,6 +1554,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
                                     in_edge(1, key_transpose, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::bf16>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -1646,6 +1653,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
                                     in_edge(1, dequantize_key, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::f32>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -1740,6 +1749,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_query, 0),
                                     in_edge(1, cast_key, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::bf16>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -1823,6 +1834,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
                                     in_edge(1, dequantize_key, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::f32>);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, matmul_qk, 0)});
                     auto quantize_softmax = pgraph->append_alternation(
@@ -2032,6 +2045,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_query, 0),
                                     in_edge(1, cast_key, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::bf16>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -2105,6 +2120,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
                                     in_edge(1, dequantize_key, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::f32>);
                     auto reshape1
                             = pgraph->append_op(graph::op_kind::StaticReshape,
                                     {in_edge(0, matmul_qk, 0)});
@@ -2182,6 +2199,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
                                     in_edge(1, dequantize_key, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::f32>);
                     auto fscore_scale = append_single_op_repetition_subgraph(
                             pgraph, graph::op_kind::Divide, matmul_qk);
                     auto fscore_select
@@ -2269,6 +2288,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_query, 0),
                                     in_edge(1, cast_key, 0)});
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<graph::data_type::bf16>);
                     auto fscore_scale = append_single_op_repetition_subgraph(
                             pgraph, graph::op_kind::Divide, matmul_qk);
                     auto fscore_select

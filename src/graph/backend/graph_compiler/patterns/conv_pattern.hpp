@@ -222,6 +222,7 @@ pm::pb_node_t *int8_conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
             in_edges_t {
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
     conv->append_decision_function(check_conv_attrs);
+    conv->append_decision_function(check_input_dtype<graph::data_type::f32>);
 
     auto biasadd_subgraph = std::make_shared<pb_graph_t>();
     auto biasadd = biasadd_subgraph->append_op(graph::op_kind::BiasAdd);
@@ -253,6 +254,7 @@ std::pair<pm::pb_op_t *, pm::pb_op_t *> int8_conv_bias_relu_subgraph(
             in_edges_t {
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
     conv->append_decision_function(check_conv_attrs);
+    conv->append_decision_function(check_input_dtype<graph::data_type::f32>);
 
     auto biasadd_subgraph = std::make_shared<pb_graph_t>();
     auto biasadd = biasadd_subgraph->append_op(graph::op_kind::BiasAdd);
@@ -319,6 +321,7 @@ pm::pb_node_t *int8_conv_bias_add_relu_flex(
             in_edges_t {
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
     conv->append_decision_function(check_conv_attrs);
+    conv->append_decision_function(check_input_dtype<graph::data_type::f32>);
 
     auto biasadd_subgraph = std::make_shared<pb_graph_t>();
     auto biasadd = biasadd_subgraph->append_op(graph::op_kind::BiasAdd);
@@ -372,6 +375,7 @@ pm::pb_node_t *int8_conv_bias_add_relu(
             in_edges_t {
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
     conv->append_decision_function(check_conv_attrs);
+    conv->append_decision_function(check_input_dtype<graph::data_type::f32>);
 
     pm::pb_op_t *conv_bias_dst = nullptr;
     if (use_biasadd) {

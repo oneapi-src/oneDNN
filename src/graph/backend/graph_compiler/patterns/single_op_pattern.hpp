@@ -42,11 +42,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_gc)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    graph::utils::pm::pb_op_t *single_op
-                            = pgraph->append_alternation(
-                                    get_no_constraint_ops());
-                    single_op->append_decision_function(
-                            reject_unsupported_dtype);
+                    pgraph->append_alternation(get_no_constraint_ops());
                 });
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_reduce_gc)
@@ -57,8 +53,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_reduce_gc)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *reduction
                             = pgraph->append_alternation(get_reduction_ops());
-                    reduction->append_decision_function(
-                            reject_unsupported_dtype);
                     reduction->append_decision_function(check_input_num<1>);
                     reduction->append_decision_function(check_reduce_attrs);
                 });
@@ -72,7 +66,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_conv_gc)
                     graph::utils::pm::pb_op_t *conv
                             = pgraph->append_alternation(
                                     get_conv_forward_ops());
-                    conv->append_decision_function(reject_unsupported_dtype);
                     conv->append_decision_function(check_conv_attrs);
                     conv->append_decision_function(check_isa_compatibility);
                 })
@@ -81,8 +74,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_conv_gc)
                     graph::utils::pm::pb_op_t *conv_backward
                             = pgraph->append_alternation(
                                     get_conv_backward_ops());
-                    conv_backward->append_decision_function(
-                            reject_unsupported_dtype);
                     conv_backward->append_decision_function(check_input_num<2>);
                     conv_backward->append_decision_function(check_conv_attrs);
                     conv_backward->append_decision_function(
@@ -98,14 +89,12 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *bn_fwd = pgraph->append_op(
                             graph::op_kind::BatchNormForwardTraining);
-                    bn_fwd->append_decision_function(reject_unsupported_dtype);
                     bn_fwd->append_decision_function(check_input_num<5>);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *bn_bwd = pgraph->append_op(
                             graph::op_kind::BatchNormForwardTraining);
-                    bn_bwd->append_decision_function(reject_unsupported_dtype);
                     bn_bwd->append_decision_function(check_input_num<5>);
                     bn_bwd->append_decision_function(check_output_num<3>);
                 });
@@ -118,7 +107,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_pooling_gc)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *pooling
                             = pgraph->append_alternation(get_pooling_ops());
-                    pooling->append_decision_function(reject_unsupported_dtype);
                     pooling->append_decision_function(check_pooling_input_num);
                     pooling->append_decision_function(check_conv_attrs);
                 });
@@ -131,7 +119,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_matmul_gc)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *matmul
                             = pgraph->append_alternation(get_matmul_op());
-                    matmul->append_decision_function(reject_unsupported_dtype);
                     matmul->append_decision_function(check_isa_compatibility);
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END

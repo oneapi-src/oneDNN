@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +51,28 @@ public:
     pattern_utils_t &operator=(const pattern_utils_t &) = delete;
 };
 
+static bool contain_unsupported_dtype(const graph::op_t *op) {
+    for (const auto &in_value : op->get_input_values()) {
+        if (in_value->get_logical_tensor().data_type == data_type::f16
+                || in_value->get_logical_tensor().data_type
+                        == data_type::f8_e4m3
+                || in_value->get_logical_tensor().data_type
+                        == data_type::f8_e5m2) {
+            return true;
+        }
+    }
+    for (const auto &out_value : op->get_output_values()) {
+        if (out_value->get_logical_tensor().data_type == data_type::f16
+                || out_value->get_logical_tensor().data_type
+                        == data_type::f8_e4m3
+                || out_value->get_logical_tensor().data_type
+                        == data_type::f8_e5m2) {
+            return true;
+        }
+    }
+    return false;
+}
+
 inline void pattern_utils_t::match(graph::graph_t &backend_graph,
         std::shared_ptr<graph::utils::pm::pb_graph_t> pgraph,
         std::vector<std::vector<op_t *>> &fusion_ops) {
@@ -59,6 +81,19 @@ inline void pattern_utils_t::match(graph::graph_t &backend_graph,
         std::vector<op_t *> candidate_fusion;
         if (!graph::utils::pm::match_pattern(
                     cur_op, pgraph, candidate_fusion)) {
+            return status::success;
+        }
+        bool unsupported_dtype = false;
+        for (const auto &op : candidate_fusion) {
+            if (contain_unsupported_dtype(op)) {
+                unsupported_dtype = true;
+                break;
+            }
+        }
+        if (unsupported_dtype) {
+            for (const auto &c : candidate_fusion) {
+                c->remove_attr(op_attr::matched);
+            }
             return status::success;
         }
         fusion_ops.emplace_back(candidate_fusion);
