@@ -1551,7 +1551,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS_ITER);
     auto &diff_bias_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
-    const rnn_utils::user_data_t user_data(src_layer_native_, rnn, pd()->off);
+    const rnn_utils::user_data_t user_data(
+            src_layer_native_, diff_dst_layer_native_, rnn, pd()->off);
 
     DPRINT("\n%s\n", "+++++++++++++++");
     DPRINT(" aprop = %d\n", (int)aprop);
@@ -1628,7 +1629,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     float shift = (pd()->attr()->rnn_data_qparams_.shift_);
     float scale = (pd()->attr()->rnn_data_qparams_.scale_);
 
-    if (rnn.copy_src_layer || !is_fwd) {
+    if ((rnn.is_fwd && rnn.copy_src_layer)
+            || (!rnn.is_fwd && rnn.copy_diff_dst_layer)) {
         CHECK(copy_init_layer(ctx, compute_stream, is_lr, is_rl, batch, dhc,
                 slc, n_iter, n_layer, n_dir, n_states, rnn.states_ws_ld,
                 rnn.scratch_diff_states_ld, workspace.states(),

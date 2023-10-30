@@ -302,7 +302,36 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     bool copy_src_layer = dev_getenv("copy_src_layer", prefer_copy_src_layer)
             || require_copy_src_layer;
 
+    bool prefer_copy_diff_dst_layer = true;
+    bool require_copy_diff_dst_layer = [&]() {
+        auto diff_dst_layer_md = memory_desc_wrapper(rd.diff_dst_layer_desc);
+        auto &strides = diff_dst_layer_md.strides();
+        auto dt_size = types::data_type_size(diff_dst_layer_md.data_type());
+
+        // Unimplemented
+        if (strides[1] * dt_size != rnn.scratch_diff_states_ld) return true;
+
+        // The GEMM interface assumes input buffers are well aligned. We need to
+        // implement a way to avoid kernels relying on this alignment to remove
+        // this restriction.
+        if ((strides[0] * dt_size) % 8) return true;
+
+        if (rnn.merge_gemm_layer) {
+            // GEMM inputs are represented as 2d inputs. As such, the merged
+            // dimension need to be dense. This restriction could be removed by
+            // using batched GEMM with appropriate strides instead.
+            constexpr int iter_dim = 0, mb_dim = 1;
+            if (strides[iter_dim] != strides[mb_dim] * rnn.mb) return true;
+            if (rnn.exec_dir != rnn_utils::r2l) return true;
+        }
+        return false;
+    }();
+    bool copy_diff_dst_layer
+            = dev_getenv("copy_diff_dst_layer", prefer_copy_diff_dst_layer)
+            || require_copy_diff_dst_layer;
+
     rnn.copy_src_layer = copy_src_layer;
+    rnn.copy_diff_dst_layer = copy_diff_dst_layer;
     rnn.ws_states_cell_size = rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
     rnn.ws_states_size = (copy_src_layer ? rnn.n_layer + 1 : rnn.n_layer)
             * rnn.n_dir * (rnn.n_iter + 1) * rnn.ws_states_cell_size;
@@ -316,6 +345,8 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             ? (copy_src_layer ? rnn.n_layer + 1 : rnn.n_layer) * rnn.n_dir
                     * (rnn.n_iter + 1) * rnn.ws_c_states_cell_size
             : 0;
+
+    //TODO: update addressing to reduce size
     rnn.scratch_diff_states_size = is_bwd ? (rnn.n_layer + 1) * rnn.n_dir
                     * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb
                     * rnn.scratch_diff_states_ld * aux_elsz

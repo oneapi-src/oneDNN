@@ -297,6 +297,7 @@ struct conf_t {
     bool use_workspace;
     bool recompute_gates;
     bool copy_src_layer;
+    bool copy_diff_dst_layer;
 
     // for test mode (--skip_nonliner=true of benchdnn)
     float tm_cscale;
@@ -390,9 +391,12 @@ inline void append_strides(compute::kernel_arg_list_t &arg_list,
 
 struct user_data_t {
     using mst = memory_storage_t;
-    user_data_t(const mst &src_layer, const conf_t &conf,
-            const rnn_offsets_t &offsets)
-        : src_layer_(src_layer), conf_(conf), offsets_(offsets) {
+    user_data_t(const mst &src_layer, const mst &diff_dst_layer,
+            const conf_t &conf, const rnn_offsets_t &offsets)
+        : src_layer_(src_layer)
+        , diff_dst_layer_(diff_dst_layer)
+        , conf_(conf)
+        , offsets_(offsets) {
         // The packed restriction could be removed by using batched GEMM with
         // appropriate strides.
         gpu_assert(IMPLICATION(conf_.merge_gemm_layer && !conf_.copy_src_layer,
@@ -413,21 +417,43 @@ struct user_data_t {
                 && offsets_.src_layer[2] < INT_MAX)
                 << "[UNIMPLEMENTED]: src offsets larger than INT_MAX are not "
                    "currently supported in ref_rnn.cl";
+
+        if (!conf.is_fwd) {
+            gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer,
+                    offsets_.diff_dst_layer[1] == conf_.scratch_diff_states_ld))
+                    << "[UNIMPLEMENTED]: diff_dst_layer is required to have "
+                       "the same layout as layers in the workspace";
+
+            gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer,
+                    (offsets_.diff_dst_layer[0]
+                            * types::data_type_size(conf_.diff_data_type))
+                                    % 8
+                            == 0))
+                    << "[ERROR]: GEMM interface assumes inputs buffers are "
+                       "well aligned";
+            gpu_assert(offsets_.diff_dst_layer[0] < INT_MAX
+                    && offsets_.diff_dst_layer[1] < INT_MAX
+                    && offsets_.diff_dst_layer[2] < INT_MAX)
+                    << "[UNIMPLEMENTED]: diff_dst offsets larger than INT_MAX "
+                       "are not currently supported in ref_rnn.cl";
+        }
+    }
+
+    dim_t normalized_iter(dim_t dir, dim_t iter_) const {
+        if (conf_.exec_dir == l2r)
+            return iter_;
+        else if (conf_.exec_dir == r2l)
+            return conf_.n_iter - iter_ - 1;
+        else if (dir == 1)
+            return conf_.n_iter - iter_ - 1;
+        else
+            return iter_;
     }
 
     const mst &src_layer() const { return src_layer_; }
     std::unique_ptr<mst> src_layer(
             dim_t dir, dim_t iter_, bool all_iter = false) const {
-        auto iter = [&]() {
-            if (conf_.exec_dir == l2r)
-                return iter_;
-            else if (conf_.exec_dir == r2l)
-                return conf_.n_iter - iter_ - 1;
-            else if (dir == 1)
-                return conf_.n_iter - iter_ - 1;
-            else
-                return iter_;
-        }();
+        auto iter = normalized_iter(dir, iter_);
 
         // src_layer dimension order: iter, mini-batch, channel
         const auto iter_stride = offsets_.src_layer[0]
@@ -438,7 +464,22 @@ struct user_data_t {
         return src_layer_.get_sub_storage(offset, cell_size * n_cells);
     }
 
+    const mst &diff_dst_layer() const { return diff_dst_layer_; }
+    std::unique_ptr<mst> diff_dst_layer(
+            dim_t dir, dim_t iter_, bool all_iter = false) const {
+        auto iter = normalized_iter(dir, iter_);
+
+        // diff_dst_layer dimension order: iter, mini-batch, channel
+        const auto iter_stride = offsets_.diff_dst_layer[0]
+                * types::data_type_size(conf_.diff_data_type);
+        auto offset = iter * iter_stride;
+        auto cell_size = iter_stride;
+        auto n_cells = all_iter ? conf_.n_iter - iter : 1;
+        return diff_dst_layer_.get_sub_storage(offset, cell_size * n_cells);
+    }
+
     const mst &src_layer_;
+    const mst &diff_dst_layer_;
     const conf_t &conf_;
     const rnn_offsets_t &offsets_;
 };
