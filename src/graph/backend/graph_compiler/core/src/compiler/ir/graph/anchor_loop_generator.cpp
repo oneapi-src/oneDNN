@@ -105,11 +105,6 @@ static std::vector<int> move_reduce_axis_to_inner(const context_ptr &ctx,
             can_move = false;
             return;
         }
-        auto shape = node->get_inputs()[0]->details_.get_blocking_dims();
-        int parallel_num = 1;
-        for (int i = 0; i < *reduce_axis.begin(); i++) {
-            parallel_num *= shape[i];
-        }
         for (auto raxis : reduce_axis) {
             auto rend = std::remove(out_axis.begin(), out_axis.end(), raxis);
             assert(rend + 1 == out_axis.end());
