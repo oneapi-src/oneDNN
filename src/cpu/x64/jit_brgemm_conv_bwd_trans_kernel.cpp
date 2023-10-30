@@ -70,7 +70,7 @@ int jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::inp_w_start(
 template <typename Vmm>
 void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::load(
         const Vmm &x, const Xbyak::Address &addr, const int load_size) {
-    assert(!is_zmm_ && "only Zmm registers allowed");
+    assert(is_zmm_ && "only Zmm registers allowed");
     switch (jcp.src_dt) {
         case f32:
         case s32: vmovdqu32(x, addr); break;
@@ -85,7 +85,7 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::load(
 template <typename Vmm>
 void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::store(
         const Xbyak::Address &addr, const Vmm &x, const int store_size) {
-    assert(!is_zmm_ && "only Zmm registers allowed");
+    assert(is_zmm_ && "only Zmm registers allowed");
     switch (jcp.src_dt) {
         case f32:
         case s32: vmovdqu32(addr, x); break;
