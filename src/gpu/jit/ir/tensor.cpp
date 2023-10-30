@@ -594,6 +594,31 @@ layout_t dim_assignment_t::map(const layout_t &layout) const {
     return ret;
 }
 
+layout_t spatials_to_3d(
+        const layout_t &layout, bool with_groups, int reduced_dim) {
+    const int old_ndims = layout.ndims();
+    const int old_sp_ndims = old_ndims - (with_groups ? 3 : 2);
+    const int new_ndims = old_ndims - old_sp_ndims + 3;
+
+    dim_assignment_t to_3d(old_ndims, new_ndims);
+    for (int i = 0; i < old_ndims; i++) {
+        if (i < old_ndims - old_sp_ndims) {
+            // Non-spatial dimensions.
+            to_3d.assign(i, i);
+        } else {
+            // Spatial dimensions.
+            int sp_idx = 3 - (old_ndims - i);
+            if (reduced_dim == 3) {
+                sp_idx = 2;
+            } else if (sp_idx < reduced_dim) {
+                sp_idx += 1;
+            }
+            to_3d.assign(i, new_ndims - (3 - sp_idx));
+        }
+    }
+    return to_3d.map(layout);
+}
+
 } // namespace jit
 } // namespace gpu
 } // namespace impl

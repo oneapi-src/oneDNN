@@ -17,9 +17,11 @@
 #ifndef GPU_CONFIG_HPP
 #define GPU_CONFIG_HPP
 
+#include <functional>
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <unordered_map>
 
 #include "gpu/utils.hpp"
 

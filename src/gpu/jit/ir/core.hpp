@@ -24,7 +24,9 @@
 #include <numeric>
 #include <string>
 
+#include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
+#include "common/float16.hpp"
 #include "common/math_utils.hpp"
 #include "gpu/jit/utils/ngen_proxy.hpp"
 #include "gpu/jit/utils/utils.hpp"
@@ -1633,6 +1635,8 @@ expr_t to_expr(T value, const type_t &type) {
     if (type == type_t::ir_type()) return expr_t((cpp_type)value)
 
     CASE(_bool, bool);
+    CASE(bf16, bfloat16_t);
+    CASE(f16, float16_t);
     CASE(f32, float);
     CASE(f64, double);
     CASE(s16, int16_t);

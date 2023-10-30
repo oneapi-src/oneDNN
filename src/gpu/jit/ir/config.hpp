@@ -19,6 +19,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
 
 #include "gpu/config.hpp"
 #include "gpu/jit/ir/hw_config.hpp"
@@ -158,6 +159,29 @@ public:
     }
 };
 
+class grid_param_t : public value_param_t<grid_info_t> {
+public:
+    using value_param_t::value_param_t;
+
+    bool is_overridable() const override { return false; }
+};
+
+class kernel_grid_param_t : public grid_param_t {
+public:
+    std::string name() const override { return "kernel-grid"; }
+    std::string desc() const override {
+        return "Number of thread groups across dimensions (kernel grid).";
+    }
+    bool is_overridable() const override { return false; }
+};
+
+class thread_group_grid_param_t : public grid_param_t {
+public:
+    std::string name() const override { return "tg-grid"; }
+    std::string desc() const override { return "Thread group grid."; }
+    bool is_overridable() const override { return false; }
+};
+
 class prim_config_t : public container_config_t {
 public:
     ~prim_config_t() override = default;
@@ -165,6 +189,35 @@ public:
 
     void set_zp_cfg(const zero_points_config_t &zp_cfg) { zp_cfg_ = zp_cfg; }
     const zero_points_config_t &zp_cfg() const { return zp_cfg_; }
+
+    // Return thread utilization as a percentage. If this value is low,
+    // parallelism is a fundamental limitation to the current work scheduling.
+    static float get_thread_utilization(
+            const exec_config_t &exec_cfg, int kg_elems, int tg_elems) {
+        auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw());
+        int eus_per_slice = compute::device_info_t::max_eus_per_wg(arch);
+        int slice_count = exec_cfg.hw_cfg().eu_count() / eus_per_slice;
+
+        int min_wg_per_slice_wave = std::max(eus_per_slice / tg_elems, 1);
+        int min_wg_per_wave = slice_count * min_wg_per_slice_wave;
+        return (100.f * kg_elems) / utils::rnd_up(kg_elems, min_wg_per_wave);
+    }
+
+    // Return wave utilization as a percentage. If this value is low, memory
+    // latency may be an issue due to limited use of SMT to hide the latency.
+    static float get_wave_utilization(
+            const exec_config_t &exec_cfg, int kg_elems, int tg_elems) {
+        auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw());
+        int threads_per_eu = compute::device_info_t::threads_per_eu(
+                arch, exec_cfg.regs() > 128);
+        int eus_per_slice = compute::device_info_t::max_eus_per_wg(arch);
+        int slice_count = exec_cfg.hw_cfg().eu_count() / eus_per_slice;
+
+        int wgs_per_slice = eus_per_slice * threads_per_eu / tg_elems;
+        ir_assert(wgs_per_slice > 0);
+        int wgs_per_tile = slice_count * wgs_per_slice;
+        return (100.f * kg_elems) / utils::rnd_up(kg_elems, wgs_per_tile);
+    }
 
 #define DECL_PARAM(name) \
     const name##_param_t &name##_param() const { \

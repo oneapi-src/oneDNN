@@ -32,19 +32,6 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-bool need_src_or_dst_check(
-        bool is_fwd, int o, int i, int k, int p, int s, int d) {
-    if (is_fwd) {
-        int i_min = -p;
-        int i_max = (o - 1) * s - p + (k - 1) * (1 + d);
-        return (i_min < 0) || (i_max >= i);
-    }
-    // Backward.
-    int os_min = p - (k - 1) * (1 + d);
-    int os_max = (i - 1) + p;
-    return (os_min < 0) || (os_max >= o * s);
-}
-
 // Represents hierarchy of tile levels and corresponding loop/grid indices.
 //
 // | Tile level | Nesting level | Maps to                |
@@ -162,14 +149,14 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
 
     bool check_kw = (prb_.kw < cfg_.padded_dim(conv_dims::kw));
     bool check_iw = check_kw || check_ow
-            || need_src_or_dst_check(prb_.is_fwd, prb_.ow, prb_.iw, prb_.kw,
-                    prb_.pw, prb_.sw, prb_.dw);
+            || utils::need_src_or_dst_check(prb_.is_fwd, prb_.ow, prb_.iw,
+                    prb_.kw, prb_.pw, prb_.sw, prb_.dw);
     bool check_ih = check_oh
-            || need_src_or_dst_check(prb_.is_fwd, prb_.oh, prb_.ih, prb_.kh,
-                    prb_.ph, prb_.sh, prb_.dh);
+            || utils::need_src_or_dst_check(prb_.is_fwd, prb_.oh, prb_.ih,
+                    prb_.kh, prb_.ph, prb_.sh, prb_.dh);
     bool check_id = check_od
-            || need_src_or_dst_check(prb_.is_fwd, prb_.od, prb_.id, prb_.kd,
-                    prb_.pd, prb_.sd, prb_.dd);
+            || utils::need_src_or_dst_check(prb_.is_fwd, prb_.od, prb_.id,
+                    prb_.kd, prb_.pd, prb_.sd, prb_.dd);
 
     auto &x = view_t::placeholder_var();
     if (check_id) id_mask = (x >= 0) & (x < prb_.id);
@@ -317,11 +304,11 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
 
     bool check_iw = (prb_.iw < cfg_.padded_dim(conv_dims::iw));
     bool check_ow = check_iw
-            || need_src_or_dst_check(prb_.is_fwd, prb_.ow, prb_.iw, prb_.kw,
-                    prb_.pw, prb_.sw, prb_.dw);
-    bool check_oh = need_src_or_dst_check(
+            || utils::need_src_or_dst_check(prb_.is_fwd, prb_.ow, prb_.iw,
+                    prb_.kw, prb_.pw, prb_.sw, prb_.dw);
+    bool check_oh = utils::need_src_or_dst_check(
             prb_.is_fwd, prb_.oh, prb_.ih, prb_.kh, prb_.ph, prb_.sh, prb_.dh);
-    bool check_od = need_src_or_dst_check(
+    bool check_od = utils::need_src_or_dst_check(
             prb_.is_fwd, prb_.od, prb_.id, prb_.kd, prb_.pd, prb_.sd, prb_.dd);
 
     auto &x = view_t::placeholder_var();
@@ -531,12 +518,12 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     bool check_od = (prb_.od < cfg_.padded_dim(conv_dims::od));
     bool check_kw = (prb_.kw < cfg_.padded_dim(conv_dims::kw));
     bool check_iw = check_kw
-            || need_src_or_dst_check(/*is_fwd=*/true, prb_.ow, prb_.iw, prb_.kw,
-                    prb_.pw, prb_.sw, prb_.dw);
-    bool check_ih = need_src_or_dst_check(/*is_fwd=*/true, prb_.oh, prb_.ih,
-            prb_.kh, prb_.ph, prb_.sh, prb_.dh);
-    bool check_id = need_src_or_dst_check(/*is_fwd=*/true, prb_.od, prb_.id,
-            prb_.kd, prb_.pd, prb_.sd, prb_.dd);
+            || utils::need_src_or_dst_check(/*is_fwd=*/true, prb_.ow, prb_.iw,
+                    prb_.kw, prb_.pw, prb_.sw, prb_.dw);
+    bool check_ih = utils::need_src_or_dst_check(/*is_fwd=*/true, prb_.oh,
+            prb_.ih, prb_.kh, prb_.ph, prb_.sh, prb_.dh);
+    bool check_id = utils::need_src_or_dst_check(/*is_fwd=*/true, prb_.od,
+            prb_.id, prb_.kd, prb_.pd, prb_.sd, prb_.dd);
     bool check_iw_min = check_iw;
     bool check_ih_min = check_ih;
     bool check_id_min = check_id;

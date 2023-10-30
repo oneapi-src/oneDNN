@@ -336,13 +336,6 @@ private:
     const conv_problem_t &prb_;
 };
 
-class grid_param_t : public value_param_t<grid_info_t> {
-public:
-    using value_param_t::value_param_t;
-
-    bool is_overridable() const override { return false; }
-};
-
 inline std::unordered_map<std::string, int> to_string_int_map(
         const std::string &s) {
     std::unordered_map<std::string, int> ret;
@@ -523,15 +516,6 @@ public:
         oss << short_name() << "=" << to_string(value_);
         return oss.str();
     }
-};
-
-class kernel_grid_param_t : public grid_param_t {
-public:
-    std::string name() const override { return "kernel-grid"; }
-    std::string desc() const override {
-        return "Number of thread groups across dimensions (kernel grid).";
-    }
-    bool is_overridable() const override { return false; }
 };
 
 class iter_dims_param_t : public tile_param_t {
@@ -836,13 +820,6 @@ public:
 private:
     int a_ = 1;
     int b_ = 1;
-};
-
-class thread_group_grid_param_t : public grid_param_t {
-public:
-    std::string name() const override { return "tg-grid"; }
-    std::string desc() const override { return "Thread group grid."; }
-    bool is_overridable() const override { return false; }
 };
 
 class thread_group_dims_param_t : public tile_param_t {

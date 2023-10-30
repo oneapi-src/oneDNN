@@ -1555,41 +1555,6 @@ int conv_config_t::pad_block(const conv_dim_t &d) const {
     return ret;
 }
 
-int get_thread_count(const conv_config_t &cfg) {
-    return cfg.kernel_grid().elems() * cfg.thread_group_grid().elems();
-}
-
-// Return thread utilization as a percentage. If this value is low,
-// parallelism is a fundamental limitation to the current work scheduling.
-float get_thread_utilization(const conv_config_t &cfg) {
-    auto arch = convert_ngen_arch_to_dnnl(cfg.hw());
-    int eus_per_slice = compute::device_info_t::max_eus_per_wg(arch);
-    int slice_count = cfg.hw_cfg().eu_count() / eus_per_slice;
-
-    int min_wg_per_slice_wave
-            = std::max(eus_per_slice / cfg.thread_group_grid().elems(), 1);
-    int min_wg_per_wave = slice_count * min_wg_per_slice_wave;
-    int wg_count = cfg.kernel_grid().elems();
-    return ((float)wg_count / utils::rnd_up(wg_count, min_wg_per_wave)) * 100;
-}
-
-// Return wave utilization as a percentage. If this value is low, memory
-// latency may be an issue due to limited use of SMT to hide the latency.
-float get_wave_utilization(const conv_config_t &cfg) {
-    auto arch = convert_ngen_arch_to_dnnl(cfg.hw());
-    int threads_per_eu
-            = compute::device_info_t::threads_per_eu(arch, cfg.regs() > 128);
-    int eus_per_slice = compute::device_info_t::max_eus_per_wg(arch);
-    int slice_count = cfg.hw_cfg().eu_count() / eus_per_slice;
-
-    int wgs_per_slice
-            = eus_per_slice * threads_per_eu / cfg.thread_group_grid().elems();
-    ir_assert(wgs_per_slice > 0);
-    int wgs_per_tile = slice_count * wgs_per_slice;
-    int wg_count = cfg.kernel_grid().elems();
-    return ((float)wg_count / utils::rnd_up(wg_count, wgs_per_tile)) * 100;
-}
-
 std::string conv_config_t::str() const {
     using namespace ir_utils;
 
@@ -1610,13 +1575,14 @@ std::string conv_config_t::str() const {
         }
         oss << std::endl;
     }
+    int kg_elems = kernel_grid().elems(), tg_elems = thread_group_grid().elems();
     int estimated_peak_regs = estimate_register_count(*this);
     oss << blocking_brief_str();
     oss << "  Kernel grid:                " << kernel_grid() << std::endl;
     oss << "  Thread group:               " << thread_group_grid() << std::endl;
-    oss << "  Threads:                    " << get_thread_count(*this) << " (utilization: "
-        << get_thread_utilization(*this) << "% thread, "
-        << get_wave_utilization(*this) << "% wave)" <<  std::endl;
+    oss << "  Threads:                    " << kg_elems * tg_elems << " (utilization: "
+        << get_thread_utilization(exec_cfg(), kg_elems, tg_elems) << "% thread, "
+        << get_wave_utilization(exec_cfg(), kg_elems, tg_elems) << "% wave)" << std::endl;
     oss << "  FMA kind:                   " << to_string(fma_kind()) << std::endl;
     oss << "  SLM buffering:              " << "A: " << to_string(slm().a()) << ", B: " << to_string(slm().b())
                                             << ", buffers: " << slm().bufs() << ", pad: " << to_string(pad_slm()) << std::endl;

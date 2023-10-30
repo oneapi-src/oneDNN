@@ -1490,6 +1490,16 @@ public:
         }
     }
 
+    void set_tmasks(const std::vector<int> &padded_dims) {
+        ir_assert(int(padded_dims.size()) == ntdims());
+        std::unordered_map<std::string, int> pd_map;
+        for (int i = 0; i < ntdims(); i++) {
+            auto &dim_name = vvars_[tdims_[i].vidx(0)].as<var_t>().name;
+            pd_map.emplace(dim_name, padded_dims[i]);
+        }
+        set_tmasks(pd_map);
+    }
+
     std::string str() const {
         using ir_utils::operator<<;
 
@@ -1915,6 +1925,11 @@ private:
     // assignments_[old_idx] = new_idx.
     std::vector<int> assignments_;
 };
+
+// Adds size one spatial dimensions according to input parameters. Spatial
+// dimensions are assumed to be the last dimensions.
+layout_t spatials_to_3d(
+        const layout_t &layout, bool with_groups, int reduced_dim);
 
 } // namespace jit
 } // namespace gpu

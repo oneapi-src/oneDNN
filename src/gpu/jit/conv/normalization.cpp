@@ -23,32 +23,6 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-// Adds size one spatial dimensions according to input parameters. Spatial
-// dimensions are assumed to be the last dimensions.
-layout_t normalize_conv_spatial(
-        const layout_t &layout, int old_sp_ndims, int reduced_dim) {
-    int old_ndims = layout.ndims();
-    int new_ndims = old_ndims - old_sp_ndims + 3;
-
-    dim_assignment_t to_3d(old_ndims, new_ndims);
-    for (int i = 0; i < old_ndims; i++) {
-        if (i < old_ndims - old_sp_ndims) {
-            // Non-spatial dimensions.
-            to_3d.assign(i, i);
-        } else {
-            // Spatial dimensions.
-            int sp_idx = 3 - (old_ndims - i);
-            if (reduced_dim == 3) {
-                sp_idx = 2;
-            } else if (sp_idx < reduced_dim) {
-                sp_idx += 1;
-            }
-            to_3d.assign(i, new_ndims - (3 - sp_idx));
-        }
-    }
-    return to_3d.map(layout);
-}
-
 layout_t insert_dimension(const layout_t &layout, int dim_idx) {
     auto new_blocks = layout.blocks();
     for (auto &b : new_blocks) {
@@ -124,10 +98,8 @@ layout_t normalize_conv_groups(const layout_t &layout, bool with_groups,
 
 layout_t normalize_conv_layout(const layout_t &_layout, bool with_groups,
         int groups, bool is_dw, int reduced_dim, bool add_groups, bool is_wei) {
-    int old_sp_ndims = _layout.ndims() - (with_groups ? 3 : 2);
-
     layout_t layout = _layout;
-    layout = normalize_conv_spatial(layout, old_sp_ndims, reduced_dim);
+    layout = spatials_to_3d(layout, with_groups, reduced_dim);
     layout = normalize_conv_groups(
             layout, with_groups, groups, is_dw, add_groups, is_wei);
 

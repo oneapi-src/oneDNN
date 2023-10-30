@@ -527,6 +527,19 @@ std::string format(const char *fmt, Args &&...args) {
     return format_impl(fmt, format_cvt_impl(std::forward<Args>(args))...);
 }
 
+inline bool need_src_or_dst_check(
+        bool is_fwd, int o, int i, int k, int p, int s, int d) {
+    if (is_fwd) {
+        int i_min = -p;
+        int i_max = (o - 1) * s - p + (k - 1) * (1 + d);
+        return (i_min < 0) || (i_max >= i);
+    }
+    // Backward.
+    int os_min = p - (k - 1) * (1 + d);
+    int os_max = (i - 1) + p;
+    return (os_min < 0) || (os_max >= o * s);
+}
+
 // transforms @param l(ogical)_offset into a @param dims_pos based on input
 // dimensions @param dims and @param ndims.
 inline void l_dims_by_l_offset(
