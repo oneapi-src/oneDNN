@@ -535,10 +535,16 @@ public:
             }
         } else {
             auto &src1_imm = src1.immediate();
-            int32_t src1_value = to_cpp<int32_t>(src1_imm);
-            ir_assert(0 < src1_value && src1_value <= INT32_MAX) << src1_value;
-            eidiv(mod, dst.reg_data(), ngen::Subregister(), src0.reg_data(),
-                    src1_value);
+            if (to_ir(src0.type()).is_fp()) {
+                ngen::Immediate src1_inv_value(1.f / to_cpp<float>(src1_imm));
+                emul(mod, dst, src0, src1_inv_value);
+            } else {
+                int32_t src1_value = to_cpp<int32_t>(src1_imm);
+                ir_assert(0 < src1_value && src1_value <= INT32_MAX)
+                        << src1_value;
+                eidiv(mod, dst.reg_data(), ngen::Subregister(), src0.reg_data(),
+                        src1_value);
+            }
         }
     }
 
