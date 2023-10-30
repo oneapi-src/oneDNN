@@ -97,7 +97,8 @@ class LogParser:
                             if f[:3] == "zpm":
                                 flags["zp_comp_mask"] = f[3:]
 
-                    data_type = arg_dt.split("_")[-1]
+                    # `maxsplit` needed to cover dnnl_XX_YY data types
+                    data_type = arg_dt.split("_", maxsplit=1)[-1]
                     arg = arg_dt[: -len(data_type) - 1]
                     mds.append(
                         {
