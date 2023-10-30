@@ -249,7 +249,12 @@ void ref_primitive_t::check_correctness(
             res->state = EXECUTED;
             res->errors = 0;
             cmp.set_norm_validation_mode(true);
-            cmp.compare(mem_fp_abx, mem_dt, attr, res);
+            if (cmp.compare(mem_fp_abx, mem_dt, attr, res) == FAIL) {
+                const std::string norm_check_fail = "Norm check failed, quit!";
+                BENCHDNN_PRINT(
+                        0, "Output arg %d: %s\n", arg, norm_check_fail.c_str());
+                break;
+            }
         }
     }
 }
