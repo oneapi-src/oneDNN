@@ -264,7 +264,8 @@ struct ocl_conf_t {
     bool is_training = false;
     bool recompute_gates = false;
     bool copy_src_layer = false;
-    uint8_t pad[7] = {};
+    bool copy_diff_dst_layer = false;
+    uint8_t pad[6] = {};
 };
 
 struct conf_t {
@@ -735,10 +736,14 @@ struct scratch_t {
 
     dim_t calc_off_diff_state(
             dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4, dim_t i5) const {
-        gpu_assert(i0 >= 0) << "Logical index must be larger than 0";
+        // Logical index into workspace grid
+        auto i0_size
+                = conf_.copy_diff_dst_layer ? conf_.n_layer + 1 : conf_.n_layer;
+        gpu_assert(i0 < i0_size) << "Logical index must be less than its size";
+        MAYBE_UNUSED(i0_size);
 
-        return OFF6(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
-                conf_.n_states + 1, i3, conf_.n_iter + 1, i4, conf_.mb, i5,
+        return OFF6(i0, i0_size, i1, conf_.n_dir, i2, conf_.n_states + 1, i3,
+                conf_.n_iter + 1, i4, conf_.mb, i5,
                 conf_.scratch_diff_states_ld);
     }
 

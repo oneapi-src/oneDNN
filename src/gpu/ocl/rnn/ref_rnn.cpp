@@ -111,6 +111,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.is_training = rnn.is_training;
     ocl_conf.recompute_gates = rnn.recompute_gates;
     ocl_conf.copy_src_layer = rnn.copy_src_layer;
+    ocl_conf.copy_diff_dst_layer = rnn.copy_diff_dst_layer;
 
     off.src_layer = gpu::get_outer_strides(src_layer_d);
     ocl_conf.inner_layouts.src_layer = gpu::get_inner_layout(src_layer_d);
@@ -216,6 +217,7 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("WITH_DST_ITER", with_dst_iter);
     kernel_ctx.define_int("WITH_DST_ITER_C", with_dst_iter_c);
     kernel_ctx.define_int("COPY_SRC_LAYER", copy_src_layer);
+    kernel_ctx.define_int("COPY_DIFF_DST_LAYER", copy_diff_dst_layer);
 
     kernel_ctx.define_int("ELEMWISE_BWD_BATCH_BLOCK", elemwise_bwd_batch_block);
     kernel_ctx.define_int("NEED_BIAS_ATOMIC_REDUCE", need_bias_atomic_reduce);
