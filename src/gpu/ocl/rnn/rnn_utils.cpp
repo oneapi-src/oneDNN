@@ -347,10 +347,11 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             : 0;
 
     //TODO: update addressing to reduce size
-    rnn.scratch_diff_states_size = is_bwd ? (rnn.n_layer + 1) * rnn.n_dir
+    rnn.scratch_diff_states_size = is_bwd
+            ? (copy_diff_dst_layer ? rnn.n_layer + 1 : rnn.n_layer) * rnn.n_dir
                     * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb
                     * rnn.scratch_diff_states_ld * aux_elsz
-                                          : 0;
+            : 0;
     rnn.ws_gates_cell_size = rnn.mb * rnn.gates_ws_ld * aux_elsz;
     rnn.ws_gates_size = rnn.is_training
             ? (rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.ws_gates_cell_size)
