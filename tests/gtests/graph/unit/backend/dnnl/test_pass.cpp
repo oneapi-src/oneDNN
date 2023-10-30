@@ -4600,7 +4600,6 @@ TEST(Pass, DnnlSingleOpReplacement) {
             MatMul,
             AvgPool,
             MaxPool,
-            AvgPoolBackward,
             Clamp,
             ConvolutionBackwardData,
             ConvolutionBackwardWeights,
