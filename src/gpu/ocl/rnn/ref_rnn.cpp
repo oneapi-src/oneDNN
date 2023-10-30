@@ -1068,7 +1068,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             if ((aprop == prop_kind::forward || rnn.recompute_gates)
                     && rnn.merge_gemm_layer) {
                 auto grid_layer = (!rnn.copy_src_layer && lay == 0)
-                        ? workspace.src_layer(dir, 0, true)
+                        ? user_data.src_layer(dir, 0, true)
                         : workspace.states_range(
                                 lay - 1, lay - 1, dir, dir, 0, n_iter);
 
@@ -1084,14 +1084,15 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             for (dim_t i = 0; i < n_iter; i++) {
                 dim_t iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
                 CHECK((this->*cell_func)(engine, ctx, dir, lay, iter,
-                        offset_wei_layer, wei_iter_offsets, bias, workspace,
-                        scratch, wei_layer, wei_iter, diff_weights_layer,
-                        diff_weights_iter, diff_bias, scales, tm_scales));
+                        offset_wei_layer, wei_iter_offsets, bias, user_data,
+                        workspace, scratch, wei_layer, wei_iter,
+                        diff_weights_layer, diff_weights_iter, diff_bias,
+                        scales, tm_scales));
             }
 
             if (aprop == prop_kind::backward && rnn.merge_gemm_layer) {
                 auto grid_layer = (!rnn.copy_src_layer && lay == 0)
-                        ? workspace.src_layer(dir, 0)
+                        ? user_data.src_layer(dir, 0)
                         : workspace.states(lay - 1, dir, 0);
 
                 auto gemm_diff_wei_grid_layer
@@ -1535,8 +1536,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
                     ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
                                        : *scratch_workspace;
-    const auto &workspace = rnn_utils::workspace_t(
-            workspace_, src_layer_native_, pd()->ocl_conf, rnn, pd()->off);
+    const auto &workspace = rnn_utils::workspace_t(workspace_, rnn);
 
     const auto scratch
             = rnn_utils::scratch_t(rnn, ctx.get_scratchpad_grantor());
@@ -1550,6 +1550,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     auto &diff_weights_iter_native_
             = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS_ITER);
     auto &diff_bias_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
+
+    const rnn_utils::user_data_t user_data(src_layer_native_, rnn, pd()->off);
 
     DPRINT("\n%s\n", "+++++++++++++++");
     DPRINT(" aprop = %d\n", (int)aprop);
@@ -1650,8 +1652,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     }
 
     // run the execution on the grid
-    CHECK((this->*grid_computation)(engine, ctx, bias_native_, workspace,
-            scratch, wei_layer_native_, wei_iter_native_,
+    CHECK((this->*grid_computation)(engine, ctx, bias_native_, user_data,
+            workspace, scratch, wei_layer_native_, wei_iter_native_,
             diff_weights_layer_native_, diff_weights_iter_native_,
             diff_bias_native_, scales_buf, tm_scales_buf));
 

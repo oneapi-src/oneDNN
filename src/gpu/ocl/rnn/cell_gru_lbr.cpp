@@ -41,7 +41,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
     set_offsets_fwd_gemm(
             rnn, iter, dir, lay, wei_iter_offsets, cell_wei_iter_offset);
     auto cell_layer = !rnn.copy_src_layer && lay == 0
-            ? workspace.src_layer(dir, iter)
+            ? user_data.src_layer(dir, iter)
             : workspace.states(lay - 1, dir, iter);
     auto gemm_cell_layer_fwd = !rnn.copy_src_layer && lay == 0
             ? gemm_layer_fwd_src

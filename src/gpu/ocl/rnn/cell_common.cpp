@@ -37,7 +37,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
             rnn, iter, dir, lay, wei_iter_offsets, cell_wei_iter_offset);
 
     auto cell_layer = !rnn.copy_src_layer && lay == 0
-            ? workspace.src_layer(dir, iter)
+            ? user_data.src_layer(dir, iter)
             : workspace.states(lay - 1, dir, iter);
     auto cell_iter = workspace.states(lay, dir, iter - 1);
     auto scratch_gates_owner = scratch.gates(iter);

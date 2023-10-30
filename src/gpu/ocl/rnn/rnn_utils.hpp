@@ -81,6 +81,7 @@
             dim_t iter, dim_t wei_layer_offset, \
             const std::vector<dim_t> &wei_iter_offsets, \
             const memory_storage_t &bias, \
+            const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
             const memory_storage_t &wei_layer, \
@@ -93,6 +94,7 @@
 #define grid_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, \
             const memory_storage_t &bias, \
+            const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
             const memory_storage_t &wei_layer, \
@@ -386,15 +388,66 @@ inline void append_strides(compute::kernel_arg_list_t &arg_list,
     }
 }
 
+struct user_data_t {
+    using mst = memory_storage_t;
+    user_data_t(const mst &src_layer, const conf_t &conf,
+            const rnn_offsets_t &offsets)
+        : src_layer_(src_layer), conf_(conf), offsets_(offsets) {
+        // The packed restriction could be removed by using batched GEMM with
+        // appropriate strides.
+        gpu_assert(IMPLICATION(conf_.merge_gemm_layer && !conf_.copy_src_layer,
+                offsets_.src_layer[0] == offsets_.src_layer[1] * conf_.mb
+                        && conf_.exec_dir == l2r))
+                << "[ERROR]: GEMM dimensions must be packed in order to "
+                   "perform merge_gemm_layer";
+
+        gpu_assert(IMPLICATION(!conf.copy_src_layer,
+                (offsets_.src_layer[0]
+                        * types::data_type_size(conf_.input_data_type))
+                                % 8
+                        == 0))
+                << "[ERROR]: GEMM interface assumes inputs buffers are well "
+                   "aligned";
+        gpu_assert(offsets_.src_layer[0] < INT_MAX
+                && offsets_.src_layer[1] < INT_MAX
+                && offsets_.src_layer[2] < INT_MAX)
+                << "[UNIMPLEMENTED]: src offsets larger than INT_MAX are not "
+                   "currently supported in ref_rnn.cl";
+    }
+
+    const mst &src_layer() const { return src_layer_; }
+    std::unique_ptr<mst> src_layer(
+            dim_t dir, dim_t iter_, bool all_iter = false) const {
+        auto iter = [&]() {
+            if (conf_.exec_dir == l2r)
+                return iter_;
+            else if (conf_.exec_dir == r2l)
+                return conf_.n_iter - iter_ - 1;
+            else if (dir == 1)
+                return conf_.n_iter - iter_ - 1;
+            else
+                return iter_;
+        }();
+
+        // src_layer dimension order: iter, mini-batch, channel
+        const auto iter_stride = offsets_.src_layer[0]
+                * types::data_type_size(conf_.input_data_type);
+        auto offset = iter * iter_stride;
+        auto cell_size = iter_stride;
+        auto n_cells = all_iter ? conf_.n_iter - iter : 1;
+        return src_layer_.get_sub_storage(offset, cell_size * n_cells);
+    }
+
+    const mst &src_layer_;
+    const conf_t &conf_;
+    const rnn_offsets_t &offsets_;
+};
+
 struct workspace_t {
     using mst = memory_storage_t;
-    workspace_t(const mst &ws, const mst &src_layer, const ocl_conf_t &ocl_conf,
-            const conf_t &conf, const rnn_offsets_t &offsets)
+    workspace_t(const mst &ws, const conf_t &conf)
         : ws_(ws)
-        , src_layer_(src_layer)
-        , ocl_conf_(ocl_conf)
         , conf_(conf)
-        , offsets_(offsets)
         , gates_(conf.ws_gates_size > 0 ? ws.get_sub_storage(
                          conf.ws_gates_offset, conf.ws_gates_size)
                                         : nullptr)
@@ -409,44 +462,7 @@ struct workspace_t {
                                       : nullptr)
         , grid_comp_(conf.ws_grid_comp_size > 0 ? ws.get_sub_storage(
                              conf.ws_grid_comp_offset, conf.ws_grid_comp_size)
-                                                : nullptr) {
-        // The packed restriction could be removed by using batched GEMM with
-        // appropriate strides.
-        gpu_assert(IMPLICATION(conf_.merge_gemm_layer && !conf_.copy_src_layer,
-                offsets_.src_layer[0] == offsets_.src_layer[1] * conf_.mb
-                        && conf_.exec_dir == l2r))
-                << "[ERROR]: GEMM dimensions must be packed in order to "
-                   "perform merge_gemm_layer";
-
-        gpu_assert(IMPLICATION(!conf.copy_src_layer,
-                (offsets_.src_layer[0]
-                        * types::data_type_size(ocl_conf_.src_dt))
-                                % 8
-                        == 0))
-                << "[ERROR]: GEMM interface assumes inputs buffers are well "
-                   "aligned";
-        gpu_assert(offsets_.src_layer[0] < INT_MAX
-                && offsets_.src_layer[1] < INT_MAX
-                && offsets_.src_layer[2] < INT_MAX)
-                << "[UNIMPLEMENTED]: src offsets larger than INT_MAX are not "
-                   "currently supported in ref_rnn.cl";
-    }
-
-    dim_t calc_off_src_layer(dim_t dir, dim_t iter_, dim_t mb) const {
-        auto iter = [&]() {
-            if (conf_.exec_dir == l2r)
-                return iter_;
-            else if (conf_.exec_dir == r2l)
-                return conf_.n_iter - iter_ - 1;
-            else if (dir == 1)
-                return conf_.n_iter - iter_ - 1;
-            else
-                return iter_;
-        }();
-
-        // src_layer dimension order: iter, mini-batch, channel
-        return iter * offsets_.src_layer[0] + mb * offsets_.src_layer[1];
-    }
+                                                : nullptr) {}
 
     dim_t calc_off_ws_state(
             dim_t i0_, dim_t i1, dim_t i2_, dim_t i3, dim_t i4) const {
@@ -477,15 +493,6 @@ struct workspace_t {
     }
 
     const mst &ws() const { return ws_; }
-    const mst &src_layer() const { return src_layer_; }
-    std::unique_ptr<mst> src_layer(
-            dim_t dir, dim_t iter, bool all_iter = false) const {
-        auto off_ = calc_off_src_layer(dir, iter, 0)
-                * types::data_type_size(ocl_conf_.src_dt);
-        auto n_cells = all_iter ? conf_.n_iter - iter : 1;
-        auto cell_size = offsets_.src_layer[0];
-        return src_layer_.get_sub_storage(off_, cell_size * n_cells);
-    }
     const mst &gates() const { return get_storage(gates_); }
     const mst &states() const { return get_storage(states_); }
 
@@ -539,10 +546,7 @@ struct workspace_t {
 
 private:
     const mst &ws_;
-    const mst &src_layer_;
-    const ocl_conf_t &ocl_conf_;
     const conf_t &conf_;
-    const rnn_offsets_t &offsets_;
     std::unique_ptr<mst> gates_;
     std::unique_ptr<mst> states_;
     std::unique_ptr<mst> c_states_;
