@@ -18,6 +18,7 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#include "gpu/jit/pooling/gen_pooling.hpp"
 #include "gpu/ocl/gen9_global_pooling.hpp"
 #include "gpu/ocl/gen9_pooling.hpp"
 #include "gpu/ocl/ref_pooling.hpp"
@@ -33,6 +34,7 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_POOLING_P({
     {{forward}, {
+        INSTANCE(jit::gen_pooling_fwd_t)
         INSTANCE(ocl::gen9_global_pooling_fwd_t)
         INSTANCE(ocl::gen9_pooling_fwd_t)
         INSTANCE(ocl::ref_pooling_fwd_t)
