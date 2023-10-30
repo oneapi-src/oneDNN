@@ -70,7 +70,7 @@ function(register_benchdnn_test engine driver test_file)
     endif()
 
     set(mode_modifier "")
-    if(${engine} MATCHES "gpu")
+    if(${engine} MATCHES "gpu" AND NOT WIN32)
         set(mode_modifier "--mode-modifier=P")
     endif()
 
