@@ -74,8 +74,11 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 cell_diff_wei_lay_off);
 
         auto diff_states = scratch.diff_states(lay, dir, 0, iter);
-        auto diff_states_layer = scratch.diff_states(lay + 1, dir, 0, iter);
         auto diff_states_iter = scratch.diff_states(lay, dir, 0, iter + 1);
+        auto diff_states_layer
+                = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
+                ? user_data.diff_dst_layer(dir, iter)
+                : scratch.diff_states(lay + 1, dir, rnn.n_states, iter);
 
         auto diff_states0 = scratch.diff_states(lay, dir, 0, iter);
         auto diff_states1 = scratch.diff_states(lay, dir, rnn.n_states, iter);
