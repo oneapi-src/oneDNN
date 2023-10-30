@@ -568,14 +568,14 @@ private:
                           type_kind_t::qword)
                 && (size == 32 || size == 64))
                 << "expected atomic message dwordx8 or qwordx8";
-        auto load_func
-                = send_t::make(send_func.hw, send_op_t::load, send_func.address,
-                        send_func.type, send_func.slots, send_func.cache_hint);
+        auto load_func = send_t::make(send_func.hw, send_op_t::load,
+                send_func.address, send_func.type, send_func.slots,
+                send_func.zero_out, send_func.cache_hint);
         auto &load_send = load_func.as<send_t>();
         send_impl_t load(load_send);
         auto cmpwr_func = send_t::make(send_func.hw, send_op_t::atomic_cmpwr,
                 send_func.address, send_func.type, send_func.slots,
-                send_func.cache_hint);
+                send_func.zero_out, send_func.cache_hint);
         auto &cmpwr_send = cmpwr_func.as<send_t>();
         send_impl_t cmpwr(cmpwr_send);
         bool is_df = size == 64;
@@ -648,8 +648,9 @@ private:
             mod |= to_ngen(attr.as<instruction_modifier_attr_t>().mod);
         if (!mask_op.is_invalid()) mod |= mask_op.flag_register_mod();
 
-        // Zero-out inactive channels.
-        if ((send_func.is_load() || send_func.is_load_2d())
+        // Zero-out inactive channels unless told not to.
+        if (send_func.zero_out
+                && (send_func.is_load() || send_func.is_load_2d())
                 && mod.getPredCtrl() != ngen::PredCtrl::None) {
             zero_out(reg_buf_op, send_func.payload_size());
         }

@@ -133,7 +133,7 @@ bool send_t::is_supported() const {
 }
 
 std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
-        send_address_t address, const type_t &mem_type,
+        send_address_t address, const type_t &mem_type, bool zero_out,
         send_cache_hint_t cache_hint) {
     std::vector<func_t> filtered;
     for (int slots : {1, 2, 4, 8, 16}) {
@@ -146,7 +146,7 @@ std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
                     continue;
 
                 auto f = send_t::make(hw, op, address, type.with_elems(elems),
-                        slots, cache_hint);
+                        slots, zero_out, cache_hint);
                 if (!f.as<send_t>().is_supported()) continue;
                 filtered.push_back(f);
             }
@@ -469,7 +469,7 @@ private:
 access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
         const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
         send_address_t send_address, send_cache_hint_t send_cache_hint,
-        send_params_t &send_params)
+        send_params_t &send_params, bool zero_out)
     : ir_ctx_(&ir_ctx)
     , mem_view_(mem_view)
     , mem_buf_(mem_buf)
@@ -477,9 +477,11 @@ access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
     , send_op_(send_op)
     , send_address_(send_address)
     , send_cache_hint_(send_cache_hint)
-    , mem_type_(mem_view.type()) {
+    , mem_type_(mem_view.type())
+    , zero_out_(zero_out) {
     if (send_params.use_send_plan) {
-        auto sp = create_send_plan(ir_ctx.exec_cfg(), mem_view, send_params);
+        auto sp = create_send_plan(
+                ir_ctx.exec_cfg(), mem_view, send_params, zero_out);
         if (sp && !sp.is_2d()) send_params.hint_2d = send_2d_hint_t();
         if (!sp) return;
         reg_layout_ = sp.reg_layout();
@@ -568,7 +570,7 @@ static stmt_t try_promote_to_lsc(const stmt_t &_call) {
     send_t::arg_mask(new_args) = mask;
 
     auto lsc_send = send_t::make(send.hw, send.op, send.address, send.type,
-            send.slots, /*is_lsc=*/true, send.cache_hint);
+            send.slots, /*is_lsc=*/true, send.zero_out, send.cache_hint);
     return lsc_send.call(new_args);
 }
 
@@ -714,7 +716,8 @@ bool access_builder_t::try_build_2d(send_params_t &send_params) {
     hint.width = w;
     hint.height = h;
     auto _send = send_t::make_2d(ir_ctx_->hw(), send_params.convert(send_op_),
-            send_type, W, H, P, w, h, c, vnni, transpose, send_cache_hint_);
+            send_type, W, H, P, w, h, c, vnni, transpose, zero_out_,
+            send_cache_hint_);
     auto &send = _send.as<send_t>();
 
     stmt_ = stmt_t();
@@ -896,7 +899,7 @@ bool access_builder_t::try_build(
             = (try_layout_blocks.empty() ? 0
                                          : (int)try_layout_blocks[0].stride);
     auto send_list = send_t::get_all(ir_ctx_->hw(), send_op_, send_address_,
-            mem_type_, send_cache_hint_);
+            mem_type_, zero_out_, send_cache_hint_);
     reg_layout_walker_
             = utils::make_unique<layout_walker_t>(try_layout, grf_size());
     stmt_ = stmt_t();

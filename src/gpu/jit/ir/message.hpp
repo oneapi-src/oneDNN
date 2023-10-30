@@ -118,36 +118,37 @@ public:
     IR_DECL_DERIVED_TYPE_ID(send_t, func_impl_t)
 
     static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
-            const type_t &type, int slots,
+            const type_t &type, int slots, bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
         return make(hw, op, address, type, slots, default_slot_mask,
-                hw >= ngen::HW::XeHPC, cache_hint);
+                hw >= ngen::HW::XeHPC, zero_out, cache_hint);
     }
 
     static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
-            const type_t &type, int slots, bool is_lsc,
+            const type_t &type, int slots, bool is_lsc, bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
         return make(hw, op, address, type, slots, default_slot_mask, is_lsc,
-                cache_hint);
+                zero_out, cache_hint);
     }
 
     static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
             const type_t &type, int slots, uint32_t slot_mask, bool is_lsc,
+            bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
-        return func_t(new send_t(
-                hw, op, address, type, slots, slot_mask, is_lsc, cache_hint));
+        return func_t(new send_t(hw, op, address, type, slots, slot_mask,
+                is_lsc, zero_out, cache_hint));
     }
 
     static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
-            const type_t &type, int slots, uint32_t slot_mask,
+            const type_t &type, int slots, uint32_t slot_mask, bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
         return make(hw, op, address, type, slots, slot_mask,
-                hw >= ngen::HW::XeHPC, cache_hint);
+                hw >= ngen::HW::XeHPC, zero_out, cache_hint);
     }
 
     static func_t make_2d(ngen::HW hw, send_op_t op, const type_t &type,
             int surface_width, int surface_height, int surface_pitch, int width,
-            int height, int count, bool vnni, bool transpose,
+            int height, int count, bool vnni, bool transpose, bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
         block_2d_info_t info;
         info.surface_width = surface_width;
@@ -158,22 +159,16 @@ public:
         info.count = count;
         info.vnni = vnni;
         info.transpose = transpose;
-        return func_t(new send_t(hw, op, type, info, cache_hint));
+        return func_t(new send_t(hw, op, type, zero_out, info, cache_hint));
     }
 
     static func_t make_2d(ngen::HW hw, send_op_t op, const type_t &type,
             int width, int height, int count, bool vnni, bool transpose,
+            bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
-        block_2d_info_t info;
-        info.surface_width = 0;
-        info.surface_height = 0;
-        info.surface_pitch = 0;
-        info.width = width;
-        info.height = height;
-        info.count = count;
-        info.vnni = vnni;
-        info.transpose = transpose;
-        return func_t(new send_t(hw, op, type, info, cache_hint));
+        return make_2d(hw, op, type, /*surface_width=*/0, /*surface_height=*/0,
+                /*surface_pitch=*/0, width, height, count, vnni, transpose,
+                zero_out, cache_hint);
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -188,8 +183,8 @@ public:
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(
-                hw, op, address, type, slots, slot_mask, is_lsc, block_2d_info);
+        return ir_utils::get_hash(hw, op, address, type, slots, slot_mask,
+                is_lsc, zero_out, block_2d_info);
     }
 
     std::string str() const override {
@@ -199,6 +194,7 @@ public:
         oss << type.str();
         if (is_scattered()) oss << "x" << slots;
         if (is_2d()) oss << "." << block_2d_info.str();
+        if (!zero_out) oss << ".nzo";
         if (cache_hint != send_cache_hint_t::undef) oss << "." << cache_hint;
         return oss.str();
     }
@@ -337,7 +333,7 @@ public:
     }
 
     static std::vector<func_t> get_all(ngen::HW hw, send_op_t op,
-            send_address_t address, const type_t &mem_type,
+            send_address_t address, const type_t &mem_type, bool zero_out,
             send_cache_hint_t cache_hint);
 
     ngen::HW hw;
@@ -347,6 +343,7 @@ public:
     int slots;
     uint32_t slot_mask;
     bool is_lsc;
+    bool zero_out;
 
     block_2d_info_t block_2d_info;
     send_cache_hint_t cache_hint;
@@ -362,7 +359,7 @@ private:
 
     send_t(ngen::HW hw, send_op_t op, send_address_t address,
             const type_t &type, int slots, uint32_t slot_mask, bool is_lsc,
-            send_cache_hint_t cache_hint)
+            bool zero_out, send_cache_hint_t cache_hint)
         : func_impl_t(_type_info())
         , hw(hw)
         , op(op)
@@ -371,9 +368,10 @@ private:
         , slots(slots)
         , slot_mask(slot_mask)
         , is_lsc(is_lsc)
+        , zero_out(zero_out)
         , cache_hint(cache_hint) {}
 
-    send_t(ngen::HW hw, send_op_t op, const type_t &type,
+    send_t(ngen::HW hw, send_op_t op, const type_t &type, bool zero_out,
             const block_2d_info_t &block_2d_info, send_cache_hint_t cache_hint)
         : func_impl_t(_type_info())
         , hw(hw)
@@ -383,6 +381,7 @@ private:
         , slots(1)
         , slot_mask(default_slot_mask)
         , is_lsc(true)
+        , zero_out(zero_out)
         , block_2d_info(block_2d_info)
         , cache_hint(cache_hint) {
         ir_assert(utils::one_of(op, send_op_t::load_2d, send_op_t::store_2d,
@@ -449,7 +448,7 @@ public:
     access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
             const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
             send_address_t send_address, send_cache_hint_t send_cache_hint,
-            send_params_t &send_params);
+            send_params_t &send_params, bool zero_out);
     access_builder_t(access_builder_t &&);
     ~access_builder_t();
 
@@ -502,6 +501,7 @@ private:
 
     layout_t reg_layout_;
     int reg_buf_size_ = 0;
+    bool zero_out_ = true;
     stmt_t stmt_;
 };
 
@@ -518,19 +518,21 @@ send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
 
 inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
-        send_params_t &send_params) {
+        send_params_t &send_params, bool zero_out = true) {
     return access_builder_t(ir_ctx, mem_view, mem_buf, reg_buf,
             send_params.send_op, send_params.send_address,
-            send_params.cache_hint, send_params);
+            send_params.cache_hint, send_params, zero_out);
 }
 
 inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
         send_op_t send_op, send_address_t send_address,
-        send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
+        send_cache_hint_t cache_hint = send_cache_hint_t::undef,
+        bool zero_out = true) {
     auto send_params = get_send_params(
             ir_ctx.exec_cfg(), send_op, send_address, mem_view, cache_hint);
-    return make_access_builder(ir_ctx, mem_view, mem_buf, reg_buf, send_params);
+    return make_access_builder(
+            ir_ctx, mem_view, mem_buf, reg_buf, send_params, zero_out);
 }
 
 } // namespace jit

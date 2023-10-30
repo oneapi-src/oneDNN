@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -165,9 +165,9 @@ private:
         slm_size_ = std::max(slm_size_, slm_thr_size * tg_grid_.elems());
 
         auto store_send = send_t::make(hw_, send_op_t::store,
-                send_address_t::slm, type_t::dword(vect_size), simd);
+                send_address_t::slm, type_t::dword(vect_size), simd, true);
         auto load_send = send_t::make(hw_, send_op_t::load, send_address_t::slm,
-                type_t::hword(hwords), 1);
+                type_t::hword(hwords), 1, true);
 
         std::vector<expr_t> vec(simd);
         for (int i = 0; i < simd; i++)
