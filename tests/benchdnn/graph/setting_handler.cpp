@@ -456,6 +456,21 @@ bool get_concat_sdt_and_ddt(const deserialized_op &base_op_ref,
     return true;
 }
 
+bool get_concat_stag_and_dtag(
+        const deserialized_op &base_op_ref, ::concat::settings_t &op_setting) {
+    size_t in_size = base_op_ref.in_lts_.size();
+    std::vector<std::string> stags(in_size);
+    std::string dtag;
+    for (int i = 0; i < (int)in_size; ++i) {
+        if (!get_driver_tag_by_idx(base_op_ref, stags[i], i)) { return false; }
+    }
+    if (!get_driver_tag_by_idx(base_op_ref, dtag, 0, true)) { return false; }
+
+    op_setting.stag.front() = stags;
+    op_setting.dtag.front() = dtag;
+    return true;
+}
+
 ::concat::settings_t get_setting(const deserialized_op &base_op_ref,
         const std::unordered_set<size_t> &rewrite_lt_ids, res_t *res) {
     ::concat::settings_t op_setting;
@@ -468,9 +483,7 @@ bool get_concat_sdt_and_ddt(const deserialized_op &base_op_ref,
             res);
 
     DNN_GRAPH_CHECK_SETTINGS(
-            get_driver_stag_and_dtag(base_op_ref,
-                    op_setting.stag.front().front(), op_setting.dtag.front()),
-            res);
+            concat::get_concat_stag_and_dtag(base_op_ref, op_setting), res);
 
     DNN_GRAPH_CHECK_SETTINGS(
             get_driver_axis(base_op_ref, op_setting.axis.front()), res);
@@ -650,6 +663,33 @@ bool get_conv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
     return true;
 }
 
+bool get_conv_stag_and_dtag(
+        const deserialized_op &base_op_ref, ::conv::settings_t &op_setting) {
+    std::string stag, dtag;
+    if (base_op_ref.kind_ == "Convolution") {
+        if (!get_driver_tag_by_idx(base_op_ref, stag, 0)
+                || !get_driver_tag_by_idx(base_op_ref, dtag, 0, true)) {
+            return false;
+        }
+    } else if (base_op_ref.kind_ == "ConvolutionBackwardData") {
+        if (!get_driver_tag_by_idx(base_op_ref, dtag, 0)
+                || !get_driver_tag_by_idx(base_op_ref, stag, 0, true)) {
+            return false;
+        }
+    } else if (base_op_ref.kind_ == "ConvolutionBackwardWeights") {
+        if (!get_driver_tag_by_idx(base_op_ref, stag, 0)
+                || !get_driver_tag_by_idx(base_op_ref, dtag, 1)) {
+            return false;
+        }
+    } else {
+        assert(!"unexpected op_kind");
+        return false;
+    }
+    op_setting.stag.front() = stag;
+    op_setting.dtag.front() = dtag;
+    return true;
+}
+
 ::conv::settings_t get_setting(const deserialized_op &base_op_ref,
         const std::unordered_set<size_t> &rewrite_lt_ids, res_t *res) {
     ::conv::settings_t op_setting;
@@ -661,10 +701,7 @@ bool get_conv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
                                      op_setting.dt.front(), rewrite_lt_ids),
             res);
     DNN_GRAPH_CHECK_SETTINGS(
-            get_driver_stag_and_dtag(base_op_ref, op_setting.stag.front(),
-                    op_setting.dtag.front(),
-                    base_op_ref.kind_ == "ConvolutionBackwardData"),
-            res);
+            conv::get_conv_stag_and_dtag(base_op_ref, op_setting), res);
     DNN_GRAPH_CHECK_SETTINGS(
             conv::get_conv_wtag(base_op_ref, op_setting.wtag.front()), res);
 
