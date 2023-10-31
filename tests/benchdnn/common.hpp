@@ -68,7 +68,7 @@ enum { CRIT = 1, WARN = 2 };
         if (status__ != OK) { \
             if (s == CRIT || s == WARN) { \
                 BENCHDNN_PRINT(0, \
-                        "Error: Fuction '%s' at (%s:%d) returned '%d'\n", \
+                        "Error: Function '%s' at (%s:%d) returned '%d'\n", \
                         __FUNCTION__, __FILE__, __LINE__, status__); \
                 fflush(0); \
                 if (s == CRIT) exit(1); \
@@ -82,7 +82,7 @@ enum { CRIT = 1, WARN = 2 };
         int status__ = (f); \
         if (status__ != OK) { \
             BENCHDNN_PRINT(0, \
-                    "Error: Fuction '%s' at (%s:%d) returned '%d'\n", \
+                    "Error: Function '%s' at (%s:%d) returned '%d'\n", \
                     __FUNCTION__, __FILE__, __LINE__, status__); \
             fflush(0); \
             exit(1); \

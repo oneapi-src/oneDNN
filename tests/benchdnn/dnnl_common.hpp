@@ -43,7 +43,7 @@
         if (status__ != dnnl_success) { \
             if (s == CRIT || s == WARN) { \
                 BENCHDNN_PRINT(0, \
-                        "Error: Fuction '%s' at (%s:%d) returned '%s'\n", \
+                        "Error: Function '%s' at (%s:%d) returned '%s'\n", \
                         __FUNCTION__, __FILE__, __LINE__, \
                         status2str(status__)); \
                 fflush(0); \
@@ -58,7 +58,7 @@
         dnnl_status_t status__ = f; \
         if (status__ != dnnl_success) { \
             BENCHDNN_PRINT(0, \
-                    "Error: Fuction '%s' at (%s:%d) returned '%s'\n", \
+                    "Error: Function '%s' at (%s:%d) returned '%s'\n", \
                     __FUNCTION__, __FILE__, __LINE__, status2str(status__)); \
             fflush(0); \
             exit(2); \
