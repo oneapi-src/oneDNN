@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -143,12 +143,12 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
     }
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_postgemm) {
-    const float *scales = pd_->attr()->rnn_tparams_.scales_;
-    const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
-
-    const auto q_id = [&](float f) { return f; };
+template <data_type_t src_type, data_type_t scratch_type, data_type_t acc_type>
+rnn_postgemm_sig(
+        (rnn_postgemm_fwd_t<src_type, scratch_type, acc_type>::lstm_postgemm)) {
+    const float *scales = this->pd_->attr()->rnn_tparams_.scales_;
+    const float *cscale = &(this->pd_->attr()->rnn_tparams_.cscale_);
+    const auto to_src_dt = [&](float f) { return gates_t(f); };
     const auto deq_id = [&](float f, int i, int j) { return f; };
 
     const auto linear_f
@@ -159,44 +159,20 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_postgemm) {
     const auto tanh_f
             = [](const float *scale, float a) { return tanh_fwd<float>(a); };
 
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
-        lstm_fwd_postgemm_template(logistic_f, tanh_f, q_id, deq_id, scales,
-                cscale, rnn, cell_position, ws_gates_, scratch_gates_,
-                dst_layer_, dst_iter_, dst_iter_c_, src_iter_, src_iter_c_,
-                weights_peephole_, bias_, block_step);
-    else
-        lstm_fwd_postgemm_template(linear_f, linear_f, q_id, deq_id, scales,
-                cscale, rnn, cell_position, ws_gates_, scratch_gates_,
-                dst_layer_, dst_iter_, dst_iter_c_, src_iter_, src_iter_c_,
-                weights_peephole_, bias_, block_step);
-}
-
-template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_postgemm) {
-    const float *scales = pd_->attr()->rnn_tparams_.scales_;
-    const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
-    const auto round_f32_bf16 = [&](float f) { return bfloat16_t(f); };
-    const auto deq_id = [&](float f, int i, int j) { return f; };
-
-    const auto linear_f
-            = [](const float *scale, float a) { return *scale * a; };
-    const auto logistic_f = [](const float *scale, float a) {
-        return logistic_fwd<float>(a);
-    };
-    const auto tanh_f
-            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
-
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
-        lstm_fwd_postgemm_template(logistic_f, tanh_f, round_f32_bf16, deq_id,
+    if (!this->pd_->attr()->rnn_tparams_.test_mode_)
+        lstm_fwd_postgemm_template(logistic_f, tanh_f, to_src_dt, deq_id,
                 scales, cscale, rnn, cell_position, ws_gates_, scratch_gates_,
                 dst_layer_, dst_iter_, dst_iter_c_, src_iter_, src_iter_c_,
                 weights_peephole_, bias_, block_step);
     else
-        lstm_fwd_postgemm_template(linear_f, linear_f, round_f32_bf16, deq_id,
+        lstm_fwd_postgemm_template(linear_f, linear_f, to_src_dt, deq_id,
                 scales, cscale, rnn, cell_position, ws_gates_, scratch_gates_,
                 dst_layer_, dst_iter_, dst_iter_c_, src_iter_, src_iter_c_,
                 weights_peephole_, bias_, block_step);
 }
+
+template rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_postgemm);
 
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
@@ -360,16 +336,17 @@ void lstm_bwd_postgemm_template(T1 func1, T2 to_src_dt, const float *cscale,
     });
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_postgemm) {
-    const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
+template <data_type_t src_type, data_type_t scratch_type, data_type_t acc_type>
+rnn_postgemm_sig(
+        (rnn_postgemm_bwd_t<src_type, scratch_type, acc_type>::lstm_postgemm)) {
+    const float *cscale = &(this->pd_->attr()->rnn_tparams_.cscale_);
     const auto linear_f
             = [](const float *scale, float a) { return *scale * a; };
     const auto tanh_f
             = [](const float *scale, float a) { return tanh_fwd<float>(a); };
-    const auto to_src_dt = [](float a) { return a; };
+    const auto to_src_dt = [](float a) { return gates_t(a); };
 
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
+    if (!this->pd_->attr()->rnn_tparams_.test_mode_)
         lstm_bwd_postgemm_template(tanh_f, to_src_dt, cscale, rnn,
                 cell_position, ws_gates_, scratch_gates_, dst_iter_c_,
                 src_iter_c_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
@@ -381,26 +358,8 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_postgemm) {
                 diff_dst_iter_c_, weights_peephole_, bias_);
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::lstm_postgemm) {
-    const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
-    const auto linear_f
-            = [](const float *scale, float a) { return *scale * a; };
-    const auto tanh_f
-            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
-    const auto to_src_dt = [](float a) { return bfloat16_t(a); };
-
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
-        lstm_bwd_postgemm_template(tanh_f, to_src_dt, cscale, rnn,
-                cell_position, ws_gates_, scratch_gates_, dst_iter_c_,
-                src_iter_c_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-                diff_dst_iter_c_, weights_peephole_, bias_);
-    else
-        lstm_bwd_postgemm_template(linear_f, to_src_dt, cscale, rnn,
-                cell_position, ws_gates_, scratch_gates_, dst_iter_c_,
-                src_iter_c_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-                diff_dst_iter_c_, weights_peephole_, bias_);
-}
+template rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::lstm_postgemm);
 
 } // namespace cpu
 } // namespace impl

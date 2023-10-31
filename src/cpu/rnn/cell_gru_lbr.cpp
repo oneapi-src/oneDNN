@@ -33,9 +33,8 @@ using namespace dnnl::impl::math;
 using namespace rnn_utils;
 #define AOC array_offset_calculator
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
-        data_type_t acc_type>
-rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+template <data_type_t src_type, data_type_t weights_type, data_type_t acc_type>
+rnn_cell_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
         acc_type>::cell_execution_gru_lbr)) {
     const auto src_layer_ld = rnn.src_layer_ld(cell_position);
     const auto src_iter_ld = rnn.src_iter_ld(cell_position);
@@ -49,7 +48,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             rnn.sic, 1.0, w_iter_[0], rnn.weights_iter_ld, src_iter_,
             src_iter_ld, 0.0, scratch_cell_, rnn.ws_gates_ld));
 
-    rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
+    this->rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             augru_attention_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
             diff_src_layer_, diff_augru_attention_, diff_src_iter_,
             diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_, nullptr, nullptr,
@@ -132,65 +131,29 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
 #undef AOC
 
-template <>
-rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
-    const auto gemm_layer = [&](const float *A, const float *B, float *C) {
-        return (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
-                rnn.n_gates * rnn.dhc, 1.0f, A, rnn.weights_layer_ld, B,
-                rnn.scratch_gates_ld, 0.0f, C, rnn.ws_diff_states_layer_ld);
-    };
-    const auto gemm_iter = [&](const float *A, const float *B, float *C) {
-        return (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
-                rnn.n_gates * rnn.dhc, 1.0f, A, rnn.weights_iter_ld, B,
-                rnn.ws_gates_ld, 1.0f, C, rnn.ws_diff_states_iter_ld);
-    };
-    const auto gemm_weights_layer
-            = [&](const float *A, const float *B, int ldb, float *C) {
-                  const float beta = rnn.diff_weights_beta(cell_position);
-                  return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
-                          1.0f, A, rnn.scratch_gates_ld, B, ldb, beta, C,
-                          rnn.diff_weights_layer_ld);
-              };
-    const auto gemm_weights_iter = [&](const float *A, const float *B, int ldb,
-                                           float *C) {
-        const float beta = rnn.diff_weights_beta(cell_position);
-        return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb, 1.0f, A,
-                rnn.ws_gates_ld, B, ldb, beta, C, rnn.diff_weights_iter_ld);
-    };
-
-    CHECK(common_bwd_cell_exec_template(gemm_layer, gemm_iter,
-            gemm_weights_layer, gemm_weights_iter, rnn_postgemm_, rnn,
-            cell_position, dst_layer_, diff_src_layer_, diff_augru_attention_,
-            diff_src_iter_, w_layer_, w_iter_, bias_, src_layer_,
-            augru_attention_, src_iter_, diff_dst_layer_, diff_dst_iter_,
-            diff_w_layer_, diff_w_iter_, diff_bias_, ws_gates_, ws_grid_,
-            scratch_gates_, scratch_cell_, dst_iter_));
-
-    return dnnl_success;
-}
-
-template <>
-rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr) {
-    const auto gemm_layer = [&](const bfloat16_t *A, const bfloat16_t *B,
+template <data_type_t src_type, data_type_t weights_type, data_type_t acc_type>
+rnn_cell_execution_sig((_ref_rnn_bwd_t<src_type, weights_type,
+        acc_type>::cell_execution_gru_lbr)) {
+    const auto gemm_layer = [&](const weights_t *A, const scratch_t *B,
                                     float *C) {
         return (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
                 rnn.n_gates * rnn.dhc, 1.0f, A, rnn.weights_layer_ld, B,
                 rnn.scratch_gates_ld, 0.0f, C, rnn.ws_diff_states_layer_ld);
     };
-    const auto gemm_iter = [&](const bfloat16_t *A, const bfloat16_t *B,
+    const auto gemm_iter = [&](const weights_t *A, const scratch_t *B,
                                    float *C) {
         return (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
                 rnn.n_gates * rnn.dhc, 1.0f, A, rnn.weights_iter_ld, B,
                 rnn.ws_gates_ld, 1.0f, C, rnn.ws_diff_states_iter_ld);
     };
     const auto gemm_weights_layer
-            = [&](const bfloat16_t *A, const bfloat16_t *B, int ldb, float *C) {
+            = [&](const scratch_t *A, const src_layer_t *B, int ldb, float *C) {
                   const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
                           1.0f, A, rnn.scratch_gates_ld, B, ldb, beta, C,
                           rnn.diff_weights_layer_ld);
               };
-    const auto gemm_weights_iter = [&](const bfloat16_t *A, const bfloat16_t *B,
+    const auto gemm_weights_iter = [&](const scratch_t *A, const src_iter_t *B,
                                            int ldb, float *C) {
         const float beta = rnn.diff_weights_beta(cell_position);
         return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb, 1.0f, A,
@@ -198,7 +161,7 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr) {
     };
 
     CHECK(common_bwd_cell_exec_template(gemm_layer, gemm_iter,
-            gemm_weights_layer, gemm_weights_iter, rnn_postgemm_, rnn,
+            gemm_weights_layer, gemm_weights_iter, this->rnn_postgemm_, rnn,
             cell_position, dst_layer_, diff_src_layer_, diff_augru_attention_,
             diff_src_iter_, w_layer_, w_iter_, bias_, src_layer_,
             augru_attention_, src_iter_, diff_dst_layer_, diff_dst_iter_,
@@ -206,6 +169,9 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr) {
             scratch_gates_, scratch_cell_, dst_iter_));
     return dnnl_success;
 }
+
+template rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
+template rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr);
 
 } // namespace cpu
 } // namespace impl

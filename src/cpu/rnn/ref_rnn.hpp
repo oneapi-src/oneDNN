@@ -75,11 +75,27 @@ void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
 #endif
 }
 
+template <impl::data_type_t src_type, impl::data_type_t weights_type,
+        impl::data_type_t acc_type>
+struct _ref_rnn_fwd_t;
+
+template <impl::data_type_t src_type, impl::data_type_t weights_type,
+        impl::data_type_t acc_type>
+struct _ref_rnn_bwd_t;
+
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type, impl::data_type_t acc_type>
 struct _ref_rnn_common_t : public primitive_t {
     static constexpr impl::data_type_t scratch_type
             = aprop == prop_kind::forward ? acc_type : src_type;
+
+    using fwd_t = _ref_rnn_fwd_t<src_type, weights_type, acc_type>;
+    using bwd_t = _ref_rnn_bwd_t<src_type, weights_type, acc_type>;
+    using impl_t = typename utils::conditional<aprop == prop_kind::forward,
+            fwd_t, bwd_t>::type;
+    using postgemm_t = typename utils::conditional<aprop == prop_kind::forward,
+            rnn_postgemm_fwd_t<src_type, scratch_type, acc_type>,
+            rnn_postgemm_bwd_t<src_type, scratch_type, acc_type>>::type;
 
     /* These types are defined for each element in the cell execution */
     typedef typename prec_traits<src_type>::type src_layer_t;
@@ -127,7 +143,7 @@ struct _ref_rnn_common_t : public primitive_t {
 #endif
         }
 
-        DECLARE_COMMON_PD_T(impl_name(), class_name, USE_GLOBAL_SCRATCHPAD);
+        DECLARE_COMMON_PD_T(impl_name(), impl_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init_ref(engine_t *engine) {
             using namespace prop_kind;
@@ -492,7 +508,7 @@ struct _ref_rnn_common_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> bf32_wei_layer_reorder_pd_;
         std::shared_ptr<primitive_desc_t> bf32_wei_iter_reorder_pd_;
 #endif
-    private:
+    protected:
         void init_scratchpad(size_t scratchpad_sz) {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
@@ -582,24 +598,20 @@ struct _ref_rnn_common_t : public primitive_t {
                     pd()->rnn_.is_brgemm);
         }
 
-        rnn_postgemm_ = new rnn_postgemm_dispatcher<aprop, src_type,
-                scratch_type, acc_type>(pd()->rnn_, pd());
+        rnn_postgemm_ = new postgemm_t(pd()->rnn_, pd());
         assert(rnn_postgemm_ != nullptr);
         CHECK(rnn_postgemm_->init(pd()->rnn_));
         switch (pd()->cell_kind()) {
             case alg_kind::vanilla_rnn:
             case alg_kind::vanilla_lstm:
                 cell_func = (pd()->rnn_.is_brgemm)
-                        ? (aprop == prop_kind::forward
-                                        ? &class_name::cell_execution_brgemm_fwd
-                                        : &class_name::
-                                                  cell_execution_brgemm_bwd)
+                        ? &class_name::cell_execution_brgemm
                         : &class_name::cell_execution_ref;
                 break;
             case alg_kind::vanilla_gru:
             case alg_kind::vanilla_augru:
                 cell_func = (pd()->rnn_.is_brgemm)
-                        ? &class_name::cell_execution_brgemm_fwd
+                        ? &class_name::cell_execution_brgemm
                         : &class_name::cell_execution_gru;
                 break;
             case alg_kind::lbr_augru:
@@ -611,7 +623,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
         merged_layer_func = pd()->rnn_.is_brgemm && pd()->rnn_.merge_gemm_layer
                         && aprop == prop_kind::forward
-                ? &class_name::merged_layer_brgemm_fwd
+                ? &class_name::merged_layer_brgemm
                 : &class_name::merged_layer_execution_ref;
         grid_computation = &class_name::linear_execution;
 
@@ -640,34 +652,16 @@ struct _ref_rnn_common_t : public primitive_t {
         return status::success;
     }
 
-    ~_ref_rnn_common_t() { delete rnn_postgemm_; }
+    virtual ~_ref_rnn_common_t() { delete rnn_postgemm_; }
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
-private:
+protected:
 #if DNNL_X64
     ref_rnn_brgemm_t rnn_brgemm_;
     std::shared_ptr<primitive_t> bf32_wei_layer_reorder_;
     std::shared_ptr<primitive_t> bf32_wei_iter_reorder_;
 #endif
-
-    rnn_grid_execution_sig(linear_execution);
-    rnn_cell_execution_sig(cell_execution_ref);
-    rnn_merged_layer_execution_sig(merged_layer_execution_ref);
-    rnn_cell_execution_sig(cell_execution_brgemm_fwd);
-    rnn_merged_layer_execution_sig(merged_layer_brgemm_fwd);
-    rnn_cell_execution_sig(cell_execution_brgemm_bwd);
-
-    rnn_cell_execution_sig(cell_execution_gru);
-    rnn_cell_execution_sig(cell_execution_gru_lbr);
-    rnn_gemm_sig(gemm);
-    rnn_gemm_sig(packed_gemm);
-    rnn_bias_prepare_sig(bias_prepare);
-    rnn_bias_finalize_sig(bias_finalize);
-    rnn_weights_assign_sig(assign_weights);
-    rnn_weights_assign_sig(assign_packed_weights);
-
-    float (*activation_func)(float s, float alpha, float cliping);
 
     template <typename input_t>
     void copy_init_layer(const rnn_utils::rnn_conf_t &rnn,
@@ -697,6 +691,22 @@ private:
             const gemm_acc_t *ws_diff_states_iter_,
             const gemm_acc_t *ws_diff_states_iter_c_) const;
 
+    rnn_grid_execution_sig(linear_execution);
+    virtual rnn_cell_execution_sig(cell_execution_ref) = 0;
+    virtual rnn_merged_layer_execution_sig(merged_layer_execution_ref) = 0;
+    virtual rnn_cell_execution_sig(cell_execution_brgemm) = 0;
+    virtual rnn_merged_layer_execution_sig(merged_layer_brgemm) = 0;
+    virtual rnn_cell_execution_sig(cell_execution_gru) = 0;
+    virtual rnn_cell_execution_sig(cell_execution_gru_lbr) = 0;
+    virtual rnn_gemm_sig(gemm) = 0;
+    virtual rnn_gemm_sig(packed_gemm) = 0;
+    rnn_bias_prepare_sig(bias_prepare);
+    rnn_bias_finalize_sig(bias_finalize);
+    rnn_weights_assign_sig(assign_weights);
+    rnn_weights_assign_sig(assign_packed_weights);
+
+    float (*activation_func)(float s, float alpha, float cliping);
+
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     size_t ws_gates_offset_;
@@ -713,8 +723,7 @@ private:
     size_t scratch_ht_offset_;
     size_t scratch_diff_ht_offset_;
     size_t scratch_cell_offset_;
-    rnn_postgemm_dispatcher<aprop, src_type, scratch_type, acc_type>
-            *rnn_postgemm_;
+    postgemm_t *rnn_postgemm_;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
@@ -731,18 +740,123 @@ private:
     gemm_t gemm_projection_func;
 };
 
-using ref_rnn_fwd_f32_t = _ref_rnn_common_t<prop_kind::forward, data_type::f32,
-        data_type::f32, data_type::f32>;
-using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32,
-        data_type::f32, data_type::f32>;
-using ref_rnn_fwd_bf16_t = _ref_rnn_common_t<prop_kind::forward,
+template <impl::data_type_t src_type, impl::data_type_t weights_type,
+        impl::data_type_t acc_type>
+struct _ref_rnn_fwd_t : public _ref_rnn_common_t<prop_kind::forward, src_type,
+                                weights_type, acc_type> {
+    using base_t = _ref_rnn_common_t<prop_kind::forward, src_type, weights_type,
+            acc_type>;
+    using src_layer_t = typename base_t::src_layer_t;
+    using src_iter_t = typename base_t::src_iter_t;
+    using dst_layer_t = typename base_t::dst_layer_t;
+    using dst_iter_t = typename base_t::dst_iter_t;
+    using weights_t = typename base_t::weights_t;
+    using gemm_data_t = typename base_t::gemm_data_t;
+    using gemm_acc_t = typename base_t::gemm_acc_t;
+    using scratch_t = typename base_t::scratch_t;
+    using ht_t = typename base_t::ht_t;
+    using gates_t = typename base_t::gates_t;
+
+    using base_t::cell_func;
+    using base_t::grid_computation;
+    using base_t::merged_layer_func;
+
+    using base_t::bias_finalization_func;
+    using base_t::bias_preparation_func;
+    using base_t::weights_iter_assign_func;
+    using base_t::weights_layer_assign_func;
+    using base_t::weights_projection_assign_func;
+
+    using base_t::gemm_iter_func;
+    using base_t::gemm_layer_func;
+    using base_t::gemm_projection_func;
+
+    using base_t::base_t;
+
+private:
+    rnn_gemm_sig(gemm) override;
+    rnn_gemm_sig(packed_gemm) override;
+    rnn_cell_execution_sig(cell_execution_ref) override;
+    rnn_merged_layer_execution_sig(merged_layer_execution_ref) override;
+    rnn_cell_execution_sig(cell_execution_brgemm) override;
+    rnn_merged_layer_execution_sig(merged_layer_brgemm) override;
+    rnn_cell_execution_sig(cell_execution_gru) override;
+    rnn_cell_execution_sig(cell_execution_gru_lbr) override;
+};
+
+template <impl::data_type_t src_type, impl::data_type_t weights_type,
+        impl::data_type_t acc_type>
+struct _ref_rnn_bwd_t : public _ref_rnn_common_t<prop_kind::backward, src_type,
+                                weights_type, acc_type> {
+    using base_t = _ref_rnn_common_t<prop_kind::backward, src_type,
+            weights_type, acc_type>;
+    using src_layer_t = typename base_t::src_layer_t;
+    using src_iter_t = typename base_t::src_iter_t;
+    using dst_layer_t = typename base_t::dst_layer_t;
+    using dst_iter_t = typename base_t::dst_iter_t;
+    using weights_t = typename base_t::weights_t;
+    using gemm_data_t = typename base_t::gemm_data_t;
+    using gemm_acc_t = typename base_t::gemm_acc_t;
+    using scratch_t = typename base_t::scratch_t;
+    using ht_t = typename base_t::ht_t;
+    using gates_t = typename base_t::gates_t;
+
+    using base_t::cell_func;
+    using base_t::grid_computation;
+    using base_t::merged_layer_func;
+
+    using base_t::bias_finalization_func;
+    using base_t::bias_preparation_func;
+    using base_t::weights_iter_assign_func;
+    using base_t::weights_layer_assign_func;
+    using base_t::weights_projection_assign_func;
+
+    using base_t::gemm_iter_func;
+    using base_t::gemm_layer_func;
+    using base_t::gemm_projection_func;
+
+    using base_t::base_t;
+
+private:
+    rnn_gemm_sig(gemm) override;
+    rnn_gemm_sig(packed_gemm) override;
+    rnn_cell_execution_sig(cell_execution_ref) override;
+    rnn_merged_layer_execution_sig(merged_layer_execution_ref) override;
+    rnn_cell_execution_sig(cell_execution_brgemm) override;
+    rnn_cell_execution_sig(cell_execution_gru) override;
+    rnn_cell_execution_sig(cell_execution_gru_lbr) override;
+    rnn_merged_layer_execution_sig(merged_layer_brgemm) override {
+        return dnnl_runtime_error;
+    };
+};
+
+using ref_rnn_common_fwd_f32_t = _ref_rnn_common_t<prop_kind::forward,
+        data_type::f32, data_type::f32, data_type::f32>;
+using ref_rnn_common_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward,
+        data_type::f32, data_type::f32, data_type::f32>;
+
+using ref_rnn_common_fwd_bf16_t = _ref_rnn_common_t<prop_kind::forward,
         data_type::bf16, data_type::bf16, data_type::f32>;
-using ref_rnn_bwd_bf16_t = _ref_rnn_common_t<prop_kind::backward,
+using ref_rnn_common_bwd_bf16_t = _ref_rnn_common_t<prop_kind::backward,
         data_type::bf16, data_type::bf16, data_type::f32>;
-using ref_rnn_fwd_u8s8_t = _ref_rnn_common_t<prop_kind::forward, data_type::u8,
-        data_type::s8, data_type::s32>;
-using ref_rnn_fwd_s8s8_t = _ref_rnn_common_t<prop_kind::forward, data_type::s8,
-        data_type::s8, data_type::s32>;
+using ref_rnn_common_fwd_u8s8_t = _ref_rnn_common_t<prop_kind::forward,
+        data_type::u8, data_type::s8, data_type::s32>;
+using ref_rnn_common_fwd_s8s8_t = _ref_rnn_common_t<prop_kind::forward,
+        data_type::s8, data_type::s8, data_type::s32>;
+
+using ref_rnn_fwd_f32_t
+        = _ref_rnn_fwd_t<data_type::f32, data_type::f32, data_type::f32>;
+using ref_rnn_bwd_f32_t
+        = _ref_rnn_bwd_t<data_type::f32, data_type::f32, data_type::f32>;
+
+using ref_rnn_fwd_bf16_t
+        = _ref_rnn_fwd_t<data_type::bf16, data_type::bf16, data_type::f32>;
+using ref_rnn_bwd_bf16_t
+        = _ref_rnn_bwd_t<data_type::bf16, data_type::bf16, data_type::f32>;
+using ref_rnn_fwd_u8s8_t
+        = _ref_rnn_fwd_t<data_type::u8, data_type::s8, data_type::s32>;
+using ref_rnn_fwd_s8s8_t
+        = _ref_rnn_fwd_t<data_type::s8, data_type::s8, data_type::s32>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

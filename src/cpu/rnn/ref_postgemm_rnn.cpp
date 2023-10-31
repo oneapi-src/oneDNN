@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,17 +113,18 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
         parallel_nd(rnn.mb, postgemm_call);
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::rnn_postgemm) {
-    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+template <data_type_t src_type, data_type_t scratch_type, data_type_t acc_type>
+rnn_postgemm_sig(
+        (rnn_postgemm_fwd_t<src_type, scratch_type, acc_type>::rnn_postgemm)) {
+    const float *scales = this->pd_->attr()->rnn_tparams_.scales_;
     const auto act_f = [this](float a, float alpha, float clipping) {
-        return this->activation_func(a, alpha, clipping);
+        return gates_t(this->activation_func(a, alpha, clipping));
     };
     const auto linear_f = [](float a, float alpha, float clipping) {
-        return linear(a, alpha, clipping);
+        return gates_t(linear(a, alpha, clipping));
     };
-    const auto alpha = pd_->desc()->alpha;
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
+    const auto alpha = this->pd_->desc()->alpha;
+    if (!this->pd_->attr()->rnn_tparams_.test_mode_)
         rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, cell_position,
                 ws_gates_, scratch_gates_, dst_layer_, dst_iter_, src_iter_,
                 bias_, block_step);
@@ -133,25 +134,8 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::rnn_postgemm) {
                 bias_, block_step);
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::rnn_postgemm) {
-    const float *scales = pd_->attr()->rnn_tparams_.scales_;
-    const auto act_f = [this](float a, float alpha, float clipping) {
-        return bfloat16_t(this->activation_func(a, alpha, clipping));
-    };
-    const auto linear_f = [](float a, float alpha, float clipping) {
-        return bfloat16_t(linear(a, alpha, clipping));
-    };
-    const auto alpha = pd_->desc()->alpha;
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
-        rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, cell_position,
-                ws_gates_, scratch_gates_, dst_layer_, dst_iter_, src_iter_,
-                bias_, block_step);
-    else
-        rnn_fwd_postgemm_template(linear_f, scales, alpha, rnn, cell_position,
-                ws_gates_, scratch_gates_, dst_layer_, dst_iter_, src_iter_,
-                bias_, block_step);
-}
+template rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::rnn_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::rnn_postgemm);
 
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::rnn_postgemm) {
@@ -188,18 +172,19 @@ void rnn_bwd_postgemm_template(T1 func1, T2 to_src, const float *scales,
     });
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::rnn_postgemm) {
-    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+template <data_type_t src_type, data_type_t scratch_type, data_type_t acc_type>
+rnn_postgemm_sig(
+        (rnn_postgemm_bwd_t<src_type, scratch_type, acc_type>::rnn_postgemm)) {
+    const float *scales = this->pd_->attr()->rnn_tparams_.scales_;
     const auto act_f = [this](float a, float alpha, float clipping) {
         return this->activation_func(a, alpha, 0);
     };
     const auto linear_f = [](float a, float alpha, float clipping) {
         return linear(a, alpha, 0);
     };
-    const auto to_src = [&](float a) { return a; };
-    const auto alpha = pd_->desc()->alpha;
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
+    const auto to_src = [&](float a) { return gates_t(a); };
+    const auto alpha = this->pd_->desc()->alpha;
+    if (!this->pd_->attr()->rnn_tparams_.test_mode_)
         rnn_bwd_postgemm_template(act_f, to_src, nullptr, alpha, rnn, ws_gates_,
                 scratch_gates_, diff_dst_iter_, diff_dst_layer_);
     else
@@ -207,24 +192,8 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::rnn_postgemm) {
                 ws_gates_, scratch_gates_, diff_dst_iter_, diff_dst_layer_);
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::rnn_postgemm) {
-    const float *scales = pd_->attr()->rnn_tparams_.scales_;
-    const auto act_f = [this](float a, float alpha, float clipping) {
-        return this->activation_func(a, alpha, 0);
-    };
-    const auto linear_f = [](float a, float alpha, float clipping) {
-        return linear(a, alpha, 0);
-    };
-    const auto to_src = [&](float a) { return bfloat16_t(a); };
-    const auto alpha = pd_->desc()->alpha;
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
-        rnn_bwd_postgemm_template(act_f, to_src, nullptr, alpha, rnn, ws_gates_,
-                scratch_gates_, diff_dst_iter_, diff_dst_layer_);
-    else
-        rnn_bwd_postgemm_template(linear_f, to_src, scales, alpha, rnn,
-                ws_gates_, scratch_gates_, diff_dst_iter_, diff_dst_layer_);
-}
+template rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::rnn_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::rnn_postgemm);
 
 } // namespace cpu
 } // namespace impl

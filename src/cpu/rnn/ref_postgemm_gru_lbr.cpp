@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,9 +99,10 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
     });
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm) {
-    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+template <data_type_t src_type, data_type_t scratch_type, data_type_t acc_type>
+rnn_postgemm_sig((rnn_postgemm_fwd_t<src_type, scratch_type,
+        acc_type>::gru_lbr_postgemm)) {
+    const float *scales = this->pd_->attr()->rnn_tparams_.scales_;
 
     const auto linear_f
             = [](const float *scale, float a) { return *scale * a; };
@@ -110,34 +111,9 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm) {
     };
     const auto tanh_f
             = [](const float *scale, float a) { return tanh_fwd<float>(a); };
-    const auto to_src = [](float a) { return a; };
+    const auto to_src = [](float a) { return gates_t(a); };
 
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
-        gru_lbr_fwd_postgemm_template(logistic_f, tanh_f, to_src, scales, rnn,
-                cell_position, ws_gates_, scratch_gates_, augru_attention_,
-                dst_layer_, dst_iter_, src_iter_, bias_, ws_grid_,
-                scratch_cell_);
-    else
-        gru_lbr_fwd_postgemm_template(linear_f, linear_f, to_src, scales, rnn,
-                cell_position, ws_gates_, scratch_gates_, augru_attention_,
-                dst_layer_, dst_iter_, src_iter_, bias_, ws_grid_,
-                scratch_cell_);
-}
-
-template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_lbr_postgemm) {
-    const float *scales = pd_->attr()->rnn_tparams_.scales_;
-
-    const auto linear_f
-            = [](const float *scale, float a) { return *scale * a; };
-    const auto logistic_f = [](const float *scale, float a) {
-        return logistic_fwd<float>(a);
-    };
-    const auto tanh_f
-            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
-    const auto to_src = [](float a) { return bfloat16_t(a); };
-
-    if (!pd_->attr()->rnn_tparams_.test_mode_)
+    if (!this->pd_->attr()->rnn_tparams_.test_mode_)
         gru_lbr_fwd_postgemm_template(logistic_f, tanh_f, to_src, scales, rnn,
                 cell_position, ws_gates_, scratch_gates_, augru_attention_,
                 dst_layer_, dst_iter_, src_iter_, bias_, ws_grid_,
@@ -158,6 +134,9 @@ template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::gru_lbr_postgemm) {
     assert(!"GRU LBR signed int8 is not supported");
 }
+
+template rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_lbr_postgemm);
 
 template <typename T1, typename src_data_t, typename acc_data_t,
         typename scratch_data_t>
@@ -220,23 +199,18 @@ void gru_lbr_bwd_postgemm_template(T1 to_src, const rnn_utils::rnn_conf_t &rnn,
     });
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_lbr_postgemm) {
-    auto to_src = [&](float a) { return a; };
+template <data_type_t src_type, data_type_t scratch_type, data_type_t acc_type>
+rnn_postgemm_sig((rnn_postgemm_bwd_t<src_type, scratch_type,
+        acc_type>::gru_lbr_postgemm)) {
+    auto to_src = [&](float a) { return scratch_t(a); };
     gru_lbr_bwd_postgemm_template(to_src, rnn, cell_position, ws_gates_,
             scratch_gates_, augru_attention_, src_iter_, diff_src_iter_,
             diff_dst_iter_, diff_augru_attention_, diff_dst_layer_,
             scratch_cell_, ws_grid_);
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_lbr_postgemm) {
-    auto to_src = [&](float a) { return bfloat16_t(a); };
-    gru_lbr_bwd_postgemm_template(to_src, rnn, cell_position, ws_gates_,
-            scratch_gates_, augru_attention_, src_iter_, diff_src_iter_,
-            diff_dst_iter_, diff_augru_attention_, diff_dst_layer_,
-            scratch_cell_, ws_grid_);
-}
+template rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_lbr_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_lbr_postgemm);
 
 } // namespace cpu
 } // namespace impl

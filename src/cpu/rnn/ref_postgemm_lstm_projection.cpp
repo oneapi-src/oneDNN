@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,8 +66,9 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_projection_postgemm) {
     proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_, block_step);
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_projection_postgemm) {
+template <data_type_t src_type, data_type_t scratch_type, data_type_t acc_type>
+rnn_postgemm_sig((rnn_postgemm_fwd_t<src_type, scratch_type,
+        acc_type>::lstm_projection_postgemm)) {
     const auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
 
     // Currently, scratch_gates_ contains the output of the projection
@@ -77,12 +78,14 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_projection_postgemm) {
             = (rnn.is_brgemm && !rnn.unfused_post_gemm) ? rnn.m_block : rnn.mb;
 
     for (int i = 0; i < m_block; i++)
-        cvt_float_to_bfloat16((bfloat16_t *)dst_layer_ + i * dst_layer_ld,
-                (float *)scratch_gates_ + i * rnn.scratch_gates_ld, n_elem);
+        types::cvt_from_float(dst_layer_ + i * dst_layer_ld,
+                scratch_gates_ + i * rnn.scratch_gates_ld, n_elem);
 
     // we copy to dst_iter if necessary
     proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_, block_step);
 }
+
+template rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_projection_postgemm);
 
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_projection_postgemm) {
@@ -177,15 +180,14 @@ rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::lstm_projection_postgemm) {
     proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_, block_step);
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_projection_postgemm) {
+template <data_type_t src_type, data_type_t scratch_type, data_type_t acc_type>
+rnn_postgemm_sig((rnn_postgemm_bwd_t<src_type, scratch_type,
+        acc_type>::lstm_projection_postgemm)) {
     assert(!"unsupported");
 }
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::lstm_projection_postgemm) {
-    assert(!"unsupported");
-}
+template rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_projection_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::lstm_projection_postgemm);
 
 } // namespace cpu
 } // namespace impl

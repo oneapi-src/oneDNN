@@ -29,13 +29,12 @@ namespace cpu {
 using namespace rnn_utils;
 using namespace dnnl::impl::utils;
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
-        data_type_t acc_type>
-rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
-        acc_type>::cell_execution_ref)) {
-    const auto weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
+template <data_type_t src_type, data_type_t weights_type, data_type_t acc_type>
+rnn_cell_execution_sig((
+        _ref_rnn_fwd_t<src_type, weights_type, acc_type>::cell_execution_ref)) {
+    const auto weights_scales = this->pd_->attr()->rnn_weights_qparams_.scales_;
     const auto weights_projection_scales = rnn.is_lstm_projection
-            ? pd_->attr()->rnn_weights_projection_qparams_.scales_
+            ? this->pd_->attr()->rnn_weights_projection_qparams_.scales_
             : nullptr;
 
     const auto src_layer_ld = rnn.src_layer_ld(cell_position);
@@ -54,7 +53,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     const auto dst_postgemm = rnn.is_lstm_projection ? proj_ht_ : dst_layer_;
     // for lstmp, the copy to dst_iter happens after the projection
     const auto dst_iter_postgemm = rnn.is_lstm_projection ? nullptr : dst_iter_;
-    rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
+    this->rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             augru_attention_, dst_postgemm, dst_iter_c_, src_iter_, src_iter_c_,
             diff_src_layer_, diff_augru_attention_, diff_src_iter_,
             diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
@@ -78,11 +77,11 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 rnn.proj_ht_ld, 0.0f, dst_proj, dst_proj_ld));
 
         // we have to downconvert the output to dst_layer_t and copy to dst_iter if needed
-        rnn_postgemm_->execute_part2(rnn, cell_position, nullptr, dst_proj,
-                nullptr, dst_layer_, nullptr, nullptr, w_proj_comp, nullptr,
+        this->rnn_postgemm_->execute_part2(rnn, cell_position, nullptr,
+                dst_proj, nullptr, dst_layer_, nullptr, nullptr, w_proj_comp,
                 nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                nullptr, nullptr, nullptr, dst_iter_, weights_projection_scales,
-                rnn.dlc * sizeof(dst_layer_t));
+                nullptr, nullptr, nullptr, nullptr, dst_iter_,
+                weights_projection_scales, rnn.dlc * sizeof(dst_layer_t));
     }
 
     return dnnl_success;
@@ -188,9 +187,10 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
                         + diff_dst_iter_[i * rnn.ws_diff_states_iter_ld + j];
         });
 
-        CHECK(gemm_weights_proj_f(
-                scratch_diff_ht_, ws_ht_, diff_weights_projection_));
-        CHECK(gemm_proj_f(w_proj_[0], scratch_diff_ht_, diff_dst_layer_));
+        CHECK(gemm_weights_proj_f((decltype(ws_ht_))scratch_diff_ht_, ws_ht_,
+                diff_weights_projection_));
+        CHECK(gemm_proj_f(w_proj_[0], (decltype(w_proj_[0]))scratch_diff_ht_,
+                diff_dst_layer_));
     }
 
     rnn_postgemm->execute(rnn, cell_position, ws_gates_, scratch_gates_,
@@ -225,25 +225,33 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     return dnnl_success;
 }
 
-template <>
-rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref) {
-    const auto gemm_layer = [&](const float *A, const float *B, float *C) {
+template <data_type_t src_type, data_type_t weights_type, data_type_t acc_type>
+rnn_cell_execution_sig((
+        _ref_rnn_bwd_t<src_type, weights_type, acc_type>::cell_execution_ref)) {
+    const auto gemm_layer = [&](const weights_t *A, const scratch_t *B,
+                                    float *C) {
         return (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
                 rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_layer_ld, B,
                 rnn.scratch_gates_ld, 0.0, C, rnn.ws_diff_states_layer_ld);
     };
-    const auto gemm_iter = [&](const float *A, const float *B, float *C) {
+    const auto gemm_iter = [&](const weights_t *A, const scratch_t *B,
+                                   float *C) {
         return (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
                 rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_iter_ld, B,
                 rnn.scratch_gates_ld, 0.0, C, rnn.ws_diff_states_iter_ld);
     };
-    const auto gemm_proj = [&](const float *A, const float *B, float *C) {
+    const auto gemm_proj = [&](const weights_t *A, const weights_t *B,
+                                   float *C) {
+        if (weights_type != data_type::f32) {
+            assert("Projection is only supported for f32");
+            return dnnl_runtime_error;
+        }
         return (this->*gemm_projection_func)('N', 'N', rnn.dhc, rnn.mb, rnn.dic,
                 1.0, A, rnn.weights_projection_ld, B, rnn.scratch_diff_ht_ld,
                 0.0f, C, rnn.ws_diff_states_layer_ld);
     };
     const auto gemm_weights_layer
-            = [&](const float *A, const float *B, float *C) {
+            = [&](const scratch_t *A, const src_layer_t *B, float *C) {
                   auto src_layer_ld = rnn.src_layer_ld(cell_position);
                   const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
@@ -251,7 +259,7 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref) {
                           C, rnn.diff_weights_layer_ld);
               };
     const auto gemm_weights_iter
-            = [&](const float *A, const float *B, float *C) {
+            = [&](const scratch_t *A, const src_iter_t *B, float *C) {
                   auto src_iter_ld = rnn.src_iter_ld(cell_position);
                   const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb,
@@ -259,7 +267,11 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref) {
                           rnn.diff_weights_iter_ld);
               };
     const auto gemm_weights_proj
-            = [&](const float *A, const float *B, float *C) {
+            = [&](const scratch_t *A, const scratch_t *B, float *C) {
+                  if (weights_type != data_type::f32) {
+                      assert("Projection is only supported for f32");
+                      return dnnl_runtime_error;
+                  }
                   const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.dlc, rnn.dhc, rnn.mb, 1.0f, A,
                           rnn.scratch_diff_ht_ld, B, rnn.ws_ht_ld, beta, C,
@@ -267,7 +279,7 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref) {
               };
     return common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_proj,
             gemm_weights_layer, gemm_weights_iter, gemm_weights_proj,
-            rnn_postgemm_, rnn, cell_position, dst_layer_, dst_iter_c_,
+            this->rnn_postgemm_, rnn, cell_position, dst_layer_, dst_iter_c_,
             diff_src_layer_, diff_augru_attention_, diff_src_iter_,
             diff_src_iter_c_, w_layer_, w_iter_, w_projection_,
             weights_peephole_, bias_, src_layer_, augru_attention_, src_iter_,
@@ -277,60 +289,11 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref) {
             proj_ht_, scratch_diff_ht_, ws_grid_, scratch_cell_, dst_iter_);
 }
 
-template <>
-rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref) {
-    const auto gemm_layer = [&](const bfloat16_t *A, const bfloat16_t *B,
-                                    float *C) {
-        return (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
-                rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_layer_ld, B,
-                rnn.scratch_gates_ld, 0.0, C, rnn.ws_diff_states_layer_ld);
-    };
-    const auto gemm_iter = [&](const bfloat16_t *A, const bfloat16_t *B,
-                                   float *C) {
-        return (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
-                rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_iter_ld, B,
-                rnn.scratch_gates_ld, 0.0, C, rnn.ws_diff_states_iter_ld);
-    };
-    const auto gemm_proj = [&](const bfloat16_t *, const float *, float *) {
-        assert(!"unimplemented");
-        return dnnl_unimplemented;
-    };
-    const auto gemm_weights_layer
-            = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
-                  auto src_layer_ld = rnn.src_layer_ld(cell_position);
-                  const float beta = rnn.diff_weights_beta(cell_position);
-                  return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
-                          1.0, A, rnn.scratch_gates_ld, B, src_layer_ld, beta,
-                          C, rnn.diff_weights_layer_ld);
-              };
-    const auto gemm_weights_iter
-            = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
-                  auto src_iter_ld = rnn.src_iter_ld(cell_position);
-                  const float beta = rnn.diff_weights_beta(cell_position);
-                  return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb,
-                          1.0, A, rnn.scratch_gates_ld, B, src_iter_ld, beta, C,
-                          rnn.diff_weights_iter_ld);
-              };
-    const auto gemm_weights_proj
-            = [&](const float *, const bfloat16_t *, float *) {
-                  assert(!"unimplemented");
-                  return dnnl_unimplemented;
-              };
-    return common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_proj,
-            gemm_weights_layer, gemm_weights_iter, gemm_weights_proj,
-            rnn_postgemm_, rnn, cell_position, dst_layer_, dst_iter_c_,
-            diff_src_layer_, diff_augru_attention_, diff_src_iter_,
-            diff_src_iter_c_, w_layer_, w_iter_, w_projection_,
-            weights_peephole_, bias_, src_layer_, augru_attention_, src_iter_,
-            src_iter_c_, diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-            diff_w_layer_, diff_w_iter_, diff_weights_projection_,
-            diff_weights_peephole_, diff_bias_, ws_gates_, scratch_gates_,
-            proj_ht_, scratch_diff_ht_, ws_grid_, scratch_cell_, dst_iter_);
-}
+template rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref);
+template rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref);
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
-        data_type_t acc_type>
-rnn_merged_layer_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+template <data_type_t src_type, data_type_t weights_type, data_type_t acc_type>
+rnn_merged_layer_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
         acc_type>::merged_layer_execution_ref)) {
     const auto src_layer_ld = rnn.src_layer_ld(cell_position);
     // If we avoid copying the last iteration, the corresponding
@@ -344,25 +307,37 @@ rnn_merged_layer_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             : rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0);
     cell_position |= merged_layer;
 
-    if (aprop == prop_kind::forward) {
-        CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
-                rnn.mb * n_iter, rnn.slc, 1.0, w_layer_[0],
-                rnn.weights_layer_ld, src_layer_, src_layer_ld, 0.0,
-                (gemm_acc_t *)scratch_gates_, rnn.scratch_gates_ld));
-    } else if (aprop == prop_kind::backward) {
-        CHECK((this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
-                rnn.n_gates * rnn.dhc, 1.0, w_layer_[0], rnn.weights_layer_ld,
-                (gates_t *)scratch_gates_, rnn.scratch_gates_ld, 0.0,
-                diff_src_layer_, rnn.ws_diff_states_layer_ld));
-        const float beta = rnn.diff_weights_beta(cell_position);
-        CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb * n_iter,
-                1.0, (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
-                src_layer_, src_layer_ld, beta, diff_w_layer_,
-                rnn.diff_weights_layer_ld));
-    } else {
-        assert(!"unimplemented");
-    }
+    CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
+            rnn.mb * n_iter, rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld,
+            src_layer_, src_layer_ld, 0.0, (gemm_acc_t *)scratch_gates_,
+            rnn.scratch_gates_ld));
 
+    return dnnl_success;
+}
+
+template <data_type_t src_type, data_type_t weights_type, data_type_t acc_type>
+rnn_merged_layer_execution_sig((_ref_rnn_bwd_t<src_type, weights_type,
+        acc_type>::merged_layer_execution_ref)) {
+    const auto src_layer_ld = rnn.src_layer_ld(cell_position);
+    // If we avoid copying the last iteration, the corresponding
+    // input states appear in `dst_iter_` instead of `ws_states_layer`,
+    // hence we cannot merge all iterations.
+    // This is not applicable for the first layer though, since
+    // all the states come from user's `src_layer_`.
+    const int n_iter
+            = (cell_position & first_layer) && rnn.skip_src_layer_copy()
+            ? rnn.n_iter
+            : rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0);
+    cell_position |= merged_layer;
+
+    CHECK((this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
+            rnn.n_gates * rnn.dhc, 1.0, w_layer_[0], rnn.weights_layer_ld,
+            (gates_t *)scratch_gates_, rnn.scratch_gates_ld, 0.0,
+            diff_src_layer_, rnn.ws_diff_states_layer_ld));
+    const float beta = rnn.diff_weights_beta(cell_position);
+    CHECK(this->gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb * n_iter,
+            1.0, (weights_t *)scratch_gates_, rnn.scratch_gates_ld, src_layer_,
+            src_layer_ld, beta, diff_w_layer_, rnn.diff_weights_layer_ld));
     return dnnl_success;
 }
 
