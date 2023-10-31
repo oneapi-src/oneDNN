@@ -23,6 +23,15 @@
 #include "primitive_desc.hpp"
 #include "utils.hpp"
 
+#define VDISPATCH_CONV(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, convolution, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
+#define VDISPATCH_CONV_IC(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, convolution, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 
