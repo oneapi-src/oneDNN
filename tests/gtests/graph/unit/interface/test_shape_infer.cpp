@@ -160,22 +160,25 @@ TEST(ShapeInfer, InvalidShapeForConv) {
             graph::status::invalid_shape);
 }
 
-TEST(ShapeInfer, InvalidShapeForPool) {
-    graph::op_t max_pool_op {
-            0, graph::op_kind::MaxPool, std::string("maxPool")};
+TEST(ShapeInfer, InvalidShapeForPoolBackward) {
+    graph::op_t max_pool_bk_op {
+            0, graph::op_kind::MaxPoolBackward, std::string("max_pool_bk_op")};
     graph::op_t avg_pool_bk_op {
-            0, graph::op_kind::AvgPoolBackward, std::string("avg_pool_bk_op")};
+            1, graph::op_kind::AvgPoolBackward, std::string("avg_pool_bk_op")};
+
     graph::logical_tensor_t src_lt = utils::logical_tensor_init(
             0, {1, 1, 4, 4}, graph::data_type::f32);
     graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
             1, {1, 1, 2, 2}, graph::data_type::f32, graph::layout_type::any);
     graph::logical_tensor_t dst_lt2 = utils::logical_tensor_init(
-            1, graph::data_type::f32, graph::layout_type::any);
+            2, graph::data_type::f32, graph::layout_type::any);
 
     std::vector<graph::logical_tensor_t *> inputs {&src_lt};
     std::vector<graph::logical_tensor_t *> outputs {&dst_lt};
     std::vector<graph::logical_tensor_t *> outputs2 {&dst_lt2};
-    ASSERT_EQ(graph::infer_pool_bwd_output_shape(&max_pool_op, inputs, outputs),
+
+    ASSERT_EQ(graph::infer_pool_bwd_output_shape(
+                      &max_pool_bk_op, inputs, outputs),
             graph::status::invalid_shape);
     ASSERT_EQ(graph::infer_pool_bwd_output_shape(
                       &avg_pool_bk_op, inputs, outputs2),
