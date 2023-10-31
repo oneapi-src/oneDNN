@@ -165,7 +165,7 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         driver_check_func_args_t args(exp_mem, got_f32, i, dt, trh_);
 
         if ((std::isnan(args.exp_f32) && is_integral_dt(dt))
-                || std::isinf(args.exp_f32)) {
+                || std::isinf(args.exp)) {
             // Don't include integer max values or inf values into norm as they
             // make it irrelevant for validation.
             ;
