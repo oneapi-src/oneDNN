@@ -219,11 +219,12 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
 
     enum class op_t : unsigned { max, sum };
 
-    void perform_op(Vmm v, Vmm vtmp, op_t op) {
+    void perform_op(
+            const Vmm &vmm_dst, const Vmm &vmm1, const Vmm &vmm2, op_t op) {
         if (op == op_t::max)
-            uni_vmaxps(v, v, vtmp);
+            uni_vmaxps(vmm_dst, vmm1, vmm2);
         else if (op == op_t::sum)
-            uni_vaddps(v, v, vtmp);
+            uni_vaddps(vmm_dst, vmm1, vmm2);
     }
 
     void get_horizontal_op(const Vmm &vsrc, const Vmm &vtmp, op_t op) {
@@ -234,17 +235,17 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
 
         if (is_superset(isa, avx512_core)) {
             vshuff32x4(ztmp, zsrc, zsrc, 0x4E); // 256-bit shuffle
-            perform_op(vsrc, vtmp, op);
+            perform_op(vsrc, vsrc, vtmp, op);
             vshuff32x4(ztmp, zsrc, zsrc, 0xB1); // 128/256-bit shuffle
-            perform_op(vsrc, vtmp, op);
+            perform_op(vsrc, vsrc, vtmp, op);
         } else if (is_superset(isa, avx2)) {
             vperm2f128(ytmp, ysrc, ysrc, 0x1); // 128/256-bit shuffle
-            perform_op(vsrc, vtmp, op);
+            perform_op(vsrc, vsrc, vtmp, op);
         }
         uni_vshufps(vtmp, vsrc, vsrc, 0x4E); // 64/128-bit shuffle
-        perform_op(vsrc, vtmp, op);
+        perform_op(vsrc, vsrc, vtmp, op);
         uni_vshufps(vtmp, vsrc, vsrc, 0xB1); // 32/64-bit shuffle
-        perform_op(vsrc, vtmp, op);
+        perform_op(vsrc, vsrc, vtmp, op);
     }
 
     template <typename body_t>
