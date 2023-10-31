@@ -905,7 +905,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         int states_ws_ld, int gates_ws_ld, int scratch_diff_gates_ld,
         int scratch_gates_ld, int batch, int dhc, int n_layer, int n_gates,
         int n_iter_scratch_gates, int n_dir, int n_states, int n_iter,
-        int scratch_diff_states_ld,
+        int scratch_diff_states_ld, int diff_states_layer_ld,
 #if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale,
 #elif CELL_KIND == LBR_GRU
@@ -967,7 +967,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         float dHt = (float)diff_states_tp1_l[cell_scratch_diff_states(
                             n_iter, batch, scratch_diff_states_ld, 0, i, j)]
                 + diff_states_t_lp1[cell_scratch_diff_states(
-                        n_iter, batch, scratch_diff_states_ld, 0, i, j)];
+                        n_iter, batch, diff_states_layer_ld, 0, i, j)];
 
         float dCt = (float)diff_states_tp1_l[cell_scratch_diff_states(
                             n_iter, batch, scratch_diff_states_ld, 1, i, j)]
@@ -1027,7 +1027,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         float dHt = diff_states_tp1_l[cell_scratch_diff_states(
                             n_iter, batch, scratch_diff_states_ld, 0, i, j)]
                 + diff_states_t_lp1[cell_scratch_diff_states(
-                        n_iter, batch, scratch_diff_states_ld, 0, i, j)];
+                        n_iter, batch, diff_states_layer_ld, 0, i, j)];
 
         float dG0 = (h - G2) * dHt * x_m_square(G0);
         float dG2 = (1.0f - G0) * one_m_square(G2) * dHt;
@@ -1066,7 +1066,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         float dH = diff_states_tp1_l[cell_scratch_diff_states(
                            n_iter, batch, scratch_diff_states_ld, 0, i, j)]
                 + diff_states_t_lp1[cell_scratch_diff_states(
-                        n_iter, batch, scratch_diff_states_ld, 0, i, j)];
+                        n_iter, batch, diff_states_layer_ld, 0, i, j)];
 
 #if !RECOMPUTE_GATES
         float g = ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)];
@@ -1098,7 +1098,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
             float dHt = diff_states_tp1_l[cell_scratch_diff_states(
                                 n_iter, batch, scratch_diff_states_ld, 0, i, j)]
                     + diff_states_t_lp1[cell_scratch_diff_states(
-                            n_iter, batch, scratch_diff_states_ld, 0, i, j)];
+                            n_iter, batch, diff_states_layer_ld, 0, i, j)];
             float dG2 = (1.0f
                                 - ws_gates[cell_ws_gates(
                                         gates_ws_ld, dhc, i, 0, j)])

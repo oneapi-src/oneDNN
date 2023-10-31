@@ -84,6 +84,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
         arg_list.append(into<int32_t>(pd()->rnn_conf.scratch_diff_states_ld));
+        arg_list.append(into<int32_t>(diff_states_layer_ld));
     }
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
@@ -158,6 +159,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
         arg_list.append(into<int32_t>(pd()->rnn_conf.scratch_diff_states_ld));
+        arg_list.append(into<int32_t>(diff_states_layer_ld));
     }
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
@@ -293,6 +295,7 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
         arg_list.append(into<int32_t>(pd()->rnn_conf.scratch_diff_states_ld));
+        arg_list.append(into<int32_t>(diff_states_layer_ld));
     }
 
     if (aprop == dnnl_forward) {
@@ -371,6 +374,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
         arg_list.append(into<int32_t>(pd()->rnn_conf.scratch_diff_states_ld));
+        arg_list.append(into<int32_t>(diff_states_layer_ld));
     }
 
     if (aprop == dnnl_forward) {

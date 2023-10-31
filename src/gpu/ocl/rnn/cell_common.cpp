@@ -30,6 +30,7 @@ template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     const conf_t &rnn = this->pd()->rnn_conf;
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
+    const rnn_offsets_t &offsets = this->pd()->off;
 
     dim_t cell_wei_iter_offset;
 
@@ -58,7 +59,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
 
     if (aprop == prop_kind::forward) {
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
-                workspace, scratch_gates, nullptr, nullptr, nullptr, nullptr,
+                workspace, scratch_gates, nullptr, nullptr, nullptr, nullptr, 0,
                 scales, bias, tm_scales, diff_bias));
 
     } else { // backward
@@ -73,6 +74,10 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
                 ? user_data.diff_dst_layer(dir, iter)
                 : scratch.diff_states(lay + 1, dir, rnn.n_states, iter);
+        auto diff_states_layer_ld
+                = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
+                ? offsets.diff_dst_layer[1]
+                : rnn.scratch_diff_states_ld;
 
         auto diff_states0 = scratch.diff_states(lay, dir, 0, iter);
         auto diff_states1 = scratch.diff_states(lay, dir, rnn.n_states, iter);
@@ -81,7 +86,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
                 ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
                 diff_gates.get(), diff_states.get(), diff_states_iter.get(),
-                diff_states_layer.get(), scales, bias, tm_scales, diff_bias));
+                diff_states_layer.get(), diff_states_layer_ld, scales, bias,
+                tm_scales, diff_bias));
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
                 *diff_gates, 0, *diff_states0, 0, gemm_iter_bwd));

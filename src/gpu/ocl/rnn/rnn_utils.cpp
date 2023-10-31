@@ -197,6 +197,8 @@ void rnn_utils::init_test_mode(conf_t &rnn, const primitive_attr_t &attr) {
 }
 
 void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
+        const memory_desc_wrapper &src_layer_d,
+        const memory_desc_wrapper &diff_dst_layer_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &diff_weights_layer_d,
@@ -259,9 +261,8 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
 
     bool require_copy_src_layer = [&]() {
-        auto src_layer_md = memory_desc_wrapper(rd.src_layer_desc);
-        auto &strides = src_layer_md.strides();
-        auto dt_size = types::data_type_size(src_layer_md.data_type());
+        auto &strides = src_layer_d.strides();
+        auto dt_size = types::data_type_size(src_layer_d.data_type());
 
         // The GEMM interface assumes input buffers are well aligned. We need to
         // implement a way to avoid kernels relying on this alignment to remove
@@ -280,9 +281,8 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     }();
 
     bool prefer_copy_src_layer = [&]() {
-        auto src_layer_md = memory_desc_wrapper(rd.src_layer_desc);
-        auto &strides = src_layer_md.strides();
-        auto dt_size = types::data_type_size(src_layer_md.data_type());
+        auto &strides = src_layer_d.strides();
+        auto dt_size = types::data_type_size(src_layer_d.data_type());
 
         // Data is already well aligned. Copying does not provide benefit
         if (strides[1] == rnn.gates_ws_ld) return false;
@@ -293,8 +293,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         if (!rnn.merge_gemm_layer && data_reuse < 3) return false;
 
         // Prefer lower memory usage
-        if (src_layer_md.nelems(true) * dt_size >= 8 * 1024 * 1024)
-            return false;
+        if (src_layer_d.nelems(true) * dt_size >= 8 * 1024 * 1024) return false;
 
         return true;
     }();
@@ -302,14 +301,13 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     bool copy_src_layer = dev_getenv("copy_src_layer", prefer_copy_src_layer)
             || require_copy_src_layer;
 
-    bool prefer_copy_diff_dst_layer = true;
+    bool prefer_copy_diff_dst_layer = is_bwd;
     bool require_copy_diff_dst_layer = [&]() {
-        auto diff_dst_layer_md = memory_desc_wrapper(rd.diff_dst_layer_desc);
-        auto &strides = diff_dst_layer_md.strides();
-        auto dt_size = types::data_type_size(diff_dst_layer_md.data_type());
+        if (is_fwd) return false;
 
-        // Unimplemented
-        if (strides[1] * dt_size != rnn.scratch_diff_states_ld) return true;
+        auto &strides = diff_dst_layer_d.strides();
+        auto dt_size = types::data_type_size(diff_dst_layer_d.data_type());
+
 
         // The GEMM interface assumes input buffers are well aligned. We need to
         // implement a way to avoid kernels relying on this alignment to remove
