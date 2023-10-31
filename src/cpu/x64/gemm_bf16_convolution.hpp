@@ -45,29 +45,44 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
                 USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd() && mayiuse(avx512_core)
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(data_type::bf16, data_type::bf16,
-                            data_type::undef, dst_data_type, data_type::f32)
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type,
-                                    data_type::bf16, data_type::f32))
-                    && !has_zero_dim_memory()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops,
-                            dst_data_type);
+            using namespace dnnl::impl::data_type;
+
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(
+                    expect_data_types(bf16, bf16, undef, dst_data_type, f32),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+
+            VDISPATCH_CONV(mayiuse(avx512_core), VERBOSE_UNSUPPORTED_ISA);
+
+            VDISPATCH_CONV(IMPLICATION(with_bias(),
+                                   utils::one_of(desc()->bias_desc.data_type,
+                                           bf16, f32)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
+
+            VDISPATCH_CONV(attr()->has_default_values(
+                                   primitive_attr_t::skip_mask_t::post_ops,
+                                   dst_data_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+
             {
                 using namespace x64::injector;
                 static constexpr bool sum_at_pos_0_only = true;
                 static constexpr bool sum_requires_scale_one = true;
                 static constexpr bool sum_requires_zp_zero = true;
                 const auto dst_md = memory_desc_wrapper(dst_md_);
-                ok &= post_ops_ok(
-                        post_ops_ok_args_t(avx512_core, {binary, eltwise, sum},
-                                attr()->post_ops_, &dst_md, sum_at_pos_0_only,
-                                sum_requires_scale_one, sum_requires_zp_zero));
+
+                VDISPATCH_CONV(
+                        post_ops_ok(post_ops_ok_args_t(avx512_core,
+                                {binary, eltwise, sum}, attr()->post_ops_,
+                                &dst_md, sum_at_pos_0_only,
+                                sum_requires_scale_one, sum_requires_zp_zero)),
+                        VERBOSE_UNSUPPORTED_POSTOP);
             }
-            if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
@@ -246,13 +261,19 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_t {
                 USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
-            bool ok = true && mayiuse(avx512_core)
-                    && desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(diff_src_data_type, data_type::bf16,
-                            data_type::undef, data_type::bf16, data_type::f32)
-                    && !has_zero_dim_memory() && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+            using namespace dnnl::impl::data_type;
+
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(
+                                   diff_src_data_type, bf16, undef, bf16, f32),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(mayiuse(avx512_core), VERBOSE_UNSUPPORTED_ISA);
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
@@ -299,16 +320,24 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
                 USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
-            bool ok = true && mayiuse(avx512_core)
-                    && desc()->prop_kind == prop_kind::backward_weights
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(data_type::bf16, diff_wei_data_type,
-                            data_type::undef, data_type::bf16, data_type::f32)
-                    && IMPLICATION(with_bias(),
+            using namespace dnnl::impl::data_type;
+
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(
+                                   bf16, diff_wei_data_type, undef, bf16, f32),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(mayiuse(avx512_core), VERBOSE_UNSUPPORTED_ISA);
+            VDISPATCH_CONV(
+                    IMPLICATION(with_bias(),
                             utils::one_of(desc()->diff_bias_desc.data_type,
-                                    data_type::bf16, data_type::f32))
-                    && !has_zero_dim_memory() && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+                                    bf16, f32)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,

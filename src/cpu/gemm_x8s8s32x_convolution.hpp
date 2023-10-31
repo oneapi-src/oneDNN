@@ -53,33 +53,48 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(src_md()->data_type, s8, u8)
-                    && weights_md()->data_type == s8
-                    && utils::one_of(
-                            dst_md()->data_type, f32, bf16, s32, s8, u8)
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(weights_md(1)->data_type, f32, bf16,
-                                    s32, s8, u8))
-                    && !has_zero_dim_memory()
-                    && attr()->has_default_values(skip_mask_t::scales_runtime
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(
+                    utils::one_of(dst_md()->data_type, f32, bf16, s32, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
+            VDISPATCH_CONV(utils::one_of(src_md()->data_type, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(
+                    weights_md()->data_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(IMPLICATION(with_bias(),
+                                   utils::one_of(weights_md(1)->data_type, f32,
+                                           bf16, s32, s8, u8)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+
+            VDISPATCH_CONV(
+                    attr()->has_default_values(skip_mask_t::scales_runtime
                                     | skip_mask_t::zero_points_runtime
                                     | skip_mask_t::post_ops
                                     | skip_mask_t::sum_dt,
-                            dst_type)
-                    && attr()->post_ops_.check_sum_consistency(dst_type,
-                            /* is_int8 */ true)
-                    && attr_scales_ok() && zero_points_valid(attr());
-            if (!ok) return status::unimplemented;
+                            dst_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+
+            VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(dst_type,
+                                   /* is_int8 */ true),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_CONV(zero_points_valid(attr()), VERBOSE_UNSUPPORTED_ATTR);
 
             auto scratchpad = scratchpad_registry().registrar();
+
             CHECK(jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads()));
-            if (!gemm_x8s8s32x_convolution_utils::post_ops_ok(
-                        attr()->post_ops_, &dst_md_))
-                return status::unimplemented;
+
+            VDISPATCH_CONV(gemm_x8s8s32x_convolution_utils::post_ops_ok(
+                                   attr()->post_ops_, &dst_md_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
             return status::success;
         }
 
@@ -126,20 +141,29 @@ struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            bool ok = desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(diff_dst_md()->data_type, s8, u8)
-                    && weights_md()->data_type == s8
-                    && utils::one_of(
-                            diff_src_md()->data_type, f32, bf16, s32, s8, u8)
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(weights_md(1)->data_type, f32, bf16,
-                                    s32, s8, u8))
-                    && !has_zero_dim_memory()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::scales_runtime)
-                    && output_scales_mask_ok();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(utils::one_of(diff_dst_md()->data_type, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(
+                    weights_md()->data_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(utils::one_of(diff_src_md()->data_type, f32, bf16,
+                                   s32, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(IMPLICATION(with_bias(),
+                                   utils::one_of(weights_md(1)->data_type, f32,
+                                           bf16, s32, s8, u8)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(
+                    output_scales_mask_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
