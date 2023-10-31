@@ -82,17 +82,30 @@ private:
     using ltw = dnnl::impl::graph::logical_tensor_wrapper_t;
 
     struct deletor_wrapper {
-        deletor_wrapper(dnnl::impl::graph::allocator_t *alc) : alc_(alc) {}
+        deletor_wrapper(const dnnl::impl::graph::engine_t *eng) : eng_(eng) {}
         void operator()(void *p) {
             if (p) {
-#ifdef DNNL_WITH_SYCL
-                alc_->deallocate(p, get_device(), get_context(), {});
+                const auto k = eng_->kind();
+                auto alc = static_cast<dnnl::impl::graph::allocator_t *>(
+                        eng_->get_allocator());
+                if (k == dnnl::impl::graph::engine_kind::cpu) {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+                    alc->deallocate(p, get_device(), get_context(), {});
 #else
-                alc_->deallocate(p);
+                    alc->deallocate(p);
 #endif
+                } else if (k == dnnl::impl::graph::engine_kind::gpu) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+                    alc->deallocate(p, get_device(), get_context(), {});
+#else
+                    assert(!"only sycl runtime is supported on gpu");
+#endif
+                } else {
+                    assert(!"unknown engine kind");
+                }
             }
         }
-        dnnl::impl::graph::allocator_t *alc_;
+        const dnnl::impl::graph::engine_t *eng_;
     };
 
     /// @brief Alloc memory by engine
@@ -106,16 +119,16 @@ private:
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
             data.reset(static_cast<char *>(alc->allocate(
                                size, get_device(), get_context())),
-                    deletor_wrapper {alc});
+                    deletor_wrapper {e});
 #else
             data.reset(static_cast<char *>(alc->allocate(size)),
-                    deletor_wrapper {alc});
+                    deletor_wrapper {e});
 #endif
         } else { // gpu kind
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
             data.reset(static_cast<char *>(alc->allocate(
                                size, get_device(), get_context())),
-                    deletor_wrapper {alc});
+                    deletor_wrapper {e});
 #else
             assert(!"not supported non-sycl for GPU");
 #endif
