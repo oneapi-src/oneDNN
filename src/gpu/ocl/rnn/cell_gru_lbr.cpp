@@ -35,6 +35,7 @@ template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
     const conf_t &rnn = this->pd()->rnn_conf;
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
+    const rnn_offsets_t &offsets = this->pd()->off;
 
     dim_t cell_wei_iter_offset;
 
@@ -65,7 +66,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
 
         CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
                 workspace, scratch_gates, nullptr, *scratch.cell(), nullptr,
-                nullptr, nullptr, bias, tm_scales, diff_bias));
+                nullptr, nullptr, 0, bias, tm_scales, diff_bias));
 
     } else {
         dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off;
@@ -79,6 +80,10 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
                 ? user_data.diff_dst_layer(dir, iter)
                 : scratch.diff_states(lay + 1, dir, rnn.n_states, iter);
+        auto diff_states_layer_ld
+                = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
+                ? offsets.diff_dst_layer[1]
+                : rnn.scratch_diff_states_ld;
 
         auto diff_states0 = scratch.diff_states(lay, dir, 0, iter);
         auto diff_states1 = scratch.diff_states(lay, dir, rnn.n_states, iter);
@@ -87,8 +92,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
                 ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
                 diff_gates.get(), *scratch.cell(), diff_states.get(),
-                diff_states_iter.get(), diff_states_layer.get(), bias,
-                tm_scales, diff_bias));
+                diff_states_iter.get(), diff_states_layer.get(),
+                diff_states_layer_ld, bias, tm_scales, diff_bias));
 
         if (!rnn.merge_gemm_layer) {
             CHECK(gemm_primitive(engine, ctx, *diff_gates, 0, *cell_layer, 0,

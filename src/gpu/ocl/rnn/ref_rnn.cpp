@@ -584,8 +584,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             && (this->SIC() == this->DHC() || (this->T() == 1));
     if (!ok) return status::unimplemented;
 
-    set_rnn_conf(rnn_conf, *this->desc(), this->weights_md(0),
-            this->weights_md(1), this->diff_weights_md(0),
+    set_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->diff_dst_md(0),
+            this->weights_md(0), this->weights_md(1), this->diff_weights_md(0),
             this->diff_weights_md(1));
 
     dim_t workspace_size = get_workspace_size(rnn_conf);

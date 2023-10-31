@@ -30,6 +30,7 @@ template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     const conf_t &rnn = this->pd()->rnn_conf;
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
+    const rnn_offsets_t &offsets = this->pd()->off;
 
     dim_t cell_wei_iter_offset, cell_wei_iter_offset2, cell_scratch_offset2;
 
@@ -67,7 +68,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
         // 3. activation zt and rt + elemwise multiplication rt,ht-1
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
                 workspace, scratch_gates, nullptr, scratch.cell(), nullptr,
-                nullptr, nullptr, nullptr, bias, tm_scales, diff_bias,
+                nullptr, nullptr, 0, nullptr, bias, tm_scales, diff_bias,
                 PART_ONE));
 
         // 4. gemm Wh[2],h~t
@@ -78,7 +79,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
         // 5. activation h~t + calculate ht
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
                 workspace, scratch_gates, nullptr, scratch.cell(), nullptr,
-                nullptr, nullptr, nullptr, bias, tm_scales, diff_bias,
+                nullptr, nullptr, 0, nullptr, bias, tm_scales, diff_bias,
                 PART_TWO));
 
     } else {
@@ -94,6 +95,10 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
                 ? user_data.diff_dst_layer(dir, iter)
                 : scratch.diff_states(lay + 1, dir, rnn.n_states, iter);
+        auto diff_states_layer_ld
+                = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
+                ? offsets.diff_dst_layer[1]
+                : rnn.scratch_diff_states_ld;
 
         auto diff_states0 = scratch.diff_states(lay, dir, 0, iter);
         auto diff_states1 = scratch.diff_states(lay, dir, rnn.n_states, iter);
@@ -106,7 +111,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
                 diff_gates.get(), scratch.cell(), diff_states.get(),
                 diff_states_iter.get(), diff_states_layer.get(),
-                scratch.diff_ht(), bias, tm_scales, diff_bias, PART_ONE));
+                diff_states_layer_ld, scratch.diff_ht(), bias, tm_scales,
+                diff_bias, PART_ONE));
 
         // 2. calculate intermediate d(hG1)
         // d(hG1) = dG2 * W2h^t
@@ -120,7 +126,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
                 diff_gates.get(), scratch.cell(), diff_states.get(),
                 diff_states_iter.get(), diff_states_layer.get(),
-                scratch.diff_ht(), bias, tm_scales, diff_bias, PART_TWO));
+                diff_states_layer_ld, scratch.diff_ht(), bias, tm_scales,
+                diff_bias, PART_TWO));
 
         // 4. calculate diff weights
         // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)

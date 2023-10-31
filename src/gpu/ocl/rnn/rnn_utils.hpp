@@ -45,8 +45,8 @@
             const memory_storage_t *scratch_diff_states, \
             const memory_storage_t *scratch_diff_states_iter, \
             const memory_storage_t *scratch_diff_states_layer, \
-            const memory_storage_t *scales, const memory_storage_t &bias, \
-            const memory_storage_t *tm_scales, \
+            dim_t diff_states_layer_ld, const memory_storage_t *scales, \
+            const memory_storage_t &bias, const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru_lbr(f) \
@@ -59,7 +59,8 @@
             const memory_storage_t *scratch_diff_states, \
             const memory_storage_t *scratch_diff_states_iter, \
             const memory_storage_t *scratch_diff_states_layer, \
-            const memory_storage_t &bias, const memory_storage_t *tm_scales, \
+            dim_t diff_states_layer_ld, const memory_storage_t &bias, \
+            const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru(f) \
@@ -72,7 +73,7 @@
             const memory_storage_t *scratch_diff_states, \
             const memory_storage_t *scratch_diff_states_iter, \
             const memory_storage_t *scratch_diff_states_layer, \
-            const memory_storage_t *scratch_dhG1, \
+            dim_t diff_states_layer_ld, const memory_storage_t *scratch_dhG1, \
             const memory_storage_t &bias, const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias, int part) const
 
@@ -347,6 +348,8 @@ void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &dst_layer_d, bool is_xe_hpc);
 void init_test_mode(conf_t &rnn, const primitive_attr_t &attr);
 void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
+        const memory_desc_wrapper &src_layer_d,
+        const memory_desc_wrapper &diff_dst_layer_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &diff_weights_layer_d,
@@ -421,11 +424,6 @@ struct user_data_t {
 
         if (!conf.is_fwd) {
             gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer,
-                    offsets_.diff_dst_layer[1] == conf_.scratch_diff_states_ld))
-                    << "[UNIMPLEMENTED]: diff_dst_layer is required to have "
-                       "the same layout as layers in the workspace";
-
-            gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer,
                     (offsets_.diff_dst_layer[0]
                             * types::data_type_size(conf_.diff_data_type))
                                     % 8
@@ -473,7 +471,12 @@ struct user_data_t {
         // diff_dst_layer dimension order: iter, mini-batch, channel
         const auto iter_stride = offsets_.diff_dst_layer[0]
                 * types::data_type_size(conf_.diff_data_type);
-        auto offset = iter * iter_stride;
+        const auto dir_offset
+                = (conf_.exec_dir == execution_direction_t::bi_concat && dir)
+                ? offsets_.diff_dst_layer[1]
+                        * types::data_type_size(conf_.diff_data_type) / 2
+                : 0;
+        auto offset = iter * iter_stride + dir_offset;
         auto cell_size = iter_stride;
         auto n_cells = all_iter ? conf_.n_iter - iter : 1;
         return diff_dst_layer_.get_sub_storage(offset, cell_size * n_cells);
