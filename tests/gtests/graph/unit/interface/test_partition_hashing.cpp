@@ -25,14 +25,14 @@
 
 namespace graph = dnnl::impl::graph;
 
-TEST(PartitionHashing, ThreadId) {
+TEST(test_interface_partition_hashing, ThreadId) {
     graph::engine_t &engine = *get_engine();
     size_t id = 10056;
     graph::partition_hashing::key_t key {id, &engine, {}, {}, {}};
     ASSERT_EQ(std::this_thread::get_id(), key.thread_id());
 }
 
-TEST(PartitionHashing, GetArrayHash) {
+TEST(test_interface_partition_hashing, GetArrayHash) {
     size_t seed = 10000;
     const size_t num = 3;
     float arr[num] {1.0f, 2.0f, 3.0f};
@@ -40,7 +40,7 @@ TEST(PartitionHashing, GetArrayHash) {
             graph::partition_hashing::get_array_hash(seed, arr, num));
 }
 
-TEST(PartitionHashing, GetOpHash) {
+TEST(test_interface_partition_hashing, GetOpHash) {
     graph::op_t op {0, graph::op_kind::Wildcard, "wildcard"};
     ASSERT_NO_THROW(graph::partition_hashing::get_op_hash(op));
 }

@@ -23,7 +23,7 @@
 
 namespace graph = dnnl::impl::graph;
 
-TEST(FusionInfo, GetMutableZeroPoints) {
+TEST(test_fusion_info_fusion_info, GetMutableZeroPoints) {
     auto zp_op = std::make_shared<graph::op_t>(
             graph::dnnl_impl::op_kind::dnnl_add_zps, "zps_op");
 

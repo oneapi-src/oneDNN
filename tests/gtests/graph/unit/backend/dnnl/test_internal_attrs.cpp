@@ -20,7 +20,7 @@
 
 namespace graph = dnnl::impl::graph;
 
-TEST(InternalAttrs, InternalAttr2str) {
+TEST(test_internal_attrs_internal_attrs, InternalAttr2str) {
     using namespace graph::dnnl_impl::op_attr;
 #define CASE(a) ASSERT_EQ(internal_attr2str(a), #a)
     CASE(canonicalized);

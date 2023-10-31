@@ -32,7 +32,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(ExecuteSubgraphInt8, PoolAdd) {
+TEST(test_pool_execute_subgraph_int8, PoolAdd) {
     using dims = graph::dnnl_impl::dims;
     using config_t = std::tuple<graph::op_kind_t, bool>;
 
@@ -217,7 +217,7 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
     }
 }
 
-TEST(ExecuteSubgraphFp32, Pool3Postops) {
+TEST(test_pool_execute_subgraph_fp32, Pool3Postops) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -349,7 +349,7 @@ TEST(ExecuteSubgraphFp32, Pool3Postops) {
     }
 }
 
-TEST(Execute, AvgPoolExcludePad) {
+TEST(test_pool_execute, AvgPoolExcludePad) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
@@ -412,7 +412,7 @@ TEST(Execute, AvgPoolExcludePad) {
     }
 }
 
-TEST(Execute, AvgPoolIncludePad) {
+TEST(test_pool_execute, AvgPoolIncludePad) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
@@ -475,7 +475,7 @@ TEST(Execute, AvgPoolIncludePad) {
     }
 }
 
-TEST(Execute, AvgPoolBackwardExcludePad) {
+TEST(test_pool_execute, AvgPoolBackwardExcludePad) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
@@ -534,7 +534,7 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     }
 }
 
-TEST(Execute, AvgPoolBackwardIncludePad) {
+TEST(test_pool_execute, AvgPoolBackwardIncludePad) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
@@ -593,7 +593,7 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, Avgpool) {
+TEST(test_pool_execute_subgraph_int8, Avgpool) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_avgpool] - [quantize]
     // case 2: [quantize] - [int8_avgpool]
@@ -730,7 +730,7 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
     }
 }
 
-TEST(Execute, MaxPool) {
+TEST(test_pool_execute, MaxPool) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
@@ -792,7 +792,7 @@ TEST(Execute, MaxPool) {
     }
 }
 
-TEST(Execute, MaxPoolwithCache) {
+TEST(test_pool_execute, MaxPoolwithCache) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
@@ -871,7 +871,7 @@ TEST(Execute, MaxPoolwithCache) {
     }
 }
 
-TEST(Execute, MaxPoolWithOpaqueInput) {
+TEST(test_pool_execute, MaxPoolWithOpaqueInput) {
     // dequantize - maxpool
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
@@ -945,7 +945,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 }
 
-TEST(Execute, MaxPoolBackward) {
+TEST(test_pool_execute, MaxPoolBackward) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
@@ -1009,7 +1009,7 @@ TEST(Execute, MaxPoolBackward) {
     }
 }
 
-TEST(Execute, MaxPoolBackwardPlainGrad) {
+TEST(test_pool_execute, MaxPoolBackwardPlainGrad) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
@@ -1068,7 +1068,7 @@ TEST(Execute, MaxPoolBackwardPlainGrad) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, Maxpool) {
+TEST(test_pool_execute_subgraph_int8, Maxpool) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_maxpool] - [quantize]
     // case 2: [quantize] - [int8_maxpool]
@@ -1206,7 +1206,7 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MaxpoolAsymmetric) {
+TEST(test_pool_execute_subgraph_int8, MaxpoolAsymmetric) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_maxpool] - [quantize]
     // case 2: [quantize] - [int8_maxpool]
@@ -1320,7 +1320,7 @@ TEST(ExecuteSubgraphInt8, MaxpoolAsymmetric) {
                         /*atol*/ 1.f));
 }
 
-TEST(Partition, InvalidInputNumForAvgPoolBackward) {
+TEST(test_pool_partition, InvalidInputNumForAvgPoolBackward) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *eng = get_engine();
 
@@ -1476,7 +1476,7 @@ TEST_P(pool_binary_t, TestPoolBinary) {
     TestPoolBinary();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, pool_binary_t,
+INSTANTIATE_TEST_SUITE_P(test_pool_execute, pool_binary_t,
         ::testing::Values(pool_binary_params_t {graph::op_kind::AvgPool,
                                   graph::op_kind::Add},
                 pool_binary_params_t {
@@ -1493,7 +1493,7 @@ INSTANTIATE_TEST_SUITE_P(Execute, pool_binary_t,
                         graph::op_kind::MaxPool, graph::op_kind::Subtract}));
 
 // dequant -> pool -> reshape* -> quant
-TEST(ExecuteSubgraphInt8, DequantizePoolReshapeQunatize) {
+TEST(test_pool_execute_subgraph_int8, DequantizePoolReshapeQunatize) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     using dim = dnnl::impl::graph::dnnl_impl::dim;
 

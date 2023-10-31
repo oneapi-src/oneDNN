@@ -21,7 +21,7 @@
 #include "interface/c_types_map.hpp"
 #include "utils/debug.hpp"
 
-TEST(DebugUtilsDeathTest, DataType2str) {
+TEST(test_utils_debug_utils, DataType2strDeathTest) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
     EXPECT_STREQ("undef", data_type2str(data_type::undef));
@@ -41,7 +41,7 @@ TEST(DebugUtilsDeathTest, DataType2str) {
 #endif
 }
 
-TEST(DebugUtilsDeathTest, EngineKind2str) {
+TEST(test_utils_debug_utils, EngineKind2strDeathTest) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
     EXPECT_STREQ("any", engine_kind2str(engine_kind::any_engine));
@@ -57,7 +57,7 @@ TEST(DebugUtilsDeathTest, EngineKind2str) {
 #endif
 }
 
-TEST(DebugUtilsDeathTest, LayoutType2str) {
+TEST(test_utils_debug_utils, LayoutType2strDeathTest) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
     EXPECT_STREQ("undef", layout_type2str(layout_type::undef));
@@ -75,7 +75,7 @@ TEST(DebugUtilsDeathTest, LayoutType2str) {
 #endif
 }
 
-TEST(DebugUtilsDeathTest, FpmathMode2str) {
+TEST(test_utils_debug_utils, FpmathMode2strDeathTest) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
     EXPECT_STREQ("strict", fpmath_mode2str(fpmath_mode::strict));

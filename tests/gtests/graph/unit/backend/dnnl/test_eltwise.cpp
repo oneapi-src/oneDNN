@@ -123,7 +123,7 @@ static inline void test_eltwise_common(std::vector<float> &src,
     }
 }
 
-TEST(Execute, Abs) {
+TEST(test_eltwise_execute, Abs) {
     std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     std::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
 
@@ -132,7 +132,7 @@ TEST(Execute, Abs) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::Abs, "abs");
 }
 
-TEST(Execute, AbsConstantInput) {
+TEST(test_eltwise_execute, AbsConstantInput) {
     std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     std::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
 
@@ -142,7 +142,7 @@ TEST(Execute, AbsConstantInput) {
             src, ref_dst, dims, graph::op_kind::Abs, "abs", {}, true);
 }
 
-TEST(Execute, Round) {
+TEST(test_eltwise_execute, Round) {
     std::vector<float> src {1.1f, -2.3f, 4.7f, 1.0f, 0.0f, -8.34f};
     std::vector<float> ref_dst = round_func(src);
 
@@ -151,7 +151,7 @@ TEST(Execute, Round) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::Round, "round");
 }
 
-TEST(Execute, Clamp) {
+TEST(test_eltwise_execute, Clamp) {
     std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     std::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
 
@@ -241,7 +241,7 @@ static inline void test_eltwise_bwd_common(
     }
 }
 
-TEST(Execute, ClampBackward) {
+TEST(test_eltwise_execute, ClampBackward) {
     std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
     std::vector<float> dst {0.f, -1.f, 0.0723652f, -0.0364869f, 2.f, -1.f,
@@ -264,7 +264,7 @@ TEST(Execute, ClampBackward) {
             strides, attrs_data);
 }
 
-TEST(Execute, Elu) {
+TEST(test_eltwise_execute, Elu) {
     std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     std::vector<float> ref_dst;
 
@@ -286,7 +286,7 @@ TEST(Execute, Elu) {
             src, ref_dst, dims, graph::op_kind::Elu, "elu", attrs_data);
 }
 
-TEST(Execute, EluBackward) {
+TEST(test_eltwise_execute, EluBackward) {
     std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
     std::vector<float> dst {0.f, -0.632121f, 0.0723652f, -0.0358293f, 40.f,
@@ -309,7 +309,7 @@ TEST(Execute, EluBackward) {
             attrs_data);
 }
 
-TEST(Execute, Exp) {
+TEST(test_eltwise_execute, Exp) {
     std::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     std::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
@@ -322,7 +322,7 @@ TEST(Execute, Exp) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::Exp, "exp");
 }
 
-TEST(Execute, Gelu) {
+TEST(test_eltwise_execute, Gelu) {
     std::vector<float> src {
             -2.f, -1.5f, -1.f, -0.5f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
     std::vector<float> ref_dst {-0.0455001f, -0.10021085f, -0.15865527f,
@@ -333,7 +333,7 @@ TEST(Execute, Gelu) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::GELU, "gelu");
 }
 
-TEST(Execute, GeluBackward) {
+TEST(test_eltwise_execute, GeluBackward) {
     std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
     std::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
@@ -347,7 +347,7 @@ TEST(Execute, GeluBackward) {
             graph::op_kind::GELUBackward, "gelu_bw", strides, strides, strides);
 }
 
-TEST(Execute, HardSigmoid) {
+TEST(test_eltwise_execute, HardSigmoid) {
     float a = 1.0f / 6;
     float b = 0.5f;
     std::vector<float> src {-3.1f, -3.f, -1.5f, 0.f, 0.6f, 3.f, 3.1f, 100.f};
@@ -363,7 +363,7 @@ TEST(Execute, HardSigmoid) {
             "hardsigmoid", attrs_data);
 }
 
-TEST(Execute, HardSigmoidBackward) {
+TEST(test_eltwise_execute, HardSigmoidBackward) {
     float a = 1.0f / 6;
     float b = 0.5f;
     const std::vector<float> src {
@@ -384,7 +384,7 @@ TEST(Execute, HardSigmoidBackward) {
             strides, strides, attrs_data);
 }
 
-TEST(Execute, HardSwish) {
+TEST(test_eltwise_execute, HardSwish) {
     std::vector<float> src {7.f, -4.f, 0.0723652095f, -0.0364869386f, 60.f,
             -20.f, 0.188521415f, -0.729738772f, 88.3709564f};
     std::vector<float> ref_dst {7.f, 0.f, 0.0370553955f, -0.0180215873f, 60.f,
@@ -395,7 +395,7 @@ TEST(Execute, HardSwish) {
             src, ref_dst, dims, graph::op_kind::HardSwish, "hardswish");
 }
 
-TEST(Execute, HardSwishBackward) {
+TEST(test_eltwise_execute, HardSwishBackward) {
     std::vector<float> src {7.f, -4.f, 0.0723652095f, -0.0364869386f, 60.f,
             -20.f, 0.188521415f, -0.729738772f, 88.3709564f};
     std::vector<float> diff_dst {9.f, -10.f, 0.0194608141f, -0.0559477545f,
@@ -410,7 +410,7 @@ TEST(Execute, HardSwishBackward) {
             strides);
 }
 
-TEST(Execute, Relu) {
+TEST(test_eltwise_execute, Relu) {
     std::vector<float> src {
             -2.f, -1.5f, -1.f, -0.5f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
     std::vector<float> ref_dst {0.f, 0.f, 0.f, 0.f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
@@ -420,7 +420,7 @@ TEST(Execute, Relu) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::ReLU, "relu");
 }
 
-TEST(Execute, ReluBackward) {
+TEST(test_eltwise_execute, ReluBackward) {
     std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
     std::vector<float> dst {
@@ -455,7 +455,7 @@ TEST(Execute, ReluBackward) {
             strides_diff);
 }
 
-TEST(Execute, Sigmoid) {
+TEST(test_eltwise_execute, Sigmoid) {
     std::vector<float> src {-5.f, -2.5f, -1.f, 0.3f, 0.f, 1.2f};
     std::vector<float> ref_dst = sigmoid_func(src);
 
@@ -464,7 +464,7 @@ TEST(Execute, Sigmoid) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::Sigmoid, "sigmoid");
 }
 
-TEST(Execute, SigmoidBackward) {
+TEST(test_eltwise_execute, SigmoidBackward) {
     std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
     std::vector<float> dst {0.5f, 0.268941f, 0.518083f, 0.490879f, 1.f,
@@ -484,7 +484,7 @@ TEST(Execute, SigmoidBackward) {
             strides);
 }
 
-TEST(Execute, SoftPlus) {
+TEST(test_eltwise_execute, SoftPlus) {
     std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -25.f,
             0.188521f, -0.729739f, 44.317f};
     std::vector<float> ref_dst_case1 = {-0.693147f, -1.31326f, -0.657619f,
@@ -516,7 +516,7 @@ TEST(Execute, SoftPlus) {
             "softplus", attrs_data_case4);
 }
 
-TEST(Execute, SoftPlusBackward) {
+TEST(test_eltwise_execute, SoftPlusBackward) {
     std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
     std::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
@@ -555,7 +555,7 @@ TEST(Execute, SoftPlusBackward) {
             strides, attrs_data_case4);
 }
 
-TEST(Execute, Sqrt) {
+TEST(test_eltwise_execute, Sqrt) {
     std::vector<float> src {2.f, 1.5f, 1.0f, 0.5f, 0.f, 3.5f};
     std::vector<float> ref_dst = sqrt_func(src);
 
@@ -564,7 +564,7 @@ TEST(Execute, Sqrt) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::Sqrt, "sqrt");
 }
 
-TEST(Execute, SqrtBackward) {
+TEST(test_eltwise_execute, SqrtBackward) {
     std::vector<float> src {1.f, 0.0262164f, 30.f, 0.424328f, 88.1054f,
             22.5865f, 44.2676f, 0.0748657f, 0.0429739f};
     std::vector<float> dst {1.f, 0.161915f, 5.47723f, 0.651405f, 9.38645f,
@@ -582,7 +582,7 @@ TEST(Execute, SqrtBackward) {
             graph::op_kind::SqrtBackward, "sqrt_bw", strides, strides, strides);
 }
 
-TEST(Execute, Square) {
+TEST(test_eltwise_execute, Square) {
     std::vector<float> src {-2.f, -1.5f, -1.f, -0.5f, 0.f, 3.5f};
     std::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
@@ -595,7 +595,7 @@ TEST(Execute, Square) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::Square, "square");
 }
 
-TEST(Execute, Log) {
+TEST(test_eltwise_execute, Log) {
     std::vector<float> src {2.f, 1.5f, 1.f, 0.5f, 0.8f, 3.5f};
     std::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
@@ -608,7 +608,7 @@ TEST(Execute, Log) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::Log, "log");
 }
 
-TEST(Execute, Tanh) {
+TEST(test_eltwise_execute, Tanh) {
     std::vector<float> src {-2.f, -1.5f, -1.f, -0.5f, 0.f, 3.5f};
     std::vector<float> ref_dst = tanh_func(src);
 
@@ -617,7 +617,7 @@ TEST(Execute, Tanh) {
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::Tanh, "tanh");
 }
 
-TEST(Execute, TanhBackward) {
+TEST(test_eltwise_execute, TanhBackward) {
     std::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
             0.188521f, -0.729739f, 88.371f};
     std::vector<float> dst {0.f, -0.761594f, 0.0722392f, -0.0364708f, 1.f, -1.f,
@@ -635,7 +635,7 @@ TEST(Execute, TanhBackward) {
             graph::op_kind::TanhBackward, "tanh_bw", strides, strides, strides);
 }
 
-TEST(ExecuteSubgraphFp32, Shuffle) {
+TEST(test_eltwise_execute_subgraph_fp32, Shuffle) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -735,7 +735,7 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
     }
 }
 
-TEST(ExecuteSubgraphFp32, ReciprocalMul) {
+TEST(test_eltwise_execute_subgraph_fp32, ReciprocalMul) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0_data {1.f, 2.f, 3.f, 10.f, 20.f, 30.f};
@@ -800,7 +800,7 @@ TEST(ExecuteSubgraphFp32, ReciprocalMul) {
     }
 }
 
-TEST(Execute, Sum) {
+TEST(test_eltwise_execute, Sum) {
     /*
         input0  input1
           \       /
@@ -912,7 +912,7 @@ TEST(Execute, Sum) {
     }
 }
 
-TEST(Compile, EltwiseGetInplacePair) {
+TEST(test_eltwise_compile, EltwiseGetInplacePair) {
     // TODO(qun): re-enable this test once library and bridge align the inplace
     // logic
     SKIP_IF(true, "library and bridge have different inplace logic");
@@ -1055,7 +1055,7 @@ TEST_P(eltwise_binary_t, TestEltwiseBinary) {
     TestEltwiseBinary();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, eltwise_binary_t,
+INSTANTIATE_TEST_SUITE_P(test_eltwise_execute, eltwise_binary_t,
         ::testing::Values(
                 // with broadcast add and no swap inputs
                 eltwise_binary_params_t {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 
 using namespace dnnl::impl::graph;
 
-TEST(Partition, Unsupported) {
+TEST(test_fake_partition, Unsupported) {
     fake_impl::fake_partition_impl_t p(engine_kind::cpu);
     size_t id = 100;
     std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));

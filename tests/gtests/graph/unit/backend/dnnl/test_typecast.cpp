@@ -23,7 +23,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Execute, Typecast) {
+TEST(test_typecase_execute, Typecast) {
     graph::engine_t *engine = get_engine();
 
     std::vector<float> f32_val {
@@ -71,7 +71,7 @@ TEST(Execute, Typecast) {
     stream->wait();
 }
 
-TEST(Compile, TypecastNegativeInput) {
+TEST(test_typecase_compile, TypecastNegativeInput) {
     graph::engine_t *engine = get_engine();
 
     graph::op_t typecast_op(graph::op_kind::TypeCast);

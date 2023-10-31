@@ -23,7 +23,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Execute, InterpolateForwardNearest) {
+TEST(test_interpolate_execute, InterpolateForwardNearest) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -79,7 +79,7 @@ TEST(Execute, InterpolateForwardNearest) {
     }
 }
 
-TEST(Execute, InterpolateAddForwardNearest) {
+TEST(test_interpolate_execute, InterpolateAddForwardNearest) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -148,7 +148,7 @@ TEST(Execute, InterpolateAddForwardNearest) {
     }
 }
 
-TEST(Execute, InterpolateSwish) {
+TEST(test_interpolate_execute, InterpolateSwish) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -213,7 +213,7 @@ TEST(Execute, InterpolateSwish) {
     strm->wait();
 }
 
-TEST(Execute, Interpolate3PostOps) {
+TEST(test_interpolate_execute, Interpolate3PostOps) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -287,7 +287,7 @@ TEST(Execute, Interpolate3PostOps) {
     strm->wait();
 }
 
-TEST(Execute, InterpolatePostOps) {
+TEST(test_interpolate_execute, InterpolatePostOps) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -412,7 +412,7 @@ TEST(Execute, InterpolatePostOps) {
     }
 }
 
-TEST(Execute, InterpolateForwardLinear) {
+TEST(test_interpolate_execute, InterpolateForwardLinear) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -468,7 +468,7 @@ TEST(Execute, InterpolateForwardLinear) {
     }
 }
 
-TEST(Execute, InterpolateBackwardNearest) {
+TEST(test_interpolate_execute, InterpolateBackwardNearest) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src {-2.0, -1.5, -1.0, -0.5};
@@ -524,7 +524,7 @@ TEST(Execute, InterpolateBackwardNearest) {
     }
 }
 
-TEST(Execute, InterpolateBackwardLinear) {
+TEST(test_interpolate_execute, InterpolateBackwardLinear) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src {-2.0, -1.5, -1.0, -0.5};

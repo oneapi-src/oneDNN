@@ -63,7 +63,7 @@ dnnl::impl::graph::pass::pass_base_ptr get_pass(const std::string &pass_name) {
  * 4. Pass the graph to the pass
  * 5. Check if conv_bn can be fused
  */
-TEST(Pass, FuseConvBn) {
+TEST(test_pass_pass, FuseConvBn) {
     /*   conv
           |
          bn
@@ -115,7 +115,7 @@ TEST(Pass, FuseConvBn) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(Pass, FuseConvBnWithSharedInputs) {
+TEST(test_pass_pass, FuseConvBnWithSharedInputs) {
     /*   conv
           |
          bn
@@ -171,7 +171,7 @@ TEST(Pass, FuseConvBnWithSharedInputs) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FailToFuseConvBnWithConvSecondOutput) {
+TEST(test_pass_pass, FailToFuseConvBnWithConvSecondOutput) {
     /*   conv
         /    \
        bn   relu
@@ -213,7 +213,7 @@ TEST(Pass, FailToFuseConvBnWithConvSecondOutput) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
 }
 
-TEST(Pass, FuseConvRelu) {
+TEST(test_pass_pass, FuseConvRelu) {
     /*   conv
           |
          relu
@@ -248,7 +248,7 @@ TEST(Pass, FuseConvRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseConvBiasadd) {
+TEST(test_pass_pass, FuseConvBiasadd) {
     /*   conv
           |
          bias
@@ -284,7 +284,7 @@ TEST(Pass, FuseConvBiasadd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseConvWithInputBias) {
+TEST(test_pass_pass, FuseConvWithInputBias) {
     /*   conv
           |
          bias
@@ -324,7 +324,7 @@ TEST(Pass, FuseConvWithInputBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseConvSum) {
+TEST(test_pass_pass, FuseConvSum) {
     /*   conv
            \  /
            add
@@ -360,7 +360,7 @@ TEST(Pass, FuseConvSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseConvBiasaddBn) {
+TEST(test_pass_pass, FuseConvBiasaddBn) {
     /*   conv
           |
          bias
@@ -413,7 +413,7 @@ TEST(Pass, FuseConvBiasaddBn) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
-TEST(Pass, FuseConvBiasBnWithInputBias) {
+TEST(test_pass_pass, FuseConvBiasBnWithInputBias) {
     /*   conv
           |
          bias
@@ -462,7 +462,7 @@ TEST(Pass, FuseConvBiasBnWithInputBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
-TEST(Pass, FuseConvBiasaddRelu) {
+TEST(test_pass_pass, FuseConvBiasaddRelu) {
     /*   conv
           |
          bias
@@ -506,7 +506,7 @@ TEST(Pass, FuseConvBiasaddRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasReluWithInputBias) {
+TEST(test_pass_pass, FuseConvBiasReluWithInputBias) {
     /*   conv
           |
          bias
@@ -546,7 +546,7 @@ TEST(Pass, FuseConvBiasReluWithInputBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseConvBiasaddRelu6) {
+TEST(test_pass_pass, FuseConvBiasaddRelu6) {
     /*   conv
           |
          bias
@@ -592,7 +592,7 @@ TEST(Pass, FuseConvBiasaddRelu6) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasElu) {
+TEST(test_pass_pass, FuseConvBiasElu) {
     /*   conv
           |
          bias
@@ -633,7 +633,7 @@ TEST(Pass, FuseConvBiasElu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseConvBiasSigmoid) {
+TEST(test_pass_pass, FuseConvBiasSigmoid) {
     /*   conv
           |
          bias
@@ -673,7 +673,7 @@ TEST(Pass, FuseConvBiasSigmoid) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseConvBiasSwish) {
+TEST(test_pass_pass, FuseConvBiasSwish) {
     // swish: f(x) = x * sigmoid(x)
     /*   conv
           |
@@ -722,7 +722,7 @@ TEST(Pass, FuseConvBiasSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvSwish) {
+TEST(test_pass_pass, FuseConvSwish) {
     // swish: f(x) = x * sigmoid(x)
     /*   conv
         /    |
@@ -764,7 +764,7 @@ TEST(Pass, FuseConvSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseConvSwishSigmoid) {
+TEST(test_pass_pass, FuseConvSwishSigmoid) {
     // swish: f(x) = x * sigmoid(x)
     /*   conv
         /    |
@@ -812,7 +812,7 @@ TEST(Pass, FuseConvSwishSigmoid) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasClamp) {
+TEST(test_pass_pass, FuseConvBiasClamp) {
     /*   conv
           |
          bias
@@ -858,7 +858,7 @@ TEST(Pass, FuseConvBiasClamp) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasSquare) {
+TEST(test_pass_pass, FuseConvBiasSquare) {
     /*   conv
           |
          bias
@@ -902,7 +902,7 @@ TEST(Pass, FuseConvBiasSquare) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasTanh) {
+TEST(test_pass_pass, FuseConvBiasTanh) {
     /*   conv
           |
          bias
@@ -946,7 +946,7 @@ TEST(Pass, FuseConvBiasTanh) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasAbs) {
+TEST(test_pass_pass, FuseConvBiasAbs) {
     /*   conv
           |
          bias
@@ -990,7 +990,7 @@ TEST(Pass, FuseConvBiasAbs) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasSqrt) {
+TEST(test_pass_pass, FuseConvBiasSqrt) {
     /*   conv
           |
          bias
@@ -1034,7 +1034,7 @@ TEST(Pass, FuseConvBiasSqrt) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasaddSum) {
+TEST(test_pass_pass, FuseConvBiasaddSum) {
     /*   conv
           |
          bias
@@ -1080,7 +1080,7 @@ TEST(Pass, FuseConvBiasaddSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseConvBiasSum) {
+TEST(test_pass_pass, FuseConvBiasSum) {
     /*   conv
           |
          bias
@@ -1122,7 +1122,7 @@ TEST(Pass, FuseConvBiasSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasaddSumRelu) {
+TEST(test_pass_pass, FuseConvBiasaddSumRelu) {
     /*   conv
           |
          bias
@@ -1174,7 +1174,7 @@ TEST(Pass, FuseConvBiasaddSumRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(PassSystem, TestConvRelated) {
+TEST(test_pass_pass_system, TestConvRelated) {
     /*   conv
           |
          bias conv
@@ -1243,7 +1243,7 @@ TEST(PassSystem, TestConvRelated) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasaddSumElu) {
+TEST(test_pass_pass, FuseConvBiasaddSumElu) {
     /*   conv
           |
          bias
@@ -1296,7 +1296,7 @@ TEST(Pass, FuseConvBiasaddSumElu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(Pass, FuseConvBiasaddSumRelu6) {
+TEST(test_pass_pass, FuseConvBiasaddSumRelu6) {
     /*   conv
           |
          bias
@@ -1350,7 +1350,7 @@ TEST(Pass, FuseConvBiasaddSumRelu6) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(PassSystem, FuseConvDepthwise) {
+TEST(test_pass_pass_system, FuseConvDepthwise) {
     /*   conv
           |
          conv (depthwise)
@@ -1430,7 +1430,7 @@ TEST(PassSystem, FuseConvDepthwise) {
     }
 }
 
-TEST(Pass, FuseBinarySum) {
+TEST(test_pass_pass, FuseBinarySum) {
     /* binary here represents Multiply, Minimum, Maximum
 
         binary
@@ -1482,7 +1482,7 @@ TEST(Pass, FuseBinarySum) {
     }
 }
 
-TEST(PassSystem, TestConvSumAndBinary) {
+TEST(test_pass_pass_system, TestConvSumAndBinary) {
     /* binary here represents Multiply, Minimum, Maximum
 
         binary conv
@@ -1536,7 +1536,7 @@ TEST(PassSystem, TestConvSumAndBinary) {
     }
 }
 
-TEST(Pass, FuseBinarySumWithSupportBroadcast) {
+TEST(test_pass_pass, FuseBinarySumWithSupportBroadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
@@ -1578,7 +1578,7 @@ TEST(Pass, FuseBinarySumWithSupportBroadcast) {
     }
 }
 
-TEST(Pass, FailToFuseBinarySumWithUnsupportBroadcast) {
+TEST(test_pass_pass, FailToFuseBinarySumWithUnsupportBroadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
@@ -1630,7 +1630,7 @@ TEST(Pass, FailToFuseBinarySumWithUnsupportBroadcast) {
     }
 }
 
-TEST(Pass, FailToFuseBinarySumWithUnknownShape) {
+TEST(test_pass_pass, FailToFuseBinarySumWithUnknownShape) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
@@ -1668,7 +1668,7 @@ TEST(Pass, FailToFuseBinarySumWithUnknownShape) {
     }
 }
 
-TEST(Pass, FuseBinaryAddMul) {
+TEST(test_pass_pass, FuseBinaryAddMul) {
     /*
          \  /
           add
@@ -1707,7 +1707,7 @@ TEST(Pass, FuseBinaryAddMul) {
             partition_kind_t::binary_post_ops);
 }
 
-TEST(Pass, FuseBinaryEltwise) {
+TEST(test_pass_pass, FuseBinaryEltwise) {
     /* binary here represents Add, Multiply, Minimum, Maximum
        eltwise here represents Sigmoid, ReLU
 
@@ -1760,7 +1760,7 @@ TEST(Pass, FuseBinaryEltwise) {
     }
 }
 
-TEST(Pass, FuseEltwiseBinary3PostOps) {
+TEST(test_pass_pass, FuseEltwiseBinary3PostOps) {
     /*
            |
         eltwise
@@ -1810,7 +1810,7 @@ TEST(Pass, FuseEltwiseBinary3PostOps) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(Pass, FuseEltwiseBinaryFail) {
+TEST(test_pass_pass, FuseEltwiseBinaryFail) {
     /*
            |
           eltwise
@@ -1839,7 +1839,7 @@ TEST(Pass, FuseEltwiseBinaryFail) {
     ASSERT_EQ(agraph.get_num_partitions(), 0U);
 }
 
-TEST(Pass, ReciprocalMultiply2Divide) {
+TEST(test_pass_pass, ReciprocalMultiply2Divide) {
     /* convert the following pattern to division
                 1
                 /
@@ -1877,7 +1877,7 @@ TEST(Pass, ReciprocalMultiply2Divide) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(PassSystem, TestBinaryEltwise) {
+TEST(test_pass_pass_system, TestBinaryEltwise) {
     /* binary here represents Add, Multiply, Minimum, Maximum
        eltwise here represents Sigmoid, ReLU
 
@@ -1931,7 +1931,7 @@ TEST(PassSystem, TestBinaryEltwise) {
     }
 }
 
-TEST(Pass, FuseBnRelu) {
+TEST(test_pass_pass, FuseBnRelu) {
     /*
          bn
          |
@@ -1975,7 +1975,7 @@ TEST(Pass, FuseBnRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(PassSystem, TestBnRelu) {
+TEST(test_pass_pass_system, TestBnRelu) {
     /*
          bn
          |
@@ -2020,7 +2020,7 @@ TEST(PassSystem, TestBnRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseBnBwdReluBwd) {
+TEST(test_pass_pass, FuseBnBwdReluBwd) {
     /*
         ReLUBackward
          |
@@ -2068,7 +2068,7 @@ TEST(Pass, FuseBnBwdReluBwd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[2].id, 9U);
 }
 
-TEST(PassSystem, TestBnBwdReluBwd) {
+TEST(test_pass_pass_system, TestBnBwdReluBwd) {
     /*
         ReLUBackward
          |
@@ -2119,7 +2119,7 @@ TEST(PassSystem, TestBnBwdReluBwd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[2].id, 9U);
 }
 
-TEST(Pass, FuseConvSumRelu) {
+TEST(test_pass_pass, FuseConvSumRelu) {
     /*   conv
            \   /
             add
@@ -2163,7 +2163,7 @@ TEST(Pass, FuseConvSumRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvSumElu) {
+TEST(test_pass_pass, FuseConvSumElu) {
     /*   conv
            \   /
             add
@@ -2208,7 +2208,7 @@ TEST(Pass, FuseConvSumElu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvSumRelu6) {
+TEST(test_pass_pass, FuseConvSumRelu6) {
     /*   conv
            \   /
             add
@@ -2254,7 +2254,7 @@ TEST(Pass, FuseConvSumRelu6) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseConvBiasaddSumSum) {
+TEST(test_pass_pass, FuseConvBiasaddSumSum) {
     /*  conv
           |
         bias   conv
@@ -2329,7 +2329,7 @@ TEST(Pass, FuseConvBiasaddSumSum) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 11U);
 }
 
-TEST(Pass, FuseConvBnSum) {
+TEST(test_pass_pass, FuseConvBnSum) {
     /*   conv
           |
           bn
@@ -2382,7 +2382,7 @@ TEST(Pass, FuseConvBnSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
-TEST(Pass, FuseConvBnSumWithRelu) {
+TEST(test_pass_pass, FuseConvBnSumWithRelu) {
     /*   conv
           |
           bn   relu
@@ -2439,7 +2439,7 @@ TEST(Pass, FuseConvBnSumWithRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, FuseConvBiasBnSum) {
+TEST(test_pass_pass, FuseConvBiasBnSum) {
     /*   conv
           |
          bias
@@ -2496,7 +2496,7 @@ TEST(Pass, FuseConvBiasBnSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, FuseConvBnRelu) {
+TEST(test_pass_pass, FuseConvBnRelu) {
     /*   conv
           |
           bn
@@ -2547,7 +2547,7 @@ TEST(Pass, FuseConvBnRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
-TEST(PassSystem, TestConvBnRelu) {
+TEST(test_pass_pass_system, TestConvBnRelu) {
     /*   conv
           |
          bn
@@ -2600,7 +2600,7 @@ TEST(PassSystem, TestConvBnRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
-TEST(Pass, FuseConvBiasaddBnRelu) {
+TEST(test_pass_pass, FuseConvBiasaddBnRelu) {
     /*   conv
           |
          bias
@@ -2659,7 +2659,7 @@ TEST(Pass, FuseConvBiasaddBnRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, FuseConvBiasBnReluWithInputBias) {
+TEST(test_pass_pass, FuseConvBiasBnReluWithInputBias) {
     /*   conv
           |
          bias
@@ -2714,7 +2714,7 @@ TEST(Pass, FuseConvBiasBnReluWithInputBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
-TEST(PassSystem, TestConvBiasBnRelu) {
+TEST(test_pass_pass_system, TestConvBiasBnRelu) {
     /*   conv
           |
          bias
@@ -2776,7 +2776,7 @@ TEST(PassSystem, TestConvBiasBnRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, FuseConvBnSumRelu) {
+TEST(test_pass_pass, FuseConvBnSumRelu) {
     /*   conv
           |
          bn
@@ -2835,7 +2835,7 @@ TEST(Pass, FuseConvBnSumRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, FuseConvBiasBnSumRelu) {
+TEST(test_pass_pass, FuseConvBiasBnSumRelu) {
     /*   conv
           |
          bias
@@ -2898,7 +2898,7 @@ TEST(Pass, FuseConvBiasBnSumRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 11U);
 }
 
-TEST(Pass, FuseConvBiasPostOpsChain) {
+TEST(test_pass_pass, FuseConvBiasPostOpsChain) {
     size_t max_num_post_ops = 4;
     const std::vector<op_kind_t> two_inputs_ops {
             op_kind::Multiply,
@@ -3033,7 +3033,7 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
     }
 }
 
-TEST(Pass, FuseConvPostOpsChain) {
+TEST(test_pass_pass, FuseConvPostOpsChain) {
     size_t max_num_post_ops = 3;
     const std::vector<op_kind_t> two_inputs_ops {
             op_kind::Multiply,
@@ -3163,7 +3163,7 @@ TEST(Pass, FuseConvPostOpsChain) {
     }
 }
 
-TEST(Pass, FuseConvtransposeBiasadd) {
+TEST(test_pass_pass, FuseConvtransposeBiasadd) {
     /*   conv
           |
          bias
@@ -3199,7 +3199,7 @@ TEST(Pass, FuseConvtransposeBiasadd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseConvtransposeAdd) {
+TEST(test_pass_pass, FuseConvtransposeAdd) {
     /*   convtranspose
           |
          w/wo bias
@@ -3251,7 +3251,7 @@ TEST(Pass, FuseConvtransposeAdd) {
     }
 }
 
-TEST(Pass, FuseConvtransposeAddTwoInputs) {
+TEST(test_pass_pass, FuseConvtransposeAddTwoInputs) {
     /*   convtranspose
           |
          bias (is a convtranspose third input)
@@ -3296,7 +3296,7 @@ TEST(Pass, FuseConvtransposeAddTwoInputs) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseConvtransposeRelu) {
+TEST(test_pass_pass, FuseConvtransposeRelu) {
     /*   convtranspose
           |
          w/wo bias (is a convtranspose third input)
@@ -3344,7 +3344,7 @@ TEST(Pass, FuseConvtransposeRelu) {
     }
 }
 
-TEST(Pass, FuseConvtransposeReLUTwoInputs) {
+TEST(test_pass_pass, FuseConvtransposeReLUTwoInputs) {
     /*   convtranspose
           |
          bias
@@ -3386,7 +3386,7 @@ TEST(Pass, FuseConvtransposeReLUTwoInputs) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseMatmulRelu) {
+TEST(test_pass_pass, FuseMatmulRelu) {
     /*  matmul
           |
         relu
@@ -3422,7 +3422,7 @@ TEST(Pass, FuseMatmulRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseMatmulReluCase2) {
+TEST(test_pass_pass, FuseMatmulReluCase2) {
     /*  matmul
           |
         relu
@@ -3462,7 +3462,7 @@ TEST(Pass, FuseMatmulReluCase2) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FailToFuseReluMatmul) {
+TEST(test_pass_pass, FailToFuseReluMatmul) {
     /*  relu
           |
         matmul
@@ -3494,7 +3494,7 @@ TEST(Pass, FailToFuseReluMatmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
 }
 
-TEST(Pass, FuseMatmulElu) {
+TEST(test_pass_pass, FuseMatmulElu) {
     /*  matmul
           |
         elu
@@ -3531,7 +3531,7 @@ TEST(Pass, FuseMatmulElu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseMatmulSigmoid) {
+TEST(test_pass_pass, FuseMatmulSigmoid) {
     /*  matmul
           |
         sigmoid
@@ -3567,7 +3567,7 @@ TEST(Pass, FuseMatmulSigmoid) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseMatmulClamp) {
+TEST(test_pass_pass, FuseMatmulClamp) {
     /*  matmul
           |
         clamp
@@ -3605,7 +3605,7 @@ TEST(Pass, FuseMatmulClamp) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseMatmulGelu) {
+TEST(test_pass_pass, FuseMatmulGelu) {
     /*  matmul
           |
         gelu
@@ -3641,7 +3641,7 @@ TEST(Pass, FuseMatmulGelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseMatmulSum) {
+TEST(test_pass_pass, FuseMatmulSum) {
     /*  matmul  wildcard
           \    /
             add
@@ -3682,7 +3682,7 @@ TEST(Pass, FuseMatmulSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseMatmulSumWithCommunicativeOrder) {
+TEST(test_pass_pass, FuseMatmulSumWithCommunicativeOrder) {
     /* wildcard matmul
           \    /
             add
@@ -3723,7 +3723,7 @@ TEST(Pass, FuseMatmulSumWithCommunicativeOrder) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseMatmulSumGelu) {
+TEST(test_pass_pass, FuseMatmulSumGelu) {
     /*  matmul  wildcard
           \    /
             add
@@ -3770,7 +3770,7 @@ TEST(Pass, FuseMatmulSumGelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseMatmulSumRelu) {
+TEST(test_pass_pass, FuseMatmulSumRelu) {
     /*  matmul wildcard
           \    /
             add
@@ -3817,7 +3817,7 @@ TEST(Pass, FuseMatmulSumRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseMatmulDiv) {
+TEST(test_pass_pass, FuseMatmulDiv) {
     /*  matmul  wildcard
           \    /
             div
@@ -3858,7 +3858,7 @@ TEST(Pass, FuseMatmulDiv) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(PassSystem, FuseMatmulDiv) {
+TEST(test_pass_pass_system, FuseMatmulDiv) {
     /*  matmul  wildcard
           \    /
             div
@@ -3892,7 +3892,7 @@ TEST(PassSystem, FuseMatmulDiv) {
             partition_kind_t::matmul_post_ops);
 }
 
-TEST(Pass, FuseMatmulDivAdd) {
+TEST(test_pass_pass, FuseMatmulDivAdd) {
     /*  matmul  wildcard
           \    /
             div wildcard
@@ -3944,7 +3944,7 @@ TEST(Pass, FuseMatmulDivAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(PassSystem, FuseMatmulDivAdd) {
+TEST(test_pass_pass_system, FuseMatmulDivAdd) {
     /*  matmul  wildcard
           \    /
             div wildcard
@@ -3988,7 +3988,7 @@ TEST(PassSystem, FuseMatmulDivAdd) {
             partition_kind_t::matmul_post_ops);
 }
 
-TEST(PassSystem, TestMatmulDivAdd) {
+TEST(test_pass_pass_system, TestMatmulDivAdd) {
     /*  matmul
           \    /
             div
@@ -4033,7 +4033,7 @@ TEST(PassSystem, TestMatmulDivAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseMatmulBiasadd) {
+TEST(test_pass_pass, FuseMatmulBiasadd) {
     /*  matmul
            |
          bias
@@ -4071,7 +4071,7 @@ TEST(Pass, FuseMatmulBiasadd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseMatmulBias) {
+TEST(test_pass_pass, FuseMatmulBias) {
     /*  matmul
            |
          bias
@@ -4105,7 +4105,7 @@ TEST(Pass, FuseMatmulBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseMatmulBiasSigmoid) {
+TEST(test_pass_pass, FuseMatmulBiasSigmoid) {
     /*  matmul
            |
          bias
@@ -4150,7 +4150,7 @@ TEST(Pass, FuseMatmulBiasSigmoid) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseMatmulBiasaddElu) {
+TEST(test_pass_pass, FuseMatmulBiasaddElu) {
     /*  matmul
            |
          bias
@@ -4195,7 +4195,7 @@ TEST(Pass, FuseMatmulBiasaddElu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseMatmulBiasaddRelu) {
+TEST(test_pass_pass, FuseMatmulBiasaddRelu) {
     /*  matmul
            |
          bias
@@ -4239,7 +4239,7 @@ TEST(Pass, FuseMatmulBiasaddRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseMatmulBiasaddClamp) {
+TEST(test_pass_pass, FuseMatmulBiasaddClamp) {
     /*  matmul
            |
          bias
@@ -4286,7 +4286,7 @@ TEST(Pass, FuseMatmulBiasaddClamp) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseMatmulReluSum) {
+TEST(test_pass_pass, FuseMatmulReluSum) {
     /*  matmul
            |
          bias  relu
@@ -4332,7 +4332,7 @@ TEST(Pass, FuseMatmulReluSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseMatmulBiasSumRelu) {
+TEST(test_pass_pass, FuseMatmulBiasSumRelu) {
     /*  matmul
            |
          bias  wildcard
@@ -4385,7 +4385,7 @@ TEST(Pass, FuseMatmulBiasSumRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(PassSystem, TestMatmulBiasSumRelu) {
+TEST(test_pass_pass_system, TestMatmulBiasSumRelu) {
     /*  matmul
            |
          bias  wildcard
@@ -4439,7 +4439,7 @@ TEST(PassSystem, TestMatmulBiasSumRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(Pass, FuseMatmulBiasaddSwish) {
+TEST(test_pass_pass, FuseMatmulBiasaddSwish) {
     /*       matmul
                |
               bias
@@ -4492,7 +4492,7 @@ TEST(Pass, FuseMatmulBiasaddSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(PassSystem, FuseMatmulBiasaddSwish) {
+TEST(test_pass_pass_system, FuseMatmulBiasaddSwish) {
     /*       matmul
                |
               bias
@@ -4545,7 +4545,7 @@ TEST(PassSystem, FuseMatmulBiasaddSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseMatmulBiasaddRelu6) {
+TEST(test_pass_pass, FuseMatmulBiasaddRelu6) {
     /*  matmul
            |
          bias
@@ -4587,7 +4587,7 @@ TEST(Pass, FuseMatmulBiasaddRelu6) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, DnnlSingleOpReplacement) {
+TEST(test_pass_pass, DnnlSingleOpReplacement) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::op_kind;
 
@@ -4698,7 +4698,7 @@ TEST_P(test_single_op_pass_t, Test_Single_Op_Pass) {
     Test_Single_Op_Pass();
 }
 
-INSTANTIATE_TEST_SUITE_P(Test_Single_Op_Pass, test_single_op_pass_t,
+INSTANTIATE_TEST_SUITE_P(test_pass_single_op_pass, test_single_op_pass_t,
         ::testing::Values(single_op_params_t {graph::op_kind::Round, 1, 1,
                                   graph::data_type::f32, 1},
                 single_op_params_t {
@@ -4729,7 +4729,7 @@ INSTANTIATE_TEST_SUITE_P(Test_Single_Op_Pass, test_single_op_pass_t,
                 single_op_params_t {graph::op_kind::LayerNormBackward, 6, 3,
                         graph::data_type::bf16, 0}));
 
-TEST(Pass, ConvSingleOpReplacement) {
+TEST(test_pass_pass, ConvSingleOpReplacement) {
     graph_t agraph;
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
@@ -4757,7 +4757,7 @@ TEST(Pass, ConvSingleOpReplacement) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
 }
 
-TEST(Pass, ConvSingleOpReplacementWithBias) {
+TEST(test_pass_pass, ConvSingleOpReplacementWithBias) {
     graph_t agraph;
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
@@ -4791,7 +4791,7 @@ TEST(Pass, ConvSingleOpReplacementWithBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, SaveLoadJson) {
+TEST(test_pass_pass, SaveLoadJson) {
     /*   \  /
           conv
             |
@@ -4868,7 +4868,7 @@ TEST(Pass, SaveLoadJson) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 8U);
 }
 
-TEST(Pass, InputJsonIsValid) {
+TEST(test_pass_pass, InputJsonIsValid) {
     /*   \   /
           conv
            |
@@ -4924,7 +4924,7 @@ TEST(Pass, InputJsonIsValid) {
     ASSERT_EQ(agraph.get_num_partitions(), 2U);
 }
 
-TEST(Pass, InputJsonIsInvalidWithIncompleteHash) {
+TEST(test_pass_pass, InputJsonIsInvalidWithIncompleteHash) {
     /*   \   /
           conv
            |
@@ -4982,7 +4982,7 @@ TEST(Pass, InputJsonIsInvalidWithIncompleteHash) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
 
-TEST(Pass, InputJsonIsInvalidWithMissingFiled) {
+TEST(test_pass_pass, InputJsonIsInvalidWithMissingFiled) {
     /*   \   /
           conv
            |
@@ -5033,7 +5033,7 @@ TEST(Pass, InputJsonIsInvalidWithMissingFiled) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
 
-TEST(Pass, InputJsonIsInvalidWithWrongFormat) {
+TEST(test_pass_pass, InputJsonIsInvalidWithWrongFormat) {
     /*   \   /
           conv
            |
@@ -5080,7 +5080,7 @@ TEST(Pass, InputJsonIsInvalidWithWrongFormat) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
 
-TEST(Pass, FuseTwoConvReluWithSharedWeight) {
+TEST(test_pass_pass, FuseTwoConvReluWithSharedWeight) {
     /*    \   /\    /
           conv  conv
             |     |
@@ -5140,7 +5140,7 @@ TEST(Pass, FuseTwoConvReluWithSharedWeight) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, CheckSameInput) {
+TEST(test_pass_pass, CheckSameInput) {
     /*     conv
             ||
            add
@@ -5190,7 +5190,7 @@ TEST(Pass, CheckSameInput) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 3U);
 }
 
-TEST(PassSystem, FuseToInt8Conv) {
+TEST(test_pass_pass_system, FuseToInt8Conv) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5260,7 +5260,7 @@ TEST(PassSystem, FuseToInt8Conv) {
     }
 }
 
-TEST(Pass, FuseToInt8Fp32Conv) {
+TEST(test_pass_pass, FuseToInt8Fp32Conv) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5327,7 +5327,7 @@ TEST(Pass, FuseToInt8Fp32Conv) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(PassSystem, TestInt8) {
+TEST(test_pass_pass_system, TestInt8) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5397,7 +5397,7 @@ TEST(PassSystem, TestInt8) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FailToFuseToInt8Conv) {
+TEST(test_pass_pass, FailToFuseToInt8Conv) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5458,7 +5458,7 @@ wildcard     | (f32)
     ASSERT_EQ(agraph.get_num_partitions(), 4U);
 }
 
-TEST(Pass, FuseToInt8ConvBias) {
+TEST(test_pass_pass, FuseToInt8ConvBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5526,7 +5526,7 @@ TEST(Pass, FuseToInt8ConvBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(PassSystem, TestInt8ConvBias) {
+TEST(test_pass_pass_system, TestInt8ConvBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5596,7 +5596,7 @@ TEST(PassSystem, TestInt8ConvBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseToInt8ConvRelu) {
+TEST(test_pass_pass, FuseToInt8ConvRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5669,7 +5669,7 @@ TEST(Pass, FuseToInt8ConvRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseToInt8ConvSwish) {
+TEST(test_pass_pass, FuseToInt8ConvSwish) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5751,7 +5751,7 @@ TEST(Pass, FuseToInt8ConvSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(PassSystem, TestInt8ConvRelu) {
+TEST(test_pass_pass_system, TestInt8ConvRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5826,7 +5826,7 @@ TEST(PassSystem, TestInt8ConvRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseToInt8ConvBiasRelu) {
+TEST(test_pass_pass, FuseToInt8ConvBiasRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5901,7 +5901,7 @@ TEST(Pass, FuseToInt8ConvBiasRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(PassSystem, TestInt8ConvBiasRelu) {
+TEST(test_pass_pass_system, TestInt8ConvBiasRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5978,7 +5978,7 @@ TEST(PassSystem, TestInt8ConvBiasRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(Pass, FuseToInt8ConvBiasAdd) {
+TEST(test_pass_pass, FuseToInt8ConvBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6074,7 +6074,7 @@ TEST(Pass, FuseToInt8ConvBiasAdd) {
     }
 }
 
-TEST(Pass, FuseToInt8ConvBinary) {
+TEST(test_pass_pass, FuseToInt8ConvBinary) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6184,7 +6184,7 @@ TEST(Pass, FuseToInt8ConvBinary) {
     }
 }
 
-TEST(PassSystem, TestInt8ConvBiasAdd) {
+TEST(test_pass_pass_system, TestInt8ConvBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6287,7 +6287,7 @@ TEST(PassSystem, TestInt8ConvBiasAdd) {
     }
 }
 
-TEST(Pass, FuseToInt8ConvBiasAddRelu) {
+TEST(test_pass_pass, FuseToInt8ConvBiasAddRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6385,7 +6385,7 @@ TEST(Pass, FuseToInt8ConvBiasAddRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(PassSystem, TestInt8ConvBiasAddRelu) {
+TEST(test_pass_pass_system, TestInt8ConvBiasAddRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6485,7 +6485,7 @@ TEST(PassSystem, TestInt8ConvBiasAddRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, FuseToInt8ConvBiasAddReluWithInputBias) {
+TEST(test_pass_pass, FuseToInt8ConvBiasAddReluWithInputBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6584,7 +6584,7 @@ TEST(Pass, FuseToInt8ConvBiasAddReluWithInputBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, FuseToX8s8f32Conv) {
+TEST(test_pass_pass, FuseToX8s8f32Conv) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6638,7 +6638,7 @@ TEST(Pass, FuseToX8s8f32Conv) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseToX8s8f32ConvBiasWithInputBias) {
+TEST(test_pass_pass, FuseToX8s8f32ConvBiasWithInputBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6696,7 +6696,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasWithInputBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseToX8s8f32ConvReluWithInputBias) {
+TEST(test_pass_pass, FuseToX8s8f32ConvReluWithInputBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6758,7 +6758,7 @@ TEST(Pass, FuseToX8s8f32ConvReluWithInputBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
+TEST(test_pass_pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6823,7 +6823,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, TestQuantizedConv) {
+TEST(test_pass_pass, TestQuantizedConv) {
     /*
         | (u8/s8)  | (s8)   | (u8/s8)  | (s8)
      dequant    dequant   dequant    dequant
@@ -6969,7 +6969,7 @@ TEST(Pass, TestQuantizedConv) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseToInt8Matmul) {
+TEST(test_pass_pass, FuseToInt8Matmul) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7031,7 +7031,7 @@ TEST(Pass, FuseToInt8Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(PassSystem, TestInt8Matmul) {
+TEST(test_pass_pass_system, TestInt8Matmul) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7096,7 +7096,7 @@ TEST(PassSystem, TestInt8Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, OptionalQuantForInt8Matmul) {
+TEST(test_pass_pass, OptionalQuantForInt8Matmul) {
     /*
     quant_wei has a producer, so it will not
     be fused into int8_matmul_post_ops
@@ -7183,7 +7183,7 @@ TEST(Pass, OptionalQuantForInt8Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
-TEST(Pass, OptionalQuantWith2ConsumersForInt8Matmul) {
+TEST(test_pass_pass, OptionalQuantWith2ConsumersForInt8Matmul) {
     /*
     quant_wei has two consumers, so it will not
     be fused into int8_matmul_post_ops
@@ -7267,7 +7267,7 @@ TEST(Pass, OptionalQuantWith2ConsumersForInt8Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4U);
 }
 
-TEST(Pass, FuseToInt8MatMulBinary) {
+TEST(test_pass_pass, FuseToInt8MatMulBinary) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7376,7 +7376,7 @@ TEST(Pass, FuseToInt8MatMulBinary) {
     }
 }
 
-TEST(Pass, FailToFuseToInt8MatMulDivOrSubtract) {
+TEST(test_pass_pass, FailToFuseToInt8MatMulDivOrSubtract) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7455,7 +7455,7 @@ TEST(Pass, FailToFuseToInt8MatMulDivOrSubtract) {
     }
 }
 
-TEST(PassSystem, FuseToInt8MatMulSwishReLU) {
+TEST(test_pass_pass_system, FuseToInt8MatMulSwishReLU) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7547,7 +7547,7 @@ TEST(PassSystem, FuseToInt8MatMulSwishReLU) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
-TEST(Pass, FuseToInt8MatmulBias) {
+TEST(test_pass_pass, FuseToInt8MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7613,7 +7613,7 @@ TEST(Pass, FuseToInt8MatmulBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(PassSystem, TestInt8MatmulBias) {
+TEST(test_pass_pass_system, TestInt8MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7681,7 +7681,7 @@ TEST(PassSystem, TestInt8MatmulBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseToInt8MatmulRelu) {
+TEST(test_pass_pass, FuseToInt8MatmulRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7753,7 +7753,7 @@ TEST(Pass, FuseToInt8MatmulRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(PassSystem, FuseToInt8MatmulRelu) {
+TEST(test_pass_pass_system, FuseToInt8MatmulRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7826,7 +7826,7 @@ TEST(PassSystem, FuseToInt8MatmulRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(Pass, FuseToInt8MatmulBiasRelu) {
+TEST(test_pass_pass, FuseToInt8MatmulBiasRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7901,7 +7901,7 @@ TEST(Pass, FuseToInt8MatmulBiasRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(Pass, FuseToX8s8f32Matmul) {
+TEST(test_pass_pass, FuseToX8s8f32Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -7954,7 +7954,7 @@ TEST(Pass, FuseToX8s8f32Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseToX8s8f32MatmulBias) {
+TEST(test_pass_pass, FuseToX8s8f32MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -8011,7 +8011,7 @@ TEST(Pass, FuseToX8s8f32MatmulBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseToX8s8f32MatmulEltwise) {
+TEST(test_pass_pass, FuseToX8s8f32MatmulEltwise) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -8081,7 +8081,7 @@ TEST(Pass, FuseToX8s8f32MatmulEltwise) {
     }
 }
 
-TEST(Pass, FuseToX8s8f32MatmulBiasEltwise) {
+TEST(test_pass_pass, FuseToX8s8f32MatmulBiasEltwise) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -8155,7 +8155,7 @@ TEST(Pass, FuseToX8s8f32MatmulBiasEltwise) {
     }
 }
 
-TEST(Pass, FuseToInt8Maxpool) {
+TEST(test_pass_pass, FuseToInt8Maxpool) {
     /*
              | (u8/s8)
           dequant
@@ -8219,7 +8219,7 @@ TEST(Pass, FuseToInt8Maxpool) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(PassSystem, TestInt8Maxpool) {
+TEST(test_pass_pass_system, TestInt8Maxpool) {
     /*
              | (u8/s8)
           dequant
@@ -8284,7 +8284,7 @@ TEST(PassSystem, TestInt8Maxpool) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseToInt8Avgpool) {
+TEST(test_pass_pass, FuseToInt8Avgpool) {
     /*
              | (u8/s8)
           dequant
@@ -8342,7 +8342,7 @@ TEST(Pass, FuseToInt8Avgpool) {
             partition_kind_t::quantized_pooling_post_ops);
 }
 
-TEST(PassSystem, FuseToInt8PoolAdd) {
+TEST(test_pass_pass_system, FuseToInt8PoolAdd) {
     /*    
              | (u8/s8)
           dequant
@@ -8453,7 +8453,7 @@ TEST(PassSystem, FuseToInt8PoolAdd) {
     }
 }
 
-TEST(PassSystem, Quantize) {
+TEST(test_pass_pass_system, Quantize) {
     std::vector<engine_kind_t> engine_kinds
             = {engine_kind::cpu, engine_kind::gpu};
     for (const auto &engine_kind : engine_kinds) {
@@ -8482,7 +8482,7 @@ TEST(PassSystem, Quantize) {
     }
 }
 
-TEST(Pass, FuseToInt8MatmulAdd) {
+TEST(test_pass_pass, FuseToInt8MatmulAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -8570,7 +8570,7 @@ TEST(Pass, FuseToInt8MatmulAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
-TEST(Pass, FuseToInt8MatmulBiasAdd) {
+TEST(test_pass_pass, FuseToInt8MatmulBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -8661,7 +8661,7 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
-TEST(PassSystem, FuseReluAdd) {
+TEST(test_pass_pass_system, FuseReluAdd) {
     /*
          relu
            \  /
@@ -8703,7 +8703,7 @@ TEST(PassSystem, FuseReluAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseToX8x8f32MatmulDivAdd) {
+TEST(test_pass_pass, FuseToX8x8f32MatmulDivAdd) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8778,7 +8778,7 @@ TEST(Pass, FuseToX8x8f32MatmulDivAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
-TEST(PassSystem, FuseToX8x8f32MatmulDivAdd) {
+TEST(test_pass_pass_system, FuseToX8x8f32MatmulDivAdd) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8846,7 +8846,7 @@ TEST(PassSystem, FuseToX8x8f32MatmulDivAdd) {
             partition_kind_t::quantized_matmul_post_ops);
 }
 
-TEST(Pass, FuseToX8s8bf16Matmul) {
+TEST(test_pass_pass, FuseToX8s8bf16Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8913,7 +8913,7 @@ TEST(Pass, FuseToX8s8bf16Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(PassSystem, FuseToX8s8bf16Matmul) {
+TEST(test_pass_pass_system, FuseToX8s8bf16Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8975,7 +8975,7 @@ TEST(PassSystem, FuseToX8s8bf16Matmul) {
             partition_kind_t::quantized_matmul_post_ops);
 }
 
-TEST(Pass, FuseToX8s8bf16MatmulDiv) {
+TEST(test_pass_pass, FuseToX8s8bf16MatmulDiv) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9053,7 +9053,7 @@ TEST(Pass, FuseToX8s8bf16MatmulDiv) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
-TEST(PassSystem, FuseToX8s8bf16MatmulDiv) {
+TEST(test_pass_pass_system, FuseToX8s8bf16MatmulDiv) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9125,7 +9125,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDiv) {
             partition_kind_t::quantized_matmul_post_ops);
 }
 
-TEST(Pass, FailToAddMatmul) {
+TEST(test_pass_pass, FailToAddMatmul) {
     /*
     (bf16) \     / (f16)
            matmul
@@ -9144,7 +9144,7 @@ TEST(Pass, FailToAddMatmul) {
     ASSERT_EQ(agraph.add_op(&matmul), status::invalid_graph_op);
 }
 
-TEST(Pass, FuseToX8s8bf16MatmulScaleAdd) {
+TEST(test_pass_pass, FuseToX8s8bf16MatmulScaleAdd) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9240,7 +9240,7 @@ TEST(Pass, FuseToX8s8bf16MatmulScaleAdd) {
     }
 }
 
-TEST(PassSystem, FuseToX8s8bf16MatmulScaleAdd) {
+TEST(test_pass_pass_system, FuseToX8s8bf16MatmulScaleAdd) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9329,7 +9329,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulScaleAdd) {
     }
 }
 
-TEST(Pass, FuseToX8s8bf16MatmulBias) {
+TEST(test_pass_pass, FuseToX8s8bf16MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -9399,7 +9399,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(PassSystem, FuseToX8s8bf16MatmulBias) {
+TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -9463,7 +9463,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBias) {
             partition_kind_t::quantized_matmul_post_ops);
 }
 
-TEST(Pass, FuseSingleTypecast) {
+TEST(test_pass_pass, FuseSingleTypecast) {
     /*
         | (f32)
      typecast
@@ -9486,7 +9486,7 @@ TEST(Pass, FuseSingleTypecast) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
 
-TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
+TEST(test_pass_pass, FuseToX8s8bf16MatmulBiasAddBF16) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -9573,7 +9573,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 11U);
 }
 
-TEST(PassSystem, FuseToX8s8bf16MatmulBiasAddBF16) {
+TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBiasAddBF16) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -9652,7 +9652,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAddBF16) {
             partition_kind_t::quantized_matmul_post_ops);
 }
 
-TEST(Pass, MixInt8AndBf16MatmulBiasGelu) {
+TEST(test_pass_pass, MixInt8AndBf16MatmulBiasGelu) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9748,7 +9748,7 @@ TEST(Pass, MixInt8AndBf16MatmulBiasGelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(PassSystem, MixInt8AndBf16MatmulBiasGelu) {
+TEST(test_pass_pass_system, MixInt8AndBf16MatmulBiasGelu) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9837,7 +9837,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulBiasGelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
 
-TEST(Pass, MixInt8AndBf16MatmulGelu) {
+TEST(test_pass_pass, MixInt8AndBf16MatmulGelu) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9930,7 +9930,7 @@ TEST(Pass, MixInt8AndBf16MatmulGelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(PassSystem, MixInt8AndBf16MatmulGelu) {
+TEST(test_pass_pass_system, MixInt8AndBf16MatmulGelu) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10025,7 +10025,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulGelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, MixInt8AndBf16MatmulBias) {
+TEST(test_pass_pass, MixInt8AndBf16MatmulBias) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10113,7 +10113,7 @@ TEST(Pass, MixInt8AndBf16MatmulBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(PassSystem, MixInt8AndBf16MatmulBias) {
+TEST(test_pass_pass_system, MixInt8AndBf16MatmulBias) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10202,7 +10202,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, MixInt8AndBf16Matmul) {
+TEST(test_pass_pass, MixInt8AndBf16Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10287,7 +10287,7 @@ TEST(Pass, MixInt8AndBf16Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(PassSystem, MixInt8AndBf16Matmul) {
+TEST(test_pass_pass_system, MixInt8AndBf16Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10374,7 +10374,7 @@ TEST(PassSystem, MixInt8AndBf16Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(PassSystem, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
+TEST(test_pass_pass_system, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<bool> with_bias_typecasts {false, true};
@@ -10500,7 +10500,7 @@ TEST(PassSystem, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
     }
 }
 
-TEST(Pass, MixInt8AndBf16ConvolutionBias) {
+TEST(test_pass_pass, MixInt8AndBf16ConvolutionBias) {
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -10591,7 +10591,7 @@ TEST(Pass, MixInt8AndBf16ConvolutionBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(PassSystem, MixInt8AndBf16ConvolutionBias) {
+TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBias) {
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -10684,7 +10684,8 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
-TEST(Pass, FailToFuseMixInt8AndBf16ConvolutionWithoutQuantAfterTypecast) {
+TEST(test_pass_pass,
+        FailToFuseMixInt8AndBf16ConvolutionWithoutQuantAfterTypecast) {
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -10766,7 +10767,7 @@ TEST(Pass, FailToFuseMixInt8AndBf16ConvolutionWithoutQuantAfterTypecast) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7U);
 }
 
-TEST(Pass, MixInt8AndBf16ConvolutionBiasGelu) {
+TEST(test_pass_pass, MixInt8AndBf16ConvolutionBiasGelu) {
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -10865,7 +10866,7 @@ TEST(Pass, MixInt8AndBf16ConvolutionBiasGelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
-TEST(PassSystem, MixInt8AndBf16ConvolutionBiasGelu) {
+TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBiasGelu) {
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -10965,7 +10966,7 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionBiasGelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
-TEST(PassSystem, MixInt8AndBf16ConvolutionAdd) {
+TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionAdd) {
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -11054,7 +11055,7 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
-TEST(Pass, FuseAddIntoSum) {
+TEST(test_pass_pass, FuseAddIntoSum) {
     /*
         \   /
          Add
@@ -11104,7 +11105,7 @@ TEST(Pass, FuseAddIntoSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, rep_times);
 }
 
-TEST(Pass, FuseBroadcastAddIntoSum) {
+TEST(test_pass_pass, FuseBroadcastAddIntoSum) {
     /*
         \   /
          Add
@@ -11142,7 +11143,7 @@ TEST(Pass, FuseBroadcastAddIntoSum) {
     ASSERT_EQ(agraph.get_num_partitions(), 0U);
 }
 
-TEST(Pass, FuseTypecaseQuantize) {
+TEST(test_pass_pass, FuseTypecaseQuantize) {
     /*
              | (bf16)
            typecast
@@ -11184,7 +11185,7 @@ TEST(Pass, FuseTypecaseQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
 }
 
-TEST(PassSystem, FuseSoftmaxQuantize) {
+TEST(test_pass_pass_system, FuseSoftmaxQuantize) {
     /*
              | (f32)
            softmax
@@ -11226,7 +11227,7 @@ TEST(PassSystem, FuseSoftmaxQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
 }
 
-TEST(PassSystem, FuseLayernormQuantize) {
+TEST(test_pass_pass_system, FuseLayernormQuantize) {
     /*
              | (f32)
            layernorm
@@ -11276,7 +11277,7 @@ TEST(PassSystem, FuseLayernormQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(PassSystem, FuseSoftmaxTypecast) {
+TEST(test_pass_pass_system, FuseSoftmaxTypecast) {
     /*
              | (bf16)
            softmax
@@ -11314,7 +11315,7 @@ TEST(PassSystem, FuseSoftmaxTypecast) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
 }
 
-TEST(PassSystem, FuseLayernormTypecast) {
+TEST(test_pass_pass_system, FuseLayernormTypecast) {
     /*
              | (bf16)
            layernorm
@@ -11361,7 +11362,7 @@ TEST(PassSystem, FuseLayernormTypecast) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(PassSystem, FuseSoftmaxTypecastQuantize) {
+TEST(test_pass_pass_system, FuseSoftmaxTypecastQuantize) {
     /*
              | (bf16)
            softmax
@@ -11411,7 +11412,7 @@ TEST(PassSystem, FuseSoftmaxTypecastQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(PassSystem, FuseLayernormTypecastQuantize) {
+TEST(test_pass_pass_system, FuseLayernormTypecastQuantize) {
     /*
              | (bf16)
            layernorm
@@ -11469,7 +11470,7 @@ TEST(PassSystem, FuseLayernormTypecastQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(PassSystem, NotFuseLayernormTypecast) {
+TEST(test_pass_pass_system, NotFuseLayernormTypecast) {
     /*
              | (bf16)
            layernorm
@@ -11535,7 +11536,7 @@ TEST(PassSystem, NotFuseLayernormTypecast) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, ShuffleFusion) {
+TEST(test_pass_pass, ShuffleFusion) {
     /*   reshape
             |
         transpose
@@ -11600,7 +11601,7 @@ TEST(Pass, ShuffleFusion) {
     }
 }
 
-TEST(PassSystem, FuseTypecaseQuantize) {
+TEST(test_pass_pass_system, FuseTypecaseQuantize) {
     /*
              | (bf16)
            typecast
@@ -11643,7 +11644,7 @@ TEST(PassSystem, FuseTypecaseQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
 }
 
-TEST(PassSystem, MixInt8AndBf16MatmulAdd) {
+TEST(test_pass_pass_system, MixInt8AndBf16MatmulAdd) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -11750,7 +11751,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulAdd) {
             partition_kind_t::quantized_matmul_post_ops);
 }
 
-TEST(PassSystem, MixInt8AndBf16MatmulDiv) {
+TEST(test_pass_pass_system, MixInt8AndBf16MatmulDiv) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -11841,7 +11842,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulDiv) {
             partition_kind_t::quantized_matmul_post_ops);
 }
 
-TEST(Pass, FuseBnReLUWithSharedInputs) {
+TEST(test_pass_pass, FuseBnReLUWithSharedInputs) {
     /*   bn
           |
          relu
@@ -11886,7 +11887,7 @@ TEST(Pass, FuseBnReLUWithSharedInputs) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseReorderAdd) {
+TEST(test_pass_pass, FuseReorderAdd) {
     /*
              |
          reorder
@@ -11932,7 +11933,7 @@ TEST(Pass, FuseReorderAdd) {
     }
 }
 
-TEST(Pass, FailToFuseReorderAdd) {
+TEST(test_pass_pass, FailToFuseReorderAdd) {
     /*
              |
          reorder
@@ -11971,7 +11972,7 @@ TEST(Pass, FailToFuseReorderAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 0U);
 }
 
-TEST(Pass, FuseInt8Reorder) {
+TEST(test_pass_pass, FuseInt8Reorder) {
     /*
          dequantize
              |
@@ -12024,7 +12025,7 @@ TEST(Pass, FuseInt8Reorder) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(PassSystem, FuseInt8Reorder) {
+TEST(test_pass_pass_system, FuseInt8Reorder) {
     /*
          dequantize
              |
@@ -12073,7 +12074,7 @@ TEST(PassSystem, FuseInt8Reorder) {
             partition_kind_t::misc_quantized_post_ops);
 }
 
-TEST(Pass, FuseInt8ReorderAdd) {
+TEST(test_pass_pass, FuseInt8ReorderAdd) {
     /*
          dequantize
              |
@@ -12147,7 +12148,7 @@ TEST(Pass, FuseInt8ReorderAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(PassSystem, FuseInt8ReorderAdd) {
+TEST(test_pass_pass_system, FuseInt8ReorderAdd) {
     /*
          dequantize
              |
@@ -12216,7 +12217,7 @@ TEST(PassSystem, FuseInt8ReorderAdd) {
             partition_kind_t::misc_quantized_post_ops);
 }
 
-TEST(Pass, SingleInterpolatePass) {
+TEST(test_pass_pass, SingleInterpolatePass) {
     graph_t agraph;
     op_t interpolate {0, Interpolate, "interpolate"};
 
@@ -12245,7 +12246,7 @@ TEST(Pass, SingleInterpolatePass) {
     ASSERT_EQ(fgraph.get_num_partitions(), 0U);
 }
 
-TEST(Pass, FuseInterpolateRelu) {
+TEST(test_pass_pass, FuseInterpolateRelu) {
     /* interpolate
             |
            relu
@@ -12281,7 +12282,7 @@ TEST(Pass, FuseInterpolateRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
 }
 
-TEST(Pass, FuseInterpolateSwish) {
+TEST(test_pass_pass, FuseInterpolateSwish) {
     /*    interpolate
             /    |
       sigmoid    |
@@ -12331,7 +12332,7 @@ TEST(Pass, FuseInterpolateSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(PassSystem, FuseInterpolateSwish) {
+TEST(test_pass_pass_system, FuseInterpolateSwish) {
     /*    interpolate
             /    |
       sigmoid    |
@@ -12382,7 +12383,7 @@ TEST(PassSystem, FuseInterpolateSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(Pass, FuseInterpolate3PostOps) {
+TEST(test_pass_pass, FuseInterpolate3PostOps) {
     /*    interpolate
                |
            sigmoid
@@ -12432,7 +12433,7 @@ TEST(Pass, FuseInterpolate3PostOps) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FuseInterpolateSum) {
+TEST(test_pass_pass, FuseInterpolateSum) {
     /*   interpolate
              \           /
                \        /
@@ -12470,7 +12471,7 @@ TEST(Pass, FuseInterpolateSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, FuseInterpolateMul) {
+TEST(test_pass_pass, FuseInterpolateMul) {
     /*   interpolate
              \           /
                \        /
@@ -12508,7 +12509,7 @@ TEST(Pass, FuseInterpolateMul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(Pass, Int8MhaFusion) {
+TEST(test_pass_pass, Int8MhaFusion) {
     dnnl::impl::graph::graph_t agraph;
     dnnl::graph::tests::unit::utils::construct_int8_MHA(&agraph);
     agraph.finalize();
@@ -12519,7 +12520,7 @@ TEST(Pass, Int8MhaFusion) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
 
-TEST(Pass, F32MhaFusion) {
+TEST(test_pass_pass, F32MhaFusion) {
     dnnl::impl::graph::graph_t agraph;
     dnnl::graph::tests::unit::utils::construct_dnnl_float_MHA(&agraph);
     agraph.finalize();
@@ -12530,7 +12531,7 @@ TEST(Pass, F32MhaFusion) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
 
-TEST(Pass, FuseReduceAdd) {
+TEST(test_pass_pass, FuseReduceAdd) {
     /* reduce
           |
          add
@@ -12571,7 +12572,7 @@ TEST(Pass, FuseReduceAdd) {
     }
 }
 
-TEST(Pass, FuseReduceRelu) {
+TEST(test_pass_pass, FuseReduceRelu) {
     /* reduce
           |
         relu
@@ -12610,7 +12611,7 @@ TEST(Pass, FuseReduceRelu) {
     }
 }
 
-TEST(PassSystem, FuseReduceSwish) {
+TEST(test_pass_pass_system, FuseReduceSwish) {
     /*       reduce
             /    |
         sigmoid  |
@@ -12663,7 +12664,7 @@ TEST(PassSystem, FuseReduceSwish) {
     }
 }
 
-TEST(PassSystem, FuseReduceWith3PostOps) {
+TEST(test_pass_pass_system, FuseReduceWith3PostOps) {
     /*       reducel1
                |
              relu
@@ -12721,7 +12722,7 @@ TEST(PassSystem, FuseReduceWith3PostOps) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(Pass, FailToFuseReduceWithEmptyScales) {
+TEST(test_pass_pass, FailToFuseReduceWithEmptyScales) {
     const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
             ReduceMean, ReduceMin, ReduceProd, ReduceSum};
     for (const auto base_op : configs) {
@@ -12743,7 +12744,7 @@ TEST(Pass, FailToFuseReduceWithEmptyScales) {
     }
 }
 
-TEST(Pass, Int8Concat) {
+TEST(test_pass_pass, Int8Concat) {
     /*
          dq  dq dq  ..
           \  |  |  /
@@ -12806,7 +12807,7 @@ TEST(Pass, Int8Concat) {
     }
 }
 
-TEST(Pass, FailToFuseInt8Concat) {
+TEST(test_pass_pass, FailToFuseInt8Concat) {
     /*
          dq  dq not_dq
           \  |    /
@@ -12867,7 +12868,7 @@ TEST(Pass, FailToFuseInt8Concat) {
     ASSERT_EQ(agraph.get_num_partitions(), 0U);
 }
 
-TEST(Pass, FuseToInt8ConvTransposeAdd) {
+TEST(test_pass_pass, FuseToInt8ConvTransposeAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -12978,7 +12979,7 @@ TEST(Pass, FuseToInt8ConvTransposeAdd) {
     }
 }
 
-TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
+TEST(test_pass_pass_system, FuseToInt8ConvTransposeAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -13100,7 +13101,7 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
     }
 }
 
-TEST(Pass, FuseToInt8ConvtransposeEltwise) {
+TEST(test_pass_pass, FuseToInt8ConvtransposeEltwise) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -13218,7 +13219,7 @@ TEST(Pass, FuseToInt8ConvtransposeEltwise) {
     }
 }
 
-TEST(PassSystem, FuseToInt8ConvtransposeEltwise) {
+TEST(test_pass_pass_system, FuseToInt8ConvtransposeEltwise) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -13336,7 +13337,7 @@ TEST(PassSystem, FuseToInt8ConvtransposeEltwise) {
     }
 }
 
-TEST(Pass, FuseToInt8ConvtransposeBinary) {
+TEST(test_pass_pass, FuseToInt8ConvtransposeBinary) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -13447,7 +13448,7 @@ TEST(Pass, FuseToInt8ConvtransposeBinary) {
     }
 }
 
-TEST(Pass, FailToFuseInt8ConcatDifferentScales) {
+TEST(test_pass_pass, FailToFuseInt8ConcatDifferentScales) {
     /*
           dq     dq
            \     /
@@ -13505,7 +13506,7 @@ TEST(Pass, FailToFuseInt8ConcatDifferentScales) {
     ASSERT_EQ(agraph.get_num_partitions(), 0U);
 }
 
-TEST(Pass, SingleSoftPlusForwardAndBackwardPass) {
+TEST(test_pass_pass, SingleSoftPlusForwardAndBackwardPass) {
     std::vector<std::pair<op_kind_t, std::string>> op_infos {
             {SoftPlus, "eltwise_fwd"}, {SoftPlusBackward, "eltwise_bwd"}};
     std::vector<float> beta_values {-3.f, -1.f, 0.f, 1.f, 3.f};
@@ -13533,7 +13534,7 @@ TEST(Pass, SingleSoftPlusForwardAndBackwardPass) {
     }
 }
 
-TEST(Pass, FuseConvBwdBiasaddBwd) {
+TEST(test_pass_pass, FuseConvBwdBiasaddBwd) {
     /*       Wildcard
         \        /\
       Convolution  BiasAddBackward
@@ -13586,7 +13587,7 @@ TEST(Pass, FuseConvBwdBiasaddBwd) {
 
 // TODO(zitian): wait for the implementation of comparison ops:
 //      Gt, Ge, Le, Lt, Eq, Ne
-TEST(Pass, BinaryPostops) {
+TEST(test_pass_pass, BinaryPostops) {
     /*
         0       1
         \       /
@@ -13694,7 +13695,7 @@ TEST(Pass, BinaryPostops) {
 
 // TODO(zitian): wait for the implementation of comparison ops:
 //      Gt, Ge, Le, Lt, Eq, Ne
-TEST(Pass, Binary3Postops) {
+TEST(test_pass_pass, Binary3Postops) {
     /*
         0       1
         \       /
@@ -13823,7 +13824,7 @@ TEST(Pass, Binary3Postops) {
     }
 }
 
-TEST(PassSystem, FuseBinarySwish) {
+TEST(test_pass_pass_system, FuseBinarySwish) {
     /*       binary
             /    |
         sigmoid  |
@@ -13877,7 +13878,7 @@ TEST(PassSystem, FuseBinarySwish) {
     }
 }
 
-TEST(Pass, ConvtransposePostops) {
+TEST(test_pass_pass, ConvtransposePostops) {
     /*
         0       1
         \       /
@@ -14021,7 +14022,7 @@ TEST(Pass, ConvtransposePostops) {
                 }
 }
 
-TEST(Pass, Convtranspose3Postops) {
+TEST(test_pass_pass, Convtranspose3Postops) {
     /*
         0       1
         \       /
@@ -14167,7 +14168,7 @@ TEST(Pass, Convtranspose3Postops) {
     }
 }
 
-TEST(PassSystem, FuseConvTransposeSwish) {
+TEST(test_pass_pass_system, FuseConvTransposeSwish) {
     // swish: f(x) = x * sigmoid(x)
     /*convtranspose
         /    |
@@ -14212,7 +14213,7 @@ TEST(PassSystem, FuseConvTransposeSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(PassSystem, FuseToInt8ConvTransposeSwishReLU) {
+TEST(test_pass_pass_system, FuseToInt8ConvTransposeSwishReLU) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -14307,7 +14308,7 @@ TEST(PassSystem, FuseToInt8ConvTransposeSwishReLU) {
 
 // TODO(zitian): wait for the implementation of comparison ops:
 //      Gt, Ge, Le, Lt, Eq, Ne
-TEST(Pass, Pool3Postops) {
+TEST(test_pass_pass, Pool3Postops) {
     /*
         0       1
         \       /
@@ -14385,7 +14386,7 @@ TEST(Pass, Pool3Postops) {
     }
 }
 
-TEST(PassSystem, PoolFusionWithInternalInputs) {
+TEST(test_pass_pass_system, PoolFusionWithInternalInputs) {
     /*
         AvgPool/MaxPool
                 |  (both inputs come from the pooling op,
@@ -14438,7 +14439,7 @@ TEST(PassSystem, PoolFusionWithInternalInputs) {
     }
 }
 
-TEST(PassSystem, EltwiseFusionWithInternalInputs) {
+TEST(test_pass_pass_system, EltwiseFusionWithInternalInputs) {
     /*
         Abs/Clamp/Elu/Exp/GELU/HardSwish/LeakyReLU/Log/
         Mish/Sigmoid/SoftPlus/ReLU/Round/Sqrt/Square/Tanh
@@ -14492,7 +14493,7 @@ TEST(PassSystem, EltwiseFusionWithInternalInputs) {
     }
 }
 
-TEST(Pass, BatchNormReluU8Unfuse) {
+TEST(test_pass_pass, BatchNormReluU8Unfuse) {
     using dims = graph::dnnl_impl::dims;
     namespace utils = dnnl::graph::tests::unit::utils;
 
@@ -14585,7 +14586,7 @@ TEST(Pass, BatchNormReluU8Unfuse) {
     }
 }
 
-TEST(Pass, FuseMatmulSwish) {
+TEST(test_pass_pass, FuseMatmulSwish) {
     const std::vector<std::string> seqs_1 {"first", "second"};
     const std::vector<std::string> seqs_2 {"left", "right"};
     for (auto seq_1 : seqs_1)

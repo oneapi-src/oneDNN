@@ -128,7 +128,7 @@ TEST_P(concat_t, TestConcat) {
     TestConcat();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, concat_t,
+INSTANTIATE_TEST_SUITE_P(test_concat_execute, concat_t,
         ::testing::Values(
                 // 2D, axis = 0
                 concat_params_t {{1, 2}, {1, 2}, {2, 2}, 0, false},
@@ -159,7 +159,7 @@ INSTANTIATE_TEST_SUITE_P(Execute, concat_t,
                 concat_params_t {
                         {1, 2, 2, 2}, {1, 2, 2, 2}, {1, 2, 2, 4}, -1, false}));
 
-TEST(Compile, ConcatWithMoreInputs) {
+TEST(test_concat_compile, ConcatWithMoreInputs) {
     size_t num_inputs = 64;
     const std::vector<graph::dim_t> src_dims = {1, 2, 2, 2};
     const std::vector<graph::dim_t> dst_dims
@@ -205,7 +205,7 @@ TEST(Compile, ConcatWithMoreInputs) {
     ASSERT_EQ(ret, graph::status::success);
 }
 
-TEST(Compile, ConcatWithMoreInputsFail) {
+TEST(test_concat_compile, ConcatWithMoreInputsFail) {
     size_t num_inputs = 65;
     const std::vector<graph::dim_t> src_dims = {1, 2, 2, 2};
     const std::vector<graph::dim_t> dst_dims
@@ -232,7 +232,7 @@ TEST(Compile, ConcatWithMoreInputsFail) {
     ASSERT_EQ(g.add_op(&concat_op), graph::status::invalid_graph_op);
 }
 
-TEST(ExecuteSubgraphInt8, Concat) {
+TEST(test_concat_execute_subgraph_int8, Concat) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -357,7 +357,7 @@ TEST(ExecuteSubgraphInt8, Concat) {
             /*atol*/ 1.f));
 }
 
-TEST(Execute, ConcatEmptyInput) {
+TEST(test_concat_execute, ConcatEmptyInput) {
     graph::op_t concat_op(graph::op_kind::Concat);
     concat_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 

@@ -34,7 +34,7 @@ static inline void custom_setenv(
 #endif
 }
 
-TEST(utils_test, Any) {
+TEST(test_utils_utils, Any) {
     using namespace dnnl::impl::graph::utils;
     any_t a = 1;
     ASSERT_EQ(any_cast<int>(a), 1);
@@ -50,42 +50,42 @@ TEST(utils_test, Any) {
     EXPECT_THROW(any_cast<int>(b), bad_any_cast_t);
 }
 
-TEST(BadAnyCast, What) {
+TEST(test_utils_utils, What) {
     using namespace dnnl::impl::graph::utils;
 
     bad_any_cast_t bad_any;
     ASSERT_EQ(std::string(bad_any.what()), std::string("bad any_cast"));
 }
 
-TEST(utils_test, Iffy_getenv) {
+TEST(test_utils_utils, Iffy_getenv) {
     char buffer[10] = {'\0'};
     EXPECT_EQ(INT_MIN, dnnl::impl::getenv(nullptr, buffer, 10));
     EXPECT_EQ(INT_MIN, dnnl::impl::getenv("foo", nullptr, 10));
     EXPECT_EQ(INT_MIN, dnnl::impl::getenv("foo", buffer, -1));
 }
 
-TEST(Utils, IffyGetenvInt) {
+TEST(test_utils_utils, IffyGetenvInt) {
     ASSERT_NO_THROW(dnnl::impl::getenv_int("PWD", 57));
     ASSERT_NO_THROW(dnnl::impl::getenv_int("LANG", 7));
 }
 
-TEST(Utils, IffyGetenvIntUser) {
+TEST(test_utils_utils, IffyGetenvIntUser) {
     custom_setenv("ONEDNN_GRAPH_UNKTYU", "abc", 1);
     ASSERT_NO_THROW(dnnl::impl::getenv_int_user("UNKTYU", 12));
 }
 
-TEST(Utils, IffyGetenvIntInternal) {
+TEST(test_utils_utils, IffyGetenvIntInternal) {
     namespace utils = dnnl::impl::graph::utils;
     custom_setenv("_ONEDNN_GRAPH_UNKTYU", "abc", 1);
     ASSERT_NO_THROW(utils::getenv_int_internal("UNKTYU", 12));
 }
 
-TEST(Utils, IffyGetenvStringUser) {
+TEST(test_utils_utils, IffyGetenvStringUser) {
     custom_setenv("ONEDNN_UNKTYU", "abc", 1);
     ASSERT_NO_THROW(dnnl::impl::getenv_string_user("UNKTYU"));
 }
 
-TEST(Utils, IffyCheckVerboseStringUser) {
+TEST(test_utils_utils, IffyCheckVerboseStringUser) {
     namespace utils = dnnl::impl::graph::utils;
     custom_setenv("ONEDNN_UNKTYU", "ab,c\nd\ne\nf\n", 1);
     ASSERT_NO_THROW(utils::check_verbose_string_user("UNKTYU", "a"));

@@ -26,7 +26,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(FakeBackend, GetMemSize) {
+TEST(test_fake_fake_backend, GetMemSize) {
     graph::logical_tensor_t lt = utils::logical_tensor_init(
             /* tid= */ 1, {1, 1, 3, 3}, graph::data_type::f32);
     auto &fake_backend = graph::fake_impl::fake_backend_t::get_singleton();

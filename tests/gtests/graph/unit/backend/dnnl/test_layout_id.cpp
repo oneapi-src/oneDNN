@@ -29,7 +29,7 @@
 namespace graph = dnnl::impl::graph;
 namespace dnnl_impl = dnnl::impl::graph::dnnl_impl;
 
-TEST(LayoutId, OpaqueMdLayoutIdMapping) {
+TEST(test_layout_id_layout_id, OpaqueMdLayoutIdMapping) {
     using memory = dnnl_impl::memory;
     using data_type = dnnl_impl::data_type;
     using format_tag = dnnl_impl::format_tag;

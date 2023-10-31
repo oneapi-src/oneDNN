@@ -22,7 +22,8 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pass.cpp
-    )
+)
 
-set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS
-    $<TARGET_OBJECTS:${OBJ_LIB}>)
+set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS $<TARGET_OBJECTS:${OBJ_LIB}>)
+
+register_graph_test_suite("test_graph_unit_fake" "test_fake_*")

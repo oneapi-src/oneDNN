@@ -28,7 +28,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Backend, CompareLogicalTensor) {
+TEST(test_interface_backend, CompareLogicalTensor) {
     graph::backend_t &bkd = graph::fake_impl::fake_backend_t::get_singleton();
 
     graph::logical_tensor_t lt1 = utils::logical_tensor_init(
@@ -45,7 +45,7 @@ TEST(Backend, CompareLogicalTensor) {
     ASSERT_EQ(bkd.compare_logical_tensor(lt1, lt3), false);
 }
 
-TEST(Backend, RegisterBackend) {
+TEST(test_interface_backend, RegisterBackend) {
     auto &registry = graph::backend_registry_t::get_singleton();
     auto bkds = registry.get_registered_backends();
     EXPECT_THROW(registry.register_backend(bkds[0]), std::runtime_error);

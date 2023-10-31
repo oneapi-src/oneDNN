@@ -23,7 +23,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Execute, ReorderData) {
+TEST(test_reorder_execute, ReorderData) {
     graph::engine_t *engine = get_engine();
 
     std::vector<float> src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
@@ -75,7 +75,7 @@ TEST(Execute, ReorderData) {
     }
 }
 
-TEST(Execute, Int8Reorder) {
+TEST(test_reorder_execute, Int8Reorder) {
     /*
         dequant
         |
@@ -151,7 +151,7 @@ TEST(Execute, Int8Reorder) {
     }
 }
 
-TEST(Compile, ReorderNegativeInput) {
+TEST(test_reorder_compile, ReorderNegativeInput) {
     graph::engine_t *engine = get_engine();
 
     graph::op_t reorder_op(graph::op_kind::Reorder);
@@ -185,7 +185,7 @@ TEST(Compile, ReorderNegativeInput) {
             graph::status::invalid_shape);
 }
 
-TEST(Execute, ReorderDataBf16) {
+TEST(test_reorder_execute, ReorderDataBf16) {
     graph::engine_t *engine = get_engine();
 
     std::vector<bfloat16_t> src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
@@ -233,7 +233,7 @@ TEST(Execute, ReorderDataBf16) {
     stream->wait();
 }
 
-TEST(Execute, ReorderAddBf16) {
+TEST(test_reorder_execute, ReorderAddBf16) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -293,7 +293,7 @@ TEST(Execute, ReorderAddBf16) {
     strm->wait();
 }
 
-TEST(Compile, ReorderAddGetInplacePair) {
+TEST(test_reorder_compile, ReorderAddGetInplacePair) {
     graph::engine_t *eng = get_engine();
 
     graph::graph_t agraph(eng->kind());
@@ -342,7 +342,7 @@ TEST(Compile, ReorderAddGetInplacePair) {
     ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 }
 
-TEST(Execute, Int8ReorderAdd) {
+TEST(test_reorder_execute, Int8ReorderAdd) {
     /*
         dequant
         |
@@ -449,7 +449,7 @@ TEST(Execute, Int8ReorderAdd) {
     }
 }
 
-TEST(Compile, ReorderBlockLayoutInput) {
+TEST(test_reorder_compile, ReorderBlockLayoutInput) {
     using dims = graph::dnnl_impl::dims;
 
     /*    | 

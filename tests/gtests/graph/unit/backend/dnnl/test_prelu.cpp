@@ -201,7 +201,7 @@ TEST_P(prelu_t, TestPrelu) {
     TestPrelu();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, prelu_t,
+INSTANTIATE_TEST_SUITE_P(test_prelu_execute, prelu_t,
         ::testing::Values(
                 // no broadcast
                 prelu_params_t {{1, 2, 2, 2},
@@ -241,7 +241,7 @@ TEST_P(prelu_backprop_t, TestPreluBackward) {
     TestPreluBackward();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, prelu_backprop_t,
+INSTANTIATE_TEST_SUITE_P(test_prelu_execute, prelu_backprop_t,
         ::testing::Values(
                 // NCX, 1d slope, per tensor broadcast, pytorch case
                 prelu_bwd_params_t {{1, 2, 2, 2}, {1}, {1},

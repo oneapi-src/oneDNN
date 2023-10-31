@@ -24,7 +24,7 @@
 #include "interface/allocator.hpp"
 #include "interface/c_types_map.hpp"
 
-TEST(Allocator, DefaultCpuAllocator) {
+TEST(test_interface_allocator, DefaultCpuAllocator) {
     dnnl::impl::graph::allocator_t *alloc
             = new dnnl::impl::graph::allocator_t();
 
@@ -38,7 +38,7 @@ TEST(Allocator, DefaultCpuAllocator) {
     }
 }
 
-TEST(Engine, AllocatorEarlyDestroy) {
+TEST(test_interface_engine, AllocatorEarlyDestroy) {
     dnnl::impl::graph::allocator_t *alloc
             = new dnnl::impl::graph::allocator_t();
     graph::engine_t *eng = get_engine();
@@ -66,7 +66,7 @@ TEST(Engine, AllocatorEarlyDestroy) {
 }
 
 #ifndef NDEBUG
-TEST(Allocator, Monitor) {
+TEST(test_interface_allocator, Monitor) {
     using namespace dnnl::impl::graph;
 
     const size_t temp_size = 1024, persist_size = 512;

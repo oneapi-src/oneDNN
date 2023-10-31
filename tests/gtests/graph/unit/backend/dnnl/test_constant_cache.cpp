@@ -27,13 +27,13 @@
 namespace graph = dnnl::impl::graph;
 namespace dnnl_impl = graph::dnnl_impl;
 
-TEST(ConstantCache, SetGetCapacity) {
+TEST(test_constant_cache_constant_cache, SetGetCapacity) {
     graph::constant_tensor_cache_t cache(0);
     ASSERT_EQ(cache.set_capacity(11), graph::status::success);
     ASSERT_EQ(cache.get_capacity(), 11U);
 }
 
-TEST(ConstantCache, GetOrAddEmpty) {
+TEST(test_constant_cache_constant_cache, GetOrAddEmpty) {
     using key_t = graph::constant_tensor_cache_t::key_t;
     using value_t = graph::constant_tensor_cache_t::value_t;
 
@@ -42,7 +42,7 @@ TEST(ConstantCache, GetOrAddEmpty) {
     ASSERT_FALSE(cache.get_or_add(key_t(), key_t(), 1024, value_t()).valid());
 }
 
-TEST(ConstantCache, CombineKey) {
+TEST(test_constant_cache_constant_cache, CombineKey) {
     using key_t = graph::constant_tensor_cache_t::key_t;
 
     key_t backend_id = 0;
@@ -62,7 +62,7 @@ TEST(ConstantCache, CombineKey) {
     ASSERT_NE(key2, key3);
 }
 
-TEST(ConstantCache, NoEvictWhenCacheFull) {
+TEST(test_constant_cache_constant_cache, NoEvictWhenCacheFull) {
     graph::engine_t &engine = *get_engine();
     auto p_engine_ = dnnl_impl::make_dnnl_engine(engine);
     auto g_alloc_ = static_cast<graph::allocator_t *>(engine.get_allocator());

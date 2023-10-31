@@ -44,7 +44,7 @@ static void fill_data(
     }
 }
 
-TEST(Execute, Int8Resnet50Stage2Block) {
+TEST(test_large_partition_execute, Int8Resnet50Stage2Block) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -111,7 +111,7 @@ TEST(Execute, Int8Resnet50Stage2Block) {
                     /*atol*/ 1.f));
 }
 
-TEST(Execute, Int8Resnet50Stage2BlockWithZeroZps) {
+TEST(test_large_partition_execute, Int8Resnet50Stage2BlockWithZeroZps) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -179,7 +179,7 @@ TEST(Execute, Int8Resnet50Stage2BlockWithZeroZps) {
                     /*atol*/ 1.f));
 }
 
-TEST(Execute, Int8Resnet50Stage2BlockWithQuantWei) {
+TEST(test_large_partition_execute, Int8Resnet50Stage2BlockWithQuantWei) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -237,7 +237,7 @@ TEST(Execute, Int8Resnet50Stage2BlockWithQuantWei) {
     strm->wait();
 }
 
-TEST(Execute, F32Resnet50Stage2Block) {
+TEST(test_large_partition_execute, F32Resnet50Stage2Block) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -329,7 +329,7 @@ TEST(Execute, F32Resnet50Stage2Block) {
                     /*atol*/ 1e-5f));
 }
 
-TEST(Execute, ItexInt8Resnet50Stage2Block) {
+TEST(test_large_partition_execute, ItexInt8Resnet50Stage2Block) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -393,7 +393,7 @@ TEST(Execute, ItexInt8Resnet50Stage2Block) {
     strm->wait();
 }
 
-TEST(Compile, ConvBiasReluAdd) {
+TEST(test_large_partition_compile, ConvBiasReluAdd) {
     /* \  |  /
         Conv
           |
@@ -467,7 +467,7 @@ TEST(Compile, ConvBiasReluAdd) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 }
 
-TEST(Execute, Int8Mha) {
+TEST(test_large_partition_execute, Int8Mha) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -527,7 +527,7 @@ TEST(Execute, Int8Mha) {
     strm->wait();
 }
 
-TEST(Execute, F32Mha) {
+TEST(test_large_partition_execute, F32Mha) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -603,7 +603,7 @@ float bf16_to_f32(uint16_t bf16_val) {
 }
 } // namespace
 
-TEST(Execute, Bf16Mha) {
+TEST(test_large_partition_execute, Bf16Mha) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -679,7 +679,7 @@ TEST(Execute, Bf16Mha) {
     }
 }
 
-TEST(Execute, Int8Bf16Mha) {
+TEST(test_large_partition_execute, Int8Bf16Mha) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 

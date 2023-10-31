@@ -20,7 +20,7 @@
 
 #include <vector>
 
-TEST(AttributeValue, Int64) {
+TEST(test_utils_attribute_value, Int64) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
 
@@ -30,7 +30,7 @@ TEST(AttributeValue, Int64) {
     ASSERT_EQ(v1.get<int64_t>(), i);
 }
 
-TEST(AttributeValue, Int64Vector) {
+TEST(test_utils_attribute_value, Int64Vector) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
 
@@ -40,7 +40,7 @@ TEST(AttributeValue, Int64Vector) {
     ASSERT_EQ(v1.get<std::vector<int64_t>>(), is);
 }
 
-TEST(AttributeValue, Float) {
+TEST(test_utils_attribute_value, Float) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
 
@@ -50,7 +50,7 @@ TEST(AttributeValue, Float) {
     ASSERT_EQ(v1.get<float>(), f);
 }
 
-TEST(AttributeValue, FloatVector) {
+TEST(test_utils_attribute_value, FloatVector) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
 
@@ -60,7 +60,7 @@ TEST(AttributeValue, FloatVector) {
     ASSERT_EQ(v1.get<std::vector<float>>(), fs);
 }
 
-TEST(AttributeValue, BoolValue) {
+TEST(test_utils_attribute_value, BoolValue) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
 
@@ -70,7 +70,7 @@ TEST(AttributeValue, BoolValue) {
     ASSERT_EQ(v1.get<bool>(), b);
 }
 
-TEST(AttributeValue, StringValue) {
+TEST(test_utils_attribute_value, StringValue) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
 
@@ -80,7 +80,7 @@ TEST(AttributeValue, StringValue) {
     ASSERT_EQ(v1.get<std::string>(), s);
 }
 
-TEST(AttributeValue, Copy) {
+TEST(test_utils_attribute_value, Copy) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
 
@@ -94,7 +94,7 @@ TEST(AttributeValue, Copy) {
     ASSERT_EQ(v2.get<std::vector<float>>(), fs);
 }
 
-TEST(AttributeValue, Equal) {
+TEST(test_utils_attribute_value, Equal) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
 
@@ -108,7 +108,7 @@ TEST(AttributeValue, Equal) {
     ASSERT_NE(v1, v3);
 }
 
-TEST(AttributeValue, AttributeValueAssignOperator) {
+TEST(test_utils_attribute_value, AttributeValueAssignOperator) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::utils;
 

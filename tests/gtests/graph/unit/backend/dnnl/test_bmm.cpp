@@ -26,7 +26,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
+TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -134,7 +134,7 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, BmmU8u8f32NonContiguous) {
+TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32NonContiguous) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -265,7 +265,7 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32NonContiguous) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivU8u8f32) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -384,7 +384,7 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivAddU8u8f32) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -518,7 +518,7 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
+TEST(test_bmm_execute_subgraph_int8, BmmX8x8bf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -662,7 +662,7 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivX8x8bf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -823,7 +823,7 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivBlockedX8x8bf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -989,7 +989,7 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivAddX8x8bf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -1172,7 +1172,7 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, BmmMulAddTransposeBU8s8f32) {
+TEST(test_bmm_execute_subgraph_int8, BmmMulAddTransposeBU8s8f32) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 

@@ -29,7 +29,7 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl_impl = graph::dnnl_impl;
 
-TEST(MemoryPlanning, GetMemoryInfo) {
+TEST(test_memory_planning_memory_planning, GetMemoryInfo) {
     dnnl_impl::memory_planner_t mp;
     graph::op_t op {0, graph::op_kind::Abs, "abs"};
     auto lt = utils::logical_tensor_init(

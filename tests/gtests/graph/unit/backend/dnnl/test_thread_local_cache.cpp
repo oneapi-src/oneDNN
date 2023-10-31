@@ -34,7 +34,7 @@ struct test_resource_t {
     size_t data_;
 };
 
-TEST(ThreadLocalCache, SingleThread) {
+TEST(test_thread_local_cache_thread_local_cache, SingleThread) {
     thread_local_cache_t<test_resource_t> cache;
     cache.clear();
 
@@ -62,7 +62,7 @@ TEST(ThreadLocalCache, SingleThread) {
     cache.remove_if_exist(key2);
 }
 
-TEST(ThreadLocalCache, Multithreading) {
+TEST(test_thread_local_cache_thread_local_cache, Multithreading) {
     auto func = []() {
         thread_local_cache_t<test_resource_t> cache;
         cache.clear();
@@ -100,7 +100,7 @@ TEST(ThreadLocalCache, Multithreading) {
     t3.join();
 }
 
-TEST(ThreadLocalCache, Clear) {
+TEST(test_thread_local_cache_thread_local_cache, Clear) {
     thread_local_cache_t<test_resource_t> cache;
     size_t key1 = (size_t)1;
     cache.get_or_add(
@@ -111,7 +111,7 @@ TEST(ThreadLocalCache, Clear) {
     ASSERT_NO_THROW(cache.clear());
 }
 
-TEST(ThreadLocalCache, RetainAndRelease) {
+TEST(test_thread_local_cache_thread_local_cache, RetainAndRelease) {
     auto func = []() {
         thread_local_cache_t<test_resource_t> cache;
         cache.retain();

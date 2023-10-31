@@ -29,7 +29,7 @@
 
 #include "graph/unit/utils.hpp"
 
-TEST(Op, OpResetAttr) {
+TEST(test_interface_op, OpResetAttr) {
     using namespace dnnl::impl::graph;
     op_t conv {0, op_kind::Convolution, std::string("conv")};
     conv.set_attr(op_attr::auto_pad, std::string("VALID"));
@@ -37,7 +37,7 @@ TEST(Op, OpResetAttr) {
     ASSERT_EQ(conv.get_attr<std::string>(op_attr::auto_pad), "NONE");
 }
 
-TEST(Op, Attr2str) {
+TEST(test_interface_op, Attr2str) {
     namespace graph = dnnl::impl::graph;
 
 #define CASE(a) \
@@ -90,7 +90,7 @@ TEST(Op, Attr2str) {
 #undef CASE
 }
 
-TEST(Op, AddOpIds) {
+TEST(test_interface_op, AddOpIds) {
     using namespace dnnl::impl::graph;
     op_t wild_card {0, op_kind::Wildcard, std::string("wildcard")};
     std::vector<size_t> ids {10001, 100023};
@@ -101,7 +101,7 @@ TEST(Op, AddOpIds) {
     }
 }
 
-TEST(Op, ValidateMatmul) {
+TEST(test_interface_op, ValidateMatmul) {
     using namespace dnnl::impl::graph;
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul")};
@@ -111,7 +111,7 @@ TEST(Op, ValidateMatmul) {
     ASSERT_FALSE(matmul.is_internal());
 }
 
-TEST(Op, CreateInternal) {
+TEST(test_interface_op, CreateInternal) {
     using namespace dnnl::impl::graph;
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul"), true};
@@ -121,7 +121,7 @@ TEST(Op, CreateInternal) {
     ASSERT_TRUE(matmul.is_internal());
 }
 
-TEST(Op, CreateWithoutId) {
+TEST(test_interface_op, CreateWithoutId) {
     using namespace dnnl::impl::graph;
 
     op_t matmul {op_kind::MatMul, std::string("matmul")};
@@ -131,7 +131,7 @@ TEST(Op, CreateWithoutId) {
     ASSERT_TRUE(matmul.is_internal());
 }
 
-TEST(Op, AddInput) {
+TEST(test_interface_op, AddInput) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 
@@ -148,7 +148,7 @@ TEST(Op, AddInput) {
     ASSERT_EQ(matmul.num_outputs(), 0U);
 }
 
-TEST(Op, GetInput) {
+TEST(test_interface_op, GetInput) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 
@@ -167,7 +167,7 @@ TEST(Op, GetInput) {
             logical_tensor_wrapper_t(lt1));
 }
 
-TEST(Op, GetInputValues) {
+TEST(test_interface_op, GetInputValues) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 
@@ -185,7 +185,7 @@ TEST(Op, GetInputValues) {
             logical_tensor_wrapper_t(lt1));
 }
 
-TEST(Op, SetInputOp) {
+TEST(test_interface_op, SetInputOp) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 
@@ -209,7 +209,7 @@ TEST(Op, SetInputOp) {
     ASSERT_EQ(relu.num_output_consumers(0), 1U);
 }
 
-TEST(Op, AddOutput) {
+TEST(test_interface_op, AddOutput) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 
@@ -224,7 +224,7 @@ TEST(Op, AddOutput) {
     ASSERT_EQ(matmul.num_outputs(), 1U);
 }
 
-TEST(Op, GetOutput) {
+TEST(test_interface_op, GetOutput) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 
@@ -237,7 +237,7 @@ TEST(Op, GetOutput) {
             logical_tensor_wrapper_t(lt));
 }
 
-TEST(Op, GetOutputValues) {
+TEST(test_interface_op, GetOutputValues) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 
@@ -251,7 +251,7 @@ TEST(Op, GetOutputValues) {
             logical_tensor_wrapper_t(lt));
 }
 
-TEST(Op, SetAttributeBool) {
+TEST(test_interface_op, SetAttributeBool) {
     using namespace dnnl::impl::graph;
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul")};
@@ -266,7 +266,7 @@ TEST(Op, SetAttributeBool) {
     ASSERT_FALSE(matmul.get_attr<bool>(op_attr::transpose_b));
 }
 
-TEST(Op, SetAttributeFloatString) {
+TEST(test_interface_op, SetAttributeFloatString) {
     using namespace dnnl::impl::graph;
 
     op_t bn {0, op_kind::BatchNormInference, std::string("batch_norm")};
@@ -278,7 +278,7 @@ TEST(Op, SetAttributeFloatString) {
             bn.get_attr<std::string>(op_attr::data_format), std::string("NCX"));
 }
 
-TEST(Op, SetAttributeInt64Vector) {
+TEST(test_interface_op, SetAttributeInt64Vector) {
     using namespace dnnl::impl::graph;
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
@@ -292,7 +292,7 @@ TEST(Op, SetAttributeInt64Vector) {
     ASSERT_EQ(ret[1], 1);
 }
 
-TEST(Op, MergeAttributes) {
+TEST(test_interface_op, MergeAttributes) {
     using namespace dnnl::impl::graph;
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
@@ -309,7 +309,7 @@ TEST(Op, MergeAttributes) {
     ASSERT_EQ(conv.num_attributes(), 4U);
 }
 
-TEST(Op, ValidateSameAttributes) {
+TEST(test_interface_op, ValidateSameAttributes) {
     using namespace dnnl::impl::graph;
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
@@ -330,7 +330,7 @@ TEST(Op, ValidateSameAttributes) {
     ASSERT_FALSE(conv.has_same_attr_values(bn));
 }
 
-TEST(Op, OverwriteAttributes) {
+TEST(test_interface_op, OverwriteAttributes) {
     using namespace dnnl::impl::graph;
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
@@ -370,7 +370,7 @@ TEST(Op, OverwriteAttributes) {
     ASSERT_TRUE(matmul.get_attr<bool>(op_attr::transpose_b));
 }
 
-TEST(Op, KindString) {
+TEST(test_interface_op, KindString) {
     using namespace dnnl::impl::graph;
 
     ASSERT_EQ(op_t::kind2str(op_kind::Abs), "Abs");
@@ -379,7 +379,7 @@ TEST(Op, KindString) {
     ASSERT_EQ(op_t::kind2str(op_kind::LastSymbol), "LastSymbol");
 }
 
-TEST(Op, ReSetAttributeValue) {
+TEST(test_interface_op, ReSetAttributeValue) {
     using namespace dnnl::impl::graph;
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul")};

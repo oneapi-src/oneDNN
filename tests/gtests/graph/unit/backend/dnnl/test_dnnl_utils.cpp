@@ -27,7 +27,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(DnnlUtils, TryReverseAxis) {
+TEST(test_dnnl_utils_dnnl_utils, TryReverseAxis) {
     auto par1 = std::make_pair<bool, int64_t>(true, 0);
     ASSERT_EQ(graph::dnnl_impl::utils::try_reverse_axis(0, 3), par1);
 

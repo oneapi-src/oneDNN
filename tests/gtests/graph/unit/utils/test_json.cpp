@@ -20,7 +20,7 @@
 #include "utils/json.hpp"
 #include "gtest/gtest.h"
 
-TEST(Json, WriterReader) {
+TEST(test_utils_json, WriterReader) {
     using namespace dnnl::impl::graph;
 
     std::string filename = "test.txt";

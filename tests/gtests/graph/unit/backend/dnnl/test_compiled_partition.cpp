@@ -29,7 +29,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(CompiledPartition, Relu) {
+TEST(test_compiled_partition_compiled_partition, Relu) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t relu_op(graph::op_kind::ReLU, "relu");
@@ -104,7 +104,7 @@ TEST(CompiledPartition, Relu) {
     }
 }
 
-TEST(CompiledPartition, SearchRequiredInputsOutputs) {
+TEST(test_compiled_partition_compiled_partition, SearchRequiredInputsOutputs) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t relu_op(graph::op_kind::ReLU, "relu");
@@ -218,7 +218,7 @@ TEST(CompiledPartition, SearchRequiredInputsOutputs) {
     }
 }
 
-TEST(CompiledPartition, AllowRepeatedInputs) {
+TEST(test_compiled_partition_compiled_partition, AllowRepeatedInputs) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t n(graph::op_kind::Multiply);
@@ -288,7 +288,7 @@ TEST(CompiledPartition, AllowRepeatedInputs) {
     }
 }
 
-TEST(CompiledPartition, GetAndInfoMethod) {
+TEST(test_compiled_partition_compiled_partition, GetAndInfoMethod) {
     using ltw = graph::logical_tensor_wrapper_t;
 
     graph::engine_t &engine = *get_engine();
@@ -330,7 +330,7 @@ TEST(CompiledPartition, GetAndInfoMethod) {
     ASSERT_EQ(std::string(cp.info()), std::string(info.c_str()));
 }
 
-TEST(CompiledPartition, GetInputsAndOutputs) {
+TEST(test_compiled_partition_compiled_partition, GetInputsAndOutputs) {
     using ltw = graph::logical_tensor_wrapper_t;
     graph::engine_t &engine = *get_engine();
     size_t id = 0;

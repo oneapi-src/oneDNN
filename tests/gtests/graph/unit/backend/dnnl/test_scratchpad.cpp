@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 
 namespace graph = dnnl::impl::graph;
 
-TEST(Scratchpad, TemporaryScratchpad) {
+TEST(test_scratchpad_scratchpad, TemporaryScratchpad) {
     using dnnl::impl::graph::allocator_t;
     using dnnl::impl::graph::dnnl_impl::temporary_scratchpad_t;
 
@@ -55,7 +55,7 @@ TEST(Scratchpad, TemporaryScratchpad) {
     }
 }
 
-TEST(Scratchpad, Registry) {
+TEST(test_scratchpad_scratchpad, Registry) {
     using dnnl::impl::graph::allocator_t;
     using dnnl::impl::graph::dnnl_impl::grantor_t;
     using dnnl::impl::graph::dnnl_impl::registrar_t;
@@ -105,7 +105,7 @@ TEST(Scratchpad, Registry) {
     ASSERT_TRUE(piece_end <= total_end); // make sure no overflow
 }
 
-TEST(Scratchpad, RegistryMultithreading) {
+TEST(test_scratchpad_scratchpad, RegistryMultithreading) {
     using dnnl::impl::graph::allocator_t;
     using dnnl::impl::graph::dnnl_impl::grantor_t;
     using dnnl::impl::graph::dnnl_impl::registrar_t;

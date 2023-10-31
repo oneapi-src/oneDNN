@@ -41,7 +41,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(InsertOps, InsertPermuteForOpOnlyRequireDataFormat) {
+TEST(test_insert_ops_insert_ops, InsertPermuteForOpOnlyRequireDataFormat) {
     graph::engine_t &g_eng = *get_engine();
     dnnl::engine p_eng = graph::dnnl_impl::make_dnnl_engine(g_eng);
     size_t id = 0;
@@ -97,7 +97,7 @@ TEST(InsertOps, InsertPermuteForOpOnlyRequireDataFormat) {
             graph::status::success);
 }
 
-TEST(InsertOps, InsertToGroupForReorder) {
+TEST(test_insert_ops_insert_ops, InsertToGroupForReorder) {
     graph::engine_t &g_eng = *get_engine();
     dnnl::engine p_eng = graph::dnnl_impl::make_dnnl_engine(g_eng);
     size_t id = 0;

@@ -51,7 +51,7 @@ TEST_P(pads_value_check_t, TestPadsValueCheck) {
     TestPadsValueCheck();
 }
 
-INSTANTIATE_TEST_SUITE_P(OpDefConstraint, pads_value_check_t,
+INSTANTIATE_TEST_SUITE_P(test_interface_op_def_constraint, pads_value_check_t,
         ::testing::Values(
                 // test function to check padding values
                 dnnl_graph_pads_value_params_t {Convolution, dims {-1},
@@ -249,7 +249,7 @@ TEST_P(data_type_check_t, TestDataTypeCheck) {
     TestDataTypeCheck();
 }
 
-INSTANTIATE_TEST_SUITE_P(OpDefConstraint, data_type_check_t,
+INSTANTIATE_TEST_SUITE_P(test_interface_op_def_constraint, data_type_check_t,
         ::testing::Values(
                 // test function of CheckBatchNormDataType
                 dnnl_graph_data_type_params_t {BatchNormTrainingBackward, 5, 1,
@@ -349,7 +349,8 @@ TEST_P(layer_norm_all_check_t, TestLayerNormAllCheck) {
     TestLayerNormAllCheck();
 }
 
-INSTANTIATE_TEST_SUITE_P(OpDefConstraint, layer_norm_all_check_t,
+INSTANTIATE_TEST_SUITE_P(test_interface_op_def_constraint,
+        layer_norm_all_check_t,
         ::testing::Values(
                 // test function of CheckLayerNormDataType
                 dnnl_graph_ln_params_t {LayerNorm, f32, f32, true, false, true,
@@ -435,7 +436,7 @@ TEST_P(shape_check_t, TestShapeCheck) {
     TestShapeCheck();
 }
 
-INSTANTIATE_TEST_SUITE_P(OpDefConstraint, shape_check_t,
+INSTANTIATE_TEST_SUITE_P(test_interface_op_def_constraint, shape_check_t,
         ::testing::Values(
                 // test function of CheckAvgPoolBwdInputShape
                 dnnl_graph_shape_params_t {AvgPoolBackward, 1, {f32}, 1, {}, {},
@@ -560,7 +561,7 @@ TEST_P(quant_check_t, TestQuantCheck) {
     TestQuantCheck();
 }
 
-INSTANTIATE_TEST_SUITE_P(OpDefConstraint, quant_check_t,
+INSTANTIATE_TEST_SUITE_P(test_interface_op_def_constraint, quant_check_t,
         ::testing::Values(
                 // test function of CheckQuantDequantScalesZps
                 dnnl_graph_quant_params_t {Quantize, 4, 4, "per_channel",

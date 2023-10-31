@@ -20,6 +20,10 @@ if (DNNL_LIBRARY_TYPE STREQUAL "SHARED")
     remove_definitions(-DDNNL_DLL)
 endif()
 
+include_directories_with_host_compiler(
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 set(TEST_ALLOCATOR ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp)
 
 add_subdirectory(api)

@@ -28,7 +28,7 @@
 
 namespace graph = dnnl::impl::graph;
 
-TEST(Alloctor, SyclAlloctorMallocAndFree) {
+TEST(test_utils_alloctor, SyclAlloctorMallocAndFree) {
     graph::engine_t &engine = *get_engine();
     if (engine.kind() == graph::engine_kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL

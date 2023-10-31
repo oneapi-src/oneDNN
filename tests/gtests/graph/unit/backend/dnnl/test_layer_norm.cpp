@@ -24,7 +24,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Execute, LayernormTraining) {
+TEST(test_layer_norm_execute, LayernormTraining) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src {2.0, 4.0, 5.0, 2.0, 3.0, 5.0};
@@ -110,7 +110,7 @@ TEST(Execute, LayernormTraining) {
     }
 }
 
-TEST(Execute, LayernormInference) {
+TEST(test_layer_norm_execute, LayernormInference) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src {2.0, 4.0, 3.0, 5.5, 5.0, 4.0, 1.0, 2.5};
@@ -176,7 +176,7 @@ TEST(Execute, LayernormInference) {
     }
 }
 
-TEST(Execute, LayernormInferenceWithoutScaleShift) {
+TEST(test_layer_norm_execute, LayernormInferenceWithoutScaleShift) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src {2.0, 4.0, 3.0, 5.5, 5.0, 4.0, 1.0, 2.5};
@@ -230,7 +230,7 @@ TEST(Execute, LayernormInferenceWithoutScaleShift) {
     }
 }
 
-TEST(Execute, LayerNormBackwardFp32) {
+TEST(test_layer_norm_execute, LayerNormBackwardFp32) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -378,7 +378,7 @@ TEST(Execute, LayerNormBackwardFp32) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, LayernormTypecastQuant) {
+TEST(test_layer_norm_execute_subgraph_int8, LayernormTypecastQuant) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
     static auto isa = dnnl_get_effective_cpu_isa();

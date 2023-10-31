@@ -30,7 +30,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Execute, MatmulFp32) {
+TEST(test_matmul_execute, MatmulFp32) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
     matmul_op.set_attr<bool>(graph::op_attr::transpose_b, true);
     graph::engine_t *eng = get_engine();
@@ -112,7 +112,7 @@ TEST(Execute, MatmulFp32) {
     }
 }
 
-TEST(Execute, MatmulF16F16F16) {
+TEST(test_matmul_execute, MatmulF16F16F16) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
 
     graph::engine_t *eng = get_engine();
@@ -170,7 +170,7 @@ TEST(Execute, MatmulF16F16F16) {
     strm->wait();
 }
 
-TEST(Execute, MatmulBf16Bf16Bf16) {
+TEST(test_matmul_execute, MatmulBf16Bf16Bf16) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
 
     graph::engine_t *eng = get_engine();
@@ -225,7 +225,7 @@ TEST(Execute, MatmulBf16Bf16Bf16) {
     strm->wait();
 }
 
-TEST(Compile, MatmulMatmulBf16Bf16Bf16) {
+TEST(test_matmul_compile, MatmulMatmulBf16Bf16Bf16) {
     graph::op_t matmul_op0(0, graph::op_kind::MatMul, "matmul_0");
     graph::op_t matmul_op1(1, graph::op_kind::MatMul, "matmul_1");
 
@@ -283,7 +283,7 @@ TEST(Compile, MatmulMatmulBf16Bf16Bf16) {
     ASSERT_EQ(p1.compile(&cp1, inputs1, outputs1, eng), graph::status::success);
 }
 
-TEST(Compile, MatmulBlocked) {
+TEST(test_matmul_compile, MatmulBlocked) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul");
 
     graph::engine_t *eng = get_engine();
@@ -335,7 +335,7 @@ TEST(Compile, MatmulBlocked) {
     ASSERT_EQ(opaque_lt.layout_type, graph::layout_type::strided);
 }
 
-TEST(Execute, MatmulNdx1d) {
+TEST(test_matmul_execute, MatmulNdx1d) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -431,7 +431,7 @@ TEST(Execute, MatmulNdx1d) {
     }
 }
 
-TEST(Execute, Matmul1dxNd) {
+TEST(test_matmul_execute, Matmul1dxNd) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -522,7 +522,7 @@ TEST(Execute, Matmul1dxNd) {
     }
 }
 
-TEST(Execute, Matmul3dx3d) {
+TEST(test_matmul_execute, Matmul3dx3d) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
     graph::engine_t *eng = get_engine();
 
@@ -576,7 +576,7 @@ TEST(Execute, Matmul3dx3d) {
     }
 }
 
-TEST(Execute, MatmulBiasAdd) {
+TEST(test_matmul_execute, MatmulBiasAdd) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t add_op(1, graph::op_kind::BiasAdd, "add_op");
     add_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
@@ -645,7 +645,7 @@ TEST(Execute, MatmulBiasAdd) {
     }
 }
 
-TEST(Execute, MatmulBiasAddPerTensorBroadcast) {
+TEST(test_matmul_execute, MatmulBiasAddPerTensorBroadcast) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -724,7 +724,7 @@ TEST(Execute, MatmulBiasAddPerTensorBroadcast) {
     }
 }
 
-TEST(Execute, MatmulBiasAddPerChannelBroadcast) {
+TEST(test_matmul_execute, MatmulBiasAddPerChannelBroadcast) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -802,7 +802,7 @@ TEST(Execute, MatmulBiasAddPerChannelBroadcast) {
     }
 }
 
-TEST(Compile, MatmulBiasAddUnsupportedBroadcast) {
+TEST(test_matmul_compile, MatmulBiasAddUnsupportedBroadcast) {
     graph::engine_t *engine = get_engine();
 
     std::vector<graph::dims> post_src_shapes = {{3}, {1, 3}};
@@ -857,7 +857,7 @@ TEST(Compile, MatmulBiasAddUnsupportedBroadcast) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
+TEST(test_matmul_execute_subgraph_int8, MatmulNdx2d) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -1023,7 +1023,7 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulU8U8) {
+TEST(test_matmul_execute_subgraph_int8, MatmulU8U8) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -1170,7 +1170,7 @@ TEST(ExecuteSubgraphInt8, MatmulU8U8) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
+TEST(test_matmul_execute_subgraph_int8, MatmulNdx1d) {
     // compare results between: case 1: [quantize] - [dequantize] -
     // [fp32_matmul] - [quantize] case 2: [quantize] - [int8_matmul]
     graph::engine_t *engine = get_engine();
@@ -1329,7 +1329,7 @@ TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
+TEST(test_matmul_execute_subgraph_int8, MatmulNdx2dWithTranspose) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -1500,7 +1500,7 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasSumNdx2d) {
     // skip the test on AArch64 or some older machine without avx support
     SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
             "skip on machine without AVX");
@@ -1709,7 +1709,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasBinary) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasBinary) {
     // skip the test on AArch64 or some older machine without avx support
     SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
             "skip on machine without AVX");
@@ -1897,7 +1897,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasBinary) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasAddMul) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasAddMul) {
     // skip the test on AArch64 or some older machine without avx support
     SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
             "skip on machine without AVX");
@@ -2126,7 +2126,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddMul) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasNdx2dX8s8f32) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -2269,7 +2269,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
+TEST(test_matmul_execute_subgraph_int8, MatmulNdx2dX8s8f32) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -2402,7 +2402,7 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasGeluNdx2dX8s8f32) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -2553,7 +2553,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
     }
 }
 
-TEST(Compile, MatmulAddGetInplacePair) {
+TEST(test_matmul_compile, MatmulAddGetInplacePair) {
     graph::engine_t *eng = get_engine();
 
     graph::graph_t agraph(eng->kind());
@@ -2624,7 +2624,7 @@ TEST(Compile, MatmulAddGetInplacePair) {
     ASSERT_EQ(inplace_pairs[0].output_id, lt_add_out.id);
 }
 
-TEST(ExecuteSubgraphInt8, Matmul2dx3dWithTranspose) {
+TEST(test_matmul_execute_subgraph_int8, Matmul2dx3dWithTranspose) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -2780,7 +2780,7 @@ TEST(ExecuteSubgraphInt8, Matmul2dx3dWithTranspose) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasSumGetInplacePair) {
     // skip the test on AArch64 or some older machine without avx support
     SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
             "skip on machine without AVX");
@@ -3002,7 +3002,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasU8s8bf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -3129,7 +3129,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasAddBF16U8s8bf16) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasAddBF16U8s8bf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -3273,7 +3273,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddBF16U8s8bf16) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasaddAddBF16U8s8bf16) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddAddBF16U8s8bf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -3448,7 +3448,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddAddBF16U8s8bf16) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasU8s8u8MixBf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -3593,7 +3593,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddU8s8u8MixBf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -3768,7 +3768,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasGeluU8s8u8MixBf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -3920,7 +3920,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
+TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddGeluU8s8u8MixBf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -4101,7 +4101,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     strm->wait();
 }
 
-TEST(Execute, MatmulTransposeReorder) {
+TEST(test_matmul_execute, MatmulTransposeReorder) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -4191,7 +4191,7 @@ TEST(Execute, MatmulTransposeReorder) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasTransposeReorder) {
+TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasTransposeReorder) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -4350,7 +4350,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasTransposeReorder) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulTransposeReorder) {
+TEST(test_matmul_execute_subgraph_int8, QuantWeiMixBf16MatmulTransposeReorder) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -4522,7 +4522,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulTransposeReorder) {
     }
 }
 
-TEST(Execute, MatmulScalarOutput) {
+TEST(test_matmul_execute, MatmulScalarOutput) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
     matmul_op.set_attr<bool>(graph::op_attr::transpose_b, true);
     graph::engine_t *eng = get_engine();
@@ -4584,7 +4584,7 @@ TEST(Execute, MatmulScalarOutput) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
+TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasSumNdx2d) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -4823,7 +4823,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, U8S8U8MatmulAddF32) {
+TEST(test_matmul_execute_subgraph_int8, U8S8U8MatmulAddF32) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -5000,7 +5000,7 @@ TEST(ExecuteSubgraphInt8, U8S8U8MatmulAddF32) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
+TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasNdx2dWithTranspose) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -5189,7 +5189,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
+TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasReluNdx2d) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -5368,7 +5368,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
     }
 }
 
-TEST(Execute, MatmulReluFusion) {
+TEST(test_matmul_execute, MatmulReluFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t relu_op(1, graph::op_kind::ReLU, "relu_op");
 
@@ -5429,7 +5429,7 @@ TEST(Execute, MatmulReluFusion) {
     }
 }
 
-TEST(Execute, MatmulBiasFusion) {
+TEST(test_matmul_execute, MatmulBiasFusion) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
 
     graph::engine_t *eng = get_engine();
@@ -5490,7 +5490,7 @@ TEST(Execute, MatmulBiasFusion) {
     }
 }
 
-TEST(Execute, MatmulSumBroadcast1d) {
+TEST(test_matmul_execute, MatmulSumBroadcast1d) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t add_op(1, graph::op_kind::Add, "add_op");
 
@@ -5558,7 +5558,7 @@ TEST(Execute, MatmulSumBroadcast1d) {
     }
 }
 
-TEST(Execute, MatmulSumFusion) {
+TEST(test_matmul_execute, MatmulSumFusion) {
     graph::engine_t *engine = get_engine();
 
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
@@ -5626,7 +5626,7 @@ TEST(Execute, MatmulSumFusion) {
     }
 }
 
-TEST(Execute, MatmulSumGeluFusion) {
+TEST(test_matmul_execute, MatmulSumGeluFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t add_op(1, graph::op_kind::Add, "add_op");
     graph::op_t gelu_op(2, graph::op_kind::GELU, "gelu_op");
@@ -5699,7 +5699,7 @@ TEST(Execute, MatmulSumGeluFusion) {
     }
 }
 
-TEST(Execute, MatmulSumReluFusion) {
+TEST(test_matmul_execute, MatmulSumReluFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t add_op(1, graph::op_kind::Add, "add_op");
     graph::op_t relu_op(2, graph::op_kind::ReLU, "relu_op");
@@ -5772,7 +5772,7 @@ TEST(Execute, MatmulSumReluFusion) {
     }
 }
 
-TEST(Execute, MatmulBiasReluFusion) {
+TEST(test_matmul_execute, MatmulBiasReluFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t relu_op(1, graph::op_kind::ReLU, "relu_op");
     graph::engine_t *engine = get_engine();
@@ -5838,7 +5838,7 @@ TEST(Execute, MatmulBiasReluFusion) {
     }
 }
 
-TEST(Execute, MatmulBiasGeluFusion) {
+TEST(test_matmul_execute, MatmulBiasGeluFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t gelu_op(1, graph::op_kind::GELU, "gelu_op");
     graph::engine_t *engine = get_engine();
@@ -5904,7 +5904,7 @@ TEST(Execute, MatmulBiasGeluFusion) {
     }
 }
 
-TEST(Execute, MatmulBiasRelu6Fusion) {
+TEST(test_matmul_execute, MatmulBiasRelu6Fusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t clamp_op(1, graph::op_kind::Clamp, "clamp_op");
     clamp_op.set_attr<float>(graph::op_attr::min, 0.0);
@@ -5973,7 +5973,7 @@ TEST(Execute, MatmulBiasRelu6Fusion) {
     }
 }
 
-TEST(Execute, MatmulBiasClampFusion) {
+TEST(test_matmul_execute, MatmulBiasClampFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t clamp_op(1, graph::op_kind::Clamp, "clamp_op");
     clamp_op.set_attr<float>(graph::op_attr::min, -3.0);
@@ -6042,7 +6042,7 @@ TEST(Execute, MatmulBiasClampFusion) {
     }
 }
 
-TEST(Execute, MatmulBiasEluFusion) {
+TEST(test_matmul_execute, MatmulBiasEluFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t elu_op(1, graph::op_kind::Elu, "elu_op");
     elu_op.set_attr<float>(graph::op_attr::alpha, 1.f);
@@ -6110,7 +6110,7 @@ TEST(Execute, MatmulBiasEluFusion) {
     }
 }
 
-TEST(Execute, MatmulBiasSigmoidFusion) {
+TEST(test_matmul_execute, MatmulBiasSigmoidFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t sigmoid_op(1, graph::op_kind::Sigmoid, "sigmoid_op");
     graph::engine_t *engine = get_engine();
@@ -6176,7 +6176,7 @@ TEST(Execute, MatmulBiasSigmoidFusion) {
     }
 }
 
-TEST(Execute, MatmulBiasAddFusion) {
+TEST(test_matmul_execute, MatmulBiasAddFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t add_op(1, graph::op_kind::Add, "add_op");
     graph::engine_t *engine = get_engine();
@@ -6249,7 +6249,7 @@ TEST(Execute, MatmulBiasAddFusion) {
     }
 }
 
-TEST(Execute, MatmulDivFusion) {
+TEST(test_matmul_execute, MatmulDivFusion) {
     graph::engine_t *engine = get_engine();
 
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
@@ -6318,7 +6318,7 @@ TEST(Execute, MatmulDivFusion) {
     }
 }
 
-TEST(Execute, MatmulDivAddFusion) {
+TEST(test_matmul_execute, MatmulDivAddFusion) {
     graph::engine_t *engine = get_engine();
 
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
@@ -6400,7 +6400,7 @@ TEST(Execute, MatmulDivAddFusion) {
     }
 }
 
-TEST(Execute, MatmulSwapBinaryMulAddFusion) {
+TEST(test_matmul_execute, MatmulSwapBinaryMulAddFusion) {
     graph::engine_t *engine = get_engine();
 
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
@@ -6493,7 +6493,7 @@ TEST(Execute, MatmulSwapBinaryMulAddFusion) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
+TEST(test_matmul_execute_subgraph_int8, MatmulReluFusion) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [relu] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -6637,7 +6637,8 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
                 /*atol*/ 1.f));
 }
 
-TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReshapeTransposeQuantize) {
+TEST(test_matmul_execute_subgraph_int8,
+        QuantWeiMatmulBiasReshapeTransposeQuantize) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -6796,7 +6797,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReshapeTransposeQuantize) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasTransposeReshapeQuantize) {
+TEST(test_matmul_execute_subgraph_int8,
+        QuantWeiMatmulBiasTransposeReshapeQuantize) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -6957,7 +6959,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasTransposeReshapeQuantize) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulBiasReshapeTransposeQuantize) {
+TEST(test_matmul_execute_subgraph_int8,
+        QuantWeiMixBf16MatmulBiasReshapeTransposeQuantize) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -7157,7 +7160,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulBiasReshapeTransposeQuantize) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
+TEST(test_matmul_execute_subgraph_int8,
+        QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -7358,7 +7362,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
     }
 }
 
-TEST(Execute, MatmulBiasReshapeTranspose) {
+TEST(test_matmul_execute, MatmulBiasReshapeTranspose) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -7463,7 +7467,7 @@ TEST(Execute, MatmulBiasReshapeTranspose) {
     }
 }
 
-TEST(Execute, MatmulBiasTransposeReshape) {
+TEST(test_matmul_execute, MatmulBiasTransposeReshape) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -7567,7 +7571,7 @@ TEST(Execute, MatmulBiasTransposeReshape) {
     }
 }
 
-TEST(Execute, MatmulStridedScalarOutput) {
+TEST(test_matmul_execute, MatmulStridedScalarOutput) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
     matmul_op.set_attr<bool>(graph::op_attr::transpose_b, true);
     graph::engine_t *eng = get_engine();
@@ -7629,7 +7633,7 @@ TEST(Execute, MatmulStridedScalarOutput) {
     }
 }
 
-TEST(Execute, MatmulBiasAddReluFusion) {
+TEST(test_matmul_execute, MatmulBiasAddReluFusion) {
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t add_op(1, graph::op_kind::Add, "add_op");
     graph::op_t relu_op(2, graph::op_kind::ReLU, "relu_op");
@@ -7708,7 +7712,7 @@ TEST(Execute, MatmulBiasAddReluFusion) {
     }
 }
 
-TEST(Execute, MatmulEmptyInput) {
+TEST(test_matmul_execute, MatmulEmptyInput) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
     graph::engine_t *eng = get_engine();
 
@@ -7764,7 +7768,7 @@ TEST(Execute, MatmulEmptyInput) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphInt8, ShareCachedWeight) {
+TEST(test_matmul_execute_subgraph_int8, ShareCachedWeight) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
     std::string qtype = "per_channel";

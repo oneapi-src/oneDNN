@@ -29,7 +29,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(DnnlPartitionImpl, InferShape) {
+TEST(test_dnnl_partition_impl_dnnl_partition_impl, InferShape) {
     graph::engine_t &engine = *get_engine();
     size_t id = 0;
 

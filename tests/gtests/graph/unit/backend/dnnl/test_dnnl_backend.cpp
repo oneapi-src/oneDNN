@@ -19,6 +19,6 @@
 
 namespace graph = dnnl::impl::graph;
 
-TEST(LargerPartition, LargerPartitionKernelCreator) {
+TEST(test_dnnl_backend_larger_partition, LargerPartitionKernelCreator) {
     ASSERT_NO_THROW(graph::dnnl_impl::large_partition_kernel_creator());
 }

@@ -449,7 +449,7 @@ TEST_P(batch_norm_4d_t, TestBatchnorm) {
     Test();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, batch_norm_4d_t,
+INSTANTIATE_TEST_SUITE_P(test_batch_norm_execute, batch_norm_4d_t,
         ::testing::Values(
                 batchnorm_params_t {graph::op_kind::BatchNormInference, false,
                         3, 3, 2, 2, 0.001f, "NCX", "dnnl",
@@ -469,7 +469,7 @@ INSTANTIATE_TEST_SUITE_P(Execute, batch_norm_4d_t,
                         true, 3, 3, 2, 2, 0.001f, "NXC", "dnnl",
                         graph::data_type::f32}));
 
-TEST(Compile, BatchNormBackwardFp32) {
+TEST(test_batch_norm_compile, BatchNormBackwardFp32) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     graph::op_t bn_op(graph::op_kind::BatchNormTrainingBackward);
@@ -584,7 +584,7 @@ TEST(Compile, BatchNormBackwardFp32) {
     }
 }
 
-TEST(Compile, BatchNormBackwardFp32WithSingleOutput) {
+TEST(test_batch_norm_compile, BatchNormBackwardFp32WithSingleOutput) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     graph::op_t bn_op(graph::op_kind::BatchNormTrainingBackward);
@@ -664,7 +664,7 @@ TEST(Compile, BatchNormBackwardFp32WithSingleOutput) {
     strm->wait();
 }
 
-TEST(Compile, BatchNormForwardTrainingWith1DSpatialInput) {
+TEST(test_batch_norm_compile, BatchNormForwardTrainingWith1DSpatialInput) {
 
     using dims = graph::dnnl_impl::dims;
     using ltw = graph::logical_tensor_wrapper_t;
@@ -798,7 +798,7 @@ TEST(Compile, BatchNormForwardTrainingWith1DSpatialInput) {
     strm->wait();
 }
 
-TEST(Compile, BatchNormForwardTrainingWith0DSpatialInput) {
+TEST(test_batch_norm_compile, BatchNormForwardTrainingWith0DSpatialInput) {
 
     using dims = graph::dnnl_impl::dims;
     using ltw = graph::logical_tensor_wrapper_t;
@@ -931,7 +931,7 @@ TEST(Compile, BatchNormForwardTrainingWith0DSpatialInput) {
     strm->wait();
 }
 
-TEST(Execute, BatchNormInt8) {
+TEST(test_batch_norm_execute, BatchNormInt8) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t &engine = *get_engine();
     graph::stream_t &strm = *get_stream();
@@ -1063,7 +1063,7 @@ TEST(Execute, BatchNormInt8) {
                 /*atol*/ 1.f));
 }
 
-TEST(Execute, BatchNormReluInt8) {
+TEST(test_batch_norm_execute, BatchNormReluInt8) {
     using dims = graph::dnnl_impl::dims;
 
     graph::op_t bn_op(0, graph::op_kind::BatchNormInference, "batchnorm");

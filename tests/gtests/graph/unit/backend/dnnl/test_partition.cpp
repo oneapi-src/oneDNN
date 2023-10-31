@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 
 using namespace dnnl::impl::graph;
 
-TEST(Partition, CreateSimple) {
+TEST(test_partition_partition, CreateSimple) {
     dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
             engine_kind::cpu, fpmath_mode::strict, partition_kind_t::undef);
     ASSERT_EQ(p.get_ops().size(), 0U);
@@ -35,7 +35,7 @@ TEST(Partition, CreateSimple) {
     ASSERT_EQ(p.get_kind(), partition_kind_t::undef);
 }
 
-TEST(Partition, AddOps) {
+TEST(test_partition_partition, AddOps) {
     dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
             engine_kind::cpu, fpmath_mode::strict, partition_kind_t::undef);
     size_t id = 100;
@@ -53,7 +53,7 @@ TEST(Partition, AddOps) {
     ASSERT_EQ(p.get_ops().size(), 3U);
 }
 
-TEST(Partition, GetOps) {
+TEST(test_partition_partition, GetOps) {
     dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
             engine_kind::cpu, fpmath_mode::strict, partition_kind_t::undef);
     size_t id = 100;
@@ -64,7 +64,7 @@ TEST(Partition, GetOps) {
     ASSERT_EQ(ops[0]->get_id(), 100U);
 }
 
-TEST(Partition, Init) {
+TEST(test_partition_partition, Init) {
     // (todo)xinyu: improve engine test
     engine_t *eng = get_engine();
     dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
@@ -76,7 +76,7 @@ TEST(Partition, Init) {
     ASSERT_TRUE(p.get_assigned_backend()->get_name() != "fake_backend");
 }
 
-TEST(Partition, Clone) {
+TEST(test_partition_partition, Clone) {
     engine_t *eng = get_engine();
     dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(eng->kind(),
             fpmath_mode::strict, partition_kind_t::convolution_post_ops);
@@ -102,7 +102,7 @@ TEST(Partition, Clone) {
     ASSERT_EQ(p_copy->get_ops()[0]->get_attr<int64_t>(op_attr::groups), 1);
 }
 
-TEST(Op, AssignedPartition) {
+TEST(test_partition_op, AssignedPartition) {
     using namespace dnnl::impl::graph;
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
@@ -117,7 +117,7 @@ TEST(Op, AssignedPartition) {
     ASSERT_EQ(conv.get_partition(), part.get());
 }
 
-TEST(Partition, SetFpmathMode) {
+TEST(test_partition_partition, SetFpmathMode) {
     engine_t *eng = get_engine();
     for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
                  fpmath_mode::any}) {

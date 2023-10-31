@@ -13,59 +13,81 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #===============================================================================
+set(sycl_rt_pattern "(SYCL|DPCPP)")
 
-set(API_TEST_SRCS
+function(register_graph_api_test_suite test_suite_name exe_name)
+    if(${test_suite_name} MATCHES "_usm")
+        if(DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
+            add_test(${test_suite_name}_gpu ${exe_name} --engine=gpu)
+            maybe_configure_windows_test(${test_suite_name}_gpu TEST)
+        endif()
+
+        if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+            add_test(${test_suite_name}_cpu ${exe_name} --engine=cpu)
+            maybe_configure_windows_test(${test_suite_name}_cpu TEST)
+        endif()
+    else()
+        if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+            add_test(${test_suite_name} ${exe_name})
+            maybe_configure_windows_test(${test_suite_name} TEST)
+        endif()
+    endif()    
+endfunction()
+
+FILE(GLOB COMMON_API_TEST_DEPS
     ${CMAKE_CURRENT_SOURCE_DIR}/api_test_main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
+    ${TEST_ALLOCATOR}
+    ${TEST_THREAD}
+)
+
+# engine independent test
+FILE(GLOB API_TEST_ENGINE_INDEPENDENT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_add_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile_parametrized.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_constant_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_filter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_compile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_constant_cache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_engine.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_constant_cache.cpp
-    ${TEST_ALLOCATOR}
-    ${TEST_THREAD}
 )
 
-set(sycl_rt_pattern "(SYCL|DPCPP)")
+FILE(GLOB API_TEST_ENGINE_DEPENDENT_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile_parametrized.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_compile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_partition.cpp
+)
+
+foreach(TEST_FILE ${API_TEST_ENGINE_INDEPENDENT_SOURCES})
+    get_filename_component(exe_name ${TEST_FILE} NAME_WE)
+    string(REPLACE "test_" "test_graph_" exe_name ${exe_name})
+    add_executable(${exe_name} ${TEST_FILE} ${COMMON_API_TEST_DEPS})
+    target_link_libraries(${exe_name}
+        dnnl_gtest
+        ${DNNL_LIBRARY_NAME}
+        ${EXTRA_SHARED_LIBS}
+    )
+    register_graph_api_test_suite(${exe_name} ${exe_name})
+endforeach()
+
+foreach(TEST_FILE ${API_TEST_ENGINE_DEPENDENT_SOURCES})
+    get_filename_component(exe_name ${TEST_FILE} NAME_WE)
+    string(REPLACE "test_" "test_graph_" exe_name ${exe_name})
+    add_executable(${exe_name} ${TEST_FILE} ${COMMON_API_TEST_DEPS})
+    target_link_libraries(${exe_name}
+        dnnl_gtest
+        ${DNNL_LIBRARY_NAME}
+        ${EXTRA_SHARED_LIBS}
+    )
+    register_graph_api_test_suite(${exe_name}_usm ${exe_name})
+endforeach()
+
 if(DNNL_CPU_RUNTIME MATCHES ${sycl_rt_pattern} OR DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
     add_subdirectory(sycl)
-endif()
-
-get_property(API_TEST_DEPS GLOBAL PROPERTY GRAPH_API_TEST_DEPS)
-
-add_executable(test_graph_api ${API_TEST_SRCS} ${API_TEST_DEPS})
-
-target_link_libraries(test_graph_api
-    dnnl_gtest
-    ${DNNL_LIBRARY_NAME}
-    ${EXTRA_SHARED_LIBS}
-    )
-
-include_directories_with_host_compiler(
-    ${PROJECT_SOURCE_DIR}/tests/gtests/graph
-    ${PROJECT_SOURCE_DIR}/tests/gtests/gtest
-    ${PROJECT_SOURCE_DIR}/include
-    )
-
-# Add CPU test if CPU runtime is enabled
-if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
-    add_test("test_graph_api_cpu" "test_graph_api" "--engine=cpu")
-    maybe_configure_windows_test("test_graph_api_cpu" TEST)
-endif()
-
-# Add GPU test if GPU runtime is enabled
-if(DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
-    add_test("test_graph_api_gpu" "test_graph_api" "--engine=gpu")
-    maybe_configure_windows_test("test_graph_api_gpu" TEST)
 endif()

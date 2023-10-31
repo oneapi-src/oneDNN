@@ -24,7 +24,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(LogicalTensor, CreateDefault) {
+TEST(test_interface_logical_tensor, CreateDefault) {
     const size_t id = 123;
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(id, graph::data_type::f32);
@@ -33,7 +33,7 @@ TEST(LogicalTensor, CreateDefault) {
     ASSERT_EQ(lt.data_type, graph::data_type::f32);
 }
 
-TEST(LogicalTensor, CreateWithShape) {
+TEST(test_interface_logical_tensor, CreateWithShape) {
     const size_t id = 123;
 
     graph::logical_tensor_t lt_0
@@ -77,7 +77,7 @@ TEST(LogicalTensor, CreateWithShape) {
     ASSERT_EQ(lt_5.layout.strides[2], 1);
 }
 
-TEST(LogicalTensor, Copy) {
+TEST(test_interface_logical_tensor, Copy) {
     const size_t id = 123;
 
     graph::logical_tensor_t lt_1
@@ -89,7 +89,7 @@ TEST(LogicalTensor, Copy) {
     ASSERT_EQ(lt_1.data_type, lt_2.data_type);
 }
 
-TEST(LogicalTensor, Assign) {
+TEST(test_interface_logical_tensor, Assign) {
     const size_t id = 123;
 
     graph::logical_tensor_t lt_1
@@ -101,7 +101,7 @@ TEST(LogicalTensor, Assign) {
     ASSERT_EQ(lt_1.data_type, lt_2.data_type);
 }
 
-TEST(LogicalTensor, PushToVector) {
+TEST(test_interface_logical_tensor, PushToVector) {
     size_t num_inputs = 3;
     std::vector<graph::dim_t> dims {1};
     std::vector<graph::logical_tensor_t> lt_vec;
@@ -116,7 +116,7 @@ TEST(LogicalTensor, PushToVector) {
     }
 }
 
-TEST(LogicalTensor, IdenticalSimilar) {
+TEST(test_interface_logical_tensor, IdenticalSimilar) {
     using ltw = graph::logical_tensor_wrapper_t;
 
     // unknown dims and strides
@@ -160,7 +160,7 @@ TEST(LogicalTensor, IdenticalSimilar) {
     ASSERT_EQ(ltw(lt4).is_similar(ltw(lt10)), false);
 }
 
-TEST(LogicalTensor, GetWeightSpatialDims) {
+TEST(test_interface_logical_tensor, GetWeightSpatialDims) {
     using ltw = graph::logical_tensor_wrapper_t;
     graph::logical_tensor_t lt = utils::logical_tensor_init(0, {1, 2, 2, 1},
             graph::data_type::f32, graph::layout_type::strided);
@@ -173,7 +173,7 @@ TEST(LogicalTensor, GetWeightSpatialDims) {
     ASSERT_EQ(wrap.get_weight_spatial_dims("OIX")[1], 1);
 }
 
-TEST(LogicalTensor, GetSrcSpatialDims) {
+TEST(test_interface_logical_tensor, GetSrcSpatialDims) {
     using ltw = graph::logical_tensor_wrapper_t;
     graph::logical_tensor_t lt = utils::logical_tensor_init(0, {1, 2, 2, 1},
             graph::data_type::f32, graph::layout_type::strided);
@@ -186,7 +186,7 @@ TEST(LogicalTensor, GetSrcSpatialDims) {
     ASSERT_EQ(wrap.get_src_spatial_dims("NXC")[1], 2);
 }
 
-TEST(LogicalTensor, GetWeightOrSrcIO) {
+TEST(test_interface_logical_tensor, GetWeightOrSrcIO) {
     using ltw = graph::logical_tensor_wrapper_t;
     graph::logical_tensor_t lt = utils::logical_tensor_init(0, {1, 2, 2, 1},
             graph::data_type::f32, graph::layout_type::strided);
@@ -205,7 +205,7 @@ TEST(LogicalTensor, GetWeightOrSrcIO) {
     ASSERT_EQ(wrap.get_src_c("NXC"), 1);
 }
 
-TEST(LogicalTensor, IsIdentical) {
+TEST(test_interface_logical_tensor, IsIdentical) {
     using ltw = graph::logical_tensor_wrapper_t;
     graph::logical_tensor_t lt1 = utils::logical_tensor_init(
             0, {1, 2, 2, 1}, graph::data_type::f32, graph::layout_type::undef);

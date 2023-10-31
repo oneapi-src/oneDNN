@@ -28,7 +28,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Execute, BinaryOp) {
+TEST(test_binary_op_execute, BinaryOp) {
     graph::engine_t *eng = get_engine();
 
     std::vector<graph::op_kind_t> op_kinds = {graph::op_kind::Multiply,
@@ -84,7 +84,7 @@ TEST(Execute, BinaryOp) {
     }
 }
 
-TEST(Execute, MulEltwise) {
+TEST(test_binary_op_execute, MulEltwise) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -143,7 +143,7 @@ TEST(Execute, MulEltwise) {
     }
 }
 
-TEST(Execute, BinaryOpAddFusion) {
+TEST(test_binary_op_execute, BinaryOpAddFusion) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
@@ -207,7 +207,7 @@ TEST(Execute, BinaryOpAddFusion) {
     }
 }
 
-TEST(Execute, BinarySub) {
+TEST(test_binary_op_execute, BinarySub) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {2.0};
@@ -258,7 +258,7 @@ TEST(Execute, BinarySub) {
     }
 }
 
-TEST(Execute, MinEltwise) {
+TEST(test_binary_op_execute, MinEltwise) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -317,7 +317,7 @@ TEST(Execute, MinEltwise) {
     }
 }
 
-TEST(Execute, MaxEltwise) {
+TEST(test_binary_op_execute, MaxEltwise) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {-2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -377,7 +377,7 @@ TEST(Execute, MaxEltwise) {
     }
 }
 
-TEST(ExecuteSubgraphFp32, BinarySwish) {
+TEST(test_binary_op_execute_subgraph_fp32, BinarySwish) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -473,7 +473,7 @@ TEST(ExecuteSubgraphFp32, BinarySwish) {
     }
 }
 
-TEST(Execute, Eltwise3BinaryPostops) {
+TEST(test_binary_op_execute, Eltwise3BinaryPostops) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src = {-2.0, -1.5, 1.0, 0.5};
@@ -557,7 +557,7 @@ TEST(Execute, Eltwise3BinaryPostops) {
     strm->wait();
 }
 
-TEST(ExecuteSubgraphFp32, Binary3Postops) {
+TEST(test_binary_op_execute_subgraph_fp32, Binary3Postops) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -681,7 +681,7 @@ TEST(ExecuteSubgraphFp32, Binary3Postops) {
     }
 }
 
-TEST(Execute, Add) {
+TEST(test_binary_op_execute, Add) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -759,7 +759,7 @@ TEST(Execute, Add) {
     }
 }
 
-TEST(Execute, AddWithDifferentFormat) {
+TEST(test_binary_op_execute, AddWithDifferentFormat) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -815,7 +815,7 @@ TEST(Execute, AddWithDifferentFormat) {
     }
 }
 
-TEST(Execute, BroadcastAdd) {
+TEST(test_binary_op_execute, BroadcastAdd) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
@@ -896,7 +896,7 @@ TEST(Execute, BroadcastAdd) {
     }
 }
 
-TEST(Execute, SwapBroadcastAdd) {
+TEST(test_binary_op_execute, SwapBroadcastAdd) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {1.0, 1.0, 1.0, 1.0};
@@ -967,7 +967,7 @@ TEST(Execute, SwapBroadcastAdd) {
     }
 }
 
-TEST(Execute, MultidirectionalBroadcastAddBA) {
+TEST(test_binary_op_execute, MultidirectionalBroadcastAddBA) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {1.0, 1.0, 1.0};
@@ -1042,7 +1042,7 @@ TEST(Execute, MultidirectionalBroadcastAddBA) {
     }
 }
 
-TEST(Execute, multidirectionalbBroadcastAddAB) {
+TEST(test_binary_op_execute, multidirectionalbBroadcastAddAB) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {1.0, 1.0, 1.0};
@@ -1099,7 +1099,7 @@ TEST(Execute, multidirectionalbBroadcastAddAB) {
     }
 }
 
-TEST(Execute, MultidirectionalBroadcastAdd) {
+TEST(test_binary_op_execute, MultidirectionalBroadcastAdd) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0(8, 1.0);
@@ -1156,7 +1156,7 @@ TEST(Execute, MultidirectionalBroadcastAdd) {
     }
 }
 
-TEST(Execute, MultidirectionalBroadcastAddExpandDim) {
+TEST(test_binary_op_execute, MultidirectionalBroadcastAddExpandDim) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0(2, 1.0);
@@ -1213,7 +1213,7 @@ TEST(Execute, MultidirectionalBroadcastAddExpandDim) {
     }
 }
 
-TEST(Compile, AddShapeMismatchCase0) {
+TEST(test_binary_op_compile, AddShapeMismatchCase0) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t add_op(0, graph::op_kind::Add, "add");
@@ -1250,7 +1250,7 @@ TEST(Compile, AddShapeMismatchCase0) {
     ASSERT_EQ(ret, graph::status::invalid_shape);
 }
 
-TEST(Compile, AddShapeMismatch1) {
+TEST(test_binary_op_compile, AddShapeMismatch1) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t add_op(graph::op_kind::Add);
@@ -1287,7 +1287,7 @@ TEST(Compile, AddShapeMismatch1) {
     ASSERT_EQ(ret, graph::status::success);
 }
 
-TEST(Compile, AddShapeMismatch2) {
+TEST(test_binary_op_compile, AddShapeMismatch2) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t add_op(graph::op_kind::Add);
@@ -1324,7 +1324,7 @@ TEST(Compile, AddShapeMismatch2) {
     ASSERT_EQ(ret, graph::status::success);
 }
 
-TEST(Execute, ReversedDifferentFormatBroadcastAdd) {
+TEST(test_binary_op_execute, ReversedDifferentFormatBroadcastAdd) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src1 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
@@ -1382,7 +1382,7 @@ TEST(Execute, ReversedDifferentFormatBroadcastAdd) {
     }
 }
 
-TEST(Execute, BiasAdd) {
+TEST(test_binary_op_execute, BiasAdd) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
@@ -1455,7 +1455,7 @@ TEST(Execute, BiasAdd) {
     }
 }
 
-TEST(Execute, AddMul) {
+TEST(test_binary_op_execute, AddMul) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -1524,7 +1524,7 @@ TEST(Execute, AddMul) {
     }
 }
 
-TEST(Execute, AddMulPostSrcAsNxc) {
+TEST(test_binary_op_execute, AddMulPostSrcAsNxc) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -1592,7 +1592,7 @@ TEST(Execute, AddMulPostSrcAsNxc) {
     }
 }
 
-TEST(Execute, AddRelu) {
+TEST(test_binary_op_execute, AddRelu) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -1656,7 +1656,7 @@ TEST(Execute, AddRelu) {
     }
 }
 
-TEST(Execute, AddSigmoid) {
+TEST(test_binary_op_execute, AddSigmoid) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -1719,7 +1719,7 @@ TEST(Execute, AddSigmoid) {
     }
 }
 
-TEST(Execute, AddAdd) {
+TEST(test_binary_op_execute, AddAdd) {
     graph::engine_t *eng = get_engine();
 
     std::vector<int64_t> src_shape = {8, 128, 768};
@@ -1804,7 +1804,7 @@ TEST(Execute, AddAdd) {
     }
 }
 
-TEST(Execute, ScalarScalarAdd) {
+TEST(test_binary_op_execute, ScalarScalarAdd) {
     graph::op_t add_op(graph::op_kind::Add);
     graph::engine_t *eng = get_engine();
 
@@ -1865,7 +1865,7 @@ TEST(Execute, ScalarScalarAdd) {
     }
 }
 
-TEST(Execute, ScalarVectorAdd) {
+TEST(test_binary_op_execute, ScalarVectorAdd) {
     graph::op_t add_op(graph::op_kind::Add);
     graph::engine_t *eng = get_engine();
 
@@ -1926,7 +1926,7 @@ TEST(Execute, ScalarVectorAdd) {
     }
 }
 
-TEST(Execute, MulAddPerTensorBroadcast) {
+TEST(test_binary_op_execute, MulAddPerTensorBroadcast) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
@@ -1992,7 +1992,7 @@ TEST(Execute, MulAddPerTensorBroadcast) {
     }
 }
 
-TEST(Execute, MulAddPerHwBroadcast) {
+TEST(test_binary_op_execute, MulAddPerHwBroadcast) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0(18, 2.0);
@@ -2058,7 +2058,7 @@ TEST(Execute, MulAddPerHwBroadcast) {
     }
 }
 
-TEST(Execute, MulAddPerChannelBroadcast) {
+TEST(test_binary_op_execute, MulAddPerChannelBroadcast) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
@@ -2123,7 +2123,7 @@ TEST(Execute, MulAddPerChannelBroadcast) {
     }
 }
 
-TEST(Execute, MulAddAdd) {
+TEST(test_binary_op_execute, MulAddAdd) {
     graph::engine_t *eng = get_engine();
 
     std::vector<float> mul_src1(1917, 2.5f);
@@ -2204,7 +2204,7 @@ TEST(Execute, MulAddAdd) {
     }
 }
 
-TEST(Execute, AddEmptyInput) {
+TEST(test_binary_op_execute, AddEmptyInput) {
     graph::op_t add_op(graph::op_kind::Add);
     graph::engine_t *eng = get_engine();
 

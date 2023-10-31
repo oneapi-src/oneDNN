@@ -26,7 +26,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Execute, Softmax) {
+TEST(test_softmax_execute, Softmax) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t softmax_op(graph::op_kind::SoftMax);
@@ -80,7 +80,7 @@ TEST(Execute, Softmax) {
     }
 }
 
-TEST(Execute, SoftmaxWithLastDim) {
+TEST(test_softmax_execute, SoftmaxWithLastDim) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t softmax_op(graph::op_kind::SoftMax);
@@ -200,7 +200,7 @@ static inline void test_softmax_bwd_common(const graph::op_kind_t op_kind,
     }
 }
 
-TEST(Execute, SoftMaxBackward) {
+TEST(test_softmax_execute, SoftMaxBackward) {
     std::vector<float> dst {0.5, 0.5, 0.5, 0.5};
     std::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
     std::vector<float> ref_diff_src {-1, 1, -0.5, 0.5};
@@ -211,7 +211,7 @@ TEST(Execute, SoftMaxBackward) {
             graph::op_kind::SoftMaxBackward, dst, diff_dst, ref_diff_src, dims);
 }
 
-TEST(Execute, SoftMaxBackwardPlainGrad) {
+TEST(test_softmax_execute, SoftMaxBackwardPlainGrad) {
     std::vector<float> dst {0.5, 0.5, 0.5, 0.5};
     std::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
     std::vector<float> ref_diff_src {-1, 1, -0.5, 0.5};
@@ -222,7 +222,7 @@ TEST(Execute, SoftMaxBackwardPlainGrad) {
             graph::op_kind::SoftMaxBackward, dst, diff_dst, ref_diff_src, dims);
 }
 
-TEST(Execute, LogSoftmax) {
+TEST(test_softmax_execute, LogSoftmax) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t logsoftmax_op(graph::op_kind::LogSoftmax);
@@ -276,7 +276,7 @@ TEST(Execute, LogSoftmax) {
     ASSERT_TRUE(allclose(dst_data, ref_dst_data, 1e-5f, 1e-8f));
 }
 
-TEST(Execute, LogSoftmaxBackward) {
+TEST(test_softmax_execute, LogSoftmaxBackward) {
     std::vector<float> dst {-0.6931472f, -0.6931472f, -0.6931472f, -0.6931472f};
     std::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
     std::vector<float> ref_diff_src {-2, 2, -1, 1};
@@ -287,7 +287,7 @@ TEST(Execute, LogSoftmaxBackward) {
             ref_diff_src, dims);
 }
 
-TEST(Execute, LogSoftmaxBackwardPlainGrad) {
+TEST(test_softmax_execute, LogSoftmaxBackwardPlainGrad) {
     std::vector<float> dst {-0.6931472f, -0.6931472f, -0.6931472f, -0.6931472f};
     std::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
     std::vector<float> ref_diff_src {-2, 2, -1, 1};
@@ -344,16 +344,16 @@ static inline void test_softmax_bwd_get_inplace_pair_common(
     ASSERT_EQ(inplace_pairs[0].output_id, diff_src_lt.id);
 }
 
-TEST(Compile, SoftMaxBackwardGetInplacePair) {
+TEST(test_softmax_compile, SoftMaxBackwardGetInplacePair) {
     test_softmax_bwd_get_inplace_pair_common(graph::op_kind::SoftMaxBackward);
 }
 
-TEST(Compile, LogSoftmaxBackwardGetInplacePair) {
+TEST(test_softmax_compile, LogSoftmaxBackwardGetInplacePair) {
     test_softmax_bwd_get_inplace_pair_common(
             graph::op_kind::LogSoftmaxBackward);
 }
 
-TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
+TEST(test_softmax_execute_subgraph_int8, SoftmaxTypecastQuant) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
     static auto isa = dnnl_get_effective_cpu_isa();
@@ -435,7 +435,7 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
     }
 }
 
-TEST(Compile, SoftmaxAdd) {
+TEST(test_softmax_compile, SoftmaxAdd) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -509,7 +509,7 @@ TEST(Compile, SoftmaxAdd) {
     }
 }
 
-TEST(Compile, SoftmaxGetInplacePair) {
+TEST(test_softmax_compile, SoftmaxGetInplacePair) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t softmax_op(graph::op_kind::SoftMax);

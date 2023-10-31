@@ -26,7 +26,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Value, Create) {
+TEST(test_interface_value, Create) {
     graph::op_t matmul {0, graph::op_kind::MatMul, std::string("matmul")};
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(1, graph::data_type::f32);
@@ -35,7 +35,7 @@ TEST(Value, Create) {
     ASSERT_EQ(val.is_internal(), false);
 }
 
-TEST(Value, CreateInternal) {
+TEST(test_interface_value, CreateInternal) {
     graph::op_t matmul {0, graph::op_kind::MatMul, std::string("matmul")};
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(1, graph::data_type::f32);
@@ -44,7 +44,7 @@ TEST(Value, CreateInternal) {
     ASSERT_EQ(val.is_internal(), true);
 }
 
-TEST(Value, GetLogicalTensor) {
+TEST(test_interface_value, GetLogicalTensor) {
     graph::op_t matmul {0, graph::op_kind::MatMul, std::string("matmul")};
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(1, graph::data_type::f32);
@@ -54,7 +54,7 @@ TEST(Value, GetLogicalTensor) {
     ASSERT_TRUE(graph::logical_tensor_wrapper_t(lt)
             == graph::logical_tensor_wrapper_t(lt1));
 }
-TEST(Value, GetProducer) {
+TEST(test_interface_value, GetProducer) {
     graph::op_t matmul {0, graph::op_kind::MatMul, std::string("matmul")};
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(1, graph::data_type::f32);
@@ -66,7 +66,7 @@ TEST(Value, GetProducer) {
     ASSERT_EQ(&prod, &matmul);
 }
 
-TEST(Value, SetProducer) {
+TEST(test_interface_value, SetProducer) {
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(1, graph::data_type::f32);
     graph::value_t val {lt, false};
@@ -80,7 +80,7 @@ TEST(Value, SetProducer) {
     ASSERT_EQ(&prod, &matmul);
 }
 
-TEST(Value, Equal) {
+TEST(test_interface_value, Equal) {
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(1, graph::data_type::f32);
     graph::value_t val1 {lt, false};
@@ -101,7 +101,7 @@ TEST(Value, Equal) {
     ASSERT_NE(val1, val4);
 }
 
-TEST(Value, Offset) {
+TEST(test_interface_value, Offset) {
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(1, graph::data_type::f32);
     graph::op_t matmul {0, graph::op_kind::MatMul, std::string("matmul")};
@@ -114,7 +114,7 @@ TEST(Value, Offset) {
     ASSERT_EQ(offset, 2U);
 }
 
-TEST(Value, DefaultOffset) {
+TEST(test_interface_value, DefaultOffset) {
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(1, graph::data_type::f32);
     graph::value_t val {lt};
@@ -127,7 +127,7 @@ TEST(Value, DefaultOffset) {
     ASSERT_EQ(offset, 2U);
 }
 
-TEST(Value, AddConsumer) {
+TEST(test_interface_value, AddConsumer) {
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(1, graph::data_type::f32);
     graph::op_t matmul {0, graph::op_kind::MatMul, std::string("matmul")};
@@ -142,7 +142,7 @@ TEST(Value, AddConsumer) {
     ASSERT_EQ(consumers.size(), 1U);
 }
 
-TEST(Value, FindConsumer) {
+TEST(test_interface_value, FindConsumer) {
     size_t id = 0;
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(++id, graph::data_type::f32);

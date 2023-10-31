@@ -31,7 +31,7 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl_impl = graph::dnnl_impl;
 
-TEST(LayoutPropagator, LayoutPropagatorForPermute) {
+TEST(test_layout_propagator_layout_propagator, LayoutPropagatorForPermute) {
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
     op->set_attr<std::vector<int64_t>>(dnnl_impl::op_attr::permutation, {1, 0});
     auto lt_in = utils::logical_tensor_init(
@@ -54,7 +54,7 @@ TEST(LayoutPropagator, LayoutPropagatorForPermute) {
             graph::status::success);
 }
 
-TEST(LayoutPropagator, LayoutPropagatorForReorder) {
+TEST(test_layout_propagator_layout_propagator, LayoutPropagatorForReorder) {
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
     op->set_attr<std::vector<int64_t>>(dnnl_impl::op_attr::permutation, {1, 0});
     auto lt_in = utils::logical_tensor_init(
@@ -78,7 +78,8 @@ TEST(LayoutPropagator, LayoutPropagatorForReorder) {
             graph::status::success);
 }
 
-TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSum) {
+TEST(test_layout_propagator_layout_propagator,
+        LayoutPropagatorForSumDeathTest) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;
@@ -99,7 +100,8 @@ TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSum) {
             graph::status::success);
 }
 
-TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSumFail) {
+TEST(test_layout_propagator_layout_propagator,
+        LayoutPropagatorForSumFailDeathTest) {
     dnnl::engine p_engine;
     dnnl_impl::fusion_info_mgr_t mgr;
     dnnl_impl::pd_cache_t pd_cache;
@@ -120,7 +122,8 @@ TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSumFail) {
 #endif
 }
 
-TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSubZps) {
+TEST(test_layout_propagator_layout_propagator,
+        LayoutPropagatorForSubZpsDeathTest) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;
@@ -141,7 +144,8 @@ TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSubZps) {
 #endif
 }
 
-TEST(LayoutPropagatorDeathTest, LayoutPropagatorForAddZps) {
+TEST(test_layout_propagator_layout_propagator,
+        LayoutPropagatorForAddZpsDeathTest) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;

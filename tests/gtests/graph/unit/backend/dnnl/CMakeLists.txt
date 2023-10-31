@@ -14,53 +14,56 @@
 # limitations under the License.
 #===============================================================================
 
+set(TEST_EXE test_graph_unit_dnnl)
+
 # make gtest and library same definition for subgraph_visualizer_t
 if(ONEDNN_ENABLE_GRAPH_DUMP)
     add_definitions_with_host_compiler(-DDNNL_ENABLE_GRAPH_DUMP)
 endif()
 
-set(OBJ_LIB graph_unit_test_dnnl_backend)
-
-add_library(${OBJ_LIB} OBJECT
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_batch_norm.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_binary_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_bmm.cpp
+FILE(GLOB DNNL_COMMON_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_common.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_concat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_constant_cache.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_conv.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_convtranspose.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_dequantize.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_infer_shape.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_partition_impl.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_eltwise.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_fusion_info.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_insert_ops.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_internal_attrs.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_interpolate.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_large_partition.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_layer_norm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_id.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_propagator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_matmul.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_memory_planning.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op_executable.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pass.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_scratchpad.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_subgraph_pass.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_local_cache.cpp
+)
+
+# op compile/execution need test on both CPU and GPU
+FILE(GLOB DNNL_OP_EXECUTION_TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_batch_norm.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_binary_op.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_bmm.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_concat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_conv.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_convtranspose.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_dequantize.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_eltwise.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_interpolate.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_large_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_layer_norm.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_matmul.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_prelu.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_quantize.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_reduce.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_reorder.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_scratchpad.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_softmax.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_subgraph_pass.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_local_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_typecast.cpp
 )
 
@@ -68,10 +71,22 @@ if(_ONEDNN_GRAPH_LAYOUT_DEBUG)
     file(GLOB FILES_REQUIRED_LAYOUT_DEBUG
         ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_id.cpp
     )
-
     set_source_files_properties(${FILES_REQUIRED_LAYOUT_DEBUG}
         PROPERTIES COMPILE_FLAGS "-DDNNL_GRAPH_LAYOUT_DEBUG")
 endif()
-    
-set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS
-    $<TARGET_OBJECTS:${OBJ_LIB}>)
+
+set(OBJ_LIB graph_unit_test_dnnl_backend)
+add_library(${OBJ_LIB} OBJECT ${DNNL_OP_EXECUTION_TEST_SOURCES} ${DNNL_COMMON_TEST_SOURCES})
+set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS $<TARGET_OBJECTS:${OBJ_LIB}>)
+
+foreach(TEST_FILE ${DNNL_COMMON_TEST_SOURCES})
+    get_filename_component(file_name ${TEST_FILE} NAME_WE)
+    string(REPLACE "test_" "test_graph_unit_dnnl_" test_suite_name ${file_name})
+    register_graph_test_suite(${test_suite_name} "${file_name}_*")
+endforeach()
+
+foreach(TEST_FILE ${DNNL_OP_EXECUTION_TEST_SOURCES})
+    get_filename_component(file_name ${TEST_FILE} NAME_WE)
+    string(REPLACE "test_" "test_graph_unit_dnnl_" test_suite_name ${file_name})
+    register_graph_test_suite(${test_suite_name}_usm "${file_name}_*")
+endforeach()

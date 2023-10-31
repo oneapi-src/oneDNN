@@ -30,7 +30,7 @@
 
 #include "graph/unit/utils.hpp"
 
-TEST(Pass, FakeSingleOpReplacement) {
+TEST(test_fake_pass, FakeSingleOpReplacement) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::op_kind;
 

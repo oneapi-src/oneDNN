@@ -28,7 +28,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(Compile, TestReduce) {
+TEST(test_reduce_compile, TestReduce) {
     const auto apply_keep_dims_attr = [](const std::vector<int64_t> &shape,
                                               const std::vector<int64_t> &axes,
                                               const bool keep_dims) {
@@ -124,7 +124,7 @@ TEST(Compile, TestReduce) {
     }
 }
 
-TEST(ExecuteSubgraphFp32, ReduceAdd) {
+TEST(test_reduce_execute_subgraph_fp32, ReduceAdd) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -236,7 +236,7 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
     }
 }
 
-TEST(ExecuteSubgraphFp32, ReduceRelu) {
+TEST(test_reduce_execute_subgraph_fp32, ReduceRelu) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -329,7 +329,7 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
     }
 }
 
-TEST(ExecuteSubgraphFp32, ReduceSwish) {
+TEST(test_reduce_execute_subgraph_fp32, ReduceSwish) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -427,7 +427,7 @@ TEST(ExecuteSubgraphFp32, ReduceSwish) {
     }
 }
 
-TEST(ExecuteSubgraphFp32, ReduceWith3PostOps) {
+TEST(test_reduce_execute_subgraph_fp32, ReduceWith3PostOps) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -546,7 +546,7 @@ TEST(ExecuteSubgraphFp32, ReduceWith3PostOps) {
     }
 }
 
-TEST(Execute, ReduceMeanOutputDims) {
+TEST(test_reduce_execute, ReduceMeanOutputDims) {
     const auto apply_keep_dims_attr
             = [](const std::vector<int64_t> &shape, const bool keep_dims) {
                   if (keep_dims) return shape;
