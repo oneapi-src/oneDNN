@@ -44,16 +44,20 @@ struct gemm_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(f32, f32, f32, f32, f32)
-                    && !has_zero_dim_memory()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, f32)
-                    && post_ops_ok();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(f32, f32, f32, f32, f32),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, f32),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
 
             auto scratchpad = scratchpad_registry().registrar();
+
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads());
@@ -142,14 +146,20 @@ struct gemm_convolution_bwd_data_t : public primitive_t {
                 USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(data_type::f32, data_type::f32,
-                            data_type::undef, data_type::f32, data_type::f32)
-                    && !has_zero_dim_memory() && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+            using namespace dnnl::impl::data_type;
+
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(f32, f32, undef, f32, f32),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             auto scratchpad = scratchpad_registry().registrar();
+
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), diff_src_md_, weights_md_, diff_dst_md_, bias_md_,
                     attr_, dnnl_get_max_threads());
@@ -190,12 +200,17 @@ struct gemm_convolution_bwd_weights_t : public primitive_t {
                 USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(data_type::f32, data_type::f32,
-                            data_type::f32, data_type::f32, data_type::f32)
-                    && !has_zero_dim_memory() && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+            using namespace dnnl::impl::data_type;
+
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(f32, f32, f32, f32, f32),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,

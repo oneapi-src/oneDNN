@@ -1142,12 +1142,15 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     format_tag::ndhwc)
             : utils::pick(ndims - 3, format_tag::ncw, format_tag::nchw,
                     format_tag::ncdhw);
-    CHECK(set_or_check_tags(default_dat_tag, default_dat_tag,
-            src_md.data_type == data_type::s8));
+    const status_t check_tag_status = set_or_check_tags(default_dat_tag,
+            default_dat_tag, src_md.data_type == data_type::s8);
+    VDISPATCH_CONV_IC(
+            check_tag_status == status::success, VERBOSE_UNSUPPORTED_TAG);
 
     // Does int8 conv ever need to support ncsp input format
-    if (is_int8_conv && !src_d.matches_one_of_tag(default_dat_tag))
-        return status::unimplemented;
+    VDISPATCH_CONV_IC(
+            !(is_int8_conv && !src_d.matches_one_of_tag(default_dat_tag)),
+            VERBOSE_UNSUPPORTED_DT);
 
     CHECK(attr.set_default_formats(&dst_md));
 
@@ -1171,8 +1174,8 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             || (is_bwd_w
                     && utils::everyone_is(
                             bf16, src_d.data_type(), dst_d.data_type()));
-    if (is_bf16_conv && !platform::has_data_type_support(bf16))
-        return status::unimplemented;
+    VDISPATCH_CONV_IC(!(is_bf16_conv && !platform::has_data_type_support(bf16)),
+            VERBOSE_UNSUPPORTED_DT);
 
     const int vlen = std::max(platform::get_vector_register_size(), 4);
     const int data_size = (is_int8_conv ? 1 : (is_bf16_conv ? 2 : 4));
@@ -2068,8 +2071,9 @@ status_t init_conf(conv_gemm_conf_t &jcp,
 
             if (is_bwd_d || is_bwd_w) {
                 // check available memory
-                if (scratchpad_limit < scratchpad.size())
-                    return status::unimplemented;
+                VDISPATCH_CONV_IC(scratchpad_limit >= scratchpad.size(),
+                        VERBOSE_SCRATCHPAD_LIMIT);
+
                 const size_t available_mem
                         = scratchpad_limit - scratchpad.size();
                 if (available_mem
@@ -2112,7 +2116,9 @@ status_t init_conf(conv_gemm_conf_t &jcp,
         if (size) scratchpad.book<int32_t>(key_conv_gemm_zp_src_comp, size);
     }
 
-    if (scratchpad.size() > scratchpad_limit) return status::unimplemented;
+    VDISPATCH_CONV_IC(
+            scratchpad.size() <= scratchpad_limit, VERBOSE_SCRATCHPAD_LIMIT);
+
     return status::success;
 }
 
