@@ -283,7 +283,7 @@ void conv_fwd_core_op_t::infer_out_tensor_details() {
     auto &indims = info_.inputs_[0]->details_.get_plain_dims();
     auto weightdims = info_.inputs_[1]->details_.get_plain_dims();
     if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
-            > ops::rl_kind::NO_LOWERING) {
+            != ops::rl_kind::NO_LOWERING) {
         weightdims = attrs_.get<sc_dims>("origin_wei_plain_dims");
     }
 
@@ -319,7 +319,7 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
             "wrong input dims, expected to be 3D, 4D or 5D input, but got "
                     << input_dims.size() << "D.");
     if (attrs.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
-            > ops::rl_kind::NO_LOWERING) {
+            != ops::rl_kind::NO_LOWERING) {
         wei_dims = attrs.get<sc_dims>("origin_wei_plain_dims");
     }
 
@@ -484,7 +484,7 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
     auto &indims = info_.inputs_[0]->details_.get_plain_dims();
     auto weightdims = info_.inputs_[1]->details_.get_plain_dims();
     if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
-            > ops::rl_kind::NO_LOWERING) {
+            != ops::rl_kind::NO_LOWERING) {
         weightdims = attrs.get<sc_dims>("origin_wei_plain_dims");
     }
     ndims_ = indims.size();
@@ -546,7 +546,7 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
     sc_dim groups = attrs_.get_or_else("groups", 1);
     if (groups > 1) { return false; }
     if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
-            > ops::rl_kind::NO_LOWERING) {
+            != ops::rl_kind::NO_LOWERING) {
         return false;
     }
     bool use_1d = info_.inputs_[0]->details_.get_plain_dims().size() == 3;

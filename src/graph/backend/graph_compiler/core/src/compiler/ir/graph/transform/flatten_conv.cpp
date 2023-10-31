@@ -27,6 +27,7 @@
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
+#include <ops/templates/conv_rl.hpp>
 #include <runtime/config.hpp>
 
 namespace dnnl {
@@ -112,10 +113,16 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
             auto &pads_begin = op->attrs_.has_key("pads_begin")
                     ? op->attrs_.get<sc_dims>("pads_begin")
                     : op->attrs_.get<sc_dims>("paddings");
+            if (op->attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
+                    != ops::rl_kind::NO_LOWERING) {
+                return;
+            }
             sc_dim groups = op->attrs_.get_or_else("groups", 1);
             if (groups > 1) { return; }
             auto weight_plain_dims
                     = op->get_inputs()[1]->details_.get_plain_dims();
+            assert(weight_plain_dims.size() == ndims
+                    && "invalid weight_plain_dims");
             auto kh = weight_plain_dims[ndims - 2];
             auto kw = weight_plain_dims[ndims - 1];
             auto data_format = op->get_inputs()[0]->details_.get_format();
