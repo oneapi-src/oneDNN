@@ -248,9 +248,14 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         perform_op(vsrc, vsrc, vtmp, op);
     }
 
-    template <typename body_t>
-    void axis_loop(body_t body) {
-        Label main_loop, tail_loop, tail_axis, loop_end;
+    // This function is responsible for setting the unrolling level which
+    // affects vmm indices. Unrolling also affects pre-body and post-body calls
+    // that should be done just once but should use a proper unroll value.
+    // To avoid leaking of unrolling logic outside from this function, it takes
+    // functions to execute pre-body and post-body, too.
+    template <typename pre_body_t, typename body_t, typename post_body_t>
+    void axis_loop(pre_body_t pre_body, body_t body, post_body_t post_body) {
+        Label body_unroll_loop, body_unroll_tail_loop, tail_axis, loop_end;
 
         // reverse_spat_offt to dispatch between labels
         mov(reg_reverse_n_elems, reg_process_n_elems);
@@ -260,13 +265,22 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
             xor_(reg_interim_spat_offt, reg_interim_spat_offt); // scratch addr
         if (!pd_->is_fwd())
             xor_(reg_diff_dst_spat_offt, reg_diff_dst_spat_offt); // d_dst addr
-        L(main_loop);
+
+        // `pre_body` and `post_body` functions are called with the maximum
+        // unroll value of a `body` function as they operate over vmms,
+        // which numeration depends on that value.
+        const auto max_body_unroll = n_loops_ ? unroll_regs_
+                : loop_tail_                  ? loop_tail_
+                                              : 1;
+        pre_body(max_body_unroll);
+
+        L(body_unroll_loop);
         {
             if (n_loops_) {
                 cmp(reg_reverse_n_elems, unroll_regs_ * process_n_elems_);
-                jl(tail_loop, T_NEAR);
+                jl(body_unroll_tail_loop, T_NEAR);
 
-                body(unroll_regs_, false);
+                body(unroll_regs_, max_body_unroll, false);
                 sub(reg_reverse_n_elems, unroll_regs_ * process_n_elems_);
                 add(reg_src_spat_offt, unroll_regs_ * src_next_vreg_stride_);
                 add(reg_dst_spat_offt, unroll_regs_ * dst_next_vreg_stride_);
@@ -276,17 +290,17 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 if (!pd_->is_fwd())
                     add(reg_diff_dst_spat_offt,
                             unroll_regs_ * diff_dst_next_vreg_stride_);
-                jmp(main_loop);
+                jmp(body_unroll_loop);
             }
         }
 
-        L(tail_loop);
+        L(body_unroll_tail_loop);
         {
             if (loop_tail_) {
                 cmp(reg_reverse_n_elems, loop_tail_ * process_n_elems_);
                 jl(tail_axis, T_NEAR);
 
-                body(loop_tail_, false);
+                body(loop_tail_, max_body_unroll, false);
                 sub(reg_reverse_n_elems, loop_tail_ * process_n_elems_);
                 add(reg_src_spat_offt, loop_tail_ * src_next_vreg_stride_);
                 add(reg_dst_spat_offt, loop_tail_ * dst_next_vreg_stride_);
@@ -305,11 +319,13 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 cmp(reg_reverse_n_elems, 1);
                 jl(loop_end, T_NEAR);
 
-                body(1, true);
+                body(1, max_body_unroll, true);
             }
         }
 
         L(loop_end);
+
+        post_body(max_body_unroll);
     }
 
     void uni_vaddps_maybe_tail(
@@ -377,7 +393,9 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         // flush to -FLT_MAX before accumulation
         uni_vmovups(vmax, vneg_flt_max);
 
-        axis_loop([&](int unroll, bool tail = false) {
+        const auto pre_body = [](int max_unroll) {};
+
+        const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i += 2) {
                 const bool can_load_two_simdw = unroll - i >= 2;
                 Vmm vreg_tmp_src_even = Vmm(i + 1);
@@ -395,7 +413,11 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 if (can_load_two_simdw)
                     uni_vmaxps_maybe_tail(vmax, vreg_tmp_src_odd, vtmp, tail);
             }
-        });
+        };
+
+        const auto post_body = [](int max_unroll) {};
+
+        axis_loop(pre_body, body, post_body);
 
         get_horizontal_op(vmax, vtmp = vsum, op_t::max);
     }
@@ -409,7 +431,9 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         // flush to -FLT_MAX before accumulation
         uni_vmovups(vmax, vneg_flt_max);
 
-        axis_loop([&](int unroll, bool tail = false) {
+        const auto pre_body = [](int max_unroll) {};
+
+        const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 vtmp = Vmm(i + 2);
@@ -425,7 +449,11 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                     uni_vmaxps_maybe_tail(vmax, vreg_tmp_src, vtmp, tail);
                 }
             }
-        });
+        };
+
+        const auto post_body = [](int max_unroll) {};
+
+        axis_loop(pre_body, body, post_body);
 
         get_horizontal_op(vmax, vtmp = vsum, op_t::max);
     }
@@ -437,7 +465,9 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
 
         uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
 
-        axis_loop([&](int unroll, bool tail = false) {
+        const auto pre_body = [](int max_unroll) {};
+
+        const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i += 2) {
                 const bool can_load_two_simdw = unroll - i >= 2;
                 Vmm vreg_tmp_src_even = Vmm(i + 1);
@@ -479,7 +509,11 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                     }
                 }
             }
-        });
+        };
+
+        const auto post_body = [](int max_unroll) {};
+
+        axis_loop(pre_body, body, post_body);
 
         get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
         if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
@@ -497,7 +531,9 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
 
         uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
 
-        axis_loop([&](int unroll, bool tail = false) {
+        const auto pre_body = [](int max_unroll) {};
+
+        const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 vtmp = Vmm(i + 2);
@@ -523,7 +559,11 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                                 dst_d_.data_type(), tail);
                 }
             }
-        });
+        };
+
+        const auto post_body = [](int max_unroll) {};
+
+        axis_loop(pre_body, body, post_body);
 
         get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
         if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
@@ -532,7 +572,9 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
 
     // Use ne_convert instruction to load xf16 even/odd elements from memory
     void compute_avx2_ne_xf16_dst() {
-        axis_loop([&](int unroll, bool tail = false) {
+        const auto pre_body = [](int max_unroll) {};
+
+        const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i += 2) {
                 const bool can_load_two_simdw = unroll - i >= 2;
                 Vmm vreg_tmp_src_even = Vmm(i + 1);
@@ -593,7 +635,11 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                             vreg_tmp_src, dst_d_.data_type(), tail);
                 }
             }
-        });
+        };
+
+        const auto post_body = [](int max_unroll) {};
+
+        axis_loop(pre_body, body, post_body);
     }
 
     void compute_dst() {
@@ -602,7 +648,9 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
             return;
         }
 
-        axis_loop([&](int unroll, bool tail = false) {
+        const auto pre_body = [](int max_unroll) {};
+
+        const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 if (need_scratchpad_)
@@ -645,13 +693,19 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 store(dst_ptr(dst_next_vreg_stride_ * i), vreg_tmp_src,
                         dst_d_.data_type(), tail);
             }
-        });
+        };
+
+        const auto post_body = [](int max_unroll) {};
+
+        axis_loop(pre_body, body, post_body);
     }
 
     void accumulate_vsbr() {
         uni_vpxor(vsbr, vsbr, vsbr); // flush to zero before accumulation
 
-        axis_loop([&](int unroll, bool tail = false) {
+        const auto pre_body = [](int max_unroll) {};
+
+        const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_dst = Vmm(i * 2 + 1);
                 Vmm vreg_tmp_diff_dst = Vmm(i * 2 + 2);
@@ -667,13 +721,19 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 }
                 uni_vaddps(vsbr, vsbr, vreg_tmp_diff_dst);
             }
-        });
+        };
+
+        const auto post_body = [](int max_unroll) {};
+
+        axis_loop(pre_body, body, post_body);
 
         get_horizontal_op(vsbr, vtmp = vmax, op_t::sum);
     }
 
     void compute_diff_src() {
-        axis_loop([&](int unroll, bool tail = false) {
+        const auto pre_body = [](int max_unroll) {};
+
+        const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_dst = Vmm(i * 2 + 1);
                 Vmm vreg_tmp_diff_dst = Vmm(i * 2 + 2);
@@ -694,7 +754,11 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 store(diff_src_ptr(src_next_vreg_stride_ * i),
                         vreg_tmp_diff_dst, src_d_.data_type(), tail);
             }
-        });
+        };
+
+        const auto post_body = [](int max_unroll) {};
+
+        axis_loop(pre_body, body, post_body);
     }
 
     void forward() {
