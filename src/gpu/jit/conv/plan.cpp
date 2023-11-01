@@ -1241,8 +1241,9 @@ struct fma_context_t {
                                     stride_t(new_inner_stride)));
                         }
                     }
-                    return layout_t(layout.type(), layout.ndims(),
-                            layout.offset(), blocks);
+                    return maybe_retype_layout_for_mad(is_a,
+                            layout_t(layout.type(), layout.ndims(),
+                                    layout.offset(), blocks));
                 }
             }
             // XXX: type and layout.type() may be different here when using mad
