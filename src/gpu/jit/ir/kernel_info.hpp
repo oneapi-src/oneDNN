@@ -27,6 +27,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/jit/ir/ir.hpp"
+#include "gpu/jit/ir/kernel_desc.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -67,6 +68,44 @@ public:
 
 private:
     std::shared_ptr<memory_storage_ptr_t> ptr_;
+};
+
+class grid_context_t {
+public:
+    grid_context_t(bool create_empty = false) {
+        if (!create_empty) {
+            for (int i = 0; i < ndims(); i++) {
+                local_ids_[i] = var_t::make(
+                        type_t::u16(), "local_id" + std::to_string(i));
+                tg_idxs_[i] = var_t::make(
+                        type_t::s32(), "tg_idx" + std::to_string(i));
+            }
+        }
+    }
+
+    int ndims() const { return grid_ndims_; }
+    void set_tg_idx(int idx, const expr_t &e) {
+        ir_assert(idx >= 0 && idx < ndims());
+        tg_idxs_[idx] = e;
+    }
+    void set_local_id(int idx, const expr_t &e) {
+        ir_assert(idx >= 0 && idx < ndims());
+        local_ids_[idx] = e;
+    }
+
+    const expr_t &tg_idx(int idx) const {
+        ir_assert(idx >= 0 && idx < ndims());
+        return tg_idxs_[idx];
+    }
+    const expr_t &local_id(int idx) const {
+        ir_assert(idx >= 0 && idx < ndims());
+        return local_ids_[idx];
+    }
+
+private:
+    static const int grid_ndims_ = 3;
+    std::array<expr_t, grid_ndims_> tg_idxs_;
+    std::array<expr_t, grid_ndims_> local_ids_;
 };
 
 enum class kernel_id_t {
@@ -112,8 +151,16 @@ public:
 
     const compute::nd_range_t &nd_range() const { return nd_range_; }
 
-    void register_internal_arg(const expr_t &var, const expr_t &value) {
-        register_arg(var, arg_kind_t::internal, -1, /*is_input=*/true, value);
+    void register_internal_arg(
+            const expr_t &var, const expr_t &value = expr_t()) {
+        register_arg(var, arg_kind_t::internal, -1, /*is_input=*/true);
+        set_internal_arg(var.as<var_t>().name, value);
+    }
+
+    void set_internal_arg(const std::string &name, const expr_t &value) {
+        auto *arg = find_arg_impl(name);
+        ir_assert(arg);
+        arg->value = value;
     }
 
     void register_resource_arg(const expr_t &var) {
@@ -127,13 +174,12 @@ public:
 
     void register_scratchpad_arg(
             const expr_t &var, int key, bool is_input, size_t size) {
-        register_arg(
-                var, arg_kind_t::scratchpad, key, is_input, expr_t(), size);
+        register_arg(var, arg_kind_t::scratchpad, key, is_input, size);
     }
 
     const std::string &arg_name(int idx) const {
         ir_assert(idx >= 0 && idx < nargs());
-        return args_[idx].var.as<var_t>().name;
+        return args_[idx].name();
     }
 
     const expr_t &arg_var(int idx) const {
@@ -144,9 +190,8 @@ public:
     const type_t &arg_type(int idx) const { return arg_var(idx).type(); }
 
     expr_t find_arg(const std::string &name, bool allow_empty = false) const {
-        for (int i = 0; i < nargs(); i++) {
-            if (arg_name(i) == name) return args_[i].var;
-        }
+        auto *arg = find_arg_impl(name);
+        if (arg) return arg->var;
         if (!allow_empty)
             ir_error_not_expected() << "Argument not found: " << name;
         return expr_t();
@@ -276,13 +321,14 @@ private:
 
     struct arg_t {
         arg_t(const expr_t &var, arg_kind_t kind, int key, bool is_input,
-                const expr_t &value, size_t scratchpad_size)
+                size_t scratchpad_size)
             : var(var)
             , kind(kind)
             , key(key)
             , is_input(is_input)
-            , value(value)
             , scratchpad_size(scratchpad_size) {}
+
+        const std::string &name() const { return var.as<var_t>().name; }
 
         expr_t var;
         arg_kind_t kind;
@@ -293,16 +339,76 @@ private:
     };
 
     void register_arg(const expr_t &var, arg_kind_t kind, int key,
-            bool is_input, const expr_t &value = expr_t(),
-            size_t scratchpad_size = 0) {
+            bool is_input, size_t scratchpad_size = 0) {
         ir_assert(is_var(var)) << "Expected var, got: " << var;
-        args_.emplace_back(var, kind, key, is_input, value, scratchpad_size);
+        args_.emplace_back(var, kind, key, is_input, scratchpad_size);
+    }
+
+    const arg_t *find_arg_impl(const std::string &name) const {
+        for (int i = 0; i < nargs(); i++) {
+            if (args_[i].name() == name) return &args_[i];
+        }
+        return nullptr;
+    }
+
+    arg_t *find_arg_impl(const std::string &name) {
+        auto *arg
+                = const_cast<const kernel_info_t *>(this)->find_arg_impl(name);
+        return const_cast<arg_t *>(arg);
     }
 
     kernel_id_t id_ = kernel_id_t::undef;
     compute::nd_range_t nd_range_;
 
     std::vector<arg_t> args_;
+};
+
+class exec_plan_t {
+public:
+    int kernel_count() const { return (int)entries_.size(); }
+
+    status_t create_kernels(std::vector<compute::kernel_t> &kernels,
+            gpu_primitive_t *primitive, engine_t *engine) const {
+        for (auto &e : entries_) {
+            compute::kernel_t kernel;
+            CHECK(e.desc->create_kernel(kernel, primitive, engine));
+            kernels.push_back(kernel);
+        }
+        return status::success;
+    }
+
+    template <typename T>
+    status_t execute(const T *primitive, const exec_ctx_t &ctx,
+            const std::vector<compute::kernel_t> &kernels) const {
+        for (int i = 0; i < kernel_count(); i++) {
+            auto &e = entries_[i];
+            kernel_info_t info;
+            CHECK(e.params->init_dispatch_kernel_info(info, *e.desc));
+            std::vector<memory_storage_wrapper_t> storage_list;
+            info.init_memory_storage_list(storage_list, ctx, primitive);
+            compute::kernel_arg_list_t arg_list;
+            info.set_args(arg_list, storage_list);
+            CHECK(primitive->parallel_for(
+                    ctx, info.nd_range(), kernels[i], arg_list));
+        }
+        return status::success;
+    }
+
+    void add_kernel(const std::shared_ptr<kernel_desc_base_t> &desc,
+            const std::shared_ptr<kernel_params_base_t> &params) {
+        entry_t e;
+        e.desc = desc;
+        e.params = params;
+        entries_.push_back(e);
+    }
+
+private:
+    struct entry_t {
+        std::shared_ptr<kernel_desc_base_t> desc;
+        std::shared_ptr<kernel_params_base_t> params;
+    };
+
+    std::vector<entry_t> entries_;
 };
 
 } // namespace jit

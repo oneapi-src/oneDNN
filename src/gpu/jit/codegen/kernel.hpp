@@ -22,6 +22,7 @@
 #include "gpu/jit/codegen/operand.hpp"
 #include "gpu/jit/codegen/register_allocator.hpp"
 #include "gpu/jit/ir/ir.hpp"
+#include "gpu/jit/ir/kernel_desc.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
 #include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/ir/tensor.hpp"
@@ -119,6 +120,45 @@ compute::kernel_t make_kernel(
     if (status != status::success) return kernel_t();
     return kernel;
 }
+
+template <template <ngen::HW> class KernelT>
+struct ir_generator_t : public jit_generator_base {
+    ir_generator_t(const kernel_desc_base_t &kernel_desc)
+        : kernel_name_(kernel_desc.kernel_name()), kernel_desc_(kernel_desc) {}
+
+    const char *kernel_name() const override { return kernel_name_.c_str(); }
+
+    gpu::compute::binary_t get_binary(
+            cl_context context, cl_device_id device) override {
+        kernel_info_t kernel_info;
+        auto status = kernel_desc_.init_kernel_info(kernel_info);
+        if (status != status::success) return gpu::compute::binary_t();
+        try {
+#define CASE(hw) \
+    case ngen::HW::hw: { \
+        KernelT<ngen::HW::hw> kernel(kernel_desc_, kernel_info); \
+        return kernel.getBinary(context, device); \
+    }
+            switch (kernel_desc_.hw().to_ngen()) {
+                REG_GEN9_ISA(CASE(Gen9));
+                REG_GEN11_ISA(CASE(Gen11));
+                REG_XELP_ISA(CASE(XeLP));
+                REG_XEHP_ISA(CASE(XeHP));
+                REG_XEHPG_ISA(CASE(XeHPG));
+                REG_XEHPC_ISA(CASE(XeHPC));
+                default: break;
+            }
+#undef CASE
+        } catch (ngen::out_of_registers_exception &) {
+            return gpu::compute::binary_t();
+        }
+        return gpu::compute::binary_t();
+    }
+
+private:
+    std::string kernel_name_;
+    const kernel_desc_base_t &kernel_desc_;
+};
 
 class expr_binding_t {
 public:
@@ -230,6 +270,20 @@ public:
     friend class ir_to_ngen_t<hw>;
     friend class send_impl_t;
 
+    ir_kernel_t(
+            const kernel_desc_base_t &desc, const kernel_info_t &kernel_info)
+        : kernel_name_(desc.kernel_name())
+        , exec_cfg_(desc.exec_cfg())
+        , kernel_info_(kernel_info)
+        , with_nd_range_(false)
+        , require_dpas_(desc.with_dpas())
+        , regs_(exec_cfg_.regs())
+        , ra_(hw, desc.kernel_name(), reg_allocator_t::warn_default)
+        , emu_strategy(hw, exec_cfg_.hw().stepping_id()) {
+        setStepping(exec_cfg_.hw().stepping_id());
+        ra_.setRegisterCount(regs_);
+    }
+
     ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info,
             const compute::nd_range_t &nd_range, bool require_dpas,
@@ -238,6 +292,7 @@ public:
         , exec_cfg_(exec_cfg)
         , kernel_info_(kernel_info)
         , nd_range_(nd_range)
+        , with_nd_range_(true)
         , require_dpas_(require_dpas)
         , regs_((grf_mode == grf_mode_t::large)             ? 256
                           : (grf_mode == grf_mode_t::small) ? 128
@@ -270,7 +325,7 @@ public:
             }
         }
 
-        if (!kernel_body.is_empty()) {
+        if (!kernel_body.is_empty() && with_nd_range_) {
             int slm_size = alloc_manager_t(kernel_body)
                                    .total_size(alloc_kind_t::slm);
             int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
@@ -319,6 +374,16 @@ public:
             const grid_info_t &kernel_grid,
             const std::array<expr_t, 3> &local_id,
             expr_binding_t &expr_binding) {
+        grid_context_t grid_ctx(/*create_empty=*/true);
+        for (int i = 0; i < 3; i++) {
+            grid_ctx.set_tg_idx(i, kernel_grid.idx(i));
+            grid_ctx.set_local_id(i, local_id[i]);
+        }
+        bind_external_vars(kernel_body, grid_ctx, expr_binding);
+    }
+
+    void bind_external_vars(const stmt_t &kernel_body,
+            const grid_context_t &grid_ctx, expr_binding_t &expr_binding) {
         alloc_manager_t alloc_mgr(kernel_body);
 
         // Bind grid indices.
@@ -326,12 +391,12 @@ public:
         for (int i = 0; i < 3; i++) {
             auto tmp = ra_.template alloc_sub<int32_t>();
             mov(1, tmp, r0.ud(r0_sub_idxs[i]));
-            expr_binding.bind(kernel_grid.idx(i), tmp);
+            expr_binding.bind(grid_ctx.tg_idx(i), tmp);
         }
 
         // Bind local IDs.
         for (int i = 0; i < 3; i++) {
-            expr_binding.bind(local_id[i], getLocalID(i).uw(0));
+            expr_binding.bind(grid_ctx.local_id(i), getLocalID(i).uw(0));
         }
 
         // Bind arguments.
@@ -953,6 +1018,7 @@ protected:
     }
 
     int thread_group_size() const {
+        ir_assert(with_nd_range_);
         int local_size = 1;
         ir_assert(nd_range_.local_range());
         for (int i = 0; i < (int)nd_range_.ndims(); i++) {
@@ -965,6 +1031,7 @@ protected:
     exec_config_t exec_cfg_;
     kernel_info_t kernel_info_;
     compute::nd_range_t nd_range_;
+    bool with_nd_range_ = false;
     bool require_dpas_;
     bool require_signal_header_ = false;
     int regs_;
