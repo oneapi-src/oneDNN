@@ -14,14 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_CONV_PLAN_REGISTRY_HPP
-#define GPU_JIT_V2_CONV_PLAN_REGISTRY_HPP
-
-#include "gpu/jit/utils/utils.hpp"
-#include "gpu/jit/v2/conv/kernel_desc.hpp"
-#include "gpu/jit/v2/conv/model.hpp"
-
-#include <unordered_map>
+#ifndef GPU_JIT_V2_CONV_PLANNER_SEARCH_HPP
+#define GPU_JIT_V2_CONV_PLANNER_SEARCH_HPP
 
 namespace dnnl {
 namespace impl {
@@ -30,27 +24,13 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-class plan_registry_t {
-public:
-    void set(const kernel_desc_t &desc, const model_t &model) {
-        entries_[desc] = model;
-    }
-    void merge(const plan_registry_t &other);
-    kernel_desc_t find_best(const problem_t &prb) const;
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(entries_, out);
-    }
-    void deserialize(std::istream &in) { ir_utils::deserialize(entries_, in); }
+class kernel_desc_t;
 
-private:
-    std::unordered_map<kernel_desc_t, model_t,
-            ir_utils::hasher_t<kernel_desc_t>>
-            entries_;
-};
+namespace planner {
 
-const plan_registry_t &const_plan_registry();
-plan_registry_t &plan_registry();
+void search(const kernel_desc_t &desc);
 
+} // namespace planner
 } // namespace conv
 } // namespace v2
 } // namespace jit

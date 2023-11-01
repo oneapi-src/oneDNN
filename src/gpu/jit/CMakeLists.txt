@@ -16,6 +16,10 @@
 
 set(CMAKE_CXX_CLANG_TIDY "")
 
+if(DNNL_GPU_CONV_PLANNER)
+    set(CMAKE_CXX_STANDARD 17)
+endif()
+
 set(DIRS "codegen;conv;gemm;ir;ngen;pass;pooling;reorder;utils;v2")
 
 file(GLOB SOURCES
@@ -30,7 +34,24 @@ foreach(d ${DIRS})
     list(APPEND SOURCES "${d_sources}")
 endforeach()
 
+
+if(DNNL_GPU_CONV_PLANNER)
+    list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/v2/conv/planner/planner_main.cpp")
+else()
+    file(GLOB planner_sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/conv/planner/*.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/conv/planner/*.cpp
+        )
+    foreach(s ${planner_sources})
+        list(REMOVE_ITEM SOURCES "${s}")
+    endforeach()
+endif()
+
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_jit)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
+
+if(DNNL_GPU_CONV_PLANNER)
+    add_subdirectory(v2/conv/planner)
+endif()
