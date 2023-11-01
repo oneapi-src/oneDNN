@@ -388,6 +388,11 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         io_[dt]->store(src_vmm, addr, tail && !axis_has_padding_);
     }
 
+    Vmm get_aux_vmm(const Vmm &vmm, int unroll) {
+        return Vmm(vmm.getIdx() + unroll);
+    }
+
+    // TODO: introduce independent vmax split code for SRF.
     // Use ne_convert instruction to load xf16 even/odd elements from memory
     void accumulate_avx2_ne_xf16_vmax() {
         // flush to -FLT_MAX before accumulation
@@ -428,36 +433,75 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
             return;
         }
 
-        // flush to -FLT_MAX before accumulation
-        uni_vmovups(vmax, vneg_flt_max);
+        const auto pre_body = [&](int max_unroll) {
+            // flush to -FLT_MAX before accumulation
+            for (int i = 0; i < max_unroll; i++) {
+                Vmm vreg_tmp_src = Vmm(i + 1);
+                Vmm vreg_tmp_max = get_aux_vmm(vreg_tmp_src, max_unroll);
+                uni_vmovups(vreg_tmp_max, vneg_flt_max);
+            }
+        };
 
-        const auto pre_body = [](int max_unroll) {};
-
+        // Each unroll encounter accumulates maximum values into its own vmm.
+        // It removes dependency on a single vmm when reading data, but
+        // introduces a synchronization between them in a post-body call.
         const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
-                vtmp = Vmm(i + 2);
-                // do maxps directly from memory on f32 avx2 for performance purpose
+                Vmm vreg_tmp_max = get_aux_vmm(vreg_tmp_src, max_unroll);
+                // do maxps directly from memory on f32 avx2 for performance
                 if (!tail && is_superset(isa, avx2)
                         && !is_superset(isa, avx512_core)
                         && src_d_.data_type() == f32) {
-                    uni_vmaxps(vmax, vmax, src_ptr(src_next_vreg_stride_ * i));
+                    uni_vmaxps(vreg_tmp_max, vreg_tmp_max,
+                            src_ptr(src_next_vreg_stride_ * i));
                 } else {
                     io_[src_d_.data_type()]->load(
                             src_ptr(src_next_vreg_stride_ * i), vreg_tmp_src,
                             tail);
-                    uni_vmaxps_maybe_tail(vmax, vreg_tmp_src, vtmp, tail);
+                    uni_vmaxps_maybe_tail(
+                            vreg_tmp_max, vreg_tmp_src, vtmp = vsum, tail);
                 }
             }
         };
 
-        const auto post_body = [](int max_unroll) {};
+        const auto post_body = [&](int max_unroll) {
+            assert(utils::one_of(max_unroll, 4, 3, 2, 1));
+
+            Vmm vreg_tmp_max0 = Vmm(0 + max_unroll + 1);
+            Vmm vreg_tmp_max1 = Vmm(1 + max_unroll + 1);
+            Vmm vreg_tmp_max2 = Vmm(2 + max_unroll + 1);
+            Vmm vreg_tmp_max3 = Vmm(3 + max_unroll + 1);
+
+            switch (max_unroll) {
+                case 4: {
+                    perform_op(vreg_tmp_max0, vreg_tmp_max0, vreg_tmp_max1,
+                            op_t::max);
+                    perform_op(vreg_tmp_max2, vreg_tmp_max2, vreg_tmp_max3,
+                            op_t::max);
+                    perform_op(vmax, vreg_tmp_max0, vreg_tmp_max2, op_t::max);
+                } break;
+                case 3: {
+                    perform_op(vreg_tmp_max0, vreg_tmp_max0, vreg_tmp_max1,
+                            op_t::max);
+                    perform_op(vmax, vreg_tmp_max0, vreg_tmp_max2, op_t::max);
+                } break;
+                case 2: {
+                    perform_op(vmax, vreg_tmp_max0, vreg_tmp_max1, op_t::max);
+                } break;
+                case 1: {
+                    uni_vmovups(vmax, vreg_tmp_max0);
+                } break;
+                default: break;
+            }
+        };
 
         axis_loop(pre_body, body, post_body);
 
         get_horizontal_op(vmax, vtmp = vsum, op_t::max);
     }
 
+    // TODO: introduce independent vmax split code for SRF.
     // Use ne_convert instruction to load xf16 even/odd elements from memory
     void accumulate_avx2_ne_xf16_vsum() {
         // Initialize saturation vector register
@@ -529,14 +573,22 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         // Initialize saturation vector register
         io_.init_saturate_f32({dst_d_.data_type()});
 
-        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
+        const auto pre_body = [&](int max_unroll) {
+            // flush to zero before accumulation
+            for (int i = 0; i < max_unroll; i++) {
+                Vmm vreg_tmp_src = Vmm(i + 1);
+                Vmm vreg_tmp_max = get_aux_vmm(vreg_tmp_src, max_unroll);
+                uni_vpxor(vreg_tmp_max, vreg_tmp_max, vreg_tmp_max);
+            }
+        };
 
-        const auto pre_body = [](int max_unroll) {};
-
+        // Each unroll encounter accumulates maximum values into its own vmm.
+        // It removes dependency on a single vmm when reading data, but
+        // introduces a synchronization between them in a post-body call.
         const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
-                vtmp = Vmm(i + 2);
+                Vmm vreg_tmp_sum = get_aux_vmm(vreg_tmp_src, max_unroll);
                 io_[src_d_.data_type()]->load(
                         src_ptr(src_next_vreg_stride_ * i), vreg_tmp_src, tail);
                 uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
@@ -549,7 +601,8 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                                 dst_d_.data_type(), tail);
                 }
                 exp_injector_->compute_vector(vreg_tmp_src.getIdx());
-                uni_vaddps_maybe_tail(vsum, vreg_tmp_src, vtmp, tail);
+                uni_vaddps_maybe_tail(
+                        vreg_tmp_sum, vreg_tmp_src, vtmp = vmax, tail);
                 if (is_softmax_) { // store after applying exp
                     if (need_scratchpad_)
                         store(interim_ptr(interim_next_vreg_stride_ * i),
@@ -561,11 +614,41 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
             }
         };
 
-        const auto post_body = [](int max_unroll) {};
+        const auto post_body = [&](int max_unroll) {
+            assert(utils::one_of(max_unroll, 4, 3, 2, 1));
+
+            Vmm vreg_tmp_sum0 = Vmm(0 + max_unroll + 1);
+            Vmm vreg_tmp_sum1 = Vmm(1 + max_unroll + 1);
+            Vmm vreg_tmp_sum2 = Vmm(2 + max_unroll + 1);
+            Vmm vreg_tmp_sum3 = Vmm(3 + max_unroll + 1);
+
+            switch (max_unroll) {
+                case 4: {
+                    perform_op(vreg_tmp_sum0, vreg_tmp_sum0, vreg_tmp_sum1,
+                            op_t::sum);
+                    perform_op(vreg_tmp_sum2, vreg_tmp_sum2, vreg_tmp_sum3,
+                            op_t::sum);
+                    perform_op(vsum, vreg_tmp_sum0, vreg_tmp_sum2, op_t::sum);
+                } break;
+                case 3: {
+                    perform_op(vreg_tmp_sum0, vreg_tmp_sum0, vreg_tmp_sum1,
+                            op_t::sum);
+                    perform_op(vsum, vreg_tmp_sum0, vreg_tmp_sum2, op_t::sum);
+                } break;
+                case 2: {
+                    perform_op(vsum, vreg_tmp_sum0, vreg_tmp_sum1, op_t::sum);
+                } break;
+                case 1: {
+                    uni_vmovups(vsum, vreg_tmp_sum0);
+                } break;
+                default: break;
+            }
+        };
 
         axis_loop(pre_body, body, post_body);
 
         get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
+
         if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
         if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
     }
