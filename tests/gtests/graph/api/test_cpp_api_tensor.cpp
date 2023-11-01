@@ -90,7 +90,7 @@ TEST(APITensor, CreateWithShape) {
     // without handle
     logical_tensor lt_6 {id, data_type::f32, logical_tensor::dims {3, 4, 5, 6},
             layout_type::strided};
-    tensor t_6(lt_6, eng, DNNL_MEMORY_ALLOCATE);
+    tensor t_6(lt_6, eng);
     EXPECT_TRUE(t_6.get_data_handle() != nullptr);
 }
 

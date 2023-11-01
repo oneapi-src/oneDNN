@@ -578,6 +578,14 @@ public:
         reset(t);
     }
 
+    /// Constructs a tensor object.
+    /// The underlying buffer for the memory will be allocated by the library.
+    ///
+    /// @param lt The given logical tensor
+    /// @param aengine Engine to store the data on.
+    tensor(const logical_tensor &lt, const engine &aengine)
+        : tensor(lt, aengine, DNNL_MEMORY_ALLOCATE) {}
+
     /// Returns the underlying memory buffer.
     ///
     /// On the CPU engine, or when using USM, this is a pointer to the
