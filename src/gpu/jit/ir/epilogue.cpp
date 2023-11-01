@@ -1139,7 +1139,7 @@ stmt_t create_epilogue_stmt(const exec_config_t &exec_cfg, ir_context_t &ir_ctx,
     epilogue_builder_t builder(ir_ctx, exec_cfg, gemm_schedule, force_c_reorder,
             post_op_ctx, thr_tile, c_mem_view, c_reg_layout, c_mem_buf,
             c_reg_buf, preload_max_size, post_op_blk);
-    c_reg_buf_size = builder.c_reg_buf_size();
+    c_reg_buf_size = utils::rnd_up(builder.c_reg_buf_size(), ir_ctx.grf_size());
     return builder.stmt();
 }
 

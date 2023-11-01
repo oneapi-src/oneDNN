@@ -435,9 +435,10 @@ private:
         auto &a_layout = fma.a_layout;
         auto &b_layout = fma.b_layout;
         auto &c_layout = fma.c_layout;
+        int c_buf_size = utils::rnd_up(c_layout.size(), ir_ctx_.grf_size());
         auto a_buf = buf_mgr_.get("a");
         auto b_buf = buf_mgr_.get("b");
-        auto c_buf = buf_mgr_.get("c", c_layout.size());
+        auto c_buf = buf_mgr_.get("c", c_buf_size);
         int b0 = fma.bmnk_start_idx(bmnk_kind_t::b, subtile_idx);
         int b1 = fma.bmnk_stop_idx(bmnk_kind_t::b, subtile_idx);
         int m0 = fma.bmnk_start_idx(bmnk_kind_t::m, subtile_idx);

@@ -104,7 +104,9 @@ public:
     std::map<std::string, entry_t> &entries() { return entries_; }
 
     expr_t get(const std::string &name, int size = 0) {
-        size = utils::rnd_up(size, ir_ctx_->grf_size());
+        if (size > ir_ctx_->grf_size()) {
+            ir_assert(size % ir_ctx_->grf_size() == 0);
+        }
         auto it = entries_.find(name);
         if (it != entries_.end()) {
             auto &e = it->second;

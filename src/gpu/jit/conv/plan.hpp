@@ -151,14 +151,14 @@ struct x2r_plan_t : public base_plan_t {
         int a_size = a_layout.size();
         if (split_abc == abc_kind_t::a)
             a_size = utils::div_up(a_size, split_factor);
-        return a_size;
+        return utils::rnd_up(a_size, grf_size());
     }
 
     int b_buf_size() const {
         int b_size = b_layout.size();
         if (split_abc == abc_kind_t::b)
             b_size = utils::div_up(b_size, split_factor);
-        return b_size;
+        return utils::rnd_up(b_size, grf_size());
     }
 
     int estimate_regs(bool reuse_headers) const;
