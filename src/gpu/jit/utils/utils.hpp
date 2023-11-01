@@ -923,6 +923,16 @@ inline void idiv_magicgu(uint32_t d, uint32_t &m, uint32_t &p) {
     ir_error_not_expected();
 }
 
+inline uint64_t idiv_magicgu_packed(uint32_t d) {
+    uint32_t m = 0, p = 0;
+    if (math::is_pow2(d)) {
+        p = math::ilog2q(d);
+    } else {
+        ir_utils::idiv_magicgu(d, m, p);
+    }
+    return m + (static_cast<uint64_t>(p) << 32);
+}
+
 } // namespace ir_utils
 } // namespace jit
 } // namespace gpu

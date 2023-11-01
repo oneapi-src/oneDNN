@@ -16,10 +16,19 @@
 
 set(CMAKE_CXX_CLANG_TIDY "")
 
-file(GLOB_RECURSE SOURCES
+set(DIRS "codegen;conv;gemm;ir;ngen;pass;pooling;reorder;utils;v2")
+
+file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
+foreach(d ${DIRS})
+    file(GLOB_RECURSE d_sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/${d}/*.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/${d}/*.cpp
+        )
+    list(APPEND SOURCES "${d_sources}")
+endforeach()
 
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_jit)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})

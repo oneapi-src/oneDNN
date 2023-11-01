@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,10 +17,13 @@
 #include "gpu/gpu_impl_list.hpp"
 
 #include "gpu/jit/binary_format.hpp"
-
 #include "gpu/jit/conv/gen_convolution.hpp"
 #include "gpu/ocl/gen9_wino_convolution.hpp"
 #include "gpu/ocl/ref_convolution.hpp"
+
+#ifdef DNNL_DEV_MODE
+#include "gpu/jit/v2/conv/gen_convolution.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -29,10 +32,17 @@ namespace gpu {
 namespace {
 using namespace dnnl::impl::prop_kind;
 
+#ifdef DNNL_DEV_MODE
+#define V2_CONV_INSTANCE INSTANCE(jit::v2::conv::gen_convolution_fwd_t)
+#else
+#define V2_CONV_INSTANCE
+#endif
+
 // clang-format off
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_CONV_P({
     {{forward}, {
+        V2_CONV_INSTANCE
         INSTANCE(jit::gen_convolution_fwd_t)
         INSTANCE(ocl::gen9_wino_convolution_fwd_t)
         INSTANCE(ocl::ref_convolution_fwd_t)
@@ -50,6 +60,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     })},
 });
 // clang-format on
+
+#undef V2_CONV_INSTANCE
 } // namespace
 
 const impl_list_item_t *get_convolution_impl_list(
