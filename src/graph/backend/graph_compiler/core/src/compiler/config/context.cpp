@@ -119,85 +119,86 @@ static void parse_value(const char *name, T &v) {
     if (!strv.empty()) { v = T(std::stoi(strv)); };
 }
 
-context_ptr get_default_context() {
-    static auto v = []() {
-        runtime::target_machine_t tm = runtime::get_native_target_machine();
-        scflags_t flags;
+context_ptr make_context_from_env() {
+    runtime::target_machine_t tm = runtime::get_native_target_machine();
+    scflags_t flags;
 
 #if defined(SC_LLVM_BACKEND)
-        jit_kind jit = jit_kind::llvm;
+    jit_kind jit = jit_kind::llvm;
 #elif SC_BUILTIN_JIT_ENABLED
-        jit_kind jit = jit_kind::xbyak;
+    jit_kind jit = jit_kind::xbyak;
 #elif SC_CFAKE_JIT_ENABLED
-        jit_kind jit = jit_kind::cfake;
+    jit_kind jit = jit_kind::cfake;
 #endif
-        {
-            const char *jit_env_var_name = env_names[SC_CPU_JIT];
-            const char *cfakejit_switch_name = "c";
-            auto buf = utils::getenv_string(jit_env_var_name);
-            if (!buf.empty()) {
+    {
+        const char *jit_env_var_name = env_names[SC_CPU_JIT];
+        const char *cfakejit_switch_name = "c";
+        auto buf = utils::getenv_string(jit_env_var_name);
+        if (!buf.empty()) {
 #if SC_CFAKE_JIT_ENABLED
-                if (buf == cfakejit_switch_name) {
-                    jit = jit_kind::cfake;
-                }
+            if (buf == cfakejit_switch_name) {
+                jit = jit_kind::cfake;
+            }
 #else
-                if (false) {
-                    // make compiler happy
-                }
+            if (false) {
+                // make compiler happy
+            }
 #endif
 #if SC_BUILTIN_JIT_ENABLED
-                else if (buf == "builtin") {
-                    jit = jit_kind::xbyak;
-                }
+            else if (buf == "builtin") {
+                jit = jit_kind::xbyak;
+            }
 #endif
 #if defined(SC_LLVM_BACKEND)
-                else if (buf == "llvm") {
-                    jit = jit_kind::llvm;
-                }
+            else if (buf == "llvm") {
+                jit = jit_kind::llvm;
+            }
 #endif
-                else {
-                    SC_MODULE_WARN << "Bad value for SC_CPU_JIT=" << buf
-                                   << ", setting to default value="
+            else {
+                SC_MODULE_WARN << "Bad value for SC_CPU_JIT=" << buf
+                               << ", setting to default value="
 #if defined(SC_LLVM_BACKEND)
-                                      "llvm";
+                                  "llvm";
 #elif SC_BUILTIN_JIT_ENABLED
-                                      "builtin";
+                                  "builtin";
 #elif SC_CFAKE_JIT_ENABLED
-                                      "cfake";
+                                  "cfake";
 #endif
-                }
             }
         }
+    }
 
-        flags.jit_kind_ = jit;
-        jit_engine_t::set_target_machine(jit, flags, tm);
-        reset_cpu_flags_by_dnnl_envs(tm);
-        tm.brgemm_use_amx_ = tm.cpu_flags_.fAVX512AMXTILE
-                && (tm.cpu_flags_.fAVX512AMXBF16
-                        || tm.cpu_flags_.fAVX512AMXINT8);
-        set_runtime_target_machine(tm);
-        std::string tracep = utils::getenv_string(env_names[SC_TRACE]);
-        if (!tracep.empty() && tracep != "0") {
-            flags.trace_ = true;
-            SC_MODULE_WARN << "Trace is ON";
-        }
+    flags.jit_kind_ = jit;
+    jit_engine_t::set_target_machine(jit, flags, tm);
+    reset_cpu_flags_by_dnnl_envs(tm);
+    tm.brgemm_use_amx_ = tm.cpu_flags_.fAVX512AMXTILE
+            && (tm.cpu_flags_.fAVX512AMXBF16 || tm.cpu_flags_.fAVX512AMXINT8);
+    set_runtime_target_machine(tm);
+    std::string tracep = utils::getenv_string(env_names[SC_TRACE]);
+    if (!tracep.empty() && tracep != "0") {
+        flags.trace_ = true;
+        SC_MODULE_WARN << "Trace is ON";
+    }
 
-        int opt_level = utils::getenv_int(env_names[SC_OPT_LEVEL], 3);
-        check_within(
-                opt_level, 0, 3, 3, "Bad optimization level in SC_OPT_LEVEL: ");
-        flags.opt_level_ = sc_opt_level(opt_level);
+    int opt_level = utils::getenv_int(env_names[SC_OPT_LEVEL], 3);
+    check_within(
+            opt_level, 0, 3, 3, "Bad optimization level in SC_OPT_LEVEL: ");
+    flags.opt_level_ = sc_opt_level(opt_level);
 
-        if (opt_level == 0) {
-            // disable opt passes
-            flags.buffer_schedule_ = 0;
-            flags.dead_write_elimination_ = false;
-            flags.kernel_optim_ = 0;
-            flags.index2var_ = false;
-            flags.tensor_inplace_ = false;
-        }
+    if (opt_level == 0) {
+        // disable opt passes
+        flags.buffer_schedule_ = 0;
+        flags.dead_write_elimination_ = false;
+        flags.kernel_optim_ = 0;
+        flags.index2var_ = false;
+        flags.tensor_inplace_ = false;
+    }
 
-        return std::make_shared<context_t>(flags, std::move(tm));
-    }();
+    return std::make_shared<context_t>(flags, std::move(tm));
+}
+
+context_ptr get_default_context() {
+    static auto v = make_context_from_env();
     return v;
 }
 

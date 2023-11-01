@@ -80,6 +80,7 @@ struct context_t {
 };
 using context_ptr = std::shared_ptr<context_t>;
 
+SC_API context_ptr make_context_from_env();
 SC_API context_ptr get_default_context();
 } // namespace gc
 } // namespace graph
