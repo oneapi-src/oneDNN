@@ -1366,6 +1366,7 @@ void init_slm(conv_config_t &cfg) {
                     cfg.zp_cfg().do_src_compensation, enable_a, enable_b,
                     cfg.pipeline().do_unroll());
         }
+        ir_assert(bufs > 0);
         gmem_bufs = (cfg.is_dp_fma() && cfg.pipeline().do_unroll()) ? 2 : 1;
     }
     gmem_bufs = std::min(cfg.plan().max_gmem_bufs, gmem_bufs);

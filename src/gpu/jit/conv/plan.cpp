@@ -1918,6 +1918,7 @@ private:
     bool use_slm(abc_kind_t abc) const {
         auto &prb = cfg_.prb();
         bool is_a = (abc == abc_kind_t::a);
+        if (cfg_.bufs_hint() == 0) return false;
         if (cfg_.slm().is_overridden()) {
             return is_a ? cfg_.slm().a() : cfg_.slm().b();
         }

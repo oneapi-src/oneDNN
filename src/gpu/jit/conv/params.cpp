@@ -236,12 +236,10 @@ std::string blocking_t::str(bool csv) const {
         oss << "," << thread_group_;
         oss << "," << iter_;
     } else {
-        oss << "cfg=\"";
         oss << "simd=" << simd_;
         oss << " l=" << loop_;
         oss << " T=" << thread_group_;
         oss << " i=" << iter_;
-        oss << "\"";
     }
     return oss.str();
 }
@@ -283,6 +281,7 @@ conv_params_t::conv_params_t(const conv_config_t &cfg) {
         if (iter != 1) blocking_.set_iter(d, iter);
     }
     blocking_.set_simd(cfg.vec_size());
+    if (!cfg.slm() && !cfg.prefetch()) bufs_hint_ = 0;
 }
 
 bool conv_params_t::is_empty() const {
@@ -297,6 +296,7 @@ void conv_params_t::apply_to(conv_config_t &cfg) const {
     if (!cfg.iter_dims().is_overridden()) cfg.iter_dims().set(blocking_.iter());
     cfg.set_params_id(id_);
     cfg.set_bufs_hint(bufs_hint_);
+    ir_assert(bufs_hint_ <= 0);
 }
 
 void conv_params_t::serialize(std::ostream &out) const {
@@ -311,12 +311,20 @@ void conv_params_t::deserialize(std::istream &in) {
 
 std::string conv_params_t::str(bool csv) const {
     std::ostringstream oss;
-    oss << blocking_.str(csv);
+    if (csv) {
+        oss << blocking_.str(csv);
+        oss << "," << bufs_hint_;
+    } else {
+        oss << "cfg=\"";
+        oss << blocking_.str(csv);
+        if (bufs_hint_ == 0) oss << " s=x0 p=x0";
+        oss << "\"";
+    }
     return oss.str();
 }
 
 std::vector<std::string> conv_params_t::csv_keys() {
-    return {"simd", "loop", "tg", "iter"};
+    return {"simd", "loop", "tg", "iter", "bufs_hint"};
 }
 
 } // namespace jit
