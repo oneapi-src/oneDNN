@@ -124,6 +124,16 @@ public:
         return find(buf.as<var_t>().name, allow_empty);
     }
 
+    const entry_t &find_ref(const std::string &name) const {
+        auto it = entries_.find(name);
+        ir_assert(it != entries_.end());
+        return it->second;
+    }
+
+    const entry_t &find_ref(const expr_t &buf) const {
+        return find_ref(buf.as<var_t>().name);
+    }
+
     entry_t &find_ref(const std::string &name) {
         auto it = entries_.find(name);
         ir_assert(it != entries_.end());
@@ -132,6 +142,10 @@ public:
 
     entry_t &find_ref(const expr_t &buf) {
         return find_ref(buf.as<var_t>().name);
+    }
+
+    const expr_t &find_buf(const std::string &name) const {
+        return find_ref(name).buf;
     }
 
     int size(const expr_t &buf) const {
