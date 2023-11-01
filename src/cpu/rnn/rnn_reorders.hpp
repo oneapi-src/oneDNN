@@ -596,8 +596,8 @@ struct rnn_weights_reorder_t : public primitive_t {
                     = (itag == ldigo && rnn_pdata.format == ldgoi_p)
                     || (itag == ldgoi && rnn_pdata.format == ldigo_p)
                     || (itag == ldio && rnn_pdata.format == ldio_p),
-                    dt_cross_case
-                    = type_i == data_type::f32 && type_o == data_type::bf16;
+                    dt_cross_case = type_i == data_type::f32
+                    && (type_o == data_type::bf16 || type_o == data_type::f16);
             const size_t sz = id.nelems();
 
             using namespace memory_tracking::names;
@@ -606,7 +606,7 @@ struct rnn_weights_reorder_t : public primitive_t {
                     key_reorder_rnn_weights_transposition,
                     layout_cross_case ? sz : 0);
             scratchpad.template book<out_data_t>(
-                    key_reorder_rnn_weights_bf16_cvt, dt_cross_case ? sz : 0);
+                    key_reorder_rnn_weights_xf16_cvt, dt_cross_case ? sz : 0);
         }
         friend dnnl::impl::impl_list_item_t;
     };
@@ -645,15 +645,15 @@ private:
         const int *parts = rnn_pdata.parts;
         const dim_t n = rnn_pdata.n;
 
-        /* Convert fp32 input to bf16 */
+        /* Convert to fp32*/
         out_data_t *input_cvt = (out_data_t *)input;
         if (type_i == data_type::f32 && type_o == data_type::bf16) {
             input_cvt
                     = (out_data_t *)ctx.get_scratchpad_grantor()
                               .template get<void>(memory_tracking::names::
-                                              key_reorder_rnn_weights_bf16_cvt);
+                                              key_reorder_rnn_weights_xf16_cvt);
             parallel_nd(L * D, [&](dim_t ld) {
-                cvt_float_to_bfloat16((bfloat16_t *)input_cvt + ld * G * O * I,
+                types::cvt_from_float((bfloat16_t *)input_cvt + ld * G * O * I,
                         (float *)input + ld * G * O * I, G * O * I);
             });
         }
@@ -697,6 +697,9 @@ private:
                                                 ? off_igo(l, d, 0, g, 0)
                                                 : off_goi(l, d, 0, g, 0)],
                                 (bfloat16_t *)output));
+                    } else if (type_o == data_type::f16) {
+                        assert(!"Unimplemented");
+                        return status::unimplemented;
                     } else {
                         CHECK(sgemm_pack("A", "N", "N", &m_p, &n, &k_p, &lda,
                                 &ldb,

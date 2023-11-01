@@ -258,7 +258,7 @@ protected:
                     cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
                     jle(loop_inc_regs);
                     // As to_src is called with write_only=true it's important
-                    // for bf16 src_dt to execute just after to_src method with
+                    // for xf16 src_dt to execute just after to_src method with
                     // write_only=false for the same Vmm
                     to_src(ptr[addr_states_t_l_copy_reg
                                    + loop_ur_idx * vlen_dst],

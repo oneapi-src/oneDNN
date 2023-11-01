@@ -380,7 +380,7 @@ protected:
                     to_src(ptr[addr_states_t_l_reg + ur_idx * vlen_dst_],
                             tmp_c_states, src_data_t, current_vlen);
                     // As to_src is called with write_only=true it's important
-                    // for bf16 src_dt to execute just after to_src method with
+                    // for xf16 src_dt to execute just after to_src method with
                     // write_only=false for the same Vmm
                     to_src(ptr[addr_states_t_l_copy_reg + ur_idx * vlen_dst_],
                             tmp_c_states, src_data_t, current_vlen, true);

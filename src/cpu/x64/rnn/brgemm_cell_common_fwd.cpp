@@ -127,7 +127,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
 
-    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
+    const bool is_amx = is_superset(rnn_.brgemm_isa, x64::avx512_core_amx);
     gemm_acc_t *const amx_buffer = is_amx
             ? amx_scratchpad_ + rnn_.m_block * rnn_.n_block * ithr
             : nullptr;
@@ -281,7 +281,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
 
-    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
+    const bool is_amx = is_superset(rnn_.brgemm_isa, x64::avx512_core_amx);
     gemm_acc_t *const amx_buffer = is_amx
             ? amx_scratchpad_ + rnn_.m_block * rnn_.n_block * ithr
             : nullptr;
@@ -465,7 +465,7 @@ void brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::kernel(
 
     int start = 0, end = 0;
     balance211(work_amount_proj_, nthr, ithr, start, end);
-    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
+    const bool is_amx = is_superset(rnn_.brgemm_isa, x64::avx512_core_amx);
     const int max_K_Block = nstl::max(rnn_.KB1_blocks + 1,
             nstl::max(rnn_.KBproj_blocks + 1, rnn_.KB2_blocks + 1));
     auto *const amx_buffer = is_amx
@@ -668,7 +668,7 @@ void brgemm_gru_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
 
-    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
+    const bool is_amx = is_superset(rnn_.brgemm_isa, x64::avx512_core_amx);
     gemm_acc_t *const amx_buffer = is_amx
             ? amx_scratchpad_ + rnn_.m_block * rnn_.n_block * ithr
             : nullptr;
@@ -943,7 +943,7 @@ void brgemm_merged_layer_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
 
-    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
+    const bool is_amx = is_superset(rnn_.brgemm_isa, x64::avx512_core_amx);
     const auto m_block = rnn_.mlayermerged_block;
     gemm_acc_t *const amx_buffer = is_amx
             ? amx_scratchpad_ + m_block * rnn_.n_block * ithr
@@ -1046,9 +1046,11 @@ template class brgemm_dst_layer_iter_t<uint8_t, int8_t, int32_t, int32_t>;
 template class brgemm_dst_layer_iter_t<int8_t, int8_t, int32_t, int32_t>;
 template class brgemm_dst_layer_iter_t<float, float, float, float>;
 template class brgemm_dst_layer_iter_t<bfloat16_t, bfloat16_t, float, float>;
+template class brgemm_dst_layer_iter_t<float16_t, float16_t, float, float>;
 
 template class brgemm_dst_proj_t<float, float, float>;
 template class brgemm_dst_proj_t<bfloat16_t, bfloat16_t, float>;
+template class brgemm_dst_proj_t<float16_t, float16_t, float>;
 template class brgemm_dst_proj_t<int8_t, int8_t, int32_t>;
 template class brgemm_dst_proj_t<uint8_t, int8_t, int32_t>;
 
@@ -1056,11 +1058,13 @@ template class brgemm_gru_t<uint8_t, int8_t, int32_t, int32_t>;
 template class brgemm_gru_t<int8_t, int8_t, int32_t, int32_t>;
 template class brgemm_gru_t<float, float, float, float>;
 template class brgemm_gru_t<bfloat16_t, bfloat16_t, float, float>;
+template class brgemm_gru_t<float16_t, float16_t, float, float>;
 
 template class brgemm_merged_layer_t<uint8_t, int8_t, int32_t, int32_t>;
 template class brgemm_merged_layer_t<int8_t, int8_t, int32_t, int32_t>;
 template class brgemm_merged_layer_t<float, float, float, float>;
 template class brgemm_merged_layer_t<bfloat16_t, bfloat16_t, float, float>;
+template class brgemm_merged_layer_t<float16_t, float16_t, float, float>;
 
 } // namespace x64
 } // namespace cpu

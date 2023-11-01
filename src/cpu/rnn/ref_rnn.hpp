@@ -318,7 +318,7 @@ struct _ref_rnn_common_t : public primitive_t {
             ok = ok
                     && IMPLICATION(one_of(this->desc()->prop_kind,
                                            forward_training, backward),
-                            (rnn_.is_bf16_conf() || rnn_.is_f32_conf()));
+                            (rnn_.is_xf16_conf() || rnn_.is_f32_conf()));
 
             if (!ok) return status::unimplemented;
 
@@ -348,6 +348,14 @@ struct _ref_rnn_common_t : public primitive_t {
                         || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt
                         || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
                                 data_type::bf16, data_type::f32))
+                    return status::unimplemented;
+            } else if (rnn_.is_f16_conf()) {
+                if (!mayiuse(avx512_core_amx_fp16)
+                        || !utils::one_of(
+                                rnn_.bias_dt, data_type::f16, data_type::f32)
+                        || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt
+                        || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
+                                data_type::f16, data_type::f32))
                     return status::unimplemented;
             } else if (rnn_.bias_dt != data_type::f32
                     || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
@@ -839,6 +847,10 @@ using ref_rnn_common_fwd_bf16_t = _ref_rnn_common_t<prop_kind::forward,
         data_type::bf16, data_type::bf16, data_type::f32>;
 using ref_rnn_common_bwd_bf16_t = _ref_rnn_common_t<prop_kind::backward,
         data_type::bf16, data_type::bf16, data_type::f32>;
+using ref_rnn_common_fwd_f16_t = _ref_rnn_common_t<prop_kind::forward,
+        data_type::f16, data_type::f16, data_type::f32>;
+using ref_rnn_common_bwd_f16_t = _ref_rnn_common_t<prop_kind::backward,
+        data_type::f16, data_type::f16, data_type::f32>;
 using ref_rnn_common_fwd_u8s8_t = _ref_rnn_common_t<prop_kind::forward,
         data_type::u8, data_type::s8, data_type::s32>;
 using ref_rnn_common_fwd_s8s8_t = _ref_rnn_common_t<prop_kind::forward,
@@ -853,6 +865,12 @@ using ref_rnn_fwd_bf16_t
         = _ref_rnn_fwd_t<data_type::bf16, data_type::bf16, data_type::f32>;
 using ref_rnn_bwd_bf16_t
         = _ref_rnn_bwd_t<data_type::bf16, data_type::bf16, data_type::f32>;
+
+using ref_rnn_fwd_f16_t
+        = _ref_rnn_fwd_t<data_type::f16, data_type::f16, data_type::f32>;
+using ref_rnn_bwd_f16_t
+        = _ref_rnn_bwd_t<data_type::f16, data_type::f16, data_type::f32>;
+
 using ref_rnn_fwd_u8s8_t
         = _ref_rnn_fwd_t<data_type::u8, data_type::s8, data_type::s32>;
 using ref_rnn_fwd_s8s8_t

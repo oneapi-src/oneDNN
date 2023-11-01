@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ jit_gates_reduction_t::jit_gates_reduction_t(
     , n_simd_w_blks_(n_block_ / simd_w_)
     , n_tail_(n_block_ % simd_w_)
     , bf16_ones_(rnn_.is_bf16_conf() ? reserve_vmm() : 0)
+    , f16_tmp_vreg_(rnn_.is_f16_conf() ? reserve_vmm() : 0)
+    , f16_vperm_vreg_(rnn_.is_f16_conf() ? reserve_vmm() : 0)
     , acc_regs_(reserve_acc_regs()) {}
 
 void jit_gates_reduction_t::generate() {
@@ -43,6 +45,15 @@ void jit_gates_reduction_t::generate() {
     compute_loop();
     store_data();
     postamble();
+    if (rnn_.is_f16_conf()) {
+        // convert interleaved vnni data with holes to packed.
+        const uint16_t f16_prm_array[16]
+                = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
+        align(64);
+        L(f16_perm_table_);
+        for (int i = 0; i < 16; ++i)
+            dw(f16_prm_array[i]);
+    }
 }
 
 #define PARAM_OFF(x) offsetof(jit_gates_reduction_t::call_params_t, x)
@@ -91,6 +102,15 @@ void jit_gates_reduction_t::init() {
         vmovd(xmm_tmp, reg_tmp_.cvt32());
         vpbroadcastw(bf16_ones_, xmm_tmp);
     }
+
+    if (rnn_.is_f16_conf()) {
+        const auto half_mask = size_t((1 << 16) - 1);
+        mov(reg_tmp_, half_mask);
+        kmovq(k_f16_perm_mask, reg_tmp_);
+
+        mov(reg_tmp_, f16_perm_table_);
+        vmovups(f16_vperm_vreg_ | k_f16_perm_mask | T_z, ptr[reg_tmp_]);
+    }
 }
 
 void jit_gates_reduction_t::compute_step(
@@ -100,7 +120,29 @@ void jit_gates_reduction_t::compute_step(
 
     if (rnn_.is_bf16_conf())
         vdpbf16ps(dst, bf16_ones_, addr);
-    else
+    else if (rnn_.is_f16_conf()) {
+        // As we do not have fp16_vnni, we add twice to accumulate
+        // adjacent elements.
+        auto lower_f16_tmp_vreg_ = Xbyak::Ymm(f16_tmp_vreg_.getIdx());
+        if (tail)
+            vmovups(f16_tmp_vreg_ | tail_mask_ | T_z, addr);
+        else
+            vmovups(f16_tmp_vreg_, addr);
+        vpermw(f16_tmp_vreg_ | k_f16_perm_mask | T_z, f16_vperm_vreg_,
+                f16_tmp_vreg_);
+        vcvtph2psx(f16_tmp_vreg_, lower_f16_tmp_vreg_);
+        vaddps(dst, dst, f16_tmp_vreg_);
+
+        if (tail)
+            vmovups(f16_tmp_vreg_ | tail_mask_ | T_z, addr);
+        else
+            vmovups(f16_tmp_vreg_, addr);
+        vpsrld(f16_tmp_vreg_, f16_tmp_vreg_, 16);
+        vpermw(f16_tmp_vreg_ | k_f16_perm_mask | T_z, f16_vperm_vreg_,
+                f16_tmp_vreg_);
+        vcvtph2psx(f16_tmp_vreg_, lower_f16_tmp_vreg_);
+        vaddps(dst, dst, f16_tmp_vreg_);
+    } else
         uni_vaddps(dst, acc, addr);
 }
 
@@ -124,11 +166,11 @@ void jit_gates_reduction_t::compute(dim_t unrolling) {
 
 void jit_gates_reduction_t::compute_loop() {
     const dim_t k_block = 32;
-    const dim_t k_pack = rnn_.is_bf16_conf() ? 2 : 1;
+    const dim_t k_pack = rnn_.is_xf16_conf() ? 2 : 1;
     const dim_t k = rnn_.diff_wei_brgemm.Kpadded;
     const auto res = std::div(k, k_block);
     const int n_block_off = rnn_.diff_wei_brgemm.n_block
-            * (rnn_.is_bf16_conf() ? sizeof(bfloat16_t) : sizeof(float));
+            * (rnn_.is_xf16_conf() ? sizeof(bfloat16_t) : sizeof(float));
     const auto &num_k_blks = res.quot;
     const auto &k_tail = res.rem;
 

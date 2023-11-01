@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -294,7 +294,7 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                 if (rnn.is_int8_conf())
                     tag = utils::map(n_block, format_tag::undef, 64,
                             format_tag::ldgOI64o4i, 32, ldgOI32o4i);
-                else if (rnn.is_bf16_conf())
+                else if (rnn.is_xf16_conf())
                     tag = utils::map(n_block, format_tag::undef, 64,
                             format_tag::ldgOI64o2i, 32, ldgOI32o2i);
                 else {
@@ -304,7 +304,7 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                             format_tag::ldgOi32o, 16, ldgOi16o);
                 }
             } else {
-                if (rnn.is_bf16_conf())
+                if (rnn.is_xf16_conf())
                     tag = format_tag::ldgIO32i2o;
                 else
                     tag = utils::map(n_block, format_tag::undef, 32,
@@ -347,6 +347,8 @@ float rnn_utils::to_float(const void *data, const data_type_t dt) {
         return *static_cast<const float *>(data);
     else if (dt == data_type::bf16)
         return float(*static_cast<const bfloat16_t *>(data));
+    else if (dt == data_type::f16)
+        return float(*static_cast<const float16_t *>(data));
     return 0.0;
 }
 
@@ -356,6 +358,8 @@ const void *rnn_utils::inc_ptr(
         return static_cast<const float *>(data) + offset;
     else if (data_type == data_type::bf16)
         return static_cast<const bfloat16_t *>(data) + offset;
+    else if (data_type == data_type::f16)
+        return static_cast<const float16_t *>(data) + offset;
     else
         return data;
 }

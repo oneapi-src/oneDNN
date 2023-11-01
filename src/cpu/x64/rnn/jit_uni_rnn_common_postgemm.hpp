@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,10 +64,10 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         , bf16_reg3(zmm29)
         , bf16_reg4(r13)
         , bf16_reg5(zmm28)
-        , bf16_k_mask(k2)
+        , xf16_k_mask(k2)
         , tmp_reg(bf16_reg4)
         , zmm_tail_k_mask(k3)
-        , bf16_dq_reg_idx(tmp_vector_register_idx) {}
+        , xf16_dq_reg_idx(tmp_vector_register_idx) {}
 
     ~jit_uni_rnn_postgemm() {
         if (bf16_emu_) delete bf16_emu_;
@@ -387,13 +387,14 @@ protected:
             is_zmm_mask_initialized = true;
         }
         switch (pd_->weights_md()->data_type) {
-            case data_type::bf16: {
+            case data_type::bf16:
+            case data_type::f16: {
                 /* bfloat downconvert init */
                 if (bf16_emu_) bf16_emu_->init_vcvtneps2bf16();
                 /* init mask for upconvert */
                 const auto tmp_reg32 = tmp_reg.cvt32();
                 mov(tmp_reg32, 1);
-                kmovd(bf16_k_mask, tmp_reg32);
+                kmovd(xf16_k_mask, tmp_reg32);
                 break;
             }
             case data_type::s8: {
@@ -642,7 +643,7 @@ protected:
     void bf16_uc(Vmm dst, Xbyak::Address src, int in_len) {
         switch (in_len) {
             case 64: vpmovzxwd(dst, src); break;
-            case 4: vpmovzxwd(dst | bf16_k_mask | T_z, src); break;
+            case 4: vpmovzxwd(dst | xf16_k_mask | T_z, src); break;
             default:
                 assert(is_zmm_mask_initialized);
                 vpmovzxwd(dst | zmm_tail_k_mask | T_z, src);
@@ -659,7 +660,7 @@ protected:
     void bf16_dc(
             Xbyak::Address dst, Vmm src, int in_len, bool write_only = false) {
         Xbyak::Zmm srcz(src.getIdx());
-        Xbyak::Ymm bf16_reg_dc(bf16_dq_reg_idx);
+        Xbyak::Ymm bf16_reg_dc(xf16_dq_reg_idx);
         if (!write_only) {
             if (bf16_emu_)
                 bf16_emu_->vcvtneps2bf16(bf16_reg_dc, srcz);
@@ -673,7 +674,40 @@ protected:
                 break;
             default:
                 assert(is_zmm_mask_initialized);
-                vmovdqu16(dst, Xbyak::Zmm(bf16_dq_reg_idx) | zmm_tail_k_mask);
+                vmovdqu16(dst, Xbyak::Zmm(xf16_dq_reg_idx) | zmm_tail_k_mask);
+        }
+    }
+
+    // upconvert from f16 to float
+    template <typename Vmm>
+    void f16_uc(Vmm dst, Xbyak::Address src, int in_len) {
+        switch (in_len) {
+            case 64: vcvtph2psx(dst, src); break;
+            case 4: vcvtph2psx(dst | xf16_k_mask | T_z, src); break;
+            default:
+                assert(is_zmm_mask_initialized);
+                vcvtph2psx(dst | zmm_tail_k_mask | T_z, src);
+        }
+    }
+
+    // downconvert from float to f16
+    // Assumption: write_only = true assumes that we want to
+    // immediately rewrite the downconverted result that is still in
+    // f16_dq_reg_idx
+    template <typename Vmm>
+    void f16_dc(
+            Xbyak::Address dst, Vmm src, int in_len, bool write_only = false) {
+        Xbyak::Zmm srcz(src.getIdx());
+        Xbyak::Ymm f16_reg_dc(xf16_dq_reg_idx);
+        if (!write_only) vcvtps2phx(f16_reg_dc, srcz);
+        switch (in_len) {
+            case 64: uni_vmovups(dst, f16_reg_dc); break;
+            case 4:
+                uni_vpextrw(dst, Xbyak::Xmm(f16_reg_dc.getIdx()), 0x0);
+                break;
+            default:
+                assert(is_zmm_mask_initialized);
+                vmovdqu16(dst, Xbyak::Zmm(xf16_dq_reg_idx) | zmm_tail_k_mask);
         }
     }
 
@@ -691,6 +725,7 @@ protected:
         switch (src_dt) {
             case data_type::f32: store(dst, src, src_dt, in_len); break;
             case data_type::bf16: bf16_dc(dst, src, in_len, write_only); break;
+            case data_type::f16: f16_dc(dst, src, in_len, write_only); break;
             case data_type::u8:
             case data_type::s8:
                 q_d(src_dt, dst, src, in_len, write_only);
@@ -705,6 +740,7 @@ protected:
         switch (src_dt) {
             case data_type::f32: load(dst, src, src_dt, in_len); break;
             case data_type::bf16: bf16_uc(dst, src, in_len); break;
+            case data_type::f16: f16_uc(dst, src, in_len); break;
             case data_type::u8:
             case data_type::s8: deq_h(dst, src, in_len); break;
             default: assert(!"unsupported");
@@ -882,11 +918,11 @@ private:
     Xbyak::Reg64 bf16_reg4;
     Xbyak::Zmm bf16_reg5;
     Xbyak::Reg64 bf16_reg_mask;
-    Xbyak::Opmask bf16_k_mask;
+    Xbyak::Opmask xf16_k_mask;
     Xbyak::Reg64 tmp_reg;
     Xbyak::Opmask zmm_tail_k_mask;
 
-    int bf16_dq_reg_idx;
+    int xf16_dq_reg_idx;
     bool is_zmm_mask_initialized = false;
 
     template <typename Vmm>
@@ -902,6 +938,7 @@ private:
         Xbyak::Zmm dst_masked
                 = Xbyak::Zmm(dst.getIdx()) | zmm_tail_k_mask | T_z;
         switch (dt) {
+            case data_type::f16:
             case data_type::bf16: vmovdqu16(dst_masked, src); break;
             case data_type::s8:
             case data_type::u8: vmovdqu8(dst_masked, src); break;
@@ -915,6 +952,7 @@ private:
         const Xbyak::Zmm src_masked
                 = Xbyak::Zmm(src.getIdx()) | zmm_tail_k_mask;
         switch (dt) {
+            case data_type::f16:
             case data_type::bf16: vmovdqu16(dst, src_masked); break;
             case data_type::s8:
             case data_type::u8: vmovdqu8(dst, src_masked); break;

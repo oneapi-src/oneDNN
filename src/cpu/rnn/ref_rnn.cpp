@@ -62,6 +62,9 @@ rnn_gemm_sig((_ref_rnn_bwd_t<src_type, weights_type, acc_type>::gemm)) {
     return dnnl_unimplemented;
 }
 
+template rnn_gemm_sig(ref_rnn_fwd_f16_t::gemm);
+template rnn_gemm_sig(ref_rnn_bwd_f16_t::gemm);
+
 template <>
 rnn_gemm_sig((ref_rnn_fwd_f32_t::gemm)) {
     assert(ldA * ldB * ldC != 0);
@@ -103,6 +106,9 @@ rnn_gemm_sig((_ref_rnn_bwd_t<src_type, weights_type, acc_type>::packed_gemm)) {
     assert(!"packed gemm is unavailable for this datatype");
     return dnnl_unimplemented;
 }
+
+template rnn_gemm_sig(ref_rnn_fwd_f16_t::packed_gemm);
+template rnn_gemm_sig(ref_rnn_bwd_f16_t::packed_gemm);
 
 template <>
 rnn_gemm_sig(ref_rnn_fwd_f32_t::packed_gemm) {
@@ -570,6 +576,7 @@ void copy_init_layer_bwd_template(const rnn_conf_t &rnn,
 
 RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_common_fwd_f32_t)
 RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_common_fwd_bf16_t)
+RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_common_fwd_f16_t)
 RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_common_fwd_u8s8_t)
 RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_common_fwd_s8s8_t)
 
@@ -586,6 +593,7 @@ RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_common_fwd_s8s8_t)
 
 RNN_DECL_COPY_INIT_LAYER_BWD(ref_rnn_common_bwd_f32_t)
 RNN_DECL_COPY_INIT_LAYER_BWD(ref_rnn_common_bwd_bf16_t)
+RNN_DECL_COPY_INIT_LAYER_BWD(ref_rnn_common_bwd_f16_t)
 
 /* For int8 configuration, input iteration states may be of types f32 or u8
  * Internally h_state is always stored in u8 and c_state is always stored in f32
@@ -627,6 +635,8 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
             *(static_cast<float *>(ws_states_iter_c)) = 0.0f;
         else if (rnn.src_iter_c_dt == data_type::bf16)
             *(static_cast<bfloat16_t *>(ws_states_iter_c)) = 0.0f;
+        else if (rnn.src_iter_c_dt == data_type::f16)
+            *(static_cast<float16_t *>(ws_states_iter_c)) = 0.0f;
     };
 
     if (src_iter_) {
@@ -714,6 +724,7 @@ void copy_init_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 
 RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_common_fwd_f32_t)
 RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_common_fwd_bf16_t)
+RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_common_fwd_f16_t)
 RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_common_fwd_u8s8_t)
 RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_common_fwd_s8s8_t)
 
@@ -735,6 +746,7 @@ RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_common_fwd_s8s8_t)
 
 RNN_DECL_COPY_INIT_ITER_BWD(ref_rnn_common_bwd_f32_t)
 RNN_DECL_COPY_INIT_ITER_BWD(ref_rnn_common_bwd_bf16_t)
+RNN_DECL_COPY_INIT_ITER_BWD(ref_rnn_common_bwd_f16_t)
 
 template <typename src_data_t, typename dst_layer_dt, typename dst_iter_dt>
 void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
@@ -885,6 +897,7 @@ void copy_res_layer_bwd_template(const rnn_conf_t &rnn,
 
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_common_fwd_f32_t)
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_common_fwd_bf16_t)
+RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_common_fwd_f16_t)
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_common_fwd_u8s8_t)
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_common_fwd_s8s8_t)
 
@@ -902,6 +915,7 @@ RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_common_fwd_s8s8_t)
 
 RNN_DECL_COPY_RES_LAYER_BWD(ref_rnn_common_bwd_f32_t)
 RNN_DECL_COPY_RES_LAYER_BWD(ref_rnn_common_bwd_bf16_t)
+RNN_DECL_COPY_RES_LAYER_BWD(ref_rnn_common_bwd_f16_t)
 
 template <typename src_data_t, typename dst_iter_dt, typename dst_layer_dt>
 void copy_res_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
@@ -1004,6 +1018,7 @@ void copy_res_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_common_fwd_f32_t)
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_common_fwd_bf16_t)
+RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_common_fwd_f16_t)
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_common_fwd_u8s8_t)
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_common_fwd_s8s8_t)
 
@@ -1026,6 +1041,7 @@ RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_common_fwd_s8s8_t)
 
 RNN_DECL_COPY_RES_ITER_BWD(ref_rnn_common_bwd_f32_t)
 RNN_DECL_COPY_RES_ITER_BWD(ref_rnn_common_bwd_bf16_t)
+RNN_DECL_COPY_RES_ITER_BWD(ref_rnn_common_bwd_f16_t)
 
 rnn_bias_prepare_sig_templ(copy_bias_to_scratch) {
     const AOC<T, 3> scratch_bias(
@@ -1074,6 +1090,10 @@ rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             copy_bias_to_scratch(rnn, reinterpret_cast<bfloat16_t **>(bias_),
                     static_cast<const bfloat16_t *>(b_),
                     static_cast<bfloat16_t *>(scratch_bias_));
+        else if (rnn.bias_dt == data_type::f16)
+            copy_bias_to_scratch(rnn, reinterpret_cast<float16_t **>(bias_),
+                    static_cast<const float16_t *>(b_),
+                    static_cast<float16_t *>(scratch_bias_));
         else
             assert("Unsupported bias data type");
     }
@@ -1086,6 +1106,10 @@ rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         copy_bias_to_ws(rnn, reinterpret_cast<bfloat16_t **>(bias_),
                 static_cast<const bfloat16_t *>(b_),
                 static_cast<bfloat16_t *>(scratch_bias_));
+    else if (rnn.bias_dt == data_type::f16)
+        copy_bias_to_ws(rnn, reinterpret_cast<float16_t **>(bias_),
+                static_cast<const float16_t *>(b_),
+                static_cast<float16_t *>(scratch_bias_));
     else
         assert("Unsupported bias data type");
 }
@@ -1237,7 +1261,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute(
     gemm_acc_t *amx_scratchpad = nullptr;
 #if DNNL_X64
     x64::brgemm_batch_element_t *addr_batch_global = nullptr;
-    if (rnn.is_brgemm && (rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx())) {
+    if (rnn.is_brgemm && rnn.is_cell_amx()) {
         amx_scratchpad = scratchpad.template get<gemm_acc_t>(
                 key_brgemm_primitive_buffer);
     }
@@ -1502,6 +1526,33 @@ template <>
 rnn_merged_layer_execution_sig(ref_rnn_bwd_bf16_t::merged_layer_execution_ref);
 
 template <>
+rnn_cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_ref);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_brgemm);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_brgemm);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru_lbr);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_f16_t::merged_layer_execution_ref);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_f16_t::merged_layer_brgemm);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f16_t::cell_execution_ref);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f16_t::cell_execution_brgemm);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f16_t::cell_execution_brgemm);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f16_t::cell_execution_gru);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f16_t::cell_execution_gru_lbr);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_bwd_f16_t::merged_layer_execution_ref);
+
+template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_ref);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_brgemm);
@@ -1540,6 +1591,11 @@ template struct _ref_rnn_common_t<prop_kind::forward, data_type::bf16,
         data_type::bf16, data_type::f32>;
 template struct _ref_rnn_common_t<prop_kind::backward, data_type::bf16,
         data_type::bf16, data_type::f32>;
+
+template struct _ref_rnn_common_t<prop_kind::forward, data_type::f16,
+        data_type::f16, data_type::f32>;
+template struct _ref_rnn_common_t<prop_kind::backward, data_type::f16,
+        data_type::f16, data_type::f32>;
 
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
         data_type::s8, data_type::s32>;

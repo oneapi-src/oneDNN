@@ -58,6 +58,7 @@ rnn_merged_layer_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
 template rnn_merged_layer_execution_sig(ref_rnn_fwd_f32_t::merged_layer_brgemm);
 template rnn_merged_layer_execution_sig(
         ref_rnn_fwd_bf16_t::merged_layer_brgemm);
+template rnn_merged_layer_execution_sig(ref_rnn_fwd_f16_t::merged_layer_brgemm);
 template rnn_merged_layer_execution_sig(
         ref_rnn_fwd_u8s8_t::merged_layer_brgemm);
 template rnn_merged_layer_execution_sig(
@@ -267,6 +268,7 @@ rnn_cell_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
 
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_brgemm);
 template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_brgemm);
+template rnn_cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_brgemm);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_brgemm);
 template rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_brgemm);
 
@@ -307,7 +309,7 @@ rnn_cell_execution_sig((_ref_rnn_bwd_t<src_type, weights_type,
         const auto src_iter_ld = rnn.src_iter_ld(cell_position);
         const auto src_layer_ld_nb = rnn.layer_brgemm_desc(cell_position);
         const auto src_iter_ld_nb = rnn.iter_brgemm_desc(cell_position);
-        const auto rnd_up_size = (src_type == data_type::bf16 ? 2 : 1);
+        const auto rnd_up_size = data_type_vnni_granularity(src_type);
         const auto dst_ld = utils::rnd_up(rnn.mb, rnd_up_size);
 
         const auto layer_transpose = src_layer_iter_transpose_t(src_layer_ld,
@@ -342,6 +344,7 @@ rnn_cell_execution_sig((_ref_rnn_bwd_t<src_type, weights_type,
 }
 template rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_brgemm);
 template rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_brgemm);
+template rnn_cell_execution_sig(ref_rnn_bwd_f16_t::cell_execution_brgemm);
 
 } // namespace cpu
 } // namespace impl

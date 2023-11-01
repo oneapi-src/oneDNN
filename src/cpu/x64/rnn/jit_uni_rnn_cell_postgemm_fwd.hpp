@@ -149,7 +149,7 @@ protected:
             // tensors
             cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
             jle(vector_loop_inc_regs);
-            // As to_src is called with write_only=true it's important for bf16
+            // As to_src is called with write_only=true it's important for xf16
             // src_dt to execute just after to_src method with write_only=false
             // for the same Vmm
             to_src(ptr[addr_states_t_l_copy_reg], G, src_data_t, vlen, true);
@@ -201,7 +201,7 @@ protected:
             // tensors
             cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
             jle(rem_loop_inc_regs);
-            // As to_src is called with write_only=true it's important for bf16
+            // As to_src is called with write_only=true it's important for xf16
             // src_dt to execute just after to_src method with write_only=false
             // for the same Vmm
             to_src(ptr[addr_states_t_l_copy_reg], G, src_data_t,

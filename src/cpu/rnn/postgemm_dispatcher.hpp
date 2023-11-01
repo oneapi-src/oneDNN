@@ -259,9 +259,10 @@ protected:
 
         const bool jit_fwd = pd_->is_fwd()
                 && utils::one_of(src_type, data_type::f32, data_type::u8,
-                        data_type::s8, data_type::bf16);
+                        data_type::s8, data_type::bf16, data_type::f16);
         const bool jit_bwd = !pd_->is_fwd()
-                && utils::one_of(src_type, data_type::f32, data_type::bf16);
+                && utils::one_of(src_type, data_type::f32, data_type::bf16,
+                        data_type::f16);
 
 #define CREATE_WITH_DIR(k, ker_t) \
     do { \
@@ -317,7 +318,6 @@ struct rnn_postgemm_fwd_t : public rnn_postgemm_dispatcher<prop_kind::forward,
     using ht_t = typename base_t::ht_t;
     using gates_t = typename base_t::gates_t;
 
-private:
     virtual rnn_postgemm_sig(rnn_postgemm) override;
     virtual rnn_postgemm_sig(lstm_postgemm) override;
     virtual rnn_postgemm_sig(lstm_projection_postgemm) override;
@@ -345,7 +345,6 @@ struct rnn_postgemm_bwd_t : public rnn_postgemm_dispatcher<prop_kind::backward,
     using ht_t = typename base_t::ht_t;
     using gates_t = typename base_t::gates_t;
 
-private:
     virtual rnn_postgemm_sig(rnn_postgemm) override;
     virtual rnn_postgemm_sig(lstm_postgemm) override;
     virtual rnn_postgemm_sig(lstm_projection_postgemm) override;
@@ -366,6 +365,11 @@ using rnn_postgemm_fwd_bf16_t
         = rnn_postgemm_fwd_t<data_type::bf16, data_type::f32, data_type::f32>;
 using rnn_postgemm_bwd_bf16_t
         = rnn_postgemm_bwd_t<data_type::bf16, data_type::bf16, data_type::f32>;
+
+using rnn_postgemm_fwd_f16_t
+        = rnn_postgemm_fwd_t<data_type::f16, data_type::f32, data_type::f32>;
+using rnn_postgemm_bwd_f16_t
+        = rnn_postgemm_bwd_t<data_type::f16, data_type::f16, data_type::f32>;
 
 using rnn_postgemm_fwd_u8_t
         = rnn_postgemm_fwd_t<data_type::u8, data_type::s32, data_type::s32>;

@@ -59,6 +59,8 @@ rnn_cell_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
 
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru_lbr);
+template rnn_cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru_lbr);
+
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr) {
     assert(!"GRU LBR int8 is not supported");
@@ -172,6 +174,7 @@ rnn_cell_execution_sig((_ref_rnn_bwd_t<src_type, weights_type,
 
 template rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
 template rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr);
+template rnn_cell_execution_sig(ref_rnn_bwd_f16_t::cell_execution_gru_lbr);
 
 } // namespace cpu
 } // namespace impl

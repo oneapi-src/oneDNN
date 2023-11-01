@@ -1,0 +1,13 @@
+# f16
+--reset
+
+--skip-impl=ref
+--trivial-strides=true,false
+--alg=VANILLA_AUGRU,LBR_AUGRU
+--activation=UNDEF
+--cfg=f16f32,f16
+--prop=FWD_I,BWD_DW
+
+# small problems
+--direction=left2right
+--batch=option_set_small

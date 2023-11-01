@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ protected:
             // tensors
             cmp(addr_states_t_l_copy_reg, 0);
             je(vector_loop_inc_regs);
-            // As to_src is called with write_only=true it's important for bf16
+            // As to_src is called with write_only=true it's important for xf16
             // src_dt to execute just after to_src method with write_only=false
             // for the same Vmm
             to_src(ptr[addr_states_t_l_copy_reg], in, src_data_t, vlen, true);
@@ -140,7 +140,7 @@ protected:
             // tensors
             cmp(addr_states_t_l_copy_reg, 0);
             je(rem_loop_inc_regs);
-            // As to_src is called with write_only=true it's important for bf16
+            // As to_src is called with write_only=true it's important for xf16
             // src_dt to execute just after to_src method with write_only=false
             // for the same Vmm
             to_src(ptr[addr_states_t_l_copy_reg], in, src_data_t,

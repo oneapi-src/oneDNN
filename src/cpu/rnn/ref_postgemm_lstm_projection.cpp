@@ -86,6 +86,7 @@ rnn_postgemm_sig((rnn_postgemm_fwd_t<src_type, scratch_type,
 }
 
 template rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_projection_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_fwd_f16_t::lstm_projection_postgemm);
 
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_projection_postgemm) {
@@ -188,6 +189,7 @@ rnn_postgemm_sig((rnn_postgemm_bwd_t<src_type, scratch_type,
 
 template rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_projection_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::lstm_projection_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_bwd_f16_t::lstm_projection_postgemm);
 
 } // namespace cpu
 } // namespace impl

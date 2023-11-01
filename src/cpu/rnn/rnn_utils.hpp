@@ -216,6 +216,7 @@ inline cell_position_t operator|(cell_position_t lhs, cell_position_t rhs) {
 enum data_type_conf_t {
     all_f32,
     all_bf16,
+    all_f16,
     u8u8u8f32,
     f32u8f32f32,
     u8u8u8u8,
@@ -412,11 +413,16 @@ struct rnn_conf_t {
     }
 
     inline bool is_bf16_conf() const { return dt_conf == all_bf16; }
-
+    inline bool is_f16_conf() const { return dt_conf == all_f16; }
+    inline bool is_xf16_conf() const { return is_bf16_conf() || is_f16_conf(); }
     inline bool is_f32_conf() const { return dt_conf == all_f32; }
 
     inline bool is_cell_dt_f32() const { return cell_dt == data_type::f32; }
     inline bool is_cell_dt_bf16() const { return cell_dt == data_type::bf16; }
+    inline bool is_cell_dt_f16() const { return cell_dt == data_type::f16; }
+    inline bool is_cell_dt_xf16() const {
+        return is_cell_dt_bf16() || is_cell_dt_f16();
+    }
     inline bool is_cell_bf16_amx() const {
 #if DNNL_X64
         return brgemm_isa == x64::avx512_core_amx && is_cell_dt_bf16();
@@ -424,28 +430,44 @@ struct rnn_conf_t {
         return false;
 #endif
     }
+    inline bool is_cell_f16_amx() const {
+#if DNNL_X64
+        return brgemm_isa == x64::avx512_core_amx_fp16 && is_cell_dt_f16();
+#else
+        return false;
+#endif
+    }
+
+    inline bool is_cell_xf16_amx() const {
+        return is_cell_bf16_amx() || is_cell_f16_amx();
+    }
+
+    inline bool is_cell_amx() const {
+        return is_cell_bf16_amx() || is_cell_int8_amx() || is_cell_f16_amx();
+    }
+
     inline bool is_bf32() const { return is_cell_bf16_amx() && is_f32_conf(); }
 
     inline bool skip_src_layer_copy() const {
         return (exec_dir == l2r) && !is_bf32()
                 && utils::one_of(dt_conf, s8s8s8f32, f32s8f32f32, s8s8s8s8,
                         f32s8f32s8, u8u8u8u8, u8u8u8f32, f32u8f32u8,
-                        f32u8f32f32, all_f32, all_bf16);
+                        f32u8f32f32, all_f32, all_bf16, all_f16);
     }
     inline bool skip_src_iter_copy() const {
         return (exec_dir == l2r) && (src_iter_ld_ > 0) && !is_bf32()
                 && utils::one_of(dt_conf, s8s8s8s8, s8s8s8f32, u8u8u8u8,
-                        u8u8u8f32, all_f32, all_bf16);
+                        u8u8u8f32, all_f32, all_bf16, all_f16);
     }
     inline bool skip_dst_layer_copy() const {
         return (exec_dir == l2r) && !is_bf32()
                 && utils::one_of(dt_conf, s8s8s8s8, f32s8f32s8, u8u8u8u8,
-                        f32u8f32u8, all_f32, all_bf16);
+                        f32u8f32u8, all_f32, all_bf16, all_f16);
     }
     inline bool skip_dst_iter_copy() const {
         return (exec_dir == l2r) && (dst_iter_ld_ > 0) && !is_bf32()
                 && utils::one_of(dt_conf, s8s8s8s8, s8s8s8f32, u8u8u8u8,
-                        u8u8u8f32, all_f32, all_bf16);
+                        u8u8u8f32, all_f32, all_bf16, all_f16);
     }
 
     inline dim_t src_layer_ld(cell_position_t cell_position) const {
@@ -673,6 +695,14 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         if (!x64::mayiuse(x64::avx512_core)) return false;
 #endif
         rnn.dt_conf = all_bf16;
+    } else if (utils::everyone_is(data_type::f16, src_layer_d.data_type(),
+                       dst_layer_d.data_type(), weights_layer_d.data_type())) {
+        if (!rnn.is_brgemm) return false; // GeMM_f16 is not available
+        if (!platform::has_data_type_support(data_type::f16)) return false;
+#if DNNL_X64
+        if (!x64::mayiuse(x64::avx512_core_amx_fp16)) return false;
+#endif
+        rnn.dt_conf = all_f16;
     } else if (dst_layer_d.data_type() == data_type::u8) {
         if (IMPLICATION(
                     src_iter_d.md_, src_iter_d.data_type() == data_type::u8))
@@ -816,7 +846,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     /* Decide which gemm implementation to use: packed/nonpacked jit/cblas
      * and if to merge gemm across iterations */
     const bool is_f32 = rnn.dt_conf == all_f32,
-               is_bf16 = rnn.dt_conf == all_bf16;
+               is_xf16 = utils::one_of(rnn.dt_conf, all_bf16, all_f16);
     const bool is_gru = utils::one_of(rd.cell_kind, alg_kind::vanilla_gru,
             alg_kind::lbr_gru, alg_kind::vanilla_augru, alg_kind::lbr_augru);
     const bool is_inference = !rnn.is_training;
@@ -854,21 +884,21 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                       format_kind::rnn_packed)
                     && is_inference
                     && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
-                            || rnn.is_int8_conf() || is_bf16)
+                            || rnn.is_int8_conf() || is_xf16)
             : false;
     rnn.use_iter_packed_gemm = !rnn.is_brgemm
             ? utils::one_of(weights_iter_d.format_kind(), format_kind::any,
                       format_kind::rnn_packed)
                     && is_inference
                     && ((is_f32 && pack_sgemm_supported() && rnn.mb >= 16)
-                            || rnn.is_int8_conf() || is_bf16)
+                            || rnn.is_int8_conf() || is_xf16)
             : false;
     rnn.use_projection_packed_gemm = !rnn.is_brgemm
             ? utils::one_of(weights_projection_d.format_kind(),
                       format_kind::any, format_kind::rnn_packed)
                     && is_inference
                     && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
-                            || rnn.is_int8_conf() || is_bf16)
+                            || rnn.is_int8_conf() || is_xf16)
             : false;
 
     rnn.diff_weights_overwrite = rd.flags & rnn_flags::diff_weights_overwrite;
@@ -1253,11 +1283,18 @@ struct bias_linear_exec_aoc_t {
                     utils::array_offset_calculator<float *, 3>(
                             reinterpret_cast<float **>(bias), rnn.n_layer,
                             rnn.n_dir, rnn.n_parts_bias);
-        else
+        else if (bias_dt_ == data_type::bf16)
             new (std::addressof(bias_bf16_aoc_))
                     utils::array_offset_calculator<bfloat16_t *, 3>(
                             reinterpret_cast<bfloat16_t **>(bias), rnn.n_layer,
                             rnn.n_dir, rnn.n_parts_bias);
+        else if (bias_dt_ == data_type::f16)
+            new (std::addressof(bias_f16_aoc_))
+                    utils::array_offset_calculator<float16_t *, 3>(
+                            reinterpret_cast<float16_t **>(bias), rnn.n_layer,
+                            rnn.n_dir, rnn.n_parts_bias);
+        else
+            assert("unsupported data type");
     }
 
     void **operator()(int layer, int dir) const {
@@ -1268,6 +1305,11 @@ struct bias_linear_exec_aoc_t {
             else if (bias_dt_ == data_type::bf16)
                 return reinterpret_cast<void **>(
                         &bias_bf16_aoc_.operator()(layer, dir, 0));
+            else if (bias_dt_ == data_type::f16)
+                return reinterpret_cast<void **>(
+                        &bias_f16_aoc_.operator()(layer, dir, 0));
+            else
+                assert("unsupported data type");
         }
 
         return nullptr;
@@ -1276,8 +1318,12 @@ struct bias_linear_exec_aoc_t {
     ~bias_linear_exec_aoc_t() {
         if (bias_dt_ == data_type::f32)
             bias_f32_aoc_.~array_offset_calculator<float *, 3>();
-        else
+        else if (bias_dt_ == data_type::bf16)
             bias_bf16_aoc_.~array_offset_calculator<bfloat16_t *, 3>();
+        else if (bias_dt_ == data_type::f16)
+            bias_f16_aoc_.~array_offset_calculator<float16_t *, 3>();
+        else
+            assert("unsupported data type");
     }
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(bias_linear_exec_aoc_t);
@@ -1290,6 +1336,7 @@ private:
     union {
         utils::array_offset_calculator<float *, 3> bias_f32_aoc_;
         utils::array_offset_calculator<bfloat16_t *, 3> bias_bf16_aoc_;
+        utils::array_offset_calculator<float16_t *, 3> bias_f16_aoc_;
     };
 };
 

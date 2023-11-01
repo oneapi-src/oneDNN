@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,8 @@ template void src_layer_iter_transpose_t::execute<float>(
         const float *, float *) const;
 template void src_layer_iter_transpose_t::execute<bfloat16_t>(
         const bfloat16_t *, bfloat16_t *) const;
-
+template void src_layer_iter_transpose_t::execute<float16_t>(
+        const float16_t *, float16_t *) const;
 } // namespace x64
 } // namespace cpu
 } // namespace impl

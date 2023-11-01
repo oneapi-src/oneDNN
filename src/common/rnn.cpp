@@ -106,7 +106,6 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
     data_type_t weights_layer_dt = r.weights_layer_desc.data_type;
     data_type_t weights_projection_dt = r.weights_projection_desc.data_type;
 
-    const bool is_forward = !(r.prop_kind == prop_kind::backward);
     const bool is_inference = r.prop_kind == prop_kind::forward_inference;
     const bool is_int8_ok
             = one_of(r.cell_kind, dnnl_vanilla_lstm, dnnl_vanilla_gru);
@@ -121,26 +120,23 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
             && expect_dt(r.weights_projection_desc, f32)
             && expect_dt(r.dst_iter_desc, f32) && expect_dt(r.bias_desc, f32);
 
-    const bool is_bf16 = everyone_is(bf16, src_layer_dt, dst_layer_dt,
-                                 weights_iter_dt, weights_layer_dt)
-            && expect_dt(r.src_iter_desc, bf16)
-            && IMPLICATION(r.cell_kind == dnnl_vanilla_lstm,
-                    expect_dt(r.weights_peephole_desc, f32))
-            /* weights_peephole_desc is reused as attention_desc */
-            && IMPLICATION(
-                    one_of(r.cell_kind, dnnl_vanilla_augru, dnnl_lbr_augru),
-                    expect_dt(r.weights_peephole_desc, bf16))
-            && one_of(weights_projection_dt, bf16, data_type::undef)
-            && expect_dt(r.dst_iter_desc, bf16)
-            && one_of(r.bias_desc.data_type, bf16, f32);
+    const auto is_xf16_helper = [&](data_type_t dt) {
+        return everyone_is(dt, src_layer_dt, dst_layer_dt, weights_iter_dt,
+                       weights_layer_dt)
+                && expect_dt(r.src_iter_desc, dt)
+                && IMPLICATION(r.cell_kind == dnnl_vanilla_lstm,
+                        expect_dt(r.weights_peephole_desc, f32))
+                /* weights_peephole_desc is reused as attention_desc */
+                && IMPLICATION(
+                        one_of(r.cell_kind, dnnl_vanilla_augru, dnnl_lbr_augru),
+                        expect_dt(r.weights_peephole_desc, dt))
+                && one_of(weights_projection_dt, dt, data_type::undef)
+                && expect_dt(r.dst_iter_desc, dt)
+                && one_of(r.bias_desc.data_type, dt, f32);
+    };
 
-    const bool is_f16 = is_forward
-            && everyone_is(f16, src_layer_dt, dst_layer_dt, weights_iter_dt,
-                    weights_layer_dt)
-            && expect_dt(r.src_iter_desc, f16)
-            && expect_dt(r.weights_peephole_desc, f16)
-            && r.weights_peephole_desc.data_type == data_type::undef
-            && expect_dt(r.dst_iter_desc, f16) && expect_dt(r.bias_desc, f16);
+    const bool is_bf16 = is_xf16_helper(bf16);
+    const bool is_f16 = is_xf16_helper(f16);
 
     const bool is_u8u8u8 = is_inference && is_int8_ok && src_layer_dt == u8
             && one_of(dst_layer_dt, u8, f32)

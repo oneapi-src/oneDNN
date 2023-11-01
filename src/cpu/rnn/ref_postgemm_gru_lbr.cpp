@@ -137,6 +137,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::gru_lbr_postgemm) {
 
 template rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_lbr_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_fwd_f16_t::gru_lbr_postgemm);
 
 template <typename T1, typename src_data_t, typename acc_data_t,
         typename scratch_data_t>
@@ -211,6 +212,7 @@ rnn_postgemm_sig((rnn_postgemm_bwd_t<src_type, scratch_type,
 
 template rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_lbr_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_lbr_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_bwd_f16_t::gru_lbr_postgemm);
 
 } // namespace cpu
 } // namespace impl

@@ -5,3 +5,5 @@
 --batch=test_augru_bfloat16
 
 --batch=test_augru_bf32_bfloat16
+
+--batch=test_augru_float16

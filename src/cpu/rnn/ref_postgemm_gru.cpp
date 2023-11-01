@@ -216,6 +216,8 @@ template rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part1_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part2_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part1_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part2_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_fwd_f16_t::gru_part1_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_fwd_f16_t::gru_part2_postgemm);
 
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part1_postgemm) {
@@ -439,6 +441,8 @@ template rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_part1_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_part2_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_part1_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_part2_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_bwd_f16_t::gru_part1_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_bwd_f16_t::gru_part2_postgemm);
 
 #undef AOC
 } // namespace cpu

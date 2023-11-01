@@ -85,6 +85,9 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
         else if (rnn.dst_iter_c_dt == data_type::bf16)
             *static_cast<bfloat16_t *>(dst_iter_c_ptr)
                     = cpu::saturate_and_round<bfloat16_t>(c_state);
+        else if (rnn.dst_iter_c_dt == data_type::f16)
+            *static_cast<float16_t *>(dst_iter_c_ptr)
+                    = cpu::saturate_and_round<float16_t>(c_state);
     };
 
     const auto postgemm_call = [&](int i) {
@@ -173,6 +176,7 @@ rnn_postgemm_sig(
 
 template rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_fwd_f16_t::lstm_postgemm);
 
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
@@ -360,6 +364,7 @@ rnn_postgemm_sig(
 
 template rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_postgemm);
 template rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::lstm_postgemm);
+template rnn_postgemm_sig(rnn_postgemm_bwd_f16_t::lstm_postgemm);
 
 } // namespace cpu
 } // namespace impl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,8 +81,12 @@ private:
     const Xbyak::Reg64 &reg_tmp_ = r10;
     const Xbyak::Reg64 &reg_loop_ = r11;
     const Xbyak::Opmask &tail_mask_ = k3;
+    const Xbyak::Opmask &k_f16_perm_mask = k4;
     const Xbyak::Zmm bf16_ones_;
+    const Xbyak::Zmm f16_tmp_vreg_;
+    const Xbyak::Zmm f16_vperm_vreg_;
     std::vector<Xbyak::Zmm> acc_regs_;
+    Xbyak::Label f16_perm_table_;
 };
 
 } // namespace x64

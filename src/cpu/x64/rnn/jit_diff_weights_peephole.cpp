@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,11 +27,15 @@ jit_diff_weights_peephole_t::jit_diff_weights_peephole_t(
         const rnn_utils::rnn_conf_t &rnn, const dim_t dhc_block_size)
     : jit_generator(jit_name())
     , c_states_dt_(rnn.src_iter_c_dt)
-    , scratch_dt_(rnn.is_bf16_conf() ? data_type::bf16 : data_type::f32)
+    , scratch_dt_(utils::map(true, data_type::f32, rnn.is_bf16_conf(),
+              data_type::bf16, rnn.is_f16_conf(), data_type::f16))
     , dst_dt_(data_type::f32)
     , compute_block_size_(dhc_block_size)
     , tail_size_(dhc_block_size % simd_w_)
-    , io_(this, mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core,
+    , io_(this,
+              rnn.is_f16_conf()                   ? avx512_core_fp16
+                      : mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                                  : avx512_core,
               {c_states_dt_, scratch_dt_, dst_dt_}, {},
               io::io_tail_conf_t {static_cast<std::size_t>(simd_w_),
                       static_cast<std::size_t>(tail_size_), tail_opmask_, 0,

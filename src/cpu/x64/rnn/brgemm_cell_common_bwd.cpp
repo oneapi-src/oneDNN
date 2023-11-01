@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -98,8 +98,7 @@ brgemm_diff_src_layer_iter_t<weights_t, scratch_t,
 template <typename weights_t, typename scratch_t, typename gemm_acc_t>
 void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::execute()
         const {
-    if (rnn_.is_cell_dt_bf16()
-            && rnn_.diff_src_brgemm.isa == x64::avx512_core_amx) {
+    if (rnn_.is_cell_amx()) {
         parallel(max_nthr_, [this](const int ithr, const int nthr) {
             this->kernel_amx(ithr, nthr);
         });
@@ -433,7 +432,7 @@ brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
         x64::brgemm_batch_element_t *addr_batch_global)
     : rnn_brgemm_(rnn_brgemm)
     , rnn_(rnn)
-    , is_amx_(rnn_.is_cell_bf16_amx())
+    , is_amx_(is_superset(rnn_.brgemm_isa, avx512_core_amx))
     , A_iter_(src_iter)
     , A_iter_transposed_scratch_(A_iter_transposed_scratch)
     , A_layer_(src_layer)
@@ -931,12 +930,16 @@ void brgemm_diff_wei_peep_t<scratch_t>::kernel(
 
 template class brgemm_diff_src_layer_iter_t<float, float, float>;
 template class brgemm_diff_src_layer_iter_t<bfloat16_t, bfloat16_t, float>;
+template class brgemm_diff_src_layer_iter_t<float16_t, float16_t, float>;
 
 template class brgemm_diff_weights_layer_iter_t<float, float, float, float>;
 template class brgemm_diff_weights_layer_iter_t<bfloat16_t, bfloat16_t,
         bfloat16_t, float>;
+template class brgemm_diff_weights_layer_iter_t<float16_t, float16_t, float16_t,
+        float>;
 
 template class brgemm_diff_wei_peep_t<bfloat16_t>;
+template class brgemm_diff_wei_peep_t<float16_t>;
 template class brgemm_diff_wei_peep_t<float>;
 
 } // namespace x64

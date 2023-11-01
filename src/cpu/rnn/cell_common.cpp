@@ -89,6 +89,7 @@ rnn_cell_execution_sig((
 
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_ref);
 template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_ref);
+template rnn_cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_ref);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_ref);
 template rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_ref);
 
@@ -189,7 +190,7 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
         CHECK(gemm_weights_proj_f((decltype(ws_ht_))scratch_diff_ht_, ws_ht_,
                 diff_weights_projection_));
-        CHECK(gemm_proj_f(w_proj_[0], (decltype(w_proj_[0]))scratch_diff_ht_,
+        CHECK(gemm_proj_f(w_proj_[0], (weights_data_t *)scratch_diff_ht_,
                 diff_dst_layer_));
     }
 
@@ -291,6 +292,7 @@ rnn_cell_execution_sig((
 
 template rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref);
 template rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref);
+template rnn_cell_execution_sig(ref_rnn_bwd_f16_t::cell_execution_ref);
 
 template <data_type_t src_type, data_type_t weights_type, data_type_t acc_type>
 rnn_merged_layer_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
@@ -346,6 +348,8 @@ template rnn_merged_layer_execution_sig(
 template rnn_merged_layer_execution_sig(
         ref_rnn_fwd_bf16_t::merged_layer_execution_ref);
 template rnn_merged_layer_execution_sig(
+        ref_rnn_fwd_f16_t::merged_layer_execution_ref);
+template rnn_merged_layer_execution_sig(
         ref_rnn_fwd_u8s8_t::merged_layer_execution_ref);
 template rnn_merged_layer_execution_sig(
         ref_rnn_fwd_s8s8_t::merged_layer_execution_ref);
@@ -353,6 +357,8 @@ template rnn_merged_layer_execution_sig(
         ref_rnn_bwd_f32_t::merged_layer_execution_ref);
 template rnn_merged_layer_execution_sig(
         ref_rnn_bwd_bf16_t::merged_layer_execution_ref);
+template rnn_merged_layer_execution_sig(
+        ref_rnn_bwd_f16_t::merged_layer_execution_ref);
 
 } // namespace cpu
 } // namespace impl
