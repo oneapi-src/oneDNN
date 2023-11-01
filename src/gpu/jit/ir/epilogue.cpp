@@ -497,7 +497,7 @@ private:
 // Builds statements to apply a post-op for a given tile.
 class post_op_builder_t {
 public:
-    post_op_builder_t(ngen::HW hw, const post_op_t &post_op)
+    post_op_builder_t(const hw_t &hw, const post_op_t &post_op)
         : hw_(hw), post_op_(post_op) {}
 
     const post_op_t &post_op() const { return post_op_; }
@@ -572,7 +572,7 @@ private:
             inner_dim_idx = b0.dim_idx;
 
             int inner_block = b0.block;
-            int max_step = 2 * ngen::GRF::bytes(hw_) / lhs_type.size();
+            int max_step = 2 * hw_.grf_size() / lhs_type.size();
             inner_block = std::max(8, math::gcd(inner_block, max_step));
 
             for (auto &kv : args) {
@@ -605,7 +605,7 @@ private:
         return bcast_mutator.mutate(expr);
     }
 
-    ngen::HW hw_;
+    hw_t hw_;
     post_op_t post_op_;
 };
 

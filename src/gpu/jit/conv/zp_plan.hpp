@@ -34,7 +34,7 @@ namespace jit {
 struct zp_plan_impl_t;
 
 struct zp_plan_t : public base_plan_t {
-    zp_plan_t(ngen::HW hw);
+    zp_plan_t(const hw_t &hw);
     ~zp_plan_t();
     void init(const conv_config_t &cfg, const gemm_schedule_t &gemm_schedule,
             const view_t &zp_view, const layout_t &src_layout,

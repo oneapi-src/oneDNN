@@ -50,10 +50,10 @@ inline bool is_dp_fma(fma_kind_t kind) {
     }
 }
 
-fma_kind_t get_supported_fma_kind(const hw_config_t &hw, const type_t &a,
-        const type_t &b, const type_t &c);
+fma_kind_t get_supported_fma_kind(
+        const hw_t &hw, const type_t &a, const type_t &b, const type_t &c);
 
-int get_simd_size(ngen::HW hw, fma_kind_t kind, const type_t &a,
+int get_simd_size(const hw_t &hw, fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c);
 
 class multiply_desc_t {
@@ -171,7 +171,7 @@ public:
     bool matches(const multiply_desc_t &desc) const;
 
     static bool matches_types(
-            ngen::HW hw, const type_t &a, const type_t &b, const type_t &c);
+            const hw_t &hw, const type_t &a, const type_t &b, const type_t &c);
     static bool is_src_type(type_t type);
 
     bool is_dpasw;
@@ -203,7 +203,7 @@ class mad_t : public func_impl_t {
 public:
     IR_DECL_DERIVED_TYPE_ID(mad_t, func_impl_t)
 
-    static func_t make(ngen::HW hw, const type_t &dst_type, int exec_size,
+    static func_t make(const hw_t &hw, const type_t &dst_type, int exec_size,
             const type_t &src1_type, int src1_stride, const type_t src2_type,
             int src2_stride) {
         return func_t(new mad_t(hw, dst_type, exec_size, src1_type, src1_stride,
@@ -254,14 +254,14 @@ public:
     }
 
     static bool matches_types(
-            ngen::HW hw, const type_t &a, const type_t &b, const type_t &c);
+            const hw_t &hw, const type_t &a, const type_t &b, const type_t &c);
 
     static const int max_exec_size = 32;
-    static int get_max_exec_size_bytes(ngen::HW hw) {
+    static int get_max_exec_size_bytes(const hw_t &hw) {
         return hw >= ngen::HW::XeHPC ? 128 : 64;
     }
     static int get_simd_size(
-            ngen::HW hw, const type_t &a, const type_t &b, const type_t &c) {
+            const hw_t &hw, const type_t &a, const type_t &b, const type_t &c) {
         int max_size = max_exec_size;
         int max_exec_size_bytes = get_max_exec_size_bytes(hw);
         int max_type_size = std::max(a.size(), std::max(b.size(), c.size()));
@@ -278,7 +278,7 @@ public:
     int src2_stride;
 
 private:
-    mad_t(ngen::HW hw, const type_t &dst_type, int exec_size,
+    mad_t(const hw_t &hw, const type_t &dst_type, int exec_size,
             const type_t &src1_type, int src1_stride, const type_t &src2_type,
             int src2_stride)
         : func_impl_t(_type_info())

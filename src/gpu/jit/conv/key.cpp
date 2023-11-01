@@ -556,7 +556,7 @@ private:
 
 conv_key_t::conv_key_t(const conv_config_t &cfg, bool make_filter) {
     auto &prb = cfg.prb();
-    auto hw = key_hw_t(to_hw_kind(cfg.hw()));
+    auto hw = key_hw_t(to_hw_kind(cfg.hw().to_ngen()));
     auto fma = key_fma_t(to_fma_kind(cfg.fma_kind()));
     auto prop = key_prop_t(to_prop_kind(prb.prop_kind()));
     auto type_info = key_type_info_t(cfg);

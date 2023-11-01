@@ -132,7 +132,7 @@ bool send_t::is_supported() const {
     return true;
 }
 
-std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
+std::vector<func_t> send_t::get_all(const hw_t &hw, send_op_t op,
         send_address_t address, const type_t &mem_type, bool zero_out,
         send_cache_hint_t cache_hint) {
     std::vector<func_t> filtered;
@@ -185,18 +185,17 @@ std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
     return ret;
 }
 
-ngen::CacheSettingsLSC get_cache_settings(
-        const send_t &send, const hw_config_t &hw_cfg) {
+ngen::CacheSettingsLSC get_cache_settings(const send_t &send, const hw_t &hw) {
     auto ret = ngen::CacheSettingsLSC::Default;
     bool is_load = send.is_load() || send.is_load_2d();
     bool is_store = send.is_store() || send.is_store_2d();
     bool is_prefetch = send.is_prefetch() || send.is_prefetch_2d();
     switch (send.cache_hint) {
         case send_cache_hint_t::undef:
-            switch (send.hw) {
+            switch (send.hw.to_ngen()) {
                 case ngen::HW::XeHPG:
                     // Use default cache policy on xelpg to avoid suspected driver issue.
-                    if (is_store && hw_cfg.systolic_support())
+                    if (is_store && hw.systolic_support())
                         ret = ngen::CacheSettingsLSC::L1WB_L3WB;
                     break;
                 case ngen::HW::XeHPC:
@@ -789,7 +788,7 @@ bool access_builder_t::try_build_2d(send_params_t &send_params) {
 
         // Check alignment requirements.
         int64_t align = get_max_const_factor(off, ir_ctx_->cset());
-        if (align % block_2d_base_alignment(ir_ctx_->hw_cfg()) != 0) {
+        if (align % block_2d_base_alignment(ir_ctx_->hw()) != 0) {
             ok = false;
             return;
         }
@@ -820,7 +819,7 @@ bool access_builder_t::fixup_send_2d_params(const type_t &send_type, bool vnni,
     auto whp_ok = [&]() {
         return block_2d_width_ok(W, send_type.size()) && block_2d_height_ok(H)
                 && block_2d_pitch_ok(
-                        ir_ctx_->hw_cfg(), P, send_type.size(), use_xy);
+                        ir_ctx_->hw(), P, send_type.size(), use_xy);
     };
 
     // No VNNI permute by default.

@@ -784,7 +784,7 @@ stmt_t eliminate_common_subexprs(
     stmt_t stmt;
     cse_context_t cse_ctx(ir_ctx);
 
-    int grf_size = ir_ctx.hw_cfg().grf_size();
+    int grf_size = ir_ctx.hw().grf_size();
     stmt = eliminate_common_subexprs_impl(
             _stmt, cse_ctx, grf_size, memory_usage_limit, 0);
     // Retry if statement is empty, rely on the updated

@@ -80,7 +80,7 @@ stmt_t merge_slm_buffers(const stmt_t &_stmt, ir_context_t &ir_ctx) {
 class slm_reorder_injector_t : public ir_mutator_t {
 public:
     slm_reorder_injector_t(
-            const stmt_t &root, ngen::HW hw, const grid_info_t &tg_grid)
+            const stmt_t &root, const hw_t &hw, const grid_info_t &tg_grid)
         : hw_(hw), tg_grid_(tg_grid) {
         alloc_manager_t alloc_mgr(root);
         auto slm_buffers = alloc_mgr.find_buffers(alloc_kind_t::slm);
@@ -214,7 +214,7 @@ private:
         return true;
     }
 
-    ngen::HW hw_;
+    hw_t hw_;
     grid_info_t tg_grid_;
 
     expr_t slm_base_;

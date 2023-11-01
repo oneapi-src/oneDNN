@@ -80,9 +80,9 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
 
     auto *gpu_attr
             = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
-    exec_cfg = std::make_shared<exec_config_t>(
-            hw_config_t(engine, gpu_attr && gpu_attr->threads_per_eu() == 4));
-    exec_cfg->set_regs(128);
+    hw_t hw(engine);
+    exec_cfg = std::make_shared<exec_config_t>(hw);
+    exec_cfg->set_regs(hw.prefer_large_grf(gpu_attr) ? 256 : 128);
     exec_cfg->set_simd(16);
 
     return (pooling_config_t::check_compatibility(*pool_conf, *exec_cfg, *src))

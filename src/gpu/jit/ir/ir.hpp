@@ -25,7 +25,7 @@
 
 #include "common/optional.hpp"
 #include "gpu/jit/ir/core.hpp"
-#include "gpu/jit/ir/hw_config.hpp"
+#include "gpu/jit/ir/hw.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -41,11 +41,9 @@ public:
 
     const exec_config_t &exec_cfg() const { return exec_cfg_; }
 
-    const hw_config_t &hw_cfg() const { return exec_cfg().hw_cfg(); }
+    const hw_t &hw() const { return exec_cfg().hw(); }
 
-    ngen::HW hw() const { return hw_cfg().hw(); }
-
-    int grf_size() const { return hw_cfg().grf_size(); }
+    int grf_size() const { return hw().grf_size(); }
 
     const constraint_set_t &cset() { return cset_; }
 

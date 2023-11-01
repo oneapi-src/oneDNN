@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include "gpu/jit/ir/hw_config.hpp"
+#include "gpu/jit/ir/hw.hpp"
 #include "gpu/jit/ir/ir.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 

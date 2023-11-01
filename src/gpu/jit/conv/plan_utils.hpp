@@ -30,14 +30,14 @@ namespace gpu {
 namespace jit {
 
 struct base_plan_t {
-    base_plan_t(ngen::HW hw = ngen::HW::Unknown) : hw(hw) {}
+    base_plan_t(const hw_t hw = hw_t()) : hw(hw) {}
 
     int grf_size() const {
-        ir_assert(hw != ngen::HW::Unknown);
-        return ngen::GRF::bytes(hw);
+        ir_assert(!hw.is_undef());
+        return hw.grf_size();
     }
 
-    ngen::HW hw;
+    hw_t hw;
 };
 
 inline std::string add_indent(const std::string &tag, const std::string &s) {

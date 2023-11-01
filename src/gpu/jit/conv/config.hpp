@@ -33,7 +33,7 @@
 #include "gpu/jit/conv/problem.hpp"
 #include "gpu/jit/ir/config.hpp"
 #include "gpu/jit/ir/fma.hpp"
-#include "gpu/jit/ir/hw_config.hpp"
+#include "gpu/jit/ir/hw.hpp"
 #include "gpu/jit/ir/message_patterns.hpp"
 #include "gpu/jit/ir/post_ops.hpp"
 #include "gpu/jit/ir/tensor.hpp"
@@ -179,7 +179,7 @@ private:
     // FWD:        src -> A,      wei -> B,      dst -> C
     // BWD_D: diff_dst -> A,      wei -> B, diff_src -> C
     // BWD_W:      src -> A, diff_dst -> B, diff_wei -> C
-    status_t init_abc_data_types(const hw_config_t &hw_cfg) {
+    status_t init_abc_data_types(const hw_t &hw) {
         a_data_type = pick_a(src_data_type, wei_data_type, dst_data_type);
         b_data_type = pick_b(src_data_type, wei_data_type, dst_data_type);
         // Always use f32 for accumulation/storing in the main kernel.
@@ -196,20 +196,20 @@ private:
                     = gpu_utils::dev_getenv("use_matching_fpmath", false);
             if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::bf16)
-                    && get_supported_fma_kind(hw_cfg, data_type::bf16,
+                    && get_supported_fma_kind(hw, data_type::bf16,
                                data_type::bf16, data_type::f32)
                             != fma_kind_t::undef) {
                 a_data_type = data_type::bf16;
                 b_data_type = data_type::bf16;
             } else if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::f16)
-                    && get_supported_fma_kind(hw_cfg, data_type::f16,
+                    && get_supported_fma_kind(hw, data_type::f16,
                                data_type::f16, data_type::f32)
                             != fma_kind_t::undef) {
                 a_data_type = data_type::f16;
                 b_data_type = data_type::f16;
             } else if (attr->mayidownconvert(data_type::f32, data_type::tf32)
-                    && get_supported_fma_kind(hw_cfg, data_type::tf32,
+                    && get_supported_fma_kind(hw, data_type::tf32,
                                data_type::tf32, data_type::f32)
                             != fma_kind_t::undef) {
                 a_data_type = data_type::tf32;
@@ -250,7 +250,7 @@ private:
         return post_ops.find(primitive_kind::sum) != -1;
     }
 
-    void init_transpose(const hw_config_t &hw_cfg) {
+    void init_transpose(const hw_t &hw) {
         using sm = primitive_attr_t::skip_mask_t;
         auto attr_skip_mask = sm::post_ops | sm::sum_dt | sm::scales_runtime;
         bool allow_ab_transpose
@@ -263,7 +263,7 @@ private:
                     = gpu_utils::dev_getenv("ab_swap_transpose", false);
             return;
         }
-        int max_sp = (hw_cfg.hw() >= ngen::HW::XeHPC) ? 1240 : 512;
+        int max_sp = (hw >= ngen::HW::XeHPC) ? 1240 : 512;
         bool do_ic_swap = ((is_fwd || is_bwd_w) && oc < 6);
         bool do_oc_swap = ((is_bwd_d) && ic < 6);
         bool allow_bwd_w = !is_bwd_w
@@ -920,13 +920,11 @@ public:
 
     int reserved_regs() const;
 
-    const hw_config_t &hw_cfg() const { return exec_cfg().hw_cfg(); }
-
-    ngen::HW hw() const { return hw_cfg().hw(); }
+    const hw_t &hw() const { return exec_cfg().hw(); }
 
     bool is_ge_xe_hpc() const { return hw() >= ngen::HW::XeHPC; }
 
-    int grf_size() const { return hw_cfg().grf_size(); }
+    int grf_size() const { return hw().grf_size(); }
 
     int regs() const { return exec_cfg().regs(); }
 

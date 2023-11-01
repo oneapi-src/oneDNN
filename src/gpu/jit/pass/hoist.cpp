@@ -286,7 +286,7 @@ private:
 stmt_t hoist_exprs_impl(
         const stmt_t &s, ir_context_t &ir_ctx, int reserved_regs) {
 
-    int grf_size = ir_ctx.hw_cfg().grf_size();
+    int grf_size = ir_ctx.hw().grf_size();
     int available_regs = ir_ctx.exec_cfg().regs() - reserved_regs;
     int memory_usage_limit = available_regs * grf_size;
 
@@ -484,7 +484,7 @@ private:
 stmt_t hoist_send_masks(const stmt_t &s, ir_context_t &ir_ctx,
         const stmt_label_t &label, bool split_by_and, int reserved_regs) {
     trace_start();
-    int grf_size = ir_ctx.hw_cfg().grf_size();
+    int grf_size = ir_ctx.hw().grf_size();
     int available_regs = ir_ctx.exec_cfg().regs() - reserved_regs;
     int memory_usage_limit = available_regs * grf_size;
 

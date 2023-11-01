@@ -93,7 +93,7 @@ public:
         const auto &src = src_layout().user();
         const auto &exec = exec_cfg();
         const int simd = exec.simd();
-        const int eu_count = exec.hw_cfg().eu_count();
+        const int eu_count = exec.hw().eu_count();
         const int max_tg = get_max_tg(exec);
 
         std::vector<int> padded {
@@ -298,7 +298,7 @@ public:
 private:
     static int get_max_tg(const exec_config_t &exec) {
         return compute::device_info_t::max_eus_per_wg(
-                convert_ngen_arch_to_dnnl(exec.hw()));
+                convert_ngen_arch_to_dnnl(exec.hw().to_ngen()));
     }
 
     std::string desc_str() const {

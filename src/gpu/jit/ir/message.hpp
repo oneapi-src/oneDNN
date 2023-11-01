@@ -117,21 +117,21 @@ class send_t : public func_impl_t {
 public:
     IR_DECL_DERIVED_TYPE_ID(send_t, func_impl_t)
 
-    static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
+    static func_t make(const hw_t &hw, send_op_t op, send_address_t address,
             const type_t &type, int slots, bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
         return make(hw, op, address, type, slots, default_slot_mask,
                 hw >= ngen::HW::XeHPC, zero_out, cache_hint);
     }
 
-    static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
+    static func_t make(const hw_t &hw, send_op_t op, send_address_t address,
             const type_t &type, int slots, bool is_lsc, bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
         return make(hw, op, address, type, slots, default_slot_mask, is_lsc,
                 zero_out, cache_hint);
     }
 
-    static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
+    static func_t make(const hw_t &hw, send_op_t op, send_address_t address,
             const type_t &type, int slots, uint32_t slot_mask, bool is_lsc,
             bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
@@ -139,14 +139,14 @@ public:
                 is_lsc, zero_out, cache_hint));
     }
 
-    static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
+    static func_t make(const hw_t &hw, send_op_t op, send_address_t address,
             const type_t &type, int slots, uint32_t slot_mask, bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
         return make(hw, op, address, type, slots, slot_mask,
                 hw >= ngen::HW::XeHPC, zero_out, cache_hint);
     }
 
-    static func_t make_2d(ngen::HW hw, send_op_t op, const type_t &type,
+    static func_t make_2d(const hw_t &hw, send_op_t op, const type_t &type,
             int surface_width, int surface_height, int surface_pitch, int width,
             int height, int count, bool vnni, bool transpose, bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
@@ -162,7 +162,7 @@ public:
         return func_t(new send_t(hw, op, type, zero_out, info, cache_hint));
     }
 
-    static func_t make_2d(ngen::HW hw, send_op_t op, const type_t &type,
+    static func_t make_2d(const hw_t &hw, send_op_t op, const type_t &type,
             int width, int height, int count, bool vnni, bool transpose,
             bool zero_out,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
@@ -332,11 +332,11 @@ public:
         return (slot_mask & all_slots_mask) == all_slots_mask;
     }
 
-    static std::vector<func_t> get_all(ngen::HW hw, send_op_t op,
+    static std::vector<func_t> get_all(const hw_t &hw, send_op_t op,
             send_address_t address, const type_t &mem_type, bool zero_out,
             send_cache_hint_t cache_hint);
 
-    ngen::HW hw;
+    hw_t hw;
     send_op_t op;
     send_address_t address;
     type_t type;
@@ -351,13 +351,13 @@ public:
     static const uint32_t default_slot_mask = 0xFFFFFFFF;
 
 private:
-    int grf_size() const { return ngen::GRF::bytes(hw); }
+    int grf_size() const { return hw.grf_size(); }
 
     bool is_xe_hp_plus() const { return hw >= ngen::HW::XeHP; }
 
     bool is_xe_hpc_plus() const { return hw >= ngen::HW::XeHPC; }
 
-    send_t(ngen::HW hw, send_op_t op, send_address_t address,
+    send_t(const hw_t &hw, send_op_t op, send_address_t address,
             const type_t &type, int slots, uint32_t slot_mask, bool is_lsc,
             bool zero_out, send_cache_hint_t cache_hint)
         : func_impl_t(_type_info())
@@ -371,7 +371,7 @@ private:
         , zero_out(zero_out)
         , cache_hint(cache_hint) {}
 
-    send_t(ngen::HW hw, send_op_t op, const type_t &type, bool zero_out,
+    send_t(const hw_t &hw, send_op_t op, const type_t &type, bool zero_out,
             const block_2d_info_t &block_2d_info, send_cache_hint_t cache_hint)
         : func_impl_t(_type_info())
         , hw(hw)
@@ -393,8 +393,7 @@ private:
     }
 };
 
-ngen::CacheSettingsLSC get_cache_settings(
-        const send_t &send, const hw_config_t &hw_cfg);
+ngen::CacheSettingsLSC get_cache_settings(const send_t &send, const hw_t &hw);
 
 class memory_walker_t;
 class layout_walker_t;
@@ -411,7 +410,7 @@ struct send_2d_hint_t {
 
 struct send_params_t {
     send_params_t() = default;
-    send_params_t(ngen::HW hw, const type_t &mem_type, send_op_t send_op)
+    send_params_t(const hw_t &hw, const type_t &mem_type, send_op_t send_op)
         : hw(hw), mem_type(mem_type), send_op(send_op), use_send_plan(true) {}
 
     send_op_t convert(const send_op_t &op) const {
@@ -429,7 +428,7 @@ struct send_params_t {
                 send_op, send_op_t::prefetch, send_op_t::prefetch_2d);
     }
 
-    ngen::HW hw = ngen::HW::Unknown;
+    hw_t hw;
     type_t mem_type;
     send_op_t send_op;
     send_address_t send_address;
@@ -485,7 +484,7 @@ private:
     std::vector<layout_t> candidate_payload_layouts() const;
     stmt_t create_send_stmt(
             const send_t &send, const memory_walker_t &memory_walker);
-    int grf_size() const { return ngen::GRF::bytes(ir_ctx_->hw_cfg().hw()); }
+    int grf_size() const { return ir_ctx_->hw().grf_size(); }
 
     ir_context_t *ir_ctx_ = nullptr;
     view_t mem_view_;

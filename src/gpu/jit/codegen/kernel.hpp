@@ -245,8 +245,8 @@ public:
         , ra_(hw, kernel_name,
                   grf_mode == grf_mode_t::any ? reg_allocator_t::warn_all
                                               : reg_allocator_t::warn_default)
-        , emu_strategy(hw, exec_cfg.hw_cfg().stepping_id()) {
-        setStepping(exec_cfg.hw_cfg().stepping_id());
+        , emu_strategy(hw, exec_cfg.hw().stepping_id()) {
+        setStepping(exec_cfg.hw().stepping_id());
         ra_.setRegisterCount(regs_);
     }
 

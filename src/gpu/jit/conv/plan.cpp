@@ -669,7 +669,7 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
 }
 
 reorder_plan_t create_reorder_plan(
-        ngen::HW hw, const layout_t &src, const layout_t &dst) {
+        const hw_t &hw, const layout_t &src, const layout_t &dst) {
     if (src == dst) return reorder_plan_t();
     if (src.type().is_bitwise_compatible(dst.type())
             && src.retype(dst.type()) == dst)
@@ -717,8 +717,8 @@ int reorder_plan_t::estimate_regs() const {
     return utils::div_up(ret, grf_size());
 }
 
-reduce_plan_t create_reduce_plan(
-        ngen::HW hw, const layout_t &src, const layout_t &dst, uint32_t mask) {
+reduce_plan_t create_reduce_plan(const hw_t &hw, const layout_t &src,
+        const layout_t &dst, uint32_t mask) {
     reduce_plan_t ret(hw);
     ret.src = src;
     ret.dst = dst;
@@ -1322,7 +1322,7 @@ struct fma_context_t {
         }
     }
 
-    ngen::HW hw;
+    hw_t hw;
     int simd;
     int vec_size;
     fma_kind_t fma;
@@ -1336,12 +1336,12 @@ struct fma_context_t {
 };
 
 dim_t find_min_stride_without_conflicts(
-        ngen::HW hw, dim_t inner_bytes, dim_t dense_stride_bytes) {
+        const hw_t &hw, dim_t inner_bytes, dim_t dense_stride_bytes) {
     int write_step = 64;
     int stride_step = 16;
     dim_t stride_beg = dense_stride_bytes;
     dim_t stride_end = 2 * dense_stride_bytes;
-    auto arch = convert_ngen_arch_to_dnnl(hw);
+    auto arch = convert_ngen_arch_to_dnnl(hw.to_ngen());
     const int slm_banks = compute::device_info_t::slm_memory_bank_count(arch);
     const int bank_granularity
             = compute::device_info_t::slm_memory_bank_granularity(arch);
@@ -1376,7 +1376,7 @@ dim_t find_min_stride_without_conflicts(
 }
 
 layout_t pad_slm_layout(
-        ngen::HW hw, const layout_t &layout, const grid_info_t &grid) {
+        const hw_t &hw, const layout_t &layout, const grid_info_t &grid) {
     // EUs are fused only in XeHP and XeHPG; otherwise no need to pad SLM.
     if (hw >= ngen::HW::XeHPC || hw <= ngen::HW::XeLP) return layout;
     auto tg_dim0 = grid.dim(0);
@@ -2105,7 +2105,7 @@ private:
         }
         if (outer != k_tg) return plan_status_t::invalid_slm_k_slicing;
 
-        if (convert_ngen_arch_to_dnnl(plan_.hw) < compute::gpu_arch_t::xe_hpg) {
+        if (plan_.hw < ngen::HW::XeHPG) {
             // Verifies that SLM loads after k-slicing are at GRF granularity.
             auto l_sub = l.map(tensor_t(rem_dims));
             int bytes = l_sub.type().size();

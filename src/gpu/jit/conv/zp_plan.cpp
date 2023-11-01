@@ -95,8 +95,8 @@ class zp_comp_init_plan_t : public base_plan_t {
 public:
     using base_plan_t::base_plan_t;
 
-    zp_comp_init_plan_t(const ngen::HW hw, bool is_fwd,
-            const layout_t &zp_layout, const layout_t &wei_layout)
+    zp_comp_init_plan_t(const hw_t &hw, bool is_fwd, const layout_t &zp_layout,
+            const layout_t &wei_layout)
         : base_plan_t(hw), zp_layout_(zp_layout), wei_layout_(wei_layout) {
         init_idxs(is_fwd);
         init_comp_layout();
@@ -874,7 +874,7 @@ class zp_comp_apply_plan_t : public base_plan_t {
 public:
     using base_plan_t::base_plan_t;
 
-    zp_comp_apply_plan_t(const ngen::HW hw, bool is_fwd,
+    zp_comp_apply_plan_t(const hw_t &hw, bool is_fwd,
             const layout_t &comp_layout, const layout_t &mask_layout,
             const layout_t &c_layout, const bmnk_mapper_t &mapper)
         : base_plan_t(hw)
@@ -1139,7 +1139,7 @@ struct zp_plan_impl_t : public base_plan_t {
     zp_mask_init_plan_t mask_init;
     zp_comp_apply_plan_t comp_apply;
 
-    zp_plan_impl_t(ngen::HW hw)
+    zp_plan_impl_t(const hw_t &hw)
         : base_plan_t(hw), comp_init(hw), mask_init(hw), comp_apply(hw) {}
 
     explicit operator bool() const { return (bool)load; }
@@ -1176,7 +1176,7 @@ struct zp_plan_impl_t : public base_plan_t {
     IR_DEFINE_DUMP()
 };
 
-zp_plan_t::zp_plan_t(ngen::HW hw)
+zp_plan_t::zp_plan_t(const hw_t &hw)
     : impl(utils::make_unique<zp_plan_impl_t>(hw)) {};
 
 zp_plan_t::~zp_plan_t() = default;

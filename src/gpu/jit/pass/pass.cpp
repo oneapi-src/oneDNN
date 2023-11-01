@@ -85,14 +85,14 @@ stmt_t remove_spurious_send_mask_cast(const stmt_t &s, ir_context_t &ir_ctx) {
 
 class store_splitter_t : public ir_mutator_t {
 public:
-    store_splitter_t(ngen::HW hw) : hw_(hw) {}
+    store_splitter_t(const hw_t &hw) : hw_(hw) {}
 
     object_t _mutate(const store_t &obj) override {
         int elems = obj.value.type().elems();
         int elem_size = obj.value.type().scalar().size();
         int stride = (obj.has_default_stride() ? 1 : obj.stride / elem_size);
         int store_size = elem_size * stride * elems;
-        const auto grf_size = ngen::GRF::bytes(hw_);
+        const auto grf_size = hw_.grf_size();
         if (store_size <= 2 * grf_size) return ir_mutator_t::_mutate(obj);
 
         int step = 2 * grf_size / (stride * elem_size);
@@ -130,12 +130,12 @@ private:
         return expr_t();
     }
 
-    ngen::HW hw_;
+    hw_t hw_;
 };
 
 stmt_t split_wide_stores(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = store_splitter_t(ir_ctx.hw_cfg().hw()).mutate(s);
+    auto ret = store_splitter_t(ir_ctx.hw()).mutate(s);
     trace_pass("split_wide_stores", ret, ir_ctx);
     return ret;
 }

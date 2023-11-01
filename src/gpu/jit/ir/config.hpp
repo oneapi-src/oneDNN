@@ -22,7 +22,7 @@
 #include <unordered_map>
 
 #include "gpu/config.hpp"
-#include "gpu/jit/ir/hw_config.hpp"
+#include "gpu/jit/ir/hw.hpp"
 #include "gpu/jit/ir/post_ops.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 
@@ -194,9 +194,9 @@ public:
     // parallelism is a fundamental limitation to the current work scheduling.
     static float get_thread_utilization(
             const exec_config_t &exec_cfg, int kg_elems, int tg_elems) {
-        auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw());
+        auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw().to_ngen());
         int eus_per_slice = compute::device_info_t::max_eus_per_wg(arch);
-        int slice_count = exec_cfg.hw_cfg().eu_count() / eus_per_slice;
+        int slice_count = exec_cfg.hw().eu_count() / eus_per_slice;
 
         int min_wg_per_slice_wave = std::max(eus_per_slice / tg_elems, 1);
         int min_wg_per_wave = slice_count * min_wg_per_slice_wave;
@@ -207,11 +207,11 @@ public:
     // latency may be an issue due to limited use of SMT to hide the latency.
     static float get_wave_utilization(
             const exec_config_t &exec_cfg, int kg_elems, int tg_elems) {
-        auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw());
+        auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw().to_ngen());
         int threads_per_eu = compute::device_info_t::threads_per_eu(
                 arch, exec_cfg.regs() > 128);
         int eus_per_slice = compute::device_info_t::max_eus_per_wg(arch);
-        int slice_count = exec_cfg.hw_cfg().eu_count() / eus_per_slice;
+        int slice_count = exec_cfg.hw().eu_count() / eus_per_slice;
 
         int wgs_per_slice = eus_per_slice * threads_per_eu / tg_elems;
         ir_assert(wgs_per_slice > 0);

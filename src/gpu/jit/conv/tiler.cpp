@@ -656,22 +656,6 @@ private:
     std::vector<x2_tile_info_t> x2_tile_infos_;
 };
 
-int get_default_max_tg_size(const hw_config_t &hw_cfg, int regs, int simd) {
-    const compute::gpu_arch_t arch = convert_ngen_arch_to_dnnl(hw_cfg.hw());
-    const int max_eus_per_wg = compute::device_info_t::max_eus_per_wg(arch);
-    const int threads_per_eu
-            = compute::device_info_t::threads_per_eu(arch, regs > 128);
-    // When threads_per_eu is reduced by cfg (large_grf_mode) wg_per_thread
-    // is increased proportionally.
-    const int wg_per_thr = simd * compute::device_info_t::threads_per_eu(arch)
-            / threads_per_eu;
-
-    // Optimal thread group size may differ from hardware thread count due
-    // to simd_size used in computation.
-    return std::min(max_eus_per_wg * utils::rnd_down_pow2(threads_per_eu),
-            static_cast<int>(hw_cfg.max_wg_size() / wg_per_thr));
-}
-
 void get_level_tiles(
         int size, const tile_info_t &info, std::vector<level_tile_t> &ret) {
     ret.clear();
@@ -844,8 +828,7 @@ public:
         padded_shape_ = get_conv_shape(cfg, /*pad=*/true);
         padded_gemm_shape_ = to_gemm(padded_shape_, cfg.prb().prop_kind(),
                 cfg.prb().ab_swap_transpose);
-        max_tg_size_ = get_default_max_tg_size(
-                cfg.hw_cfg(), cfg.exec_cfg().regs(), cfg.simd());
+        max_tg_size_ = cfg.hw().max_tg_size(cfg.exec_cfg().regs(), cfg.simd());
     }
 
     bool relax_checks() {
@@ -1057,7 +1040,7 @@ private:
         auto &exec_cfg = cfg_.exec_cfg();
         int tg_size = ctx.b_tg * ctx.m_tg * ctx.n_tg * ctx.k_tg;
         int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
-                convert_ngen_arch_to_dnnl(cfg_.hw()), tg_size,
+                convert_ngen_arch_to_dnnl(cfg_.hw().to_ngen()), tg_size,
                 exec_cfg.regs() > 128);
         if (slm_size > max_slm_size) return false;
 

@@ -75,11 +75,11 @@ private:
             const std::vector<int> &tg_blocks);
 
     static void normalize_reorder_layouts(layout_t &a, layout_t &b);
-    static dim_t max_tile_size(const hw_config_t &hw_cfg, const layout_t &dst,
-            const layout_t &src) {
+    static dim_t max_tile_size(
+            const hw_t &hw, const layout_t &dst, const layout_t &src) {
         // XeHPC is fine with 2048 bytes, XeHPG and below can fit 2048 bytes if
         // reorder is a simple copy.
-        return (hw_cfg.hw() <= ngen::HW::XeHPG && dst != src) ? 1024 : 2048;
+        return (hw <= ngen::HW::XeHPG && dst != src) ? 1024 : 2048;
     }
 
     static dim_t count_block_messages(

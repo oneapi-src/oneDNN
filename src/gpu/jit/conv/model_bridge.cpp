@@ -71,9 +71,9 @@ fma_t to_fma(fma_kind_t fma) {
 
 hw_config_t to_hw_config(const conv_config_t &cfg) {
     auto &prb = cfg.prb();
-    auto &hw_cfg = cfg.hw_cfg();
-    return hw_config_t(to_hw(cfg.hw()), to_fma(cfg.fma_kind()),
-            to_type(prb.a_data_type), hw_cfg.eu_count());
+    auto &hw = cfg.hw();
+    return hw_config_t(to_hw(hw.to_ngen()), to_fma(cfg.fma_kind()),
+            to_type(prb.a_data_type), hw.eu_count());
 }
 
 conv_sample_t to_conv_sample(

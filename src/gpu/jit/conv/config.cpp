@@ -195,14 +195,10 @@ status_t conv_problem_t::init(
     ksp = kd * kh * kw;
     isp = id * ih * iw;
     osp = od * oh * ow;
-    auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
-            conv_pd->attr()->gpu_attr_.get());
-    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
 
-    hw_config_t hw_cfg(engine, large_grf_mode);
-
-    init_transpose(hw_cfg);
-    CHECK(init_abc_data_types(hw_cfg));
+    hw_t hw(engine);
+    init_transpose(hw);
+    CHECK(init_abc_data_types(hw));
     CHECK(init_acc_data_type());
 
     return status::success;
@@ -405,7 +401,7 @@ int get_default_block(fma_kind_t fma, const type_t &type, int elems) {
     return get_default_mad_block(type);
 }
 
-fma_kind_t get_default_fma(ngen::HW hw, const type_t &type) {
+fma_kind_t get_default_fma(const hw_t &hw, const type_t &type) {
     switch (type.size()) {
         case 1:
             if (hw >= ngen::HW::XeHP) return fma_kind_t::dpas;
@@ -428,7 +424,7 @@ struct nc_block_t {
 
     // Ideally, this should only depend on data type, direction, mb, c, and g to
     // enable the same src/dst formats and avoid reorders between convolutions
-    static nc_block_t get_default_blocking(ngen::HW hw, fma_kind_t fma,
+    static nc_block_t get_default_blocking(const hw_t &hw, fma_kind_t fma,
             type_t type, bool is_dw, int n, int c, int g,
             bool is_output = false) {
         // Select dst layout to align with fma kind of following conv
@@ -800,12 +796,12 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     return status::success;
 }
 
-bool hw_ok(const hw_config_t &hw_cfg) {
-    if (hw_cfg.hw() < ngen::HW::Gen9) return false;
+bool hw_ok(const hw_t &hw) {
+    if (hw < ngen::HW::Gen9) return false;
     return true;
 }
 
-bool data_types_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
+bool data_types_ok(const conv_problem_t &prb, const hw_t &hw) {
     auto src = prb.src_data_type;
     auto wei = prb.wei_data_type;
     auto dst = prb.dst_data_type;
@@ -813,11 +809,10 @@ bool data_types_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
     bool is_bf16 = utils::one_of(data_type::bf16, src, wei, dst, bia);
     if (!prb.is_f64_conv() && utils::one_of(data_type::f64, src, wei, dst, bia))
         return false;
-    bool is_xelpg
-            = hw_cfg.hw() == ngen::HW::XeHPG && !hw_cfg.systolic_support();
-    if (is_bf16 && (hw_cfg.hw() <= ngen::HW::XeLP || is_xelpg)) return false;
+    bool is_xelpg = hw == ngen::HW::XeHPG && !hw.systolic_support();
+    if (is_bf16 && (hw <= ngen::HW::XeLP || is_xelpg)) return false;
     if (prb.is_f64_conv()
-            && (utils::one_of(hw_cfg.hw(), ngen::HW::XeLP, ngen::HW::XeHPG)
+            && (utils::one_of(hw.to_ngen(), ngen::HW::XeLP, ngen::HW::XeHPG)
                     && !is_xelpg))
         return false;
     if (prb.is_fwd) return true;
@@ -857,7 +852,7 @@ bool zero_points_ok(const conv_problem_t &prb) {
             && (mask_dst == 0 || mask_dst == 1 << 1);
 }
 
-bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
+bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     auto *pd = prb.conv_pd;
     auto *attr = prb.attr;
 
@@ -904,8 +899,8 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
             if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
                 return false;
             else if (po.eltwise.alg == alg_kind::eltwise_tanh
-                    && hw_cfg.hw() == ngen::HW::XeHPG
-                    && hw_cfg.systolic_support() && hw_cfg.eu_count() <= 128)
+                    && hw == ngen::HW::XeHPG && hw.systolic_support()
+                    && hw.eu_count() <= 128)
                 // Workaround for hard to reproduce issue in end to end
                 // workloads. It is unclear what the actual issue is as the
                 // kernel always works correctly in benchdnn.
@@ -929,7 +924,7 @@ status_t init_fma_kind(conv_config_t &cfg) {
     if (cfg.fma_kind_param().is_overridden()) return status::success;
     const auto &prb = cfg.prb();
     auto fma_kind = get_supported_fma_kind(
-            cfg.hw_cfg(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
+            cfg.hw(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
     // Force mad for some cases.
     if (prb.is_dw || (prb.ic < 3 && prb.oc < 3 && prb.mb < 8))
         fma_kind = fma_kind_t::mad;
@@ -973,7 +968,7 @@ status_t init_vec_size(conv_config_t &cfg) {
 }
 
 int default_regs(const conv_config_t &cfg) {
-    if (!cfg.hw_cfg().large_grf_support()) return 128;
+    if (!cfg.hw().large_grf_support()) return 128;
     if (cfg.is_dpas_or_dpasw_fma()) return 256;
     return 128;
 }
@@ -1037,20 +1032,17 @@ void init_bwd_d_optimize(conv_config_t &cfg) {
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
         const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr) {
-    auto *gpu_attr
-            = utils::downcast<gpu_primitive_attr_t *>(attr->gpu_attr_.get());
-    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
-    hw_config_t hw_cfg(engine, large_grf_mode);
+    hw_t hw(engine);
 
-    if (!hw_ok(hw_cfg)) return status::unimplemented;
-    if (!data_types_ok(prb, hw_cfg)) return status::unimplemented;
-    if (!post_ops_ok(prb, hw_cfg)) return status::unimplemented;
+    if (!hw_ok(hw)) return status::unimplemented;
+    if (!data_types_ok(prb, hw)) return status::unimplemented;
+    if (!post_ops_ok(prb, hw)) return status::unimplemented;
     if (!zero_points_ok(prb)) return status::unimplemented;
 
     zero_points_config_t zp_cfg(pd);
     cfg.set_zp_cfg(zp_cfg);
     cfg.set_prb(prb);
-    cfg.set_exec_cfg(exec_config_t(hw_cfg));
+    cfg.set_exec_cfg(exec_config_t(hw));
 
     maybe_override_from_env(cfg);
 
@@ -1111,7 +1103,7 @@ send_pattern_t<prb_dim_t> validate_blocking(const conv_config_t &cfg,
         conv_stride_layout_t::input_tensor_t tensor, bool check_2d) {
     using send_pattern = send_pattern_t<prb_dim_t>;
     const compute::gpu_arch_t arch
-            = convert_ngen_arch_to_dnnl(cfg.hw_cfg().hw());
+            = convert_ngen_arch_to_dnnl(cfg.hw().to_ngen());
     auto &prb = cfg.prb();
 
     auto is_match = [&](const send_hint_t<prb_dim_t> &hint) {

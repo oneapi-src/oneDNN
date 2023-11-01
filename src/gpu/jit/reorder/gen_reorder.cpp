@@ -120,9 +120,9 @@ status_t gen_reorder_t::pd_t::init(
     if (!compute_engine->mayiuse_ngen_kernels()) return status::unimplemented;
     auto *gpu_attr
             = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
-    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
-    exec_config_t exec_cfg(hw_config_t(engine, large_grf_mode));
-    exec_cfg.set_regs(128);
+    hw_t hw(engine);
+    exec_config_t exec_cfg(hw);
+    exec_cfg.set_regs(hw.prefer_large_grf(gpu_attr) ? 256 : 128);
     exec_cfg.set_simd(16);
     cfg = std::make_shared<reorder_config_t>(exec_cfg, src_layout, dst_layout);
     cfg->set_zp_cfg(zp_cfg);

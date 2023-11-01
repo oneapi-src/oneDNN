@@ -28,7 +28,7 @@ namespace jit {
 
 class dpasw_injector_t {
 public:
-    dpasw_injector_t(ngen::HW hw, const stmt_t &load_mul_stmt,
+    dpasw_injector_t(const hw_t &hw, const stmt_t &load_mul_stmt,
             const expr_t &c_buf, const stmt_t &c_store_stmt,
             alloc_updater_t &alloc_updater, const expr_t &tg_idx0)
         : hw_(hw)
@@ -360,7 +360,7 @@ private:
 
         // Record permutation for registers to apply it for the destination
         // store later.
-        const auto grf_size = ngen::GRF::bytes(hw_);
+        const auto grf_size = hw_.grf_size();
         const auto rcount = a.dpas().rcount;
         for (int j = 0; j < rcount; j++) {
             int k = j % (rcount / 2);
@@ -399,7 +399,7 @@ private:
         int old_off = to_cpp<int>(old_grf.as<ptr_t>().off);
         int new_off = to_cpp<int>(new_grf.as<ptr_t>().off);
 
-        const int grf_size = ngen::GRF::bytes(hw_);
+        const int grf_size = hw_.grf_size();
 
         ir_assert(old_off % grf_size == 0)
                 << "Must be aligned to GRF boundary.";
@@ -459,7 +459,7 @@ private:
         return true;
     }
 
-    ngen::HW hw_;
+    hw_t hw_;
     stmt_t load_mul_stmt_;
     expr_t c_buf_;
     stmt_t c_store_stmt_;
@@ -470,7 +470,7 @@ private:
     std::vector<send_info_t> send_infos_;
 };
 
-void inject_dpasw(ngen::HW hw, stmt_t &load_mul_stmt, const expr_t &c_buf,
+void inject_dpasw(const hw_t &hw, stmt_t &load_mul_stmt, const expr_t &c_buf,
         stmt_t &c_store_stmt, alloc_updater_t &alloc_updater,
         const expr_t &tg_idx0) {
     dpasw_injector_t injector(

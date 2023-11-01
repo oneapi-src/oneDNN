@@ -97,7 +97,7 @@ struct slm_plan_t : public base_plan_t {
     grid_info_t a_grid;
     grid_info_t b_grid;
 
-    slm_plan_t(ngen::HW hw)
+    slm_plan_t(const hw_t &hw)
         : base_plan_t(hw), x_reduce(hw), a_reorder(hw), b_reorder(hw) {}
 
     explicit operator bool() const { return has_a() || has_b(); }
@@ -141,7 +141,7 @@ struct x2r_plan_t : public base_plan_t {
     abc_kind_t split_abc = abc_kind_t::undef;
     int split_factor = 1;
 
-    x2r_plan_t(ngen::HW hw)
+    x2r_plan_t(const hw_t &hw)
         : base_plan_t(hw), x_reduce(hw), a_reorder(hw), b_reorder(hw) {}
 
     bool can_split(abc_kind_t abc, int factor) const;
@@ -224,7 +224,7 @@ struct conv_plan_t : public base_plan_t {
     int max_gmem_bufs = 0;
     int reserved_regs = -1;
 
-    conv_plan_t(ngen::HW hw)
+    conv_plan_t(const hw_t &hw)
         : base_plan_t(hw), slm(hw), prefetch(hw), x2r(hw), fma(hw), zp(hw) {}
 
     const tensor_t &x_reduce_tile() const {

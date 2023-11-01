@@ -42,25 +42,24 @@ fma_kind_t str_to_fma_kind(const std::string &s) {
     return fma_kind_t::undef;
 }
 
-fma_kind_t get_supported_fma_kind(const hw_config_t &hw_cfg, const type_t &a,
-        const type_t &b, const type_t &c) {
-    if (hw_cfg.hw() >= ngen::HW::XeHP && hw_cfg.systolic_support()
-            && dpas_t::matches_types(hw_cfg.hw(), a, b, c)) {
-        if (hw_cfg.hw() >= ngen::HW::XeHPC)
+fma_kind_t get_supported_fma_kind(
+        const hw_t &hw, const type_t &a, const type_t &b, const type_t &c) {
+    if (hw >= ngen::HW::XeHP && hw.systolic_support()
+            && dpas_t::matches_types(hw, a, b, c)) {
+        if (hw >= ngen::HW::XeHPC)
             return fma_kind_t::dpas;
         else
             return fma_kind_t::dpasw;
     }
-    if ((hw_cfg.hw() == ngen::HW::XeLP
-                || (hw_cfg.hw() >= ngen::HW::XeHP
-                        && !hw_cfg.systolic_support()))
+    if ((hw == ngen::HW::XeLP
+                || (hw >= ngen::HW::XeHP && !hw.systolic_support()))
             && (a.is_x8() && b.is_x8() && c.is_s32()))
         return fma_kind_t::dp4a;
-    if (mad_t::matches_types(hw_cfg.hw(), a, b, c)) return fma_kind_t::mad;
+    if (mad_t::matches_types(hw, a, b, c)) return fma_kind_t::mad;
     return fma_kind_t::undef;
 }
 
-int get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
+int get_simd_size(const hw_t &hw, const fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c) {
     int ret = 0;
     switch (kind) {
@@ -151,7 +150,7 @@ bool dpas_t::matches(const multiply_desc_t &desc) const {
 }
 
 bool dpas_t::matches_types(
-        ngen::HW hw, const type_t &a, const type_t &b, const type_t &c) {
+        const hw_t &hw, const type_t &a, const type_t &b, const type_t &c) {
     if (a.is_x8() && b.is_x8() && c.is_s32()) return true;
     if (a.is_f16() && b.is_f16() && c.is_f32()) return true;
     if (a.is_bf16() && b.is_bf16() && c.is_f32()) return true;
@@ -162,7 +161,7 @@ bool dpas_t::matches_types(
 }
 
 bool mad_t::matches_types(
-        ngen::HW hw, const type_t &a, const type_t &b, const type_t &c) {
+        const hw_t &hw, const type_t &a, const type_t &b, const type_t &c) {
     if (a != b && !(a.is_x8() && b.is_x8())) return false;
 
     if (a.is_f64() && c.is_f64()) return true;
