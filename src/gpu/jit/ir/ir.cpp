@@ -50,6 +50,7 @@ public:
 
     void _visit(const binary_op_t &obj) override {
         switch (obj.op_kind) {
+            case op_kind_t::_div_up:
             case op_kind_t::_idiv:
             case op_kind_t::_imod:
             case op_kind_t::_max:
@@ -76,6 +77,8 @@ public:
         if (obj.saturate) out_ << ".sat";
         out_ << "(" << obj.expr << ")";
     }
+
+    void _visit(const const_var_t &obj) override { out_ << obj.name; }
 
     void _visit(const float_imm_t &obj) override { out_ << obj.value; }
 
@@ -140,6 +143,20 @@ public:
         print_indent();
         out_ << obj.var << "." << obj.var.type() << " = " << obj.value << "\n";
         visit(obj.body);
+    }
+
+    void _visit(const linear_t &obj) override {
+        out_ << "(";
+        for (int i = 0; i < obj.nargs(); i++) {
+            if (i > 0) out_ << " + ";
+            if (is_one(obj.u_vec[i])) {
+                out_ << obj.v_vec[i];
+            } else {
+                out_ << obj.u_vec[i] << " * " << obj.v_vec[i];
+            }
+        }
+        if (!is_zero(obj.c)) out_ << " + " << obj.c;
+        out_ << ")";
     }
 
     void _visit(const load_t &obj) override {

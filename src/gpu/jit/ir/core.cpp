@@ -18,6 +18,8 @@
 
 #include <algorithm>
 
+#include "gpu/jit/ir/linear_expr.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -129,6 +131,7 @@ std::string to_string(op_kind_t kind) {
 
         case op_kind_t::_add3: return "add3";
         case op_kind_t::_mad: return "mad";
+        case op_kind_t::_div_up: return "div_up";
         case op_kind_t::_prelu: return "prelu";
         case op_kind_t::_idiv: return "idiv";
         case op_kind_t::_imod: return "imod";
@@ -331,11 +334,13 @@ expr_t::expr_t(uint32_t value) : object_t(new int_imm_t(value)) {}
 expr_t::expr_t(uint64_t value) : object_t(new int_imm_t(value)) {}
 
 expr_t operator-(const expr_t &a) {
+    if (should_use_linear_op(a)) return linear_op(op_kind_t::_minus, a);
     return const_fold_non_recursive(unary_op_t::make(op_kind_t::_minus, a));
 }
 
 #define DEFINE_BINARY_OPERATOR(op, op_kind) \
     expr_t operator op(const expr_t &a, const expr_t &b) { \
+        if (should_use_linear_op(a, b)) return linear_op(op_kind, a, b); \
         if (a.type().is_ptr()) return shift_ptr(op_kind, a, b); \
         return const_fold_non_recursive(binary_op_t::make(op_kind, a, b)); \
     }
@@ -385,6 +390,7 @@ void object_impl_t::_visit(ir_visitor_t &visitor) const {}
     void ir_visitor_t::_visit(const name &obj) {}
 
 DECL_TRAVERSE_LEAF(bool_imm_t)
+DECL_TRAVERSE_LEAF(const_var_t)
 DECL_TRAVERSE_LEAF(float_imm_t)
 DECL_TRAVERSE_LEAF(func_impl_t)
 DECL_TRAVERSE_LEAF(int_imm_t)
@@ -519,6 +525,15 @@ void ir_visitor_t::_visit(const let_t &obj) {
     visit(obj.var);
     visit(obj.value);
     visit(obj.body);
+}
+
+object_t ir_mutator_t::_mutate(const linear_t &obj) {
+    ir_error_not_expected();
+    return obj;
+}
+
+void ir_visitor_t::_visit(const linear_t &obj) {
+    ir_error_not_expected();
 }
 
 object_t ir_mutator_t::_mutate(const load_t &obj) {

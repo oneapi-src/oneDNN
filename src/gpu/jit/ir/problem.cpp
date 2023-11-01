@@ -130,6 +130,35 @@ prb_dim_t n(prb_dim_kind_t::n);
 prb_dim_t k(prb_dim_kind_t::k);
 } // namespace prb_dims
 
+const expr_t &index_var(const prb_dim_t &prb_dim) {
+    static thread_local dim_map_t<prb_dim_t, expr_t> index_vars = []() {
+        dim_map_t<prb_dim_t, expr_t> ret;
+        for (auto &d : prb_dim_t::all()) {
+            ret[d] = var_t::make(type_t::s32(), d.str() + "_idx");
+        }
+        return ret;
+    }();
+    return index_vars.at(prb_dim);
+}
+
+const expr_t &size_var(const prb_dim_t &prb_dim) {
+    static thread_local dim_map_t<prb_dim_t, expr_t> size_vars = []() {
+        dim_map_t<prb_dim_t, expr_t> ret;
+        for (auto &d : prb_dim_t::all()) {
+            ret[d] = const_var_t::make(type_t::s32(), d.str());
+        }
+        return ret;
+    }();
+    return size_vars.at(prb_dim);
+}
+
+prb_dim_t to_prb_dim(const expr_t &idx_var) {
+    for (auto &d : prb_dim_t::all()) {
+        if (index_var(d).is_same(idx_var)) return d;
+    }
+    return prb_dims::undef;
+}
+
 } // namespace jit
 } // namespace gpu
 } // namespace impl

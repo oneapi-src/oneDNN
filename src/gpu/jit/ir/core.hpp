@@ -40,9 +40,11 @@
     HANDLE_IR_OBJECT(binary_op_t) \
     HANDLE_IR_OBJECT(bool_imm_t) \
     HANDLE_IR_OBJECT(cast_t) \
+    HANDLE_IR_OBJECT(const_var_t) \
     HANDLE_IR_OBJECT(float_imm_t) \
     HANDLE_IR_OBJECT(iif_t) \
     HANDLE_IR_OBJECT(int_imm_t) \
+    HANDLE_IR_OBJECT(linear_t) \
     HANDLE_IR_OBJECT(load_t) \
     HANDLE_IR_OBJECT(ptr_t) \
     HANDLE_IR_OBJECT(shuffle_t) \
@@ -993,6 +995,9 @@ enum class op_kind_t {
     // Multiply-accumulate.
     // op = a + b * c
     _mad,
+    // Integer division by a constant with rounding up.
+    // op = (a + b - 1) / b
+    _div_up,
     // Integer division by a non-constant (rounding down behavior).
     // if (a % b < 0) op = a / b - 1
     // else           op = a / b
@@ -1160,6 +1165,31 @@ private:
     }
 };
 
+// Constant variable, used as a coefficient in a linear expression.
+class const_var_t : public expr_impl_t {
+public:
+    IR_DECL_EXPR_TYPE_ID(const_var_t)
+
+    static expr_t make(const type_t &type, const std::string &name) {
+        return expr_t(new const_var_t(type, name));
+    }
+
+    bool is_equal(const object_impl_t &obj) const override {
+        // Do not allow variable cloning.
+        return this == &obj;
+    }
+
+    size_t get_hash() const override { return ir_utils::get_hash(name); }
+
+    IR_DECLARE_TRAVERSERS()
+
+    std::string name;
+
+private:
+    const_var_t(const type_t &type, const std::string &name)
+        : expr_impl_t(_type_info(), type), name(name) {}
+};
+
 // Floating-point immediate value.
 class float_imm_t : public expr_impl_t {
 public:
@@ -1275,6 +1305,53 @@ private:
         , cond(cond)
         , true_expr(true_expr)
         , false_expr(false_expr) {}
+};
+
+// Linear combination expression:
+//   u[0] * v[0] + u[1] * v[1] + ... u[n - 1] * v[n - 1] + c,
+// where:
+// - c/u[i] is either an integer immediate (int_imm_t) or a constant variable
+//  (const_var_t)
+// - v[i] is a non-constant variable (var_t)
+class linear_t : public expr_impl_t {
+public:
+    IR_DECL_EXPR_TYPE_ID(linear_t)
+    static expr_t make(const expr_t &c, const std::vector<expr_t> &u_vec,
+            const std::vector<expr_t> &v_vec) {
+        return expr_t(new linear_t(c, u_vec, v_vec));
+    }
+    static expr_t make(const expr_t &c) { return make(c, {}, {}); }
+    static expr_t make(const expr_t &c, const std::vector<expr_t> &v_vec) {
+        std::vector<expr_t> ones(v_vec.size(), expr_t(1));
+        return make(c, ones, v_vec);
+    }
+    int nargs() const { return int(v_vec.size()); }
+
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
+
+        return c.is_equal(other.c) && ir_utils::is_equal(u_vec, other.u_vec)
+                && ir_utils::is_equal(v_vec, other.v_vec);
+    }
+
+    size_t get_hash() const override {
+        return ir_utils::get_hash(c, u_vec, v_vec);
+    }
+
+    IR_DECLARE_TRAVERSERS()
+
+    expr_t c;
+    std::vector<expr_t> u_vec;
+    std::vector<expr_t> v_vec;
+
+private:
+    linear_t(const expr_t &c, const std::vector<expr_t> &u_vec,
+            const std::vector<expr_t> &v_vec)
+        : expr_impl_t(_type_info(), type_t::s32())
+        , c(c)
+        , u_vec(u_vec)
+        , v_vec(v_vec) {}
 };
 
 // Updates `base_expr` and `off` so that after return:
@@ -1723,6 +1800,10 @@ T to_cpp(const expr_t &e) {
 
     ir_error_not_expected();
     return 0;
+}
+
+inline int to_int(const expr_t &e) {
+    return to_cpp<int>(e);
 }
 
 expr_t operator-(const expr_t &a);

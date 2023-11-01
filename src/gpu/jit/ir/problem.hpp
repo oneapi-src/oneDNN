@@ -439,6 +439,10 @@ bool has_spatial(const dim_map_t<prb_dim_t, T> &map,
     return false;
 }
 
+const expr_t &index_var(const prb_dim_t &prb_dim);
+const expr_t &size_var(const prb_dim_t &prb_dim);
+prb_dim_t to_prb_dim(const expr_t &idx_var);
+
 } // namespace jit
 } // namespace gpu
 } // namespace impl
