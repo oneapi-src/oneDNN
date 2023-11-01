@@ -645,9 +645,10 @@ public:
 #endif
 
     object_t &operator=(const object_t &other) {
-        increment(other.impl());
+        auto *other_impl = other.impl();
+        increment(other_impl);
         decrement_and_maybe_destroy(impl_);
-        impl_ = other.impl();
+        impl_ = other_impl;
 #ifdef SANITY_CHECK
         sanity_check();
 #endif
