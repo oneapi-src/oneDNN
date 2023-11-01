@@ -2005,7 +2005,7 @@ private:
         auto &tg = cfg_.thread_group_grid();
         auto thr_view = tg_view.split(tg, &grid);
         auto params = get_send_params(cfg_.exec_cfg(), send_op_t::prefetch,
-                send_address_t::a64, fma_kind_t::unknown, abc, thr_view,
+                send_address_t::a64, fma_kind_t::undef, abc, thr_view,
                 gemm_schedule_);
         prefetch = create_send_plan(cfg_.exec_cfg(), thr_view, params);
         return plan_status_t::success;

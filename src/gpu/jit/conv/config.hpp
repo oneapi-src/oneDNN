@@ -195,22 +195,22 @@ private:
                     = gpu_utils::dev_getenv("use_matching_fpmath", false);
             if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::bf16)
-                    && fma_kind::get_supported_kind(hw_cfg, data_type::bf16,
+                    && get_supported_fma_kind(hw_cfg, data_type::bf16,
                                data_type::bf16, data_type::f32)
-                            != fma_kind_t::unknown) {
+                            != fma_kind_t::undef) {
                 a_data_type = data_type::bf16;
                 b_data_type = data_type::bf16;
             } else if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::f16)
-                    && fma_kind::get_supported_kind(hw_cfg, data_type::f16,
+                    && get_supported_fma_kind(hw_cfg, data_type::f16,
                                data_type::f16, data_type::f32)
-                            != fma_kind_t::unknown) {
+                            != fma_kind_t::undef) {
                 a_data_type = data_type::f16;
                 b_data_type = data_type::f16;
             } else if (attr->mayidownconvert(data_type::f32, data_type::tf32)
-                    && fma_kind::get_supported_kind(hw_cfg, data_type::tf32,
+                    && get_supported_fma_kind(hw_cfg, data_type::tf32,
                                data_type::tf32, data_type::f32)
-                            != fma_kind_t::unknown) {
+                            != fma_kind_t::undef) {
                 a_data_type = data_type::tf32;
                 b_data_type = data_type::tf32;
             }
@@ -507,7 +507,7 @@ public:
 
 class fma_kind_param_t : public value_param_t<fma_kind_t> {
 public:
-    fma_kind_param_t() : value_param_t(fma_kind_t::unknown) {}
+    fma_kind_param_t() : value_param_t(fma_kind_t::undef) {}
 
     std::string name() const override { return "fma"; }
     std::string desc() const override { return "FMA kind."; }
@@ -515,12 +515,12 @@ public:
     bool is_default() const override { return false; }
 
     void set_from_str(const std::string &s) override {
-        value_ = fma_kind::from_string(s);
+        value_ = str_to_fma_kind(s);
     }
 
     std::string str() const override {
         std::ostringstream oss;
-        oss << short_name() << "=" << fma_kind::to_string(value_);
+        oss << short_name() << "=" << to_string(value_);
         return oss.str();
     }
 };

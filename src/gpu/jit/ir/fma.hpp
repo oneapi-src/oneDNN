@@ -30,12 +30,16 @@ namespace jit {
 
 // Possible backend instruction sets
 enum class fma_kind_t {
+    undef = 0,
     mad,
     dp4a,
     dpas,
     dpasw,
-    unknown,
+    _max,
 };
+
+std::string to_string(fma_kind_t kind);
+fma_kind_t str_to_fma_kind(const std::string &s);
 
 inline bool is_dp_fma(fma_kind_t kind) {
     switch (kind) {
@@ -46,18 +50,11 @@ inline bool is_dp_fma(fma_kind_t kind) {
     }
 }
 
-namespace fma_kind {
-
-std::string to_string(fma_kind_t val);
-fma_kind_t from_string(std::string enum_string);
-
-fma_kind_t get_supported_kind(const hw_config_t &hw, const type_t &a,
+fma_kind_t get_supported_fma_kind(const hw_config_t &hw, const type_t &a,
         const type_t &b, const type_t &c);
 
 int get_simd_size(ngen::HW hw, fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c);
-
-} // namespace fma_kind
 
 class multiply_desc_t {
 public:

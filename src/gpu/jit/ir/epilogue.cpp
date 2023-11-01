@@ -936,7 +936,7 @@ private:
         const bool allow_2d = !offset.is<int_imm_t>()
                 || (offset.as<int_imm_t>().value % cache_line_size == 0);
         auto send_params = get_send_params(ir_ctx_.exec_cfg(), send_op,
-                send_address_t::a64, fma_kind_t::unknown, abc_kind_t::c,
+                send_address_t::a64, fma_kind_t::undef, abc_kind_t::c,
                 c_mem_tile_view, gemm_schedule_, allow_2d);
         auto r2g = make_access_builder(
                 ir_ctx_, c_mem_tile_view, c_mem_buf_, tmp_reg_buf, send_params);

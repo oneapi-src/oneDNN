@@ -508,7 +508,7 @@ private:
 send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
         send_address_t send_address, const view_t &view,
         send_cache_hint_t cache_hint = send_cache_hint_t::undef,
-        fma_kind_t fma_kind = fma_kind_t::unknown,
+        fma_kind_t fma_kind = fma_kind_t::undef,
         abc_kind_t abc_kind = abc_kind_t::undef);
 
 send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,

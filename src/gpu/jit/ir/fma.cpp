@@ -21,30 +21,29 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-std::string fma_kind::to_string(fma_kind_t val) {
-    switch (val) {
+std::string to_string(fma_kind_t kind) {
+    switch (kind) {
+        case fma_kind_t::undef: return "undef";
         case fma_kind_t::mad: return "mad";
         case fma_kind_t::dp4a: return "dp4a";
         case fma_kind_t::dpas: return "dpas";
         case fma_kind_t::dpasw: return "dpasw";
-        case fma_kind_t::unknown: return "unknown";
-        default: assert(!"unknown fma kind"); return "unknown";
+        default: ir_error_not_expected(); return "undef";
     }
 }
 
-fma_kind_t fma_kind::from_string(std::string enum_string) {
-    for (int enum_int = static_cast<int>(fma_kind_t::mad);
-            enum_int <= static_cast<int>(fma_kind_t::unknown); enum_int++) {
+fma_kind_t str_to_fma_kind(const std::string &s) {
+    for (int enum_int = static_cast<int>(fma_kind_t::undef);
+            enum_int < static_cast<int>(fma_kind_t::_max); enum_int++) {
         fma_kind_t enum_val = static_cast<fma_kind_t>(enum_int);
-        if (fma_kind::to_string(enum_val).compare(enum_string) == 0)
-            return enum_val;
+        if (to_string(enum_val).compare(s) == 0) return enum_val;
     }
-    assert(!"unknown fma kind");
-    return fma_kind_t::unknown;
+    ir_error_not_expected();
+    return fma_kind_t::undef;
 }
 
-fma_kind_t fma_kind::get_supported_kind(const hw_config_t &hw_cfg,
-        const type_t &a, const type_t &b, const type_t &c) {
+fma_kind_t get_supported_fma_kind(const hw_config_t &hw_cfg, const type_t &a,
+        const type_t &b, const type_t &c) {
     if (hw_cfg.hw() >= ngen::HW::XeHP && hw_cfg.systolic_support()
             && dpas_t::matches_types(hw_cfg.hw(), a, b, c)) {
         if (hw_cfg.hw() >= ngen::HW::XeHPC)
@@ -58,10 +57,10 @@ fma_kind_t fma_kind::get_supported_kind(const hw_config_t &hw_cfg,
             && (a.is_x8() && b.is_x8() && c.is_s32()))
         return fma_kind_t::dp4a;
     if (mad_t::matches_types(hw_cfg.hw(), a, b, c)) return fma_kind_t::mad;
-    return fma_kind_t::unknown;
+    return fma_kind_t::undef;
 }
 
-int fma_kind::get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
+int get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c) {
     int ret = 0;
     switch (kind) {

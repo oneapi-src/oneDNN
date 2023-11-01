@@ -64,8 +64,7 @@ fma_t to_fma(fma_kind_t fma) {
         case fma_kind_t::dpas:
         case fma_kind_t::dpasw: return fma_t::dpas;
         default:
-            ir_error_not_expected()
-                    << "Unknown FMA kind: " << fma_kind::to_string(fma);
+            ir_error_not_expected() << "Unknown FMA kind: " << to_string(fma);
     }
     return fma_t::undef;
 }

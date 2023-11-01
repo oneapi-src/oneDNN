@@ -413,7 +413,7 @@ fma_kind_t get_default_fma(ngen::HW hw, const type_t &type) {
             return hw >= ngen::HW::XeHP ? fma_kind_t::dpas : fma_kind_t::mad;
         default: return fma_kind_t::mad;
     }
-    return fma_kind_t::unknown;
+    return fma_kind_t::undef;
 }
 
 struct nc_block_t {
@@ -927,12 +927,12 @@ void maybe_override_from_env(conv_config_t &cfg) {
 status_t init_fma_kind(conv_config_t &cfg) {
     if (cfg.fma_kind_param().is_overridden()) return status::success;
     const auto &prb = cfg.prb();
-    auto fma_kind = fma_kind::get_supported_kind(
+    auto fma_kind = get_supported_fma_kind(
             cfg.hw_cfg(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
     // Force mad for some cases.
     if (prb.is_dw || (prb.ic < 3 && prb.oc < 3 && prb.mb < 8))
         fma_kind = fma_kind_t::mad;
-    if (fma_kind == fma_kind_t::unknown) return status::unimplemented;
+    if (fma_kind == fma_kind_t::undef) return status::unimplemented;
     cfg.set_fma_kind(fma_kind);
     return status::success;
 }
@@ -941,8 +941,8 @@ status_t init_simd(conv_config_t &cfg) {
     if (cfg.exec_cfg_param().is_overridden("simd")) return status::success;
 
     const auto &prb = cfg.prb();
-    int simd = fma_kind::get_simd_size(cfg.hw(), cfg.fma_kind(),
-            prb.a_data_type, prb.b_data_type, prb.acc_data_type);
+    int simd = get_simd_size(cfg.hw(), cfg.fma_kind(), prb.a_data_type,
+            prb.b_data_type, prb.acc_data_type);
     cfg.set_simd(simd);
     return status::success;
 }
@@ -1617,7 +1617,7 @@ std::string conv_config_t::str() const {
     oss << "  Threads:                    " << get_thread_count(*this) << " (utilization: "
         << get_thread_utilization(*this) << "% thread, "
         << get_wave_utilization(*this) << "% wave)" <<  std::endl;
-    oss << "  FMA kind:                   " << fma_kind::to_string(fma_kind()) << std::endl;
+    oss << "  FMA kind:                   " << to_string(fma_kind()) << std::endl;
     oss << "  SLM buffering:              " << "A: " << to_string(slm().a()) << ", B: " << to_string(slm().b())
                                             << ", buffers: " << slm().bufs() << ", pad: " << to_string(pad_slm()) << std::endl;
     oss << "  GRF buffers for GMEM load:  " << slm().gmem_bufs() << std::endl;

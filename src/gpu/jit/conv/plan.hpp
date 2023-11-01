@@ -172,7 +172,7 @@ struct fma_plan_t : public base_plan_t {
     layout_t b_layout;
     layout_t c_layout;
     layout_t c_prb_layout;
-    fma_kind_t fma_kind = fma_kind_t::unknown;
+    fma_kind_t fma_kind = fma_kind_t::undef;
     int b_blk = 0;
     int m_blk = 0;
     int n_blk = 0;
