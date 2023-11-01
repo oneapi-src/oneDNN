@@ -53,10 +53,14 @@ public:
 
     expr_t create_tmp_var(
             const type_t &type, const std::string &prefix = "tmp") {
+        return var_t::make(type, create_tmp_name(prefix));
+    }
+
+    std::string create_tmp_name(const std::string &prefix = "tmp") {
         int &id = prefix_ids_[prefix];
         auto name = prefix + "_" + std::to_string(id);
         id++;
-        return var_t::make(type, name);
+        return name;
     }
 
 private:
