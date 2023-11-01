@@ -160,6 +160,155 @@ static expr_c create_cast_f32_to_bf16(const context_ptr &ctx, const cast_c &v) {
     }
 }
 
+static expr_c create_cast_fp16_to_f32(const context_ptr &ctx, const cast_c &v) {
+    builder::ir_builder_t builder;
+    auto &in = v->in_;
+    const auto count = make_expr<constant_node>(
+            16UL, sc_data_type_t::u32(in->dtype_.lanes_));
+
+    auto uint32_v = builder::make_cast(sc_data_type_t::u32(in->dtype_.lanes_),
+            builder::make_reinterpret(
+                    in, sc_data_type_t::u16(in->dtype_.lanes_)));
+    auto e = builder::make_int_and(uint32_v,
+                     builder::make_constant(
+                             std::vector<union_val>(
+                                     in->dtype_.lanes_, (int64_t)0x7C00),
+                             sc_data_type_t::u32(in->dtype_.lanes_)))
+            >> 10;
+    auto m = builder::make_int_and(uint32_v,
+                     builder::make_constant(
+                             std::vector<union_val>(
+                                     in->dtype_.lanes_, (int64_t)0x03FF),
+                             sc_data_type_t::u32(in->dtype_.lanes_)))
+            << 13;
+    auto l = builder::make_cast(sc_data_type_t::u32(in->dtype_.lanes_),
+                     builder::make_reinterpret(
+                             m, sc_data_type_t::f32(v->dtype_.lanes_)))
+            >> 23;
+
+    // (x & 0x8000) << 16
+    auto cond1 = builder::make_int_and(uint32_v,
+                         builder::make_constant(
+                                 std::vector<union_val>(
+                                         in->dtype_.lanes_, (int64_t)0x8000),
+                                 sc_data_type_t::u32(in->dtype_.lanes_)))
+            << 16;
+    // (e != 0)
+    auto tmp_bool_2 = builder::make_cmp_ne(e, 0);
+    // ((e + 112) << 23 | m)
+    auto tmp_cond_2 = builder::make_int_and((e + 112) << 23, m);
+    auto cond2 = tmp_bool_2 * tmp_cond_2;
+    //((e == 0) & (m != 0))
+    auto tmp_bool_3 = builder::make_int_and(
+            builder::make_cmp_eq(e, 0), builder::make_cmp_ne(m, 0));
+    // ((l - 37) << 23 | ((m << (150 - l)) & 0x007FE000))
+    auto tmp_cond_3 = builder::make_int_or((l - 37) << 23,
+            builder::make_int_and(m << (150 - l),
+                    builder::make_constant(
+                            std::vector<union_val>(
+                                    in->dtype_.lanes_, (int64_t)0x007FE000),
+                            sc_data_type_t::u32(in->dtype_.lanes_))));
+    auto cond3 = tmp_bool_3 * tmp_cond_3;
+    /*
+    (x & 0x8000) << 16 | (e != 0) * ((e + 112) << 23 | m)
+                | ((e == 0) & (m != 0))
+                        * ((l - 37) << 23 | ((m << (150 - l)) & 0x007FE000))
+    */
+    auto f32_v
+            = builder::make_int_or(builder::make_int_or(cond1, cond2), cond3);
+    auto tmpf32 = copy_attr(*v,
+            builder::make_reinterpret(
+                    f32_v, sc_data_type_t::f32(v->dtype_.lanes_)));
+    if (!v->dtype_.is_etype(sc_data_etype::F32)) {
+        tmpf32 = builder::make_cast(v->dtype_, tmpf32);
+    }
+
+    return tmpf32;
+}
+
+static expr_c create_cast_f32_to_fp16(const context_ptr &ctx, const cast_c &v) {
+    auto &in = v->in_;
+    COMPILE_ASSERT(in->dtype_.is_etype(sc_data_etype::F32),
+            "fp16 should be cast from f32.");
+    const auto count = make_expr<constant_node>(
+            16UL, sc_data_type_t::u32(in->dtype_.lanes_));
+
+    if (ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu
+            && (ctx->machine_.cpu_flags_.fAVX512AMXFP16
+                    || ctx->machine_.cpu_flags_.fAVX512FP16)) {
+        return v;
+    } else {
+        auto uint32_v = builder::make_reinterpret(
+                in, sc_data_type_t::u32(in->dtype_.lanes_));
+
+        auto b = uint32_v
+                + builder::make_constant(
+                        std::vector<union_val>(
+                                in->dtype_.lanes_, (int64_t)0x00001000),
+                        sc_data_type_t::u32(in->dtype_.lanes_));
+        auto e = builder::make_int_and(b,
+                         builder::make_constant(
+                                 std::vector<union_val>(in->dtype_.lanes_,
+                                         (int64_t)0x7F800000),
+                                 sc_data_type_t::u32(in->dtype_.lanes_)))
+                >> 23;
+        auto m = builder::make_int_and(b,
+                builder::make_constant(std::vector<union_val>(in->dtype_.lanes_,
+                                               (int64_t)0x007FFFFF),
+                        sc_data_type_t::u32(in->dtype_.lanes_)));
+        // (b & 0x80000000) >> 16
+        auto cond1 = builder::make_int_and(b,
+                             builder::make_constant(
+                                     std::vector<union_val>(in->dtype_.lanes_,
+                                             (int64_t)0x80000000),
+                                     sc_data_type_t::u32(in->dtype_.lanes_)))
+                >> 16;
+        // (e > 112)
+        auto tmp_bool_2 = builder::make_cmp_gt(e, 112);
+        // (((e - 112) << 10) & 0x7C00)
+        auto tmp_cond_2 = builder::make_int_and((e - 112) << 10,
+                builder::make_constant(std::vector<union_val>(in->dtype_.lanes_,
+                                               (int64_t)0x7C00),
+                        sc_data_type_t::u32(in->dtype_.lanes_)));
+        // (e > 112) * ((((e - 112) << 10) & 0x7C00) | m >> 13)
+        auto cond2 = tmp_bool_2 * builder::make_int_or(tmp_cond_2, m >> 13);
+        // ((e < 113) & (e > 101))
+        auto tmp_bool_3 = builder::make_int_and(
+                builder::make_cmp_lt(e, 113), builder::make_cmp_gt(e, 101));
+        // ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1)
+        auto tmp_cond_3 = (((builder::make_constant(
+                                     std::vector<union_val>(in->dtype_.lanes_,
+                                             (int64_t)0x007FF000),
+                                     sc_data_type_t::u32(in->dtype_.lanes_))
+                                    + m)
+                                   >> (125 - e))
+                                  + 1)
+                >> 1;
+        //((e < 113) & (e > 101)) * ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1)
+        auto cond3 = tmp_bool_3 * tmp_cond_3;
+        auto cond4 = builder::make_cmp_gt(e, 143)
+                * builder::make_constant(
+                        std::vector<union_val>(
+                                in->dtype_.lanes_, (int64_t)0x7FFF),
+                        sc_data_type_t::u32(in->dtype_.lanes_));
+        /*
+        (b & 0x80000000) >> 16
+                | (e > 112) * ((((e - 112) << 10) & 0x7C00) | m >> 13)
+                | ((e < 113) & (e > 101))
+                * ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1)
+                | (e > 143) * 0x7FFF
+        */
+        auto fp16_v = builder::make_int_or(
+                builder::make_int_or(builder::make_int_or(cond1, cond2), cond3),
+                cond4);
+        return copy_attr(*v,
+                builder::make_reinterpret(
+                        builder::make_cast(
+                                sc_data_type_t::u16(in->dtype_.lanes_), fp16_v),
+                        sc_data_type_t::f16(in->dtype_.lanes_)));
+    }
+}
+
 static std::string get_isnan_func_name(const intrin_call_c &node) {
     std::stringstream ss;
     ss << "_should_inline_isnan_" << node->dtype_;
@@ -642,20 +791,26 @@ public:
 
     expr_c visit(cast_c v) override {
         auto ret = ir_visitor_t::visit(v).checked_as<cast_c>().remove_const();
-        if (ret->in_->dtype_.is_etype(sc_data_etype::BF16)) {
+        if (ret->in_->dtype_.is_etype(sc_data_etype::BF16)
+                || ret->in_->dtype_.is_etype(sc_data_etype::F16)) {
             expr new_in = visit_need_def_args({ret->in_})[0].remove_const();
             if (!new_in.ptr_same(ret->in_)) {
                 ret = ret->remake().static_as<cast>();
             }
             ret->in_ = new_in;
-            return create_cast_bf16_to_f32(ctx_, ret);
-        } else if (ret->dtype_.is_etype(sc_data_etype::BF16)) {
+            return ret->in_->dtype_.is_etype(sc_data_etype::BF16)
+                    ? create_cast_bf16_to_f32(ctx_, ret)
+                    : create_cast_fp16_to_f32(ctx_, ret);
+        } else if (ret->dtype_.is_etype(sc_data_etype::BF16)
+                || ret->dtype_.is_etype(sc_data_etype::F16)) {
             expr new_in = visit_need_def_args({ret->in_})[0].remove_const();
             if (!new_in.ptr_same(ret->in_)) {
                 ret = ret->remake().static_as<cast>();
             }
             ret->in_ = new_in;
-            return create_cast_f32_to_bf16(ctx_, ret);
+            return ret->dtype_.is_etype(sc_data_etype::BF16)
+                    ? create_cast_f32_to_bf16(ctx_, ret)
+                    : create_cast_f32_to_fp16(ctx_, ret);
         }
 
         return ret;
