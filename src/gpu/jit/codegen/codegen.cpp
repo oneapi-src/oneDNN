@@ -1109,25 +1109,32 @@ public:
     }
 
     void _visit(const ternary_op_t &obj) override {
+        flag_setter_t no_vs(&allow_vert_stride_region_, false);
+        auto dst_op = alloc_dst_op(obj);
+        auto mod = dst_op.mod();
+        auto src0_op = eval(obj.a);
+        auto src1_op = eval(obj.b);
+        auto src2_op = eval(obj.c);
         switch (obj.op_kind) {
             case op_kind_t::_add3:
-            case op_kind_t::_mad: {
-                flag_setter_t no_vs(&allow_vert_stride_region_, false);
-                auto dst_op = alloc_dst_op(obj);
-                auto mod = dst_op.mod();
-                auto src0_op = eval(obj.a);
-                auto src1_op = eval(obj.b);
-                auto src2_op = eval(obj.c);
-                if (obj.op_kind == op_kind_t::_add3) {
-                    host_->eadd3(mod, dst_op, src0_op, src1_op, src2_op);
-                } else {
-                    host_->emad(mod, dst_op, src0_op, src1_op, src2_op);
-                }
-                bind(obj, dst_op);
+                host_->eadd3(mod, dst_op, src0_op, src1_op, src2_op);
                 break;
-            }
+            case op_kind_t::_mad:
+                host_->emad(mod, dst_op, src0_op, src1_op, src2_op);
+                break;
+            case op_kind_t::_idiv:
+                host_->eidiv(mod, dst_op.reg_data(), ngen::Subregister(),
+                        src0_op.reg_data(), src1_op.reg_data(),
+                        src2_op.reg_data());
+                break;
+            case op_kind_t::_imod:
+                host_->eidiv(mod, ngen::Subregister(), dst_op.reg_data(),
+                        src0_op.reg_data(), src1_op.reg_data(),
+                        src2_op.reg_data());
+                break;
             default: ir_error_not_expected();
         }
+        bind(obj, dst_op);
     }
 
     void _visit(const unary_op_t &obj) override {

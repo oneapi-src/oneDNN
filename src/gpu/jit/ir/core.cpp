@@ -130,6 +130,8 @@ std::string to_string(op_kind_t kind) {
         case op_kind_t::_add3: return "add3";
         case op_kind_t::_mad: return "mad";
         case op_kind_t::_prelu: return "prelu";
+        case op_kind_t::_idiv: return "idiv";
+        case op_kind_t::_imod: return "imod";
 
         default: ir_error_not_expected() << "Unknown op_kind_t value.";
     }
@@ -253,6 +255,9 @@ type_t ternary_op_type(
         case op_kind_t::_mad:
             return binary_op_type(op_kind_t::_add, a.type(),
                     binary_op_type(op_kind_t::_mul, b, c));
+        case op_kind_t::_idiv:
+        case op_kind_t::_imod:
+            return a.type().is_signed() ? type_t::s32() : type_t::u32();
         default: ir_error_not_expected();
     }
     return type_t::undef();

@@ -982,9 +982,27 @@ enum class op_kind_t {
 
     _and,
 
-    _prelu, // binary relu(a, b)
-    _add3, // a + b + c
-    _mad, // a + b * c
+    // Ternary operations.
+    // Parametric ReLU.
+    // if (a > 0) op = a
+    // else       op = a * b
+    _prelu,
+    // Ternary add.
+    // op = a + b + c
+    _add3,
+    // Multiply-accumulate.
+    // op = a + b * c
+    _mad,
+    // Integer division by a non-constant (rounding down behavior).
+    // if (a % b < 0) op = a / b - 1
+    // else           op = a / b
+    // This is ternary operation, c is a pre-computed value.
+    _idiv,
+    // Integer modulus by a non-constant (rounding down behavior).
+    // if (a % b < 0) op = a % b + b
+    // else           op = a % b
+    // This is ternary operation, c is a pre-computed value.
+    _imod,
 };
 
 std::string to_string(op_kind_t kind);

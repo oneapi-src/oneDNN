@@ -49,16 +49,22 @@ public:
     }
 
     void _visit(const binary_op_t &obj) override {
-        if (utils::one_of(obj.op_kind, op_kind_t::_min, op_kind_t::_max)) {
-            out_ << to_string(obj.op_kind) << "(" << obj.a << ", " << obj.b
-                 << ")";
-            return;
+        switch (obj.op_kind) {
+            case op_kind_t::_idiv:
+            case op_kind_t::_imod:
+            case op_kind_t::_max:
+            case op_kind_t::_min:
+                out_ << to_string(obj.op_kind) << "(" << obj.a << ", " << obj.b
+                     << ")";
+                return;
+            default:
+                out_ << "(";
+                visit(obj.a);
+                out_ << " " << to_string(obj.op_kind) << " ";
+                visit(obj.b);
+                out_ << ")";
+                break;
         }
-        out_ << "(";
-        visit(obj.a);
-        out_ << " " << to_string(obj.op_kind) << " ";
-        visit(obj.b);
-        out_ << ")";
     }
 
     void _visit(const bool_imm_t &obj) override {

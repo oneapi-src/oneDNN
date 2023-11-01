@@ -908,6 +908,21 @@ inline std::unordered_map<std::string, int> to_string_int_map(
     return ret;
 }
 
+// Adapted version of magicgu function from Hacker's Delight 10-15.
+inline void idiv_magicgu(uint32_t d, uint32_t &m, uint32_t &p) {
+    uint32_t s32_max = std::numeric_limits<int32_t>::max();
+    ir_assert(d != 0 && d <= s32_max);
+    uint64_t nc = (s32_max / d) * d - 1;
+    for (p = 32; p < 64; p++) {
+        uint64_t _2p = 1LL << p;
+        if (_2p > nc * (d - 1 - (_2p - 1) % d)) {
+            m = (_2p + d - 1 - (_2p - 1) % d) / d;
+            return;
+        }
+    }
+    ir_error_not_expected();
+}
+
 } // namespace ir_utils
 } // namespace jit
 } // namespace gpu

@@ -678,22 +678,67 @@ public:
         }
     }
 
-    // Adapted version of magicgu function from Hacker's Delight 10-15.
-    static void eidiv_magicgu(uint32_t d, uint32_t &m, uint32_t &p) {
-        uint32_t s32_max = std::numeric_limits<int32_t>::max();
-        ir_assert(d != 0 && d <= s32_max);
-        uint64_t nc = (s32_max / d) * d - 1;
-        for (p = 32; p < 64; p++) {
-            uint64_t _2p = 1LL << p;
-            if (_2p > nc * (d - 1 - (_2p - 1) % d)) {
-                m = (_2p + d - 1 - (_2p - 1) % d) / d;
-                return;
-            }
+    // Emulates integer division by a non-constant (rounding towards negative
+    // infinity).
+    // Requirements:
+    //     INT32_MIN <= x <= UINT32_MAX
+    //     0         <  y <= INT32_MAX
+    // Computes:
+    //     qot = x / y
+    //     rem = x % y
+    // See ir_utils::idiv_magicgu_packed() for information
+    // about magic calculation.
+    void eidiv(const ngen::InstructionModifier &mod, const ngen::RegData &qot,
+            const ngen::RegData &rem, const ngen::RegData &x,
+            const ngen::RegData &_y, const ngen::RegData &_magic) {
+        ir_assert(x.getHS() == 0);
+        ir_assert(_y.getType() == ngen::DataType::ud);
+        ir_assert(_magic.getHS() == 0);
+        ir_assert(_magic.getType() == ngen::DataType::uq);
+
+        bool x_signed = utils::one_of(x.getType(), ngen::DataType::b,
+                ngen::DataType::w, ngen::DataType::d);
+        auto div_type = (x_signed ? ngen::DataType::d : ngen::DataType::ud);
+        auto magic = ngen::Subregister(
+                _magic, _magic.getOffset(), _magic.getType());
+        auto y = ngen::Subregister(_y, _y.getOffset(), _y.getType());
+        auto m = magic.ud(0);
+        auto p = magic.ud(1);
+
+        auto x_tmp = ra_.alloc().retype(div_type);
+        auto qot_tmp = ra_.alloc().retype(div_type);
+        auto p_tmp = ra_.alloc_sub<uint32_t>();
+        auto _x = x_tmp[0];
+        auto _qot = qot_tmp[0];
+        mov(1, _x, x);
+
+        auto acc = acc0.retype(div_type);
+        mul(1, acc[0], _x, m.uw(0));
+        mach(1, _qot, _x, m);
+        add(1, p_tmp, p, -32);
+        cmp(1 | ge | f0[0], p, 32);
+        shr<uint32_t>(1 | f0[0], _qot, _qot, p_tmp);
+        shr<uint32_t>(1 | ~f0[0], _qot, _x, p);
+        if (!qot.isInvalid()) mov(mod, qot, _qot);
+
+        if (!rem.isInvalid()) {
+            // rem = x - qot * y
+            auto tmp = ra_.alloc_sub<uint64_t>();
+            mul(1, tmp.ud(0), _qot, y.uw(0));
+            mul(1, tmp.ud(1), _qot, y.uw(1));
+            shl<uint32_t>(1, tmp.ud(1), tmp.ud(1), 16);
+            add(1, tmp.ud(0), tmp.ud(1), tmp.ud(0));
+            add(mod, rem, x, -tmp.ud(0));
+            ra_.safeRelease(tmp);
         }
-        ir_error_not_expected();
+
+        ra_.safeRelease(x_tmp);
+        ra_.safeRelease(qot_tmp);
+        ra_.safeRelease(p_tmp);
     }
 
-    // Emulates integer division by a constant.
+    // Emulates integer division by a non-constant (rounding towards negative
+    // infinity)
     // Requirements:
     //     INT32_MIN <= x <= UINT32_MAX
     //     0         <  y <= INT32_MAX
@@ -721,7 +766,7 @@ public:
         }
 
         uint32_t m = 0, p = 0;
-        eidiv_magicgu(y, m, p);
+        ir_utils::idiv_magicgu(y, m, p);
 
         auto x_tmp = ra_.alloc().retype(div_type);
         auto qot_tmp = ra_.alloc().retype(div_type);
