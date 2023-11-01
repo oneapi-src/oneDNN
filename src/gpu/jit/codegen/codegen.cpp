@@ -70,20 +70,22 @@ public:
         bool do_alloc = (obj.kind == alloc_kind_t::grf);
         bool use_bc_alloc = false;
         if (do_alloc) {
-            reg_buf_t rb;
+            int grf_size = ngen::GRF::bytes(hw);
+            reg_buf_data_t rbd;
             if (obj.has_attr<bank_conflict_attr_t>()) {
-                rb = create_bank_conflict_allocation(obj);
+                rbd = create_bank_conflict_allocation(obj);
                 use_bc_alloc = true;
+            } else if (obj.size < grf_size) {
+                rbd = scope.alloc_reg_data(type_t::u(obj.size * 8));
             } else {
-                int grf_size = ngen::GRF::bytes(hw);
                 int regs = utils::div_up(obj.size, grf_size);
-                rb = scope.alloc_reg_buf(regs);
+                rbd = scope.alloc_reg_buf(regs);
             }
             if (obj.has_attr<grf_permute_attr_t>()) {
                 auto &attr = obj.get_attr<grf_permute_attr_t>();
-                rb.set_grf_permutation(*attr.grf_perm);
+                rbd.set_grf_permutation(*attr.grf_perm);
             }
-            expr_binding_.bind(obj.buf, reg_buf_data_t(rb));
+            expr_binding_.bind(obj.buf, rbd);
         }
         visit(obj.body);
         if (do_alloc) expr_binding_.unbind(obj.buf);

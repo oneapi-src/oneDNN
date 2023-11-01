@@ -147,6 +147,10 @@ public:
 
     operator ngen::RegData() const { return rd_; }
 
+    void set_grf_permutation(const grf_permutation_t &grf_perm) {
+        reg_buf_->set_grf_permutation(grf_perm);
+    }
+
     bool check_bounds(
             int off_bytes, int len_bytes, bool is_dense = false) const {
         ir_assert(off_bytes >= 0);
