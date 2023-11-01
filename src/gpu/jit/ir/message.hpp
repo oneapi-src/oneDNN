@@ -161,6 +161,21 @@ public:
         return func_t(new send_t(hw, op, type, info, cache_hint));
     }
 
+    static func_t make_2d(ngen::HW hw, send_op_t op, const type_t &type,
+            int width, int height, int count, bool vnni, bool transpose,
+            send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
+        block_2d_info_t info;
+        info.surface_width = 0;
+        info.surface_height = 0;
+        info.surface_pitch = 0;
+        info.width = width;
+        info.height = height;
+        info.count = count;
+        info.vnni = vnni;
+        info.transpose = transpose;
+        return func_t(new send_t(hw, op, type, info, cache_hint));
+    }
+
     bool is_equal(const object_impl_t &obj) const override {
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
