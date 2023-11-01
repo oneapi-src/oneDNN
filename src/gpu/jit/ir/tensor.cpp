@@ -118,6 +118,13 @@ memory_desc_t layout_t::to_dnnl(const dim_t *dims_hint) const {
         seen[b.dim_idx] = true;
     }
 
+    for (int i = 0; i < ndims(); i++) {
+        if (seen[i]) continue;
+        ir_assert(md.dims[i] == 1);
+        md.padded_dims[i] = md.dims[i];
+        blk.strides[i] = elems();
+    }
+
     return md;
 }
 
