@@ -18,6 +18,7 @@
 #define GPU_JIT_UTILS_UTILS_HPP
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <fstream>
 #include <functional>
@@ -27,6 +28,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "common/math_utils.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/utils.hpp"
@@ -64,6 +66,9 @@ const int LOG_LEVEL = LOG_OFF;
 
 template <typename T>
 size_t get_hash(const T &t);
+
+template <typename T, size_t N>
+size_t get_hash(const std::array<T, N> &a);
 
 template <typename T>
 size_t get_hash(const std::vector<T> &v);
@@ -113,6 +118,14 @@ size_t get_hash(const T &t) {
     return get_hash_helper_t<T>::call(t);
 }
 
+template <typename T, size_t N>
+size_t get_hash(const std::array<T, N> &a) {
+    size_t h = 0;
+    for (auto &e : a)
+        h = hash_combine(h, get_hash(e));
+    return h;
+}
+
 template <typename T>
 size_t get_hash(const std::vector<T> &v) {
     size_t h = 0;
@@ -127,6 +140,11 @@ size_t get_hash(const ArgsT &...args) {
     get_hash_impl(h, args...);
     return h;
 }
+
+template <typename T>
+struct hasher_t {
+    size_t operator()(const T &t) const { return t.get_hash(); }
+};
 
 template <typename T, typename U, typename = void>
 struct is_equal_helper_t {
@@ -328,6 +346,45 @@ inline std::ostream &operator<<(std::ostream &out, const std::vector<T> &v) {
     return out;
 }
 
+template <typename T, typename = void>
+struct str_ostream_helper_t {
+    static std::string call(const T &t) {
+        ir_error_not_expected();
+        return {};
+    }
+};
+
+template <typename T>
+struct str_ostream_helper_t<T,
+        decltype(std::declval<std::ostream>() << std::declval<T>(), void())> {
+    static std::string call(const T &t) {
+        std::ostringstream oss;
+        oss << t;
+        return oss.str();
+    }
+};
+
+template <typename T, typename = void>
+struct str_helper_t {
+    static std::string call(const T &t) {
+        return str_ostream_helper_t<T>::call(t);
+    }
+};
+
+template <typename T>
+struct str_helper_t<T, decltype(std::declval<T>().str(), void())> {
+    static std::string call(const T &t) { return t.str(); }
+};
+
+template <typename T>
+struct str_helper_t<std::vector<T>, void> {
+    static std::string call(const std::vector<T> &v) {
+        std::ostringstream oss;
+        oss << v;
+        return oss.str();
+    }
+};
+
 // Helper class to pretty-print tables.
 // Each operator<<() call corresponds to one cell/header. std::endl or '/n'
 // moves to the next row.
@@ -426,13 +483,28 @@ inline std::string to_lower(const std::string &s) {
     return ret;
 }
 
-inline std::string add_indent(const std::string &s, const std::string &indent) {
+inline std::string add_indent(const std::string &s, const std::string &indent,
+        bool skip_first = false) {
     auto lines = gpu_utils::split(s, "\n");
     std::ostringstream oss;
     for (int i = 0; i < (int)lines.size(); i++) {
         if (i > 0) oss << std::endl;
-        oss << indent << lines[i];
+        if (i == 0 && skip_first) {
+            oss << " ";
+        } else {
+            oss << indent;
+        }
+        oss << lines[i];
     }
+    return oss.str();
+}
+
+inline std::string add_tag(
+        const std::string &tag, const std::string &s, bool eol = true) {
+    std::ostringstream oss;
+    oss << tag << ":";
+    if (eol) oss << std::endl;
+    oss << add_indent(s, "  ", /*skip_first=*/!eol);
     return oss.str();
 }
 
@@ -456,6 +528,11 @@ template <typename T, typename U>
 inline T safe_divide(T a, U b) {
     ir_assert(b != 0 && a % b == 0) << "Can't divide: " << a << " / " << b;
     return a / b;
+}
+
+template <typename T, typename U>
+inline T safe_div(T a, U b) {
+    return safe_divide(a, b);
 }
 
 template <typename ContainerT, typename T>
@@ -535,6 +612,12 @@ float dequantize(T t, float v_min = 0, float v_max = 1) {
     return v_min + f * (v_max - v_min);
 }
 
+template <class T>
+struct is_array_helper_t : std::false_type {};
+
+template <class T, size_t N>
+struct is_array_helper_t<std::array<T, N>> : std::true_type {};
+
 template <typename T>
 void serialize(const T &t, std::ostream &out);
 
@@ -545,7 +628,8 @@ struct serialize_helper_t {
 
 template <typename T>
 struct serialize_helper_t<T,
-        typename std::enable_if<std::is_trivial<T>::value>::type> {
+        typename std::enable_if<std::is_trivial<T>::value
+                && !is_array_helper_t<T>::value>::type> {
     static void call(const T &t, std::ostream &out) {
         out.write((const char *)&t, sizeof(t));
     }
@@ -567,6 +651,18 @@ struct serialize_helper_t<std::vector<T>, void> {
     }
 };
 
+template <typename KeyT, typename ValueT, typename HashT>
+struct serialize_helper_t<std::unordered_map<KeyT, ValueT, HashT>, void> {
+    static void call(const std::unordered_map<KeyT, ValueT, HashT> &m,
+            std::ostream &out) {
+        serialize((int)m.size(), out);
+        for (auto &kv : m) {
+            serialize(kv.first, out);
+            serialize(kv.second, out);
+        }
+    }
+};
+
 template <>
 struct serialize_helper_t<std::string, void> {
     static void call(const std::string &s, std::ostream &out) {
@@ -578,6 +674,12 @@ struct serialize_helper_t<std::string, void> {
 template <typename T>
 void serialize(const T &t, std::ostream &out) {
     serialize_helper_t<T>::call(t, out);
+}
+
+template <typename T>
+void serialize(const T &t, const std::string &path) {
+    std::ofstream out(path, std::ios::binary);
+    serialize(t, out);
 }
 
 template <typename T>
@@ -594,7 +696,8 @@ struct deserialize_helper_t {
 
 template <typename T>
 struct deserialize_helper_t<T,
-        typename std::enable_if<std::is_trivial<T>::value>::type> {
+        typename std::enable_if<std::is_trivial<T>::value
+                && !is_array_helper_t<T>::value>::type> {
     static T call(std::istream &in) {
         T ret;
         in.read((char *)&ret, sizeof(ret));
@@ -622,6 +725,20 @@ struct deserialize_helper_t<std::vector<T>, void> {
     }
 };
 
+template <typename KeyT, typename ValueT, typename HashT>
+struct deserialize_helper_t<std::unordered_map<KeyT, ValueT, HashT>, void> {
+    static std::unordered_map<KeyT, ValueT, HashT> call(std::istream &in) {
+        int size = deserialize<int>(in);
+        std::unordered_map<KeyT, ValueT, HashT> ret;
+        for (int i = 0; i < size; i++) {
+            auto k = deserialize<KeyT>(in);
+            auto v = deserialize<ValueT>(in);
+            ret.emplace(k, v);
+        }
+        return ret;
+    }
+};
+
 template <>
 struct deserialize_helper_t<std::string, void> {
     static std::string call(std::istream &in) {
@@ -635,6 +752,21 @@ struct deserialize_helper_t<std::string, void> {
 template <typename T>
 T deserialize(std::istream &in) {
     return deserialize_helper_t<T>::call(in);
+}
+
+template <typename T>
+void deserialize(T &t, std::istream &in) {
+    t = deserialize<T>(in);
+}
+
+template <typename T>
+void deserialize(T &t, const std::string &path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in.good()) {
+        t = T();
+        return;
+    }
+    t = deserialize<T>(in);
 }
 
 template <typename T>
@@ -666,6 +798,40 @@ void serialize_to_file(
     oss << "};";
     std::ofstream out(file_name);
     out << oss.str() << std::endl;
+}
+
+inline bool str_to_bool(const std::string &s) {
+    if (utils::one_of(s, "1", "true", "True")) return true;
+    return false;
+}
+
+inline int str_to_int(const std::string &s) {
+    return std::stoi(s);
+}
+
+inline std::string to_string(prop_kind_t prop) {
+    switch (prop) {
+#define CASE(value, name) \
+    case prop_kind::value: return #name
+        CASE(undef, undef);
+        CASE(forward, fwd);
+        CASE(backward_data, bwd_d);
+        CASE(backward_weights, bwd_w);
+#undef CASE
+        default: ir_error_not_expected();
+    }
+    return {};
+}
+
+inline prop_kind_t str_to_prop_kind(const std::string &s) {
+#define CASE(value) \
+    if (to_string(prop_kind::value) == s) return prop_kind::value
+    CASE(forward);
+    CASE(backward_data);
+    CASE(backward_weights);
+#undef CASE
+    ir_error_not_expected();
+    return prop_kind::undef;
 }
 
 inline bool is_big_endian() {
