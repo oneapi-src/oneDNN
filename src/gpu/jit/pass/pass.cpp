@@ -119,6 +119,13 @@ private:
             auto b = split_expr(binary->b, beg, end);
             return binary_op_t::make(binary->op_kind, a, b);
         }
+        auto *load = e.as_ptr<load_t>();
+        if (load) {
+            int stride = load->stride;
+            if (load->has_default_stride()) stride = load->type.scalar().size();
+            return load_t::make(load->type.with_elems(end - beg), load->buf,
+                    load->off + beg * stride, load->stride);
+        }
         ir_error_not_expected();
         return expr_t();
     }
