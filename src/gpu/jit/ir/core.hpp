@@ -356,6 +356,25 @@ public:
 
     type_t(type_kind_t kind, uint32_t elems = 1) : kind_(kind), elems_(elems) {}
 
+    type_t(const std::string &s) {
+        elems_ = 1;
+#define CASE(x) \
+    if (to_string(type_kind_t::x) == s) { \
+        kind_ = type_kind_t::x; \
+        return; \
+    }
+        CASE(bf16);
+        CASE(f16);
+        CASE(tf32);
+        CASE(f32);
+        CASE(f64);
+        CASE(s32);
+        CASE(s8);
+        CASE(u8);
+#undef CASE
+        ir_error_not_expected();
+    }
+
     // Constructor from dnnl_data_type_t.
     type_t(data_type_t dt) {
         elems_ = 1;
@@ -392,6 +411,18 @@ public:
 
     size_t get_hash() const {
         return ir_utils::get_hash(kind(), elems(), is_ptr());
+    }
+
+    void serialize(std::ostream &out) const {
+        ir_utils::serialize(kind_, out);
+        ir_utils::serialize(elems_, out);
+        ir_utils::serialize(is_ptr_, out);
+    }
+
+    void deserialize(std::istream &in) {
+        ir_utils::deserialize(kind_, in);
+        ir_utils::deserialize(elems_, in);
+        ir_utils::deserialize(is_ptr_, in);
     }
 
     bool is_undef() const { return kind() == type_kind_t::undef; }
