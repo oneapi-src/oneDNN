@@ -49,9 +49,22 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(single_op_pass)
 // register passes with dnnl backend support
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(abs_pass, Abs, float_eltwise_fwd)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(abs_bw_pass, AbsBackward, eltwise_bwd_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        avg_pool_bw_pass, AvgPoolBackward, pooling_bwd_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(bias_add_pass, BiasAdd, binary_t)
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, avg_pool_bw_pass)
+        .set_priority(8.f)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *p_avg_pool_backward
+                            = pgraph->append_op(
+                                    graph::op_kind::AvgPoolBackward);
+                    p_avg_pool_backward->append_decision_function(
+                            check_input_num<1>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<pooling_bwd_t>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_pass)
         .set_priority(8.f)
