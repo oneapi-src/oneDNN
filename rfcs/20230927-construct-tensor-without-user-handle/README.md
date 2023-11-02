@@ -73,6 +73,14 @@ tensor(const logical_tensor &lt, const engine &aengine, void *handle) {
             "engine, and handle");
     reset(t);
 }
+
+/// Constructs a tensor object.
+/// The underlying buffer for the memory will be allocated by the library.
+///
+/// @param lt The given logical tensor
+/// @param aengine Engine to store the data on.
+tensor(const logical_tensor &lt, const engine &aengine)
+    : tensor(lt, aengine, DNNL_MEMORY_ALLOCATE) {}
 ```
 
 ### Example
@@ -104,6 +112,6 @@ dnnl::engine eng {dnnl::engine::kind::cpu, 0};
 // Create a logical tensor
 logical_tensor lt {0, data_type::f32, logical_tensor::dims {3, 4, 5, 6},
         layout_type::strided};
-// Create tensor without data handle
-tensor t(lt, eng, DNNL_MEMORY_ALLOCATE);
+// Create a tensor without a data handle
+tensor t(lt, eng);
 ```
