@@ -300,6 +300,7 @@ status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
     }
 
     compute::binary_t binary = jitter->get_binary(context(), device());
+    if (binary.empty()) return status::runtime_error;
     return create_kernel_from_binary(*kernel, binary, kernel_name);
 }
 
