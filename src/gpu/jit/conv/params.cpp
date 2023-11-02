@@ -296,7 +296,6 @@ void conv_params_t::apply_to(conv_config_t &cfg) const {
     if (!cfg.iter_dims().is_overridden()) cfg.iter_dims().set(blocking_.iter());
     cfg.set_params_id(id_);
     cfg.set_bufs_hint(bufs_hint_);
-    ir_assert(bufs_hint_ <= 0);
 }
 
 void conv_params_t::serialize(std::ostream &out) const {
