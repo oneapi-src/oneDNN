@@ -45,6 +45,18 @@ public:
     bool is_overridable() const override { return false; }
 };
 
+// padded_dims_param_t vomits pointer errors (!!) for no apparent reason,
+// so dims_padded_param_t it shall be.
+class dims_padded_param_t : public grid_param_t {
+public:
+    std::string name() const override { return "pad"; }
+    std::string desc() const override {
+        return "Padded dimensions (rounded-up for blocks and to comply with "
+               "required zero padding in output layouts).";
+    }
+    bool is_overridable() const override { return false; }
+};
+
 // Parameters for kernel generation.
 class pooling_config_t : public prim_config_t {
 public:
@@ -63,6 +75,7 @@ public:
         const int kg_elems = kernel_grid().elems();
         const int tg_elems = thread_group_grid().elems();
         //oss << blocking_brief_str();
+        oss << "  Padded dimensions:    " << dims_padded() << std::endl;
         oss << "  Internal loop:        " << loop_grid() << std::endl;
         oss << "  Thread group:         " << thread_group_grid() << std::endl;
         oss << "  Kernel grid:          " << kernel_grid() << std::endl;
@@ -79,16 +92,14 @@ public:
 
     pooling_config_t(const exec_config_t &ec, const pool_conf_t &pool_conf,
             const layout_t &src, const layout_t &dst) {
-        auto local_pool_conf(pool_conf);
-        local_pool_conf.is_plain = true;
-        pool_conf_.set(local_pool_conf);
+        set_pool_conf(pool_conf);
         src_layout().set_user(spatials_to_3d(src, false, 0));
         dst_layout().set_user(spatials_to_3d(dst, false, 0));
         set_exec_cfg(ec);
     }
 
     bool try_compute_grid() {
-        auto conf = pool_conf();
+        const auto &conf = pool_conf();
         const auto &src = src_layout().user();
         const auto &exec = exec_cfg();
         const int simd = exec.simd();
@@ -103,44 +114,43 @@ public:
         const auto &oc_blk = src.blocks()[0];
         if ((oc_blk.dim_idx != 1) || (oc_blk.block % simd)) return false;
 
-        // for now, prohibit Global pooling and Dense pooling
+        std::vector<int> padded {
+                int(src.dim(0)), int(src.dim(1)), conf.od, conf.oh, conf.ow};
+        auto &mb = padded[0], &oc = padded[1];
+        auto &od = padded[2], &oh = padded[3], &ow = padded[4];
+
+        // for now, prohibit Global (odhw = 1) and Dense (odhw = idhw)
         // TODO: enable both
-        if (conf.od * conf.oh * conf.ow == 1) return false; // no Global
-        if (conf.id == conf.od && conf.ih == conf.oh && conf.iw == conf.ow)
-            return false; // no Dense
+        if (od == 1 && oh == 1 && ow == 1) return false;
+        if (od == conf.id && oh == conf.ih && ow == conf.iw) return false;
 
         //                  mb oc od oh ow kd kh kw
         //                  [0  1][2  3  4][5  6  7]
         std::vector<int> lg {1, 1, 1, 1, 1, 1, 1, 1};
         std::vector<int> tg {1, 1, 1}, kg {1, 1, 1};
 
-        const float fah = 0.875f; // filter aliasing heuristic coef (>1 is none)
-        const float emh = 1.150f; // EU mismatch heuristic coef (<1 is none)
+        const float filter_aliasing = 0.875f; // heuristic coef (>1 is none)
+        const float eu_mismatch = 1.150f; // heuristic coef (<1 is none)
 
-        const bool is_tg_useful = fah * conf.kd * conf.kh * conf.kw
+        const bool is_tg_useful = filter_aliasing * conf.kd * conf.kh * conf.kw
                 >= conf.stride_d * conf.stride_h * conf.stride_w;
-        conf.is_plain = (eu_count % max_tg != 0)
-                || (utils::rnd_up(conf.ow, eu_count / max_tg) >= emh * conf.ow);
+        bool is_plain = (eu_count % max_tg != 0)
+                || (utils::rnd_up(ow, eu_count / max_tg) >= eu_mismatch * ow);
 
-        int mb = src.dim(0);
-        int oc = src.dim(1);
-        int od = conf.od;
-        int oh = conf.oh;
-        int ow = conf.ow;
-
-        if (!conf.is_plain) {
+        if (!is_plain) {
             ow = utils::rnd_up(conf.ow, eu_count / max_tg);
             tg[2] = utils::max_div(ow / (eu_count / max_tg), max_tg);
             tg[1] = max_tg / tg[2];
-            if ((tg[2] == 1) || (!is_tg_useful && (tg[2] < tg[1]))) {
+            if ((eu_count / (ow * oh) > 1)
+                    || ((tg[2] == 1) && ((ow >= max_tg) || !is_tg_useful))) {
                 tg[2] = tg[1] = 1;
-                conf.is_plain = true;
+                is_plain = true;
                 ow = conf.ow;
             } else {
-                pool_conf_.set(conf);
+                oh = utils::rnd_up(conf.oh, tg[1]);
             }
         }
-        if (conf.is_plain && is_tg_useful) {
+        if (is_plain && is_tg_useful) {
             const auto ohw = ow * oh;
             if ((max_tg <= ohw * od) || (ohw == 3 * 3) || (ohw == 3 * 5)) {
                 auto loss = [&](int tgw) {
@@ -162,8 +172,12 @@ public:
                 tg[0] = od;
             }
         }
-        if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2))
+        if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2)) {
             tg[1] += (tg[1] * tg[2] > 3 * 3) ? -1 : 1;
+            is_plain = true;
+            ow = conf.ow;
+            oh = conf.oh;
+        }
 
         // the constant being subtracted is a heuristic
         const int regs_per_tile
@@ -220,12 +234,19 @@ public:
         kg[0] *= utils::div_up(oc, lg[1]);
         kg[1] *= utils::div_up(mb, lg[0]);
 
-        if (!conf.is_plain) {
+        if (!is_plain) {
             const int eu_sets_per_ow = kg[2] / (eu_count / max_tg);
-            kg[2] /= eu_sets_per_ow;
-            kg[1] *= eu_sets_per_ow;
+            if (eu_sets_per_ow > 1) {
+                kg[2] /= eu_sets_per_ow;
+                kg[1] *= eu_sets_per_ow;
+            } else if ((tg[2] > tg[1])
+                    && (utils::rnd_up_pow2(tg[2]) * kg[2] == conf.ow)) {
+                tg[2] *= tg[1];
+                tg[1] = 1;
+            }
         }
 
+        set_dims_padded(grid_info_t(padded, ""));
         set_loop_grid(grid_info_t(lg, "lg_idx"));
         set_kernel_grid(grid_info_t(kg, "kg_idx"));
         set_thread_group_grid(grid_info_t(tg, "tg_idx"));
@@ -251,6 +272,7 @@ public:
     DECL_PARAM(kernel_grid);
     DECL_PARAM(thread_group_grid);
     DECL_PARAM(loop_grid);
+    DECL_PARAM(dims_padded);
 #undef DECL_PARAM
 
 #define INIT_PARAM(name) \
@@ -263,6 +285,7 @@ public:
     INIT_PARAM(kernel_grid);
     INIT_PARAM(thread_group_grid);
     INIT_PARAM(loop_grid);
+    INIT_PARAM(dims_padded);
 #undef INIT_PARAM
 
 private:

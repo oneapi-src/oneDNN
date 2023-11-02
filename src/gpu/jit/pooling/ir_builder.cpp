@@ -132,12 +132,12 @@ void pooling_ir_builder_t::build() {
     while ((stmt_ = try_build(*this, ki_mutable_, cfg_mutable_, pd_))
                     .is_empty()) {
         ir_warning() << "loop_grid too large, reduce and retry" << std::endl;
-        grid_info_t kg(cfg_mutable_.kernel_grid());
-        grid_info_t lg(cfg_mutable_.loop_grid());
-        if (lg.dim(0) > 1)
-            reduce_dim(lg.dim(0), kg.dim(1), 1);
-        else if (lg.dim(1) / cfg_mutable_.exec_cfg().simd() > 1)
-            reduce_dim(lg.dim(1), kg.dim(0), cfg_mutable_.exec_cfg().simd());
+        auto kg(cfg_mutable_.kernel_grid());
+        auto lg(cfg_mutable_.loop_grid());
+        if (lg[0] > 1)
+            reduce_dim(lg[0], kg[1], 1);
+        else if (lg[1] / cfg_mutable_.exec_cfg().simd() > 1)
+            reduce_dim(lg[1], kg[0], cfg_mutable_.exec_cfg().simd());
         else
             ir_error_not_expected() << "minimal loop_grid too large!";
 
@@ -201,21 +201,21 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     if (check_iw) iw_mask = (x >= 0) & (x < conf.iw);
 
     const int simd = exec.simd();
-    const int ow_bound = exec.hw_cfg().eu_count()
-            / compute::device_info_t::max_eus_per_wg(
-                    convert_ngen_arch_to_dnnl(exec.hw()));
-
-    const std::vector<int> padded_dims {int(src_layout.dim(0)),
-            int(src_layout.dim(1)), conf.od, conf.oh,
-            (!conf.is_plain) ? utils::rnd_up(conf.ow, ow_bound) : conf.ow};
+    const auto &lg = cfg.loop_grid();
+    const auto &kg = cfg.kernel_grid();
+    const auto &tg = cfg.thread_group_grid();
+    const auto &dims_grid = cfg.dims_padded();
+    std::vector<int> dims(dims_grid.ndims());
+    for (int i = 0; i < int(dims.size()); i++)
+        dims[i] = dims_grid[i];
 
     // Source.
     auto src_view = view_t({mb, oc, od, oh, ow, kd, kh, kw}, 5);
-    src_view.set_vdim(mb, padded_dims[0]);
-    src_view.set_vdim(oc, padded_dims[1]);
-    src_view.set_vdim(od, padded_dims[2]);
-    src_view.set_vdim(oh, padded_dims[3]);
-    src_view.set_vdim(ow, padded_dims[4]);
+    src_view.set_vdim(mb, dims[0]);
+    src_view.set_vdim(oc, dims[1]);
+    src_view.set_vdim(od, dims[2]);
+    src_view.set_vdim(oh, dims[3]);
+    src_view.set_vdim(ow, dims[4]);
     src_view.set_vdim(kd, conf.kd);
     src_view.set_vdim(kh, conf.kh);
     src_view.set_vdim(kw, conf.kw);
@@ -228,26 +228,22 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     src_view.set_tdim(
             4, ow * conf.stride_w - conf.l_pad + kw * (1 + conf.dw), iw_mask);
     src_view.set_tlayout(src_layout);
-    src_view.set_tmasks(padded_dims);
+    src_view.set_tmasks(dims);
 
     // Destination.
     auto dst_view = view_t({mb, oc, od, oh, ow}, 5);
-    dst_view.set_vdim(mb, padded_dims[0]);
-    dst_view.set_vdim(oc, padded_dims[1]);
-    dst_view.set_vdim(od, padded_dims[2]);
-    dst_view.set_vdim(oh, padded_dims[3]);
-    dst_view.set_vdim(ow, padded_dims[4]);
+    dst_view.set_vdim(mb, dims[0]);
+    dst_view.set_vdim(oc, dims[1]);
+    dst_view.set_vdim(od, dims[2]);
+    dst_view.set_vdim(oh, dims[3]);
+    dst_view.set_vdim(ow, dims[4]);
     dst_view.set_tdim(0, mb);
     dst_view.set_tdim(1, oc);
     dst_view.set_tdim(2, od);
     dst_view.set_tdim(3, oh);
     dst_view.set_tdim(4, ow);
     dst_view.set_tlayout(dst_layout);
-    dst_view.set_tmasks(padded_dims);
-
-    const auto &lg = cfg.loop_grid();
-    const auto &kg = cfg.kernel_grid();
-    const auto &tg = cfg.thread_group_grid();
+    dst_view.set_tmasks(dims);
 
     constraint_set_t init_cset;
     std::vector<stmt_t> init_stmts;
@@ -257,6 +253,12 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     schedule.set_view(src_view);
     schedule.set_view(dst_view);
 
+    auto kg_bind = [&](const std::vector<expr_t> &fuse, int idx) {
+        if (fuse.size() > 1)
+            schedule.bind(schedule.fuse(fuse), kg.idx(idx - 2));
+        else if (fuse.size() == 1)
+            schedule.bind(fuse[0], kg.idx(idx - 2));
+    };
     auto odhw_to_schedule = [&](expr_t s1, expr_t ns, expr_t s0) {
         int s0_idx = (s0.is_empty()) ? -1 : src_view.vvar_index(s0);
         int s1_idx = src_view.vvar_index(s1);
@@ -273,9 +275,11 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             std::swap(s1, ns);
         }
 
-        const int s1_tlg_unroll = lg.dim(s1_idx);
-        const int s1_unroll = s1_tlg_unroll * tg.dim(s1_idx - 2);
+        const int s1_tlg_unroll = lg[s1_idx];
+        const int s1_unroll = s1_tlg_unroll * tg[s1_idx - 2];
         const auto ps1 = s1.str();
+
+        std::vector<expr_t> s0_fuse, s1_fuse;
 
         expr_t s1_kg, s1_tlg, s1_tg, s1_lg;
         schedule.split(s1, s1_unroll, s1_kg, s1_tlg, ps1 + "_kg", ps1 + "_tlg");
@@ -284,21 +288,28 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
         schedule.tensorize(s1_lg);
         schedule.bind(s1_tg, tg.idx(s1_idx - 2));
+        s1_fuse.emplace_back(s1_kg);
 
-        std::vector<expr_t> s1_fuse {s1_kg};
         if (s0_idx >= 0) {
             ir_assert(s0_idx == s1_idx + 1);
-            const int s0_tlg_unroll = lg.dim(s0_idx);
-            const int s0_unroll = s0_tlg_unroll * tg.dim(s0_idx - 2);
-            const int s0_full = s0_unroll * kg.dim(s0_idx - 2);
+            const int s0_tlg_unroll = lg[s0_idx];
+            const int s0_unroll = s0_tlg_unroll * tg[s0_idx - 2];
+            const int s0_full = s0_unroll * kg[s0_idx - 2];
             const auto ps0 = s0.str();
 
-            if (padded_dims[s0_idx] > s0_full) {
-                expr_t s0_split, s0_ktlg;
+            if (dims[s0_idx] > s0_full) {
+                expr_t s0_split, s0_ktlg; // part of kg[s0] is in kg[s1]
                 schedule.split(s0, s0_full, s0_split, s0_ktlg, ps0 + "_split",
                         ps0 + "_ktlg");
                 s1_fuse.emplace_back(s0_split);
                 s0 = s0_ktlg;
+            } else if (dims[s0_idx] <= utils::div_up(s0_full, 2)) {
+                expr_t s1_split, s1_ktlg; // part of kg[s1] is in kg[s0]
+                const int s1_ext = utils::div_up(s0_full, dims[s0_idx]);
+                schedule.split(s1_fuse[0], s1_ext, s1_ktlg, s1_split,
+                        ps1 + "_ktlg", ps1 + "_split");
+                s1_fuse[0] = s1_ktlg;
+                s0_fuse.emplace_back(s1_split);
             }
 
             expr_t s0_kg, s0_tlg, s0_tg, s0_lg;
@@ -309,10 +320,10 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
             schedule.tensorize(s0_lg);
             schedule.bind(s0_tg, tg.idx(s0_idx - 2));
-            schedule.bind(s0_kg, kg.idx(s0_idx - 2));
+            s0_fuse.emplace_back(s0_kg);
         }
 
-        const int ns_unroll = lg.dim(ns_idx);
+        const int ns_unroll = lg[ns_idx];
         const auto pns = ns.str();
 
         expr_t ns_kg, ns_lg;
@@ -321,13 +332,13 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             s1_fuse.emplace(s1_fuse.begin(), ns_kg);
         else
             s1_fuse.emplace_back(ns_kg);
-
         schedule.tensorize(ns_lg);
-        schedule.bind(schedule.fuse(s1_fuse), kg.idx(s1_idx - 2));
+
+        kg_bind(s0_fuse, s0_idx);
+        kg_bind(s1_fuse, s1_idx);
     };
     odhw_to_schedule(oc, od, expr_t());
-    if ((src_layout.blocks()[1].dim_idx == 0)
-            || (padded_dims[0] < padded_dims[1]))
+    if ((src_layout.blocks()[1].dim_idx == 0) || (dims[0] < dims[1]))
         odhw_to_schedule(oh, mb, ow);
     else
         odhw_to_schedule(mb, oh, ow);
@@ -335,7 +346,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     auto kdhw_to_schedule = [&](const expr_t &k) {
         const int k_idx = src_view.vvar_index(k);
         ir_assert((k_idx >= 5) && (k_idx <= 7));
-        const int k_dim = lg.dim(k_idx);
+        const int k_dim = lg[k_idx];
         if (k_dim == schedule.var_bound(k)) {
             schedule.tensorize(k);
         } else if (k_dim < schedule.var_bound(k)) {
@@ -416,8 +427,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             : type_t::s32(simd);
     auto acc_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "acc");
     const auto acc_sc_size = acc_type.scalar().size();
-    const auto acc_size = acc_sc_size * lg.dim(4) * lg.dim(3) * lg.dim(2)
-            * lg.dim(1) * lg.dim(0);
+    const auto acc_size = acc_sc_size * lg[4] * lg[3] * lg[2] * lg[1] * lg[0];
 
     stmt_t stmt;
 
@@ -474,7 +484,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
         read_layout.for_each_tile(src_tile, [&](const std::vector<dim_t> &s) {
             const int off_l = read_layout(s) * read_layout.type().size();
-            const int off_a = (s[0] * lg.dim(1) + s[1]) * acc_sc_size;
+            const int off_a = (s[0] * lg[1] + s[1]) * acc_sc_size;
 
             auto load = cast_t::make(
                     acc_type, load_t::make(read_type, read_buf, off_l));
@@ -520,7 +530,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             write_layout.retype(acc_type.scalar()), dst_buf, acc_buf,
             buf_size));
 
-    if (padded_dims[0] > conf.mb) {
+    if (dims[0] > conf.mb) {
         stmt_t stop;
         auto zero_bcast
                 = cast_t::make(read_type, shuffle_t::make_broadcast(0, simd));
@@ -570,10 +580,10 @@ compute::nd_range_t pooling_ir_builder_t::nd_range(
         const pooling_config_t &cfg) {
     const auto &kg = cfg.kernel_grid();
     const auto &tg = cfg.thread_group_grid();
-    std::array<size_t, 3> local {size_t(tg.dim(0) * cfg.exec_cfg().simd()),
-            size_t(tg.dim(1)), size_t(tg.dim(2))};
-    std::array<size_t, 3> global {size_t(kg.dim(0)) * local[0],
-            size_t(kg.dim(1)) * local[1], size_t(kg.dim(2)) * local[2]};
+    std::array<size_t, 3> local {size_t(tg[0] * cfg.exec_cfg().simd()),
+            size_t(tg[1]), size_t(tg[2])};
+    std::array<size_t, 3> global {size_t(kg[0]) * local[0],
+            size_t(kg[1]) * local[1], size_t(kg[2]) * local[2]};
 
     return compute::nd_range_t(global.data(), local.data());
 }
