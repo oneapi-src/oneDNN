@@ -2,25 +2,25 @@
 
 ## Introduction & Motivation
 
-Currently, in Graph API level, users need to manually allocate memory and manage 
-its lifecycle before constructing a tensor. Incorrect allocation and deallocation 
-methods may cause some unexpected errors, such as memory release errors caused 
-by `test::vector`(use one context to allocate memory and another context to deallocate 
-it). In fact, in scenarios like unit test, the library can take the control of 
-allocating and deallocating memory by itself, since the size of the memory can be 
-obtained based on the logical tensor and layout, memory allocation can be performed 
-accordingly when a tensor is constructed. When a tensor is destroyed, the memory is 
-deallocated. In order to make library more user-friendly, this RFC mainly implements 
-the ability to construct tensor without user handle.
+Currently, in Graph API level, users need to manually allocate memory and manage
+its lifecycle before constructing a tensor. Incorrect allocation and de-allocation
+methods may cause some unexpected errors, such as memory release errors caused
+by `test::vector`(use one context to allocate memory and another context to de-allocate
+it). In fact, in scenarios like unit test, the library can take the control of
+allocating and de-allocating memory by itself, since the size of the memory can be
+obtained based on the logical tensor and layout, memory allocation can be performed
+accordingly when a tensor is constructed. When a tensor is destroyed, the memory is
+de-allocated. In order to make library more user-friendly, this RFC mainly implements
+the ability to construct tensor without user-provided handle.
 
 
 ## Proposal
 
 ### Option 1
 
-Referring to the `dnnl_memory_create` API in the primitive, reuse the existed  
+Referring to the `dnnl_memory_create` API in the primitive, reuse the existed
 `dnnl_graph_tensor_create` API. When `handle` parameter is set to `DNNL_MEMORY_ALLOCATE`,
-the library will perform memory allocation and automatically release the memory 
+the library will perform memory allocation and automatically release the memory
 when the current tensor is destroyed. When the `handle` parameter is a regular pointer,
 the library will only set the pointer. When the `handle` parameter is `DNNL_MEMORY_NONE`,
 the handle of tensor will set `nullptr`.
