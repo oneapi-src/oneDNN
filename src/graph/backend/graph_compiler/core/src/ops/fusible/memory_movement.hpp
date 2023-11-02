@@ -59,6 +59,8 @@ public:
     }
 
 protected:
+    // plain_axis_ is with respect to plain dims.
+    int64_t plain_axis_;
     // axis_ is with respect to blocking format.
     int64_t axis_;
     // To make sense, the axis_ should be combined with a fixed format.

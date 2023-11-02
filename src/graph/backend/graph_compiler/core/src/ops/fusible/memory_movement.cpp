@@ -299,7 +299,7 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
     set_format_and_axis();
     // inferring output plain shape
     sc_dims output_plain_dim
-            = infer_concat_output_shape(info_.inputs_, attrs.get<int>("axis"));
+            = infer_concat_output_shape(info_.inputs_, plain_axis_);
 
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
@@ -336,6 +336,7 @@ void concat_op_t::set_format_and_axis() {
             "Concat axis should be in range [" << -rank << ", " << rank - 1
                                                << "], but get: " << axis_);
     if (axis_ < 0) { axis_ += rank; }
+    plain_axis_ = axis_;
     std::vector<int> blocking_axes
             = ori_format_.format_code_.collect_p2b_mapping()[axis_];
     COMPILE_ASSERT(

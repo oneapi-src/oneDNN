@@ -33,6 +33,30 @@ static const int B = 8;
 static const int C = 16, C0 = 16, C1 = 32, C2 = 64; // for concat at axis #2
 static const int D = 32;
 
+TEST(GCCore_CPU_concat_op_t_cpp, ConcatInferOutputShape) {
+    sc_graph_t graph;
+    auto in0 = graph.make_input({graph_tensor::make({A0, B, C, D},
+            sc_data_format_t(format_kinds::ABCD), datatypes::f32)});
+    auto in1 = graph.make_input({graph_tensor::make({A1, B, C, D},
+            sc_data_format_t(format_kinds::ABCD), datatypes::f32)});
+    auto in2 = graph.make_input({graph_tensor::make({A2, B, C, D},
+            sc_data_format_t(format_kinds::ABCD), datatypes::f32)});
+    auto concat = graph.make("concat",
+            {in0->get_outputs()[0], in1->get_outputs()[0],
+                    in2->get_outputs()[0]},
+            {}, {{"axis", -4}});
+    auto out = graph.make_output(concat->get_outputs());
+
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    const char *expected_graph
+            = R"(graph(v0: f32[4, 8, 16, 32], v1: f32[6, 8, 16, 32], v2: f32[8, 8, 16, 32]) -> [v3: f32[18, 8, 16, 32]] {
+  [v3: f32[18, 8, 16, 32]] = concat(v0, v1, v2)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_graph);
+}
+
 TEST(GCCore_CPU_concat_op_t_cpp, FourDimsConcatAxis0) {
     REQUIRE_AVX2();
     std::vector<float> input0_data(A0 * B * C * D);
