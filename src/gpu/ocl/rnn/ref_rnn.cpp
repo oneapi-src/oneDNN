@@ -112,6 +112,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.recompute_gates = rnn.recompute_gates;
     ocl_conf.copy_src_layer = rnn.copy_src_layer;
     ocl_conf.copy_diff_dst_layer = rnn.copy_diff_dst_layer;
+    ocl_conf.copy_diff_src_layer = rnn.copy_diff_src_layer;
 
     off.src_layer = gpu::get_outer_strides(src_layer_d);
     ocl_conf.inner_layouts.src_layer = gpu::get_inner_layout(src_layer_d);
@@ -218,6 +219,7 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("WITH_DST_ITER_C", with_dst_iter_c);
     kernel_ctx.define_int("COPY_SRC_LAYER", copy_src_layer);
     kernel_ctx.define_int("COPY_DIFF_DST_LAYER", copy_diff_dst_layer);
+    kernel_ctx.define_int("COPY_DIFF_SRC_LAYER", copy_diff_src_layer);
 
     kernel_ctx.define_int("ELEMWISE_BWD_BATCH_BLOCK", elemwise_bwd_batch_block);
     kernel_ctx.define_int("NEED_BIAS_ATOMIC_REDUCE", need_bias_atomic_reduce);
@@ -584,9 +586,9 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             && (this->SIC() == this->DHC() || (this->T() == 1));
     if (!ok) return status::unimplemented;
 
-    set_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->diff_dst_md(0),
-            this->weights_md(0), this->weights_md(1), this->diff_weights_md(0),
-            this->diff_weights_md(1));
+    set_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->diff_src_md(0),
+            this->diff_dst_md(0), this->weights_md(0), this->weights_md(1),
+            this->diff_weights_md(0), this->diff_weights_md(1));
 
     dim_t workspace_size = get_workspace_size(rnn_conf);
 
@@ -1553,8 +1555,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS_ITER);
     auto &diff_bias_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
-    const rnn_utils::user_data_t user_data(
-            src_layer_native_, diff_dst_layer_native_, rnn, pd()->off);
+    const rnn_utils::user_data_t user_data(src_layer_native_,
+            diff_src_layer_native_, diff_dst_layer_native_, rnn, pd()->off);
 
     DPRINT("\n%s\n", "+++++++++++++++");
     DPRINT(" aprop = %d\n", (int)aprop);
@@ -1666,13 +1668,15 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     // Finally we copy the results to the result buffers
 
-    const bool dequantize_l
-            = pd()->dst_md(0)->data_type == data_type::f32 && rnn.is_int8;
-    CHECK(copy_res_layer(ctx, compute_stream, is_lr, is_rl, batch, dhc, slc,
-            n_iter, n_layer, n_dir, n_states, rnn.states_ws_ld,
-            rnn.scratch_diff_states_ld, scratch.diff_states(),
-            dst_last_layer_native_, diff_src_layer_native_, workspace.states(),
-            shift, scale, dequantize_l));
+    if (rnn.is_fwd || rnn.copy_diff_src_layer) {
+        const bool dequantize_l
+                = pd()->dst_md(0)->data_type == data_type::f32 && rnn.is_int8;
+        CHECK(copy_res_layer(ctx, compute_stream, is_lr, is_rl, batch, dhc, slc,
+                n_iter, n_layer, n_dir, n_states, rnn.states_ws_ld,
+                rnn.scratch_diff_states_ld, scratch.diff_states(),
+                dst_last_layer_native_, diff_src_layer_native_,
+                workspace.states(), shift, scale, dequantize_l));
+    }
     const bool dequantize_i = pd()->with_dst_iter()
             && pd()->dst_md(1)->data_type == data_type::f32 && rnn.is_int8;
     CHECK(copy_res_iter(ctx, compute_stream, batch, dhc, sic, n_iter, n_layer,

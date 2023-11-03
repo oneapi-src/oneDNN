@@ -74,7 +74,6 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         set_offsets_bwd_gemm(rnn, iter, dir, lay, cell_diff_wei_iter_off,
                 cell_diff_wei_lay_off);
 
-        auto diff_states = scratch.diff_states(lay, dir, 0, iter);
         auto diff_states_iter = scratch.diff_states(lay, dir, 0, iter + 1);
         auto diff_states_layer
                 = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
@@ -85,8 +84,11 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 ? offsets.diff_dst_layer[1]
                 : rnn.scratch_diff_states_ld;
 
-        auto diff_states0 = scratch.diff_states(lay, dir, 0, iter);
-        auto diff_states1 = scratch.diff_states(lay, dir, rnn.n_states, iter);
+        auto diff_states = scratch.diff_states(lay, dir, 0, iter);
+        auto diff_states1 = !rnn.copy_diff_src_layer && lay == 0
+                ? user_data.diff_src_layer(dir, iter)
+                : scratch.diff_states(lay, dir, rnn.n_states, iter);
+
         auto diff_gates = scratch.diff_gates(iter);
 
         CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
@@ -105,7 +107,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         }
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
-                *scratch.cell(), 0, *diff_states0, 0, gemm_iter_bwd));
+                *scratch.cell(), 0, *diff_states, 0, gemm_iter_bwd));
 
         CHECK(gemm_primitive(engine, ctx, *scratch.cell(), 0, *cell_iter, 0,
                 diff_weights_iter, cell_diff_wei_iter_off, gemm_diff_wei_iter));
