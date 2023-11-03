@@ -289,6 +289,7 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, MatmulAdd) {
 
 TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, MatmulMulAdd) {
     REQUIRE_AVX2();
+    REQUIRE_VNNI();
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     builder::ir_builder_t bld;
 

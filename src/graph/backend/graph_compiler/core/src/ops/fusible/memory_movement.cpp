@@ -864,7 +864,7 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
         expr acc_src_dim_expr = 1;
         const int dyn_len = -2;
         for (int i = src_dims.size() - 1; i >= 0; i--) {
-            auto slice_expr = known_ranges[i].second;
+            auto slice_expr = do_cast_and_fold(known_ranges[i].second);
             if (slice_stop) {
                 // check whether slice is full on last several dims
                 if (!slice_expr.isa<constant_c>()

@@ -170,7 +170,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder) {
                 _named_for_(l2, kk, 0, 4) {
                     _for_(ll, 0, 8UL, lanes) {
                         auto ip0 = builder::tensor_ptr(
-                                in0, {ii, jj, kk, ll}, {}, true);
+                                in0, {ii, jj, kk, 0}, {}, true);
                         out[span_t({(((0 + (kk + 0)) + ((ii + 0) * 4)) / 16),
                                            (((0 + (ll + 0)) + ((jj + 0) * 8))
                                                    / 16),
@@ -179,7 +179,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder) {
                                            (((0 + (ll + 0)) + ((jj + 0) * 8))
                                                    % 16)},
                                 lanes)]
-                                = ip0[span_t({0, 0, 0, 0}, lanes)];
+                                = ip0[span_t({0, 0, 0, ll}, lanes)];
                     }
                 }
             }
