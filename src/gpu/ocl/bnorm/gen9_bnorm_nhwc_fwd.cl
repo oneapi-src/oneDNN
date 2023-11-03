@@ -13,8 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
-#include "gpu/ocl/gen9_bnorm.h"
+#include "gpu/ocl/bnorm/gen9_bnorm.h"
 
 // FWD kernels for regular and 1-pass (under USE_STATS_ONE_PASS) bnorm
 // algorithms that are specially optimized for NHWC layout

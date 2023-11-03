@@ -13,8 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
-#include "gpu/ocl/gen9_bnorm.h"
+#include "gpu/ocl/bnorm/gen9_bnorm.h"
 
 // Zeroing and finalization kernels are required for atomics-based
 // reduction (FUSED_ATOMICS_REDUCTION definition).

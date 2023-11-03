@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/gen9_batch_normalization.hpp"
-#include "gpu/ocl/batch_normalization_utils.hpp"
+#include "gpu/ocl/bnorm/gen9_batch_normalization.hpp"
+#include "gpu/ocl/bnorm/bnorm_utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;

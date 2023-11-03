@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/reusable_bnorm.hpp"
+#include "gpu/ocl/bnorm/reusable_bnorm.hpp"
 #include <limits>
 
 #include "common/c_types_map.hpp"

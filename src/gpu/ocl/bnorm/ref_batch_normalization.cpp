@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ref_batch_normalization.hpp"
+#include "gpu/ocl/bnorm/ref_batch_normalization.hpp"
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"

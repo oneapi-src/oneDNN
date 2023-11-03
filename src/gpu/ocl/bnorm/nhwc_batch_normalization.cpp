@@ -13,9 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
-#include "gpu/ocl/nhwc_batch_normalization.hpp"
-#include "gpu/ocl/batch_normalization_utils.hpp"
+#include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
+#include "gpu/ocl/bnorm/bnorm_utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;

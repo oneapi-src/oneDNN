@@ -13,7 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include "gpu/ocl/gen9_bnorm.h"
+#include "gpu/ocl/bnorm/gen9_bnorm.h"
 
 // BWD kernels that support both blocked and NHWC layouts (USE_NHWC definition).
 // These kernels perform IC tail processing for NHWC and for ic % 8 == 0

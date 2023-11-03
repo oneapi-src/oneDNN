@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include "gpu/ocl/batch_normalization_utils.hpp"
-#include "gpu/ocl/bnorm_lookup_table.hpp"
+#include "gpu/ocl/bnorm/bnorm_utils.hpp"
+#include "gpu/ocl/bnorm/bnorm_lookup_table.hpp"
 
 namespace dnnl {
 namespace impl {

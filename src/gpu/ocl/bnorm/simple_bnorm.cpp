@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/simple_bnorm.hpp"
+#include "gpu/ocl/bnorm/simple_bnorm.hpp"
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
