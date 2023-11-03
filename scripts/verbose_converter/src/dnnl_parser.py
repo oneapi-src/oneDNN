@@ -67,6 +67,77 @@ class LogParser:
             representation.
             """
 
+            def split_arg_dt(arg_dt):
+                def buffer(dt):
+                    return {"data": dt, "offset": 0}
+
+                def eof(buf):
+                    return buf["offset"] >= len(buf["data"])
+
+                def get_data(buf):
+                    if eof(buf):
+                        return None
+                    return buf["data"][buf["offset"] :]
+
+                def read_int(buf):
+                    data = get_data(buf)
+                    if not data:
+                        return None
+                    if data[0] not in "123456789":
+                        return None
+                    for n, c in enumerate(data):
+                        if c not in "0123456789":
+                            buf["offset"] += n
+                            return int(data[:n])
+                    buf["offset"] += len(data)
+                    return int(data)
+
+                def read_literal(buf, literal):
+                    data = get_data(buf)
+                    if not data:
+                        return None
+                    if not data.startswith(literal):
+                        return None
+                    buf["offset"] += len(literal)
+                    return True
+
+                def parse_int_type(dt):
+                    buf = buffer(dt)
+                    if not (read_literal(buf, "u") or read_literal(buf, "s")):
+                        return False
+                    if not read_int(buf):
+                        return False
+                    return eof(buf)
+
+                def parse_float_type(dt):
+                    buf = buffer(dt)
+                    read_literal(buf, "b")  # ignore b in bf16
+                    if not read_literal(buf, "f"):
+                        return False
+                    if not read_int(buf):
+                        return False
+                    if eof(buf):
+                        return True  # f16, f32, f64
+                    if not read_literal(buf, "_e"):
+                        return False
+                    if not read_int(buf):
+                        return False
+                    if not read_literal(buf, "m"):
+                        return False
+                    if not read_int(buf):
+                        return False
+                    return eof(buf)  # f8_eXmY
+
+                parts = arg_dt.split("_")
+                for split in range(1, len(parts)):
+                    input_parts = parts[:split]
+                    dt_parts = parts[split:]
+                    dt = "_".join(dt_parts)
+                    if dt == "undef":
+                        return "_".join(input_parts), dt
+                    if parse_int_type(dt) or parse_float_type(dt):
+                        return "_".join(input_parts), dt
+
             def convert_mds(log_mds):
                 mds = []
                 for md in log_mds.split(" "):
@@ -97,9 +168,7 @@ class LogParser:
                             if f[:3] == "zpm":
                                 flags["zp_comp_mask"] = f[3:]
 
-                    # `maxsplit` needed to cover dnnl_XX_YY data types
-                    data_type = arg_dt.split("_", maxsplit=1)[-1]
-                    arg = arg_dt[: -len(data_type) - 1]
+                    arg, data_type = split_arg_dt(arg_dt)
                     mds.append(
                         {
                             "arg": arg,
