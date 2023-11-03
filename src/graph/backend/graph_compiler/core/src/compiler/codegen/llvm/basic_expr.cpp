@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "compiler/ir/attr_keys.hpp"
 #include "shared_include.hpp"
 #include "util/fp16.hpp"
 
@@ -36,6 +37,13 @@ void codegen_llvm_vis_t::generate_bin_op(
     auto cate = get_etype_category_nothrow(l->dtype_.type_code_);
     auto lhs = generate_expr(l);
     auto rhs = generate_expr(r);
+    auto original_fmf = builder_.getFastMathFlags();
+    if (!any_map_t::fetch_or_else(v->attr_.get(), attr_keys::fast_math, true)) {
+        FastMathFlags fmflag;
+        fmflag.setFast(false);
+        fmflag.setAllowContract(false);
+        builder_.setFastMathFlags(fmflag);
+    }
 #define HANDLE_BIN_OP2(scname, intname, fpname, case_other) \
     case sc_expr_type::scname: \
         switch (cate) { \
@@ -107,6 +115,7 @@ void codegen_llvm_vis_t::generate_bin_op(
             break;
         default: assert(0);
     }
+    builder_.setFastMathFlags(original_fmf);
 }
 
 void codegen_llvm_vis_t::view(binary_c v) {

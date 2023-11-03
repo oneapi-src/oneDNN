@@ -66,8 +66,15 @@ static void check_unary_elementwise(const std::string &op_name,
     }
     ins = g.make_input({graph_tensor::make(input_dims, sc_data_format_t(),
             is_bf16 ? datatypes::bf16 : datatypes::f32)});
-    auto op = g.make(op_name, ins->get_outputs(), {},
-            {{"alpha", alpha}, {"beta", thebeta}});
+    std::shared_ptr<sc_op> op;
+    if (op_name == "clamp") {
+        op = g.make(op_name, ins->get_outputs(), {},
+                {{"min", alpha}, {"max", thebeta}});
+    } else {
+        op = g.make(op_name, ins->get_outputs(), {},
+                {{"alpha", alpha}, {"beta", thebeta}});
+    }
+
     g.make_output(op->get_outputs());
     graph_driver(g, get_test_ctx());
 
@@ -186,6 +193,20 @@ TEST(GCCore_CPU_unary_elementwise_test, TestHardSwishOp) {
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("hardswish", shape, ref_hardswish_func);
         check_unary_elementwise<bf16_t>("hardswish", shape, ref_hardswish_func);
+    }
+}
+
+template <typename T>
+void ref_clamp_func(T *out, const T *in, size_t size) {
+    auto func = std::bind(ref_clamp<T>, std::placeholders::_1,
+            std::placeholders::_2, std::placeholders::_3, alpha, thebeta);
+    func(out, in, size);
+}
+TEST(GCCore_CPU_unary_elementwise_test, TestClampOp) {
+    REQUIRE_AVX2();
+    for (auto &shape : test_shapes) {
+        check_unary_elementwise<float>("clamp", shape, ref_clamp_func);
+        check_unary_elementwise<bf16_t>("clamp", shape, ref_clamp_func);
     }
 }
 

@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include "compiler/ir/attr_keys.hpp"
 #include "unary_elemwise.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/brgemm_fusion.hpp>
@@ -403,8 +404,6 @@ expr cast_op_t::compute_element(expr in) {
 
 expr clamp_op_t::compute_element(expr in) {
     auto dtype = in->dtype_;
-    COMPILE_ASSERT(dtype.type_code_ == sc_data_etype::F32,
-            "clamp_op_t currently only supports fp32");
     float clamp_min = attrs_.get<float>("min");
     float clamp_max = attrs_.get<float>("max");
     return builder::make_max(
@@ -463,10 +462,17 @@ expr log_op_t::compute_element(expr in) {
 // mish(x) = x * ((e^x + 1)^2 - 1)/((e^x + 1)^2 + 1).
 expr mish_op_t::compute_element(expr in) {
     DEFINE_AND_ASSERT_DTYPE("mish");
+    auto tmp = builder::make_min(
+            in, make_expr<constant_node>(44.361415f, dtype));
     auto f_one = make_expr<constant_node>(1.f, dtype);
-    auto f_temp = builder::make_exp(in) + f_one;
+    auto f_temp = builder::make_exp(tmp) + f_one;
     f_temp = f_temp * f_temp;
-    return in * ((f_temp - f_one) / (f_temp + f_one));
+    auto f_div = (f_temp - f_one) / (f_temp + f_one);
+    // for llvm disnable fast math
+    f_div->attr()[attr_keys::fast_math] = false;
+    auto f_mul = in * f_div;
+    f_mul->attr()[attr_keys::fast_math] = false;
+    return f_mul;
 }
 
 expr soft_plus_op_t::compute_element(expr in) {

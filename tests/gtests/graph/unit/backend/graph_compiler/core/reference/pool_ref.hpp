@@ -132,7 +132,7 @@ inline void compute_pooling_ref_bwd(std::string &pooling_type, const int64_t MB,
         Store_type *dst = dst_delta + nc_offset;
 
         int64_t max_offset = -1;
-        Store_type max_val = std::numeric_limits<Compute_type>::lowest();
+        Store_type max_val = -std::numeric_limits<Compute_type>::infinity();
 
         bool has_max_indices = max_indices != nullptr;
         if (has_max_indices) {
@@ -147,13 +147,8 @@ inline void compute_pooling_ref_bwd(std::string &pooling_type, const int64_t MB,
                 const int64_t ow = iw * SW - PW + kw;
                 int64_t cur_offset = oh * OW + ow;
 
-                if (oh < 0 || oh >= OH || ow < 0 || ow >= OW) {
-                    if (!has_max_indices && pooling_type == "max"
-                            && max_val < 0.f) {
-                        max_offset = -1;
-                        max_val = static_cast<Compute_type>(0);
-                    }
-                } else {
+                bool is_out_of_bound = oh < 0 || oh >= OH || ow < 0 || ow >= OW;
+                if (!is_out_of_bound) {
                     if (pooling_type == "max") {
                         if (has_max_indices) {
                             if (max_offset == cur_offset)
@@ -161,7 +156,7 @@ inline void compute_pooling_ref_bwd(std::string &pooling_type, const int64_t MB,
                                         dst[cur_offset] + s_delta);
                         } else {
                             if (input_tensor[nc_offset + cur_offset]
-                                    >= max_val) {
+                                    > max_val) {
                                 max_offset = cur_offset;
                                 max_val = input_tensor[nc_offset + cur_offset];
                             }
@@ -189,9 +184,10 @@ inline void compute_pooling_ref_bwd(std::string &pooling_type, const int64_t MB,
                 }
             }
         }
-        if (!has_max_indices && pooling_type == "max" && max_offset >= 0)
+        if (!has_max_indices && pooling_type == "max" && max_offset >= 0) {
             dst[max_offset]
-                    = static_cast<Store_type>(dst[max_offset] + s_delta);
+                    = dst[max_offset] + static_cast<Store_type>(s_delta);
+        }
     };
 
     sc::utils::parallel_for(

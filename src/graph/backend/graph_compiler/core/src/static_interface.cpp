@@ -20,6 +20,7 @@
  * */
 
 #define RUN_ON_PRODUCTION(F) \
+    F(abs); \
     F(matmul_core); \
     F(softmax); \
     F(static_reshape); \
@@ -40,6 +41,7 @@
     F(reduce_min); \
     F(relu); \
     F(relu_backprop); \
+    F(reciprocal); \
     F(sigmoid_backprop); \
     F(conv_fwd); \
     F(conv_fwd_core); \
@@ -68,6 +70,8 @@
     F(duplicate); \
     F(pooling_avg); \
     F(pooling_max); \
+    F(pooling_max_backprop); \
+    F(pooling_avg_backprop); \
     F(broadcast);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;

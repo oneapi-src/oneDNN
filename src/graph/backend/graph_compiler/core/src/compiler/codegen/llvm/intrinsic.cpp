@@ -331,7 +331,7 @@ void codegen_llvm_vis_t::view(intrin_call_c v) {
                 case 1:
                     current_val_ = builder_.CreateFPToSI(
                             builder_.CreateUnaryIntrinsic(
-                                    Intrinsic::round, inval1),
+                                    Intrinsic::roundeven, inval1),
                             builder_.getInt32Ty());
                     break;
                 case 4:

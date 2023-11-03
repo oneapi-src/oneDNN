@@ -106,20 +106,21 @@ void batchnorm_inference_op::get_graph_impl(
     // variance+eps
     auto var_eps = graph->make(
             "add", {inputs[4], const_op->get_outputs()[0]}, {}, {});
-    // rsqrt(variance+eps)
-    auto rsqrt_op = graph->make("squared_root", {var_eps->get_outputs()[0]}, {},
-            any_map_t({{"reciprocal", true}}));
-    // gamma *rsqrt(variance+eps)
-    auto bn_mul = graph->make(
-            "mul", {inputs[1], rsqrt_op->get_outputs()[0]}, {}, {});
+    // sqrt(variance+eps)
+    auto sqrt_op
+            = graph->make("squared_root", {var_eps->get_outputs()[0]}, {}, {});
+    // gamma / sqrt(variance+eps) (Due to benchdnn accuracy require, we need to
+    // use sqrt.)
+    auto bn_div = graph->make(
+            "div", {inputs[1], sqrt_op->get_outputs()[0]}, {}, {});
     // mean * gamma *rsqrt(variance+eps)
     auto mean_op
-            = graph->make("mul", {inputs[3], bn_mul->get_outputs()[0]}, {}, {});
-    // beta - mean*gamma*rsqrt(variance+eps)
+            = graph->make("mul", {inputs[3], bn_div->get_outputs()[0]}, {}, {});
+    // beta - mean*gamma/sqrt(variance+eps)
     auto bn_add = graph->make(
             "sub", {inputs[2], mean_op->get_outputs()[0]}, {}, {});
 
-    auto x1 = graph->make("mul", {inputs[0], bn_mul->get_outputs()[0]}, {},
+    auto x1 = graph->make("mul", {inputs[0], bn_div->get_outputs()[0]}, {},
             any_map_t({{"bc_axis", bc_axis}}));
 
     auto y1 = graph->make("add",

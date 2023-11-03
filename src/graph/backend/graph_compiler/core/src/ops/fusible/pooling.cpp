@@ -772,7 +772,7 @@ pooling_avg_backprop_op_t::pooling_avg_backprop_op_t(
         const any_map_t &attrs)
     : pooling_backprop_op_t(ins, outs,
             add_pl_type_and_in_shape(attrs,
-                    static_cast<int>(pooling_type_t::max), input_shape)) {
+                    static_cast<int>(pooling_type_t::avg), input_shape)) {
     COMPILE_ASSERT(ins.size() == 1, " pooling_avg_backprop_op_t have 1 inputs");
     op_name_ = "pooling_avg_backprop";
     COMPILE_ASSERT(
@@ -785,13 +785,13 @@ pooling_max_backprop_op_t::pooling_max_backprop_op_t(
     : pooling_backprop_op_t(ins, outs,
             add_pl_type_and_in_shape(attrs,
                     static_cast<int>(pooling_type_t::max),
-                    ins[1]->details_.get_plain_dims())) {
+                    ins[0]->details_.get_plain_dims())) {
     COMPILE_ASSERT(info_.inputs_.size() == 2,
             " pooling_max_backprop_op_t have 2 inputs");
     const auto output_delta_ndims
-            = info_.inputs_[0]->details_.get_plain_dims().size();
-    const auto input_tensor_ndims
             = info_.inputs_[1]->details_.get_plain_dims().size();
+    const auto input_tensor_ndims
+            = info_.inputs_[0]->details_.get_plain_dims().size();
     COMPILE_ASSERT(input_tensor_ndims == output_delta_ndims,
             "delta should have n dims as input tensor");
     op_name_ = "pooling_max_backprop";
@@ -861,8 +861,7 @@ infer_status_code pooling_backprop_op_t::pre_infer_slice_ranges(
 }
 
 static void pooling_backward_fill_zero_dst(const tensor_slice &dst,
-        pooling_type_t pooling_typ, sc_data_type_t in_dtype,
-        const vectorized_info_t &vx_info) {
+        sc_data_type_t in_dtype, const vectorized_info_t &vx_info) {
     auto in_vectorized_dtype
             = sc_data_type_t(in_dtype.type_code_, vx_info.lanes);
 
@@ -921,7 +920,7 @@ static void compute_block_pooling_backward_avg(
      ***/
 
     // fill dst delta with 0
-    pooling_backward_fill_zero_dst(dst, pooling_type_t::avg, in_dtype, vx_info);
+    pooling_backward_fill_zero_dst(dst, in_dtype, vx_info);
 
     auto in_vectorized_dtype
             = sc_data_type_t(in_dtype.type_code_, vx_info.lanes);
@@ -1123,7 +1122,7 @@ static void compute_block_pooling_backward_max(
      ***/
 
     // fill dst delta with 0
-    pooling_backward_fill_zero_dst(dst, pooling_type_t::avg, in_dtype, vx_info);
+    pooling_backward_fill_zero_dst(dst, in_dtype, vx_info);
 
     // builder
     auto bld = builder::get_current_builder();
@@ -1162,15 +1161,15 @@ static void compute_block_pooling_backward_max(
     std::vector<expr> iter_vars, kernel_iter_vars;
 
     // the indices for the source delta
-    for (unsigned i = 0; i < inputs[0]->nslice_dims(); i++) {
-        iter_vars.emplace_back(range_from_outer_loop(inputs[0]->get_ranges()[i])
+    for (unsigned i = 0; i < inputs[1]->nslice_dims(); i++) {
+        iter_vars.emplace_back(range_from_outer_loop(inputs[1]->get_ranges()[i])
                         ? expr(0)
                         : builder::make_var(datatypes::index,
                                 std::string("_fuseiter")
                                         + fusion_create_idx()));
     }
     expr indexed_src_delta
-            = builder::make_indexing(inputs[0]->tptr_, iter_vars);
+            = builder::make_indexing(inputs[1]->tptr_, iter_vars);
 
     // the indices dor the kernel inner loop
     for (unsigned i = 0; i < kernel.size(); i++) {
@@ -1214,7 +1213,7 @@ static void compute_block_pooling_backward_max(
     indexed_max_dst_delta
             = builder::make_indexing(dst.tptr_, max_value_delta_idices);
     indexed_cur_tensor_val
-            = builder::make_indexing(inputs[1]->tptr_, cur_tensor_idices);
+            = builder::make_indexing(inputs[0]->tptr_, cur_tensor_idices);
 
     // build inner kernel loop
     stmt cur, body;
@@ -1228,18 +1227,14 @@ static void compute_block_pooling_backward_max(
             stmt update_max_info
                     = make_stmt<stmts_node_t>(std::move(update_max_pos_stmts));
             then_stmt = make_stmt<if_else_node_t>(
-                    max_val <= indexed_cur_tensor_val, update_max_info, stmt());
+                    max_val < indexed_cur_tensor_val, update_max_info, stmt());
         } else {
             then_stmt = cur;
         }
 
-        expr zero_constant = make_expr<constant_node>(0.f, in_dtype);
-        else_stmt = make_stmt<if_else_node_t>(max_val < zero_constant,
-                make_stmt<stmts_node_t>(std::vector<stmt> {
-                        make_stmt<assign_node_t>(has_max, false),
-
-                        make_stmt<assign_node_t>(max_val, zero_constant)}),
-                stmt());
+        expr zero_constant = make_expr<constant_node>(
+                -std::numeric_limits<float>::infinity(), in_dtype);
+        else_stmt = stmt();
 
         cur = make_stmt<if_else_node_t>(conds[i], then_stmt, else_stmt);
 
@@ -1273,7 +1268,7 @@ static void compute_block_pooling_backward_max(
                 : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
 
         cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), 0,
-                inputs[0]->get_shape()[i], 1, std::move(body), true,
+                inputs[1]->get_shape()[i], 1, std::move(body), true,
                 for_type::NORMAL);
 
         cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
@@ -1318,18 +1313,19 @@ void pooling_backprop_op_t::compute_block(context_ptr ctx,
     auto in_dtype = info_.inputs_[0]->details_.dtype_;
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
 
-    if (pooling_type_ == pooling_type_t::avg)
+    if (pooling_type_ == pooling_type_t::avg) {
         compute_block_pooling_backward_avg(inputs, *dst[0], kernel_, stride_,
                 pads_begin_,
                 get_ncx_formatcode_vector_form_tensor(
                         info_.inputs_[0], channel_last_),
                 vx_info_, in_dtype, attrs_);
-    else
+    } else {
         compute_block_pooling_backward_max(inputs, *dst[0], kernel_, stride_,
                 pads_begin_,
                 get_ncx_formatcode_vector_form_tensor(
-                        info_.inputs_[0], channel_last_),
+                        info_.inputs_[1], channel_last_),
                 vx_info_, in_dtype, attrs_);
+    }
 }
 
 size_t pooling_backprop_op_t::compute_workload(

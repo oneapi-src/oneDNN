@@ -50,6 +50,10 @@ constexpr const char *shared_const_base_idx = "shared_const_base_idx";
 // bool. Default false. Applied on base tensor.
 // If true, the tensor is read only in the funtion.
 constexpr const char *read_only_tensor = "read_only_tensor";
+// bool. whether codegen enable fast math.
+// If false, codegen will not use fast math in the calculation. (Currently only
+// works in binary expr calculation of llvm codegen.)
+constexpr const char *fast_math = "fast_math";
 } // namespace attr_keys
 
 } // namespace gc

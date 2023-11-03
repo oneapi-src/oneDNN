@@ -366,28 +366,28 @@ static func_t create_exp_func(const ir_module_ptr &mod,
     auto ln2 = gen_vec_const(elements, 0.693147181f);
     auto minus_ln2 = gen_vec_const(elements, -0.693147181f);
     auto one_over_ln2 = gen_vec_const(elements, 1.442695041f);
+    auto half_float = gen_vec_const(elements, 0.5f);
     auto ONE_f = gen_vec_const(elements, 1.0f);
     auto ONE_i = make_expr<constant_node>(
             INT64_C(1), sc_data_type_t::s32(elements));
     auto ty_epi_32 = sc_data_type_t::s32(elements);
+    auto overflow_x = gen_vec_const(elements, 88.7228f);
+    auto underflow_x = gen_vec_const(elements, -87.3365f);
+    auto ret_infinity = make_expr<constant_node>(
+            std::numeric_limits<float>::infinity(), type);
 
     builder::ir_builder_t builder;
     _function_(type, the_exp_func, make_args_by_intrinsic(node)) {
         assert(node->args_.size() == 1);
         _bind_(inval);
+        _var_(res, type);
         // to avoid overflow
-
         _var_init_(a_, type, inval);
-        if (overflow_check) {
-            a_ = builder::make_min(inval, gen_vec_const(elements, 88.60f));
-        }
-        // TODO(xxx): currenly clip the input if the value is larger than
-        // the upper limit to prevent overflow
 
         // e^x = 2^k_int * e^r
         _var_(k_float, type);
-        k_float = builder::make_floor(
-                a_ * one_over_ln2); // k_float = floor(x / ln2)
+        k_float = builder::make_floor(a_ * one_over_ln2
+                + half_float); // k_float = floor(x / ln2 + 0.5f)
         _var_(k_int, ty_epi_32);
         k_int = builder::make_cast(ty_epi_32, k_float); // k_int = int(k_float)
 
@@ -422,11 +422,14 @@ static func_t create_exp_func(const ir_module_ptr &mod,
         _var_(result, ty_epi_32);
         result = p + builder::make_reinterpret(Tn, ty_epi_32);
 
-        // to avoid underflow
-        expr l_min_mask = inval >= gen_vec_const(elements, -87.33f);
-        _return_(builder::make_select(
-                l_min_mask, builder::make_reinterpret(result, type), ZERO));
-    }
+        res = builder::make_reinterpret(result, type);
+        if (overflow_check) {
+            res = builder::make_select(inval > overflow_x, ret_infinity, res);
+        }
+        res = builder::make_select(inval < underflow_x, ZERO, res);
+        _return_(res);
+    } // namespace gc
+
     std::string fixed_name = get_exp_func_name(node);
     the_exp_func->name_ = fixed_name;
     the_exp_func->decl_->name_ = fixed_name;
