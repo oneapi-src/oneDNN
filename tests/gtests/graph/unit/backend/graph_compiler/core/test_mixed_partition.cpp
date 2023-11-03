@@ -1419,6 +1419,41 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint8) {
     EXPECT_EQ(inplace_map.size(), (size_t)0);
 }
 
+TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint9) {
+    int run_threads = 28;
+    SET_THREADS_OR_SKIP(run_threads);
+
+    sc_graph_t graph;
+    auto input_shape = sc_dims {1, 16, 56, 56};
+
+    auto in1 = graph.make_input({std::make_shared<graph_tensor>(
+            nullptr, sc_data_format_t::NCHW(), input_shape, datatypes::f32)});
+    auto in2 = graph.make_input({std::make_shared<graph_tensor>(
+            nullptr, sc_data_format_t::NCHW(), input_shape, datatypes::f32)});
+    auto cat = graph.make("concat",
+            {in1->get_outputs()[0], in2->get_outputs()[0]}, {}, {{"axis", 1}});
+    auto pool = graph.make("pooling_max", cat->get_outputs(), {},
+            {{pooling_attr_key::strides, sc_dims {1, 1}},
+                    {pooling_attr_key::pads_begin, sc_dims {1, 1}},
+                    {pooling_attr_key::pads_end, sc_dims {1, 1}},
+                    {pooling_attr_key::kernel, sc_dims {3, 3}},
+                    {pooling_attr_key::rounding_type, "floor"},
+                    {pooling_attr_key::auto_pad, "None"},
+                    {pooling_attr_key::data_format, "NCX"}});
+    auto output0 = graph.make_output(pool->get_outputs());
+
+    auto ctx = get_test_ctx();
+    mixed_partition(graph, ctx);
+
+    mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(fused_op && fused_op->parti_list_.size() == 1);
+    // get inplace map
+    auto inplace_map = fused_op->parti_list_[0]->buf_alloc_.inplace_map_;
+    // there is expected nothing in inplace map, due to `pooling_max_4_outs_0`
+    // cannot be inplaced by `concat_2_outs_0`
+    EXPECT_EQ(inplace_map.size(), (size_t)0);
+}
+
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestUserDefinedShrintTensor) {
     REQUIRE_AVX2();
     sc_graph_t graph;

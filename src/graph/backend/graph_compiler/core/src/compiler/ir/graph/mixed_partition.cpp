@@ -247,8 +247,8 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
     /* infer post-op inplace */
     auto query_inplace = [&](const graph_tensor_ptr &out,
                                  const graph_tensor_ptr &in) -> bool {
-        return (!op->isa<tunable_op_t>()) && (in->uses_.size() == 1)
-                && (out != in)
+        return (!op->isa<tunable_op_t>() && !op->isa<pooling_op_t>())
+                && (in->uses_.size() == 1) && (out != in)
                 && (out->details_.get_blocking_dims()
                         == in->details_.get_blocking_dims())
                 && (out->details_.get_strides() == in->details_.get_strides())
