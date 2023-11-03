@@ -167,6 +167,8 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
         arg_list.append(*scratch_diff_states);
         arg_list.append(*scratch_diff_states_iter);
         arg_list.append(*scratch_diff_states_layer);
+        arg_list.append(*scratch_diff_states_s1);
+        arg_list.append(*scratch_diff_states_iter_s1);
         arg_list.append(diff_bias);
         rnn_utils::append_strides(arg_list, pd()->off.diff_bias, 4);
     }
