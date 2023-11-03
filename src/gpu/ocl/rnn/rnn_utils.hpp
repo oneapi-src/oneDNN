@@ -43,7 +43,9 @@
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
             const memory_storage_t *scratch_diff_states, \
+            const memory_storage_t *scratch_diff_states_s1, \
             const memory_storage_t *scratch_diff_states_iter, \
+            const memory_storage_t *scratch_diff_states_iter_s1, \
             const memory_storage_t *scratch_diff_states_layer, \
             dim_t diff_states_layer_ld, const memory_storage_t *scales, \
             const memory_storage_t &bias, const memory_storage_t *tm_scales, \
@@ -759,7 +761,8 @@ struct scratch_t {
         if (!diff_states_) return nullptr;
         auto off
                 = calc_off_diff_state(layer, dir, state, iter, 0, 0) * aux_elsz;
-        auto cell_size = conf_.mb * conf_.scratch_diff_states_ld * aux_elsz;
+        auto cell_size = conf_.n_states * conf_.mb
+                * conf_.scratch_diff_states_ld * aux_elsz;
         return diff_states_->get_sub_storage(off, cell_size);
     }
 

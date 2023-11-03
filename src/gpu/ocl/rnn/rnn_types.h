@@ -126,10 +126,10 @@ int cell_scratch_mem(int scratch_gates_ld, int dhc, int i, int n, int j) {
     // OFF_SCRATCH_MEM(0, i1, i2, i3)
     return i * scratch_gates_ld + n * dhc + j;
 }
-int cell_scratch_diff_states(int n_iter, int batch, int scratch_diff_states_ld,
-        int i2, int i4, int i5) {
+int cell_scratch_diff_states(
+        int batch, int scratch_diff_states_ld, int i4, int i5) {
     // OFF_SCRATCH_DIFF_STATES(0, 0, i2, 0, i4, i5)
-    return (((i2 * (n_iter + 1)) * batch + i4) * scratch_diff_states_ld + i5);
+    return (i4 * scratch_diff_states_ld + i5);
 }
 
 int bias_off(param4 bias, int x0, int x1, int x2, int x3) {

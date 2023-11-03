@@ -59,8 +59,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
 
     if (aprop == prop_kind::forward) {
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
-                workspace, scratch_gates, nullptr, nullptr, nullptr, nullptr, 0,
-                scales, bias, tm_scales, diff_bias));
+                workspace, scratch_gates, nullptr, nullptr, nullptr, nullptr,
+                nullptr, nullptr, 0, scales, bias, tm_scales, diff_bias));
 
     } else { // backward
         dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off;
@@ -68,8 +68,10 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
         set_offsets_bwd_gemm(rnn, iter, dir, lay, cell_diff_wei_iter_off,
                 cell_diff_wei_lay_off);
 
-        auto diff_states = scratch.diff_states(lay, dir, 0, iter);
         auto diff_states_iter = scratch.diff_states(lay, dir, 0, iter + 1);
+        auto diff_states_iter_s1 = rnn.n_states == 2
+                ? scratch.diff_states(lay, dir, 1, iter + 1)
+                : nullptr;
         auto diff_states_layer
                 = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
                 ? user_data.diff_dst_layer(dir, iter)
@@ -79,18 +81,22 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 ? offsets.diff_dst_layer[1]
                 : rnn.scratch_diff_states_ld;
 
-        auto diff_states0 = scratch.diff_states(lay, dir, 0, iter);
+        auto diff_states = scratch.diff_states(lay, dir, 0, iter);
+        auto diff_states_s1 = rnn.n_states == 2
+                ? scratch.diff_states(lay, dir, 1, iter)
+                : nullptr;
         auto diff_states1 = scratch.diff_states(lay, dir, rnn.n_states, iter);
         auto diff_gates = scratch.diff_gates(iter);
 
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
                 ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
-                diff_gates.get(), diff_states.get(), diff_states_iter.get(),
+                diff_gates.get(), diff_states.get(), diff_states_s1.get(),
+                diff_states_iter.get(), diff_states_iter_s1.get(),
                 diff_states_layer.get(), diff_states_layer_ld, scales, bias,
                 tm_scales, diff_bias));
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
-                *diff_gates, 0, *diff_states0, 0, gemm_iter_bwd));
+                *diff_gates, 0, *diff_states, 0, gemm_iter_bwd));
 
         if (!rnn.merge_gemm_layer) {
             CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
