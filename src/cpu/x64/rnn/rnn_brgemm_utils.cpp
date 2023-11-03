@@ -361,7 +361,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
             && !rnn.is_training
             // bf16 lstm_projection is not supported, so neither is bf32.
             && !rnn.is_lstm_projection && is_shape_ok_for_bf32;
-    if (!IMPLICATION(rnn.is_cell_dt_bf16(), rnn.is_bf16_conf() || is_bf32))
+    if (!IMPLICATION(rnn.is_f32_conf(), rnn.is_cell_dt_f32() || is_bf32))
         return status::unimplemented;
 
     rnn.nthr = dnnl_get_max_threads();
