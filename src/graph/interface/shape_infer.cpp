@@ -1193,14 +1193,6 @@ status_t infer_select_output_shape(op_t *n,
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
     auto in1 = logical_tensor_wrapper_t(inputs[1]);
     auto in2 = logical_tensor_wrapper_t(inputs[2]);
-    // check if output shape is already known
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    if (!out0.is_shape_unknown()) {
-        VCHECK_INVALID_SHAPE(validate(in0.vdims(), out0.vdims()),
-                "%s, given input and output shapes are not compatible",
-                op_t::kind2str(n->get_kind()).c_str());
-        return status::success;
-    }
 
     const bool shapes_should_match = n->has_attr(op_attr::auto_broadcast)
             ? "none" == n->get_attr<std::string>(op_attr::auto_broadcast)
@@ -1230,11 +1222,14 @@ status_t infer_select_output_shape(op_t *n,
                 "%s, failed to implement one-way broadcasting",
                 op_t::kind2str(n->get_kind()).c_str());
     }
-    // check if partial set shape aligns with inferred shape
-    if (out0.ndims() != -1) {
+
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    // check if given or partial set shape aligns with inferred shape
+    if (!out0.is_shape_unknown() || out0.ndims() != -1) {
         VCHECK_INVALID_SHAPE(validate(inferred_out_shape, out0.vdims()),
                 "%s, inferred out shape and output shape are not compatible",
                 op_t::kind2str(n->get_kind()).c_str());
+        if (!out0.is_shape_unknown()) return status::success;
     }
 
     set_shape_and_strides(*outputs[0], inferred_out_shape);
