@@ -1356,48 +1356,34 @@ void jit_brgemm_matmul_copy_a_transposed_int8_impl_t::transpose_int8_vpermb(
             if (i == 0)
                 mov(reg_aux_src0_, src);
             else
-                add(reg_aux_src0_, ptr[rsp + dynamic_src_ld_x_2_offt_]);
+                add(reg_aux_src0_, ptr[rsp + dynamic_src_ld_offt_]);
         }
         load(zmm_src0, idx0, reg_aux_src0_);
 
         auto idx1 = i + 1;
         auto zmm_src1 = get_zmm_src(idx1);
-        if (is_dynamic_src_ld_) {
-            if (i == 0) {
-                mov(reg_aux_src1_, src);
-                add(reg_aux_src1_, ptr[rsp + dynamic_src_ld_offt_]);
-            } else {
-                add(reg_aux_src1_, ptr[rsp + dynamic_src_ld_x_2_offt_]);
-            }
-        }
+        if (is_dynamic_src_ld_)
+            add(reg_aux_src0_, ptr[rsp + dynamic_src_ld_offt_]);
         if (idx1 < nrows)
-            load(zmm_src1, idx1, reg_aux_src1_);
+            load(zmm_src1, idx1, reg_aux_src0_);
         else
             vpxord(zmm_src1, zmm_src1, zmm_src1);
 
         auto idx2 = i + 2;
         auto zmm_src2 = get_zmm_src(idx2);
-        if (is_dynamic_src_ld_) {
-            if (i == 0)
-                add(reg_aux_src1_, ptr[rsp + dynamic_src_ld_offt_]);
-            else
-                add(reg_aux_src1_, ptr[rsp + dynamic_src_ld_x_2_offt_]);
-        }
+        if (is_dynamic_src_ld_)
+            add(reg_aux_src0_, ptr[rsp + dynamic_src_ld_offt_]);
         if (idx2 < nrows)
-            load(zmm_src2, idx2, reg_aux_src1_);
+            load(zmm_src2, idx2, reg_aux_src0_);
         else
             vpxord(zmm_src2, zmm_src2, zmm_src2);
 
         auto idx3 = i + 3;
         auto zmm_src3 = get_zmm_src(idx3);
-        if (is_dynamic_src_ld_) {
-            if (i == 0)
-                add(reg_aux_src1_, ptr[rsp + dynamic_src_ld_offt_]);
-            else
-                add(reg_aux_src1_, ptr[rsp + dynamic_src_ld_x_2_offt_]);
-        }
+        if (is_dynamic_src_ld_)
+            add(reg_aux_src0_, ptr[rsp + dynamic_src_ld_offt_]);
         if (idx3 < nrows)
-            load(zmm_src3, idx3, reg_aux_src1_);
+            load(zmm_src3, idx3, reg_aux_src0_);
         else
             vpxord(zmm_src3, zmm_src3, zmm_src3);
 
