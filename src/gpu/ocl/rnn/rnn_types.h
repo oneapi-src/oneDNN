@@ -98,8 +98,11 @@ int off_scratch_diff_states(int n_layer, int n_dir, int n_states, int n_iter,
         int batch, int scratch_diff_states_ld, int i0, int i1, int i2, int i3,
         int i4, int i5) {
     int i0_size = COPY_DIFF_DST_LAYER ? n_layer + 1 : n_layer;
-    return OFF6(i0, i0_size, i1, n_dir, i2, n_states + 1, i3, n_iter + 1, i4,
-            batch, i5, scratch_diff_states_ld);
+    int i2_size = COPY_DIFF_DST_LAYER || COPY_DIFF_SRC_LAYER || n_layer != 1
+            ? n_states + 1
+            : n_states;
+    return OFF6(i0, i0_size, i1, n_dir, i2, i2_size, i3, n_iter + 1, i4, batch,
+            i5, scratch_diff_states_ld);
 }
 int off_scratch_dhg1(int batch, int scratch_diff_states_ld, int i0, int i1) {
     return OFF2(i0, batch, i1, scratch_diff_states_ld);

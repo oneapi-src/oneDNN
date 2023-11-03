@@ -85,7 +85,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
         auto diff_states_s1 = rnn.n_states == 2
                 ? scratch.diff_states(lay, dir, 1, iter)
                 : nullptr;
-        auto diff_states1 = scratch.diff_states(lay, dir, rnn.n_states, iter);
+        auto diff_states1 = !rnn.copy_diff_src_layer && lay == 0
+                ? user_data.diff_src_layer(dir, iter)
+                : scratch.diff_states(lay, dir, rnn.n_states, iter);
         auto diff_gates = scratch.diff_gates(iter);
 
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,

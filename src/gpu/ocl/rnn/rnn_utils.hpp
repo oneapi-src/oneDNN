@@ -268,7 +268,8 @@ struct ocl_conf_t {
     bool recompute_gates = false;
     bool copy_src_layer = false;
     bool copy_diff_dst_layer = false;
-    uint8_t pad[6] = {};
+    bool copy_diff_src_layer;
+    uint8_t pad[5] = {};
 };
 
 struct conf_t {
@@ -302,6 +303,7 @@ struct conf_t {
     bool recompute_gates;
     bool copy_src_layer;
     bool copy_diff_dst_layer;
+    bool copy_diff_src_layer;
 
     // for test mode (--skip_nonliner=true of benchdnn)
     float tm_cscale;
@@ -351,6 +353,7 @@ void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 void init_test_mode(conf_t &rnn, const primitive_attr_t &attr);
 void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
+        const memory_desc_wrapper &diff_src_layer_d,
         const memory_desc_wrapper &diff_dst_layer_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
@@ -397,9 +400,11 @@ inline void append_strides(compute::kernel_arg_list_t &arg_list,
 
 struct user_data_t {
     using mst = memory_storage_t;
-    user_data_t(const mst &src_layer, const mst &diff_dst_layer,
-            const conf_t &conf, const rnn_offsets_t &offsets)
+    user_data_t(const mst &src_layer, const mst &diff_src_layer,
+            const mst &diff_dst_layer, const conf_t &conf,
+            const rnn_offsets_t &offsets)
         : src_layer_(src_layer)
+        , diff_src_layer_(diff_src_layer)
         , diff_dst_layer_(diff_dst_layer)
         , conf_(conf)
         , offsets_(offsets) {
@@ -465,6 +470,20 @@ struct user_data_t {
         return src_layer_.get_sub_storage(offset, cell_size * n_cells);
     }
 
+    const mst &diff_src_layer() const { return diff_src_layer_; }
+    std::unique_ptr<mst> diff_src_layer(
+            dim_t dir, dim_t iter_, bool all_iter = false) const {
+        auto iter = normalized_iter(dir, iter_);
+
+        // diff_src_layer dimension order: iter, mini-batch, channel
+        const auto iter_stride = offsets_.diff_src_layer[0]
+                * types::data_type_size(conf_.diff_data_type);
+        auto offset = iter * iter_stride;
+        auto cell_size = iter_stride;
+        auto n_cells = all_iter ? conf_.n_iter - iter : 1;
+        return diff_src_layer_.get_sub_storage(offset, cell_size * n_cells);
+    }
+
     const mst &diff_dst_layer() const { return diff_dst_layer_; }
     std::unique_ptr<mst> diff_dst_layer(
             dim_t dir, dim_t iter_, bool all_iter = false) const {
@@ -485,6 +504,7 @@ struct user_data_t {
     }
 
     const mst &src_layer_;
+    const mst &diff_src_layer_;
     const mst &diff_dst_layer_;
     const conf_t &conf_;
     const rnn_offsets_t &offsets_;
@@ -744,10 +764,14 @@ struct scratch_t {
         // Logical index into workspace grid
         auto i0_size
                 = conf_.copy_diff_dst_layer ? conf_.n_layer + 1 : conf_.n_layer;
+        auto i2_size = conf_.copy_diff_dst_layer || conf_.copy_diff_src_layer
+                        || conf_.n_layer != 1
+                ? conf_.n_states + 1
+                : conf_.n_states;
         gpu_assert(i0 < i0_size) << "Logical index must be less than its size";
         MAYBE_UNUSED(i0_size);
 
-        return OFF6(i0, i0_size, i1, conf_.n_dir, i2, conf_.n_states + 1, i3,
+        return OFF6(i0, i0_size, i1, conf_.n_dir, i2, i2_size, i3,
                 conf_.n_iter + 1, i4, conf_.mb, i5,
                 conf_.scratch_diff_states_ld);
     }

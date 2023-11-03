@@ -198,6 +198,7 @@ void rnn_utils::init_test_mode(conf_t &rnn, const primitive_attr_t &attr) {
 
 void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
+        const memory_desc_wrapper &diff_src_layer_d,
         const memory_desc_wrapper &diff_dst_layer_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
@@ -328,8 +329,28 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             = dev_getenv("copy_diff_dst_layer", prefer_copy_diff_dst_layer)
             || require_copy_diff_dst_layer;
 
+    bool require_copy_diff_src_layer = [&]() {
+        if (is_fwd) return false;
+
+        auto &strides = diff_src_layer_d.strides();
+
+        // Unimplemented
+        if (rnn.merge_gemm_iter || rnn.merge_gemm_layer) return true;
+
+        // Direction need to be summed together. This requires generating new
+        // GEMM kernels to perform a sum accumulation for the final accumulation.
+        if (rnn.n_dir > 1) return true;
+
+        // A new kernel needs to be generated if the strides differ.
+        if (rnn.scratch_diff_states_ld != strides[1]) return true;
+
+        return false;
+    }();
+    bool copy_diff_src_layer = dev_getenv("copy_diff_src_layer", false)
+            || require_copy_diff_src_layer;
     rnn.copy_src_layer = copy_src_layer;
     rnn.copy_diff_dst_layer = copy_diff_dst_layer;
+    rnn.copy_diff_src_layer = copy_diff_src_layer;
     rnn.ws_states_cell_size = rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
     rnn.ws_states_size = (copy_src_layer ? rnn.n_layer + 1 : rnn.n_layer)
             * rnn.n_dir * (rnn.n_iter + 1) * rnn.ws_states_cell_size;
@@ -345,9 +366,13 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             : 0;
 
     //TODO: update addressing to reduce size
+    auto scratch_diff_n_states
+            = copy_diff_dst_layer || copy_diff_src_layer || rnn.n_layer != 1
+            ? rnn.n_states + 1
+            : rnn.n_states;
     rnn.scratch_diff_states_size = is_bwd
             ? (copy_diff_dst_layer ? rnn.n_layer + 1 : rnn.n_layer) * rnn.n_dir
-                    * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb
+                    * scratch_diff_n_states * (rnn.n_iter + 1) * rnn.mb
                     * rnn.scratch_diff_states_ld * aux_elsz
             : 0;
     rnn.ws_gates_cell_size = rnn.mb * rnn.gates_ws_ld * aux_elsz;
