@@ -162,6 +162,7 @@ public:
 
     normalization_flags_t flags;
     bool bn_tuning;
+    bool found_in_table = false;
     bool is_blocked_16c = false;
     bool is_blocked_16n16c = false;
     bool is_blocked_32n16c = false;

@@ -33,6 +33,7 @@ namespace ocl {
 
 struct nhwc_bnorm_params_t : public bn_lookup_table::params_t {
     bool use_workaround = false;
+    float expected_time_ms;
 };
 
 struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {

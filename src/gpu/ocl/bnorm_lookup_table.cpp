@@ -44,7 +44,10 @@ void maybe_override_bn_conf_params_table(params_t &conf, engine_t *engine) {
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     static bnorm_lookup_table_t table;
     auto *s_params = table.find(conf, gpu_arch);
-    if (s_params) { conf.override_set(s_params, /*is_env*/ false); }
+    if (s_params) {
+        conf.override_set(s_params, /*is_env*/ false);
+        conf.found_in_table = true;
+    }
 }
 
 void maybe_override_bn_conf_params(params_t &conf, engine_t *engine) {

@@ -439,7 +439,7 @@ struct rnn_reorder_conf_t {
 // Batch Normalization
 struct bnorm_conf_t {
     data_type_t data_type;
-
+    size_t elsz;
     int ndims;
     dim_t mb, ic, id, ih, iw;
     int mb_block;
