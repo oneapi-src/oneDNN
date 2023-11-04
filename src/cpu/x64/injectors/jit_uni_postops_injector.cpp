@@ -43,8 +43,8 @@ jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
             is_eltwise = true;
             alg_to_eltwise_injector_.emplace(i,
                     jit_uni_eltwise_injector_f32<isa, Vmm>(host_,
-                            post_op.eltwise, esp.save_state, esp.p_table,
-                            esp.k_mask, esp.is_fwd, esp.use_dst,
+                            post_op.eltwise, esp.save_state, esp.p_table_,
+                            esp.k_mask_, esp.is_fwd, esp.use_dst,
                             esp.preserve_vmm, esp.preserve_p_table));
         } else if (post_op.is_like_binary()) {
             is_like_binary = true;
@@ -53,7 +53,7 @@ jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
 
     if (is_superset(isa, avx512_core) && is_eltwise && is_like_binary
             && binary_static_params.rhs_arg_static_params.tail_size)
-        assert(eltwise_static_params.k_mask
+        assert(eltwise_static_params.k_mask_
                 != binary_static_params.rhs_arg_static_params.tail_opmask &&
                 "Binary and prelu tail opmask should be different than eltwise \
                 injector opmask. Otherwise eltwise injector will overwrite \

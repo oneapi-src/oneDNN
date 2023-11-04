@@ -42,16 +42,16 @@ struct static_params_t {
             bool use_dst = false, bool preserve_vmm = true,
             bool preserve_p_table = true)
         : save_state(save_state)
-        , p_table(p_table)
-        , k_mask(k_mask)
+        , p_table_(p_table)
+        , k_mask_(k_mask)
         , is_fwd(is_fwd)
         , use_dst(use_dst)
         , preserve_vmm(preserve_vmm)
         , preserve_p_table(preserve_p_table) {}
 
     bool save_state;
-    Xbyak::Reg64 p_table;
-    Xbyak::Opmask k_mask;
+    Xbyak::Reg64 p_table_;
+    Xbyak::Opmask k_mask_;
     bool is_fwd;
     bool use_dst;
     bool preserve_vmm;
@@ -103,8 +103,8 @@ struct jit_uni_eltwise_injector_f32 {
         , scale_(scale)
         , h(host)
         , save_state_(save_state)
-        , p_table(p_table)
-        , k_mask(k_mask)
+        , p_table_(p_table)
+        , k_mask_(k_mask)
         , is_fwd_(is_fwd)
         , use_dst_(use_dst)
         , preserve_vmm_(preserve_vmm)
@@ -128,7 +128,7 @@ struct jit_uni_eltwise_injector_f32 {
     void compute_vector_range(const injector_utils::vmm_index_set_t &vmm_idxs);
     void compute_vector(size_t idx) { compute_vector_range({idx}); }
     void prepare_table(bool gen_table = true);
-    void load_table_addr() { h->mov(p_table, l_table); }
+    void load_table_addr() { h->mov(p_table_, l_table_); }
 
 private:
     const alg_kind_t alg_;
@@ -139,14 +139,14 @@ private:
     jit_generator *const h;
 
     const bool save_state_;
-    const Xbyak::Reg64 p_table;
-    const Xbyak::Opmask k_mask;
+    const Xbyak::Reg64 p_table_;
+    const Xbyak::Opmask k_mask_;
     const bool is_fwd_;
     const bool use_dst_;
     const bool preserve_vmm_;
     const bool preserve_p_table_;
 
-    Xbyak::Label l_table;
+    Xbyak::Label l_table_;
 
     // if only the injector was inherited from jit_generator...
     enum {
@@ -160,26 +160,29 @@ private:
         _op_mxcsr = jit_generator::_op_mxcsr
     };
 
-    const bool is_avx512 = is_superset(isa, avx512_core);
+    const bool is_avx512_ = is_superset(isa, avx512_core);
 
-    static constexpr size_t vlen = vreg_traits<Vmm>::vlen;
-    static constexpr size_t preserved_vecs_max = 6;
-    static constexpr size_t preserved_gprs_max = 5;
-    static constexpr size_t vecs_count = cpu_isa_traits<isa>::n_vregs;
-    static constexpr int n_mantissa_bits = 23;
-    static constexpr int k_mask_size = 8;
+    static constexpr size_t vlen_ = vreg_traits<Vmm>::vlen;
+    static constexpr size_t preserved_vecs_max_ = 6;
+    static constexpr size_t preserved_gprs_max_ = 5;
+    static constexpr size_t n_vregs_ = cpu_isa_traits<isa>::n_vregs;
+    static constexpr int n_mantissa_bits_ = 23;
 
-    bool preserve_vec_for_avx = false;
+    bool preserve_vec_for_avx_ = false;
 
-    size_t vecs_to_preserve = 0;
-    size_t preserved_vecs_count = 0;
-    size_t preserved_vec_idxs[preserved_vecs_max] = {0};
-    size_t preserved_gpr_idxs[preserved_gprs_max] = {0};
-    injector_utils::vmm_index_set_iterator_t start_idx_tail;
+    size_t n_vregs_to_preserve_ = 0;
+    size_t n_vregs_preserved_ = 0;
+    // Default initialization will put zeros. Putting any value to trigger a
+    // potential error to Xbyak is not working as Xbyak cycles vmm indices
+    // over 32 value.
+    size_t preserved_vmm_indices_[preserved_vecs_max_] = {};
+    size_t preserved_gpr_indices_[preserved_gprs_max_] = {};
 
-    Vmm vmm_mask, vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4, vmm_tmp;
-    Xbyak::Ymm ymm_tmp;
-    Xbyak::Xmm xmm_tmp;
+    Vmm vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4;
+    Vmm vmm_mask_;
+    Vmm vmm_tmp_;
+    Xbyak::Ymm ymm_tmp_;
+    Xbyak::Xmm xmm_tmp_;
 
     size_t aux_vecs_count();
     size_t aux_gprs_count();
@@ -187,9 +190,9 @@ private:
     void compute_body(
             const injector_utils::vmm_index_set_iterator_t &start_idx_it,
             const injector_utils::vmm_index_set_iterator_t &end_idx_it);
-    void injector_preamble(const injector_utils::vmm_index_set_t &vmm_idxs);
-    void injector_preamble_tail(
-            const injector_utils::vmm_index_set_iterator_t &start_idx_it);
+    void injector_preamble(const injector_utils::vmm_index_set_t &vmm_idxs,
+            injector_utils::vmm_index_set_iterator_t &start_idx_tail_it);
+    void injector_preamble_tail(size_t n_vregs_not_preserved);
     void injector_postamble();
     void assign_regs();
     void vec_shift(const Vmm &vmm_dst, const Vmm &vmm_src, bool shift_left,
@@ -313,17 +316,17 @@ private:
             return 0;
         }
         const auto &te = (*it).second;
-        const auto scale = te.bcast ? vlen : sizeof(table_entry_val_t);
+        const auto scale = te.bcast ? vlen_ : sizeof(table_entry_val_t);
         return te.off + key_off_val_shift * scale;
     }
     Xbyak::Address table_val(key_t key, size_t key_off_val_shift = 0) {
         auto off = table_off(key, key_off_val_shift);
-        return h->ptr[p_table + off];
+        return h->ptr[p_table_ + off];
     }
 
     // we accept only 32bit hexadecimal table values to avoid any rounding
     using table_entry_val_t = uint32_t;
-    using table_entry_offset_t = size_t; // offsets are in bytes wrt p_table
+    using table_entry_offset_t = size_t; // offsets are in bytes wrt p_table_
     using table_entry_bcast_t = bool; // true => bcast value
 
     struct table_entry_t {
