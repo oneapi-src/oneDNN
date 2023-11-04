@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
+#include "gpu/ocl/bnorm/bnorm_model.hpp"
 #include "gpu/ocl/bnorm/bnorm_utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -25,6 +26,7 @@ namespace gpu {
 namespace ocl {
 using namespace bn_lookup_table;
 using namespace bn_utils;
+using namespace bn_model;
 using namespace dnnl::impl::utils;
 
 static bool use_fused_atomics_reduction(
@@ -225,52 +227,10 @@ static status_t set_kernel_despatching(kernel_kind_t kernel, model_params_t &p,
     return status::success;
 }
 
-std::string get_params_str(const nhwc_bnorm_params_t &conf) {
-    std::string s;
-#define STR_PARAM(p) \
-    s += std::to_string(conf.p##_param().is_overridden()) + ","; \
-    s += std::to_string((int)conf.p()) + ","
-
-    STR_PARAM(use_fused_atomics_reduction);
-    STR_PARAM(max_vect_size);
-    s += std::to_string((int)conf.vect_size) + ",";
-    STR_PARAM(ic_block);
-    s += std::to_string((int)conf.sp) + ",";
-    STR_PARAM(stat_sp_block);
-    STR_PARAM(update_sp_block);
-    STR_PARAM(update_sp_unroll);
-    s += std::to_string((int)conf.sub_group_size) + ",";
-    s += std::to_string(conf.expected_time_ms);
-    return s;
-#undef STR_PARAM
-}
-
-// perf model: how short vector can increase r/w expected time
-static float get_vectorization_factor(
-        const int vect_size, const data_type_t dt) {
-    if (dt == data_type::f16 || data_type::bf16) {
-        switch (vect_size) {
-            case 1: return 4;
-            case 2: return 1.5;
-            case 4: return 1.3;
-            case 8:
-            default: return 1;
-        }
-    } else {
-        switch (vect_size) {
-            case 1: return 4;
-            case 2: return 1.3;
-            case 4:
-            case 8:
-            default: return 1;
-        }
-    }
-}
-
+// ++++++++++++++++++++++++ Modeling ++++++++++++++++++++++++++++++++++++++++
 static status_t get_estimated_hw_utilization(model_params_t &p,
         nhwc_bnorm_params_t &conf, hw_params_t &hw_params,
         kernel_desc_t &desc) {
-
     compute::dispatch_t dry_run_dispatch // to get auto-generated lws
             = hw_params.compute_engine->create_dispatch();
 
@@ -770,11 +730,6 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
 
     return status::success;
 }
-// ++++++++++++++++++++++++ Modeling ++++++++++++++++++++++++++++++++++++++++
-// ++++++++++++++++++++++++ Modeling ++++++++++++++++++++++++++++++++++++++++
-// ++++++++++++++++++++++++ Modeling ++++++++++++++++++++++++++++++++++++++++
-// ++++++++++++++++++++++++ Modeling ++++++++++++++++++++++++++++++++++++++++
-// ++++++++++++++++++++++++ Modeling ++++++++++++++++++++++++++++++++++++++++
 // ++++++++++++++++++++++++ Modeling ++++++++++++++++++++++++++++++++++++++++
 
 static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
