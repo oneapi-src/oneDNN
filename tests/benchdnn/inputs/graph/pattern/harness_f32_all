@@ -3,13 +3,13 @@
 --reset --case=pattern/f32/bn_relu_fusion.json
 --reset --case=pattern/f32/conv_bias_post_ops_fusion.json
 --reset --case=pattern/f32/conv_add_sigmoid_multiply_relu_fusion.json
---reset --in-shapes=0:50x1024x14x14+1:2048x1024x1x1+2:2048 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
---reset --in-shapes=0:50x1024x14x14+1:512x1024x1x1+2:512 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
---reset --in-shapes=0:50x256x56x56+1:128x256x1x1+2:128 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
---reset --in-shapes=0:50x256x56x56+1:512x256x1x1+2:512 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
+--reset --in-shapes=0:50x1024x14x14+1:2048x1024x1x1+2:2048 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
+--reset --in-shapes=0:50x1024x14x14+1:512x1024x1x1+2:512 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
+--reset --in-shapes=0:50x256x56x56+1:128x256x1x1+2:128 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
+--reset --in-shapes=0:50x256x56x56+1:512x256x1x1+2:512 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
 --reset --in-shapes=0:50x3x224x224+1:64x3x7x7+2:64 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
---reset --in-shapes=0:50x512x28x28+1:1024x512x1x1+2:1024 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
---reset --in-shapes=0:50x512x28x28+1:256x512x1x1+2:256 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
+--reset --in-shapes=0:50x512x28x28+1:1024x512x1x1+2:1024 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
+--reset --in-shapes=0:50x512x28x28+1:256x512x1x1+2:256 --op-attrs=0:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
 --reset --in-shapes=0:50x1024x14x14+1:256x1024x1x1+2:256 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
 --reset --in-shapes=0:50x128x28x28+1:128x128x3x3+2:128 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
 --reset --in-shapes=0:50x128x28x28+1:512x128x1x1+2:512 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
@@ -69,17 +69,17 @@
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64+3:1x1x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_add_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64+3:1x64x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_add_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64+3:50x64x56x56 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_add_fusion.json
---reset --in-shapes=0:50x1024x14x14+1:2048x1024x1x1+2:2048+3:50x2048x7x7 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
+--reset --in-shapes=0:50x1024x14x14+1:2048x1024x1x1+2:2048+3:50x2048x7x7 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
 --reset --in-shapes=0:50x3x224x224+1:64x3x7x7+2:64+3:50x64x112x112 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
 --reset --in-shapes=0:50x1024x14x14+1:256x1024x1x1+2:256+3:50x256x14x14 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
 --reset --in-shapes=0:50x128x28x28+1:128x128x3x3+2:128+3:50x128x28x28 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
---reset --in-shapes=0:50x1024x14x14+1:2048x1024x1x1+2:2048+3:50x2048x7x7 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
---reset --in-shapes=0:50x1024x14x14+1:512x1024x1x1+2:512+3:50x512x7x7 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
---reset --in-shapes=0:50x256x56x56+1:128x256x1x1+2:128+3:50x128x28x28 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
---reset --in-shapes=0:50x256x56x56+1:512x256x1x1+2:512+3:50x512x28x28 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
+--reset --in-shapes=0:50x1024x14x14+1:2048x1024x1x1+2:2048+3:50x2048x7x7 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
+--reset --in-shapes=0:50x1024x14x14+1:512x1024x1x1+2:512+3:50x512x7x7 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
+--reset --in-shapes=0:50x256x56x56+1:128x256x1x1+2:128+3:50x128x28x28 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
+--reset --in-shapes=0:50x256x56x56+1:512x256x1x1+2:512+3:50x512x28x28 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
 --reset --in-shapes=0:50x3x224x224+1:64x3x7x7+2:64+3:50x64x112x112 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
---reset --in-shapes=0:50x512x28x28+1:1024x512x1x1+2:1024+3:50x1024x14x14 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
---reset --in-shapes=0:50x512x28x28+1:256x512x1x1+2:256+3:50x256x14x14 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
+--reset --in-shapes=0:50x512x28x28+1:1024x512x1x1+2:1024+3:50x1024x14x14 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
+--reset --in-shapes=0:50x512x28x28+1:256x512x1x1+2:256+3:50x256x14x14 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
 --reset --in-shapes=0:50x1024x14x14+1:256x1024x1x1+2:256+3:50x256x14x14 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
 --reset --in-shapes=0:50x128x28x28+1:128x128x3x3+2:128+3:50x128x28x28 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
 --reset --in-shapes=0:50x128x28x28+1:512x128x1x1+2:512+3:50x512x28x28 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
@@ -93,16 +93,16 @@
 --reset --in-shapes=0:50x64x56x56+1:256x64x1x1+2:256+3:50x256x56x56 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64+3:50x64x56x56 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x3x3+2:64+3:50x64x56x56 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/f32/conv_bias_post_ops_chain_fusion.json
---reset --in-shapes=0:50x1024x14x14+1:2048x1024x1x1+2:2048 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
+--reset --in-shapes=0:50x1024x14x14+1:2048x1024x1x1+2:2048 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
 --reset --in-shapes=0:50x3x224x224+1:64x3x7x7+2:64 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
 --reset --in-shapes=0:50x1024x14x14+1:256x1024x1x1+2:256 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
 --reset --in-shapes=0:50x128x28x28+1:128x128x3x3+2:128 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
---reset --in-shapes=0:50x1024x14x14+1:512x1024x1x1+2:512 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
---reset --in-shapes=0:50x256x56x56+1:128x256x1x1+2:128 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
---reset --in-shapes=0:50x256x56x56+1:512x256x1x1+2:512 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
+--reset --in-shapes=0:50x1024x14x14+1:512x1024x1x1+2:512 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
+--reset --in-shapes=0:50x256x56x56+1:128x256x1x1+2:128 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
+--reset --in-shapes=0:50x256x56x56+1:512x256x1x1+2:512 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
 --reset --in-shapes=0:50x3x224x224+1:64x3x7x7+2:64 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
---reset --in-shapes=0:50x512x28x28+1:1024x512x1x1+2:1024 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
---reset --in-shapes=0:50x512x28x28+1:256x512x1x1+2:256 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:-1x-1*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
+--reset --in-shapes=0:50x512x28x28+1:1024x512x1x1+2:1024 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
+--reset --in-shapes=0:50x512x28x28+1:256x512x1x1+2:256 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
 --reset --in-shapes=0:50x1024x14x14+1:256x1024x1x1+2:256 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
 --reset --in-shapes=0:50x128x28x28+1:128x128x3x3+2:128 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
 --reset --in-shapes=0:50x128x28x28+1:512x128x1x1+2:512 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
@@ -130,15 +130,15 @@
 --reset --in-shapes=0:384x4096+1:4096x1024+2:384x1 --case=pattern/f32/matmul_post_ops_swish_fusion.json
 --reset --in-shapes=0:384x4096+1:4096x1024+2:1024 --case=pattern/f32/matmul_post_ops_swish_fusion.json
 # pool
---reset --in-shapes=0:2x9x22x62x42+1:1x9x1x1x1+2:1x1x1x1x1+3:1x1x1x1x1 --op-attrs=9:strides:2x2x2*pads_begin:1x1x1*pads_end:-1x1x0*kernel:2x4x3*exclude_pad:1 --case=pattern/f32/avgpool_3d_chain_fusion.json
---reset --in-shapes=0:2x9x22x62x42+1:1x9x1x1x1+2:1x1x1x1x1+3:1x1x1x1x1 --op-attrs=9:strides:2x2x2*pads_begin:1x1x1*pads_end:-1x1x0*kernel:2x4x3*exclude_pad:0 --case=pattern/f32/avgpool_3d_chain_fusion.json
+--reset --in-shapes=0:2x9x22x62x42+1:1x9x1x1x1+2:1x1x1x1x1+3:1x1x1x1x1 --op-attrs=9:strides:2x2x2*pads_begin:1x1x1*pads_end:0x1x0*kernel:2x4x3*exclude_pad:1 --case=pattern/f32/avgpool_3d_chain_fusion.json
+--reset --in-shapes=0:2x9x22x62x42+1:1x9x1x1x1+2:1x1x1x1x1+3:1x1x1x1x1 --op-attrs=9:strides:2x2x2*pads_begin:1x1x1*pads_end:0x1x0*kernel:2x4x3*exclude_pad:0 --case=pattern/f32/avgpool_3d_chain_fusion.json
 --reset --in-shapes=0:2x128x4x4+1:1x128x1x1+2:1x1x1x1+3:1x1x1x1 --op-attrs=9:strides:1x1*pads_begin:0x0*pads_end:0x0*kernel:3x3*exclude_pad:1 --case=pattern/f32/avgpool_3d_chain_fusion.json
 --reset --in-shapes=0:2x128x4x4+1:1x128x1x1+2:1x1x1x1+3:1x1x1x1 --op-attrs=9:strides:1x1*pads_begin:0x0*pads_end:0x0*kernel:3x3*exclude_pad:0 --case=pattern/f32/avgpool_3d_chain_fusion.json
 --reset --in-shapes=0:16x64x32+1:1x64x1+2:1x1x1+3:1x1x1 --op-attrs=9:strides:2*pads_begin:0*pads_end:1*kernel:3*exclude_pad:1 --case=pattern/f32/avgpool_3d_chain_fusion.json
 --reset --in-shapes=0:16x64x32+1:1x64x1+2:1x1x1+3:1x1x1 --op-attrs=9:strides:2*pads_begin:0*pads_end:1*kernel:3*exclude_pad:0 --case=pattern/f32/avgpool_3d_chain_fusion.json
 --reset --in-shapes=0:2x128x4x4+1:1x128x1x1+2:1x128x1x1+3:1x1x1x1 --op-attrs=9:strides:1x1*pads_begin:0x0*pads_end:0x0*kernel:3x3*dilations:1x1 --case=pattern/f32/maxpool_chain_fusion.json
 --reset --in-shapes=0:2x128x4x4+1:1x128x1x1 --op-attrs=9:strides:1x1*pads_begin:0x0*pads_end:0x0*kernel:3x3*dilations:1x1 --case=pattern/f32/maxpool_chain_fusion.json
---reset --in-shapes=0:2x9x22x62x42+1:1x9x1x1x1+2:1x9x1x1x1+3:1x1x1x1x1 --op-attrs=9:strides:2x2x2*pads_begin:1x1x1*pads_end:-1x1x0*kernel:2x4x3*dilations:1x1x1 --case=pattern/f32/maxpool_chain_fusion.json
+--reset --in-shapes=0:2x9x22x62x42+1:1x9x1x1x1+2:1x9x1x1x1+3:1x1x1x1x1 --op-attrs=9:strides:2x2x2*pads_begin:1x1x1*pads_end:0x1x0*kernel:2x4x3*dilations:1x1x1 --case=pattern/f32/maxpool_chain_fusion.json
 --reset --in-shapes=0:16x64x32+1:1x64x1+2:1x64x1+3:1x1x1 --op-attrs=9:strides:2*pads_begin:0*pads_end:1*kernel:3*dilations:1 --case=pattern/f32/maxpool_chain_fusion.json
 # eltwise
 --reset --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_hardswish_fusion.json

@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "interface/op_def_constraint.hpp"
-
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/op_def_constraint.hpp"
 
 #include "gtest/gtest.h"
 
@@ -25,6 +25,175 @@ using namespace dnnl::impl::graph::op_kind;
 using namespace dnnl::impl::graph::data_type;
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
+using dims = graph::dims;
+
+struct dnnl_graph_pads_value_params_t {
+    graph::op_kind_t op_name;
+    dims pads_begin;
+    dims pads_end;
+    graph::op_def_constraint_fn fn;
+    bool result;
+};
+class pads_value_check_t
+    : public ::testing::TestWithParam<dnnl_graph_pads_value_params_t> {
+public:
+    void TestPadsValueCheck() {
+        auto params = ::testing::TestWithParam<
+                dnnl_graph_pads_value_params_t>::GetParam();
+        graph::op_t op(params.op_name);
+        op.set_attr<dims>(graph::op_attr::pads_begin, params.pads_begin);
+        op.set_attr<dims>(graph::op_attr::pads_end, params.pads_end);
+        ASSERT_EQ(params.fn(&op), params.result);
+    }
+};
+
+TEST_P(pads_value_check_t, TestPadsValueCheck) {
+    TestPadsValueCheck();
+}
+
+INSTANTIATE_TEST_SUITE_P(OpDefConstraint, pads_value_check_t,
+        ::testing::Values(
+                // test function to check padding values
+                dnnl_graph_pads_value_params_t {Convolution, dims {-1},
+                        dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {Convolution, dims {1},
+                        dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {Convolution, dims {-1},
+                        dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {Convolution, dims {0, 0},
+                        dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {Convolution, dims {-1, 1},
+                        dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {Convolution, dims {1, 1},
+                        dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {Convolution, dims {1, 1},
+                        dims {1, 1}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardData,
+                        dims {-1}, dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardData,
+                        dims {1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardData,
+                        dims {-1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardData,
+                        dims {0, 0}, dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardData,
+                        dims {-1, 1}, dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardData,
+                        dims {1, 1}, dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardData,
+                        dims {1, 1}, dims {1, 1}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardWeights,
+                        dims {-1}, dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardWeights,
+                        dims {1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardWeights,
+                        dims {-1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardWeights,
+                        dims {0, 0}, dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardWeights,
+                        dims {-1, 1}, dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardWeights,
+                        dims {1, 1}, dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvolutionBackwardWeights,
+                        dims {1, 1}, dims {1, 1}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvTranspose, dims {-1},
+                        dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTranspose, dims {1},
+                        dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTranspose, dims {-1},
+                        dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTranspose, dims {0, 0},
+                        dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvTranspose, dims {-1, 1},
+                        dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTranspose, dims {1, 1},
+                        dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTranspose, dims {1, 1},
+                        dims {1, 1}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardData,
+                        dims {-1}, dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardData,
+                        dims {1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardData,
+                        dims {-1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardData,
+                        dims {0, 0}, dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardData,
+                        dims {-1, 1}, dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardData,
+                        dims {1, 1}, dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardData,
+                        dims {1, 1}, dims {1, 1}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardWeights,
+                        dims {-1}, dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardWeights,
+                        dims {1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardWeights,
+                        dims {-1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardWeights,
+                        dims {0, 0}, dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardWeights,
+                        dims {-1, 1}, dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardWeights,
+                        dims {1, 1}, dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {ConvTransposeBackwardWeights,
+                        dims {1, 1}, dims {1, 1}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {
+                        AvgPool, dims {-1}, dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {
+                        AvgPool, dims {1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {AvgPool, dims {-1}, dims {-1},
+                        graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {AvgPool, dims {0, 0},
+                        dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {AvgPool, dims {-1, 1},
+                        dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {AvgPool, dims {1, 1},
+                        dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {AvgPool, dims {1, 1},
+                        dims {1, 1}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {AvgPoolBackward, dims {-1},
+                        dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {AvgPoolBackward, dims {1},
+                        dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {AvgPoolBackward, dims {-1},
+                        dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {AvgPoolBackward, dims {0, 0},
+                        dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {AvgPoolBackward, dims {-1, 1},
+                        dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {AvgPoolBackward, dims {1, 1},
+                        dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {AvgPoolBackward, dims {1, 1},
+                        dims {1, 1}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {MaxPoolBackward, dims {-1},
+                        dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {MaxPoolBackward, dims {1},
+                        dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {MaxPoolBackward, dims {-1},
+                        dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {MaxPoolBackward, dims {0, 0},
+                        dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {MaxPoolBackward, dims {-1, 1},
+                        dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {MaxPoolBackward, dims {1, 1},
+                        dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {MaxPoolBackward, dims {1, 1},
+                        dims {1, 1}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {
+                        MaxPool, dims {-1}, dims {1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {
+                        MaxPool, dims {1}, dims {-1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {MaxPool, dims {-1}, dims {-1},
+                        graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {MaxPool, dims {0, 0},
+                        dims {0, 0}, graph::check_pads, true},
+                dnnl_graph_pads_value_params_t {MaxPool, dims {-1, 1},
+                        dims {1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {MaxPool, dims {1, 1},
+                        dims {-1, 1}, graph::check_pads, false},
+                dnnl_graph_pads_value_params_t {MaxPool, dims {1, 1},
+                        dims {1, 1}, graph::check_pads, true}));
 
 struct dnnl_graph_data_type_params_t {
     graph::op_kind_t op_name;

@@ -25,6 +25,27 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 
+// check function for padding value of Conv, Convtranspose, Pooling, etc. Both
+// pads_begin and pads_end should be a s64 list containing non-negative values.
+bool check_pads(const op_t *n) {
+    auto hasNegative = [](const dims &pads) {
+        return std::any_of(pads.begin(), pads.end(),
+                [](int element) { return element < 0; });
+    };
+    const dims pads_begin = n->get_attr<dims>(op_attr::pads_begin);
+    VCHECK_SHAPE_INFER(!hasNegative(pads_begin),
+            "%s, pads_begin should be a s64 list containing non-negative "
+            "values",
+            op_t::kind2str(n->get_kind()).c_str());
+    const dims pads_end = n->get_attr<dims>(op_attr::pads_end);
+    VCHECK_SHAPE_INFER(!hasNegative(pads_end),
+            "%s, pads_end should be a s64 list containing non-negative "
+            "values",
+            op_t::kind2str(n->get_kind()).c_str());
+
+    return true;
+}
+
 // check function for data_type of BatchNorm.
 // only when data is bf16, gamma/beta/mean/var can be bf16.
 // If data is bf16, gamma/beta/mean/var can be f32 or bf16.

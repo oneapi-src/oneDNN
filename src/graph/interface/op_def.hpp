@@ -83,7 +83,8 @@ DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
                         {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_pool_output_shape))
+                .set_shape_inference_function(infer_pool_output_shape)
+                .set_op_def_constraint_function(check_pads))
 
 DNNL_GRAPH_OP_SCHEMA(AvgPoolBackward, 1,
         op_schema_t()
@@ -108,7 +109,8 @@ DNNL_GRAPH_OP_SCHEMA(AvgPoolBackward, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T1", {data_type::s32})
                 .set_shape_inference_function(infer_pool_bwd_output_shape)
-                .set_op_def_constraint_function(check_avgpool_bwd_input_shape))
+                .set_op_def_constraint_function(check_avgpool_bwd_input_shape)
+                .set_op_def_constraint_function(check_pads))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
         op_schema_t()
@@ -252,6 +254,7 @@ DNNL_GRAPH_OP_SCHEMA(Convolution, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_conv_output_shape)
+                .set_op_def_constraint_function(check_pads)
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvolutionBackwardData, 1,
@@ -274,6 +277,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackwardData, 1,
                 .set_type_constraints("T2", {data_type::s32})
                 .set_op_def_constraint_function(
                         check_conv_bwd_data_output_shape)
+                .set_op_def_constraint_function(check_pads)
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvolutionBackwardWeights, 1,
@@ -294,6 +298,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackwardWeights, 1,
                 .set_type_constraints("T2", {data_type::s32})
                 .set_op_def_constraint_function(
                         check_conv_bwd_weights_weights_shape)
+                .set_op_def_constraint_function(check_pads)
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,
@@ -310,6 +315,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_convtranspose_output_shape)
+                .set_op_def_constraint_function(check_pads)
                 .SET_CONVTRANSPOSE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardData, 1,
@@ -323,6 +329,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardData, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
                         infer_convtranspose_bprop_data_output_shape)
+                .set_op_def_constraint_function(check_pads)
                 .SET_CONVTRANSPOSE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardWeights, 1,
@@ -343,6 +350,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardWeights, 1,
                 .set_type_constraints("T2", {data_type::s32})
                 .set_op_def_constraint_function(
                         check_conv_bwd_weights_weights_shape)
+                .set_op_def_constraint_function(check_pads)
                 .SET_CONVTRANSPOSE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(Divide, 1,
@@ -664,7 +672,8 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
                         {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_pool_output_shape))
+                .set_shape_inference_function(infer_pool_output_shape)
+                .set_op_def_constraint_function(check_pads))
 
 DNNL_GRAPH_OP_SCHEMA(MaxPoolBackward, 1,
         op_schema_t()
@@ -685,7 +694,8 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackward, 1,
                         {"NCX", "NXC"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_pool_bwd_output_shape))
+                .set_shape_inference_function(infer_pool_bwd_output_shape)
+                .set_op_def_constraint_function(check_pads))
 
 DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
         op_schema_t()

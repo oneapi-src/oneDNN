@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace graph {
+bool check_pads(const op_t *n);
 
 bool check_bn_data_type(const op_t *n);
 
