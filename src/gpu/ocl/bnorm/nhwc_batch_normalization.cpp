@@ -52,7 +52,16 @@ static size_t get_slm_buff_size(
 }
 // Local group size adjustment for calc_stat kernel
 static void adjust_lws_calc_kernel(int ic_block, nhwc_bnorm_params_t &conf,
-        compute::dispatch_t &dispatch, hw_params_t &hw_params) {
+        compute::dispatch_t &dispatch, engine_t *engine,
+        bool large_grf_mode = false) {
+    auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
+    auto eu_count = compute_engine->device_info()->eu_count();
+    auto max_lws = compute_engine->device_info()->max_wg_size(large_grf_mode);
+    auto eus_per_ss = compute_engine->device_info()->max_eus_per_wg();
+    const int max_ss = div_up(eu_count, eus_per_ss);
+    auto gpu_arch = compute_engine->device_info()->gpu_arch();
+    const int max_slm_size = compute::device_info_t::max_slm_size(gpu_arch);
+
     auto generated_nd = dispatch.nd_range();
     const size_t *base_gws = generated_nd.global_range();
     const size_t *base_lws = generated_nd.local_range();
@@ -70,17 +79,16 @@ static void adjust_lws_calc_kernel(int ic_block, nhwc_bnorm_params_t &conf,
     float best_ss_utilization = 0.0f, curr_ss_utilization;
     const int ss_util_limit = 2; // experimentally selected
 
-    while (curr_lws[0] * curr_lws[1] * curr_lws[2] <= (size_t)hw_params.max_lws
+    while (curr_lws[0] * curr_lws[1] * curr_lws[2] <= (size_t)max_lws
             && curr_lws[1] <= base_gws[1]
             && get_slm_buff_size(ic_block, conf, curr_lws)
-                    <= (size_t)hw_params.max_slm_size) {
+                    <= (size_t)max_slm_size) {
         if (base_gws[1] % curr_lws[1]) {
             curr_lws[1]++;
             continue;
         }
         tuned_lws[1] = curr_lws[1];
-        curr_ss_utilization
-                = get_ss_utilization(hw_params.max_ss, base_gws, tuned_lws);
+        curr_ss_utilization = get_ss_utilization(max_ss, base_gws, tuned_lws);
 
         if (curr_ss_utilization > best_ss_utilization
                 && curr_ss_utilization < (float)ss_util_limit) {
@@ -156,25 +164,34 @@ static int get_reduce_sub_group_count(
     }
     return reduce_sub_group_count;
 }
-// Set dispatching for every kernel.
-// "Dry_run" mode is used to get estimated dipatching which is depending
-// on model parameters.
-static status_t set_kernel_despatching(kernel_kind_t kernel, model_params_t &p,
-        nhwc_bnorm_params_t &conf, hw_params_t &hw_params,
-        compute::dispatch_t &dispatch, bool dry_run = false) {
 
-    const int calc_stat_ic = !dry_run
-            ? conf.calc_stat_ic
-            : div_up(conf.ic, p.ic_block) * conf.sub_group_size;
+inline int get_calc_stat_ic(int ic, int ic_block, int sg_size) {
+    return div_up(ic, ic_block) * sg_size;
+}
+
+status_t bnorm_nhwc_kernel_despatching(kernel_kind_t kernel,
+        nhwc_bnorm_params_t &conf, engine_t *engine,
+        compute::dispatch_t &dispatch) {
+
+    conf.stat_sp_nblocks
+            = rnd_up(conf.sp, conf.stat_sp_block()) / conf.stat_sp_block();
+    conf.stat_sp_tail
+            = rnd_dn(conf.sp, conf.stat_sp_block()) / conf.stat_sp_block();
+
+    conf.update_sp_nblocks
+            = rnd_up(conf.sp, conf.update_sp_block()) / conf.update_sp_block();
+    conf.update_sp_tail
+            = rnd_dn(conf.sp, conf.update_sp_block()) / conf.update_sp_block();
+    conf.reduce_stat_nblocks = conf.stat_sp_nblocks;
+
+    const int calc_stat_ic
+            = get_calc_stat_ic(conf.ic, conf.ic_block(), conf.sub_group_size);
 
     switch (kernel) {
         case default_fwd_ker:
         case default_bwd_ker: {
-            const int update_sp_nblocks = !dry_run
-                    ? conf.update_sp_nblocks
-                    : div_up(conf.sp, p.stat_sp_block);
             dispatch.define_dim("MB", 0, 1);
-            dispatch.define_dim("SP", 1, update_sp_nblocks);
+            dispatch.define_dim("SP", 1, conf.update_sp_nblocks);
             dispatch.define_dim_with_nesting_level("IC", 1024, calc_stat_ic);
             CHECK(dispatch.vectorize_dim("IC", conf.sub_group_size));
             dispatch.generate();
@@ -183,31 +200,24 @@ static status_t set_kernel_despatching(kernel_kind_t kernel, model_params_t &p,
         case calc_var_ker:
         case calc_mean_var_ker:
         case calc_stats_ker: {
-            const int stat_sp_nblocks = !dry_run
-                    ? conf.stat_sp_nblocks
-                    : div_up(conf.sp, p.stat_sp_block);
             dispatch.define_dim("STAT_MB", 0, 1);
-            dispatch.define_dim("STAT_SP", 1, stat_sp_nblocks);
+            dispatch.define_dim("STAT_SP", 1, conf.stat_sp_nblocks);
             dispatch.define_dim_with_nesting_level(
                     "STAT_IC", 1024, calc_stat_ic);
             CHECK(dispatch.vectorize_dim("STAT_IC", conf.sub_group_size));
             dispatch.set_kernel_attr_suffix("CALC");
             dispatch.generate();
-            if (dry_run ? p.use_fused_atomics_reduction
-                        : conf.use_fused_atomics_reduction()) {
-                adjust_lws_calc_kernel(dry_run ? p.ic_block : conf.ic_block(),
-                        conf, dispatch, hw_params);
+            if (conf.use_fused_atomics_reduction()) {
+                adjust_lws_calc_kernel(conf.ic_block(), conf, dispatch, engine);
             }
         } break;
         case reduce_stats_fwd_ker:
         case reduce_mean_var_ker:
         case reduce_stats_bwd_ker: {
             const int reduce_sub_group_count = get_reduce_sub_group_count(
-                    !dry_run ? conf.reduce_stat_nblocks
-                             : div_up(conf.sp, p.stat_sp_block),
-                    conf.sub_group_size);
+                    conf.reduce_stat_nblocks, conf.sub_group_size);
             const int stat_ic = reduce_sub_group_count * conf.sub_group_size;
-            if (!dry_run) { conf.stat_ic = stat_ic; }
+            conf.stat_ic = stat_ic;
             dispatch.define_dim("REDUCE_STAT_IC", 0, stat_ic);
             dispatch.define_dim(
                     "REDUCE_IC_GROUP", 1, div_up(conf.ic, conf.sub_group_size));
@@ -227,397 +237,6 @@ static status_t set_kernel_despatching(kernel_kind_t kernel, model_params_t &p,
     return status::success;
 }
 
-// ++++++++++++++++++++++++ Modeling ++++++++++++++++++++++++++++++++++++++++
-static status_t get_estimated_hw_utilization(model_params_t &p,
-        nhwc_bnorm_params_t &conf, hw_params_t &hw_params,
-        kernel_desc_t &desc) {
-    compute::dispatch_t dry_run_dispatch // to get auto-generated lws
-            = hw_params.compute_engine->create_dispatch();
-
-    CHECK(set_kernel_despatching(desc.kernel, p, conf, hw_params,
-            dry_run_dispatch, /*dry_run*/ true));
-
-    auto nd_range = dry_run_dispatch.nd_range();
-    const size_t *gws = nd_range.global_range();
-    const size_t *lws = nd_range.local_range();
-    desc.num_wgs = gws[0] * gws[1] * gws[2] / (lws[0] * lws[1] * lws[2]);
-    desc.used_ss_thr_util = get_used_ss_thr_utilization(
-            hw_params, conf.sub_group_size, gws, lws);
-    desc.ss_util = get_ss_utilization(hw_params.max_ss, gws, lws);
-    return status::success;
-}
-
-// perf model: number of calls for the kernel
-static int get_ncalls(model_params_t &p, const nhwc_bnorm_params_t &conf,
-        kernel_kind_t kernel) {
-    if (conf.is_forward) {
-        switch (kernel) {
-            case default_fwd_ker: return 1;
-            case calc_mean_ker:
-            case calc_var_ker:
-            case calc_mean_var_ker: return conf.calculate_stats ? 1 : 0;
-            case reduce_stats_fwd_ker:
-                return conf.calculate_stats && !p.use_fused_atomics_reduction
-                        ? 2
-                        : 0;
-            case reduce_mean_var_ker:
-                return conf.calculate_stats && !p.use_fused_atomics_reduction
-                        ? 1
-                        : 0;
-            case reduce_aux_init_ker:
-                return conf.calculate_stats && p.use_fused_atomics_reduction
-                        ? 1
-                        : 0;
-            case reduce_aux_finalize_ker:
-                return conf.calculate_stats && p.use_fused_atomics_reduction
-                        ? (conf.use_stats_one_pass ? 1 : 2)
-                        : 0;
-            default: assert(!"Not expected"); return 0;
-        }
-    } else { // BWD pass
-        return 1;
-    }
-}
-static size_t get_kernel_input_size(const model_params_t &p,
-        const nhwc_bnorm_params_t &conf, const kernel_desc_t &desc) {
-    size_t nbytes = 0;
-    const size_t tensor_sz = conf.sp * conf.ic * conf.elsz;
-    const size_t stat_vect_sz = conf.ic * sizeof(float);
-    const int num_sp_blocks = div_up(conf.sp, p.stat_sp_block);
-    const int ws_sz = conf.sp * conf.ic * sizeof(char);
-
-    switch (desc.kernel) {
-        case calc_mean_ker:
-        case calc_mean_var_ker: nbytes = tensor_sz; break;
-        case calc_var_ker:
-            nbytes = tensor_sz + stat_vect_sz * num_sp_blocks;
-            break;
-        case reduce_stats_fwd_ker:
-            nbytes = num_sp_blocks * rnd_up(conf.ic, conf.sub_group_size)
-                    * sizeof(float);
-            break;
-        case reduce_mean_var_ker:
-            nbytes = 2 * num_sp_blocks * rnd_up(conf.ic, conf.sub_group_size)
-                    * sizeof(float);
-            break;
-        case default_fwd_ker:
-            nbytes = ((int)conf.fuse_norm_add_relu + 1) * tensor_sz
-                    + ((int)conf.use_scale + (int)conf.use_shift + 2)
-                            * stat_vect_sz;
-            break;
-        case reduce_aux_init_ker: break;
-        case reduce_aux_finalize_ker:
-            nbytes = stat_vect_sz
-                    * (conf.is_backward ? 2
-                                        : (conf.use_stats_one_pass ? 2 : 1));
-            break;
-        case default_bwd_ker:
-            nbytes = 2 * tensor_sz
-                    + (1 + (int)conf.calculate_diff_stats * 3
-                              + (int)conf.use_scale)
-                            * stat_vect_sz
-                    + (int)conf.fuse_norm_relu * ws_sz;
-            break;
-        case calc_stats_ker:
-            nbytes = 2 * tensor_sz + stat_vect_sz * num_sp_blocks
-                    + (int)conf.fuse_norm_relu * ws_sz;
-            break;
-        case reduce_stats_bwd_ker:
-            nbytes = 2 * num_sp_blocks * rnd_up(conf.ic, conf.sub_group_size)
-                    * sizeof(float);
-            break;
-
-        default: assert(!"Not expected");
-    }
-    return nbytes;
-}
-static size_t get_kernel_output_size(const model_params_t &p,
-        const nhwc_bnorm_params_t &conf, const kernel_desc_t &desc) {
-    size_t nbytes = 0;
-    const size_t tensor_sz = conf.sp * conf.ic * conf.elsz;
-    const size_t stat_vect_sz = conf.ic * sizeof(float);
-    const int num_sp_blocks = div_up(conf.sp, p.stat_sp_block);
-
-    switch (desc.kernel) {
-        case calc_mean_ker:
-        case calc_var_ker:
-            nbytes = p.use_fused_atomics_reduction
-                    ? stat_vect_sz * desc.num_wgs
-                    : num_sp_blocks * rnd_up(conf.ic, conf.sub_group_size)
-                            * sizeof(float);
-            break;
-        case calc_mean_var_ker:
-            nbytes = p.use_fused_atomics_reduction
-                    ? 2 * stat_vect_sz * desc.num_wgs
-                    : 2 * num_sp_blocks * rnd_up(conf.ic, conf.sub_group_size)
-                            * sizeof(float);
-            break;
-        case reduce_aux_init_ker: nbytes = 2 * stat_vect_sz; break;
-        case reduce_stats_fwd_ker: nbytes = stat_vect_sz; break;
-        case reduce_mean_var_ker: nbytes = 2 * stat_vect_sz; break;
-        case reduce_aux_finalize_ker:
-            nbytes = stat_vect_sz
-                    * (conf.is_forward && conf.use_stats_one_pass ? 2 : 1);
-            break;
-        case default_fwd_ker: nbytes = tensor_sz; break;
-        case default_bwd_ker:
-            nbytes = (1 + conf.fuse_norm_add_relu) * tensor_sz;
-            break;
-        case calc_stats_ker:
-            nbytes = p.use_fused_atomics_reduction
-                    ? 2 * stat_vect_sz * desc.num_wgs
-                    : 2 * num_sp_blocks * rnd_up(conf.ic, conf.sub_group_size)
-                            * sizeof(float);
-            break;
-        case reduce_stats_bwd_ker: nbytes = 2 * stat_vect_sz; break;
-        default: assert(!"Not expected");
-    }
-    return nbytes;
-}
-// model: set expected data location depending on arch, size and kernel kind.
-static void get_expected_data_location(model_params_t &p,
-        nhwc_bnorm_params_t &conf, const hw_params_t &hw_params,
-        kernel_desc_t &desc) {
-    desc.input_location = HBM;
-    desc.output_location = HBM;
-
-    // HBM only for XeHPG
-    if (hw_params.gpu_arch == compute::gpu_arch_t::xe_hpg) return;
-
-    if (desc.kernel == calc_mean_ker || desc.kernel == calc_var_ker) {
-        if (desc.input_nbytes + desc.output_nbytes < hw_params.L3_size) {
-            desc.input_location = L3;
-        }
-    } else if ((desc.kernel == default_fwd_ker && !conf.calculate_stats)
-            || (desc.kernel == default_bwd_ker && !conf.calculate_diff_stats)) {
-        desc.input_location = HBM;
-    } else { // all other kernels
-        if (desc.input_nbytes < hw_params.L3_size) { desc.input_location = L3; }
-    }
-    if (desc.output_nbytes < hw_params.L3_size) { desc.output_location = L3; }
-}
-
-// linear approximation
-// return y by x on the line passing thru (xa,ya) and (xb,yb)
-static float solve_2p_line(const float x, const float xa, const float xb,
-        const float ya, const float yb) {
-    float dx = xb - xa;
-    float dy = yb - ya;
-    assert(dx != 0.0);
-    return (dy / dx) * (x - xa) + ya;
-}
-
-// approximation by 2 pieces linear function
-static float solve_2pieces_linear_function(const float x, const float x0,
-        const float x1, const float x2, const float y0, const float y1,
-        const float y2) {
-    float y;
-    if (x < x1) {
-        y = solve_2p_line(x, x0, x1, y0, y1);
-    } else {
-        y = solve_2p_line(x, x1, x2, y1, y2);
-    }
-    return y;
-}
-
-// model: inverse proportional relationship subslice saturation
-// and read/write time for all archs and data location.
-static float get_ss_utilization_factor(const float util) {
-    return std::min(util, 1.f);
-}
-// model: dependency on threads utilization is approximated by two linear segments
-static float get_thr_utilization_factor(const float ss_util,
-        const float thr_util, const data_location_t location,
-        const compute::gpu_arch_t gpu_arch) {
-
-    if (location == L3) {
-        // for all archs
-        float ss_util_adj = std::min(ss_util, 1.0f);
-        float thr_util_adj = std::min(thr_util, 1.0f);
-        const float y_br = 1 - ss_util_adj / 2;
-        return solve_2pieces_linear_function(
-                thr_util_adj, 0.f, 0.25f, 1.f, 0.f, y_br, 1.f);
-    } else { // HBM
-        if (gpu_arch == compute::gpu_arch_t::xe_hpg) {
-            const float x_br = pow(
-                    2, (log2(utils::rnd_up_pow2((int)round(ss_util))) - 4));
-            const float y_br = ss_util > 4 ? 0.9 : 0.5;
-            return solve_2pieces_linear_function(
-                    thr_util, 0.f, x_br, 32, 0.f, y_br, 1.f);
-
-        } else if (gpu_arch >= compute::gpu_arch_t::xe_hpc) {
-            float ss_util_adj = std::min(ss_util, 1.0f);
-            float thr_util_adj = std::min(thr_util, 1.0f);
-            const float y_br = ss_util_adj < 0.25 ? 0.9 : 0.7;
-            return solve_2pieces_linear_function(
-                    thr_util_adj, 0.f, 0.125f, 1.f, 0.f, y_br, 1.f);
-        } else {
-            assert(!"unsupported");
-            return 1.f;
-        }
-    }
-}
-
-// model: get a kernel expacted execution time
-// based on data location, HW utilization and vectorization
-static void get_estimated_kernel_time(model_params_t &p,
-        nhwc_bnorm_params_t &conf, const hw_params_t &hw_params,
-        kernel_desc_t &desc) {
-    const data_location_t input_location = desc.input_location;
-    const data_location_t output_location = desc.output_location;
-    const size_t read_nbytes = desc.input_nbytes;
-    const size_t write_nbytes = desc.output_nbytes;
-    // consider data location.
-    float read_ns = read_nbytes
-            / (input_location == L3 ? hw_params.L3_bw : hw_params.HBM_bw);
-    float write_ns = write_nbytes
-            / (output_location == L3 ? hw_params.L3_bw : hw_params.HBM_bw);
-    // only for debug print
-    float r_ns_base = read_ns;
-    float w_ns_base = write_ns;
-
-    // consider HW utilization
-
-    // SS utilization
-    read_ns /= get_ss_utilization_factor(std::min(desc.ss_util, 1.f));
-    write_ns /= get_ss_utilization_factor(std::min(desc.ss_util, 1.f));
-
-    // thr utilization
-    read_ns /= get_thr_utilization_factor(desc.ss_util, desc.used_ss_thr_util,
-            input_location, hw_params.gpu_arch);
-    write_ns /= get_thr_utilization_factor(desc.ss_util, desc.used_ss_thr_util,
-            output_location, hw_params.gpu_arch);
-
-    // consider atomics cost
-    if (p.use_fused_atomics_reduction
-            && (desc.kernel == calc_mean_ker || desc.kernel == calc_var_ker
-                    || desc.kernel == calc_mean_var_ker
-                    || desc.kernel == calc_stats_ker)) {
-        write_ns *= 64; // based on PVC perf data
-    }
-
-    // only for debug print
-    float r_ns_location = read_ns;
-    float w_ns_location = write_ns;
-
-    // consider vectorization
-    const float v_coeff = get_vectorization_factor(p.vect_size, conf.data_type);
-    read_ns *= v_coeff;
-    write_ns *= v_coeff;
-
-    desc.time_ns = read_ns + write_ns;
-
-    std::string kernel_type_name = get_str_kernel_name(desc.kernel);
-    DPRINT("%s:%s:%d estimation - %s : p = %d %d %d : thr_util = %g ss_util = "
-           "%g "
-           ": base %.1f %.1f "
-           ": location %.1f %.1f "
-           ": v_coeff %.1f "
-           ": final %.1f %.1f : kernel_total %.1f\n",
-            PRINTHEAD, kernel_type_name.c_str(), p.use_fused_atomics_reduction,
-            p.ic_block, p.stat_sp_block, desc.used_ss_thr_util, desc.ss_util,
-            r_ns_base, w_ns_base, r_ns_location, w_ns_location, v_coeff,
-            read_ns, write_ns, desc.time_ns);
-}
-static status_t make_kernel_perf_estimation(model_params_t &p,
-        nhwc_bnorm_params_t &conf, kernel_desc_t &desc,
-        hw_params_t &hw_params) {
-
-    CHECK(get_estimated_hw_utilization(p, conf, hw_params, desc));
-
-    desc.input_nbytes = get_kernel_input_size(p, conf, desc);
-    desc.output_nbytes = get_kernel_output_size(p, conf, desc);
-    get_expected_data_location(p, conf, hw_params, desc);
-    dump_kernel_descriptor(desc);
-
-    get_estimated_kernel_time(p, conf, hw_params, desc);
-    return status::success;
-}
-
-static void init_ker_desc(model_params_t &p, nhwc_bnorm_params_t &conf,
-        const hw_params_t &hw_params, kernel_desc_t &desc,
-        const kernel_kind_t kernel) {
-    desc.kernel = kernel;
-    desc.ncalls = get_ncalls(p, conf, kernel);
-    return;
-}
-
-static void init_kernel_descriptors(model_params_t &p,
-        nhwc_bnorm_params_t &conf, const hw_params_t &hw_params) {
-    kernel_desc_t desc;
-
-    // logic about which kernels will be running and how many times
-    if (conf.is_forward) {
-        init_ker_desc(p, conf, hw_params, desc, default_fwd_ker);
-        p.kernel_descs.push_back(desc);
-        if (conf.calculate_stats) {
-            if (conf.use_stats_one_pass) {
-                init_ker_desc(p, conf, hw_params, desc, calc_mean_var_ker);
-                p.kernel_descs.push_back(desc);
-            } else {
-                init_ker_desc(p, conf, hw_params, desc, calc_mean_ker);
-                p.kernel_descs.push_back(desc);
-                init_ker_desc(p, conf, hw_params, desc, calc_var_ker);
-                p.kernel_descs.push_back(desc);
-            }
-
-            if (p.use_fused_atomics_reduction) {
-                // distinguished due to different data amount to process
-                init_ker_desc(p, conf, hw_params, desc, reduce_aux_init_ker);
-                p.kernel_descs.push_back(desc);
-                init_ker_desc(
-                        p, conf, hw_params, desc, reduce_aux_finalize_ker);
-                p.kernel_descs.push_back(desc);
-            } else {
-                if (conf.use_stats_one_pass) {
-                    init_ker_desc(
-                            p, conf, hw_params, desc, reduce_mean_var_ker);
-                    p.kernel_descs.push_back(desc);
-                } else {
-                    init_ker_desc(
-                            p, conf, hw_params, desc, reduce_stats_fwd_ker);
-                    p.kernel_descs.push_back(desc);
-                }
-            }
-        }
-    } else { // BWD pass
-        init_ker_desc(p, conf, hw_params, desc, default_bwd_ker);
-        p.kernel_descs.push_back(desc);
-        init_ker_desc(p, conf, hw_params, desc, calc_stats_ker);
-        p.kernel_descs.push_back(desc);
-        if (p.use_fused_atomics_reduction) {
-            init_ker_desc(p, conf, hw_params, desc, reduce_aux_init_ker);
-            p.kernel_descs.push_back(desc);
-            init_ker_desc(p, conf, hw_params, desc, reduce_aux_finalize_ker);
-            p.kernel_descs.push_back(desc);
-        } else {
-            init_ker_desc(p, conf, hw_params, desc, reduce_stats_bwd_ker);
-            p.kernel_descs.push_back(desc);
-        }
-    }
-    return;
-}
-
-// Make execution time estimation based on data amount, data location and
-// HW utilization
-static status_t make_perf_estimations(
-        model_params_t &p, nhwc_bnorm_params_t &conf, hw_params_t &hw_params) {
-    for (auto &desc : p.kernel_descs) {
-        CHECK(make_kernel_perf_estimation(p, conf, desc, hw_params));
-    }
-    return status::success;
-}
-
-static void dump_params(std::vector<model_params_t> &params) {
-    DPRINT("%s:%s:%d params\n", PRINTHEAD);
-    for (auto &p : params) {
-        DPRINT("use_fused_atomics_reduction = %d ic_block = %d stat_sp_block = "
-               "%d vect_size = %d\n",
-                p.use_fused_atomics_reduction, p.ic_block, p.stat_sp_block,
-                p.vect_size);
-    }
-}
-
 // Get the best set of bnorm parameters based on performance model
 static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
         const batch_normalization_pd_t *pd, hw_params_t &hw_params) {
@@ -629,8 +248,8 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
     assert(conf.ic % conf.sub_group_size == 0);
     while (p.ic_block <= conf.ic) {
         if (conf.ic % p.ic_block == 0) {
-            const int calc_stat_ic
-                    = div_up(conf.ic, p.ic_block) * conf.sub_group_size;
+            const int calc_stat_ic = get_calc_stat_ic(
+                    conf.ic, p.ic_block, conf.sub_group_size);
             p.stat_sp_block = get_nhwc_sp_block_size(conf.sp, calc_stat_ic,
                     hw_params.eu_count, hw_params.threads_per_eu,
                     conf.sub_group_size);
@@ -691,8 +310,8 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
         SAVE_PARAM(ic_block,
                 get_nhwc_ic_block(rnd_up(conf.ic, conf.sub_group_size),
                         conf.sub_group_size));
-        conf.calc_stat_ic
-                = div_up(conf.ic, conf.ic_block()) * conf.sub_group_size;
+        conf.calc_stat_ic = get_calc_stat_ic(
+                conf.ic, conf.ic_block(), conf.sub_group_size);
         SAVE_PARAM(stat_sp_block,
                 get_nhwc_sp_block_size(conf.sp, conf.calc_stat_ic,
                         hw_params.eu_count, hw_params.threads_per_eu,
@@ -705,8 +324,8 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
         SAVE_PARAM(use_fused_atomics_reduction,
                 best_params.use_fused_atomics_reduction);
         SAVE_PARAM(ic_block, best_params.ic_block);
-        conf.calc_stat_ic
-                = div_up(conf.ic, conf.ic_block()) * conf.sub_group_size;
+        conf.calc_stat_ic = get_calc_stat_ic(
+                conf.ic, conf.ic_block(), conf.sub_group_size);
         SAVE_PARAM(stat_sp_block, best_params.stat_sp_block);
         SAVE_PARAM(update_sp_block, conf.stat_sp_block());
         SAVE_PARAM(update_sp_unroll, 1);
@@ -730,7 +349,6 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
 
     return status::success;
 }
-// ++++++++++++++++++++++++ Modeling ++++++++++++++++++++++++++++++++++++++++
 
 static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
         compute::dispatch_t &dispatch_calc_stat,
@@ -795,9 +413,9 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
     // or from environment in tuning mode
     maybe_override_bn_conf_params(conf, engine);
 
+    // Get non-overridden parameters
     hw_params_t hw_params;
     init_hw_params(hw_params, engine);
-
     CHECK(get_params_by_model(conf, pd, hw_params));
 
     // For performance debuging and analisys
@@ -806,36 +424,23 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
     DPRINT_PARAMS(
             "prb_desc,%s,params,%s\n", prb_str.c_str(), params_str.c_str());
 
-    // prepare for setting dispatching
-    conf.stat_sp_nblocks
-            = rnd_up(conf.sp, conf.stat_sp_block()) / conf.stat_sp_block();
-    conf.stat_sp_tail
-            = rnd_dn(conf.sp, conf.stat_sp_block()) / conf.stat_sp_block();
-
-    conf.update_sp_nblocks
-            = rnd_up(conf.sp, conf.update_sp_block()) / conf.update_sp_block();
-    conf.update_sp_tail
-            = rnd_dn(conf.sp, conf.update_sp_block()) / conf.update_sp_block();
-
-    conf.reduce_stat_nblocks = conf.stat_sp_nblocks;
-
     conf.sp_tail = rnd_dn(conf.sp, conf.vect_size);
 
-    model_params_t fake_p;
+    // Set dispatching
     dispatch_calc_stat = compute_engine->create_dispatch();
-    CHECK(set_kernel_despatching(
-            calc_mean_ker, fake_p, conf, hw_params, dispatch_calc_stat));
+    CHECK(bnorm_nhwc_kernel_despatching(
+            calc_mean_ker, conf, engine, dispatch_calc_stat));
     dispatch_reduce_stat = compute_engine->create_dispatch();
-    CHECK(set_kernel_despatching(reduce_stats_fwd_ker, fake_p, conf, hw_params,
-            dispatch_reduce_stat));
+    CHECK(bnorm_nhwc_kernel_despatching(
+            reduce_stats_fwd_ker, conf, engine, dispatch_reduce_stat));
 
     dispatch = compute_engine->create_dispatch(data_mdw.md_);
-    CHECK(set_kernel_despatching(
-            default_fwd_ker, fake_p, conf, hw_params, dispatch));
+    CHECK(bnorm_nhwc_kernel_despatching(
+            default_fwd_ker, conf, engine, dispatch));
 
     dispatch_reduce_aux = compute_engine->create_dispatch(data_mdw.md_);
-    CHECK(set_kernel_despatching(
-            reduce_aux_init_ker, fake_p, conf, hw_params, dispatch_reduce_aux));
+    CHECK(bnorm_nhwc_kernel_despatching(
+            reduce_aux_init_ker, conf, engine, dispatch_reduce_aux));
 
     return status::success;
 }

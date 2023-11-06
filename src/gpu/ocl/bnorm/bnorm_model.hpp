@@ -25,6 +25,7 @@ namespace ocl {
 namespace bn_model {
 
 struct hw_params_t {
+    engine_t *engine;
     compute::gpu_arch_t gpu_arch;
     int eu_count;
     int threads_per_eu;
@@ -32,7 +33,6 @@ struct hw_params_t {
     int eus_per_ss;
     int max_ss;
     int max_slm_size;
-    compute::compute_engine_t *compute_engine;
     float HBM_bw;
     float L3_bw;
     float L3_size;
@@ -40,20 +40,6 @@ struct hw_params_t {
 };
 
 enum data_location_t { HBM, L3, SLM };
-enum kernel_kind_t {
-    default_fwd_ker,
-    calc_mean_ker,
-    calc_var_ker,
-    calc_mean_var_ker,
-    reduce_stats_fwd_ker,
-    reduce_mean_var_ker,
-    reduce_aux_init_ker,
-    reduce_aux_finalize_ker,
-    default_bwd_ker,
-    calc_stats_ker,
-    reduce_stats_bwd_ker
-};
-
 struct kernel_desc_t {
     kernel_kind_t kernel;
     int ncalls = 0;
@@ -84,6 +70,37 @@ void dump_kernel_descriptor(kernel_desc_t &desc);
 
 std::string get_params_str(const nhwc_bnorm_params_t &conf);
 float get_vectorization_factor(const int vect_size, const data_type_t dt);
+int get_ncalls(model_params_t &p, const nhwc_bnorm_params_t &conf,
+        kernel_kind_t kernel);
+size_t get_kernel_input_size(const model_params_t &p,
+        const nhwc_bnorm_params_t &conf, const kernel_desc_t &desc);
+size_t get_kernel_output_size(const model_params_t &p,
+        const nhwc_bnorm_params_t &conf, const kernel_desc_t &desc);
+void get_expected_data_location(model_params_t &p, nhwc_bnorm_params_t &conf,
+        const hw_params_t &hw_params, kernel_desc_t &desc);
+float solve_2p_line(const float x, const float xa, const float xb,
+        const float ya, const float yb);
+float solve_2pieces_linear_function(const float x, const float x0,
+        const float x1, const float x2, const float y0, const float y1,
+        const float y2);
+float get_ss_utilization_factor(const float util);
+float get_thr_utilization_factor(const float ss_util, const float thr_util,
+        const data_location_t location, const compute::gpu_arch_t gpu_arch);
+void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
+        const hw_params_t &hw_params, kernel_desc_t &desc);
+void init_ker_desc(model_params_t &p, nhwc_bnorm_params_t &conf,
+        const hw_params_t &hw_params, kernel_desc_t &desc,
+        const kernel_kind_t kernel);
+void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
+        const hw_params_t &hw_params);
+void dump_params(std::vector<model_params_t> &params);
+
+status_t get_estimated_hw_utilization(model_params_t &p,
+        nhwc_bnorm_params_t &conf, hw_params_t &hw_params, kernel_desc_t &desc);
+status_t make_kernel_perf_estimation(model_params_t &p,
+        nhwc_bnorm_params_t &conf, kernel_desc_t &desc, hw_params_t &hw_params);
+status_t make_perf_estimations(
+        model_params_t &p, nhwc_bnorm_params_t &conf, hw_params_t &hw_params);
 
 } // namespace bn_model
 } // namespace ocl

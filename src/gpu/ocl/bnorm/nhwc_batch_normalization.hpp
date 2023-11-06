@@ -31,10 +31,28 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+enum kernel_kind_t {
+    default_fwd_ker,
+    calc_mean_ker,
+    calc_var_ker,
+    calc_mean_var_ker,
+    reduce_stats_fwd_ker,
+    reduce_mean_var_ker,
+    reduce_aux_init_ker,
+    reduce_aux_finalize_ker,
+    default_bwd_ker,
+    calc_stats_ker,
+    reduce_stats_bwd_ker
+};
+
 struct nhwc_bnorm_params_t : public bn_lookup_table::params_t {
     bool use_workaround = false;
     float expected_time_ms;
 };
+
+status_t bnorm_nhwc_kernel_despatching(kernel_kind_t kernel,
+        nhwc_bnorm_params_t &conf, engine_t *engine,
+        compute::dispatch_t &dispatch);
 
 struct nhwc_batch_normalization_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
