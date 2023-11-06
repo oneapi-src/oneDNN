@@ -209,7 +209,7 @@ struct pooling_fwd_pd_t : public pooling_pd_t {
 
     std::vector<memory_desc_t> hint_mds(bool is_hint) const override {
         if (!is_hint) return {};
-        return {*dst_md(0), *workspace_md(0)};
+        return {*src_md(0), *workspace_md(0)};
     }
 
 protected:
@@ -299,25 +299,27 @@ protected:
     }
 
     virtual status_t set_default_params() {
-        if (diff_dst_md()->format_kind == format_kind::any) {
+        if (diff_src_md()->format_kind == format_kind::any) {
             status_t status = status::success;
             if (hint_fwd_pd_)
-                status = memory_desc_init_by_md_and_dt(diff_dst_md_,
+                status = memory_desc_init_by_md_and_dt(diff_src_md_,
                         hint_mds(false /* is_hint */)[0],
-                        diff_dst_md_.data_type);
+                        diff_src_md_.data_type);
             else
-                status = memory_desc_init_by_strides(diff_dst_md_, nullptr);
+                status = memory_desc_init_by_strides(diff_src_md_, nullptr);
             if (status != status::success) return status;
+        } else if (diff_src_md()->format_kind != format_kind::blocked) {
+            return status::unimplemented;
         }
 
-        if (diff_src_md()->format_kind != format_kind::any)
+        if (diff_dst_md()->format_kind != format_kind::any)
             return status::success;
 
-        if (diff_dst_md()->format_kind != format_kind::blocked)
+        if (diff_src_md()->format_kind != format_kind::blocked)
             return status::unimplemented;
 
         return memory_desc_init_by_blocking_desc(
-                diff_src_md_, diff_dst_md_.format_desc.blocking);
+                diff_dst_md_, diff_src_md_.format_desc.blocking);
     }
 
 private:
