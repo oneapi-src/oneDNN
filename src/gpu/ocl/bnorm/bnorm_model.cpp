@@ -40,8 +40,9 @@ void init_hw_params(hw_params_t &hw_params, engine_t *engine) {
     hw_params.max_slm_size = compute::device_info_t::max_slm_size(gpu_arch);
     hw_params.engine = engine;
 
+    // Experimentally selected, based on microbenchmarks results
     if (hw_params.gpu_arch == compute::gpu_arch_t::xe_hpg) {
-        hw_params.HBM_bw = getenv_int("GBW", 400); //GBs
+        hw_params.HBM_bw = 400; //GBs
         hw_params.L3_size = 16 * (2 << 19); //Bytes
         hw_params.L3_bw = 2000; //GBs
         hw_params.host_overheads_per_kernel = 8000; // ns
@@ -61,7 +62,8 @@ float get_used_ss_thr_utilization(hw_params_t &hw_params, int sg_size,
     const size_t lws_size = lws[0] * lws[1] * lws[2];
     const int num_thrs_generated = gws_size / sg_size;
     const int num_wgs = gws_size / lws_size; // == ss used
-    // TODO: considering case when several wg are running on the same ss
+    // TODO: considering case when several work groups are running
+    // on the same [sub-]slice
     return (float)num_thrs_generated
             / std::min(
                     num_wgs * hw_params.eus_per_ss * hw_params.threads_per_eu,
@@ -112,6 +114,7 @@ std::string get_str_data_location(const data_location_t &loc) {
     return str_loc;
 }
 
+// Useful for experimentation and debug purposes
 void dump_kernel_descriptor(kernel_desc_t &desc) {
     DPRINT("%s:%s:%d kernel desc:  %s : ncalls = %d : nbytes = %ld %ld : "
            "location = "
@@ -121,7 +124,6 @@ void dump_kernel_descriptor(kernel_desc_t &desc) {
             get_str_data_location(desc.input_location).c_str(),
             get_str_data_location(desc.output_location).c_str());
 }
-
 std::string get_params_str(const nhwc_bnorm_params_t &conf) {
     std::string s;
 #define STR_PARAM(p) \
@@ -142,7 +144,7 @@ std::string get_params_str(const nhwc_bnorm_params_t &conf) {
 #undef STR_PARAM
 }
 
-// how short vector can increase r/w expected time
+// How short vector can increase r/w expected time
 float get_vectorization_factor(const int vect_size, const data_type_t dt) {
     if (dt == data_type::f16 || data_type::bf16) {
         switch (vect_size) {
@@ -290,7 +292,7 @@ size_t get_kernel_output_size(const model_params_t &p,
     }
     return nbytes;
 }
-// set expected data location depending on arch, size and kernel kind.
+// Expected data location depending on arch, size and kernel kind.
 void get_expected_data_location(model_params_t &p, nhwc_bnorm_params_t &conf,
         const hw_params_t &hw_params, kernel_desc_t &desc) {
     desc.input_location = HBM;
@@ -305,6 +307,7 @@ void get_expected_data_location(model_params_t &p, nhwc_bnorm_params_t &conf,
         }
     } else if ((desc.kernel == default_fwd_ker && !conf.calculate_stats)
             || (desc.kernel == default_bwd_ker && !conf.calculate_diff_stats)) {
+        // default kernels w/o stats calculation
         desc.input_location = HBM;
     } else { // all other kernels
         if (desc.input_nbytes < hw_params.L3_size) { desc.input_location = L3; }
@@ -339,7 +342,8 @@ float solve_2pieces_linear_function(const float x, const float x0,
 float get_ss_utilization_factor(const float util) {
     return std::min(util, 1.f);
 }
-// Dependency on threads utilization is approximated by two linear segments
+// Dependency on threads utilization is approximated by two linear segments.
+// The segments experimentally selected, based on microbenchmarks results
 float get_thr_utilization_factor(const float ss_util, const float thr_util,
         const data_location_t location, const compute::gpu_arch_t gpu_arch) {
 
@@ -417,6 +421,7 @@ void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
 
     desc.time_ns = read_ns + write_ns;
 
+    // For debuging and analysis purposes
     std::string kernel_type_name = get_str_kernel_name(desc.kernel);
     DPRINT("%s:%s:%d estimation - %s : p = %d %d %d : thr_util = %g ss_util = "
            "%g "
@@ -518,7 +523,7 @@ status_t get_estimated_hw_utilization(model_params_t &p,
     conf_dry_run.set_stat_sp_block(p.stat_sp_block);
     conf_dry_run.set_update_sp_block(p.stat_sp_block);
     conf_dry_run.set_update_sp_unroll(1);
-    CHECK(bnorm_nhwc_kernel_despatching(
+    CHECK(nhwc_bnorm_kernel_dispatching(
             desc.kernel, conf_dry_run, hw_params.engine, dry_run_dispatch));
 
     auto nd_range = dry_run_dispatch.nd_range();

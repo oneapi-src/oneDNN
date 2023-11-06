@@ -169,7 +169,7 @@ inline int get_calc_stat_ic(int ic, int ic_block, int sg_size) {
     return div_up(ic, ic_block) * sg_size;
 }
 
-status_t bnorm_nhwc_kernel_despatching(kernel_kind_t kernel,
+status_t nhwc_bnorm_kernel_dispatching(kernel_kind_t kernel,
         nhwc_bnorm_params_t &conf, engine_t *engine,
         compute::dispatch_t &dispatch) {
 
@@ -413,7 +413,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
     // or from environment in tuning mode
     maybe_override_bn_conf_params(conf, engine);
 
-    // Get non-overridden parameters
+    // Get non-overridden parameters, performance modeling way
     hw_params_t hw_params;
     init_hw_params(hw_params, engine);
     CHECK(get_params_by_model(conf, pd, hw_params));
@@ -428,18 +428,18 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
 
     // Set dispatching
     dispatch_calc_stat = compute_engine->create_dispatch();
-    CHECK(bnorm_nhwc_kernel_despatching(
+    CHECK(nhwc_bnorm_kernel_dispatching(
             calc_mean_ker, conf, engine, dispatch_calc_stat));
     dispatch_reduce_stat = compute_engine->create_dispatch();
-    CHECK(bnorm_nhwc_kernel_despatching(
+    CHECK(nhwc_bnorm_kernel_dispatching(
             reduce_stats_fwd_ker, conf, engine, dispatch_reduce_stat));
 
     dispatch = compute_engine->create_dispatch(data_mdw.md_);
-    CHECK(bnorm_nhwc_kernel_despatching(
+    CHECK(nhwc_bnorm_kernel_dispatching(
             default_fwd_ker, conf, engine, dispatch));
 
     dispatch_reduce_aux = compute_engine->create_dispatch(data_mdw.md_);
-    CHECK(bnorm_nhwc_kernel_despatching(
+    CHECK(nhwc_bnorm_kernel_dispatching(
             reduce_aux_init_ker, conf, engine, dispatch_reduce_aux));
 
     return status::success;

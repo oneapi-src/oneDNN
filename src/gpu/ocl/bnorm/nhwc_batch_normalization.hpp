@@ -50,7 +50,7 @@ struct nhwc_bnorm_params_t : public bn_lookup_table::params_t {
     float expected_time_ms;
 };
 
-status_t bnorm_nhwc_kernel_despatching(kernel_kind_t kernel,
+status_t nhwc_bnorm_kernel_dispatching(kernel_kind_t kernel,
         nhwc_bnorm_params_t &conf, engine_t *engine,
         compute::dispatch_t &dispatch);
 
