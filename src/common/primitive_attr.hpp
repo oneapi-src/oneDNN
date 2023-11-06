@@ -705,7 +705,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     }
 
     dnnl::impl::status_t set_fpmath_mode(
-            dnnl::impl::fpmath_mode_t fpmath_mode, bool force);
+            dnnl::impl::fpmath_mode_t fpmath_mode, bool force = false);
     dnnl::impl::status_t set_accumulation_mode(
             dnnl::impl::accumulation_mode_t am);
     dnnl::impl::status_t set_scratchpad_mode(
