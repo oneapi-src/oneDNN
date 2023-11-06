@@ -154,7 +154,7 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 // Special function to handle Nvidia libraries issues showing up through the
 // timeline. Not recommended to remove instances to keep working state of any
 // cuda/cuDNN/cuBLAS versions.
-bool cuda_check_correctness(
+bool cuda_check_correctness(const prb_t *prb,
         const compare::compare_t::driver_check_func_args_t &args) {
     if (!is_nvidia_gpu()) return false;
 
@@ -165,6 +165,15 @@ bool cuda_check_correctness(
     } else if (args.dt == dnnl_s8) {
         // cuDNN bug: ... and s8 min value as -127 (-INT8_MAX?), not -128.
         return args.exp == lowest_dt(args.dt) && args.got == -127;
+    } else if (prb->alg == alg_t::max && (prb->dir & FLAG_BWD)
+            && prb->dt[1] == dnnl_bf16) {
+        // cuDNN seems to accumulate bf16 inputs into bf16 accumulator which
+        // leads to rounding errors while f32 would accumulate precisely.
+        // Adjusting filling not to overflow bf16 exact value solves the problem
+        // but will affect the validation of rest of the library.
+        // Just ignore errors if they are not extreme - `32` is just a random
+        // number to speculate on potential rounding error.
+        return args.diff < 32.f;
     }
     return false;
 }
@@ -182,10 +191,12 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
             && prb->attr.post_ops.len();
     cmp.set_op_output_has_nans(has_inf_output);
 
-    const auto pooling_add_check
-            = [&](const compare::compare_t::driver_check_func_args_t &args) {
-                  return cuda_check_correctness(args);
-              };
+    // Since lambda is called when stack is unavailable, need to capture `prb`
+    // and `kind` by value to avoid using dangling references.
+    const auto pooling_add_check =
+            [&, prb](const compare::compare_t::driver_check_func_args_t &args) {
+                return cuda_check_correctness(prb, args);
+            };
     cmp.set_driver_check_function(pooling_add_check);
 }
 
