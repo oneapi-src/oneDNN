@@ -1030,7 +1030,8 @@ inline void set_offsets(
 inline strides_t get_outer_strides(const memory_desc_wrapper &md) {
     strides_t ret;
     for (int d = 0; d < MAX_NDIMS; ++d) {
-        ret[d] = (d < md.ndims()) ? md.strides()[d] : 0;
+        ret[d] = (d < md.ndims() && md.padded_dims()[d] > 1) ? md.strides()[d]
+                                                             : 0;
     }
     return ret;
 }
