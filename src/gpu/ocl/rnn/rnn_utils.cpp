@@ -263,19 +263,22 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     bool require_copy_src_layer = [&]() {
         auto &strides = src_layer_d.strides();
+        auto &pdims = src_layer_d.padded_dims();
         auto dt_size = types::data_type_size(src_layer_d.data_type());
 
         // The GEMM interface assumes input buffers are well aligned. We need to
         // implement a way to avoid kernels relying on this alignment to remove
         // this restriction.
-        if ((strides[0] * dt_size) % 8) return true;
+        if (pdims[0] > 1 && (strides[0] * dt_size) % 8) return true;
 
         if (rnn.merge_gemm_layer) {
             // GEMM inputs are represented as 2d inputs. As such, the merged
             // dimension need to be dense. This restriction could be removed by
             // using batched GEMM with appropriate strides instead.
             constexpr int iter_dim = 0, mb_dim = 1;
-            if (strides[iter_dim] != strides[mb_dim] * rnn.mb) return true;
+            if (pdims[iter_dim] > 1 && pdims[mb_dim] > 1
+                    && (strides[iter_dim] != strides[mb_dim] * rnn.mb))
+                return true;
             if (rnn.exec_dir != rnn_utils::l2r) return true;
         }
         return false;
@@ -283,10 +286,11 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     bool prefer_copy_src_layer = [&]() {
         auto &strides = src_layer_d.strides();
+        auto &pdims = src_layer_d.padded_dims();
         auto dt_size = types::data_type_size(src_layer_d.data_type());
 
         // Data is already well aligned. Copying does not provide benefit
-        if (strides[1] == rnn.gates_ws_ld) return false;
+        if (pdims[1] == 1 || strides[1] == rnn.gates_ws_ld) return false;
 
         // Better to rely on GEMM to emit reorder if it is necessary if there is
         // limited data reuse
@@ -307,20 +311,22 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         if (is_fwd) return false;
 
         auto &strides = diff_dst_layer_d.strides();
+        auto &pdims = diff_dst_layer_d.padded_dims();
         auto dt_size = types::data_type_size(diff_dst_layer_d.data_type());
-
 
         // The GEMM interface assumes input buffers are well aligned. We need to
         // implement a way to avoid kernels relying on this alignment to remove
         // this restriction.
-        if ((strides[0] * dt_size) % 8) return true;
+        if (pdims[0] > 1 && (strides[0] * dt_size) % 8) return true;
 
         if (rnn.merge_gemm_layer) {
             // GEMM inputs are represented as 2d inputs. As such, the merged
             // dimension need to be dense. This restriction could be removed by
             // using batched GEMM with appropriate strides instead.
             constexpr int iter_dim = 0, mb_dim = 1;
-            if (strides[iter_dim] != strides[mb_dim] * rnn.mb) return true;
+            if (pdims[iter_dim] > 1 && pdims[mb_dim] > 1
+                    && (strides[iter_dim] != strides[mb_dim] * rnn.mb))
+                return true;
             if (rnn.exec_dir != rnn_utils::r2l) return true;
         }
         return false;
@@ -333,6 +339,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         if (is_fwd) return false;
 
         auto &strides = diff_src_layer_d.strides();
+        auto &pdims = diff_src_layer_d.padded_dims();
 
         // Unimplemented
         if (rnn.merge_gemm_iter || rnn.merge_gemm_layer) return true;
@@ -342,7 +349,8 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         if (rnn.n_dir > 1) return true;
 
         // A new kernel needs to be generated if the strides differ.
-        if (rnn.scratch_diff_states_ld != strides[1]) return true;
+        if (pdims[1] == 1 || rnn.scratch_diff_states_ld != strides[1])
+            return true;
 
         return false;
     }();
