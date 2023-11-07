@@ -82,12 +82,6 @@ status_t init_conf_matmul_fixed_format(acl_matmul_conf_t &amp,
     amp.dst_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(N, M, 1, dst_batch), 1, acl_dst_data_t);
 
-    // Set alpha (output scaling)
-    // TODO: Add runtime scales support. Creation time scales will be remove
-    // in 3.0.
-    amp.alpha = 1.0f; // default value
-    if (!attr.output_scales_.has_default_values()) return status::unimplemented;
-
     // Validate ACL transpose
     if (amp.is_transA)
         ACL_CHECK_VALID(arm_compute::NETranspose::validate(
@@ -108,7 +102,7 @@ status_t init_conf_matmul_fixed_format(acl_matmul_conf_t &amp,
     arm_compute::WeightFormat expected_weight_format;
     ACL_CHECK_VALID(arm_compute::NEGEMM::has_opt_impl(expected_weight_format,
             &amp.src_tensor_info, &amp.wei_tensor_info, nullptr,
-            &amp.dst_tensor_info, amp.alpha, 0.0f, amp.gemm_info));
+            &amp.dst_tensor_info, 1.0f, 0.0f, amp.gemm_info));
 
     // Set gemm weights info to the one returned by has_opt_impl
     amp.gemm_info.set_weight_format(expected_weight_format);
@@ -197,12 +191,6 @@ status_t init_conf_matmul_non_fixed_format(acl_matmul_conf_t &amp,
     bool is_fastmath_enabled = utils::one_of(
             attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
     amp.gemm_info.set_fast_math(is_fastmath_enabled);
-
-    // Set alpha (output scaling)
-    // TODO: Add runtime scales support. Creation time scales will be remove
-    // in 3.0.
-    amp.alpha = 1.0f; // default value
-    if (!attr.output_scales_.has_default_values()) return status::unimplemented;
 
     // Validate ACL transpose
     if (amp.is_transA)

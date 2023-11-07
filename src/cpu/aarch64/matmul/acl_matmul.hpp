@@ -31,7 +31,7 @@ struct acl_resource_t : public resource_t {
     acl_resource_t() : acl_obj_(utils::make_unique<acl_matmul_obj_t>()) {}
 
     status_t configure(const acl_matmul_conf_t &amp,
-            const dnnl::impl::format_kind_t weights_format_kind) {
+            const dnnl::impl::format_kind_t weights_format_kind_) {
         if (!acl_obj_) return status::out_of_memory;
         acl_obj_->src_tensor.allocator()->init(amp.src_tensor_info);
         acl_obj_->wei_tensor.allocator()->init(amp.wei_tensor_info);
@@ -43,7 +43,7 @@ struct acl_resource_t : public resource_t {
                     &acl_obj_->src_acc_tensor, &acl_obj_->src_tensor);
         }
 
-        if (weights_format_kind != format_kind::any) {
+        if (weights_format_kind_ != format_kind::any) {
             if (amp.is_transB) {
                 acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
                 acl_obj_->transB.configure(
@@ -52,7 +52,7 @@ struct acl_resource_t : public resource_t {
         }
         // Configure GEMM
         acl_obj_->gemm.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
-                nullptr, &acl_obj_->dst_tensor, amp.alpha, 0.0f, amp.gemm_info);
+                nullptr, &acl_obj_->dst_tensor, 1.0f, 0.0f, amp.gemm_info);
         return status::success;
     }
     acl_matmul_obj_t &get_acl_obj() const { return *acl_obj_; }
@@ -87,7 +87,7 @@ struct acl_matmul_t : public primitive_t {
                     && platform::has_data_type_support(data_type::f16);
 
             // we need to save this state as it can change inside set_default_formats()
-            weights_format_kind = weights_md_.format_kind;
+            weights_format_kind_ = weights_md_.format_kind;
 
             VDISPATCH_MATMUL(
                     is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
@@ -102,7 +102,7 @@ struct acl_matmul_t : public primitive_t {
             VDISPATCH_MATMUL(!has_runtime_dims_or_strides(),
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
-            if (weights_format_kind == format_kind::any) {
+            if (weights_format_kind_ == format_kind::any) {
                 CHECK(acl_matmul_utils::init_conf_matmul_fixed_format(
                         amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
             } else {
@@ -130,7 +130,7 @@ struct acl_matmul_t : public primitive_t {
 
         acl_matmul_conf_t amp_;
         acl_post_ops_t post_ops;
-        dnnl::impl::format_kind_t weights_format_kind;
+        dnnl::impl::format_kind_t weights_format_kind_;
 
     protected:
         bool attr_oscale_ok() const {
@@ -148,7 +148,7 @@ struct acl_matmul_t : public primitive_t {
         if (!r) return status::out_of_memory;
 
         // Configure the resource based on information from primitive descriptor
-        CHECK(r->configure(pd()->amp_, pd()->weights_format_kind));
+        CHECK(r->configure(pd()->amp_, pd()->weights_format_kind_));
         mapper.add(this, std::move(r));
 
         CHECK(pd()->post_ops.create_resource(engine, mapper));
@@ -159,7 +159,7 @@ struct acl_matmul_t : public primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        if (pd()->weights_format_kind == format_kind::any) {
+        if (pd()->weights_format_kind_ == format_kind::any) {
             return execute_forward_fixed_format(ctx);
         } else {
             return execute_forward_non_fixed_format(ctx);
