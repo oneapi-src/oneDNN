@@ -832,15 +832,15 @@ void DependencyTable<consumer>::remove(int fragID)
     for (int i = 0; i < nfrag; i++, fragID++) {
         auto &frag = frags[fragID];
 
-        for (int l = 0; l < NListTypes; l++) {
+        int lcount = (i == 0) ? NListTypes : 1;   // Only GRF linked lists contain multiple fragments per dependency.
+
+        for (int l = 0; l < lcount; l++) {
             if (isHeadLink(frag.prev[l]))
                 heads[l][readHeadLink(frag.prev[l])] = frag.next[l];
             else if (frag.prev[l] != none)
                 frags[frag.prev[l]].next[l] = frag.next[l];
             if (frag.next[l] != none)
                 frags[frag.next[l]].prev[l] = frag.prev[l];
-            if (i > 0)
-                break;  // Only GRF linked lists contain multiple fragments per dependency.
         }
     }
 }
