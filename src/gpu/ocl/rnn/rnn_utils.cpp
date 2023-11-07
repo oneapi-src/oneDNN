@@ -313,7 +313,6 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     bool copy_src_layer = dev_getenv("copy_src_layer", prefer_copy_src_layer)
             || require_copy_src_layer;
 
-    bool prefer_copy_diff_dst_layer = is_bwd;
     bool require_copy_diff_dst_layer = [&]() {
         if (is_fwd) return false;
 
@@ -338,8 +337,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         }
         return false;
     }();
-    bool copy_diff_dst_layer
-            = dev_getenv("copy_diff_dst_layer", prefer_copy_diff_dst_layer)
+    bool copy_diff_dst_layer = dev_getenv("copy_diff_dst_layer", false)
             || require_copy_diff_dst_layer;
 
     bool require_copy_diff_src_layer = [&]() {
