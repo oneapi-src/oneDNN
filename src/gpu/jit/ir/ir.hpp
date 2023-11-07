@@ -104,19 +104,23 @@ public:
     std::map<std::string, entry_t> &entries() { return entries_; }
 
     expr_t get(const std::string &name, int size = 0) {
-        if (size > ir_ctx_->grf_size()) {
-            ir_assert(size % ir_ctx_->grf_size() == 0);
-        }
+        entry_t *entry_ptr = nullptr;
         auto it = entries_.find(name);
         if (it != entries_.end()) {
             auto &e = it->second;
             if (e.size < size) e.size = size;
-            return e.buf;
+            entry_ptr = &e;
+        } else {
+            if (size == 0) return expr_t();
+            auto buf = make_buffer(name);
+            entries_[name] = entry_t(buf, size);
+            entry_ptr = &entries_[name];
         }
-        if (size == 0) return expr_t();
-        auto buf = make_buffer(name);
-        entries_[name] = entry_t(buf, size);
-        return buf;
+        // Ensure large GRF buffers are aligned to a register boundary.
+        if (!entry_ptr->is_slm() && entry_ptr->size > ir_ctx_->grf_size()) {
+            ir_assert(entry_ptr->size % ir_ctx_->grf_size() == 0);
+        }
+        return entry_ptr->buf;
     }
 
     entry_t find(const std::string &name, bool allow_empty = false) const {
