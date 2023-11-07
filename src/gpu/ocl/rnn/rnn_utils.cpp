@@ -288,6 +288,10 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
                 return true;
             if (rnn.exec_dir != rnn_utils::l2r) return true;
         }
+
+        // Bug workaround, likely related to the undefined mb stride
+        if (pdims[1] == 1) return true;
+
         return false;
     }();
 
@@ -335,6 +339,10 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
                 return true;
             if (rnn.exec_dir != rnn_utils::r2l) return true;
         }
+
+        // Bug workaround, likely related to the undefined mb stride
+        if (pdims[1] == 1) return true;
+
         return false;
     }();
     bool copy_diff_dst_layer = dev_getenv("copy_diff_dst_layer", false)
