@@ -7708,7 +7708,12 @@ void gemm_kernel_generator_t<hw>::updateCLayout(
                             strategy, state))
                     stub();
             } else if (state.Tacc != Tc_ext) {
-                if (!gemmConvertC(Tc_ext, problem, strategy, state)) stub();
+                if (state.Tacc.size() != Tc_ext.size()) stub();
+                for (auto &block : sublayoutAcc) {
+                    auto C_acc = C_accRange.subrange(hw, state.Tacc, block);
+                    convert(C_acc, state.Tacc, Tc_ext, problem, strategy,
+                            state);
+                }
             }
             auto &sublayoutSrc = copyC ? sublayoutExt : sublayoutAcc;
             auto &C_srcRange = copyC ? C_extRange : C_accRange;
