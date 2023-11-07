@@ -23,6 +23,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_pooling_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
+#include "gpu/jit/pooling/config.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -42,10 +43,11 @@ public:
         DECLARE_COMMON_PD_T("jit:ir", gen_pooling_fwd_t);
 
         status_t init(engine_t *);
-        status_t init_kernel_info();
 
-        std::shared_ptr<pooling_config_t> cfg;
-        std::shared_ptr<kernel_info_t> kernel_info;
+        std::shared_ptr<pool_conf_t> pool_conf;
+        std::shared_ptr<exec_config_t> exec_cfg;
+        std::shared_ptr<layout_t> src;
+        std::shared_ptr<layout_t> dst;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
@@ -56,6 +58,8 @@ public:
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
+    pooling_config_t cfg;
+    kernel_info_t kernel_info;
     compute::kernel_t kernel_;
 };
 

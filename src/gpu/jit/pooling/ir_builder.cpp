@@ -155,6 +155,7 @@ public:
         return to_cpp<int>(retn);
     }
     loop_bound_counter_t(const gemm_schedule_t &s) : schedule_(s) {}
+
 private:
     object_t _mutate(const var_t &v) override {
         return expr_t(schedule_.var_bound(v) - 1);

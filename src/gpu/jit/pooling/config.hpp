@@ -60,36 +60,26 @@ public:
 // Parameters for kernel generation.
 class pooling_config_t : public prim_config_t {
 public:
-    std::string str() const override {
-        std::ostringstream oss;
-        // clang-format off
-        oss << "  Exec config:          " << exec_cfg() << std::endl;
-        oss << "  Problem:              " << desc_str() << std::endl;
-        const char *names[] = {"Source", "Destination"};
-        const layout_param_t *layouts[] = {&src_layout(), &dst_layout()};
-        for (int i = 0; i < 2; i++) {
-            std::string desc = std::string(names[i]) + " layout:";
-            desc.insert(desc.size(), 22 - desc.size(), ' ');
-            oss << "  " << desc << layouts[i]->user() << std::endl;
-        }
-        const int kg_elems = kernel_grid().elems();
-        const int tg_elems = thread_group_grid().elems();
-        //oss << blocking_brief_str();
-        oss << "  Padded dimensions:    " << dims_padded() << std::endl;
-        oss << "  Internal loop:        " << loop_grid() << std::endl;
-        oss << "  Thread group:         " << thread_group_grid() << std::endl;
-        oss << "  Kernel grid:          " << kernel_grid() << std::endl;
-        oss << "  Threads:              " << kg_elems * tg_elems
-            << " (utilization: "
-            << get_thread_utilization(exec_cfg(), kg_elems, tg_elems)
-            << "% thread, "
-            << get_wave_utilization(exec_cfg(), kg_elems, tg_elems)
-            << "% wave)" << std::endl;
-        oss << "  Configuration line:   " << get_config_line() << std::endl;
-        // clang-format on
-        return oss.str();
+    static bool check_compatibility(const pool_conf_t &conf,
+            const exec_config_t &exec, const layout_t &src) {
+        // only 8 or 16 threads in a threadgroup are supported
+        const int max_tg = get_max_tg(exec);
+        if ((max_tg != 8) && (max_tg != 16)) return false;
+
+        // only allow SIMD-aligned channel-first layouts
+        const auto &oc_blk = src.blocks()[0];
+        if ((oc_blk.dim_idx != 1) || (oc_blk.block % exec.simd())) return false;
+
+        // for now, prohibit Global (odhw = 1) and Dense (odhw = idhw)
+        // TODO: enable both
+        if (conf.od == 1 && conf.oh == 1 && conf.ow == 1) return false;
+        if (conf.od == conf.id && conf.oh == conf.ih && conf.ow == conf.iw)
+            return false;
+
+        return true; // no more restrictions, the configuration is compatible
     }
 
+    pooling_config_t() = default;
     pooling_config_t(const exec_config_t &ec, const pool_conf_t &pool_conf,
             const layout_t &src, const layout_t &dst) {
         set_pool_conf(pool_conf);
@@ -98,31 +88,18 @@ public:
         set_exec_cfg(ec);
     }
 
-    bool try_compute_grid() {
+    void compute_grid() {
         const auto &conf = pool_conf();
         const auto &src = src_layout().user();
         const auto &exec = exec_cfg();
         const int simd = exec.simd();
         const int eu_count = exec.hw_cfg().eu_count();
-
-        // only 8 or 16 threads in a threadgroup are supported
-        const int max_tg = compute::device_info_t::max_eus_per_wg(
-                convert_ngen_arch_to_dnnl(exec.hw()));
-        if ((max_tg != 8) && (max_tg != 16)) return false;
-
-        // only allow SIMD-aligned channel-first layouts
-        const auto &oc_blk = src.blocks()[0];
-        if ((oc_blk.dim_idx != 1) || (oc_blk.block % simd)) return false;
+        const int max_tg = get_max_tg(exec);
 
         std::vector<int> padded {
                 int(src.dim(0)), int(src.dim(1)), conf.od, conf.oh, conf.ow};
         auto &mb = padded[0], &oc = padded[1];
         auto &od = padded[2], &oh = padded[3], &ow = padded[4];
-
-        // for now, prohibit Global (odhw = 1) and Dense (odhw = idhw)
-        // TODO: enable both
-        if (od == 1 && oh == 1 && ow == 1) return false;
-        if (od == conf.id && oh == conf.ih && ow == conf.iw) return false;
 
         //                  mb oc od oh ow kd kh kw
         //                  [0  1][2  3  4][5  6  7]
@@ -209,6 +186,7 @@ public:
                 * utils::div_up(oc, simd) * mb / safe_thr_count;
         const dim_t oc_outer = oc / simd;
         const int layers_per_thr = regs_per_tile / (lg[7] * lg[6] * lg[5]);
+        const auto &oc_blk = src.blocks()[0];
         if (max_thr_work > 1) {
             lg[1] = std::min(max_thr_work,
                     utils::max_div(oc_blk.block / simd, layers_per_thr));
@@ -250,7 +228,36 @@ public:
         set_loop_grid(grid_info_t(lg, "lg_idx"));
         set_kernel_grid(grid_info_t(kg, "kg_idx"));
         set_thread_group_grid(grid_info_t(tg, "tg_idx"));
-        return true;
+    }
+
+    std::string str() const override {
+        std::ostringstream oss;
+        // clang-format off
+        oss << "  Exec config:          " << exec_cfg() << std::endl;
+        oss << "  Problem:              " << desc_str() << std::endl;
+        const char *names[] = {"Source", "Destination"};
+        const layout_param_t *layouts[] = {&src_layout(), &dst_layout()};
+        for (int i = 0; i < 2; i++) {
+            std::string desc = std::string(names[i]) + " layout:";
+            desc.insert(desc.size(), 22 - desc.size(), ' ');
+            oss << "  " << desc << layouts[i]->user() << std::endl;
+        }
+        const int kg_elems = kernel_grid().elems();
+        const int tg_elems = thread_group_grid().elems();
+        //oss << blocking_brief_str();
+        oss << "  Padded dimensions:    " << dims_padded() << std::endl;
+        oss << "  Internal loop:        " << loop_grid() << std::endl;
+        oss << "  Thread group:         " << thread_group_grid() << std::endl;
+        oss << "  Kernel grid:          " << kernel_grid() << std::endl;
+        oss << "  Threads:              " << kg_elems * tg_elems
+            << " (utilization: "
+            << get_thread_utilization(exec_cfg(), kg_elems, tg_elems)
+            << "% thread, "
+            << get_wave_utilization(exec_cfg(), kg_elems, tg_elems)
+            << "% wave)" << std::endl;
+        oss << "  Configuration line:   " << get_config_line() << std::endl;
+        // clang-format on
+        return oss.str();
     }
 
 #define DECL_PARAM(name) \
@@ -289,6 +296,11 @@ public:
 #undef INIT_PARAM
 
 private:
+    static int get_max_tg(const exec_config_t &exec) {
+        return compute::device_info_t::max_eus_per_wg(
+                convert_ngen_arch_to_dnnl(exec.hw()));
+    }
+
     std::string desc_str() const {
         const auto &conf = pool_conf();
         const std::array<int, 6> xd = {
