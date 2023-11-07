@@ -343,7 +343,8 @@ struct conf_t {
 bool is_ldigo(const memory_desc_wrapper &md);
 bool is_ldgoi(const memory_desc_wrapper &md);
 
-dim_t get_good_ld(dim_t arch_ld, dim_t dim, dim_t sizeof_dt);
+dim_t get_good_ld(
+        dim_t arch_ld, dim_t dim, dim_t sizeof_dt, bool ignore_assoc = false);
 void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,

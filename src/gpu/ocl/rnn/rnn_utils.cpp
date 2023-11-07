@@ -251,8 +251,15 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof_states_dt);
     rnn.gates_ws_ld = get_good_ld(rnn.arch_ld, rnn.gates_ld,
             rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(cl_float));
+    // Disable associativity check on some large problems to reduce memory
+    // usage. Can be removed when further improvements are made to
+    // copy_diff_src_layer
     rnn.scratch_diff_states_ld = get_good_ld(rnn.arch_ld,
-            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof(cl_float));
+            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof(cl_float),
+            utils::everyone_is(rnn.slc, rnn.sic, rnn.dhc)
+                    && rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.mb
+                            > 128 * 1024);
+
     rnn.scratch_gates_ld
             = get_good_ld(rnn.arch_ld, rnn.gates_ld, rnn.scratch_gates_elsz);
     rnn.scratch_diff_gates_ld = is_bwd ? get_good_ld(rnn.arch_ld, rnn.gates_ld,
@@ -446,11 +453,12 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             rnn.ws_c_state_offset, rnn.ws_grid_comp_offset, rnn.ws_bias_offset);
 }
 
-dim_t rnn_utils::get_good_ld(dim_t arch_ld, dim_t dim, dim_t sizeof_dt) {
+dim_t rnn_utils::get_good_ld(
+        dim_t arch_ld, dim_t dim, dim_t sizeof_dt, bool ignore_assoc) {
     // Leading dimension for matrices has 64-byte or 128-byte alignment (PVC-A)
     dim_t ld = rnd_up(dim, arch_ld / sizeof_dt);
     // Further alignment is associated with 8-way associativity of L1-cache
-    return (ld % 256 == 0) ? ld + arch_ld / sizeof_dt : ld;
+    return (ld % 256 == 0) && !ignore_assoc ? ld + arch_ld / sizeof_dt : ld;
 }
 
 dim_t rnn_utils::set_workspace_offsets(const conf_t &rnn,
