@@ -31,6 +31,8 @@ namespace dnnl {
 namespace impl {
 
 const primitive_attr_t &default_attr();
+struct runtime_scales_t;
+const runtime_scales_t &default_runtime_scale();
 
 struct rnn_data_qparams_t : public c_compatible {
     rnn_data_qparams_t() : scale_(1.), shift_(0.) {}
@@ -184,29 +186,57 @@ struct runtime_scales_t : public c_compatible {
     // runtime_scales_t() = default;
     runtime_scales_t() {}
 
+    runtime_scales_t &operator=(const runtime_scales_t &rhs) {
+        mask_ = rhs.mask_;
+        is_set_ = rhs.is_set_;
+        ndims_ = rhs.ndims_;
+        if (ndims_ > 0) utils::array_copy(group_dims_, rhs.group_dims_, ndims_);
+        data_type_ = rhs.data_type_;
+        return *this;
+    }
+
     status_t set(int mask) {
         mask_ = mask;
         is_set_ = true;
+        ndims_ = 0;
+        data_type_ = data_type::f32;
+        return status::success;
+    }
+
+    status_t set(int ndims, int mask, const dims_t group_dims,
+            data_type_t data_type = data_type::f32) {
+        mask_ = mask;
+        is_set_ = true;
+        ndims_ = ndims;
+        if (ndims > 0) utils::array_copy(group_dims_, group_dims, ndims);
+        data_type_ = data_type;
         return status::success;
     }
 
     bool operator==(const runtime_scales_t &rhs) const {
-        return mask_ == rhs.mask_ && is_set_ == rhs.is_set_;
+        return mask_ == rhs.mask_ && is_set_ == rhs.is_set_
+                && ndims_ == rhs.ndims_
+                && IMPLICATION(ndims_ > 0,
+                        utils::array_cmp(group_dims_, rhs.group_dims_, ndims_))
+                && data_type_ == rhs.data_type_;
     }
 
-    bool has_default_values() const { return !is_set_; }
+    bool has_default_values() const { return *this == default_runtime_scale(); }
+
+    bool has_default_groups() const { return 0 == ndims_; }
+    bool has_default_data_type() const { return data_type_ == data_type::f32; }
 
     bool defined() const { return has_default_values(); }
 
-    void reset() {
-        mask_ = 0;
-        is_set_ = false;
-    }
+    void reset() { *this = default_runtime_scale(); }
 
     // TODO: replace with `-1` to remove `is_set_`.
     // Hide `mask_` under `private:` to force interface usage.
     int mask_ = 0;
     bool is_set_ = false;
+    int ndims_ = 0;
+    dims_t group_dims_ = {};
+    data_type_t data_type_ = data_type::f32;
 };
 
 struct arg_scales_t : public c_compatible {
@@ -217,6 +247,12 @@ struct arg_scales_t : public c_compatible {
         const auto it = scales_.find(arg);
         if (it == scales_.end()) return default_scales;
         return it->second;
+    }
+
+    status_t set(int arg, const runtime_scales_t &scale) {
+        if (!check_arg(arg)) return status::invalid_arguments;
+        scales_[arg] = scale;
+        return status::success;
     }
 
     bool operator==(const arg_scales_t &rhs) const {
@@ -239,16 +275,42 @@ struct arg_scales_t : public c_compatible {
         return true;
     }
 
+    bool has_default_groups(const std::vector<int> &skip_args = {}) const {
+        for (const auto &s : scales_) {
+            if (!s.second.has_default_groups()) {
+                bool skip = false;
+                for (const auto &skip_a : skip_args)
+                    if (s.first == skip_a) {
+                        skip = true;
+                        break;
+                    }
+                if (skip) continue;
+                return false;
+            }
+        }
+        return true;
+    }
+
     status_t set(int arg, int mask) {
         if (!check_arg(arg)) return status::invalid_arguments;
         return scales_[arg].set(mask);
     }
 
-    status_t get(int arg, int *mask, bool *is_set) const {
+    status_t set(int arg, int mask, int ndims, const dims_t group_dims,
+            data_type_t data_type) {
+        if (!check_arg(arg)) return status::invalid_arguments;
+        return scales_[arg].set(ndims, mask, group_dims, data_type);
+    }
+
+    status_t get(int arg, int *mask, bool *is_set, int *ndims = nullptr,
+            dims_t group_dims = nullptr) const {
         if (!check_arg(arg)) return status::invalid_arguments;
         const auto &s = get(arg);
         if (mask) *mask = s.mask_;
         if (is_set) *is_set = s.is_set_;
+        if (ndims) *ndims = s.ndims_;
+        if (group_dims && s.ndims_ > 0)
+            utils::array_copy(group_dims, s.group_dims_, s.ndims_);
         return status::success;
     }
 
@@ -267,11 +329,10 @@ struct arg_scales_t : public c_compatible {
             // new object.
             if (scales_.count(it->first) == 1) {
                 auto &entry = scales_[it->first];
-                bool exists = entry.mask_ == it->second.mask_;
-                if (exists) continue;
+                if (entry == it->second) continue;
             }
 
-            CHECK(set(it->first, it->second.mask_));
+            CHECK(set(it->first, it->second));
         }
         return status::success;
     }
@@ -685,6 +746,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         gpu_attr = 1u << 12,
         accumulation_mode = 1u << 13,
         fpmath_mode = 1u << 14,
+        group_scales_runtime = 1u << 15,
     };
 
     /** Returns true if the attributes have default values.

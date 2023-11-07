@@ -211,6 +211,28 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
     }
 }
 
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScalesWithGroups) {
+    dnnl::primitive_attr attr;
+
+    const std::vector<int> supported_args = {DNNL_ARG_WEIGHTS};
+    const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_SRC,
+            DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
+
+    for (auto arg : supported_args) {
+        // single non-default scales for supported arg
+        attr.set_scales(arg, 0, {});
+        // multiple scales with groups
+        attr.set_scales(arg, 1 << 0, {4});
+        // scales with groups and a data type
+        attr.set_scales(arg, 1 << 0, {4}, data_type::f32);
+    }
+
+    for (auto arg : unsupported_args) {
+        // single scales for unsupported args
+        EXPECT_ANY_THROW(attr.set_scales(arg, 0, {}));
+    }
+}
+
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNDataQuantization) {
     dnnl::primitive_attr attr;
 

@@ -3963,6 +3963,26 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set scales primitive attribute");
     }
 
+    /// Sets scaling factors for primitive operations for a given memory
+    /// argument. The scaling factors must be passed at execution time
+    /// as an argument with index #DNNL_ARG_ATTR_SCALES | arg.
+    ///
+    /// @sa dnnl_primitive_attr_set_scales
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param dims Scaling factors correspondence dimensions that define the
+    ///     correspondence between the tensor dimensions and the scales array.
+    ///     The set i-th dimension indicates a number of groups of scaling
+    ///     factors used for that logical dimension in a memory indicated by @p arg.
+    void set_scales(int arg, int mask, const memory::dims &groups,
+            memory::data_type data_type = memory::data_type::f32) {
+        error::wrap_c_api(dnnl_primitive_attr_set_scales(get(), arg, mask,
+                                  (int)groups.size(), groups.data(),
+                                  memory::convert_to_c(data_type)),
+                "could not set scales primitive attribute");
+    }
+
     /// Sets zero points for primitive operations for a given memory argument.
     /// The zero points must be passed at execution time as an argument with
     /// index #DNNL_ARG_ATTR_ZERO_POINTS | arg.

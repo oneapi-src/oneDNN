@@ -604,6 +604,11 @@ inline std::vector<std::string> str_split(const std::string &str, char delim) {
     return res;
 }
 
+template <typename T, size_t S>
+inline size_t array_size(T (&t)[S]) {
+    return S;
+}
+
 } // namespace utils
 
 int32_t fetch_and_add(int32_t *dst, int32_t val);
