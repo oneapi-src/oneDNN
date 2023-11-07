@@ -130,12 +130,15 @@ struct impl_list_item_t {
 private:
     status_t operator()(primitive_desc_t **pd, const op_desc_t *adesc,
             const primitive_attr_t *attr, engine_t *engine,
-            const primitive_desc_t *hint_fwd, int pd_iterator_offset) const {
+            const primitive_desc_t *hint_fwd, int pd_iterator_offset,
+            int skip_idx) const {
         assert(create_pd_func_);
         if (!create_pd_func_) return status::runtime_error;
         auto status = create_pd_func_(pd, adesc, attr, engine, hint_fwd);
-        if (status == status::success)
+        if (status == status::success) {
             (*pd)->init_pd_iterator_offset(pd_iterator_offset);
+            (*pd)->init_skip_idx(skip_idx);
+        }
         return status;
     }
 

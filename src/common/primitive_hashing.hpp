@@ -36,7 +36,7 @@ namespace primitive_hashing {
 struct key_t {
     key_t(const engine_t *engine, const op_desc_t *op_desc,
             const primitive_attr_t *attr, int pd_iterator_offset,
-            const std::vector<memory_desc_t> &hint_mds);
+            const std::vector<memory_desc_t> &hint_mds, int skip_idx);
 
     key_t(const primitive_desc_t *pd, const engine_t *engine);
 
@@ -54,6 +54,7 @@ struct key_t {
     mutable const primitive_attr_t *attr_;
     int pd_iterator_offset_;
     int impl_nthr_;
+    int skip_idx_;
     std::vector<memory_desc_t> hint_mds_;
     engine_id_t engine_id_;
 
@@ -148,6 +149,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
         seed = hash_combine(seed, get_attr_hash(*key.attr_));
         seed = hash_combine(seed, hash_combine(0, key.pd_iterator_offset_));
         seed = hash_combine(seed, hash_combine(0, key.impl_nthr_));
+        seed = hash_combine(seed, hash_combine(0, key.skip_idx_));
 
         seed = hash_combine(seed, key.engine_id_.hash());
         // Combine hash for op_desc with the computed hash

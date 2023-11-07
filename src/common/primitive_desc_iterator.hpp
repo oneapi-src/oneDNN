@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ struct primitive_desc_iterator_t : public c_compatible {
         std::vector<dnnl::impl::memory_desc_t> hint_mds;
         if (hint_fwd_pd_) hint_mds = hint_fwd_pd_->hint_mds(true /* is_hint */);
         primitive_hashing::key_t key(
-                engine_, op_desc_, &attr_, offset_, hint_mds);
+                engine_, op_desc_, &attr_, offset_, hint_mds, skip_idx_);
 
         pd_ = primitive_cache().get_pd(key);
         if (pd_) { return *this; }
@@ -91,7 +91,7 @@ struct primitive_desc_iterator_t : public c_compatible {
             if (idx_ == skip_idx_) continue;
             primitive_desc_t *candidate_pd = nullptr;
             auto s = impl_list_[idx_](&candidate_pd, op_desc_, &attr_, engine_,
-                    hint_fwd_pd_, offset_);
+                    hint_fwd_pd_, offset_, skip_idx_);
             if (s == status::success) {
                 pd_.reset(candidate_pd);
                 break;

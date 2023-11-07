@@ -105,7 +105,7 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
     reorder_desc_t desc = {primitive_kind::reorder, src_md, dst_md, s_ek, d_ek,
             is_cross_engine};
     primitive_hashing::key_t key(
-            engine, reinterpret_cast<op_desc_t *>(&desc), attr, 0, {});
+            engine, reinterpret_cast<op_desc_t *>(&desc), attr, 0, {}, -1);
     pd = primitive_cache().get_pd(key);
     if (pd) return success;
 

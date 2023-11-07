@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,6 +68,8 @@ const std::vector<uint8_t> &cache_blob_id_t::get(
 
         auto pd_iterator_offset = pd->pd_iterator_offset();
         sstream_.write(&pd_iterator_offset);
+        auto pd_skip_idx = pd->skip_idx();
+        sstream_.write(&pd_skip_idx);
 
         auto version = dnnl_version();
         sstream_.write(&version->major);

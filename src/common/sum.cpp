@@ -98,7 +98,7 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
 
     auto desc = sum_desc_t(primitive_kind::sum, dst_md, n, scales, src_mds);
     primitive_hashing::key_t key(
-            engine, reinterpret_cast<op_desc_t *>(&desc), attr, 0, {});
+            engine, reinterpret_cast<op_desc_t *>(&desc), attr, 0, {}, -1);
     auto pd = primitive_cache().get_pd(key);
 
     if (pd) {
