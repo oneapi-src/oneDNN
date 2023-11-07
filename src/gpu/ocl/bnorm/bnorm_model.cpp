@@ -440,7 +440,6 @@ void init_ker_desc(model_params_t &p, nhwc_bnorm_params_t &conf,
         const kernel_kind_t kernel) {
     desc.kernel = kernel;
     desc.ncalls = get_ncalls(p, conf, kernel);
-    return;
 }
 
 void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
@@ -496,7 +495,6 @@ void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
             p.kernel_descs.push_back(desc);
         }
     }
-    return;
 }
 
 void dump_params(std::vector<model_params_t> &params) {
