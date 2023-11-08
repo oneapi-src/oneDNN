@@ -23,6 +23,7 @@ namespace gpu {
 namespace ocl {
 namespace bn_model {
 using namespace dnnl::impl::utils;
+using namespace dnnl::impl::gpu::gpu_utils;
 using namespace dnnl::impl::gpu::ocl::bn_utils;
 
 void init_hw_params(hw_params_t &hw_params, engine_t *engine) {
@@ -58,8 +59,8 @@ void init_hw_params(hw_params_t &hw_params, engine_t *engine) {
 
 float get_used_ss_thr_utilization(hw_params_t &hw_params, int sg_size,
         const size_t *gws, const size_t *lws) {
-    const size_t gws_size = gws[0] * gws[1] * gws[2];
-    const size_t lws_size = lws[0] * lws[1] * lws[2];
+    const int gws_size = into<int>(gws[0] * gws[1] * gws[2]);
+    const int lws_size = into<int>(lws[0] * lws[1] * lws[2]);
     const int num_thrs_generated = gws_size / sg_size;
     const int num_wgs = gws_size / lws_size; // == ss used
     // TODO: considering case when several work groups are running
@@ -116,11 +117,10 @@ std::string get_str_data_location(const data_location_t &loc) {
 
 // Useful for experimentation and debug purposes
 void dump_kernel_descriptor(kernel_desc_t &desc) {
-    DPRINT("%s:%s:%d kernel desc:  %s : ncalls = %d : nbytes = %ld %ld : "
-           "location = "
-           "%s %s\n",
+    DPRINT("%s:%s:%d kernel desc:  %s : ncalls = %d : nbytes = %lld %lld : "
+           "location = %s %s\n",
             PRINTHEAD, get_str_kernel_name(desc.kernel).c_str(), desc.ncalls,
-            desc.input_nbytes, desc.output_nbytes,
+            into<long long>(desc.input_nbytes), into<long long>(desc.output_nbytes),
             get_str_data_location(desc.input_location).c_str(),
             get_str_data_location(desc.output_location).c_str());
 }
@@ -148,19 +148,19 @@ std::string get_params_str(const nhwc_bnorm_params_t &conf) {
 float get_vectorization_factor(const int vect_size, const data_type_t dt) {
     if (dt == data_type::f16 || data_type::bf16) {
         switch (vect_size) {
-            case 1: return 4;
-            case 2: return 1.5;
-            case 4: return 1.3;
+            case 1: return 4.f;
+            case 2: return 1.5f;
+            case 4: return 1.3f;
             case 8:
-            default: return 1;
+            default: return 1.f;
         }
     } else {
         switch (vect_size) {
-            case 1: return 4;
-            case 2: return 1.3;
+            case 1: return 4.f;
+            case 2: return 1.3f;
             case 4:
             case 8:
-            default: return 1;
+            default: return 1.f;
         }
     }
 }
@@ -202,7 +202,7 @@ size_t get_kernel_input_size(const model_params_t &p,
     const size_t tensor_sz = conf.sp * conf.ic * conf.elsz;
     const size_t stat_vect_sz = conf.ic * sizeof(float);
     const int num_sp_blocks = div_up(conf.sp, p.stat_sp_block);
-    const int ws_sz = conf.sp * conf.ic * sizeof(char);
+    const int ws_sz = conf.sp * conf.ic * into<int>(sizeof(char));
 
     switch (desc.kernel) {
         case calc_mean_ker:

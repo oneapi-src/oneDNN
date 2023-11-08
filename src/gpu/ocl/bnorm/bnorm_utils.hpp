@@ -24,7 +24,7 @@
 #include <string.h>
 
 #ifndef __SHORT_FILE_NAME__
-#define __SHORT_FILE_NAME__ ((strrchr(__FILE__, '/') ?: __FILE__ - 1) + 1)
+#define __SHORT_FILE_NAME__ ((strrchr(__FILE__, '/') ? "" : __FILE__ - 1) + 1)
 #endif
 #ifndef PRINTHEAD
 #define PRINTHEAD __SHORT_FILE_NAME__, __FUNCTION__, __LINE__

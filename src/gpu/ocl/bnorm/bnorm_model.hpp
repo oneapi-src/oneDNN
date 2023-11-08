@@ -29,7 +29,7 @@ struct hw_params_t {
     compute::gpu_arch_t gpu_arch;
     int eu_count;
     int threads_per_eu;
-    int max_lws;
+    size_t max_lws;
     int eus_per_ss;
     int max_ss;
     int max_slm_size;
@@ -48,7 +48,7 @@ struct kernel_desc_t {
     data_location_t input_location = data_location_t::HBM;
     data_location_t output_location = data_location_t::HBM;
     // estimations
-    int num_wgs;
+    size_t num_wgs;
     float used_ss_thr_util = 0.0f;
     float ss_util = 0.0f;
     float time_ns = 0.0f;
