@@ -765,18 +765,31 @@ struct scratch_t {
     dim_t calc_off_diff_state(
             dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4, dim_t i5) const {
         // Logical index into workspace grid
-        auto i0_size
-                = conf_.copy_diff_dst_layer ? conf_.n_layer + 1 : conf_.n_layer;
+        bool have_result_layer = conf_.copy_diff_src_layer || conf_.n_layer > 1;
+        auto i0_size = conf_.n_layer - 1 + conf_.copy_diff_dst_layer
+                + have_result_layer;
+        if (!have_result_layer) { i0--; }
         auto i2_size = conf_.copy_diff_dst_layer || conf_.copy_diff_src_layer
                         || conf_.n_layer != 1
                 ? conf_.n_states + 1
                 : conf_.n_states;
-        gpu_assert(i0 < i0_size) << "Logical index must be less than its size";
+        auto i3_size = conf_.n_iter + 1;
+        if (i0_size == 0) {
+            i3_size = 2;
+            i3 %= i3_size;
+            return OFF5(i1, conf_.n_dir, i2, i2_size, i3, i3_size, i4, conf_.mb,
+                    i5, conf_.scratch_diff_states_ld);
+        }
+        gpu_assert(i0 < i0_size && i0 >= 0)
+                << "Logical index " << i0 << " must be less than its size "
+                << i0_size;
+        gpu_assert(i2 < i2_size && i2 >= 0)
+                << "Logical index " << i2 << " must be less than its size "
+                << i2_size;
         MAYBE_UNUSED(i0_size);
 
-        return OFF6(i0, i0_size, i1, conf_.n_dir, i2, i2_size, i3,
-                conf_.n_iter + 1, i4, conf_.mb, i5,
-                conf_.scratch_diff_states_ld);
+        return OFF6(i0, i0_size, i1, conf_.n_dir, i2, i2_size, i3, i3_size, i4,
+                conf_.mb, i5, conf_.scratch_diff_states_ld);
     }
 
     const mst *diff_states() const { return diff_states_.get(); }
