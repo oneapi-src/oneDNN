@@ -88,6 +88,8 @@ int check_primitive_cache(dnnl_primitive_t p, res_t *res);
 extern dnnl_engine_kind_t engine_tgt_kind;
 extern size_t engine_index;
 extern isa_hints_t hints;
+extern int default_num_streams;
+extern int num_streams;
 
 struct engine_t {
     engine_t(dnnl_engine_kind_t engine_kind);
@@ -103,13 +105,16 @@ private:
 };
 
 struct stream_t {
+    stream_t() : stream_(nullptr), is_owner_(false) {}
     stream_t(dnnl_engine_t engine, void *interop_obj = nullptr);
     ~stream_t();
     operator dnnl_stream_t() const { return stream_; }
+    stream_t &operator=(stream_t &&rhs);
 
 private:
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
     dnnl_stream_t stream_;
+    bool is_owner_;
 };
 
 // Engine used to run oneDNN primitives for testing.

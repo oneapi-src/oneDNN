@@ -189,6 +189,11 @@ value is out of the range, it is saturated to the board values. The default is
 `3e3`, or 3 seconds. The option is useful, for example, to stabilize the
 performance numbers reported for small problems on CPU.
 
+### --num-streams
+`--num-streams=N` specifies the number `N` of streams used for performance
+benchmarking. The option takes place for GPU only and uses a single stream by
+default.
+
 ### --perf-template
 `--perf-template=STR` specifies the format of a performance report. `STR`
 values can be `def` (the default), `csv` or a custom set of supported flags.

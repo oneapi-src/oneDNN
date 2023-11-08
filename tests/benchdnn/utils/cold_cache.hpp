@@ -43,6 +43,10 @@ extern cold_cache_mode_t cold_cache_mode; // user cold cache mode
 std::ostream &operator<<(std::ostream &s, cold_cache_mode_t cold_cache_mode);
 
 struct cold_cache_t {
+    // Default constructor to have an ability create cold_cache in std::vector.
+    // Such cold_cache is always disabled.
+    cold_cache_t();
+
     // Initializes a cold_cache object with extra memories to iterate over.
     // It identifies how many buffers must be created to avoid cache hits.
     // A memory heuristic relies on target total cache size: it is divided
@@ -54,6 +58,9 @@ struct cold_cache_t {
     cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args);
 
     ~cold_cache_t();
+
+    // Move-assignment operator goes in pair with a default constructor.
+    cold_cache_t &operator=(cold_cache_t &&rhs);
 
     // Takes arguments passed to execute function in a hot-loop and updates
     // memory pointers to ones from cold cache.

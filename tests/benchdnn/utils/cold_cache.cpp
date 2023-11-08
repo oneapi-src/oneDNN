@@ -39,6 +39,8 @@ size_t get_arg_size(const std::vector<dnnl_exec_arg_t> &dnnl_args, int arg) {
 }
 } // namespace cold_cache_utils
 
+cold_cache_t::cold_cache_t() : enabled_(false) {}
+
 cold_cache_t::cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args)
     : enabled_(use_cold_cache(dnnl_args))
     , n_buffers_top_limit_(is_gpu() ? gpu_n_buffers_top_limit_ : SIZE_MAX)
@@ -204,6 +206,22 @@ cold_cache_t::~cold_cache_t() {
             if (!cc_entry[i].is_mapped()) cc_entry[i].map();
         }
     }
+}
+
+cold_cache_t &cold_cache_t::operator=(cold_cache_t &&rhs) {
+    if (&rhs == this) return *this;
+
+    // Not expected to move a cold cache in the middle of the executions.
+    assert(rhs.cc_counter_ == 0);
+
+    enabled_ = rhs.enabled_;
+    n_buffers_top_limit_ = rhs.n_buffers_top_limit_;
+    n_buffers_bottom_limit_ = rhs.n_buffers_bottom_limit_;
+    n_buffers_ = rhs.n_buffers_;
+    override_n_buffers_ = rhs.override_n_buffers_;
+    cache_ = std::move(rhs.cache_);
+
+    return *this;
 }
 
 bool cold_cache_t::update_dnnl_args(std::vector<dnnl_exec_arg_t> &dnnl_args) {

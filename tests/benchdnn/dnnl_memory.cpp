@@ -167,6 +167,11 @@ int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr,
     // Do nothing, return a good status. Keep here to avoid guarding externally.
     if (query_md_ndims(rhs.md_) == 0) return OK;
 
+    // Assumption is `no_host_memory` assigned values at construction, and no
+    // actual reorder needed. This check is to avoid extra code outside of
+    // reorder interface.
+    if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
+
     const bool do_swap_dt = swap_dt != dnnl_data_type_undef;
     dnnl_data_type_t orig_dt = this->dt();
     if (do_swap_dt) this->set_dt(swap_dt);
