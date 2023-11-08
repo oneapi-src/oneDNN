@@ -386,16 +386,27 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
                     * (rnn.n_iter + 1) * rnn.ws_c_states_cell_size
             : 0;
 
-    //TODO: update addressing to reduce size
     auto scratch_diff_n_states
             = copy_diff_dst_layer || copy_diff_src_layer || rnn.n_layer != 1
             ? rnn.n_states + 1
             : rnn.n_states;
-    rnn.scratch_diff_states_size = is_bwd
-            ? (copy_diff_dst_layer ? rnn.n_layer + 1 : rnn.n_layer) * rnn.n_dir
-                    * scratch_diff_n_states * (rnn.n_iter + 1) * rnn.mb
-                    * rnn.scratch_diff_states_ld * aux_elsz
+    // rnn.n_layer > 1 is currently required due to copy_{init,res}_iter
+    bool have_result_layer = copy_diff_src_layer || rnn.n_layer > 1;
+    auto scratch_diff_n_layer
+            = rnn.n_layer - 1 + copy_diff_dst_layer + have_result_layer;
+
+    // Due to the grid iteration used, if no full layers are required, only use
+    // 2 cells, one for the previous iteration and one for the current
+    // iteration.
+    auto scratch_diff_n_cells = is_bwd
+            ? (scratch_diff_n_layer > 0
+                              ? scratch_diff_n_layer * (rnn.n_iter + 1)
+                              : 2)
+                    * scratch_diff_n_states * rnn.n_dir
             : 0;
+    rnn.scratch_diff_states_size = scratch_diff_n_cells * rnn.mb
+            * rnn.scratch_diff_states_ld * aux_elsz;
+
     rnn.ws_gates_cell_size = rnn.mb * rnn.gates_ws_ld * aux_elsz;
     rnn.ws_gates_size = rnn.is_training
             ? (rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.ws_gates_cell_size)
