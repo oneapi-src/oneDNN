@@ -457,8 +457,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                                 store_t::make(read_buf, off, op));
                     });
         } else {
-            const auto is_neg = is_max && read_type.is_signed();
-            const auto mult = sizeof(int32_t) / read_layout.type().size();
+            const bool is_neg = is_max && read_type.is_signed();
+            const int mult = int(sizeof(int32_t)) / read_layout.type().size();
             stmt = stmt_t();
             for (int i = 0; i < acc_size; i += simd * acc_sc_size)
                 stmt = stmt.append(store_t::make(acc_buf, i,
