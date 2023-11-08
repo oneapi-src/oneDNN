@@ -10457,7 +10457,14 @@ void gemm_kernel_generator_t<hw>::gemmVectorBinaryOpC(BinaryOp op, bool column,
             auto offBase = (*offsetsPtr)[nco / ne].sub(nco % ne, Tacc.ngen());
             if (scale.isValid()) {
                 if (op != BinaryOp::Add) stub();
-                mad(nc, C(1), C(1), offBase(stride()), scale);
+                if (C.getType() == ngen::DataType::f
+                        && scale.getType() != ngen::DataType::f) {
+                    auto temp1 = state.ra.alloc_sub(problem.Tc.ngen());
+                    mov(nc, temp1, scale);
+                    mad(nc, C(1), C(1), offBase(stride()), temp1);
+                } else {
+                    mad(nc, C(1), C(1), offBase(stride()), scale);
+                }
             } else
                 binaryOp(op, nc, C(1), C(1), offBase(stride()), state);
 
@@ -10945,8 +10952,21 @@ void gemm_kernel_generator_t<hw>::gemmApplyABOffset(const GEMMProblem &problem,
     //   1) C += A * O * bo
     //   2) C += (O * B + bo * k) * ao
     // TODO: combine C adds into add3 on XeHP+.
+    ngen::DataType c_type = problem.Tc.ngen();
+    bool c_float = utils::one_of(c_type, ngen::DataType::hf, ngen::DataType::f);
+    //ngen::DataType tmp_type = c_float ? ngen::DataType::w : problem.Tc.ngen();
     auto temp = state.ra.alloc_sub(problem.Tc.ngen());
-    mul(1, temp, state.k, state.inputs.bo);
+    auto bo_tmp
+            = c_float ? state.ra.alloc_sub(problem.Tc.ngen()) : state.inputs.bo;
+    if (c_float) {
+        auto k_tmp = state.ra.alloc_sub(problem.Tc.ngen());
+        mov(1, k_tmp, state.k);
+        mov(1, bo_tmp, state.inputs.bo);
+        mul(1, temp, k_tmp, bo_tmp);
+        state.ra.safeRelease(k_tmp);
+    } else {
+        mul(1, temp, state.k, state.inputs.bo);
+    }
 
     bool noFMA = (hw == HW::Gen9);
     if (noFMA) {
@@ -10957,20 +10977,32 @@ void gemm_kernel_generator_t<hw>::gemmApplyABOffset(const GEMMProblem &problem,
         map(hw, problem.Tc, state.Bs_regs, state.Bs_layout, strategy,
                 [&](int ne, RegData r) { mul(ne, r, r, state.inputs.ao); });
     } else {
-        mul(1, temp, temp, state.inputs.ao);
+        auto ao_tmp = state.ra.alloc_sub(problem.Tc.ngen());
+        if (c_float) {
+            mov(1, ao_tmp, state.inputs.ao);
+            mul(1, temp, temp, ao_tmp);
+        } else {
+            mul(1, temp, temp, state.inputs.ao);
+        }
         map(hw, problem.Tc, state.Bs_regs, state.Bs_layout, strategy,
                 [&](int ne, RegData r) {
-                    mad(ne, r, temp, r, state.inputs.ao);
+                    if (c_float) {
+                        mad(ne, r, temp, r, ao_tmp);
+                    } else {
+                        mad(ne, r, temp, r, state.inputs.ao);
+                    }
                 });
+        state.ra.safeRelease(ao_tmp);
     }
     state.ra.safeRelease(temp);
 
     gemmVectorBinaryOpC(BinaryOp::Add, false, state.As_regs,
-            noFMA ? Subregister() : state.inputs.bo, problem, strategy, state,
+            noFMA ? Subregister() : bo_tmp, problem, strategy, state,
             problem.Tc, state.As_layout);
     gemmVectorBinaryOpC(BinaryOp::Add, true, state.Bs_regs, Subregister(),
             problem, strategy, state, problem.Tc, state.Bs_layout);
 
+    state.ra.safeRelease(bo_tmp);
     safeReleaseRanges(state.As_regs, state);
     safeReleaseRanges(state.Bs_regs, state);
     if (!strategy.persistent) {
@@ -14104,7 +14136,10 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     }
 
     auto Tremask = remaskA ? Ta_load : Tb_load;
-    if (remaskA && remaskB && Ta_load.size() != Tb_load.size()) stub();
+    if (remaskA && remaskB && Ta_load.size() != Tb_load.size()
+            && !(utils::one_of(Type::f16, Ta_load, Tb_load)
+                    || utils::one_of(Type::bf16, Ta_load, Tb_load)))
+        stub();
     if ((remaskA || remaskB) && problem.backward()) stub();
 
     int remaskPeriod = lcm(ka_loadRem, kb_loadRem);
@@ -19133,9 +19168,17 @@ void gemm_kernel_generator_t<hw>::gemmAutoTypeConversions(
         GEMMProblem &problem, const GEMMStrategy &strategy) {
     auto &Ta = problem.Ta, &Tb = problem.Tb, &Tc = problem.Tc;
 
-    if (Ta == Type::bf8) Ta = Type::f16;
-    if (Tb == Type::bf8) Tb = Type::f16;
-    if (Tc == Type::bf8) Tc = Type::f16;
+    // Weights decompression
+    if (utils::one_of(Ta, Type::u8, Type::s8)
+            && utils::one_of(Tb, Type::f32, Type::f16, Type::bf16)
+            && utils::one_of(Tc, Type::f32, Type::f16, Type::bf16)) {
+        Ta = Tb;
+    }
+    if (utils::one_of(Tb, Type::u8, Type::s8)
+            && utils::one_of(Ta, Type::f32, Type::f16, Type::bf16)
+            && utils::one_of(Tc, Type::f32, Type::f16, Type::bf16)) {
+        Tb = Ta;
+    }
 
     if (hw > HW::Gen9 && !strategy.systolic && Tc == Type::f32) {
         if (Ta == Type::f16) Ta = Type::f32;
@@ -25231,6 +25274,9 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                             // Check if separate conversions are needed due to size changes.
                             auto sconvertCP = (Ts_real.size() / Td_real.size())
                                     * scrosspack;
+                            bool b_to_bf
+                                    = utils::one_of(Ts_real, Type::u8, Type::s8)
+                                    && Td_real == Type::bf16;
                             bool sconvert
                                     = ((Td_real.size() == 1
                                                && Ts_real.size() > 1
@@ -25252,6 +25298,10 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                       && hw > HW::Gen9))
                                     && !bf8_align;
                             if (sconvert && preserveSrc) stub();
+                            bool salign = sconvert && Ts_real.isInteger()
+                                    && (Ts_real.size() < Td_real.size())
+                                    && utils::one_of(
+                                            Td_real, Type::f16, Type::bf16);
                             auto sregConverted = sconvert
                                     ? sreg.reinterpret(0, Td_real.ngen())(
                                             sconvertCP)
@@ -25262,7 +25312,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                             bool dconvert
                                     = ((Ts_real.size() == 1
                                                && Td_real.size() > 1
-                                               && scrosspack != dconvertCP)
+                                               && scrosspack != dconvertCP
+                                               && !salign && !b_to_bf)
                                               || (Ts_real == Type::f16
                                                       && Td_real.size() > 2
                                                       && (sreg.getOffset() & 1)
@@ -25349,9 +25400,38 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                 cvt_x_to_bf8();
                                             }
                                         } else if (sconvert) {
-                                            mov(nelems_real | modMov,
-                                                    sregConverted,
-                                                    sreg(scrosspack));
+                                            if (salign) {
+                                                allocTemp();
+                                                auto tmp0 = copyTemp[0].sub(
+                                                        0, ngen::DataType::w);
+                                                auto tmp1 = copyTemp[0].sub(
+                                                        0, ngen::DataType::f);
+                                                mov(nelems_real | modMov,
+                                                        tmp0(2),
+                                                        sreg(scrosspack));
+                                                mov(nelems_real | modMov,
+                                                        tmp1(1),
+                                                        tmp0.reinterpret(0,
+                                                                ngen::DataType::
+                                                                        w)(2));
+                                                mov(nelems_real | modMov,
+                                                        tmp0.reinterpret(0,
+                                                                Td_real.ngen())(
+                                                                2),
+                                                        tmp1(1));
+                                                mov(nelems_real | modMov,
+                                                        dreg.reinterpret(0,
+                                                                ngen::DataType::
+                                                                        w)(
+                                                                dcrosspack),
+                                                        tmp0.reinterpret(0,
+                                                                ngen::DataType::
+                                                                        w)(2));
+                                            } else {
+                                                mov(nelems_real | modMov,
+                                                        sregConverted,
+                                                        sreg(scrosspack));
+                                            }
                                         }
                                         break;
                                     case 0:
@@ -25406,7 +25486,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                                 ? base(1)
                                                                 : base(0, wd,
                                                                         1));
-                                            } else if (!bf8_align) {
+                                            } else if (!salign) {
                                                 emov(telems | mmodMov,
                                                         dregConverted,
                                                         sregConverted, strategy,
