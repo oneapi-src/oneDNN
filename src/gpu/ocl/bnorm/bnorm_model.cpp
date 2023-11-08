@@ -120,7 +120,8 @@ void dump_kernel_descriptor(kernel_desc_t &desc) {
     DPRINT("%s:%s:%d kernel desc:  %s : ncalls = %d : nbytes = %lld %lld : "
            "location = %s %s\n",
             PRINTHEAD, get_str_kernel_name(desc.kernel).c_str(), desc.ncalls,
-            into<long long>(desc.input_nbytes), into<long long>(desc.output_nbytes),
+            into<long long>(desc.input_nbytes),
+            into<long long>(desc.output_nbytes),
             get_str_data_location(desc.input_location).c_str(),
             get_str_data_location(desc.output_location).c_str());
 }
