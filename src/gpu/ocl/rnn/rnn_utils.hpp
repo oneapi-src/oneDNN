@@ -788,8 +788,7 @@ struct scratch_t {
         if (!diff_states_) return nullptr;
         auto off
                 = calc_off_diff_state(layer, dir, state, iter, 0, 0) * aux_elsz;
-        auto cell_size = conf_.n_states * conf_.mb
-                * conf_.scratch_diff_states_ld * aux_elsz;
+        auto cell_size = conf_.mb * conf_.scratch_diff_states_ld * aux_elsz;
         return diff_states_->get_sub_storage(off, cell_size);
     }
 
