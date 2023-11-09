@@ -13,10 +13,10 @@ shape can be passed via `shape` attribute.
 
 ## Operation attributes
 
-| Attribute Name                                           | Description                                                | Value Type | Supported Values           | Required or Optional |
-|:---------------------------------------------------------|:-----------------------------------------------------------|:-----------|:---------------------------|:---------------------|
-| [shape](@ref dnnl::graph::op::attr::shape)               | Specifies rules used for auto-broadcasting of src tensors. | string     | `none`, `numpy` (default)  | Required             |
-| [special_zero](@ref dnnl::graph::op::attr::special_zero) | Controls how zero values in shape are interpreted.         | bool       | `true`, `false` | Required                        |
+| Attribute Name                                           | Description                                        | Value Type | Supported Values                       | Required or Optional |
+|:---------------------------------------------------------|:---------------------------------------------------|:-----------|:---------------------------------------|:---------------------|
+| [shape](@ref dnnl::graph::op::attr::shape)               | Denotes the shape of the `dst` tensor.             | s64        | A s64 list containing positive values. | Required             |
+| [special_zero](@ref dnnl::graph::op::attr::special_zero) | Controls how zero values in shape are interpreted. | bool       | `true`, `false`                        | Required             |
 
 @note `shape`: dimension `-1` means that this dimension is calculated to keep
 the same overall elements count as the src tensor. That case that more than
