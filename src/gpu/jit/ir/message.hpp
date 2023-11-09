@@ -178,7 +178,7 @@ public:
         return (hw == other.hw) && (op == other.op)
                 && (address == other.address) && (type == other.type)
                 && (slots == other.slots) && (slot_mask == other.slot_mask)
-                && (is_lsc == other.is_lsc)
+                && (is_lsc == other.is_lsc) && (zero_out == other.zero_out)
                 && (block_2d_info == other.block_2d_info);
     }
 
