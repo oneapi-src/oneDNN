@@ -362,6 +362,8 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
     init_conf_basic(conf, pd);
     set_offsets(data_mdw, off.src_off);
 
+    conf.flags = (normalization_flags_t)pd->desc()->flags;
+
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
 
