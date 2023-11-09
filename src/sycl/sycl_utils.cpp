@@ -20,6 +20,8 @@
 
 #include "sycl/level_zero_utils.hpp"
 
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
+
 #ifdef DNNL_SYCL_CUDA
 // Do not include sycl_cuda_utils.hpp because it's intended for use in
 // gpu/nvidia directory only.
@@ -176,6 +178,99 @@ status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
 #endif
 
     return status::success;
+}
+
+status_t create_ocl_engine(
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                *ocl_engine,
+        backend_t backend, cl_device_id ocl_dev = nullptr,
+        cl_context ocl_ctx = nullptr) {
+    gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
+
+    switch (backend) {
+        case backend_t::opencl: {
+            engine_t *ocl_engine_ptr;
+            size_t index;
+            CHECK(gpu::ocl::get_ocl_device_index(&index, ocl_dev));
+            CHECK(f.engine_create(&ocl_engine_ptr, ocl_dev, ocl_ctx, index));
+            ocl_engine->reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
+                    ocl_engine_ptr));
+            return status::success;
+        }
+        case backend_t::level0: {
+            engine_t *ocl_engine_ptr;
+            // FIXME: This does not work for multi-GPU systems. OpenCL engine
+            // should be created based on the Level0 device to ensure that a
+            // program is compiled for the same physical device. However,
+            // OpenCL does not provide any API to match its devices with
+            // Level0.
+            CHECK(f.engine_create(&ocl_engine_ptr, 0));
+            ocl_engine->reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
+                    ocl_engine_ptr));
+            return status::success;
+        }
+        default: assert(!"not expected"); return status::invalid_arguments;
+    }
+}
+
+status_t create_ocl_engine(
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                *ocl_engine,
+        const sycl_engine_base_t *engine) {
+    auto backend = engine->backend();
+    cl_device_id ocl_dev = nullptr;
+    cl_context ocl_ctx = nullptr;
+    if (backend == backend_t::opencl) {
+        ocl_dev = engine->ocl_device();
+        ocl_ctx = engine->ocl_context();
+    }
+    return create_ocl_engine(ocl_engine, engine->backend(), ocl_dev, ocl_ctx);
+}
+
+status_t get_kernel_binary(
+        const ::sycl::kernel &kernel, gpu::compute::binary_t &binary) {
+    auto devs = kernel.get_context().get_devices();
+    assert(!devs.empty());
+    switch (get_sycl_backend(devs[0])) {
+        case backend_t::level0: {
+            auto bundle = kernel.get_kernel_bundle();
+            auto module_vec = ::sycl::get_native<
+                    ::sycl::backend::ext_oneapi_level_zero>(bundle);
+            auto module = module_vec[0];
+            size_t module_binary_size;
+            gpu::compute::binary_t module_binary;
+            CHECK(func_zeModuleGetNativeBinary(
+                    module, &module_binary_size, nullptr));
+            module_binary.resize(module_binary_size);
+            CHECK(func_zeModuleGetNativeBinary(
+                    module, &module_binary_size, module_binary.data()));
+            {
+                std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                        ocl_engine;
+                CHECK(create_ocl_engine(&ocl_engine, backend_t::level0));
+                gpu::ocl::ocl_wrapper_t<cl_program> ocl_program;
+                CHECK(gpu::ocl::create_ocl_program(ocl_program,
+                        ocl_engine->device(), ocl_engine->context(),
+                        module_binary));
+
+                cl_int err;
+                auto name = kernel.get_info<
+                        ::sycl::info::kernel::function_name>();
+                auto ocl_kernel = gpu::ocl::make_ocl_wrapper(
+                        clCreateKernel(ocl_program, name.c_str(), &err));
+                OCL_CHECK(err);
+                CHECK(gpu::ocl::get_ocl_kernel_binary(ocl_kernel, binary));
+            }
+            return status::success;
+        }
+        case backend_t::opencl: {
+            auto ocl_kernel
+                    = ::sycl::get_native<::sycl::backend::opencl>(kernel);
+            CHECK(gpu::ocl::get_ocl_kernel_binary(ocl_kernel, binary));
+            return status::success;
+        }
+        default: return status::runtime_error;
+    }
 }
 
 } // namespace sycl

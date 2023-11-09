@@ -201,6 +201,10 @@ inline std::vector<std::string> split(const std::string &s,
     return ret;
 }
 
+bool is_jit_dump_enabled();
+status_t dump_kernel_binary(
+        const std::vector<uint8_t> &binary, const std::string &name);
+
 } // namespace gpu_utils
 } // namespace gpu
 } // namespace impl

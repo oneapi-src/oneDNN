@@ -69,6 +69,8 @@ public:
 
     bool is_on(const compute_engine_t &) const;
 
+    status_t dump() const;
+
     std::string name() const;
 
 private:
@@ -118,6 +120,12 @@ public:
         gpu_assert(false) << "unimplemented function is_on() called";
         return false;
     }
+
+    virtual status_t dump() const {
+        gpu_assert(false) << "unimplemented function dump() called";
+        return status::runtime_error;
+    }
+
     virtual std::string name() const {
         gpu_assert(false) << "unimplemented function name() called";
         return "unknown";
@@ -154,6 +162,11 @@ inline void kernel_t::save_output_events() {
 
 inline bool kernel_t::is_on(const compute_engine_t &engine) const {
     return impl_->is_on(engine);
+}
+
+inline status_t kernel_t::dump() const {
+    if (!gpu_utils::is_jit_dump_enabled()) return status::success;
+    return impl_->dump();
 }
 
 inline std::string kernel_t::name() const {

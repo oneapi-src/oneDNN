@@ -15,19 +15,13 @@
 *******************************************************************************/
 
 #include <algorithm>
-#include <cstdio>
 #include <cstring>
 #include <iostream>
-#include <mutex>
 #include <CL/cl_ext.h>
 
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-
-#ifndef DNNL_ENABLE_JIT_DUMP
-#define DNNL_ENABLE_JIT_DUMP 1
-#endif
 
 #ifndef CL_KERNEL_BINARY_PROGRAM_INTEL
 #define CL_KERNEL_BINARY_PROGRAM_INTEL 0x407D
@@ -77,7 +71,7 @@ static std::string get_ocl_name(T obj, F get_func, cl_uint name_query) {
     return name;
 }
 
-static std::string get_kernel_name(cl_kernel kernel) {
+std::string get_kernel_name(cl_kernel kernel) {
     return get_ocl_name(kernel, clGetKernelInfo, CL_KERNEL_FUNCTION_NAME);
 }
 
@@ -324,7 +318,7 @@ status_t get_ocl_program_binary(
     return status::success;
 }
 
-status_t get_ocl_kernel_binary(
+status_t get_ocl_program_binary(
         cl_kernel kernel, cl_device_id device, compute::binary_t &binary) {
     cl_int err;
 
@@ -336,63 +330,17 @@ status_t get_ocl_kernel_binary(
     return get_ocl_program_binary(program, device, binary);
 }
 
-#if DNNL_ENABLE_JIT_DUMP
-void dump_kernel_binary(
-        const compute::binary_t &binary, const std::string &name) {
-    if (!get_jit_dump()) return;
-
-    static std::mutex m;
-    std::lock_guard<std::mutex> guard(m);
-
-    static int counter = 0;
-    std::ostringstream fname;
-    fname << "dnnl_dump_gpu_" << name << "." << counter << ".bin";
-
-    FILE *fp = fopen(fname.str().c_str(), "wb+");
-
-    // Ignore error.
-    if (!fp) return;
-
-    fwrite(binary.data(), binary.size(), 1, fp);
-    fclose(fp);
-
-    counter++;
-}
-
-void dump_kernel_binary(cl_kernel ocl_kernel) {
-    if (!get_jit_dump()) return;
-
-    cl_int err;
-
+status_t get_ocl_kernel_binary(
+        cl_kernel ocl_kernel, compute::binary_t &binary) {
+    binary.clear();
     size_t binary_size;
-    err = clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL, 0,
-            nullptr, &binary_size);
-    // Ignore error.
-    if (err != CL_SUCCESS) return;
-
-    std::vector<uint8_t> binary(binary_size);
-    err = clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL,
-            binary.size(), binary.data(), nullptr);
-    // Ignore error.
-    if (err != CL_SUCCESS) return;
-
-    auto name = get_kernel_name(ocl_kernel);
-    // Ignore error.
-    if (name.empty()) return;
-    dump_kernel_binary(binary, name);
+    OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL, 0,
+            nullptr, &binary_size));
+    binary.resize(binary_size);
+    OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL,
+            binary.size(), binary.data(), nullptr));
+    return status::success;
 }
-
-void dump_kernel_binary(const compute::kernel_t &kernel) {
-    if (!get_jit_dump()) return;
-    auto *kernel_impl
-            = utils::downcast<const ocl_gpu_kernel_t *>(kernel.impl());
-    dump_kernel_binary(kernel_impl->ocl_kernel());
-}
-#else
-void dump_kernel_binary(const compute::kernel_t &) {}
-void dump_kernel_binary(compute::binary_t binary, const std::string &name) {}
-void dump_kernel_binary(cl_kernel) {}
-#endif
 
 void debugdump_processed_source(const std::string &source,
         const std::string &options, const std::string &cl_options) {

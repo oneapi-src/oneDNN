@@ -41,6 +41,9 @@ status_t sycl_create_kernel_with_level_zero(
 
 bool compare_ze_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
 
+status_t func_zeModuleGetNativeBinary(ze_module_handle_t hModule, size_t *pSize,
+        uint8_t *pModuleNativeBinary);
+
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl

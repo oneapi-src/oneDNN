@@ -138,7 +138,7 @@ struct gpu_primitive_t : public primitive_t {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         CHECK(compute_engine->create_kernel(kernel, jitter, cache_blob()));
-        register_kernels({*kernel});
+        CHECK(register_kernels({*kernel}));
         return status::success;
     }
 
@@ -163,7 +163,7 @@ struct gpu_primitive_t : public primitive_t {
 #endif
         CHECK(compute_engine->create_kernels(
                 kernels, kernel_names, kernel_ctx, cache_blob()));
-        register_kernels(*kernels);
+        CHECK(register_kernels(*kernels));
         return status::success;
     }
 
@@ -194,7 +194,7 @@ struct gpu_primitive_t : public primitive_t {
         CHECK(get_cached_kernels<typename trivial_key_t<T>::value_type>(
                 std::move(key), engine, kernels, kernel_names));
 
-        register_kernels(kernels);
+        CHECK(register_kernels(kernels));
 
         return status::success;
     }
@@ -224,10 +224,12 @@ protected:
         registered_compute_blocks_.emplace_back(primitive);
     }
 
-    void register_kernels(const std::vector<compute::kernel_t> &kernels) {
+    status_t register_kernels(const std::vector<compute::kernel_t> &kernels) {
         for (const auto &k : kernels) {
+            CHECK(k.dump());
             registered_compute_blocks_.emplace_back(k);
         }
+        return status::success;
     }
 
     virtual status_t init_res_storage(

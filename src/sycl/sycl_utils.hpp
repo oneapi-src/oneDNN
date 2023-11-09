@@ -20,6 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 #include <vector>
@@ -151,6 +152,15 @@ inline ::sycl::device get_main_parent_device(const ::sycl::device &dev) {
 inline ::sycl::device get_parent_device(const ::sycl::device &dev) {
     return dev.get_info<::sycl::info::device::parent_device>();
 }
+
+class sycl_engine_base_t;
+status_t create_ocl_engine(
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                *ocl_engine,
+        const sycl_engine_base_t *engine);
+
+status_t get_kernel_binary(
+        const ::sycl::kernel &kernel, gpu::compute::binary_t &binary);
 
 } // namespace sycl
 } // namespace impl

@@ -20,6 +20,7 @@
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/stream_profiler.hpp"
 #include "gpu/ocl/types_interop.h"
+#include "gpu/utils.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_c_types_map.hpp"
 #include "sycl/sycl_stream.hpp"
@@ -165,6 +166,12 @@ bool sycl_interop_gpu_kernel_t::is_on(
     if (engine.runtime_kind() != runtime_kind::sycl) return false;
     auto &sycl_engine = *utils::downcast<const sycl_gpu_engine_t *>(&engine);
     return sycl_kernel().get_context() == sycl_engine.context();
+}
+
+status_t sycl_interop_gpu_kernel_t::dump() const {
+    compute::binary_t binary;
+    CHECK(get_kernel_binary(sycl_kernel(), binary));
+    return gpu_utils::dump_kernel_binary(binary, name());
 }
 
 } // namespace sycl

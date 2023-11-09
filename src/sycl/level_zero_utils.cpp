@@ -138,6 +138,16 @@ status_t func_zeKernelCreate(ze_module_handle_t hModule,
     return status::success;
 }
 
+status_t func_zeModuleGetNativeBinary(ze_module_handle_t hModule, size_t *pSize,
+        uint8_t *pModuleNativeBinary) {
+    static auto f = find_ze_symbol<decltype(&zeModuleGetNativeBinary)>(
+            "zeModuleGetNativeBinary");
+
+    if (!f) return status::runtime_error;
+    ZE_CHECK(f(hModule, pSize, pModuleNativeBinary));
+    return status::success;
+}
+
 // FIXME: Currently SYCL doesn't provide any API to get device UUID so
 // we query it directly from Level0 with the zeDeviceGetProperties function.
 // The `get_device_uuid` function packs 128 bits of the device UUID, which are
