@@ -132,46 +132,46 @@ public:
 
     std::string desc_str(bool print_mb = true) const;
 
-    const convolution_pd_t *conv_pd;
-    const primitive_attr_t *attr;
+    const convolution_pd_t *conv_pd = nullptr;
+    const primitive_attr_t *attr = nullptr;
 
-    data_type_t src_data_type;
-    data_type_t wei_data_type;
-    data_type_t dst_data_type;
-    data_type_t bia_data_type;
-    fpmath_mode_t fpmath_mode;
+    data_type_t src_data_type = data_type::undef;
+    data_type_t wei_data_type = data_type::undef;
+    data_type_t dst_data_type = data_type::undef;
+    data_type_t bia_data_type = data_type::undef;
+    fpmath_mode_t fpmath_mode = fpmath_mode::strict;
 
-    bool is_fwd;
-    bool is_bwd_d;
-    bool is_bwd_w;
-    bool with_bias;
-    bool with_groups;
-    bool with_sum;
-    bool is_dw;
+    bool is_fwd = false;
+    bool is_bwd_d = false;
+    bool is_bwd_w = false;
+    bool with_bias = false;
+    bool with_groups = false;
+    bool with_sum = false;
+    bool is_dw = false;
     bool ab_swap_transpose = false;
 
-    int ndims;
-    int mb; // Batch size.
-    int g; // Groups.
-    int ic, oc; // Input and output channels.
-    int id, ih, iw; // Input spatial sizes.
-    int od, oh, ow; // Output spatial sizes.
-    int kd, kh, kw; // Kernel sizes.
-    int sd, sh, sw; // Strides.
-    int pd, ph, pw; // Padding in the beginning.
-    int dd, dh, dw; // Dilation.
-    int reduced_dim; // Indicates which dims were shifted over or reduced.
-    int isp, osp, ksp; // Combined input/output/kernel spatial size.
+    int ndims = 0;
+    int mb = 0; // Batch size.
+    int g = 0; // Groups.
+    int ic = 0, oc = 0; // Input and output channels.
+    int id = 0, ih = 0, iw = 0; // Input spatial sizes.
+    int od = 0, oh = 0, ow = 0; // Output spatial sizes.
+    int kd = 0, kh = 0, kw = 0; // Kernel sizes.
+    int sd = 0, sh = 0, sw = 0; // Strides.
+    int pd = 0, ph = 0, pw = 0; // Padding in the beginning.
+    int dd = 0, dh = 0, dw = 0; // Dilation.
+    int reduced_dim = 0; // Indicates which dims were shifted over or reduced.
+    int isp = 0, osp = 0, ksp = 0; // Combined input/output/kernel spatial size.
 
-    data_type_t a_data_type;
-    data_type_t b_data_type;
-    data_type_t c_data_type;
-    data_type_t acc_data_type;
+    data_type_t a_data_type = data_type::undef;
+    data_type_t b_data_type = data_type::undef;
+    data_type_t c_data_type = data_type::undef;
+    data_type_t acc_data_type = data_type::undef;
 
-    int a_data_type_size;
-    int b_data_type_size;
-    int c_data_type_size;
-    int acc_data_type_size;
+    int a_data_type_size = 0;
+    int b_data_type_size = 0;
+    int c_data_type_size = 0;
+    int acc_data_type_size = 0;
 
 private:
     // Initializes A/B/C data types (GEMM notation: C += A * B) according to
