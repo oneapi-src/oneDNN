@@ -594,13 +594,16 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           if (mb_ * groups_ >= num_threads) {
             create_fusion_anchor(fusion, owner_->get_outputs()[0],
               groups_ > 1 ? slice_range {{n_o, 1}, {g, 1}, {0, oh_},
-                {0, ow_e - ow_b}, {0, oc_}}
-                          : slice_range {{n_o, 1}, {0, oh_}, {0, ow_e - ow_b},
-                            {g * oc_, oc_}});
+                {ow_b, ow_e - ow_b}, {0, oc_}}
+                          : slice_range {{n_o, 1}, {0, oh_},
+                            {ow_b, ow_e - ow_b}, {g * oc_, oc_}});
           }
         }
         create_fusion_anchor(fusion, owner_->get_outputs()[0],
-          {{n_o, 1}, {0, oh_}, {0, ow_e - ow_b}, {0, oc_}});
+          groups_ > 1
+            ? slice_range {{n_o, 1}, {0, groups_}, {0, oh_},
+              {ow_b, ow_e - ow_b}, {0, oc_}}
+            : slice_range {{n_o, 1}, {0, oh_}, {ow_b, ow_e - ow_b}, {0, oc_}});
       }
     }
   }
