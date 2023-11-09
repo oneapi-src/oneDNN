@@ -17,7 +17,7 @@ tensor (optional), and calculates \f$\diffsrc\f$ tensor.
 | [exclude_pad](@ref dnnl::graph::op::attr::exclude_pad) | Controls whether the padded values are counted.                                                                                                                                                   | bool       | True, False                                           | Required             |
 | [auto_pad](@ref dnnl::graph::op::attr::auto_pad)       | Controls how the paddings are calculated.                                                                                                                                                         | string     | `none` (default), `same_upper`, `same_lower`, `valid` | Optional             |
 | [data_format](@ref dnnl::graph::op::attr::data_format) | Controls how to interpret the shape of `src` and `dst`.                                                                                                                                           | string     | `NCX`, `NXC` (default)                                | Optional             |
-| [src_shape](@ref dnnl::graph::op::attr::src_shape)     | Denotes the shape of input of forward op.                                                                                                                                                         | string     | `NCX`, `NXC` (default)                                | Optional             |
+| [src_shape](@ref dnnl::graph::op::attr::src_shape)     | Denotes the shape of input of forward op.                                                                                                                                                         | s64        | A s64 list containing positive values.                | Optional             |
 
 ## Execution arguments
 
@@ -46,6 +46,6 @@ AvgPoolBackward operation supports the following data type combinations.
 
 | Diff_dst | Diff_src | Src_shape |
 |:---------|:---------|:----------|
-| f32      | f32      | s64       |
-| bf16     | bf16     | s64       |
-| f16      | f16      | s64       |
+| f32      | f32      | s32       |
+| bf16     | bf16     | s32       |
+| f16      | f16      | s32       |
