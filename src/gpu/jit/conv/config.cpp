@@ -200,9 +200,9 @@ status_t conv_problem_t::init(
 
     hw_config_t hw_cfg(engine, large_grf_mode);
 
-    init_transpose(hw_cfg);
     CHECK(init_abc_data_types(hw_cfg));
     CHECK(init_acc_data_type());
+    init_transpose(hw_cfg);
 
     return status::success;
 }
