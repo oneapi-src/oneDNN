@@ -307,6 +307,7 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
         // TODO: update lookup table with model-based optimization
         SAVE_PARAM(use_fused_atomics_reduction,
                 use_fused_atomics_reduction(conf, hw_params.gpu_arch));
+        // TODO: use best_params.ic_block after table updating
         SAVE_PARAM(ic_block,
                 get_nhwc_ic_block(rnd_up(conf.ic, conf.sub_group_size),
                         conf.sub_group_size));
@@ -323,7 +324,10 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
         // Other parametes to be set by model.
         SAVE_PARAM(use_fused_atomics_reduction,
                 best_params.use_fused_atomics_reduction);
-        SAVE_PARAM(ic_block, best_params.ic_block);
+        if (!conf.ic_block_param().is_overridden()
+                || (conf.ic_block_param().is_overridden()
+                        && conf.ic_block() > conf.ic))
+            conf.set_ic_block(best_params.ic_block);
         conf.calc_stat_ic = get_calc_stat_ic(
                 conf.ic, conf.ic_block(), conf.sub_group_size);
         SAVE_PARAM(stat_sp_block, best_params.stat_sp_block);
