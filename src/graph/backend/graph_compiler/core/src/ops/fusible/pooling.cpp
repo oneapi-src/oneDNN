@@ -595,7 +595,11 @@ static void compute_block_pooling(
                 dst.get_shape()[i],
                 (i == int(iter_vars.size() - 1)) ? int(vx_info.lanes) : 1, body,
                 true, i == 0 ? for_type::PARALLEL : for_type::NORMAL);
-        cur->attr()[stmt_attr_key::merge_loop] = true;
+        if (output_tensor && output_tensor->producer_owner_
+                && dynamic_cast<pooling_op_t *>(output_tensor->producer_owner_)
+                        == nullptr) {
+            cur->attr()[stmt_attr_key::merge_loop] = true;
+        }
         add_parent_node(body, cur);
     }
 

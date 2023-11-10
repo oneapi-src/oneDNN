@@ -31,6 +31,9 @@
 #include "ops/fusible/pooling.hpp"
 #include "reference/pool_ref.hpp"
 #include "util/any_map.hpp"
+#include <compiler/ir/graph/mixed_partition.hpp>
+#include <compiler/ir/transform/loop_merge.hpp>
+#include <compiler/ir/transform/simplify.hpp>
 #include <compiler/jit/jit.hpp>
 
 using namespace dnnl::impl::graph::gc;
@@ -693,6 +696,56 @@ TEST(GCCore_CPU_fusible_pooling, Test_fwd_f32_conv_pooling_max_postop) {
     check_conv_pooling_postops_graph<float, float, float>(expected_fusion, 56,
             1, 48, 128, 64, 64, 3, 3, 1, 1, 0, 0, pooling_type_t::max, 3, 3, 2,
             2, 1, 1, false, true, auto_pad_options::none, false);
+}
+
+TEST(GCCore_CPU_fusible_pooling,
+        Test_fwd_f32_conv_pooling_max_fuse_pooling_avg) {
+    SET_THREADS_OR_SKIP(1);
+    int stride_h = 1, stride_w = 1;
+    int padding_h = 1, padding_w = 1;
+    int R = 3, S = 3;
+    sc_data_type_t dtype = datatypes::f32;
+    sc_graph_t mgr;
+    auto in_fmt = sc_data_format_t::NCHW();
+    sc_dims input_tensor_shape = {1, 256, 7, 7};
+    sc_op_ptr in_tensor;
+    std::vector<std::shared_ptr<graph_tensor>> inputs;
+    in_tensor = mgr.make_input(
+            {graph_tensor::make(input_tensor_shape, in_fmt, dtype)});
+    inputs.emplace_back(in_tensor->get_outputs()[0]);
+
+    auto pooling_out = mgr.make("pooling_max", inputs, {},
+            {{pooling_attr_key::strides, sc_dims {stride_h, stride_w}},
+                    {pooling_attr_key::paddings,
+                            sc_dims {padding_h, padding_w}},
+                    {pooling_attr_key::kernel, sc_dims {R, S}},
+                    {pooling_attr_key::input_shape, input_tensor_shape},
+                    {pooling_attr_key::exclude_pad, true},
+                    {pooling_attr_key::data_format, "NCX"}});
+    pooling_out = mgr.make("pooling_avg", pooling_out->get_outputs(), {},
+            {{pooling_attr_key::strides, sc_dims {stride_h, stride_w}},
+                    {pooling_attr_key::paddings,
+                            sc_dims {padding_h, padding_w}},
+                    {pooling_attr_key::kernel, sc_dims {R, S}},
+                    {pooling_attr_key::input_shape, input_tensor_shape},
+                    {pooling_attr_key::exclude_pad, true},
+                    {pooling_attr_key::data_format, "NCX"}});
+
+    auto out = mgr.make_output(pooling_out->get_outputs());
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.use_cost_model_ = true;
+    graph_driver(mgr, ctx);
+    mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(mgr);
+    auto body = fused_op->parti_list_[0]
+                        ->get_outer_loops()
+                        .back()
+                        ->body_.checked_as<stmts>()
+                        ->seq_[1]
+                        .checked_as<stmts>();
+    ir_simplifier_t simp {false};
+    loop_merger_t lm;
+    auto sim_body = simp(lm(body));
+    EXPECT_EQ(sim_body.checked_as<stmts>()->seq_.size(), 2UL);
 }
 
 template <typename src_type>
