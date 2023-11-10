@@ -140,7 +140,7 @@ std::string get_params_str(const nhwc_bnorm_params_t &conf) {
     STR_PARAM(update_sp_block);
     STR_PARAM(update_sp_unroll);
     s += std::to_string((int)conf.sub_group_size) + ",";
-    s += std::to_string(conf.expected_time_ms);
+    s += conf.found_in_table ? "LT" : std::to_string(conf.expected_time_ms);
     return s;
 #undef STR_PARAM
 }
