@@ -11,7 +11,7 @@
 --reset --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm_fwd_d.json
 --reset --in-shapes=0:2x71x71x192+1:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm_bwd.json
 --reset --case=op/f32/clamp.json
---reset --in-shapes=0:1x14x14x128*abcd+1:128x32x1x1*abcd --op-attrs=0:data_format:NXC*dst_shape:1x28x28x32*pads_end:-1x-1*dilations:1x1*pads_begin:0x0*strides:2x2 --case=op/f32/conv_bwd_d_3d.json
+--reset --in-shapes=0:1x14x14x128*abcd+1:128x32x1x1*abcd --op-attrs=0:data_format:NXC*dst_shape:1x28x28x32*pads_end:0x0*dilations:1x1*pads_begin:0x0*strides:2x2 --case=op/f32/conv_bwd_d_3d.json
 --reset --in-shapes=0:1x28x28x32+1:1x14x14x128 --op-attrs=0:data_format:NXC --case=op/f32/conv_bwd_w_2d.json
 --reset --case=op/f32/deconv.json
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/deconv_bwd_d.json
