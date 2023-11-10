@@ -301,83 +301,122 @@ static std::unique_ptr<impl::engine_factory_t> get_engine_factory(
 
 using cache_ptr = std::shared_ptr<constant_tensor_cache_t>;
 
-// The constant tensor cache should be dedicated for each engine kind and
-// each device, so the caches here would like to be in the following form:
-// <eng_kind::cpu, [cache0, cache1, ...]>
-// <eng_kind::gpu, [cache0, cache1, ...]>
-// And the cache instance will be created just before use.
-static std::unordered_map<impl::engine_kind_t, std::vector<cache_ptr>> caches;
-static std::unordered_map<impl::engine_kind_t, size_t> user_capacities;
-static std::unordered_map<impl::engine_kind_t, size_t> default_capacities;
-static const bool initialized = []() -> bool {
-    // create empty cache for all engine kinds and all devices in the
-    // system, wo avoid potential data race when modifying caches vector at
-    // runtime in multiple threads.
-    std::vector<impl::engine_kind_t> eng_kinds {
-            impl::engine_kind::cpu, impl::engine_kind::gpu};
-    for (auto &kind : eng_kinds) {
-        auto ef = get_engine_factory(kind, impl::get_default_runtime(kind));
-        if (!ef) continue;
-        auto device_count = ef->count()
-                + 1; // reserve another 1 dummy device for test purpose.
-        caches.insert({kind, std::vector<cache_ptr>(device_count)});
-        default_capacities[kind] = 0;
+struct global_cache_manager_t {
+public:
+    global_cache_manager_t(const global_cache_manager_t &) = delete;
+    global_cache_manager_t(global_cache_manager_t &&) = delete;
+    global_cache_manager_t &operator=(const global_cache_manager_t &) = delete;
+    global_cache_manager_t &operator=(global_cache_manager_t &&) = delete;
+
+    static global_cache_manager_t &get_instance() {
+        static global_cache_manager_t instance;
+        return instance;
     }
 
-    std::string str
-            = impl::getenv_string_user("GRAPH_CONSTANT_TENSOR_CACHE_CAPACITY");
-    if (str.empty()) return true;
+    std::unordered_map<impl::engine_kind_t, std::vector<cache_ptr>> &
+    get_caches() {
+        return caches;
+    }
+    std::unordered_map<impl::engine_kind_t, size_t> &get_default_capacities() {
+        return default_capacities;
+    }
+    std::unordered_map<impl::engine_kind_t, size_t> &get_user_capacities() {
+        return user_capacities;
+    }
 
-    // The value of ONEDNN_GRAPH_CONSTANT_TENSOR_CACHE_CAPACITY is in this
-    // form: engine_kind:size;engine_kind:size
-    auto configs = graph::utils::split(str, ';');
-    if (configs.empty()) return true;
+private:
+    global_cache_manager_t() {
+        // The value of ONEDNN_GRAPH_CONSTANT_TENSOR_CACHE_CAPACITY is in this
+        // form: engine_kind:size;engine_kind:size
+        std::string str = impl::getenv_string_user(
+                "GRAPH_CONSTANT_TENSOR_CACHE_CAPACITY");
+        auto configs = graph::utils::split(str, ';');
+        for (auto config : configs) {
+            auto fields = graph::utils::split(config, ':');
 
-    for (auto config : configs) {
-        auto fields = graph::utils::split(config, ':');
+            // The first field: engine kind
+            impl::engine_kind_t env_eng_kind = impl::engine_kind::any_engine;
+            if (!fields.empty() && !fields[0].empty()) {
+                std::string eng_kind = fields[0];
+                assertm(eng_kind == "cpu" || eng_kind == "gpu",
+                        "engine kind must be cpu or gpu");
+                env_eng_kind = eng_kind == "cpu" ? impl::engine_kind::cpu
+                                                 : impl::engine_kind::gpu;
+            }
 
-        // The first field: engine kind
-        impl::engine_kind_t env_eng_kind = impl::engine_kind::any_engine;
-        if (!fields.empty() && !fields[0].empty()) {
-            std::string eng_kind = fields[0];
-            assertm(eng_kind == "cpu" || eng_kind == "gpu",
-                    "engine kind must be cpu or gpu");
-            env_eng_kind = eng_kind == "cpu" ? impl::engine_kind::cpu
-                                             : impl::engine_kind::gpu;
+            if (env_eng_kind == impl::engine_kind::any_engine) continue;
+
+            // The second field: capacity
+            if (fields.size() > 1 && !fields[1].empty()) {
+                try {
+                    size_t capacity = std::stoll(fields[1].c_str());
+                    // the capacity got from env var is in MBytes unit, we need to
+                    // convert it to Bytes
+                    static constexpr size_t converter = 1024 * 1024;
+                    size_t capacity_byte
+                            = capacity < std::numeric_limits<size_t>::max()
+                                            / converter
+                            ? capacity * converter
+                            : std::numeric_limits<size_t>::max();
+                    user_capacities[env_eng_kind] = capacity_byte;
+                } catch (const std::invalid_argument &e) {
+                    VERROR(graph, constant_tensor_cache,
+                            "'%s': capacity setting is invalid ", e.what());
+                } catch (const std::out_of_range &e) {
+                    VERROR(graph, constant_tensor_cache,
+                            "'%s': capacity setting exceeds numerical "
+                            "representation limit ",
+                            e.what());
+                }
+            }
         }
 
-        if (env_eng_kind == impl::engine_kind::any_engine) continue;
+        // create cache for all engine kinds and all devices in the
+        // system, to avoid potential data race when modifying caches vector at
+        // runtime in multiple threads.
+        std::vector<impl::engine_kind_t> eng_kinds {
+                impl::engine_kind::cpu, impl::engine_kind::gpu};
+        for (auto &kind : eng_kinds) {
+            auto ef = get_engine_factory(kind, impl::get_default_runtime(kind));
+            if (!ef) break;
+            auto device_count = ef->count();
+            default_capacities[kind] = 0;
+            size_t capacity_in_bytes = user_capacities.count(kind)
+                    ? user_capacities[kind]
+                    : default_capacities[kind];
 
-        // The second field: capacity
-        if (fields.size() > 1 && !fields[1].empty()) {
-            size_t capacity = std::atoi(fields[1].c_str());
-            // the capacity got from env var is in MBytes unit, we need to
-            // convert it to Bytes
-            user_capacities[env_eng_kind] = capacity * 1024 * 1024;
+            std::vector<cache_ptr> cache_list(device_count);
+            for (size_t id = 0; id < device_count; id++) {
+                cache_ptr &cache = cache_list[id];
+                cache.reset(new constant_tensor_cache_t(capacity_in_bytes),
+                        [](constant_tensor_cache_t *ptr) {
+                            return ptr->release();
+                        });
+            }
+            caches.insert({kind, std::move(cache_list)});
         }
     }
-    return true;
-}();
+
+    // The constant tensor cache should be dedicated for each engine kind and
+    // each device, so the caches here would like to be in the following form:
+    // <eng_kind::cpu, [cache0, cache1, ...]>
+    // <eng_kind::gpu, [cache0, cache1, ...]>
+    // And the cache instance will be created just before use.
+    std::unordered_map<impl::engine_kind_t, std::vector<cache_ptr>> caches;
+    std::unordered_map<impl::engine_kind_t, size_t> default_capacities;
+    std::unordered_map<impl::engine_kind_t, size_t> user_capacities;
+};
 
 constant_tensor_cache_t *get_constant_tensor_cache(
         impl::engine_kind_t eng_kind, size_t index) {
-    if (!initialized) return nullptr;
-
     // get the index-th cache instance from the existing cache list.
-    std::vector<cache_ptr> &cache_list = caches.at(eng_kind);
+    std::vector<cache_ptr> &cache_list
+            = global_cache_manager_t::get_instance().get_caches().at(eng_kind);
     if (index >= cache_list.size()) {
         assertm(false, "given device index exceeds the detected device number");
         return nullptr;
     }
     cache_ptr &cache = cache_list[index];
-    if (!cache) {
-        size_t capacity_in_bytes = user_capacities.count(eng_kind)
-                ? user_capacities[eng_kind]
-                : default_capacities[eng_kind];
-        cache.reset(new constant_tensor_cache_t(capacity_in_bytes),
-                [](constant_tensor_cache_t *ptr) { return ptr->release(); });
-    }
-
     return cache.get();
 }
 
@@ -416,26 +455,50 @@ dnnl::impl::graph::status_t dnnl_graph_get_constant_tensor_cache(int *flag) {
 dnnl::impl::graph::status_t dnnl_graph_set_constant_tensor_cache_capacity(
         dnnl_engine_kind_t eng_kind, size_t size) {
     // change the user capacity.
-    dnnl::impl::graph::user_capacities[eng_kind]
-            = size * 1024 * 1024; // convert MB to Bytes
+    static constexpr size_t converter = 1024 * 1024;
+    size_t size_byte = size < std::numeric_limits<size_t>::max() / converter
+            ? size * converter
+            : std::numeric_limits<size_t>::max();
+    dnnl::impl::graph::global_cache_manager_t::get_instance()
+            .get_user_capacities()[eng_kind]
+            = size_byte; // convert MB to Bytes
 
     // then reset the capacity to new value for all caches of this engine kind
-    for (auto &cache : dnnl::impl::graph::caches[eng_kind]) {
-        if (cache) {
-            cache->set_capacity(dnnl::impl::graph::user_capacities[eng_kind]);
+    if (dnnl::impl::graph::global_cache_manager_t::get_instance()
+                    .get_caches()
+                    .count(eng_kind)) {
+        for (auto &cache :
+                dnnl::impl::graph::global_cache_manager_t::get_instance()
+                        .get_caches()
+                        .at(eng_kind)) {
+            if (cache) {
+                cache->set_capacity(
+                        dnnl::impl::graph::global_cache_manager_t::
+                                get_instance()
+                                        .get_user_capacities()[eng_kind]);
+            }
         }
     }
+
     return dnnl::impl::graph::status::success;
 }
 
 dnnl::impl::graph::status_t dnnl_graph_get_constant_tensor_cache_capacity(
         dnnl_engine_kind_t eng_kind, size_t *size) {
-    if (dnnl::impl::graph::user_capacities.count(eng_kind)) {
-        *size = dnnl::impl::graph::user_capacities[eng_kind]
-                / (1024 * 1024); // convert Bytes to MB
+    static constexpr size_t converter = 1024 * 1024;
+    if (dnnl::impl::graph::global_cache_manager_t::get_instance()
+                    .get_user_capacities()
+                    .count(eng_kind)) {
+        // convert Bytes to MB
+        *size = dnnl::impl::graph::global_cache_manager_t::get_instance()
+                        .get_user_capacities()
+                        .at(eng_kind)
+                / converter;
     } else {
-        *size = dnnl::impl::graph::default_capacities[eng_kind]
-                / (1024 * 1024); // convert Bytes to MB
+        // convert Bytes to MB
+        *size = dnnl::impl::graph::global_cache_manager_t::get_instance()
+                        .get_default_capacities()[eng_kind]
+                / converter;
     }
 
     return dnnl::impl::graph::status::success;
