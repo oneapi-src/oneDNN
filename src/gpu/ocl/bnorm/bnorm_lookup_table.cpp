@@ -53,9 +53,11 @@ void maybe_override_bn_conf_params_table(params_t &conf, engine_t *engine) {
 void maybe_override_bn_conf_params(params_t &conf, engine_t *engine) {
     // Environment var BN_TUNING turns ON/OFF tuning mode
     conf.bn_tuning = getenv_int("BN_TUNING", 0);
+
     if (conf.bn_tuning) {
         maybe_override_bn_conf_params_env(conf);
     } else {
+        if (getenv_int("BN_SUPPRESS_LOOKUP_TABLE", 0)) return;
         // TODO: extend to 1pass
         if (!conf.use_stats_one_pass) {
             maybe_override_bn_conf_params_table(conf, engine);
