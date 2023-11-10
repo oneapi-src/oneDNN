@@ -113,6 +113,18 @@ public:
         return std::min(eu_based_tg_size, wg_based_tg_size);
     }
 
+    // Number of EUs per subslice or dual subslice.
+    int eus_per_ss_or_dss() const {
+        auto arch = convert_ngen_arch_to_dnnl(hw_);
+        return compute::device_info_t::max_eus_per_wg(arch);
+    }
+
+    int threads_per_eu(int regs = 128) const {
+        auto arch = convert_ngen_arch_to_dnnl(hw_);
+        bool is_large_grf = (regs > 128);
+        return compute::device_info_t::threads_per_eu(arch, is_large_grf);
+    }
+
     bool prefer_large_grf(const gpu_primitive_attr_t *gpu_attr) const {
         if (!gpu_attr || !large_grf_support_) return false;
         return gpu_attr->threads_per_eu() * 2 == threads_per_eu();
@@ -171,18 +183,6 @@ public:
     }
 
 private:
-    // Number of EUs per subslice or dual subslice.
-    int eus_per_ss_or_dss() const {
-        auto arch = convert_ngen_arch_to_dnnl(hw_);
-        return compute::device_info_t::max_eus_per_wg(arch);
-    }
-
-    int threads_per_eu(int regs = 128) const {
-        auto arch = convert_ngen_arch_to_dnnl(hw_);
-        bool is_large_grf = (regs > 128);
-        return compute::device_info_t::threads_per_eu(arch, is_large_grf);
-    }
-
     int max_wg_size(int regs = 128) const {
         bool is_large_grf = (regs > 128);
         return is_large_grf ? max_wg_size_ / 2 : max_wg_size_;
