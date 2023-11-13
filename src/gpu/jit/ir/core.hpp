@@ -1018,9 +1018,8 @@ class binary_op_t : public expr_impl_t {
 public:
     IR_DECL_EXPR_TYPE_ID(binary_op_t)
 
-    static expr_t make(op_kind_t op_kind, const expr_t &a, const expr_t &b,
-            type_t ty = type_t()) {
-        return expr_t(new binary_op_t(op_kind, a, b, ty));
+    static expr_t make(op_kind_t op_kind, const expr_t &a, const expr_t &b) {
+        return expr_t(new binary_op_t(op_kind, a, b));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -1042,9 +1041,8 @@ public:
     expr_t b;
 
 private:
-    binary_op_t(op_kind_t op_kind, const expr_t &a, const expr_t &b, type_t ty)
-        : expr_impl_t(_type_info(),
-                (ty.is_undef()) ? binary_op_type(op_kind, a, b) : ty)
+    binary_op_t(op_kind_t op_kind, const expr_t &a, const expr_t &b)
+        : expr_impl_t(_type_info(), binary_op_type(op_kind, a, b))
         , op_kind(op_kind)
         , a(a)
         , b(b) {}
@@ -1532,8 +1530,8 @@ public:
     IR_DECL_EXPR_TYPE_ID(ternary_op_t)
 
     static expr_t make(op_kind_t op_kind, const expr_t &a, const expr_t &b,
-            const expr_t &c, type_t ty = type_t()) {
-        return expr_t(new ternary_op_t(op_kind, a, b, c, ty));
+            const expr_t &c) {
+        return expr_t(new ternary_op_t(op_kind, a, b, c));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -1557,9 +1555,8 @@ public:
 
 private:
     ternary_op_t(op_kind_t op_kind, const expr_t &a, const expr_t &b,
-            const expr_t &c, type_t ty)
-        : expr_impl_t(_type_info(),
-                (ty.is_undef()) ? ternary_op_type(op_kind, a, b, c) : ty)
+            const expr_t &c)
+        : expr_impl_t(_type_info(), ternary_op_type(op_kind, a, b, c))
         , op_kind(op_kind)
         , a(a)
         , b(b)
