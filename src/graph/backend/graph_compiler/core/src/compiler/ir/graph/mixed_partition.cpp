@@ -2223,42 +2223,33 @@ static bool try_merge_brgemm_and_preop_parti(mixed_parti_t *A, mixed_parti_t *B,
         for (auto iter = brgemm_parti_anchor->fsmap_.datamap_.begin();
                 iter != brgemm_parti_anchor->fsmap_.datamap_.end();) {
             if (!brgemm_parti->buf_alloc_.g2b_map_.haskey(iter->first)) {
-                auto brgemm_parti_cut_op = iter->first->producer_owner_;
-                if (preop_parti->contains(brgemm_parti_cut_op)) {
-                    if (brgemm_parti_cut_op
-                            != preop_parti->committed_ops_.back().get()) {
-                        SC_MODULE_INFO << "brgemm_parti_cut_op "
-                                       << brgemm_parti_cut_op->op_name_
-                                       << brgemm_parti_cut_op->logical_op_id_
-                                       << " is not the end of preop_parti "
-                                          "commited_ops.";
-                    }
-                    bool hit_cut_op = false;
+                auto pre_fuse_last_op = iter->first->producer_owner_;
+                if (preop_parti->contains(pre_fuse_last_op)) {
                     // set known slice range and prepare for pre-infer slice
                     // range
                     tmp_fsmap.get(iter->first) = iter->second;
-                    // only ops before cut_op_iter will be infered with
-                    // pre_slice
-                    for (auto op_iter = preop_parti->committed_ops_.rbegin();
-                            op_iter != preop_parti->committed_ops_.rend();
-                            op_iter++) {
-                        COMPILE_ASSERT((*op_iter)->isa<fusible_op_t>(),
-                                "Only fusible op is expected on pre-op "
-                                "partiion. "
-                                "but got "
-                                        << (*op_iter)->op_name_);
-                        if ((*op_iter).get() == brgemm_parti_cut_op) {
-                            hit_cut_op = true;
+                    // pre infer ops list
+                    std::vector<sc_op *> pre_infer_ops;
+                    for (auto &op : preop_parti->committed_ops_) {
+                        if (op.get() == pre_fuse_last_op
+                                || preop_parti->dep_m_->lookup(
+                                           op.get(), pre_fuse_last_op)
+                                        == 1) {
+                            pre_infer_ops.emplace_back(op.get());
                         }
-                        if (!hit_cut_op) continue;
+                    }
+                    COMPILE_ASSERT(pre_infer_ops.back() == pre_fuse_last_op,
+                            "The first pre infer op should be the last pre "
+                            "fuse op")
+                    // inverse visit, pre infer from the last op to first one
+                    for (auto op_iter = pre_infer_ops.rbegin();
+                            op_iter != pre_infer_ops.rend(); op_iter++) {
                         auto status = (*op_iter)
-                                              ->stc_cast<fusible_op_t>()
+                                              ->dyn_cast<fusible_op_t>()
                                               ->pre_infer_slice_ranges(
                                                       brgemm_parti->ctx_,
                                                       tmp_fsmap);
-                        COMPILE_ASSERT(status == infer_status_code::OK,
-                                "Elementwise ops are expected to infer "
-                                "successfully")
+                        assert(status == infer_status_code::OK);
                     }
                     iter++;
                 } else {
