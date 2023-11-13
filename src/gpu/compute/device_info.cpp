@@ -66,6 +66,23 @@ bool device_info_t::mayiuse_sub_group(int size) const {
     }
 }
 
+bool device_info_t::has_native(data_type_t type) const {
+    switch (type) {
+        case data_type::undef:
+        case data_type::u8:
+        case data_type::s8:
+        case data_type::s32:
+        case data_type::f16:
+        case data_type::f32:
+        case data_type::boolean: return true;
+        case data_type::f64: return has(device_ext_t::khr_fp64);
+        case data_type::bf16: return has(device_ext_t::future_bf16_cvt);
+        case data_type::f8_e5m2:
+        case data_type::f8_e4m3: return false;
+        default: return false;
+    }
+}
+
 int device_info_t::max_eus_per_wg(gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
         case gpu::compute::gpu_arch_t::gen9:

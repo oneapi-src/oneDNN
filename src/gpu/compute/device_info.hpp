@@ -259,6 +259,8 @@ public:
 
     bool mayiuse_sub_group(int size) const;
 
+    bool has_native(data_type_t type) const;
+
     const std::vector<uint8_t> &get_cache_blob() const {
         return serialized_device_info_.get_data();
     }
