@@ -71,7 +71,9 @@ void process_workloads(std::vector<IScheduler::Workload> &workloads,
 }
 
 ThreadpoolScheduler::ThreadpoolScheduler() {
-    _num_threads = num_threads_hint();
+    using namespace dnnl::impl::threadpool_utils;
+    // Set number of threads to one when threadpool is not available.
+    _num_threads = get_active_threadpool() == nullptr ? 1 : num_threads_hint();
 }
 
 ThreadpoolScheduler::~ThreadpoolScheduler() = default;
