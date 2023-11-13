@@ -253,7 +253,8 @@ private:
 
 class bnorm_lookup_table_t {
 public:
-    bnorm_lookup_table_t();
+    bnorm_lookup_table_t() = default;
+    bnorm_lookup_table_t(bool use_stats_one_pass);
     const char *find(
             const params_t &conf, const compute::gpu_arch_t &gpu_arch) const;
     void get_params(const params_t &conf, const std::string &params) const;
