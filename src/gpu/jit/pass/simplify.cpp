@@ -111,10 +111,10 @@ public:
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return value == other.value;
+        return (id == other.id) && (value == other.value);
     }
 
-    size_t get_hash() const override { return ir_utils::get_hash(value); }
+    size_t get_hash() const override { return ir_utils::get_hash(id, value); }
 
     std::string str() const override {
         std::ostringstream oss;

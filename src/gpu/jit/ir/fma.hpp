@@ -124,15 +124,16 @@ public:
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return (is_dpasw == other.is_dpasw) && (sdepth == other.sdepth)
-                && (rcount == other.rcount) && (dst_type == other.dst_type)
+        return (is_dpasw == other.is_dpasw) && (exec_size == other.exec_size)
+                && (sdepth == other.sdepth) && (rcount == other.rcount)
+                && (dst_type == other.dst_type)
                 && (src1_type == other.src1_type)
                 && (src2_type == other.src2_type);
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(
-                is_dpasw, sdepth, rcount, dst_type, src1_type, src2_type);
+        return ir_utils::get_hash(is_dpasw, exec_size, sdepth, rcount, dst_type,
+                src1_type, src2_type);
     }
 
     std::string str() const override {

@@ -1105,7 +1105,7 @@ public:
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return (type == other.type) && expr.is_equal(other.expr)
+        return type.is_equal(other.type) && expr.is_equal(other.expr)
                 && (saturate == other.saturate);
     }
 
@@ -1156,7 +1156,7 @@ public:
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return value == other.value;
+        return type.is_equal(other.type) && (value == other.value);
     }
 
     size_t get_hash() const override { return ir_utils::get_hash(value); }
@@ -1186,7 +1186,7 @@ public:
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return value == other.value;
+        return type.is_equal(other.type) && (value == other.value);
     }
 
     size_t get_hash() const override { return ir_utils::get_hash(value); }
@@ -1824,9 +1824,7 @@ public:
         return this == &obj;
     }
 
-    size_t get_hash() const override {
-        return std::hash<const self_type *>()(this);
-    }
+    size_t get_hash() const override { return 0; }
 
     std::shared_ptr<grf_permutation_t> grf_perm;
 
@@ -1852,9 +1850,7 @@ public:
         return this == &obj;
     }
 
-    size_t get_hash() const override {
-        return std::hash<const self_type *>()(this);
-    }
+    size_t get_hash() const override { return ir_utils::get_hash(buf_sizes); }
 
     // List of buffers accessed from instructions.
     std::vector<expr_t> bufs;
