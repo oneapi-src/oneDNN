@@ -784,3 +784,36 @@ static sc_graph_t build_concats_standalone_and_in_one_partition() {
 TEST(GCCore_CPU_concat_optimization_cpp, StandaloneAndInOnePartitionConcats) {
     accuracy_test_on_graph(build_concats_standalone_and_in_one_partition);
 }
+
+// Both standalone and fused concats exist in this simple graph with one graph
+// output as another concat input. Check ir to see if the vectorization and
+// memory optimization can co-work.
+static sc_graph_t build_concats_standalone_and_in_one_partition2() {
+    static const int A = 1, B = 28, C = 28, D = 32;
+    sc_graph_t graph0;
+    auto in0 = graph0.make_input({graph_tensor::make({A, B, C, D},
+            sc_data_format_t(format_kinds::ABCD), datatypes::f32)});
+    auto in1 = graph0.make_input({graph_tensor::make({A, B, C, D},
+            sc_data_format_t(format_kinds::ABCD), datatypes::f32)});
+    auto add0 = graph0.make(
+            "add", {in0->get_outputs()[0], in0->get_outputs()[0]}, {}, {});
+    auto relu1 = graph0.make("relu", {add0->get_outputs()[0]}, {}, {});
+    auto concat2 = graph0.make("concat",
+            {in1->get_outputs()[0], relu1->get_outputs()[0]}, {},
+            {{"axis", 2}});
+    // concat2 output: [A, B, C*2, D]
+    auto relu3 = graph0.make("relu", {concat2->get_outputs()[0]}, {}, {});
+    auto concat4 = graph0.make("concat",
+            {concat2->get_outputs()[0], relu3->get_outputs()[0]}, {},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
+                    {op_attr_key::break_post_fuse, true}});
+    // concat4 output: [A, B, C*4, D], standalone
+    auto relu5 = graph0.make("relu", {concat4->get_outputs()[0]}, {}, {});
+    auto out = graph0.make_output(relu5->get_outputs());
+    auto out2 = graph0.make_output(relu3->get_outputs());
+    return graph0;
+}
+
+TEST(GCCore_CPU_concat_optimization_cpp, StandaloneAndInOnePartitionConcats2) {
+    accuracy_test_on_graph(build_concats_standalone_and_in_one_partition2);
+}

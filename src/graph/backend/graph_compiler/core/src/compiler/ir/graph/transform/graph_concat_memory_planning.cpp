@@ -119,6 +119,13 @@ static std::vector<sc_dims> calc_offsets(
     return offsets;
 }
 
+static bool has_output_user(const graph_tensor_ptr &gt) {
+    for (auto &use : gt->uses_) {
+        if (use.second->isa<output_op>()) { return true; }
+    }
+    return false;
+}
+
 /* This function is the preparation for TensorIR pass concat_memory_planning_t.
  * We calculate the offset for each input of concat op and set strides of output
  * of parent op. For detailed explanation, please refer to
@@ -151,7 +158,8 @@ static bool set_offsets_and_strides_for_op(
     // set strides of the output of the parent op.
     for (size_t i = 0; i < inputs.size(); ++i) {
         auto parent_op = inputs[i]->producer_owner_->shared_from_this();
-        if (parent_op->isa<input_op>() || parent_op->isa<tensor_view_op_t>()) {
+        if (parent_op->isa<input_op>() || parent_op->isa<tensor_view_op_t>()
+                || has_output_user(inputs[i])) {
             continue;
         }
         if (ops.count(parent_op)) {
