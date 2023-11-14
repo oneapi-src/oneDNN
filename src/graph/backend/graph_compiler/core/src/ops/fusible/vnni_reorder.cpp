@@ -65,13 +65,6 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
     auto output_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
-    bool is_padding = false;
-    if ((!is_dynamic
-                && math_utils::get_dims_product(input_blocking_dims)
-                        != math_utils::get_dims_product(output_blocking_dims))
-            || (is_dynamic && !dynamic_no_padding)) {
-        is_padding = true;
-    }
 
     if (input_format.is_blocking()) {
         vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
@@ -191,74 +184,36 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
     inp_k_axis.emplace_back(in_K_pos);
     // VNNI reorder kernel shape is 4x16 for u8/s8 and 4x8 for bf16.
     vnni_kernel_used = get_vnni_kernel_type(dtype.as_etype());
-    if (!is_padding) {
-        if (get_expr_as_int(dst.shape_[out_k2_pos]) != (is_bf16 ? 2 : 4)) {
+    if (get_expr_as_int(dst.get_shape()[out_k2_pos]) != (is_bf16 ? 2 : 4)) {
+        vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+        return false;
+    }
+    if (!is_vnni_reorder) {
+        if (get_expr_as_int(dst.get_shape()[out_n_pos]) % 4 != 0
+                || get_expr_as_int(dst.get_shape()[out_k_pos]) % 4 != 0) {
             vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
             return false;
         }
-        if (!is_vnni_reorder) {
-            if (get_expr_as_int(dst.shape_[out_n_pos]) % 4 != 0) {
-                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
-                return false;
-            }
-            if (get_expr_as_int(dst.shape_[out_k_pos]) % 4 != 0) {
-                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
-                return false;
-            }
-            vnni_kernel_used = is_bf16 ? sc_vnni_kernel::BF16_TRANSPOSE_VNNI
-                                       : sc_vnni_kernel::U8S8_TRANSPOSE_VNNI;
-        } else {
-            if (get_expr_as_int(dst.shape_[out_n_pos]) % 16 == 0) {
-                vnni_kernel_used = sc_vnni_kernel::X16_REORDER_VNNI;
-            } else if (get_expr_as_int(dst.shape_[out_n_pos])
-                            % (is_bf16 ? 8 : 16)
-                    == 0) {
-                vnni_kernel_used = sc_vnni_kernel::X8_REORDER_VNNI;
-            } else {
-                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
-                return false;
-            }
-
-            if ((get_expr_as_int(dst.shape_[out_k_pos])
-                        * get_expr_as_int(dst.shape_[out_k2_pos]))
-                            % 4
-                    != 0) {
-                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
-                return false;
-            }
-        }
+        vnni_kernel_used = is_bf16 ? sc_vnni_kernel::BF16_TRANSPOSE_VNNI
+                                   : sc_vnni_kernel::U8S8_TRANSPOSE_VNNI;
     } else {
-        if (output_blocking_dims[out_k2_pos] != (is_bf16 ? 2 : 4)) {
+        if (get_expr_as_int(dst.get_shape()[out_n_pos]) % 16 == 0) {
+            vnni_kernel_used = sc_vnni_kernel::X16_REORDER_VNNI;
+        } else if (get_expr_as_int(dst.get_shape()[out_n_pos])
+                        % (is_bf16 ? 8 : 16)
+                == 0) {
+            vnni_kernel_used = sc_vnni_kernel::X8_REORDER_VNNI;
+        } else {
             vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
             return false;
         }
-        if (!is_vnni_reorder) {
-            if (output_blocking_dims[out_n_pos] % 4 != 0) {
-                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
-                return false;
-            }
-            if (output_blocking_dims[out_k_pos] % 4 != 0) {
-                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
-                return false;
-            }
-            vnni_kernel_used = is_bf16 ? sc_vnni_kernel::BF16_TRANSPOSE_VNNI
-                                       : sc_vnni_kernel::U8S8_TRANSPOSE_VNNI;
-        } else {
-            if (output_blocking_dims[out_n_pos] % 16 == 0) {
-                vnni_kernel_used = sc_vnni_kernel::X16_REORDER_VNNI;
-            } else if (output_blocking_dims[out_n_pos] % (is_bf16 ? 8 : 16)
-                    == 0) {
-                vnni_kernel_used = sc_vnni_kernel::X8_REORDER_VNNI;
-            } else {
-                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
-                return false;
-            }
-            if (output_blocking_dims[out_k_pos]
-                            * output_blocking_dims[out_k2_pos] % 4
-                    != 0) {
-                vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
-                return false;
-            }
+
+        if ((get_expr_as_int(dst.get_shape()[out_k_pos])
+                    * get_expr_as_int(dst.get_shape()[out_k2_pos]))
+                        % 4
+                != 0) {
+            vnni_kernel_used = sc_vnni_kernel::NO_VNNI;
+            return false;
         }
     }
 
@@ -704,12 +659,7 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                 i >= 0; i--) {
             // Do not generate those dummy loops
             if (!iter_vars.at(i).isa<var>()) continue;
-            // if the offset of dst is given(commit op)
-            if (!is_padding || !dst.get_offset()[i].isa<constant>()) {
-                iter_end = dst.get_shape()[i];
-            } else {
-                iter_end = output_blocking_dims_expr[i];
-            }
+            iter_end = dst.get_shape()[i];
             expr cur_step = 1;
             if (!is_vnni_reorder) { // vnni transpose
                 if (i == out_n_axis[1] || i == out_k_axis[1]) {

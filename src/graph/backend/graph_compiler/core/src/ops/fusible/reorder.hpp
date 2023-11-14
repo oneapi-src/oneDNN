@@ -49,6 +49,10 @@ void find_vectorized_axis(std::vector<expr> const &blocking_dims_expr,
         sc_data_format_t const &format, int &last_origin_axis,
         int &origin_axis_vectorized);
 
+void find_vectorized_axis(const tensor_slice &tsl,
+        sc_data_format_t const &format, int &last_origin_axis,
+        int &origin_axis_vectorized);
+
 size_t throw_if_negative(int dim);
 static const int TARGET_AXIS_NOT_DEFINE = -1;
 std::vector<expr> get_reorder_block2plain_indexes(sc_graph_t &graph,

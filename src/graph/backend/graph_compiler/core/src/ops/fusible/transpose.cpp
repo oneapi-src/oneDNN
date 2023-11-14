@@ -111,10 +111,8 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
     int vec_inp_lastdim = input_ndims - 1;
     auto out_a_idx = out_code.get(output_ndims - 1);
     int vec_out_lastdim = output_ndims - 1;
-    find_vectorized_axis(input_blocking_shapes_expr, input_format, inp_b_idx,
-            vec_inp_lastdim);
-    find_vectorized_axis(output_blocking_shapes_expr, output_format, out_a_idx,
-            vec_out_lastdim);
+    find_vectorized_axis(src, input_format, inp_b_idx, vec_inp_lastdim);
+    find_vectorized_axis(dst, output_format, out_a_idx, vec_out_lastdim);
     if (inp_b_idx == out_a_idx) {
         trans_kernel_used = sc_trans_kernel::NO_TRANS;
         return false;
@@ -167,14 +165,13 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
     }
     auto find_another_vec_axis
             = [&](const sc_data_format_t &format, int &vec_axis,
-                      const std::vector<expr> &blocking_exprs,
-                      const int ori_idx) {
+                      const tensor_slice &tsl, const int ori_idx) {
                   auto format_code = format.format_code_;
                   auto all_dims = format_code.ndims();
                   for (int i = all_dims - 1; i >= 0; i--) {
-                      if (!blocking_exprs[i].isa<constant>()) { break; }
+                      if (!tsl.get_shape()[i].isa<constant>()) { break; }
                       if (format_code.get(i) == ori_idx
-                              && get_expr_as_int(blocking_exprs[i]) > 1) {
+                              && get_expr_as_int(tsl.get_shape()[i]) > 1) {
                           vec_axis = i;
                           break;
                       }
@@ -185,10 +182,8 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
     int ori_out_b = out_code.get(out_b_axis[out_b_axis.size() - 1]);
     int vec_inp_a = inp_a_axis[inp_a_axis.size() - 1];
     int vec_out_b = out_b_axis[out_b_axis.size() - 1];
-    find_another_vec_axis(
-            input_format, vec_inp_a, input_blocking_shapes_expr, ori_inp_a);
-    find_another_vec_axis(
-            output_format, vec_out_b, output_blocking_shapes_expr, ori_out_b);
+    find_another_vec_axis(input_format, vec_inp_a, src, ori_inp_a);
+    find_another_vec_axis(output_format, vec_out_b, dst, ori_out_b);
     trans_inp_a_axis = vec_inp_a;
     trans_inp_b_axis = vec_inp_lastdim;
     trans_out_a_axis = vec_out_lastdim;
@@ -237,14 +232,15 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
         // the data position may cause errors due to format changes.
         auto input_block_axis = input_format.get_blocked_axis();
         auto output_block_axis = output_format.get_blocked_axis();
-        for (auto iter = input_block_axis.begin();
-                iter != input_block_axis.end(); iter++) {
-            size_t block_count_inp = iter->second.size();
-            size_t block_count_out = output_block_axis[iter->first].size();
-            if ((block_count_inp > 1 || block_count_out > 1)
-                    && iter->second[0] != output_block_axis[iter->first][0]) {
-                trans_kernel_used = sc_trans_kernel::NO_TRANS;
-                return false;
+        size_t block_count_inp = input_block_axis.size();
+        size_t block_count_out = output_block_axis.size();
+        if (block_count_inp > 1 || block_count_out > 1) {
+            for (auto iter = input_block_axis.begin();
+                    iter != input_block_axis.end(); iter++) {
+                if (iter->second[0] != output_block_axis[iter->first][0]) {
+                    trans_kernel_used = sc_trans_kernel::NO_TRANS;
+                    return false;
+                }
             }
         }
     }
@@ -772,13 +768,8 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                                 std::vector<stmt> {std::move(cur)});
                 int cur_step = i == a_axis ? inp_a_step : inp_b_step;
                 cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                        expr(0),
-                        (!is_padding || !tsr.get_offset()[i].isa<constant>()
-                                || !output_loop)
-                                ? tsr.get_shape()[i]
-                                : blocking_dims[i],
-                        expr(cur_step), std::move(body), true,
-                        for_type::NORMAL);
+                        expr(0), tsr.get_shape()[i], expr(cur_step),
+                        std::move(body), true, for_type::NORMAL);
             }
         }
         for (int i = static_cast<int>(blocking_dims.size()) - 1; i >= 0; i--) {
@@ -789,12 +780,8 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                         : make_stmt<stmts_node_t>(
                                 std::vector<stmt> {std::move(cur)});
                 cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                        expr(0),
-                        (!is_padding || !tsr.get_offset()[i].isa<constant>()
-                                || !output_loop)
-                                ? tsr.get_shape()[i]
-                                : blocking_dims[i],
-                        expr(1), std::move(body), true, for_type::NORMAL);
+                        expr(0), tsr.get_shape()[i], expr(1), std::move(body),
+                        true, for_type::NORMAL);
             }
         }
     };

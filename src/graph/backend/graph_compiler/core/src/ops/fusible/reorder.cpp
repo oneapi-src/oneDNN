@@ -708,17 +708,45 @@ void find_vectorized_axis(std::vector<expr> const &blocking_dims_expr,
     last_origin_axis = format.format_code_.get(origin_axis_vectorized);
 }
 
+/**
+ * @brief find the axis closest to the last which could be vectorized.
+ * @param tsl tensor slice
+ * @param format format
+ * @param last_origin_axis original last axis
+ * @param origin_axis_vectorized finded axis closed to the last
+that can be vectorized
+ * */
+void find_vectorized_axis(const tensor_slice &tsl,
+        sc_data_format_t const &format, int &last_origin_axis,
+        int &origin_axis_vectorized) {
+    origin_axis_vectorized = format.format_code_.ndims() - 1;
+    // find not 1 dim in the last, if in dynamic cases, it will be as
+    // original logic
+    for (int i = origin_axis_vectorized; i >= 0; i--) {
+        if (!tsl.get_shape()[i].isa<constant>()) { break; }
+        if (get_expr_as_int(tsl.get_shape()[i]) > 1) {
+            origin_axis_vectorized = i;
+            break;
+        }
+    }
+    last_origin_axis = format.format_code_.get(origin_axis_vectorized);
+}
+
 #define SLICE_RAGNE_CHECK_INIT_DATA() \
     bool use_out_loop = use_output_loop(); \
     sc_data_format_t target_format \
             = use_out_loop ? output_format : input_format; \
+    auto dtype = info_.inputs_[0]->details_.dtype_; \
     auto blocking_exprs = get_blocking_shapes_expr( \
             get_owner_graph(), plain_dims_, target_format); \
     auto block_axis = target_format.format_code_.get( \
             target_format.format_code_.ndims() - 1); \
     int origin_axis_vectorized = target_format.format_code_.ndims() - 1; \
-    find_vectorized_axis(blocking_exprs, target_format, block_axis, \
-            origin_axis_vectorized); \
+    auto toy_inp = builder::make_tensor( \
+            std::string("dummy_inp"), blocking_exprs, dtype); \
+    auto inp_slice = tensor_slice(toy_inp); \
+    find_vectorized_axis( \
+            inp_slice, target_format, block_axis, origin_axis_vectorized); \
     int len_from_last \
             = target_format.format_code_.ndims() - 1 - origin_axis_vectorized; \
     bool must_recheck = len_from_last > 0; \
@@ -1508,11 +1536,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                    expr(0),
-                    // if the offset of dst is given(commit op)
-                    (no_padding || !dst.get_offset()[i].isa<constant>())
-                            ? dst.get_shape()[i]
-                            : output_blocking_exprs[i],
+                    expr(0), dst.get_shape()[i],
                     can_vectorize && i == output_origin_axis_vectorized
                             ? expr(static_cast<int>(step))
                             : expr(1),
@@ -1689,10 +1713,7 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                    expr(0),
-                    (no_padding || !dst.get_offset()[i].isa<constant>())
-                            ? dst.get_shape()[i]
-                            : output_blocking_exprs[i],
+                    expr(0), dst.get_shape()[i],
                     can_vectorize && i == output_origin_axis_vectorized
                             ? expr(static_cast<int>(step))
                             : expr(1),
