@@ -52,8 +52,10 @@ struct gemm_matmul_t : public gpu_primitive_t {
             auto a_md = src_md(), b_md = weights_md(), c_md = dst_md(),
                  bias_md = weights_md(1);
             const auto acc_dt = desc()->accum_data_type;
-            memory_desc_t a_md_2d, b_md_2d, c_md_2d, bia_md_2d;
+            memory_desc_t a_md_reshaped, b_md_reshaped, c_md_reshaped,
+                    bia_md_reshaped;
             bool with_bia = bias_md->ndims > 0;
+            auto orig_dims = a_md->ndims;
 
             auto map_gemm_zp = [&](int arg, int gemm_arg, bool reshape = false,
                                        int diff_dims = 0) {
@@ -66,14 +68,21 @@ struct gemm_matmul_t : public gpu_primitive_t {
                 return status::success;
             };
 
-            auto adjust_scales_mask = [&](int arg, int diff_dims) {
-                int mask = 0;
-                bool is_set = false;
-                CHECK(attr()->scales_.get(arg, &mask, &is_set));
-                mask = mask >> diff_dims;
-                if (is_set) { CHECK(gemm_attr.scales_.set(arg, mask)); }
-                return status::success;
-            };
+            auto adjust_scales_mask
+                    = [&](arg_scales_t &scales, int arg, int diff_dims) {
+                          int mask = 0;
+                          bool is_set = false;
+                          CHECK(attr()->scales_.get(arg, &mask, &is_set));
+                          mask = mask >> diff_dims;
+                          if (is_set) { CHECK(scales.set(arg, mask)); }
+                          return status::success;
+                      };
+            if (!attr()->zero_points_.has_default_values()) {
+                CHECK(map_gemm_zp(DNNL_ARG_SRC, DNNL_ARG_B));
+                CHECK(map_gemm_zp(
+                        DNNL_ARG_WEIGHTS, DNNL_ARG_A, false, orig_dims - 2));
+                CHECK(map_gemm_zp(DNNL_ARG_DST, DNNL_ARG_C));
+            }
 
             auto maybe_reshape = [&](dims_t &orig_a_dims, dims_t &orig_b_dims,
                                          dims_t &orig_c_dims,
@@ -90,74 +99,145 @@ struct gemm_matmul_t : public gpu_primitive_t {
                     orig_bias_dims[i] = bias_md->dims[i];
                 }
                 //for batch dim can map broadcast to 2d: eg. 4x1x4096:1x4096x16 -> 4x4096:4096x16
-                auto reshape = batch_b_dims == 1 && b_md->ndims > 2;
-                if (reshape) {
-                    dim_t a_dim = a_md->dims[a_md->ndims - 2],
+                auto reshape_2d = (batch_b_dims == 1 && b_md->ndims > 2);
+                auto reshape_3d = a_md->ndims > 3;
+                if (reshape_2d || reshape_3d) {
+                    auto ndims = a_md->ndims;
+                    auto reshape_size = reshape_2d ? 2 : 3;
+                    dim_t a_dim = a_md->dims[a_md->ndims - reshape_size],
                           b_dim = b_md->dims[b_md->ndims - 1],
-                          bia_dim = bias_md->dims[bias_md->ndims - 2];
+                          bia_dim
+                            = bias_md->dims[bias_md->ndims - reshape_size];
                     bool with_bia = bias_md->ndims > 0;
-                    for (int i = a_md->ndims; i > 2; i--) {
+                    for (int i = a_md->ndims; i > reshape_size; i--) {
                         a_dim *= a_md->dims[a_md->ndims - i];
                         bia_dim *= bias_md->dims[bias_md->ndims - i];
                     }
-                    dims_t a_dims = {a_dim, a_md->dims[a_md->ndims - 1]};
-                    dims_t b_dims = {b_md->dims[b_md->ndims - 2], b_dim};
-                    dims_t c_dims = {a_dims[0], b_dims[1]};
-                    dims_t bia_dims = {bia_dim,
-                            with_bia ? bias_md->dims[bias_md->ndims - 1] : 1};
-                    CHECK(memory_desc_reshape(a_md_2d, *a_md, 2, a_dims));
-                    CHECK(memory_desc_reshape(b_md_2d, *b_md, 2, b_dims));
-                    CHECK(memory_desc_reshape(c_md_2d, *c_md, 2, c_dims));
-                    if (with_bia) {
-                        CHECK(memory_desc_reshape(
-                                bia_md_2d, *bias_md, 2, bia_dims));
+                    dims_t a_dims, b_dims, c_dims, bia_dims;
+                    if (reshape_2d) {
+                        a_dims[0] = a_dim;
+                        a_dims[1] = a_md->dims[a_md->ndims - 1];
+                        b_dims[0] = b_md->dims[b_md->ndims - 2];
+                        b_dims[1] = b_dim;
+                        c_dims[0] = a_dims[0];
+                        c_dims[1] = b_dims[1];
+                        bia_dims[0] = bia_dim;
+                        bia_dims[1] = with_bia
+                                ? bias_md->dims[bias_md->ndims - 1]
+                                : 1;
+                    } else {
+                        a_dims[0] = a_dim;
+                        a_dims[1] = a_md->dims[ndims - 2];
+                        a_dims[2] = a_md->dims[ndims - 1];
+                        b_dims[0] = a_dim;
+                        b_dims[1] = b_md->dims[ndims - 2];
+                        b_dims[2] = b_md->dims[ndims - 1];
+                        c_dims[0] = a_dim;
+                        c_dims[1] = a_dims[1];
+                        c_dims[2] = b_dims[2];
+                        //bias cannot be applied if applied on only on a subset of batch dims
+                        if (bia_dim != c_dims[0] && bia_dim > 1)
+                            return status::unimplemented;
+                        bia_dims[0] = bia_dim;
+                        bia_dims[1] = with_bia ? bias_md->dims[ndims - 2] : 1;
+                        bia_dims[2] = with_bia ? bias_md->dims[ndims - 1] : 1;
                     }
+                    CHECK(memory_desc_reshape(
+                            a_md_reshaped, *a_md, reshape_size, a_dims));
+                    CHECK(memory_desc_reshape(
+                            b_md_reshaped, *b_md, reshape_size, b_dims));
+                    CHECK(memory_desc_reshape(
+                            c_md_reshaped, *c_md, reshape_size, c_dims));
+                    if (with_bia) {
+                        CHECK(memory_desc_reshape(bia_md_reshaped, *bias_md,
+                                reshape_size, bia_dims));
+                    }
+                    auto tmp_post_ops = post_ops;
+                    auto scales = gemm_attr.scales_;
                     for (int i = 0; i < attr()->post_ops_.len(); i++) {
                         auto &po = post_ops.entry_[i];
                         if (po.is_binary()) {
                             auto &po_desc = po.binary.src1_desc;
-                            auto a_dim = po_desc.dims[po_desc.ndims - 2];
-                            for (int i = po_desc.ndims; i > 2; i--) {
+                            auto a_dim = po_desc.dims[po_desc.ndims
+                                    - reshape_size];
+                            for (int i = po_desc.ndims; i > reshape_size; i--) {
                                 a_dim *= po_desc.dims[po_desc.ndims - i];
                             }
-                            if (a_dim != c_dims[0] && a_dim != 1) {
+                            //post ops cannot be applied if applied on only on a subset of batch dims
+                            if (a_dim != c_dims[0] && a_dim > 1) {
                                 return status::unimplemented;
                             }
-                            dims_t po_dims = {a_dim,
-                                    po_desc.ndims > 0
-                                            ? po_desc.dims[po_desc.ndims - 1]
-                                            : 1};
+                            auto has_dims = po_desc.ndims > 0;
+                            dims_t po_dims;
+                            if (reshape_2d) {
+                                po_dims[0] = a_dim;
+                                po_dims[1] = has_dims
+                                        ? po_desc.dims[po_desc.ndims - 1]
+                                        : 1;
+                            } else {
+                                po_dims[0] = a_dim;
+                                po_dims[1] = has_dims
+                                        ? po_desc.dims[po_desc.ndims - 2]
+                                        : 1;
+                                po_dims[2] = has_dims
+                                        ? po_desc.dims[po_desc.ndims - 1]
+                                        : 1;
+                            }
                             CHECK(memory_desc_reshape(
-                                    po_desc, po_desc, 2, po_dims));
-                            post_ops.entry_[i].binary.src1_desc = po_desc;
+                                    po_desc, po_desc, reshape_size, po_dims));
+                            tmp_post_ops.entry_[i].binary.src1_desc = po_desc;
+                        } else if (po.is_prelu()) {
+                            auto mask = po.prelu.mask;
+                            int new_mask = 0;
+                            int batch_idx = reshape_size - 1;
+                            //get mask for batch dim
+                            for (int i = 0; i < c_md->ndims - batch_idx; i++) {
+                                if (mask >> i & 1) {
+                                    //post ops cannot be applied if applied on only on a subset of batch dims
+                                    if (new_mask != 0)
+                                        return status::unimplemented;
+                                    new_mask |= c_md->dims[i] == 1 ? 0 : 1;
+                                }
+                            }
+                            //get non-batch part of mask
+                            auto shift = c_md->ndims - batch_idx;
+                            auto non_batch_mask = mask >> shift;
+                            //due to prelu being in axb format, if a reshape is done it
+                            //implies layout is different e.g 1x30x20 -> 30 is innermost dimension
+                            //but 30x20 -> 20 is innermost. Hence reshape does  not work if mask
+                            //is applied across more than one dimension.
+                            if (non_batch_mask > 2
+                                    || (non_batch_mask > 0 && new_mask > 0))
+                                return status::unimplemented;
+                            new_mask |= non_batch_mask << 1;
+                            tmp_post_ops.entry_[i].prelu.mask = new_mask;
                         }
                     }
 
-                    a_md = &a_md_2d;
-                    b_md = &b_md_2d;
-                    c_md = &c_md_2d;
-                    if (with_bia) bias_md = &bia_md_2d;
+                    if (!attr()->scales_.has_default_values())
+                        CHECK(adjust_scales_mask(scales, DNNL_ARG_WEIGHTS,
+                                orig_dims - reshape_size));
+                    if (!attr()->zero_points_.has_default_values())
+                        CHECK(map_gemm_zp(DNNL_ARG_WEIGHTS, DNNL_ARG_A, true,
+                                orig_dims - reshape_size));
+                    post_ops = tmp_post_ops;
+                    gemm_attr.scales_ = scales;
+                    a_md = &a_md_reshaped;
+                    b_md = &b_md_reshaped;
+                    c_md = &c_md_reshaped;
+                    if (with_bia) bias_md = &bia_md_reshaped;
                 }
-                return (!reshape) ? status::unimplemented : status::success;
+                return (!reshape_2d && !reshape_3d) ? status::unimplemented
+                                                    : status::success;
             };
 
             CHECK(gemm_attr.set_fpmath_mode(attr()->fpmath_mode_));
-            auto orig_dims = a_md->ndims;
+
             dims_t orig_a_dims, orig_b_dims, orig_c_dims, orig_bias_dims;
             bool reshape = maybe_reshape(orig_a_dims, orig_b_dims, orig_c_dims,
                                    orig_bias_dims, orig_dims)
                     == status::success;
 
-            if (!attr()->zero_points_.has_default_values()) {
-                CHECK(map_gemm_zp(DNNL_ARG_SRC, DNNL_ARG_B));
-                CHECK(map_gemm_zp(
-                        DNNL_ARG_WEIGHTS, DNNL_ARG_A, reshape, orig_dims - 2));
-                CHECK(map_gemm_zp(DNNL_ARG_DST, DNNL_ARG_C));
-            }
-
-            if (!attr()->scales_.has_default_values() && reshape) {
-                CHECK(adjust_scales_mask(DNNL_ARG_WEIGHTS, orig_dims - 2));
-            }
             if (!attr()->post_ops_.has_default_values()) {
                 gemm_attr.post_ops_ = post_ops;
             }
