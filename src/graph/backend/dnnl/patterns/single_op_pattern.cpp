@@ -311,36 +311,33 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, typecast_pass)
             return std::make_shared<float_reorder>();
         });
 
-// pname: pattern name, bname: backend name
-#define DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(pname, bname, op) \
-    DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(bname, pname) \
-            .set_priority(DEFAULT_P) \
-            .set_attr<FCreatePattern>("FCreatePattern", \
-                    [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
-                        graph::utils::pm::pb_op_t *reduction \
-                                = pgraph->append_op(graph::op_kind::op); \
-                        reduction->append_decision_function([](op_t *graph_op) \
-                                                                    -> bool { \
-                            if (graph_op->has_attr(op_attr::axes) \
-                                    && graph_op->get_attr< \
-                                                       std::vector<int64_t>>( \
-                                                       op_attr::axes) \
-                                               .empty()) \
-                                return false; \
-                            return true; \
-                        }); \
-                    }) \
-            .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr { \
-                return std::make_shared<float_reduction>(); \
-            });
-
-DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceL1)
-DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceL2)
-DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceMax)
-DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceMean)
-DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceMin)
-DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceProd)
-DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceSum)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reduce_pass)
+        .set_priority(DEFAULT_P)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *reduction
+                            = pgraph->append_alternation(
+                                    {graph::op_kind::ReduceL1,
+                                            graph::op_kind::ReduceL2,
+                                            graph::op_kind::ReduceMax,
+                                            graph::op_kind::ReduceMean,
+                                            graph::op_kind::ReduceMin,
+                                            graph::op_kind::ReduceProd,
+                                            graph::op_kind::ReduceSum});
+                    reduction->append_decision_function([](op_t *graph_op)
+                                                                -> bool {
+                        if (graph_op->has_attr(op_attr::axes)
+                                && graph_op->get_attr<std::vector<int64_t>>(
+                                                   op_attr::axes)
+                                           .empty())
+                            return false;
+                        return true;
+                    });
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_reduction>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, softplus_pass)
         .set_priority(DEFAULT_P)
@@ -364,7 +361,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, softplus_bw_pass)
             return std::make_shared<eltwise_bwd_t>();
         });
 
-#undef DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM
 #undef DEFAULT_P
 
