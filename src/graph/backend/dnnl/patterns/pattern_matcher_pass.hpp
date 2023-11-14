@@ -109,19 +109,15 @@ public:
                 && get_engine_kind() != graph_engine_kind)
             return impl::status::success;
 
-        // we can have only one optimized pattern
-        std::vector<graph::pass::FCreatePattern> pfuncs
-                = get_attr<graph::pass::FCreatePattern>("FCreatePattern");
+        // we can have multiply patterns that map to one optimized kernel
+        std::vector<graph::pass::Pattern> pgraphs
+                = get_attr<graph::pass::Pattern>("Pattern");
 
         FCreateKernel kernel_creator
                 = get_attr<FCreateKernel>("FCreateKernel")[0];
 
         pattern_utils_t pu;
-        for (auto &pfunc : pfuncs) {
-            std::shared_ptr<graph::utils::pm::pb_graph_t> pgraph
-                    = std::make_shared<graph::utils::pm::pb_graph_t>();
-            pfunc(pgraph);
-
+        for (const auto &pgraph : pgraphs) {
             // for each pattern. match it
             std::vector<std::vector<op_t *>> fusion_ops;
             pu.match(agraph, pgraph, fusion_ops);

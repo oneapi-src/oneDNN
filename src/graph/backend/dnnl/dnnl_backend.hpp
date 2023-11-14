@@ -216,11 +216,11 @@ public:
 private:
     dnnl_backend(const std::string &name, float priority);
 
-    bool register_passes();
+    static graph::pass::pass_registry_t register_passes();
     bool register_op_schemas();
 
     dnnl_layout_id_manager_t layout_id_manager_;
-    graph::pass::pass_registry_t pass_registry_;
+    static graph::pass::pass_registry_t pass_registry_;
 };
 
 } // namespace dnnl_impl

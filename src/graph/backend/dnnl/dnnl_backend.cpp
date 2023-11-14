@@ -39,7 +39,6 @@ bool kernel_base_t::enabled_constant_cache() const {
 dnnl_backend::dnnl_backend(const std::string &name, float priority)
     : backend_t(name, priority) {
     register_op_schemas();
-    register_passes();
 }
 
 bool dnnl_backend::register_op_schemas() {
@@ -47,35 +46,39 @@ bool dnnl_backend::register_op_schemas() {
     return true;
 }
 
-bool dnnl_backend::register_passes() {
+pass::pass_registry_t dnnl_backend::register_passes() {
 #define DNNL_BACKEND_REGISTER_PATTERN_CALL(pattern_class_, pattern_registry_) \
     pattern::register_##pattern_class_(pattern_registry_);
 
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(binary_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(bn_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(concat_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(conv_block_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(conv_post_ops, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(convtranspose_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(matmul_post_ops, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(sdp, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(single_op_pass, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(pool_post_ops, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(eltwise_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(quantize_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(interpolate_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(softmax_post_ops, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(layernorm_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(sum_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(reorder_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(shuffle_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(reduction_fusion, pass_registry_);
-    pass_registry_.sort_passes();
+    pass::pass_registry_t pass_registry;
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(binary_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(bn_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(concat_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(conv_block_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(conv_post_ops, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(convtranspose_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(matmul_post_ops, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(sdp, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(single_op_pass, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(pool_post_ops, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(eltwise_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(quantize_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(interpolate_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(softmax_post_ops, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(layernorm_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(sum_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(reorder_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(shuffle_fusion, pass_registry);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(reduction_fusion, pass_registry);
+    pass_registry.sort_passes();
 
 #undef DNNL_BACKEND_REGISTER_PATTERN_CALL
 
-    return true;
+    return pass_registry;
 }
+
+pass::pass_registry_t dnnl_backend::pass_registry_
+        = dnnl_backend::register_passes();
 
 size_t dnnl_backend::get_mem_size(const logical_tensor_t &lt) const {
     auto md = make_dnnl_memory_desc(lt);
