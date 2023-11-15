@@ -94,7 +94,7 @@ inline U logsigmoid_fwd(T s) {
 template <typename T, typename U = rem_ref<T>>
 inline U mish_fwd(T s) {
     float e = soft_relu_fwd<float>(s);
-    float l = (float)(::sycl::tanh<float>((float)e));
+    float l = (float)(::sycl::tanh((float)e));
     float val = s * l;
     return (U)(val);
 }
