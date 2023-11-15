@@ -58,6 +58,7 @@ struct settings_t : public base_settings_t {
     std::vector<std::vector<dnnl_data_type_t>> dt {{dnnl_f32}};
     std::vector<std::vector<std::string>> tag {{tag::abx, tag::any}};
     std::vector<std::string> stat_tag {tag::any};
+    std::vector<dnnl_data_type_t> ss_dt {dnnl_f32};
     std::vector<flags_t> flags {NONE};
     check_alg_t check_alg = check_alg_t::ALG_AUTO;
 
@@ -78,8 +79,8 @@ struct settings_t : public base_settings_t {
 struct prb_t : public prb_dims_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
-        : prb_t(s.prb_dims, s.tag[0], s.stat_tag[0], s.dir[0], s.dt[0],
-                s.flags[0],
+        : prb_t(s.prb_dims, s.tag[0], s.stat_tag[0], s.ss_dt[0], s.dir[0],
+                s.dt[0], s.flags[0],
                 settings_t::get_attr(s.scales[0], s.zero_points[0],
                         s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
                 s.ctx_init[0], s.ctx_exe[0], s.inplace[0], s.check_alg) {
@@ -87,7 +88,7 @@ struct prb_t : public prb_dims_t {
     }
 
     prb_t(const prb_dims_t &prb_dims, const std::vector<std::string> &tag,
-            const std::string &stat_tag, dir_t dir,
+            const std::string &stat_tag, dnnl_data_type_t ss_dt, dir_t dir,
             const std::vector<dnnl_data_type_t> &dt, flags_t flags,
             const attr_t &attr, const thr_ctx_t &ctx_init,
             const thr_ctx_t &ctx_exe, bool inplace, check_alg_t check_alg)
@@ -95,6 +96,7 @@ struct prb_t : public prb_dims_t {
         , check_alg(check_alg)
         , tag(tag)
         , stat_tag(stat_tag)
+        , ss_dt(ss_dt)
         , dir(dir)
         , dt(dt)
         , flags(flags)
@@ -120,6 +122,7 @@ struct prb_t : public prb_dims_t {
     check_alg_t check_alg;
     std::vector<std::string> tag;
     std::string stat_tag;
+    dnnl_data_type_t ss_dt;
     dir_t dir;
     std::vector<dnnl_data_type_t> dt;
     flags_t flags;

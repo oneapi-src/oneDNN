@@ -16,6 +16,7 @@ where *lnorm-knobs* are:
             to `any`. Refer to [tags](knobs_tag.md) for details.
  - `--stat_tag={tn [default], ...}` -- physical mean and variance memory format.
             Refer to [tags](knobs_tag.md) for details.
+ - `--ss_dt={f32 [default], ...}` -- data type of scale and shift.
  - `--flags=[|G|C|H]` -- layer normalization flags, default `none`; where
             multiple simultaneous flags are supported.
             `G` is dnnl_use_global_stats;

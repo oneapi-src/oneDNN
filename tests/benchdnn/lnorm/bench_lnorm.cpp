@@ -47,6 +47,7 @@ void check_correctness(
     for_(const auto &i_dt : s.dt)
     for_(const auto &i_tag : s.tag)
     for_(const auto &i_stat_tag : s.stat_tag)
+    for_(const auto &i_ss_dt : s.ss_dt)
     for_(const auto &i_flags : s.flags)
     for_(const auto &i_scales : s.scales)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
@@ -57,8 +58,8 @@ void check_correctness(
         auto attr
                 = settings_t::get_attr(i_scales, i_scratchpad_mode, i_acc_mode);
 
-        const prb_t prb(s.prb_dims, i_tag, i_stat_tag, i_dir, i_dt, i_flags,
-                attr, i_ctx_init, i_ctx_exe, i_inplace, s.check_alg);
+        const prb_t prb(s.prb_dims, i_tag, i_stat_tag, i_ss_dt, i_dir, i_dt,
+                i_flags, attr, i_ctx_init, i_ctx_exe, i_inplace, s.check_alg);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(
@@ -66,7 +67,7 @@ void check_correctness(
     }
 }
 
-int verify_input(const settings_t &s) {
+int verify_input(const settings_t &s, const settings_t &def) {
     for_(const auto &i_scales : s.scales)
     for (const auto &e : i_scales.scales) {
         if (e.second.policy != policy_t::COMMON) {
@@ -84,6 +85,16 @@ int verify_input(const settings_t &s) {
                     " inputs in SRC:DST format. Current size is: \"",
                     (long)i_dt.size(), "\".");
             return FAIL;
+        }
+    }
+
+    for (const auto &i_ss_dt : s.ss_dt) {
+        if (i_ss_dt != def.ss_dt[0]
+                && !(s.flags[0] & (USE_SCALE | USE_SHIFT))) {
+            BENCHDNN_PRINT(1, "%s\n",
+                    "WARNING: scale and shift data type was specified but "
+                    "neither C nor H flag was specified. The data type will be "
+                    "ignored. Consider specifying the flags, e.g. --flags=CH.");
         }
     }
 
@@ -108,6 +119,7 @@ int bench(int argc, char **argv) {
                 || parse_multi_dt(s.dt, def.dt, argv[0], "dt")
                 || parse_multi_tag(s.tag, def.tag, argv[0], "tag")
                 || parse_tag(s.stat_tag, def.stat_tag, argv[0], "stat_tag")
+                || parse_dt(s.ss_dt, def.ss_dt, argv[0], "ss_dt")
                 || parse_vector_option(s.flags, def.flags, str2flags, argv[0],
                         "flags", help_flags)
                 || parse_inplace(s.inplace, def.inplace, argv[0])
@@ -125,7 +137,7 @@ int bench(int argc, char **argv) {
 
             parse_prb_dims(s.prb_dims, argv[0]);
 
-            SAFE(verify_input(s), WARN);
+            SAFE(verify_input(s, def), WARN);
             check_correctness(s, task_executor);
         }
     }

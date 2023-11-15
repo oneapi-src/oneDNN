@@ -61,6 +61,7 @@ std::string prb_t::set_repro_line() {
     }
     if (canonical || stat_tag != def.stat_tag[0])
         s << "--stat_tag=" << stat_tag << " ";
+    if (canonical || ss_dt != def.ss_dt[0]) s << "--ss_dt=" << ss_dt << " ";
     if (canonical || flags != def.flags[0])
         s << "--flags=" << flags2str(flags) << " ";
     if (canonical || inplace != def.inplace[0])

@@ -17,6 +17,21 @@
 --flags=CH,GCH,C,H
 --batch=shapes_ci
 
+# Different scale and shift data types
+--dt=f32:bf16,bf16
+--dir=FWD_D,BWD_DW
+--ss_dt=bf16
+--flags=C,H,CH
+--batch=shapes_ci
+
+--dt=f32:f16,f16
+--dir=FWD_D,BWD_DW
+--ss_dt=f16
+--flags=C,H,CH
+--batch=shapes_ci
+
+--ss_dt=
+
 # Different data type combinations
 --inplace=false
 --dt=bf16:f32,f32:bf16

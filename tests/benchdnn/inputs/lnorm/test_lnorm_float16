@@ -14,3 +14,11 @@
 --dir=BWD_DW
 --flags=CH,GCH
 --batch=option_set_all
+
+# Different data type combinations
+
+--dt=f32:f16,f16
+--dir=FWD_D,BWD_DW
+--ss_dt=f16
+--flags=C,H,CH
+--batch=option_set_all

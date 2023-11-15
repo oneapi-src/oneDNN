@@ -331,10 +331,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         TIME_C_PD(DNN_SAFE_STATUS(
-                dnnl_layer_normalization_forward_primitive_desc_create(
+                dnnl_layer_normalization_forward_primitive_desc_create_v2(
                         &init_pd_args.pd, init_pd_args.engine, prop,
                         init_pd_args.src_md ? init_pd_args.src_md : src_d,
-                        dst_d, stat_d, prb->eps, flags, dnnl_attr)));
+                        dst_d, stat_d, prb->ss_dt, prb->eps, flags,
+                        dnnl_attr)));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
@@ -342,10 +343,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
         TIME_C_PD(DNN_SAFE_STATUS(
-                dnnl_layer_normalization_backward_primitive_desc_create(
+                dnnl_layer_normalization_backward_primitive_desc_create_v2(
                         &init_pd_args.pd, init_pd_args.engine, prop, diff_src_d,
-                        diff_dst_d, src_d, stat_d, prb->eps, flags,
-                        init_pd_args.hint, dnnl_attr)));
+                        diff_dst_d, src_d, stat_d, prb->ss_dt, prb->ss_dt,
+                        prb->eps, flags, init_pd_args.hint, dnnl_attr)));
     }
 
     return dnnl_success;
@@ -361,6 +362,10 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         const bool dt_ok = prb->dt[0] == prb->dt[1]
                 && !is_integral_dt(prb->dt[0]) && !is_integral_dt(prb->dt[1]);
         if (!dt_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+        if (!is_nvidia_gpu(get_test_engine()) && prb->ss_dt != dnnl_f32) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
