@@ -29,15 +29,6 @@ using namespace bn_utils;
 using namespace bn_model;
 using namespace dnnl::impl::utils;
 
-static bool use_fused_atomics_reduction(
-        nhwc_bnorm_params_t &conf, compute::gpu_arch_t gpu_arch) {
-    // Currently the fused atomics reduction is targeting to PVC only.
-    // Heuristics experimentally selected, based on PVC perf data
-    const size_t sp = conf.mb * conf.id * conf.ih * conf.iw;
-    return gpu_arch >= compute::gpu_arch_t::xe_hpc
-            && conf.ic % conf.sub_group_size == 0 && sp / conf.ic > 40;
-}
-
 static size_t get_slm_buff_size(
         int ic_block, nhwc_bnorm_params_t &conf, size_t *lws) {
     // Returns size of SLM buffer of nhwc stat calculation kernels.
@@ -100,11 +91,6 @@ static void adjust_lws_calc_kernel(int ic_block, nhwc_bnorm_params_t &conf,
     tuned_lws[1] = best_val;
 
     dispatch.set_lws(tuned_lws);
-}
-
-static int get_nhwc_ic_block(int ic, int sg_size, int max_ocl_vect_size = 8) {
-    const int nblocks = ic / (max_ocl_vect_size * sg_size);
-    return nblocks < 2 || (ic / nblocks) % sg_size ? ic : ic / nblocks;
 }
 
 static int get_nhwc_vect_size(int ic, int max_vect_size, int simd = 16) {
