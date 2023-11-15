@@ -511,9 +511,10 @@ private:
         int grf_size = ngen::GRF::bytes(hw);
         int step = 2 * grf_size;
         for (int i = 0; i < size; i += step) {
-            int exec_size = std::min(step, size - i) / type.size();
+            step = std::min(step, size - i);
+            step = utils::rnd_down_pow2(step);
+            int exec_size = step / type.size();
             auto sub_rd_mov = rd.format(i, to_ngen(type), exec_size).reg_data();
-            ir_assert(math::is_pow2(exec_size));
             host_->emov(exec_size, sub_rd_mov, ngen::Immediate(0.0f));
         }
     }
