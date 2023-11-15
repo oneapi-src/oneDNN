@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,8 +37,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     const memory_desc_wrapper sc_d(pd()->weights_md());
 
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
-    auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE);
-    auto shift = CTX_IN_MEM(const float *, DNNL_ARG_SHIFT);
+    auto scale = CTX_IN_MEM(const void *, DNNL_ARG_SCALE);
+    auto shift = CTX_IN_MEM(const void *, DNNL_ARG_SHIFT);
     auto mean = pd()->stats_are_src()
             ? const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN))
             : CTX_OUT_MEM(float *, DNNL_ARG_MEAN);
@@ -92,12 +92,18 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
 
         float sqrt_variance = sqrtf(v_variance + eps);
         for (dim_t c = 0; c < C; ++c) {
-            const float sm = (scale ? scale[sc_d.off(c)] : 1.f) / sqrt_variance;
-            const float sv = shift ? shift[sc_d.off(c)] : 0;
+            const float scale_val = scale
+                    ? io::load_float_value(sc_d.data_type(), scale, sc_d.off(c))
+                    : 1.f;
+            const float shift_val = shift
+                    ? io::load_float_value(sc_d.data_type(), shift, sc_d.off(c))
+                    : 0.f;
+
+            const float sm = scale_val / sqrt_variance;
             const auto s_off = src_d.off_l(n * C + c);
             const auto d_off = dst_d.off_l(n * C + c);
             float s = io::load_float_value(src_d.data_type(), src, s_off);
-            float d = sm * (s - v_mean) + sv;
+            float d = sm * (s - v_mean) + shift_val;
             d *= src_scales[0] * dst_scales[0];
             io::store_float_value(dst_d.data_type(), d, dst, d_off);
         }
@@ -130,16 +136,16 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     auto mean = CTX_IN_MEM(const float *, DNNL_ARG_MEAN);
     auto variance = CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE);
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
-    auto scale = CTX_IN_MEM(float *, DNNL_ARG_SCALE);
+    auto scale = CTX_IN_MEM(void *, DNNL_ARG_SCALE);
     auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
 
     auto diff_scale = use_scale
-            ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SCALE, status)
+            ? CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SCALE, status)
             : nullptr;
     CHECK(status);
     auto diff_shift = use_shift
-            ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status)
+            ? CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SHIFT, status)
             : nullptr;
     CHECK(status);
 
@@ -150,12 +156,14 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     if (this->pd()->has_zero_dim_memory()) {
         if (diff_scale) {
             for (dim_t c = 0; c < C; ++c) {
-                diff_scale[diff_sc_d.off(c)] = 0;
+                io::store_float_value(
+                        diff_sc_d.data_type(), 0, diff_scale, diff_sc_d.off(c));
             }
         }
         if (diff_shift) {
             for (dim_t c = 0; c < C; ++c) {
-                diff_shift[diff_sc_d.off(c)] = 0;
+                io::store_float_value(
+                        diff_sc_d.data_type(), 0, diff_shift, diff_sc_d.off(c));
             }
         }
         return status::success;
@@ -181,8 +189,12 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
                 diff_beta += dd;
             }
 
-            if (diff_scale) diff_scale[diff_sc_d.off(c)] = diff_gamma;
-            if (diff_shift) diff_shift[diff_sc_d.off(c)] = diff_beta;
+            if (diff_scale)
+                io::store_float_value(diff_sc_d.data_type(), diff_gamma,
+                        diff_scale, diff_sc_d.off(c));
+            if (diff_shift)
+                io::store_float_value(diff_sc_d.data_type(), diff_beta,
+                        diff_shift, diff_sc_d.off(c));
         });
     }
 
@@ -193,7 +205,10 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
         float dd_gamma_x = 0.f;
         if (calculate_diff_stats) {
             for (dim_t c = 0; c < C; ++c) {
-                float gamma = scale ? scale[sc_d.off(c)] : 1.f;
+                const float gamma = scale
+                        ? io::load_float_value(
+                                sc_d.data_type(), scale, sc_d.off(c))
+                        : 1.f;
                 const auto src_off = src_d.off_l(n * C + c);
                 const auto diff_dst_off = diff_dst_d.off_l(n * C + c);
                 float s = io::load_float_value(src_d.data_type(), src, src_off);
@@ -206,7 +221,9 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
         }
 
         for (dim_t c = 0; c < C; ++c) {
-            float gamma = scale ? scale[sc_d.off(c)] : 1;
+            const float gamma = scale
+                    ? io::load_float_value(sc_d.data_type(), scale, sc_d.off(c))
+                    : 1.f;
             const auto src_off = src_d.off_l(n * C + c);
             const auto diff_dst_off = diff_dst_d.off_l(n * C + c);
             const auto diff_src_off = diff_src_d.off_l(n * C + c);
