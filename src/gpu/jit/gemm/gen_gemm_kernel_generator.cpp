@@ -180,7 +180,7 @@ static inline size_t slmCapacity(HW hw) {
         case HW::XeHP:
         case HW::XeHPG:
         case HW::XeHPC: return 131072;
-        case HW::Xe2: return 393216;
+        case HW::Xe2: return 131072;
         default: return 0;
     }
 }
@@ -2238,6 +2238,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             int X, Y;
             bool remainderX, remainderY;
             int tileX, tileY;
+            int scxExpand = 1;
             auto &vxmask = block.colMajor ? vcmask : vrmask;
             auto &vymask = block.colMajor ? vrmask : vcmask;
             auto &fragment
@@ -2267,6 +2268,9 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 tileX = atype.tileR;
                 tileY = atype.tileC;
             }
+
+            if (tileX > 0) maxXBlock = std::min(maxXBlock, tileX);
+            if (tileY > 0) maxYBlock = std::min(maxYBlock, tileY);
 
             // Allowed accesses:
             //   A64             Essentially max 256 bytes.
@@ -2347,9 +2351,6 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             bool no16x4QW = false;
 
             no8x8DW &= !astrategy.newDP;
-            if (hw == HW::XeHPG && astrategy.newDP)
-                no8x8DW = no16x4QW
-                        = true; // Not supported on 512 EU A0. OK on later steppings.
             no16x4QW |= (!astrategy.newDP && GRF::bytes(hw) == 64);
 
             int hwMaxXBlock;
@@ -2363,25 +2364,22 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             else if (simd1)
                 hwMaxXBlock = block.crosspack;
             else if (remainderX && avoidFragment && !allowDesc)
-                hwMaxXBlock = block.crosspack;
-            else if (a64 && atomic)
-                hwMaxXBlock = block.crosspack;
+                hwMaxXBlock = block.crosspack * scxExpand;
+            else if (atomic)
+                hwMaxXBlock = block.crosspack * scxExpand;
             else if (channelScattered || (block.ebytes == 4 && no8x8DW)
                     || (block.ebytes == 8 && no16x4QW)
                     || (block.simdSize == maxSIMD))
-                hwMaxXBlock = 16 / T;
+                hwMaxXBlock = 16 / T / uncrosspack;
             else
-                hwMaxXBlock = 32 / T;
+                hwMaxXBlock = 32 / T / uncrosspack;
 
             maxXBlock = std::min(maxXBlock, hwMaxXBlock);
-
-            if (tileX > 0) maxXBlock = std::min(maxXBlock, tileX);
 
             *xblock = std::min<int>(X, maxXBlock);
             block.count = *xblock;
 
             *yblock = logicalSlots * uncrosspack / consecutive;
-            if (tileY > 0 && tileY < *yblock) stub();
 
             if (prefetch)
                 block.count = 1;
@@ -2748,6 +2746,8 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             if (hw < HW::XeHPC || !astrategy.newDP) hw_unsupported();
 
             int minAlign = (astrategy.prefetch ? 4 : 8);
+            // temporarily disabled pending catalog update:
+            // if (hw >= HW::Xe2) minAlign = 16;
 
             // Choose underlying type.
             auto Tblock = T;
@@ -3253,7 +3253,7 @@ bool gemm_kernel_generator_t<hw>::getSubblocks(Type T,
             if (subaddrs) subaddrs->push_back((*addrs)[b]);
             if (indices) indices->push_back(int(b));
             sublayout.push_back(subblock);
-        } else
+        } else if (block.offsetAddr == 0)
             sharedOK = false;
     }
     return true;
@@ -3743,9 +3743,9 @@ bool gemm_kernel_generator_t<hw>::add1DBlockToRegLayout(Type T,
     return true;
 }
 
-static inline int getPartialCrosspack(int sizeofT,
-        const MatrixAddressing &atype, const RegisterBlock &block) {
-    if (block.ebytes == 1 && !isLargeCrosspack(sizeofT, atype.crosspack))
+static inline int getPartialCrosspack(
+        Type T, const MatrixAddressing &atype, const RegisterBlock &block) {
+    if (block.ebytes == 1 && !isLargeCrosspack(T, atype.crosspack))
         return div_up(atype.crosspack, block.colMajor ? block.nc : block.nr);
     else
         return 1;
@@ -3960,11 +3960,19 @@ void coalesceAddrs(HW hw, Type T, vector<RegisterBlock> &layout,
         if (isBlock2D(accessType)) {
             if (block.nr == anchor->nr && block.nc == anchor->nc
                     && block.count == anchor->count) {
+                int ox, oy;
                 switch (atype.layout) {
-                    case MatrixLayout::N: block.set2DOffset(dr, dc); break;
-                    case MatrixLayout::T: block.set2DOffset(dc, dr); break;
+                    case MatrixLayout::N:
+                        ox = dr;
+                        oy = dc;
+                        break;
+                    case MatrixLayout::T:
+                        ox = dc;
+                        oy = dr;
+                        break;
                     default: return;
                 }
+                block.set2DOffset(ox * T.size() / block.ebytes, oy);
             } else {
                 // No match. Make this block the new anchor.
                 anchor = &block;
@@ -5647,7 +5655,7 @@ static inline bool canRelAddr(const RegisterBlock &blockSrc,
     return (blockSrc.simdSize >= blockDst.simdSize);
 }
 
-static inline int block2DWidthAlignment(int sizeofT, const RegisterBlock &block,
+static inline int block2DWidthAlignment(Type T, const RegisterBlock &block,
         const MatrixAddressingStrategy &astrategy) {
     // Block 2D width must be DW-aligned, but generally use QW alignment for better performance for reads.
     return ((astrategy.noExtraPad || block.writable) ? 4 : 8);
@@ -5657,8 +5665,8 @@ static inline int block2DWidthAlignment(int sizeofT, const RegisterBlock &block,
 //  the base pointer (a Subregister, MultishiftSubregister or integer) and leading dimension.
 template <HW hw>
 template <typename BO>
-void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
-        const RegisterBlock &block, const Subregister &bld, int sizeofT,
+void gemm_kernel_generator_t<hw>::setupAddr(Type T, const GRFRange &addr,
+        const BO &ptr, const RegisterBlock &block, const Subregister &bld,
         const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy,
         const CommonStrategy &strategy, CommonState &state,
@@ -5731,21 +5739,19 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
                 preshift = block.addrShift;
                 auto ptrShifted = startShift(ptr, block.addrShift, state);
 
-                if (pseudo)
+                if (pseudo) {
                     stride = (block.ebytes * block.count
-                                     * getPartialCrosspack(
-                                             sizeofT, atype, block)
+                                     * getPartialCrosspack(T, atype, block)
                                      * consecutive / tblock)
                             >> preshift;
-                else {
+                } else {
                     int tile = isColMajor(atype.layout) ? atype.tileR
                                                         : atype.tileC;
                     if (tile == 0) tile = atype.packSize;
-                    int psElems = (isLargeCrosspack(sizeofT, atype.crosspack)
-                                                  ? 1
-                                                  : tile)
+                    int psElems
+                            = (isLargeCrosspack(T, atype.crosspack) ? 1 : tile)
                             * atype.crosspack;
-                    stride = uint16_t(psElems * sizeofT) >> preshift;
+                    stride = uint16_t(psElems * T) >> preshift;
                 }
 
                 if (a64) {
@@ -5858,7 +5864,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
             auto boffX = memCM ? block.offsetR : block.offsetC;
             auto boffY = memCM ? block.offsetC : block.offsetR;
 
-            boffX *= uint8_t(sizeofT);
+            boffX *= uint8_t(T.size());
             if (boffX % block.ebytes) stub();
             boffX /= block.ebytes;
 
@@ -5869,7 +5875,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
             if (doBaseAdjust && !astrategy.address2D) stub();
             Subregister baStorage, baseAdjust, baseAdjustElems;
 
-            int widthAlign = block2DWidthAlignment(sizeofT, block, astrategy);
+            int widthAlign = block2DWidthAlignment(T, block, astrategy);
 
             if (!astrategy.address2D) mov(4, addr[0].ud(4)(1), 0u);
 
@@ -5893,12 +5899,12 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
                 if (params.rows.isInvalid() && params.fixedRows == 0)
                     throw std::runtime_error("Unknown matrix size.");
 
-                nx.isValid() ? mad(1, addr[0].ud(2), -1, nx, sizeofT)
-                             : mov(1, addr[0].ud(2), fixedX * sizeofT - 1);
+                nx.isValid() ? mad(1, addr[0].ud(2), -1, nx, T.size())
+                             : mov(1, addr[0].ud(2), fixedX * T - 1);
                 ny.isValid() ? add(1, addr[0].ud(3), ny, -1)
                              : mov(1, addr[0].ud(3), fixedY - 1);
                 offX.isValid() ? addScaled(1, addr[0].ud(5), boffX, offX,
-                        int(sizeofT), block.ebytes, state)
+                        int(T.size()), block.ebytes, state)
                         : doBaseAdjust
                         ? add(1, addr[0].ud(5), baseAdjustElems, boffX)
                         : mov(1, addr[0].ud(5), boffX);
@@ -5909,7 +5915,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
                     if (offX.isValid())
                         add(1, addr[0].ud(5), addr[0].ud(5), baseAdjustElems);
                 }
-                if (sizeofT < widthAlign)
+                if (T.size() < widthAlign)
                     or_(1, addr[0].ud(2), addr[0].ud(2), widthAlign - 1);
             } else if (remW.isInvalid() && remH.isInvalid())
                 emov(1, addr[0].uq(1),
@@ -5918,12 +5924,12 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
                         strategy, state);
             else {
                 if (remW.isValid() && multiX > 1) stub();
-                remW.isValid() ? mad(1, addr[0].ud(2), -1, remW.uw(), sizeofT)
+                remW.isValid() ? mad(1, addr[0].ud(2), -1, remW.uw(), T.size())
                                : mov(1, addr[0].ud(2),
                                        bw * block.count * block.ebytes - 1);
                 remH.isValid() ? mad(1, addr[0].ud(3), -1, remH.uw(), multiX)
                                : mov(1, addr[0].ud(3), bh - 1);
-                if (remW.isValid() && sizeofT < widthAlign)
+                if (remW.isValid() && T.size() < widthAlign)
                     or_(1, addr[0].ud(2), addr[0].ud(2), widthAlign - 1);
             }
 
@@ -5948,7 +5954,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
 
             int trailing = (atype.alignment % 64) ? 1 : 0;
             int setback = block.ebytes * block.count;
-            int xCacheLines = roundup_pow2(div_up(nx * sizeofT, 64) + trailing);
+            int xCacheLines = roundup_pow2(div_up(nx * T, 64) + trailing);
             int n = block.simdSize;
 
             bool allocLDMultiples = (ny > 2) && ensureLDMultiples(xCacheLines);
@@ -5958,12 +5964,12 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
             shl<uint32_t>(xCacheLines, addr, ivBase(1), 6 - block.addrShift);
             if (hasRemX && remX.isValid()) {
                 auto limit = state.ra.alloc_sub<uint32_t>();
-                emad(1 | sat, limit, -setback, remX.uw(), sizeofT, strategy,
+                emad(1 | sat, limit, -setback, remX.uw(), T.size(), strategy,
                         state);
                 min_<uint32_t>(xCacheLines, addr, addr, limit);
                 state.ra.safeRelease(limit);
             } else
-                min_<uint32_t>(xCacheLines, addr, addr, nx * sizeofT - setback);
+                min_<uint32_t>(xCacheLines, addr, addr, nx * T - setback);
 
             if (a64) {
                 int n0 = std::min(n, elementsPerGRF<uint64_t>(hw));
@@ -6099,7 +6105,7 @@ void gemm_kernel_generator_t<hw>::setupAddrRel(Type T, const GRFRange &addrDst,
         updateBlock2DSizes(addrDst, blockDst, blockSrc, atype);
 }
 
-static inline int findBaseBlock(const RegisterBlock &block,
+static inline int findBaseBlock(Type T, const RegisterBlock &block,
         const vector<RegisterBlock> &layout, int start, int end,
         const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
@@ -6108,9 +6114,9 @@ static inline int findBaseBlock(const RegisterBlock &block,
         auto &other = layout[bb];
         if (canRelAddr(other, block, atype, astrategy)) {
             if (bbase < 0) bbase = bb;
-            if (other.offsetR == block.offsetR
-                    || other.offsetC == block.offsetC)
-                return bb; // "Best fit"
+            bool bestFit = (other.offsetR == block.offsetR
+                    || other.offsetC == block.offsetC);
+            if (bestFit) return bb;
         }
     }
     return bbase;
@@ -6157,12 +6163,12 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T,
                         block.offsetC ? bparams.remC : params.remC, block.nc);
         }
         // Look for a block to base this one off of.
-        int bbase = findBaseBlock(block, layout, 0, b, atype, astrategy);
+        int bbase = findBaseBlock(T, block, layout, 0, b, atype, astrategy);
 
         if (bbase < 0) {
             // No base address, set up a new base address.
-            setupAddr(addr[b], ptr, block, ld, T.size(), atype, astrategy,
-                    strategy, state, bparams, ldMultiples);
+            setupAddr(T, addr[b], ptr, block, ld, atype, astrategy, strategy,
+                    state, bparams, ldMultiples);
             state.ra.safeRelease(tempRem);
         }
 
@@ -6620,8 +6626,8 @@ static bool needsRemask(Type T, bool column, const RegisterBlock &block,
     int maskGranularity = block.ebytes;
     if (block.ebytes >= 16) maskGranularity = 4;
     if (block2DRemask)
-        maskGranularity = std::max(maskGranularity,
-                block2DWidthAlignment(T.size(), block, astrategy));
+        maskGranularity = std::max(
+                maskGranularity, block2DWidthAlignment(T, block, astrategy));
     if (ignoreMasks && !(block2DRemask && astrategy.address2D))
         maskGranularity = 256;
 
@@ -7639,17 +7645,18 @@ void gemm_kernel_generator_t<hw>::updateCLayout(
                 }
 
             auto blockExt = layoutExt[lend];
+            bool origin = (blockExt.offsetR == 0 && blockExt.offsetC == 0
+                    && blockExt.cxComponent <= 0);
             if (blockExt.offsetAddr == 0)
                 initOA = 0, lanchor = lend;
             else {
-                blockExt.offsetAddr
-                        -= initOA; // Handle case where we start with an offset block.
-                if (!copyC) layout[lend].offsetAddr -= initOA;
+                bool is2D = strategy.C.address2D;
+                blockExt.subAddrOffset(initOA,
+                        is2D); // Handle case where we start with an offset block.
+                if (!copyC) layout[lend].subAddrOffset(initOA, is2D);
             }
             auto naddr = addrGRFCount(problem.C, strategy.C, blockExt);
-            FOR_EACH_C C_addrs[q].push_back(
-                    (blockExt.offsetR == 0 && blockExt.offsetC == 0)
-                            ? C_addr0[q]
+            FOR_EACH_C C_addrs[q].push_back(origin ? C_addr0[q]
                             : (blockExt.offsetAddr == 0)
                             ? tryAlloc(naddr)
                             : C_addrs[q][lanchor - lstart]);
@@ -8451,7 +8458,7 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
     //  - all blocks must share same ordering (row/column major).
     // Otherwise use non-uniform path, and indirectly load GRFs.
 
-    auto Tcx = Tc;
+    auto Tcx = Tc, Tcy = Tc;
     bool uniform = true;
     int16_t xByteInc = 0, yByteInc = 0;
     bool cAtEnd = (state.C_regs[0][state.C_regs[0].getLen() - 1].getBase() + 1)
@@ -8459,7 +8466,8 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
 
     if (state.C_regs[0].ranges.size() != 1) uniform = false;
 
-    for (auto &block : state.C_layout) {
+    for (size_t i = 0; i < state.C_layout.size(); i++) {
+        auto &block = state.C_layout[i];
         if (block.colMajor != block0.colMajor) stub();
 
         int nx = cColMajorReg ? block.nr : block.nc;
@@ -8472,7 +8480,7 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
         if ((nx & (nec - 1)) && cAtEnd) uniform = false;
 
         if (xByteInc == 0 && nx > nec) xByteInc = nec * Tcx;
-        if (yByteInc == 0 && ny > 1) yByteInc = block.ld * Tc;
+        if (yByteInc == 0 && ny > 1) yByteInc = block.ld * Tcy;
 
         if (block.offsetBytes != ox * xByteInc + oy * yByteInc) {
             if (xByteInc == 0 && ox > 0)
@@ -8488,11 +8496,12 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
     bool nonuniformSubs = false;
 
     if (!uniform) {
-        uint8_t baseIndices[256] = {0};
-        uint16_t offIndices[256] = {0};
+        static constexpr int maxGRFs = 256;
+        uint8_t baseIndices[maxGRFs] = {0};
+        uint16_t offIndices[maxGRFs] = {0};
 
         // Workaround for spurious maybe-uninitialized warning in GCC11
-        for (int i = 0; i < 256; i++)
+        for (int i = 0; i < maxGRFs; i++)
             offIndices[i] = 0;
 
         if (state.Tacc.size() == 1) stub();
@@ -8501,27 +8510,30 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
         int nec1 = nec / xByteInc;
         yByteInc = div_up(unrollX, nec1);
 
+        int ncx = 1;
+
+        int idx = 0;
         for (int y = 0; y < unrollY; y++) {
             for (int xx = 0; xx < yByteInc; xx++) {
-                auto x = xx * nec1;
-                auto i = cColMajorReg ? x : y;
-                auto j = cColMajorReg ? y : x;
-                const RegisterBlock *blockPtr;
-                int ne;
-                auto sub = findBlockReg(Tc, state.C_layout, i, j,
-                        state.C_regs[0], ne, blockPtr, 0);
-                nonuniformSubs |= (sub.getOffset() != 0);
-                if (ne < std::min(nec1, unrollX - x)) stub();
-                baseIndices[y * yByteInc + xx] = sub.getBase();
-                offIndices[y * yByteInc + xx]
-                        = sub.getByteOffset() + sub.getBase() * GRF::bytes(hw);
+                for (int cxComponent = 0; cxComponent < ncx;
+                        cxComponent++, idx++) {
+                    auto x = xx * nec1;
+                    auto i = cColMajorReg ? x : y;
+                    auto j = cColMajorReg ? y : x;
+                    const RegisterBlock *blockPtr;
+                    int ne;
+                    auto sub = findBlockReg(Tc, state.C_layout, i, j,
+                            state.C_regs[0], ne, blockPtr, cxComponent);
+                    nonuniformSubs |= (sub.getOffset() != 0);
+                    if (ne < std::min(nec1, unrollX - x)) stub();
+                    baseIndices[idx] = sub.getBase();
+                    offIndices[idx] = sub.getByteOffset()
+                            + sub.getBase() * GRF::bytes(hw);
+                }
             }
         }
 
-        if (nonuniformSubs) {
-            xByteInc *= 2;
-            yByteInc *= 2;
-        }
+        if (nonuniformSubs) xByteInc *= 2, yByteInc *= 2;
 
         bases = state.ra.alloc_range(
                 div_up(unrollY * yByteInc, GRF::bytes(hw)));
@@ -8703,7 +8715,7 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
 
     if (!uniform) {
         if (hw >= HW::Gen12LP) subdep(Operand::src0, bases);
-        nonuniformSubs ? mov(xByteInc, a0[2](1), indirect[a0[1]].uw())
+        nonuniformSubs ? mov(xByteInc >> 1, a0[2](1), indirect[a0[1]].uw())
                        : shl(xByteInc, a0[2](1), indirect[a0[1]].ub(),
                                GRF::log2Bytes(hw));
     }
@@ -14309,12 +14321,14 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
             default: stub();
         }
 
-        if (slmA)
-            storeMatrix(effAo_regs(h), state.Ao_layout, state.Ao,
-                    state.Ao_strategy, state.Ao_addrs, strategy, state);
-        if (slmB)
-            storeMatrix(effBo_regs(h), state.Bo_layout, state.Bo,
-                    state.Bo_strategy, state.Bo_addrs, strategy, state);
+        {
+            if (slmA)
+                storeMatrix(effAo_regs(h), state.Ao_layout, state.Ao,
+                        state.Ao_strategy, state.Ao_addrs, strategy, state);
+            if (slmB)
+                storeMatrix(effBo_regs(h), state.Bo_layout, state.Bo,
+                        state.Bo_strategy, state.Bo_addrs, strategy, state);
+        }
 
         if (slmASums)
             accumulateSum(false, Ta, effAo_regs(h), state.Ao_layout, Tc,
@@ -14646,8 +14660,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(
 // Get minimum alignment for block 2D message.
 static inline int block2DCMinAlignment(HW hw, const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
-    if (hw == HW::Xe2)
-        return 64; /* Workaround for overstringent Cobalt alignment checks */
+    if (hw == HW::Xe2) return 16;
     return isTransposing(astrategy.accessType) ? 4 : 8;
 }
 
@@ -15908,16 +15921,16 @@ void gemm_kernel_generator_t<hw>::setupCAddr0(GRFRange (&C_addr0)[2],
     for (int q = 0; q < C_count; q++) {
         C_addr0[q] = state.ra.alloc_range(
                 addrGRFCount(problem.C, strategy.C, C_layout[0]));
-        setupAddr(C_addr0[q], state.effC[q], C_layout[0], state.inputs.ldc[q],
-                problem.Tc_ext.size(), problem.C, strategy.C, strategy, state,
+        setupAddr(problem.Tc_ext, C_addr0[q], state.effC[q], C_layout[0],
+                state.inputs.ldc[q], problem.C, strategy.C, strategy, state,
                 *params, state.ldcMultiples[q]);
     }
     if (!C_layoutUnmasked.empty())
         for (int q = 0; q < C_count; q++) {
             C_addr0Unmasked[q] = state.ra.alloc_range(
                     addrGRFCount(problem.C, strategy.C, C_layoutUnmasked[0]));
-            setupAddr(C_addr0Unmasked[q], state.effC[q], C_layoutUnmasked[0],
-                    state.inputs.ldc[q], problem.Tc_ext.size(), problem.C,
+            setupAddr(problem.Tc_ext, C_addr0Unmasked[q], state.effC[q],
+                    C_layoutUnmasked[0], state.inputs.ldc[q], problem.C,
                     strategy.C, strategy, state, *params,
                     state.ldcMultiples[q]);
         }

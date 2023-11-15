@@ -149,12 +149,8 @@ static inline bool isColMajor(MatrixLayout l) {
     return (l == MatrixLayout::N || l == MatrixLayout::Pc);
 }
 
-static inline bool isLargeCrosspack(int sizeofT, int crosspack) {
-    return (crosspack * sizeofT > 4) && (crosspack > 1);
-}
-
 static inline bool isLargeCrosspack(Type T, int crosspack) {
-    return isLargeCrosspack(T.size(), crosspack);
+    return (crosspack * T > 4) && (crosspack > 1);
 }
 
 static inline MatrixLayout transposeLayout(MatrixLayout l) {
@@ -624,6 +620,13 @@ struct RegisterBlock {
     }
     void set2DOffset(int16_t x, int16_t y) {
         offsetAddr = uint16_t(x) | (uint32_t(uint16_t(y)) << 16);
+    }
+    void subAddrOffset(int32_t aoff, bool is2D) {
+        if (is2D)
+            set2DOffset((offsetAddr - aoff) & 0xFFFF,
+                    (offsetAddr >> 16) - (aoff >> 16));
+        else
+            offsetAddr -= aoff;
     }
 };
 
@@ -2174,9 +2177,9 @@ protected:
             const CommonStrategy &strategy, CommonState &state,
             const LDMultiples &ldMultiples = {});
     template <typename BO>
-    void setupAddr(const ngen::GRFRange &addr, const BO &ptr,
+    void setupAddr(Type T, const ngen::GRFRange &addr, const BO &ptr,
             const RegisterBlock &layout, const ngen::Subregister &ld,
-            int sizeofT, const MatrixAddressing &atype,
+            const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             const CommonStrategy &strategy, CommonState &state,
             const Address2DParams &params = {}, LDMultiples ldMultiples = {});

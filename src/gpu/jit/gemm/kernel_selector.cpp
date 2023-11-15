@@ -57,9 +57,9 @@ inline bool precisionMatch(const char *pref, const char *ppattern) {
 inline bool precisionMinimumMatch(const char *pref, char pmin) {
     uint8_t sizeTable[0x20]
             = {//         A  B  C  D  E  F  G  H  I  J  K  L  M  N  O
-                    0, 0, 2, 8, 8, 0, 0, 0, 2, 4, 4, 0, 0, 0, 0, 1,
+                    0, 0, 2, 8, 8, 0, 0, 0, 2, 4, 4, 4, 0, 0, 0, 1,
                     //      P  Q  R  S  T  U  V  W  X  Y  Z
-                    0, 0, 0, 4, 4, 0, 0, 2, 0, 0, 16, 0, 0, 0, 0, 0};
+                    0, 0, 0, 4, 4, 8, 0, 2, 0, 0, 16, 0, 0, 0, 0, 0};
 
     return (sizeTable[pref[0] & 0x1F] >= sizeTable[pmin & 0x1F]);
 }
@@ -130,6 +130,8 @@ bool matches(const kcatalog::Entry &e, const MatchParams &pattern) {
     return ok;
 }
 
+// Check whether one set of A/B alignments (alignA1, alignB1) is strictly less aligned than
+//  another (alignA2, alignB2).
 bool lessAligned(int alignA1, int alignB1, int alignA2, int alignB2) {
     alignA1 = std::max(alignA1, 4);
     alignA2 = std::max(alignA2, 4);
