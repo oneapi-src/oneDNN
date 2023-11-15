@@ -558,8 +558,8 @@ struct workspace_t {
 
     dim_t calc_off_ws_grid_offset(
             dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4) const {
-        return OFF5(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
-                conf_.n_iter + 1, i3, conf_.mb, i4, conf_.dhc);
+        return OFF5(i0, conf_.n_layer, i1, conf_.n_dir, i2, conf_.n_iter, i3,
+                conf_.mb, i4, conf_.dhc);
     }
 
     const mst &ws() const { return ws_; }
