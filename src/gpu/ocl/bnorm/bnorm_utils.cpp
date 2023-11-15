@@ -95,7 +95,7 @@ std::string get_dt_str(const batch_normalization_pd_t *pd) {
     else if (dt == data_type::bf16)
         s += "bf16";
     else
-        assert(!"Not expected");
+        gpu_error_not_expected();
     return s;
 }
 std::string get_dir_str(const batch_normalization_pd_t *pd) {
@@ -107,7 +107,7 @@ std::string get_dir_str(const batch_normalization_pd_t *pd) {
     else if (!pd->is_fwd())
         s += "BWD_DW";
     else
-        assert(!"Not expected");
+        gpu_error_not_expected();
     return s;
 }
 std::string get_desc_str(const batch_normalization_pd_t *pd) {

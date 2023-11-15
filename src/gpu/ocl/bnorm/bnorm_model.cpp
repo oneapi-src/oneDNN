@@ -96,7 +96,7 @@ std::string to_string(const kernel_kind_t &kernel) {
     } else if (kernel == default_bwd_ker) {
         kernel_name = "default_bwd";
     } else {
-        assert(!"Not expected");
+        gpu_error_not_expected();
     }
     return kernel_name;
 }
@@ -110,7 +110,7 @@ std::string to_string(const data_location_t &loc) {
     } else if (loc == SLM) {
         str_loc = "SLM";
     } else {
-        assert(!"Not expected");
+        gpu_error_not_expected();
     }
     return str_loc;
 }
@@ -190,7 +190,7 @@ int get_ncalls(model_params_t &p, const nhwc_bnorm_params_t &conf,
                 return conf.calculate_stats && p.use_fused_atomics_reduction
                         ? (conf.use_stats_one_pass ? 1 : 2)
                         : 0;
-            default: assert(!"Not expected"); return 0;
+            default: gpu_error_not_expected(); return 0;
         }
     } else { // BWD pass
         return 1;
@@ -246,7 +246,7 @@ size_t get_kernel_input_size(const model_params_t &p,
                     * sizeof(float);
             break;
 
-        default: assert(!"Not expected");
+        default: gpu_error_not_expected();
     }
     return nbytes;
 }
@@ -289,7 +289,7 @@ size_t get_kernel_output_size(const model_params_t &p,
                             * sizeof(float);
             break;
         case reduce_stats_bwd_ker: nbytes = 2 * stat_vect_sz; break;
-        default: assert(!"Not expected");
+        default: gpu_error_not_expected();
     }
     return nbytes;
 }

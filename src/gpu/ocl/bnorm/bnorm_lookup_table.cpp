@@ -71,7 +71,7 @@ gpu_arch_t to_hw(const std::string &s) {
     CASE(xe_hpg)
     CASE(xe_hpc)
 #undef CASE
-    assert(!"Not expected");
+    gpu_error_not_expected();
     return gpu_arch_t::unknown;
 }
 
@@ -97,7 +97,7 @@ bool int_filter_t::matches(int value) const {
         case op_kind_t::_ge: return value >= value_;
         case op_kind_t::_lt: return value < value_;
         case op_kind_t::_gt: return value > value_;
-        default: assert(!"Not expected");
+        default: gpu_error_not_expected();
     }
     return false;
 }
@@ -123,7 +123,7 @@ bool type_filter_t::matches(const data_type_t &dt) const {
     else if (pattern_ == "bf16")
         return (dt == data_type::bf16);
     else
-        assert(!"Not expected");
+        gpu_error_not_expected();
     return true;
 }
 
@@ -183,7 +183,7 @@ bnorm_problem_filter_t::bnorm_problem_filter_t(const std::string &s) {
         } else if (name == "desc") {
             desc_ = value;
         } else {
-            assert(!"Not expected");
+            gpu_error_not_expected();
         }
     }
 }
@@ -209,7 +209,7 @@ bool bnorm_problem_filter_t::matches_dir(const params_t &conf) const {
             || dir_ == "bwd_dw") {
         return conf.is_backward;
     } else {
-        assert(!"Not expected");
+        gpu_error_not_expected();
     }
     return false;
 }
@@ -228,7 +228,7 @@ bool bnorm_problem_filter_t::matches_tag(const params_t &conf) const {
     } else if (tag_ == "ABcd32a16b" || tag_ == "ABcde32a16b") {
         return conf.is_blocked_32n16c;
     } else {
-        assert(!"Not expected");
+        gpu_error_not_expected();
     }
     return false;
 }
