@@ -304,7 +304,7 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
 {
     // Check jumps and no-ops
     auto op = insn.opcode();
-    if (isBranch(op) || op == Opcode::nop_gen12 || op == Opcode::sync || op == Opcode::illegal)
+    if (isBranch(op) || op == Opcode::nop_gen12 || op == Opcode::sync || op == Opcode::illegal || op == Opcode::directive)
         return GeneralizedPipe();
 
     // Check OOO instructions.
@@ -405,9 +405,7 @@ DependencyRegion::DependencyRegion(HW hw_, int esize, RegData rr)
 
     int hs = rr.getHS(), vs = rr.getVS();
     int nh = rr.getWidth();
-#ifdef NGEN_SAFE
     if (nh == 0) nh = 1;
-#endif
     int nv = esize / nh;
     int bytes = rr.getBytes();
     int off = rr.getByteOffset();
@@ -1127,10 +1125,13 @@ template <typename Instruction>
 inline Directive getDirective(const Instruction &insn)
 {
     DependencyRegion region;
+    if (!insn.getOperandRegion(region, -1)) {
 #ifdef NGEN_SAFE
-    if (!insn.getOperandRegion(region, -1))
         throw std::runtime_error("nGEN internal error: invalid directive");
+#else
+        return static_cast<Directive>(0xFF);
 #endif
+    }
     return static_cast<Directive>(region.base);
 }
 

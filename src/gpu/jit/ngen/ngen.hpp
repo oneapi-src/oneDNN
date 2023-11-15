@@ -170,7 +170,7 @@ protected:
 
     class Program {
         friend class BinaryCodeGenerator;
-        using Instruction = typename std::conditional<(hw >= HW::XeHPC), InstructionXeHPC, Instruction12>::type;
+        using Instruction = typename Instruction12Dispatch<hw>::type;
         std::vector<uint64_t> &code;
 
         Program(InstructionStream &stream) : code(stream.code) {};
@@ -291,7 +291,9 @@ private:
 #include "ngen_compiler_fix.hpp"
 
 public:
-    explicit BinaryCodeGenerator(Product product_) : product{product_}, defaultModifier{}, labelManager{}, sync{this}, load{this}, store{this}, atomic{this} {
+    explicit BinaryCodeGenerator(Product product_) : product{product_}, defaultModifier{}, labelManager{},
+                                                     sync{this}, load{this}, store{this}, atomic{this}
+    {
         _workaround_();
         pushStream(rootStream);
     }
@@ -1729,8 +1731,8 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
 
     encodeCommon12(i, op, emod, dst, tag);
 
-    i.binary.dst  = encodeBinaryOperand12<true>(dst, tag).bits;
-    i.binary.src0 = encodeBinaryOperand12<false>(src0, tag).bits;
+    i.binary.dst  = encodeBinaryOperand12<-1>(dst, tag).bits;
+    i.binary.src0 = encodeBinaryOperand12<0>(src0, tag).bits;
 
     i.binary.dstAddrMode = dst.isIndirect();
     i.binary.dstType  = getTypecode12(dst.getType());
@@ -1794,7 +1796,7 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
 
     encodeCommon12(i, op, emod, dst, tag);
 
-    i.binary.dst = encodeBinaryOperand12<true>(dst, tag).bits;
+    i.binary.dst = encodeBinaryOperand12<-1>(dst, tag).bits;
 
     i.binary.dstAddrMode = dst.isIndirect();
 
@@ -1877,9 +1879,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
 
     encodeCommon12(i, op, emod, dst, tag);
 
-    i.binary.dst  = encodeBinaryOperand12<true>(dst, tag).bits;
-    i.binary.src0 = encodeBinaryOperand12<false>(src0, tag).bits;
-    i.binary.src1 = encodeBinaryOperand12<false>(src1, tag).bits;
+    i.binary.dst  = encodeBinaryOperand12<-1>(dst, tag).bits;
+    i.binary.src0 = encodeBinaryOperand12<0>(src0, tag).bits;
+    i.binary.src1 = encodeBinaryOperand12<1>(src1, tag).bits;
 
     i.binary.dstAddrMode = dst.isIndirect();
     i.binary.dstType  = getTypecode12(dst.getType());
@@ -1948,8 +1950,8 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
 
     encodeCommon12(i, op, emod, dst, tag);
 
-    i.binary.dst  = encodeBinaryOperand12<true>(dst, tag).bits;
-    i.binary.src0 = encodeBinaryOperand12<false>(src0, tag).bits;
+    i.binary.dst  = encodeBinaryOperand12<-1>(dst, tag).bits;
+    i.binary.src0 = encodeBinaryOperand12<0>(src0, tag).bits;
     i.binary.src1 = static_cast<uint64_t>(src1);
 
     i.binary.dstAddrMode = dst.isIndirect();
@@ -2373,7 +2375,7 @@ BinaryCodeGenerator<hw>::opBranch(Opcode op, const InstructionModifier &mod, con
 
     i.branches.branchCtrl = emod.getBranchCtrl();
 
-    i.binary.dst = encodeBinaryOperand12<true, false>(dst, tag).bits;
+    i.binary.dst = encodeBinaryOperand12<-1, false>(dst, tag).bits;
 
     i.binary.src0Imm = true;
     i.binary.src1Imm = true;
@@ -2421,7 +2423,7 @@ BinaryCodeGenerator<hw>::opBranch(Opcode op, const InstructionModifier &mod, con
 
     i.branches.branchCtrl = emod.getBranchCtrl();
 
-    i.binary.dst = encodeBinaryOperand12<true, false>(dst, tag).bits;
+    i.binary.dst = encodeBinaryOperand12<-1, false>(dst, tag).bits;
     i.binary.src0Imm = true;
     i.branches.jip = jip;
 
@@ -2465,10 +2467,11 @@ BinaryCodeGenerator<hw>::opBranch(Opcode op, const InstructionModifier &mod, con
 
     i.branches.branchCtrl = emod.getBranchCtrl();
 
-    i.binary.dst = encodeBinaryOperand12<true, false>(dst, tag).bits;
-    i.binary.src0 = encodeBinaryOperand12<false, false>(src0, tag).bits;
+    i.binary.dst = encodeBinaryOperand12<-1, false>(dst, tag).bits;
+    i.binary.src0 = encodeBinaryOperand12<0, false>(src0, tag).bits;
     if (small12)
         i.binary.src0 &= 0xFFFF;
+
 
     db(i);
 }
@@ -2573,7 +2576,7 @@ void BinaryCodeGenerator<hw>::opSync(Opcode op, SyncFunction fc, const Instructi
     i.binary.dst = 0x1;
     if (!src0.isNull()) {
         src0.setRegion(0, 1, 0);
-        i.binary.src0 = encodeBinaryOperand12<false>(src0, tag).bits;
+        i.binary.src0 = encodeBinaryOperand12<0>(src0, tag).bits;
         i.binary.src0Type = getTypecode12(src0.getType());
     }
     i.binary.cmod = static_cast<int>(fc);

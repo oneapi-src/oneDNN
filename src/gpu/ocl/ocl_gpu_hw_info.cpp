@@ -48,8 +48,7 @@ void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
         case arch_t::xe2:
         case arch_t::xe_hpc: mayiuse_systolic = true; break;
         case arch_t::xe_hpg:
-            mayiuse_systolic = !utils::one_of(
-                    product.family, ProductFamily::ARL, ProductFamily::MTL);
+            mayiuse_systolic = (product.family != ProductFamily::MTL);
             break;
         default: mayiuse_systolic = false;
     }

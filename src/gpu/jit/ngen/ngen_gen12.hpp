@@ -22,9 +22,16 @@
 
 struct EncodingTag12 {};
 struct EncodingTagXeHPC {};
-template <HW hw> struct EncodingTag12Dispatch { using tag = EncodingTag12; };
+
+struct Instruction12;
+struct InstructionXeHPC;
+
+template <HW hw> struct EncodingTag12Dispatch       { using tag = EncodingTag12; };
+template <HW hw> struct Instruction12Dispatch       { using type = Instruction12; };
 template <> struct EncodingTag12Dispatch<HW::XeHPC> { using tag = EncodingTagXeHPC; };
-template <> struct EncodingTag12Dispatch<HW::Xe2> { using tag = EncodingTagXeHPC; };
+template <> struct Instruction12Dispatch<HW::XeHPC> { using type = InstructionXeHPC; };
+template <> struct EncodingTag12Dispatch<HW::Xe2>   { using tag = EncodingTagXeHPC; };
+template <> struct Instruction12Dispatch<HW::Xe2>   { using type = InstructionXeHPC; };
 
 class SWSBInfo12
 {
@@ -329,9 +336,9 @@ struct Instruction12 {
             unsigned src0Mods : 2;
             unsigned src0Imm : 1;
             unsigned src2Imm : 1;
-            unsigned dst : 16;              // TernaryOperand12 or immediate
+            unsigned dst : 16;              // TernaryOperand12
             //
-            unsigned src0 : 16;
+            unsigned src0 : 16;             // TernaryOperand12 or immediate
             unsigned src2Type : 3;
             unsigned src1VS0 : 1;
             unsigned src2Mods : 2;
@@ -438,7 +445,7 @@ struct Instruction12 {
     void shiftUIP(int32_t shift)  { branches.uip += shift * sizeof(Instruction12); }
 
     inline autoswsb::DestinationMask destinations(int &jip, int &uip) const;
-    template <bool xeHPC = false>
+    template <typename Tag = EncodingTag12>
     inline bool getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const;
     inline bool getImm32(uint32_t &imm) const;
     inline bool getSendDesc(MessageDescriptor &desc) const;
@@ -460,9 +467,9 @@ struct InstructionXeHPC : public Instruction12 {
     SWSBInfo swsb() const        { return SWSBInfoXeHPC::createFromRaw(commonXeHPC.swsb).decode(opcode()); }
     void setSWSB(SWSBInfo swsb)  { commonXeHPC.swsb = SWSBInfoXeHPC(swsb, opcode()).raw(); }
 
-    template <bool xeHPC = true>
+    template <typename Tag = EncodingTagXeHPC>
     bool getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const {
-        return Instruction12::getOperandRegion<true>(region, opNum);
+        return Instruction12::getOperandRegion<EncodingTagXeHPC>(region, opNum);
     }
 };
 
@@ -489,7 +496,7 @@ static inline unsigned pow2Encode(unsigned x)
     return (x == 0) ? 0 : (1 + utils::log2(x));
 }
 
-template <bool dest, bool encodeHS = true>
+template <int srcN, bool encodeHS = true>
 static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &rd, EncodingTag12 tag)
 {
     BinaryOperand12 op{0};
@@ -502,26 +509,26 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
         op.indirect.addrOff = rd.getOffset();
         op.indirect.addrReg = rd.getIndirectOff();
         op.indirect.addrMode = 1;
-        if (!dest)
+        if (srcN >= 0)
             op.indirect.vs = (rd.isVxIndirect()) ? 0xFFFF : pow2Encode(rd.getVS());
     } else {
         op.direct.regFile = getRegFile(rd);
         op.direct.subRegNum = rd.getByteOffset();
         op.direct.regNum = rd.getBase();
         op.direct.addrMode = 0;
-        if (!dest)
+        if (srcN >= 0)
             op.direct.vs = pow2Encode(rd.getVS());
     }
 
     if (encodeHS)
         op.direct.hs = pow2Encode(rd.getHS());
 
-    if (!dest) op.direct.width = utils::log2(rd.getWidth());
+    if (srcN >= 0) op.direct.width = utils::log2(rd.getWidth());
 
     return op;
 }
 
-template <bool dest, bool encodeHS = true>
+template <int srcN, bool encodeHS = true>
 static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &rd, EncodingTagXeHPC tag)
 {
     BinaryOperand12 op{0};
@@ -534,7 +541,7 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
         op.indirect.addrOff = (rd.getOffset() >> 1);
         op.indirect.addrReg = rd.getIndirectOff();
         op.indirect.addrMode = 1;
-        if (!dest) {
+        if (srcN >= 0) {
             op.indirect.vs = (rd.isVxIndirect()) ? 0xFFFF : pow2Encode(rd.getVS());
             op.indirectXeHPC.addrOff0 = (rd.getOffset() & 1);
         }
@@ -543,7 +550,7 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
         op.direct.subRegNum = (rd.getByteOffset() >> 1);
         op.direct.regNum = rd.getBase();
         op.direct.addrMode = 0;
-        if (!dest) {
+        if (srcN >= 0) {
             op.directXeHPC.vs = pow2Encode(rd.getVS());
             op.directXeHPC.subRegNum0 = rd.getByteOffset() & 1;
         }
@@ -552,15 +559,15 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
     if (encodeHS)
         op.direct.hs = pow2Encode(rd.getHS());
 
-    if (!dest) op.direct.width = utils::log2(rd.getWidth());
+    if (srcN >= 0) op.direct.width = utils::log2(rd.getWidth());
 
     return op;
 }
 
-template <bool dest, typename Tag>
+template <int srcN, typename Tag>
 static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const ExtendedReg &reg, Tag tag)
 {
-    auto op = encodeBinaryOperand12<dest>(reg.getBase(), tag);
+    auto op = encodeBinaryOperand12<srcN>(reg.getBase(), tag);
     op.direct.subRegNum = reg.getMMENum();
 
     return op;
@@ -819,10 +826,12 @@ inline ARFType normalizeARFType(ARFType type, HW hw)
     return type;
 }
 
-template <bool xeHPC>
+template <typename Tag>
 bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const
 {
     using namespace autoswsb;
+
+    constexpr bool xeHPC = !std::is_same<Tag, EncodingTag12>::value;
 
     auto hw = region.hw;
     auto op = opcode();
@@ -958,7 +967,8 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             }
             dt |= (ternary.execType << 3);
             if (op == Opcode::madm) o.direct.subRegNum = 0;
-            auto base = GRF(o.direct.regNum).retype(decodeRegTypecode12(dt));
+            unsigned regNum = o.direct.regNum;
+            auto base = GRF(regNum).retype(decodeRegTypecode12(dt));
             auto sr = o.direct.subRegNum;
             if (xeHPC) sr <<= 1;
             auto sub = base[sr / getBytes(base.getType())];
@@ -1001,10 +1011,11 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 o.direct.subRegNum = 0;
             auto sr = xeHPC ? ((o.direct.subRegNum << 1) | o.directXeHPC.subRegNum0)
                             : o.direct.subRegNum;
-            auto vs = xeHPC ? o.directXeHPC.vs : o.direct.vs;
-            auto base = GRF(o.direct.regNum).retype(decodeRegTypecode12(dt));
+            auto regNum = o.direct.regNum;
+            auto base = GRF(regNum).retype(decodeRegTypecode12(dt));
             auto sub = base[sr / getBytes(base.getType())];
             auto hs = (1 << o.direct.hs) >> 1;
+            auto vs = xeHPC ? o.directXeHPC.vs : o.direct.vs;
             if (opNum < 0)
                 rd = sub(hs);
             else

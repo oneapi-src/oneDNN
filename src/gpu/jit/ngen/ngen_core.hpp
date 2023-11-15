@@ -244,7 +244,6 @@ enum class ProductFamily : int {
     GenericXeHPG,
     DG2,
     MTL,
-    ARL,
     GenericXeHPC,
     PVC,
     GenericXe2,
@@ -1079,8 +1078,11 @@ public:
     AccumulatorRegister &operator=(const Invalid &i) { this->invalidate(); return *this; }
 
     static constexpr14 int count(HW hw, DataType dt = DataType::invalid) {
-        if (hw == HW::Gen9  && dt == DataType::df) return 0;
-        if (hw == HW::XeHPG && dt == DataType::df) return 0;
+        if (dt == DataType::df) {
+            if (hw == HW::Gen9)  return 0;
+            if (hw == HW::XeHPG) return 0;
+            if (hw == HW::Xe2)   return 0;
+        }
         if (hw >= HW::XeHP) return 4;
         return 2;
     }

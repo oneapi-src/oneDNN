@@ -391,8 +391,9 @@ class AsmCodeGenerator {
 private:
 #include "ngen_compiler_fix.hpp"
 public:
-    explicit AsmCodeGenerator(Product product_) : hardware(getCore(product_.family)), product(product_),
-            defaultOutput{nullptr}, sync{this}, load{this}, store{this}, atomic{this} {
+    explicit AsmCodeGenerator(Product product_) : hardware(getCore(product_.family)), product(product_), defaultOutput{nullptr},
+                                                  sync{this}, load{this}, store{this}, atomic{this}
+    {
         isGen12 = (hardware >= HW::Gen12LP);
         _workaround_();
         streamStack.push_back(new InstructionStream());
