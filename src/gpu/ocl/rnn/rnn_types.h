@@ -89,8 +89,9 @@ int off_ws_bias(int n_layer, int n_dir, int n_bias, int dhc, int i0, int i1,
 // grid offset for lbr GRU, LD = DHC
 int off_ws_grid_offset(int n_layer, int n_dir, int n_iter, int batch, int dhc,
         int i0, int i1, int i2, int i3, int i4) {
-    return OFF5(i0, n_layer + 1, i1, n_dir, i2, n_iter + 1, i3, batch, i4, dhc);
+    return OFF5(i0, n_layer, i1, n_dir, i2, n_iter, i3, batch, i4, dhc);
 }
+
 int off_ker_bias(int n_gates, int dhc, int i0, int i1) {
     return OFF2(i0, n_gates, i1, dhc);
 }
