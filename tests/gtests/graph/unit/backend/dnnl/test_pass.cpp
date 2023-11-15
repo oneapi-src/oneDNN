@@ -4913,7 +4913,7 @@ TEST(Pass, InputJsonIsValid) {
                  << "  \"enable\": 1\n"
                  << "  },\n"
                  << "  {\n"
-                 << "  \"pass_name\": \"relu_pass\",\n"
+                 << "  \"pass_name\": \"eltwise_fwd_pass\",\n"
                  << "  \"pass_backend\": \"dnnl\",\n"
                  << "  \"priority\": 8,\n"
                  << "  \"enable\": 1\n"
@@ -13509,7 +13509,7 @@ TEST(Pass, FailToFuseInt8ConcatDifferentScales) {
 
 TEST(Pass, SingleSoftPlusForwardAndBackwardPass) {
     std::vector<std::pair<op_kind_t, std::string>> op_infos {
-            {SoftPlus, "softplus"}, {SoftPlusBackward, "softplus_bw"}};
+            {SoftPlus, "eltwise_fwd"}, {SoftPlusBackward, "softplus_bw"}};
     std::vector<float> beta_values {-3.f, -1.f, 0.f, 1.f, 3.f};
     for_(const auto &op_info : op_infos)
     for (auto beta : beta_values) {
