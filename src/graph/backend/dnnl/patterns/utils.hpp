@@ -117,6 +117,25 @@ inline const std::vector<op_kind_t> &get_unary_ops() {
     return unary;
 }
 
+inline const std::vector<op_kind_t> &get_unary_bwd_ops() {
+    const static std::vector<op_kind_t> unary_bwd = {
+            graph::op_kind::AbsBackward,
+            graph::op_kind::ClampBackward,
+            graph::op_kind::EluBackward,
+            graph::op_kind::GELUBackward,
+            graph::op_kind::HardSigmoidBackward,
+            graph::op_kind::HardSwishBackward,
+            graph::op_kind::MishBackward,
+            graph::op_kind::SigmoidBackward,
+            graph::op_kind::SoftPlusBackward,
+            graph::op_kind::ReLUBackward,
+            graph::op_kind::SqrtBackward,
+            graph::op_kind::TanhBackward,
+    };
+
+    return unary_bwd;
+}
+
 inline const std::vector<op_kind_t> &get_binary_ops() {
     const static std::vector<op_kind_t> binary = {
             graph::op_kind::Add,
