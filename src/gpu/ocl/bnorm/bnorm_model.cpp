@@ -71,7 +71,7 @@ float get_used_ss_thr_utilization(hw_params_t &hw_params, int sg_size,
                     hw_params.eu_count * hw_params.threads_per_eu);
 }
 
-std::string get_str_kernel_name(const kernel_kind_t &kernel) {
+std::string to_string(const kernel_kind_t &kernel) {
     std::string kernel_name;
     if (kernel == calc_mean_ker) {
         kernel_name = "calc_mean";
@@ -101,7 +101,7 @@ std::string get_str_kernel_name(const kernel_kind_t &kernel) {
     return kernel_name;
 }
 
-std::string get_str_data_location(const data_location_t &loc) {
+std::string to_string(const data_location_t &loc) {
     std::string str_loc;
     if (loc == L3) {
         str_loc = "L3";
@@ -119,13 +119,13 @@ std::string get_str_data_location(const data_location_t &loc) {
 void dump_kernel_descriptor(kernel_desc_t &desc) {
     DPRINT("%s:%s:%d kernel desc:  %s : ncalls = %d : nbytes = %lld %lld : "
            "location = %s %s\n",
-            PRINTHEAD, get_str_kernel_name(desc.kernel).c_str(), desc.ncalls,
+            PRINTHEAD, to_string(desc.kernel).c_str(), desc.ncalls,
             into<long long>(desc.input_nbytes),
             into<long long>(desc.output_nbytes),
-            get_str_data_location(desc.input_location).c_str(),
-            get_str_data_location(desc.output_location).c_str());
+            to_string(desc.input_location).c_str(),
+            to_string(desc.output_location).c_str());
 }
-std::string get_params_str(const nhwc_bnorm_params_t &conf) {
+std::string to_string(const nhwc_bnorm_params_t &conf) {
     std::string s;
 #define STR_PARAM(p) \
     s += std::to_string(conf.p##_param().is_overridden()) + ","; \
@@ -423,7 +423,7 @@ void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
     desc.time_ns = read_ns + write_ns;
 
     // For debuging and analysis purposes
-    std::string kernel_type_name = get_str_kernel_name(desc.kernel);
+    std::string kernel_type_name = to_string(desc.kernel);
     DPRINT("%s:%s:%d estimation - %s : p = %d %d %d : thr_util = %g ss_util = "
            "%g "
            ": base %.1f %.1f "

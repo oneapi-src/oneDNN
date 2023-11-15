@@ -64,11 +64,11 @@ struct model_params_t {
 void init_hw_params(hw_params_t &hw_params, engine_t *engine);
 float get_used_ss_thr_utilization(hw_params_t &hw_params, int sg_size,
         const size_t *gws, const size_t *lws);
-std::string get_str_kernel_name(const kernel_kind_t &kernel);
-std::string get_str_data_location(const data_location_t &loc);
+std::string to_string(const kernel_kind_t &kernel);
+std::string to_string(const data_location_t &loc);
 void dump_kernel_descriptor(kernel_desc_t &desc);
 
-std::string get_params_str(const nhwc_bnorm_params_t &conf);
+std::string to_string(const nhwc_bnorm_params_t &conf);
 float get_vectorization_factor(const int vect_size, const data_type_t dt);
 int get_ncalls(model_params_t &p, const nhwc_bnorm_params_t &conf,
         kernel_kind_t kernel);

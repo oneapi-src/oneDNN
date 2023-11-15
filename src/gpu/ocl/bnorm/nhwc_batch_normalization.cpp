@@ -269,7 +269,7 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
 
             DPRINT("%s:%s:%d p: %d %d %d : %s: %.1f(%.1f) \n", PRINTHEAD,
                     p.use_fused_atomics_reduction, p.ic_block, p.stat_sp_block,
-                    get_str_kernel_name(desc.kernel).c_str(), desc.time_ns,
+                    to_string(desc.kernel).c_str(), desc.time_ns,
                     desc.time_ns * desc.ncalls);
         }
         DPRINT("%s:%s:%d p: %d %d %d : total expected ns = %.1f ( %.4f ms)\n",
@@ -394,7 +394,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
 
     // For performance debuging and analisys
     std::string prb_str = get_prb_desc_str(pd);
-    std::string params_str = get_params_str(conf);
+    std::string params_str = to_string(conf);
     DPRINT_PARAMS(
             "prb_desc,%s,params,%s\n", prb_str.c_str(), params_str.c_str());
 
