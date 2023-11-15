@@ -1155,8 +1155,7 @@ struct fma_context_t {
         if (layout.type().is_x8())
             return layout.retype(type_t::s16()).make_strided(2);
 
-        if (hw <= ngen::HW::XeLP && a_type.is_f16() && b_type.is_f16()
-                && c_type.is_f32()) {
+        if (a_type.is_f16() && b_type.is_f16() && c_type.is_f32()) {
             return layout.retype(type_t::f32()).make_dense();
         }
 
