@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ void layer_normalization_example(dnnl::engine::kind engine_kind) {
     // Create primitive descriptor.
     const float epsilon = 1.e-10f;
     auto lnorm_pd = layer_normalization_forward::primitive_desc(engine,
-            prop_kind::forward_training, src_md, dst_md, epsilon,
+            prop_kind::forward_training, src_md, dst_md, dt::f32, epsilon,
             normalization_flags::use_scale | normalization_flags::use_shift);
 
     // Use the memory descriptors from the primitive to create memory objects
