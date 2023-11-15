@@ -247,30 +247,30 @@ bnorm_lookup_table_t::bnorm_lookup_table_t(bool use_stat_one_pass) {
     if (use_stat_one_pass) {
         // clang-format off
         // resnet-50.tr.fp32.pt.mb16_pvc
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic1024ih14iw14", "far=0 mv=4 icb=32 sspb=98 uspb=4 uspu=4"); //, 0.025614
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic128ih28iw28", "far=0 mv=4 icb=32 sspb=49 uspb=8 uspu=2"); //, 0.021124
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic128ih56iw56", "far=0 mv=2 icb=32 sspb=49 uspb=8 uspu=4"); //, 0.035032
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic2048ih7iw7", "far=0 mv=4 icb=64 sspb=98 uspb=8 uspu=4"); //, 0.020343
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih14iw14", "far=0 mv=8 icb=32 sspb=64 uspb=4 uspu=4"); //, 0.018865
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih28iw28", "far=0 mv=2 icb=64 sspb=196 uspb=8 uspu=4"); //, 0.024160
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih56iw56", "far=0 mv=2 icb=32 sspb=64 uspb=8 uspu=2"); //, 0.062494
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih14iw14", "far=0 mv=4 icb=64 sspb=196 uspb=16 uspu=1"); //, 0.020359
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih28iw28", "far=0 mv=4 icb=64 sspb=98 uspb=16 uspu=1"); //, 0.034889
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih7iw7", "far=0 mv=4 icb=32 sspb=14 uspb=4 uspu=2"); //, 0.017314
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic64ih112iw112", "far=0 mv=4 icb=128 sspb=49 uspb=8 uspu=1"); //, 0.078099
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic64ih56iw56", "far=0 mv=4 icb=32 sspb=196 uspb=8 uspu=4"); //, 0.021627
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic1024ih14iw14", "far=0 mv=8 icb=32 sspb=196 uspb=16 uspu=2"); //, 0.020335
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic128ih28iw28", "far=0 mv=4 icb=256 sspb=196 uspb=4 uspu=4"); //, 0.017945
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic128ih56iw56", "far=0 mv=2 icb=32 sspb=64 uspb=16 uspu=4"); //, 0.026234
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic2048ih7iw7", "far=0 mv=2 icb=128 sspb=49 uspb=8 uspu=4"); //, 0.017229
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih14iw14", "far=0 mv=8 icb=32 sspb=49 uspb=4 uspu=4"); //, 0.016862
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih28iw28", "far=0 mv=8 icb=64 sspb=28 uspb=4 uspu=4"); //, 0.020908
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih56iw56", "far=0 mv=4 icb=64 sspb=32 uspb=4 uspu=2"); //, 0.039298
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih14iw14", "far=0 mv=2 icb=128 sspb=64 uspb=4 uspu=1"); //, 0.018190
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih28iw28", "far=0 mv=4 icb=64 sspb=98 uspb=4 uspu=4"); //, 0.025843
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih7iw7", "far=0 mv=4 icb=128 sspb=32 uspb=4 uspu=2"); //, 0.014637
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic64ih112iw112", "far=0 mv=8 icb=32 sspb=392 uspb=8 uspu=4"); //, 0.049757
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic64ih56iw56", "far=0 mv=4 icb=128 sspb=196 uspb=8 uspu=1"); //, 0.019935
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic1024ih14iw14", "far=0 mv=8 icb=32 sspb=14 uspb=8 uspu=4"); //, 0.028000
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic128ih28iw28", "far=0 mv=8 icb=32 sspb=49 uspb=8 uspu=4"); //, 0.020320
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic128ih56iw56", "far=1 mv=8 icb=64 sspb=28 uspb=4 uspu=4"); //, 0.048000
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic2048ih7iw7", "far=0 mv=8 icb=32 sspb=14 uspb=8 uspu=2"); //, 0.019680
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih14iw14", "far=0 mv=8 icb=64 sspb=14 uspb=4 uspu=4"); //, 0.016960
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih28iw28", "far=0 mv=8 icb=64 sspb=49 uspb=4 uspu=4"); //, 0.029600
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih56iw56", "far=0 mv=8 icb=32 sspb=98 uspb=8 uspu=4"); //, 0.081280
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih14iw14", "far=0 mv=8 icb=32 sspb=7 uspb=8 uspu=4"); //, 0.020160
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih28iw28", "far=0 mv=8 icb=32 sspb=49 uspb=8 uspu=4"); //, 0.044960
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih7iw7", "far=0 mv=8 icb=32 sspb=28 uspb=4 uspu=4"); //, 0.013440
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic64ih112iw112", "far=1 mv=8 icb=64 sspb=49 uspb=16 uspu=4"); //, 0.082880
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic64ih56iw56", "far=1 mv=8 icb=32 sspb=16 uspb=8 uspu=4"); //, 0.031360
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic1024ih14iw14", "far=0 mv=8 icb=32 sspb=28 uspb=8 uspu=4"); //, 0.019520
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic128ih28iw28", "far=0 mv=8 icb=32 sspb=49 uspb=4 uspu=4"); //, 0.017440
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic128ih56iw56", "far=0 mv=8 icb=32 sspb=98 uspb=16 uspu=4"); //, 0.032960
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic2048ih7iw7", "far=0 mv=8 icb=64 sspb=14 uspb=16 uspu=4"); //, 0.016480
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih14iw14", "far=0 mv=8 icb=32 sspb=14 uspb=4 uspu=4"); //, 0.014880
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih28iw28", "far=0 mv=8 icb=32 sspb=28 uspb=8 uspu=4"); //, 0.021440
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih56iw56", "far=0 mv=8 icb=32 sspb=98 uspb=8 uspu=4"); //, 0.047680
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih14iw14", "far=0 mv=8 icb=32 sspb=14 uspb=-1 uspu=2"); //, 0.016000
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih28iw28", "far=0 mv=8 icb=32 sspb=49 uspb=8 uspu=4"); //, 0.029760
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih7iw7", "far=0 mv=8 icb=32 sspb=28 uspb=4 uspu=4"); //, 0.011680
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic64ih112iw112", "far=0 mv=8 icb=32 sspb=196 uspb=8 uspu=4"); //, 0.057760
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic64ih56iw56", "far=1 mv=8 icb=32 sspb=28 uspb=16 uspu=4"); //, 0.024000
         // resnet-50.tr.bf16.pt.mb256_pvc
         add("hw=xe_hpc dir=BWD_DW dt=bf16 tag=acdb flags=CH desc=mb256ic1024ih14iw14", "far=0 mv=4 icb=64 sspb=196 uspb=8 uspu=2"); //, 0.312628
         add("hw=xe_hpc dir=BWD_DW dt=bf16 tag=acdb flags=CH desc=mb256ic128ih28iw28", "far=1 mv=4 icb=32 sspb=196 uspb=-1 uspu=4"); //, 0.095902
@@ -322,33 +322,33 @@ bnorm_lookup_table_t::bnorm_lookup_table_t(bool use_stat_one_pass) {
         add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb256ic64ih112iw112", "far=1 mv=2 icb=256 sspb=196 uspb=4 uspu=1"); //, 2.348070
         add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb256ic64ih56iw56", "far=1 mv=4 icb=32 sspb=392 uspb=8 uspu=4"); //, 0.471091
         // clang-format on
-    } else {
+    } else { // for regular algorithm
         // clang-format off
 // resnet-50.tr.fp32.pt.mb16_pvc
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic1024ih14iw14", "far=0 mv=4 icb=64 sspb=49 uspb=4 uspu=1"); //, 0.026677
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic128ih28iw28", "far=0 mv=2 icb=256 sspb=196 uspb=8 uspu=4"); //, 0.019166
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic128ih56iw56", "far=0 mv=4 icb=256 sspb=196 uspb=8 uspu=1"); //, 0.036374
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic2048ih7iw7", "far=0 mv=8 icb=64 sspb=98 uspb=4 uspu=4"); //, 0.020478
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih14iw14", "far=0 mv=8 icb=32 sspb=7 uspb=8 uspu=4"); //, 0.018718
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih28iw28", "far=0 mv=8 icb=64 sspb=98 uspb=8 uspu=2"); //, 0.024503
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih56iw56", "far=0 mv=8 icb=64 sspb=28 uspb=8 uspu=4"); //, 0.057107
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih14iw14", "far=0 mv=8 icb=32 sspb=49 uspb=8 uspu=4"); //, 0.021241
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih28iw28", "far=0 mv=2 icb=32 sspb=49 uspb=4 uspu=4"); //, 0.030498
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih7iw7", "far=0 mv=4 icb=32 sspb=14 uspb=4 uspu=4"); //, 0.017271
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic64ih112iw112", "far=0 mv=8 icb=256 sspb=49 uspb=16 uspu=2"); //, 0.077606
-        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic64ih56iw56", "far=0 mv=8 icb=256 sspb=98 uspb=8 uspu=4"); //, 0.024491
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic1024ih14iw14", "far=0 mv=4 icb=32 sspb=392 uspb=4 uspu=4"); //, 0.041649
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic128ih28iw28", "far=0 mv=2 icb=256 sspb=64 uspb=4 uspu=4"); //, 0.040275
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic128ih56iw56", "far=0 mv=8 icb=32 sspb=98 uspb=4 uspu=4"); //, 0.046607
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic2048ih7iw7", "far=0 mv=2 icb=32 sspb=196 uspb=8 uspu=4"); //, 0.040025
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih14iw14", "far=0 mv=8 icb=64 sspb=392 uspb=8 uspu=4"); //, 0.034914
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih28iw28", "far=0 mv=4 icb=64 sspb=64 uspb=8 uspu=4"); //, 0.043578
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih56iw56", "far=0 mv=2 icb=32 sspb=98 uspb=8 uspu=4"); //, 0.064971
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih14iw14", "far=0 mv=4 icb=64 sspb=49 uspb=4 uspu=4"); //, 0.040491
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih28iw28", "far=0 mv=4 icb=64 sspb=196 uspb=4 uspu=4"); //, 0.043439
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih7iw7", "far=0 mv=4 icb=32 sspb=64 uspb=4 uspu=1"); //, 0.037757
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic64ih112iw112", "far=0 mv=8 icb=32 sspb=196 uspb=8 uspu=4"); //, 0.063803
-        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic64ih56iw56", "far=0 mv=4 icb=32 sspb=392 uspb=8 uspu=2"); //, 0.040671
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic1024ih14iw14", "far=0 mv=8 icb=32 sspb=14 uspb=8 uspu=4"); //, 0.028000
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic128ih28iw28", "far=0 mv=8 icb=32 sspb=49 uspb=8 uspu=4"); //, 0.020160
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic128ih56iw56", "far=1 mv=8 icb=64 sspb=28 uspb=4 uspu=4"); //, 0.048160
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic2048ih7iw7", "far=0 mv=8 icb=32 sspb=14 uspb=8 uspu=4"); //, 0.019200
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih14iw14", "far=0 mv=8 icb=32 sspb=7 uspb=-1 uspu=1"); //, 0.017120
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih28iw28", "far=0 mv=8 icb=64 sspb=49 uspb=4 uspu=4"); //, 0.029440
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic256ih56iw56", "far=0 mv=8 icb=32 sspb=98 uspb=8 uspu=4"); //, 0.080480
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih14iw14", "far=0 mv=8 icb=32 sspb=7 uspb=8 uspu=4"); //, 0.020160
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih28iw28", "far=0 mv=8 icb=32 sspb=49 uspb=8 uspu=4"); //, 0.045120
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic512ih7iw7", "far=0 mv=8 icb=64 sspb=7 uspb=4 uspu=4"); //, 0.013920
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic64ih112iw112", "far=1 mv=8 icb=64 sspb=49 uspb=16 uspu=4"); //, 0.082720
+        add("hw=xe_hpc dir=BWD_DW dt=f32 tag=acdb flags=CH desc=mb16ic64ih56iw56", "far=1 mv=8 icb=32 sspb=16 uspb=8 uspu=4"); //, 0.031200
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic1024ih14iw14", "far=0 mv=8 icb=32 sspb=14 uspb=16 uspu=4"); //, 0.028480
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic128ih28iw28", "far=0 mv=8 icb=32 sspb=32 uspb=4 uspu=2"); //, 0.024320
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic128ih56iw56", "far=1 mv=8 icb=32 sspb=49 uspb=8 uspu=4"); //, 0.046080
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic2048ih7iw7", "far=0 mv=8 icb=64 sspb=14 uspb=-1 uspu=4"); //, 0.025440
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih14iw14", "far=0 mv=8 icb=64 sspb=16 uspb=-1 uspu=4"); //, 0.021600
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih28iw28", "far=0 mv=8 icb=32 sspb=28 uspb=4 uspu=4"); //, 0.029760
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic256ih56iw56", "far=0 mv=8 icb=32 sspb=98 uspb=8 uspu=4"); //, 0.066880
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih14iw14", "far=0 mv=8 icb=64 sspb=28 uspb=4 uspu=4"); //, 0.024320
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih28iw28", "far=0 mv=8 icb=32 sspb=49 uspb=8 uspu=4"); //, 0.041120
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic512ih7iw7", "far=0 mv=8 icb=64 sspb=7 uspb=16 uspu=2"); //, 0.019520
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic64ih112iw112", "far=1 mv=8 icb=64 sspb=49 uspb=16 uspu=4"); //, 0.072800
+        add("hw=xe_hpc dir=FWD_D dt=f32 tag=acdb flags=CH desc=mb16ic64ih56iw56", "far=0 mv=8 icb=32 sspb=98 uspb=4 uspu=4"); //, 0.032160
 // resnet-50.tr.bf16.pt.mb256_pvc
         add("hw=xe_hpc dir=BWD_DW dt=bf16 tag=acdb flags=CH desc=mb256ic1024ih14iw14", "far=0 mv=4 icb=64 sspb=196 uspb=8 uspu=4"); //, 0.313983
         add("hw=xe_hpc dir=BWD_DW dt=bf16 tag=acdb flags=CH desc=mb256ic128ih28iw28", "far=0 mv=4 icb=64 sspb=392 uspb=8 uspu=4"); //, 0.094682
