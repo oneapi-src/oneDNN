@@ -60,7 +60,7 @@ TEST(Execute, DequantizePerTensor) {
         g.add_op(&dequantize);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("dequant_pass");
+        graph::pass::pass_base_ptr apass = get_pass("quant_dequant_pass");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -123,7 +123,7 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
     g.add_op(&dequantize);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("dequant_pass");
+    graph::pass::pass_base_ptr apass = get_pass("quant_dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -183,7 +183,7 @@ TEST(Execute, DequantizePerChannelSymmetric) {
     g.add_op(&dequantize);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("dequant_pass");
+    graph::pass::pass_base_ptr apass = get_pass("quant_dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -250,7 +250,7 @@ TEST(Execute, DynamicDequantizeS32ZpsPerTensor) {
     g.add_op(&dync_dequantize);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
+    graph::pass::pass_base_ptr apass = get_pass("quant_dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -323,7 +323,7 @@ TEST(Execute, DynamicDequantizeS8ZpsPerTensor) {
     g.add_op(&dync_dequantize);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
+    graph::pass::pass_base_ptr apass = get_pass("quant_dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -392,7 +392,7 @@ TEST(Execute, DynamicDequantizeNoZpsPerTensor) {
     g.add_op(&dync_dequantize);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
+    graph::pass::pass_base_ptr apass = get_pass("quant_dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];

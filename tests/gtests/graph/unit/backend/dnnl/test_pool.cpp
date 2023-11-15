@@ -911,7 +911,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     g.add_op(&maxpool);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass1 = get_pass("dequant_pass");
+    graph::pass::pass_base_ptr apass1 = get_pass("quant_dequant_pass");
     graph::pass::pass_base_ptr apass2 = get_pass("max_pool_pass");
     apass1->run(g);
     apass2->run(g);

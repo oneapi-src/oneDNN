@@ -507,7 +507,7 @@ TEST(Compile, ReorderBlockLayoutInput) {
 
     graph::pass::pass_base_ptr apass1 = get_pass("conv_pass");
     graph::pass::pass_base_ptr apass2 = get_pass("typecast_pass");
-    graph::pass::pass_base_ptr apass3 = get_pass("quant_pass");
+    graph::pass::pass_base_ptr apass3 = get_pass("quant_dequant_pass");
 
     apass1->run(g);
     apass2->run(g);

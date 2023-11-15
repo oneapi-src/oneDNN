@@ -93,6 +93,20 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, binary_pass)
         .set_attr<FCreateKernel>("FCreateKernel",
                 []() -> kernel_ptr { return std::make_shared<binary_t>(); });
 
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, quant_dequant_pass)
+        .set_priority(DEFAULT_P)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pgraph->append_alternation({graph::op_kind::Quantize,
+                            graph::op_kind::Dequantize,
+                            graph::op_kind::DynamicQuantize,
+                            graph::op_kind::DynamicDequantize});
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantize_dequantize_t>();
+        });
+
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, avg_pool_bw_pass)
         .set_priority(8.f)
         .set_kind(partition_kind_t::misc_post_ops)
@@ -223,13 +237,6 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(softmax_pass, SoftMax, softmax_fwd_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         softmax_bwd_pass, SoftMaxBackward, softmax_bwd_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(quant_pass, Quantize, quantize_dequantize_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        dequant_pass, Dequantize, quantize_dequantize_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        dync_quant_pass, DynamicQuantize, quantize_dequantize_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        dync_dequant_pass, DynamicDequantize, quantize_dequantize_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, Reorder, float_reorder)
 
 // if op is interpolate, need to filter out attrs not supported by dnnl
