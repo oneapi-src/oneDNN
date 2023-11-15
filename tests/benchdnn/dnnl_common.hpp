@@ -207,7 +207,14 @@ struct init_pd_args_t {
     const_dnnl_memory_desc_t src_md;
 };
 
-int get_cpu_cache_size(size_t &cache_size);
+struct cpu_cache_args_t {
+    size_t L2_size = 0;
+    size_t L3_size = 0; // = L3_per_core
+    size_t num_cores = 0;
+    size_t total_socket_size = 0; // (L2 + L3_per_core) * num_cores
+};
+
+int get_cpu_cache_size(cpu_cache_args_t &cache_args);
 int get_gpu_cache_size(size_t &cache_size);
 
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);

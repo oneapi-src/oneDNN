@@ -911,18 +911,18 @@ static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
     return OK;
 }
 
-int get_cpu_cache_size(size_t &cache_size) {
+int get_cpu_cache_size(cpu_cache_args_t &cache_args) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     using namespace dnnl::impl::cpu::platform;
-    static const auto L2_size = get_per_core_cache_size(2);
-    static const auto L3_size = get_per_core_cache_size(3);
-    static const auto num_cores = get_num_cores();
-    static const auto total_cache_size = (L2_size + L3_size) * num_cores;
+    cache_args.L2_size = get_per_core_cache_size(2);
+    cache_args.L3_size = get_per_core_cache_size(3);
+    cache_args.num_cores = get_num_cores();
+    cache_args.total_socket_size
+            = (cache_args.L2_size + cache_args.L3_size) * cache_args.num_cores;
 #else
     // If functions are not available, just use 150 MiB.
-    static const auto total_cache_size = 150 * 1024 * 1024;
+    cache_args.total_socket_size = 150 * 1024 * 1024;
 #endif
-    cache_size = total_cache_size;
     return OK;
 }
 

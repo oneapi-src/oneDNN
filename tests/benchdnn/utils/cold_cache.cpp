@@ -50,8 +50,9 @@ cold_cache_t::cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args)
 
     if (!enabled_) return;
 
-    static size_t cpu_cache_capacity = 0;
-    SAFE_V(get_cpu_cache_size(cpu_cache_capacity));
+    static cpu_cache_args_t cpu_cache_args {};
+    SAFE_V(get_cpu_cache_size(cpu_cache_args));
+    const auto cpu_cache_capacity = cpu_cache_args.total_socket_size;
     // `3` potentially to cover both one and two socket scenarios.
     static const size_t cpu_cache_size_upper_bound = cpu_cache_capacity * 3;
 
