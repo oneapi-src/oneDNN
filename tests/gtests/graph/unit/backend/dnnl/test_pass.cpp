@@ -5170,7 +5170,7 @@ TEST(Pass, CheckSameInput) {
 
     pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(agraph);
-    apass = get_pass("sum_pass");
+    apass = get_pass("binary_pass");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 2U);

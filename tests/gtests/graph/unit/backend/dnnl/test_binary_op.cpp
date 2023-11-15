@@ -35,8 +35,6 @@ TEST(Execute, BinaryOp) {
             graph::op_kind::Minimum, graph::op_kind::Maximum,
             graph::op_kind::Divide, graph::op_kind::Subtract,
             graph::op_kind::SquaredDifference};
-    std::vector<std::string> pass_names = {"mul_pass", "min_pass", "max_pass",
-            "div_pass", "sub_pass", "squareddifference_pass"};
 
     std::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
     std::vector<float> src1 {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
@@ -60,7 +58,7 @@ TEST(Execute, BinaryOp) {
         g.add_op(&binary_op);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        graph::pass::pass_base_ptr apass = get_pass("binary_pass");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -234,7 +232,7 @@ TEST(Execute, BinarySub) {
     g.add_op(&bin_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sub_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -708,7 +706,7 @@ TEST(Execute, Add) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -786,7 +784,7 @@ TEST(Execute, AddWithDifferentFormat) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -847,7 +845,7 @@ TEST(Execute, BroadcastAdd) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -923,7 +921,7 @@ TEST(Execute, SwapBroadcastAdd) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -994,7 +992,7 @@ TEST(Execute, MultidirectionalBroadcastAddBA) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1069,7 +1067,7 @@ TEST(Execute, multidirectionalbBroadcastAddAB) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1126,7 +1124,7 @@ TEST(Execute, MultidirectionalBroadcastAdd) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1183,7 +1181,7 @@ TEST(Execute, MultidirectionalBroadcastAddExpandDim) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1235,7 +1233,7 @@ TEST(Compile, AddShapeMismatchCase0) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1272,7 +1270,7 @@ TEST(Compile, AddShapeMismatch1) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1310,7 +1308,7 @@ TEST(Compile, AddShapeMismatch2) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1354,7 +1352,7 @@ TEST(Execute, ReversedDifferentFormatBroadcastAdd) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1423,7 +1421,7 @@ TEST(Execute, BiasAdd) {
         ASSERT_EQ(g.add_op(&bias_add_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass = get_pass("bias_add_pass");
+        graph::pass::pass_base_ptr apass = get_pass("binary_pass");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1831,7 +1829,7 @@ TEST(Execute, ScalarScalarAdd) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1892,7 +1890,7 @@ TEST(Execute, ScalarVectorAdd) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -2226,7 +2224,7 @@ TEST(Execute, AddEmptyInput) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("sum_pass");
+    graph::pass::pass_base_ptr apass = get_pass("binary_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];

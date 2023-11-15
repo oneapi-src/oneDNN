@@ -79,7 +79,19 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, eltwise_bwd_pass)
             return std::make_shared<eltwise_bwd_t>();
         });
 
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(bias_add_pass, BiasAdd, binary_t)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, binary_pass)
+        .set_priority(DEFAULT_P)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pgraph->append_alternation({graph::op_kind::BiasAdd,
+                            graph::op_kind::Add, graph::op_kind::Multiply,
+                            graph::op_kind::Maximum, graph::op_kind::Minimum,
+                            graph::op_kind::Divide, graph::op_kind::Subtract,
+                            graph::op_kind::SquaredDifference});
+                })
+        .set_attr<FCreateKernel>("FCreateKernel",
+                []() -> kernel_ptr { return std::make_shared<binary_t>(); });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, avg_pool_bw_pass)
         .set_priority(8.f)
@@ -205,14 +217,6 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         max_pool_bw_pass, MaxPoolBackward, pooling_bwd_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(prelu_pass, PReLU, float_prelu_fwd)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(prelu_bwd_pass, PReLUBackward, prelu_bwd_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(sum_pass, Add, binary_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(mul_pass, Multiply, binary_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(max_pass, Maximum, binary_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(min_pass, Minimum, binary_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(div_pass, Divide, binary_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(sub_pass, Subtract, binary_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        squareddifference_pass, SquaredDifference, binary_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(logsoftmax_pass, LogSoftmax, logsoftmax_fwd_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         logsoftmax_bwd_pass, LogSoftmaxBackward, logsoftmax_bwd_t)
