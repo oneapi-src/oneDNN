@@ -187,11 +187,6 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_postamble() {
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::assign_regs() {
     vmm_mask_ = Vmm(preserved_vmm_indices_[0]);
-    vmm_aux0 = Vmm(preserved_vmm_indices_[0]);
-    vmm_aux1 = Vmm(preserved_vmm_indices_[1]);
-    vmm_aux2 = Vmm(preserved_vmm_indices_[2]);
-    vmm_aux3 = Vmm(preserved_vmm_indices_[3]);
-    vmm_aux4 = Vmm(preserved_vmm_indices_[4]);
 
     // For avx we need a register to save the upper part of Ymm
     // Note: the number in `aux_vecs_count` is accounted for here.
@@ -210,6 +205,16 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::assign_regs() {
         ymm_tmp_ = Ymm(preserved_vmm_indices_[n_vregs_to_preserve_ - 1]);
         xmm_tmp_ = Xmm(preserved_vmm_indices_[n_vregs_to_preserve_ - 1]);
     }
+}
+
+// This function provides vmm aux registers based on indices from
+// `preserved_vmm_indices_`. This is an internal container which can be
+// initialized with stock values from the injector, or with external values
+// provided by the user.
+template <cpu_isa_t isa, typename Wmm>
+Wmm jit_uni_eltwise_injector_f32<isa, Wmm>::vmm_aux(size_t idx) {
+    assert(idx < n_vregs_preserved_);
+    return Vmm(preserved_vmm_indices_[idx]);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -287,7 +292,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::exp_compute_vector_fwd(
 
     h->uni_vminps(vmm_src, vmm_src, table_val(exp_ln_flt_max_f));
     h->uni_vmaxps(vmm_src, vmm_src, table_val(exp_ln_flt_min_f));
-    h->uni_vmovups(vmm_aux1, vmm_src);
+    h->uni_vmovups(vmm_aux(1), vmm_src);
 
     // calculate exp(x)
     // fx = x * log2ef + 0.5
@@ -295,13 +300,13 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::exp_compute_vector_fwd(
     h->uni_vaddps(vmm_src, vmm_src, table_val(half));
 
     // tmp = floorf(fx)
-    h->uni_vroundps(vmm_aux2, vmm_src, _op_floor);
+    h->uni_vroundps(vmm_aux(2), vmm_src, _op_floor);
 
     // keep vmm_src = fx for further computations
-    h->uni_vmovups(vmm_src, vmm_aux2);
+    h->uni_vmovups(vmm_src, vmm_aux(2));
 
     // x = x - fx * ln2
-    h->uni_vfnmadd231ps(vmm_aux1, vmm_aux2, table_val(ln2f));
+    h->uni_vfnmadd231ps(vmm_aux(1), vmm_aux(2), table_val(ln2f));
 
     // We do not count 2^n here, because n can reach 128 and 2^128 is not
     // representable by fp32, so to get around this problem, instead of computing
@@ -310,42 +315,42 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::exp_compute_vector_fwd(
 
     // compute 2^(n-1)
     h->uni_vsubps(vmm_src, vmm_src, table_val(one));
-    h->uni_vcvtps2dq(vmm_aux2, vmm_src);
+    h->uni_vcvtps2dq(vmm_aux(2), vmm_src);
     if (isa != avx)
-        h->uni_vpaddd(vmm_aux2, vmm_aux2, table_val(exponent_bias));
+        h->uni_vpaddd(vmm_aux(2), vmm_aux(2), table_val(exponent_bias));
     else {
-        Ymm ymm_aux2 = Ymm(vmm_aux2.getIdx());
-        Xmm xmm_aux2 = Xmm(vmm_aux2.getIdx());
+        Ymm ymm_aux2 = Ymm(vmm_aux(2).getIdx());
+        Xmm xmm_aux2 = Xmm(vmm_aux(2).getIdx());
         h->vextractf128(xmm_tmp_, ymm_aux2, 1);
         h->vpaddd(xmm_tmp_, xmm_tmp_, table_val(exponent_bias));
         h->vpaddd(xmm_aux2, xmm_aux2, table_val(exponent_bias));
         h->vinsertf128(ymm_aux2, ymm_aux2, xmm_tmp_, 1);
     }
-    vec_shift(vmm_aux2, vmm_aux2, true /*shift_left*/, n_mantissa_bits_);
+    vec_shift(vmm_aux(2), vmm_aux(2), true /*shift_left*/, n_mantissa_bits_);
     // use vmm_src as tmp vmm_zero when applying mask
     h->uni_vxorps(vmm_src, vmm_src, vmm_src);
     // set zeroes at those points which were < log(FLT_MIN)
-    blend_with_mask(vmm_aux2, vmm_src);
+    blend_with_mask(vmm_aux(2), vmm_src);
 
     // compute polynomial
     h->uni_vmovups(vmm_src, table_val(exp_pol, 4));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(exp_pol, 3));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(exp_pol, 2));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(exp_pol, 1));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(exp_pol, 0));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(one));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(1), table_val(exp_pol, 3));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(1), table_val(exp_pol, 2));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(1), table_val(exp_pol, 1));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(1), table_val(exp_pol, 0));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(1), table_val(one));
     // y = y * 2^n
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux2);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(2));
     h->uni_vmulps(vmm_src, vmm_src, table_val(two));
 }
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::relu_compute_vector_fwd(
         const Vmm &vmm_src) {
-    h->uni_vmovups(vmm_aux1, vmm_src);
+    h->uni_vmovups(vmm_aux(1), vmm_src);
     compute_cmp_mask(vmm_src, table_val(zero), _cmp_gt_os);
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
-    blend_with_mask(vmm_src, vmm_aux1);
+    blend_with_mask(vmm_src, vmm_aux(1));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -357,8 +362,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::relu_zero_ns_compute_vector_fwd(
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::elu_compute_vector_fwd(
         const Vmm &vmm_src) {
-    // IMPORTANT: we use vmm_aux3 for the mask as exp_compute does not use it.
-    h->uni_vmovups(vmm_aux3, vmm_src);
+    // IMPORTANT: we use vmm_aux(3) for the mask as exp_compute does not use it.
+    h->uni_vmovups(vmm_aux(3), vmm_src);
     // compute exponent
     exp_compute_vector_fwd(vmm_src);
 
@@ -367,8 +372,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::elu_compute_vector_fwd(
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
 
     // combine with mask
-    compute_cmp_mask(vmm_aux3, table_val(zero), _cmp_gt_os);
-    blend_with_mask(vmm_src, vmm_aux3);
+    compute_cmp_mask(vmm_aux(3), table_val(zero), _cmp_gt_os);
+    blend_with_mask(vmm_src, vmm_aux(3));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -383,9 +388,9 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_fwd(
 
     // register mapping
     // TODO: put sign on stack and alias zmm_table2 with vmm_sign to save a reg ?
-    Vmm vmm_dst = vmm_aux1, vmm_src_shift = vmm_aux1, vmm_coeff = vmm_aux1,
-        vmm_pol = vmm_aux2, vmm_indices = vmm_aux3, vmm_src_original = vmm_aux4,
-        vmm_sign = vmm_aux4;
+    Vmm vmm_dst = vmm_aux(1), vmm_src_shift = vmm_aux(1),
+        vmm_coeff = vmm_aux(1), vmm_pol = vmm_aux(2), vmm_indices = vmm_aux(3),
+        vmm_src_original = vmm_aux(4), vmm_sign = vmm_aux(4);
     Reg64 gpr_idx[XMM_float_lanes_count];
 
     if (isa == sse41 || isa == avx) {
@@ -573,29 +578,29 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_fwd(
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_tanh_compute_vector_fwd(
         const Vmm &vmm_src) {
-    h->uni_vmovups(vmm_aux0, vmm_src);
+    h->uni_vmovups(vmm_aux(0), vmm_src);
 
     // compute G(x) = sqrt_root_two_over_pi * x * (1 + fitting_const * x * x)
     h->uni_vmulps(vmm_src, vmm_src, vmm_src);
-    h->uni_vmovups(vmm_aux1, table_val(gelu_tanh_fitting_const));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(one));
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vmovups(vmm_aux(1), table_val(gelu_tanh_fitting_const));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(1), table_val(one));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(0));
     h->uni_vmulps(vmm_src, vmm_src, table_val(gelu_tanh_sqrt_two_over_pi));
 
-    // save x on stack as tanh uses vmm_aux0
+    // save x on stack as tanh uses vmm_aux(0)
     h->sub(h->rsp, vlen_);
-    h->uni_vmovups(h->ptr[h->rsp], vmm_aux0);
+    h->uni_vmovups(h->ptr[h->rsp], vmm_aux(0));
 
     // compute tanh(G(x))
     tanh_compute_vector_fwd(vmm_src);
 
-    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
+    h->uni_vmovups(vmm_aux(0), h->ptr[h->rsp]);
     h->add(h->rsp, vlen_);
 
     // compute 0.5 * x * (1 + tanh(G(x)))
     h->uni_vaddps(vmm_src, vmm_src, table_val(one));
     h->uni_vmulps(vmm_src, vmm_src, table_val(half));
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(0));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -621,8 +626,8 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::linear_compute_vector_fwd(
         const Vmm &vmm_src) {
     // compute x = alpha * x + beta;
-    h->uni_vmovups(vmm_aux0, table_val(alpha));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux0, table_val(beta));
+    h->uni_vmovups(vmm_aux(0), table_val(alpha));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(0), table_val(beta));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -645,8 +650,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::mish_compute_vector_fwd(
     // than exp, and also requires more constants to be stored in memory,
     // making the algorithm slower.
 
-    // IMPORTANT: we use vmm_aux3 to save src as exp does not use it.
-    h->uni_vmovups(vmm_aux3, vmm_src); // vmm_aux3 = x
+    // IMPORTANT: we use vmm_aux(3) to save src as exp does not use it.
+    h->uni_vmovups(vmm_aux(3), vmm_src); // vmm_aux(3) = x
 
     h->uni_vminps(vmm_src, vmm_src, table_val(fwd_mish_max_x_for_equation_f));
     exp_compute_vector_fwd(vmm_src);
@@ -656,22 +661,22 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::mish_compute_vector_fwd(
     h->uni_vmulps(vmm_src, vmm_src, vmm_src);
 
     // save (e^x+1)^2 as it appears in both the denominator and the numerator
-    h->uni_vmovups(vmm_aux1, vmm_src);
+    h->uni_vmovups(vmm_aux(1), vmm_src);
 
     // x * ((e^x + 1)^2 - 1) / ((e^x + 1)^2 + 1)
     h->uni_vsubps(vmm_src, vmm_src, table_val(one));
-    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(one));
-    h->uni_vdivps(vmm_src, vmm_src, vmm_aux1);
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux3);
+    h->uni_vaddps(vmm_aux(1), vmm_aux(1), table_val(one));
+    h->uni_vdivps(vmm_src, vmm_src, vmm_aux(1));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(3));
 }
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::hardswish_compute_vector_fwd(
         const Vmm &vmm_src) {
     // result = x * hardsigmoid(x)
-    h->uni_vmovups(vmm_aux0, vmm_src);
+    h->uni_vmovups(vmm_aux(0), vmm_src);
     hardsigmoid_compute_vector_fwd(vmm_src);
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(0));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -699,11 +704,11 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_fwd(
     // = n * ln(2) + ln(2^-n + exp(r)) // take the 2^n factor out of the ln
 
     // keep src for further computations
-    h->uni_vmovups(vmm_aux2, vmm_src);
+    h->uni_vmovups(vmm_aux(2), vmm_src);
 
     h->uni_vminps(vmm_src, vmm_src, table_val(exp_ln_flt_max_f));
     h->uni_vmaxps(vmm_src, vmm_src, table_val(exp_ln_flt_min_f));
-    h->uni_vmovups(vmm_aux1, vmm_src);
+    h->uni_vmovups(vmm_aux(1), vmm_src);
 
     // calculate exp(x)
     // fx = x * log2ef + 0.5
@@ -711,21 +716,21 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_fwd(
     h->uni_vaddps(vmm_src, vmm_src, table_val(half));
 
     // tmp = floorf(fx)
-    h->uni_vroundps(vmm_aux0, vmm_src, _op_floor);
+    h->uni_vroundps(vmm_aux(0), vmm_src, _op_floor);
 
     // keep vmm_src = fx for further computations
-    h->uni_vmovups(vmm_src, vmm_aux0);
+    h->uni_vmovups(vmm_src, vmm_aux(0));
 
     // x = x - fx * ln2
-    h->uni_vmulps(vmm_aux0, vmm_aux0, table_val(ln2f));
-    h->uni_vsubps(vmm_aux1, vmm_aux1, vmm_aux0);
+    h->uni_vmulps(vmm_aux(0), vmm_aux(0), table_val(ln2f));
+    h->uni_vsubps(vmm_aux(1), vmm_aux(1), vmm_aux(0));
     // compute exponent polynomial
-    h->uni_vmovups(vmm_aux3, table_val(exp_pol, 4));
-    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(exp_pol, 3));
-    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(exp_pol, 2));
-    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(exp_pol, 1));
-    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(exp_pol, 0));
-    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(one));
+    h->uni_vmovups(vmm_aux(3), table_val(exp_pol, 4));
+    h->uni_vfmadd213ps(vmm_aux(3), vmm_aux(1), table_val(exp_pol, 3));
+    h->uni_vfmadd213ps(vmm_aux(3), vmm_aux(1), table_val(exp_pol, 2));
+    h->uni_vfmadd213ps(vmm_aux(3), vmm_aux(1), table_val(exp_pol, 1));
+    h->uni_vfmadd213ps(vmm_aux(3), vmm_aux(1), table_val(exp_pol, 0));
+    h->uni_vfmadd213ps(vmm_aux(3), vmm_aux(1), table_val(one));
 
     // We do not count 2^-n here, because n can reach 128 and 2^(-128) is not
     // representable by fp32, so to get around this problem, instead of computing
@@ -736,66 +741,67 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_fwd(
     // vmm_src now represents n-1
     h->uni_vsubps(vmm_src, vmm_src, table_val(one));
     if (is_avx512_) {
-        h->vmulps(vmm_aux1, vmm_src, table_val(minus_one));
-        h->vcvtps2dq(vmm_aux1, vmm_aux1);
+        h->vmulps(vmm_aux(1), vmm_src, table_val(minus_one));
+        h->vcvtps2dq(vmm_aux(1), vmm_aux(1));
     } else if (isa == avx) {
-        h->uni_vxorps(vmm_aux1, vmm_src, table_val(sign_mask));
-        h->uni_vcvtps2dq(vmm_aux1, vmm_aux1);
+        h->uni_vxorps(vmm_aux(1), vmm_src, table_val(sign_mask));
+        h->uni_vcvtps2dq(vmm_aux(1), vmm_aux(1));
     } else {
-        h->uni_vcvtps2dq(vmm_aux1, vmm_src);
-        h->uni_vpsignd(vmm_aux1, vmm_aux1, table_val(minus_one));
+        h->uni_vcvtps2dq(vmm_aux(1), vmm_src);
+        h->uni_vpsignd(vmm_aux(1), vmm_aux(1), table_val(minus_one));
     }
     // restore vmm_src to n
     h->uni_vaddps(vmm_src, vmm_src, table_val(one));
 
     if (isa != avx)
-        h->uni_vpaddd(vmm_aux1, vmm_aux1, table_val(exponent_bias));
+        h->uni_vpaddd(vmm_aux(1), vmm_aux(1), table_val(exponent_bias));
     else {
-        Ymm ymm_aux1 = Ymm(vmm_aux1.getIdx());
-        Xmm xmm_aux1 = Xmm(vmm_aux1.getIdx());
+        Ymm ymm_aux1 = Ymm(vmm_aux(1).getIdx());
+        Xmm xmm_aux1 = Xmm(vmm_aux(1).getIdx());
         h->vextractf128(xmm_tmp_, ymm_aux1, 1);
         h->vpaddd(xmm_tmp_, xmm_tmp_, table_val(exponent_bias));
         h->vpaddd(xmm_aux1, xmm_aux1, table_val(exponent_bias));
         h->vinsertf128(ymm_aux1, ymm_aux1, xmm_tmp_, 1);
     }
-    vec_shift(vmm_aux1, vmm_aux1, true /*shift_left*/, n_mantissa_bits_);
+    vec_shift(vmm_aux(1), vmm_aux(1), true /*shift_left*/, n_mantissa_bits_);
     // calculate ln(1 + y)
-    h->uni_vmulps(vmm_aux3, vmm_aux3, table_val(two)); // 2*exp(r)
-    h->uni_vaddps(vmm_aux3, vmm_aux3, vmm_aux1); // 2^-(n-1) + 2*exp(r)
+    h->uni_vmulps(vmm_aux(3), vmm_aux(3), table_val(two)); // 2*exp(r)
+    h->uni_vaddps(vmm_aux(3), vmm_aux(3), vmm_aux(1)); // 2^-(n-1) + 2*exp(r)
     h->uni_vdivps(
-            vmm_aux3, vmm_aux3, table_val(two)); // (2^-(n-1) + 2*exp(r))/2
+            vmm_aux(3), vmm_aux(3), table_val(two)); // (2^-(n-1) + 2*exp(r))/2
     // frexp()
-    vec_shift(vmm_src, vmm_aux3, false /*shift_left*/, n_mantissa_bits_);
+    vec_shift(vmm_src, vmm_aux(3), false /*shift_left*/, n_mantissa_bits_);
     h->uni_vcvtdq2ps(vmm_src, vmm_src);
     // got n. where n is x = 2^n * y. y = 0.5 .. 1
     h->uni_vsubps(vmm_src, vmm_src, table_val(soft_relu_one_twenty_six));
 
     // and with mask (to get 0.5 * mantissa)
-    h->uni_vandps(vmm_aux3, vmm_aux3, table_val(soft_relu_mantissa_sign_mask));
+    h->uni_vandps(
+            vmm_aux(3), vmm_aux(3), table_val(soft_relu_mantissa_sign_mask));
     // got y. (mantisa)  0.5 < y < 1 (or with (to get 0.5 * mantissa))
-    h->uni_vorps(vmm_aux3, vmm_aux3, table_val(half));
+    h->uni_vorps(vmm_aux(3), vmm_aux(3), table_val(half));
     // y  = y - 1
-    h->uni_vsubps(vmm_aux3, vmm_aux3, table_val(one));
+    h->uni_vsubps(vmm_aux(3), vmm_aux(3), table_val(one));
 
     // compute log1p polynomial
-    h->uni_vmovups(vmm_aux1, table_val(soft_relu_pol, 8));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(soft_relu_pol, 7));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(soft_relu_pol, 6));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(soft_relu_pol, 5));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(soft_relu_pol, 4));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(soft_relu_pol, 3));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(soft_relu_pol, 2));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(soft_relu_pol, 1));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(soft_relu_pol, 0));
+    h->uni_vmovups(vmm_aux(1), table_val(soft_relu_pol, 8));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(3), table_val(soft_relu_pol, 7));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(3), table_val(soft_relu_pol, 6));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(3), table_val(soft_relu_pol, 5));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(3), table_val(soft_relu_pol, 4));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(3), table_val(soft_relu_pol, 3));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(3), table_val(soft_relu_pol, 2));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(3), table_val(soft_relu_pol, 1));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(3), table_val(soft_relu_pol, 0));
     //calculate ln(2) * n
     h->uni_vmulps(vmm_src, vmm_src, table_val(ln2f));
-    h->uni_vaddps(vmm_src, vmm_src, vmm_aux1);
-    h->uni_vaddps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vaddps(vmm_src, vmm_src, vmm_aux(1));
+    h->uni_vaddps(vmm_src, vmm_src, vmm_aux(0));
 
     // get vmm_mask_ = src > max logf
     // y = (x < max log f) ? soft_relu(x) : x
-    compute_cmp_mask(vmm_aux2, table_val(exp_ln_flt_max_f), _cmp_gt_os);
-    blend_with_mask(vmm_src, vmm_aux2);
+    compute_cmp_mask(vmm_aux(2), table_val(exp_ln_flt_max_f), _cmp_gt_os);
+    blend_with_mask(vmm_src, vmm_aux(2));
     if (alpha_ == 1.f) { // standard soft_relu case
         // Skip an instruction.
     } else if (alpha_ == -1) { // logsigmoid case
@@ -812,30 +818,30 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::logistic_compute_vector_fwd(
     // compute exp(x), where x <= 0 to get 0 <= exp(x) <= 1 and restore value
     // sign at the end. This is possible due to logistic is symmetric function.
 
-    // IMPORTANT: we use vmm_aux3 for the mask as exp_compute does not use it.
-    h->uni_vmovups(vmm_aux3, vmm_src);
+    // IMPORTANT: we use vmm_aux(3) for the mask as exp_compute does not use it.
+    h->uni_vmovups(vmm_aux(3), vmm_src);
     // we store the original sign and make x negative
-    h->uni_vandps(vmm_aux3, vmm_aux3, table_val(sign_mask));
+    h->uni_vandps(vmm_aux(3), vmm_aux(3), table_val(sign_mask));
     h->uni_vorps(vmm_src, vmm_src, table_val(sign_mask));
 
     exp_compute_vector_fwd(vmm_src);
     // dup exp(x)
-    h->uni_vmovups(vmm_aux1, vmm_src);
+    h->uni_vmovups(vmm_aux(1), vmm_src);
     // (exp(x) + 1)
-    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(one));
+    h->uni_vaddps(vmm_aux(1), vmm_aux(1), table_val(one));
     // y = exp(x) / (exp(x) + 1)
-    h->uni_vdivps(vmm_src, vmm_src, vmm_aux1);
+    h->uni_vdivps(vmm_src, vmm_src, vmm_aux(1));
 
     // Now we have to apply the "symmetry" based on original sign
-    h->uni_vmovups(vmm_aux2, table_val(one));
-    h->uni_vsubps(vmm_aux2, vmm_aux2, vmm_src);
+    h->uni_vmovups(vmm_aux(2), table_val(one));
+    h->uni_vsubps(vmm_aux(2), vmm_aux(2), vmm_src);
     if (is_avx512_) {
-        h->vptestmd(k_mask_, vmm_aux3, vmm_aux3);
+        h->vptestmd(k_mask_, vmm_aux(3), vmm_aux(3));
     } else {
-        h->uni_vmovups(vmm_mask_, vmm_aux3);
+        h->uni_vmovups(vmm_mask_, vmm_aux(3));
     }
-    blend_with_mask(vmm_aux2, vmm_src);
-    h->uni_vmovups(vmm_src, vmm_aux2);
+    blend_with_mask(vmm_aux(2), vmm_src);
+    h->uni_vmovups(vmm_src, vmm_aux(2));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -849,9 +855,9 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::swish_compute_vector_fwd(
     // sigmoid(x*alpha)
     logistic_compute_vector_fwd(vmm_src);
     // x*sigmoid(alpha*x)
-    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
+    h->uni_vmovups(vmm_aux(0), h->ptr[h->rsp]);
     h->add(h->rsp, vlen_);
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(0));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -875,8 +881,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
 
     // set unused register as tmp for avx
     if (isa == avx) {
-        ymm_tmp_ = Ymm(vmm_aux0.getIdx());
-        xmm_tmp_ = Xmm(vmm_aux0.getIdx());
+        ymm_tmp_ = Ymm(vmm_aux(0).getIdx());
+        xmm_tmp_ = Xmm(vmm_aux(0).getIdx());
     }
 
     // save source on stack to check neg and zero values at the end
@@ -885,22 +891,22 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
 
     // compute i
     const int approx_order = 5;
-    vec_shift(vmm_aux1, vmm_src, false, n_mantissa_bits_ - approx_order);
-    h->uni_vandps(vmm_aux1, vmm_aux1, table_val(log_five_bit_offset));
-    vec_shift(vmm_aux1, vmm_aux1, true, 1); // multiply i by 2
+    vec_shift(vmm_aux(1), vmm_src, false, n_mantissa_bits_ - approx_order);
+    h->uni_vandps(vmm_aux(1), vmm_aux(1), table_val(log_five_bit_offset));
+    vec_shift(vmm_aux(1), vmm_aux(1), true, 1); // multiply i by 2
 
     // compute anticancellation i
-    vec_shift(vmm_aux2, vmm_aux1, false, approx_order);
+    vec_shift(vmm_aux(2), vmm_aux(1), false, approx_order);
 
     // get E, don't care about sign as only positive numbers are considered
-    vec_shift(vmm_aux3, vmm_src, false, n_mantissa_bits_);
+    vec_shift(vmm_aux(3), vmm_src, false, n_mantissa_bits_);
     if (isa != avx)
-        h->uni_vpaddd(vmm_aux3, vmm_aux3, vmm_aux2);
+        h->uni_vpaddd(vmm_aux(3), vmm_aux(3), vmm_aux(2));
     else {
-        Ymm ymm_aux2 = Ymm(vmm_aux2.getIdx());
-        Ymm ymm_aux3 = Ymm(vmm_aux3.getIdx());
-        Xmm xmm_aux2 = Xmm(vmm_aux2.getIdx());
-        Xmm xmm_aux3 = Xmm(vmm_aux3.getIdx());
+        Ymm ymm_aux2 = Ymm(vmm_aux(2).getIdx());
+        Ymm ymm_aux3 = Ymm(vmm_aux(3).getIdx());
+        Xmm xmm_aux2 = Xmm(vmm_aux(2).getIdx());
+        Xmm xmm_aux3 = Xmm(vmm_aux(3).getIdx());
         h->vextractf128(xmm_tmp_, ymm_aux3, 1);
         h->vpaddd(xmm_aux3, xmm_aux3, xmm_aux2);
         h->vperm2f128(ymm_aux2, ymm_aux2, ymm_aux2, 1);
@@ -908,19 +914,19 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
         h->vperm2f128(ymm_aux2, ymm_aux2, ymm_aux2, 1);
         h->vinsertf128(ymm_aux3, ymm_aux3, xmm_tmp_, 1);
     }
-    h->uni_vcvtdq2ps(vmm_aux3, vmm_aux3);
+    h->uni_vcvtdq2ps(vmm_aux(3), vmm_aux(3));
 
     // get m (mantissa)
-    h->uni_vxorps(vmm_aux2, vmm_aux2, table_val(exponent_bias));
-    vec_shift(vmm_aux2, vmm_aux2, true, n_mantissa_bits_);
+    h->uni_vxorps(vmm_aux(2), vmm_aux(2), table_val(exponent_bias));
+    vec_shift(vmm_aux(2), vmm_aux(2), true, n_mantissa_bits_);
     h->uni_vandps(vmm_src, vmm_src, table_val(log_mantissa_mask));
-    h->uni_vorps(vmm_src, vmm_src, vmm_aux2);
+    h->uni_vorps(vmm_src, vmm_src, vmm_aux(2));
 
     // At first, adjust indices for table structure which broadcasts elements
     // by multiplying by simd_w
     const int simd_w = math::ilog2q(
             vlen_ / sizeof(float)); // equal to 2/3/4 for xmm/ymm/zmm
-    vec_shift(vmm_aux1, vmm_aux1, true, simd_w);
+    vec_shift(vmm_aux(1), vmm_aux(1), true, simd_w);
 
     const auto it = entry_map_.find(log_predefined_vals);
     assert(it != entry_map_.end());
@@ -968,63 +974,63 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
     };
 
     // get r_i, same as table(i)
-    gather_table_values(vmm_aux2, vmm_aux1, 0);
+    gather_table_values(vmm_aux(2), vmm_aux(1), 0);
 
     // compute relative error (rel_err = m * r_i - 1)
-    h->uni_vfmsub213ps(vmm_aux2, vmm_src, table_val(one));
+    h->uni_vfmsub213ps(vmm_aux(2), vmm_src, table_val(one));
 
     // compute polynomial(rel_err)
     h->uni_vmovups(vmm_src, table_val(log_pol, 3));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux2, table_val(log_pol, 2));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux2, table_val(log_pol, 1));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux2, table_val(log_pol, 0));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux2, table_val(one));
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux2);
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(2), table_val(log_pol, 2));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(2), table_val(log_pol, 1));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(2), table_val(log_pol, 0));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(2), table_val(one));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(2));
 
     // get log(r_i) = table(i+1)
-    gather_table_values(vmm_aux2, vmm_aux1, vlen_);
+    gather_table_values(vmm_aux(2), vmm_aux(1), vlen_);
 
     // compute partial result (pres = E * ln(2) - log(r_i))
-    h->uni_vfmadd231ps(vmm_aux2, vmm_aux3, table_val(ln2f));
+    h->uni_vfmadd231ps(vmm_aux(2), vmm_aux(3), table_val(ln2f));
 
     // compute (result = polynomial + pres) w/ TwoSum algorithm
     // TODO: restore this instead of version below when asserts are gone
-    // h->uni_vaddps(vmm_aux1, vmm_src, vmm_aux2); // res_hi = pol + pres
-    // h->uni_vsubps(vmm_aux3, vmm_aux1, vmm_aux2); // res_lo = res_hi - pres
-    // h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_src); // res_lo = res_lo - pol
-    // h->uni_vaddps(vmm_src, vmm_aux1, vmm_aux3); // res_hi = pol + pres
+    // h->uni_vaddps(vmm_aux(1), vmm_src, vmm_aux(2)); // res_hi = pol + pres
+    // h->uni_vsubps(vmm_aux(3), vmm_aux(1), vmm_aux(2)); // res_lo = res_hi - pres
+    // h->uni_vsubps(vmm_aux(3), vmm_aux(3), vmm_src); // res_lo = res_lo - pol
+    // h->uni_vaddps(vmm_src, vmm_aux(1), vmm_aux(3)); // res_hi = pol + pres
 
-    h->uni_vmovups(vmm_aux1, vmm_src);
-    h->uni_vaddps(vmm_aux1, vmm_aux1, vmm_aux2); // res_hi = pol + pres
-    h->uni_vmovups(vmm_aux3, vmm_aux1);
-    h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_aux2); // res_lo = res_hi - pres
-    h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_src); // res_lo = res_lo - pol
-    h->uni_vmovups(vmm_src, vmm_aux1);
-    h->uni_vaddps(vmm_src, vmm_src, vmm_aux3); // res_hi = pol + pres
+    h->uni_vmovups(vmm_aux(1), vmm_src);
+    h->uni_vaddps(vmm_aux(1), vmm_aux(1), vmm_aux(2)); // res_hi = pol + pres
+    h->uni_vmovups(vmm_aux(3), vmm_aux(1));
+    h->uni_vsubps(vmm_aux(3), vmm_aux(3), vmm_aux(2)); // res_lo = res_hi - pres
+    h->uni_vsubps(vmm_aux(3), vmm_aux(3), vmm_src); // res_lo = res_lo - pol
+    h->uni_vmovups(vmm_src, vmm_aux(1));
+    h->uni_vaddps(vmm_src, vmm_src, vmm_aux(3)); // res_hi = pol + pres
 
     // Check original source for zero and neg values. skip blend w/ extreme
     // values if all src values were positive.
-    h->uni_vmovups(vmm_aux1, h->ptr[h->rsp]);
+    h->uni_vmovups(vmm_aux(1), h->ptr[h->rsp]);
     h->add(h->rsp, vlen_);
 
     Xbyak::Label end_log_zero_label;
-    compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_le_os);
+    compute_cmp_mask(vmm_aux(1), table_val(zero), _cmp_le_os);
     test_mask();
     h->jz(end_log_zero_label);
 
     // Blend extreme values into src if reach here.
     // First zero for -inf values...
-    compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_eq_oq);
+    compute_cmp_mask(vmm_aux(1), table_val(zero), _cmp_eq_oq);
     blend_with_mask(vmm_src, table_val(log_minus_inf));
 
     // ...then negative for qnan values.
-    compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_lt_os);
+    compute_cmp_mask(vmm_aux(1), table_val(zero), _cmp_lt_os);
     blend_with_mask(vmm_src, table_val(log_qnan));
 
     h->L(end_log_zero_label);
 
     // Leave inf values same as in src.
-    compute_cmp_mask(vmm_aux1, table_val(log_inf), _cmp_eq_oq);
+    compute_cmp_mask(vmm_aux(1), table_val(log_inf), _cmp_eq_oq);
     Xbyak::Label end_log_inf_label;
     test_mask();
     h->jz(end_log_inf_label);
@@ -1032,15 +1038,15 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
     h->L(end_log_inf_label);
 
     // Detect qnans if src != src and blend with qnans.
-    compute_cmp_mask(vmm_aux1, vmm_aux1, _cmp_neq_uq);
+    compute_cmp_mask(vmm_aux(1), vmm_aux(1), _cmp_neq_uq);
     Xbyak::Label end_log_nan_label;
     test_mask();
     h->jz(end_log_nan_label);
-    blend_with_mask(vmm_src, vmm_aux1);
+    blend_with_mask(vmm_src, vmm_aux(1));
     h->L(end_log_nan_label);
 
     // Detect ones and blend with zeros.
-    compute_cmp_mask(vmm_aux1, table_val(one), _cmp_eq_oq);
+    compute_cmp_mask(vmm_aux(1), table_val(one), _cmp_eq_oq);
     Xbyak::Label end_log_one_label;
     test_mask();
     h->jz(end_log_one_label);
@@ -1053,8 +1059,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::pow_compute_vector_fwd(
         const Vmm &vmm_src) {
     // dispatch between special cases.
     if (beta_ == -1) { // alpha / x
-        h->uni_vmovups(vmm_aux0, table_val(alpha));
-        h->uni_vdivps(vmm_src, vmm_aux0, vmm_src, vmm_aux0);
+        h->uni_vmovups(vmm_aux(0), table_val(alpha));
+        h->uni_vdivps(vmm_src, vmm_aux(0), vmm_src, vmm_aux(0));
     } else if (beta_ == 0) { // alpha
         h->uni_vmovups(vmm_src, table_val(alpha));
     } else if (beta_ == 0.5) { // alpha * sqrt(x)
@@ -1171,8 +1177,9 @@ void jit_uni_eltwise_injector_f32<isa,
     if (!is_avx512_) return;
 
     // register mapping
-    Vmm vmm_pol = vmm_aux1, vmm_src_pos = vmm_aux2, vmm_indices = vmm_aux3,
-        vmm_tmp_ = vmm_aux4; // this is for immediate read after write
+    Vmm vmm_pol = vmm_aux(1), vmm_src_pos = vmm_aux(2),
+        vmm_indices = vmm_aux(3),
+        vmm_tmp_ = vmm_aux(4); // this is for immediate read after write
 
     auto coeffs_address = [&](int coeff_off, int off = 0) {
         // we actually have 25 polynomials but pad to avoid unaligned accesses/
@@ -1245,23 +1252,23 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_fwd(
     // differences with respect to glibc erf based GELU, in particular
     // ~1.0e-5 -- 1.0e-3 absolute error at s = -5.
 
-    // use vmm_aux3 to store original src.
-    h->uni_vmovups(vmm_aux3, vmm_src);
+    // use vmm_aux(3) to store original src.
+    h->uni_vmovups(vmm_aux(3), vmm_src);
 
     // x = s / sqrt(2)
     h->uni_vmulps(vmm_src, vmm_src,
             table_val(gelu_erf_Abramowitz_Stegun_one_over_sqrt_two));
 
     // abs(x)
-    h->uni_vmovups(vmm_aux4, vmm_src);
-    abs_compute_vector_fwd(vmm_aux4);
+    h->uni_vmovups(vmm_aux(4), vmm_src);
+    abs_compute_vector_fwd(vmm_aux(4));
 
     // t = 1 / (p*x + 1)
     h->uni_vmovups(
-            vmm_aux2, table_val(gelu_erf_Abramowitz_Stegun_approx_const));
-    h->uni_vfmadd213ps(vmm_aux2, vmm_aux4, table_val(one));
-    h->uni_vmovups(vmm_aux4, table_val(one));
-    h->uni_vdivps(vmm_aux4, vmm_aux4, vmm_aux2);
+            vmm_aux(2), table_val(gelu_erf_Abramowitz_Stegun_approx_const));
+    h->uni_vfmadd213ps(vmm_aux(2), vmm_aux(4), table_val(one));
+    h->uni_vmovups(vmm_aux(4), table_val(one));
+    h->uni_vdivps(vmm_aux(4), vmm_aux(4), vmm_aux(2));
 
     // -exp(-x*x)
     h->uni_vmulps(vmm_src, vmm_src, vmm_src);
@@ -1270,31 +1277,31 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_fwd(
     h->uni_vxorps(vmm_src, vmm_src, table_val(sign_mask));
 
     // get sign
-    h->uni_vmovups(vmm_aux0, vmm_aux3);
-    h->uni_vandps(vmm_aux0, vmm_aux0, table_val(sign_mask));
+    h->uni_vmovups(vmm_aux(0), vmm_aux(3));
+    h->uni_vandps(vmm_aux(0), vmm_aux(0), table_val(sign_mask));
 
     // -exp(-x*x)*t
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux4);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(4));
 
     // compute polynomialial r
-    h->uni_vmovups(vmm_aux1, table_val(gelu_erf_Abramowitz_Stegun_pol, 4));
-    h->uni_vfmadd213ps(
-            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 3));
-    h->uni_vfmadd213ps(
-            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 2));
-    h->uni_vfmadd213ps(
-            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 1));
-    h->uni_vfmadd213ps(
-            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 0));
+    h->uni_vmovups(vmm_aux(1), table_val(gelu_erf_Abramowitz_Stegun_pol, 4));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(4),
+            table_val(gelu_erf_Abramowitz_Stegun_pol, 3));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(4),
+            table_val(gelu_erf_Abramowitz_Stegun_pol, 2));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(4),
+            table_val(gelu_erf_Abramowitz_Stegun_pol, 1));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(4),
+            table_val(gelu_erf_Abramowitz_Stegun_pol, 0));
 
     // erf = sign * (1 - r * t * exp(-x*x))
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(one));
-    h->uni_vxorps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(1), table_val(one));
+    h->uni_vxorps(vmm_src, vmm_src, vmm_aux(0));
 
     // S = 0.5 * s
-    h->uni_vmulps(vmm_aux3, vmm_aux3, table_val(half));
+    h->uni_vmulps(vmm_aux(3), vmm_aux(3), table_val(half));
     // GELU = 0.5 * s * (1 + erf) = S + S * erf
-    h->uni_vfmadd213ps(vmm_src, vmm_aux3, vmm_aux3);
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(3), vmm_aux(3));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1318,8 +1325,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::elu_compute_vector_bwd(
         h->uni_vaddps(vmm_src, vmm_src, table_val(alpha));
         blend_with_mask(vmm_src, table_val(one));
     } else {
-        // Note: use vmm_aux3 for copy as exp_compute doesn't use it.
-        h->uni_vmovups(vmm_aux3, vmm_src);
+        // Note: use vmm_aux(3) for copy as exp_compute doesn't use it.
+        h->uni_vmovups(vmm_aux(3), vmm_src);
         // R = exp(s)
         exp_compute_vector_fwd(vmm_src);
         // R *= alpha
@@ -1328,7 +1335,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::elu_compute_vector_bwd(
         // exp(0)=1.f after exponentiation may lead to incorrect results due to
         // small values like `9.61717e-09f` are converted into 1.f by exp, which
         // get multiplied by `alpha` but they should not.
-        compute_cmp_mask(vmm_aux3, table_val(zero), _cmp_gt_os);
+        compute_cmp_mask(vmm_aux(3), table_val(zero), _cmp_gt_os);
         blend_with_mask(vmm_src, table_val(one));
     }
 }
@@ -1338,55 +1345,56 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = 1 - d^2 = 1 - tanh^2(s)
     if (!use_dst_) tanh_compute_vector_fwd(vmm_src);
-    h->uni_vmovups(vmm_aux0, table_val(one));
-    h->uni_vfnmadd231ps(vmm_aux0, vmm_src, vmm_src);
-    h->uni_vmovups(vmm_src, vmm_aux0);
+    h->uni_vmovups(vmm_aux(0), table_val(one));
+    h->uni_vfnmadd231ps(vmm_aux(0), vmm_src, vmm_src);
+    h->uni_vmovups(vmm_src, vmm_aux(0));
 }
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_tanh_compute_vector_bwd(
         const Vmm &vmm_src) {
-    h->uni_vmovups(vmm_aux0, vmm_src);
+    h->uni_vmovups(vmm_aux(0), vmm_src);
 
     // compute G1(x) = sqrt_root_two_over_pi * x * (1 + fitting_const * x^2)
     // compute G2(x) = sqrt_root_two_over_pi * x * (1 + 3 * fitting_const * x^2)
     h->uni_vmulps(vmm_src, vmm_src, vmm_src);
 
     // keep G2 in a separate register
-    h->uni_vmovups(vmm_aux2, table_val(gelu_tanh_fitting_const_times_three));
-    h->uni_vfmadd213ps(vmm_aux2, vmm_src, table_val(one));
+    h->uni_vmovups(vmm_aux(2), table_val(gelu_tanh_fitting_const_times_three));
+    h->uni_vfmadd213ps(vmm_aux(2), vmm_src, table_val(one));
 
-    h->uni_vmovups(vmm_aux1, table_val(gelu_tanh_fitting_const));
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(one));
-    h->uni_vmulps(vmm_aux0, vmm_aux0, table_val(gelu_tanh_sqrt_two_over_pi));
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
-    h->uni_vmulps(vmm_aux2, vmm_aux2, vmm_aux0);
+    h->uni_vmovups(vmm_aux(1), table_val(gelu_tanh_fitting_const));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(1), table_val(one));
+    h->uni_vmulps(
+            vmm_aux(0), vmm_aux(0), table_val(gelu_tanh_sqrt_two_over_pi));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(0));
+    h->uni_vmulps(vmm_aux(2), vmm_aux(2), vmm_aux(0));
 
     // save G2 on stack as tanh uses all available registers
     h->sub(h->rsp, vlen_);
-    h->uni_vmovups(h->ptr[h->rsp], vmm_aux2);
+    h->uni_vmovups(h->ptr[h->rsp], vmm_aux(2));
 
     // T = tanh(G1(x))
     tanh_compute_vector_fwd(vmm_src);
 
-    h->uni_vmovups(vmm_aux2, h->ptr[h->rsp]);
+    h->uni_vmovups(vmm_aux(2), h->ptr[h->rsp]);
     h->add(h->rsp, vlen_);
 
     // compute 0.5 * (1 + T) * (1 + G2 * (1 - T))
     if (isa == sse41 || isa == avx) {
-        h->uni_vmovups(vmm_aux3, table_val(one));
-        h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_src);
-        h->uni_vmulps(vmm_aux2, vmm_aux2, vmm_aux3);
+        h->uni_vmovups(vmm_aux(3), table_val(one));
+        h->uni_vsubps(vmm_aux(3), vmm_aux(3), vmm_src);
+        h->uni_vmulps(vmm_aux(2), vmm_aux(2), vmm_aux(3));
         h->uni_vaddps(vmm_src, vmm_src, table_val(one));
-        h->uni_vmulps(vmm_aux2, vmm_aux2, vmm_src);
-        h->uni_vaddps(vmm_src, vmm_src, vmm_aux2);
+        h->uni_vmulps(vmm_aux(2), vmm_aux(2), vmm_src);
+        h->uni_vaddps(vmm_src, vmm_src, vmm_aux(2));
     } else {
         // 1) R = G2 * (1 - T) = G2 - G2 * T
-        h->uni_vfnmadd231ps(vmm_aux2, vmm_aux2, vmm_src);
+        h->uni_vfnmadd231ps(vmm_aux(2), vmm_aux(2), vmm_src);
         // 2) Q = 1 + T
         h->uni_vaddps(vmm_src, vmm_src, table_val(one));
         // 3) res = Q * (1 + R) = Q + Q * R
-        h->uni_vfmadd231ps(vmm_src, vmm_src, vmm_aux2);
+        h->uni_vfmadd231ps(vmm_src, vmm_src, vmm_aux(2));
     }
     h->uni_vmulps(vmm_src, vmm_src, table_val(half));
 }
@@ -1414,10 +1422,10 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::sqrt_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = 0.5 / d = 0.5 / sqrt(s)
     if (!use_dst_) sqrt_compute_vector_fwd(vmm_src);
-    h->uni_vmovups(vmm_aux0, table_val(half));
-    // h->uni_vdivps(vmm_src, vmm_aux0, vmm_src); // bless sse41
-    h->uni_vdivps(vmm_aux0, vmm_aux0, vmm_src);
-    h->uni_vmovups(vmm_src, vmm_aux0);
+    h->uni_vmovups(vmm_aux(0), table_val(half));
+    // h->uni_vdivps(vmm_src, vmm_aux(0), vmm_src); // bless sse41
+    h->uni_vdivps(vmm_aux(0), vmm_aux(0), vmm_src);
+    h->uni_vmovups(vmm_src, vmm_aux(0));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1436,42 +1444,42 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_bwd(
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::mish_compute_vector_bwd(
         const Vmm &vmm_src) {
-    // IMPORTANT: we use vmm_aux3 to save src as exp does not use it.
-    h->uni_vmovups(vmm_aux3, vmm_src); // vmm_aux3 = x
+    // IMPORTANT: we use vmm_aux(3) to save src as exp does not use it.
+    h->uni_vmovups(vmm_aux(3), vmm_src); // vmm_aux(3) = x
 
     h->uni_vminps(vmm_src, vmm_src, table_val(bwd_mish_max_x_for_equation_f));
     exp_compute_vector_fwd(vmm_src);
-    h->uni_vmovups(vmm_aux2, vmm_src); // vmm_aux2 = e^x
+    h->uni_vmovups(vmm_aux(2), vmm_src); // vmm_aux(2) = e^x
 
     // e^3x + 4*e^2x
     h->uni_vmulps(vmm_src, vmm_src, vmm_src); // e^2x
-    h->uni_vmovups(vmm_aux1, vmm_src);
-    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(two));
-    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(two)); // 4*e^2x
-    h->uni_vfmadd213ps(vmm_src, vmm_aux2, vmm_aux1);
+    h->uni_vmovups(vmm_aux(1), vmm_src);
+    h->uni_vmulps(vmm_aux(1), vmm_aux(1), table_val(two));
+    h->uni_vmulps(vmm_aux(1), vmm_aux(1), table_val(two)); // 4*e^2x
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(2), vmm_aux(1));
 
     // e^3x + 4*e^2x + 4*e^x*(x+1.5)
-    h->uni_vaddps(vmm_aux3, vmm_aux3, table_val(one)); // vmm_aux3 = x + 1
-    h->uni_vmovups(vmm_aux1, vmm_aux3);
-    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(half));
-    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(two));
-    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(two));
-    h->uni_vfmadd231ps(vmm_src, vmm_aux1, vmm_aux2);
+    h->uni_vaddps(vmm_aux(3), vmm_aux(3), table_val(one)); // vmm_aux(3) = x + 1
+    h->uni_vmovups(vmm_aux(1), vmm_aux(3));
+    h->uni_vaddps(vmm_aux(1), vmm_aux(1), table_val(half));
+    h->uni_vmulps(vmm_aux(1), vmm_aux(1), table_val(two));
+    h->uni_vmulps(vmm_aux(1), vmm_aux(1), table_val(two));
+    h->uni_vfmadd231ps(vmm_src, vmm_aux(1), vmm_aux(2));
 
     // omega = e^3x + 4*e^2x + 4*e^x*(x+1.5) + 4*(x+1)
-    h->uni_vmulps(vmm_aux3, vmm_aux3, table_val(two));
-    h->uni_vfmadd231ps(vmm_src, vmm_aux3, table_val(two));
+    h->uni_vmulps(vmm_aux(3), vmm_aux(3), table_val(two));
+    h->uni_vfmadd231ps(vmm_src, vmm_aux(3), table_val(two));
 
     // delta = (e^x+1)^2 + 1
-    h->uni_vmovups(vmm_aux1, vmm_aux2);
-    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(one));
-    h->uni_vmulps(vmm_aux1, vmm_aux1, vmm_aux1);
-    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(one));
-    h->uni_vmulps(vmm_aux1, vmm_aux1, vmm_aux1);
+    h->uni_vmovups(vmm_aux(1), vmm_aux(2));
+    h->uni_vaddps(vmm_aux(1), vmm_aux(1), table_val(one));
+    h->uni_vmulps(vmm_aux(1), vmm_aux(1), vmm_aux(1));
+    h->uni_vaddps(vmm_aux(1), vmm_aux(1), table_val(one));
+    h->uni_vmulps(vmm_aux(1), vmm_aux(1), vmm_aux(1));
 
     // e^x * omega / delta^2
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux2);
-    h->uni_vdivps(vmm_src, vmm_src, vmm_aux1);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(2));
+    h->uni_vdivps(vmm_src, vmm_src, vmm_aux(1));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1480,9 +1488,9 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::logistic_compute_vector_bwd(
     // res = d * (1 - d) = d - d * d; d = logistic(s)
     if (!use_dst_) logistic_compute_vector_fwd(vmm_src);
     // h->uni_vfnmadd231ps(vmm_src, vmm_src, vmm_src); // bless sse41
-    h->uni_vmovups(vmm_aux0, table_val(one));
-    h->uni_vsubps(vmm_aux0, vmm_aux0, vmm_src);
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vmovups(vmm_aux(0), table_val(one));
+    h->uni_vsubps(vmm_aux(0), vmm_aux(0), vmm_src);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(0));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1501,20 +1509,20 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::swish_compute_vector_bwd(
     h->uni_vmovups(h->ptr[h->rsp], vmm_src);
     // Q = sigmoid(alpha * s)
     logistic_compute_vector_fwd(vmm_src);
-    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
+    h->uni_vmovups(vmm_aux(0), h->ptr[h->rsp]);
     h->add(h->rsp, vlen_);
     // compute Q * (1 + R * (1 - Q))
     if (utils::one_of(isa, sse41, avx)) {
-        h->uni_vmovups(vmm_aux1, table_val(one));
-        h->uni_vsubps(vmm_aux1, vmm_aux1, vmm_src);
-        h->uni_vmulps(vmm_aux1, vmm_aux1, vmm_aux0);
-        h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(one));
-        h->uni_vmulps(vmm_src, vmm_src, vmm_aux1);
+        h->uni_vmovups(vmm_aux(1), table_val(one));
+        h->uni_vsubps(vmm_aux(1), vmm_aux(1), vmm_src);
+        h->uni_vmulps(vmm_aux(1), vmm_aux(1), vmm_aux(0));
+        h->uni_vaddps(vmm_aux(1), vmm_aux(1), table_val(one));
+        h->uni_vmulps(vmm_src, vmm_src, vmm_aux(1));
     } else {
         // T = R * (1 - Q) = R - R * Q
-        h->uni_vfnmadd231ps(vmm_aux0, vmm_aux0, vmm_src);
+        h->uni_vfnmadd231ps(vmm_aux(0), vmm_aux(0), vmm_src);
         // Q * (1 + T) = Q + Q * T
-        h->uni_vfmadd231ps(vmm_src, vmm_src, vmm_aux0);
+        h->uni_vfmadd231ps(vmm_src, vmm_src, vmm_aux(0));
     }
 }
 
@@ -1522,10 +1530,10 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = 1 / s
-    h->uni_vmovups(vmm_aux0, table_val(one));
-    // h->uni_vdivps(vmm_src, vmm_aux0, vmm_src); // bless sse41
-    h->uni_vdivps(vmm_aux0, vmm_aux0, vmm_src);
-    h->uni_vmovups(vmm_src, vmm_aux0);
+    h->uni_vmovups(vmm_aux(0), table_val(one));
+    // h->uni_vdivps(vmm_src, vmm_aux(0), vmm_src); // bless sse41
+    h->uni_vdivps(vmm_aux(0), vmm_aux(0), vmm_src);
+    h->uni_vmovups(vmm_src, vmm_aux(0));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1534,15 +1542,15 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::clip_compute_vector_bwd(
     using namespace alg_kind;
 
     // set result with 1.f
-    h->uni_vmovups(vmm_aux1, table_val(one));
+    h->uni_vmovups(vmm_aux(1), table_val(one));
     const auto cmp_flag = alg_ == eltwise_clip ? _cmp_gt_os : _cmp_ge_os;
     // get mask of values > beta (or >= beta) and blend with 0.f
     compute_cmp_mask(vmm_src, table_val(beta), cmp_flag);
-    blend_with_mask(vmm_aux1, table_val(zero));
+    blend_with_mask(vmm_aux(1), table_val(zero));
     // get mask of values <= alpha and blend with 0.f
     compute_cmp_mask(vmm_src, table_val(alpha), _cmp_le_os);
-    blend_with_mask(vmm_aux1, table_val(zero));
-    h->uni_vmovups(vmm_src, vmm_aux1);
+    blend_with_mask(vmm_aux(1), table_val(zero));
+    h->uni_vmovups(vmm_src, vmm_aux(1));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1563,12 +1571,13 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::pow_compute_vector_bwd(
         // R = alpha * pow(s, beta)
         pow_compute_vector_fwd(vmm_src);
         // Restore `s` from stack
-        h->uni_vmovups(vmm_aux1, h->ptr[h->rsp]);
+        h->uni_vmovups(vmm_aux(1), h->ptr[h->rsp]);
         h->add(h->rsp, vlen_);
         // Save mask of zero elements to convert them into zeros at the end
-        if (beta_ >= 1) compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_eq_oq);
+        if (beta_ >= 1)
+            compute_cmp_mask(vmm_aux(1), table_val(zero), _cmp_eq_oq);
         // res = alpha * beta * pow(s, beta - 1) = beta * R / s;
-        h->uni_vdivps(vmm_src, vmm_src, vmm_aux1);
+        h->uni_vdivps(vmm_src, vmm_src, vmm_aux(1));
         h->uni_vmulps(vmm_src, vmm_src, table_val(beta));
 
         // beta < 1 leads to NaN as `s` appears in denominator, but beta >= 1
@@ -1594,69 +1603,69 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_bwd(
     exp_compute_vector_fwd(vmm_src);
 
     // T = R / sqrt(pi) * Q
-    h->uni_vmovups(vmm_aux2, h->ptr[h->rsp]);
-    h->uni_vmulps(vmm_aux2, vmm_aux2,
+    h->uni_vmovups(vmm_aux(2), h->ptr[h->rsp]);
+    h->uni_vmulps(vmm_aux(2), vmm_aux(2),
             table_val(gelu_erf_Abramowitz_Stegun_one_over_sqrt_pi));
-    h->uni_vmulps(vmm_aux2, vmm_aux2, vmm_src);
+    h->uni_vmulps(vmm_aux(2), vmm_aux(2), vmm_src);
 
     // -Q
     h->uni_vxorps(vmm_src, vmm_src, table_val(sign_mask));
 
     // get sign
-    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
-    h->uni_vandps(vmm_aux0, vmm_aux0, table_val(sign_mask));
+    h->uni_vmovups(vmm_aux(0), h->ptr[h->rsp]);
+    h->uni_vandps(vmm_aux(0), vmm_aux(0), table_val(sign_mask));
 
     // abs(x)
-    h->uni_vmovups(vmm_aux1, h->ptr[h->rsp]);
+    h->uni_vmovups(vmm_aux(1), h->ptr[h->rsp]);
     h->add(h->rsp, vlen_);
-    abs_compute_vector_fwd(vmm_aux1);
+    abs_compute_vector_fwd(vmm_aux(1));
 
     // W = 1 / (p * s + 1)
     h->uni_vmovups(
-            vmm_aux3, table_val(gelu_erf_Abramowitz_Stegun_approx_const));
-    h->uni_vmovups(vmm_aux4, table_val(one));
-    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, vmm_aux4);
-    h->uni_vdivps(vmm_aux4, vmm_aux4, vmm_aux3);
+            vmm_aux(3), table_val(gelu_erf_Abramowitz_Stegun_approx_const));
+    h->uni_vmovups(vmm_aux(4), table_val(one));
+    h->uni_vfmadd213ps(vmm_aux(3), vmm_aux(1), vmm_aux(4));
+    h->uni_vdivps(vmm_aux(4), vmm_aux(4), vmm_aux(3));
 
     // Q * W
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux4);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(4));
 
     // compute polynomial r
-    h->uni_vmovups(vmm_aux1, table_val(gelu_erf_Abramowitz_Stegun_pol, 4));
-    h->uni_vfmadd213ps(
-            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 3));
-    h->uni_vfmadd213ps(
-            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 2));
-    h->uni_vfmadd213ps(
-            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 1));
-    h->uni_vfmadd213ps(
-            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 0));
+    h->uni_vmovups(vmm_aux(1), table_val(gelu_erf_Abramowitz_Stegun_pol, 4));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(4),
+            table_val(gelu_erf_Abramowitz_Stegun_pol, 3));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(4),
+            table_val(gelu_erf_Abramowitz_Stegun_pol, 2));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(4),
+            table_val(gelu_erf_Abramowitz_Stegun_pol, 1));
+    h->uni_vfmadd213ps(vmm_aux(1), vmm_aux(4),
+            table_val(gelu_erf_Abramowitz_Stegun_pol, 0));
 
     // erf = sign * (1 - r * t * exp(-x*x))
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(one));
-    h->uni_vxorps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vfmadd213ps(vmm_src, vmm_aux(1), table_val(one));
+    h->uni_vxorps(vmm_src, vmm_src, vmm_aux(0));
 
     // P = T + 0.5
-    h->uni_vaddps(vmm_aux2, vmm_aux2, table_val(half));
+    h->uni_vaddps(vmm_aux(2), vmm_aux(2), table_val(half));
     // res = P + 0.5 * erf
-    h->uni_vfmadd231ps(vmm_aux2, vmm_src, table_val(half));
-    h->uni_vmovups(vmm_src, vmm_aux2);
+    h->uni_vfmadd231ps(vmm_aux(2), vmm_src, table_val(half));
+    h->uni_vmovups(vmm_src, vmm_aux(2));
 }
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::hardswish_compute_vector_bwd(
         const Vmm &vmm_src) {
     // Get mask for 0 < alpha * x + beta < 1
-    h->uni_vmovups(vmm_aux1, vmm_src);
-    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(alpha));
-    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(beta));
+    h->uni_vmovups(vmm_aux(1), vmm_src);
+    h->uni_vmulps(vmm_aux(1), vmm_aux(1), table_val(alpha));
+    h->uni_vaddps(vmm_aux(1), vmm_aux(1), table_val(beta));
     // Form a derivative value
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
-    h->uni_vaddps(vmm_src, vmm_src, vmm_aux1);
+    h->uni_vaddps(vmm_src, vmm_src, vmm_aux(1));
 
-    compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_le_os);
+    compute_cmp_mask(vmm_aux(1), table_val(zero), _cmp_le_os);
     blend_with_mask(vmm_src, table_val(zero));
-    compute_cmp_mask(vmm_aux1, table_val(one), _cmp_ge_os);
+    compute_cmp_mask(vmm_aux(1), table_val(one), _cmp_ge_os);
     blend_with_mask(vmm_src, table_val(one));
 }
 
@@ -1665,14 +1674,14 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::hardsigmoid_compute_vector_bwd(
         const Vmm &vmm_src) {
     // Get mask for 0 < alpha * x + beta < 1
     // Zero rest values.
-    h->uni_vmovups(vmm_aux1, vmm_src);
-    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(alpha));
-    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(beta));
+    h->uni_vmovups(vmm_aux(1), vmm_src);
+    h->uni_vmulps(vmm_aux(1), vmm_aux(1), table_val(alpha));
+    h->uni_vaddps(vmm_aux(1), vmm_aux(1), table_val(beta));
 
     h->uni_vmovups(vmm_src, table_val(one));
-    compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_le_os);
+    compute_cmp_mask(vmm_aux(1), table_val(zero), _cmp_le_os);
     blend_with_mask(vmm_src, table_val(zero));
-    compute_cmp_mask(vmm_aux1, table_val(one), _cmp_ge_os);
+    compute_cmp_mask(vmm_aux(1), table_val(one), _cmp_ge_os);
     blend_with_mask(vmm_src, table_val(zero));
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
 }

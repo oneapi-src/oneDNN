@@ -181,7 +181,6 @@ private:
     size_t preserved_vmm_indices_[preserved_vecs_max_] = {};
     size_t preserved_gpr_indices_[preserved_gprs_max_] = {};
 
-    Vmm vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4;
     Vmm vmm_mask_;
     Vmm vmm_tmp_;
     Xbyak::Ymm ymm_tmp_;
@@ -197,6 +196,7 @@ private:
     void injector_preamble_tail(size_t n_vregs_not_preserved);
     void injector_postamble();
     void assign_regs();
+    Wmm vmm_aux(size_t idx);
     void vec_shift(const Vmm &vmm_dst, const Vmm &vmm_src, bool shift_left,
             const int imm);
     void compute_cmp_mask(const Vmm &vmm_src,
