@@ -58,23 +58,11 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
         const injector_utils::vmm_index_set_t &vmm_idxs,
         injector_utils::vmm_index_set_iterator_t &start_idx_tail_it) {
-    using namespace alg_kind;
     using namespace Xbyak::util;
     n_vregs_preserved_ = 0;
-    n_vregs_to_preserve_ = aux_vecs_count();
+    n_vregs_to_preserve_ = aux_vecs_count(alg_, is_fwd_, alpha_);
     const auto start_idx = *(vmm_idxs.begin());
     const auto end_idx = *(vmm_idxs.rbegin()) + 1;
-
-    // For avx we need a register to save the upper part of Ymm
-    preserve_vec_for_avx_ = isa == avx
-            && utils::one_of(alg_, eltwise_tanh, eltwise_elu, eltwise_abs,
-                    eltwise_soft_relu, eltwise_mish, eltwise_logistic,
-                    eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
-                    eltwise_gelu_erf, eltwise_tanh_use_dst_for_bwd,
-                    eltwise_elu_use_dst_for_bwd,
-                    eltwise_logistic_use_dst_for_bwd,
-                    eltwise_exp_use_dst_for_bwd);
-    if (preserve_vec_for_avx_) n_vregs_to_preserve_++;
 
     // For sse41 mask register must be Xmm(0), reserve it unconditionally.
     if (isa == sse41 && n_vregs_to_preserve_ > 0) {
@@ -113,11 +101,11 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
     for (size_t gpr_idx = 0; gpr_idx <= Operand::R15; ++gpr_idx) {
         int _idx = Operand::R15 - gpr_idx; // Allocate from the end
         // Restrict using stack register and table address register as temporary
-        if (preserved_gprs_count < aux_gprs_count()
+        if (preserved_gprs_count < aux_gprs_count(alg_)
                 && !utils::one_of(_idx, p_table_.getIdx(), Operand::RSP))
             preserved_gpr_indices_[preserved_gprs_count++] = _idx;
     }
-    assert(preserved_gprs_count == aux_gprs_count());
+    assert(preserved_gprs_count == aux_gprs_count(alg_));
 
     if (save_state_) {
         if (preserve_p_table_) h->push(p_table_);
@@ -191,7 +179,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_postamble() {
         if (n_vregs_preserved_) h->add(h->rsp, n_vregs_preserved_ * vlen_);
     }
 
-    for (int i = aux_gprs_count() - 1; i >= 0; --i)
+    for (int i = aux_gprs_count(alg_) - 1; i >= 0; --i)
         h->pop(Reg64(preserved_gpr_indices_[i]));
     if (preserve_p_table_) h->pop(p_table_);
 }
@@ -204,7 +192,20 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::assign_regs() {
     vmm_aux2 = Vmm(preserved_vmm_indices_[2]);
     vmm_aux3 = Vmm(preserved_vmm_indices_[3]);
     vmm_aux4 = Vmm(preserved_vmm_indices_[4]);
-    if (preserve_vec_for_avx_) {
+
+    // For avx we need a register to save the upper part of Ymm
+    // Note: the number in `aux_vecs_count` is accounted for here.
+    using namespace alg_kind;
+    const bool preserve_vec_for_avx = isa == avx
+            && utils::one_of(alg_, eltwise_tanh, eltwise_elu, eltwise_abs,
+                    eltwise_soft_relu, eltwise_mish, eltwise_logistic,
+                    eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
+                    eltwise_gelu_erf, eltwise_tanh_use_dst_for_bwd,
+                    eltwise_elu_use_dst_for_bwd,
+                    eltwise_logistic_use_dst_for_bwd,
+                    eltwise_exp_use_dst_for_bwd);
+
+    if (preserve_vec_for_avx) {
         vmm_tmp_ = Vmm(preserved_vmm_indices_[n_vregs_to_preserve_ - 1]);
         ymm_tmp_ = Ymm(preserved_vmm_indices_[n_vregs_to_preserve_ - 1]);
         xmm_tmp_ = Xmm(preserved_vmm_indices_[n_vregs_to_preserve_ - 1]);
@@ -388,7 +389,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_fwd(
     Reg64 gpr_idx[XMM_float_lanes_count];
 
     if (isa == sse41 || isa == avx) {
-        assert(aux_gprs_count() >= XMM_float_lanes_count);
+        assert(aux_gprs_count(alg_) >= XMM_float_lanes_count);
         for (int i = 0; i < XMM_float_lanes_count; i++)
             gpr_idx[i] = Reg64(preserved_gpr_indices_[i]);
     }
@@ -1683,9 +1684,9 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::round_compute_vector_fwd(
 }
 
 template <cpu_isa_t isa, typename Wmm>
-size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_gprs_count() {
+size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_gprs_count(alg_kind_t alg) {
     using namespace alg_kind;
-    switch (alg_) {
+    switch (alg) {
         case eltwise_tanh_use_dst_for_bwd:
         case eltwise_tanh:
         case eltwise_gelu_tanh: return isa == sse41 || isa == avx ? 4 : 0;
@@ -1695,69 +1696,76 @@ size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_gprs_count() {
 };
 
 template <cpu_isa_t isa, typename Wmm>
-size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_vecs_count() {
+size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_vecs_count(
+        alg_kind_t alg, bool is_fwd, float alpha) {
+    // For avx we need a register to save the upper part of Ymm
+    const bool extra_avx_vmm = isa == avx;
     size_t n_vmms = 0;
 
     using namespace alg_kind;
-    if (is_fwd_) {
-        switch (alg_) {
+    if (is_fwd) {
+        switch (alg) {
             case eltwise_relu_use_dst_for_bwd:
             case eltwise_relu: n_vmms = (alpha_ == 0.f) ? 0 : 2; break;
             case eltwise_elu_use_dst_for_bwd:
-            case eltwise_elu: n_vmms = 4; break;
+            case eltwise_elu: n_vmms = 4 + extra_avx_vmm; break;
             case eltwise_tanh_use_dst_for_bwd:
-            case eltwise_tanh: n_vmms = 5; break;
+            case eltwise_tanh: n_vmms = 5 + extra_avx_vmm; break;
             case eltwise_square: n_vmms = 0; break;
-            case eltwise_abs: n_vmms = 0; break;
+            case eltwise_abs: n_vmms = 0 + extra_avx_vmm; break;
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt: n_vmms = 0; break;
             case eltwise_linear: n_vmms = 1; break;
-            case eltwise_soft_relu: n_vmms = 4; break;
-            case eltwise_mish: n_vmms = 4; break;
+            case eltwise_soft_relu: n_vmms = 4 + extra_avx_vmm; break;
+            case eltwise_mish: n_vmms = 4 + extra_avx_vmm; break;
             case eltwise_logistic_use_dst_for_bwd:
-            case eltwise_logistic: n_vmms = 4; break;
+            case eltwise_logistic: n_vmms = 4 + extra_avx_vmm; break;
             case eltwise_exp_use_dst_for_bwd:
-            case eltwise_exp: n_vmms = 3; break;
-            case eltwise_gelu_tanh: n_vmms = 5; break;
-            case eltwise_swish: n_vmms = 4; break;
+            case eltwise_exp: n_vmms = 3 + extra_avx_vmm; break;
+            case eltwise_gelu_tanh: n_vmms = 5 + extra_avx_vmm; break;
+            case eltwise_swish: n_vmms = 4 + extra_avx_vmm; break;
             case eltwise_log: n_vmms = 5; break;
             case eltwise_clip:
             case eltwise_clip_v2_use_dst_for_bwd:
             case eltwise_clip_v2: n_vmms = 0; break;
-            case eltwise_pow: n_vmms = 2; break;
-            case eltwise_gelu_erf: n_vmms = 5; break;
+            case eltwise_pow: n_vmms = 2 + extra_avx_vmm; break;
+            case eltwise_gelu_erf: n_vmms = 5 + extra_avx_vmm; break;
             case eltwise_round: n_vmms = 0; break;
             case eltwise_hardswish: n_vmms = 1; break;
             case eltwise_hardsigmoid: n_vmms = 0; break;
             default: assert(!"unsupported eltwise algorithm");
         }
     } else {
-        switch (alg_) {
+        switch (alg) {
             case eltwise_relu_use_dst_for_bwd:
             case eltwise_relu: n_vmms = 1; break;
-            case eltwise_elu_use_dst_for_bwd: n_vmms = 1; break;
-            case eltwise_elu: n_vmms = 4; break;
-            case eltwise_tanh_use_dst_for_bwd: n_vmms = 1; break;
-            case eltwise_tanh: n_vmms = 5; break;
+            case eltwise_elu_use_dst_for_bwd: n_vmms = 1 + extra_avx_vmm; break;
+            case eltwise_elu: n_vmms = 4 + extra_avx_vmm; break;
+            case eltwise_tanh_use_dst_for_bwd:
+                n_vmms = 1 + extra_avx_vmm;
+                break;
+            case eltwise_tanh: n_vmms = 5 + extra_avx_vmm; break;
             case eltwise_square: n_vmms = 0; break;
-            case eltwise_abs: n_vmms = 0; break;
+            case eltwise_abs: n_vmms = 0 + extra_avx_vmm; break;
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt: n_vmms = 1; break;
             case eltwise_linear: n_vmms = 0; break;
-            case eltwise_soft_relu: n_vmms = 4; break;
-            case eltwise_mish: n_vmms = 4; break;
-            case eltwise_logistic_use_dst_for_bwd: n_vmms = 1; break;
-            case eltwise_logistic: n_vmms = 4; break;
-            case eltwise_exp_use_dst_for_bwd: n_vmms = 0; break;
-            case eltwise_exp: n_vmms = 3; break;
-            case eltwise_gelu_tanh: n_vmms = 5; break;
-            case eltwise_swish: n_vmms = 4; break;
+            case eltwise_soft_relu: n_vmms = 4 + extra_avx_vmm; break;
+            case eltwise_mish: n_vmms = 4 + extra_avx_vmm; break;
+            case eltwise_logistic_use_dst_for_bwd:
+                n_vmms = 1 + extra_avx_vmm;
+                break;
+            case eltwise_logistic: n_vmms = 4 + extra_avx_vmm; break;
+            case eltwise_exp_use_dst_for_bwd: n_vmms = 0 + extra_avx_vmm; break;
+            case eltwise_exp: n_vmms = 3 + extra_avx_vmm; break;
+            case eltwise_gelu_tanh: n_vmms = 5 + extra_avx_vmm; break;
+            case eltwise_swish: n_vmms = 4 + extra_avx_vmm; break;
             case eltwise_log: n_vmms = 1; break;
             case eltwise_clip:
             case eltwise_clip_v2_use_dst_for_bwd:
             case eltwise_clip_v2: n_vmms = 2; break;
             case eltwise_pow: n_vmms = 2; break;
-            case eltwise_gelu_erf: n_vmms = 5; break;
+            case eltwise_gelu_erf: n_vmms = 5 + extra_avx_vmm; break;
             case eltwise_hardswish: n_vmms = 2; break;
             case eltwise_hardsigmoid: n_vmms = 2; break;
             default: assert(!"unsupported eltwise algorithm");

@@ -130,6 +130,11 @@ struct jit_uni_eltwise_injector_f32 {
     void prepare_table(bool gen_table = true);
     void load_table_addr() { h->mov(p_table_, l_table_); }
 
+    // This call is `static` and `public` to make a decision on the injector's
+    // saving state if the caller can supply the necessary number of vmms. The
+    // decision must be made BEFORE constructing the injector, thus, `static`.
+    static size_t aux_vecs_count(alg_kind_t alg, bool is_fwd, float alpha);
+
 private:
     const alg_kind_t alg_;
     const float alpha_;
@@ -168,8 +173,6 @@ private:
     static constexpr size_t n_vregs_ = cpu_isa_traits<isa>::n_vregs;
     static constexpr int n_mantissa_bits_ = 23;
 
-    bool preserve_vec_for_avx_ = false;
-
     size_t n_vregs_to_preserve_ = 0;
     size_t n_vregs_preserved_ = 0;
     // Default initialization will put zeros. Putting any value to trigger a
@@ -184,8 +187,7 @@ private:
     Xbyak::Ymm ymm_tmp_;
     Xbyak::Xmm xmm_tmp_;
 
-    size_t aux_vecs_count();
-    size_t aux_gprs_count();
+    static size_t aux_gprs_count(alg_kind_t alg);
 
     void compute_body(
             const injector_utils::vmm_index_set_iterator_t &start_idx_it,
