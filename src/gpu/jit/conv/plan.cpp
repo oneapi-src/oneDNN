@@ -1152,6 +1152,7 @@ struct fma_context_t {
         fma = cfg.fma_kind();
         a_type = type_t(cfg.prb().a_data_type);
         b_type = type_t(cfg.prb().b_data_type);
+        c_type = type_t(cfg.prb().c_data_type);
         is_src1_broadcast = !cfg.prb().is_dw;
         ab_swap_transpose_ = cfg.prb().ab_swap_transpose;
     }
@@ -1170,6 +1171,9 @@ struct fma_context_t {
         // mad with s8/u8 is not supported, promote to strided s16.
         if (layout.type().is_x8())
             return layout.retype(type_t::s16()).make_strided(2);
+
+        if (a_type.is_f16() && b_type.is_f16() && c_type.is_f32())
+            return layout.retype(type_t::f32()).make_dense();
 
         // mad with f16 requires aligned regioning for src1/src2.
         if (a_type.is_f16()) return layout.make_dense();
@@ -1338,6 +1342,7 @@ struct fma_context_t {
     fma_kind_t fma;
     type_t a_type;
     type_t b_type;
+    type_t c_type;
     bool is_src1_broadcast;
     bool ab_swap_transpose_;
     fma_layout_hint_t a_layout_hint;
