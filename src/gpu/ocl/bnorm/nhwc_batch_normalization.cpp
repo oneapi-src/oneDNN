@@ -301,39 +301,21 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
 
     // save best params to conf
     conf.expected_time_ms = best_expected_time * 1e-6;
-    if (conf.found_in_table) {
-        // Some parameters were set by using lookup table.
-        // Other parametes to be set by old heuristics. Temporal solution.
-        // TODO: update lookup table with model-based optimization
-        SAVE_PARAM(use_fused_atomics_reduction,
-                use_fused_atomics_reduction(conf, hw_params.gpu_arch));
-        // TODO: use best_params.ic_block after table updating
-        SAVE_PARAM(ic_block,
-                get_nhwc_ic_block(rnd_up(conf.ic, conf.sub_group_size),
-                        conf.sub_group_size));
-        conf.calc_stat_ic = get_calc_stat_ic(
-                conf.ic, conf.ic_block(), conf.sub_group_size);
-        SAVE_PARAM(stat_sp_block,
-                get_nhwc_sp_block_size(conf.sp, conf.calc_stat_ic,
-                        hw_params.eu_count, hw_params.threads_per_eu,
-                        conf.sub_group_size));
-        SAVE_PARAM(update_sp_block, conf.stat_sp_block());
-        SAVE_PARAM(update_sp_unroll, 1);
-    } else {
-        // Some parameters can be set by tuning procedure,
-        // Other parametes to be set by model.
-        SAVE_PARAM(use_fused_atomics_reduction,
-                best_params.use_fused_atomics_reduction);
-        if (!conf.ic_block_param().is_overridden()
-                || (conf.ic_block_param().is_overridden()
-                        && conf.ic_block() > conf.ic))
-            conf.set_ic_block(best_params.ic_block);
-        conf.calc_stat_ic = get_calc_stat_ic(
-                conf.ic, conf.ic_block(), conf.sub_group_size);
-        SAVE_PARAM(stat_sp_block, best_params.stat_sp_block);
-        SAVE_PARAM(update_sp_block, conf.stat_sp_block());
-        SAVE_PARAM(update_sp_unroll, 1);
-    }
+    // Some parameters can be set by tuning procedure or taken from table.
+    // Other parametes to be set by model.
+    SAVE_PARAM(use_fused_atomics_reduction,
+            best_params.use_fused_atomics_reduction);
+    if (!conf.ic_block_param().is_overridden()
+            // guard for tuning, to use default value if overrrided one is wrong
+            || (conf.ic_block_param().is_overridden()
+                    && conf.ic_block() > conf.ic))
+        conf.set_ic_block(best_params.ic_block);
+    conf.calc_stat_ic
+            = get_calc_stat_ic(conf.ic, conf.ic_block(), conf.sub_group_size);
+    SAVE_PARAM(stat_sp_block, best_params.stat_sp_block);
+    SAVE_PARAM(update_sp_block, conf.stat_sp_block());
+    SAVE_PARAM(update_sp_unroll, 1);
+
 #undef SAVE_PARAM
 
     conf.vect_size = get_nhwc_vect_size(
