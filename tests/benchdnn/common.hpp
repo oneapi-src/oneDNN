@@ -168,6 +168,7 @@ struct res_t {
     size_t errors, total;
     timer::timer_map_t timer_map;
     std::string impl_name;
+    std::string prim_ref_repro;
     skip_reason_t reason;
     size_t ibytes, obytes;
     bool mem_check_done;

@@ -32,6 +32,7 @@
 #include "utils/dims.hpp"
 #include "utils/dnnl_query.hpp"
 #include "utils/numeric.hpp"
+#include "utils/parallel.hpp"
 
 #include "tests/test_thread.hpp"
 
@@ -579,6 +580,25 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         const auto &mem_fp = ref_args.find(arg);
 
         TIME_COMPARE(cmp.compare(mem_fp, mem_dt, prb->attr, res));
+    }
+
+    if (prim_ref && res->state == FAILED) {
+        static cpu_cache_args_t cpu_cache_args {};
+        SAFE_V(get_cpu_cache_size(cpu_cache_args));
+
+        BENCHDNN_PRINT(0,
+                "[PRIM_REF][INFO]: L2_size:%zu bytes; per_core_L3_size:%zu "
+                "bytes; nthr:%d; impl_name:%s\n",
+                cpu_cache_args.L2_size, cpu_cache_args.L3_size,
+                benchdnn_get_max_threads(),
+                query_impl_info(query_pd(prim_ref)).c_str());
+
+        // Replace engine kind for repro line from GPU to CPU.
+        const auto eng_pos = res->prim_ref_repro.find("engine=gpu");
+        res->prim_ref_repro[eng_pos + 7] = 'c'; // Replace `g` in `gpu` with `c`
+
+        BENCHDNN_PRINT(
+                0, "[PRIM_REF][REPRO]: %s\n", res->prim_ref_repro.c_str());
     }
 }
 

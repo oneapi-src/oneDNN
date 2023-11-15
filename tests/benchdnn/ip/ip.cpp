@@ -88,9 +88,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     return dnnl_success;
 }
 
-int init_prim_ref(
-        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref, const prb_t *prb) {
+int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
+        const prb_t *prb, res_t *res) {
     if (!(has_bench_mode_bit(mode_bit_t::corr) && fast_ref)) return OK;
+    // Create prim_ref if only original prim was successfully created.
+    if (res->state != INITIALIZED) return OK;
 
     // f32 cases should go through reference no matter what.
     if (is_cpu() && (prb->src_dt() == dnnl_f32 && prb->wei_dt() == dnnl_f32))
@@ -126,6 +128,7 @@ int init_prim_ref(
 
             BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
                     query_impl_info(pdw).c_str());
+            res->prim_ref_repro = prb_cpu.str();
             break;
         }
     }
@@ -375,7 +378,7 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     v_prim.resize(2); // regular + cpu_ref
     SAFE(init_prim(prb->ctx_init, v_prim[0], init_pd, prb, res), WARN);
     // Use CPU prim as the reference in GPU testing to reduce testing time.
-    SAFE(init_prim_ref(v_prim[1], prb), WARN);
+    SAFE(init_prim_ref(v_prim[1], prb, res), WARN);
     return OK;
 }
 
