@@ -56,14 +56,10 @@ public:
                 && get_engine_kind() != graph_engine_kind)
             return impl::status::success;
 
-        std::vector<graph::pass::FCreatePattern> pfuncs
-                = get_attr<graph::pass::FCreatePattern>("FCreatePattern");
+        std::vector<graph::pass::Pattern> pgraphs
+                = get_attr<graph::pass::Pattern>("Pattern");
         pattern_utils_t pu;
-        for (auto &pfunc : pfuncs) {
-            std::shared_ptr<graph::utils::pm::pb_graph_t> pgraph
-                    = std::make_shared<graph::utils::pm::pb_graph_t>();
-            pfunc(pgraph);
-
+        for (const auto &pgraph : pgraphs) {
             // match the given pattern in the graph
             std::vector<std::vector<op_t *>> matched_pairs_list;
             pu.match(agraph, pgraph, matched_pairs_list);

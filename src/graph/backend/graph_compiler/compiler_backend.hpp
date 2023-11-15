@@ -68,16 +68,11 @@ public:
 
 private:
     compiler_backend_t(const std::string &backend_name, float priority)
-        : backend_t(backend_name, priority) {
-        bool ret = register_passes();
-        if (!ret) {
-            throw std::runtime_error(backend_name + " initialize failed");
-        }
-    };
+        : backend_t(backend_name, priority) {};
 
-    bool register_passes();
+    static graph::pass::pass_registry_t register_passes();
 
-    graph::pass::pass_registry_t pass_registry_;
+    static graph::pass::pass_registry_t pass_registry_;
 };
 
 } // namespace compiler_impl

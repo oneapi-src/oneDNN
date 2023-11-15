@@ -41,49 +41,52 @@ size_t compiler_backend_t::get_mem_size(const logical_tensor_t &lt) const {
     return mem_size * logical_tensor_wrapper_t(lt).data_type_size();
 }
 
-bool compiler_backend_t::register_passes() {
+graph::pass::pass_registry_t compiler_backend_t::register_passes() {
     const bool enable_single_op_pattern
             = graph::utils::getenv_int_internal(
                       "ENABLE_GRAPH_COMPILER_SINGLE_OP_PATTERN", 0)
             > 0;
+    graph::pass::pass_registry_t pass_registry;
     REQUIRE_AVX512_BEGIN
     if (enable_single_op_pattern)
-        COMPILER_BACKEND_REGISTER_PASSES_CALL(
-                single_op_pattern, pass_registry_);
-    COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mha_pattern, pass_registry_);
+        COMPILER_BACKEND_REGISTER_PASSES_CALL(single_op_pattern, pass_registry);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mha_pattern, pass_registry);
     REQUIRE_AMX_BEGIN
-    COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mlp_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mlp_pattern, pass_registry);
     REQUIRE_AMX_END
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
-            fp32_conv_training_pattern, pass_registry_);
+            fp32_conv_training_pattern, pass_registry);
     REQUIRE_AMX_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
-            fp32_conv_inference_pattern, pass_registry_);
+            fp32_conv_inference_pattern, pass_registry);
     REQUIRE_AMX_END
     REQUIRE_BF16_AMXBF16_BEGIN
-    COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mha_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mha_pattern, pass_registry);
     REQUIRE_AMXBF16_BEGIN
-    COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mlp_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mlp_pattern, pass_registry);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
-            bf16_conv_training_pattern, pass_registry_);
+            bf16_conv_training_pattern, pass_registry);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
-            bf16_conv_inference_pattern, pass_registry_);
+            bf16_conv_inference_pattern, pass_registry);
     REQUIRE_AMXBF16_END
     REQUIRE_BF16_AMXBF16_END
     REQUIRE_VNNI_AMXINT8_BEGIN
-    COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mha_pattern, pass_registry_);
-    COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mlp_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mha_pattern, pass_registry);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mlp_pattern, pass_registry);
     REQUIRE_AMX_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
-            int8_conv_inference_pattern, pass_registry_);
+            int8_conv_inference_pattern, pass_registry);
     REQUIRE_AMX_END
     REQUIRE_VNNI_AMXINT8_END
-    COMPILER_BACKEND_REGISTER_PASSES_CALL(misc_pattern, pass_registry_);
-    COMPILER_BACKEND_REGISTER_PASSES_CALL(concat_patterns, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(misc_pattern, pass_registry);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(concat_patterns, pass_registry);
     REQUIRE_AVX512_END
-    pass_registry_.sort_passes();
-    return true;
+    pass_registry.sort_passes();
+    return pass_registry;
 }
+
+graph::pass::pass_registry_t compiler_backend_t::pass_registry_
+        = compiler_backend_t::register_passes();
 
 status_t compiler_backend_t::get_partitions(
         graph_t &agraph, partition_policy_t policy) {
