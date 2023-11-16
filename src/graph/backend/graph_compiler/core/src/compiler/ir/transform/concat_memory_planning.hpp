@@ -67,6 +67,8 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
+bool is_standalone_concat_call(call_c &v);
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

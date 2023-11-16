@@ -21,6 +21,7 @@
 #include <compiler/ir/graph/lowering.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/ir_comparer.hpp>
+#include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/transform/concat_memory_planning.hpp>
 #include <compiler/ir/transform/index_flatten.hpp>
 #include <compiler/jit/jit.hpp>
@@ -815,5 +816,46 @@ static sc_graph_t build_concats_standalone_and_in_one_partition2() {
 }
 
 TEST(GCCore_CPU_concat_optimization_cpp, StandaloneAndInOnePartitionConcats2) {
+    REQUIRE_AVX2();
+    SET_THREADS_OR_SKIP(56);
+
     accuracy_test_on_graph(build_concats_standalone_and_in_one_partition2);
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    builder::ir_builder_t bld;
+    sc_graph_t graph = build_concats_standalone_and_in_one_partition2();
+
+    std::vector<sc_op_ptr> graph_args;
+    for (auto &op : graph.get_input_ops()) {
+        graph_args.push_back(op);
+    }
+    for (auto &op : graph.get_output_ops()) {
+        graph_args.push_back(op);
+    }
+    ctx->flags_.concat_optimization_ = true;
+    graph_driver(graph, ctx);
+    ir_module_ptr f = lower_graph(ctx, graph, graph_args);
+
+    concat_memory_planning_t pass;
+    auto f_opt = pass(f);
+    auto main_entry = f_opt->get_entry_func();
+
+    for (auto &stmt : main_entry->body_.checked_as<stmts>()->seq_) {
+        if (stmt.isa<evaluate_c>()) {
+            auto call = stmt.checked_as<evaluate_c>()
+                                ->value_.checked_as<call_c>();
+            if (is_standalone_concat_call(call)) {
+                for (auto &arg : call->args_) {
+                    auto &dims = arg.checked_as<tensor_c>()->dims_;
+                    auto &strides = arg.checked_as<tensor>()->strides_;
+                    auto expected_strides = dims_to_dense_stride(dims);
+                    EXPECT_EQ(strides.size(), expected_strides.size());
+                    for (size_t i = 0; i < strides.size(); ++i) {
+                        EXPECT_EQ(get_expr_as_int(strides[i]),
+                                get_expr_as_int(expected_strides[i]));
+                    }
+                }
+            }
+        }
+    }
 }

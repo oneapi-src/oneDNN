@@ -114,7 +114,6 @@ static void get_inplace_args_from_called_funcs(const func_c &f, // caller
         if (!func || !func->attr_) { continue; }
         const auto &args = callee.static_as<call_c>()->args_;
 
-        SC_MODULE_INFO << "Get inplace hint from called func:\n" << func->decl_;
         auto hint = func->attr_->get_or_null<inplace_hint_t>(
                 function_attrs::inplace_hint);
         if (hint) {

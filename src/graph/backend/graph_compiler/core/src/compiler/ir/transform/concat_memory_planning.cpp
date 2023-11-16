@@ -18,6 +18,7 @@
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
+#include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/util_module_passes.hpp>
@@ -43,15 +44,21 @@ SC_DECL_PASS_INFO(concat_memory_planning, SC_PASS_DEPENDS_ON(),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
-static bool is_standalone_concat_call(call_c &v) {
+bool is_standalone_concat_call(call_c &v) {
     return v->attr_
             && v->attr_->get_or_else(
                     concat_optim_attr_keys::is_standalone_concat, false);
 }
 
+static void reset_strides(expr &arg) {
+    auto v = get_real_tensor(arg);
+    std::vector<expr> &strides = v->strides_;
+    strides = dims_to_dense_stride(v->dims_);
+}
+
 // Collect the {input buffer, (output buffer, offset)} info of all concat ops.
 // Collcet the concat calls that should be deleted.
-class concat_memory_planning_preprocess_t : public ir_viewer_t {
+class concat_memory_planning_preprocess_t : public ir_visitor_t {
 public:
     concat_memory_planning_preprocess_t(
             std::unordered_map<expr, std::pair<expr, std::vector<expr>>>
@@ -63,11 +70,12 @@ public:
     // concat evaluations to be deleted
     std::unordered_set<expr_c> &to_be_deleted;
 
-    void view(call_c v) override {
+    expr_c visit(call_c v) override {
         std::string func_name = v->get_prototype()->name_;
         // if this is a standalone concat op, we can directly check the args
         if (is_standalone_concat_call(v)) {
             SC_MODULE_INFO << "Meet a standalone concat call node: " << v;
+            bool optimized = true;
             std::vector<std::vector<expr>> inputs_offsets;
             for (size_t i = 1; i < v->args_.size(); ++i) {
                 if (v->args_[i]->attr_
@@ -79,24 +87,33 @@ public:
                         SC_MODULE_WARN
                                 << "Input #" << i << ": " << v->args_[i]
                                 << " has empty offset set, skip this concat";
-                        return;
+                        optimized = false;
+                        break;
                     }
                     inputs_offsets.push_back(offset);
                 } else {
                     SC_MODULE_INFO << "Input #" << i << ": " << v->args_[i]
                                    << " has no offset set, can not do memory "
                                       "planning, skip this concat";
-                    return;
+                    optimized = false;
+                    break;
                 }
             }
-            COMPILE_ASSERT(inputs_offsets.size() == v->args_.size() - 1,
-                    "Get wrong number of inputs offsets");
-            for (size_t i = 1; i < v->args_.size(); ++i) {
-                concat_in_out[v->args_[i]]
-                        = std::make_pair(v->args_[0], inputs_offsets[i - 1]);
+            if (!optimized) {
+                for (size_t i = 1; i < v->args_.size(); ++i) {
+                    reset_strides(v.remove_const()->args_[i]);
+                }
+            } else {
+                COMPILE_ASSERT(inputs_offsets.size() == v->args_.size() - 1,
+                        "Get wrong number of inputs offsets");
+                for (size_t i = 1; i < v->args_.size(); ++i) {
+                    concat_in_out[v->args_[i]] = std::make_pair(
+                            v->args_[0], inputs_offsets[i - 1]);
+                }
+                to_be_deleted.insert(v);
             }
-            to_be_deleted.insert(v);
         }
+        return v;
     }
 };
 
