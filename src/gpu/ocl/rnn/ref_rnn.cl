@@ -791,7 +791,7 @@ ref_rnn_elemwise_fwd(
     float g_z = gates.G[2];
     float g_o = gates.G[3];
 
-    if (!RECOMPUTE_GATES) {
+    if (!RECOMPUTE_GATES && IS_TRAINING) {
         ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)] = g_i;
         ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)] = g_f;
         ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)] = g_z;
@@ -810,7 +810,7 @@ ref_rnn_elemwise_fwd(
     float g = compute_gates_vanilla_rnn(
             scratch_gates, bias, tm_scales, alpha, scratch_gates_ld, dhc, i, j);
 
-    if (!RECOMPUTE_GATES) {
+    if (!RECOMPUTE_GATES && IS_TRAINING) {
         ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)] = g;
     }
     h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_INPUT(g);
@@ -832,7 +832,7 @@ ref_rnn_elemwise_fwd(
 
     h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_INPUT(Ht);
 
-    if (!RECOMPUTE_GATES) {
+    if (!RECOMPUTE_GATES && IS_TRAINING) {
         ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)] = G0;
         ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)] = G1;
         ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)] = G2;
@@ -859,7 +859,7 @@ ref_rnn_elemwise_fwd(
                 = TO_INPUT(G1);
         float tmp = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
         h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_INPUT(tmp * G1);
-        if (!RECOMPUTE_GATES) {
+        if (!RECOMPUTE_GATES && IS_TRAINING) {
             ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)] = G0;
             ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)] = G1;
         }
@@ -873,7 +873,7 @@ ref_rnn_elemwise_fwd(
         float tmp = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
         h_states_t_l[cell_ws_state(states_ws_ld, i, j)]
                 = TO_INPUT(tmp * G0 + (1.0f - G0) * G2);
-        if (!RECOMPUTE_GATES) {
+        if (!RECOMPUTE_GATES && IS_TRAINING) {
             ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)] = G2;
         }
     }
