@@ -30,6 +30,7 @@ namespace gpu {
 namespace jit {
 
 class conv_config_t;
+class prim_config_t;
 class conv_tuner_t;
 class conv_tiler_impl_t;
 
@@ -40,7 +41,7 @@ public:
     int configs() const;
     bool is_tuning_mode() const;
     bool can_move_next() const;
-    void set_params(conv_config_t &cfg);
+    void set_params(prim_config_t &cfg);
     void notify_out_of_registers(const conv_config_t &cfg);
     bool is_grf_limit_ok(const conv_config_t &cfg) const;
     static void after_create_hook(

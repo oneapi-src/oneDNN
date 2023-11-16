@@ -19,7 +19,6 @@
 #include <mutex>
 
 #include "common/utils.hpp"
-#include "gpu/jit/conv/params.hpp"
 #include "gpu/jit/utils/utils.hpp"
 
 namespace dnnl {
@@ -35,7 +34,7 @@ void conv_lookup_table_t::merge(const conv_lookup_table_t &other) {
     }
 }
 
-conv_params_t conv_lookup_table_t::find(const conv_key_t &key) const {
+blocking_params_t conv_lookup_table_t::find(const conv_key_t &key) const {
     auto it = data_.find(key);
     auto best = data_.end();
     int best_dist = std::numeric_limits<int>::max();
@@ -47,7 +46,7 @@ conv_params_t conv_lookup_table_t::find(const conv_key_t &key) const {
             best = it;
         }
     }
-    return (best == data_.end()) ? conv_params_t() : best->second;
+    return (best == data_.end()) ? blocking_params_t() : best->second;
 }
 
 void conv_lookup_table_t::serialize(std::ostream &out) const {
@@ -62,7 +61,7 @@ void conv_lookup_table_t::deserialize(std::istream &in) {
     auto n = ir_utils::deserialize<size_t>(in);
     for (size_t i = 0; i < n; i++) {
         conv_key_t key;
-        conv_params_t params;
+        blocking_params_t params;
         key.deserialize(in);
         params.deserialize(in);
         data_.emplace(key, params);

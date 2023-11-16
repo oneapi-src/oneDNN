@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/jit/ir/problem.hpp"
-
 #include <string>
+
+#include "gpu/jit/ir/config.hpp"
 
 namespace dnnl {
 namespace impl {

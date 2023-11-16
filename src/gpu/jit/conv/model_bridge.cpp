@@ -21,7 +21,6 @@
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/model.hpp"
 #include "gpu/jit/conv/model_data.hpp"
-#include "gpu/jit/conv/params.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -77,7 +76,7 @@ hw_config_t to_hw_config(const conv_config_t &cfg) {
 }
 
 conv_sample_t to_conv_sample(
-        const conv_config_t &cfg, const conv_params_t &params) {
+        const conv_config_t &cfg, const blocking_params_t &params) {
     auto &prb = cfg.prb();
     conv_sample_t ret;
     ret.prop = (prb.is_fwd ? prop_t::fwd
@@ -88,7 +87,7 @@ conv_sample_t to_conv_sample(
     ret.transpose = prb.ab_swap_transpose;
 
     auto &blk = params.blocking();
-    auto shape = get_conv_shape(cfg, /*pad=*/false);
+    auto shape = cfg.shape(/*pad=*/false);
 #define HANDLE(name) \
     do { \
         ret.shape.name = -1; \
@@ -176,7 +175,7 @@ gradient_boost_regressor_t &get_gbr(const conv_config_t &cfg) {
     return gbr_map.at(kind);
 }
 
-float get_score(const conv_config_t &cfg, const conv_params_t &params) {
+float get_score(const conv_config_t &cfg, const blocking_params_t &params) {
     auto conv_sample = to_conv_sample(cfg, params);
     conv_sample = fixup(conv_sample);
     auto bmnk_sample = conv_sample.to_bmnk_conv_sample();

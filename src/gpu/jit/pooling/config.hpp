@@ -88,6 +88,69 @@ public:
         set_exec_cfg(ec);
     }
 
+    prb_tile_t shape(bool pad) const override {
+#define SET(g_name, l_name) \
+    ret[prb_dims::g_name] = (pad) \
+            ? utils::rnd_up(p.l_name, pad_block(prb_dims::g_name)) \
+            : p.l_name
+
+        const auto &p = pool_conf();
+        prb_tile_t ret;
+        SET(mb, mb);
+        SET(oc, c);
+        if (is_fwd()) {
+            SET(od, od);
+            SET(oh, oh);
+            SET(ow, ow);
+        } else {
+            SET(id, id);
+            SET(ih, ih);
+            SET(iw, iw);
+        }
+        SET(kd, kd);
+        SET(kh, kh);
+        SET(kw, kw);
+        return ret;
+
+#undef SET
+    }
+
+    const std::vector<prb_dim_t> &index_dims() const override {
+        auto get_dims = [&](bool is_fwd) {
+            std::vector<prb_dim_t> ret;
+            ret.push_back(prb_dims::mb);
+            ret.push_back(prb_dims::oc);
+            if (is_fwd) {
+                ret.push_back(prb_dims::od);
+                ret.push_back(prb_dims::oh);
+                ret.push_back(prb_dims::ow);
+            } else {
+                ret.push_back(prb_dims::id);
+                ret.push_back(prb_dims::ih);
+                ret.push_back(prb_dims::iw);
+            }
+            ret.push_back(prb_dims::kd);
+            ret.push_back(prb_dims::kh);
+            ret.push_back(prb_dims::kw);
+            return ret;
+        };
+        static std::vector<prb_dim_t> fwd_dims = get_dims(true);
+        static std::vector<prb_dim_t> bwd_dims = get_dims(false);
+        return (is_fwd()) ? fwd_dims : bwd_dims;
+    }
+
+    int pad_block(const prb_dim_t &d) const override {
+        switch (d.kind()) {
+            default: return 1;
+            case prb_dim_kind_t::mb:
+                return src_layout().user().inner_block(0, true, false);
+            case prb_dim_kind_t::oc:
+                return src_layout().user().inner_block(1, true, false);
+        }
+    }
+
+    bool is_fwd() const { return !pool_conf().is_backward; }
+
     void compute_grid() {
         const auto &conf = pool_conf();
         const auto &src = src_layout().user();

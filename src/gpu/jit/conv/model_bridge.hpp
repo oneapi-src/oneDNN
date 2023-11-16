@@ -20,11 +20,11 @@ namespace gpu {
 namespace jit {
 
 class conv_config_t;
-class conv_params_t;
+class blocking_params_t;
 
 namespace model {
 
-float get_score(const conv_config_t &cfg, const conv_params_t &params);
+float get_score(const conv_config_t &cfg, const blocking_params_t &params);
 
 } // namespace model
 } // namespace jit

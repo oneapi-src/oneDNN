@@ -86,12 +86,11 @@ static dim_tile_t create_tile(gemm_schedule_t &gemm_schedule,
         bool is_tg = (dim_idx == 2);
         bool is_iter = (dim_idx == 3);
         if (is_thr || is_iter) return true;
-        for (int i = 0; i < 3; i++) {
-            auto *tile = is_tg ? get_thread_group_grid_conv_dims(cfg.prb(), i)
-                               : get_kernel_grid_conv_dims(cfg.prb(), i);
-            for (auto d : *tile)
+        auto &grid = is_tg ? get_thread_group_grid_conv_dims(cfg.prb())
+                           : get_kernel_grid_conv_dims(cfg.prb());
+        for (auto &tile : grid)
+            for (auto &d : tile)
                 if (dim_name == d.name()) return true;
-        }
         return false;
     };
 

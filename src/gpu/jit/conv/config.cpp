@@ -23,7 +23,6 @@
 #include "gpu/jit/conv/grf_usage.hpp"
 #include "gpu/jit/conv/message_patterns.hpp"
 #include "gpu/jit/conv/normalization.hpp"
-#include "gpu/jit/conv/params.hpp"
 #include "gpu/jit/conv/plan.hpp"
 #include "gpu/jit/conv/problem.hpp"
 #include "gpu/jit/conv/tiler.hpp"
@@ -910,16 +909,6 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     return true;
 }
 
-void maybe_override_from_env(conv_config_t &cfg) {
-#ifdef DNNL_DEV_MODE
-    auto cfg_env = gpu_utils::dev_getenv("cfg", std::string());
-    if (cfg_env.empty()) return;
-    cfg.override_set(cfg_env, /*is_env=*/true);
-#else
-    UNUSED(cfg);
-#endif
-}
-
 bool should_use_mad(const conv_problem_t &prb) {
     bool small_ic_oc = prb.ic < 3 && prb.oc < 3 && prb.mb < 8;
     bool grouped_small_ic_oc = prb.ic < 4 && prb.oc < 4 && prb.g > 1;
@@ -1048,8 +1037,7 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
     cfg.set_zp_cfg(zp_cfg);
     cfg.set_prb(prb);
     cfg.set_exec_cfg(exec_config_t(hw));
-
-    maybe_override_from_env(cfg);
+    cfg.maybe_override_from_env();
 
     CHECK(init_fma_kind(cfg));
     CHECK(init_simd(cfg));
@@ -1109,10 +1097,9 @@ send_pattern_t<prb_dim_t> validate_blocking(const conv_config_t &cfg,
     using send_pattern = send_pattern_t<prb_dim_t>;
     const compute::gpu_arch_t arch
             = convert_ngen_arch_to_dnnl(cfg.hw().to_ngen());
-    auto &prb = cfg.prb();
 
     auto is_match = [&](const send_hint_t<prb_dim_t> &hint) {
-        for (auto dim : conv_index_dims(prb.prop_kind())) {
+        for (auto &dim : cfg.index_dims()) {
             if (hint[dim]) {
                 if (cfg.iter_dim(dim) % hint[dim]) return false;
             }
@@ -1182,152 +1169,77 @@ void init_params(conv_config_t &cfg) {
     cfg.tiler().set_params(cfg);
 }
 
-const prb_tile_t *get_kernel_grid_conv_dims(
-        const conv_problem_t &prb, int idx) {
+const std::array<prb_tile_t, 3> &get_kernel_grid_conv_dims(
+        const conv_problem_t &prb) {
     static const prb_tile_t fwd_0({prb_dims::oc});
     static const prb_tile_t fwd_1(
             {prb_dims::g, prb_dims::od, prb_dims::oh, prb_dims::ow});
     static const prb_tile_t fwd_2({prb_dims::mb});
+
     static const prb_tile_t bwd_d_0({prb_dims::ic});
     static const prb_tile_t bwd_d_1(
             {prb_dims::g, prb_dims::id, prb_dims::ih, prb_dims::iw});
     static const prb_tile_t bwd_d_2({prb_dims::mb});
+
     static const prb_tile_t bwd_w_0({prb_dims::oc});
     static const prb_tile_t bwd_w_1({prb_dims::ic, prb_dims::kd, prb_dims::kh,
             prb_dims::kw, prb_dims::od, prb_dims::oh, prb_dims::ow});
     static const prb_tile_t bwd_w_2({prb_dims::g, prb_dims::mb});
-    static const prb_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
-    static const prb_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
-    static const prb_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
-    ir_assert(idx >= 0 && idx < 3);
-    if (prb.is_fwd) return fwd[idx];
-    if (prb.is_bwd_d) return bwd_d[idx];
-    if (prb.is_bwd_w) return bwd_w[idx];
+
+    using prb_tile_3 = std::array<prb_tile_t, 3>;
+    // non-transposed
+    static const prb_tile_3 fwd = {fwd_0, fwd_1, fwd_2};
+    static const prb_tile_3 bwd_d = {bwd_d_0, bwd_d_1, bwd_d_2};
+    static const prb_tile_3 bwd_w = {bwd_w_0, bwd_w_1, bwd_w_2};
+    // transposed
+    static const prb_tile_3 t_fwd = {fwd_2, fwd_0, fwd_1};
+    static const prb_tile_3 t_bwd_d = {bwd_d_2, bwd_d_0, bwd_d_1};
+    static const prb_tile_3 t_bwd_w = {bwd_w_1, bwd_w_2, bwd_w_0};
+
+    if (prb.is_fwd) return (prb.ab_swap_transpose) ? t_fwd : fwd;
+    if (prb.is_bwd_d) return (prb.ab_swap_transpose) ? t_bwd_d : bwd_d;
+    if (prb.is_bwd_w) return (prb.ab_swap_transpose) ? t_bwd_w : bwd_w;
     ir_error_not_expected();
-    return nullptr;
+    return fwd;
 }
 
-const prb_tile_t *get_transpose_kernel_grid_conv_dims(
-        const conv_problem_t &prb, int idx) {
-    static const prb_tile_t fwd_0({prb_dims::mb});
-    static const prb_tile_t fwd_1({prb_dims::oc});
-    static const prb_tile_t fwd_2(
-            {prb_dims::g, prb_dims::od, prb_dims::oh, prb_dims::ow});
-    static const prb_tile_t bwd_d_0({prb_dims::mb});
-    static const prb_tile_t bwd_d_1({prb_dims::ic});
-    static const prb_tile_t bwd_d_2(
-            {prb_dims::g, prb_dims::id, prb_dims::ih, prb_dims::iw});
-    static const prb_tile_t bwd_w_0({prb_dims::ic, prb_dims::kd, prb_dims::kh,
-            prb_dims::kw, prb_dims::od, prb_dims::oh, prb_dims::ow});
-    static const prb_tile_t bwd_w_1({prb_dims::g, prb_dims::mb});
-    static const prb_tile_t bwd_w_2({prb_dims::oc});
-    static const prb_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
-    static const prb_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
-    static const prb_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
-    ir_assert(idx >= 0 && idx < 3);
-    if (prb.is_fwd) return fwd[idx];
-    if (prb.is_bwd_d) return bwd_d[idx];
-    if (prb.is_bwd_w) return bwd_w[idx];
-    ir_error_not_expected();
-    return nullptr;
-}
-
-const prb_tile_t *get_thread_group_grid_conv_dims(
-        const conv_problem_t &prb, int idx) {
+const std::array<prb_tile_t, 3> &get_thread_group_grid_conv_dims(
+        const conv_problem_t &prb) {
     static const prb_tile_t fwd_0({prb_dims::oc});
     static const prb_tile_t fwd_1({prb_dims::mb, prb_dims::ow});
     static const prb_tile_t fwd_2({prb_dims::ic});
+
     static const prb_tile_t bwd_d_0({prb_dims::ic});
     static const prb_tile_t bwd_d_1({prb_dims::mb, prb_dims::iw});
     static const prb_tile_t bwd_d_2({prb_dims::oc});
+
     static const prb_tile_t bwd_w_0({prb_dims::oc});
     static const prb_tile_t bwd_w_1({prb_dims::ic});
     static const prb_tile_t bwd_w_2;
-    static const prb_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
-    static const prb_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
-    static const prb_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
-    ir_assert(idx >= 0 && idx < 3);
-    if (prb.is_fwd) return fwd[idx];
-    if (prb.is_bwd_d) return bwd_d[idx];
-    if (prb.is_bwd_w) return bwd_w[idx];
-    ir_error_not_expected();
-    return nullptr;
-}
 
-const prb_tile_t *get_transpose_thread_group_grid_conv_dims(
-        const conv_problem_t &prb, int idx) {
-    static const prb_tile_t fwd_0({prb_dims::mb, prb_dims::ow});
-    static const prb_tile_t fwd_1({prb_dims::oc});
-    static const prb_tile_t fwd_2({prb_dims::ic});
-    static const prb_tile_t bwd_d_0({prb_dims::mb, prb_dims::iw});
-    static const prb_tile_t bwd_d_1({prb_dims::ic});
-    static const prb_tile_t bwd_d_2({prb_dims::oc});
-    static const prb_tile_t bwd_w_0({prb_dims::ic});
-    static const prb_tile_t bwd_w_1({prb_dims::oc});
-    static const prb_tile_t bwd_w_2;
-    static const prb_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
-    static const prb_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
-    static const prb_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
-    ir_assert(idx >= 0 && idx < 3);
-    if (prb.is_fwd) return fwd[idx];
-    if (prb.is_bwd_d) return bwd_d[idx];
-    if (prb.is_bwd_w) return bwd_w[idx];
-    ir_error_not_expected();
-    return nullptr;
-}
+    using prb_tile_3 = std::array<prb_tile_t, 3>;
+    // non-transposed
+    static const prb_tile_3 fwd = {fwd_0, fwd_1, fwd_2};
+    static const prb_tile_3 bwd_d = {bwd_d_0, bwd_d_1, bwd_d_2};
+    static const prb_tile_3 bwd_w = {bwd_w_0, bwd_w_1, bwd_w_2};
+    // transposed
+    static const prb_tile_3 t_fwd = {fwd_1, fwd_0, fwd_2};
+    static const prb_tile_3 t_bwd_d = {bwd_d_1, bwd_d_0, bwd_d_2};
+    static const prb_tile_3 t_bwd_w = {bwd_w_1, bwd_w_0, bwd_w_2};
 
-void init_padded_dims(conv_config_t &cfg) {
-    for (auto &d : conv_index_dims(cfg.prb().prop_kind())) {
-        int dim = cfg.dim(d);
-        int iter = cfg.iter_dim(d);
-        int tg = cfg.thread_group_dim(d);
-        int loop = cfg.loop_dim(d);
-        int blk = iter * tg * loop;
-        int pad_blk = cfg.pad_block(d);
-        int padded = utils::rnd_up(dim, math::lcm(blk, pad_blk));
-        cfg.padded_dims().set(d, padded);
-    }
+    if (prb.is_fwd) return (prb.ab_swap_transpose) ? t_fwd : fwd;
+    if (prb.is_bwd_d) return (prb.ab_swap_transpose) ? t_bwd_d : bwd_d;
+    if (prb.is_bwd_w) return (prb.ab_swap_transpose) ? t_bwd_w : bwd_w;
+    ir_error_not_expected();
+    return fwd;
 }
 
 void init_kernel_grid(conv_config_t &cfg) {
-    const auto &prb = cfg.prb();
-    auto get = [&](const prb_dim_t &d) {
-        int padded = cfg.padded_dim(d);
-        int iter = cfg.iter_dim(d);
-        int loop = cfg.loop_dim(d);
-        int tg = cfg.thread_group_dim(d);
-        int tg_block = iter * loop * tg;
-        return ir_utils::safe_divide(padded, tg_block);
-    };
-
-    const int grid_ndims = 3;
-    std::vector<int> dims = {1, 1, 1};
-    for (int i = 0; i < grid_ndims; i++) {
-        auto *tile = prb.ab_swap_transpose
-                ? get_transpose_kernel_grid_conv_dims(prb, i)
-                : get_kernel_grid_conv_dims(prb, i);
-        for (auto d : *tile)
-            dims[i] *= get(d);
-    }
-    cfg.set_kernel_grid(grid_info_t(dims, "grid_idx"));
+    cfg.init_kernel_grid(get_kernel_grid_conv_dims(cfg.prb()));
 }
 
 void init_thread_group_grid(conv_config_t &cfg) {
-    const auto &prb = cfg.prb();
-    auto get = [&](const prb_dim_t &d) {
-        return cfg.thread_group_dims().get(d);
-    };
-
-    const int grid_ndims = 3;
-    std::vector<int> dims = {1, 1, 1};
-    for (int i = 0; i < grid_ndims; i++) {
-        auto *tile = prb.ab_swap_transpose
-                ? get_transpose_thread_group_grid_conv_dims(prb, i)
-                : get_thread_group_grid_conv_dims(prb, i);
-        for (auto d : *tile)
-            dims[i] *= get(d);
-    }
-    cfg.set_thread_group_grid(grid_info_t(dims, "tg_idx"));
+    cfg.init_thread_group_grid(get_thread_group_grid_conv_dims(cfg.prb()));
 }
 
 int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
@@ -1357,7 +1269,7 @@ void init_slm(conv_config_t &cfg) {
     if (enable_a || enable_b) {
         auto &tg = cfg.thread_group_grid();
         bufs = cfg.bufs_hint();
-        if (bufs == conv_params_t::bufs_hint_undef) {
+        if (bufs == blocking_params_t::bufs_hint_undef) {
             bufs = slm_bufs_hint(prb, tg.dim(1), tg.dim(0),
                     cfg.zp_cfg().do_src_compensation, enable_a, enable_b,
                     cfg.pipeline().do_unroll());
@@ -1379,7 +1291,7 @@ void init_prefetch(conv_config_t &cfg) {
 
     int bufs = 0;
     bufs = cfg.bufs_hint();
-    if (bufs == conv_params_t::bufs_hint_undef) {
+    if (bufs == blocking_params_t::bufs_hint_undef) {
         bufs = cfg.prb().is_f32_conv() ? 2 : 3;
     }
     cfg.prefetch().set(bufs, enable_a, enable_b);
@@ -1395,7 +1307,7 @@ void init_subtiles(conv_config_t &cfg) {
 }
 
 // Overwrites parameters that are implied by other parameters.
-status_t fixup_config(conv_config_t &cfg) {
+void fixup_config(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
 
     // Downgrade dpasw -> dpas for some cases.
@@ -1408,29 +1320,30 @@ status_t fixup_config(conv_config_t &cfg) {
         if (prb.is_bwd_w && (!cfg.slm().a() || !cfg.slm().b()))
             cfg.set_fma_kind(fma_kind_t::dpas);
     }
-
-    return status::success;
 }
 
-template <typename GetFuncT>
-bool in_grid_dims(
-        GetFuncT get_func, const conv_problem_t &prb, const prb_dim_t &dim) {
-    for (int i = 0; i < 3; i++) {
-        auto *tile = get_func(prb, i);
-        for (auto d : *tile)
-            if (d == dim) return true;
+void validate_config_and_plan(conv_config_t &cfg) {
+    auto check_if_in_grid_dims
+            = [](const std::array<prb_tile_t, 3> &grid, const prb_dim_t &dim) {
+                  for (auto &tile : grid)
+                      for (auto &d : tile)
+                          if (d == dim) return;
+                  ir_error_not_expected() << dim.name();
+              };
+    const auto &prb = cfg.prb();
+    const auto &tg_dims = get_thread_group_grid_conv_dims(prb);
+    const auto &grid_dims = get_kernel_grid_conv_dims(prb);
+    for (auto &d : cfg.dims()) {
+        if (cfg.thread_group_dim(d) != 1) check_if_in_grid_dims(tg_dims, d);
+        if (cfg.grid_dim(d) != 1) check_if_in_grid_dims(grid_dims, d);
     }
-    return false;
-}
 
-status_t check_plan(conv_config_t &cfg) {
     auto &plan = cfg.plan();
     ir_assert(cfg.slm().a() == plan.slm.has_a());
     ir_assert(cfg.slm().b() == plan.slm.has_b());
     ir_assert(cfg.pipeline().reuse_headers() == plan.reuse_headers);
 
 #ifdef DNNL_DEV_MODE
-    auto &prb = cfg.prb();
     using send_pattern = send_pattern_t<prb_dim_t>;
     send_pattern a_load_pattern;
     send_pattern b_load_pattern;
@@ -1465,38 +1378,22 @@ status_t check_plan(conv_config_t &cfg) {
                      << a_load_pattern << " load idiom\n";
     }
 #endif
-    return status::success;
-}
-
-status_t check_config(conv_config_t &cfg) {
-    const auto &prb = cfg.prb();
-    for (auto d : cfg.dims().get()) {
-        int tg = cfg.thread_group_dim(d);
-        int grid = cfg.grid_dim(d);
-        if (tg != 1)
-            ir_assert(in_grid_dims(get_thread_group_grid_conv_dims, prb, d))
-                    << d.name();
-        if (grid != 1)
-            ir_assert(in_grid_dims(get_kernel_grid_conv_dims, prb, d))
-                    << d.name();
-    }
-    CHECK(check_plan(cfg));
-    return status::success;
 }
 
 status_t try_init_cfg(conv_config_t &cfg) {
     init_params(cfg);
-    init_padded_dims(cfg);
     init_kernel_grid(cfg);
     init_thread_group_grid(cfg);
+
     CHECK(init_plan(cfg));
+
     init_pipeline(cfg);
     init_slm(cfg);
     init_prefetch(cfg);
     init_subtiles(cfg);
 
-    CHECK(fixup_config(cfg));
-    CHECK(check_config(cfg));
+    fixup_config(cfg);
+    validate_config_and_plan(cfg);
 
     return status::success;
 }
@@ -1611,7 +1508,7 @@ conv_key_t conv_config_t::key() const {
 
 std::string conv_config_t::blocking_brief_str() const {
     std::ostringstream oss;
-    for (auto &d : conv_index_dims(prb().prop_kind())) {
+    for (auto &d : index_dims()) {
         int iter = iter_dim(d);
         int tg = thread_group_dim(d);
         int loop = loop_dim(d);
@@ -1625,24 +1522,6 @@ std::string conv_config_t::blocking_brief_str() const {
         oss << "(iter:" << pad_int(iter, 5) << ")\n";
     }
     return oss.str();
-}
-
-void conv_config_t::set_params_id(int id) {
-    params_id_ = id;
-}
-
-conv_params_t conv_config_t::params() const {
-    auto ret = conv_params_t(*this);
-    ret.set_id(params_id_);
-    return ret;
-}
-
-void conv_config_t::set_bufs_hint(int bufs_hint) {
-    bufs_hint_ = bufs_hint;
-}
-
-int conv_config_t::bufs_hint() const {
-    return bufs_hint_;
 }
 
 void conv_config_t::set_tiler(const std::shared_ptr<conv_tiler_t> &tiler) {
@@ -1680,6 +1559,33 @@ bool conv_config_t::can_skip_wei_zero_out() const {
 bool conv_config_t::can_skip_bia_zero_out() const {
     if (!prb().is_bwd_w || !prb().with_bias) return true;
     return can_skip_wei_zero_out() && !slm().b();
+}
+
+prb_tile_t conv_config_t::shape(bool pad) const {
+    auto &p = prb();
+    prb_tile_t ret;
+#define SET(name) \
+    ret[prb_dims::name] \
+            = (pad ? utils::rnd_up(p.name, pad_block(prb_dims::name)) \
+                   : p.name)
+    SET(mb);
+    SET(g);
+    SET(oc);
+    SET(ic);
+    SET(kd);
+    SET(kh);
+    SET(kw);
+    if (prb().is_fwd || prb().is_bwd_w) {
+        SET(od);
+        SET(oh);
+        SET(ow);
+    } else {
+        SET(id);
+        SET(ih);
+        SET(iw);
+    }
+#undef SET
+    return ret;
 }
 
 tensor_config_t get_tensor_config(const conv_config_t &cfg) {

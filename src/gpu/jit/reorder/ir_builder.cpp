@@ -332,7 +332,7 @@ void reorder_ir_builder_t::compute_grid(const layout_t &src,
         if (outer != 1 && grid_idx != max_grid_idx) grid_idx++;
     }
     kernel_grid = grid_info_t(kernel_grid_dims, "grid_idx");
-    tg_grid = grid_info_t(tg_grid_dims, "grid_idx");
+    tg_grid = grid_info_t(tg_grid_dims, "tg_idx");
 }
 
 compute::nd_range_t reorder_ir_builder_t::nd_range(

@@ -18,7 +18,8 @@
 #include <unordered_map>
 
 #include "gpu/jit/conv/key.hpp"
-#include "gpu/jit/conv/params.hpp"
+#include "gpu/jit/ir/blocking.hpp"
+#include "gpu/jit/ir/problem.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,7 +28,7 @@ namespace jit {
 
 class conv_lookup_table_t {
 public:
-    void set(const conv_key_t &key, const conv_params_t &params) {
+    void set(const conv_key_t &key, const blocking_params_t &params) {
         auto it = data_.find(key);
         if (it == data_.end()) {
             data_.emplace(key, params);
@@ -42,13 +43,13 @@ public:
         data_.emplace(key, params);
     }
     void merge(const conv_lookup_table_t &other);
-    conv_params_t find(const conv_key_t &key) const;
+    blocking_params_t find(const conv_key_t &key) const;
     bool is_empty() const { return data_.empty(); }
     void serialize(std::ostream &out) const;
     void deserialize(std::istream &in);
 
 private:
-    std::unordered_multimap<conv_key_t, conv_params_t, conv_key_hash_t,
+    std::unordered_multimap<conv_key_t, blocking_params_t, conv_key_hash_t,
             conv_key_lookup_table_equal_t>
             data_;
 };

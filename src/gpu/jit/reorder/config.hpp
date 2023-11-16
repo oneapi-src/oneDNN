@@ -36,6 +36,15 @@ public:
         return ss.str();
     }
 
+    prb_tile_t shape(bool pad) const override { return {}; };
+
+    const std::vector<prb_dim_t> &index_dims() const override {
+        static const std::vector<prb_dim_t> null {};
+        return null;
+    };
+
+    int pad_block(const prb_dim_t &d) const override { return 0; }
+
     reorder_config_t(
             const exec_config_t &ec, const layout_t &src, const layout_t &dst) {
         src_layout().set_user(src);

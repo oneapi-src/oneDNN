@@ -19,7 +19,6 @@
 
 #include "common/type_helpers.hpp"
 #include "gpu/jit/conv/config.hpp"
-#include "gpu/jit/conv/params.hpp"
 #include "gpu/jit/ir/message_patterns.hpp"
 #include "gpu/jit/utils/utils.hpp"
 
