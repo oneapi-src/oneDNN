@@ -46,6 +46,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         void init_scratchpad();
 
         bool use_nocopy();
+        bool use_nocopy_xehpg(data_type_t dt, unsigned ld_align);
         bool set_default_formats(data_type_t dt);
 
         size_t dyn_offset_a = 0;

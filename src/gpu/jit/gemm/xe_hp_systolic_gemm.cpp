@@ -166,7 +166,9 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
     using namespace data_type;
 
     const auto &d = desc();
-    bool xehpc = (dev_info_->gpu_arch() >= compute::gpu_arch_t::xe_hpc);
+    auto arch = dev_info_->gpu_arch();
+
+    bool xehpc = (arch >= compute::gpu_arch_t::xe_hpc);
 
     if (any_prepacked_ || (packed_a_ && packed_b_)) return false;
 
@@ -177,6 +179,11 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
     if (d->m() < 32 && d->n() < 32) return true;
     if (d->m() < 32 && d->k() < 32) return true;
     if (d->n() < 32 && d->k() < 32) return true;
+
+    // Get LD alignment for A/B.
+    unsigned ld_align = 0;
+    if (!packed_a_) ld_align |= (d->lda() * types::data_type_size(d->a_type()));
+    if (!packed_b_) ld_align |= (d->ldb() * types::data_type_size(d->b_type()));
 
     // Use no-copy for small/medium sizes.
     if (utils::one_of(d->a_type(), bf16, f16, s8, u8)) {
@@ -190,16 +197,10 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
         // clang-format on
         int type_idx = (d->a_type() == f16) ? 0 : (d->a_type() == bf16) ? 1 : 2;
         int arch_idx = xehpc ? 1 : 0;
-        bool bad_ld = false;
+        bool bad_ld = (ld_align & 3) != 0;
 
-        if (!packed_a_) {
-            auto lda_bytes = d->lda() * types::data_type_size(d->a_type());
-            bad_ld |= ((lda_bytes & 0x3) != 0);
-        }
-        if (!packed_b_) {
-            auto ldb_bytes = d->ldb() * types::data_type_size(d->b_type());
-            bad_ld |= ((ldb_bytes & 0x3) != 0);
-        }
+        if (arch == compute::gpu_arch_t::xe_hpg && !bad_ld)
+            return use_nocopy_xehpg(d->a_type(), ld_align);
 
         auto table = all_tables[arch_idx][int(bad_ld)][type_idx];
         long mnl = table->mn_limit[d->transa()][d->transb()];
@@ -208,6 +209,51 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
         if ((mnl == 0 || d->m() * d->n() < mnl * mnl)
                 && (kl == 0 || d->k() < kl))
             return true;
+    }
+
+    return false;
+}
+
+bool xe_hp_systolic_gemm_t::pd_t::use_nocopy_xehpg(
+        data_type_t dt, unsigned ld_align) {
+    using namespace data_type;
+
+    const auto &d = desc();
+
+    bool align64 = (ld_align & 63) != 0;
+    bool align32 = (ld_align & 31) != 0;
+    bool nn = !d->transa() && !d->transb();
+    bool nt = !d->transa() && d->transb();
+    bool tn = d->transa() && !d->transb();
+    auto m = d->m(), n = d->n(), k = d->k();
+    auto mnM = 1
+            + ((nstl::min<dim_t>(m, 131072) * nstl::min<dim_t>(n, 131072) - 1)
+                    >> 20);
+
+    if (m <= 1024 || n <= 1024) return true;
+
+    if (utils::one_of(d->a_type(), bf16, f16)) {
+        if (nn || nt) {
+            if (align64) return true;
+            if (align32 && nn) return (k >= 256) || (mnM <= 16);
+            return (mnM <= 8);
+        } else if (tn) {
+            if (align64) return (k <= 2048 || mnM <= 16);
+            return (mnM <= 16);
+        } else
+            return (mnM <= 1);
+    } else {
+        if (nn) {
+            if (align64) return true;
+            return (mnM <= 16);
+        } else if (nt) {
+            if (align32) return (mnM <= 16);
+            return (mnM <= 8);
+        } else if (tn) {
+            if (align64) return (k >= 512) || (mnM <= 24);
+            return (mnM <= 12);
+        } else
+            return (mnM <= 1);
     }
 
     return false;
