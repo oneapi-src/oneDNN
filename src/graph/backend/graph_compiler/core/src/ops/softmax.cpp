@@ -48,18 +48,23 @@ void softmax_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
 
     // input
     graph->make_input(inputs);
-    graph_tensor_ptr fexpinp = inputs[0];
+    graph_tensor_ptr input = inputs[0];
+    if (inputs[0]->details_.dtype_ == datatypes::bf16) {
+        auto cast_input = graph->make(
+                "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
+        input = cast_input->get_outputs()[0];
+    }
     // The attribute decides whether softmax uses numerically stable process
     // version(do x-max(x) first) or not. Default use the numerically stable
     // version, in some specific cases like mha inference, use the unstable
     // version.
+    graph_tensor_ptr fexpinp = input;
     bool numeric_stable = attrs_.get_or_else("numerically_stable", true);
     if (numeric_stable) {
         // x - max(x)
-        auto fmax = graph->make("reduce", {inputs[0]}, {},
+        auto fmax = graph->make("reduce", {input}, {},
                 {{"need_mean", false}, {"rd_axis", axis}, {"rd_op", 2}});
-        auto fsub = graph->make(
-                "sub", {inputs[0], fmax->get_outputs()[0]}, {}, {});
+        auto fsub = graph->make("sub", {input, fmax->get_outputs()[0]}, {}, {});
         fexpinp = fsub->get_outputs()[0];
     }
     // exp(x)
@@ -73,6 +78,11 @@ void softmax_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     auto fdiv = graph->make(
             "div", {fexp->get_outputs()[0], freduce->get_outputs()[0]}, {}, {});
     // output
+    if (outputs[0]->details_.dtype_ == datatypes::bf16) {
+        auto cast_output = graph->make(
+                "cast", fdiv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+        fdiv = cast_output;
+    }
     graph->make_output(fdiv->get_outputs());
 }
 
