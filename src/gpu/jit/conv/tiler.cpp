@@ -1534,7 +1534,7 @@ struct conv_tiler_params_t {
     int env_params_idx = -1;
 };
 
-conv_tiler_params_t &tiler_params() {
+const conv_tiler_params_t &tiler_params() {
     static conv_tiler_params_t params = []() {
         conv_tiler_params_t ret;
         auto s_opts = gpu_utils::dev_getenv("tiler", std::string());
@@ -2093,6 +2093,12 @@ private:
 // Tuner class.
 class conv_tuner_t {
 public:
+    struct primitive_info_t {
+        const conv_tiler_t *impl = nullptr;
+        conv_key_t key;
+        conv_params_t params;
+    };
+
     conv_tuner_t(const conv_config_t &cfg)
         : conv_key_(cfg.key())
         , params_gen_(cfg)
@@ -2106,9 +2112,12 @@ public:
 
     void set_params(conv_config_t &cfg) { params_gen_.set_params(cfg); }
 
-    void notify_create(const conv_config_t &cfg) {
+    void notify_create(const conv_config_t &cfg, const primitive_t *primitive) {
         std::lock_guard<std::mutex> lock(mutex_);
         created_configs_++;
+        auto &info = primitive_infos_[primitive];
+        info.key = cfg.key();
+        info.params = cfg.params();
     }
 
     void set_profile_info(uint64_t stamp, const conv_params_t &params) {
@@ -2150,6 +2159,12 @@ public:
     }
 
     void print_all() const { params_gen_.print_all(); }
+
+    static const primitive_info_t &get_primitive_info(
+            const primitive_t *primitive) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return primitive_infos_.at(primitive);
+    }
 
     static conv_tuner_t *get_tuner(const conv_key_t &key, bool do_lock = true) {
         std::unique_lock<std::mutex> lock(mutex_, std::defer_lock_t());
@@ -2260,6 +2275,9 @@ private:
     static std::unordered_map<conv_key_t, conv_tuner_t, conv_key_hash_t>
             conv2tuner_;
     static std::unordered_map<uint64_t, stamp_info_t> stamp_infos_;
+    static std::unordered_map<const primitive_t *,
+            conv_tuner_t::primitive_info_t>
+            primitive_infos_;
     static std::mutex mutex_;
 };
 
@@ -2267,6 +2285,9 @@ std::unordered_map<conv_key_t, conv_tuner_t, conv_key_hash_t>
         conv_tuner_t::conv2tuner_;
 std::unordered_map<uint64_t, conv_tuner_t::stamp_info_t>
         conv_tuner_t::stamp_infos_;
+std::unordered_map<const primitive_t *, conv_tuner_t::primitive_info_t>
+        conv_tuner_t::primitive_infos_;
+
 std::mutex conv_tuner_t::mutex_;
 
 class conv_tiler_impl_t {
@@ -2415,20 +2436,22 @@ void conv_tiler_t::notify_out_of_registers(const conv_config_t &cfg) {
 bool conv_tiler_t::is_grf_limit_ok(const conv_config_t &cfg) const {
     return impl_->is_grf_limit_ok(cfg);
 }
-void conv_tiler_t::after_create_hook(const conv_config_t &cfg) {
+void conv_tiler_t::after_create_hook(
+        const conv_config_t &cfg, const primitive_t *primitive) {
     if (!cfg.tiler().is_tuning_mode()) return;
     auto *tuner = conv_tuner_t::get_tuner(cfg.key());
-    tuner->notify_create(cfg);
+    tuner->notify_create(cfg, primitive);
 }
 
 void conv_tiler_t::before_exec_hook(
-        const conv_config_t &cfg, stream_t *stream) {
-    if (!cfg.tiler().is_tuning_mode()) return;
+        const primitive_t *primitive, stream_t *stream) {
+    if (tiler_params().mode != tiler_mode_t::tune) return;
     if (!stream->is_profiling_enabled()) return;
-    auto *tuner = conv_tuner_t::get_tuner(cfg.key());
+    auto &info = conv_tuner_t::get_primitive_info(primitive);
+    auto *tuner = conv_tuner_t::get_tuner(info.key);
     auto *compute_stream = utils::downcast<compute::compute_stream_t *>(stream);
     auto &profiler = compute_stream->profiler();
-    tuner->set_profile_info(profiler.stamp(), cfg.params());
+    tuner->set_profile_info(profiler.stamp(), info.params);
     profiler.set_callback(conv_tuner_t::profile_callback);
 }
 

@@ -95,67 +95,68 @@ public:
 
         bool ok = false;
         int max_tries = 100;
+        conv_config_t cfg;
         for (int try_iter = 0; try_iter < max_tries; try_iter++) {
             try {
-                cfg_ = data.pd_cfg;
-                cfg_.set_pd(
+                cfg = data.pd_cfg;
+                cfg.set_pd(
                         static_cast<const convolution_pd_t *>(primitive->pd()));
-                cfg_.set_tiler(tiler);
-                CHECK(init_cfg(cfg_, primitive));
+                cfg.set_tiler(tiler);
+                CHECK(init_cfg(cfg, primitive));
 
                 if (primitive->cache_blob() && try_iter != primitive->version())
                     continue;
-                if (!tiler->is_grf_limit_ok(cfg_)) continue;
+                if (!tiler->is_grf_limit_ok(cfg)) continue;
 
                 ir_info() << "Configuration:" << std::endl;
-                ir_info() << cfg_;
+                ir_info() << cfg;
 
-                init_nd_ranges(primitive, cfg_);
+                init_nd_ranges(primitive, cfg);
 
                 auto &kernel_infos = data.kernel_infos;
                 for (int i = 0; i < int(kernel_infos.size()); i++) {
                     auto &info = kernel_infos[i];
                     switch (info.id()) {
                         case kernel_id_t::convolution: {
-                            grf_mode_t grf_mode = (cfg_.regs() == 256)
+                            grf_mode_t grf_mode = (cfg.regs() == 256)
                                     ? grf_mode_t::large
                                     : grf_mode_t::small;
                             kernels_.push_back(make_kernel<conv_kernel_t>(
-                                    primitive, engine, cfg_, info,
-                                    nd_ranges_[i], grf_mode));
+                                    primitive, engine, cfg, info, nd_ranges_[i],
+                                    grf_mode));
                             break;
                         }
                         case kernel_id_t::pre_reorder: {
-                            reorder_config_t reorder_cfg(cfg_.exec_cfg(),
+                            reorder_config_t reorder_cfg(cfg.exec_cfg(),
                                     tensor_cfg.user_layout(info.arg_name(1)),
                                     tensor_cfg.compute_layout(
                                             info.arg_name(1)));
                             kernels_.push_back(
                                     make_kernel<reorder_kernel_t>(primitive,
                                             engine, reorder_cfg, "conv_reorder",
-                                            info, cfg_.is_dpas_or_dpasw_fma(),
+                                            info, cfg.is_dpas_or_dpasw_fma(),
                                             grf_mode_t::matches));
                             break;
                         }
                         case kernel_id_t::post_reorder: {
-                            reorder_config_t reorder_cfg(cfg_.exec_cfg(),
+                            reorder_config_t reorder_cfg(cfg.exec_cfg(),
                                     tensor_cfg.compute_layout(info.arg_name(0)),
                                     tensor_cfg.user_layout(info.arg_name(0)));
                             kernels_.push_back(
                                     make_kernel<reorder_kernel_t>(primitive,
                                             engine, reorder_cfg, "conv_reorder",
-                                            info, cfg_.is_dpas_or_dpasw_fma(),
+                                            info, cfg.is_dpas_or_dpasw_fma(),
                                             grf_mode_t::matches));
                             break;
                         }
                         case kernel_id_t::zero_out:
-                            if (can_skip_zero_out(info, cfg_)) {
+                            if (can_skip_zero_out(info, cfg)) {
                                 kernels_.emplace_back();
                                 continue;
                             }
                             kernels_.push_back(make_kernel<zero_out_kernel_t>(
-                                    primitive, engine, cfg_.exec_cfg(), info,
-                                    cfg_.is_dpas_or_dpasw_fma(),
+                                    primitive, engine, cfg.exec_cfg(), info,
+                                    cfg.is_dpas_or_dpasw_fma(),
                                     grf_mode_t::matches));
                             break;
                         default: ir_error_not_expected();
@@ -169,7 +170,7 @@ public:
                 if (handle_exception(
                             err, primitive, engine, try_iter, max_tries))
                     return status::runtime_error;
-                tiler->notify_out_of_registers(cfg_);
+                tiler->notify_out_of_registers(cfg);
                 continue;
             } catch (std::runtime_error &err) {
                 if (handle_exception(
@@ -180,7 +181,7 @@ public:
         }
         if (!ok) return status::runtime_error;
 
-        conv_tiler_t::after_create_hook(cfg_);
+        conv_tiler_t::after_create_hook(cfg, primitive);
         return status::success;
     }
 
@@ -204,7 +205,7 @@ public:
         auto &data = *primitive->pd()->data;
         auto &kernel_infos = data.kernel_infos;
 
-        conv_tiler_t::before_exec_hook(cfg_, ctx.stream());
+        conv_tiler_t::before_exec_hook(primitive, ctx.stream());
 
         int max_stage = 100;
         int nsubmitted = 0;
@@ -371,7 +372,6 @@ private:
 
     std::vector<compute::kernel_t> kernels_;
     std::vector<compute::nd_range_t> nd_ranges_;
-    conv_config_t cfg_;
 };
 
 status_t gen_convolution_fwd_t::pd_t::init(engine_t *engine) {
