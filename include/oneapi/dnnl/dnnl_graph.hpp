@@ -1523,7 +1523,7 @@ inline void set_constant_tensor_cache_capacity(engine::kind kind, size_t size) {
 
 /// Return the current capacity of constant tensor cache.
 ///
-/// @param eng_kind The engine kind that the constant tensor cache used for.
+/// @param kind The engine kind that the constant tensor cache used for.
 inline size_t get_constant_tensor_cache_capacity(engine::kind kind) {
     size_t size = 0;
     error::wrap_c_api(dnnl_graph_get_constant_tensor_cache_capacity(
