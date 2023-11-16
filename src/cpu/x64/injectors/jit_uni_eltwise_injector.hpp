@@ -175,10 +175,12 @@ private:
 
     size_t n_vregs_to_preserve_ = 0;
     size_t n_vregs_preserved_ = 0;
+    bool need_vmm_mask_register_ = false;
     // Default initialization will put zeros. Putting any value to trigger a
     // potential error to Xbyak is not working as Xbyak cycles vmm indices
     // over 32 value.
     size_t preserved_vmm_indices_[preserved_vecs_max_] = {};
+    size_t preserved_vmm_tail_indices_[preserved_vecs_max_] = {};
     size_t preserved_gpr_indices_[preserved_gprs_max_] = {};
 
     Vmm vmm_mask_;
@@ -186,6 +188,7 @@ private:
     Xbyak::Ymm ymm_tmp_;
     Xbyak::Xmm xmm_tmp_;
 
+    static bool need_mask_register(alg_kind_t alg, bool is_fwd, float alpha);
     static size_t aux_gprs_count(alg_kind_t alg);
 
     void compute_body(
