@@ -301,15 +301,18 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         auto dt_size = types::data_type_size(src_layer_d.data_type());
 
         // Data is already well aligned. Copying does not provide benefit
-        if (pdims[1] == 1 || strides[1] == rnn.gates_ws_ld) return false;
+        if (pdims[1] == 1 || strides[1] == rnn.gates_ws_ld
+                || (strides[1] % 64 == 0))
+            return false;
 
         // Better to rely on GEMM to emit reorder if it is necessary if there is
         // limited data reuse
         const dim_t data_reuse = rnn.n_dir * (rnn.is_training ? 2 : 1);
-        if (!rnn.merge_gemm_layer && data_reuse < 3) return false;
+        if (data_reuse < 2) return false;
 
         // Prefer lower memory usage
-        if (src_layer_d.nelems(true) * dt_size >= 8 * 1024 * 1024) return false;
+        if (src_layer_d.nelems(true) * dt_size >= 1024 * 1024 * 1024)
+            return false;
 
         return true;
     }();
