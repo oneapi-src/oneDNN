@@ -27,6 +27,7 @@
 #include <compiler/ir/sc_data_type.hpp>
 #include <compiler/jit/jit.hpp>
 #include <ops/convolution.hpp>
+#include <ops/templates/conv_dw_fwd.hpp>
 #include <ops/templates/conv_fwd.hpp>
 #include <ops/templates/conv_rl.hpp>
 #include <ops/templates/nested_conv_fwd.hpp>
@@ -75,6 +76,7 @@ void check_qconv(conv_fwd_config_t cfg, int N, int G, int K, int C, int H,
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     sc_graph_t g;
+    bool is_dw = (G > 1) && (G == C);
 
     auto src_dtype = sc_data_traits_t<src_type>::type();
     auto wei_dtype = sc_data_traits_t<wei_type>::type();
@@ -94,23 +96,28 @@ void check_qconv(conv_fwd_config_t cfg, int N, int G, int K, int C, int H,
     } else if (force_channel_last) {
         g_conv_out->attrs_.set("temp.test_format", "NHWC");
     }
-    auto tunop = g_conv_out->template dyn_cast<tunable_op_t>();
 
+    auto tunop = g_conv_out->template dyn_cast<tunable_op_t>();
     auto gen = tunop->create_generator();
-    auto conv_gen = (ops::gen_conv_fwd_t *)gen.get();
     int D = 0, P = 0, Q = 0;
-    std::tie(D, P, Q) = conv_gen->get_output_shape();
-    if (!default_cfg) {
-        reflection::shared_general_object_t cfgptr
-                = reflection::general_object_t::make(cfg);
-        tunop->set_config(cfgptr);
-        auto pcfg = (conv_fwd_config_t *)cfgptr.get();
-        tunop->get_inputs()[0]->details_.set_format(
-                sc_data_format_t::NCHWc(pcfg->C_block));
-        tunop->get_inputs()[1]->details_.set_format(
-                sc_data_format_t::KCRSck4c(pcfg->C_block, pcfg->K_block));
-        tunop->get_outputs()[0]->details_.set_format(
-                sc_data_format_t::NCHWc(pcfg->K_block));
+    if (is_dw) {
+        auto conv_gen = (ops::gen_conv_dw_fwd_t *)gen.get();
+        std::tie(D, P, Q) = conv_gen->get_output_shape();
+    } else {
+        auto conv_gen = (ops::gen_conv_fwd_t *)gen.get();
+        std::tie(D, P, Q) = conv_gen->get_output_shape();
+        if (!default_cfg) {
+            reflection::shared_general_object_t cfgptr
+                    = reflection::general_object_t::make(cfg);
+            tunop->set_config(cfgptr);
+            auto pcfg = (conv_fwd_config_t *)cfgptr.get();
+            tunop->get_inputs()[0]->details_.set_format(
+                    sc_data_format_t::NCHWc(pcfg->C_block));
+            tunop->get_inputs()[1]->details_.set_format(
+                    sc_data_format_t::KCRSck4c(pcfg->C_block, pcfg->K_block));
+            tunop->get_outputs()[0]->details_.set_format(
+                    sc_data_format_t::NCHWc(pcfg->K_block));
+        }
     }
 
     std::vector<sc_op_ptr> args = {g_data, g_weight};
@@ -822,6 +829,25 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_groups, no_padding_2_NXC) {
             28, 28, 3, 3, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, true, false,
             true);
 }
+// dw conv
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_dw, no_padding_1) {
+    REQUIRE_AVX512();
+    check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 8, 8, 8, 12,
+            12, 3, 3, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, true, false, true);
+    check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 8, 8, 8, 12,
+            12, 3, 3, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, true, false,
+            false);
+}
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_dw, no_padding_2) {
+    REQUIRE_AVX512();
+    check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 14, 48, 48, 48,
+            28, 28, 3, 3, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, true, false,
+            true);
+    check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 14, 48, 48, 48,
+            28, 28, 3, 3, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, true, false,
+            false);
+}
+
 TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_groups, with_padding_1_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 2, 8, 8, 12,
@@ -1322,4 +1348,15 @@ TEST(GCCore_CPU_qconv2d_bf16bf16f32_kl_with_groups, padding_4) {
     REQUIRE_AMX();
     check_rl_qconv<bf16_t, bf16_t, float>(conv_fwd_rl_config_t(), 1, 2, 4, 4,
             13, 13, 5, 5, {1, 1}, {1, 1}, {4, 4}, {4, 4}, false, true);
+}
+// dw
+TEST(GCCore_CPU_qconv2d_bf16bf16f32_with_dw, no_padding_1) {
+    REQUIRE_AMX();
+    check_qconv<bf16_t, bf16_t, float>(conv_fwd_config_t(), 1, 8, 8, 8, 13, 13,
+            3, 3, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, true, false, true);
+}
+TEST(GCCore_CPU_qconv2d_bf16bf16f32_with_dw, no_padding_2) {
+    REQUIRE_AMX();
+    check_qconv<bf16_t, bf16_t, float>(conv_fwd_config_t(), 12, 32, 32, 32, 28,
+            28, 5, 5, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, true, false, true);
 }

@@ -189,17 +189,18 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   const auto nthreads = runtime_config_t::get().get_num_threads();
   auto C_block_list = utils::get_blocks(ic_, 16);
   auto K_block_list = utils::get_blocks(oc_, 16);
-
   auto tile_p_list = utils::get_factors(oh_);
   auto tile_q_list = utils::get_factors(ow_);
+
   bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, get_weight_dtype());
   bool no_vnni = ops::no_vnni(ctx, get_weight_dtype());
   auto dtype_size = no_vnni ? 4 : (is_vnni_low_fp ? 2 : 1);
+
   cfg.tile_d = 1;
   cfg.tile_os = -1;
   cfg.pack_input = (is_1x1_conv_ && (sd_ > 1 || sh_ > 1 || sw_ > 1)) ? 1 : -1;
   cfg.loop_sched = 0;
-  // C_block shall only relay to ic_
+
   int max_ic_block = -1;
   int max_oc_block = -1;
   if (ic_ % 32 != 0) {
@@ -347,9 +348,12 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     // The performance will be very bad if C_bloc % 32 != 0 in convNxN
     cfg.K_block = utils::rnd_up(cfg.K_block, 64 / dtype_size);
   }
-  if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
-    == ops::rl_kind::KW_LOWERING) {
+  sc_dim groups = attrs_.get_or_else("groups", 1);
+  if (groups > 1
+    && attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
+      != ops::rl_kind::KW_LOWERING) {
     cfg.C_block = ic_;
+    cfg.K_block = oc_;
   }
 
   if (inverse_filter_) {

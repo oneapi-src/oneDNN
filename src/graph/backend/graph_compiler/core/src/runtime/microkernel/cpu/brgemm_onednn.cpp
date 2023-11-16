@@ -465,10 +465,19 @@ struct brg_desc_safe_t {
         };
         cpu_isa_t isa_type = choose_isa_type();
 
-        auto status = brgemm_desc_init(&desc, isa_type, arg.brg_type,
-                dnnl_dtypeA, dnnl_dtypeB, false, false, brgemm_row_major,
-                arg.alpha, arg.beta, arg.LDA, arg.LDB, arg.LDC, arg.M, arg.N,
-                arg.K, &stride_info);
+        dnnl::impl::status_t status = dnnl::impl::status::invalid_arguments;
+        if (arg.K == -1 && arg.LDB == -1) {
+            assert(alpha == 1.0f && beta == 0.f);
+            status = brdgmm_desc_init(&desc, isa_type, arg.brg_type,
+                    dnnl_dtypeA, dnnl_dtypeB, false, brgemm_row_major,
+                    arg.alpha, arg.beta, arg.LDA, arg.LDC, arg.M, arg.N,
+                    &stride_info);
+        } else {
+            status = brgemm_desc_init(&desc, isa_type, arg.brg_type,
+                    dnnl_dtypeA, dnnl_dtypeB, false, false, brgemm_row_major,
+                    arg.alpha, arg.beta, arg.LDA, arg.LDB, arg.LDC, arg.M,
+                    arg.N, arg.K, &stride_info);
+        }
         assert(status == dnnl::impl::status::success);
 
         // create an entry in kernel cache

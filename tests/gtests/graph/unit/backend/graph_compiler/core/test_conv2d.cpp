@@ -28,6 +28,7 @@
 #include <ops/templates/conv1x1_backprop_data.hpp>
 #include <ops/templates/conv1x1_backprop_weight.hpp>
 #include <ops/templates/conv_bwd.hpp>
+#include <ops/templates/conv_dw_fwd.hpp>
 #include <ops/templates/conv_fwd.hpp>
 #include <ops/templates/nested_conv_fwd.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
@@ -82,6 +83,7 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int G,
             "C and K should be dividable by G, but got C("
                     << C << "), K(" << K << "), G(" << G << ").");
 
+    bool is_dw = (G > 1) && (G == C);
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
     sc_dims data_dims = {N, C, H, W};
@@ -100,10 +102,14 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int G,
     } else if (force_channel_last) {
         conv_out->attrs_.set<std::string>("temp.test_format", "NHWC");
     }
+
     auto tunop = conv_out->dyn_cast<tunable_op_t>();
+    auto gen = tunop->create_generator();
     int D = 0, P = 0, Q = 0;
-    {
-        auto gen = tunop->create_generator();
+    if (is_dw) {
+        auto conv_gen = (ops::gen_conv_dw_fwd_t *)gen.get();
+        std::tie(D, P, Q) = conv_gen->get_output_shape();
+    } else {
         auto conv_gen = (ops::gen_conv_fwd_t *)gen.get();
         std::tie(D, P, Q) = conv_gen->get_output_shape();
         reflection::shared_general_object_t cfgptr;
@@ -157,8 +163,10 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int G,
     auto out = mgr.make_output(final_out->get_outputs());
     fuse_arg_ops.insert(fuse_arg_ops.begin(), out);
 
-    mgr.attrs_.set(sc_graph_t::attr_key_t::is_input_plain, false);
-    mgr.attrs_.set(sc_graph_t::attr_key_t::is_output_plain, false);
+    mgr.attrs_.set(
+            sc_graph_t::attr_key_t::is_input_plain, is_dw ? true : false);
+    mgr.attrs_.set(
+            sc_graph_t::attr_key_t::is_output_plain, is_dw ? true : false);
 
     graph_driver(mgr, get_test_ctx());
     auto f = lower_graph(get_test_ctx(), mgr, fuse_arg_ops);
@@ -175,8 +183,9 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int G,
 
     // save original ele_add in advance, to avoid overwrite in fuse_eleadd
     // condition
-    auto mkldnn_ele_add
-            = NCHWc2NCHW(ele_add, N, K / cfg.K_block, P, Q, cfg.K_block);
+    auto plain_ele_add = is_dw
+            ? std::move(ele_add)
+            : NCHWc2NCHW(ele_add, N, K / cfg.K_block, P, Q, cfg.K_block);
     std::vector<float *> sc_args = {&output[0], &input[0], &weight[0]};
 
     if (fuse_bias) sc_args.emplace_back(&bias[0]);
@@ -193,28 +202,32 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int G,
         generic_args.emplace_back(sc_args.at(i));
     fptr->call_generic_default(generic_args.data());
     auto output_format = out->get_inputs().at(0)->details_.get_format();
-    test_buffer<float> sc_output
-            = any2NCHW(output_format, output, N, K, P, Q, cfg.K_block);
+    test_buffer<float> sc_output = is_dw
+            ? std::move(output)
+            : any2NCHW(output_format, output, N, K, P, Q, cfg.K_block);
 
-    auto mkldnn_input
-            = NCHWc2NCHW(input, N, C / cfg.C_block, H, W, cfg.C_block);
-    auto mkldnn_weight = KCRSck2KCRS(weight, K / cfg.K_block,
-            C / G / cfg.C_block, R, S, cfg.C_block, cfg.K_block);
+    auto plain_input = is_dw
+            ? std::move(input)
+            : NCHWc2NCHW(input, N, C / cfg.C_block, H, W, cfg.C_block);
+    auto plain_weight = is_dw
+            ? std::move(weight)
+            : KCRSck2KCRS(weight, K / cfg.K_block, C / G / cfg.C_block, R, S,
+                    cfg.C_block, cfg.K_block);
 
-    auto mkldnn_bias = std::move(bias);
-    auto mkldnn_mul = std::move(bn_mul);
-    auto mkldnn_add = std::move(bn_add);
-    test_buffer<float> mkldnn_output(N * K * P * Q);
+    auto plain_bias = std::move(bias);
+    auto plain_mul = std::move(bn_mul);
+    auto plain_add = std::move(bn_add);
+    test_buffer<float> plain_output(N * K * P * Q);
 
     compute_ref_direct_fwd(N, G, K, C, H, W, P, Q, R, S, stride_h, stride_w,
-            padding_h, padding_w, &mkldnn_input[0], &mkldnn_weight[0],
-            &mkldnn_bias[0], &mkldnn_output[0],
-            fuse_bias ? dir_t::FWD_B : FWD_I, &mkldnn_mul[0], &mkldnn_add[0],
-            fuse_bn_relu, 1, 1, 1, 0, 1, 1, dilation_h, dilation_w);
+            padding_h, padding_w, &plain_input[0], &plain_weight[0],
+            &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I,
+            &plain_mul[0], &plain_add[0], fuse_bn_relu, 1, 1, 1, 0, 1, 1,
+            dilation_h, dilation_w);
     if (fuse_eleadd)
         compute_elementwise_ref_direct_fwd(
-                &mkldnn_output[0], &mkldnn_ele_add[0], {N, K, P, Q});
-    test_utils::compare_data(sc_output, mkldnn_output, 1e-3f, 1e-3f);
+                &plain_output[0], &plain_ele_add[0], {N, K, P, Q});
+    test_utils::compare_data(sc_output, plain_output, 1e-3f, 1e-3f);
 }
 
 void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
@@ -299,14 +312,14 @@ void check_conv_correctness_and_tuning_bwd_d(int N, int K, int C, int H, int W,
         generic_args.emplace_back(sc_args.at(i));
     fptr->call_generic_default(generic_args.data());
 
-    auto mkldnn_grad = std::move(grad);
-    auto mkldnn_weight = std::move(weight);
-    auto mkldnn_bias = std::move(bias);
-    test_buffer<float> mkldnn_grad_data(N * C * H * W);
+    auto plain_grad = std::move(grad);
+    auto plain_weight = std::move(weight);
+    auto plain_bias = std::move(bias);
+    test_buffer<float> plain_grad_data(N * C * H * W);
     compute_ref_direct_bwd_d(N, 1, K, C, H, W, P, Q, R, S, stride, stride,
-            padding, padding, &mkldnn_grad_data[0], &mkldnn_weight[0],
-            &mkldnn_bias[0], &mkldnn_grad[0]);
-    test_utils::compare_data(grad_data, mkldnn_grad_data, 1e-3f, 1e-3f);
+            padding, padding, &plain_grad_data[0], &plain_weight[0],
+            &plain_bias[0], &plain_grad[0]);
+    test_utils::compare_data(grad_data, plain_grad_data, 1e-3f, 1e-3f);
 }
 
 void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
@@ -357,18 +370,18 @@ void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
         generic_args.emplace_back(sc_args.at(i));
     fptr->call_generic_default(generic_args.data());
 
-    auto mkldnn_grad = std::move(grad);
-    auto mkldnn_data = std::move(data);
-    test_buffer<float> mkldnn_grad_weight(K * C * R * S);
+    auto plain_grad = std::move(grad);
+    auto plain_data = std::move(data);
+    test_buffer<float> plain_grad_weight(K * C * R * S);
 
     compute_ref_bwd_weights(N, 1, K, C, H, W, P, Q, R, S, stride, stride,
-            padding, padding, &mkldnn_data[0], &mkldnn_grad_weight[0],
-            &mkldnn_grad[0]);
+            padding, padding, &plain_data[0], &plain_grad_weight[0],
+            &plain_grad[0]);
 
     if (utils::is_one_of(dtype, datatypes::bf16, datatypes::f16)) {
-        test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-1f, 5e-1f);
+        test_utils::compare_data(grad_weight, plain_grad_weight, 1e-1f, 5e-1f);
     } else {
-        test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3f, 5e-3f);
+        test_utils::compare_data(grad_weight, plain_grad_weight, 1e-3f, 5e-3f);
     }
 }
 
@@ -538,28 +551,27 @@ void check_conv_correctness_and_tuning_fwd(int N, int K, int C, int H, int W,
             = any2NCHW(output_format, output, N, K, P, Q, cfg.im_oc_block);
 
     auto in_a_format = in_a->get_outputs()[0]->details_.get_format();
-    auto mkldnn_input
+    auto plain_input
             = any2NCHW(in_a_format, input, N, C, H, W, cfg.im_ic_block);
-    auto mkldnn_weight = KCRSck2KCRS(weight, K / cfg.im_oc_block,
+    auto plain_weight = KCRSck2KCRS(weight, K / cfg.im_oc_block,
             C / cfg.im_ic_block, R, S, cfg.im_ic_block, cfg.im_oc_block);
-    auto mkldnn_ele_add
+    auto plain_ele_add
             = any2NCHW(output_format, ele_add, N, K, P, Q, cfg.im_oc_block);
 
-    auto mkldnn_bias = std::move(bias);
-    auto mkldnn_mul = std::move(bn_mul);
-    auto mkldnn_add = std::move(bn_add);
+    auto plain_bias = std::move(bias);
+    auto plain_mul = std::move(bn_mul);
+    auto plain_add = std::move(bn_add);
 
-    test_buffer<float> mkldnn_output(N * K * P * Q);
+    test_buffer<float> plain_output(N * K * P * Q);
 
     compute_ref_direct_fwd(N, 1, K, C, H, W, P, Q, R, S, stride_h, stride_w,
-            padding_h, padding_w, &mkldnn_input[0], &mkldnn_weight[0],
-            &mkldnn_bias[0], &mkldnn_output[0],
-            fuse_bias ? dir_t::FWD_B : FWD_I, &mkldnn_mul[0], &mkldnn_add[0],
-            fuse_bn_relu);
+            padding_h, padding_w, &plain_input[0], &plain_weight[0],
+            &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I,
+            &plain_mul[0], &plain_add[0], fuse_bn_relu);
     if (fuse_eleadd)
         compute_elementwise_ref_direct_fwd(
-                &mkldnn_output[0], &mkldnn_ele_add[0], {N, K, P, Q});
-    test_utils::compare_data(sc_output, mkldnn_output, 1e-3f, 1e-3f);
+                &plain_output[0], &plain_ele_add[0], {N, K, P, Q});
+    test_utils::compare_data(sc_output, plain_output, 1e-3f, 1e-3f);
 }
 
 TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_1_NCX) {
@@ -1111,6 +1123,32 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_groups_padding) {
             {1, 2, 8, 8, 12, 12, 3, 3, 2, 1, 1},
             {1, 4, 8, 8, 12, 12, 3, 3, 2, 1, 1},
             {14, 2, 48, 48, 114, 114, 3, 3, 2, 1, 1},
+    };
+    for (auto &wl : workload_list) {
+        int idx = 0;
+        auto N = wl[idx++];
+        auto G = wl[idx++];
+        auto K = wl[idx++];
+        auto C = wl[idx++];
+        auto H = wl[idx++];
+        auto W = wl[idx++];
+        auto R = wl[idx++];
+        auto S = wl[idx++];
+        auto stride = wl[idx++];
+        auto padding = wl[idx++];
+        auto dilation = wl[idx++];
+        check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), N, G, K, C,
+                H, W, R, S, {stride, stride}, {padding, padding},
+                {padding, padding}, {dilation, dilation}, false, false, false,
+                true, false, true);
+    }
+}
+
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dw) {
+    std::vector<std::vector<int>> workload_list = {
+            // N, G, K, C, H, W, R, S, stride, padding, dilation
+            {1, 8, 8, 8, 12, 12, 3, 3, 1, 0, 1},
+            {14, 48, 48, 48, 114, 114, 3, 3, 2, 0, 1},
     };
     for (auto &wl : workload_list) {
         int idx = 0;

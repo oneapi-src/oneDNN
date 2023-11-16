@@ -109,7 +109,10 @@ void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
                     = op->info_.inputs_[1]->details_.get_plain_dims();
             auto data_dtype = op->info_.inputs_[0]->details_.dtype_;
             auto ndims = data_plain_dims.size();
+            if (ndims != 4) { return; }
             sc_dim groups = op->attrs_.get_or_else("groups", 1);
+            // depthwise convolution
+            if (groups > 1 && groups == data_plain_dims[1]) { return; }
             auto dilations = ops::get_dilations(op->attrs_);
             auto has_dilation = std::any_of(dilations.begin(), dilations.end(),
                     [](int x) { return x != 1; });
@@ -117,7 +120,6 @@ void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
             // kw, might be supported in future
             if (has_dilation) { return; };
 
-            if (ndims != 4) { return; }
             COMPILE_ASSERT(weight_plain_dims.size() == ndims,
                     "Weight dims size is expected equal to data dims, but got "
                             << weight_plain_dims.size() << " vs. " << ndims
