@@ -640,16 +640,18 @@ gpu::compute::binary_t gen_gemm_kernel_t::get_binary(
         break; \
     }
 
-    switch (desc()->hw_) {
-        REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
-        REG_GEN11_ISA(ARCH_DISPATCH(Gen11))
-        REG_XELP_ISA(ARCH_DISPATCH(XeLP))
-        REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
-        REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
-        REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
-        REG_XE2_ISA(ARCH_DISPATCH(Xe2))
-        default: assert(!"Unsupported architecture"); break;
-    }
+    try {
+        switch (desc()->hw_) {
+            REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
+            REG_GEN11_ISA(ARCH_DISPATCH(Gen11))
+            REG_XELP_ISA(ARCH_DISPATCH(XeLP))
+            REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
+            REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
+            REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
+            REG_XE2_ISA(ARCH_DISPATCH(Xe2))
+            default: assert(!"Unsupported architecture"); break;
+        }
+    } catch (...) {}
 
     return {};
 
