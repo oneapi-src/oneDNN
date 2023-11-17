@@ -124,9 +124,15 @@ struct jit_uni_eltwise_injector_f32 {
                 eltwise.beta, eltwise.scale, save_state, p_table, k_mask,
                 is_fwd, use_dst, preserve_vmm, preserve_p_table) {}
 
-    void compute_vector_range(size_t start_idx, size_t end_idx);
-    void compute_vector_range(const injector_utils::vmm_index_set_t &vmm_idxs);
-    void compute_vector(size_t idx) { compute_vector_range({idx}); }
+    void compute_vector_range(size_t start_compute_idx, size_t end_compute_idx,
+            const injector_utils::vmm_index_set_t &vmm_aux_indices = {});
+    void compute_vector_range(
+            const injector_utils::vmm_index_set_t &vmm_compute_idxs,
+            const injector_utils::vmm_index_set_t &vmm_aux_indices = {});
+    void compute_vector(size_t compute_idx,
+            const injector_utils::vmm_index_set_t &vmm_aux_indices = {}) {
+        compute_vector_range({compute_idx}, vmm_aux_indices);
+    }
     void prepare_table(bool gen_table = true);
     void load_table_addr() { h->mov(p_table_, l_table_); }
 
@@ -195,7 +201,8 @@ private:
             const injector_utils::vmm_index_set_iterator_t &start_idx_it,
             const injector_utils::vmm_index_set_iterator_t &end_idx_it);
     void injector_preamble(const injector_utils::vmm_index_set_t &vmm_idxs,
-            injector_utils::vmm_index_set_iterator_t &start_idx_tail_it);
+            injector_utils::vmm_index_set_iterator_t &start_idx_tail_it,
+            const injector_utils::vmm_index_set_t &vmm_aux_indices);
     void injector_preamble_tail(size_t n_vregs_not_preserved);
     void injector_postamble();
     void assign_regs();

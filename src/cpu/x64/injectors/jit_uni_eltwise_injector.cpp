@@ -56,8 +56,9 @@ using namespace Xbyak;
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
-        const injector_utils::vmm_index_set_t &vmm_idxs,
-        injector_utils::vmm_index_set_iterator_t &start_idx_tail_it) {
+        const injector_utils::vmm_index_set_t &vmm_compute_idxs,
+        injector_utils::vmm_index_set_iterator_t &start_idx_tail_it,
+        const injector_utils::vmm_index_set_t &vmm_aux_indices) {
     using namespace Xbyak::util;
 
     // Mask register is a Vmm register on AVX2 and below. It qualifies as an
@@ -66,13 +67,18 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
 
     n_vregs_preserved_ = 0;
     n_vregs_to_preserve_ = aux_vecs_count(alg_, is_fwd_, alpha_);
+    assert(IMPLICATION(!vmm_aux_indices.empty(),
+            vmm_aux_indices.size() == n_vregs_to_preserve_));
 
-    const auto start_idx = *(vmm_idxs.begin());
-    const auto end_idx = *(vmm_idxs.rbegin()) + 1;
+    const auto start_idx = *(vmm_compute_idxs.begin());
+    const auto end_idx = *(vmm_compute_idxs.rbegin()) + 1;
     // For sse41 mask register must be Xmm(0), reserve it unconditionally.
     if (isa == sse41 && need_vmm_mask_register_) {
         static constexpr int mask_idx = 0;
         assert(start_idx > mask_idx);
+        // When external indices come, they must secure first index is 0.
+        assert(IMPLICATION(!vmm_aux_indices.empty(),
+                *(vmm_aux_indices.begin()) == mask_idx));
         preserved_vmm_tail_indices_[n_vregs_preserved_++] = mask_idx;
     }
 
@@ -82,28 +88,48 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
         // Once reserved enough vmm registers, break the loop.
         if (n_vregs_preserved_ >= n_vregs_to_preserve_) break;
 
+        // Thanks to `std::set` LegacyBidirectionalIterator `iterator` member
+        // that doesn't have operator+ defined.
+        size_t external_idx = 0;
+        if (!vmm_aux_indices.empty()) {
+            auto it = vmm_aux_indices.begin();
+            for (size_t i = 0; i < idx; i++)
+                it++;
+            external_idx = *it;
+            assert(it != vmm_aux_indices.end());
+        }
+        size_t preserve_idx = vmm_aux_indices.empty() ? idx : external_idx;
+
         // `start_idx` and `end_idx` is the range of indices passed to the
         // injector to apply `alg_` on top of them. Thus, they don't need to
         // be preserved.
-        if (start_idx <= idx && idx < end_idx) continue;
+        if (vmm_aux_indices.empty()) {
+            // When injector decides on indices to preserve, it skips those to
+            // compute alg on...
+            if (start_idx <= preserve_idx && preserve_idx < end_idx) continue;
+        } else {
+            // ... but when indices are passed, it secures that external indices
+            // don't overlap with those to compute alg on.
+            assert(!(start_idx <= preserve_idx && preserve_idx < end_idx));
+        }
 
         // Preserve vmm mask register first. If preserved last, there may not be
         // enough free registers to fit all vmm registers, and an algorithm
         // requiring a mask will fail.
         // Note: sse41 has it preserved already.
         if (need_vmm_mask_register_ && n_vregs_preserved_ == 0)
-            preserved_vmm_tail_indices_[n_vregs_preserved_++] = idx;
+            preserved_vmm_tail_indices_[n_vregs_preserved_++] = preserve_idx;
         else {
             preserved_vmm_indices_[n_vregs_preserved_ - need_vmm_mask_register_]
-                    = idx;
+                    = preserve_idx;
             n_vregs_preserved_++;
         }
     }
 
     // If it happened that there was not enough spare registers to preserve,
-    // injector will take first `n_vregs_not_preserved` from `vmm_idxs` to have
-    // legit generated code. This fact is saved through `start_idx_tail_it`
-    // iterator and a second round of compute will happen.
+    // injector will take first `n_vregs_not_preserved` from `vmm_compute_idxs`
+    // to have legit generated code. This fact is saved through
+    // `start_idx_tail_it` iterator and a second round of compute will happen.
     size_t n_vregs_not_preserved = n_vregs_to_preserve_ - n_vregs_preserved_;
     for (size_t i = 0; i < n_vregs_not_preserved; i++) {
         preserved_vmm_indices_[n_vregs_preserved_ - need_vmm_mask_register_]
@@ -134,6 +160,9 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
             h->push(Reg64(preserved_gpr_indices_[i]));
 
         if (preserve_vmm_) {
+            // External indices imply no vmm preservation happens.
+            assert(vmm_aux_indices.empty());
+
             if (n_vregs_preserved_) h->sub(h->rsp, n_vregs_preserved_ * vlen_);
 
             if (need_vmm_mask_register_) {
@@ -2012,26 +2041,28 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_body(
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_vector_range(
-        size_t start_idx, size_t end_idx) {
-    injector_utils::vmm_index_set_t vmm_idxs;
-    for (size_t i = start_idx; i < end_idx; i++)
-        vmm_idxs.emplace(i);
-    compute_vector_range(vmm_idxs);
+        size_t start_compute_idx, size_t end_compute_idx,
+        const injector_utils::vmm_index_set_t &vmm_aux_indices) {
+    injector_utils::vmm_index_set_t vmm_compute_idxs;
+    for (size_t i = start_compute_idx; i < end_compute_idx; i++)
+        vmm_compute_idxs.emplace(i);
+    compute_vector_range(vmm_compute_idxs, vmm_aux_indices);
 }
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_vector_range(
-        const injector_utils::vmm_index_set_t &vmm_idxs) {
-    if (vmm_idxs.empty()) return;
+        const injector_utils::vmm_index_set_t &vmm_compute_idxs,
+        const injector_utils::vmm_index_set_t &vmm_aux_indices) {
+    if (vmm_compute_idxs.empty()) return;
 
-    const auto &start_idx_it = vmm_idxs.begin();
-    const auto &end_idx_it = vmm_idxs.end();
-    assert(*start_idx_it < *vmm_idxs.rbegin() + 1
-            && *vmm_idxs.rbegin() <= n_vregs_);
+    const auto &start_idx_it = vmm_compute_idxs.begin();
+    const auto &end_idx_it = vmm_compute_idxs.end();
+    assert(*start_idx_it < *vmm_compute_idxs.rbegin() + 1
+            && *vmm_compute_idxs.rbegin() <= n_vregs_);
 
     // This is something that can be moved in preamble.
-    auto start_idx_tail_it = vmm_idxs.begin();
-    injector_preamble(vmm_idxs, start_idx_tail_it);
+    auto start_idx_tail_it = vmm_compute_idxs.begin();
+    injector_preamble(vmm_compute_idxs, start_idx_tail_it, vmm_aux_indices);
     compute_body(start_idx_tail_it, end_idx_it);
 
     size_t n_vregs_not_preserved
