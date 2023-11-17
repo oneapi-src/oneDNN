@@ -108,7 +108,7 @@ T MKmk2MK(T &input, int M, int K, int m, int k, int origin_m = 0,
         int origin_k = 0) {
     origin_k = origin_k ? origin_k : K * k;
     origin_m = origin_m ? origin_m : M * m;
-    T output(M * m * K * k);
+    T output(origin_m * origin_k);
     int dim3 = K * m * k, dim2 = m * k, dim1 = k;
     utils::parallel_for(0, M, 1, [&](int64_t m_o) {
         for (auto k_o = 0; k_o < K; ++k_o) {
@@ -119,8 +119,6 @@ T MKmk2MK(T &input, int M, int K, int m, int k, int origin_m = 0,
                         output[(m_o * m + m_i) * origin_k + k_o * k + k_i]
                                 = input[m_o * dim3 + k_o * dim2 + m_i * dim1
                                         + k_i];
-                    } else {
-                        output[(m_o * m + m_i) * origin_k + k_o * k + k_i] = 0;
                     }
                 }
             }
