@@ -56,6 +56,8 @@ struct xe_systolic_gemm_copy_kernel_t {
             compute::gpu_arch_t arch, data_type_t dt, int unroll_n, bool copyb,
             bool trans, bool sum = false, bool clear_sum = false) {
 
+        using arch_t = compute::gpu_arch_t;
+
         auto dt_size = types::data_type_size(dt);
 
         if (dt_size == 1) kernel_ctx.add_option("-Dcl_intel_subgroups_char");
@@ -70,11 +72,9 @@ struct xe_systolic_gemm_copy_kernel_t {
         kernel_ctx.add_option("-cl-strict-aliasing");
         kernel_ctx.add_option(
                 "-cl-intel-256-GRF-per-thread"); // avoid GRF mode switch
-        if (arch == compute::gpu_arch_t::xe_hp)
+        if (utils::one_of(arch, arch_t::xe_hp, arch_t::xe_hpg))
             kernel_ctx.add_option("-DCOPY_XE_HP");
-        if (arch == compute::gpu_arch_t::xe_hpg)
-            kernel_ctx.add_option("-DCOPY_XE_HP");
-        if (arch == compute::gpu_arch_t::xe_hpc)
+        if (utils::one_of(arch, arch_t::xe_hpc, arch_t::xe2))
             kernel_ctx.add_option("-DCOPY_XE_HPC");
 
         return status::success;
@@ -82,11 +82,12 @@ struct xe_systolic_gemm_copy_kernel_t {
 
     const char *name() const { return name(arch_); }
     static const char *name(compute::gpu_arch_t arch) {
+        using arch_t = compute::gpu_arch_t;
         switch (arch) {
-            case compute::gpu_arch_t::xe_hp: return "xe_hp_systolic_gemm_copy";
-            case compute::gpu_arch_t::xe_hpg: return "xe_hp_systolic_gemm_copy";
-            case compute::gpu_arch_t::xe_hpc:
-                return "xe_hpc_systolic_gemm_copy";
+            case arch_t::xe_hp:
+            case arch_t::xe_hpg: return "xe_hp_systolic_gemm_copy";
+            case arch_t::xe_hpc:
+            case arch_t::xe2: return "xe_hpc_systolic_gemm_copy";
             default: assert(!"Unsupported architecture"); return "";
         }
     }
@@ -97,7 +98,7 @@ struct xe_systolic_gemm_copy_kernel_t {
 
     static constexpr int unroll_r(
             compute::gpu_arch_t arch, size_t element_size, bool copyb) {
-        return !copyb ? ((arch == compute::gpu_arch_t::xe_hpc) ? 64 : 32)
+        return !copyb ? ((arch >= compute::gpu_arch_t::xe_hpc) ? 64 : 32)
                       : unroll_k(element_size);
     }
 
@@ -107,11 +108,11 @@ struct xe_systolic_gemm_copy_kernel_t {
     }
 
     static constexpr int subgroup_size(compute::gpu_arch_t arch) {
-        return (arch == compute::gpu_arch_t::xe_hpc) ? 16 : 8;
+        return (arch >= compute::gpu_arch_t::xe_hpc) ? 16 : 8;
     }
 
     static constexpr int subgroup_size_clear_sum(compute::gpu_arch_t arch) {
-        return (arch == compute::gpu_arch_t::xe_hpc) ? 16 : 8;
+        return (arch >= compute::gpu_arch_t::xe_hpc) ? 16 : 8;
     }
 
 #if __cplusplus >= 202002L
