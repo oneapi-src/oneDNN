@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
 
         bool use_nocopy();
         bool use_nocopy_xehpg(data_type_t dt, unsigned ld_align);
-        bool set_default_formats(data_type_t dt);
+        status_t set_default_formats(data_type_t dt);
 
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;

@@ -62,8 +62,8 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
         c_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
     }
 
-    bool ok = set_default_formats(d->a_type());
-    if (!ok) return status::unimplemented;
+    auto status = set_default_formats(d->a_type());
+    if (status != status::success) return status;
 
     CHECK(attr_.set_default_formats(dst_md(0)));
 
@@ -90,7 +90,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
     bool arch_ok = utils::one_of(
             arch, arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc, arch_t::xe2);
 
-    ok = ok && limits_ok && (dt_float_ok || dt_int_ok) && arch_ok
+    bool ok = limits_ok && (dt_float_ok || dt_int_ok) && arch_ok
             && compute_engine->mayiuse(compute::device_ext_t::
                             intel_subgroup_split_matrix_multiply_accumulate)
             && attr()->has_default_values(attr_skip_mask)
@@ -99,7 +99,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
                     utils::one_of(d->bias_type(), d->a_type(), f32)
                             && utils::one_of(bias_cmask(), 0, 1, 2, 3));
 
-    auto status = init_post_ops();
+    status = init_post_ops();
     if (status != status::success) return status;
 
     if (dt_int_ok) {
@@ -259,7 +259,7 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy_xehpg(
     return false;
 }
 
-bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
+status_t xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     using namespace format_tag;
     using new_kd_t = gen_gemm_xe_systolic_kernel_desc_t;
 
@@ -280,7 +280,7 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     bool c_any = c_mdw.format_any();
     bool batch = d->is_batched();
 
-    if (batch_dims() > 1) return false;
+    if (batch_dims() > 1) return status::unimplemented;
 
     format_tag_t a_packed_tag_16 = undef;
     format_tag_t a_packed_tag_32 = undef;
@@ -360,7 +360,7 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
         }
     } else if (!a_mdw.matches_tag(a_packed_tag)
             && !is_md_gemm_compatible_plain_format(&a_desc))
-        return false;
+        return status::unimplemented;
 
     if (b_any) {
         if (a_zp_) {
@@ -382,7 +382,7 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
         }
     } else if (!b_mdw.matches_tag(b_packed_tag)
             && !is_md_gemm_compatible_plain_format(&b_desc))
-        return false;
+        return status::unimplemented;
 
     if (c_any) {
         CHECK(memory_desc_init_by_tag(c_desc, c_packed_tag));
@@ -399,7 +399,7 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
         packed_c_ = true;
     } else if (!c_mdw.matches_tag(c_packed_tag)
             && !is_md_gemm_compatible_plain_format(&c_desc, true))
-        return false;
+        return status::unimplemented;
 
     packed_a_ = packed_a_ || a_mdw.matches_tag(a_packed_tag);
     packed_b_ = packed_b_ || b_mdw.matches_tag(b_packed_tag);
@@ -407,9 +407,10 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
 
     // No 16x16 copy kernels currently.
     if ((!packed_a_ && unroll_m_ == 16) || (!packed_b_ && unroll_n_ == 16))
-        return false;
+        return status::unimplemented;
 
-    return gpu_gemm_pd_t::set_default_formats();
+    return gpu_gemm_pd_t::set_default_formats() ? status::success
+                                                : status::unimplemented;
 }
 
 void xe_hp_systolic_gemm_t::pd_t::init_scratchpad() {
