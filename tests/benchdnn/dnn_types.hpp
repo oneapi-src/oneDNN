@@ -150,15 +150,22 @@ struct attr_t {
 
     struct arg_scales_t {
         struct entry_t {
-            entry_t(policy_t apolicy = COMMON, float ascale = 1.f)
-                : policy(apolicy), scale(ascale) {}
+            entry_t(policy_t apolicy = COMMON, float ascale = 1.f,
+                    dnnl_data_type_t adt = dnnl_f32,
+                    const std::vector<dnnl_dim_t> &agroups = {})
+                : policy(apolicy), scale(ascale), dt(adt), groups(agroups) {}
 
             int from_str(const std::string &s);
 
-            bool is_def() const { return policy == COMMON && scale == 1.f; }
+            bool is_def() const {
+                return policy == COMMON && scale == 1.f && dt == dnnl_f32
+                        && groups.size() == 0;
+            }
 
             policy_t policy = COMMON;
             float scale = 1.f;
+            dnnl_data_type_t dt = dnnl_f32;
+            std::vector<dnnl_dim_t> groups;
         };
 
         void set(int arg, entry_t scale) { scales[arg] = scale; }

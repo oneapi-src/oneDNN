@@ -259,26 +259,45 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
         SAFE_V(FAIL);
     }
     if (start_pos == std::string::npos) return OK;
-    // No un-`common` policy beyond this point.
-    if (this->policy != COMMON) {
-        BENCHDNN_PRINT(0, "%s\n",
-                "Error: policies but \'common\' do not support extra values.");
-        SAFE_V(FAIL);
-    }
+
     if (start_pos >= s.size()) {
         BENCHDNN_PRINT(0, "%s \'%s\'\n",
                 "Error: dangling symbol at the end of input", s.c_str());
         SAFE_V(FAIL);
     }
 
-    SAFE(parse_value_and_runtime(
-                 this->scale, parser::get_substr(s, start_pos, ':')),
-            WARN);
-    if (this->scale < 0) {
-        BENCHDNN_PRINT(0, "%s \'%g\'\n",
-                "Error: the scale can't be negative:", this->scale);
+    // process scale value for COMMON policy
+    if (this->policy == COMMON) {
+        SAFE(parse_value_and_runtime(
+                     this->scale, parser::get_substr(s, start_pos, ':')),
+                WARN);
+        if (this->scale < 0) {
+            BENCHDNN_PRINT(0, "%s \'%g\'\n",
+                    "Error: the scale can't be negative:", this->scale);
+            SAFE_V(FAIL);
+        }
+    }
+
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
         SAFE_V(FAIL);
     }
+
+    // process data type
+    const auto dt_str = parser::get_substr(s, start_pos, ':');
+    this->dt = str2dt(dt_str.c_str());
+
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
+
     return OK;
 }
 
@@ -566,8 +585,12 @@ std::ostream &operator<<(std::ostream &s, const policy_t &policy) {
 
 std::ostream &operator<<(
         std::ostream &s, const attr_t::arg_scales_t::entry_t &scale) {
+    using ::operator<<;
+
     s << scale.policy;
     if (scale.policy == policy_t::COMMON) s << ":" << scale.scale;
+    if (scale.dt != dnnl_f32) s << ':' << scale.dt;
+    if (!scale.groups.empty()) s << ":" << scale.groups;
     return s;
 }
 
