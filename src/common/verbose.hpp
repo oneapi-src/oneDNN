@@ -112,8 +112,20 @@ struct const_expr_value {
         if (dnnl::impl::get_verbose(verbose_t::error)) { \
             VFORMAT(get_msec(), apitype, error, "", #component "," msg, \
                     ##__VA_ARGS__); \
+            fflush(stdout); \
         } \
-        fflush(stdout); \
+    } while (0)
+
+// Special syntactic sugar for debuginfo prints.
+// `level` is responsible to set the bar to be printed.
+#define VDEBUGINFO(level, apitype, component, msg, ...) \
+    do { \
+        if (dnnl::impl::get_verbose_dev_mode(verbose_t::debuginfo) \
+                >= (level)) { \
+            VFORMAT(get_msec(), apitype, debuginfo, "", #component "," msg, \
+                    ##__VA_ARGS__); \
+            fflush(stdout); \
+        } \
     } while (0)
 
 // Special syntactic sugar for logging performance

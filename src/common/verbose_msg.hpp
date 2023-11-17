@@ -29,6 +29,7 @@
 #define VERBOSE_create_nested "create_nested"
 #define VERBOSE_exec "exec"
 #define VERBOSE_compile "compile"
+#define VERBOSE_debuginfo "debuginfo"
 
 // log subtypes strings
 #define VERBOSE_check ":check"
