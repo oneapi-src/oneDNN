@@ -136,6 +136,7 @@ enum class xbyak_intrin_format {
     directed_end_mem, // [directed_assign], only end can be mem
     directed_dst_mem, // [directed_assign], dst can be mem
     directed_dst_reg, // [directed_assign], dst must be reg
+    compound_end_mem, // [compound_assign], only end can be mem
     compound_dst_mem, // [compound_assign], dst can be mem
     compound_dst_reg, // [compound_assign], dst must be reg
 };

@@ -2233,7 +2233,7 @@ void xbyak_lowering_viewer::handle_avx_sqrt(const operand &op_dst,
             XBYAK_GEN(vsqrtps, AVX_X_XM, op_dst, op_src);
         } break;
         case cpu_data_type::float_32: {
-            XBYAK_GEN(vsqrtss, AVX_X_X_XM, op_dst, op_src, op_src);
+            XBYAK_GEN(vsqrtss, AVX_X_X_XM, op_dst, op_dst, op_src);
         } break;
         case cpu_data_type::float_16_x32:
         case cpu_data_type::float_16_x16:
@@ -2243,7 +2243,7 @@ void xbyak_lowering_viewer::handle_avx_sqrt(const operand &op_dst,
             XBYAK_GEN(vsqrtph, AVX_X_XM, op_dst, op_src);
         } break;
         case cpu_data_type::float_16: {
-            XBYAK_GEN(vsqrtsh, AVX_X_X_XM, op_dst, op_src, op_src);
+            XBYAK_GEN(vsqrtsh, AVX_X_X_XM, op_dst, op_dst, op_src);
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);

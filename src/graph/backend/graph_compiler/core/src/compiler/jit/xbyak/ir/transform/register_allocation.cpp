@@ -562,6 +562,17 @@ protected:
                 resolve_dst_ = resolve_dst::load_store;
                 if (spilled_args_sum(v->args_) > 1) { return resolve(); }
             } break;
+            case xbyak_intrin_format::compound_end_mem: {
+                // if operand_mem_sum({src, dst}) > 1
+                // src allow 1 mem at the end of args, excluding imm
+                // dst must be reg
+                resolve_dst_ = resolve_dst::load_store;
+                assert(v->args_.size() > 0);
+                auto n = v->args_.size() - 1;
+                auto imm_last = n > 0 && is_imm(v->args_.back());
+                if (cpu_flags_.fAVX512F && imm_last) { n = n - 1; }
+                if (spilled_args_sum(v->args_, n) > 0) { return resolve(); }
+            } break;
         }
         // Special cases
         switch (static_cast<xbyak_intrin_type>(v->type_)) {

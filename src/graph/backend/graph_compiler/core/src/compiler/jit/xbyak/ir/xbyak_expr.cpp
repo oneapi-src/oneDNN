@@ -189,7 +189,7 @@ static handler_table register_handlers() {
             "AVX_EXTRACT_HIGH", avx, extract_high, directed_all_reg, _2A_);
 
     REGISTER_INTRIN(
-            "AVX_PERMUTEX2VAR", avx, permutex2var, directed_end_mem, _3A_);
+            "AVX_PERMUTEX2VAR", avx, permutex2var, compound_end_mem, _3A_);
     REGISTER_INTRIN(
             "AVX_PERMUTEXVAR", avx, permutexvar, directed_end_mem, _4A_);
 
