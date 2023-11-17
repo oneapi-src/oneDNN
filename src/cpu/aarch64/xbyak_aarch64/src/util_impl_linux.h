@@ -103,6 +103,8 @@ private:
     strncat(file_pattern, "[0-9]+", 16);
 
     DIR *dir = opendir(dir_path);
+    if (dir == NULL)
+      return 0;
     struct dirent *dp;
 
     dp = readdir(dir);
