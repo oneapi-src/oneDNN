@@ -223,6 +223,10 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
                 // pop out the last comma
                 filter_status.components.pop_back();
                 filter_status.status = filter_status_t::flags::valid;
+            } else {
+                filter_status.status = filter_status_t::flags::invalid;
+                filter_status.err_msg
+                        = "component with name \'" + s + "\' not found";
             }
             return k;
         };
