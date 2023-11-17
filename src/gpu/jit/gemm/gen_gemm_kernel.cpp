@@ -244,15 +244,20 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     eu_count_ = eu_count;
     disable_systolic_ = !has_systolic;
 
-    // Workaround for over-stringent emulation block 2D alignment checks.
-    if (arch == compute::gpu_arch_t::xe2) {
-        if (align_a > 4 && align_a < 64) align_a = 4;
-        if (align_b > 4 && align_b < 64) align_b = 4;
-    }
-
     align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
     align_b = nstl::max(align_b, int(types::data_type_size(b_type)));
     align_c = nstl::max(align_c, int(types::data_type_size(c_type)));
+
+    bool can_2d_a = (lda * problem_.Ta <= 16777216);
+    bool can_2d_b = (ldb * problem_.Tb <= 16777216);
+    bool can_2d_c = (ldc * problem_.Tc <= 16777216);
+
+    // Xe2 requires stronger alignment for block 2D.
+    if (arch == compute::gpu_arch_t::xe2) {
+        can_2d_a &= (align_a % 16 == 0);
+        can_2d_b &= (align_b % 16 == 0);
+        can_2d_c &= (align_c % 16 == 0);
+    }
 
     // Set up problem structure.
     problem_.Ta = problem_.Ta_ext = convert_dnnl_to_kernel_type(a_type);
@@ -312,9 +317,9 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     auto tags = const_cast<char *>(match_params[0].tags);
     while (*tags)
         tags++;
-    if (lda * problem_.Ta <= 16777216) *tags++ = kcatalog::ReqBlock2DA;
-    if (ldb * problem_.Tb <= 16777216) *tags++ = kcatalog::ReqBlock2DB;
-    if (ldc * problem_.Tc <= 16777216) *tags++ = kcatalog::ReqBlock2DC;
+    if (can_2d_a) *tags++ = kcatalog::ReqBlock2DA;
+    if (can_2d_b) *tags++ = kcatalog::ReqBlock2DB;
+    if (can_2d_c) *tags++ = kcatalog::ReqBlock2DC;
     if (has_systolic) *tags++ = kcatalog::ReqSystolic;
 
     if ((mode & mode_tf32)
