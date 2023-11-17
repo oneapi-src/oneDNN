@@ -10340,12 +10340,22 @@ void gemm_kernel_generator_t<hw>::gemmBetaScale(const GEMMProblem &problem,
 template <HW hw>
 void gemm_kernel_generator_t<hw>::binaryOp(BinaryOp op, int simd,
         const ngen::RegData &dst, const ngen::RegData &src0,
-        const ngen::RegData &src1) {
+        const ngen::RegData &src1, GEMMState &state) {
     switch (op) {
         case BinaryOp::Add: add(simd, dst, src0, src1); break;
         case BinaryOp::Sub: add(simd, dst, src0, -src1); break;
         case BinaryOp::Mul: mul(simd, dst, src0, src1); break;
         case BinaryOp::Div: stub();
+        case BinaryOp::Prelu: {
+            auto DT = src1.getType();
+            auto nRegs = GRF::bytesToGRFs(hw, simd * getBytes(DT));
+            auto tempRng = state.ra.alloc_range(nRegs);
+            auto temp = tempRng[0].retype(DT);
+            mul(simd, temp, src0, src1);
+            csel(simd | le, dst, temp, src0, src0);
+            state.ra.release(tempRng);
+            break;
+        }
         case BinaryOp::Min: min_(simd, dst, src0, src1); break;
         case BinaryOp::Max: max_(simd, dst, src0, src1); break;
     }
@@ -10361,7 +10371,7 @@ void gemm_kernel_generator_t<hw>::gemmScalarBinaryOpC(BinaryOp op,
 
     map(hw, state.Tacc, state.C_regs[0], state.C_layout, strategy,
             [&](int simd, const RegData &r) {
-                binaryOp(op, simd, r, r, offsetTc);
+                binaryOp(op, simd, r, r, offsetTc, state);
             });
 }
 
@@ -10419,7 +10429,7 @@ void gemm_kernel_generator_t<hw>::gemmVectorBinaryOpC(BinaryOp op, bool column,
                 if (op != BinaryOp::Add) stub();
                 mad(nc, C(1), C(1), offBase(stride()), scale);
             } else
-                binaryOp(op, nc, C(1), C(1), offBase(stride()));
+                binaryOp(op, nc, C(1), C(1), offBase(stride()), state);
 
             x += nc;
         }
@@ -10703,7 +10713,7 @@ void gemm_kernel_generator_t<hw>::gemmApplyPostOps(int poMin, int poMax,
 
 #define FOR_EACH_BINARY \
     for (int i = 0; i < poCount; i++) \
-        if (entries[i].is_binary())
+        if (entries[i].is_binary() || entries[i].is_prelu())
 
         FOR_EACH_BINARY {
             const auto &ld = state.inputs.binaryLDs[i];
@@ -10782,10 +10792,13 @@ void gemm_kernel_generator_t<hw>::gemmApplyPostOps(int poMin, int poMax,
                     injector.compute(rr);
                 break;
             }
+            case primitive_kind::prelu:
             case primitive_kind::binary: {
                 auto &ld = state.inputs.binaryLDs[i];
                 auto &eff = state.effBinary[i];
-                auto op = dnnlToBinaryOp(entry.binary.alg);
+                auto op = entry.kind == primitive_kind::prelu
+                        ? BinaryOp::Prelu
+                        : dnnlToBinaryOp(entry.binary.alg);
 
                 bool ok = gemmBinaryOpC(op, problem.binaryRow[i],
                         problem.binaryCol[i], problem.Tbinary[i],
@@ -18076,7 +18089,9 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
     }
     if (doBinary)
         for (int i = 0; i < problem.postOps.len(); i++) {
-            if (!problem.postOps.entry_[i].is_binary()) continue;
+            if (!problem.postOps.entry_[i].is_binary()
+                    && !problem.postOps.entry_[i].is_prelu())
+                continue;
             bool row = problem.binaryRow[i], col = problem.binaryCol[i];
             auto T = problem.Tbinary[i];
             auto &ld = state.inputs.binaryLDs[i];

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -538,7 +538,7 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
             pd()->with_c_zero_points(), pd()->with_bias(), pd()->alpha(),
             pd()->beta(), *post_ops, a_type, b_type, c_type, co_type, acc_type,
             d->m(), d->n(), d->k(), d->batch(), pd()->unroll_m(),
-            pd()->unroll_n(), pd()->alt());
+            pd()->unroll_n(), pd()->alt(), pd()->prelu_wei_md);
 
     if (status != status::success) return status;
 
@@ -574,7 +574,8 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
                         this_c_offset, pd()->with_bias(), pd()->alpha(),
                         this_beta, *this_post_ops, a_type, b_type, c_type,
                         co_type, acc_type, d->m(), d->n(), d->k(), d->batch(),
-                        pd()->unroll_m(), pd()->unroll_n(), pd()->alt());
+                        pd()->unroll_m(), pd()->unroll_n(), pd()->alt(),
+                        pd()->prelu_wei_md);
 
                 if (status != status::success) return status;
 
@@ -911,6 +912,14 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                                   .exec_args
                                   .at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(src.index)
                                           | DNNL_ARG_SRC_1)
+                                  .mem->memory_storage();
+                break;
+            case pd_t::binary_src_t::prelu:
+                po_srcs[i]
+                        = ctx.args()
+                                  .exec_args
+                                  .at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(src.index)
+                                          | DNNL_ARG_WEIGHTS)
                                   .mem->memory_storage();
                 break;
             case pd_t::binary_src_t::bias: po_srcs[i] = &bias; break;

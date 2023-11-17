@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
     using gpu_gemm_pd_t::gpu_gemm_pd_t;
 
     struct binary_src_t {
-        enum type_t { none, scales, bias, binary } type;
+        enum type_t { none, scales, bias, binary, prelu } type;
         int index;
 
         binary_src_t(type_t type_, int index_) : type(type_), index(index_) {}
@@ -76,6 +76,13 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
                     ok &= jit_eltwise_injector_f32_is_supported(e.eltwise.alg);
                     binary_srcs_.push_back(
                             binary_src_t {binary_src_t::none, 0});
+                    break;
+                case prelu:
+                    binary_srcs_.push_back(
+                            binary_src_t {binary_src_t::prelu, int(i)});
+                    ok &= get_prelu_md(e.prelu.mask, dst_md()->dims,
+                                  prelu_wei_md, dst_md()->ndims)
+                            == status::success;
                     break;
                 default: return status::unimplemented;
             }
@@ -153,6 +160,10 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
                 return gemm_desc_t::get_ld(entry.binary.src1_desc);
             }
             case binary_src_t::bias: return desc()->ld_bias();
+            case binary_src_t::prelu: {
+                return gemm_desc_t::get_ld(prelu_wei_md);
+            }
+
             default: return 1;
         }
     }
@@ -163,6 +174,9 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
                 const auto &entry = post_ops_.entry_[idx];
                 assert(entry.kind == primitive_kind::binary);
                 return gemm_desc_t::get_stride(entry.binary.src1_desc, stride);
+            }
+            case binary_src_t::prelu: {
+                return gemm_desc_t::get_stride(prelu_wei_md, stride);
             }
             default: return 0;
         }
@@ -183,7 +197,7 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
     post_ops_t post_ops_;
     std::vector<binary_src_t> binary_srcs_;
 
-    memory_desc_t wei_scales_md, src_scales_md, c_scales_md;
+    memory_desc_t wei_scales_md, src_scales_md, c_scales_md, prelu_wei_md;
 };
 
 } // namespace jit

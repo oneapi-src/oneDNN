@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -119,8 +119,8 @@ protected:
     int eu_count_ = -1;
     bool disable_systolic_ = false;
 
-    status_t transfer_post_ops(
-            const post_ops_t &post_ops, bool swap_ab = false);
+    status_t transfer_post_ops(const post_ops_t &post_ops, bool swap_ab,
+            const memory_desc_t &prelu_wei_md);
 
     status_t finalize();
     void update_driver_info();
@@ -137,7 +137,7 @@ struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
             data_type_t a_type, data_type_t b_type, data_type_t c_type,
             data_type_t co_type, data_type_t acc_type, int align_a, int align_b,
             int align_c, dim_t m, dim_t n, dim_t k, dim_t lda, dim_t ldb,
-            dim_t ldc, dim_t batch);
+            dim_t ldc, dim_t batch, const memory_desc_t &prelu_wei_md);
 };
 
 struct gen_gemm_xe_systolic_kernel_desc_t : public gen_gemm_kernel_desc_t {
@@ -147,7 +147,7 @@ struct gen_gemm_xe_systolic_kernel_desc_t : public gen_gemm_kernel_desc_t {
             const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
             data_type_t c_type, data_type_t co_type, data_type_t acc_type,
             dim_t m, dim_t n, dim_t k, dim_t batch, int unroll_m, int unroll_n,
-            bool alt);
+            bool alt, const memory_desc_t &prelu_wei_md);
 
     static void choose_unrolls(compute::gpu_arch_t arch, int eu_count,
             data_type_t a_type, data_type_t b_type, data_type_t c_type, dim_t m,

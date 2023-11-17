@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -153,7 +153,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto status = init_post_ops();
             if (status != status::success) return status;
 
-            bool with_binary = (post_ops_.find(binary) != -1);
+            bool with_binary = (post_ops_.find(binary) != -1)
+                    || (post_ops_.find(prelu) != -1);
 
             // check GPU architecture
             bool arch_ok = utils::one_of(arch_, arch_t::gen9, arch_t::gen11,
@@ -213,7 +214,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     beta(), post_ops_, eff_a_type(), eff_b_type(),
                     desc()->c_type(), co_type, acc_type, eff_align_a(),
                     eff_align_b(), align_c(), eff_m(), eff_n(), d->k(),
-                    eff_lda(), eff_ldb(), d->ldc(), d->batch());
+                    eff_lda(), eff_ldb(), d->ldc(), d->batch(), prelu_wei_md);
 
             if (status != status::success) return status;
 
