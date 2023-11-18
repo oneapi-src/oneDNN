@@ -244,6 +244,7 @@ enum class ProductFamily : int {
     GenericXeHPG,
     DG2,
     MTL,
+    ARL,
     GenericXeHPC,
     PVC,
     GenericXe2,
