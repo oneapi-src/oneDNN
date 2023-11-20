@@ -832,7 +832,8 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                     count = dims_nelems(dims, ndims, mask);
                 }
             }
-            auto scales_md = dnn_mem_t::init_md(1, &count, dnnl_f32, tag::abx);
+            const auto dt = sc.get(exec_arg).dt;
+            auto scales_md = dnn_mem_t::init_md(1, &count, dt, tag::abx);
             mem_map.emplace(exec_sc_arg, dnn_mem_t(scales_md, test_engine));
         };
 

@@ -976,8 +976,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
                     ? attr_args.get_mask(arg_name)
                     : attr_t::policy2mask(arg_name, e.policy);
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
-                    dnnl_attr, arg_name, mask));
+            DNN_SAFE_V(dnnl_primitive_attr_set_scales(dnnl_attr, arg_name, mask,
+                    static_cast<int>(e.groups.size()), e.groups.data(), e.dt));
         }
     }
 
