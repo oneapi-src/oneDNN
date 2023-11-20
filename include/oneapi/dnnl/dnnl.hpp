@@ -3971,7 +3971,12 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///
     /// @param arg Parameter argument index as passed to the
     ///     primitive::execute() call.
-    /// @param dims Scaling factors correspondence dimensions that define the
+    /// @param mask Scales correspondence mask that defines the
+    ///     correspondence between the tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated
+    ///     scale is used for each index along that dimension. Set the
+    ///     mask to 0 to use a common scale for the whole output tensor.
+    /// @param groups Scaling factors correspondence groups that define the
     ///     correspondence between the tensor dimensions and the scales array.
     ///     The set i-th dimension indicates a number of groups of scaling
     ///     factors used for that logical dimension in a memory indicated by @p arg.

@@ -534,6 +534,7 @@ std::string md2desc_str(const memory_desc_t *md) {
 
 std::ostream &operator<<(std::ostream &ss, const runtime_scales_t &oscale) {
     ss << oscale.mask_;
+    ss << ":" << oscale.data_type_;
     return ss;
 }
 
