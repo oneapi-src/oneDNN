@@ -75,30 +75,39 @@ static int check_attr2str() {
 }
 
 static int check_attr() {
-#define SELF_CHECK_ATTR_ZP(zp, arg, zero_points_value) \
+#define SELF_CHECK_ATTR_ZP(zp, arg, zero_points_policy, zero_points_value) \
     do { \
         const auto &entry = (zp).get(arg); \
+        SELF_CHECK_EQ(entry.policy, zero_points_policy); \
         SELF_CHECK_EQ(entry.value, zero_points_value); \
     } while (0)
 
     {
         std::vector<attr_t::zero_points_t> zp;
         SELF_CHECK_EQ(parse_attr_zero_points(zp,
-                              "--attr-zero-points=src:common:0+dst:common:-2"),
+                              "--attr-zero-points=src:common:0+wei:per_oc+dst:"
+                              "common:-2,src:per_dim_1"),
                 true);
-        SELF_CHECK_EQ(zp.size(), 1);
-        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_SRC, 0);
-        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_WEIGHTS, 0);
-        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_DST, -2);
+        SELF_CHECK_EQ(zp.size(), 2);
+        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_SRC, policy_t::COMMON, 0);
+        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_WEIGHTS, policy_t::PER_OC, 0);
+        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_DST, policy_t::COMMON, -2);
+
+        SELF_CHECK_ATTR_ZP(zp[1], DNNL_ARG_SRC, policy_t::PER_DIM_1, 0);
     }
 
     {
         std::vector<attr_t::arg_scales_t> sc;
-        SELF_CHECK_EQ(
-                parse_attr_scales(sc, "--attr-scales=src1:common:1.5"), true);
+        // `src` scale is overridden with the latter value.
+        SELF_CHECK_EQ(parse_attr_scales(sc,
+                              "--attr-scales=src:common:1.5+wei:per_oc+src:"
+                              "common:0.5"),
+                true);
         SELF_CHECK_EQ(sc.size(), 1);
-        SELF_CHECK_EQ(sc[0].get(DNNL_ARG_SRC_1).policy, policy_t::COMMON);
-        SELF_CHECK_EQ(sc[0].get(DNNL_ARG_SRC_1).scale, 1.5);
+        SELF_CHECK_EQ(sc[0].get(DNNL_ARG_SRC).policy, policy_t::COMMON);
+        SELF_CHECK_EQ(sc[0].get(DNNL_ARG_SRC).scale, 0.5f);
+        SELF_CHECK_EQ(sc[0].get(DNNL_ARG_WEIGHTS).policy, policy_t::PER_OC);
+        SELF_CHECK_EQ(sc[0].get(DNNL_ARG_WEIGHTS).scale, 1.f);
     }
 
     {
