@@ -2939,6 +2939,7 @@ bool gemm_kernel_generator_t<hw>::tryAddRemainder(Type T, RegisterBlock &block,
                 return false;
         }
         blockNew.bytes = block.bytes;
+        blockNew.offsetAddr = block.offsetAddr;
     }
 
     block = blockNew;
