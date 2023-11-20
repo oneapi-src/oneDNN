@@ -20479,7 +20479,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem) {
             fmaSIMD = 32;
     }
 
-    slmFenceWARWA |= (hw == HW::XeHPG);
+    slmFenceWARWA |= (hw >= HW::XeHPG);
 
     if (problem.batch != BatchMode::None) {
         persistent = false;
