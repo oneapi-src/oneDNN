@@ -83,7 +83,7 @@ struct shared_global_data_allocator_t {
             if (ret_lazy) {
                 // need to register into const cache manager for
                 // lazy-initialized buffers
-                auto base = runtime::create_and_register_const_cache(
+                auto base = engine->vtable_->alloc_and_register_tensor_cache(
                         engine, ret_lazy);
                 size_t offset = 0;
                 for (size_t idx = 0; idx < cache.size(); idx++) {
@@ -217,6 +217,16 @@ static std::atomic<size_t> internal_tensor_id = {0xfffff000};
 
 SC_INTERNAL_API void graph_constant_input_folding_impl(
         sc_graph_t &mgr, const context_ptr &ctx, bool share_constants) {
+    if (ctx->engine_->vtable_->get_tensor_cache_cap(ctx->engine_) == 0) {
+        // if constant cache is off, remove all constant attr
+        for (auto &op : mgr.ops_) {
+            if (op->attrs_.get_or_else("constant", const_kind::not_const)
+                    != const_kind::not_const) {
+                op->attrs_["constant"] = const_kind::not_const;
+            }
+        }
+        return;
+    }
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
     std::vector<sc_op *> edge_ops;
     vis.visit_graph(mgr, [&edge_ops](op_visitor_t *vis, const sc_op_ptr &node) {

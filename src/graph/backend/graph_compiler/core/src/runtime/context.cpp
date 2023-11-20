@@ -16,6 +16,7 @@
 
 #include "context.hpp"
 #include <assert.h>
+#include "const_cache_wrapper.hpp"
 #include "memorypool.hpp"
 #include "parallel.hpp"
 #include "runtime.hpp"
@@ -35,7 +36,9 @@ static void global_free(runtime::engine_t *eng, void *p) {
 }
 
 static engine_vtable_t vtable {global_alloc, global_free,
-        memory_pool::alloc_by_mmap, memory_pool::dealloc_by_mmap};
+        memory_pool::alloc_by_mmap, memory_pool::dealloc_by_mmap,
+        create_and_register_const_cache,
+        [](engine_t *) -> size_t { return 999999; }};
 
 static engine_t default_engine {&vtable};
 stream_t default_stream {

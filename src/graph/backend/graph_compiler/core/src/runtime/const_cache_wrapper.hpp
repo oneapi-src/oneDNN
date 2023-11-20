@@ -66,6 +66,7 @@ struct ref_count_managed {
     }
 
     bool is_alive() const { return ref_count_ > 0; }
+    void *unsafe_get_ptr() const { return keep_alive_.get(); }
 
 private:
     std::shared_ptr<void> keep_alive_;

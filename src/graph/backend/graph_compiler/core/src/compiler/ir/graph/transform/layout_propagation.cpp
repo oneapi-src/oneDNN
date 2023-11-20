@@ -335,15 +335,15 @@ SC_INTERNAL_API void layout_propagation(
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         sorted_ops.emplace_back(node);
         if (is_graph_dynamic) { return; }
-        if (auto input_node = node->dyn_cast<input_op>()) {
+        if (node->isa<input_op>() || node->isa<constant_op_t>()) {
             // backup the input's format
             std::vector<format_stride_pair> backup_info;
-            for (auto &in : input_node->get_outputs()) {
+            for (auto &in : node->get_outputs()) {
                 backup_info.emplace_back(std::make_pair(
                         in->details_.get_format(), in->details_.get_strides()));
             }
             format_backup.emplace_back(backup_info);
-            input_ops.push_back(input_node);
+            input_ops.push_back(node.get());
         }
         if (auto tunable_node = node->dyn_cast<tunable_op_t>()) {
             std::vector<std::vector<format_stride_pair>> in_supported_pairs,

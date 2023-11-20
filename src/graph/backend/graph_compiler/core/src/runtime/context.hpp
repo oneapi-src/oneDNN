@@ -33,6 +33,7 @@ union generic_val;
 namespace runtime {
 
 struct engine_t;
+struct const_cache_proxy;
 
 struct engine_vtable_t {
     using alloc_t = void *(*)(engine_t *, size_t);
@@ -41,6 +42,9 @@ struct engine_vtable_t {
     dealloc_t persistent_dealloc;
     alloc_t temp_alloc;
     dealloc_t temp_dealloc;
+    std::shared_ptr<const_cache_proxy> (*alloc_and_register_tensor_cache)(
+            engine_t *, size_t);
+    size_t (*get_tensor_cache_cap)(engine_t *);
 };
 
 struct stream_vtable_t {

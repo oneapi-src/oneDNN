@@ -22,6 +22,7 @@
 
 #include "common/engine.hpp"
 #include "graph/interface/allocator.hpp"
+#include "graph/interface/constant_tensor_cache.hpp"
 
 #include "runtime/context.hpp"
 #include "runtime/parallel.hpp"
@@ -42,6 +43,7 @@ struct engine_ref_data {
 
 struct compiler_graph_engine_t : public gc::runtime::engine_t {
     graph::engine_t *engine_;
+    constant_tensor_cache_t *cache_;
     std::shared_ptr<engine_ref_data> engine_ref_data_ptr_;
     compiler_graph_engine_t(gc::runtime::engine_vtable_t *vtable,
             graph::engine_t *engine,
