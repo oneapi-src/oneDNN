@@ -58,7 +58,7 @@ void maybe_override_bn_conf_params(params_t &conf, engine_t *engine) {
         maybe_override_bn_conf_params_env(conf);
     } else {
         // for performance debugging/analysis purposes
-        if (getenv_int("BN_SUPPRESS_LOOKUP_TABLE", 0)) return;
+        if (getenv_int("BN_ENABLE_LOOKUP_TABLE", 1)) return;
         maybe_override_bn_conf_params_table(conf, engine);
     }
 }

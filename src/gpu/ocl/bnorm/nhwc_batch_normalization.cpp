@@ -334,6 +334,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
     init_conf_basic(conf, pd);
     set_offsets(data_mdw, off.src_off);
 
+    // TODO: create flags() accessor that returns the correct type
     conf.flags = (normalization_flags_t)pd->desc()->flags;
 
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
