@@ -314,7 +314,8 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
                         "Error: \'common\' policy requires an integer input.");
                 SAFE_V(FAIL);
             }
-            return OK;
+            set(arg, policy, 0); // zp value is not considered
+            continue;
         }
         if (subs_pos >= subs.size()) {
             BENCHDNN_PRINT(0,
