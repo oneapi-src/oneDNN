@@ -275,6 +275,22 @@ struct arg_scales_t : public c_compatible {
         return true;
     }
 
+    bool has_default_data_type(const std::vector<int> &skip_args = {}) const {
+        for (const auto &s : scales_) {
+            if (!s.second.has_default_data_type()) {
+                bool skip = false;
+                for (const auto &skip_a : skip_args)
+                    if (s.first == skip_a) {
+                        skip = true;
+                        break;
+                    }
+                if (skip) continue;
+                return false;
+            }
+        }
+        return true;
+    }
+
     bool has_default_groups(const std::vector<int> &skip_args = {}) const {
         for (const auto &s : scales_) {
             if (!s.second.has_default_groups()) {
@@ -746,7 +762,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         gpu_attr = 1u << 12,
         accumulation_mode = 1u << 13,
         fpmath_mode = 1u << 14,
-        group_scales_runtime = 1u << 15,
+        scales_runtime_groups = (unsigned)scales_runtime | (1u << 15),
+        scales_runtime_data_type = (unsigned)scales_runtime | (1u << 16),
     };
 
     /** Returns true if the attributes have default values.

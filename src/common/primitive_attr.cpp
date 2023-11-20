@@ -125,8 +125,10 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
             (bool)(~mask & (mask_name)), (mask_field).has_default_values()))
     CHECK_MASK(smask_t::oscale_runtime, output_scales_);
     CHECK_MASK(smask_t::scales, scales_);
-    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::group_scales_runtime),
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_runtime_groups),
             scales_.has_default_groups()));
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_runtime_data_type),
+            scales_.has_default_data_type()));
     CHECK_MASK(smask_t::zero_points, zero_points_);
     CHECK_MASK(smask_t::post_ops, post_ops_);
     CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
@@ -516,7 +518,11 @@ status_t dnnl_primitive_attr_set_scales_mask(
 
 status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
         int mask, int ndims, const dims_t group_dims, data_type_t data_type) {
-    bool ok = attr && arg >= 0 && ndims >= 0 && data_type == data_type::f32;
+    using namespace data_type;
+    bool ok = attr && arg >= 0 && ndims >= 0
+            && utils::one_of(data_type, f32, bf16, f16)
+            && IMPLICATION(
+                    arg != DNNL_ARG_WEIGHTS, data_type == f32 && ndims == 0);
     if (!ok) return invalid_arguments;
     return attr->scales_.set(arg, mask, ndims, group_dims, data_type);
 }

@@ -228,8 +228,11 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScalesWithGroups) {
     }
 
     for (auto arg : unsupported_args) {
-        // single scales for unsupported args
-        EXPECT_ANY_THROW(attr.set_scales(arg, 0, {}));
+        // multiple scales with groups for unsupported args
+        EXPECT_ANY_THROW(attr.set_scales(arg, 1 << 0, {4}));
+        // multiple scales with non-default data type for unsupported args
+        EXPECT_ANY_THROW(attr.set_scales(arg, 1 << 0, {}, data_type::bf16));
+
     }
 }
 
