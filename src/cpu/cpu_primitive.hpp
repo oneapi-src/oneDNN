@@ -73,16 +73,35 @@
             VCHECK_ATTR(scales != nullptr, \
                     "Scales buffer for arg %d is missing", arg); \
             const auto scales_d = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | arg); \
-            VCHECK_ATTR(scales_d.data_type() == data_type::f32, \
-                    "Scales data type is not f32"); \
+            VCHECK_ATTR(utils::one_of(scales_d.data_type(), data_type::f32, \
+                                data_type::f16, data_type::bf16), \
+                    "Unsupported scales data type"); \
             VCHECK_ATTR(scales_d.ndims() == 1, "Scales ndims is not 1"); \
             if (scales_d.dims()[0] == 1) { \
                 if (utils::one_of(arg, DNNL_ARG_DST, \
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST)) { \
-                    utils::array_set( \
-                            CONCAT2(scales, _buf16), 1.f / scales[0], 16); \
+                    utils::array_set(CONCAT2(scales, _buf16), \
+                            1.f / ((float *)scales)[0], 16); \
                 } else { \
-                    utils::array_set(CONCAT2(scales, _buf16), scales[0], 16); \
+                    switch (scales_d.data_type()) { \
+                        case data_type::f32: \
+                            utils::array_set(CONCAT2(scales, _buf16), \
+                                    ((float *)scales)[0], 16); \
+                            break; \
+                        case data_type::bf16: { \
+                            const float s = ((const bfloat16_t *)scales)[0]; \
+                            for (auto i = 0; i < 16; ++i) \
+                                CONCAT2(scales, _buf16)[i] = s; \
+                            break; \
+                        } \
+                        case data_type::f16: { \
+                            const float s = ((const float16_t *)scales)[0]; \
+                            for (auto i = 0; i < 16; ++i) \
+                                CONCAT2(scales, _buf16)[i] = s; \
+                            break; \
+                        } \
+                        default: assert(!"unsupported scale type"); \
+                    } \
                 } \
                 scales = CONCAT2(scales, _buf16); \
             } \
@@ -128,8 +147,9 @@
     if (!attr->zero_points_.has_default_values(mem_arg)) { \
         const auto zero_points_d \
                 = ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | mem_arg); \
-        VCHECK_ATTR(zero_points_d.data_type() == data_type::s32, \
-                "Zero points data type is not s32"); \
+        VCHECK_ATTR(utils::one_of(zero_points_d.data_type(), data_type::s32, \
+                            data_type::s8, data_type::u8), \
+                "Unsupported zero points type"); \
         VCHECK_ATTR(zero_points_d.ndims() == 1, "Zero points ndims is not 1"); \
         VCHECK_ATTR(zero_points_d.dims()[0] == 1, \
                 "Not a single zero points was provided"); \

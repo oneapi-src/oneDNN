@@ -93,6 +93,9 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             = !attr_scales.get(DNNL_ARG_DST).has_default_values();
     const dim_t wei_scale_stride
             = attr_scales.get(DNNL_ARG_WEIGHTS).mask_ == 0 ? 0 : 1;
+    const auto &wei_scale_dt = attr_scales.get(DNNL_ARG_WEIGHTS).data_type_;
+    const auto scales_d
+            = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
 
     // mm kernel
     auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
@@ -118,7 +121,13 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             if (with_wei_decompression) {
                 if (with_wei_zero_points)
                     w -= wei_zero_points[wei_zero_points_stride * n];
-                if (with_wei_scales) w *= wei_scales[wei_scale_stride * n];
+                if (with_wei_scales) {
+                    float wei_scale = scales_d.nelems() == 1
+                            ? wei_scales[0]
+                            : io::load_float_value(wei_scale_dt, wei_scales,
+                                    wei_scale_stride * n);
+                    w *= wei_scale;
+                }
             }
             acc += s * w;
         }
