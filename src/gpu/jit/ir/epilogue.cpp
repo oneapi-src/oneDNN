@@ -420,6 +420,7 @@ private:
     }
 
     void register_buffer(const expr_t &buf, int size) {
+        size = utils::rnd_up(size, ir_ctx_->grf_size());
         for (auto &_a : allocs_) {
             auto &a = _a.as<alloc_t>();
             if (a.buf.is_same(buf)) {
