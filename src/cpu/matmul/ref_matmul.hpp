@@ -77,7 +77,8 @@ struct ref_matmul_t : public primitive_t {
                             // data type for fp8?
                             )
                     && platform::has_data_type_support(src_type)
-                    && attr()->has_default_values(smask_t::scales_runtime
+                    && attr()->has_default_values(
+                            smask_t::scales_runtime_data_type
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt
                                     | smask_t::fpmath_mode,
