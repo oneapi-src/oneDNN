@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -830,6 +830,61 @@
 #else
 #define TO_DIFF_WEI(x) (x)
 #endif
+#endif
+
+// f16/bf16 scale-shift support for normalization primitives
+#ifdef WEI_DATA_T
+#if WEI_DT_F32 == 1
+#define AS_WEI_DATA_T as_float
+#define BLOCK_WEI_READ intel_sub_group_block_read
+#define BLOCK_WEI_WRITE intel_sub_group_block_write
+#define BLOCK_WEI_DATA_T uint
+#define AS_BLOCK_WEI_DATA_T as_uint
+#define CONVERT_WEI_FLOAT_T convert_float
+#define CONVERT_WEI_DATA_T convert_float
+#elif WEI_DT_F16 == 1
+#define AS_WEI_DATA_T as_half
+#define BLOCK_WEI_READ intel_sub_group_block_read_us
+#define BLOCK_WEI_WRITE intel_sub_group_block_write_us
+#define BLOCK_WEI_DATA_T ushort
+#define AS_BLOCK_WEI_DATA_T as_ushort
+#define CONVERT_WEI_FLOAT_T convert_float
+#define CONVERT_WEI_DATA_T convert_half
+#elif WEI_DT_BF16 == 1
+#define AS_WEI_DATA_T as_ushort
+#define BLOCK_WEI_READ intel_sub_group_block_read_us
+#define BLOCK_WEI_WRITE intel_sub_group_block_write_us
+#define BLOCK_WEI_DATA_T ushort
+#define AS_BLOCK_WEI_DATA_T as_ushort
+#define CONVERT_WEI_FLOAT_T cvt_bf16_to_f32
+#define CONVERT_WEI_DATA_T cvt_f32_to_bf16
+#endif
+#if VECT_DT_N == 1
+#define VECT_BLOCK_WEI_READ BLOCK_WEI_READ
+#define VECT_BLOCK_WEI_WRITE BLOCK_WEI_WRITE
+#define AS_VECT_WEI_DATA_T AS_WEI_DATA_T
+#define AS_VECT_BLOCK_WEI_DATA_T AS_BLOCK_WEI_DATA_T
+#define CONVERT_VECT_WEI_FLOAT_T CONVERT_WEI_FLOAT_T
+#define CONVERT_VECT_WEI_DATA_T CONVERT_WEI_DATA_T
+#else
+#define VECT_BLOCK_WEI_READ CONCAT2(BLOCK_WEI_READ, VECT_DT_N)
+#define VECT_BLOCK_WEI_WRITE CONCAT2(BLOCK_WEI_WRITE, VECT_DT_N)
+#define AS_VECT_WEI_DATA_T CONCAT2(AS_WEI_DATA_T, VECT_DT_N)
+#define AS_VECT_BLOCK_WEI_DATA_T CONCAT2(AS_BLOCK_WEI_DATA_T, VECT_DT_N)
+#if WEI_DT_BF16 == 1
+#define CONVERT_VECT_WEI_FLOAT_T CONVERT_WEI_FLOAT_T
+#define CONVERT_VECT_WEI_DATA_T CONVERT_WEI_DATA_T
+#else
+#define CONVERT_VECT_WEI_FLOAT_T CONCAT2(CONVERT_WEI_FLOAT_T, VECT_DT_N)
+#define CONVERT_VECT_WEI_DATA_T CONCAT2(CONVERT_WEI_DATA_T, VECT_DT_N)
+#endif
+#endif
+#define LOAD_VECT_WEI(ptr) \
+    CONVERT_VECT_WEI_FLOAT_T(AS_VECT_WEI_DATA_T( \
+            VECT_BLOCK_WEI_READ((const __global BLOCK_WEI_DATA_T *)(ptr))))
+#define SAVE_VECT_WEI(ptr, val) \
+    VECT_BLOCK_WEI_WRITE((__global BLOCK_WEI_DATA_T *)(ptr), \
+            AS_VECT_BLOCK_WEI_DATA_T(CONVERT_VECT_WEI_DATA_T(val)))
 #endif
 
 #ifdef B_DATA_T
