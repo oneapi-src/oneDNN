@@ -342,10 +342,19 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
         }
 
         float zp = 0;
-        SAFE(parse_value_and_runtime(
-                     zp, parser::get_substr(subs, subs_pos, '\0')),
-                WARN);
-        set(arg, policy, static_cast<int>(zp));
+        if (policy == COMMON) {
+            SAFE(parse_value_and_runtime(
+                         zp, parser::get_substr(subs, subs_pos, ':')),
+                    WARN);
+        }
+
+        if (subs_pos == std::string::npos) return OK;
+
+        // process data type
+        const auto dt_str = parser::get_substr(subs, subs_pos, ':');
+        dnnl_data_type_t dt = str2dt(dt_str.c_str());
+
+        set(arg, policy, static_cast<int>(zp), dt);
     }
     return OK;
 }
@@ -602,6 +611,7 @@ std::ostream &operator<<(
         s << arg2str(point.first) << ":" << point.second.policy;
         if (point.second.policy == policy_t::COMMON)
             s << ":" << point.second.value;
+        if (point.second.dt != dnnl_s32) s << ':' << point.second.dt;
         delim = "+";
     }
 
@@ -997,8 +1007,11 @@ dnnl_primitive_attr_t create_dnnl_attr(
                     ? attr_args.get_mask(DNNL_ARG_ATTR_ZERO_POINTS | arg_name)
                     : attr_t::policy2mask(arg_name, e.policy);
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points_mask(
-                    dnnl_attr, arg_name, mask));
+            int ndims = static_cast<int>(e.groups.size());
+            const auto &groups = e.groups.data();
+            const auto dt = e.dt;
+            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(
+                    dnnl_attr, arg_name, mask, ndims, groups, dt));
         }
     }
 

@@ -859,6 +859,7 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
 
         const auto append_zero_points = [&](int exec_arg) {
             const int exec_zp_arg = DNNL_ARG_ATTR_ZERO_POINTS | exec_arg;
+            const auto &e = zp.get(exec_arg);
             int64_t count = 1;
             const auto mask = zp.get_mask(exec_arg, prim_kind, wei_md);
 
@@ -875,7 +876,7 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                     count = dims_nelems(dims, ndims, mask);
                 }
             }
-            auto zp_md = dnn_mem_t::init_md(1, &count, dnnl_s32, tag::abx);
+            auto zp_md = dnn_mem_t::init_md(1, &count, e.dt, tag::abx);
             mem_map.emplace(exec_zp_arg, dnn_mem_t(zp_md, test_engine));
         };
 

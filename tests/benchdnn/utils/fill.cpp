@@ -134,7 +134,8 @@ int fill_zero_points(
             std::minstd_rand int_seed(idx_start + 1);
             int_seed.discard(1);
 
-            std::uniform_int_distribution<> gen(-2, 2);
+            std::uniform_int_distribution<> gen(
+                    mem_dt.dt() == dnnl_u8 ? 0 : -2, 2);
 
             for (int64_t idx = idx_start; idx < idx_end; ++idx) {
                 const float zp_val = gen(int_seed);
