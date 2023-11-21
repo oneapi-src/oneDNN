@@ -248,8 +248,16 @@ private:
     const conv_problem_t &prb_;
 };
 
-prb_dim_t to_gemm(const prb_dim_t &d, const conv_problem_t &prb);
-prb_tile_t to_gemm(const prb_tile_t &t, const conv_problem_t &prb);
+prb_dim_t to_gemm(
+        const prb_dim_t &d, prop_kind_t prop, bool is_transpose = false);
+prb_tile_t to_gemm(
+        const prb_tile_t &t, prop_kind_t prop, bool is_transpose = false);
+inline prb_dim_t to_gemm(const prb_dim_t &d, const conv_problem_t &prb) {
+    return to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose);
+}
+inline prb_tile_t to_gemm(const prb_tile_t &t, const conv_problem_t &prb) {
+    return to_gemm(t, prb.prop_kind(), prb.ab_swap_transpose);
+}
 
 } // namespace jit
 } // namespace gpu
