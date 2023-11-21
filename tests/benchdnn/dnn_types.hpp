@@ -98,13 +98,20 @@ struct attr_t {
 
     struct zero_points_t {
         struct entry_t {
-            entry_t(policy_t apolicy = COMMON, int avalue = 0)
-                : policy(apolicy), value(avalue) {}
+            entry_t(policy_t apolicy = COMMON, int avalue = 0,
+                    dnnl_data_type_t adt = dnnl_s32,
+                    std::vector<dnnl_dim_t> agroups = {})
+                : policy(apolicy), value(avalue), dt(adt), groups(agroups) {}
 
-            bool is_def() const { return policy == COMMON && value == 0; }
+            bool is_def() const {
+                return policy == COMMON && value == 0 && dt == dnnl_s32
+                        && groups.size() == 0;
+            }
 
             policy_t policy = COMMON;
             int value = 0;
+            dnnl_data_type_t dt = dnnl_s32;
+            std::vector<dnnl_dim_t> groups;
         };
 
         int from_str(const std::string &s);
@@ -129,6 +136,10 @@ struct attr_t {
         }
         void set(int arg, const entry_t &entry) {
             if (!entry.is_def()) points[arg] = entry;
+        }
+        void set(int arg, policy_t policy, int value,
+                dnnl_data_type_t data_type) {
+            set(arg, entry_t(policy, value, data_type));
         }
         entry_t get(int arg) const {
             const auto it = points.find(arg);
