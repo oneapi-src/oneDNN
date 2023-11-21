@@ -4007,6 +4007,31 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set zero points primitive attribute");
     }
 
+    /// Sets zero points for primitive operations for a given memory argument.
+    /// The zero points must be passed at execution time as an argument with
+    /// index #DNNL_ARG_ATTR_ZERO_POINTS | arg.
+    ///
+    /// @sa dnnl_primitive_attr_set_zero_points
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param mask Zero point correspondence mask that defines the
+    ///     correspondence between the tensor dimensions and the @p
+    ///     zero_points vector. The set i-th bit indicates that a dedicated
+    ///     zero point is used for each index along that dimension. Set the
+    ///     mask to 0 to use a common zero point for the whole output tensor.
+    /// @param groups Zero point factors correspondence groups that define the
+    ///     correspondence between the tensor dimensions and the zero_points array.
+    ///     The set i-th dimension indicates a number of groups of zero point
+    ///     factors used for that logical dimension in a memory indicated by @p arg.
+    void set_zero_points(int arg, int mask, const memory::dims &groups,
+            memory::data_type data_type = memory::data_type::s32) {
+        error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg, mask,
+                                  (int)groups.size(), groups.data(),
+                                  memory::convert_to_c(data_type)),
+                "could not set zero points primitive attribute");
+    }
+
     /// Returns post-ops previously set via set_post_ops().
     ///
     /// @returns Post-ops.

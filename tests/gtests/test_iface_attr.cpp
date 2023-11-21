@@ -178,6 +178,30 @@ TEST_F(attr_test_t, TestZeroPoints) {
     // multiple zero_points not implemented yet ...
 }
 
+TEST_F(attr_test_t, TestZeroPointsWithGroups) {
+    dnnl::primitive_attr attr;
+
+    const std::vector<int> supported_args = {DNNL_ARG_WEIGHTS};
+    const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
+            DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
+
+    for (auto arg : supported_args) {
+        // single zero_point for supported arg
+        attr.set_zero_points(arg, 0, {});
+        // single zero_point for supported arg with data type specified
+        attr.set_zero_points(arg, 0, {}, data_type::s8);
+        // multiple zero_points for supported arg with data type specified
+        attr.set_zero_points(arg, 1 << 0, {4}, data_type::s8);
+    }
+
+    for (auto arg : unsupported_args) {
+        // multiple zero_points for supported arg with data type specified
+        EXPECT_ANY_THROW(attr.set_zero_points(arg, 1 << 0, {4}));
+        // single zero_point for **unsupported** arg with data type specified
+        EXPECT_ANY_THROW(attr.set_zero_points(arg, 0, {}, data_type::s8));
+    }
+}
+
 TEST_F(attr_test_t, TestZeroPointsExpectFailure) {
     dnnl::primitive_attr attr;
 
@@ -232,7 +256,6 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScalesWithGroups) {
         EXPECT_ANY_THROW(attr.set_scales(arg, 1 << 0, {4}));
         // multiple scales with non-default data type for unsupported args
         EXPECT_ANY_THROW(attr.set_scales(arg, 1 << 0, {}, data_type::bf16));
-
     }
 }
 
