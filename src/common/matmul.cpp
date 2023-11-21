@@ -60,7 +60,7 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     const bool wei_is_int8
             = utils::one_of(wei_dt, data_type::s8, data_type::u8);
     if (!is_int8 && wei_is_int8) {
-        attr_mask |= smask_t::zero_points_runtime;
+        attr_mask |= smask_t::zero_points_runtime_data_type;
         attr_mask |= smask_t::scales_runtime_data_type;
     }
     // Matmul supports fpmath mode

@@ -75,6 +75,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             = !attr_zps.has_default_values(DNNL_ARG_WEIGHTS);
     const dim_t wei_zero_points_stride
             = attr_zps.common(DNNL_ARG_WEIGHTS) ? 0 : 1;
+    const auto &wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
 
     const int src_mask
             = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
@@ -120,7 +121,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             // weights decompression should happen before the operation
             if (with_wei_decompression) {
                 if (with_wei_zero_points)
-                    w -= wei_zero_points[wei_zero_points_stride * n];
+                    w -= io::load_float_value(wei_zp_dt, wei_zero_points,
+                            wei_zero_points_stride * n);
                 if (with_wei_scales) {
                     float wei_scale = scales_d.nelems() == 1
                             ? wei_scales[0]
