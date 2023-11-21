@@ -59,6 +59,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
             : is_superset(isa, avx)                             ? yword
                                                                 : xword;
     static constexpr auto vlen = cpu_isa_traits<isa>::vlen;
+    static constexpr auto n_vregs = cpu_isa_traits<isa>::n_vregs;
     static constexpr auto simd_w_ = vlen / sizeof(float); // bf16 works on ymms
 
     const memory_desc_wrapper src_d_, dst_d_, diff_dst_d_;
@@ -115,6 +116,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
     bool with_eltwise_ = false;
     bool with_src_scales_ = false;
     bool with_dst_scales_ = false;
+    bool use_ext_aux_vmms_ = false;
 
     size_t unroll_regs_ = 4;
 
@@ -588,7 +590,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         const auto body = [&](int unroll, int max_unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
-                Vmm vreg_tmp_sum = get_aux_vmm(vreg_tmp_src, max_unroll);
+                Vmm vreg_tmp_sum = get_aux_vmm(vreg_tmp_src, 1 * max_unroll);
                 io_[src_d_.data_type()]->load(
                         src_ptr(src_next_vreg_stride_ * i), vreg_tmp_src, tail);
                 uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
@@ -600,7 +602,23 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                         store(dst_ptr(dst_next_vreg_stride_ * i), vreg_tmp_src,
                                 dst_d_.data_type(), tail);
                 }
-                exp_injector_->compute_vector(vreg_tmp_src.getIdx());
+                if (use_ext_aux_vmms_) {
+                    // Prepare indices for exp aux vmms.
+                    injector_utils::vmm_index_set_t exp_aux_indices;
+                    const auto exp_vmm_aux_count
+                            = jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(
+                                    alg_kind::eltwise_exp, pd_->is_fwd(), 0.f);
+                    for (size_t j = 0; j < exp_vmm_aux_count; j++) {
+                        // Insert the next idx starting after `vreg_tmp_sum`.
+                        exp_aux_indices.insert(static_cast<size_t>(
+                                get_aux_vmm(vreg_tmp_sum, (j + 1) * max_unroll)
+                                        .getIdx()));
+                    }
+                    exp_injector_->compute_vector(
+                            vreg_tmp_src.getIdx(), exp_aux_indices);
+                } else {
+                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
+                }
                 uni_vaddps_maybe_tail(
                         vreg_tmp_sum, vreg_tmp_src, vtmp = vmax, tail);
                 if (is_softmax_) { // store after applying exp
@@ -861,7 +879,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
     void generate() override {
         if (pd_->is_fwd() || is_logsoftmax_)
             exp_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
-                    alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, true,
+                    alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, !use_ext_aux_vmms_,
                     reg_exp_injector_table, injector_mask));
         if (pd_->is_fwd() && is_logsoftmax_) {
             log_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
@@ -921,6 +939,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         axis_simd_full_ = pd_->axis_size() / simd_w_;
         axis_simd_tail_ = pd_->axis_size() % simd_w_;
         need_scratchpad_ = utils::one_of(dst_d_.data_type(), u8, s8);
+        use_ext_aux_vmms_ = !is_logsoftmax_ && n_vregs > 16;
 
         const auto &post_ops = pd_->attr()->post_ops_;
         with_postops_ = post_ops.len() != 0;
