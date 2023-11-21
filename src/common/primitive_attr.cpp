@@ -81,7 +81,8 @@ int zero_points_t::get(int arg) const {
     return get_mask(arg);
 }
 
-status_t zero_points_t::set(int arg, int mask) {
+status_t zero_points_t::set(int arg, int mask, int ndims, const dims_t groups,
+        data_type_t data_type) {
     const bool supported_arg
             = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
     if (!supported_arg) return status::unimplemented;
@@ -94,6 +95,7 @@ status_t zero_points_t::set(int arg, int mask) {
         case DNNL_ARG_WEIGHTS:
             is_set_wei = true;
             mask_wei = mask;
+            data_type_wei = data_type;
             break;
         case DNNL_ARG_DST:
             is_set_dst = true;
@@ -130,6 +132,11 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
     CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_runtime_data_type),
             scales_.has_default_data_type()));
     CHECK_MASK(smask_t::zero_points, zero_points_);
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::zero_points_runtime_groups),
+            zero_points_.has_default_groups()));
+    CHECK_ARG(
+            IMPLICATION((bool)(~mask & smask_t::zero_points_runtime_data_type),
+                    zero_points_.has_default_data_type()));
     CHECK_MASK(smask_t::post_ops, post_ops_);
     CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
     CHECK_MASK(smask_t::rnn_weights_qparams, rnn_weights_qparams_);
@@ -533,6 +540,20 @@ status_t dnnl_primitive_attr_set_zero_points_mask(
     if (!ok) return invalid_arguments;
 
     return attr->zero_points_.set(arg, mask);
+}
+
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
+        dnnl_primitive_attr_t attr, int arg, int mask, int ndims,
+        const dnnl_dims_t group_dims, dnnl_data_type_t data_type) {
+    using namespace data_type;
+    // TODO: groups are not supported
+    bool ok = attr && arg >= 0 && mask >= 0 && ndims >= 0
+            && utils::one_of(data_type, s32, s8, u8)
+            && IMPLICATION(
+                    arg != DNNL_ARG_WEIGHTS, data_type == s32 && ndims == 0);
+    if (!ok) return invalid_arguments;
+
+    return attr->zero_points_.set(arg, mask, ndims, group_dims, data_type);
 }
 
 status_t dnnl_primitive_attr_get_post_ops(

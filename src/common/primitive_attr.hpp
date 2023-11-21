@@ -369,30 +369,57 @@ struct zero_points_t : public c_compatible {
     bool operator==(const zero_points_t &rhs) const {
         return mask_src == rhs.mask_src && mask_wei == rhs.mask_wei
                 && mask_dst == rhs.mask_dst && is_set_src == rhs.is_set_src
-                && is_set_wei == rhs.is_set_wei && is_set_dst == rhs.is_set_dst;
+                && is_set_wei == rhs.is_set_wei && is_set_dst == rhs.is_set_dst
+                && data_type_wei == rhs.data_type_wei;
     }
 
     // arg-specific checks
     bool common(int arg) const { return get_mask(arg) == 0; }
     bool defined(int arg) const { return has_default_values(arg); }
-    bool has_default_values(int arg) const { return is_set(arg) == false; }
-
+    bool has_default_values(int arg) const {
+        return is_set(arg) == false && has_default_data_type(arg);
+    }
+    bool has_default_groups(int arg) const {
+        // TODO: add groups support
+        return true;
+    }
+    bool has_default_data_type(int arg) const {
+        return get_data_type(arg) == data_type::s32;
+    }
     // same checks but for all supported arguments at once
     bool common() const { return check_all(&zero_points_t::common); }
     bool defined() const { return has_default_values(); }
     bool has_default_values() const {
         return check_all(&zero_points_t::has_default_values);
     }
+    bool has_default_groups() const {
+        return check_all(&zero_points_t::has_default_groups);
+    }
+    bool has_default_data_type() const {
+        return check_all(&zero_points_t::has_default_data_type);
+    }
 
     status_t get(int arg, int *mask) const;
     int get(int arg) const; // Returns 0 if dimension is unset
 
-    status_t set(int arg, int mask);
+    data_type_t get_data_type(int arg) const {
+        if (arg == DNNL_ARG_WEIGHTS) return data_type_wei;
+        return data_type::s32;
+    }
+
+    status_t set(int arg, int mask, int ndims, const dims_t group_dims,
+            data_type_t data_type);
+
+    status_t set(int arg, int mask) {
+        return set(arg, mask, 0, nullptr, data_type::s32);
+    }
+
     status_t set(int arg) { return set(arg, 0); }
 
 private:
     bool is_set_src = false, is_set_wei = false, is_set_dst = false;
     int mask_src = 0, mask_wei = 0, mask_dst = 0;
+    data_type_t data_type_wei = data_type::s32;
 
     int get_mask(int arg) const {
         int mask = 0;
@@ -754,6 +781,9 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         fpmath_mode = 1u << 14,
         scales_runtime_groups = (unsigned)scales_runtime | (1u << 15),
         scales_runtime_data_type = (unsigned)scales_runtime | (1u << 16),
+        zero_points_runtime_groups = (unsigned)zero_points_runtime | (1u << 17),
+        zero_points_runtime_data_type
+        = (unsigned)zero_points_runtime | (1u << 18),
     };
 
     /** Returns true if the attributes have default values.

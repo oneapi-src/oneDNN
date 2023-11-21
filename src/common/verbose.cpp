@@ -648,8 +648,10 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
 
             int mask = 0;
             zp.get(arg, &mask);
+            const auto dt = zp.get_data_type(arg);
 
-            ss << delim << arg2str(arg) << ":" << mask;
+            ss << delim << arg2str(arg) << ":" << mask << ":" << dt;
+
             delim = attr_delim;
         }
         ss << " ";
