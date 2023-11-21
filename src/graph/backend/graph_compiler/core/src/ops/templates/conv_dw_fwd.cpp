@@ -277,12 +277,15 @@ void gen_conv_dw_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                             std::vector<expr> output_pos
                               = std::vector<expr> {n, h + im_h_i, w,
                                 (pg * g_num_block_pt + o_g) * g_block};
+                            sc_brgemm_attrs_t brg_attrs {
+                              {brgemm::attr_key::max_bs, kw_ * kh_},
+                              {brgemm::attr_key::bs_group, 1}};
 
                             builtin::brgemm_init_list_update(A_list, B_list,
                               tensor_ptr(output, output_pos), 1, im_w_block,
                               g_block, -1, LDA, -1, LDC, 1 /*useless*/,
                               1 /*useless*/, kh_ * kw_, get_input_dtype(),
-                              get_weight_dtype());
+                              get_weight_dtype(), brg_attrs);
 
                             // im_w_block * g_block
                             create_fusion_anchor(fusion,

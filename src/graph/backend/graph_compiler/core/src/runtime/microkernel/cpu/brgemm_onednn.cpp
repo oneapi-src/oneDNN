@@ -149,6 +149,9 @@ static brgemm_attr_t get_dnnl_brgemm_attrs(const attrs_setting_t &attrs) {
             case attr_key::var_bs:
                 dnnl_attrs.var_bs = static_cast<bool>(it.second);
                 break;
+            case attr_key::bs_group:
+                dnnl_attrs.bs_group = static_cast<int>(it.second);
+                break;
             case attr_key::nkeys:
             default: break;
         }
@@ -229,7 +232,7 @@ struct alignas(64) brg_arg_t {
     int64_t brg_postops[postops_setting_t::max_postops_num
             * postops_setting_t::op_size / sizeof(int64_t)]
             = {0};
-    int64_t pad[2] = {0};
+    int64_t pad[1] = {0};
     char bd_mask[];
 
     brg_arg_t(float alpha, float beta, int LDA, int LDB, int LDC, int M, int N,
