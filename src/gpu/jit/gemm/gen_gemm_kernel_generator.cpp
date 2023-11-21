@@ -25302,6 +25302,10 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                     && (Ts_real.size() < Td_real.size())
                                     && utils::one_of(
                                             Td_real, Type::f16, Type::bf16);
+                            if (salign && scrosspack < 2
+                                    && selems_limit <= nelems_real * 2) {
+                                nelems_real /= 2;
+                            }
                             auto sregConverted = sconvert
                                     ? sreg.reinterpret(0, Td_real.ngen())(
                                             sconvertCP)
