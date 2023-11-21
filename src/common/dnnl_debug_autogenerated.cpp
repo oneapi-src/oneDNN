@@ -1689,6 +1689,10 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOIdhw2o8i16o2i) return "gOIdhw2o8i16o2i";
     if (v == dnnl_gOIw2o8i16o4i) return "gOIw2o8i16o4i";
     if (v == dnnl_gOIhw2o8i16o4i) return "gOIhw2o8i16o4i";
+    if (v == dnnl_BA8b4a) return "BA8b4a";
+    if (v == dnnl_BA4b4a) return "BA4b4a";
+    if (v == dnnl_Ab4a) return "Ab4a";
+    if (v == dnnl_Ab8a) return "Ab8a";
     assert(!"unknown fmt_tag");
     return "unknown fmt_tag";
 }

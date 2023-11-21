@@ -117,6 +117,8 @@ bool has_data_type_support(data_type_t data_type) {
 #if defined(USE_CBLAS) && defined(BLAS_HAS_SBGEMM) && defined(__MMA__)
             return true;
 #endif
+#elif DNNL_AARCH64_USE_ACL
+            return arm_compute::CPUInfo::get().has_bf16();
 #else
             return false;
 #endif
@@ -151,6 +153,8 @@ bool has_training_support(data_type_t data_type) {
 #if defined(USE_CBLAS) && defined(BLAS_HAS_SBGEMM) && defined(__MMA__)
             return true;
 #endif
+#elif DNNL_AARCH64_USE_ACL
+            return arm_compute::CPUInfo::get().has_bf16();
 #else
             return false;
 #endif

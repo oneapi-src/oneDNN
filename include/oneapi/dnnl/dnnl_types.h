@@ -227,7 +227,8 @@ typedef enum {
     dnnl_abcdefghijlk, ///< permuted 12D tensor
 
     // Opaque blocked formats
-
+    dnnl_Ab4a,
+    dnnl_Ab8a,
     dnnl_Abc16a,
     dnnl_ABc16a16b,
     dnnl_ABc32a32b,
@@ -708,6 +709,8 @@ typedef enum {
     dnnl_aCB16c4b,
     dnnl_BA16b2a,
     dnnl_BA16b4a,
+    dnnl_BA4b4a,
+    dnnl_BA8b4a,
     dnnl_aBC16b16c,
     dnnl_aBC16b32c,
     dnnl_AB16a16b,

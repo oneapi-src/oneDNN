@@ -87,11 +87,12 @@ struct acl_reorder_fwd_t : public primitive_t {
 
             using namespace acl_utils;
 
-            bool ok = src_md->data_type
-                            == dst_md->data_type // ACL reorder only supports matching src/dst data types
-                    && utils::one_of(src_md->data_type,
-                            data_type::f32) // Only supports f32 for now
+            // ACL reorder support f32->f32 and f32->bf16
+            bool ok = src_md->data_type == data_type::f32
+                    && utils::one_of(
+                            dst_md->data_type, data_type::f32, data_type::bf16)
                     && attr->has_default_values();
+
             if (!ok) return status::unimplemented;
 
             int mask = -1;
@@ -109,86 +110,60 @@ struct acl_reorder_fwd_t : public primitive_t {
                 return status::unimplemented;
             }
 
+            // In case we have two or four dimensions we can't have the first
+            // two dimensions as 1. This is valid for f32->f32 and f32->bf16.
+            if (dst_md->dims[0] == 1 || dst_md->dims[1] == 1) {
+                return status::unimplemented;
+            }
+
             auto src_tag = memory_desc_matches_one_of_tag(
-                    *src_md, format_tag::ba, format_tag::cdba);
-            ACL_CHECK_SUPPORT(utils::one_of(format_tag::undef, src_tag),
-                    "Only ba and cdba source formats supported");
+                    *src_md, format_tag::ab, format_tag::ba, format_tag::cdba);
+            ACL_CHECK_SUPPORT(format_tag::undef == src_tag,
+                    "Only ab, ba or cdba source formats supported");
+
+            auto dst_tag = memory_desc_matches_one_of_tag(*dst_md,
+                    format_tag::BA8b4a, format_tag::BA4b4a, format_tag::Ab4a,
+                    format_tag::Ab8a);
+            ACL_CHECK_SUPPORT(format_tag::undef == dst_tag,
+                    "Only Ab4a, Ab8a, BA8b4a and BA4b4a destination formats "
+                    "supported");
+
+            if (dst_tag == format_tag::BA4b4a || dst_tag == format_tag::Acdb4a
+                    || dst_tag == format_tag::Ab4a) {
+                _pd->app_.dst_wf = arm_compute::WeightFormat::OHWIo4;
+            } else if (dst_tag == format_tag::BA8b4a
+                    || dst_tag == format_tag::Acdb8a
+                    || dst_tag == format_tag::Ab8a) {
+                _pd->app_.dst_wf = arm_compute::WeightFormat::OHWIo8;
+            } else {
+                return status::unimplemented;
+            }
 
             arm_compute::TensorShape acl_tensor_shape_in;
             arm_compute::TensorShape acl_tensor_shape_out;
-            const memory_desc_wrapper src_d(*src_md);
-            const int ndims = src_d.ndims();
-            // Need even amount of dims in dim 0 for ACL kernel (eg mulitple of 8 rows when blocking by 8)
-            int dim_0_rounded_up;
 
             // Switch for 2 or 4 dim tensors
-            switch (ndims) {
-                // Currently for Ab4a and Ab8a
-                // No format_tag for these, have to deduce from stride
+            switch (src_md->ndims) {
                 case 2: {
-                    if (dst_md->dims[0] == 1 || dst_md->dims[1] == 1) {
-                        return status::unimplemented;
-                    }
-                    int dst_dim_1 = dst_md->dims[1];
-                    int dst_dim_0_stride
-                            = dst_md->format_desc.blocking.strides[0];
-                    int dst_dim_1_stride
-                            = dst_md->format_desc.blocking.strides[1];
-                    // Interleave of 4 or 8 that stride for dim 1
-                    if (dst_dim_1_stride != 4 && dst_dim_1_stride != 8) {
-                        return status::unimplemented;
-                    }
-                    // Check to ensure it's a blocking transpose
-                    if (dst_dim_1 * dst_dim_1_stride != dst_dim_0_stride) {
-                        return status::unimplemented;
-                    }
-                    if (dst_dim_1_stride == 4) {
-                        // Set Dest WeightFormat
-                        _pd->app_.dst_wf = arm_compute::WeightFormat::OHWIo4;
-                        dim_0_rounded_up = utils::rnd_up(src_md->dims[0], 4);
-                        // Blocking for Ab8a only supported with SVE length 256
-                    } else if (dst_dim_1_stride == 8 && mayiuse(sve_256)) {
-                        // Set Dest WeightFormat
-                        _pd->app_.dst_wf = arm_compute::WeightFormat::OHWIo8;
-                        dim_0_rounded_up = utils::rnd_up(src_md->dims[0], 8);
+                    if (src_tag == format_tag::ab
+                            && dst_md->data_type == data_type::bf16) { // bf16
+                        acl_tensor_shape_in = arm_compute::TensorShape(
+                                src_md->dims[0], src_md->dims[1]);
+                        acl_tensor_shape_out = arm_compute::TensorShape(
+                                dst_md->padded_dims[0], dst_md->padded_dims[1]);
+                    } else if (src_tag == format_tag::ba
+                            && dst_md->data_type == data_type::f32) { // f32
+                        acl_tensor_shape_in = arm_compute::TensorShape(
+                                src_md->dims[1], src_md->dims[0]);
+                        acl_tensor_shape_out = arm_compute::TensorShape(
+                                dst_md->padded_dims[1], dst_md->padded_dims[0]);
                     } else {
                         return status::unimplemented;
                     }
-                    acl_tensor_shape_in = arm_compute::TensorShape(
-                            src_md->dims[1], src_md->dims[0]);
-                    acl_tensor_shape_out = arm_compute::TensorShape(
-                            src_md->dims[1], dim_0_rounded_up);
-
-                    break;
-                }
-                // Currently supports Acdb4a and Acdb8a
+                } break;
                 case 4: {
-
-                    auto dst_tag = memory_desc_matches_one_of_tag(
-                            *dst_md, format_tag::Acdb4a, format_tag::Acdb8a);
-                    ACL_CHECK_SUPPORT(utils::one_of(format_tag::undef, dst_tag),
-                            "Only Acdb4a and Acdb8a dst format supported for "
-                            "4d tensors");
-
-                    if (dst_tag == format_tag::Acdb4a) {
-                        // Set Dest WeightFormat
-                        _pd->app_.dst_wf = arm_compute::WeightFormat::OHWIo4;
-                        dim_0_rounded_up = utils::rnd_up(src_md->dims[0], 4);
-                        // Blocking for Acdb8a only supported with SVE length 256
-                    } else if (dst_tag == format_tag::Acdb8a
-                            && mayiuse(sve_256)) {
-                        // Set Dest WeightFormat
-                        _pd->app_.dst_wf = arm_compute::WeightFormat::OHWIo8;
-                        dim_0_rounded_up = utils::rnd_up(src_md->dims[0], 8);
-                    } else {
-                        return status::unimplemented;
-                    }
                     // Currently only supporting AxBx1x1 cases
                     if (dst_md->dims[2] != 1 || dst_md->dims[3] != 1) {
-                        return status::unimplemented;
-                    }
-
-                    if (dst_md->dims[0] == 1 || dst_md->dims[1] == 1) {
                         return status::unimplemented;
                     }
 
@@ -196,8 +171,8 @@ struct acl_reorder_fwd_t : public primitive_t {
                             src_md->dims[3], src_md->dims[2], src_md->dims[1],
                             src_md->dims[0]);
                     acl_tensor_shape_out = arm_compute::TensorShape(
-                            src_md->dims[3], src_md->dims[2], src_md->dims[1],
-                            dim_0_rounded_up);
+                            dst_md->padded_dims[3], dst_md->padded_dims[2],
+                            dst_md->padded_dims[1], dst_md->padded_dims[0]);
                     break;
                 }
                 default: return status::unimplemented;
@@ -210,13 +185,15 @@ struct acl_reorder_fwd_t : public primitive_t {
             _pd->app_.src_wf = arm_compute::WeightFormat::OHWI;
 
             // Create ACL tensor infos
-            const data_type_t data_type = src_d.data_type();
-            const arm_compute::DataType acl_data_t
-                    = acl_utils::get_acl_data_t(data_type);
+            const arm_compute::DataType src_acl_data_t
+                    = acl_utils::get_acl_data_t(src_md->data_type);
             _pd->app_.src_info = arm_compute::TensorInfo(
-                    acl_tensor_shape_in, 1, acl_data_t, acl_layout);
+                    acl_tensor_shape_in, 1, src_acl_data_t, acl_layout);
+
+            const arm_compute::DataType dst_acl_data_t
+                    = acl_utils::get_acl_data_t(dst_md->data_type);
             _pd->app_.dst_info = arm_compute::TensorInfo(
-                    acl_tensor_shape_out, 1, acl_data_t, acl_layout);
+                    acl_tensor_shape_out, 1, dst_acl_data_t, acl_layout);
 
             ACL_CHECK_VALID(arm_compute::NEReorderLayer::validate(
                     &_pd->app_.src_info, &_pd->app_.dst_info, _pd->app_.src_wf,
