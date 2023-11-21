@@ -228,6 +228,12 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.use_scale = pd->use_scale();
     conf.use_shift = pd->use_shift();
 
+    if (conf.use_scale || conf.use_shift) {
+        memory_desc_wrapper weights_mdw(
+                pd->is_fwd() ? pd->weights_md() : pd->diff_weights_md());
+        conf.weights_data_type = weights_mdw.data_type();
+    }
+
     conf.calculate_stats = !pd->stats_are_src();
     conf.save_stats = pd->is_training();
     conf.eps = pd->desc()->layer_norm_epsilon;
@@ -238,6 +244,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 static status_t init_kernel_ctx_common(
         compute::kernel_ctx_t &kernel_ctx, const lnorm_conf_t &conf) {
     kernel_ctx.set_data_type(conf.data_type);
+    def_data_type(kernel_ctx, conf.weights_data_type, "WEI");
 
     kernel_ctx.define_int("C", conf.norm_axis);
     kernel_ctx.define_int("NDIMS", conf.ndims);

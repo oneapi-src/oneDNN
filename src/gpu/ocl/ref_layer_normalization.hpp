@@ -59,7 +59,7 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
                                     && attr()->post_ops_.has_default_values()))
                     && !memory_desc_ndims_ok(src_md(), dst_md(), stat_md())
                     && stat_md()->data_type == f32
-                    && check_scale_shift_data_type()
+                    && check_scale_shift_data_type({f32, bf16, f16})
                     && attr()->has_default_values()
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;
@@ -129,7 +129,7 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
                                             compute::device_ext_t::khr_fp64)
                                     && attr()->post_ops_.has_default_values()))
                     && stat_md()->data_type == f32
-                    && check_scale_shift_data_type()
+                    && check_scale_shift_data_type({f32, bf16, f16})
                     && attr()->has_default_values()
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;

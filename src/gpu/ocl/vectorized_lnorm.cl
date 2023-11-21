@@ -53,8 +53,8 @@
 
 KERNEL_ATTR
 __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *dst, __global float *scale,
-        __global float *shift, float eps) {
+        __global float *variance, __global DATA_T *dst,
+        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -101,7 +101,7 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
     for (int c = 0; c < VLEN_C_BLOCK; c++) {
         const VECT_FLOAT_T sm
 #if USE_SCALE
-                = LOAD_VECT_FLOAT(
+                = LOAD_VECT_WEI(
                           &scale[c * SUB_GROUP_SIZE * VECT_DT_N + c_block_off])
                 * rsqrt_variance;
 #else
@@ -109,7 +109,7 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif
         const VECT_FLOAT_T sv
 #if USE_SHIFT
-                = LOAD_VECT_FLOAT(
+                = LOAD_VECT_WEI(
                         &shift[c * SUB_GROUP_SIZE * VECT_DT_N + c_block_off]);
 #else
                 = 0.0f;
@@ -152,13 +152,13 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
     for (int c = 0; c < C_BLOCK; c += SUB_GROUP_SIZE * VECT_DT_N) {
         const VECT_FLOAT_T sm
 #if USE_SCALE
-                = LOAD_VECT_FLOAT(&scale[c + c_block_off]) * r_sqrt_variance;
+                = LOAD_VECT_WEI(&scale[c + c_block_off]) * r_sqrt_variance;
 #else
                 = r_sqrt_variance;
 #endif
         const VECT_FLOAT_T sv
 #if USE_SHIFT
-                = LOAD_VECT_FLOAT(&shift[c + c_block_off]);
+                = LOAD_VECT_WEI(&shift[c + c_block_off]);
 #else
                 = 0.0f;
 #endif
@@ -247,8 +247,8 @@ __kernel void vectorized_lnorm_bwd_scaleshift(__global DATA_T *src,
 
 NAMED_KERNEL_ATTR(SCALESHIFT_FINALIZE)
 __kernel void vectorized_lnorm_bwd_scaleshift_final(
-        __global float *tmp_reduce_mem, __global float *diff_scale,
-        __global float *diff_shift) {
+        __global float *tmp_reduce_mem, __global WEI_DATA_T *diff_scale,
+        __global WEI_DATA_T *diff_shift) {
 
     const int c = GWS_GET_C_finalize();
     const int n_chunk = div_up(N_CHUNKS, FINALIZE_N_CHUNKS);
@@ -272,15 +272,15 @@ __kernel void vectorized_lnorm_bwd_scaleshift_final(
     diff_gamma = work_group_reduce_add(diff_gamma);
     diff_beta = work_group_reduce_add(diff_beta);
 
-    if (diff_scale && lid == 0) diff_scale[c] = diff_gamma;
-    if (diff_shift && lid == 0) diff_shift[c] = diff_beta;
+    if (diff_scale && lid == 0) diff_scale[c] = CONVERT_WEI_DATA_T(diff_gamma);
+    if (diff_shift && lid == 0) diff_shift[c] = CONVERT_WEI_DATA_T(diff_beta);
 }
 #endif // USE_SCALE || USE_SHIFT
 
 KERNEL_ATTR
 __kernel void vectorized_lnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
-        __global float *scale, __global DATA_T *diff_src, float eps) {
+        __global WEI_DATA_T *scale, __global DATA_T *diff_src, float eps) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -298,10 +298,7 @@ __kernel void vectorized_lnorm_bwd(__global DATA_T *src, __global float *mean,
     if (CALCULATE_STATS) {
         for (int c = 0; c < C; c += VECT_DT_N * SUB_GROUP_SIZE) {
             VECT_FLOAT_T gamma = 1.0f;
-            if (scale) {
-                gamma = AS_VECT_FLOAT_T(
-                        VECT_UINT_READ((const __global uint *)&scale[c]));
-            }
+            if (scale) { gamma = LOAD_VECT_WEI(&scale[c]); }
             x[NDIMS - 1] = c;
             const int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
             const int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -332,10 +329,7 @@ __kernel void vectorized_lnorm_bwd(__global DATA_T *src, __global float *mean,
 
     for (int c = 0; c < C; c += VECT_DT_N * SUB_GROUP_SIZE) {
         VECT_FLOAT_T gamma = 1.0f;
-        if (scale) {
-            gamma = AS_VECT_FLOAT_T(
-                    VECT_UINT_READ((const __global uint *)&scale[c]));
-        }
+        if (scale) { gamma = LOAD_VECT_WEI(&scale[c]); }
         x[NDIMS - 1] = c;
         const int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         const int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);

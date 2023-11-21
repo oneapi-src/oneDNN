@@ -467,6 +467,7 @@ struct bnorm_conf_t {
 // Layer Normalization
 struct lnorm_conf_t {
     data_type_t data_type;
+    data_type_t weights_data_type = data_type::f32;
 
     bool is_fwd;
     int ndims;
