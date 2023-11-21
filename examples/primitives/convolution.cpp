@@ -37,6 +37,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <thread>
 
 #include "example_utils.hpp"
 #include "oneapi/dnnl/dnnl.hpp"
@@ -344,11 +345,140 @@ void depthwise_convolution_example(dnnl::engine::kind engine_kind) {
     read_from_dnnl_memory(dst_data.data(), user_dst_mem);
 }
 
+size_t getSystemDataByName(char* name) {
+    auto parseLine = [](std::string line) -> size_t {
+        std::string res = "";
+        for (auto c : line)
+            if (isdigit(c))
+                res += c;
+        if (res.empty())
+            throw std::runtime_error("Can't get system memory values");
+        return std::stoul(res);
+    };    FILE* file = fopen("/proc/self/status", "r");
+    size_t result = 0;
+    bool status = false;
+    if (file != nullptr) {
+        char line[128];
+        while (fgets(line, 128, file) != NULL) {
+            if (strncmp(line, name, strlen(name)) == 0) {
+                result = parseLine(line);
+                status = true;
+                break;
+            }
+        }
+        fclose(file);
+    }
+    if (!status)
+        throw std::runtime_error("Can't get system memory values");
+    return result;
+}
+
+size_t getVmRSSInKB() {
+    return getSystemDataByName(const_cast<char*>("VmRSS:"));
+}
+
+void convolution_endless_memory_growth_example(dnnl::engine::kind engine_kind) {
+    // Create execution dnnl::engine.
+    dnnl::engine engine(engine_kind, 0);
+
+    // Create dnnl::stream.
+    dnnl::stream engine_stream(engine);
+
+    // Tensor dimensions.
+    const memory::dim N = 1, // batch size
+            IC = 3, // input channels
+            IH = 64, // input height
+            IW = 64, // input width
+            OC = 64, // output channels
+            KH = 7, // weights height
+            KW = 7, // weights width
+            PH_L = 3, // height padding: left
+            PH_R = 3, // height padding: right
+            PW_L = 3, // width padding: left
+            PW_R = 3, // width padding: right
+            SH = 2, // height-wise stride
+            SW = 2, // width-wise stride
+            OH = (IH - KH + PH_L + PH_R) / SH + 1, // output height
+            OW = (IW - KW + PW_L + PW_R) / SW + 1; // output width
+
+    // Source (src), weights, bias, and destination (dst) tensors
+    // dimensions.
+    memory::dims src_dims = {N, IC, IH, IW};
+    memory::dims weights_dims = {OC, IC, KH, KW};
+    memory::dims bias_dims = {OC};
+    memory::dims dst_dims = {N, OC, OH, OW};
+
+    // Strides, padding dimensions.
+    memory::dims strides_dims = {SH, SW};
+    memory::dims padding_dims_l = {PH_L, PW_L};
+    memory::dims padding_dims_r = {PH_R, PW_R};
+
+    // Allocate buffers.
+    std::vector<float> src_data(product(src_dims));
+    std::vector<float> weights_data(product(weights_dims));
+    std::vector<float> bias_data(OC);
+    std::vector<float> dst_data(product(dst_dims));
+
+    // Initialize src, weights, and dst tensors.
+    std::generate(src_data.begin(), src_data.end(), []() {
+        static int i = 0;
+        return std::cos(i++ / 10.f);
+    });
+    std::generate(weights_data.begin(), weights_data.end(), []() {
+        static int i = 0;
+        return std::sin(i++ * 2.f);
+    });
+    std::generate(bias_data.begin(), bias_data.end(), []() {
+        static int i = 0;
+        return std::tanh(float(i++));
+    });
+
+    // Create memory objects for tensor data (src, weights, dst). In this
+    // example, NCHW layout is assumed for src and dst, and OIHW for weights.
+    auto user_src_mem = memory({src_dims, dt::f32, tag::acdb}, engine);
+    auto user_weights_mem = memory({weights_dims, dt::f32, tag::oihw}, engine);
+    auto user_dst_mem = memory({dst_dims, dt::f32, tag::acdb}, engine);
+
+    // Create memory descriptors with format_tag::any for the primitive. This
+    // enables the convolution primitive to choose memory layouts for an
+    // optimized primitive implementation, and these layouts may differ from the
+    // ones provided by the user.
+    auto conv_src_md = memory::desc(src_dims, dt::f32, tag::acdb);
+    auto conv_weights_md = memory::desc(weights_dims, dt::f32, tag::Acdb8a);
+    auto conv_dst_md = memory::desc(dst_dims, dt::f32, tag::acdb);
+
+    // Create memory descriptor and memory object for input bias.
+    auto user_bias_md = memory::desc(bias_dims, dt::f32, tag::a);
+    auto user_bias_mem = memory(user_bias_md, engine);
+
+    // Write data to memory object's handle.
+    write_to_dnnl_memory(src_data.data(), user_src_mem);
+    write_to_dnnl_memory(weights_data.data(), user_weights_mem);
+    write_to_dnnl_memory(bias_data.data(), user_bias_mem);
+
+    // Create primitive post-ops (ReLU).
+    const float alpha = 0.f;
+    const float beta = 0.f;
+    post_ops conv_ops;
+    conv_ops.append_eltwise(algorithm::eltwise_relu, alpha, beta);
+    primitive_attr conv_attr;
+    // [AV] If we do not set post ops then the memory usage growth stops (comment the line below)
+    conv_attr.set_post_ops(conv_ops);
+
+    // Create primitive descriptor.
+    auto conv_pd = convolution_forward::primitive_desc(engine,
+        prop_kind::forward_training, algorithm::convolution_direct,
+        conv_src_md, conv_weights_md, user_bias_md, conv_dst_md,
+        strides_dims, padding_dims_l, padding_dims_r, conv_attr);
+
+    // Create the primitive.
+    for (size_t i = 0; true; i++) {
+        auto conv_prim = convolution_forward(conv_pd);
+        std::cerr << i << ". RSS = " << getVmRSSInKB() << std::endl;
+    }
+}
+
 int main(int argc, char **argv) {
     auto exit_code = handle_example_errors(
-            convolution_example, parse_engine_kind(argc, argv));
-    if (exit_code != 0) return exit_code;
-
-    return handle_example_errors(
-            depthwise_convolution_example, parse_engine_kind(argc, argv));
+            convolution_endless_memory_growth_example, parse_engine_kind(argc, argv));
 }
