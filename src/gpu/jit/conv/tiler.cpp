@@ -1189,7 +1189,8 @@ public:
         created_configs_++;
         auto &info = primitive_infos_[primitive];
         info.key = cfg.key();
-        info.params = cfg.params();
+        const auto undef = blocking_params_t::bufs_hint_undef;
+        info.params = cfg.params((!cfg.slm() && !cfg.prefetch()) ? 0 : undef);
     }
 
     void set_profile_info(uint64_t stamp, const blocking_params_t &params) {

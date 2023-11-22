@@ -522,10 +522,6 @@ public:
 
     int vec_size() const { return exec_cfg().vec_size(); }
 
-    int bufs_hint() const {
-        return (!slm() && !prefetch()) ? 0 : blocking_params_t::bufs_hint_undef;
-    }
-
     bool is_dp_fma() const { return jit::is_dp_fma(fma_kind()); }
 
     bool is_dpas_or_dpasw_fma() const {
