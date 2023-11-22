@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,6 +79,7 @@ cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
             {{dnnl_f8_e5m2}, {-2, 2}},
             {{dnnl_f8_e4m3}, {-2, 2}},
             {{dnnl_s8}, {-4, 4}},
+            {{dnnl_u8}, {0, 4}},
     };
 
     static const cfg_t::cfg_entry_t::cfg_map_t bia_cfg_map = {
