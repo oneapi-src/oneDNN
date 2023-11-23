@@ -2538,10 +2538,9 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
   [v19: f32[32, 16, 4, 16]] = outerloop_32X16X4_partition_reorder_select_one(v3)
   [v20: f32[1, 256]] = tensor_view(v2)
   [v21: f32[128, 1]] = outerloop_128_partition_mul_sub_mul(v0, v1)
-  [v22: f32[64, 8, 4, 16], v23: f32[64, 8, 4, 16], v24: f32[32, 32, 4, 16]] = outerloop_32_partition_managed_matmul_core_tensor_view_reorder_mul_tensor_view_reorder_managed_matmul_core_mul(v21, v20, v19, v18, v14)
-  [v25: f32[64, 8, 16, 16], v13: f32[128, 1024]] = outerloop_8_partition_reorder_managed_matmul_core_tensor_view_reorder_managed_matmul_core_managed_matmul_core_reorder(v24, v16, v7, v8)
-  [v26: f32[32, 32, 4, 16]] = tensor_view(v24)
-  [v11: f32[512, 1024], v12: f32[1024, 1024]] = outerloop_32X2X1_partition_reorder_managed_matmul_core_reorder_managed_matmul_core_reorder(v26, v8, v25)
+  [v22: f32[64, 8, 4, 16], v23: f32[64, 8, 4, 16], v24: f32[32, 32, 4, 16], v25: f32[32, 8, 16, 16]] = outerloop_32_partition_managed_matmul_core_tensor_view_reorder_mul_tensor_view_reorder_managed_matmul_core_mul_tensor_view_reorder(v21, v20, v19, v18, v14)
+  [v26: f32[64, 8, 16, 16], v13: f32[128, 1024]] = outerloop_8_partition_reorder_managed_matmul_core_tensor_view_reorder_managed_matmul_core_managed_matmul_core_reorder(v24, v16, v7, v8)
+  [v11: f32[512, 1024], v12: f32[1024, 1024]] = outerloop_32X2X1X1_partition_managed_matmul_core_reorder_managed_matmul_core_reorder(v25, v8, v26)
   [v10: f32[256, 512]] = outerloop_64X1X1X1X1_partition_managed_matmul_core_reorder(v23, v6)
   [v9: f32[256, 256]] = outerloop_64X1X1X1X1_partition_managed_matmul_core_reorder(v22, v3)
 }
