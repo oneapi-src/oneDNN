@@ -121,7 +121,7 @@ status_t sycl_cuda_engine_t::set_cudnn_handle() {
 }
 
 CUcontext sycl_cuda_engine_t::get_underlying_context() const {
-    return compat::get_native<CUcontext>(context());
+    return compat::get_native_context(device());
 }
 
 CUdevice sycl_cuda_engine_t::get_underlying_device() const {
@@ -142,7 +142,7 @@ status_t sycl_cuda_engine_t::underlying_context_type() {
     // on titanrx. So we must run it once and store the variable
     // in primary_context_;
     CUcontext primary, current;
-    CUcontext desired = compat::get_native<CUcontext>(context());
+    CUcontext desired = compat::get_native_context(device());
     CUdevice cuda_device = compat::get_native<CUdevice>(device());
     CHECK(CUDA_EXECUTE_FUNC_S(cuCtxGetCurrent, &current));
 

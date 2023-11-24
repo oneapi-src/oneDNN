@@ -42,9 +42,21 @@ void host_task(::sycl::handler &cgh, const T &task) {
 
 template <typename native_object_t, typename sycl_object_t>
 native_object_t get_native(const sycl_object_t &sycl_object) {
+    static_assert(!std::is_same_v<native_object_t, CUcontext>,
+            "Use compat::get_native_context() to obtain the native cuda "
+            "context");
     auto handle
             = ::sycl::get_native<::sycl::backend::ext_oneapi_cuda>(sycl_object);
     return reinterpret_cast<native_object_t>(handle);
+}
+
+inline CUcontext get_native_context(const ::sycl::device &sycl_device) {
+    CUdevice cu_device = get_native<CUdevice>(sycl_device);
+    CUcontext cu_ctx;
+    const CUresult cu_result = cuDevicePrimaryCtxRetain(&cu_ctx, cu_device);
+    assert(CUDA_SUCCESS == cu_result);
+    MAYBE_UNUSED(cu_result);
+    return cu_ctx;
 }
 
 } // namespace compat
