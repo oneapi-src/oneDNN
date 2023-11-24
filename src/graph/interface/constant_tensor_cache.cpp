@@ -378,7 +378,7 @@ private:
                 impl::engine_kind::cpu, impl::engine_kind::gpu};
         for (auto &kind : eng_kinds) {
             auto ef = get_engine_factory(kind, impl::get_default_runtime(kind));
-            if (!ef) break;
+            if (!ef) continue;
             auto device_count = ef->count();
             default_capacities[kind] = 0;
             size_t capacity_in_bytes = user_capacities.count(kind)
