@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,7 +130,7 @@ struct matmul_pd_t : public primitive_desc_t {
         return dims[n_dims - 1] == N();
     }
 
-    bool attr_scales_ok(const std::vector<int> &supported_args
+    virtual bool attr_scales_ok(const std::vector<int> &supported_args
             = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
         bool ok = attr()->scales_.has_default_values(supported_args);
         for (int arg : supported_args) {

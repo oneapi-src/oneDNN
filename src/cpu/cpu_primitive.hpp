@@ -76,7 +76,6 @@
             VCHECK_ATTR(utils::one_of(scales_d.data_type(), data_type::f32, \
                                 data_type::f16, data_type::bf16), \
                     "Unsupported scales data type"); \
-            VCHECK_ATTR(scales_d.ndims() == 1, "Scales ndims is not 1"); \
             if (scales_d.dims()[0] == 1) { \
                 if (utils::one_of(arg, DNNL_ARG_DST, \
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST)) { \
@@ -150,7 +149,6 @@
         VCHECK_ATTR(utils::one_of(zero_points_d.data_type(), data_type::s32, \
                             data_type::s8, data_type::u8), \
                 "Unsupported zero points type"); \
-        VCHECK_ATTR(zero_points_d.ndims() == 1, "Zero points ndims is not 1"); \
         VCHECK_ATTR(zero_points_d.dims()[0] == 1, \
                 "Not a single zero points was provided"); \
         const int32_t *zero_points_ptr = CTX_IN_MEM( \

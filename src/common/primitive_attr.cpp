@@ -526,7 +526,7 @@ status_t dnnl_primitive_attr_set_scales_mask(
 status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
         int mask, int ndims, const dims_t group_dims, data_type_t data_type) {
     using namespace data_type;
-    bool ok = attr && arg >= 0 && ndims >= 0
+    bool ok = attr && mask >= 0 && arg >= 0 && ndims >= 0
             && utils::one_of(data_type, f32, bf16, f16)
             && IMPLICATION(
                     arg != DNNL_ARG_WEIGHTS, data_type == f32 && ndims == 0);
