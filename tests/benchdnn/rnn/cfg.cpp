@@ -153,6 +153,12 @@ CFG(f16f32) {
     DEFAULT(F16_ENTRY_F32);
 }
 
+// f16_math_mode
+CFG_INTERNAL(f16_math, f32) {
+    CASE(BIAS, F32_ENTRY);
+    DEFAULT(F16_ENTRY);
+}
+
 // s8
 #define EPS_U8 4e-3
 #define EPS_S8 8e-3
@@ -325,8 +331,12 @@ CFG(f32s8f32f32) {
 } // namespace
 
 const dt_conf_t &dt_conf_t::create(const std::string &str, const attr_t &attr) {
-    if (attr.fpmath_mode == dnnl_fpmath_mode_bf16 && str == "f32")
-        return conf_bf32;
+    if (str == "f32") {
+        if (dnnl::impl::utils::one_of(attr.fpmath_mode, dnnl_fpmath_mode_bf16,
+                    dnnl_fpmath_mode_tf32))
+            return conf_bf32;
+        if (attr.fpmath_mode == dnnl_fpmath_mode_f16) return conf_f16_math;
+    }
     for (const auto cfg : cfg_list)
         if (cfg->str() == str) return *cfg;
     SAFE_V(CRIT);
