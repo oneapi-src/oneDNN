@@ -51,7 +51,7 @@ struct eltwise_fwd_kernel_vec_t {
 
         size_t base_idx = offset_t * conf_.block_size;
 
-        auto operation = [=](dim_t &idx, dim_t &n, dim_t &c, dim_t &d, dim_t &h,
+        auto operation = [&](dim_t &idx, dim_t &n, dim_t &c, dim_t &d, dim_t &h,
                                  dim_t &w) {
             dim_t src_offset = data_offset(src_md(), n, c, d, h, w);
 

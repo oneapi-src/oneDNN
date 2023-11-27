@@ -39,7 +39,7 @@ struct lrn_fwd_kernel_vec_t {
         size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
         size_t base_idx = offset_t * conf_.block_size;
 
-        auto data_off = [=](dim_t &mb, dim_t &c, dim_t &d, dim_t &h, dim_t &w) {
+        auto data_off = [&](dim_t &mb, dim_t &c, dim_t &d, dim_t &h, dim_t &w) {
             switch (tag_) {
                 case format_tag::nchw:
                     return mb * conf_.stride_mb + c * conf_.h * conf_.w
@@ -55,7 +55,7 @@ struct lrn_fwd_kernel_vec_t {
             }
         };
 
-        auto ker = [=](dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
+        auto ker = [&](dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
             float sum = 0;
             const dim_t half_size = (conf_.size - 1) / 2;
             if (conf_.alg_kind == alg_kind::lrn_across_channels) {
@@ -91,7 +91,7 @@ struct lrn_fwd_kernel_vec_t {
             return (s * fast_negative_powf(sum, conf_.beta));
         };
 
-        auto operation = [=](dim_t &mb, dim_t &c, dim_t &d, dim_t &h,
+        auto operation = [&](dim_t &mb, dim_t &c, dim_t &d, dim_t &h,
                                  dim_t &w) {
             if (format_tag::nhwc == tag_) {
                 const dim_t off = mb * conf_.stride_mb + h * conf_.w * conf_.c
@@ -183,7 +183,7 @@ struct lrn_bwd_kernel_vec_t {
             }
         };
 
-        auto get_omega = [=](dim_t &mb, dim_t &oc, dim_t &od, dim_t &oh,
+        auto get_omega = [&](dim_t &mb, dim_t &oc, dim_t &od, dim_t &oh,
                                  dim_t &ow) {
             auto sum = 0;
             const dim_t half_size = (conf_.size - 1) / 2;
@@ -216,7 +216,7 @@ struct lrn_bwd_kernel_vec_t {
             return (conf_.k + conf_.alpha * sum / conf_.compute_n_summands);
         };
 
-        auto ker = [=](dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
+        auto ker = [&](dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
             float A = 0, B = 0;
             const dim_t half_size = (conf_.size - 1) / 2;
             if (conf_.alg_kind == alg_kind::lrn_across_channels) {
@@ -270,7 +270,7 @@ struct lrn_bwd_kernel_vec_t {
         };
 
         auto operation
-                = [=](dim_t &mb, dim_t &c, dim_t &d, dim_t &h, dim_t &w) {
+                = [&](dim_t &mb, dim_t &c, dim_t &d, dim_t &h, dim_t &w) {
                       if (format_tag::nhwc == tag_) {
                           const dim_t off = mb * conf_.stride_mb
                                   + h * conf_.w * conf_.c + w * conf_.c + c;
