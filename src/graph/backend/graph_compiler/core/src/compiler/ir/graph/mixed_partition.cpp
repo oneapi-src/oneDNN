@@ -844,6 +844,22 @@ void mxp_buffer_allocator::query_inplace() {
 }
 
 void mxp_buffer_allocator::calibrate_info() {
+    // validate shrink info
+    for (auto &buf2shr : b2g_map_) {
+        auto &buf = buf2shr.first;
+        auto tsr = get_real_tensor(buf);
+        // sync shrink info of tensorptr and base tensor
+        if (!buf.ptr_same(tsr)
+                && (buf->attr().has_key(tensor_shrinker_attrs::should_shrink)
+                        ^ tsr->attr().has_key(
+                                tensor_shrinker_attrs::should_shrink))) {
+            buf->attr().remove(tensor_shrinker_attrs::should_shrink);
+            buf->attr().set(tensor_shrinker_attrs::no_shrink, true);
+            tsr->attr().remove(tensor_shrinker_attrs::should_shrink);
+            tsr->attr().set(tensor_shrinker_attrs::no_shrink, true);
+        }
+    }
+
     // collect cut buffer
     std::unordered_set<expr> cut_buffer_set;
     for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
@@ -966,6 +982,8 @@ fusion_anchor_ptr mxp_buffer_allocator::get_real_anchor_for_buffer(
 }
 
 slice_range mxp_buffer_allocator::get_shrinked_info(const expr &buffer) const {
+    if (buffer->attr().get_or_else(tensor_shrinker_attrs::no_shrink, false))
+        return {};
     auto anchor = get_real_anchor_for_buffer(buffer);
     if (!anchor) return {};
     COMPILE_ASSERT(b2g_map_.find(buffer) != b2g_map_.end(),

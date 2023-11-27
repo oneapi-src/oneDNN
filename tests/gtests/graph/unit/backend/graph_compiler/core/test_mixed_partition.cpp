@@ -1190,6 +1190,68 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
     test_utils::compare_data(ori_output_data, pass_output_data, 1e-4f, 1e-5f);
 }
 
+TEST(GCCore_CPU_graph_mixed_partition_cpp, SyncTensorViewShrinkInfo) {
+    SET_THREADS_OR_SKIP(56);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    bool is_special_fm = ctx->machine_.cpu_flags_.is_spr_like();
+    if (!is_special_fm) {
+        // managed matmul core will have different config under such machine.
+        GTEST_SKIP();
+    }
+
+    sc_dims A_dims {32, 32, 1024}, B_dims {1024, 1024}, bias {1024},
+            out {32, 32, 1024};
+    auto ins0 = graph_tensor::make(A_dims, sc_data_format_t(format_kinds::ABC));
+    auto ins1 = graph_tensor::make(B_dims);
+    auto ins2 = graph_tensor::make(bias);
+    auto outs0 = graph_tensor::make(out, sc_data_format_t(format_kinds::ABC));
+    any_map_t attrs({{"transpose_a", false}, {"transpose_b", false},
+            {"output2d", true}});
+    sc_graph_t graph;
+    auto in = graph.make_input({ins0, ins1, ins2});
+    auto matmul = graph.make("matmul", in->get_outputs(), {outs0}, attrs);
+    graph.make_output(matmul->get_outputs());
+
+    graph_inline(graph, ctx);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    // check graph
+    std::string expected_str
+            = R"(graph(v0: f32[32, 32, 1024], v1: f32[1024, 1024], v2: f32[1024]) -> [v3: f32[32, 32, 1024]] {
+  [v4: f32[1024, 1024]] = tensor_view(v0)
+  [v5: f32[1024, 1024]] = managed_matmul_core(v4, v1)
+  [v6: f32[32, 32, 1024]] = tensor_view(v5)
+  [v3: f32[32, 32, 1024]] = add(v6, v2)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+    // set config
+    ops::managed_matmul_core_config_t cfg = {14, 4, 1, 1, 2, 0};
+    for (auto &op : graph.ops_) {
+        if (op->op_name_ == "managed_matmul_core") {
+            auto matmul_op = op->dyn_cast<ops::managed_matmul_core_op_t>();
+            matmul_op->set_config(reflection::general_object_t::make(cfg));
+        }
+    }
+    mixed_partition(graph, ctx);
+    auto mixed_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    auto body = mixed_op->parti_list_[0]
+                        ->get_outer_loops()
+                        .back()
+                        ->body_.checked_as<stmts>()
+                        ->seq_;
+    EXPECT_TRUE(body.size() > 2 && body[2].isa<define>());
+    // check tensor attr
+    auto matmul_out = body[2].static_as<define>()->var_;
+    EXPECT_TRUE(matmul_out.isa<tensor>()
+            && utils::string_startswith(matmul_out.static_as<tensor>()->name_,
+                    "managed_matmul_core"));
+    // No tensor shrink attr is expected
+    EXPECT_FALSE(
+            matmul_out->attr().has_key(tensor_shrinker_attrs::should_shrink));
+}
+
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint1) {
     sc_graph_t graph;
     int batch_size = 56;

@@ -854,8 +854,8 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
             ret.emplace_back(consistent_tv_slice);
             continue;
         }
-
-        bool slice_stop = false;
+        // search continuous slice
+        bool continuous_slice_stop = false;
         // flatten index
         expr flatten_idx = 0;
         // total length of static dim
@@ -863,9 +863,13 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
         // accumulater src dims
         expr acc_src_dim_expr = 1;
         const int dyn_len = -2;
+        // check whether complex case exist
+        bool complex_case = false;
         for (int i = src_dims.size() - 1; i >= 0; i--) {
             auto slice_expr = do_cast_and_fold(known_ranges[i].second);
-            if (slice_stop) {
+            auto src_expr = src_dims[i];
+            // continuous slice check
+            if (continuous_slice_stop) {
                 // check whether slice is full on last several dims
                 if (!slice_expr.isa<constant_c>()
                         || get_expr_as_int(slice_expr) != 1)
@@ -873,30 +877,35 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
                     // return empty slice range list to tell fusion manager not
                     // to fuse it
                     return slice_range_list {};
-            }
-            auto src_expr = src_dims[i];
-            if (!(known_ranges[i].first.isa<constant_c>()
-                        && get_expr_as_int(known_ranges[i].first) == 0
-                        && slice_expr_equals(slice_expr, src_expr))) {
-                // if the last dim is already non-full
-                if (i == static_cast<int>(src_dims.size()) - 1) {
-                    // last dim of dst
-                    auto dst_expr = dst_dims.back();
-                    // double-check legality
-                    if (slice_expr.isa<constant>()
-                            && dst_expr.isa<constant>()) {
-                        auto slice_int = get_expr_as_int(slice_expr);
-                        auto dst_int = get_expr_as_int(dst_expr);
-                        // skip too complex cases to analyze tensorview slice
-                        // range mapping relationship
-                        if ((slice_int > dst_int && slice_int % dst_int != 0)
-                                || (dst_int > slice_int
-                                        && dst_int % slice_int != 0)) {
-                            return slice_range_list {};
+            } else {
+                if (!(known_ranges[i].first.isa<constant_c>()
+                            && get_expr_as_int(known_ranges[i].first) == 0
+                            && slice_expr_equals(slice_expr, src_expr))) {
+                    // if the last dim is already non-full
+                    if (i == static_cast<int>(src_dims.size()) - 1) {
+                        // last dim of dst
+                        auto dst_expr = dst_dims.back();
+                        // double-check legality
+                        if (slice_expr.isa<constant>()
+                                && dst_expr.isa<constant>()) {
+                            auto slice_int = get_expr_as_int(slice_expr);
+                            auto dst_int = get_expr_as_int(dst_expr);
+                            // skip too complex cases to analyze tensorview
+                            // slice range mapping relationship
+                            if ((slice_int > dst_int
+                                        && slice_int % dst_int != 0)
+                                    || (dst_int > slice_int
+                                            && dst_int % slice_int != 0)) {
+                                return slice_range_list {};
+                            }
                         }
                     }
+                    if (!slice_expr.isa<constant_c>()
+                            || get_expr_as_int(slice_expr) != 1) {
+                        complex_case = true;
+                    }
+                    continuous_slice_stop = true;
                 }
-                slice_stop = true;
             }
             if (slice_expr.isa<constant_c>()) {
                 total_len *= get_expr_as_int(slice_expr);
@@ -930,23 +939,29 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
             dst_idx.emplace_back(cur_idx);
             flatten_idx = flatten_idx % acc_dst_dim_expr[i + 1];
         }
-        slice_stop = false;
+        // mapping input slice ranges to output
         for (int64_t i = static_cast<int64_t>(dst_dims.size()) - 1; i >= 0;
                 i--) {
-            if (!slice_stop && abs(total_len) >= abs(acc_dst_dim[i])) {
+            if (abs(total_len) > abs(acc_dst_dim[i])) {
                 reshape_ranges.emplace_back(
                         std::make_pair(expr(0), dst_dims[i]));
-                if (total_len == acc_dst_dim[i]) slice_stop = true;
             } else {
-                if (!slice_stop) slice_stop = true;
                 if (i == static_cast<int64_t>(dst_dims.size()) - 1) {
                     reshape_ranges.emplace_back(std::make_pair(
                             flatten_idx, expr(dim2unsigned(total_len))));
                 } else {
-                    reshape_ranges.emplace_back(std::make_pair(dst_idx[i],
-                            expr(std::max(UINT64_C(1),
-                                    dim2unsigned(
-                                            total_len / acc_dst_dim[i + 1])))));
+                    if (!complex_case && abs(total_len) == abs(acc_dst_dim[i])
+                            && acc_dst_dim[i] != acc_dst_dim[i + 1]) {
+                        // simplify offset of ranges for easy case in avoid of
+                        // potential fuse break for following post ops
+                        reshape_ranges.emplace_back(
+                                std::make_pair(expr(0), dst_dims[i]));
+                    } else {
+                        reshape_ranges.emplace_back(std::make_pair(dst_idx[i],
+                                expr(std::max(UINT64_C(1),
+                                        dim2unsigned(total_len
+                                                / acc_dst_dim[i + 1])))));
+                    }
                 }
             }
         }

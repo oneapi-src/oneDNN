@@ -28,6 +28,7 @@ namespace gc {
 namespace tensor_shrinker_attrs {
 constexpr const char *should_shrink = "should_shrink";
 constexpr const char *may_shrink = "may_shrink";
+constexpr const char *no_shrink = "no_shrink";
 constexpr const char *tensor_for_placerholder = "tsr4placeholder";
 } // namespace tensor_shrinker_attrs
 
