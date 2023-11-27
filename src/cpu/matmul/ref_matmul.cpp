@@ -73,8 +73,12 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto &attr_zps = pd()->attr()->zero_points_;
     const bool with_wei_zero_points
             = !attr_zps.has_default_values(DNNL_ARG_WEIGHTS);
-    const dim_t wei_zero_points_stride
-            = attr_zps.common(DNNL_ARG_WEIGHTS) ? 0 : 1;
+    int wei_zp_mask = 0;
+    attr_zps.get(DNNL_ARG_WEIGHTS, &wei_zp_mask);
+    const bool wei_zp_per_n = wei_zp_mask & (1 << (weights_d.ndims() - 1));
+    const bool wei_zp_per_k = wei_zp_mask & (1 << (weights_d.ndims() - 2));
+    const dim_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
+    const dim_t wei_zp_stride_k = wei_zp_per_k ? wei_zp_per_n ? N : 1 : 0;
     const auto &wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
 
     const int src_mask
@@ -92,8 +96,14 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
     const bool with_dst_scales
             = !attr_scales.get(DNNL_ARG_DST).has_default_values();
-    const dim_t wei_scale_stride
-            = attr_scales.get(DNNL_ARG_WEIGHTS).mask_ == 0 ? 0 : 1;
+    const auto wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+    const bool wei_scale_per_n
+            = wei_scale_mask & (1 << (weights_d.ndims() - 1));
+    const bool wei_scale_per_k
+            = wei_scale_mask & (1 << (weights_d.ndims() - 2));
+    const dim_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
+    const dim_t wei_scale_stride_k
+            = wei_scale_per_k ? wei_scale_per_n ? N : 1 : 0;
     const auto &wei_scale_dt = attr_scales.get(DNNL_ARG_WEIGHTS).data_type_;
     const auto scales_d
             = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
@@ -122,12 +132,13 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             if (with_wei_decompression) {
                 if (with_wei_zero_points)
                     w -= io::load_float_value(wei_zp_dt, wei_zero_points,
-                            wei_zero_points_stride * n);
+                            wei_zp_stride_n * n + wei_zp_stride_k * k);
                 if (with_wei_scales) {
                     float wei_scale = scales_d.nelems() == 1
                             ? wei_scales[0]
                             : io::load_float_value(wei_scale_dt, wei_scales,
-                                    wei_scale_stride * n);
+                                    wei_scale_stride_n * n
+                                            + wei_scale_stride_k * k);
                     w *= wei_scale;
                 }
             }
@@ -155,7 +166,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         float d = ker(dst_dims_idx, m, n);
         if (with_src_scales) d *= src_scales[0];
         if (with_wei_scales && !with_wei_decompression)
-            d *= wei_scales[wei_scale_stride * n];
+            d *= wei_scales[wei_scale_stride_n * n];
         if (bias) d += ker_bias(dst_dims_idx);
 
         const auto dst_off = dst_d.off_v(dst_dims_idx);

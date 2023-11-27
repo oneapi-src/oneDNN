@@ -69,6 +69,8 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     VCHECK_MATMUL_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);
 
+    int ndims_wei = desc.weights_desc.ndims;
+
     // Check scales
     if (!attr->scales_.has_default_values()) {
         const auto &sc = attr->scales_;
@@ -77,8 +79,9 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
 
         VCHECK_MATMUL_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
-                        && utils::one_of(mask_wei, 0,
-                                1 << (desc.weights_desc.ndims - 1)),
+                        && utils::one_of(mask_wei, 0, 1 << (ndims_wei - 1),
+                                    (1 << (ndims_wei - 1))
+                                            + (1 << (ndims_wei - 2))),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
@@ -93,8 +96,9 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         VCHECK_MATMUL_UNIMPL(mask_src == 0
                         || (desc.src_desc.ndims == 2 && mask_src == 1 << 1),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
-        VCHECK_MATMUL_UNIMPL(mask_wei == 0
-                        || (mask_wei == 1 << (desc.weights_desc.ndims - 1)),
+        VCHECK_MATMUL_UNIMPL(
+                utils::one_of(mask_wei, 0, 1 << (ndims_wei - 1),
+                        (1 << (ndims_wei - 1)) + (1 << (ndims_wei - 2))),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
         VCHECK_MATMUL_UNIMPL(mask_dst == 0
                         || (desc.dst_desc.ndims == 2 && mask_dst == 1 << 1),

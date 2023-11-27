@@ -92,15 +92,40 @@ struct ref_matmul_t : public primitive_t {
             return ok ? status::success : status::unimplemented;
         }
 
+        virtual bool attr_scales_ok(
+                const std::vector<int> &supported_args = {DNNL_ARG_SRC,
+                        DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const override {
+            if (attr()->scales_.has_default_values()) return true;
+
+            bool ok = attr()->scales_.has_default_values(supported_args);
+            for (int arg : supported_args) {
+                const auto &sc = attr()->scales_.get(arg);
+                const auto &mask = sc.mask_;
+                if (!sc.has_default_values()) {
+                    if (arg == DNNL_ARG_WEIGHTS) {
+                        const int wei_ndims = weights_md(0)->ndims;
+                        ok = ok
+                                && utils::one_of(mask, 0,
+                                        (1 << (wei_ndims - 1)),
+                                        (1 << (wei_ndims - 1))
+                                                + (1 << (wei_ndims - 2)));
+                    } else
+                        ok = ok && (mask == 0);
+                }
+            }
+            return ok;
+        }
+
         bool zero_points_ok() const {
             /* weights decompression requires zero points support */
             int mask_wei = 0;
             attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
-            const int ndims = src_md(0)->ndims;
+            const int wei_ndims = weights_md(0)->ndims;
 
             return attr()->zero_points_.has_default_values(DNNL_ARG_SRC)
                     && attr()->zero_points_.has_default_values(DNNL_ARG_DST)
-                    && (mask_wei == 0 || mask_wei == (1 << (ndims - 1)));
+                    && utils::one_of(mask_wei, 0, 1 << (wei_ndims - 1),
+                            (1 << (wei_ndims - 1)) + (1 << (wei_ndims - 2)));
         }
     };
 
