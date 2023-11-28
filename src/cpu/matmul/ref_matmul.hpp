@@ -79,7 +79,9 @@ struct ref_matmul_t : public primitive_t {
                     && platform::has_data_type_support(src_type)
                     && attr()->has_default_values(
                             smask_t::scales_runtime_data_type
+                                    | smask_t::scales_runtime_groups
                                     | smask_t::zero_points_runtime_data_type
+                                    | smask_t::zero_points_runtime_groups
                                     | smask_t::post_ops | smask_t::sum_dt
                                     | smask_t::fpmath_mode,
                             dst_type)
@@ -109,6 +111,11 @@ struct ref_matmul_t : public primitive_t {
                                         (1 << (wei_ndims - 1)),
                                         (1 << (wei_ndims - 1))
                                                 + (1 << (wei_ndims - 2)));
+                        ok = ok && utils::one_of(sc.ndims_, 0, 2)
+                                && IMPLICATION(sc.ndims_ == 2,
+                                        sc.group_dims_[1] == 1
+                                                && K() % sc.group_dims_[0]
+                                                        == 0);
                     } else
                         ok = ok && (mask == 0);
                 }
@@ -121,11 +128,19 @@ struct ref_matmul_t : public primitive_t {
             int mask_wei = 0;
             attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
             const int wei_ndims = weights_md(0)->ndims;
+            const auto wei_group_ndims
+                    = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
+            const auto wei_group_dims
+                    = attr()->zero_points_.get_groups(DNNL_ARG_WEIGHTS);
 
             return attr()->zero_points_.has_default_values(DNNL_ARG_SRC)
                     && attr()->zero_points_.has_default_values(DNNL_ARG_DST)
                     && utils::one_of(mask_wei, 0, 1 << (wei_ndims - 1),
-                            (1 << (wei_ndims - 1)) + (1 << (wei_ndims - 2)));
+                            (1 << (wei_ndims - 1)) + (1 << (wei_ndims - 2)))
+                    && utils::one_of(wei_group_ndims, 0, 2)
+                    && IMPLICATION(wei_group_ndims == 2,
+                            wei_group_dims[1] == 1
+                                    && K() % wei_group_dims[0] == 0);
         }
     };
 
