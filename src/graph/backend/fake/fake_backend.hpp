@@ -62,9 +62,10 @@ public:
     }
 
 private:
-    fake_backend_t(const std::string &name, float priority);
-    bool register_passes();
-    pass::pass_registry_t pass_registry_;
+    fake_backend_t(const std::string &name, float priority)
+        : backend_t(name, priority) {};
+    static graph::pass::pass_registry_t register_passes();
+    static graph::pass::pass_registry_t pass_registry_;
 };
 
 } // namespace fake_impl

@@ -25,15 +25,14 @@ namespace impl {
 namespace graph {
 namespace fake_impl {
 
-fake_backend_t::fake_backend_t(const std::string &name, float priority)
-    : backend_t(name, priority) {
-    register_passes();
+graph::pass::pass_registry_t fake_backend_t::register_passes() {
+    graph::pass::pass_registry_t pass_registry;
+    FAKE_BACKEND_REGISTER_PASSES_CALL(single_op_pass, pass_registry);
+    return pass_registry;
 }
 
-bool fake_backend_t::register_passes() {
-    FAKE_BACKEND_REGISTER_PASSES_CALL(single_op_pass, pass_registry_);
-    return true;
-}
+graph::pass::pass_registry_t fake_backend_t::pass_registry_
+        = fake_backend_t::register_passes();
 
 } // namespace fake_impl
 

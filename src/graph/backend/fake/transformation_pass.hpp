@@ -47,12 +47,9 @@ public:
 
     // the criteria of pass execution
     impl::status_t run(graph_t &agraph) override {
-        graph::pass::FCreatePattern pfunc
-                = get_attr<graph::pass::FCreatePattern>("FCreatePattern")[0];
         pattern_utils_t pu;
-        std::shared_ptr<utils::pm::pb_graph_t> pgraph
-                = std::make_shared<utils::pm::pb_graph_t>();
-        pfunc(pgraph);
+        graph::pass::Pattern pgraph
+                = get_attr<graph::pass::Pattern>("Pattern")[0];
 
         // for each pattern. match it
         std::vector<op_t *> matched_op_list;
