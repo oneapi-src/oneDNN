@@ -609,6 +609,12 @@ inline size_t array_size(T (&t)[S]) {
     return S;
 }
 
+inline bool validate_dims(int ndims, const dims_t dims) {
+    for (int d = 0; d < ndims; ++d)
+        if (dims[d] <= 0) return false;
+    return true;
+}
+
 } // namespace utils
 
 int32_t fetch_and_add(int32_t *dst, int32_t val);
