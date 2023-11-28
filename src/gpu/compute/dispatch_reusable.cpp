@@ -136,18 +136,20 @@ status_t reusable_dispatch_config_t::compute_gws_mapping(
 
 void reusable_dispatch_config_t::compute_dim_terms(const named_dim_t &dim,
         size_t dim_idx, const gws_mapped_layout_t &gws_blocks) {
-    // Compute the terms needed for this dim
+    // Compute the terms needed for this dim (relies on blocks having increasing strides)
     dim_t blocking_size = 1;
     for (const auto &block : gws_blocks.get_blocks()) {
         if (static_cast<size_t>(block.dim_idx) != dim.idx) continue;
+        if (block.block == 1) continue;
 
         gws_op op;
         size_t block_stride = static_cast<size_t>(block.stride);
-        if (gws_blocks.get_num_blocks(block.gws_idx) == 1) {
+        const auto gws = gws_blocks.nd_range().global_range();
+        if (static_cast<size_t>(block.block) == gws[block.gws_idx]) {
             op = blocking_size > 1 ? gws_op::SOLO_BLOCK : gws_op::SOLO;
         } else {
-            if (block_stride
-                    == gws_blocks.nd_range().global_range()[block.gws_idx]) {
+            if (block_stride * static_cast<size_t>(block.block)
+                    == gws[block.gws_idx]) {
                 op = blocking_size > 1 ? gws_op::FIRST_BLOCK : gws_op::FIRST;
             } else {
                 op = blocking_size > 1 ? gws_op::MOD_BLOCK : gws_op::MOD;
@@ -156,6 +158,11 @@ void reusable_dispatch_config_t::compute_dim_terms(const named_dim_t &dim,
         term_list.add_dim_term(dim_idx, op, block.gws_idx, block.block,
                 block_stride, blocking_size);
         blocking_size *= block.block;
+    }
+
+    if (term_list.dim_idxs[dim_idx].empty()) {
+        // Size-1 dimension needs to have a zero term
+        term_list.add_dim_term(dim_idx, gws_op::ZERO, 0, 0, 0, 0);
     }
 }
 
@@ -182,12 +189,16 @@ void reusable_dispatch_config_t::compute_buffer_terms(
 
         // Combine blocks when possible
         for (size_t j = 1; j < dim_blocks.size(); j++) {
-            auto &block = dim_blocks[j];
+            const auto &block = dim_blocks[j];
+            const auto &gws_block = gws_dim_blocks[j];
             auto &prev_block = dim_blocks[j - 1];
-            if (prev_block.stride * prev_block.block == block.stride) {
+            auto &prev_gws_block = gws_dim_blocks[j - 1];
+            bool block_combinable
+                    = prev_block.stride * prev_block.block == block.stride;
+            bool gws_combinable = prev_gws_block.stride * prev_gws_block.block
+                    == gws_block.stride;
+            if (block_combinable && gws_combinable) {
                 prev_block.block *= block.block;
-                auto &gws_block = gws_dim_blocks[j];
-                auto &prev_gws_block = gws_dim_blocks[j - 1];
                 prev_gws_block.block *= gws_block.block;
                 dim_blocks.erase(dim_blocks.begin() + static_cast<int>(j));
                 gws_dim_blocks.erase(
@@ -200,14 +211,25 @@ void reusable_dispatch_config_t::compute_buffer_terms(
         for (size_t j = 0; j < dim_blocks.size(); j++) {
             const auto &block = dim_blocks[j];
             const auto &gws_block = gws_dim_blocks[j];
+            if (block.block == 1) continue;
             gws_op op;
             size_t block_stride = static_cast<size_t>(gws_block.stride);
-            size_t num_blocks = gws_dim_blocks.size();
-            if (num_blocks == 1) {
+
+            // SOLO: There is 1 block that accounts for the entire GWS dim
+            // FIRST: There are multiple blocks in the GWS dim, but this is the outermost
+            // MOD: There are multiple blocks in the GWS dim, and this is not
+            //       outermost (it needs a modulus)
+            // *_BLOCK variant: buffer stride is greater than 1, so we have to
+            //       multiply indices by a block size
+            size_t gws_dim
+                    = gws_blocks.nd_range().global_range()[block.gws_idx];
+            if (static_cast<size_t>(block.block) == gws_dim) {
                 op = block.stride > 1 ? gws_op::SOLO_BLOCK : gws_op::SOLO;
             } else {
-                const gws_mapped_block_t &first_block = gws_dim_blocks.back();
-                if (gws_block == first_block) {
+                bool is_outermost = (size_t(block_stride
+                                             * static_cast<size_t>(block.block))
+                        == gws_dim);
+                if (is_outermost) {
                     op = block.stride > 1 ? gws_op::FIRST_BLOCK : gws_op::FIRST;
                 } else {
                     op = block.stride > 1 ? gws_op::MOD_BLOCK : gws_op::MOD;
@@ -216,6 +238,11 @@ void reusable_dispatch_config_t::compute_buffer_terms(
             term_list.add_buffer_term(buffer_idx, op, block.gws_idx,
                     block.block, block_stride, block.stride);
         }
+    }
+
+    if (term_list.buf_idxs[buffer_idx].empty()) {
+        // Size-1 buffer needs to have a zero term
+        term_list.add_buffer_term(buffer_idx, gws_op::ZERO, 0, 0, 0, 0);
     }
 }
 
