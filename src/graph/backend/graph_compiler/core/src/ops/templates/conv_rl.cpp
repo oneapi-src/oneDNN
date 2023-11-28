@@ -247,8 +247,9 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     : ((pr_ > iw_remaining) ? utils::divide_and_ceil(pr_ - iw_remaining, sw_)
                             : 0);
   int ow_pr_idx = ow_num_pr > 0 ? (ow_ - ow_num_pr) : -1;
+  auto padding_value = attrs_.get_or_else("padding_value", 0);
 
-  _tensor_(pr_pad_lanes_tsr, datatypes::index, {ow_num_pr});
+  _tensor_(pr_pad_lanes_tsr, datatypes::s32, {ow_num_pr});
   _tensor_(pr_copy_mask_tsr, datatypes::index, {ow_num_pr});
   _tensor_(pr_copy_lanes_tsr, datatypes::s32, {ow_num_pr});
   if (ow_num_pr > 0) {
@@ -399,10 +400,10 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         expr update_copy_lanes = pr_copy_lanes_tsr[mask_idx];
 
         for (int ih = 1; ih < pt_ + 1; ++ih) {
-          builtin::mem_zero(
+          builtin::brgemm_init(
             tensor_ptr(
               aux_buf, {((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
-            update_lanes_, get_input_dtype());
+            1, update_lanes_, update_lanes_, get_input_dtype(), padding_value);
         }
 
         _for_(ih, pt_ + 1, real_pb > 0 ? (pt_ + ih_ + 1) : actual_ih_) {
@@ -418,19 +419,20 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           }
           // zero-out
           _if_(update_pad_lanes > 0) {
-            builtin::mem_zero(tensor_ptr(aux_buf,
-                                {((q - init_idx) - 1) * sw_ * ic_
-                                  + ih * kw_ * ic_ + update_copy_lanes}),
-              update_pad_lanes, get_input_dtype());
+            builtin::brgemm_init(tensor_ptr(aux_buf,
+                                   {((q - init_idx) - 1) * sw_ * ic_
+                                     + ih * kw_ * ic_ + update_copy_lanes}),
+              1, update_pad_lanes, update_pad_lanes, get_input_dtype(),
+              padding_value);
           }
         }
       }
       _else_ {
         for (int ih = 1; ih < pt_ + 1; ++ih) {
-          builtin::mem_zero(
+          builtin::brgemm_init(
             tensor_ptr(
               aux_buf, {((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
-            update_lanes_, get_input_dtype());
+            1, update_lanes_, update_lanes_, get_input_dtype(), padding_value);
         }
         _for_(ih, pt_ + 1, real_pb > 0 ? (pt_ + ih_ + 1) : actual_ih_) {
           aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
@@ -444,10 +446,10 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
       }
     } else {
       for (int ih = 1; ih < pt_ + 1; ++ih) {
-        builtin::mem_zero(
+        builtin::brgemm_init(
           tensor_ptr(
             aux_buf, {((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
-          update_lanes_, get_input_dtype());
+          1, update_lanes_, update_lanes_, get_input_dtype(), padding_value);
       }
       _for_(ih, pt_ + 1, actual_ih_) {
         aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
@@ -531,7 +533,9 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     _named_for_(ln, n_o, 0, mb_expr, 1, for_type::PARALLEL) {
       _named_for_(lg, g, 0, groups_, 1) {
         _tensor_(aux_buf, input_dtype, {aux_buf_size_});
-        builtin::mem_zero(aux_buf, aux_buf_size_, input_dtype);
+        builtin::brgemm_init(
+          aux_buf, 1, aux_buf_size_, aux_buf_size_, input_dtype, padding_value);
+
         _named_for_(lq, q, 0, ow_, 1) {
           _if_(q == 0) {
             trace_guard_t trg(ctx, "init_aux");
@@ -574,7 +578,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
       init_idx = start_idx;
       _for_(n_o, 0, mb_, 1) {
         _for_(g, 0, groups_, 1) {
-          builtin::mem_zero(aux_buf, aux_buf_size_, input_dtype);
+          builtin::brgemm_init(aux_buf, 1, aux_buf_size_, aux_buf_size_,
+            input_dtype, padding_value);
           _for_(q, ow_b, ow_e, 1) {
             _if_(q == init_idx) {
               trace_guard_t trg(ctx, "init_aux");

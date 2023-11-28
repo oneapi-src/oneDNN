@@ -15,9 +15,12 @@
  *******************************************************************************/
 #include "convolution.hpp"
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
+#include "fusible/memory_movement.hpp"
+#include "fusible/padding.hpp"
 #include "templates/conv1x1_backprop_data.hpp"
 #include "templates/conv1x1_backprop_weight.hpp"
 #include "templates/convNxN_backprop_data.hpp"
@@ -34,6 +37,7 @@
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
+#include <compiler/ir/graph/quantization/quantize_info.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
@@ -595,13 +599,35 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
     return use_nested_conv;
 }
 
-bool conv_fwd_core_op_t::use_conv1d() {
+bool conv_fwd_core_op_t::use_conv1d(const context_ptr &ctx) {
     // should be 2d case
     sc_dim groups = attrs_.get_or_else("groups", 1);
     if (groups > 1) { return false; }
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
     const sc_dims &data_shape = info_.inputs_[0]->details_.get_plain_dims();
     if (weight_shape.size() != 4UL) { return false; }
+
+    // hasn't support non-zero zps yet
+    bool s8s8_compensation = ctx->machine_.cpu_flags_.fAVX512VNNI
+            && info_.inputs_[0]->details_.dtype_ == datatypes::s8
+            && (!ctx->machine_.brgemm_use_amx_
+                    || (ctx->machine_.brgemm_use_amx_
+                            && !ctx->machine_.cpu_flags_.fAVX512AMXINT8));
+    auto data_zero_points = attrs_.get_or_else(
+            attr_keys::data_zero_points, std::vector<int> {0});
+    auto weight_zero_points = attrs_.get_or_else(
+            attr_keys::weight_zero_points, std::vector<int> {0});
+    if (!data_zero_points.empty()
+            && !std::all_of(data_zero_points.begin(), data_zero_points.end(),
+                    [](int i) { return i == 0; })) {
+        return false;
+    }
+    if ((!weight_zero_points.empty()
+                && !std::all_of(weight_zero_points.begin(),
+                        weight_zero_points.end(), [](int i) { return i == 0; }))
+            || s8s8_compensation) {
+        return false;
+    }
 
     // not support 1x1 with padding case
     const sc_dims &paddings = attrs_.has_key("pads_begin")
@@ -1037,10 +1063,389 @@ shape_rl_vec conv_fwd_core_op_t::get_shape_relations_impl(
     return ret;
 }
 
+static graph_tensor_ptr get_conv_rl_real_weight(const graph_tensor_ptr &wei) {
+    auto current = wei;
+    while (current->producer_owner_->isa<padding_op_t>()
+            || current->producer_owner_->isa<tensor_view_op_t>()) {
+        current = current->producer_owner_->get_inputs()[0];
+    }
+    return current;
+}
+
 sc_op_ptr conv_fwd_core_op_t::do_compensations(
         sc_graph_t &mgr, const context_ptr &ctx) {
     need_compensation_ = false;
-    return shared_from_this();
+    // whether we need special compensation for microkernel.
+    bool s8s8_compensation = ctx->machine_.cpu_flags_.fAVX512VNNI
+            && info_.inputs_[0]->details_.dtype_ == datatypes::s8
+            && (!ctx->machine_.brgemm_use_amx_
+                    || (ctx->machine_.brgemm_use_amx_
+                            && !ctx->machine_.cpu_flags_.fAVX512AMXINT8));
+
+    auto cur_node = shared_from_this();
+
+    auto data_com = get_data_compensation(mgr);
+    auto const_com = get_constant_compensation(mgr);
+    auto s8s8_weight_com
+            = get_s8s8_and_weight_compensation(mgr, s8s8_compensation);
+
+    if (data_com) {
+        cur_node = mgr.make("sub",
+                {cur_node->get_outputs()[0], data_com->get_outputs()[0]}, {},
+                {});
+    }
+    if (s8s8_weight_com[0]) {
+        cur_node = mgr.make("sub",
+                {cur_node->get_outputs()[0],
+                        s8s8_weight_com[0]->get_outputs()[0]},
+                {}, {{"bc_axis", std::vector<int> {1}}});
+    }
+    if (s8s8_weight_com[1]) {
+        cur_node = mgr.make("sub",
+                {cur_node->get_outputs()[0],
+                        s8s8_weight_com[1]->get_outputs()[0]},
+                {}, {{"bc_axis", std::vector<int> {1}}});
+    }
+    if (const_com) {
+        cur_node = mgr.make("add",
+                {cur_node->get_outputs()[0], const_com->get_outputs()[0]}, {},
+                {});
+    }
+
+    return cur_node;
+}
+
+sc_op_ptr conv_fwd_core_op_t::get_data_compensation(sc_graph_t &mgr) {
+    std::string weight_zp_key = attr_keys::weight_zero_points;
+    std::string dyn_weight_zp_key = attr_keys::dyn_weight_zero_points;
+    bool is_dyn_quan = attrs_.has_key(dyn_weight_zp_key);
+    auto weight_zero_points
+            = attrs_.get_or_else(weight_zp_key, std::vector<int> {0});
+    auto dyn_weight_zero_points
+            = attrs_.get_or_else(dyn_weight_zp_key, graph_tensor_ptr());
+    const auto use_rl = attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING);
+    auto wei_plain_dim = use_rl != ops::rl_kind::NO_LOWERING
+            ? attrs_.get<sc_dims>("origin_wei_plain_dims")
+            : get_inputs()[1]->details_.get_plain_dims();
+    bool is_3d = wei_plain_dim.size() > 4;
+    int kd = is_3d ? wei_plain_dim.at(2) : 1;
+    int kh = wei_plain_dim.at(2 + is_3d);
+    int kw = wei_plain_dim.at(3 + is_3d);
+    if (!is_dyn_quan
+            && (weight_zero_points.empty()
+                    || (std::all_of(weight_zero_points.begin(),
+                            weight_zero_points.end(),
+                            [](int i) { return i == 0; })))) {
+        return nullptr;
+    }
+    auto data = info_.inputs_[0];
+    auto cast_node = mgr.make("cast", {data}, {}, {{"dtype", datatypes::s32}});
+
+    auto ndims = info_.inputs_[0]->details_.get_plain_dims().size();
+    std::vector<int> rdaxis = {1};
+
+    auto reduce_node = mgr.make("reduce", cast_node->get_outputs(), {},
+            {{"rd_axis", rdaxis}, {"rd_op", 0}, {"keep_dims", true}});
+    sc_op_ptr ret_node;
+    if (is_dyn_quan) {
+        COMPILE_ASSERT(dyn_weight_zero_points->details_.get_plain_dims()
+                        == sc_dims {1},
+                "conv_fwd_core does not support per channel weight zero "
+                "points compensation yet");
+        ret_node = mgr.make("mul",
+                {reduce_node->get_outputs()[0], dyn_weight_zero_points}, {},
+                {});
+    } else {
+        std::shared_ptr<static_data_t> weight_zero_points_ptr
+                = std::make_shared<static_data_t>(weight_zero_points);
+        sc_dims const_plain_dims;
+        sc_data_format_t const_format;
+        if (weight_zero_points.size() == 1) {
+            // per tensor
+            const_plain_dims = {1};
+        } else {
+            // per channel
+            COMPILE_ASSERT(0,
+                    "conv_fwd does not support per channel weight zero "
+                    "points "
+                    "compensation yet");
+        }
+        auto constant_node = mgr.make("constant", {}, {},
+                {{"values", weight_zero_points_ptr}, {"dtype", datatypes::s32},
+                        {"plain_dims", const_plain_dims},
+                        {"format", const_format}});
+        ret_node = mgr.make("mul",
+                {reduce_node->get_outputs()[0],
+                        constant_node->get_outputs()[0]},
+                {}, {});
+    }
+    if (kh > 1 || kw > 1 || kd > 1) {
+        std::shared_ptr<static_data_t> kernel_data_ptr
+                = std::make_shared<static_data_t>(
+                        std::vector<int>(kh * kw * kd, 1));
+        auto const_plain_dims = wei_plain_dim;
+        COMPILE_ASSERT(const_plain_dims.size() >= 3,
+                "Convolution should have >= 3 dimension(at least 1d)")
+        const_plain_dims[0] = 1;
+        const_plain_dims[1] = 1;
+        auto constant_node = mgr.make("constant", {}, {},
+                {{"values", kernel_data_ptr}, {"dtype", datatypes::s32},
+                        {"plain_dims", const_plain_dims},
+                        {"format",
+                                use_rl ? sc_data_format_t()
+                                       : info_.inputs_[1]
+                                                 ->details_.get_format()}});
+        auto cast_node = mgr.make("cast", {ret_node->get_outputs()[0]}, {},
+                {{"dtype", datatypes::f32}});
+        constant_node = mgr.make("cast", {constant_node->get_outputs()[0]}, {},
+                {{"dtype", datatypes::f32}});
+        auto conv_attr = attrs_;
+        if (use_rl) {
+            conv_attr["use_rl"] = ops::rl_kind::NO_LOWERING;
+            SC_MODULE_WARN << "Disable conv_rl and fall-back to normal conv "
+                              "for compensation";
+        }
+        auto conv_node = mgr.make("conv_fwd_core",
+                {cast_node->get_outputs()[0], constant_node->get_outputs()[0]},
+                {}, conv_attr);
+        ret_node = mgr.make("cast", {conv_node->get_outputs()[0]}, {},
+                {{"dtype", datatypes::s32}});
+    }
+    return ret_node;
+}
+std::vector<sc_op_ptr> conv_fwd_core_op_t::get_s8s8_and_weight_compensation(
+        sc_graph_t &mgr, bool s8s8_compensation) {
+    std::string data_zp_key = attr_keys::data_zero_points;
+    std::string dyn_data_zp_key = attr_keys::dyn_data_zero_points;
+    bool is_dyn_quan = attrs_.has_key(dyn_data_zp_key);
+    auto data_zero_points
+            = attrs_.get_or_else(data_zp_key, std::vector<int> {0});
+    auto dyn_data_zero_points
+            = attrs_.get_or_else(dyn_data_zp_key, graph_tensor_ptr());
+    bool weight_compensation = (is_dyn_quan && dyn_data_zero_points)
+            || (!data_zero_points.empty()
+                    && !(std::all_of(data_zero_points.begin(),
+                            data_zero_points.end(),
+                            [](int i) { return i == 0; })));
+    std::vector<sc_op_ptr> nodes = {nullptr, nullptr};
+    if (!s8s8_compensation && !weight_compensation) { return nodes; }
+
+    auto weight = get_conv_rl_real_weight(info_.inputs_[1]);
+    auto cast_node
+            = mgr.make("cast", {weight}, {}, {{"dtype", datatypes::s32}});
+
+    // K(CRS)
+    auto ndims = weight->details_.get_plain_dims().size();
+    std::vector<int> rdaxis(ndims - 1);
+    std::iota(rdaxis.begin(), rdaxis.end(), 1);
+    auto reduce_node = mgr.make("reduce", cast_node->get_outputs(), {},
+            {{"rd_axis", rdaxis}, {"rd_op", 0}, {"keep_dims", false}});
+
+    if (weight_compensation) {
+        if (is_dyn_quan) {
+            COMPILE_ASSERT(dyn_data_zero_points->details_.get_plain_dims()
+                            == sc_dims {1},
+                    "conv_fwd_core does not support per channel data zero "
+                    "points compensation yet");
+            nodes[0] = mgr.make("mul",
+                    {reduce_node->get_outputs()[0], dyn_data_zero_points}, {},
+                    {});
+        } else {
+            std::shared_ptr<static_data_t> data_zero_points_ptr
+                    = std::make_shared<static_data_t>(data_zero_points);
+            sc_dims const_plain_dims;
+            sc_data_format_t const_format;
+            if (data_zero_points.size() == 1) {
+                // per tensor
+                const_plain_dims = {1};
+            } else {
+                COMPILE_ASSERT(0,
+                        "conv_fwd does not support per channel data zero "
+                        "points "
+                        "compensation yet");
+            }
+            auto constant_node = mgr.make("constant", {}, {},
+                    {{"values", data_zero_points_ptr},
+                            {"dtype", datatypes::s32},
+                            {"plain_dims", const_plain_dims},
+                            {"format", const_format}});
+            nodes[0] = mgr.make("mul",
+                    {reduce_node->get_outputs()[0],
+                            constant_node->get_outputs()[0]},
+                    {}, {});
+        }
+    }
+
+    if (s8s8_compensation) {
+        auto s8_constant_node = mgr.make("constant", {}, {},
+                {{"values",
+                         std::make_shared<static_data_t>(
+                                 std::vector<int> {128})},
+                        {"dtype", datatypes::s32}, {"plain_dims", sc_dims {1}},
+                        {"format", sc_data_format_t()}});
+        nodes[1] = mgr.make("mul",
+                {reduce_node->get_outputs()[0],
+                        s8_constant_node->get_outputs()[0]},
+                {}, {});
+    }
+
+    auto &pads_begin = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get<sc_dims>("paddings");
+    auto &pads_end = attrs_.has_key("pads_end")
+            ? attrs_.get<sc_dims>("pads_end")
+            : attrs_.get<sc_dims>("paddings");
+    bool has_pad = std::any_of(pads_begin.begin(), pads_begin.end(),
+                           [](sc_dim p) { return p > 0; })
+            || std::any_of(pads_end.begin(), pads_end.end(),
+                    [](sc_dim d) { return d > 0; });
+    if (has_pad && (s8s8_compensation || weight_compensation)) {
+        if (s8s8_compensation) { attrs_["padding_value"] = 128; }
+        if (weight_compensation) {
+            COMPILE_ASSERT(data_zero_points.size() == 1,
+                    "padded conv_fwd currently doesn't support per channel "
+                    "zero points");
+            attrs_["padding_value"] = attrs_.get_or_else("padding_value", 0)
+                    + data_zero_points[0];
+        }
+    }
+    return nodes;
+}
+sc_op_ptr conv_fwd_core_op_t::get_constant_compensation(sc_graph_t &g) {
+    bool is_dyn_quan = attrs_.has_key(attr_keys::dyn_data_zero_points);
+    auto data_zero_points = attrs_.get_or_else(
+            attr_keys::data_zero_points, std::vector<int> {0});
+    auto weight_zero_points = attrs_.get_or_else(
+            attr_keys::weight_zero_points, std::vector<int> {0});
+    auto dyn_data_zero_points = attrs_.get_or_else(
+            attr_keys::dyn_data_zero_points, graph_tensor_ptr());
+    auto dyn_weight_zero_points = attrs_.get_or_else(
+            attr_keys::dyn_weight_zero_points, graph_tensor_ptr());
+    auto &pads_begin = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get<sc_dims>("paddings");
+    auto &pads_end = attrs_.has_key("pads_end")
+            ? attrs_.get<sc_dims>("pads_end")
+            : attrs_.get<sc_dims>("paddings");
+    bool has_pad = std::any_of(pads_begin.begin(), pads_begin.end(),
+                           [](sc_dim p) { return p > 0; })
+            || std::any_of(pads_end.begin(), pads_end.end(),
+                    [](sc_dim d) { return d > 0; });
+    auto data_dims = info_.inputs_[0]->details_.get_plain_dims();
+    const auto use_rl = attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING);
+    auto weight_dims = use_rl != ops::rl_kind::NO_LOWERING
+            ? attrs_.get<sc_dims>("origin_wei_plain_dims")
+            : get_inputs()[1]->details_.get_plain_dims();
+    int C = data_dims.at(1);
+    bool is_3d = weight_dims.size() > 4;
+    int kd = is_3d ? weight_dims.at(2) : 1;
+    int kh = weight_dims.at(2 + is_3d);
+    int kw = weight_dims.at(3 + is_3d);
+    sc_op_ptr ret_node;
+    if (is_dyn_quan) {
+        if (!dyn_data_zero_points || !dyn_weight_zero_points) {
+            return nullptr;
+        }
+    } else {
+        if (data_zero_points.empty() || weight_zero_points.empty()) {
+            return nullptr;
+        }
+        if ((std::all_of(data_zero_points.begin(), data_zero_points.end(),
+                    [](int i) { return i == 0; }))
+                || (std::all_of(weight_zero_points.begin(),
+                        weight_zero_points.end(),
+                        [](int i) { return i == 0; }))) {
+            return nullptr;
+        }
+    }
+    if (is_dyn_quan) {
+        COMPILE_ASSERT(
+                dyn_data_zero_points->details_.get_plain_dims() == sc_dims {1}
+                        && dyn_weight_zero_points->details_.get_plain_dims()
+                                == sc_dims {1},
+                "conv_fwd does not support per channel data/weight zero "
+                "points compensation yet");
+        ret_node = g.make(
+                "mul", {dyn_data_zero_points, dyn_weight_zero_points}, {}, {});
+        auto const_reduce = g.make("constant", {}, {},
+                {{"dtype", datatypes::s32},
+                        {"values",
+                                std::make_shared<static_data_t>(
+                                        &C, sizeof(int))},
+                        {"plain_dims", sc_dims {1}}});
+        ret_node = g.make("mul",
+                {ret_node->get_outputs()[0], const_reduce->get_outputs()[0]},
+                {}, {});
+    } else if (!has_pad) {
+        COMPILE_ASSERT(
+                data_zero_points.size() == 1 && weight_zero_points.size() == 1,
+                "conv_fwd does not support per channel data/weight zero "
+                "points "
+                "compensation yet");
+        ret_node = g.make("constant", {}, {},
+                {{"values",
+                         std::make_shared<static_data_t>(std::vector<int> {
+                                 data_zero_points[0] * weight_zero_points[0] * C
+                                 * kd * kh * kw})},
+                        {"dtype", datatypes::s32}, {"plain_dims", sc_dims {1}},
+                        {"format", sc_data_format_t()}});
+    } else {
+        COMPILE_ASSERT(
+                data_zero_points.size() == 1 && weight_zero_points.size() == 1,
+                "conv_fwd does not support per channel data/weight zero "
+                "points "
+                "compensation yet");
+        auto constant_data_zps_dim = data_dims;
+        COMPILE_ASSERT(constant_data_zps_dim.size() >= 3,
+                "Convolution should have >= 3 dimension(at least 1d)");
+
+        constant_data_zps_dim[0] = 1;
+        constant_data_zps_dim[1] = 1;
+        auto constant_data_zps = g.make("constant", {}, {},
+                {{"values",
+                         std::make_shared<static_data_t>(std::vector<int>(
+                                 std::accumulate(constant_data_zps_dim.begin(),
+                                         constant_data_zps_dim.end(), 1,
+                                         std::multiplies<int>()),
+                                 data_zero_points[0] * C))},
+                        {"dtype", datatypes::s32},
+                        {"plain_dims", constant_data_zps_dim},
+                        {"format", info_.inputs_[0]->details_.get_format()}});
+        auto constant_wei_zps_dim = weight_dims;
+        COMPILE_ASSERT(constant_wei_zps_dim.size() >= 3,
+                "Convolution should have >= 3 dimension(at least 1d)");
+
+        constant_wei_zps_dim[0] = 1;
+        constant_wei_zps_dim[1] = 1;
+        auto constant_wei_zps = g.make("constant", {}, {},
+                {{"values",
+                         std::make_shared<static_data_t>(std::vector<int>(
+                                 kd * kh * kw, weight_zero_points[0]))},
+                        {"dtype", datatypes::s32},
+                        {"plain_dims", constant_wei_zps_dim},
+                        {"format",
+                                use_rl ? sc_data_format_t()
+                                       : info_.inputs_[1]
+                                                 ->details_.get_format()}});
+        auto cast_data_zps
+                = g.make("cast", {constant_data_zps->get_outputs()[0]}, {},
+                        {{"dtype", datatypes::f32}});
+        auto cast_wei_zps = g.make("cast", {constant_wei_zps->get_outputs()[0]},
+                {}, {{"dtype", datatypes::f32}});
+        auto conv_attr = attrs_;
+        if (use_rl) {
+            conv_attr["use_rl"] = ops::rl_kind::NO_LOWERING;
+            SC_MODULE_WARN << "Disable conv_rl and fall-back to normal conv "
+                              "for compensation";
+        }
+        auto conv_node = g.make("conv_fwd_core",
+                {cast_data_zps->get_outputs()[0],
+                        cast_wei_zps->get_outputs()[0]},
+                {}, conv_attr);
+        ret_node = g.make("cast", {conv_node->get_outputs()[0]}, {},
+                {{"dtype", datatypes::s32}});
+    }
+    return ret_node;
 }
 
 conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(

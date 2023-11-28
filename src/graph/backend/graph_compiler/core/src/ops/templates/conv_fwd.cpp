@@ -1726,6 +1726,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   const auto dtype_weight = get_weight_dtype();
   const auto dtype_output = get_output_dtype();
   const int num_threads = runtime_config_t::get().get_num_threads();
+  auto padding_value = attrs_.get_or_else("padding_value", 0);
   int src_row_tile_size = (config.tile_q - 1) * sw_ + dw_ * (kw_ - 1) + 1;
   typedef enum { LEFT_PAD = 0, BOTH_PAD, RIGHT_PAD } pad_kind;
 
@@ -1762,7 +1763,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   const int work_amount = mb_ * K_num_block * ow_ / config.tile_q;
   bool reuse_sub_tensor = sh_ < (dh_ * (kh_ - 1) + 1) && C_num_block == 1
     && is_parallel_space_enough(work_amount, num_threads) && dh_ == 1;
-  bool use_var_bs = attrs_.get_or_else("use_var_bs", true);
+  bool use_var_bs
+    = attrs_.get_or_else("use_var_bs", true) && padding_value == 0;
   auto use_rl = attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING);
 
   // TODO(xxx): fix inverse filter correctness issue when
@@ -1787,7 +1789,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   if (!use_var_bs) {
     // when not using var_bs, define a unified zero-buffer for
     // padding.
-    builtin::mem_zero(pbuffer, src_row_tile_size * LDA, dtype_input);
+    builtin::brgemm_init(
+      pbuffer, src_row_tile_size, LDA, LDA, dtype_output, padding_value);
   }
 
   // thread shared var to hold stateful status
@@ -1971,7 +1974,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                            : std::vector<expr> {tid, sub_tsr_h,
                                              0, 0}),
                                   builder::make_cast(datatypes::s32, left_pad),
-                                  config.C_block, LDA, dtype_input, 0);
+                                  config.C_block, LDA, dtype_input,
+                                  padding_value);
                               }
 
                               // mapping dst to src_padded then
@@ -2025,7 +2029,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                   builder::make_cast(datatypes::s32,
                                     src_row_tile_size
                                       - tile_size_exclude_right_pad),
-                                  config.C_block, LDA, dtype_input, 0);
+                                  config.C_block, LDA, dtype_input,
+                                  padding_value);
                               }
 
                               _for_(wi, 0, num_kw) {
@@ -2261,7 +2266,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                || (cur_iw > iw_ + pw_b_))
                             || (num_d_pad >= kd_ || num_h_pad >= kh_))
                           : (num_d_pad >= kd_ || num_h_pad >= kh_);
-                        _if_(cond) { zero_out_sub_tensor(); }
+                        _if_(cond && padding_value == 0) {
+                          zero_out_sub_tensor();
+                        }
                         _else_ {
                           // 1) fill A_list
                           if (!use_var_bs) {
@@ -2419,7 +2426,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                || (cur_iw > iw_ + pw_b_))
                             || (num_h_pad >= kh_))
                           : (num_h_pad >= kh_);
-                        _if_(cond) { zero_out_sub_tensor(); }
+                        _if_(cond && padding_value == 0) {
+                          zero_out_sub_tensor();
+                        }
                         _else_ {
                           auto fill_A_and_B_list = [&]() {
                             if (!use_var_bs) {
@@ -2850,8 +2859,10 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
           pack_rows, os_acc_size, os_mask);
       }
     } else {
+      auto padding_value = attrs_.get_or_else("padding_value", 0);
       if (ops::is_amx_dtype(ctx, dtype_input) || is_3d_
-        || use_rl == ops::rl_kind::KW_LOWERING || inverse_filter_) {
+        || use_rl == ops::rl_kind::KW_LOWERING || inverse_filter_
+        || padding_value != 0) {
         if (inverse_filter_) {
           SC_INFO << "inverse_filter_ used in conv padding v2.";
         }

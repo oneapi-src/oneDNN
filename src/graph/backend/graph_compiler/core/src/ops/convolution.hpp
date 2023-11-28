@@ -68,10 +68,11 @@ public:
             const sc_data_type_t &out_dtype = datatypes::undef);
     sc_op_ptr do_compensations(sc_graph_t &g, const context_ptr &ctx) override;
     sc_op_ptr get_data_compensation(sc_graph_t &g);
-    sc_op_ptr get_weight_compensation(sc_graph_t &g);
+    std::vector<sc_op_ptr> get_s8s8_and_weight_compensation(
+            sc_graph_t &g, bool s8s8_compensation);
     sc_op_ptr get_constant_compensation(sc_graph_t &g);
     bool use_nested_conv_fwd_generator();
-    bool use_conv1d();
+    bool use_conv1d(const context_ptr &ctx);
     infer_status_code infer_slice_ranges(
             const context_ptr &ctx, fslice_map &fsmap) override;
 

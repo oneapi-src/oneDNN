@@ -79,6 +79,8 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
                             == ops::rl_kind::FULL_LOWERING)
                         return;
 
+                    auto padding_value
+                            = node->attrs_.get_or_else("padding_value", 0);
                     auto pads_begin = node->attrs_.has_key("pads_begin")
                             ? node->attrs_.get<sc_dims>("pads_begin")
                             : node->attrs_.get<sc_dims>("paddings");
@@ -92,10 +94,10 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
                     auto parent_node = node->get_inputs()[0]->producer_owner_;
 
                     if (parent_node->isa<input_op>()) { return; }
-                    auto padding_node
-                            = graph.make("padding", {node->get_inputs()[0]}, {},
-                                    {{"pads_begin", pads_begin},
-                                            {"pads_end", pads_end}});
+                    auto padding_node = graph.make("padding",
+                            {node->get_inputs()[0]}, {},
+                            {{"pads_begin", pads_begin}, {"pads_end", pads_end},
+                                    {"padding_value", padding_value}});
                     if (node->get_inputs()[0]->details_.get_plain_dims()[0]
                             == 1) {
                         padding_node->attrs_.set(
