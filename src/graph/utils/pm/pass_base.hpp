@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ using pass_base_ptr = std::shared_ptr<pass_base>;
 // One pass can have several FCreatePattern functions.
 using FCreatePattern
         = std::function<void(const std::shared_ptr<pb_graph_t> &pattern_graph)>;
+using Pattern = std::shared_ptr<pb_graph_t>;
 
 /*!
  * \brief pass_base provides a base class for pass creation.
@@ -177,6 +178,11 @@ private:
     partition_kind_t pkind_ {partition_kind_t::undef};
     engine_kind_t engine_kind_ {engine_kind::any_engine};
 };
+
+template <>
+pass_base &pass_base::set_attr<FCreatePattern>(
+        const std::string &attr_name, // NOLINT(*)
+        const FCreatePattern &func);
 
 } // namespace pass
 } // namespace graph
