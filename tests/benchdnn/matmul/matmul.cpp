@@ -547,6 +547,23 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         return;
     }
 
+    // Weights decompression requires IC to be divisible by groups
+    // for both scales and zero points
+    if (!prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def()) {
+        const auto &groups = prb->attr.scales.get(DNNL_ARG_WEIGHTS).groups;
+        if (!groups.empty() && (prb->k % groups[0] || groups.size() > 2)) {
+            res->state = SKIPPED, res->reason = INVALID_CASE;
+            return;
+        }
+    }
+    if (!prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).is_def()) {
+        const auto &groups = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).groups;
+        if (!groups.empty() && (prb->k % groups[0] || groups.size() > 2)) {
+            res->state = SKIPPED, res->reason = INVALID_CASE;
+            return;
+        }
+    }
+
     auto src_rt_mask = prb->src_runtime_dim_mask();
     auto wei_rt_mask = prb->weights_runtime_dim_mask();
     auto dst_rt_mask = prb->dst_runtime_dim_mask();
