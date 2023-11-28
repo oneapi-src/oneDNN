@@ -310,36 +310,29 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
         outs.emplace_back(**(outputs + i));
     }
 
-#ifndef NDEBUG
     if (get_verbose(dnnl::impl::verbose_t::exec_profile,
                 dnnl::impl::component_t::graph)) {
+#ifndef NDEBUG
         allocator_t *alloc = reinterpret_cast<allocator_t *>(
                 compiled_partition->get_engine()->get_allocator());
         allocator_t::monitor_t &monitor = alloc->get_monitor();
         monitor.reset_peak_temp_memory();
-        stream->wait();
-        double start_ms = dnnl::impl::get_msec();
-        CHECK(compiled_partition->execute(stream, ins, outs));
-        stream->wait();
-        double duration_ms = dnnl::impl::get_msec() - start_ms;
-        VFORMAT(start_ms, graph, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
-                compiled_partition->info(), duration_ms, alloc->id(),
-                utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
-                monitor.get_total_persist_memory(),
-                monitor.get_peak_temp_memory());
-    } else if (get_verbose(dnnl::impl::verbose_t::exec_profile,
-                       dnnl::impl::component_t::graph)) {
-#else
-    if (get_verbose(dnnl::impl::verbose_t::exec_profile,
-                dnnl::impl::component_t::graph)) {
 #endif
         stream->wait();
         double start_ms = dnnl::impl::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         stream->wait();
         double duration_ms = dnnl::impl::get_msec() - start_ms;
+#ifndef NDEBUG
+        VFORMAT(start_ms, graph, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
+                compiled_partition->info(), duration_ms, alloc->id(),
+                utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
+                monitor.get_total_persist_memory(),
+                monitor.get_peak_temp_memory());
+#else
         VPROF(start_ms, graph, exec, VERBOSE_profile,
                 compiled_partition->info(), duration_ms);
+#endif
     } else {
         CHECK(compiled_partition->execute(stream, ins, outs));
     }
