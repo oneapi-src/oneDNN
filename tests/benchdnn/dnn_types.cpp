@@ -304,6 +304,36 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
         SAFE_V(FAIL);
     }
 
+    // process groups
+    const auto g_str = parser::get_substr(s, start_pos, ':');
+    parser::parse_vector_str(this->groups, dims_t(),
+            parser::parser_utils::stoll_safe, g_str, 'x');
+
+    if (!groups.empty()) {
+        switch (this->policy) {
+            case PER_OCIC:
+                if (this->groups.size() != 2) {
+                    BENCHDNN_PRINT(0, "%s\n",
+                            "Error: number of groups should be equal to number "
+                            "of dimension bits set in the mask.");
+                    SAFE_V(FAIL);
+                }
+                break;
+            default:
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Error: groups are supported only for policy PER_OCIC");
+                SAFE_V(FAIL);
+        }
+    }
+
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
+
     return OK;
 }
 
@@ -356,11 +386,41 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
 
         if (subs_pos == std::string::npos) return OK;
 
+        dnnl_data_type_t dt = dnnl_s32;
         // process data type
-        const auto dt_str = parser::get_substr(subs, subs_pos, ':');
-        dnnl_data_type_t dt = str2dt(dt_str.c_str());
+        if (subs_pos != std::string::npos) {
+            const auto dt_str = parser::get_substr(subs, subs_pos, ':');
+            dt = str2dt(dt_str.c_str());
+        }
 
-        set(arg, policy, static_cast<int>(zp), dt);
+        dims_t groups = {};
+        // process groups
+        if (subs_pos != std::string::npos) {
+            const auto g_str = parser::get_substr(subs, subs_pos, ':');
+            parser::parse_vector_str(groups, dims_t(),
+                    parser::parser_utils::stoll_safe, g_str, 'x');
+
+            if (!groups.empty()) {
+                switch (policy) {
+                    case PER_OCIC:
+                        if (groups.size() != 2) {
+                            BENCHDNN_PRINT(0, "%s\n",
+                                    "Error: number of groups should be equal "
+                                    "to number of dimension bits set in the "
+                                    "mask.");
+                            SAFE_V(FAIL);
+                        }
+                        break;
+                    default:
+                        BENCHDNN_PRINT(0, "%s\n",
+                                "Error: groups are supported only for policy "
+                                "PER_OCIC");
+                        SAFE_V(FAIL);
+                }
+            }
+        }
+
+        set(arg, policy, static_cast<int>(zp), dt, groups);
     }
     return OK;
 }
@@ -611,6 +671,8 @@ std::ostream &operator<<(
 
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points) {
+    using ::operator<<;
+
     const char *delim = "";
     for (const auto &point : zero_points.points) {
         s << delim;
@@ -618,6 +680,7 @@ std::ostream &operator<<(
         if (point.second.policy == policy_t::COMMON)
             s << ":" << point.second.value;
         if (point.second.dt != dnnl_s32) s << ':' << point.second.dt;
+        if (!point.second.groups.empty()) s << ":" << point.second.groups;
         delim = "+";
     }
 
@@ -1016,6 +1079,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
             int ndims = static_cast<int>(e.groups.size());
             const auto &groups = e.groups.data();
             const auto dt = e.dt;
+
             DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(
                     dnnl_attr, arg_name, mask, ndims, groups, dt));
         }
