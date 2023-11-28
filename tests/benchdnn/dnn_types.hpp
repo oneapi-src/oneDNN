@@ -101,7 +101,7 @@ struct attr_t {
         struct entry_t {
             entry_t(policy_t apolicy = COMMON, int avalue = 0,
                     dnnl_data_type_t adt = dnnl_s32,
-                    std::vector<dnnl_dim_t> agroups = {})
+                    const std::vector<dnnl_dim_t> &agroups = {})
                 : policy(apolicy), value(avalue), dt(adt), groups(agroups) {}
 
             bool is_def() const {
@@ -139,8 +139,8 @@ struct attr_t {
             if (!entry.is_def()) points[arg] = entry;
         }
         void set(int arg, policy_t policy, int value,
-                dnnl_data_type_t data_type) {
-            set(arg, entry_t(policy, value, data_type));
+                dnnl_data_type_t data_type, std::vector<dnnl_dim_t> &groups) {
+            set(arg, entry_t(policy, value, data_type, groups));
         }
         entry_t get(int arg) const {
             const auto it = points.find(arg);
