@@ -96,6 +96,8 @@ status_t zero_points_t::set(int arg, int mask, int ndims, const dims_t groups,
             is_set_wei = true;
             mask_wei = mask;
             data_type_wei = data_type;
+            group_ndims_wei = ndims;
+            utils::array_copy(group_dims_wei, groups, group_ndims_wei);
             break;
         case DNNL_ARG_DST:
             is_set_dst = true;
@@ -529,7 +531,8 @@ status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
     bool ok = attr && mask >= 0 && arg >= 0 && ndims >= 0
             && utils::one_of(data_type, f32, bf16, f16)
             && IMPLICATION(
-                    arg != DNNL_ARG_WEIGHTS, data_type == f32 && ndims == 0);
+                    arg != DNNL_ARG_WEIGHTS, data_type == f32 && ndims == 0)
+            && IMPLICATION(ndims, validate_dims(ndims, group_dims));
     if (!ok) return invalid_arguments;
     return attr->scales_.set(arg, mask, ndims, group_dims, data_type);
 }
@@ -546,11 +549,11 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
         dnnl_primitive_attr_t attr, int arg, int mask, int ndims,
         const dnnl_dims_t group_dims, dnnl_data_type_t data_type) {
     using namespace data_type;
-    // TODO: groups are not supported
     bool ok = attr && arg >= 0 && mask >= 0 && ndims >= 0
             && utils::one_of(data_type, s32, s8, u8)
             && IMPLICATION(
-                    arg != DNNL_ARG_WEIGHTS, data_type == s32 && ndims == 0);
+                    arg != DNNL_ARG_WEIGHTS, data_type == s32 && ndims == 0)
+            && IMPLICATION(ndims, validate_dims(ndims, group_dims));
     if (!ok) return invalid_arguments;
 
     return attr->zero_points_.set(arg, mask, ndims, group_dims, data_type);

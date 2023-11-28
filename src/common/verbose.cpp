@@ -535,6 +535,12 @@ std::string md2desc_str(const memory_desc_t *md) {
 std::ostream &operator<<(std::ostream &ss, const runtime_scales_t &oscale) {
     ss << oscale.mask_;
     ss << ":" << oscale.data_type_;
+    if (oscale.ndims_) {
+        ss << ":";
+        for (int i = 0; i < oscale.ndims_ - 1; ++i)
+            ss << oscale.group_dims_[i] << 'x';
+        ss << oscale.group_dims_[oscale.ndims_ - 1];
+    }
     return ss;
 }
 
@@ -651,6 +657,15 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             const auto dt = zp.get_data_type(arg);
 
             ss << delim << arg2str(arg) << ":" << mask << ":" << dt;
+
+            const auto &g_ndim = zp.get_groups_ndims(arg);
+            if (g_ndim) {
+                const auto &g_dims = zp.get_groups(arg);
+                ss << ":";
+                for (int i = 0; i < g_ndim - 1; ++i)
+                    ss << g_dims[i] << 'x';
+                ss << g_dims[g_ndim - 1];
+            }
 
             delim = attr_delim;
         }

@@ -370,7 +370,11 @@ struct zero_points_t : public c_compatible {
         return mask_src == rhs.mask_src && mask_wei == rhs.mask_wei
                 && mask_dst == rhs.mask_dst && is_set_src == rhs.is_set_src
                 && is_set_wei == rhs.is_set_wei && is_set_dst == rhs.is_set_dst
-                && data_type_wei == rhs.data_type_wei;
+                && data_type_wei == rhs.data_type_wei
+                && group_ndims_wei == rhs.group_ndims_wei
+                && IMPLICATION(group_ndims_wei > 0,
+                        utils::array_cmp(group_dims_wei, rhs.group_dims_wei,
+                                group_ndims_wei));
     }
 
     // arg-specific checks
@@ -380,8 +384,7 @@ struct zero_points_t : public c_compatible {
         return is_set(arg) == false && has_default_data_type(arg);
     }
     bool has_default_groups(int arg) const {
-        // TODO: add groups support
-        return true;
+        return IMPLICATION(arg == DNNL_ARG_WEIGHTS, group_ndims_wei == 0);
     }
     bool has_default_data_type(int arg) const {
         return get_data_type(arg) == data_type::s32;
@@ -407,6 +410,16 @@ struct zero_points_t : public c_compatible {
         return data_type::s32;
     }
 
+    const dim_t *get_groups(int arg) const {
+        if (arg == DNNL_ARG_WEIGHTS) return group_dims_wei;
+        return nullptr;
+    }
+
+    int get_groups_ndims(int arg) const {
+        if (arg == DNNL_ARG_WEIGHTS) return group_ndims_wei;
+        return 0;
+    }
+
     status_t set(int arg, int mask, int ndims, const dims_t group_dims,
             data_type_t data_type);
 
@@ -420,6 +433,8 @@ private:
     bool is_set_src = false, is_set_wei = false, is_set_dst = false;
     int mask_src = 0, mask_wei = 0, mask_dst = 0;
     data_type_t data_type_wei = data_type::s32;
+    int group_ndims_wei = 0;
+    dims_t group_dims_wei {};
 
     int get_mask(int arg) const {
         int mask = 0;
