@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public:
 
     pass_registry_t() = default;
     pass_registry_t(const pass_registry_t &) = delete;
-    pass_registry_t(pass_registry_t &&) = delete;
+    pass_registry_t(pass_registry_t &&) = default;
     pass_registry_t &operator=(const pass_registry_t &) = delete;
     pass_registry_t &operator=(pass_registry_t &&) = delete;
 
