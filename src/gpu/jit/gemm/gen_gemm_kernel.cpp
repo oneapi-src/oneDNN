@@ -162,6 +162,8 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(
         const post_ops_t &post_ops, bool swap_ab) {
     if (post_ops.len() > 0) {
         problem_.postOps = post_ops;
+        problem_.postOpTranspose = swap_ab;
+
         int po_count = post_ops.len();
         problem_.Tbinary.reserve(po_count);
         problem_.binary.reserve(po_count);

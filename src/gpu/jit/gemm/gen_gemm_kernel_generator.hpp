@@ -859,6 +859,7 @@ struct GEMMProblem : public CommonProblem {
          sumB
             = false; // If true, calculate A row sums/B column sums and store in CO.
     bool postOpFwd = true; // Eltwise parameters
+    bool postOpTranspose = false; // If true, binary srcs have been transposed
 
     post_ops_t postOps; // Fused post operations to apply
 
@@ -929,6 +930,7 @@ struct GEMMProblem : public CommonProblem {
         s.append(batchDims);
         s.append(sumA, sumB);
         s.append(postOpFwd);
+        s.append(postOpTranspose);
         s.append(postOps);
     }
 };
