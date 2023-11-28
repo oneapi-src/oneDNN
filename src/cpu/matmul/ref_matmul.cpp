@@ -80,6 +80,10 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
     const dim_t wei_zp_stride_k = wei_zp_per_k ? wei_zp_per_n ? N : 1 : 0;
     const auto &wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
+    const auto wei_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS);
+    const auto wei_zp_group_k = wei_zp_group_ndims > 0
+            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
+            : 1;
 
     const int src_mask
             = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
@@ -107,6 +111,10 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto &wei_scale_dt = attr_scales.get(DNNL_ARG_WEIGHTS).data_type_;
     const auto scales_d
             = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    const auto wei_scale_group_ndim = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
+    const auto wei_scale_group_k = wei_scale_group_ndim > 0
+            ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
+            : 1;
 
     // mm kernel
     auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
@@ -132,13 +140,15 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             if (with_wei_decompression) {
                 if (with_wei_zero_points)
                     w -= io::load_float_value(wei_zp_dt, wei_zero_points,
-                            wei_zp_stride_n * n + wei_zp_stride_k * k);
+                            wei_zp_stride_n * n
+                                    + wei_zp_stride_k * (k / wei_zp_group_k));
                 if (with_wei_scales) {
                     float wei_scale = scales_d.nelems() == 1
                             ? wei_scales[0]
                             : io::load_float_value(wei_scale_dt, wei_scales,
                                     wei_scale_stride_n * n
-                                            + wei_scale_stride_k * k);
+                                            + wei_scale_stride_k
+                                                    * (k / wei_scale_group_k));
                     w *= wei_scale;
                 }
             }
