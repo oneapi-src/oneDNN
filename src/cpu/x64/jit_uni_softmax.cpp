@@ -1449,12 +1449,12 @@ status_t jit_uni_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
     const int nthr = pd()->nthr_;
     const char *dst_orig_ptr = dst;
 
-    if (get_verbose(verbose_t::debuginfo) >= 1)
-        printf("[%s][execute] src=%p dst=%p outer_size=%" PRId64
-               " outer_stride=%" PRId64 " inner_size=%" PRId64
-               " inner_stride=%" PRId64 " axis_stride=%" PRId64 "\n",
-                pd()->impl_name(), src, dst, outer_size, outer_stride,
-                inner_size, inner_stride, axis_stride);
+    VDEBUGINFO(1, primitive, softmax,
+            "%s,src=%p dst=%p outer_size=%" PRId64 " outer_stride=%" PRId64
+            " inner_size=%" PRId64 " inner_stride=%" PRId64
+            " axis_stride=%" PRId64,
+            pd()->impl_name(), src, dst, outer_size, outer_stride, inner_size,
+            inner_stride, axis_stride);
 
     parallel_nd_ext(nthr, outer_size, inner_size,
             [&](int ithr, int, dim_t ou, dim_t in) {
