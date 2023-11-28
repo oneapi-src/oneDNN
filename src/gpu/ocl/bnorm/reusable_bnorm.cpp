@@ -18,9 +18,6 @@
 #include <limits>
 
 #include "common/c_types_map.hpp"
-#include "common/dnnl_traits.hpp"
-#include "common/math_utils.hpp"
-#include "common/scratchpad.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/block_structure.hpp"
@@ -37,61 +34,23 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-// Remove blocking structure for dim idx. Combines inner blocks with the outer one.
-// XXX: Does not update the format tag to reflect the new blocking
-memory_desc_t remove_blocking(memory_desc_t md, size_t idx) {
-    auto &blk = md.format_desc.blocking;
+namespace bnorm_dims_t {
+compute::dim_id_t mb = 0;
+compute::dim_id_t ic = 1;
+compute::dim_id_t sp0 = 2;
+compute::dim_id_t sp1 = 3;
+compute::dim_id_t sp2 = 4;
+}; // namespace bnorm_dims_t
 
-    // Tally up inner blocks that will be removed
-    std::vector<block_t> blocks;
-    dim_t stride = 1;
-    for (int i = blk.inner_nblks - 1; i >= 0; i--) {
-        if (static_cast<size_t>(blk.inner_idxs[i]) == idx)
-            blocks.emplace_back(idx, blk.inner_blks[i], stride);
-        stride *= blk.inner_blks[i];
-    }
-
-    // Remove the inner blocks
-    size_t num_remaining_blocks = 0;
-    for (size_t i = 0; i < static_cast<size_t>(blk.inner_nblks); i++) {
-        if (static_cast<size_t>(blk.inner_idxs[i]) == idx) continue;
-
-        blk.inner_idxs[num_remaining_blocks] = blk.inner_idxs[i];
-        blk.inner_blks[num_remaining_blocks++] = blk.inner_blks[i];
-    }
-    blk.inner_nblks = static_cast<int>(num_remaining_blocks);
-
-    // Update strides
-    dim_t outer_stride = blk.strides[idx];
-    for (size_t i = 0; i < static_cast<size_t>(md.ndims); i++) {
-        if (blk.strides[i] > outer_stride) continue;
-        for (const auto &block : blocks) {
-            if (blk.strides[i] >= block.stride) blk.strides[i] /= block.block;
-        }
-    }
-
-    return md;
-}
-
-// Returns the memory_desc_t obtained after dim `idx` is reduced
-// to 1 element (thereby removing blocking in that dimension as well)
-memory_desc_t reduce_dim(memory_desc_t md, size_t idx) {
-    size_t ndims = static_cast<size_t>(md.ndims);
-    if (idx >= ndims) return md;
-
-    md = remove_blocking(md, idx);
-
-    auto &blk = md.format_desc.blocking;
-    block_t block(
-            static_cast<dim_t>(idx), md.padded_dims[idx], blk.strides[idx]);
-
-    md.dims[idx] = 1;
-    md.padded_dims[idx] = 1;
-    for (size_t i = 0; i < ndims; i++) {
-        if (blk.strides[i] > block.stride) blk.strides[i] /= block.block;
-    }
-
-    return md;
+static std::vector<compute::dim_id_t> get_dims(size_t ndims) {
+    std::vector<compute::dim_id_t> ret(ndims);
+    uint8_t idx = 0;
+    ret[idx++] = bnorm_dims_t::mb;
+    ret[idx++] = bnorm_dims_t::ic;
+    if (ndims >= 3) ret[idx++] = bnorm_dims_t::sp0;
+    if (ndims >= 4) ret[idx++] = bnorm_dims_t::sp1;
+    if (ndims >= 5) ret[idx++] = bnorm_dims_t::sp2;
+    return ret;
 }
 
 static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
@@ -99,10 +58,10 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
         const memory_desc_wrapper &data_mdw,
         const gpu_primitive_attr_t *gpu_attr) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    const int ndims = data_mdw.ndims();
+    const size_t ndims = static_cast<size_t>(data_mdw.ndims());
     dim_t calc_dims[MAX_DIMS];
     auto &dims = data_mdw.dims();
-    for (int i = 0; i < MAX_DIMS; i++) {
+    for (size_t i = 0; i < MAX_DIMS; i++) {
         calc_dims[i] = (i < ndims) ? dims[i] : 1;
     }
     size_t reduce_dim_idx = 0;
@@ -117,24 +76,22 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
             || rt_conf.div > max_int)
         conf.use_int32_offset = false;
 
-    memory_desc_t reduced = reduce_dim(*data_mdw.md_, reduce_dim_idx);
-    memory_desc_t reordered = remove_blocking(reduced, 1);
+    // Set up the reusable_calculate_* kernels:
+    // - SRC: Just the input src buffer
+    // - DST: SRC, but with one dim reduced and ic moved to the innermost position
+    // - [variance only] MEAN: just the ic dim, stores the mean per ic
+    std::vector<compute::dim_id_t> dim_ids = get_dims(ndims);
+    compute::named_buffer_t src_buf("SRC", *data_mdw.md_, dim_ids);
 
-    // Move entire ic dimension to the innermost block (guaranteeing stride = 1)
-    blocking_desc_t &blk = reordered.format_desc.blocking;
-    blk.inner_blks[blk.inner_nblks] = reordered.padded_dims[1];
-    blk.inner_idxs[blk.inner_nblks++] = 1;
-    dim_t outer_stride = blk.strides[1];
-    for (size_t i = 0; i < static_cast<size_t>(reordered.ndims); i++) {
-        if (blk.strides[i] <= outer_stride) {
-            blk.strides[i] *= reordered.padded_dims[1];
-        }
-    }
+    compute::named_buffer_t dst_buf("DST", src_buf);
+    dst_buf.remove_dim(dim_ids[reduce_dim_idx]);
+
+    // Move ic interior
+    dst_buf.remove_dim(bnorm_dims_t::ic);
+    dst_buf.append_block(bnorm_dims_t::ic, dims[1]);
 
     rt_conf.reduce_dim_stride = 1;
     size_t num_blocks_reduced = 0;
-    if (rt_conf.reduce_dim_stride > std::numeric_limits<int>::max())
-        conf.use_int32_offset = false;
     block_layout_t layout(data_mdw);
     for (const auto &block : layout) {
         if (static_cast<size_t>(block.dim_idx) == reduce_dim_idx) {
@@ -143,6 +100,8 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
         }
     }
     if (num_blocks_reduced > 1) return status::unimplemented;
+    if (rt_conf.reduce_dim_stride > std::numeric_limits<int>::max())
+        conf.use_int32_offset = false;
 
     // Whole reduce dimension will be handled by single work item.
     calc_dims[reduce_dim_idx] = 1;
@@ -151,12 +110,14 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
     if (rt_conf.stat_ic > std::numeric_limits<int>::max())
         conf.use_int32_offset = false;
 
-    compute::named_buffer_t src_buf("SRC", data_mdw.md_);
-    src_buf.disable_dim(reduce_dim_idx);
-
-    compute::named_buffer_t dst_buf("DST", reordered);
-
-    compute::reusable_dispatch_config_t calc_stat_dispatch_config;
+    // Dispatches all dims except for reduction dim
+    for (size_t i = 0; i < dim_ids.size(); i++) {
+        if (dim_ids[i] == compute::dim_id_t(reduce_dim_idx)) {
+            dim_ids.erase(dim_ids.begin() + static_cast<int>(i));
+            break;
+        }
+    }
+    compute::reusable_dispatch_config_t calc_stat_dispatch_config(dim_ids);
     CHECK(calc_stat_dispatch_config.register_buffer(src_buf));
     CHECK(calc_stat_dispatch_config.register_buffer(dst_buf));
     CHECK(calc_stat_dispatch_config.define_dim_index("IC_DIM", 1));
@@ -168,26 +129,14 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
     conf.calc_stat_params = dispatch_calc_stat.get_compile_params();
     rt_conf.calc_stat_params = dispatch_calc_stat.get_runtime_params();
 
-    memory_desc_t final_layout = types::zero_md();
-    final_layout.ndims = reordered.ndims;
-    final_layout.data_type = data_type::f32;
-    final_layout.format_kind = format_kind::blocked;
-    blocking_desc_t &final_blk = final_layout.format_desc.blocking;
-    const dim_t ic_padded = reordered.dims[1];
-    for (size_t i = 0; i < static_cast<size_t>(final_layout.ndims); i++) {
-        if (i == 1) {
-            final_layout.dims[i] = ic_padded;
-            final_layout.padded_dims[i] = ic_padded;
-            final_blk.strides[i] = 1;
-        } else {
-            final_layout.dims[i] = 1;
-            final_layout.padded_dims[i] = 1;
-            final_blk.strides[i] = ic_padded;
-        }
+    compute::named_buffer_t reduce_buffer("BUFFER", dst_buf);
+    for (const auto &dim : dim_ids) {
+        if (dim != bnorm_dims_t::ic) reduce_buffer.remove_dim(dim);
     }
 
-    compute::named_buffer_t reduce_buffer("BUFFER", final_layout);
-    compute::reusable_dispatch_config_t reduce_stat_dispatch_config;
+    // Reduce kernels dispatch to ic dim only
+    compute::reusable_dispatch_config_t reduce_stat_dispatch_config(
+            {bnorm_dims_t::ic});
     CHECK(reduce_stat_dispatch_config.register_buffer(reduce_buffer));
 
     compute::reusable_dispatch_t dispatch_reduce_stat;
@@ -223,10 +172,12 @@ static status_t init_conf_common(reusable_bnorm_params_t &conf,
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
-    // Both src and dst have the same format, use one unified indexing scheme
-    compute::named_buffer_t buffer("BUFFER", data_mdw.md_);
+    size_t ndims = static_cast<size_t>(data_mdw.ndims());
+    std::vector<compute::dim_id_t> dims = get_dims(ndims);
+    compute::named_buffer_t buffer("BUFFER", *data_mdw.md_, dims);
 
-    compute::reusable_dispatch_config_t dispatch_config;
+    // Dispatch to all dims
+    compute::reusable_dispatch_config_t dispatch_config(dims);
     CHECK(dispatch_config.register_buffer(buffer));
     CHECK(dispatch_config.define_dim_index("IC_DIM", 1));
 

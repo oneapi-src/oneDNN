@@ -15,15 +15,12 @@
 *******************************************************************************/
 
 #include "gpu/compute/dispatch_reusable.hpp"
+#include "gpu/block_structure.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace compute {
-
-void named_buffer_t::disable_dim(size_t dim_idx) {
-    disabled_dims.push_back(dim_idx);
-}
 
 status_t reusable_dispatch_config_t::define_dim_index(
         const char *dim_name, size_t dim_idx) {
@@ -38,34 +35,47 @@ status_t reusable_dispatch_config_t::define_dim_index(
     return status::success;
 }
 
-// XXX: Due to the possibility of block_structure_t::normalize removing
-// all blocks in a named dim (or even all blocks for a size-1 buffer),
-// it is not supported to register a buffer that was created via a block_structure_t
-// with size-1 blocks removed.
+// Validate whether the given buffer is consistent with existing buffer layouts,
+// and then add to the internal buffer registry.
 status_t reusable_dispatch_config_t::register_buffer(named_buffer_t &buffer) {
     if (buffers.size() >= MAX_REGISTERED_BUFFERS) return status::unimplemented;
 
-    // Do not allow buffers with zero-padding
-    if (!memory_desc_wrapper(buffer.md).is_dense()) {
-        return status::unimplemented;
-    }
-
-    // Remove disabled dims from the buffer
-    named_buffer_t newbuf = buffer;
-    for (int i = static_cast<int>(newbuf.layout.size()) - 1; i >= 0; i--) {
-        size_t idx = static_cast<size_t>(i);
-        auto &block = newbuf.layout[idx];
-        bool is_disabled = false;
-        for (const auto &dim : newbuf.disabled_dims) {
-            if (static_cast<size_t>(block.dim_idx) == dim) {
-                is_disabled = true;
-                break;
-            }
+    // Don't allow zero-padding
+    bool has_zero_padding = false;
+    for (size_t dim_idx = 0; dim_idx < static_cast<size_t>(buffer.ndims);
+            dim_idx++) {
+        if (buffer.dims[dim_idx] < buffer.padded_dims[dim_idx]) {
+            has_zero_padding = true;
         }
-        if (is_disabled) { newbuf.layout.erase(idx); }
+    }
+    if (has_zero_padding) return status::unimplemented;
+
+    // Validate dim sizes
+    std::unordered_map<dim_id_t, bool, dim_id_hash_t> dim_seen;
+    for (const auto &dim : dispatched_dims) {
+        size_t canonical_idx = buffer.get_dim_idx(dim);
+        if (canonical_idx == dim_not_found) {
+            // broadcasted dimension - nothing to check
+            continue;
+        }
+
+        dim_seen[dim] = (dim_sizes.find(dim) != dim_sizes.end());
+
+        if (dim_seen[dim] && (dim_sizes[dim] != buffer.dims[canonical_idx])) {
+            // Attempting to dispatch to multiple buffers with differently
+            // sized dispatched dimensions. These buffers are incompatible.
+            return status::runtime_error;
+        }
     }
 
-    buffers.emplace_back(newbuf);
+    // All validation complete - start updating this object
+    for (const auto &dim : dispatched_dims) {
+        size_t canonical_idx = buffer.get_dim_idx(dim);
+
+        // Save the dimension size if it hasn't been saved yet
+        if (!dim_seen[dim]) { dim_sizes[dim] = buffer.dims[canonical_idx]; }
+    }
+    buffers.emplace_back(buffer);
     return status::success;
 }
 
@@ -106,14 +116,14 @@ gws_mapped_layout_t reusable_dispatch_config_t::compute_gws_blocks(
     return gws_blocks;
 }
 
-// Depends on nd_range being set already
 // Computes the mapping from each buffer into the given nd range,
 // by setting each block's mapped_to_idx value
 status_t reusable_dispatch_config_t::compute_gws_mapping(
         gws_layout_t &layout, const gws_mapped_layout_t &gws_blocks) {
-    std::vector<bool> mapped_to(layout.size(), false);
+    std::vector<bool> mapped_to(gws_blocks.get_blocks().size(), false);
     for (size_t j = 0; j < layout.size(); j++) {
         auto &block = layout[j];
+        bool is_mapped = false;
         for (size_t k = 0; k < gws_blocks.get_blocks().size(); k++) {
             if (mapped_to[k]) continue;
             const auto &gws_block = gws_blocks.get_blocks()[k];
@@ -121,14 +131,12 @@ status_t reusable_dispatch_config_t::compute_gws_mapping(
                 // map block onto gws_block
                 block.mapped_to_idx = k;
                 block.gws_idx = gws_block.gws_idx;
+                is_mapped = true;
                 mapped_to[k] = true;
                 break;
             }
         }
-    }
-
-    for (bool block_is_mapped : mapped_to) {
-        if (!block_is_mapped) return status::unimplemented;
+        if (!is_mapped) return status::unimplemented;
     }
 
     return status::success;
@@ -256,7 +264,7 @@ std::array<block_t, 2> split(const block_t &block, dim_t size) {
 // necessary, to get:
 // 1. The same number of blocks for each dimension
 // 2. Identical block sizes/ordering for each dimension
-status_t reconcile_via_subdivide(
+status_t reusable_dispatch_config_t::subdivide_to_match(
         block_layout_t &layoutA, block_layout_t &layoutB) {
     // Partition each layout by dimension
     std::array<std::vector<block_t>, DNNL_MAX_NDIMS> dim_blocksA;
@@ -275,9 +283,20 @@ status_t reconcile_via_subdivide(
     }
 
     // Iterate through blocks for each dimension and subdivide
+    std::array<bool, DNNL_MAX_NDIMS> is_dispatched;
+    is_dispatched.fill(false);
+    for (dim_id_t dim : dispatched_dims) {
+        is_dispatched[dim] = true;
+    }
     for (size_t idx = 0; idx < DNNL_MAX_NDIMS; idx++) {
+        // Don't subdivide for broadcasted dimensions
+        if (!is_dispatched[idx]) continue;
+
         std::vector<block_t> &blocksA = dim_blocksA[idx];
         std::vector<block_t> &blocksB = dim_blocksB[idx];
+
+        // Don't subdivide unless the dim exists in both layouts
+        if (blocksA.empty() || blocksB.empty()) continue;
 
         size_t block_idxA = 0;
         size_t block_idxB = 0;
@@ -332,6 +351,14 @@ status_t reconcile_via_subdivide(
     return status::success;
 }
 
+size_t reusable_dispatch_config_t::get_dim_idx(size_t dim_idx) {
+    for (size_t i = 0; i < dispatched_dims.size(); i++) {
+        const auto &dim = dispatched_dims[i];
+        if (static_cast<size_t>(dim) == dim_idx) return i;
+    }
+    return dim_not_found;
+}
+
 // XXX: Mapping blocks into the gws cannot happen until all necessary dim indices
 // have been requested and all buffers have been registered. Only then can the terms
 // be computed, thus it's all done in the generate function
@@ -340,60 +367,84 @@ status_t reusable_dispatch_config_t::generate(
     // The reusable dispatcher must have at least one buffer to dispatch against
     gpu_assert(!buffers.empty());
 
+    // Every dispatched dim must have a defined size
+    for (dim_id_t id : dispatched_dims) {
+        if (dim_sizes.find(id) == dim_sizes.end()) {
+            return status::unimplemented;
+        }
+    }
+
+    // Store layouts for each buffer, since they'll be manipulated
+    // for the rest of the generate function
+    std::vector<block_layout_t> buf_layouts(buffers.size());
+    for (size_t i = 0; i < buffers.size(); i++) {
+        buf_layouts[i] = buffers[i].layout();
+    }
+
     // Add size-1 blocks for each indexed dim as needed
-    for (auto &buffer : buffers) {
-        const dims_t &padded_dims = buffer.md->padded_dims;
-        const dims_t &strides = buffer.md->format_desc.blocking.strides;
+    for (size_t buf_idx = 0; buf_idx < buffers.size(); buf_idx++) {
+        const named_buffer_t &buffer = buffers[buf_idx];
+        block_layout_t layout = buf_layouts[buf_idx];
+        const dims_t &padded_dims = buffer.padded_dims;
+        const dims_t &strides = buffer.format_desc.blocking.strides;
         for (const auto &dim : indexed_dims) {
             if (padded_dims[dim.idx] == 1) {
                 block_t added_block(static_cast<dim_t>(dim.idx),
                         padded_dims[dim.idx], strides[dim.idx]);
                 bool is_added = false;
-                for (size_t i = 0; i < buffer.layout.size(); i++) {
-                    if (buffer.layout[i].stride > added_block.stride) {
-                        buffer.layout.insert(i, added_block);
+                for (size_t i = 0; i < layout.size(); i++) {
+                    if (layout[i].stride > added_block.stride) {
+                        layout.insert(i, added_block);
                         is_added = true;
                         break;
                     }
                 }
-                if (!is_added) buffer.layout.append(added_block);
+                if (!is_added) layout.append(added_block);
             }
         }
     }
 
     // Generate an initial set of gws blocks
-    block_layout_t gws_layout = buffers.front().layout;
+    block_layout_t gws_layout = buf_layouts.front();
 
     // Subdivide the gws layout to match all buffers
-    for (auto &buffer : buffers) {
-        CHECK(reconcile_via_subdivide(buffer.layout, gws_layout));
+    for (auto &layout : buf_layouts) {
+        CHECK(subdivide_to_match(layout, gws_layout));
     }
 
     // gws_layout is guaranteed to be as subdivided as needed for every
     // registered buffer. Now do one final pass to update each buffer
     // to match
-    for (auto &buffer : buffers) {
-        CHECK(reconcile_via_subdivide(buffer.layout, gws_layout));
+    for (auto &layout : buf_layouts) {
+        CHECK(subdivide_to_match(layout, gws_layout));
     }
 
     // TODO: gws_layout is no longer used at this point, but it could be used to reduce
     // similar work with gws_blocks below.
+    std::array<bool, DNNL_MAX_NDIMS> is_dispatched;
+    is_dispatched.fill(false);
+    for (dim_id_t dim : dispatched_dims) {
+        is_dispatched[dim] = true;
+    }
 
     std::vector<gws_layout_t> gws_layouts;
-    for (const auto &buffer : buffers) {
-        gws_layout_t layout;
-        for (const auto &block : buffer.layout) {
+    for (const auto &layout : buf_layouts) {
+        gws_layout_t gws_layouti;
+        for (const auto &block : layout) {
+            // Don't add blocks for broadcasted dimensions
+            if (!is_dispatched[static_cast<size_t>(block.dim_idx)]) continue;
+
             // XXX: gws_dim=0 is updated in compute_gws_mapping,
             // once the mapped gws block is known
-            layout.emplace_back(block, indexed_dims, 0);
+            gws_layouti.emplace_back(block, indexed_dims, 0);
         }
 
-        if (layout.empty()) {
+        if (gws_layouti.empty()) {
             // size-1 buffer case: add a single size-1 block
-            layout.emplace_back(block_t(0, 1, 1), indexed_dims, 0);
+            gws_layouti.emplace_back(block_t(0, 1, 1), indexed_dims, 0);
         }
 
-        gws_layouts.emplace_back(layout);
+        gws_layouts.emplace_back(gws_layouti);
     }
 
     // Somewhat arbitrarily pick the first layout to generate the gws mapping
@@ -402,8 +453,6 @@ status_t reusable_dispatch_config_t::generate(
 
     for (size_t i = 0; i < gws_layouts.size(); i++) {
         auto &layout = gws_layouts[i];
-        if (layout.size() != gws_blocks.get_blocks().size())
-            return status::unimplemented;
         CHECK(compute_gws_mapping(layout, gws_blocks));
         compute_buffer_terms(layout, i, gws_blocks);
     }

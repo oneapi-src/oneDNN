@@ -21,7 +21,6 @@
 #include <string>
 #include <vector>
 #include "common/c_types_map.hpp"
-#include "common/utils.hpp"
 #include "gpu/block_structure.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/dispatch.hpp"
@@ -330,29 +329,156 @@ private:
     const lws_strategy_t &lws_strategy;
 };
 
-struct named_buffer_t {
-    named_buffer_t(const char *name, const memory_desc_t *md)
-        : named_buffer_t(name, block_layout_t(memory_desc_wrapper(md)), md) {}
-    named_buffer_t(const char *name, const memory_desc_t &md)
-        : named_buffer_t(name, &md) {}
+struct dim_id_t {
+    dim_id_t() = default;
+    constexpr dim_id_t(size_t id) : id(id) {};
+    size_t id;
 
-    void disable_dim(size_t dim_idx);
+    bool operator==(const dim_id_t &other) const { return id == other.id; }
+    bool operator==(size_t other) const { return id == other; }
+    operator size_t() const { return id; }
+};
 
-    dim_t num_dispatched_elems() const;
+struct dim_id_hash_t {
+    size_t operator()(const dim_id_t &id) const noexcept { return id.id; }
+};
 
-    status_t map_gws_blocks(compute::nd_range_t &nd_range);
+constexpr size_t dim_not_found = std::numeric_limits<size_t>::max();
 
-    block_layout_t layout;
-    std::vector<size_t> disabled_dims;
-    std::string name;
+struct named_buffer_t : public memory_desc_t {
+    named_buffer_t(const char *name, const memory_desc_t &md,
+            std::vector<dim_id_t> dims)
+        : memory_desc_t(md), name(name), dim_ids(std::move(dims)) {
+        gpu_assert(this->name.size() <= MAX_BUFFER_NAME_LENGTH);
+        gpu_assert(format_kind == format_kind::blocked);
+    };
 
-    const memory_desc_t *md;
+    // Copy the named_buffer_t, while changing the name
+    named_buffer_t(const char *name, const named_buffer_t &buf)
+        : memory_desc_t(buf), name(name), dim_ids(buf.get_dim_ids()) {};
+
+    const std::string &get_name() const { return name; }
+    const std::vector<dim_id_t> &get_dim_ids() const { return dim_ids; }
+
+    void remove_dim(dim_id_t dim) {
+        size_t dim_idx = get_dim_idx(dim);
+        if (dim_idx == dim_not_found) return;
+
+        remove_blocking(dim);
+
+        auto &blk = format_desc.blocking;
+        dim_t dim_stride = blk.strides[dim_idx];
+        dim_t dim_size = padded_dims[dim_idx];
+
+        for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
+            if (blk.strides[i] > dim_stride) blk.strides[i] /= dim_size;
+
+            // Shift dims down
+            if (i > dim_idx) {
+                blk.strides[i - 1] = blk.strides[i];
+                dims[i - 1] = dims[i];
+                padded_dims[i - 1] = padded_dims[i];
+            }
+        }
+
+        // Reindex blocks to reflect the shift
+        for (size_t blk_idx = 0; blk_idx < static_cast<size_t>(blk.inner_nblks);
+                blk_idx++) {
+            if (static_cast<size_t>(blk.inner_idxs[blk_idx]) > dim_idx)
+                blk.inner_idxs[blk_idx]--;
+        }
+
+        // Remove the dimension label
+        dim_ids.erase(dim_ids.begin() + static_cast<dim_t>(dim_idx));
+
+        // Decrement the number of dimensions
+        ndims--;
+    }
+
+    // Appends a block for the given dimension, of the given size.
+    // Will change dimension size, strides, and block layout
+    void append_block(dim_id_t dim, dim_t size) {
+        auto &blk = format_desc.blocking;
+
+        size_t dim_idx = get_dim_idx(dim);
+        if (dim_idx == dim_not_found) {
+            // Add a new dimension
+            assert(ndims < DNNL_MAX_NDIMS - 1);
+            dims[ndims] = 1;
+            padded_dims[ndims] = 1;
+            dim_idx = static_cast<size_t>(ndims++);
+            dim_ids.emplace_back(dim);
+        }
+
+        // Add the block
+        blk.inner_idxs[blk.inner_nblks] = static_cast<dim_t>(dim_idx);
+        blk.inner_blks[blk.inner_nblks++] = size;
+
+        // Update the strides
+        for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
+            blk.strides[i] *= size;
+        }
+
+        // Update the dimension size
+        dims[dim_idx] *= size;
+        padded_dims[dim_idx] *= size;
+    }
+
+    size_t get_dim_idx(dim_id_t dim) {
+        for (size_t i = 0; i < dim_ids.size(); i++) {
+            if (dim_ids[i] == dim) { return i; }
+        }
+        return dim_not_found;
+    }
+
+    block_layout_t layout() {
+        // Create the block layout and reindex to the canonical dimension indexing
+        block_layout_t layout(*this);
+        for (auto &block : layout) {
+            // Re-index the layout according to the included dims
+            block.dim_idx = static_cast<dim_t>(
+                    get_dim_ids()[static_cast<size_t>(block.dim_idx)]);
+        }
+        return layout;
+    }
 
 private:
-    named_buffer_t(const char *name, const block_layout_t &layout,
-            const memory_desc_t *md)
-        : layout(layout), name(name), md(md) {
-        gpu_assert(this->name.size() <= MAX_BUFFER_NAME_LENGTH);
+    std::string name;
+    std::vector<dim_id_t> dim_ids;
+
+    void remove_blocking(dim_id_t dim) {
+        auto &blk = format_desc.blocking;
+        size_t dim_idx = get_dim_idx(dim);
+        if (dim_idx == dim_not_found) return;
+
+        // Tally up inner blocks that will be removed
+        std::vector<block_t> blocks;
+        dim_t stride = 1;
+        for (int i = blk.inner_nblks - 1; i >= 0; i--) {
+            if (static_cast<size_t>(blk.inner_idxs[i]) == dim_idx)
+                blocks.emplace_back(dim_idx, blk.inner_blks[i], stride);
+            stride *= blk.inner_blks[i];
+        }
+
+        // Remove the inner blocks
+        size_t num_remaining_blocks = 0;
+        for (size_t i = 0; i < static_cast<size_t>(blk.inner_nblks); i++) {
+            if (static_cast<size_t>(blk.inner_idxs[i]) == dim_idx) continue;
+
+            blk.inner_idxs[num_remaining_blocks] = blk.inner_idxs[i];
+            blk.inner_blks[num_remaining_blocks++] = blk.inner_blks[i];
+        }
+        blk.inner_nblks = static_cast<int>(num_remaining_blocks);
+
+        // Update strides
+        dim_t outer_stride = blk.strides[dim_idx];
+        for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
+            if (blk.strides[i] > outer_stride) continue;
+            for (const auto &block : blocks) {
+                if (blk.strides[i] >= block.stride)
+                    blk.strides[i] /= block.block;
+            }
+        }
     }
 };
 
@@ -378,7 +504,7 @@ public:
             const auto &buf_term_idx = kv.second;
 
             // Copy buffer name into params
-            const auto &buf_name = buffers[buf_idx].name;
+            const auto &buf_name = buffers[buf_idx].get_name();
             for (size_t i = 0; i < buf_name.size(); i++) {
                 compile_params.buffer_names[buf_idx][i] = buf_name[i];
             }
@@ -427,12 +553,15 @@ private:
 
 class reusable_dispatch_config_t {
 public:
+    reusable_dispatch_config_t(std::vector<dim_id_t> dims)
+        : dispatched_dims(std::move(dims)) {};
     status_t generate(
             reusable_dispatch_t &dispatch, const lws_strategy_t &lws_strategy);
     status_t register_buffer(named_buffer_t &buffer);
     status_t define_dim_index(const char *dim_name, size_t dim_idx);
 
 private:
+    size_t get_dim_idx(size_t dim_idx);
     gws_mapped_layout_t compute_gws_blocks(
             const gws_layout_t &layout, const lws_strategy_t &lws_strategy);
     status_t compute_gws_mapping(
@@ -441,9 +570,14 @@ private:
             const gws_mapped_layout_t &gws_blocks);
     void compute_dim_terms(const named_dim_t &dim, size_t dim_idx,
             const gws_mapped_layout_t &gws_blocks);
+    status_t subdivide_to_match(
+            block_layout_t &layoutA, block_layout_t &layoutB);
 
     std::vector<named_buffer_t> buffers;
     std::vector<named_dim_t> indexed_dims;
+
+    std::vector<dim_id_t> dispatched_dims;
+    std::unordered_map<dim_id_t, dim_t, dim_id_hash_t> dim_sizes;
 
     gws_term_list_t term_list;
 };
