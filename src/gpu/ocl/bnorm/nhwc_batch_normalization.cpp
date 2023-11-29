@@ -306,19 +306,16 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
 
     conf.vect_size = get_nhwc_vect_size(
             conf.ic_block(), conf.max_vect_size(), conf.sub_group_size);
-
-    if (conf.bn_tuning && conf.update_sp_unroll_param().is_overridden()
-            && (conf.update_sp_block() % conf.update_sp_unroll()
-                    || (conf.sp % conf.update_sp_block())
-                            % conf.update_sp_unroll())) {
-        // guard for tuning, to use default value if overrrided one is wrong
+    // Guard for tuning and lookup table -
+    // to use the default value if overrrided one is wrong
+    const bool bad_update_sp_unroll
+            = conf.update_sp_block() % conf.update_sp_unroll()
+            || (conf.sp % conf.update_sp_block()) % conf.update_sp_unroll();
+    if (conf.update_sp_unroll_param().is_overridden() && bad_update_sp_unroll) {
         conf.set_update_sp_unroll(1);
     } else {
-        assert(conf.update_sp_block() % conf.update_sp_unroll() == 0);
-        assert((conf.sp % conf.update_sp_block()) % conf.update_sp_unroll()
-                == 0);
+        assert(!bad_update_sp_unroll);
     }
-
     return status::success;
 }
 
