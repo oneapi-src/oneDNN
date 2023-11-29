@@ -35,7 +35,7 @@ block_layout_t block_layout_t::normalized(bool remove_size_1_blocks) const {
     auto cur = res.begin();
     for (size_t i = 1; i < num_blocks; i++) {
         const auto &block = blocks[i];
-        if (block.block == 1 && remove_size_1_blocks) continue;
+        if (block.block <= 1 && remove_size_1_blocks) continue;
         if (can_combine(*cur, block)) {
             cur->stride = std::min(cur->stride, block.stride);
             cur->block = cur->block * block.block;
@@ -45,7 +45,7 @@ block_layout_t block_layout_t::normalized(bool remove_size_1_blocks) const {
         }
     }
 
-    if (res.front().block == 1 && remove_size_1_blocks) res.erase(0);
+    if (res.front().block <= 1 && remove_size_1_blocks) res.erase(0);
 
     return res;
 }
