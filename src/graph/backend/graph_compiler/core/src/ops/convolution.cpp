@@ -1127,10 +1127,6 @@ sc_op_ptr conv_fwd_core_op_t::get_data_compensation(sc_graph_t &mgr) {
     auto wei_plain_dim = use_rl != ops::rl_kind::NO_LOWERING
             ? attrs_.get<sc_dims>("origin_wei_plain_dims")
             : get_inputs()[1]->details_.get_plain_dims();
-    bool is_3d = wei_plain_dim.size() > 4;
-    int kd = is_3d ? wei_plain_dim.at(2) : 1;
-    int kh = wei_plain_dim.at(2 + is_3d);
-    int kw = wei_plain_dim.at(3 + is_3d);
     if (!is_dyn_quan
             && (weight_zero_points.empty()
                     || (std::all_of(weight_zero_points.begin(),
@@ -1138,6 +1134,12 @@ sc_op_ptr conv_fwd_core_op_t::get_data_compensation(sc_graph_t &mgr) {
                             [](int i) { return i == 0; })))) {
         return nullptr;
     }
+    COMPILE_ASSERT(wei_plain_dim.size() >= 4,
+            "Convolution should have >= 4 dimension(at least 2d)")
+    bool is_3d = wei_plain_dim.size() > 4;
+    int kd = is_3d ? wei_plain_dim.at(2) : 1;
+    int kh = wei_plain_dim.at(2 + is_3d);
+    int kw = wei_plain_dim.at(3 + is_3d);
     auto data = info_.inputs_[0];
     auto cast_node = mgr.make("cast", {data}, {}, {{"dtype", datatypes::s32}});
 
@@ -1337,10 +1339,6 @@ sc_op_ptr conv_fwd_core_op_t::get_constant_compensation(sc_graph_t &g) {
             ? attrs_.get<sc_dims>("origin_wei_plain_dims")
             : get_inputs()[1]->details_.get_plain_dims();
     int C = data_dims.at(1);
-    bool is_3d = weight_dims.size() > 4;
-    int kd = is_3d ? weight_dims.at(2) : 1;
-    int kh = weight_dims.at(2 + is_3d);
-    int kw = weight_dims.at(3 + is_3d);
     sc_op_ptr ret_node;
     if (is_dyn_quan) {
         if (!dyn_data_zero_points || !dyn_weight_zero_points) {
@@ -1358,6 +1356,12 @@ sc_op_ptr conv_fwd_core_op_t::get_constant_compensation(sc_graph_t &g) {
             return nullptr;
         }
     }
+    COMPILE_ASSERT(weight_dims.size() >= 4,
+            "Convolution should have >= 4 dimension(at least 2d)")
+    bool is_3d = weight_dims.size() > 4;
+    int kd = is_3d ? weight_dims.at(2) : 1;
+    int kh = weight_dims.at(2 + is_3d);
+    int kw = weight_dims.at(3 + is_3d);
     if (is_dyn_quan) {
         COMPILE_ASSERT(
                 dyn_data_zero_points->details_.get_plain_dims() == sc_dims {1}
