@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@
 #include "bfloat16.hpp"
 #include "float16.hpp"
 #include "float8.hpp"
+#include "int4.hpp"
 #include "internal_defs.hpp"
 #include "z_magic.hpp"
 
@@ -210,6 +211,28 @@ struct numeric_limits<float16_t> {
     static constexpr float16_t epsilon() {
         return float16_t(((0x0f - (digits - 1)) << (digits - 1)), true);
     }
+};
+
+template <>
+struct numeric_limits<uint4_t> {
+    static constexpr uint4_t lowest() { return uint4_t(0); }
+
+    static constexpr uint4_t max() { return uint4_t(15); }
+
+    static constexpr int digits = 4;
+
+    static constexpr uint4_t epsilon() { return uint4_t(0); }
+};
+
+template <>
+struct numeric_limits<int4_t> {
+    static constexpr int4_t lowest() { return int4_t(-8); }
+
+    static constexpr int4_t max() { return int4_t(7); }
+
+    static constexpr int digits = 4;
+
+    static constexpr int4_t epsilon() { return int4_t(0); }
 };
 
 template <typename T>

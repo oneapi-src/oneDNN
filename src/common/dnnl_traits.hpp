@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,6 +78,14 @@ struct prec_traits<data_type::s8> {
 template <>
 struct prec_traits<data_type::u8> {
     typedef uint8_t type;
+};
+template <>
+struct prec_traits<data_type::s4> {
+    typedef int4_t type;
+};
+template <>
+struct prec_traits<data_type::u4> {
+    typedef uint4_t type;
 };
 template <>
 struct prec_traits<data_type::boolean> {
