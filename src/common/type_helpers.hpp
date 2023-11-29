@@ -93,6 +93,8 @@ inline size_t data_type_size(data_type_t data_type) {
         case s32: return sizeof(prec_traits<s32>::type);
         case s8: return sizeof(prec_traits<s8>::type);
         case u8: return sizeof(prec_traits<u8>::type);
+        case s4: return sizeof(prec_traits<s4>::type);
+        case u4: return sizeof(prec_traits<u4>::type);
         case boolean: return sizeof(prec_traits<boolean>::type);
         case data_type::undef:
         default: assert(!"unknown data_type");
@@ -285,7 +287,7 @@ inline data_type_t default_accum_data_type(
     // we allow to use f32 accumulation type only when the
     // accumulation chain is small. Otherwise, strict should be set to
     // true
-    if (one_of(src_dt, s8, u8) && (dst_dt != f32 || strict)) return s32;
+    if (one_of(src_dt, s8, u8, u4, s4) && (dst_dt != f32 || strict)) return s32;
 
     if (one_of(f8_e5m2, src_dt, dst_dt)) return f32;
     if (one_of(f8_e4m3, src_dt, dst_dt)) return f32;
@@ -295,7 +297,9 @@ inline data_type_t default_accum_data_type(
     if (one_of(f64, src_dt, dst_dt)) return f64;
     if (one_of(s32, src_dt, dst_dt)) return s32;
 
-    if (one_of(s8, src_dt, dst_dt) || one_of(u8, src_dt, dst_dt)) return s32;
+    if (one_of(s8, src_dt, dst_dt) || one_of(u8, src_dt, dst_dt)
+            || one_of(s4, src_dt, dst_dt) || one_of(u4, src_dt, dst_dt))
+        return s32;
 
     return data_type::undef;
 }
@@ -313,8 +317,9 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     if (one_of(prop_kind, forward_training, forward_inference)) {
         if ((src_dt == u8 || src_dt == s8) && wei_dt == s8) return s32;
         if (one_of(f16, src_dt, wei_dt)) return f32;
-        // fpmath_mode with weights decompression
-        if (one_of(src_dt, bf16, f32) && one_of(wei_dt, u8, s8)) return f32;
+        // weights decompression
+        if (one_of(src_dt, bf16, f32) && one_of(wei_dt, u8, s8, s4, u4))
+            return f32;
     } else if (prop_kind == backward_data) {
         if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8
                 && one_of(dst_dt, s8, u8, s32))
@@ -334,7 +339,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
 
 inline bool is_integral_dt(data_type_t dt) {
     using namespace data_type;
-    return utils::one_of(dt, s32, s8, u8);
+    return utils::one_of(dt, s32, s8, u8, u4, s4);
 }
 
 template <typename data_t>
@@ -1025,7 +1030,7 @@ inline bool memory_desc_sanity_check(int ndims, const dims_t dims,
 
     bool ok = dims != nullptr && 0 < ndims && ndims <= DNNL_MAX_NDIMS
             && utils::one_of(data_type, f8_e5m2, f8_e4m3, f16, bf16, f32, f64,
-                    s32, s8, u8);
+                    s32, s8, u8, s4, u4);
     if (!ok) return false;
 
     bool has_runtime_dims = false;
