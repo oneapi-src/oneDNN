@@ -542,8 +542,11 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
             const bool n_chunk_tail = nc == N_chunks - 1 && N_chunk_tail > 0;
             auto nb_end = nb_start
                     + (n_chunk_tail ? N_chunk_tail : bgmmc.N_chunk_size);
-            const int curr_N_chunk_elems
-                    = n_chunk_tail ? N_chunk_tail_elems : bgmmc.N_chunk_elems;
+            const bool n_chunk_has_tail
+                    = nc == N_chunks - 1 && N_chunk_tail_elems > 0;
+            const int curr_N_chunk_elems = n_chunk_has_tail
+                    ? N_chunk_tail_elems
+                    : bgmmc.N_chunk_elems;
             for (int mb = mb_start; mb < mb_end; mb++) {
                 const int curr_M_blk = brgmm_ctx.get_M_kernel_size(mb);
                 const int m_ker_idx = brgmm_ctx.get_M_kernel_idx(mb);
