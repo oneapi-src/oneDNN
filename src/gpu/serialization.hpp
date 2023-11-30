@@ -50,6 +50,9 @@ struct serialized_data_t {
     };
 #endif
 
+    const std::vector<uint8_t> &get_data() const { return data; }
+    void set_data(const std::vector<uint8_t> &data) { this->data = data; }
+
     template <typename T,
             typename
             = typename std::enable_if<is_trivially_serialized<T>::value>::type>
