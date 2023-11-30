@@ -554,8 +554,9 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 #endif
 
     // Zero-points for non-integral data type does not make sense
-    if (!prb->attr.zero_points.is_def() && prb->wei_dt() != dnnl_s8
-            && prb->wei_dt() != dnnl_u8) {
+    if (!prb->attr.zero_points.is_def()
+            && (prb->wei_dt() != dnnl_s8 && prb->wei_dt() != dnnl_u8
+                    && prb->wei_dt() != dnnl_s4 && prb->wei_dt() != dnnl_u4)) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }
