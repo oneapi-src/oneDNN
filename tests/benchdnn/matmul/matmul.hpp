@@ -184,7 +184,8 @@ struct prb_t : public prb_vdims_t {
 
     bool weights_decompression() const {
         return src_dt() != dnnl_s8 && src_dt() != dnnl_u8
-                && (wei_dt() == dnnl_s8 || wei_dt() == dnnl_u8)
+                && (wei_dt() == dnnl_s8 || wei_dt() == dnnl_u8
+                        || wei_dt() == dnnl_s4 || wei_dt() == dnnl_u4)
                 && attr.fpmath_mode.apply_to_int;
     }
 
