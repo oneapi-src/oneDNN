@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
+#include "common/type_helpers.hpp"
 
 #include "cpu/simple_q10n.hpp"
 
@@ -67,6 +68,16 @@ inline float load_float_value(data_type_t dt, const void *ptr, dim_t idx) {
         CASE(s32);
         CASE(s8);
         CASE(u8);
+        case s4: {
+            auto val = int4_t::extract(
+                    reinterpret_cast<const uint8_t *>(ptr)[idx / 2], idx % 2);
+            return static_cast<float>(val);
+        }
+        case u4: {
+            auto val = uint4_t::extract(
+                    reinterpret_cast<const uint8_t *>(ptr)[idx / 2], idx % 2);
+            return static_cast<float>(val);
+        }
         default: assert(!"bad data_type");
     }
 

@@ -51,10 +51,11 @@ struct ref_matmul_t : public primitive_t {
 
             bool ok = is_dense_format_kind()
                     && utils::one_of(src_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
-                    && utils::one_of(
-                            wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3, u8, s8)
+                    && utils::one_of(wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3,
+                            u8, s8, u4, s4)
                     && utils::one_of(dst_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
-                    && (src_type == wei_type || utils::one_of(wei_type, u8, s8))
+                    && (src_type == wei_type
+                            || utils::one_of(wei_type, u8, s8, u4, s4))
                     /* int8 weights decompression support */
                     && IMPLICATION(utils::one_of(wei_type, u8, s8),
                             attr_.mayiconvert(wei_type, src_type))
