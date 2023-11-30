@@ -25300,7 +25300,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                         break;
                                     case 0:
                                         if (alpha == 1 || alpha == -1) {
-                                            if (Ts_real == Td_real) {
+                                            if (Ts_real == Td_real
+                                                    && !Ts_real.isInteger()) {
                                                 movePipes(sreg,
                                                         scrosspack == 1
                                                                 && dcrosspack
