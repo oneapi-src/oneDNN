@@ -24,6 +24,26 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+const std::vector<prb_dim_t> &conv_dims() {
+    static std::vector<prb_dim_t> _conv_dims = []() {
+        std::vector<prb_dim_t> ret;
+        for (auto &d : conv_index_dims(prop_kind::forward)) {
+            ret.push_back(d);
+        }
+        ret.push_back(prb_dims::id);
+        ret.push_back(prb_dims::ih);
+        ret.push_back(prb_dims::iw);
+        for (auto &d : conv_stride_dims())
+            ret.push_back(d);
+        for (auto &d : conv_dilation_dims())
+            ret.push_back(d);
+        for (auto &d : conv_padding_dims())
+            ret.push_back(d);
+        return ret;
+    }();
+    return _conv_dims;
+}
+
 const std::vector<prb_dim_t> &conv_index_dims(prop_kind_t prop) {
     auto get_dims = [&](prop_kind_t prop) {
         std::vector<prb_dim_t> ret;

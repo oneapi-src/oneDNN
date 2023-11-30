@@ -29,6 +29,7 @@ namespace jit {
 
 bool is_conv_index(const prb_dim_t &dim);
 bool is_conv_index(const prb_dim_t &dim, prop_kind_t prop);
+const std::vector<prb_dim_t> &conv_dims();
 const std::vector<prb_dim_t> &conv_index_dims(prop_kind_t prop);
 
 const std::vector<prb_dim_t> &conv_layout_dims(
