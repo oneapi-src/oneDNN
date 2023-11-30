@@ -1970,6 +1970,64 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
+                        && tag_i == format_tag::any
+                        && utils::one_of(type_o, dnnl_s4, dnnl_u4),
+                spec::reference>::type> {
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        return !input_d.has_runtime_dims_or_strides()
+                && input_d.similar_to(output_d, true, false, 0)
+                && input_d.is_dense() && output_d.is_dense()
+                && simple_attr_check(attr, false, true);
+    }
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+        using namespace utils;
+
+        input += input_d.blk_off(0);
+        output += output_d.blk_off(0);
+
+        // To avoid clashes between threads each byte (or 2 elements)
+        // is handled by a single thread
+        const dim_t work_amount = input_d.nelems() / 2;
+
+        parallel(0, [&](const int ithr, const int nthr) {
+            dim_t start {0}, end {0};
+            balance211(work_amount, nthr, ithr, start, end);
+            PRAGMA_OMP_SIMD()
+            for_(dim_t idx = start; idx < end; idx++)
+            for (int i = 0; i < 2; ++i) {
+                const auto i_off = input_d.off_l(2 * idx + i);
+                const auto o_off = output_d.off_l(2 * idx + i);
+                if (order_keep) {
+                    // f32 -> u4/s4
+                    // XXX: add support for quantization with saturation and scales?
+                    // Currently this pass is not required since weights are already in s4/u4
+                    auto src_val = data_t<type_o>(input[i_off]);
+                    const uint8_t dst_val = i == 0
+                            ? 0
+                            : reinterpret_cast<uint8_t *>(output)[o_off / 2];
+                    output[o_off / 2] = src_val.insert(dst_val, i % 2);
+                } else {
+                    // u4/s4 -> f32
+                    auto src_val
+                            = data_t<type_o>::extract(input[i_off / 2], i % 2);
+                    reinterpret_cast<data_t<type_i> *>(output)[o_off]
+                            = static_cast<float>(src_val);
+                }
+            }
+        });
+
+        return status::success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<tag_i == format_tag::any
                         && tag_o == format_tag::any
                         && order_keep == fmt_order::any,
                 spec::direct_copy_except_dim_0>::type> {
@@ -2070,7 +2128,8 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
                         && tag_o == format_tag::any
-                        && order_keep == fmt_order::any,
+                        && order_keep == fmt_order::any
+                        && !utils::one_of(type_o, dnnl_s4, dnnl_u4),
                 spec::reference>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
