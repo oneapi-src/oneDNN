@@ -47,7 +47,7 @@ struct cache_blob_impl_t {
     status_t get_binary(const uint8_t **binary, size_t *binary_size) {
         if (!binary || !binary_size) { return status::invalid_arguments; }
         if (pos_ >= size_) { return status::invalid_arguments; }
-        (*binary_size) = *reinterpret_cast<size_t *>(data_ + pos_);
+        std::memcpy(binary_size, data_ + pos_, sizeof(*binary_size));
         pos_ += sizeof(*binary_size);
         (*binary) = data_ + pos_;
         pos_ += *binary_size;
