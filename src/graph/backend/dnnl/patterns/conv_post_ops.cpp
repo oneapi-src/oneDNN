@@ -790,7 +790,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_post_ops)
       conv_bwd_weight  biasadd_bwd
                 |          |
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_bwd_weights_bwd_bias)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_bwd_weights_bias)
         .set_enable(false)
         .set_kind(partition_kind_t::convolution_backward_post_ops)
         .set_priority(9.7f)
@@ -798,9 +798,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_bwd_weights_bwd_bias)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *wildcard
                             = pgraph->append_op(graph::op_kind::Wildcard);
-                    pgraph->append_op(
-                            graph::op_kind::ConvolutionBackwardWeights,
-                            in_edges_t {in_edge(1, wildcard, 0)});
+                    graph::utils::pm::pb_op_t *p_conv_backward_weights
+                            = pgraph->append_op(
+                                    graph::op_kind::ConvolutionBackwardWeights,
+                                    in_edges_t {in_edge(1, wildcard, 0)});
+                    p_conv_backward_weights->append_decision_function(
+                            check_input_num<2>);
                     pgraph->append_op(graph::op_kind::BiasAddBackward,
                             in_edges_t {in_edge(0, wildcard, 0)});
                 })

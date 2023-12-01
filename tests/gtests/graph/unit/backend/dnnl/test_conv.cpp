@@ -173,7 +173,7 @@ TEST(Compile, ConvolutionBackwardFilterFp32) {
     g.add_op(&conv_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_weights_bwd_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -230,7 +230,7 @@ TEST(Compile, ConvolutionBackwardWeightsWithGroupsAndFiltersAnyLayout) {
     g.add_op(&conv_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_weights_bwd_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -251,6 +251,89 @@ TEST(Compile, ConvolutionBackwardWeightsWithGroupsAndFiltersAnyLayout) {
     // to reshape (with groups -> no groups), we make it strided (via reorder)
     ASSERT_TRUE(lt.layout_type == graph::layout_type::opaque
             || lt.layout_type == graph::layout_type::strided);
+}
+
+TEST(Partition, InvalidInputNumForConvolutionBackwardData) {
+    using dims = dnnl::impl::graph::dnnl_impl::dims;
+
+    graph::engine_t *eng = get_engine();
+
+    graph::op_t conv_bwd_data_op(graph::op_kind::ConvolutionBackwardData);
+    conv_bwd_data_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_bwd_data_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_bwd_data_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_bwd_data_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    // according to spec, group should be greater than 0
+    conv_bwd_data_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_bwd_data_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_bwd_data_op.set_attr<std::string>(
+            graph::op_attr::weights_format, "OIX");
+    conv_bwd_data_op.set_attr<dims>(
+            graph::op_attr::dst_shape, dims {8, 3, 224, 224});
+
+    // prepare logical tensor
+    graph::logical_tensor_t diff_src = utils::logical_tensor_init(
+            0, {8, 3, 224, 224}, graph::data_type::f32);
+    graph::logical_tensor_t weights = utils::logical_tensor_init(
+            1, {16, 3, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t dst_shape
+            = utils::logical_tensor_init(2, {1, 4}, graph::data_type::s32);
+    graph::logical_tensor_t diff_dst = utils::logical_tensor_init(
+            3, {8, 16, 222, 222}, graph::data_type::f32);
+
+    conv_bwd_data_op.add_input(diff_dst);
+    conv_bwd_data_op.add_input(weights);
+    conv_bwd_data_op.add_input(dst_shape);
+    conv_bwd_data_op.add_output(diff_src);
+
+    graph::graph_t g(eng->kind());
+    ASSERT_EQ(g.add_op(&conv_bwd_data_op), graph::status::success);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 0U);
+}
+
+TEST(Partition, InvalidInputNumForConvolutionBackwardWeights) {
+    using dims = dnnl::impl::graph::dnnl_impl::dims;
+
+    graph::engine_t *eng = get_engine();
+
+    graph::op_t conv_bwd_weights_op(graph::op_kind::ConvolutionBackwardWeights);
+    conv_bwd_weights_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_bwd_weights_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_bwd_weights_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_bwd_weights_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_bwd_weights_op.set_attr<std::string>(
+            graph::op_attr::data_format, "NXC");
+    conv_bwd_weights_op.set_attr<std::string>(
+            graph::op_attr::weights_format, "XIO");
+    conv_bwd_weights_op.set_attr<dims>(
+            graph::op_attr::weights_shape, dims {3, 3, 64, 64});
+
+    // prepare logical tensor
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, {1, 224, 224, 64}, graph::data_type::f32);
+    graph::logical_tensor_t diff_dst = utils::logical_tensor_init(
+            1, {1, 222, 222, 64}, graph::data_type::f32);
+    graph::logical_tensor_t weights_shape
+            = utils::logical_tensor_init(2, {1, 4}, graph::data_type::s32);
+    graph::logical_tensor_t diff_weight = utils::logical_tensor_init(
+            3, {3, 3, 64, 64}, graph::data_type::f32, graph::layout_type::any);
+
+    conv_bwd_weights_op.add_input(src);
+    conv_bwd_weights_op.add_input(diff_dst);
+    conv_bwd_weights_op.add_input(weights_shape);
+    conv_bwd_weights_op.add_output(diff_weight);
+
+    graph::graph_t g(eng->kind());
+    ASSERT_EQ(g.add_op(&conv_bwd_weights_op), graph::status::success);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("conv_weights_bwd_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 0U);
 }
 
 TEST(Execute, ConvolutionNcxOix) {

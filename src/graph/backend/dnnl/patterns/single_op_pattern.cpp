@@ -215,16 +215,60 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, ln_bw_pass)
 
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(concat_pass, Concat, float_concat)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(conv_pass, Convolution, float_conv_fwd)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        conv_data_bw_pass, ConvolutionBackwardData, conv_bwd_data_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        conv_filter_bw_pass, ConvolutionBackwardWeights, conv_bwd_weights_t)
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, conv_data_bw_pass)
+        .set_priority(DEFAULT_P)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *p_conv_backward_data
+                            = pgraph->append_op(
+                                    graph::op_kind::ConvolutionBackwardData);
+                    // Can be removed after shape tensor is supported
+                    p_conv_backward_data->append_decision_function(
+                            check_input_num<2>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<conv_bwd_data_t>();
+        });
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, conv_weights_bwd_pass)
+        .set_priority(DEFAULT_P)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *p_conv_backward_weights
+                            = pgraph->append_op(
+                                    graph::op_kind::ConvolutionBackwardWeights);
+                    // Can be removed after shape tensor is supported
+                    p_conv_backward_weights->append_decision_function(
+                            check_input_num<2>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<conv_bwd_weights_t>();
+        });
+
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         convtranspose_pass, ConvTranspose, float_convtranspose_fwd)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(convtranspose_data_bwd_pass,
         ConvTransposeBackwardData, convtranspose_bwd_data_t)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(convtranspose_filter_bwd_pass,
-        ConvTransposeBackwardWeights, convtranspose_bwd_weights_t)
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, convtranspose_weights_bwd_pass)
+        .set_priority(DEFAULT_P)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *p_conv_backward_weights
+                            = pgraph->append_op(graph::op_kind::
+                                            ConvTransposeBackwardWeights);
+                    // Can be removed after shape tensor is supported
+                    p_conv_backward_weights->append_decision_function(
+                            check_input_num<2>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<convtranspose_bwd_weights_t>();
+        });
+
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(matmul_pass, MatMul, float_matmul)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(max_pool_pass, MaxPool, float_pooling_fwd)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(

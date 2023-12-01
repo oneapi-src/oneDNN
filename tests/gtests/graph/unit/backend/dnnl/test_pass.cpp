@@ -4601,8 +4601,6 @@ TEST(Pass, DnnlSingleOpReplacement) {
             AvgPool,
             MaxPool,
             Clamp,
-            ConvolutionBackwardData,
-            ConvolutionBackwardWeights,
             MaxPoolBackward,
             Elu,
             Exp,
@@ -13562,7 +13560,7 @@ TEST(Pass, FuseConvBwdBiasaddBwd) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
-    pass::pass_base_ptr apass = get_pass("fp_conv_bwd_weights_bwd_bias");
+    pass::pass_base_ptr apass = get_pass("fp_conv_bwd_weights_bias");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);

@@ -316,7 +316,7 @@ public:
         g.finalize();
 
         graph::pass::pass_base_ptr apass
-                = get_pass("convtranspose_filter_bwd_pass");
+                = get_pass("convtranspose_weights_bwd_pass");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -696,7 +696,7 @@ TEST(Compile, ConvTransposeBackwardWeightsWithGroupsAndFiltersAnyLayout) {
     g.finalize();
 
     graph::pass::pass_base_ptr apass
-            = get_pass("convtranspose_filter_bwd_pass");
+            = get_pass("convtranspose_weights_bwd_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -2994,4 +2994,47 @@ TEST(Execute, ConvtransposeWithCache) {
     for (size_t i = 0; i < dst2.size(); ++i) {
         ASSERT_FLOAT_EQ(dst2[i], ref_dst2[i]);
     }
+}
+
+TEST(Partition, InvalidInputNumForConvolutionTransposeBackwardWeights) {
+    using dims = graph::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    graph::engine_t *eng = get_engine();
+    graph::op_t convtranspose_op(graph::op_kind::ConvTransposeBackwardWeights);
+    convtranspose_op.set_attr<dims>(graph::op_attr::strides, dims {2, 2});
+    convtranspose_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    convtranspose_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    convtranspose_op.set_attr<dims>(graph::op_attr::pads_end, dims {41, 41});
+
+    convtranspose_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    convtranspose_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    convtranspose_op.set_attr<std::string>(
+            graph::op_attr::weights_format, "IOX");
+    convtranspose_op.set_attr<dims>(
+            graph::op_attr::weights_shape, dims {32, 128, 3, 3});
+
+    // prepare logical tensor
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 32, 28, 28}, graph::data_type::f32);
+    graph::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+            1, {1, 128, 16, 16}, graph::data_type::f32);
+    graph::logical_tensor_t wei_shape_lt
+            = utils::logical_tensor_init(2, {1, 4}, graph::data_type::s32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {32, 128, 3, 3}, graph::data_type::f32);
+
+    convtranspose_op.add_input(src_lt);
+    convtranspose_op.add_input(diff_dst_lt);
+    convtranspose_op.add_input(wei_shape_lt);
+    convtranspose_op.add_output(dst_lt);
+
+    graph::graph_t g(eng->kind());
+    ASSERT_EQ(g.add_op(&convtranspose_op), graph::status::success);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass
+            = get_pass("convtranspose_weights_bwd_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 0U);
 }

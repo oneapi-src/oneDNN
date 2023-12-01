@@ -399,7 +399,7 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
         // use output shape if known
         output_shape = out.vdims();
     } else {
-        // TODO(Xinyu): support shape tensor
+        // not support shape inference with runtime shape tesnor
         if (inputs.size() > 2) return status::unimplemented;
         if (!n->has_attr(op_attr::dst_shape)) return status::unimplemented;
         output_shape = n->get_attr<dims>(op_attr::dst_shape);
@@ -578,8 +578,7 @@ status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
         // use output shape if known
         filter_shape = out.vdims();
     } else {
-        // TODO(Xinyu): support shape tensor
-        if (inputs.size() > 2) return status::unimplemented;
+        // not support shape inference with runtime shape tesnor
         if (!n->has_attr(op_attr::weights_shape)) return status::unimplemented;
         filter_shape = n->get_attr<dims>(op_attr::weights_shape);
     };
@@ -873,7 +872,7 @@ status_t infer_pool_bwd_output_shape(op_t *n,
             // use output shape if known
             diff_src_shape = out0.vdims();
         } else {
-            // TODO(Xinyu): support shape tensor
+            // not support shape inference with runtime shape tesnor
             if (inputs.size() > 1) return status::unimplemented;
             if (!n->has_attr(op_attr::src_shape)) return status::unimplemented;
             diff_src_shape = n->get_attr<dims>(op_attr::src_shape);
