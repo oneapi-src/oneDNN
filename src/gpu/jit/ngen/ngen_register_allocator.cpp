@@ -290,7 +290,8 @@ FlagRegister RegisterAllocator::alloc_flag(bool sub)
 
 GRFRange RegisterAllocator::try_alloc_range(int nregs, Bundle base_bundle, BundleGroup bundle_mask)
 {
-    int64_t *free_whole64 = (int64_t *) free_whole;
+    int64_t free_whole64[sizeof(free_whole) / sizeof(int64_t)];
+    std::memcpy(free_whole64, free_whole, sizeof(free_whole));
     bool ok = false;
     int r_base = -1;
 
@@ -355,7 +356,8 @@ Subregister RegisterAllocator::try_alloc_sub(DataType type, Bundle bundle)
     auto find_alloc_sub = [&,bundle,dwords](bool search_full_grf) -> bool {
         static const uint16_t alloc_patterns[4] = {0b1111111111111111, 0b0101010101010101, 0, 0b0001000100010001};
         auto alloc_pattern = alloc_patterns[(dwords - 1) & 3];
-        int64_t *free_whole64 = (int64_t *) free_whole;
+        int64_t free_whole64[sizeof(free_whole) / sizeof(int64_t)];
+        std::memcpy(free_whole64, free_whole, sizeof(free_whole));
 
         for (int rchunk = 0; rchunk < (max_regs >> 6); rchunk++) {
             int64_t free = search_full_grf ? free_whole64[rchunk] : -1;
