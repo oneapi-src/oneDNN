@@ -230,13 +230,13 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
             is_burstable = false; \
         if (x5_s > CONCAT3(PO_, idx, _BIN_ARG_D5) && x5_s > 1) \
             is_burstable = false; \
-        if (CONCAT3(PO_, idx, _BIN_ARG_D0) * CONCAT3(PO_, idx, _BIN_ARG_D1) \
-                        * CONCAT3(PO_, idx, _BIN_ARG_D2) \
-                        * CONCAT3(PO_, idx, _BIN_ARG_D2) \
-                        * CONCAT3(PO_, idx, _BIN_ARG_D3) \
-                        * CONCAT3(PO_, idx, _BIN_ARG_D4) \
-                        * CONCAT3(PO_, idx, _BIN_ARG_D5) \
-                == 1) \
+        if ((CONCAT3(PO_, idx, _BIN_ARG_D0) == 1) \
+                && (CONCAT3(PO_, idx, _BIN_ARG_D1) == 1) \
+                && (CONCAT3(PO_, idx, _BIN_ARG_D2) == 1) \
+                && (CONCAT3(PO_, idx, _BIN_ARG_D2) == 1) \
+                && (CONCAT3(PO_, idx, _BIN_ARG_D3) == 1) \
+                && (CONCAT3(PO_, idx, _BIN_ARG_D4) == 1) \
+                && (CONCAT3(PO_, idx, _BIN_ARG_D5) == 1)) \
             is_burstable = false; \
 \
         is_burstable; \
