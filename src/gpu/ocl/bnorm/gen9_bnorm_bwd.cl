@@ -232,8 +232,8 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
 #if FUSED_ATOMICS_REDUCTION
     __local float local_gamma[2 * CALC_SLM_SIZE];
     __local float *local_beta = local_gamma + CALC_SLM_SIZE;
-    gen9_calc_fused_reduction(diff_scale, diff_shift, c, &diff_gamma,
-            &diff_beta, NULL, NULL, local_gamma, local_beta);
+    gen9_calc_fused_reduction(diff_scale, diff_shift, c, diff_gamma, diff_beta,
+            NULL, NULL, local_gamma, local_beta);
 #else
     // scratchpad layout:
     // PADDED_IC - diff_gamma reduction, wrote by gen9_reduce_stats kernel

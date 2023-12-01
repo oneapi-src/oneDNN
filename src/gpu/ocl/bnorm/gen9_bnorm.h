@@ -244,7 +244,7 @@ void gen9_calc_fused_reduction(volatile __global atomic_float *diff_scale,
 #if NHWC_OPTIMIZED
         VECT_FLOAT_T *diff_gamma, VECT_FLOAT_T *diff_beta,
 #else
-        float *diff_gamma, float *diff_beta,
+        float8 diff_gamma, float8 diff_beta,
 #endif
         float *diff_gamma_tail, float *diff_beta_tail,
         __local float *local_gamma, __local float *local_beta) {
