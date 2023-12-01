@@ -146,8 +146,8 @@ dim_t dst_off_w_zero_padding(dim_t outer, dim_t inner) {
 }
 
 #define _SRC_OFF(outer, reduction, inner) \
-    (outer) * REDUCTION_SIZE *INNER_DIM_SIZE + (reduction)*INNER_DIM_SIZE \
-            + (inner)
+    ((outer)*REDUCTION_SIZE * INNER_DIM_SIZE + (reduction)*INNER_DIM_SIZE \
+            + (inner))
 
 #define _DST_OFF(outer, inner) dst_off_w_zero_padding(outer, inner)
 
@@ -165,6 +165,13 @@ dim_t dst_off_w_zero_padding(dim_t outer, dim_t inner) {
 #define PADDED_NELEMS \
     OUTER_SIZE *INNER_DIM_SIZE *DST_Z0_SIZE0 *DST_Z0_SIZE1 *DST_Z1_SIZE0 \
             *DST_Z1_SIZE1
+#endif
+
+// If reducing or not using vectorization, we can't access with an index
+#if !REDUCE_VECTOR && VECT_DT_N > 1
+#define GET_FINAL(x, idx) x[idx]
+#else
+#define GET_FINAL(x, idx) x
 #endif
 
 // Specifying wg size since larger work groups reduce performance.
@@ -235,12 +242,13 @@ combined_reduce(
 
     if (sglid < INNER_DIM_SIZE) {
 #if REDUCE_VECTOR
-        DEF_ACC_DATA_T final_acc[1] = {INIT_ACC};
+        DEF_ACC_DATA_T final_acc = {INIT_ACC};
         for (int i = 0; i < VECT_DT_N; i++) {
-            final_acc[0] = ACCUMULATE_FURTHER(acc[i], final_acc[0]);
+            final_acc = ACCUMULATE_FURTHER(acc[i], final_acc);
         }
 #else
-        const DEF_ACC_DATA_T *final_acc = &acc;
+        // Just rename the variable to match the REDUCE_VECTOR case
+        const VECT_DEF_ACC_DATA_T final_acc = acc;
 #endif // REDUCE_VECTOR
 
         // For each result:
@@ -252,7 +260,7 @@ combined_reduce(
                     = _DST_OFF(outer_idx, inner_idx + i * SUBGROUP_SIZE);
             // finalize the result
 #if IS_FINAL
-            float res = FINALIZE(convert_float(final_acc[i]));
+            float res = FINALIZE(convert_float(GET_FINAL(final_acc, i)));
 
             // Apply post-ops
 #if WITH_POST_OP
@@ -291,7 +299,7 @@ combined_reduce(
             }
 #endif // WITH_POST_OP
 #else
-            float res = final_acc[i];
+            float res = GET_FINAL(final_acc, i);
 #endif // IS_FINAL
 
             // Write to dst
