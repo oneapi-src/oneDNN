@@ -446,12 +446,12 @@ int doit(const prb_t *prb, res_t *res) {
         }
         // Get partition direction from op's kind which used for skipping
         // unsupported cases.
-        dir_t dir = FLAG_FWD;
+        dir_t dir = FWD_I;
         const auto &op_ids = partitions[i].get_ops();
         for (const auto &aop : dg.ops_) {
             if (std::count(op_ids.begin(), op_ids.end(), aop.id_)) {
                 if (aop.kind_.find("Backward") != std::string::npos) {
-                    dir = FLAG_BWD;
+                    dir = BWD_DW;
                     break;
                 }
             }
