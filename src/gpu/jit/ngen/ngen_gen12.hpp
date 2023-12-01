@@ -964,7 +964,9 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             auto sub = base[sr / getBytes(base.getType())];
             auto hs = (1 << o.direct.hs);
             if (opNum >= 0) hs >>= 1;
-            if ((opNum < 0) || (opNum == 2))
+            if (opNum < 0)
+                rd = sub(hs, 1, 0);
+            else if (opNum == 2)
                 rd = sub(hs);
             else
                 rd = sub((1 << vs) >> 1, hs);
@@ -1006,7 +1008,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             auto sub = base[sr / getBytes(base.getType())];
             auto hs = (1 << o.direct.hs) >> 1;
             if (opNum < 0)
-                rd = sub(hs);
+                rd = sub(hs, 1, 0);
             else
                 rd = sub((1 << vs) >> 1, 1 << o.direct.width, hs);
 
