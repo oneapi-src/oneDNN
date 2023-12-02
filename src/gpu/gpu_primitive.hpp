@@ -176,7 +176,7 @@ struct gpu_primitive_t : public primitive_t {
 
         auto key = std::make_shared<trivial_key_container_t<T>>(
                 params, compute_engine->engine_id());
-        if (!key->key.is_valid()) return status::runtime_error;
+        gpu_assert(key->key.is_valid());
 
         CHECK(get_cached_kernels<typename trivial_key_t<T>::value_type>(
                 std::move(key), engine, kernels, kernel_names));
