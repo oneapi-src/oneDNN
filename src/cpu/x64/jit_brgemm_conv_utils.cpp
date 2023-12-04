@@ -1666,9 +1666,14 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 prop_kind::forward_inference)
             && jcp.ngroups == 1 && jcp.dilate_w == 0 && jcp.kw > 1
             && jcp.stride_w > 1 && jcp.l_pad <= 0 && jcp.r_pad <= 0
-            && jcp.ic % jcp.vnni_block == 0) {
+            && jcp.ic % jcp.vnni_block == 0
+            && IMPLICATION(jcp.ic > jcp.simd_w, jcp.ic % jcp.simd_w == 0)) {
         // such convolutions are equivalent to
         // [iw / k][kw / k][stride_w / k][ic * k]
+        // Considering that the layout of weights (e.g. AcdB16b16a2b for bf16
+        // where 'b' is 'ic') for old and new ic should be equivalent.
+        // Therefore we require
+        // IMPLICATION(jcp.ic > jcp.simd_w, jcp.ic % jcp.simd_w == 0)
         // TODO: check if it may go to kw lowering
         const bool pure_1d = (jcp.mb == 1 && jcp.id == 1 && jcp.ih == 1);
         int w_koef = 1;
