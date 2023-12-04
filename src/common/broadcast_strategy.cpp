@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
             broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
             broadcasting_strategy_t::shared_axes,
+            broadcasting_strategy_t::per_mb,
             broadcasting_strategy_t::per_mb_spatial,
             broadcasting_strategy_t::per_mb_w, broadcasting_strategy_t::per_w,
             broadcasting_strategy_t::no_broadcast};
@@ -106,6 +107,24 @@ bool is_per_oc_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
         if (rhs_arg_md.dims[dim] != 1) return false;
     }
     return true;
+}
+
+// Checks if mask corresponds to broadcast per first dimension
+// Returns true if mask (5D) is equal to [0, 1, 1, 1, 1]
+bool is_per_mb_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
+        const memory_desc_wrapper &dst_d) {
+    if (!dst_d.is_plain()) return false; // blocked format not supported
+
+    bool per_mb_bcast = !mask.test(0);
+    if (!per_mb_bcast) return false;
+
+    const size_t ndims = dst_d.ndims();
+    assert(ndims > 0);
+
+    for (size_t d = 1; d < ndims; ++d)
+        per_mb_bcast = per_mb_bcast && mask.test(d);
+
+    return per_mb_bcast;
 }
 
 bool bcast_strategy_enabled(const bcast_set_t &supported_strategy_set,
@@ -188,6 +207,9 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     else if (is_channel_bcast(mask, dst_d)
             && is_enabled(broadcasting_strategy_t::per_mb_spatial))
         bcast = broadcasting_strategy_t::per_mb_spatial;
+    else if (is_per_mb_bcast(mask, dst_d)
+            && is_enabled(broadcasting_strategy_t::per_mb))
+        bcast = broadcasting_strategy_t::per_mb;
     else if (is_enabled(broadcasting_strategy_t::shared_axes))
         bcast = broadcasting_strategy_t::shared_axes;
 
