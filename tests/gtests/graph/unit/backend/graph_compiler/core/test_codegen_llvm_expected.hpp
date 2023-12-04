@@ -144,8 +144,8 @@ for_body5:                                        ; preds = %for_check4
   %22 = add i64 %j_v8, %21
   %23 = getelementptr float, float* %B_arg, i64 %22
   %24 = load float, float* %23, align 4, !alias.scope !10, !noalias !11
-  %25 = fmul fast float %20, %24
-  %26 = fadd fast float %16, %25
+  %25 = fmul reassoc nnan contract float %20, %24
+  %26 = fadd reassoc nnan contract float %16, %25
   %i_v10 = load i64, i64* %i, align 8
   %27 = mul i64 %i_v10, 128
   %j_v11 = load i64, i64* %j, align 8
@@ -206,9 +206,9 @@ entry:
   %2 = getelementptr i8, i8* %__module_data_arg, i64 8
   %val3 = bitcast i8* %2 to float*
   store float 0x4028AE1480000000, float* %val, align 4
-  %3 = call fast float @ginit()
+  %3 = call reassoc nnan contract float @ginit()
   store float %3, float* %val2, align 4
-  %4 = call fast float @ginit()
+  %4 = call reassoc nnan contract float @ginit()
   store float %4, float* %val3, align 4
   ret void
 }
@@ -362,7 +362,7 @@ for_body2:                                        ; preds = %for_check1
   %11 = add i64 %10, %k_v
   %12 = getelementptr float, float* %D, i64 %11
   %13 = load float, float* %12, align 4
-  %14 = fadd fast float %9, %13
+  %14 = fadd reassoc nnan contract float %9, %13
   %i_v5 = load i64, i64* %i, align 8
   %15 = mul i64 %i_v5, 128
   %k_v6 = load i64, i64* %k, align 8
@@ -375,13 +375,13 @@ for_body2:                                        ; preds = %for_check1
   %20 = add i64 %j_v7, %19
   %21 = getelementptr float, float* %B_arg, i64 %20
   %22 = load float, float* %21, align 4
-  %23 = fmul fast float %18, %22
-  %24 = fadd fast float %14, %23
+  %23 = fmul reassoc nnan contract float %18, %22
+  %24 = fadd reassoc nnan contract float %14, %23
   %len_v = load i32, i32* %len, align 4
   %25 = sitofp i32 %len_v to float
-  %26 = fadd fast float %24, %25
+  %26 = fadd reassoc nnan contract float %24, %25
   %v1_v = load float, float* %v1, align 4
-  %27 = fadd fast float %26, %v1_v
+  %27 = fadd reassoc nnan contract float %26, %v1_v
   %i_v9 = load i64, i64* %i, align 8
   %28 = mul i64 %i_v9, 128
   %j_v10 = load i64, i64* %j, align 8
@@ -481,7 +481,7 @@ for_body:                                         ; preds = %for_check
   %13 = getelementptr float, float* %B_arg, i64 %i_v5
   %14 = bitcast float* %13 to <8 x float>*
   %15 = load <8 x float>, <8 x float>* %14, align 1
-  %16 = fadd fast <8 x float> %A_val_v, %15
+  %16 = fadd reassoc nnan contract <8 x float> %A_val_v, %15
   %i_v6 = load i64, i64* %i, align 8
   %17 = getelementptr float, float* %C_arg, i64 %i_v6
   %18 = bitcast float* %17 to <8 x float>*
@@ -508,22 +508,22 @@ define void @aaa(i8* %__stream_arg, i8* noalias nocapture nonnull %__module_data
 entry:
   %0 = getelementptr float, float* %A_arg, i32 0
   %1 = load float, float* %0, align 4, !alias.scope !0, !noalias !3
-  %2 = fadd fast float %1, 1.000000e+00
+  %2 = fadd reassoc nnan contract float %1, 1.000000e+00
   %3 = getelementptr float, float* %A_arg, i32 0
   store float %2, float* %3, align 4, !alias.scope !0, !noalias !3
   %4 = getelementptr float, float* %B_arg, i32 0
   %5 = load float, float* %4, align 4, !alias.scope !0, !noalias !3
-  %6 = fadd fast float %5, 1.000000e+00
+  %6 = fadd reassoc nnan contract float %5, 1.000000e+00
   %7 = getelementptr float, float* %B_arg, i32 0
   store float %6, float* %7, align 4, !alias.scope !0, !noalias !3
   %8 = getelementptr float, float* %C_arg, i32 0
   %9 = load float, float* %8, align 4, !alias.scope !7, !noalias !8
-  %10 = fadd fast float %9, 1.000000e+00
+  %10 = fadd reassoc nnan contract float %9, 1.000000e+00
   %11 = getelementptr float, float* %C_arg, i32 0
   store float %10, float* %11, align 4, !alias.scope !7, !noalias !8
   %12 = getelementptr float, float* %D_arg, i32 0
   %13 = load float, float* %12, align 4, !alias.scope !9, !noalias !10
-  %14 = fadd fast float %13, 1.000000e+00
+  %14 = fadd reassoc nnan contract float %13, 1.000000e+00
   %15 = getelementptr float, float* %D_arg, i32 0
   store float %14, float* %15, align 4, !alias.scope !9, !noalias !10
   ret void
