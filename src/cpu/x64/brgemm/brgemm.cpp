@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -341,6 +341,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
                             true /*sum_requires_same_params*/,
                             {broadcasting_strategy_t::per_oc,
                                     broadcasting_strategy_t::scalar,
+                                    broadcasting_strategy_t::per_mb,
                                     broadcasting_strategy_t::per_mb_spatial,
                                     broadcasting_strategy_t::per_mb_w,
                                     broadcasting_strategy_t::per_w,

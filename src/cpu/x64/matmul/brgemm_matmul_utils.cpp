@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,13 +90,16 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
 
     bool is_binary_po_per_oc_sp_bcast {};
     bool is_binary_po_channel_bcast {};
+    bool is_binary_po_per_mb_bcast {};
     bool is_binary_po_per_mb_w_bcast {};
     bool is_binary_po_per_w_bcast {};
     std::tie(is_binary_po_per_oc_sp_bcast, is_binary_po_channel_bcast,
-            is_binary_po_per_mb_w_bcast, is_binary_po_per_w_bcast)
+            is_binary_po_per_mb_bcast, is_binary_po_per_mb_w_bcast,
+            is_binary_po_per_w_bcast)
             = binary_injector_utils::bcast_strategies_present_tup(
                     post_ops.entry_, dst_d,
                     broadcasting_strategy_t::per_oc_spatial,
+                    broadcasting_strategy_t::per_mb,
                     broadcasting_strategy_t::per_mb_spatial,
                     broadcasting_strategy_t::per_mb_w,
                     broadcasting_strategy_t::per_w);
@@ -106,11 +109,12 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
                     is_binary_po_channel_bcast, utils::one_of(ndims, 3, 4))
             && IMPLICATION(
                     is_binary_po_per_mb_w_bcast, utils::one_of(ndims, 3, 4))
+            && IMPLICATION(is_binary_po_per_w_bcast, utils::one_of(ndims, 3, 4))
             && IMPLICATION(
-                    is_binary_po_per_w_bcast, utils::one_of(ndims, 3, 4));
+                    is_binary_po_per_mb_bcast, utils::one_of(ndims, 3, 4));
     const bcast_set_t default_bcast_set = {broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
-            broadcasting_strategy_t::scalar,
+            broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_mb,
             broadcasting_strategy_t::per_mb_spatial,
             broadcasting_strategy_t::per_mb_w, broadcasting_strategy_t::per_w,
             broadcasting_strategy_t::no_broadcast};
