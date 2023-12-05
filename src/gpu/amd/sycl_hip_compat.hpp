@@ -45,7 +45,9 @@ void host_task(::sycl::handler &cgh, const T &task) {
     cgh.host_task(task);
 }
 
-template <typename native_object_t, typename sycl_object_t>
+template <typename native_object_t, typename sycl_object_t,
+        typename
+        = std::enable_if_t<!std::is_same_v<sycl_object_t, ::sycl::context>>>
 native_object_t get_native(const sycl_object_t &sycl_object) {
     auto handle
             = ::sycl::get_native<::sycl::backend::ext_oneapi_hip>(sycl_object);

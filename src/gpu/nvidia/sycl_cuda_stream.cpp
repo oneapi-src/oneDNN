@@ -49,7 +49,7 @@ CUstream sycl_cuda_stream_t::get_underlying_stream() {
 
 // the sycl_cuda_stream_t will not own this. it is an observer pointer
 CUcontext sycl_cuda_stream_t::get_underlying_context() {
-    return compat::get_native<CUcontext>(queue_->get_context());
+    return compat::get_native<CUcontext>(queue_->get_device());
 }
 
 // the sycl_cuda_stream_t will not own this. it is an observer pointer

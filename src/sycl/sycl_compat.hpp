@@ -40,6 +40,14 @@ template <typename native_object_t, typename sycl_object_t>
 native_object_t get_native(const sycl_object_t &sycl_object) {
     return reinterpret_cast<native_object_t>(get_native(sycl_object));
 }
+#ifdef DNNL_SYCL_CUDA
+template <>
+CUcontext get_native(const ::sycl::device &device);
+#endif
+#ifdef DNNL_SYCL_HIP
+template <>
+HIPcontext get_native(const ::sycl::device &device);
+#endif
 
 // Automatically use host_task if it is supported by compiler,
 // otherwise fall back to codeplay_host_task.

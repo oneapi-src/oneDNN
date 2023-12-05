@@ -109,7 +109,7 @@ status_t sycl_hip_engine_t::set_miopen_handle() {
     return status::success;
 }
 hipCtx_t sycl_hip_engine_t::get_underlying_context() const {
-    return compat::get_native<hipCtx_t>(context());
+    return compat::get_native<hipCtx_t>(device());
 }
 
 hipDevice_t sycl_hip_engine_t::get_underlying_device() const {
