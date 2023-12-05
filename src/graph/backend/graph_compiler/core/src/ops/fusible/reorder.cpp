@@ -1082,20 +1082,21 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
             input_last_origin_axis, input_origin_axis_vectorized);
     find_vectorized_axis(output_blocking_dims_expr, output_format,
             output_last_origin_axis, output_origin_axis_vectorized);
+    auto src_slice_shape = src.get_shape();
+    auto dst_slice_shape = dst.get_shape();
     int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
     const int max_step
             = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
     if ((!output_loop
-                && input_blocking_dims_expr[input_origin_axis_vectorized]
+                && src_slice_shape[input_origin_axis_vectorized]
                            .isa<constant>())
             || (output_loop
-                    && output_blocking_dims_expr[output_origin_axis_vectorized]
+                    && dst_slice_shape[output_origin_axis_vectorized]
                                .isa<constant>())) {
         step = std::min(max_step,
                 (int)get_expr_as_int(!output_loop
-                                ? input_blocking_dims_expr
-                                        [input_origin_axis_vectorized]
-                                : output_blocking_dims_expr
+                                ? src_slice_shape[input_origin_axis_vectorized]
+                                : dst_slice_shape
                                         [output_origin_axis_vectorized]));
         step = utils::get_nearest_vector_step(step);
     }
@@ -1112,7 +1113,9 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
     bool no_padding = is_dynamic && dynamic_no_padding;
     if (!output_loop) {
         no_padding |= !is_dynamic
-                && input_blocking_dims[input_origin_axis_vectorized] % step
+                && get_expr_as_int(
+                           src_slice_shape[input_origin_axis_vectorized])
+                                % step
                         == 0;
         for (size_t i = 0; i < plain_dims.size(); i++) {
             iter_vars.emplace_back(builder::make_var(datatypes::index,
@@ -1126,8 +1129,8 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         expr mask;
         stmt mask_def;
         if (!no_padding && can_vectorize) {
-            auto idx_len = cast_to_s32(input_blocking_dims_expr
-                                           [input_origin_axis_vectorized])
+            auto idx_len
+                    = cast_to_s32(src_slice_shape[input_origin_axis_vectorized])
                     - cast_to_s32(iter_vars[input_origin_axis_vectorized]);
             auto cur_step = builder::make_min(
                     builder::make_max(builder::make_constant(0), idx_len),
@@ -1164,7 +1167,9 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
     } else {
         no_padding |= !is_dynamic
-                && output_blocking_dims[output_origin_axis_vectorized] % step
+                && get_expr_as_int(
+                           dst_slice_shape[output_origin_axis_vectorized])
+                                % step
                         == 0;
         for (size_t i = 0; i < plain_dims.size(); i++) {
             iter_vars.emplace_back(builder::make_var(datatypes::index,
@@ -1177,8 +1182,9 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         expr mask;
         stmt mask_def;
         if (!no_padding && can_vectorize) {
-            auto idx_len = cast_to_s32(output_blocking_dims_expr
-                                           [output_origin_axis_vectorized])
+            auto idx_len
+                    = cast_to_s32(
+                              dst_slice_shape[output_origin_axis_vectorized])
                     - cast_to_s32(iter_vars[input_origin_axis_vectorized]);
             auto cur_step = builder::make_min(
                     builder::make_max(builder::make_constant(0), idx_len),
@@ -1247,15 +1253,18 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
             input_last_origin_axis, input_origin_axis_vectorized);
     find_vectorized_axis(output_blocking_dims_expr, output_format,
             output_last_origin_axis, output_origin_axis_vectorized);
-    int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
-    int step = std::min(static_cast<int>(vectorize_step(ctx, dtype.type_code_)),
-            static_cast<int>(
-                    input_blocking_dims[input_origin_axis_vectorized]));
+    auto src_slice_shape = src.get_shape();
+    int max_step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
+    assert(!is_dynamic_dim(input_blocking_dims[input_origin_axis_vectorized]));
+    int step = std::min(max_step,
+            static_cast<int>(get_expr_as_int(
+                    src_slice_shape[input_origin_axis_vectorized])));
     step = utils::get_nearest_vector_step(step);
     step = std::min(max_step, step);
     if (attrs.get_or_else(op_attr_key::no_fuse, false)) {
         while (step < max_step
-                && input_blocking_dims[input_origin_axis_vectorized]
+                && get_expr_as_int(
+                           src_slice_shape[input_origin_axis_vectorized])
                                 % (2 * step)
                         == 0) {
             step = 2 * step;
@@ -1264,7 +1273,9 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
     bool is_u8s8 = check_u8s8(dtype);
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
-            && input_blocking_dims[input_origin_axis_vectorized] % step == 0
+            && get_expr_as_int(src_slice_shape[input_origin_axis_vectorized])
+                            % step
+                    == 0
             && is_valid_step(step)
             && step * utils::get_sizeof_type(dtype) * byte >= (uint64_t)(
                        is_u8s8 ? u8s8_min_simd_length : avx_simd_length);
@@ -1381,24 +1392,27 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
             input_last_origin_axis, input_origin_axis_vectorized);
     find_vectorized_axis(output_blocking_exprs, output_format,
             output_last_origin_axis, output_origin_axis_vectorized);
-    int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
+    auto src_slice_shape = src.get_shape();
+    auto dst_slice_shape = dst.get_shape();
+    int max_step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
     int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
     if ((!output_loop
-                && input_blocking_exprs[input_origin_axis_vectorized]
+                && src_slice_shape[input_origin_axis_vectorized]
                            .isa<constant>())
             || (output_loop
-                    && output_blocking_exprs[output_origin_axis_vectorized]
+                    && dst_slice_shape[output_origin_axis_vectorized]
                                .isa<constant>())) {
         step = std::min(step,
-                output_loop ? static_cast<int>(
-                        output_blocking_dims[output_origin_axis_vectorized])
-                            : static_cast<int>(input_blocking_dims
-                                            [input_origin_axis_vectorized]));
+                output_loop ? static_cast<int>(get_expr_as_int(
+                        dst_slice_shape[output_origin_axis_vectorized]))
+                            : static_cast<int>(get_expr_as_int(src_slice_shape
+                                            [input_origin_axis_vectorized])));
         step = utils::get_nearest_vector_step(step);
     }
     if (attrs.get_or_else(op_attr_key::no_fuse, false)) {
         while (step < max_step
-                && output_blocking_dims[output_origin_axis_vectorized]
+                && get_expr_as_int(
+                           dst_slice_shape[output_origin_axis_vectorized])
                                 % (2 * step)
                         == 0) {
             step = 2 * step;
@@ -1407,14 +1421,20 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
     bool is_u8s8 = check_u8s8(dtype);
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
-            && output_blocking_dims[output_origin_axis_vectorized] % step == 0
+            && get_expr_as_int(dst_slice_shape[output_origin_axis_vectorized])
+                            % step
+                    == 0
             && is_valid_step(step)
             && step * utils::get_sizeof_type(dtype) * byte >= (uint64_t)(
                        is_u8s8 ? u8s8_min_simd_length : avx_simd_length);
     // Usually use input loop means no padding in static, but not in dynamic, if
     // dynamic and use input loop, need to check the static dim with blocks.
-    if (!output_loop && !is_dynamic_dim(input_blocking_dims.back())
-            && input_blocking_dims[input_origin_axis_vectorized] % step != 0) {
+    if (!output_loop
+            && !is_dynamic_dim(
+                    input_blocking_dims[input_origin_axis_vectorized])
+            && get_expr_as_int(src_slice_shape[input_origin_axis_vectorized])
+                            % step
+                    != 0) {
         can_vectorize = false;
     }
     bool no_padding = !is_dynamic
@@ -1592,21 +1612,27 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
             input_origin_axis_vectorized);
     find_vectorized_axis(output_blocking_exprs, output_format,
             output_block_axis, output_origin_axis_vectorized);
+    auto src_slice_shape = src.get_shape();
+    auto dst_slice_shape = dst.get_shape();
     bool no_padding = !is_dynamic
             && input_padded_plain_dims == output_padded_plain_dims;
     no_padding |= (is_dynamic && dynamic_no_padding);
     int step = std::min(static_cast<int>(vectorize_step(ctx, dtype.type_code_)),
             output_loop
-                    ? static_cast<int>(
-                            output_blocking_dims[output_origin_axis_vectorized])
-                    : static_cast<int>(
-                            input_blocking_dims[input_origin_axis_vectorized]));
+                    ? static_cast<int>(get_expr_as_int(
+                            dst_slice_shape[output_origin_axis_vectorized]))
+                    : static_cast<int>(get_expr_as_int(
+                            src_slice_shape[input_origin_axis_vectorized])));
     step = utils::get_nearest_vector_step(step);
     bool is_u8s8 = check_u8s8(dtype);
     bool can_vectorize = !is_innermost_dim_strided
             && input_block_axis == output_block_axis
-            && output_blocking_dims[output_origin_axis_vectorized] % step == 0
-            && input_blocking_dims[input_origin_axis_vectorized] % step == 0
+            && get_expr_as_int(dst_slice_shape[output_origin_axis_vectorized])
+                            % step
+                    == 0
+            && get_expr_as_int(src_slice_shape[input_origin_axis_vectorized])
+                            % step
+                    == 0
             && plain_dims[input_block_axis]
                             % input_blocking_dims[input_origin_axis_vectorized]
                     == 0
