@@ -2170,8 +2170,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
     const auto output_sz = static_cast<dim_t>(jcp.mb) * jcp.ngroups * jcp.oc
             * jcp.od * jcp.oh * jcp.ow;
     jcp.req_brg_comp_pad = compensation_w_padding && jcp.exec_type != exec_trans
-            && IMPLICATION(
-                    !jcp.relo_conv_weights, output_sz <= 8192 && jcp.oc < 512);
+            && IMPLICATION(!(jcp.is_relo && jcp.relo_conv_weights),
+                    output_sz <= 8192 && jcp.oc < 512);
     jcp.req_cal_comp_pad = compensation_w_padding && !jcp.req_brg_comp_pad
             && IMPLICATION(jcp.exec_type == exec_vpad,
                     jcp.t_pad > 0 || jcp.b_pad > 0 || jcp.f_pad > 0
