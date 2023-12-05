@@ -51,7 +51,7 @@
 --prop=FWD_I,FWD_D
 --direction=left2right,right2left,sum,concat
 --trivial-strides=true,false
---attr-fpmath=fp16,bf16,tf32
+--attr-fpmath=f16,bf16,tf32
 --batch=shapes_small
 
 --alg=VANILLA_RNN,VANILLA_LSTM,VANILLA_GRU,LBR_GRU,VANILLA_AUGRU,LBR_AUGRU
