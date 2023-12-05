@@ -1150,6 +1150,7 @@ sc_op_ptr conv_fwd_core_op_t::get_data_compensation(sc_graph_t &mgr) {
             {{"rd_axis", rdaxis}, {"rd_op", 0}, {"keep_dims", true}});
     sc_op_ptr ret_node;
     if (is_dyn_quan) {
+        if (!dyn_weight_zero_points) { return nullptr; }
         COMPILE_ASSERT(dyn_weight_zero_points->details_.get_plain_dims()
                         == sc_dims {1},
                 "conv_fwd_core does not support per channel weight zero "
