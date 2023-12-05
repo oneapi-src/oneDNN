@@ -253,7 +253,8 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             matmul = graph->make("tensor_view", {matmul->get_outputs()[0]},
                     {graph_tensor::make(reshape_dest, sc_data_format_t(),
                             matmul->get_outputs()[0]->details_.dtype_)},
-                    {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
+                    {{"shape", reshape_dest}, {"format", sc_data_format_t()},
+                            {"source_matmul_2D2ND", true}});
         }
         // 2d*Nd cases
         if (trans0_plain_dims.size() == 2 && trans1_plain_dims.size() > 2) {

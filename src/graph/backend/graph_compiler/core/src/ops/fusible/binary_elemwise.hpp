@@ -91,6 +91,7 @@ public:
     // get real broadcast axis, generally, you should set bc_axis on plain
     // format semantics if necessary.
     std::vector<int> get_bc_axis() const;
+    void set_plain_bc_axis();
     vectorized_info_t &get_vx_info() { return vx_info_; }
 
     void infer_binding_axis(bound_axis_map &bdax_map) override;

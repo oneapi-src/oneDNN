@@ -153,6 +153,37 @@ static sc_data_type_t infer_output_dtype(
     return a;
 }
 
+void binary_elementwise_op_impl_t::set_plain_bc_axis() {
+    auto lhs_shape = info_.inputs_[0]->details_.get_plain_dims();
+    auto rhs_shape = info_.inputs_[1]->details_.get_plain_dims();
+    auto output_shape = info_.outputs_[0]->details_.get_plain_dims();
+    // get user specified bc_axis of the shorter input
+    auto input_bc_axis = attrs_.get_or_else("bc_axis", std::vector<int> {});
+    int ref_idx = get_ref_input_index(false);
+    if (ref_idx == may_broadcast_t::NOT_DETERMINED) {
+        ref_idx = lhs_shape.size() >= rhs_shape.size() ? 0 : 1;
+    }
+    // user specified bc_axis of the shorter input
+    plain_bc_axis_.clear();
+    if (input_bc_axis.empty()) {
+        plain_bc_axis_.emplace_back(
+                op_traits::may_broadcast_t::get_auto_broadcast_bc_axis(
+                        lhs_shape, output_shape));
+        plain_bc_axis_.emplace_back(
+                op_traits::may_broadcast_t::get_auto_broadcast_bc_axis(
+                        rhs_shape, output_shape));
+    } else {
+        COMPILE_ASSERT(ref_idx == 0 || ref_idx == 1,
+                "bc_axis is only applicable to uni-directional broadcast.");
+        plain_bc_axis_.resize(2);
+        plain_bc_axis_[ref_idx]
+                = op_traits::may_broadcast_t::get_auto_broadcast_bc_axis(
+                        info_.inputs_[ref_idx]->details_.get_plain_dims(),
+                        output_shape);
+        plain_bc_axis_[1 - ref_idx] = input_bc_axis;
+    }
+}
+
 binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
@@ -202,24 +233,7 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
                     info_.outputs_[0]->details_.get_plain_dims(), output_shape),
             "Binary elementwise op's output shape is not set correctly.");
 
-    // user specified bc_axis of the shorter input
-    if (input_bc_axis.empty()) {
-        plain_bc_axis_.emplace_back(
-                op_traits::may_broadcast_t::get_auto_broadcast_bc_axis(
-                        lhs_shape, output_shape));
-        plain_bc_axis_.emplace_back(
-                op_traits::may_broadcast_t::get_auto_broadcast_bc_axis(
-                        rhs_shape, output_shape));
-    } else {
-        COMPILE_ASSERT(ref_idx == 0 || ref_idx == 1,
-                "bc_axis is only applicable to uni-directional broadcast.");
-        plain_bc_axis_.resize(2);
-        plain_bc_axis_[ref_idx]
-                = op_traits::may_broadcast_t::get_auto_broadcast_bc_axis(
-                        info_.inputs_[ref_idx]->details_.get_plain_dims(),
-                        output_shape);
-        plain_bc_axis_[1 - ref_idx] = input_bc_axis;
-    }
+    set_plain_bc_axis();
 }
 
 binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
