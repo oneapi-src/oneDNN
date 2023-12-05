@@ -189,6 +189,12 @@ struct _ref_rnn_common_t : public primitive_t {
                         this->attr()->rnn_data_qparams_.shift_ == 0.f))
                 return status::unimplemented;
 
+            /* INT8 cases with non-trivial strides are not supported */
+            if (rnn_.is_int8_conf()
+                    && !(rnn_.src_layer_is_trivial_stride
+                            && rnn_.dst_layer_is_trivial_stride))
+                return status::unimplemented;
+
             /* check that only supported attr have been passed */
             primitive_attr_t::skip_mask_t attr_mask
                     = primitive_attr_t::skip_mask_t::rnn_tparams;
@@ -350,6 +356,12 @@ struct _ref_rnn_common_t : public primitive_t {
             /* check that no shift have been passed to s8s8 amx lstm */
             if (!IMPLICATION(rnn_.is_signed_int8_conf(),
                         this->attr()->rnn_data_qparams_.shift_ == 0))
+                return status::unimplemented;
+
+            /* INT8 cases with non-trivial strides are not supported */
+            if (rnn_.is_int8_conf()
+                    && !(rnn_.src_layer_is_trivial_stride
+                            && rnn_.dst_layer_is_trivial_stride))
                 return status::unimplemented;
 
             /* check that only supported attr have been passed */

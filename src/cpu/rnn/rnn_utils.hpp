@@ -374,6 +374,7 @@ struct rnn_conf_t {
     size_t ws_bias_size = 0;
 
     bool src_layer_is_trivial_stride = false;
+    bool dst_layer_is_trivial_stride = false;
     bool merge_gemm_iter = false, merge_gemm_layer = false,
          force_nocopy = false, use_layer_packed_gemm = false,
          use_iter_packed_gemm = false, use_projection_packed_gemm = false;
@@ -825,19 +826,18 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     // copying, we need to have a trivial stride for the T dimension
     rnn.src_layer_is_trivial_stride = src_layer_d.blocking_desc().strides[0]
             == (rnn.src_layer_ld_ * rnn.mb);
-    const auto dst_layer_is_trivial_stride
-            = dst_layer_d.blocking_desc().strides[0]
+    rnn.dst_layer_is_trivial_stride = dst_layer_d.blocking_desc().strides[0]
             == (rnn.dst_layer_ld_ * rnn.mb);
 
     rnn.merge_gemm_layer = (!rnn.is_brgemm)
             ? ((rnn.is_fwd && rnn.src_layer_is_trivial_stride)
                       || ((rd.prop_kind == prop_kind::backward)
-                              && dst_layer_is_trivial_stride))
+                              && rnn.dst_layer_is_trivial_stride))
                     && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd)
                             || rnn.is_int8_conf())
             : false;
     rnn.merge_gemm_iter = (!rnn.is_brgemm)
-            ? dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru)
+            ? rnn.dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru)
             : false;
     rnn.force_nocopy = false;
 #if DNNL_X64
