@@ -33,6 +33,7 @@ expr_c ssa_simplify_t::visit(const var_c &v) {
     if (val.isa<constant>()) { return val; }
     if (val.isa<var>()) {
         if (val->ssa_data_->is_global_) { return v; }
+        assert(v.get() != val.get());
         return visit(val.static_as<var>());
     }
     return v;

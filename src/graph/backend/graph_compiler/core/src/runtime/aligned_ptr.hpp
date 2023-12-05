@@ -132,6 +132,7 @@ struct aligned_ptr_t : Base {
     T *get() { return reinterpret_cast<T *>(ptr_); }
     const T *get() const { return reinterpret_cast<const T *>(ptr_); }
     T &operator[](size_t index) { return get()[index]; }
+    const T &operator[](size_t index) const { return get()[index]; }
 
     size_t size() const { return size_ / sizeof(T); }
     T *begin() { return get(); }

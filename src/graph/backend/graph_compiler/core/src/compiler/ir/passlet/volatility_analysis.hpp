@@ -73,6 +73,8 @@ inline bool non_volatile_expr(const expr_base *s) {
                 case intrin_type::insert:
                 case intrin_type::extract:
                 case intrin_type::isnan:
+                case intrin_type::get_group_thread_id:
+                case intrin_type::get_group_id:
                 case intrin_type::saturated_cast:
                 case intrin_type::round_and_cast:
                 case intrin_type::shl:

@@ -85,6 +85,7 @@ struct statics_table_t {
     // the size of initialized section
     size_t initialized_size_;
     std::vector<std::shared_ptr<cached_const_graph_tensor>> shared_tensors_;
+    std::vector<std::shared_ptr<void>> device_kernels_;
     // gets the data by name, will throw an exception if name not found
     void *get(const std::string &name) const;
     // gets the data by name, returns null if name not found instead of throwing

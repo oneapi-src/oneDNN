@@ -455,6 +455,9 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
                 && f->attr_->get_or_else(function_attrs::low_level, false)) {
             continue;
         }
+        if (any_map_t::fetch_or_else(f->attr_.get(), "device_func", false)) {
+            continue;
+        }
         auto params = f->params_;
         // insert two placeholders
         params.insert(params.begin(), 2, expr());
@@ -490,6 +493,10 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
         if (funcs[i]->attr_
                 && funcs[i]->attr_->get_or_else(
                         function_attrs::low_level, false)) {
+            continue;
+        }
+        if (any_map_t::fetch_or_else(
+                    funcs[i]->attr_.get(), "device_func", false)) {
             continue;
         }
         module_globals_resolver_impl_t impl;

@@ -62,6 +62,16 @@ namespace impl {
 namespace graph {
 namespace gc {
 
+sequential_module_pass_t get_ssa_passes(const context_ptr &ctx) {
+    std::vector<module_pass_ptr> ret;
+    ret.emplace_back(module_function_pass_t::make<ssa_transform_t>());
+    ret.emplace_back(module_function_pass_t::make<value_numbering_t>());
+    ret.emplace_back(
+            module_function_pass_t::make<loop_invariant_code_motion_t>());
+    ret.emplace_back(module_function_pass_t::make<value_numbering_t>());
+    return sequential_module_pass_t(std::move(ret));
+}
+
 sequential_module_pass_t get_default_precodegen_passes(
         const context_ptr &ctx, bool gen_wrapper) {
     std::vector<module_pass_ptr> ret;

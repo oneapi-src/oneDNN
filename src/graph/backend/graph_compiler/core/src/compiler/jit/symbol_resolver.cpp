@@ -15,19 +15,16 @@
  *******************************************************************************/
 
 #include "symbol_resolver.hpp"
-#include <runtime/generic_val.hpp>
-#include <runtime/microkernel/cpu/microkernel.hpp>
-#ifdef SC_ENABLE_L0_BACKEND
-#include <runtime/l0_runtime.hpp>
-#endif
 #include <math.h>
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
 #include <runtime/const_cache_wrapper.hpp>
 #include <runtime/dynamic_dispatch/op_func_decl.hpp>
 #include <runtime/dynamic_dispatch/ops/config.hpp>
+#include <runtime/generic_val.hpp>
 #include <runtime/managed_thread_pool_exports.hpp>
 #include <runtime/memorypool.hpp>
+#include <runtime/microkernel/cpu/microkernel.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
 #include <runtime/thread_locals.hpp>

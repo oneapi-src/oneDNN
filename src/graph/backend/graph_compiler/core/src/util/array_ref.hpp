@@ -127,6 +127,14 @@ public:
     std::vector<T> as_vector() const {
         return std::vector<T>(ptr_, ptr_ + sz_);
     }
+
+    bool operator==(const array_ref<T> &other) const {
+        if (sz_ != other.sz_) { return false; }
+        for (size_t i = 0; i < sz_; i++) {
+            if (ptr_[i] != other.ptr_[i]) return false;
+        }
+        return true;
+    }
 };
 } // namespace gc
 } // namespace graph

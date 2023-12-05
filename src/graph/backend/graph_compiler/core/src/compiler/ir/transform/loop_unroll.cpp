@@ -69,7 +69,8 @@ public:
         auto &step = vv->step_;
         auto &begin = vv->iter_begin_;
         auto is_most_inner = is_inner_loop_.back();
-        if (is_most_inner && begin.isa<constant>() && end.isa<constant>()
+        if (vv->kind_ == for_type::NORMAL && is_most_inner
+                && begin.isa<constant>() && end.isa<constant>()
                 && step.isa<constant>()) {
             auto e = end.static_as<constant>()->value_[0].u64;
             auto s = step.static_as<constant>()->value_[0].u64;
