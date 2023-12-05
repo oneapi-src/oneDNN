@@ -174,52 +174,27 @@ public:
         std::vector<int> lg {1, 1, 1, 1, 1, 1, 1, 1};
         std::vector<int> tg {1, 1, 1}, kg {1, 1, 1};
 
-        const float eu_mismatch = 1.125f; // heuristic coef (<1 is none)
-
-        bool is_plain = (eu_count % max_tg != 0)
-                || (utils::rnd_up(ow, eu_count / max_tg) >= eu_mismatch * ow);
-
-        if (!is_plain) {
-            ow = utils::rnd_up(prb.ow, eu_count / max_tg);
-            tg[2] = utils::max_div(ow / (eu_count / max_tg), max_tg);
-            tg[1] = max_tg / tg[2];
-            if ((eu_count / (ow * oh) > 1)
-                    || ((tg[2] == 1) && (ow >= max_tg))) {
-                tg[2] = tg[1] = 1;
-                is_plain = true;
-                ow = prb.ow;
-            } else {
-                oh = utils::rnd_up(prb.oh, tg[1]);
+        const auto ohw = ow * oh;
+        if ((max_tg <= ohw * od) || (ohw == 3 * 3) || (ohw == 3 * 5)) {
+            auto loss = [&](int tgw) {
+                return utils::rnd_up(ow, tgw) * utils::rnd_up(oh, max_tg / tgw);
+            };
+            int ok_tgw = sqrt(max_tg);
+            ir_assert(ok_tgw == utils::rnd_up_pow2(ok_tgw));
+            for (int tgw = sqrt(max_tg); tgw > 0; tgw >>= 1) {
+                if (loss(tgw) < loss(ok_tgw)) ok_tgw = tgw;
+                if (loss(max_tg / tgw) <= loss(ok_tgw)) ok_tgw = max_tg / tgw;
             }
+            tg[2] = utils::div_up(ow, utils::div_up(ow, ok_tgw));
+            tg[1] = utils::div_up(oh, utils::div_up(oh, max_tg / ok_tgw));
+        } else {
+            tg[2] = ow;
+            tg[1] = oh;
+            tg[0] = od;
         }
-        if (is_plain) {
-            const auto ohw = ow * oh;
-            if ((max_tg <= ohw * od) || (ohw == 3 * 3) || (ohw == 3 * 5)) {
-                auto loss = [&](int tgw) {
-                    return utils::rnd_up(ow, tgw)
-                            * utils::rnd_up(oh, max_tg / tgw);
-                };
-                int ok_tgw = sqrt(max_tg);
-                ir_assert(ok_tgw == utils::rnd_up_pow2(ok_tgw));
-                for (int tgw = sqrt(max_tg); tgw > 0; tgw >>= 1) {
-                    if (loss(tgw) < loss(ok_tgw)) ok_tgw = tgw;
-                    if (loss(max_tg / tgw) < loss(ok_tgw))
-                        ok_tgw = max_tg / tgw;
-                }
-                tg[2] = utils::div_up(ow, utils::div_up(ow, ok_tgw));
-                tg[1] = utils::div_up(oh, utils::div_up(oh, max_tg / ok_tgw));
-            } else {
-                tg[2] = ow;
-                tg[1] = oh;
-                tg[0] = od;
-            }
-        }
-        if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2)) {
+
+        if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2))
             tg[1] += (tg[1] * tg[2] > 3 * 3) ? -1 : 1;
-            is_plain = true;
-            ow = prb.ow;
-            oh = prb.oh;
-        }
 
         const dim_t oc_outer = oc / simd;
         const dim_t oc_blk = src.blocks()[0].block;
@@ -288,18 +263,6 @@ public:
         lg[1] *= simd;
         kg[0] *= utils::div_up(oc, lg[1]);
         kg[1] *= utils::div_up(mb, lg[0]);
-
-        if (!is_plain) {
-            const int eu_sets_per_ow = kg[2] / (eu_count / max_tg);
-            if (eu_sets_per_ow > 1) {
-                kg[2] /= eu_sets_per_ow;
-                kg[1] *= eu_sets_per_ow;
-            } else if ((tg[2] > tg[1])
-                    && (utils::rnd_up_pow2(tg[2]) * kg[2] == prb.ow)) {
-                tg[2] *= tg[1];
-                tg[1] = 1;
-            }
-        }
 
         set_dims_padded(grid_info_t(padded, ""));
         set_loop_grid(grid_info_t(lg, "lg_idx"));
