@@ -70,15 +70,14 @@ public:
         bool do_alloc = (obj.kind == alloc_kind_t::grf);
         bool use_bc_alloc = false;
         if (do_alloc) {
-            int grf_size = ngen::GRF::bytes(hw);
             reg_buf_data_t rbd;
             if (obj.has_attr<bank_conflict_attr_t>()) {
                 rbd = create_bank_conflict_allocation(obj);
                 use_bc_alloc = true;
-            } else if (obj.size < grf_size) {
+            } else if (obj.size * 8 <= 64) {
                 rbd = scope.alloc_reg_data(type_t::u(obj.size * 8));
             } else {
-                int regs = utils::div_up(obj.size, grf_size);
+                const int regs = utils::div_up(obj.size, ngen::GRF::bytes(hw));
                 rbd = scope.alloc_reg_buf(regs);
             }
             if (obj.has_attr<grf_permute_attr_t>()) {

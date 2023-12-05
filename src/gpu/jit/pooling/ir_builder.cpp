@@ -134,12 +134,21 @@ void pooling_ir_builder_t::build() {
         ir_warning() << "loop_grid too large, reduce and retry" << std::endl;
         auto kg(cfg_mutable_.kernel_grid());
         auto lg(cfg_mutable_.loop_grid());
-        if (lg[0] > 1)
-            reduce_dim(lg[0], kg[1], 1);
-        else if (lg[1] / cfg_mutable_.exec_cfg().simd() > 1)
-            reduce_dim(lg[1], kg[0], cfg_mutable_.exec_cfg().simd());
-        else
-            ir_error_not_expected() << "minimal loop_grid too large!";
+        if (cfg_mutable_.is_blocked_by_mb()) {
+            if (lg[1] / cfg_mutable_.exec_cfg().simd() > 1)
+                reduce_dim(lg[1], kg[0], cfg_mutable_.exec_cfg().simd());
+            else if (lg[0] > 1)
+                reduce_dim(lg[0], kg[1], 1);
+            else
+                ir_error_not_expected() << "minimal loop_grid too large!";
+        } else {
+            if (lg[0] > 1)
+                reduce_dim(lg[0], kg[1], 1);
+            else if (lg[1] / cfg_mutable_.exec_cfg().simd() > 1)
+                reduce_dim(lg[1], kg[0], cfg_mutable_.exec_cfg().simd());
+            else
+                ir_error_not_expected() << "minimal loop_grid too large!";
+        }
 
         cfg_mutable_.set_kernel_grid(kg);
         cfg_mutable_.set_loop_grid(lg);
@@ -167,7 +176,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         const kernel_info_t &ki, const pooling_config_t &cfg,
         const primitive_desc_t &pd) {
     const auto &exec = cfg.exec_cfg();
-    const auto &conf = cfg.pool_conf();
+    const auto &prb = cfg.pooling_problem();
     const auto &src_layout = cfg.src_layout().user();
     const auto &dst_layout = cfg.dst_layout().user();
 
@@ -186,20 +195,20 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     auto kw = var_t::make(type_t::s32(), "kw");
 
     // Initialize masks.
-    const bool check_iw = utils::need_src_or_dst_check(!conf.is_backward,
-            conf.ow, conf.iw, conf.kw, conf.l_pad, conf.stride_w, conf.dw);
-    const bool check_ih = utils::need_src_or_dst_check(!conf.is_backward,
-            conf.oh, conf.ih, conf.kh, conf.t_pad, conf.stride_h, conf.dh);
-    const bool check_id = utils::need_src_or_dst_check(!conf.is_backward,
-            conf.od, conf.id, conf.kd, conf.f_pad, conf.stride_d, conf.dd);
+    const bool check_iw = utils::need_src_or_dst_check(!prb.is_backward, prb.ow,
+            prb.iw, prb.kw, prb.l_pad, prb.stride_w, prb.dw);
+    const bool check_ih = utils::need_src_or_dst_check(!prb.is_backward, prb.oh,
+            prb.ih, prb.kh, prb.t_pad, prb.stride_h, prb.dh);
+    const bool check_id = utils::need_src_or_dst_check(!prb.is_backward, prb.od,
+            prb.id, prb.kd, prb.f_pad, prb.stride_d, prb.dd);
     const bool check_idhw = check_id || check_ih || check_iw;
 
     auto &x = view_t::placeholder_var();
 
     expr_t id_mask, ih_mask, iw_mask;
-    if (check_id) id_mask = (x >= 0) & (x < conf.id);
-    if (check_ih) ih_mask = (x >= 0) & (x < conf.ih);
-    if (check_iw) iw_mask = (x >= 0) & (x < conf.iw);
+    if (check_id) id_mask = (x >= 0) & (x < prb.id);
+    if (check_ih) ih_mask = (x >= 0) & (x < prb.ih);
+    if (check_iw) iw_mask = (x >= 0) & (x < prb.iw);
 
     const int simd = exec.simd();
     const auto &lg = cfg.loop_grid();
@@ -217,17 +226,17 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     src_view.set_vdim(od, dims[2]);
     src_view.set_vdim(oh, dims[3]);
     src_view.set_vdim(ow, dims[4]);
-    src_view.set_vdim(kd, conf.kd);
-    src_view.set_vdim(kh, conf.kh);
-    src_view.set_vdim(kw, conf.kw);
+    src_view.set_vdim(kd, prb.kd);
+    src_view.set_vdim(kh, prb.kh);
+    src_view.set_vdim(kw, prb.kw);
     src_view.set_tdim(0, mb);
     src_view.set_tdim(1, oc);
     src_view.set_tdim(
-            2, od * conf.stride_d - conf.f_pad + kd * (1 + conf.dd), id_mask);
+            2, od * prb.stride_d - prb.f_pad + kd * (1 + prb.dd), id_mask);
     src_view.set_tdim(
-            3, oh * conf.stride_h - conf.t_pad + kh * (1 + conf.dh), ih_mask);
+            3, oh * prb.stride_h - prb.t_pad + kh * (1 + prb.dh), ih_mask);
     src_view.set_tdim(
-            4, ow * conf.stride_w - conf.l_pad + kw * (1 + conf.dw), iw_mask);
+            4, ow * prb.stride_w - prb.l_pad + kw * (1 + prb.dw), iw_mask);
     src_view.set_tlayout(src_layout);
     src_view.set_tmasks(dims);
 
@@ -256,9 +265,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     auto kg_bind = [&](const std::vector<expr_t> &fuse, int idx) {
         if (fuse.size() > 1)
-            schedule.bind(schedule.fuse(fuse), kg.idx(idx - 2));
+            schedule.bind(schedule.fuse(fuse), kg.idx(idx));
         else if (fuse.size() == 1)
-            schedule.bind(fuse[0], kg.idx(idx - 2));
+            schedule.bind(fuse[0], kg.idx(idx));
     };
     auto odhw_to_schedule = [&](expr_t s1, expr_t ns, expr_t s0) {
         int s0_idx = (s0.is_empty()) ? -1 : src_view.vvar_index(s0);
@@ -335,8 +344,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             s1_fuse.emplace_back(ns_kg);
         schedule.tensorize(ns_lg);
 
-        kg_bind(s0_fuse, s0_idx);
-        kg_bind(s1_fuse, s1_idx);
+        kg_bind(s0_fuse, s0_idx - 2);
+        kg_bind(s1_fuse, s1_idx - 2);
     };
     odhw_to_schedule(oc, od, expr_t());
     if ((src_layout.blocks()[1].dim_idx == 0) || (dims[0] < dims[1]))
@@ -416,9 +425,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     ir_assert(src_tile.elems() == simd);
     ir_assert(dst_tile.elems() == simd);
 
-    const bool is_identity(conf.kd * conf.kh * conf.kw <= 1);
-    const bool is_max(conf.alg == alg_kind_t::dnnl_pooling_max);
-    const bool is_pad(conf.alg == alg_kind_t::dnnl_pooling_avg_include_padding);
+    const bool is_identity(prb.kd * prb.kh * prb.kw <= 1);
+    const bool is_max(prb.alg == alg_kind_t::dnnl_pooling_max);
+    const bool is_pad(prb.alg == alg_kind_t::dnnl_pooling_avg_include_padding);
 
     const type_t read_type(read_layout.type().kind(), simd);
     const type_t write_type(write_layout.type().kind(), simd);
@@ -500,16 +509,16 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                 (check_idhw) ? fill_stmt.append(compute_stmt) : compute_stmt));
 
         if (!is_max) {
-            expr_t filter(conf.kd * conf.kh * conf.kw);
+            expr_t filter(prb.kd * prb.kh * prb.kw);
             if (!is_pad && check_idhw) {
                 auto dim = [](const expr_t &o, int s, int p, int k, int i) {
                     if (k <= 1) return expr_t(1);
                     return binary_op_t::make(op_kind_t::_min, o * s - p + k, i)
                             - binary_op_t::make(op_kind_t::_max, o * s - p, 0);
                 };
-                auto dhw = dim(od, conf.stride_d, conf.f_pad, conf.kd, conf.id)
-                        * dim(oh, conf.stride_h, conf.t_pad, conf.kh, conf.ih)
-                        * dim(ow, conf.stride_w, conf.l_pad, conf.kw, conf.iw);
+                auto dhw = dim(od, prb.stride_d, prb.f_pad, prb.kd, prb.id)
+                        * dim(oh, prb.stride_h, prb.t_pad, prb.kh, prb.ih)
+                        * dim(ow, prb.stride_w, prb.l_pad, prb.kw, prb.iw);
                 filter = cast_t::make(type_t::f32(), dhw);
             }
             filter = shuffle_t::make_broadcast(filter, simd);
@@ -523,7 +532,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     }
 
     int buf_size = 0;
-    pooling_post_op_view_mapper_t view_mapper(dst_view, conf.ndims);
+    pooling_post_op_view_mapper_t view_mapper(dst_view, prb.ndims);
     post_op_context_t post_op_ctx(*pd.attr(), cfg.zp_cfg(), schedule, ki,
             *pd.invariant_dst_md(), *pd.invariant_dst_md(), view_mapper);
     stmt = stmt.append(create_epilogue_stmt(exec, ir_ctx, schedule,
@@ -531,25 +540,25 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             write_layout.retype(acc_type.scalar()), dst_buf, acc_buf,
             buf_size));
 
-    if (dims[0] > conf.mb) {
+    if (dims[0] > prb.mb) {
         stmt_t stop;
         auto zero_bcast
                 = cast_t::make(read_type, shuffle_t::make_broadcast(0, simd));
         for (int i = 0; i < acc_size / acc_sc_size; i += simd)
             stop = stop.append(store_t::make(
                     read_buf, i * read_type.scalar().size(), zero_bcast));
-        auto stop_cond = shuffle_t::make_broadcast(mb >= conf.mb, simd);
+        auto stop_cond = shuffle_t::make_broadcast(mb >= prb.mb, simd);
         stmt = if_t::make(stop_cond, stop.append(write.stmt()), stmt);
     }
 
     loop_bound_counter_t lbc(schedule);
-    auto exit_cond = (lbc.count(ow) >= conf.ow) ? (ow < conf.ow) : expr_t();
-    if (lbc.count(oh) >= conf.oh)
-        exit_cond = (!exit_cond.is_empty()) ? (oh < conf.oh) & exit_cond
-                                            : (oh < conf.oh);
-    if (lbc.count(od) >= conf.od)
-        exit_cond = (!exit_cond.is_empty()) ? (od < conf.od) & exit_cond
-                                            : (od < conf.od);
+    auto exit_cond = (lbc.count(ow) >= prb.ow) ? (ow < prb.ow) : expr_t();
+    if (lbc.count(oh) >= prb.oh)
+        exit_cond = (!exit_cond.is_empty()) ? (oh < prb.oh) & exit_cond
+                                            : (oh < prb.oh);
+    if (lbc.count(od) >= prb.od)
+        exit_cond = (!exit_cond.is_empty()) ? (od < prb.od) & exit_cond
+                                            : (od < prb.od);
     if (!exit_cond.is_empty())
         stmt = if_t::make(shuffle_t::make_broadcast(exit_cond, simd), stmt);
 

@@ -29,11 +29,11 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-class pool_conf_param_t : public value_param_t<pool_conf_t> {
+class pooling_problem_param_t : public value_param_t<pool_conf_t> {
 public:
     using value_param_t::value_param_t;
 
-    std::string name() const override { return "pool_conf"; }
+    std::string name() const override { return "prb"; }
     std::string desc() const override { return "Pooling problem."; }
     bool is_overridable() const override { return false; }
 };
@@ -60,7 +60,7 @@ public:
 // Parameters for kernel generation.
 class pooling_config_t : public prim_config_t {
 public:
-    static bool check_compatibility(const pool_conf_t &conf,
+    static bool check_compatibility(const pool_conf_t &prb,
             const exec_config_t &exec, const layout_t &src) {
         // only 8 or 16 threads in a threadgroup are supported
         const int max_tg = get_max_tg(exec);
@@ -72,17 +72,17 @@ public:
 
         // for now, prohibit Global (odhw = 1) and Dense (odhw = idhw)
         // TODO: enable both
-        if (conf.od == 1 && conf.oh == 1 && conf.ow == 1) return false;
-        if (conf.od == conf.id && conf.oh == conf.ih && conf.ow == conf.iw)
+        if (prb.od == 1 && prb.oh == 1 && prb.ow == 1) return false;
+        if (prb.od == prb.id && prb.oh == prb.ih && prb.ow == prb.iw)
             return false;
 
         return true; // no more restrictions, the configuration is compatible
     }
 
     pooling_config_t() = default;
-    pooling_config_t(const exec_config_t &ec, const pool_conf_t &pool_conf,
+    pooling_config_t(const exec_config_t &ec, const pool_conf_t &prb,
             const layout_t &src, const layout_t &dst) {
-        set_pool_conf(pool_conf);
+        set_pooling_problem(prb);
         src_layout().set_user(spatials_to_3d(src, false, 0));
         dst_layout().set_user(spatials_to_3d(dst, false, 0));
         set_exec_cfg(ec);
@@ -91,10 +91,10 @@ public:
     prb_tile_t shape(bool pad) const override {
 #define SET(g_name, l_name) \
     ret[prb_dims::g_name] = (pad) \
-            ? utils::rnd_up(p.l_name, pad_block(prb_dims::g_name)) \
-            : p.l_name
+            ? utils::rnd_up(prb.l_name, pad_block(prb_dims::g_name)) \
+            : prb.l_name
 
-        const auto &p = pool_conf();
+        const auto &prb = pooling_problem();
         prb_tile_t ret;
         SET(mb, mb);
         SET(oc, c);
@@ -149,10 +149,15 @@ public:
         }
     }
 
-    bool is_fwd() const { return !pool_conf().is_backward; }
+    bool is_fwd() const { return !pooling_problem().is_backward; }
+
+    bool is_blocked_by_mb() const {
+        const auto &blk = src_layout().user().blocks();
+        return (blk.size() > 1) && (blk[1].dim_idx == 0);
+    }
 
     void compute_grid() {
-        const auto &conf = pool_conf();
+        const auto &prb = pooling_problem();
         const auto &src = src_layout().user();
         const auto &exec = exec_cfg();
         const int simd = exec.simd();
@@ -160,7 +165,7 @@ public:
         const int max_tg = get_max_tg(exec);
 
         std::vector<int> padded {
-                int(src.dim(0)), int(src.dim(1)), conf.od, conf.oh, conf.ow};
+                int(src.dim(0)), int(src.dim(1)), prb.od, prb.oh, prb.ow};
         auto &mb = padded[0], &oc = padded[1];
         auto &od = padded[2], &oh = padded[3], &ow = padded[4];
 
@@ -169,28 +174,25 @@ public:
         std::vector<int> lg {1, 1, 1, 1, 1, 1, 1, 1};
         std::vector<int> tg {1, 1, 1}, kg {1, 1, 1};
 
-        const float filter_aliasing = 0.875f; // heuristic coef (>1 is none)
-        const float eu_mismatch = 1.150f; // heuristic coef (<1 is none)
+        const float eu_mismatch = 1.125f; // heuristic coef (<1 is none)
 
-        const bool is_tg_useful = filter_aliasing * conf.kd * conf.kh * conf.kw
-                >= conf.stride_d * conf.stride_h * conf.stride_w;
         bool is_plain = (eu_count % max_tg != 0)
                 || (utils::rnd_up(ow, eu_count / max_tg) >= eu_mismatch * ow);
 
         if (!is_plain) {
-            ow = utils::rnd_up(conf.ow, eu_count / max_tg);
+            ow = utils::rnd_up(prb.ow, eu_count / max_tg);
             tg[2] = utils::max_div(ow / (eu_count / max_tg), max_tg);
             tg[1] = max_tg / tg[2];
             if ((eu_count / (ow * oh) > 1)
-                    || ((tg[2] == 1) && ((ow >= max_tg) || !is_tg_useful))) {
+                    || ((tg[2] == 1) && (ow >= max_tg))) {
                 tg[2] = tg[1] = 1;
                 is_plain = true;
-                ow = conf.ow;
+                ow = prb.ow;
             } else {
-                oh = utils::rnd_up(conf.oh, tg[1]);
+                oh = utils::rnd_up(prb.oh, tg[1]);
             }
         }
-        if (is_plain && is_tg_useful) {
+        if (is_plain) {
             const auto ohw = ow * oh;
             if ((max_tg <= ohw * od) || (ohw == 3 * 3) || (ohw == 3 * 5)) {
                 auto loss = [&](int tgw) {
@@ -215,62 +217,74 @@ public:
         if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2)) {
             tg[1] += (tg[1] * tg[2] > 3 * 3) ? -1 : 1;
             is_plain = true;
-            ow = conf.ow;
-            oh = conf.oh;
+            ow = prb.ow;
+            oh = prb.oh;
         }
 
-        // the constant being subtracted is a heuristic
-        const int regs_per_tile
-                = exec.regs() - ((conf.kd * conf.kh * conf.kw > 1) ? 32 : 0);
+        const dim_t oc_outer = oc / simd;
+        const dim_t oc_blk = src.blocks()[0].block;
+        const dim_t mb_blk = (is_blocked_by_mb()) ? src.blocks()[1].block : mb;
 
-        if (regs_per_tile <= conf.kw) {
-            lg[7] = utils::max_div(conf.kw, regs_per_tile);
-        } else if (regs_per_tile <= conf.kw * conf.kh) {
-            lg[7] = conf.kw;
-            lg[6] = utils::max_div(conf.kh, regs_per_tile / conf.kw);
-        } else if (regs_per_tile <= conf.kw * conf.kh * conf.kd) {
-            lg[7] = conf.kw;
-            lg[6] = conf.kh;
-            lg[5] = utils::max_div(
-                    conf.kd, regs_per_tile / (conf.kw * conf.kh));
-        } else {
-            lg[7] = conf.kw;
-            lg[6] = conf.kh;
-            lg[5] = conf.kd;
-        }
+        // lg[2], lg[3], lg[4] are to be set here
 
         kg[0] = utils::div_up(od, tg[0] * lg[2]);
         kg[1] = utils::div_up(oh, tg[1] * lg[3]);
         kg[2] = utils::div_up(ow, tg[2] * lg[4]);
 
-        // 2 threads can be active on a single EU at any time, x2 to be sure
-        const dim_t safe_thr_count = eu_count * 4;
-        const dim_t max_thr_work = tg[0] * tg[1] * tg[2] * kg[0] * kg[1] * kg[2]
-                * utils::div_up(oc, simd) * mb / safe_thr_count;
-        const dim_t oc_outer = oc / simd;
-        const int layers_per_thr = regs_per_tile / (lg[7] * lg[6] * lg[5]);
-        const auto &oc_blk = src.blocks()[0];
-        if (max_thr_work > 1) {
-            lg[1] = std::min(max_thr_work,
-                    utils::max_div(oc_blk.block / simd, layers_per_thr));
-            lg[1] = utils::max_div(oc_outer, std::max(lg[1], 1));
+        const dim_t safe_thr_count = eu_count * 7;
+        const dim_t max_thr_work = utils::div_up(utils::div_up(oc, simd) * mb
+                        * tg[0] * tg[1] * tg[2] * kg[0] * kg[1] * kg[2],
+                safe_thr_count);
+
+        // the constant being subtracted is a heuristic
+        const int regs_per_tile
+                = exec.regs() - ((prb.kd * prb.kh * prb.kw > 1) ? 32 : 0);
+
+        if (is_blocked_by_mb()) {
+            lg[1] = utils::max_div(oc_blk / simd, max_thr_work);
+            lg[0] = utils::max_div(mb_blk, max_thr_work / lg[1]);
         }
-        const auto &mb_maybe = src.blocks()[1];
-        if (((mb_maybe.dim_idx == 0) || (oc == lg[1] * simd))
-                && (max_thr_work / lg[1] > 1)) {
-            const int mb_blk = (mb_maybe.dim_idx == 0) ? mb_maybe.block : mb;
-            const int mb_reg = layers_per_thr / lg[1] / src.type().size();
-            lg[0] = std::min(max_thr_work / lg[1],
-                    (mb_reg > mb_blk) ? utils::rnd_dn(mb_reg, dim_t(mb_blk))
-                                      : utils::max_div(dim_t(mb_blk), mb_reg));
-            lg[0] = utils::max_div(mb, std::max(lg[0], 1));
+
+        if (regs_per_tile / (lg[0] * lg[1]) <= prb.kw) {
+            lg[7] = utils::max_div(prb.kw, regs_per_tile / (lg[0] * lg[1]));
+        } else if (regs_per_tile / (lg[0] * lg[1]) <= prb.kw * prb.kh) {
+            lg[7] = prb.kw;
+            lg[6] = utils::max_div(
+                    prb.kh, regs_per_tile / (lg[0] * lg[1] * prb.kw));
+        } else if (regs_per_tile / (lg[0] * lg[1])
+                <= prb.kw * prb.kh * prb.kd) {
+            lg[7] = prb.kw;
+            lg[6] = prb.kh;
+            lg[5] = utils::max_div(
+                    prb.kd, regs_per_tile / (lg[0] * lg[1] * prb.kw * prb.kh));
+        } else {
+            lg[7] = prb.kw;
+            lg[6] = prb.kh;
+            lg[5] = prb.kd;
         }
-        if ((lg[0] == 1) && (max_thr_work / lg[1] > 1)) {
-            const int oc_reg = layers_per_thr / lg[1] / src.type().size();
-            const int lg1 = std::min(max_thr_work / lg[1],
-                    utils::max_div(oc_outer / lg[1], oc_reg));
-            lg[1] *= utils::max_div(oc_outer / lg[1], std::max(lg1, 1));
+
+        if (!is_blocked_by_mb()) {
+            const int layers_per_thr = regs_per_tile / (lg[7] * lg[6] * lg[5]);
+            if (max_thr_work > 1) {
+                lg[1] = std::min(max_thr_work,
+                        utils::max_div(oc_blk / simd, layers_per_thr));
+                lg[1] = utils::max_div(oc_outer, std::max(lg[1], 1));
+            }
+            if ((oc == lg[1] * simd) && (max_thr_work / lg[1] > 1)) {
+                const int mb_reg = layers_per_thr / lg[1] / src.type().size();
+                lg[0] = std::min(max_thr_work / lg[1],
+                        (mb_reg > mb_blk) ? utils::rnd_dn(mb_reg, mb_blk)
+                                          : utils::max_div(mb_blk, mb_reg));
+                lg[0] = utils::max_div(mb, std::max(lg[0], 1));
+            }
+            if ((lg[0] == 1) && (max_thr_work / lg[1] > 1)) {
+                const int oc_reg = layers_per_thr / lg[1] / src.type().size();
+                const int lg1 = std::min(max_thr_work / lg[1],
+                        utils::max_div(oc_outer / lg[1], oc_reg));
+                lg[1] *= utils::max_div(oc_outer / lg[1], std::max(lg1, 1));
+            }
         }
+
         lg[1] *= simd;
         kg[0] *= utils::div_up(oc, lg[1]);
         kg[1] *= utils::div_up(mb, lg[0]);
@@ -281,7 +295,7 @@ public:
                 kg[2] /= eu_sets_per_ow;
                 kg[1] *= eu_sets_per_ow;
             } else if ((tg[2] > tg[1])
-                    && (utils::rnd_up_pow2(tg[2]) * kg[2] == conf.ow)) {
+                    && (utils::rnd_up_pow2(tg[2]) * kg[2] == prb.ow)) {
                 tg[2] *= tg[1];
                 tg[1] = 1;
             }
@@ -338,7 +352,7 @@ public:
         name##_.set(value); \
     }
 
-    DECL_PARAM(pool_conf);
+    DECL_PARAM(pooling_problem);
     DECL_PARAM(kernel_grid);
     DECL_PARAM(thread_group_grid);
     DECL_PARAM(loop_grid);
@@ -351,7 +365,7 @@ public:
             = register_param([](const container_config_t *c) { \
                   return &((const pooling_config_t *)c)->name##_; \
               });
-    INIT_PARAM(pool_conf);
+    INIT_PARAM(pooling_problem);
     INIT_PARAM(kernel_grid);
     INIT_PARAM(thread_group_grid);
     INIT_PARAM(loop_grid);
@@ -365,13 +379,13 @@ private:
     }
 
     std::string desc_str() const {
-        const auto &conf = pool_conf();
-        const std::array<int, 6> xd = {
-                conf.id, conf.od, conf.kd, conf.stride_d, conf.dd, conf.f_pad};
-        const std::array<int, 6> xh = {
-                conf.ih, conf.oh, conf.kh, conf.stride_h, conf.dh, conf.t_pad};
-        const std::array<int, 6> xw = {
-                conf.iw, conf.ow, conf.kw, conf.stride_w, conf.dw, conf.l_pad};
+        const auto &prb = pooling_problem();
+        const std::array<int, 6> xd
+                = {prb.id, prb.od, prb.kd, prb.stride_d, prb.dd, prb.f_pad};
+        const std::array<int, 6> xh
+                = {prb.ih, prb.oh, prb.kh, prb.stride_h, prb.dh, prb.t_pad};
+        const std::array<int, 6> xw
+                = {prb.iw, prb.ow, prb.kw, prb.stride_w, prb.dw, prb.l_pad};
         const std::array<int, 6> xdef = {1, 1, 1, 1, 0, 0};
         const std::array<char, 6> name = {'i', 'o', 'k', 's', 'd', 'p'};
 
@@ -385,7 +399,7 @@ private:
         const bool print_w = !is_cube && !is_square;
 
         std::ostringstream oss;
-        oss << "mb" << conf.mb << "ic" << conf.c;
+        oss << "mb" << prb.mb << "ic" << prb.c;
         for (int i = 0; i < int(name.size()); i++) {
             if (print_d && IMPLICATION(i == 3 || i == 4, xd[i] != xdef[i]))
                 oss << name[i] << 'd' << xd[i];
