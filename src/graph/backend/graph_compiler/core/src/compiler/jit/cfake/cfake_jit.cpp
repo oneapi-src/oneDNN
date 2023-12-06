@@ -100,7 +100,7 @@ static const std::string &get_include_path() {
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         const std::string &inpath, const std::string &outpath,
         statics_table_t &&globals, bool has_generic_wrapper,
-        bool managed_thread_pool) const {
+        thread_pool_mode_t managed_thread_pool) const {
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.cfake_jit", "");
     auto &home_inc = get_include_path();
     const auto &compiler_config = utils::compiler_configs_t::get();
@@ -196,11 +196,11 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
 
 statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
         const_ir_module_ptr &new_mod, const const_ir_module_ptr &module,
-        bool generate_wrapper, bool &out_managed_thread_pool,
+        bool generate_wrapper, thread_pool_mode_t &out_managed_thread_pool,
         c_generator_optional_out_t *optout) {
     auto gen = create_c_generator(os, context_, generate_wrapper, optout);
     new_mod = gen(module);
-    out_managed_thread_pool = new_mod->attr_.get<bool>(
+    out_managed_thread_pool = new_mod->attr_.get<thread_pool_mode_t>(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
     return std::move(*new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
             ir_module_t::attr_key_t::MODULE_DATA_BUFFERS));
@@ -209,7 +209,7 @@ statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
 statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
         const_ir_module_ptr &new_mod, const const_ir_module_ptr &module,
         bool generate_wrapper) {
-    bool dummy;
+    thread_pool_mode_t dummy;
     return codegen_to_cpp(os, new_mod, module, generate_wrapper, dummy);
 }
 
@@ -249,7 +249,7 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         ptr_optional_dump = &optional_dump;
     }
 
-    bool managed_thread_pool;
+    thread_pool_mode_t managed_thread_pool;
     const_ir_module_ptr new_mod;
     auto attr_table = codegen_to_cpp(of, new_mod, module, generate_wrapper,
             managed_thread_pool, ptr_optional_dump);

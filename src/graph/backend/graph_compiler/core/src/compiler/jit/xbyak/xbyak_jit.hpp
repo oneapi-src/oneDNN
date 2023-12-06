@@ -66,7 +66,7 @@ private:
      */
     xbyak_jit_module_code(
             std::shared_ptr<xbyak::xbyak_jit_generator> jit_output,
-            bool managed_thread_pool);
+            thread_pool_mode_t managed_thread_pool);
 
     std::shared_ptr<xbyak::xbyak_jit_generator> jit_output_;
 

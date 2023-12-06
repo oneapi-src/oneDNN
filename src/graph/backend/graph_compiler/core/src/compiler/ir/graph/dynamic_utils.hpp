@@ -25,6 +25,7 @@
 #include <compiler/dimensions.hpp>
 #include <compiler/ir/sc_expr.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
+#include <runtime/threadpool_mode.hpp>
 #include <util/def.hpp>
 #include <util/reflection.hpp>
 
@@ -67,7 +68,7 @@ struct op_dispatch_tables_t {
         std::shared_ptr<sc_op> op_;
         std::string name_or_postfix_;
         std::shared_ptr<context_t> ctx_;
-        std::shared_ptr<const bool> use_managed_tp_;
+        std::shared_ptr<const thread_pool_mode_t> use_managed_tp_;
         bool internal_;
         // only valid when `!already_compiled()`. Lower the partial
         // specialization to TIR
@@ -80,7 +81,7 @@ struct op_dispatch_tables_t {
                 const std::shared_ptr<sc_op> &op,
                 const std::string &name_or_postfix,
                 const std::shared_ptr<context_t> &ctx,
-                const std::shared_ptr<const bool> &use_managed_tp,
+                const std::shared_ptr<const thread_pool_mode_t> &use_managed_tp,
                 bool internal = false)
             : graph_(graph)
             , op_(op)
@@ -167,12 +168,13 @@ void create_internal_dispatch_funcs_by_node(
         const std::shared_ptr<context_t> &ctx,
         std::shared_ptr<ir_module_t> &ret_mod, const std::string &table_name,
         const std::shared_ptr<sc_op> &node,
-        const std::shared_ptr<const bool> &use_mtp);
+        const std::shared_ptr<const thread_pool_mode_t> &use_mtp);
 void create_dispatch_funcs_by_keys(const std::shared_ptr<context_t> &ctx,
         std::shared_ptr<ir_module_t> &ret_mod, const std::string &table_name,
         const std::shared_ptr<sc_op> &node, const op_dispatch_key_base_t *key,
         expr &op_dispatch_kernel, int &dyn_idx,
-        const std::shared_ptr<const bool> &use_mtp, bool internal);
+        const std::shared_ptr<const thread_pool_mode_t> &use_mtp,
+        bool internal);
 int get_num_of_internal_funcs(const std::shared_ptr<sc_op> &node);
 int get_num_of_internal_funcs(const sc_graph_t &graph);
 int count_dynamic_dims(const sc_dims &in);

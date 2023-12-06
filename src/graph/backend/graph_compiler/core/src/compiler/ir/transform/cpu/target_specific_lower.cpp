@@ -692,7 +692,10 @@ public:
                 // in barrier call
                 return 0;
             }
-            if (!runtime_config_t::get().managed_thread_pool_) { return 0; }
+            if (runtime_config_t::get().managed_thread_pool_
+                    != thread_pool_mode_t::MANAGED) {
+                return 0;
+            }
             return builtin::get_set_idle_func_managed_func()(
                     v->args_[0], args_pack);
         } else if (v->type_ == intrin_type::get_group_thread_id) {

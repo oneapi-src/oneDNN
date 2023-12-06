@@ -47,6 +47,9 @@ constexpr const char *is_shared_const_init_stmt = "is_shared_const_init_stmt";
 // tensor cache. It is the index of the handle to these base tensors. It will be
 // used in local_tensor_lower
 constexpr const char *shared_const_base_idx = "shared_const_base_idx";
+// bool. Default false. Marked "true" on top-level parallel for_loop nodes that
+// the user would like to use dynamic parallel dispatching
+constexpr const char *dynamic_parallel = "dynamic_parallel";
 // bool. Default false. Applied on base tensor.
 // If true, the tensor is read only in the funtion.
 constexpr const char *read_only_tensor = "read_only_tensor";

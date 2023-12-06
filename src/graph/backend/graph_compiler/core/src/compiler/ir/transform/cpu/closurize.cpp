@@ -441,12 +441,18 @@ public:
     }
 };
 
+func_c remove_parallel_on_func(const func_c &f) {
+    single_core_remove_parallel_t pass;
+    return pass.dispatch(f);
+}
+
 const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
     float gflop
             = inmod->attr_.get_or_else(ir_module_t::attr_key_t::GFLOP, 0.0f);
-
-    bool use_managed_thread_pool = inmod->attr_.get_or_else(
-            ir_module_t::attr_key_t::MANAGED_THREAD_POOL, false);
+    auto tp_mod = inmod->attr_.get_or_else(
+            ir_module_t::attr_key_t::MANAGED_THREAD_POOL,
+            thread_pool_mode_t::DIRECT);
+    bool use_managed_thread_pool = tp_mod == thread_pool_mode_t::MANAGED;
 
     SC_MODULE_INFO << "Use managed thread pool? " << use_managed_thread_pool
                    << ". Module gflops = " << gflop;
@@ -526,8 +532,7 @@ const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
         funcs[i] = std::move(f);
     }
 
-    ret->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
-            = use_managed_thread_pool;
+    ret->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = tp_mod;
     return ret;
 }
 

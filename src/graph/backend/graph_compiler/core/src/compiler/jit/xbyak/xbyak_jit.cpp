@@ -181,7 +181,7 @@ std::shared_ptr<jit_module> xbyak_jit::make_jit_module(
     //========================================================================
     // Make xbyak_jit_module
     //========================================================================
-    bool use_managed_tp = ir_mod2->attr_.get<bool>(
+    thread_pool_mode_t use_managed_tp = ir_mod2->attr_.get<thread_pool_mode_t>(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
     auto ret = std::shared_ptr<xbyak_jit_module_code>(
             new xbyak_jit_module_code(std::move(jit_output_), use_managed_tp));
@@ -195,7 +195,7 @@ std::shared_ptr<jit_module> xbyak_jit::make_jit_module(
 
 xbyak_jit_module_code::xbyak_jit_module_code(
         std::shared_ptr<xbyak_jit_generator> jit_output,
-        bool managed_thread_pool)
+        thread_pool_mode_t managed_thread_pool)
     : jit_module_code(managed_thread_pool)
     , jit_output_(std::move(jit_output)) {}
 

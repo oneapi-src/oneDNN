@@ -981,7 +981,8 @@ ir_module_ptr mixed_fuse_op_t::get_dynamic_query_func(const context_ptr &ctx) {
 }
 
 void mixed_fuse_op_t::create_internal_dispatch_funcs(const context_ptr &ctx,
-        ir_module_ptr &mod, const std::shared_ptr<const bool> &use_mtp) {
+        ir_module_ptr &mod,
+        const std::shared_ptr<const thread_pool_mode_t> &use_mtp) {
     // todo: currently we only support one op with internal func query.
     for (auto &op : sub_graph_.ops_) {
         if (op->need_dynamic_internal_query()) {

@@ -179,6 +179,13 @@ void filo_memory_pool_t::release() {
     current_ = nullptr;
 }
 
+void filo_memory_pool_t::clear() {
+    for (auto cur = current_; cur; cur = cur->prev_) {
+        cur->allocated_ = sizeof(memory_block_t);
+    }
+    current_ = buffers_;
+}
+
 filo_memory_pool_t::~filo_memory_pool_t() {
     release();
 }

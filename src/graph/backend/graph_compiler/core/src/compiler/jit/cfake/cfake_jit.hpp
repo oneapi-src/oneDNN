@@ -39,7 +39,7 @@ class SC_INTERNAL_API cfake_jit_module_code_t : public jit_module_code {
     std::string src_path_;
     cfake_jit_module_code_t(void *module, const std::string &src_path,
             const std::string &path, bool has_generic_wrapper,
-            bool managed_thread_pool)
+            thread_pool_mode_t managed_thread_pool)
         : jit_module_code(managed_thread_pool)
         , module_(module)
         , path_(path)
@@ -74,13 +74,14 @@ public:
             bool generate_wrapper);
     statics_table_t codegen_to_cpp(std::ostream &os,
             const_ir_module_ptr &new_mod, const const_ir_module_ptr &module,
-            bool generate_wrapper, bool &out_managed_thread_pool,
+            bool generate_wrapper, thread_pool_mode_t &out_managed_thread_pool,
             c_generator_optional_out_t *optional_out = nullptr);
     std::shared_ptr<jit_module> make_jit_module(
             const_ir_module_ptr module, bool generate_wrapper) override;
     std::shared_ptr<jit_module> make_jit_module(const std::string &inpath,
             const std::string &outpath, statics_table_t &&globals,
-            bool has_generic_wrapper, bool managed_thread_pool) const;
+            bool has_generic_wrapper,
+            thread_pool_mode_t managed_thread_pool) const;
     static const runtime::cpu_flags_t &get_compiler_flags();
     static std::string &get_compiler_command();
     static void set_target_machine(runtime::target_machine_t &tm);

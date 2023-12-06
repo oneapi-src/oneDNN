@@ -47,6 +47,7 @@ struct thread_local_registry_t {
             if (engine == nullptr || node->engine_ == engine) {
                 node->main_memory_pool_.release();
                 node->thread_memory_pool_.release();
+                node->additional_->dyn_threadpool_mem_pool_.release();
                 node->amx_buffer_.release(node->engine_);
                 node->engine_ = nullptr;
             }

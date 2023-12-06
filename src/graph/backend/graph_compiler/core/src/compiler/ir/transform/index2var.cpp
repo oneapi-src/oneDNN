@@ -372,6 +372,13 @@ class indexing2var_impl_t : public ir_visitor_t {
         return false;
     }
 
+    void invalidate_all() {
+        while (!cached_index_.empty()) {
+            auto itr = cached_index_.begin()->second;
+            invalidate(itr);
+        }
+    }
+
     bool is_var_dependent_only_on_loop_var(const expr_c &itr, int recur_count) {
         if (recur_count > 7) {
             // the dependency is too complex, or there is a loop in dependency
@@ -750,10 +757,17 @@ class indexing2var_impl_t : public ir_visitor_t {
         return std::move(v);
     }
     stmt_c visit(for_loop_c v) override {
+        if (v->kind_ != for_type::NORMAL) {
+            // before entering a parallel-for loop, invalidate all cache
+            // because it is not profitable to cache the value across the thread
+            // boundary, and it will have problems in dynamic parallel transform
+            invalidate_all();
+        }
         for_depth_++;
         cur_for_loop_ = v.get();
         loop_vars_.insert(v->var_);
         auto ret = ir_visitor_t::visit(v);
+        if (v->kind_ != for_type::NORMAL) { invalidate_all(); }
         loop_vars_.erase(v->var_);
         for_depth_--;
         return ret;

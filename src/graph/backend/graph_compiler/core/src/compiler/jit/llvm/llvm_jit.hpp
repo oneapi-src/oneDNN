@@ -45,7 +45,8 @@ public:
     llvm_jit_module_code(std::unique_ptr<llvm::ExecutionEngine> engine,
             std::unique_ptr<llvm::LLVMContext> llvm_ctx,
             std::shared_ptr<llvm_jit_listeners> &&listeners,
-            bool managed_thread_pool, const std::string &source_path);
+            thread_pool_mode_t managed_thread_pool,
+            const std::string &source_path);
     // listeners_ reference will be destructed after engine_, to make sure
     // jit_listeners are still alive when ExecutionEngine is destroyed
     std::shared_ptr<llvm_jit_listeners> listeners_;

@@ -195,7 +195,7 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.llvm_jit", "");
     auto &attr_table = *new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
             ir_module_t::attr_key_t::MODULE_DATA_BUFFERS);
-    bool use_managed_tp = new_mod->attr_.get<bool>(
+    thread_pool_mode_t use_managed_tp = new_mod->attr_.get<thread_pool_mode_t>(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
     std::string source_path = std::move(gen.out_source_path_);
     std::string err;
@@ -269,7 +269,7 @@ llvm_jit_module_code::llvm_jit_module_code(
         std::unique_ptr<llvm::ExecutionEngine> engine,
         std::unique_ptr<llvm::LLVMContext> llvm_ctx,
         std::shared_ptr<llvm_jit_listeners> &&listeners,
-        bool managed_thread_pool, const std::string &source_path)
+        thread_pool_mode_t managed_thread_pool, const std::string &source_path)
     : jit_module_code(managed_thread_pool)
     , listeners_(std::move(listeners))
     , llvm_ctx_(std::move(llvm_ctx))

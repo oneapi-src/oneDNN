@@ -35,6 +35,7 @@
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/dessa_transform.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
+#include <compiler/ir/transform/dynamic_parallel_transform.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
 #include <compiler/ir/transform/index2var.hpp>
 #include <compiler/ir/transform/index_flatten.hpp>
@@ -117,11 +118,17 @@ sequential_module_pass_t get_default_precodegen_passes(
     }
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true));
 
-    ret.emplace_back(
-            module_function_pass_t::make<buffer_rescheduling_tensor_hoisting_t>(
-                    ctx, true, ctx->flags_.tensor_inplace_));
-    ret.emplace_back(
-            module_function_pass_t::make<nested_parallel_flattener_t>());
+    if (runtime_config_t::get().managed_thread_pool_
+            == thread_pool_mode_t::DYNAMIC) {
+        ret.emplace_back(
+                utils::make_unique<dynamic_parallel_transform_t>(true));
+    } else {
+        ret.emplace_back(module_function_pass_t::make<
+                buffer_rescheduling_tensor_hoisting_t>(
+                ctx, true, ctx->flags_.tensor_inplace_));
+        ret.emplace_back(
+                module_function_pass_t::make<nested_parallel_flattener_t>());
+    }
     ret.emplace_back(utils::make_unique<constant_folder_t>(false));
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true));
 

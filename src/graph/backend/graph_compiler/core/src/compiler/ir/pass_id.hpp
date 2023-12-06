@@ -48,6 +48,7 @@ enum pass_id {
     FUNCTION_PASS_START,
     tensor_shrinker = FUNCTION_PASS_START,
     bf16_fp16_legalizer,
+    dynamic_parallel_transform,
     buffer_rescheduling_tensor_hoisting,
     nested_parallel_flattener,
     func_inliner,

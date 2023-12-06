@@ -151,10 +151,14 @@ void ir_copier_impl_t::view(call_c v) {
     // do not copy the function AST
     std::vector<expr> args;
     args.reserve(v->args_.size());
+    auto callee = v->func_;
+    if (auto callee_expr = std::dynamic_pointer_cast<expr_base>(v->func_)) {
+        callee = copy(expr_c(callee_expr)).remove_const().impl;
+    }
     for (auto &i : v->args_) {
         args.emplace_back(copy(i));
     }
-    returned_expr_ = make_expr<call_node>(v->func_, args,
+    returned_expr_ = make_expr<call_node>(callee, args,
             std::vector<call_node::parallel_attr_t> {v->para_attr_});
 }
 

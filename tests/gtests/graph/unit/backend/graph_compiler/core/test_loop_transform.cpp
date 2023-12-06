@@ -22,6 +22,7 @@
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <compiler/ir/transform/loop_merge.hpp>
+#include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/loop_unroll.hpp>
 #include <util/any_map.hpp>
 
@@ -696,4 +697,35 @@ TEST(GCCore_CPU_loop_transform_cpp, SerialMerge) {
 
     ir_comparer cmp(true);
     EXPECT_TRUE(cmp.compare(body, expected, false));
+}
+
+TEST(GCCore_CPU_loop_transform_cpp, Normalize) {
+    builder::ir_builder_t builder;
+    builder.push_scope();
+    _tensor_(buf, datatypes::f32, {100});
+    _var_(len, datatypes::s32);
+    builder.push_scope();
+    for_loop lo1, lo2;
+#define U64 UINT64_C
+    _named_for_(lo1, i, U64(0), U64(3), U64(2), for_type::PARALLEL) {
+        _for_(j, U64(0), U64(3), U64(2)) {
+            _for_(k, i, U64(10), U64(3), for_type::PARALLEL) {
+                buf[i + j + k] = 0;
+            }
+        }
+    }
+    auto newloop = normalize_parallel_for_loop(lo1);
+    _named_for_(lo2, i, U64(0), U64(2), U64(1), for_type::PARALLEL) {
+        _for_(j, U64(0), U64(3), U64(2)) {
+            _for_(k, U64(0), (U64(10) - i * U64(2) + U64(3) - U64(1)) / U64(3),
+                    U64(1), for_type::PARALLEL) {
+                buf[U64(0) + i * U64(2) + j
+                        + ((U64(0) + i * U64(2) + k * U64(3)))]
+                        = 0;
+            }
+        }
+    }
+#undef U64
+    ir_comparer cmp(true);
+    EXPECT_TRUE(cmp.compare(newloop, lo2, false));
 }
