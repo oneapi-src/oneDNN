@@ -145,8 +145,10 @@ void fusion_anchor_t::merge(const std::shared_ptr<fusion_anchor_t> &other) {
 }
 
 bool fusion_anchor_t::has_view_of(sc_op *op) {
-    auto op_anchor = binded_mxp_->op_anchor_map_[op];
-    if (!op_anchor) return true;
+    auto iter = binded_mxp_->op_anchor_map_.find(op);
+    // if not found
+    if (iter == binded_mxp_->op_anchor_map_.end()) return true;
+    auto op_anchor = iter->second;
     while (true) {
         if (op_anchor.get() == this) return true;
         if (op_anchor->content_number_map_.find(this)

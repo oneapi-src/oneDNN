@@ -1596,6 +1596,21 @@ static void merge_parti_impl(mixed_parti_t *pa_to_merge,
         }
     }
 
+    // append tunable op without owner anchor manually if necessary
+    for (auto &op : parti_be_merged->committed_ops_) {
+        auto op_raw = op.get();
+        // Due to current tunable template implement, the beginning tunable op
+        // of partition does not belong to any anchor.
+        if (op->isa<tunable_op_t>()
+                && parti_be_merged->op_anchor_map_.find(op_raw)
+                        == parti_be_merged->op_anchor_map_.end()) {
+            // append op to anchor
+            max_to_merge_anchor_map->append_content(op_raw);
+            // append op to partition
+            pa_to_merge->op_anchor_map_[op_raw] = max_to_merge_anchor_map;
+        }
+    }
+
     // append inner loop anchor
     for (auto &be_merged_anchor_map : parti_be_merged->fanchors_) {
         // skip outer anchor
@@ -3231,8 +3246,11 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                                        op_attr_key::break_post_fuse, false)) {
                         SC_MODULE_INFO << op->op_name_ << "_"
                                        << op->logical_op_id_
-                                       << " fail to add partition because it "
-                                          "is marked as break post fuse";
+                                       << " fail to add partition because its "
+                                          "producer "
+                                       << in->producer_owner_->op_name_ << "_"
+                                       << in->producer_owner_->logical_op_id_
+                                       << " is marked as break post fuse";
                     }
                 }
                 // try pre op fusion

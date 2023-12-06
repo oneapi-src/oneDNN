@@ -650,7 +650,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphBreakOpPreFusion2) {
     graph.make_output(add0->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
-    ctx->flags_.use_cost_model_ = false;
     mixed_partition(graph, ctx);
     std::stringstream ss;
     print_graph(graph, ss, true);
@@ -1889,6 +1888,44 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);
+}
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically6) {
+    sc_graph_t graph;
+
+    int BS = 28, C = 64, H = 56, W = 56, K = 64;
+    SET_THREADS_OR_SKIP(BS);
+
+    auto input0 = graph.make_input({graph_tensor::make({BS, C, H, W})});
+    auto weight0 = graph.make_input({graph_tensor::make({K, C, 1, 1})});
+    weight0->attrs_.set("constant", const_kind::local_const);
+
+    auto relu0 = graph.make("relu", input0->get_outputs(), {}, {});
+    auto radd0 = graph.make("reduce", relu0->get_outputs(), {},
+            {{"rd_axis", std::vector<int> {3}}, {"rd_op", 0}});
+    auto relu1 = graph.make("relu", radd0->get_outputs(), {}, {});
+    // Based on current tunable template implement, conv_fwd does not belong to
+    // any fusion anchor
+    auto conv0 = graph.make("conv_fwd_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {},
+            {{"strides", sc_dims {1, 1}}, {"paddings", sc_dims {0, 0}}});
+    auto add0 = graph.make(
+            "add", {relu1->get_outputs()[0], conv0->get_outputs()[0]}, {}, {});
+
+    graph.make_output(add0->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.use_cost_model_ = true;
+    // disable partition optimization
+    ctx->flags_.opt_level_ = sc_opt_level::lv0;
+
+    mixed_partition(graph, ctx);
+    auto mixed_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(mixed_op && mixed_op->parti_list_.size() == 1);
+    auto &parti = mixed_op->parti_list_[0];
+    // tunable op conv0 should be found in op_anchor_map
+    EXPECT_TRUE(parti->op_anchor_map_.find(conv0.get())
+            != parti->op_anchor_map_.end());
 }
 
 class test_prefetchable_op : public tunable_op_t,
