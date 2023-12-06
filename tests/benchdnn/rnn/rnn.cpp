@@ -989,8 +989,12 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         const int exec_arg = entry.first;
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
-        ref_mem_map.emplace(
-                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        // Scratchpad memory relates to a primitive. If reference needs it,
+        // use switch below to define a memory desc for it.
+        if (exec_arg != DNNL_ARG_SCRATCHPAD && exec_arg != DNNL_ARG_WORKSPACE) {
+            ref_mem_map.emplace(exec_arg,
+                    dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        }
         auto &ref_mem = ref_mem_map[exec_arg];
 
         switch (exec_arg) {
@@ -1073,8 +1077,8 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 if (dir & FLAG_FWD)
                     SAFE(fill_memory(prb, DST_ITER_C, mem, ref_mem), WARN);
                 break;
-            case DNNL_ARG_SCRATCHPAD: break;
-            case DNNL_ARG_WORKSPACE: break;
+            case DNNL_ARG_SCRATCHPAD: /* Put internal allocations here */ break;
+            case DNNL_ARG_WORKSPACE: /* Or here... */ break;
             case DNNL_ARG_DIFF_SRC_LAYER:
                 SAFE(fill_activation(prb, DIFF_SRC_LAYER, mem, ref_mem), WARN);
                 break;

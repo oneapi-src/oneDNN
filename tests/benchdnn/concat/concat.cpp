@@ -146,25 +146,23 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         const int exec_arg = entry.first;
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
-        ref_mem_map.emplace(
-                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        // Scratchpad memory relates to a primitive. If reference needs it,
+        // use switch below to define a memory desc for it.
+        if (exec_arg != DNNL_ARG_SCRATCHPAD) {
+            ref_mem_map.emplace(exec_arg,
+                    dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        }
         auto &ref_mem = ref_mem_map[exec_arg];
 
-        switch (exec_arg) {
-            case DNNL_ARG_SCRATCHPAD: break;
-            default:
-                bool is_src_arg = (exec_arg & DNNL_ARG_MULTIPLE_SRC);
-                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-                if (is_src_arg && !is_scales_arg) {
-                    SAFE(fill_src(exec_arg, prb->ddt, mem, ref_mem), WARN);
-                } else if (is_scales_arg) {
-                    int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    // Leave hard coded until supported mask is 0 only.
-                    ref_mem.set_elem(
-                            0, prb->attr.scales.get(exec_src_arg).scale);
-                    SAFE(mem.reorder(ref_mem), WARN);
-                }
-                break;
+        bool is_src_arg = (exec_arg & DNNL_ARG_MULTIPLE_SRC);
+        bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
+        if (is_src_arg && !is_scales_arg) {
+            SAFE(fill_src(exec_arg, prb->ddt, mem, ref_mem), WARN);
+        } else if (is_scales_arg) {
+            int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
+            // Leave hard coded until supported mask is 0 only.
+            ref_mem.set_elem(0, prb->attr.scales.get(exec_src_arg).scale);
+            SAFE(mem.reorder(ref_mem), WARN);
         }
         // Don't keep reference memory if it is not used further.
         if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();

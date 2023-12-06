@@ -271,8 +271,12 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         const int exec_arg = entry.first;
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
-        ref_mem_map.emplace(
-                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        // Scratchpad memory relates to a primitive. If reference needs it,
+        // use switch below to define a memory desc for it.
+        if (exec_arg != DNNL_ARG_SCRATCHPAD) {
+            ref_mem_map.emplace(exec_arg,
+                    dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        }
         auto &ref_mem = ref_mem_map[exec_arg];
 
         switch (exec_arg) {
@@ -290,7 +294,6 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 SAFE(fill_data_bwd(DIFF_DST, prb, mem, ref_mem, !neg_sign),
                         WARN);
             } break;
-            case DNNL_ARG_SCRATCHPAD: break;
             default: { // Process all attributes here
                 bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
                 if (is_scales_arg) {
