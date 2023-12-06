@@ -324,16 +324,16 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const dir_t dir = init_pd_args.dir;
     res_t *res = init_pd_args.res;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->data_dims().data(), prb->dt, prb->tag);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->data_dims().data(),
+            prb->dt, prb->tag, prb->strides[0]);
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (dir & FLAG_FWD) {
-        auto dst_d = dnn_mem_t::init_md(
-                prb->ndims, prb->data_dims().data(), prb->dt, tag::any);
+        auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->data_dims().data(),
+                prb->dt, tag::any, prb->strides[1]);
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         TIME_C_PD(DNN_SAFE_STATUS(
@@ -342,10 +342,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                         init_pd_args.src_md ? init_pd_args.src_md : src_d,
                         dst_d, prb->eps, flags, dnnl_attr)));
     } else {
-        auto diff_src_d = dnn_mem_t::init_md(
-                prb->ndims, prb->data_dims().data(), prb->dt, tag::any);
-        auto diff_dst_d = dnn_mem_t::init_md(
-                prb->ndims, prb->data_dims().data(), prb->dt, tag::any);
+        auto diff_src_d = dnn_mem_t::init_md(prb->ndims,
+                prb->data_dims().data(), prb->dt, tag::any, prb->strides[0]);
+        auto diff_dst_d = dnn_mem_t::init_md(prb->ndims,
+                prb->data_dims().data(), prb->dt, tag::any, prb->strides[1]);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
         TIME_C_PD(DNN_SAFE_STATUS(
                 dnnl_batch_normalization_backward_primitive_desc_create(

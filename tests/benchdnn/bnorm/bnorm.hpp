@@ -75,6 +75,7 @@ struct settings_t : public base_settings_t {
     std::vector<dir_t> dir {FWD_D};
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx};
+    std::vector<vdims_t> strides {vdims_t(2)};
     std::vector<flags_t> flags {NONE};
     check_alg_t check_alg = ALG_AUTO;
     bool debug_check_ws = false;
@@ -88,15 +89,16 @@ struct settings_t : public base_settings_t {
 
     bool has_single_setup() const override {
         return dir.size() == 1 && dt.size() == 1 && tag.size() == 1
-                && flags.size() == 1 && base_settings_t::has_single_setup();
+                && strides.size() == 1 && flags.size() == 1
+                && base_settings_t::has_single_setup();
     }
 };
 
 struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
-        : prb_t(s.desc, s.mb[0], s.dir[0], s.dt[0], s.tag[0], s.flags[0],
-                s.inplace[0],
+        : prb_t(s.desc, s.mb[0], s.dir[0], s.dt[0], s.tag[0], s.strides[0],
+                s.flags[0], s.inplace[0],
                 settings_t::get_attr(s.scales[0], s.zero_points[0],
                         s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
                 s.ctx_init[0], s.ctx_exe[0], s.check_alg, s.debug_check_ws) {
@@ -104,8 +106,8 @@ struct prb_t : public desc_t {
     }
 
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, dnnl_data_type_t dt,
-            const std::string &tag, flags_t flags, bool inplace,
-            const attr_t &attr, const thr_ctx_t &ctx_init,
+            const std::string &tag, const vdims_t &strides, flags_t flags,
+            bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
             const thr_ctx_t &ctx_exe, check_alg_t check_alg,
             bool debug_check_ws)
         : desc_t(desc)
@@ -114,6 +116,7 @@ struct prb_t : public desc_t {
         , dir(dir)
         , dt(dt)
         , tag(tag)
+        , strides(strides)
         , flags(flags)
         , inplace(inplace)
         , attr(attr)
@@ -130,6 +133,7 @@ struct prb_t : public desc_t {
     dir_t dir;
     dnnl_data_type_t dt;
     std::string tag;
+    vdims_t strides;
     flags_t flags;
     bool inplace;
     attr_t attr;

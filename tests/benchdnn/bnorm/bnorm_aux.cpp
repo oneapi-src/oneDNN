@@ -201,6 +201,8 @@ std::string prb_t::set_repro_line() {
     if (canonical || dir != def.dir[0]) s << "--dir=" << dir << " ";
     if (canonical || dt != def.dt[0]) s << "--dt=" << dt << " ";
     if (canonical || tag != def.tag[0]) s << "--tag=" << tag << " ";
+    if (canonical || strides != def.strides[0])
+        s << "--strides=" << vdims2str(strides) << " ";
     if (canonical || flags != def.flags[0])
         s << "--flags=" << flags2str(flags) << " ";
     if (canonical || check_alg != def.check_alg)
