@@ -215,31 +215,21 @@ public:
     };
 
     status_t create_and_set_convolution_desc(const convolution_pd_t *pd) {
+        // For integer compute, we always enable tensor ops
+        // we use wei_dt as proxy to compute type
+        auto wei_dt = dnnl_descs[weights].data_type;
+        cudnnMathType_t cudnn_math_type = types::is_integral_dt(wei_dt)
+                ? CUDNN_TENSOR_OP_MATH
+                : CUDNN_FMA_MATH;
 
-        cudnnMathType_t cudnn_math_type = CUDNN_TENSOR_OP_MATH;
-
-        if (computation_data_type == CUDNN_DATA_FLOAT) {
-
-            dnnl_fpmath_mode_t dnnl_fpmath_mode = pd->attr()->fpmath_mode_;
-
-            switch (dnnl_fpmath_mode) {
-                case dnnl_fpmath_mode_strict:
-                    cudnn_math_type = CUDNN_FMA_MATH;
-                    break;
-                case dnnl_fpmath_mode_bf16:
-                    cudnn_math_type = CUDNN_TENSOR_OP_MATH;
-                    break;
-                case dnnl_fpmath_mode_f16:
-                    cudnn_math_type = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION;
-                    break;
-                case dnnl_fpmath_mode_tf32:
-                    cudnn_math_type = CUDNN_DEFAULT_MATH;
-                    break;
-                case dnnl_fpmath_mode_any:
-                    cudnn_math_type = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION;
-                    break;
-            }
-        }
+        // For floating point compute, we allow tensor ops accoding to
+        // fpmath mode
+        auto pda = pd->attr();
+        if (pda->mayidownconvert(wei_dt, data_type::bf16)
+                || pda->mayidownconvert(wei_dt, data_type::tf32))
+            cudnn_math_type = CUDNN_TENSOR_OP_MATH;
+        if (pda->mayidownconvert(wei_dt, data_type::f16))
+            cudnn_math_type = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION;
 
         CUDNN_EXECUTE_FUNC_V(cudnnCreateConvolutionDescriptor, &conv_desc);
         // Allow cuDNN to dispatch into Tensor Core implementations
@@ -632,7 +622,9 @@ public:
                 descs[x], weights_desc, conv_desc, descs[y],
                 requested_algo_count, &returned_algo_count, perf.data()));
 
-        dnnl_fpmath_mode_t dnnl_fpmath_mode = pd->attr()->fpmath_mode_;
+        cudnnMathType_t expected_math_mode;
+        CHECK(CUDNN_EXECUTE_FUNC_S(
+                cudnnGetConvolutionMathType, conv_desc, &expected_math_mode));
 
         auto submit_status = CUDNN_STATUS_NOT_SUPPORTED;
         for (size_t i = 0; i < returned_algo_count; i++) {
@@ -675,8 +667,7 @@ public:
                         break;
                     default: return status::unimplemented;
                 }
-                if ((computation_data_type == CUDNN_DATA_FLOAT)
-                        && (dnnl_fpmath_mode == dnnl_fpmath_mode_strict)
+                if ((expected_math_mode == CUDNN_FMA_MATH)
                         && (perf[i].mathType != CUDNN_FMA_MATH))
                     continue;
                 fwd_alg_kind = perf[i].algo;
