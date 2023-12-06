@@ -384,7 +384,6 @@ mb2_g1_ic256ih9oc324oh3kh3sh3ph1n"brgemm_strided_conv_inp_buffer_size"
 ic64ih14oc24oh14kh5ph2_n"zp_with_top_and_bottom_vpad"
 
 # test dimensions transformation for case with input channels not divided by simd_w
---conv
 --reset
 --skip-impl=ref,x64:gemm
 --dir=FWD_I --cfg=bf16bf16f32 mb1_ic48oc16_ih8kh2sh2ph0
