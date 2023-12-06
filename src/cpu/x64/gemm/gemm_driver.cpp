@@ -19,6 +19,8 @@
 #include <malloc.h>
 #endif
 
+#include <vector>
+
 #include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/bfloat16.hpp"
@@ -394,8 +396,11 @@ void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
     dim_t m_stk = col_offset_ws ? 1 : m;
     dim_t n_stk = row_offset_ws ? 1 : n;
 #if !defined(_MSC_VER)
-    c_type col_offset_stk[m_stk];
-    c_type row_offset_stk[n_stk];
+    std::vector<c_type> col_offset_stk_vec(m_stk);
+    std::vector<c_type> row_offset_stk_vec(n_stk);
+    c_type *col_offset_stk = col_offset_stk_vec.data();
+    c_type *row_offset_stk = row_offset_stk_vec.data();
+
 #else
     c_type *col_offset_stk = nullptr;
     if (!col_offset_ws)
