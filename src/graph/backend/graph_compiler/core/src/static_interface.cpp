@@ -39,6 +39,8 @@
     F(reduce_max); \
     F(reduce_mean); \
     F(reduce_min); \
+    F(reduce_l1); \
+    F(reduce_l2); \
     F(relu); \
     F(relu_backprop); \
     F(reciprocal); \

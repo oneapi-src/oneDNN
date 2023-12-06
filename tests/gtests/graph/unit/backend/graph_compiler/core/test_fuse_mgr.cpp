@@ -42,7 +42,7 @@
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/matmul_core.hpp>
-#include <ops/reduce_mean.hpp>
+#include <ops/reduce_graph_op.hpp>
 #include <ops/templates/matmul_core.hpp>
 #include <reference/act_ref.hpp>
 #include <test_utils.hpp>

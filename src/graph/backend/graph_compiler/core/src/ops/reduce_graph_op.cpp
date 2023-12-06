@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#include "reduce_mean.hpp"
+#include "reduce_graph_op.hpp"
+#include <string>
 #include <utility>
 #include <compiler/ir/graph/fusible_op.hpp>
 
@@ -22,13 +23,16 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-reduce_mean_op_t::reduce_mean_op_t(
-        graph_tensor_ptr v, const std::vector<int> &rd_axis, bool keep_dims)
-    : reduce_mean_op_t({std::move(v)}, {},
+graph_reduce_base_t::graph_reduce_base_t(graph_tensor_ptr v,
+        const std::vector<int> &rd_axis, const std::string &op_name,
+        bool keep_dims)
+    : graph_reduce_base_t({std::move(v)}, {}, op_name,
             {{"rd_axis", rd_axis}, {"keep_dims", keep_dims}}) {}
 
-reduce_mean_op_t::reduce_mean_op_t(const std::vector<graph_tensor_ptr> &ins,
-        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+graph_reduce_base_t::graph_reduce_base_t(
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const std::string &op_name,
+        const any_map_t &attrs) {
     info_.inputs_ = ins;
     attrs_ = attrs;
     COMPILE_ASSERT(attrs.has_key("rd_axis"),
@@ -61,8 +65,12 @@ reduce_mean_op_t::reduce_mean_op_t(const std::vector<graph_tensor_ptr> &ins,
             attrs_["keep_dims"] = true;
         }
     }
-    op_name_ = "reduce_mean";
+    op_name_ = op_name;
 }
+
+void graph_reduce_base_t::query_format(context_ptr ctx,
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {}
 
 void reduce_mean_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
@@ -87,10 +95,42 @@ void reduce_mean_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     graph->make_output(reduce_sum_div->get_outputs());
 }
 
-void reduce_mean_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<format_stride_pair>> &supported_ins,
-        std::vector<std::vector<format_stride_pair>> &supported_outs) {}
+void reduce_l2_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
+    // create new input logical tensors
+    std::vector<graph_tensor_ptr> inputs, outputs;
+    inputs = remake_logical_tensors(info_.inputs_);
+    outputs = remake_logical_tensors(info_.outputs_);
+    auto plain_rd_axis_ = attrs_.get<std::vector<int>>("rd_axis");
 
+    // input
+    graph_tensor_ptr inputs0 = inputs[0];
+    auto square_val = graph->make("square", inputs, {}, {});
+    auto reduce_val
+            = graph->make("reduce_sum", square_val->get_outputs(), {}, attrs_);
+    auto l2_res
+            = graph->make("squared_root", reduce_val->get_outputs(), {}, {});
+    // output
+    graph->make_output(l2_res->get_outputs());
+}
+
+void reduce_l1_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
+    // create new input logical tensors
+    std::vector<graph_tensor_ptr> inputs, outputs;
+    inputs = remake_logical_tensors(info_.inputs_);
+    outputs = remake_logical_tensors(info_.outputs_);
+    auto plain_rd_axis_ = attrs_.get<std::vector<int>>("rd_axis");
+
+    // input
+    graph_tensor_ptr inputs0 = inputs[0];
+    auto abs_val = graph->make("abs", inputs, {}, {});
+    auto reduce_l1
+            = graph->make("reduce_sum", abs_val->get_outputs(), {}, attrs_);
+    // output
+    graph->make_output(reduce_l1->get_outputs());
+}
+
+OP_REGISTER(reduce_l1_op_t, reduce_l1)
+OP_REGISTER(reduce_l2_op_t, reduce_l2)
 OP_REGISTER(reduce_mean_op_t, reduce_mean)
 } // namespace gc
 } // namespace graph

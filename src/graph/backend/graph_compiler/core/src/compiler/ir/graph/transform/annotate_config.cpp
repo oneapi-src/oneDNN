@@ -22,7 +22,7 @@
 #include "transform.hpp"
 #include <compiler/ir/graph/quantization/quantize_op.hpp>
 #include <ops/fusible/reduce.hpp>
-#include <ops/reduce_mean.hpp>
+#include <ops/reduce_graph_op.hpp>
 #include <util/math_utils.hpp>
 
 namespace dnnl {

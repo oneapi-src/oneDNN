@@ -345,6 +345,68 @@ TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp14) {
             });
 }
 
+// test all reduce + partial reduce + last reduce
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp15) {
+    const int out_size = 1;
+    // set num threads to trigger corner condition
+    SET_THREADS_OR_SKIP(4);
+    do_test_reduce_op<float>(sc_dims({3, 3, 3, 3}),
+            std::vector<int>({0, 1, 2, 3}), "reduce_l1", out_size,
+            datatypes::f32, [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += std::abs(input[i]);
+                return ref_out;
+            });
+}
+
+// test all reduce + partial reduce + last reduce
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp16) {
+    const int out_size = 1;
+    // set num threads to trigger corner condition
+    SET_THREADS_OR_SKIP(4);
+    do_test_reduce_op<float>(sc_dims({3, 3, 3, 3}),
+            std::vector<int>({0, 1, 2, 3}), "reduce_l2", out_size,
+            datatypes::f32, [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += input[i] * input[i];
+                ref_out[0] = std::sqrt(ref_out[0]);
+                return ref_out;
+            });
+}
+
+// test reduce on all axis with predefined output tensor
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp17) {
+    const int out_size = 1;
+    do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({0, 1, 2}),
+            "reduce_l1", out_size, datatypes::f32,
+            [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += std::abs(input[i]);
+                return ref_out;
+            });
+}
+
+// test reduce on all axis with predefined output tensor
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp18) {
+    const int out_size = 1;
+    do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({0, 1, 2}),
+            "reduce_l2", out_size, datatypes::f32,
+            [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += input[i] * input[i];
+                ref_out[0] = std::sqrt(ref_out[0]);
+                return ref_out;
+            });
+}
+
 // test reduce on all axis with fusing enabled
 TEST(GCCore_CPU_reduce_op_cpp, TestReduceOpFuse) {
     REQUIRE_AVX2();
