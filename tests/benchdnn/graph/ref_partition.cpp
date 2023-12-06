@@ -207,6 +207,7 @@ void ref_partition_t::check_partition_correctness(
 
     for (auto op : partition_ops_ref_) {
         size_t op_id = op.get().id_;
+        const auto op_kind = op.get().kind_;
         const auto ref_prim = ref_prims_.at(op_id);
 
         // if there is eltwise post-ops or binary div post-ops (GPU test), need
@@ -217,21 +218,24 @@ void ref_partition_t::check_partition_correctness(
         const auto op_driver = opkind2driver(ref_prim->get_kind());
         has_eltwise = has_eltwise
                 || ((op_driver == dnnl_driver_t::eltwise
-                        || (opstr2kind(op.get().kind_)
-                                        == dnnl::graph::op::kind::Divide
+                        || (opstr2kind(op_kind) == dnnl::graph::op::kind::Divide
                                 && engine_tgt_kind == dnnl_gpu)));
         output_has_nans = output_has_nans
-                || ((map_kind_to_alg.find(op.get().kind_)
-                            != map_kind_to_alg.end())
+                || ((map_kind_to_alg.find(op_kind) != map_kind_to_alg.end())
                         && ::eltwise::eltwise_alg_returns_nan_or_inf(
-                                map_kind_to_alg.at(op.get().kind_)));
+                                map_kind_to_alg.at(op_kind)))
+                // `f8_e4m3` range is very short which makes inputs convert
+                // into NaNs.
+                || (op_driver == dnnl_driver_t::reorder
+                        && op.get().in_lts_.front().get_data_type()
+                                == logical_tensor::data_type::f8_e4m3);
 
         // get the args that need comparing
         args_t output_args;
         for (size_t out_idx = 0; out_idx < op.get().out_lts_.size();
                 ++out_idx) {
             int out_arg = get_prim_arg_name_from_graph_op_output_offset(
-                    opstr2kind(op.get().kind_), out_idx);
+                    opstr2kind(op_kind), out_idx);
             if (out_arg == 0) continue; // unsupported case
             size_t out_lt_id = op.get().out_lts_[out_idx].id_;
             for (size_t i = 0; i < partition_out_ids_.size(); i++) {
