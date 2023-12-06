@@ -1337,7 +1337,14 @@ void xbyak_lowering_viewer::handle_reinterpret(
             handle_x86_mov(op_dst, op_src);
         } break;
         case 2: { // 16-bit
-            handle_x86_mov(op_dst, op_src);
+            // just allow R_2_xmm or xmm_2_R
+            if (is_x86_simd(rhs->dtype_) != is_x86_simd(lhs->dtype_)) {
+                XBYAK_GEN(vmovd, AVX_XMR32_XMR32, op_dst, op_src);
+            } else {
+                assert(rhs->dtype_.type_code_ != sc_data_etype::F16
+                        && lhs->dtype_.type_code_ != sc_data_etype::F16);
+                handle_x86_mov(op_dst, op_src);
+            }
         } break;
         case 4: { // 32-bit
             if (dtype_dst != datatypes::f32 && op_src.is_addr()) {
@@ -1576,7 +1583,11 @@ void xbyak_lowering_viewer::handle_avx_movss(
 void xbyak_lowering_viewer::handle_avx_movsh(
         const operand &op_dst, const operand &op_src) {
     if (op_dst == op_src) { return; }
-    XBYAK_GEN(vmovw, AVX_XM_XM, op_dst, op_src);
+    if (cpu_flags_.fAVX512FP16) {
+        XBYAK_GEN(vmovw, AVX_XM_XM, op_dst, op_src);
+    } else {
+        handle_avx_movss(op_dst, op_src);
+    }
 }
 
 void xbyak_lowering_viewer::handle_avx_movps(
