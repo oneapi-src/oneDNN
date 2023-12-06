@@ -187,7 +187,8 @@ void batchnorm_forward_training_op::get_graph_impl(
             = info_.inputs_[0]->details_.dtype_.is_etype(sc_data_etype::BF16);
     bool is_ssmv_bf16
             = info_.inputs_[1]->details_.dtype_.is_etype(sc_data_etype::BF16);
-    bool is_3D = (inputs[0]->details_.get_plain_dims().size() == 5);
+    int num_dims
+            = static_cast<int>(inputs[0]->details_.get_plain_dims().size());
     auto src = inputs[0], mean = inputs[1], variance = inputs[2],
          scale = inputs[3], shift = inputs[4];
     auto src_pass2 = inputs[0];
@@ -222,13 +223,15 @@ void batchnorm_forward_training_op::get_graph_impl(
 
     std::vector<int> rd_axis, bc_axis;
     if (format == "NCX") {
-        rd_axis = is_3D ? std::vector<int> {0, 2, 3, 4}
-                        : std::vector<int> {0, 2, 3};
         bc_axis = std::vector<int> {1};
+        for (int i = 0; i < num_dims; ++i) {
+            if (i != 1) rd_axis.push_back(i);
+        }
     } else {
-        rd_axis = is_3D ? std::vector<int> {0, 1, 2, 3}
-                        : std::vector<int> {0, 1, 2};
-        bc_axis = is_3D ? std::vector<int> {4} : std::vector<int> {3};
+        bc_axis = std::vector<int> {num_dims - 1};
+        for (int i = 0; i < num_dims - 1; ++i) {
+            rd_axis.push_back(i);
+        }
     }
     // mean and var of src 1 pass
     float channel_size = 1.0f;
@@ -346,9 +349,6 @@ batchnorm_training_backprop_op_t::batchnorm_training_backprop_op_t(
     info_.inputs_ = ins;
     COMPILE_ASSERT(info_.inputs_.size() == 5,
             "Batchnorm backprop op shall have 5 inputs.");
-    COMPILE_ASSERT(ins[0]->details_.get_plain_dims().size() == 4
-                    || ins[0]->details_.get_plain_dims().size() == 5,
-            "Batchnorm backprop op currently only supports 4D or 5D cases.");
     COMPILE_ASSERT(ins[0]->details_.dtype_ == ins[1]->details_.dtype_,
             "Batchnorm backprop's src and delta_output must have the "
             "same dtype.");
@@ -391,7 +391,8 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
     outputs = remake_logical_tensors(info_.outputs_);
-    bool is_3D = (inputs[0]->details_.get_plain_dims().size() == 5);
+    int num_dims
+            = static_cast<int>(inputs[0]->details_.get_plain_dims().size());
     bool is_bf16_src
             = (inputs[0]->details_.dtype_.is_etype(sc_data_etype::BF16));
     bool is_bf16_gamma
@@ -403,14 +404,16 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
     graph->make_input(inputs);
     // calculating reduce axis
     std::vector<int> bc_axis, rd_axis;
-    if (data_format == "NXC") {
-        bc_axis = is_3D ? std::vector<int> {4} : std::vector<int> {3};
-        rd_axis = is_3D ? std::vector<int> {0, 1, 2, 3}
-                        : std::vector<int> {0, 1, 2};
-    } else {
+    if (data_format == "NCX") {
         bc_axis = std::vector<int> {1};
-        rd_axis = is_3D ? std::vector<int> {0, 2, 3, 4}
-                        : std::vector<int> {0, 2, 3};
+        for (int i = 0; i < num_dims; ++i) {
+            if (i != 1) rd_axis.push_back(i);
+        }
+    } else {
+        bc_axis = std::vector<int> {num_dims - 1};
+        for (int i = 0; i < num_dims - 1; ++i) {
+            rd_axis.push_back(i);
+        }
     }
 
     graph_tensor_ptr src = inputs[0], output_delta = inputs[1],
