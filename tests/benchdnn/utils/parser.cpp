@@ -516,11 +516,11 @@ bool parse_strides(std::vector<vdims_t> &strides,
         const std::vector<vdims_t> &def_strides, const char *str,
         const std::string &option_name /* = "strides"*/) {
     static const std::string help
-            = "DIMS_SRC:DIMS_WEI:DIMS_DST    (Default: not specified)\n    "
-              "Specifies strides `DIMS_ARG` for correspondent `ARG`.\n    If "
-              "correspondent `DIMS_ARG` is empty, it does not take an "
-              "effect.\n    More details at "
-            + doc_url + "driver_matmul.md\n";
+            = "DIMS_SRC[:DIMS_WEI]:DIMS_DST    (Default: not specified)\n    "
+              "Specifies strides `DIMS_ARG` for correspondent supported "
+              "`ARG`.\n    If correspondent `DIMS_ARG` is empty, it does not "
+              "take an effect.\n    More details at "
+            + doc_url + "driver_" + driver_name + ".md\n";
     auto str2strides = [&](const char *str) -> vdims_t {
         vdims_t strides(STRIDES_SIZE);
         parse_multivector_str(

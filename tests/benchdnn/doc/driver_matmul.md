@@ -47,7 +47,9 @@ where *matmul-knobs* are:
             `weights` that indicates whether a dimension is
             `DNNL_RUNTIME_DIM_VAL` (indicated as 1-bit in the corresponding
             dimension position). The default is `0` for all dimensions, meaning
-            all tensor dimensions are fully defined at primitive creation.
+            all tensor dimensions are fully defined at primitive creation. For
+            tensors with option values other than `0`, a correspondent memory
+            format tag must be specified.
 - `--encoding=STRING` - sparse encodings and sparsity. No encodings are set by
             default. Refer to [encodings](knobs_encoding.md) for details. This
             is an experimental feature that must be enabled via a build time

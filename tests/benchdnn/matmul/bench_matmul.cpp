@@ -158,7 +158,9 @@ static const std::string help_bia_mask
 static const std::string help_runtime_dims_masks
         = "UINT:UINT    (Default: `0:0`)\n    Specifies a bit-mask for "
           "matrices A and B that indicates whether a dimension is "
-          "`DNNL_RUNTIME_DIM_VAL` if `1` on a correspondent dimension.\n";
+          "`DNNL_RUNTIME_DIM_VAL` if `1` on a correspondent dimension.\n    "
+          "For tensors with runtime dimensions specified a correspondent "
+          "memory format must be specified, too.\n";
 
 int bench(int argc, char **argv) {
     driver_name = "matmul";
