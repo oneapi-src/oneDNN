@@ -162,6 +162,11 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
 int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr,
         dnnl_data_type_t swap_dt) {
     if (this == &rhs) return OK;
+
+    // When `rhs` object is empty, it's illigal to execute a reorder over it.
+    // Do nothing, return a good status. Keep here to avoid guarding externally.
+    if (query_md_ndims(rhs.md_) == 0) return OK;
+
     const bool do_swap_dt = swap_dt != dnnl_data_type_undef;
     dnnl_data_type_t orig_dt = this->dt();
     if (do_swap_dt) this->set_dt(swap_dt);

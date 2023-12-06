@@ -1020,8 +1020,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     // re-create it and reorder from former.
                     const auto &bwd_md = query_md(const_pd, exec_arg);
                     dnn_mem_t bwd_mem = dnn_mem_t(bwd_md, test_engine);
-                    if (query_md_ndims(bwd_md) > 0)
-                        SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
+                    SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
                     mem_map[exec_arg] = std::move(bwd_mem);
                 }
                 break;
@@ -1035,8 +1034,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     // re-create it and reorder from former.
                     const auto &bwd_md = query_md(const_pd, exec_arg);
                     dnn_mem_t bwd_mem = dnn_mem_t(bwd_md, test_engine);
-                    if (query_md_ndims(bwd_md) > 0)
-                        SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
+                    SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
                     mem_map[exec_arg] = std::move(bwd_mem);
                 }
                 break;
@@ -1055,8 +1053,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     // re-create it and reorder from former.
                     const auto &bwd_md = query_md(const_pd, exec_arg);
                     dnn_mem_t bwd_mem = dnn_mem_t(bwd_md, test_engine);
-                    if (query_md_ndims(bwd_md) > 0)
-                        SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
+                    SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
                     mem_map[exec_arg] = std::move(bwd_mem);
                 }
                 break;

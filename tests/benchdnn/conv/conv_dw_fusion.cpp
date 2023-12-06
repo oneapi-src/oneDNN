@@ -168,7 +168,7 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
                 break;
             case DNNL_ARG_BIAS:
                 SAFE(fill_data(BIA, prb0, cfg, mem, ref_mem, res), WARN);
-                if (ref_mem.ndims() > 0 && has_bench_mode_bit(mode_bit_t::corr))
+                if (has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS):
@@ -178,7 +178,7 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
                 break;
             case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS):
                 SAFE(fill_data(BIA, prb1, cfg, mem, ref_mem, res), WARN);
-                if (ref_mem.ndims() > 0 && has_bench_mode_bit(mode_bit_t::corr))
+                if (has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map1.at(DNNL_ARG_BIAS).reorder(ref_mem), WARN);
                 break;
             default: { // Process all attributes here
