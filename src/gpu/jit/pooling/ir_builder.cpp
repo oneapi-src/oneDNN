@@ -27,6 +27,7 @@
 #include <unordered_map>
 
 #include "common/c_types_map.hpp"
+#include "common/utils.hpp"
 #include "gpu/jit/ir/epilogue.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/ir.hpp"
@@ -117,35 +118,25 @@ private:
     const int ndims_;
 };
 
-void reduce_dim(int &dn, int &up, int scale) {
-    for (auto p : std::array<int, 11> {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31})
-        if (dn % (p * scale) == 0) {
-            up *= p;
-            dn /= p;
-            return;
-        }
-    up *= dn / scale;
-    dn = scale;
-}
-
 void pooling_ir_builder_t::build() {
     while ((stmt_ = try_build(*this, ki_mutable_, cfg_mutable_, pd_))
                     .is_empty()) {
         ir_warning() << "loop_grid too large, reduce and retry" << std::endl;
+        const auto simd = cfg_mutable_.exec_cfg().simd();
         auto kg(cfg_mutable_.kernel_grid());
         auto lg(cfg_mutable_.loop_grid());
         if (cfg_mutable_.is_blocked_by_mb()) {
-            if (lg[1] / cfg_mutable_.exec_cfg().simd() > 1)
-                reduce_dim(lg[1], kg[0], cfg_mutable_.exec_cfg().simd());
+            if (lg[1] / simd > 1)
+                pooling_config_t::reduce_dim(lg[1], kg[0], simd);
             else if (lg[0] > 1)
-                reduce_dim(lg[0], kg[1], 1);
+                pooling_config_t::reduce_dim(lg[0], kg[1], 1);
             else
                 ir_error_not_expected() << "minimal loop_grid too large!";
         } else {
             if (lg[0] > 1)
-                reduce_dim(lg[0], kg[1], 1);
-            else if (lg[1] / cfg_mutable_.exec_cfg().simd() > 1)
-                reduce_dim(lg[1], kg[0], cfg_mutable_.exec_cfg().simd());
+                pooling_config_t::reduce_dim(lg[0], kg[1], 1);
+            else if (lg[1] / simd > 1)
+                pooling_config_t::reduce_dim(lg[1], kg[0], simd);
             else
                 ir_error_not_expected() << "minimal loop_grid too large!";
         }
@@ -426,14 +417,12 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     ir_assert(dst_tile.elems() == simd);
 
     const bool is_identity(prb.kd * prb.kh * prb.kw <= 1);
-    const bool is_max(prb.alg == alg_kind_t::dnnl_pooling_max);
-    const bool is_pad(prb.alg == alg_kind_t::dnnl_pooling_avg_include_padding);
 
     const type_t read_type(read_layout.type().kind(), simd);
     const type_t write_type(write_layout.type().kind(), simd);
 
     type_t acc_type = (!read_type.is_int())
-            ? (is_max) ? read_type : type_t::f32(simd)
+            ? (cfg.is_max()) ? read_type : type_t::f32(simd)
             : type_t::s32(simd);
     auto acc_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "acc");
     const auto acc_sc_size = acc_type.scalar().size();
@@ -451,10 +440,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
         stmt_t fill_stmt, compute_stmt = read.stmt();
 
-        if (!read_type.is_int()) {
-            auto init = shuffle_t::make_broadcast(
-                    (is_max) ? -INFINITY : 0.f, simd);
-            stmt = stmt_t();
+        stmt = stmt_t();
+        if (!read_type.is_int() && cfg.is_max()) {
+            auto init = shuffle_t::make_broadcast(-INFINITY, simd);
             for (int i = 0; i < acc_size; i += simd * acc_sc_size)
                 stmt = stmt.append(store_t::make(
                         acc_buf, i, cast_t::make(acc_type, init)));
@@ -466,9 +454,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                                 store_t::make(read_buf, off, op));
                     });
         } else {
-            const bool is_neg = is_max && read_type.is_signed();
-            const int mult = int(sizeof(int32_t)) / read_layout.type().size();
-            stmt = stmt_t();
+            ir_assert(read_layout.type().size() <= 4);
+            const int mult = 4 / read_layout.type().size();
+            const bool is_neg = cfg.is_max() && read_type.is_signed();
             for (int i = 0; i < acc_size; i += simd * acc_sc_size)
                 stmt = stmt.append(store_t::make(acc_buf, i,
                         shuffle_t::make_broadcast(
@@ -483,12 +471,17 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                 default: ir_assert(false) << "Not expected.";
             }
             v_init = cast_t::make(type_t::s32(), v_init);
-            auto op = shuffle_t::make_broadcast(v_init, simd / mult);
+            auto op_long = shuffle_t::make_broadcast(v_init, simd);
+            auto op_short = shuffle_t::make_broadcast(v_init, simd / mult);
             read_layout.for_each_tile(
                     src_tile, [&](const std::vector<dim_t> &s) {
                         int off = read_layout(s) * read_layout.type().size();
-                        fill_stmt = fill_stmt.append(
-                                store_t::make(read_buf, off, op));
+                        if (off >= utils::rnd_dn(read_layout.size(), simd * 4))
+                            fill_stmt = fill_stmt.append(
+                                    store_t::make(read_buf, off, op_short));
+                        else if (off % (simd * 4) == 0)
+                            fill_stmt = fill_stmt.append(
+                                    store_t::make(read_buf, off, op_long));
                     });
         }
 
@@ -499,8 +492,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             auto load = cast_t::make(
                     acc_type, load_t::make(read_type, read_buf, off_l));
             auto acc = load_t::make(acc_type, acc_buf, off_a);
-            auto op = binary_op_t::make(
-                    (is_max) ? op_kind_t::_max : op_kind_t::_add, acc, load);
+            auto op_kind = (cfg.is_max()) ? op_kind_t::_max : op_kind_t::_add;
+            auto op = binary_op_t::make(op_kind, acc, load);
             compute_stmt
                     = compute_stmt.append(store_t::make(acc_buf, off_a, op));
         });
@@ -508,9 +501,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         stmt = stmt.append(schedule.create_loop_nest(
                 (check_idhw) ? fill_stmt.append(compute_stmt) : compute_stmt));
 
-        if (!is_max) {
+        if (!cfg.is_max()) {
             expr_t filter(prb.kd * prb.kh * prb.kw);
-            if (!is_pad && check_idhw) {
+            if (!cfg.is_padded() && check_idhw) {
                 auto dim = [](const expr_t &o, int s, int p, int k, int i) {
                     if (k <= 1) return expr_t(1);
                     return binary_op_t::make(op_kind_t::_min, o * s - p + k, i)
@@ -540,17 +533,6 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             write_layout.retype(acc_type.scalar()), dst_buf, acc_buf,
             buf_size));
 
-    if (dims[0] > prb.mb) {
-        stmt_t stop;
-        auto zero_bcast
-                = cast_t::make(read_type, shuffle_t::make_broadcast(0, simd));
-        for (int i = 0; i < acc_size / acc_sc_size; i += simd)
-            stop = stop.append(store_t::make(
-                    read_buf, i * read_type.scalar().size(), zero_bcast));
-        auto stop_cond = shuffle_t::make_broadcast(mb >= prb.mb, simd);
-        stmt = if_t::make(stop_cond, stop.append(write.stmt()), stmt);
-    }
-
     loop_bound_counter_t lbc(schedule);
     auto exit_cond = (lbc.count(ow) >= prb.ow) ? (ow < prb.ow) : expr_t();
     if (lbc.count(oh) >= prb.oh)
@@ -578,10 +560,10 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     stmt = optimize_alloc_let(stmt, ir_ctx);
     stmt = stmt_group_t::make(stmt_label_t::kernel(), stmt);
 
-    const int regs = get_peak_regs(stmt, exec.grf_size());
+    const int regs = get_peak_regs(stmt, exec.grf_size()) + 8;
 
     ir_trace() << "Pooling kernel body:\n" << stmt << std::endl;
-    ir_trace() << "Pooling cfg (" << regs << " regs):\n" << cfg << std::endl;
+    ir_trace() << "Pooling cfg (~" << regs << " regs):\n" << cfg << std::endl;
 
     return (regs > exec.regs()) ? stmt_t() : stmt;
 }

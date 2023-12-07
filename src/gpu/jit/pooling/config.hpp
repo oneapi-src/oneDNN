@@ -70,10 +70,10 @@ public:
         const auto &oc_blk = src.blocks()[0];
         if ((oc_blk.dim_idx != 1) || (oc_blk.block % exec.simd())) return false;
 
-        // for now, prohibit Global ({o|k}dhw = 1) and Dense (odhw = idhw)
+        // for now, prohibit Global ({o^k}dhw = 1) and Dense (odhw = idhw)
         // TODO: enable both
-        if (((prb.od == 1) || (prb.kd == 1)) && ((prb.oh == 1) || (prb.kh == 1))
-                && ((prb.ow == 1) || (prb.kw == 1)))
+        if (((prb.od == 1) != (prb.kd == 1)) && ((prb.oh == 1) != (prb.kh == 1))
+                && ((prb.ow == 1) != (prb.kw == 1)))
             return false;
         if ((prb.od == prb.id) && (prb.oh == prb.ih) && (prb.ow == prb.iw))
             return false;
@@ -141,6 +141,19 @@ public:
         return (is_fwd()) ? fwd_dims : bwd_dims;
     }
 
+    static void reduce_dim(int &dn, int &up, int scale) {
+        static const std::array<int, 11> primes_up_to_31
+                = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31};
+        for (auto p : primes_up_to_31)
+            if (dn % (p * scale) == 0) {
+                up *= p;
+                dn /= p;
+                return;
+            }
+        up *= dn / scale;
+        dn = scale;
+    }
+
     int pad_block(const prb_dim_t &d) const override {
         switch (d.kind()) {
             default: return 1;
@@ -152,6 +165,13 @@ public:
     }
 
     bool is_fwd() const { return !pooling_problem().is_backward; }
+    bool is_max() const {
+        return pooling_problem().alg == alg_kind_t::dnnl_pooling_max;
+    }
+    bool is_padded() const {
+        return pooling_problem().alg
+                == alg_kind_t::dnnl_pooling_avg_include_padding;
+    }
 
     bool is_blocked_by_mb() const {
         const auto &blk = src_layout().user().blocks();
@@ -198,12 +218,6 @@ public:
         if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2))
             tg[1] += (tg[1] * tg[2] > 3 * 3) ? -1 : 1;
 
-        const dim_t oc_outer = oc / simd;
-        const dim_t oc_blk = src.blocks()[0].block;
-        const dim_t mb_blk = (is_blocked_by_mb()) ? src.blocks()[1].block : mb;
-
-        // lg[2], lg[3], lg[4] are to be set here
-
         kg[0] = utils::div_up(od, tg[0] * lg[2]);
         kg[1] = utils::div_up(oh, tg[1] * lg[3]);
         kg[2] = utils::div_up(ow, tg[2] * lg[4]);
@@ -213,36 +227,55 @@ public:
             kg[1] = 1;
         }
 
-        const dim_t safe_thr_count = eu_count * 7;
-        const dim_t max_thr_work = utils::div_up(utils::div_up(oc, simd) * mb
-                        * tg[0] * tg[1] * tg[2] * kg[0] * kg[1] * kg[2],
+        const bool is_scalar = (prb.kd * prb.kh * prb.kw == 1);
+
+        const int safe_thr_count = eu_count * 7;
+        const int max_thr_work = utils::div_up(dim_t(utils::div_up(oc, simd))
+                        * mb * tg[0] * tg[1] * tg[2] * kg[0] * kg[1] * kg[2],
                 safe_thr_count);
 
-        // the constant being subtracted is a heuristic
-        const int regs_per_tile
-                = exec.regs() - ((prb.kd * prb.kh * prb.kw > 1) ? 32 : 0);
+        const int src_type_size = src.type().size();
+        const int acc_type_size
+                = (!src.type().is_int() && is_max()) ? src_type_size : 4;
+
+        const int oc_blk = src.blocks()[0].block;
+        const int mb_blk = (is_blocked_by_mb()) ? src.blocks()[1].block : mb;
+
+        auto optimize_load = [](int &dim, int mult) {
+            const int optimal_load_size = 256;
+            int null = 0;
+            while ((dim * mult > optimal_load_size) && (dim > 1))
+                reduce_dim(dim, null, 1);
+        };
 
         if (is_blocked_by_mb()) {
             lg[1] = utils::max_div(oc_blk / simd, max_thr_work);
             lg[0] = utils::max_div(mb_blk, max_thr_work / lg[1]);
-
-            const float min_used_mb_share = 0.875f; // heuristic!
-            if (prb.mb < src.dim(0) * min_used_mb_share)
-                lg[0] = math::gcd(lg[0], prb.mb);
+            if (!is_scalar) {
+                optimize_load(lg[0], lg[1] * simd * src_type_size);
+                optimize_load(lg[1], simd * src_type_size);
+            }
         }
 
-        if (regs_per_tile / (lg[0] * lg[1]) <= prb.kw) {
-            lg[7] = utils::max_div(prb.kw, regs_per_tile / (lg[0] * lg[1]));
-        } else if (regs_per_tile / (lg[0] * lg[1]) <= prb.kw * prb.kh) {
+        // the constant being subtracted is heuristic
+        const int regs_per_tile
+                = exec.regs() - (!is_scalar ? is_blocked_by_mb() ? 8 : 28 : 0);
+        const int simds_per_tile
+                = (regs_per_tile * 32 / simd - lg[0] * lg[1] * acc_type_size)
+                / src_type_size;
+
+        if (simds_per_tile / (lg[0] * lg[1]) <= prb.kw) {
+            lg[7] = utils::max_div(prb.kw, simds_per_tile / (lg[0] * lg[1]));
+        } else if (simds_per_tile / (lg[0] * lg[1]) <= prb.kw * prb.kh) {
             lg[7] = prb.kw;
             lg[6] = utils::max_div(
-                    prb.kh, regs_per_tile / (lg[0] * lg[1] * prb.kw));
-        } else if (regs_per_tile / (lg[0] * lg[1])
+                    prb.kh, simds_per_tile / (lg[0] * lg[1] * prb.kw));
+        } else if (simds_per_tile / (lg[0] * lg[1])
                 <= prb.kw * prb.kh * prb.kd) {
             lg[7] = prb.kw;
             lg[6] = prb.kh;
             lg[5] = utils::max_div(
-                    prb.kd, regs_per_tile / (lg[0] * lg[1] * prb.kw * prb.kh));
+                    prb.kd, simds_per_tile / (lg[0] * lg[1] * prb.kw * prb.kh));
         } else {
             lg[7] = prb.kw;
             lg[6] = prb.kh;
@@ -250,21 +283,22 @@ public:
         }
 
         if (!is_blocked_by_mb()) {
-            const int layers_per_thr = regs_per_tile / (lg[7] * lg[6] * lg[5]);
+            const int oc_outer = oc / simd;
+            const int layers_per_thr = simds_per_tile / (lg[7] * lg[6] * lg[5]);
             if (max_thr_work > 1) {
                 lg[1] = std::min(max_thr_work,
                         utils::max_div(oc_blk / simd, layers_per_thr));
                 lg[1] = utils::max_div(oc_outer, std::max(lg[1], 1));
             }
             if ((oc == lg[1] * simd) && (max_thr_work / lg[1] > 1)) {
-                const int mb_reg = layers_per_thr / lg[1] / src.type().size();
+                const int mb_reg = layers_per_thr / lg[1] / src_type_size;
                 lg[0] = std::min(max_thr_work / lg[1],
                         (mb_reg > mb_blk) ? utils::rnd_dn(mb_reg, mb_blk)
                                           : utils::max_div(mb_blk, mb_reg));
                 lg[0] = utils::max_div(mb, std::max(lg[0], 1));
             }
             if ((lg[0] == 1) && (max_thr_work / lg[1] > 1)) {
-                const int oc_reg = layers_per_thr / lg[1] / src.type().size();
+                const int oc_reg = layers_per_thr / lg[1] / src_type_size;
                 const int lg1 = std::min(max_thr_work / lg[1],
                         utils::max_div(oc_outer / lg[1], oc_reg));
                 lg[1] *= utils::max_div(oc_outer / lg[1], std::max(lg1, 1));
