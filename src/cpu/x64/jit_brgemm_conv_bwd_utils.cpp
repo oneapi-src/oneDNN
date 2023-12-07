@@ -1489,7 +1489,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.simd_w = isa_max_vlen(isa) / jcp.src_dsz;
     jcp.acc_simd_w = isa_max_vlen(isa) / jcp.acc_dsz;
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
-            && attr.fpmath_mode_ == fpmath_mode::bf16 && isa == avx512_core_amx;
+            && one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any)
+            && isa == avx512_core_amx;
 
     if (jcp.is_bf32) return status::unimplemented;
 

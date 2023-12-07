@@ -90,13 +90,14 @@ bool can_dispatch_uker(const brgemm_t *brg) {
 
 void maybe_try_bf32(brgemm_t *brg) {
     const bool try_bf32 = brg->is_f32
-            && brg->brgattr.fpmath_mode == fpmath_mode::bf16
-            && utils::one_of(brg->isa_user, isa_undef, avx512_core_amx)
+            && one_of(brg->brgattr.fpmath_mode, fpmath_mode::bf16,
+                    fpmath_mode::any)
+            && one_of(brg->isa_user, isa_undef, avx512_core_amx)
             && mayiuse(avx512_core_amx);
     if (try_bf32) {
         const bool is_tmm = brg->is_tmm;
         brg->is_tmm = true;
-        if (can_dispatch_uker(brg) /*Requires is_amx to be true*/) {
+        if (can_dispatch_uker(brg) /*Requires is_tmm to be true*/) {
             brg->is_bf32 = true;
         } else {
             brg->is_bf32 = false;

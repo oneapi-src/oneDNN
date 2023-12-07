@@ -1326,8 +1326,9 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
                     everyone_is(f16, jbgp.src_dt, jbgp.dst_dt)
                             && jbgp.wei_dt == f32);
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
-    jbgp.is_bf32
-            = is_f32 && attr.fpmath_mode_ == fpmath_mode::bf16 && jbgp.is_amx;
+    jbgp.is_bf32 = is_f32
+            && one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any)
+            && jbgp.is_amx;
 
     if (!IMPLICATION(is_int8,
                 one_of(isa, avx2_vnni, avx2_vnni_2, avx512_core,
