@@ -70,10 +70,12 @@ public:
         const auto &oc_blk = src.blocks()[0];
         if ((oc_blk.dim_idx != 1) || (oc_blk.block % exec.simd())) return false;
 
-        // for now, prohibit Global (odhw = 1) and Dense (odhw = idhw)
+        // for now, prohibit Global ({o|k}dhw = 1) and Dense (odhw = idhw)
         // TODO: enable both
-        if (prb.od == 1 && prb.oh == 1 && prb.ow == 1) return false;
-        if (prb.od == prb.id && prb.oh == prb.ih && prb.ow == prb.iw)
+        if (((prb.od == 1) || (prb.kd == 1)) && ((prb.oh == 1) || (prb.kh == 1))
+                && ((prb.ow == 1) || (prb.kw == 1)))
+            return false;
+        if ((prb.od == prb.id) && (prb.oh == prb.ih) && (prb.ow == prb.iw))
             return false;
 
         return true; // no more restrictions, the configuration is compatible
@@ -206,6 +208,11 @@ public:
         kg[1] = utils::div_up(oh, tg[1] * lg[3]);
         kg[2] = utils::div_up(ow, tg[2] * lg[4]);
 
+        if (ow % (tg[2] * lg[4]) == 0) {
+            kg[2] *= kg[1];
+            kg[1] = 1;
+        }
+
         const dim_t safe_thr_count = eu_count * 7;
         const dim_t max_thr_work = utils::div_up(utils::div_up(oc, simd) * mb
                         * tg[0] * tg[1] * tg[2] * kg[0] * kg[1] * kg[2],
@@ -218,6 +225,10 @@ public:
         if (is_blocked_by_mb()) {
             lg[1] = utils::max_div(oc_blk / simd, max_thr_work);
             lg[0] = utils::max_div(mb_blk, max_thr_work / lg[1]);
+
+            const float min_used_mb_share = 0.875f; // heuristic!
+            if (prb.mb < src.dim(0) * min_used_mb_share)
+                lg[0] = math::gcd(lg[0], prb.mb);
         }
 
         if (regs_per_tile / (lg[0] * lg[1]) <= prb.kw) {

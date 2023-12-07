@@ -958,8 +958,11 @@ private:
             c_stages.emplace_back(c_fx_layout, 0, make_c_tmp_buffer()); // R_f32
         }
         if (restore_zero_padding_) {
-            c_zero_pad_stage_idx = int(c_stages.size());
-            c_stages.emplace_back(c_fx_layout, 0, make_c_tmp_buffer()); // Z_f32
+            auto buf = make_c_tmp_buffer();
+            if (!zero_pad_builder_.build_stmt(c_fx_layout, buf).is_empty()) {
+                c_zero_pad_stage_idx = int(c_stages.size());
+                c_stages.emplace_back(c_fx_layout, 0, buf); // Z_f32
+            }
         }
         c_stages.emplace_back(r2g.reg_layout(), r2g.reg_buf_size(), tmp_reg_buf,
                 r2g.stmt()); // S_y
