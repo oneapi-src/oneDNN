@@ -125,6 +125,8 @@ protected:
         using pd_t = layer_normalization_forward::primitive_desc;
 
         lnorm_fwd_pd = pd_t(eng, pk, *src_md, *dst_md, *stat_d, epsilon, flags);
+        lnorm_fwd_pd = pd_t(eng, pk, *src_md, *dst_md, *stat_d,
+                memory::data_type::f32, epsilon, flags);
         lnorm_fwd_pd
                 = pd_t(lnorm_fwd_pd.get()); // test construction from a C pd
         bool is_int8 = impl::utils::one_of(src_md->get_data_type(),
@@ -166,10 +168,16 @@ protected:
         src = std::make_shared<test_memory>(lnorm_fwd_pd.src_desc(), eng);
         dst = std::make_shared<test_memory>(lnorm_fwd_pd.dst_desc(), eng);
 
-        if (useScale)
-            weights = test::make_memory(lnorm_fwd_pd.weights_desc(), eng);
-        if (useShift)
-            bias = test::make_memory(lnorm_fwd_pd.weights_desc(), eng);
+        if (useScale) {
+            auto weights_md = lnorm_fwd_pd.weights_desc();
+            weights = test::make_memory(weights_md, eng);
+            ASSERT_TRUE(weights_md.get_data_type() == memory::data_type::f32);
+        }
+        if (useShift) {
+            auto weights_md = lnorm_fwd_pd.weights_desc();
+            bias = test::make_memory(weights_md, eng);
+            ASSERT_TRUE(weights_md.get_data_type() == memory::data_type::f32);
+        }
         if (isTraining || useGlobalStats) {
             mean = test::make_memory(*stat_d, eng);
             variance = test::make_memory(*stat_d, eng);
@@ -201,6 +209,11 @@ protected:
         lnorm_bwd_pd = layer_normalization_backward::primitive_desc(eng, pk,
                 *diff_src_md, *dst_md, *src_md, *stat_d, epsilon, flags,
                 lnorm_fwd_pd);
+
+        lnorm_bwd_pd = layer_normalization_backward::primitive_desc(eng, pk,
+                *diff_src_md, *dst_md, *src_md, *stat_d, memory::data_type::f32,
+                memory::data_type::f32, epsilon, flags, lnorm_fwd_pd);
+
         lnorm_bwd_pd = layer_normalization_backward::primitive_desc(
                 lnorm_bwd_pd.get()); // test construction from a C pd
 
@@ -227,16 +240,28 @@ protected:
         diff_dst = std::make_shared<test_memory>(
                 lnorm_bwd_pd.diff_dst_desc(), eng);
 
-        if (useScale)
-            weights = test::make_memory(lnorm_bwd_pd.weights_desc(), eng);
-        if (useShift)
-            bias = test::make_memory(lnorm_bwd_pd.weights_desc(), eng);
-        if (useScale)
-            diff_weights
-                    = test::make_memory(lnorm_bwd_pd.diff_weights_desc(), eng);
-        if (useShift)
-            diff_bias
-                    = test::make_memory(lnorm_bwd_pd.diff_weights_desc(), eng);
+        if (useScale) {
+            auto weights_md = lnorm_bwd_pd.weights_desc();
+            weights = test::make_memory(weights_md, eng);
+            ASSERT_TRUE(weights_md.get_data_type() == memory::data_type::f32);
+        }
+        if (useShift) {
+            auto weights_md = lnorm_bwd_pd.weights_desc();
+            bias = test::make_memory(weights_md, eng);
+            ASSERT_TRUE(weights_md.get_data_type() == memory::data_type::f32);
+        }
+        if (useScale) {
+            auto diff_weights_md = lnorm_bwd_pd.diff_weights_desc();
+            diff_weights = test::make_memory(diff_weights_md, eng);
+            ASSERT_TRUE(
+                    diff_weights_md.get_data_type() == memory::data_type::f32);
+        }
+        if (useShift) {
+            auto diff_weights_md = lnorm_bwd_pd.diff_weights_desc();
+            diff_bias = test::make_memory(diff_weights_md, eng);
+            ASSERT_TRUE(
+                    diff_weights_md.get_data_type() == memory::data_type::f32);
+        }
         mean = test::make_memory(*stat_d, eng);
         variance = test::make_memory(*stat_d, eng);
 
