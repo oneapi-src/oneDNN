@@ -70,11 +70,12 @@ public:
         bool do_alloc = (obj.kind == alloc_kind_t::grf);
         bool use_bc_alloc = false;
         if (do_alloc) {
+            const int max_ngen_type_bits = 64;
             reg_buf_data_t rbd;
             if (obj.has_attr<bank_conflict_attr_t>()) {
                 rbd = create_bank_conflict_allocation(obj);
                 use_bc_alloc = true;
-            } else if (obj.size * 8 <= 64) {
+            } else if (obj.size * 8 <= max_ngen_type_bits) {
                 rbd = scope.alloc_reg_data(type_t::u(obj.size * 8));
             } else {
                 const int regs = utils::div_up(obj.size, ngen::GRF::bytes(hw));

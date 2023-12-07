@@ -125,21 +125,13 @@ void pooling_ir_builder_t::build() {
         const auto simd = cfg_mutable_.exec_cfg().simd();
         auto kg(cfg_mutable_.kernel_grid());
         auto lg(cfg_mutable_.loop_grid());
-        if (cfg_mutable_.is_blocked_by_mb()) {
-            if (lg[1] / simd > 1)
-                pooling_config_t::reduce_dim(lg[1], kg[0], simd);
-            else if (lg[0] > 1)
-                pooling_config_t::reduce_dim(lg[0], kg[1], 1);
-            else
-                ir_error_not_expected() << "minimal loop_grid too large!";
-        } else {
-            if (lg[0] > 1)
-                pooling_config_t::reduce_dim(lg[0], kg[1], 1);
-            else if (lg[1] / simd > 1)
-                pooling_config_t::reduce_dim(lg[1], kg[0], simd);
-            else
-                ir_error_not_expected() << "minimal loop_grid too large!";
-        }
+
+        if (lg[0] > 1)
+            pooling_config_t::reduce_dim(lg[0], kg[1], 1);
+        else if (lg[1] / simd > 1)
+            pooling_config_t::reduce_dim(lg[1], kg[0], simd);
+        else
+            ir_error_not_expected() << "minimal loop_grid too large!";
 
         cfg_mutable_.set_kernel_grid(kg);
         cfg_mutable_.set_loop_grid(lg);
@@ -339,7 +331,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         kg_bind(s1_fuse, s1_idx - 2);
     };
     odhw_to_schedule(oc, od, expr_t());
-    if ((src_layout.blocks()[1].dim_idx == 0) || (dims[0] < dims[1]))
+    if (cfg.is_blocked_by_mb())
         odhw_to_schedule(oh, mb, ow);
     else
         odhw_to_schedule(mb, oh, ow);
@@ -543,6 +535,17 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                                             : (od < prb.od);
     if (!exit_cond.is_empty())
         stmt = if_t::make(shuffle_t::make_broadcast(exit_cond, simd), stmt);
+
+    if ((dims[0] - prb.mb) / lg[0] >= 1) {
+        stmt_t stop;
+        auto zero_bcast
+                = cast_t::make(read_type, shuffle_t::make_broadcast(0, simd));
+        for (int i = 0; i < acc_size / acc_sc_size; i += simd)
+            stop = stop.append(store_t::make(
+                    read_buf, i * read_type.scalar().size(), zero_bcast));
+        auto stop_cond = shuffle_t::make_broadcast(mb >= prb.mb, simd);
+        stmt = if_t::make(stop_cond, stop.append(write.stmt()), stmt);
+    }
 
     stmt = schedule.create_bind_stmt(stmt);
     stmt = inject_let_stmts(stmt, init_stmts);

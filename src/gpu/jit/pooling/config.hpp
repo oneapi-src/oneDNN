@@ -188,8 +188,11 @@ public:
 
         std::vector<int> padded {
                 int(src.dim(0)), int(src.dim(1)), prb.od, prb.oh, prb.ow};
-        auto &mb = padded[0], &oc = padded[1];
+        const auto &mb = padded[0], &oc = padded[1];
         auto &od = padded[2], &oh = padded[3], &ow = padded[4];
+
+        if (ow >= utils::rnd_up(ow, max_tg) * 7.f / 8.f)
+            ow = utils::rnd_up(ow, max_tg);
 
         //                  mb oc od oh ow kd kh kw
         //                  [0  1][2  3  4][5  6  7]
@@ -218,11 +221,17 @@ public:
         if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2))
             tg[1] += (tg[1] * tg[2] > 3 * 3) ? -1 : 1;
 
-        kg[0] = utils::div_up(od, tg[0] * lg[2]);
-        kg[1] = utils::div_up(oh, tg[1] * lg[3]);
-        kg[2] = utils::div_up(ow, tg[2] * lg[4]);
+        // lg[2], lg[3], lg[4] are to be set here
 
-        if (ow % (tg[2] * lg[4]) == 0) {
+        od = utils::rnd_up(od, tg[0] * lg[2]);
+        oh = utils::rnd_up(oh, tg[1] * lg[3]);
+        ow = utils::rnd_up(ow, tg[2] * lg[4]);
+
+        kg[0] = od / (tg[0] * lg[2]);
+        kg[1] = oh / (tg[1] * lg[3]);
+        kg[2] = ow / (tg[2] * lg[4]);
+
+        if (prb.ow % (tg[2] * lg[4]) == 0) {
             kg[2] *= kg[1];
             kg[1] = 1;
         }
@@ -361,8 +370,6 @@ public:
     }
 
     DECL_PARAM(pooling_problem);
-    DECL_PARAM(kernel_grid);
-    DECL_PARAM(thread_group_grid);
     DECL_PARAM(loop_grid);
     DECL_PARAM(dims_padded);
 #undef DECL_PARAM
@@ -374,8 +381,6 @@ public:
                   return &((const pooling_config_t *)c)->name##_; \
               });
     INIT_PARAM(pooling_problem);
-    INIT_PARAM(kernel_grid);
-    INIT_PARAM(thread_group_grid);
     INIT_PARAM(loop_grid);
     INIT_PARAM(dims_padded);
 #undef INIT_PARAM
