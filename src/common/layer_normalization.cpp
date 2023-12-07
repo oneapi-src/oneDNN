@@ -98,19 +98,16 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
 
     int ndims = src_desc->ndims;
     ld.data_scaleshift_desc = zero_md();
+    ld.diff_data_scaleshift_desc = zero_md();
     if (flags
             & (normalization_flags::use_scale
                     | normalization_flags::use_shift)) {
         dims_t scaleshift_dims = {src_desc->dims[ndims - 1]};
         memory_desc_init_by_tag(ld.data_scaleshift_desc, 1, scaleshift_dims,
                 data_type::f32, dnnl_x);
-    } else {
-        dims_t scaleshift_dims = {2, src_desc->dims[ndims - 1]};
-        memory_desc_init_by_tag(ld.data_scaleshift_desc, 2, scaleshift_dims,
-                data_type::f32, dnnl_nc);
-    }
-    if (ld.prop_kind == backward) {
-        ld.diff_data_scaleshift_desc = ld.data_scaleshift_desc;
+
+        if (ld.prop_kind == backward)
+            ld.diff_data_scaleshift_desc = ld.data_scaleshift_desc;
     }
 
     ld.layer_norm_epsilon = epsilon;

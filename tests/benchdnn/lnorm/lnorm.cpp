@@ -183,8 +183,8 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
     benchdnn_parallel_nd(prb->c, [&](int64_t c) {
         float sc_value = 1.f / 8 * (1 << (c % 7));
         float sh_value = (c % 3 + 1) * sc_value / 64;
-        ((float *)sc)[c] = use_sc ? sc_value : 1.0f;
-        ((float *)sh)[c] = use_sh ? sh_value : 0.0f;
+        if (use_sc) sc.set_elem(c, sc_value);
+        if (use_sh) sh.set_elem(c, sh_value);
     });
 
     return OK;
@@ -227,7 +227,7 @@ static int prepare_bwd(const prb_t *prb, const dnn_mem_t &src,
     // fill gamma
     for (int64_t c = 0; c < prb->c; ++c) {
         const float sc_value = 0.125f * (1 << (c % 7));
-        ((float *)sc)[c] = use_sc ? sc_value : 1.0f;
+        if (use_sc) sc.set_elem(c, sc_value);
     }
 
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
