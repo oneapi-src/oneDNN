@@ -42,7 +42,8 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, const memory_desc_t *stat_desc,
         const memory_desc_t *diff_src_desc, const memory_desc_t *diff_dst_desc,
-        float epsilon, unsigned flags) {
+        data_type_t diff_scale_shift_data_type,
+        data_type_t scale_shift_data_type, float epsilon, unsigned flags) {
     VCHECK_LNORM(!any_null(lnorm_desc, src_desc), VERBOSE_NULL_ARG);
     VCHECK_LNORM(2 <= src_desc->ndims && src_desc->ndims <= 5,
             VERBOSE_BAD_NDIMS, "src", src_desc->ndims);
@@ -104,10 +105,13 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
                     | normalization_flags::use_shift)) {
         dims_t scaleshift_dims = {src_desc->dims[ndims - 1]};
         memory_desc_init_by_tag(ld.data_scaleshift_desc, 1, scaleshift_dims,
-                data_type::f32, dnnl_x);
+                scale_shift_data_type, dnnl_x);
 
-        if (ld.prop_kind == backward)
+        if (ld.prop_kind == backward) {
+            if (diff_scale_shift_data_type != scale_shift_data_type)
+                return status::unimplemented;
             ld.diff_data_scaleshift_desc = ld.data_scaleshift_desc;
+        }
     }
 
     ld.layer_norm_epsilon = epsilon;
@@ -186,7 +190,7 @@ status_t dnnl_layer_normalization_forward_primitive_desc_create(
 
     auto lnorm_desc = layer_normalization_desc_t();
     CHECK(lnorm_desc_init(&lnorm_desc, prop_kind, src_desc, dst_desc, stat_desc,
-            nullptr, nullptr, epsilon, flags));
+            nullptr, nullptr, data_type::f32, data_type::f32, epsilon, flags));
     CHECK(layer_normalization_attr_check(lnorm_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&lnorm_desc, nullptr, attr);
@@ -203,7 +207,45 @@ status_t dnnl_layer_normalization_backward_primitive_desc_create(
 
     auto lnorm_desc = layer_normalization_desc_t();
     CHECK(lnorm_desc_init(&lnorm_desc, prop_kind, src_desc, nullptr, stat_desc,
-            diff_src_desc, diff_dst_desc, epsilon, flags));
+            diff_src_desc, diff_dst_desc, data_type::f32, data_type::f32,
+            epsilon, flags));
+    CHECK(layer_normalization_attr_check(lnorm_desc, engine, attr));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&lnorm_desc, hint_fwd_pd, attr);
+}
+
+status_t dnnl_layer_normalization_forward_primitive_desc_create_v2(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        prop_kind_t prop_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, const memory_desc_t *stat_desc,
+        data_type_t scale_shift_data_type, float epsilon, unsigned flags,
+        const primitive_attr_t *attr) {
+    if (!one_of(prop_kind, forward_training, forward_inference))
+        return invalid_arguments;
+
+    auto lnorm_desc = layer_normalization_desc_t();
+    CHECK(lnorm_desc_init(&lnorm_desc, prop_kind, src_desc, dst_desc, stat_desc,
+            nullptr, nullptr, data_type::undef, scale_shift_data_type, epsilon,
+            flags));
+    CHECK(layer_normalization_attr_check(lnorm_desc, engine, attr));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&lnorm_desc, nullptr, attr);
+}
+
+status_t dnnl_layer_normalization_backward_primitive_desc_create_v2(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        prop_kind_t prop_kind, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, const memory_desc_t *src_desc,
+        const memory_desc_t *stat_desc, data_type_t diff_scale_shift_data_type,
+        data_type_t scale_shift_data_type, float epsilon, unsigned flags,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+    if (!one_of(prop_kind, backward, backward_data)) return invalid_arguments;
+
+    auto lnorm_desc = layer_normalization_desc_t();
+    CHECK(lnorm_desc_init(&lnorm_desc, prop_kind, src_desc, nullptr, stat_desc,
+            diff_src_desc, diff_dst_desc, diff_scale_shift_data_type,
+            scale_shift_data_type, epsilon, flags));
     CHECK(layer_normalization_attr_check(lnorm_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&lnorm_desc, hint_fwd_pd, attr);
