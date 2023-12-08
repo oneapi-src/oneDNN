@@ -117,6 +117,12 @@ struct block_t {
     block_t(dim_t dim_idx, dim_t block, const stride_t &stride)
         : dim_idx(dim_idx), block(block), stride(stride) {}
 
+    bool can_merge(const block_t &other, bool same_dim_only = true) const {
+        bool dim_ok = !same_dim_only || (dim_idx == other.dim_idx);
+        bool is_dense = (stride * block == other.stride);
+        return dim_ok && is_dense;
+    }
+
 #if __cplusplus >= 202002L
     // Enabling default operator== on C++20 for validation purposes.
     bool operator==(const block_t &) const = default;

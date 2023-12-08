@@ -20,13 +20,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
-static bool can_combine(
-        const block_t &a, const block_t &b, bool same_dim_only = true) {
-    bool dim_ok = !same_dim_only || (a.dim_idx == b.dim_idx);
-    bool a_then_b = (a.stride * a.block == b.stride);
-    return dim_ok && a_then_b;
-}
-
 block_layout_t block_layout_t::normalized(bool remove_size_1_blocks) const {
     if (num_blocks == 0) return block_layout_t();
     block_layout_t res;
@@ -36,7 +29,7 @@ block_layout_t block_layout_t::normalized(bool remove_size_1_blocks) const {
     for (size_t i = 1; i < num_blocks; i++) {
         const auto &block = blocks[i];
         if (block.block <= 1 && remove_size_1_blocks) continue;
-        if (can_combine(*cur, block)) {
+        if (cur->can_merge(block)) {
             cur->stride = std::min(cur->stride, block.stride);
             cur->block = cur->block * block.block;
         } else {
@@ -60,7 +53,7 @@ std::vector<block_t> normalize_blocks(
     for (size_t i = 1; i < blocks.size(); i++) {
         const auto &block = blocks[i];
         if (block.block == 1 && remove_size_1_blocks) continue;
-        if (can_combine(*cur, block)) {
+        if (cur->can_merge(block)) {
             cur->stride = std::min(cur->stride, block.stride);
             cur->block = cur->block * block.block;
         } else {

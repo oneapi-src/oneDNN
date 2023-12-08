@@ -45,8 +45,8 @@ bool mapped_block_t::can_merge(
         // Check that it forms a dense block with the last block
         const block_t &new_block = other.get_buffer_blocks().at(idx);
         const block_t &old_block = get_buffer_blocks().at(idx);
-        all_match &= old_block.block * old_block.stride == new_block.stride;
-        any_match |= old_block.block * old_block.stride == new_block.stride;
+        all_match &= old_block.can_merge(new_block, false);
+        any_match |= old_block.can_merge(new_block, false);
     }
 
     if (require_all_match) return same_broadcast && all_match;
