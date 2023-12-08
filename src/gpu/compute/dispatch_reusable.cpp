@@ -22,6 +22,34 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
+// Enables the use of intel subgroups in the kernel.
+// A buffer is supplied to specify which block (stride=1 block for the buffer)
+// is guaranteed to be dispatched across in the subgroup. Memory access
+// patterns may be non-contiguous in other buffers (i.e. block read/write is only guaranteed
+// to be valid for this buffer)
+status_t reusable_dispatch_config_t::use_subgroup(
+        const std::string &buf_name, size_t size) {
+    if (!engine->mayiuse_sub_group(static_cast<int>(size))) {
+        return status::unimplemented;
+    }
+
+    // Cannot use a subgroup on two buffers
+    gpu_assert(!subgroup.used());
+
+    // Look for a registered buffer with the given name
+    for (size_t i = 0; i < buffers.size(); i++) {
+        if (buffers[i].get_name() == buf_name) {
+            subgroup = subgroup_data_t(i, size);
+            break;
+        }
+    }
+
+    // If we couldn't find the buffer, something has gone wrong
+    if (!subgroup.used()) { return status::runtime_error; }
+
+    return status::success;
+}
+
 status_t reusable_dispatch_config_t::define_dim_index(
         const char *dim_name, dim_id_t dim_id, dim_t size) {
     memory_desc_t md = types::zero_md();
@@ -384,7 +412,7 @@ status_t reusable_dispatch_config_t::generate(
     std::vector<block_bin_t> bins = equalizer.compute_block_bins();
 
     // Map bins into gws dims
-    gws_bin_mapping_t gws_map;
+    gws_bin_mapping_t gws_map(subgroup);
     for (const block_bin_t &bin : bins) {
         gws_map.add(bin);
     }
@@ -398,7 +426,7 @@ status_t reusable_dispatch_config_t::generate(
     }
 
     dispatch = reusable_dispatch_t(
-            buffers, term_list, gws_map.nd_range(lws_strategy));
+            buffers, term_list, gws_map.nd_range(lws_strategy), subgroup);
 
     return status::success;
 }
@@ -459,8 +487,12 @@ void dispatch_compile_params_t::def_kernel_macros(
                 name, suffix, equation.c_str()));
     }
 
-    // TODO: set to 1 when vectorization is needed
-    kernel_ctx.define_int(utils::format("GWS_WITH_SG_%s", suffix), 0);
+    kernel_ctx.define_int(
+            utils::format("GWS_WITH_SG_%s", suffix), subgroup.used() ? 1 : 0);
+    if (subgroup.used()) {
+        kernel_ctx.define_int(utils::format("GWS_SGS_%s", suffix),
+                static_cast<int64_t>(subgroup.size()));
+    }
 }
 
 } // namespace compute

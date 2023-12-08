@@ -116,7 +116,8 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
             break;
         }
     }
-    compute::reusable_dispatch_config_t calc_stat_dispatch_config(dim_ids);
+    compute::reusable_dispatch_config_t calc_stat_dispatch_config(
+            compute_engine, dim_ids);
     CHECK(calc_stat_dispatch_config.register_buffer(src_buf));
     CHECK(calc_stat_dispatch_config.register_buffer(dst_buf));
     CHECK(calc_stat_dispatch_config.define_dim_index(
@@ -136,7 +137,7 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
 
     // Reduce kernels dispatch to ic dim only
     compute::reusable_dispatch_config_t reduce_stat_dispatch_config(
-            {bnorm_dims_t::ic});
+            compute_engine, {bnorm_dims_t::ic});
     CHECK(reduce_stat_dispatch_config.register_buffer(reduce_buffer));
 
     compute::reusable_dispatch_t dispatch_reduce_stat;
@@ -178,7 +179,7 @@ static status_t init_conf_common(reusable_bnorm_params_t &conf,
     compute::named_buffer_t buffer("BUFFER", *data_mdw.md_, dims);
 
     // Dispatch to all dims
-    compute::reusable_dispatch_config_t dispatch_config(dims);
+    compute::reusable_dispatch_config_t dispatch_config(compute_engine, dims);
     CHECK(dispatch_config.register_buffer(buffer));
     CHECK(dispatch_config.define_dim_index(
             "IC_DIM", bnorm_dims_t::ic, rt_conf.ic));

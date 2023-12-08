@@ -141,6 +141,29 @@ private:
     }
 };
 
+struct subgroup_data_t {
+public:
+    subgroup_data_t() = default;
+    subgroup_data_t(size_t buffer_idx, size_t size)
+        : use_subgroup(true), buffer_idx_(buffer_idx), size_(size) {}
+
+    bool used() const { return use_subgroup; }
+    size_t buffer_idx() const {
+        gpu_assert(use_subgroup);
+        return buffer_idx_;
+    }
+    size_t size() const {
+        gpu_assert(use_subgroup);
+        return size_;
+    }
+
+protected:
+    bool use_subgroup = false;
+    int8_t padding[7] = {0};
+    size_t buffer_idx_ = 0;
+    size_t size_ = 0;
+};
+
 // The reusable dispatcher interface involves a number of terms like (idx / stride % max) * block,
 // and a mapping from several equations into these terms. Equations can share terms,
 // and generally correspond to offset calculation for a buffer or dimension index
@@ -175,6 +198,7 @@ struct dispatch_compile_params_t {
         return ss.str();
     }
 
+    subgroup_data_t subgroup;
     size_t num_terms = 0;
     gws_indexing_term_t terms[MAX_INDEXING_TERMS] = {{gws_op_t::SOLO, 0, 0}};
 
@@ -432,7 +456,7 @@ public:
     reusable_dispatch_t() = default;
     reusable_dispatch_t(const std::vector<named_buffer_t> &buffers,
             const gws_term_list_t &term_list,
-            const compute::nd_range_t &nd_range) {
+            const compute::nd_range_t &nd_range, subgroup_data_t subgroup) {
         compile_params.num_terms = term_list.terms.size();
         for (size_t i = 0; i < term_list.terms.size(); i++) {
             compile_params.terms[i] = term_list.terms[i];
@@ -456,6 +480,7 @@ public:
                 compile_params.buffer_term_index[buf_idx][j] = buf_term_idx[j];
             }
         }
+        compile_params.subgroup = subgroup;
 
         // Set runtime params
         runtime_params = dispatch_runtime_params_t(
@@ -473,13 +498,30 @@ private:
     dispatch_compile_params_t compile_params;
     dispatch_runtime_params_t runtime_params;
 };
-
 // TODO: Add a strategy pattern for this, in case the mapping
 // leads to performance degredation
 class gws_bin_mapping_t {
 public:
-    gws_bin_mapping_t() { gws_.fill(1); }
+    gws_bin_mapping_t(subgroup_data_t sg) : sg(sg) { gws_.fill(1); }
     void add(const block_bin_t &bin) {
+        // If this bin has the subgroup block, it has to be mapped to
+        // the first bin in the 0th gws dim
+        if (sg.used()) {
+            if (!bin.is_broadcasted(sg.buffer_idx())) {
+                block_t block = bin.combined_block(sg.buffer_idx());
+                if (block.stride == stride_t(1)) {
+                    // Remove any existing bins in dim 0, and re-add them
+                    std::vector<block_bin_t> displaced = map[0];
+                    clear_(0);
+                    add_(bin, 0);
+                    for (const block_bin_t &old_bin : displaced) {
+                        add(old_bin);
+                    }
+                    return;
+                }
+            }
+        }
+
         // Insert into the first empty gws dim, if one exists
         for (size_t i = 0; i < map.size(); i++) {
             if (map[i].empty()) {
@@ -526,19 +568,22 @@ private:
         map[gws_idx].clear();
         gws_[gws_idx] = 1;
     }
+    subgroup_data_t sg;
     std::array<std::vector<block_bin_t>, GWS_MAX_NDIMS> map;
     work_size gws_;
 };
 
 class reusable_dispatch_config_t {
 public:
-    reusable_dispatch_config_t(std::vector<dim_id_t> dims)
-        : dispatched_dims(std::move(dims)) {};
+    reusable_dispatch_config_t(
+            compute_engine_t *engine, std::vector<dim_id_t> dims)
+        : dispatched_dims(std::move(dims)), engine(engine) {};
     status_t generate(
             reusable_dispatch_t &dispatch, const lws_strategy_t &lws_strategy);
     status_t register_buffer(named_buffer_t &buffer);
     status_t define_dim_index(
             const char *dim_name, dim_id_t dim_id, dim_t size);
+    status_t use_subgroup(const std::string &buf_name, size_t size);
 
 private:
     void compute_terms(size_t buffer_idx, const gws_bin_mapping_t &gws_bins);
@@ -548,7 +593,9 @@ private:
     std::vector<dim_id_t> dispatched_dims;
     std::unordered_map<dim_id_t, dim_t, dim_id_hash_t> dim_sizes;
 
+    subgroup_data_t subgroup;
     gws_term_list_t term_list;
+    compute_engine_t *engine;
 };
 
 } // namespace compute
