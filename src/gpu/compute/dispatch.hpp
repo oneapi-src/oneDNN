@@ -39,7 +39,8 @@ class compute_engine_t;
 
 class dispatch_t {
 public:
-    static const int min_nesting_level = -1;
+    static constexpr int min_nesting_level = -1;
+    static constexpr int dim_not_found = -1;
 
     // md - memory descriptor hint to extract nesting levels based on the layout.
     dispatch_t(const compute_engine_t *engine = nullptr,
@@ -110,10 +111,10 @@ protected:
             dim_t size, dim_t block = 1);
 
     int find_vectorized_dim() const {
-        int vec_dim_idx = -1;
+        int vec_dim_idx = dim_not_found;
         for (int i = 0; i < ndims_; ++i) {
             if (dims_[i].vector_size != 1) {
-                assert(vec_dim_idx == -1);
+                assert(vec_dim_idx == dim_not_found);
                 assert(dims_[i].block > 0);
                 vec_dim_idx = i;
             }
