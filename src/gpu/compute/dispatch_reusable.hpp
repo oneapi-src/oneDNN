@@ -53,7 +53,7 @@ static_assert(NUM_INDEXED_DIMS * (MAX_DIM_NAME_LENGTH + 1) % 4 == 0,
 static_assert(MAX_REGISTERED_BUFFERS * (MAX_BUFFER_NAME_LENGTH + 1) % 4 == 0,
         "Padding will be introduced due to registered buffers.");
 
-enum gws_op {
+enum class gws_op_t {
     ZERO,
     SOLO,
     FIRST,
@@ -64,6 +64,22 @@ enum gws_op {
     UNDEF,
 };
 
+inline std::string to_string(gws_op_t op) {
+#define CASE(x) \
+    case gws_op_t::x: return #x;
+    switch (op) {
+        CASE(ZERO);
+        CASE(SOLO);
+        CASE(FIRST);
+        CASE(MOD);
+        CASE(SOLO_BLOCK);
+        CASE(FIRST_BLOCK);
+        CASE(MOD_BLOCK);
+        CASE(UNDEF);
+    }
+    return "invalid";
+}
+
 // Encodes the information needed for one term like (idx / stride % max) * block
 // - stride, max, and block are defined by an index into the runtime struct
 // - idx is defined by an index into the gws indexing function
@@ -73,28 +89,28 @@ struct gws_indexing_term_t {
 #if __cplusplus >= 202002L
     bool operator==(const gws_indexing_term_t &) const = default;
 #endif
-    gws_indexing_term_t(gws_op op, size_t data_idx, size_t gws_idx)
+    gws_indexing_term_t(gws_op_t op, size_t data_idx, size_t gws_idx)
         : op(op), rt_data_index(data_idx), gws_idx(gws_idx) {};
-    gws_op op;
+    gws_op_t op;
     uint8_t padding[4] = {0, 0, 0, 0};
     size_t rt_data_index;
     size_t gws_idx;
 
     std::string str() const {
         std::stringstream ss;
-        ss << "<gws_indexing_term_t op=" << op << ", rt_idx=" << rt_data_index
-           << ", gws_idx=" << gws_idx << ">";
+        ss << "<gws_indexing_term_t op=" << to_string(op)
+           << ", rt_idx=" << rt_data_index << ", gws_idx=" << gws_idx << ">";
         return ss.str();
     }
 };
 
 struct gws_term_list_t {
-    void add_buffer_term(size_t buf_idx, gws_op op, size_t gws_idx, dim_t size,
-            stride_t stride, dim_t block) {
+    void add_buffer_term(size_t buf_idx, gws_op_t op, size_t gws_idx,
+            dim_t size, stride_t stride, dim_t block) {
         size_t idx = add_term(op, gws_idx, size, stride, block);
         buf_idxs[buf_idx].emplace_back(idx);
     }
-    void add_dim_term(size_t dim_idx, gws_op op, size_t gws_idx, dim_t size,
+    void add_dim_term(size_t dim_idx, gws_op_t op, size_t gws_idx, dim_t size,
             stride_t stride, dim_t block) {
         size_t idx = add_term(op, gws_idx, size, stride, block);
         dim_idxs[dim_idx].emplace_back(idx);
@@ -118,7 +134,7 @@ struct gws_term_list_t {
     }
 
 private:
-    size_t add_term(gws_op op, size_t gws_idx, dim_t size, stride_t stride,
+    size_t add_term(gws_op_t op, size_t gws_idx, dim_t size, stride_t stride,
             dim_t block) {
         size_t ret = terms.size();
         terms.emplace_back(op, terms.size(), gws_idx);
@@ -173,7 +189,7 @@ struct dispatch_compile_params_t {
     }
 
     size_t num_terms = 0;
-    gws_indexing_term_t terms[MAX_INDEXING_TERMS] = {{gws_op::SOLO, 0, 0}};
+    gws_indexing_term_t terms[MAX_INDEXING_TERMS] = {{gws_op_t::SOLO, 0, 0}};
 
     // Buffer definitions (each buffer has a name, and a collection of terms
     // used to compute the offset)

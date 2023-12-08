@@ -86,20 +86,20 @@ status_t reusable_dispatch_config_t::register_buffer(named_buffer_t &buffer) {
 //       outermost (it needs a modulus)
 // *_BLOCK variant: buffer stride is greater than 1, so we have to
 //       multiply indices by a block size
-gws_op get_op(size_t gws_size, stride_t gws_stride, const block_t &block) {
-    if (block.block == 1) return gws_op::ZERO;
+gws_op_t get_op(size_t gws_size, stride_t gws_stride, const block_t &block) {
+    if (block.block == 1) return gws_op_t::ZERO;
 
     if (static_cast<size_t>(block.block) == gws_size) {
-        return block.stride > 1 ? gws_op::SOLO_BLOCK : gws_op::SOLO;
+        return block.stride > 1 ? gws_op_t::SOLO_BLOCK : gws_op_t::SOLO;
     }
 
     bool is_outermost = (gws_stride * block.block
             == stride_t(static_cast<dim_t>(gws_size)));
     if (is_outermost) {
-        return block.stride > 1 ? gws_op::FIRST_BLOCK : gws_op::FIRST;
+        return block.stride > 1 ? gws_op_t::FIRST_BLOCK : gws_op_t::FIRST;
     }
 
-    return block.stride > 1 ? gws_op::MOD_BLOCK : gws_op::MOD;
+    return block.stride > 1 ? gws_op_t::MOD_BLOCK : gws_op_t::MOD;
 }
 
 // Will mutate a vector of layouts as needed to make each dimension:
@@ -311,7 +311,7 @@ void reusable_dispatch_config_t::compute_buffer_terms(
             } else {
                 // Create a term and reset the block
                 size_t gws_size = mapper.gws()[gws_idx];
-                gws_op op = get_op(gws_size, block.gws_stride, block);
+                gws_op_t op = get_op(gws_size, block.gws_stride, block);
 
                 term_list.add_buffer_term(buffer_idx, op, gws_idx, block.block,
                         block.gws_stride, block.stride);
@@ -323,7 +323,7 @@ void reusable_dispatch_config_t::compute_buffer_terms(
 
         // Create the final term
         size_t gws_size = mapper.gws()[gws_idx];
-        gws_op op = get_op(gws_size, block.gws_stride, block);
+        gws_op_t op = get_op(gws_size, block.gws_stride, block);
 
         term_list.add_buffer_term(buffer_idx, op, gws_idx, block.block,
                 block.gws_stride, block.stride);
@@ -331,7 +331,7 @@ void reusable_dispatch_config_t::compute_buffer_terms(
 
     if (term_list.buf_idxs[buffer_idx].empty()) {
         // Size-1 buffer needs to have a zero term
-        term_list.add_buffer_term(buffer_idx, gws_op::ZERO, 0, 0, 0, 0);
+        term_list.add_buffer_term(buffer_idx, gws_op_t::ZERO, 0, 0, 0, 0);
     }
 }
 
@@ -370,14 +370,14 @@ void reusable_dispatch_config_t::compute_dim_terms(const named_dim_t &dim,
     for (const gws_mapped_block_t &block : dim_blocks) {
         stride_t gws_stride = block.gws_stride;
         size_t gws_size = mapper.gws()[block.gws_idx];
-        gws_op op = get_op(gws_size, gws_stride, block);
+        gws_op_t op = get_op(gws_size, gws_stride, block);
         term_list.add_dim_term(dim_idx, op, block.gws_idx, block.block,
                 gws_stride, block.stride);
     }
 
     if (term_list.dim_idxs[dim_idx].empty()) {
         // Size-1 dimension needs to have a zero term
-        term_list.add_dim_term(dim_idx, gws_op::ZERO, 0, 0, 0, 0);
+        term_list.add_dim_term(dim_idx, gws_op_t::ZERO, 0, 0, 0, 0);
     }
 }
 
@@ -485,13 +485,13 @@ void dispatch_compile_params_t::def_kernel_macros(
         const gws_indexing_term_t &term = terms[i];
         const char *gws_dim_op;
         switch (term.op) {
-            case (gws_op::ZERO): gws_dim_op = "ZERO"; break;
-            case (gws_op::SOLO): gws_dim_op = "SOLO"; break;
-            case (gws_op::FIRST): gws_dim_op = "FIRST"; break;
-            case (gws_op::MOD): gws_dim_op = "MOD"; break;
-            case (gws_op::SOLO_BLOCK): gws_dim_op = "SOLO_BLOCK"; break;
-            case (gws_op::FIRST_BLOCK): gws_dim_op = "FIRST_BLOCK"; break;
-            case (gws_op::MOD_BLOCK): gws_dim_op = "MOD_BLOCK"; break;
+            case (gws_op_t::ZERO): gws_dim_op = "ZERO"; break;
+            case (gws_op_t::SOLO): gws_dim_op = "SOLO"; break;
+            case (gws_op_t::FIRST): gws_dim_op = "FIRST"; break;
+            case (gws_op_t::MOD): gws_dim_op = "MOD"; break;
+            case (gws_op_t::SOLO_BLOCK): gws_dim_op = "SOLO_BLOCK"; break;
+            case (gws_op_t::FIRST_BLOCK): gws_dim_op = "FIRST_BLOCK"; break;
+            case (gws_op_t::MOD_BLOCK): gws_dim_op = "MOD_BLOCK"; break;
             default: assert(!"Not expected");
         }
         // GWS<X>_OP<Y>
