@@ -289,6 +289,15 @@ struct _ref_rnn_common_t : public primitive_t {
             const data_type_t weights_layer_dt
                     = this->desc()->weights_layer_desc.data_type;
 
+            bool is_f32 = everyone_is(data_type::f32, src_layer_dt,
+                    weights_iter_dt, weights_layer_dt);
+            bool is_impl_bf16
+                    = everyone_is(data_type::bf16, src_type, weights_type);
+            bool is_fpmath_bf16 = one_of(this->attr()->fpmath_mode_,
+                    fpmath_mode::bf16, fpmath_mode::any);
+            bool allow_down_conversion_to_bf16
+                    = is_f32 && is_fpmath_bf16 && is_impl_bf16;
+
             bool ok = one_of(cell_kind, alg_kind::vanilla_rnn,
                               alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
                               alg_kind::vanilla_augru)
@@ -302,8 +311,7 @@ struct _ref_rnn_common_t : public primitive_t {
                             this->diff_weights_overwrite() == false)
                     // cell_type (or src_type) and primitive data type should
                     // match, except for the bf32 case.
-                    && IMPLICATION(
-                            this->attr()->fpmath_mode_ == fpmath_mode::strict,
+                    && IMPLICATION(!allow_down_conversion_to_bf16,
                             src_layer_dt == src_type
                                     && everyone_is(weights_type,
                                             weights_iter_dt, weights_layer_dt))
