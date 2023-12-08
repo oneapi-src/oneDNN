@@ -92,7 +92,6 @@ private:
     }
 
     void finalize() {
-        if (failed_) return;
         close_file();
         delete_marker();
     }
