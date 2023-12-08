@@ -38,8 +38,6 @@ namespace compute {
 
 // How many dims the ndrange can assign to
 #define GWS_MAX_NDIMS 3
-// How many dims can be indexed simultaneously
-#define NUM_INDEXED_DIMS (GWS_MAX_NDIMS - 1)
 // How many buffers can be registered simultaneously
 #define MAX_REGISTERED_BUFFERS 4
 // Maximum length of each indexed dim's name
@@ -48,8 +46,6 @@ namespace compute {
 #define MAX_BUFFER_NAME_LENGTH 7
 
 // Ensure that we don't have padding in our structures
-static_assert(NUM_INDEXED_DIMS * (MAX_DIM_NAME_LENGTH + 1) % 4 == 0,
-        "Padding will be introduced due to indexed dims.");
 static_assert(MAX_REGISTERED_BUFFERS * (MAX_BUFFER_NAME_LENGTH + 1) % 4 == 0,
         "Padding will be introduced due to registered buffers.");
 
@@ -175,15 +171,6 @@ struct dispatch_compile_params_t {
             }
             ss << "], ";
         }
-        ss << "], num_indexed_dims=" << num_indexed_dims;
-        ss << ": [";
-        for (size_t i = 0; i < num_indexed_dims; i++) {
-            ss << dim_names[i] << " - [";
-            for (size_t j = 0; j < dim_num_terms[i]; j++) {
-                ss << dim_term_index[i][j] << "/";
-            }
-            ss << "], ";
-        }
         ss << "]>";
         return ss.str();
     }
@@ -199,13 +186,6 @@ struct dispatch_compile_params_t {
     size_t buffer_term_index[MAX_REGISTERED_BUFFERS][MAX_INDEXING_TERMS]
             = {{0}};
     size_t buffer_num_terms[MAX_REGISTERED_BUFFERS] = {0};
-
-    // Indexed dim definitions (each indexed dim has a name, and a collection
-    // of terms used to compute the index)
-    size_t num_indexed_dims = 0;
-    char dim_names[NUM_INDEXED_DIMS][MAX_DIM_NAME_LENGTH + 1] = {{'\0'}};
-    size_t dim_term_index[NUM_INDEXED_DIMS][MAX_INDEXING_TERMS] = {{0}};
-    size_t dim_num_terms[NUM_INDEXED_DIMS] = {0};
 };
 assert_trivially_serializable(dispatch_compile_params_t);
 
@@ -447,14 +427,10 @@ private:
     }
 };
 
-// Approach: default to combining dims to simplify indexing, unless the user requests to be able
-// to access a dim's index individually. Dims can be combined if they form a dense block,
-// and this is done by re-indexing the dims followed by a normalization step
 class reusable_dispatch_t {
 public:
     reusable_dispatch_t() = default;
     reusable_dispatch_t(const std::vector<named_buffer_t> &buffers,
-            const std::vector<named_dim_t> &indexed_dims,
             const gws_term_list_t &term_list,
             const compute::nd_range_t &nd_range) {
         compile_params.num_terms = term_list.terms.size();
@@ -478,25 +454,6 @@ public:
             compile_params.buffer_num_terms[buf_idx] = buf_term_idx.size();
             for (size_t j = 0; j < buf_term_idx.size(); j++) {
                 compile_params.buffer_term_index[buf_idx][j] = buf_term_idx[j];
-            }
-        }
-
-        compile_params.num_indexed_dims = term_list.dim_idxs.size();
-        for (const auto &kv : term_list.dim_idxs) {
-            const size_t dim_idx = kv.first;
-            const auto &dim_term_idx = kv.second;
-
-            const auto &dim_name = indexed_dims[dim_idx].name;
-
-            // Copy dim name into params
-            for (size_t i = 0; i < strlen(dim_name); i++) {
-                compile_params.dim_names[dim_idx][i] = dim_name[i];
-            }
-
-            // Copy dim terms into params
-            compile_params.dim_num_terms[dim_idx] = dim_term_idx.size();
-            for (size_t j = 0; j < dim_term_idx.size(); j++) {
-                compile_params.dim_term_index[dim_idx][j] = dim_term_idx[j];
             }
         }
 
@@ -580,16 +537,13 @@ public:
     status_t generate(
             reusable_dispatch_t &dispatch, const lws_strategy_t &lws_strategy);
     status_t register_buffer(named_buffer_t &buffer);
-    status_t define_dim_index(const char *dim_name, size_t dim_id);
+    status_t define_dim_index(
+            const char *dim_name, dim_id_t dim_id, dim_t size);
 
 private:
-    void compute_buffer_terms(
-            size_t buffer_idx, const gws_bin_mapping_t &gws_bins);
-    void compute_dim_terms(const named_dim_t &dim, size_t dim_idx,
-            const gws_bin_mapping_t &mapper);
+    void compute_terms(size_t buffer_idx, const gws_bin_mapping_t &gws_bins);
 
     std::vector<named_buffer_t> buffers;
-    std::vector<named_dim_t> indexed_dims;
 
     std::vector<dim_id_t> dispatched_dims;
     std::unordered_map<dim_id_t, dim_t, dim_id_hash_t> dim_sizes;

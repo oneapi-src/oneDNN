@@ -26,9 +26,7 @@ namespace compute {
 // - for each buffer: form a dense block
 // - if it's "indexed", all blocks have the same dim idx
 bool mapped_block_t::can_merge(
-
-        const mapped_block_t &other, bool is_indexed,
-        bool require_all_match) const {
+        const mapped_block_t &other, bool require_all_match) const {
     bool same_broadcast = true;
     bool all_match = true;
     bool any_match = false;
@@ -51,17 +49,13 @@ bool mapped_block_t::can_merge(
         any_match |= old_block.block * old_block.stride == new_block.stride;
     }
 
-    // Indexed dims can only be binned with the other blocks of the same dim
-    bool index_match = !is_indexed || other.get_dim_idx() == dim_idx;
-
-    if (require_all_match) return same_broadcast && index_match && all_match;
-    return same_broadcast && index_match && any_match;
+    if (require_all_match) return same_broadcast && all_match;
+    return same_broadcast && any_match;
 }
 
 std::string block_bin_t::str() const {
     std::ostringstream ss;
-    ss << "block bin (indexed: " << is_indexed;
-    ss << ", dim_idx: " << dim_idx;
+    ss << "block bin (dim_idx: " << dim_idx;
     ss << ", num_layouts: " << num_layouts;
     ss << ", size: " << size() << ")" << std::endl;
     ss << std::setw(50) << "broadcast:";

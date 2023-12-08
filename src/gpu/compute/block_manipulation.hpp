@@ -58,8 +58,8 @@ public:
     size_t get_dim_idx() const { return dim_idx; }
     size_t get_size() const { return size; }
 
-    bool can_merge(const mapped_block_t &other, bool is_indexed,
-            bool require_all_match = true) const;
+    bool can_merge(
+            const mapped_block_t &other, bool require_all_match = true) const;
 
     std::string str() const {
         std::ostringstream ss;
@@ -99,11 +99,8 @@ private:
 // represents a combined block used for indexing
 class block_bin_t {
 public:
-    block_bin_t(
-            const mapped_block_t &blocks, bool is_indexed, size_t num_layouts)
-        : is_indexed(is_indexed)
-        , dim_idx(blocks.get_dim_idx())
-        , num_layouts(num_layouts) {
+    block_bin_t(const mapped_block_t &blocks, size_t num_layouts)
+        : dim_idx(blocks.get_dim_idx()), num_layouts(num_layouts) {
         mapped_blocks.emplace_back(blocks);
         is_broadcasted_.resize(num_layouts);
         for (size_t i = 0; i < num_layouts; i++) {
@@ -145,7 +142,6 @@ public:
     }
 
 private:
-    bool is_indexed;
     size_t dim_idx;
     size_t num_layouts;
     std::vector<mapped_block_t> mapped_blocks;

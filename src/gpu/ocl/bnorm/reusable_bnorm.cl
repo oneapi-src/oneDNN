@@ -36,7 +36,7 @@ NAMED_KERNEL_ATTR(CALC)
 __kernel void reusable_calculate_variance(__global DATA_T *src,
         __global float *mean, __global float *variance, dim_t reduce_dim_stride,
         dim_t reduce_dim, dispatch_gws_rt_params_t gws_params) {
-    const off_t c = GWS_GET_NAMED(IC_DIM, CALC, gws_params);
+    const off_t c = GWS_GET_OFF_NAMED(IC_DIM, CALC, gws_params);
     src = GWS_GET_BUFFER_POS_NAMED(SRC, CALC, gws_params, src);
     variance = GWS_GET_BUFFER_POS_NAMED(DST, CALC, gws_params, variance);
     float sum = 0;
@@ -86,7 +86,7 @@ __kernel void reusable_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *shift, __global char *ws, float eps,
         __global DATA_T *src_add, float relu_alpha,
         dispatch_gws_rt_params_t gws_params) {
-    const off_t c = GWS_GET(IC_DIM, gws_params);
+    const off_t c = GWS_GET_OFF(IC_DIM, gws_params);
     src = GWS_GET_BUFFER_POS(BUFFER, gws_params, src);
     src_add = GWS_GET_BUFFER_POS(BUFFER, gws_params, src_add);
     ws = GWS_GET_BUFFER_POS(BUFFER, gws_params, ws);
@@ -127,7 +127,7 @@ __kernel void reusable_calculate_stats(__global DATA_T *src,
     float diff_gamma = 0;
     float diff_beta = 0;
 
-    const off_t c = GWS_GET_NAMED(IC_DIM, CALC, gws_params);
+    const off_t c = GWS_GET_OFF_NAMED(IC_DIM, CALC, gws_params);
     reduce_temp = GWS_GET_BUFFER_POS_NAMED(DST, CALC, gws_params, reduce_temp);
     diff_dst = GWS_GET_BUFFER_POS_NAMED(SRC, CALC, gws_params, diff_dst);
     ws = GWS_GET_BUFFER_POS_NAMED(SRC, CALC, gws_params, ws);
@@ -177,7 +177,7 @@ __kernel void reusable_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *diff_scale, __global float *diff_shift, float eps,
         __global DATA_T *diff_src_add, dim_t div,
         dispatch_gws_rt_params_t gws_params) {
-    const off_t c = GWS_GET(IC_DIM, gws_params);
+    const off_t c = GWS_GET_OFF(IC_DIM, gws_params);
     diff_dst = GWS_GET_BUFFER_POS(BUFFER, gws_params, diff_dst);
     ws = GWS_GET_BUFFER_POS(BUFFER, gws_params, ws);
     diff_src_add = GWS_GET_BUFFER_POS(BUFFER, gws_params, diff_src_add);

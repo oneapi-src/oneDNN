@@ -40,7 +40,7 @@
 // In C++:
 // Create a reusable_dispatch_config_t class, and:
 // 1. register buffers with reusable_dispatch_config_t::register_buffer
-// 2. label dimensions with reusable_dispatch_config_t::label_dim
+// 2. label dimensions with reusable_dispatch_config_t::define_dim_index
 //
 // Then use reusable_dispatch_config_t::generate to create the frozen
 // reusable_dispatch_t class. This can then be further split into compile
@@ -51,20 +51,12 @@
 //
 // When initializing the kernel, use the dispatch_compile_params::def_kernel_macros to
 // 1. Set the dispatcher suffix (defaults to DEFAULT)
-// 2. For each buffer, define the offset macros (giving access to
-//       GWS_GET_OFF_NAMED(buf_name, suffix, rt_params))
-// 3. For each dim, define the dim-index macro (giving access to
-//       GWS_GET_NAMED(dim_name, suffix, rt_params))
-// These two macros are the only way to interact with the dispatcher, and
-// should abstract away all use of gws indices.
-//
+// 2. Define buffer access macros (GWS_GET_OFF_NAMED and GWS_GET_BUFFER_POS_NAMED)
+
 // GWS_GET_NAMED(DIMNAME, SUFFIX, rt_params) expands to a sum of GWS<X>_GET_ID<Y>
 // terms (defined below), which the dispatcher is responsible for preparing. For each
 // term, the dispatcher must also define GWS<X>_OP<Y>, GWS<X>_IDX<Y>, and GWS<X>_RT_IDX<Y>
 // to fully define the term's operation.
-
-// NOTE: Some shapes/layouts may exceed the number of term definitions below
-// TODO: Handle this case and report an error
 
 // TODO: implement vectorization
 // clang-format off

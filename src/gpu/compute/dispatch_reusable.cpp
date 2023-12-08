@@ -23,15 +23,18 @@ namespace gpu {
 namespace compute {
 
 status_t reusable_dispatch_config_t::define_dim_index(
-        const char *dim_name, size_t dim_idx) {
-    gpu_assert(indexed_dims.size() < NUM_INDEXED_DIMS
-            && "Too many dim indices required.");
-    gpu_assert(
-            strlen(dim_name) < MAX_DIM_NAME_LENGTH && "Dim name is too long");
+        const char *dim_name, dim_id_t dim_id, dim_t size) {
+    memory_desc_t md = types::zero_md();
+    md.ndims = 1;
+    md.dims[0] = size;
+    md.padded_dims[0] = size;
+    md.data_type = data_type::f32; // doesn't matter
+    md.format_kind = format_kind::blocked;
+    md.format_desc.blocking.strides[0] = 1;
+    md.format_desc.blocking.inner_nblks = 0;
 
-    named_dim_t dim(dim_name, dim_idx);
-
-    indexed_dims.emplace_back(dim_name, dim_idx);
+    named_buffer_t buf(dim_name, md, {dim_id});
+    CHECK(register_buffer(buf));
     return status::success;
 }
 
@@ -216,33 +219,21 @@ public:
         return status::success;
     }
 
-    std::vector<block_bin_t> compute_block_bins(
-            std::vector<named_dim_t> &indexed_dims) {
+    std::vector<block_bin_t> compute_block_bins() {
         std::vector<block_bin_t> bins;
-
         for (size_t i = 0; i < master_layout.size(); i++) {
             const mapped_block_t &mapped_blocks = master_layout[i];
-            const size_t dim_idx = mapped_blocks.get_dim_idx();
-            bool is_indexed = false;
-            for (const named_dim_t &dim : indexed_dims) {
-                if (dim.idx == dim_idx) {
-                    is_indexed = true;
-                    break;
-                }
-            }
 
             // Check if this block can be added to an existing bin
             bool found_bin = false;
             for (block_bin_t &bin : bins) {
-                if (bin.get_blocks().back().can_merge(
-                            mapped_blocks, is_indexed)) {
+                if (bin.get_blocks().back().can_merge(mapped_blocks)) {
                     found_bin = true;
                     bin.append(mapped_blocks);
                     break;
                 }
             }
-            if (!found_bin)
-                bins.emplace_back(mapped_blocks, is_indexed, num_layouts);
+            if (!found_bin) bins.emplace_back(mapped_blocks, num_layouts);
         }
 
         return bins;
@@ -278,7 +269,7 @@ struct gws_mapped_block_t : public gpu::block_t {
     stride_t gws_stride;
 };
 
-void reusable_dispatch_config_t::compute_buffer_terms(
+void reusable_dispatch_config_t::compute_terms(
         size_t buffer_idx, const gws_bin_mapping_t &mapper) {
 
     for (size_t gws_idx = 0; gws_idx < GWS_MAX_NDIMS; gws_idx++) {
@@ -332,52 +323,6 @@ void reusable_dispatch_config_t::compute_buffer_terms(
     if (term_list.buf_idxs[buffer_idx].empty()) {
         // Size-1 buffer needs to have a zero term
         term_list.add_buffer_term(buffer_idx, gws_op_t::ZERO, 0, 0, 0, 0);
-    }
-}
-
-void reusable_dispatch_config_t::compute_dim_terms(const named_dim_t &dim,
-        size_t dim_idx, const gws_bin_mapping_t &mapper) {
-    // Pull out bins that relate to this dim
-    std::vector<gws_mapped_block_t> dim_blocks;
-    for (size_t gws_idx = 0; gws_idx < GWS_MAX_NDIMS; gws_idx++) {
-        stride_t gws_stride = 1;
-        for (const block_bin_t &bin : mapper.get_bins(gws_idx)) {
-            if (bin.get_dim_idx() == dim.idx) {
-                // Pick an arbitrary buffer (idx 0)
-                block_t block = bin.combined_block(0);
-                dim_blocks.emplace_back(block, gws_idx, gws_stride);
-            }
-            gws_stride *= static_cast<dim_t>(bin.size());
-        }
-    }
-
-    std::sort(dim_blocks.begin(), dim_blocks.end(),
-            [](const gws_mapped_block_t &a, const gws_mapped_block_t &b) {
-                return a.stride < b.stride
-                        || (a.stride == b.stride && a.block < b.block);
-            });
-
-    // The stride depends on the specific buffer used. Instead, compute
-    // the dim-only stride (i.e. the stride if all other dims were removed)
-    // which does not depend on the buffer
-    stride_t dim_stride = 1;
-    for (gws_mapped_block_t &block : dim_blocks) {
-        block.stride = dim_stride;
-        dim_stride *= block.block;
-    }
-
-    // Make a term for each block
-    for (const gws_mapped_block_t &block : dim_blocks) {
-        stride_t gws_stride = block.gws_stride;
-        size_t gws_size = mapper.gws()[block.gws_idx];
-        gws_op_t op = get_op(gws_size, gws_stride, block);
-        term_list.add_dim_term(dim_idx, op, block.gws_idx, block.block,
-                gws_stride, block.stride);
-    }
-
-    if (term_list.dim_idxs[dim_idx].empty()) {
-        // Size-1 dimension needs to have a zero term
-        term_list.add_dim_term(dim_idx, gws_op_t::ZERO, 0, 0, 0, 0);
     }
 }
 
@@ -436,23 +381,16 @@ status_t reusable_dispatch_config_t::generate(
         CHECK(equalizer.register_layout(new_layout));
     }
 
-    std::vector<block_bin_t> bins = equalizer.compute_block_bins(indexed_dims);
+    std::vector<block_bin_t> bins = equalizer.compute_block_bins();
 
     // Map bins into gws dims
     gws_bin_mapping_t gws_map;
-    size_t gws_idx = 0;
     for (const block_bin_t &bin : bins) {
         gws_map.add(bin);
-        gws_idx = std::min(gws_idx + 1, size_t {GWS_MAX_NDIMS - 1});
     }
 
     for (size_t i = 0; i < buffers.size(); i++) {
-        compute_buffer_terms(i, gws_map);
-    }
-
-    for (size_t i = 0; i < indexed_dims.size(); i++) {
-        const auto &dim = indexed_dims[i];
-        compute_dim_terms(dim, i, gws_map);
+        compute_terms(i, gws_map);
     }
 
     if (term_list.terms.size() >= MAX_INDEXING_TERMS) {
@@ -460,7 +398,7 @@ status_t reusable_dispatch_config_t::generate(
     }
 
     dispatch = reusable_dispatch_t(
-            buffers, indexed_dims, term_list, gws_map.nd_range(lws_strategy));
+            buffers, term_list, gws_map.nd_range(lws_strategy));
 
     return status::success;
 }
@@ -518,20 +456,6 @@ void dispatch_compile_params_t::def_kernel_macros(
         }
         // GWS_<BUFFER_NAME>_<SUFFIX>_OFF
         kernel_ctx.add_option(utils::format("-DGWS_%s_%s_OFF(rt_params)=%s",
-                name, suffix, equation.c_str()));
-    }
-
-    // For each indexed dim, define the sum that leads to the index calculation
-    for (size_t i = 0; i < num_indexed_dims; i++) {
-        const char *name = dim_names[i];
-        std::string equation;
-        for (size_t j = 0; j < dim_num_terms[i]; j++) {
-            equation += utils::format(
-                    "%s_GET_ID%d(rt_params)", gws_prefix, dim_term_index[i][j]);
-            if (j != dim_num_terms[i] - 1) { equation += "+"; }
-        }
-        // GWS_GET_<DIM_NAME>_<SUFFIX>
-        kernel_ctx.add_option(utils::format("-DGWS_GET_%s_%s(rt_params)=%s",
                 name, suffix, equation.c_str()));
     }
 

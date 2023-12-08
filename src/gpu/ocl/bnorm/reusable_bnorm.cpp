@@ -69,7 +69,6 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
         if (calc_dims[i] > calc_dims[reduce_dim_idx]) reduce_dim_idx = i;
     }
     rt_conf.reduction_nelems = calc_dims[reduce_dim_idx];
-    rt_conf.ic = calc_dims[1];
     rt_conf.div = utils::array_product(calc_dims, MAX_DIMS) / calc_dims[1];
     const int max_int = std::numeric_limits<int>::max();
     if (rt_conf.reduction_nelems > max_int || rt_conf.ic > max_int
@@ -120,7 +119,8 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
     compute::reusable_dispatch_config_t calc_stat_dispatch_config(dim_ids);
     CHECK(calc_stat_dispatch_config.register_buffer(src_buf));
     CHECK(calc_stat_dispatch_config.register_buffer(dst_buf));
-    CHECK(calc_stat_dispatch_config.define_dim_index("IC_DIM", 1));
+    CHECK(calc_stat_dispatch_config.define_dim_index(
+            "IC_DIM", bnorm_dims_t::ic, rt_conf.ic));
 
     compute::reusable_dispatch_t dispatch_calc_stat;
     auto lws_strategy
@@ -166,6 +166,7 @@ static status_t init_conf_common(reusable_bnorm_params_t &conf,
     conf.with_relu = pd->with_relu_post_op(pd->is_training());
     rt_conf.relu_negative_slope = conf.with_relu ? pd->alpha() : 0.f;
     rt_conf.eps = bd.batch_norm_epsilon;
+    rt_conf.ic = data_mdw.dims()[1];
 
     conf.with_leaky_relu = conf.with_relu && rt_conf.relu_negative_slope != 0.f;
     conf.use_int32_offset = true; // updated throughout following steps
@@ -179,7 +180,8 @@ static status_t init_conf_common(reusable_bnorm_params_t &conf,
     // Dispatch to all dims
     compute::reusable_dispatch_config_t dispatch_config(dims);
     CHECK(dispatch_config.register_buffer(buffer));
-    CHECK(dispatch_config.define_dim_index("IC_DIM", 1));
+    CHECK(dispatch_config.define_dim_index(
+            "IC_DIM", bnorm_dims_t::ic, rt_conf.ic));
 
     compute::reusable_dispatch_t dispatch;
     CHECK(dispatch_config.generate(dispatch,
