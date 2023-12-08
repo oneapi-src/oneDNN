@@ -22,6 +22,7 @@
 #include <vector>
 #include "common/c_types_map.hpp"
 #include "gpu/block_structure.hpp"
+#include "gpu/compute/block_manipulation.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/dispatch.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
@@ -89,26 +90,36 @@ struct gws_indexing_term_t {
 
 struct gws_term_list_t {
     void add_buffer_term(size_t buf_idx, gws_op op, size_t gws_idx, dim_t size,
-            size_t stride, dim_t block) {
+            stride_t stride, dim_t block) {
         size_t idx = add_term(op, gws_idx, size, stride, block);
         buf_idxs[buf_idx].emplace_back(idx);
     }
     void add_dim_term(size_t dim_idx, gws_op op, size_t gws_idx, dim_t size,
-            size_t stride, dim_t block) {
+            stride_t stride, dim_t block) {
         size_t idx = add_term(op, gws_idx, size, stride, block);
         dim_idxs[dim_idx].emplace_back(idx);
     }
     std::vector<gws_indexing_term_t> terms;
     std::vector<dim_t> sizes;
-    std::vector<size_t> strides;
+    std::vector<stride_t> strides;
     std::vector<dim_t> blocks;
 
     std::unordered_map<size_t, std::vector<size_t>> buf_idxs;
     std::unordered_map<size_t, std::vector<size_t>> dim_idxs;
 
+    std::string str() const {
+        std::ostringstream ss;
+        for (size_t i = 0; i < terms.size(); i++) {
+            ss << terms[i].str() << " (size=" << sizes[i]
+               << ", stride=" << strides[i] << ", block=" << blocks[i] << ")"
+               << std::endl;
+        }
+        return ss.str();
+    }
+
 private:
-    size_t add_term(
-            gws_op op, size_t gws_idx, dim_t size, size_t stride, dim_t block) {
+    size_t add_term(gws_op op, size_t gws_idx, dim_t size, stride_t stride,
+            dim_t block) {
         size_t ret = terms.size();
         terms.emplace_back(op, terms.size(), gws_idx);
         sizes.emplace_back(size);
@@ -186,8 +197,8 @@ class dispatch_runtime_params_t {
 public:
     dispatch_runtime_params_t() = default;
     dispatch_runtime_params_t(const nd_range_t &nd_range,
-            const std::vector<size_t> &strides, const std::vector<dim_t> &sizes,
-            const std::vector<dim_t> &blocks)
+            const std::vector<stride_t> &strides,
+            const std::vector<dim_t> &sizes, const std::vector<dim_t> &blocks)
         : nd_range(nd_range), num_terms(sizes.size()) {
         gpu_assert(num_terms == strides.size());
         gpu_assert(num_terms == blocks.size());
@@ -231,30 +242,6 @@ public:
     size_t idx;
 };
 
-struct gws_mapped_block_t : public gpu::block_t {
-    gws_mapped_block_t() = default;
-    gws_mapped_block_t(const block_t &block,
-            const std::vector<named_dim_t> &indexed_dims, size_t gws_idx)
-        : block_t(block), is_indexed(false), gws_idx(gws_idx) {
-        for (const auto &dim : indexed_dims) {
-            if (dim.idx == static_cast<size_t>(dim_idx)) { is_indexed = true; }
-        }
-    }
-
-    std::string str() const {
-        std::ostringstream ss;
-        ss << static_cast<const block_t *>(this)->str().c_str();
-        ss << ", indexed=" << is_indexed;
-        ss << " / gws_idx=" << gws_idx;
-        return ss.str();
-    }
-
-    bool is_indexed;
-    size_t gws_idx;
-    size_t mapped_to_idx;
-};
-
-using gws_layout_t = std::vector<gws_mapped_block_t>;
 using work_size = std::array<size_t, GWS_MAX_NDIMS>;
 
 struct lws_strategy_t {
@@ -288,47 +275,6 @@ struct default_lws_strategy_t : public lws_strategy_t {
     }
 };
 
-struct gws_mapped_layout_t {
-    gws_mapped_layout_t(const lws_strategy_t &lws_strategy)
-        : lws_strategy(lws_strategy) {
-        gws_size.fill(1);
-    }
-
-    void add_block(size_t size, dim_t dim_idx,
-            const std::vector<named_dim_t> &indexed_dims, size_t gws_idx) {
-        gpu_assert(gws_idx < GWS_MAX_NDIMS);
-        block_idxs[gws_idx].emplace_back(blocks.size());
-        blocks.emplace_back(block_t(dim_idx, static_cast<dim_t>(size),
-                                    static_cast<dim_t>(gws_size[gws_idx])),
-                indexed_dims, gws_idx);
-        gws_size[gws_idx] *= size;
-    }
-
-    size_t get_num_blocks(size_t gws_idx) const {
-        return block_idxs[gws_idx].size();
-    }
-
-    const gws_mapped_block_t &get_block(
-            size_t gws_idx, size_t block_idx) const {
-        return blocks[block_idxs[gws_idx][block_idx]];
-    }
-
-    compute::nd_range_t nd_range() const {
-        work_size lws = lws_strategy.create_lws(gws_size);
-        return compute::nd_range_t(gws_size.data(), lws.data());
-    }
-
-    inline const std::vector<gws_mapped_block_t> &get_blocks() const {
-        return blocks;
-    }
-
-private:
-    std::array<std::vector<size_t>, GWS_MAX_NDIMS> block_idxs;
-    std::vector<gws_mapped_block_t> blocks;
-    work_size gws_size;
-    const lws_strategy_t &lws_strategy;
-};
-
 struct dim_id_t {
     dim_id_t() = default;
     constexpr dim_id_t(size_t id) : id(id) {};
@@ -351,6 +297,7 @@ struct named_buffer_t : public memory_desc_t {
         : memory_desc_t(md), name(name), dim_ids(std::move(dims)) {
         gpu_assert(this->name.size() <= MAX_BUFFER_NAME_LENGTH);
         gpu_assert(format_kind == format_kind::blocked);
+        gpu_assert(static_cast<size_t>(md.ndims) <= dim_ids.size());
     };
 
     // Copy the named_buffer_t, while changing the name
@@ -406,6 +353,7 @@ struct named_buffer_t : public memory_desc_t {
             assert(ndims < DNNL_MAX_NDIMS - 1);
             dims[ndims] = 1;
             padded_dims[ndims] = 1;
+            blk.strides[ndims] = 1;
             dim_idx = static_cast<size_t>(ndims++);
             dim_ids.emplace_back(dim);
         }
@@ -416,6 +364,7 @@ struct named_buffer_t : public memory_desc_t {
 
         // Update the strides
         for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
+            if (i == dim_idx) continue;
             blk.strides[i] *= size;
         }
 
@@ -515,6 +464,7 @@ public:
                 compile_params.buffer_term_index[buf_idx][j] = buf_term_idx[j];
             }
         }
+
         compile_params.num_indexed_dims = term_list.dim_idxs.size();
         for (const auto &kv : term_list.dim_idxs) {
             const size_t dim_idx = kv.first;
@@ -551,6 +501,62 @@ private:
     dispatch_runtime_params_t runtime_params;
 };
 
+// TODO: Add a strategy pattern for this, in case the mapping
+// leads to performance degredation
+class gws_bin_mapping_t {
+public:
+    gws_bin_mapping_t() { gws_.fill(1); }
+    void add(const block_bin_t &bin) {
+        // Insert into the first empty gws dim, if one exists
+        for (size_t i = 0; i < map.size(); i++) {
+            if (map[i].empty()) {
+                add_(bin, i);
+                return;
+            }
+        }
+
+        // Insert into the first dim that will remove *some* divisions/modulus
+        const mapped_block_t &first_new_block = bin.get_blocks().front();
+        for (size_t i = 0; i < map.size(); i++) {
+            block_bin_t &last = map[i].back();
+            const mapped_block_t &last_old_block = last.get_blocks().back();
+
+            if (last_old_block.can_merge(first_new_block, false)) {
+                add_(bin, i);
+                return;
+            }
+        }
+
+        // Insert into the last dim
+        add_(bin, gws_.size() - 1);
+    }
+
+    nd_range_t nd_range(const lws_strategy_t &lws_strategy) const {
+        work_size lws = lws_strategy.create_lws(gws_);
+        return compute::nd_range_t(gws_.data(), lws.data());
+    }
+
+    const work_size &gws() const { return gws_; }
+
+    const std::vector<block_bin_t> &get_bins(size_t idx) const {
+        return map[idx];
+    }
+
+private:
+    void add_(const block_bin_t &bin, size_t gws_dim) {
+        gpu_assert(gws_dim < gws_.size());
+        map[gws_dim].emplace_back(bin);
+        gws_[gws_dim] *= bin.size();
+    }
+    void clear_(size_t gws_idx) {
+        gpu_assert(gws_idx < GWS_MAX_NDIMS);
+        map[gws_idx].clear();
+        gws_[gws_idx] = 1;
+    }
+    std::array<std::vector<block_bin_t>, GWS_MAX_NDIMS> map;
+    work_size gws_;
+};
+
 class reusable_dispatch_config_t {
 public:
     reusable_dispatch_config_t(std::vector<dim_id_t> dims)
@@ -558,20 +564,13 @@ public:
     status_t generate(
             reusable_dispatch_t &dispatch, const lws_strategy_t &lws_strategy);
     status_t register_buffer(named_buffer_t &buffer);
-    status_t define_dim_index(const char *dim_name, size_t dim_idx);
+    status_t define_dim_index(const char *dim_name, size_t dim_id);
 
 private:
-    size_t get_dim_idx(size_t dim_idx);
-    gws_mapped_layout_t compute_gws_blocks(
-            const gws_layout_t &layout, const lws_strategy_t &lws_strategy);
-    status_t compute_gws_mapping(
-            gws_layout_t &layout, const gws_mapped_layout_t &gws_blocks);
-    void compute_buffer_terms(const gws_layout_t &layout, size_t buffer_idx,
-            const gws_mapped_layout_t &gws_blocks);
+    void compute_buffer_terms(
+            size_t buffer_idx, const gws_bin_mapping_t &gws_bins);
     void compute_dim_terms(const named_dim_t &dim, size_t dim_idx,
-            const gws_mapped_layout_t &gws_blocks);
-    status_t subdivide_to_match(
-            block_layout_t &layoutA, block_layout_t &layoutB);
+            const gws_bin_mapping_t &mapper);
 
     std::vector<named_buffer_t> buffers;
     std::vector<named_dim_t> indexed_dims;
