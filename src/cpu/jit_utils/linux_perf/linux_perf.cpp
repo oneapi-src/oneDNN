@@ -173,7 +173,7 @@ private:
         long page_size = sysconf(_SC_PAGESIZE);
         if (page_size == -1) return false;
         marker_size_ = (size_t)page_size;
-        void* addr = mmap(nullptr, marker_size_, PROT_READ | PROT_EXEC,
+        void *addr = mmap(nullptr, marker_size_, PROT_READ | PROT_EXEC,
                 MAP_PRIVATE, fd_, 0);
         if (addr == MAP_FAILED) return false;
         marker_addr_ = addr;
