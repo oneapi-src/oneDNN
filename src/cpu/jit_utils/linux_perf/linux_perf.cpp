@@ -175,20 +175,15 @@ private:
         marker_size_ = (size_t)page_size;
         void* addr = mmap(nullptr, marker_size_, PROT_READ | PROT_EXEC,
                 MAP_PRIVATE, fd_, 0);
-        if (addr == MAP_FAILED) {
-            marker_addr_ = nullptr;
-            return false;
-        } else {
-            marker_addr_ = addr;
-            return true;
-        }
+        if (addr == MAP_FAILED) return false;
+        marker_addr_ = addr;
+        return true;
     }
 
     void delete_marker() {
-        if (marker_addr_) {
-            munmap(marker_addr_, marker_size_);
-            marker_addr_ = nullptr;
-        }
+        if (!marker_addr_) return;
+        munmap(marker_addr_, marker_size_);
+        marker_addr_ = nullptr;
     }
 
     static uint64_t get_timestamp(bool use_tsc) {
