@@ -154,9 +154,11 @@ CFG(f16f32) {
 }
 
 // f16_math_mode
+dt_conf_t::entry_t F16_MATH_ENTRY {dnnl_f32, -f32_max_exact, f32_max_exact,
+        MIN_F16, MAX_F16, MEAN_F16, STDDEV_F16, EPS_F16};
 CFG_INTERNAL(f16_math, f32) {
     CASE(BIAS, F32_ENTRY);
-    DEFAULT(F16_ENTRY);
+    DEFAULT(F16_MATH_ENTRY);
 }
 
 // s8
