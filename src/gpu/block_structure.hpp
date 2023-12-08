@@ -134,7 +134,7 @@ struct block_t {
         std::ostringstream oss;
         oss << "block_t(dim_idx = " << dim_idx;
         oss << ", block = " << block;
-        oss << ", stride = " << stride;
+        oss << ", stride = " << stride.str();
         oss << ")";
         return oss.str();
     }
@@ -219,6 +219,15 @@ struct block_layout_t {
     block_t &operator[](size_t idx) {
         assert(idx < num_blocks);
         return blocks[idx];
+    }
+
+    std::string str() const {
+        std::ostringstream ss;
+        for (size_t i = 0; i < num_blocks; i++) {
+            const auto &block = blocks[i];
+            ss << block.str() << " ";
+        }
+        return ss.str();
     }
 
     block_layout_t normalized(bool remove_size_1_blocks = true) const;
