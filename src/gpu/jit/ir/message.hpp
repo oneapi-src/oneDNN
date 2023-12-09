@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,41 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
+
+enum class send_kind_t {
+    undef,
+    _2d,
+    block,
+    scattered,
+};
+
+inline std::string to_string(send_kind_t kind) {
+    switch (kind) {
+#define CASE(name) \
+    case send_kind_t::name: return #name
+        CASE(undef);
+        CASE(_2d);
+        CASE(block);
+        CASE(scattered);
+        default: ir_error_not_expected(); return "undef";
+#undef CASE
+    }
+}
+
+inline send_kind_t str_to_send_kind(const std::string &s) {
+    if (s == "2d") return send_kind_t::_2d;
+#define CASE(name) \
+    do { \
+        if (s == to_string(send_kind_t::name)) return send_kind_t::name; \
+    } while (false)
+    CASE(undef);
+    CASE(_2d);
+    CASE(block);
+    CASE(scattered);
+#undef CASE
+    ir_error_not_expected();
+    return send_kind_t::undef;
+}
 
 // Send operation kind.
 enum class send_op_t {
