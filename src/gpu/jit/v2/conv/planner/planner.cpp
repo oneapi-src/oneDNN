@@ -165,6 +165,18 @@ void init_params(int argc, const char **argv) {
             .help("Loop nest.")
             .action(str_to_loop_nest)
             .default_value(loop_nest_t());
+    parser.add_argument("--a-access")
+            .help("Access type for A.")
+            .action(str_to_send_kind)
+            .default_value(send_kind_t::undef);
+    parser.add_argument("--b-access")
+            .help("Access type for B.")
+            .action(str_to_send_kind)
+            .default_value(send_kind_t::undef);
+    parser.add_argument("--c-access")
+            .help("Access type for C.")
+            .action(str_to_send_kind)
+            .default_value(send_kind_t::undef);
 
     parser.parse_args(argc, argv);
 
@@ -198,6 +210,9 @@ void init_params(int argc, const char **argv) {
     desc.iter_tile = parser.get<prb_tile_t>("--iter");
     desc.thread_group_tile = parser.get<prb_tile_t>("--tg");
     desc.loop_nest = parser.get<loop_nest_t>("--loop-nest");
+    desc.a_access_kind = parser.get<send_kind_t>("--a-access");
+    desc.b_access_kind = parser.get<send_kind_t>("--b-access");
+    desc.c_access_kind = parser.get<send_kind_t>("--c-access");
     params.init_desc_defaults();
 }
 

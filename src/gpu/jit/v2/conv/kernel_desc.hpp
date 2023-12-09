@@ -19,6 +19,7 @@
 
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/kernel_desc.hpp"
+#include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/v2/conv/problem.hpp"
 #include "gpu/jit/v2/ir/reqs.hpp"
 #include "gpu/jit/v2/ir/tensor.hpp"
@@ -192,6 +193,9 @@ public:
     prb_tile_t iter_tile;
     prb_tile_t thread_group_tile;
     loop_nest_t loop_nest;
+    send_kind_t a_access_kind = send_kind_t::undef;
+    send_kind_t b_access_kind = send_kind_t::undef;
+    send_kind_t c_access_kind = send_kind_t::undef;
     prb_reqs_t reqs;
     bool is_finalized = false;
 
@@ -227,6 +231,12 @@ public:
                 thread_group_tile = str_to_prb_tile(value);
             } else if (key == "--loop-nest") {
                 loop_nest = str_to_loop_nest(value);
+            } else if (key == "--a-access") {
+                a_access_kind = str_to_send_kind(value);
+            } else if (key == "--b-access") {
+                b_access_kind = str_to_send_kind(value);
+            } else if (key == "--c-access") {
+                c_access_kind = str_to_send_kind(value);
             } else {
                 std::cout << "Unknown argument: " << key << std::endl;
                 ir_error_not_expected();
@@ -272,6 +282,9 @@ public:
         add("--iter", iter_tile.str());
         add("--tg", thread_group_tile.str());
         add("--loop-nest", loop_nest.str());
+        add("--a-access", to_string(a_access_kind));
+        add("--b-access", to_string(b_access_kind));
+        add("--c-access", to_string(c_access_kind));
 
         std::ostringstream oss;
         bool is_first = true;
@@ -297,6 +310,9 @@ public:
         oss << "Iteration tile:     " << iter_tile << std::endl;
         oss << "Thread group tile:  " << thread_group_tile << std::endl;
         oss << "Loop nest:          " << loop_nest << std::endl;
+        oss << "A access kind:      " << to_string(a_access_kind) << std::endl;
+        oss << "B access kind:      " << to_string(b_access_kind) << std::endl;
+        oss << "C access kind:      " << to_string(c_access_kind) << std::endl;
         oss << "Command:            " << cmd_str();
         return ir_utils::add_tag("Desc", oss.str());
     }
@@ -311,6 +327,9 @@ public:
                 && (regs == other.regs) && (iter_tile == other.iter_tile)
                 && (thread_group_tile == other.thread_group_tile)
                 && (loop_nest == other.loop_nest)
+                && (a_access_kind == other.a_access_kind)
+                && (b_access_kind == other.b_access_kind)
+                && (c_access_kind == other.c_access_kind)
                 && (is_finalized == other.is_finalized);
     }
 
@@ -321,7 +340,7 @@ public:
     size_t get_hash() const {
         return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag, hw,
                 fma, simd, regs, iter_tile, thread_group_tile, loop_nest,
-                is_finalized);
+                a_access_kind, b_access_kind, c_access_kind, is_finalized);
     }
 
     void serialize(std::ostream &out) const {
@@ -338,6 +357,9 @@ public:
         ir_utils::serialize(iter_tile, out);
         ir_utils::serialize(thread_group_tile, out);
         ir_utils::serialize(loop_nest, out);
+        ir_utils::serialize(a_access_kind, out);
+        ir_utils::serialize(b_access_kind, out);
+        ir_utils::serialize(c_access_kind, out);
         ir_utils::serialize(reqs, out);
     }
 
@@ -354,6 +376,9 @@ public:
         ir_utils::deserialize(iter_tile, in);
         ir_utils::deserialize(thread_group_tile, in);
         ir_utils::deserialize(loop_nest, in);
+        ir_utils::deserialize(a_access_kind, in);
+        ir_utils::deserialize(b_access_kind, in);
+        ir_utils::deserialize(c_access_kind, in);
         ir_utils::deserialize(reqs, in);
         is_finalized = true;
     }
@@ -367,6 +392,14 @@ public:
     }
     const type_t &c_type() const {
         return pick_c(prop, src_tag.type(), wei_tag.type(), dst_tag.type());
+    }
+
+    send_kind_t access_kind(tensor_kind_t tensor) const {
+        if (tensor == tensor_kind_t::a) return a_access_kind;
+        if (tensor == tensor_kind_t::b) return b_access_kind;
+        if (tensor == tensor_kind_t::c) return c_access_kind;
+        ir_error_not_expected();
+        return send_kind_t::undef;
     }
 
     std::string kernel_name() const override { return "gen_conv_v2"; }

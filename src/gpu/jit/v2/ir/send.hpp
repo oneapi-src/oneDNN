@@ -272,6 +272,7 @@ struct send_2d_hint_t {
 
 struct send_params_t {
     hw_t hw;
+    send_kind_t kind = send_kind_t::undef;
     send_op_t op = send_op_t::undef;
     send_2d_hint_t hint_2d;
     // For register payload.
@@ -812,7 +813,11 @@ private:
         auto &layout = view_.layout();
         auto inner_last = begin(layout);
         int type_size = layout.type().size();
-        auto ok_to_return = [&]() { return true; };
+        auto ok_to_return = [&]() {
+            if (params_.kind != send_kind_t::block) return true;
+            int grf_size = plan_.hw.grf_size();
+            return type_size * inner_last.elems() >= grf_size;
+        };
         for (auto it = begin(layout); it != end(layout); ++it) {
             auto prover = reqs.prover(!ok_to_return());
             if (!mask_desc.is_uniform(it, prover)) break;
