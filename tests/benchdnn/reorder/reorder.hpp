@@ -65,6 +65,7 @@ struct settings_t : public base_settings_t {
 
     std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
     std::vector<std::string> stag {tag::abx}, dtag {tag::abx};
+    std::vector<vdims_t> strides {vdims_t(2)};
     std::vector<std::vector<flag_t>> oflag {{{FLAG_NONE, 0}}};
     std::vector<unsigned> runtime_dim_mask {0};
     std::vector<cross_engine_t> cross_engine {NONE};
@@ -81,7 +82,7 @@ struct settings_t : public base_settings_t {
 
     bool has_single_setup() const override {
         return sdt.size() == 1 && ddt.size() == 1 && stag.size() == 1
-                && dtag.size() == 1 && oflag.size() == 1
+                && dtag.size() == 1 && strides.size() == 1 && oflag.size() == 1
                 && runtime_dim_mask.size() == 1 && cross_engine.size() == 1
                 && base_settings_t::has_single_setup();
     }
@@ -91,6 +92,7 @@ struct prb_t : public prb_dims_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
         : prb_t(s.prb_dims, s.sdt[0], s.ddt[0], s.stag[0], s.dtag[0],
+                s.strides[0],
                 settings_t::get_attr(s.scales[0], s.zero_points[0],
                         s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
                 s.ctx_init[0], s.ctx_exe[0], s.oflag[0], s.cross_engine[0],
@@ -100,7 +102,7 @@ struct prb_t : public prb_dims_t {
 
     prb_t(const prb_dims_t &prb_dims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::string &stag,
-            const std::string &dtag, const attr_t &attr,
+            const std::string &dtag, const vdims_t &strides, const attr_t &attr,
             const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
             const std::vector<flag_t> &oflag, cross_engine_t cross_engine,
             unsigned runtime_dim_mask)
@@ -109,6 +111,7 @@ struct prb_t : public prb_dims_t {
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
+        , strides(strides)
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
@@ -121,6 +124,7 @@ struct prb_t : public prb_dims_t {
     dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
     dnnl_data_type_t sdt, ddt;
     std::string stag, dtag;
+    vdims_t strides;
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
     std::vector<flag_t> oflag;

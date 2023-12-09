@@ -42,6 +42,7 @@ void check_correctness(
     for_(const auto &i_ddt : s.ddt)
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_dtag : s.dtag)
+    for_(const auto &i_strides : s.strides)
     for_(const auto &i_oflag : s.oflag)
     for_(const auto &i_cross_engine : s.cross_engine)
     for_(const auto &i_scales : s.scales)
@@ -71,8 +72,8 @@ void check_correctness(
             auto attr = settings_t::get_attr(test_arg_scales, i_zero_points,
                     i_post_ops, i_scratchpad_mode, i_acc_mode);
 
-            const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, attr,
-                    i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
+            const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, i_strides,
+                    attr, i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
                     i_runtime_dim_mask);
             if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
@@ -82,7 +83,7 @@ void check_correctness(
     }
 }
 
-int verify_input(const settings_t &s) {
+int verify_input(const settings_t &s, const settings_t &def) {
     for_(const auto &i_scales : s.scales)
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         if (i_scales.get(arg).policy == policy_t::PER_OC) {
@@ -101,6 +102,55 @@ int verify_input(const settings_t &s) {
                     "ERROR: `cpu` engine does not support anything but "
                     "`--cross-engine=none`.");
             return FAIL;
+        }
+    }
+
+    static constexpr int n_inputs = 2;
+
+    for (const auto &i_strides : s.strides) {
+        if (i_strides.size() != n_inputs) {
+            std::stringstream ss;
+            ss << vdims2str(i_strides);
+            BENCHDNN_PRINT(0,
+                    "Error: `strides` option expects two inputs in format "
+                    "`[SRC]:[DST]` (colon must present). Current input is: "
+                    "\"%s\"\n",
+                    ss.str().c_str());
+            SAFE_V(FAIL);
+        }
+        for (int i = 0; i < n_inputs; i++) {
+            if (i_strides[i].size() != static_cast<size_t>(s.prb_dims.ndims)
+                    && !i_strides[i].empty()) {
+                std::stringstream ss;
+                ss << vdims2str(i_strides);
+                BENCHDNN_PRINT(0,
+                        "Error: number of dimensions in the `strides` option "
+                        "doesn't match the number of dimensions in the "
+                        "original "
+                        "problem. Current output is: \"%s\"\n",
+                        ss.str().c_str());
+                SAFE_V(FAIL);
+            }
+        }
+    }
+
+    for_(const auto &i_strides : s.strides)
+    for_(const auto &i_stag : s.stag)
+    for (const auto &i_dtag : s.dtag) {
+        const bool strided_input
+                = !i_strides[0].empty() || !i_strides[1].empty();
+        if (strided_input) {
+            const bool no_stride_with_stag
+                    = IMPLICATION(i_stag != def.stag[0], i_strides[0].empty());
+            const bool no_stride_with_dtag
+                    = IMPLICATION(i_dtag != def.dtag[0], i_strides[1].empty());
+
+            if (!no_stride_with_stag || !no_stride_with_dtag) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Error: both `strides` and `tag` knobs can't be used "
+                        "with either of `src`, or `dst` tensors.");
+                SAFE_V(FAIL);
+            }
         }
     }
 
@@ -140,6 +190,7 @@ int bench(int argc, char **argv) {
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
+                || parse_strides(s.strides, def.strides, argv[0], "strides")
                 || parse_multivector_option(s.oflag, def.oflag, str2flag,
                         argv[0], "oflag", help_oflag, ',', '+')
                 || parse_vector_option(s.runtime_dim_mask, def.runtime_dim_mask,
@@ -166,7 +217,7 @@ int bench(int argc, char **argv) {
 
             parse_prb_dims(s.prb_dims, argv[0]);
 
-            SAFE(verify_input(s), WARN);
+            SAFE(verify_input(s, def), WARN);
             check_correctness(s, task_executor);
         }
     }

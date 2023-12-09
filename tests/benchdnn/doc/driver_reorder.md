@@ -15,6 +15,17 @@ where *reorder-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={nchw [default], ...}` -- physical dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
+ - `--strides=S_0xS_1x..xS_n:D_0xD_1x..xD_n` -- direct
+            stride specification for `src` and `dst` tensors that can be
+            specified as an alternative to memory formats. The syntax matches
+            with dimensions descriptor where `x` is the delimiter for
+            dimensions within a tensor and `:` is the delimiter for tensors in
+            the order `src` and `dst` respectively. The stride for either of the
+            tensors can be skipped and moreover if a separate tag
+            is not provided for the skipped tensor, trivial strides based on the
+            default format of the skipped tensor will be used. As long as
+            `--strides` and `--tag` options refer to different tensors, they
+            can be specified together.
  - `--attr-scales=STRING` -- per argument scales primitive attribute. No
             scales are set by default. See `--def-scales` for additional
             reorder specific mechanics and refer to [attributes](knobs_attr.md)

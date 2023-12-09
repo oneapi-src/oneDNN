@@ -140,10 +140,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     for (int d = 0; d < prb->ndims; ++d)
         if (prb->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
 
-    auto src_d
-            = dnn_mem_t::init_md(prb->ndims, dims.data(), prb->sdt, prb->stag);
-    auto dst_d
-            = dnn_mem_t::init_md(prb->ndims, dims.data(), prb->ddt, prb->dtag);
+    auto src_d = dnn_mem_t::init_md(
+            prb->ndims, dims.data(), prb->sdt, prb->stag, prb->strides[0]);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, dims.data(), prb->ddt, prb->dtag, prb->strides[1]);
 
     // Prepare and assign extra for dst_md.
     auto &extra = static_cast<dnnl_memory_desc_t>(dst_d)->extra;

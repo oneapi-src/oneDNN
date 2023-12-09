@@ -161,6 +161,8 @@ std::string prb_t::set_repro_line() {
     s << "--stag=" << stag << " ";
     s << "--dtag=" << dtag << " ";
 
+    if (canonical || strides != def.strides[0])
+        s << "--strides=" << vdims2str(strides) << " ";
     if (canonical || (!oflag.empty() && oflag != def.oflag[0]))
         s << "--oflag=" << oflag << " ";
     if (canonical || cross_engine != def.cross_engine[0])

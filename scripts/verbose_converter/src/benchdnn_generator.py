@@ -498,7 +498,7 @@ def convert_tags(mds, prim_kind):
         "pooling": convert_tags_common,
         "prelu": convert_tags_prelu,
         "reduction": convert_tags_all,
-        "reorder": convert_tags_all,
+        "reorder": convert_tags_and_strides,
         "resampling": convert_tags_common,
         "rnn": convert_tags_rnn,
         "shuffle": convert_tags_common,
