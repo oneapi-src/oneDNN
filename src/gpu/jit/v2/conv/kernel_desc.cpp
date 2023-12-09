@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "gpu/jit/codegen/kernel.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
 #include "gpu/jit/v2/conv/kernel.hpp"
+#include "gpu/jit/v2/conv/plan.hpp"
 #include "gpu/jit/v2/conv/problem.hpp"
 
 namespace dnnl {

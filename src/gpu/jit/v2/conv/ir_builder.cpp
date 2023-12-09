@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,172 +33,123 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-class planner_ctx_t {
+class let_ctx_t {
 public:
-    planner_ctx_t(const kernel_info_t &kernel_info,
-            const grid_context_t &grid_ctx, const linear_expr_ctx_t &expr_ctx,
+    friend class let_ctx_mutator_t;
+
+    let_ctx_t(const kernel_info_t &kernel_info, const grid_context_t &grid_ctx,
             const grid_t &tg_grid, const grid_t &thr_grid, int simd,
             ir_context_t &ir_ctx)
-        : kernel_info_(kernel_info), ir_ctx_(ir_ctx), expr_ctx_(expr_ctx) {
+        : kernel_info_(kernel_info), ir_ctx_(ir_ctx) {
+        // Handle thread indices.
         for (int i = 0; i < grid_ctx.ndims(); i++) {
             auto value = grid_ctx.local_id(i);
             if (i == 0) value /= simd;
-            auto thr_idx = to_ir(thr_grid.index_var(i));
-            init_let_stmts_.push_back(
+            auto thr_idx = thr_grid.index_var(i);
+            let_stmts_.push_back(
                     let_t::make(thr_idx, cast(value, thr_idx.type())));
         }
-        init_expr_map(grid_ctx, tg_grid);
-    }
-
-    const hw_t &hw() const { return ir_ctx_.hw(); }
-    const kernel_info_t &kernel_info() const { return kernel_info_; }
-    ir_context_t &ir_ctx() const { return ir_ctx_; }
-
-    std::vector<stmt_t> init_let_stmts() const { return init_let_stmts_; }
-
-    expr_t to_ir(const expr_t &expr) const { return to_ir_impl(expr); }
-
-    std::vector<expr_t> to_ir(const std::vector<expr_t> &exprs) {
-        std::vector<expr_t> ret;
-        for (auto &e : exprs)
-            ret.push_back(to_ir(e));
-        return ret;
-    }
-
-    expr_t to_ir_shuffle(const std::vector<expr_t> &exprs) {
-        std::vector<expr_t> vec = to_ir(exprs);
-        return shuffle_t::make(vec);
-    }
-
-private:
-    void init_expr_map(const grid_context_t &grid_ctx, const grid_t &tg_grid) {
+        // Handle thread group indices.
         for (int i = 0; i < grid_ctx.ndims(); i++) {
             auto tg_idx = tg_grid.index_var(i);
             expr_map_.emplace(tg_idx, grid_ctx.tg_idx(i));
         }
-        for (auto &kv : expr_ctx_.const_vars()) {
-            to_ir_impl(kv.first, this);
-        }
     }
 
-    expr_t to_ir_impl(
-            const expr_t &expr, planner_ctx_t *this_mutable = nullptr) const {
-        if (expr.is_empty()) return expr_t();
-        if (expr.is<int_imm_t>()) return expr;
+    std::vector<stmt_t> let_stmts() const { return let_stmts_; }
 
+    expr_t get(const expr_t &expr);
+
+    std::vector<expr_t> get(const std::vector<expr_t> &exprs) {
+        std::vector<expr_t> ret;
+        for (auto &e : exprs)
+            ret.push_back(get(e));
+        return ret;
+    }
+
+    expr_t get_shuffle(const std::vector<expr_t> &exprs) {
+        std::vector<expr_t> vec = get(exprs);
+        return shuffle_t::make(vec);
+    }
+
+private:
+    const expr_t *find(const expr_t &expr) const {
         auto it = expr_map_.find(expr);
-        if (it != expr_map_.end()) return it->second;
-
-        if (expr.is<var_t>()) return expr;
-
-        if (auto *linear = expr.as_ptr<linear_t>()) {
-            auto ret = to_ir_impl(linear->c, this_mutable);
-            for (int i = 0; i < linear->nargs(); i++) {
-                auto u = to_ir_impl(linear->u_vec[i], this_mutable);
-                auto v = to_ir_impl(linear->v_vec[i], this_mutable);
-                ret = ret + u * v;
-            }
-            return ret;
-        }
-
-        // This is an unknown const_var_t, need to update the object.
-        ir_assert(this_mutable) << "Need to handle const var: " << expr;
-        if (auto *var = expr.as_ptr<const_var_t>()) {
-            auto ir_var
-                    = kernel_info_.find_arg(var->name, /*allow_empty=*/true);
-            if (ir_var.is_empty())
-                ir_var = this_mutable->register_const_var(expr);
-            this_mutable->expr_map_.emplace(expr, ir_var);
-            return ir_var;
-        }
-
-        ir_error_not_expected() << expr;
-        return expr_t();
+        if (it != expr_map_.end()) return &it->second;
+        return nullptr;
     }
 
-    expr_t register_const_var(const expr_t &_var) {
-        auto &var = _var.as<const_var_t>();
-        auto &var_value = expr_ctx_.const_value(_var);
-        auto &op = var_value.as<binary_op_t>();
-        auto a = to_ir_impl(op.a, this);
-        auto b = to_ir_impl(op.b, this);
-        expr_t ir_value;
-        switch (op.op_kind) {
-            case op_kind_t::_add: ir_value = a + b; break;
-            case op_kind_t::_mul: ir_value = a * b; break;
-            case op_kind_t::_minus: ir_value = -a; break;
-            case op_kind_t::_div_up: ir_value = (a + b - 1) / b; break;
-            default: ir_error_not_expected() << _var;
+    expr_t register_expr(const expr_t &key, const expr_t &value) {
+        if (auto *cached = find(key)) return *cached;
+        if (is_const(key) || is_var(key)) return key;
+        if (key.is<const_var_t>()) {
+            expr_map_.emplace(key, value);
+            return value;
         }
-        auto ir_var = ir_ctx_.create_tmp_var(type_t::s32(), var.name);
-        auto let = let_t::make(ir_var, ir_value);
-        init_let_stmts_.push_back(let);
-        return ir_var;
+        auto tmp_var = ir_ctx_.create_tmp_var(type_t::s32());
+        let_stmts_.push_back(let_t::make(tmp_var, value));
+        expr_map_.emplace(key, tmp_var);
+        return tmp_var;
+    }
+
+    expr_t get_const_var(const const_var_t &var) {
+        if (auto *cached = find(var)) return *cached;
+
+        auto value = kernel_info_.find_arg(var.name);
+        return register_expr(var, value);
     }
 
     const kernel_info_t &kernel_info_;
     ir_context_t &ir_ctx_;
-    const linear_expr_ctx_t &expr_ctx_;
-
-    object_map_t<expr_t, expr_t> expr_map_;
-    std::vector<stmt_t> init_let_stmts_;
+    object_eq_map_t<expr_t, expr_t> expr_map_;
+    std::vector<stmt_t> let_stmts_;
 };
 
-class build_ctx_t : public planner_ctx_t {
+class let_ctx_mutator_t : public ir_mutator_t {
 public:
-    build_ctx_t(const plan_t &plan, const kernel_info_t &kernel_info,
-            const grid_context_t &grid_ctx, ir_context_t &ir_ctx)
-        : planner_ctx_t(kernel_info, grid_ctx, plan.expr_ctx, plan.tg_grid,
-                plan.thr_grid, plan.desc.simd, ir_ctx)
-        , plan_(plan) {
-        a_mem_buf_ = kernel_info.find_arg(a_name());
-        b_mem_buf_ = kernel_info.find_arg(b_name());
-        c_mem_buf_ = kernel_info.find_arg(c_name());
+    let_ctx_mutator_t(let_ctx_t &ctx) : ctx_(ctx) {}
+
+    object_t _mutate(const binary_op_t &obj) override {
+        switch (obj.op_kind) {
+            case op_kind_t::_div_up: return mutate((obj.a + obj.b - 1) / obj.b);
+            default: return ir_mutator_t::_mutate(obj);
+        }
     }
 
-    const plan_t &plan() const { return plan_; }
-    const expr_t &a_mem_buf() const { return a_mem_buf_; }
-    const expr_t &b_mem_buf() const { return b_mem_buf_; }
-    const expr_t &c_mem_buf() const { return c_mem_buf_; }
+    object_t _mutate(const const_var_t &obj) override {
+        return ctx_.get_const_var(obj);
+    }
 
-    int to_bmnk_idx(const prb_dim_t &dim) const {
-        auto bmnk = to_gemm(dim, plan_.desc.prop);
-        if (bmnk == prb_dims::b) return 0;
-        if (bmnk == prb_dims::m) return 1;
-        if (bmnk == prb_dims::n) return 2;
-        if (bmnk == prb_dims::k) return 3;
-        ir_error_not_expected();
-        return 0;
+    object_t _mutate(const linear_t &obj) override {
+        return mutate(obj.to_expr());
     }
 
 private:
-    bool is_fwd() const { return plan_.desc.prop == prop_kind::forward; }
-    bool is_bwd_d() const {
-        return plan_.desc.prop == prop_kind::backward_data;
-    }
-    bool is_bwd_w() const {
-        return plan_.desc.prop == prop_kind::backward_weights;
-    }
-    const char *a_name() const { return is_bwd_d() ? "dst" : "src"; }
-    const char *b_name() const { return is_bwd_w() ? "dst" : "wei"; }
-    const char *c_name() const {
-        return is_fwd() ? "dst" : (is_bwd_d() ? "src" : "wei");
-    }
-
-    const plan_t &plan_;
-
-    expr_t a_mem_buf_;
-    expr_t b_mem_buf_;
-    expr_t c_mem_buf_;
+    let_ctx_t &ctx_;
 };
 
+expr_t let_ctx_t::get(const expr_t &expr) {
+    let_ctx_mutator_t mutator(*this);
+    auto ret = mutator.mutate(expr);
+    return register_expr(expr, ret);
+}
+
 struct offset_params_t {
+    // Type of offset elements.
     type_t type;
+    // Execution size of the offset.
     int esize = 0;
+    // Buffer size alignment.
     int buf_align = 0;
-    bool allow_bcast = true;
+    // Whether the offset can be used with broadcasting (e.g. scalar mask with
+    // multiple slots).
+    bool allow_bcast = false;
+    // Wether the offset can be used directly from the base (if the offset is
+    // equal to the base).
     bool allow_reuse = false;
+    // Optional pre-allocated buffer for the offset.
     expr_t buf;
+    // Prefix for the buffer name.
     std::string buf_prefix;
 
     offset_params_t(
@@ -334,9 +285,9 @@ private:
 
 class offset_ctx_t {
 public:
-    offset_ctx_t(planner_ctx_t &planner_ctx, buffer_manager_t &buf_mgr,
+    offset_ctx_t(let_ctx_t &let_ctx, buffer_manager_t &buf_mgr,
             const loop_nest_t &loop_nest, const coord_info_t &coord_info)
-        : planner_ctx_(planner_ctx)
+        : let_ctx_(let_ctx)
         , buf_mgr_(buf_mgr)
         , loop_nest_(loop_nest)
         , coord_info_(coord_info) {}
@@ -345,7 +296,7 @@ public:
             const addr_t &addr, const expr_t &inc) {
         auto base0 = cast(mem_buf, type_t::u64());
         auto params = offset_params_t(type_t::u64(), desc.slots, "h");
-        params.buf_align = planner_ctx_.ir_ctx().grf_size();
+        params.buf_align = buf_mgr_.ir_ctx().grf_size();
         params.allow_bcast = false;
         auto off = get_offset(base0, addr.base, addr.slot_incs, inc, params);
         return send_header_t(off);
@@ -356,7 +307,7 @@ public:
             const expr_t &x_inc, const expr_t &y_inc) {
         auto base0 = cast(mem_buf, type_t::u64());
         auto params = offset_params_t(type_t::u64(), /*esize=*/1, "h");
-        params.buf_align = planner_ctx_.ir_ctx().grf_size();
+        params.buf_align = desc.hw.grf_size();
         params.allow_bcast = false;
         auto off = get_offset(base0, base, expr_t(0), params);
         auto x_params = offset_params_t(type_t::s32());
@@ -367,9 +318,9 @@ public:
         auto y = get_offset(expr_t(0), y_base, y_inc, y_params);
 
         int type_size = desc.type.size();
-        auto W_enc = planner_ctx_.to_ir(desc.W) * type_size - 1;
-        auto H_enc = planner_ctx_.to_ir(desc.H) - 1;
-        auto P_enc = planner_ctx_.to_ir(desc.P) * type_size - 1;
+        auto W_enc = let_ctx_.get(desc.W) * type_size - 1;
+        auto H_enc = let_ctx_.get(desc.H) - 1;
+        auto P_enc = let_ctx_.get(desc.P) * type_size - 1;
         (void)get_offset(
                 W_enc, off.buf + send_t::header_2d_off_surface_width());
         (void)get_offset(
@@ -397,7 +348,7 @@ public:
             params.allow_reuse = true;
             auto off
                     = get_offset(expr_t(0), dm.base, dm.slot_incs, inc, params);
-            ret.add_mask(off, planner_ctx_.to_ir(dm.bound), dm.do_zero_cmp);
+            ret.add_mask(off, let_ctx_.get(dm.bound), dm.do_zero_cmp);
         }
         return ret;
     }
@@ -408,7 +359,6 @@ public:
             ret = ret.append(o.init_stmt());
         }
         ret = ret.append(body);
-        ret = inject_let_stmts(ret, let_stmts_);
         return ret;
     }
 
@@ -435,9 +385,8 @@ private:
         split_to_linear(base, loop_idxs, _base_init, _loop_incs);
 
         auto type = params.type.with_elems(params.esize);
-        auto base_vec = _base_vec.empty()
-                ? expr_t(0)
-                : planner_ctx_.to_ir_shuffle(_base_vec);
+        auto base_vec = _base_vec.empty() ? expr_t(0)
+                                          : let_ctx_.get_shuffle(_base_vec);
         if (params.allow_bcast) {
             if (auto *shuffle = base_vec.as_ptr<shuffle_t>()) {
                 if (shuffle->is_broadcast()) {
@@ -448,23 +397,16 @@ private:
         }
         offset_t ret;
         ret.type = type;
-        ret.base = simplify(base0 + planner_ctx_.to_ir(_base_init)
-                + planner_ctx_.to_ir(inc));
+        ret.base = base0 + let_ctx_.get(_base_init) + let_ctx_.get(inc);
         ret.base_vec = base_vec;
         ret.esize = params.esize;
 
-        auto loop_incs = planner_ctx_.to_ir(_loop_incs);
+        auto loop_incs = let_ctx_.get(_loop_incs);
         expr_t comp_value = 0;
         for (auto &e : loop_nest_) {
-            auto loop_size = planner_ctx_.to_ir(coord_info_.loop_size(e.dim));
+            auto loop_size = coord_info_.loop_size(e.dim);
             auto inc_value = simplify(loop_incs[e.idx] - comp_value);
-            auto inc = inc_value;
-            if (!is_const(inc_value)) {
-                auto inc_var
-                        = planner_ctx_.ir_ctx().create_tmp_var(type_t::s32());
-                let_stmts_.push_back(let_t::make(inc_var, inc_value));
-                inc = inc_var;
-            }
+            auto inc = let_ctx_.get(inc_value);
             ret.loop_incs.push_back(inc);
             comp_value = (loop_incs[e.idx] * loop_size);
         }
@@ -504,7 +446,7 @@ private:
         return ret;
     }
 
-    planner_ctx_t &planner_ctx_;
+    let_ctx_t &let_ctx_;
     buffer_manager_t &buf_mgr_;
     loop_nest_t loop_nest_;
     coord_info_t coord_info_;
@@ -609,39 +551,54 @@ stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
             prb_coord_t<int>());
 }
 
-class compute_builder_t {
+class ir_builder_t {
 public:
-    compute_builder_t(build_ctx_t &ctx)
-        : ctx_(ctx)
-        , buf_mgr_(ctx.ir_ctx())
-        , off_ctx_(ctx, buf_mgr_, ctx.plan().desc.loop_nest,
-                  ctx.plan().coord_info) {}
+    ir_builder_t(const kernel_desc_t &desc, const kernel_info_t &kernel_info,
+            const grid_context_t &grid_ctx, const plan_t &plan)
+        : desc_(desc)
+        , kernel_info_(kernel_info)
+        , grid_ctx_(grid_ctx)
+        , plan_(plan)
+        , ir_ctx_(desc.exec_cfg(), cset_)
+        , buf_mgr_(ir_ctx_)
+        , let_ctx_(kernel_info, grid_ctx, plan.tg_grid, plan.thr_grid,
+                  desc.simd, ir_ctx_)
+        , off_ctx_(let_ctx_, buf_mgr_, desc_.loop_nest, plan_.coord_info) {}
 
-    void build() {
+    stmt_t build() {
         build_x2r_mul();
         build_c_store();
+
+        stmt_t stmt;
+        stmt = loop();
+        stmt = inject_compute_alloc(stmt);
+        stmt = init_stmt(stmt);
+        stmt = zero_out_stmt().append(stmt);
+        stmt = stmt.append(c_store_stmt_);
+        stmt = inject_alloc_and_let(stmt);
+        stmt = simplify(stmt, ir_ctx_);
+        stmt = optimize_alloc_let(stmt, ir_ctx_);
+        stmt = split_wide_stores(stmt, ir_ctx_);
+        stmt = eliminate_common_subexprs(stmt, ir_ctx_, 16, 0);
+        stmt = inject_bank_conflict_attribute(stmt, ir_ctx_);
+        return stmt;
     }
 
-    stmt_t iter_stmt() const {
-        stmt_t ret;
-        ret = ret.append(x2r_mul_stmt_);
-        return ret;
-    }
+private:
+    stmt_t iter_stmt() const { return x2r_mul_stmt_; }
 
-    stmt_t loop_nest() const {
-        auto &loop_nest = ctx_.plan().desc.loop_nest;
-        auto &coord_info = ctx_.plan().coord_info;
+    stmt_t loop() const {
+        auto &loop_nest = desc_.loop_nest;
+        auto &coord_info = plan_.coord_info;
         stmt_t ret = iter_stmt();
         for (auto &e : loop_nest) {
-            auto var = ctx_.to_ir(coord_info.loop_index(e.dim));
-            auto bound = ctx_.to_ir(coord_info.loop_size(e.dim));
+            auto var = let_ctx_.get(coord_info.loop_index(e.dim));
+            auto bound = let_ctx_.get(coord_info.loop_size(e.dim));
             ret = ret.append(off_ctx_.inc_loop_stmt(e));
             ret = for_t::make(var, 0, bound, ret);
         }
         return ret;
     }
-
-    const stmt_t &c_store_stmt() const { return c_store_stmt_; }
 
     stmt_t zero_out_stmt() const {
         auto &c_entry = buf_mgr_.find_ref("c");
@@ -654,19 +611,17 @@ public:
         return off_ctx_.init_stmt(stmt);
     }
 
-    stmt_t inject_compute_alloc_stmts(const stmt_t &stmt) const {
-        return buf_mgr_.inject_allocs(stmt, is_compute_alloc_buf);
+    stmt_t inject_alloc_and_let(const stmt_t &stmt) const {
+        stmt_t ret = stmt;
+        ret = inject_out_alloc(ret);
+        ret = inject_header_alloc(ret);
+        ret = inject_let_stmts(ret, let_ctx_.let_stmts());
+        ret = inject_global_alloc(ret);
+        ret = inject_index_let(ret);
+        ret = inject_external_var_let(ret, ir_ctx_);
+        return ret;
     }
 
-    stmt_t inject_out_alloc_stmts(const stmt_t &stmt) const {
-        return buf_mgr_.inject_allocs(stmt, is_out_alloc_buf);
-    }
-
-    stmt_t inject_header_alloc_stmts(const stmt_t &stmt) const {
-        return buf_mgr_.inject_allocs(stmt, is_offset_buf);
-    }
-
-private:
     static bool is_compute_alloc_buf(const expr_t &buf) {
         return !is_out_alloc_buf(buf) && !is_offset_buf(buf);
     }
@@ -683,20 +638,77 @@ private:
         return false;
     }
 
+    stmt_t inject_compute_alloc(const stmt_t &stmt) const {
+        return buf_mgr_.inject_allocs(stmt, is_compute_alloc_buf);
+    }
+
+    stmt_t inject_out_alloc(const stmt_t &stmt) const {
+        return buf_mgr_.inject_allocs(stmt, is_out_alloc_buf);
+    }
+
+    stmt_t inject_header_alloc(const stmt_t &stmt) const {
+        return buf_mgr_.inject_allocs(stmt, is_offset_buf);
+    }
+
+    stmt_t inject_global_alloc(const stmt_t &stmt) const {
+        std::vector<stmt_t> allocs;
+        for (int i = 0; i < kernel_info_.nargs(); i++) {
+            auto &var = kernel_info_.arg_var(i);
+            if (!var.type().is_ptr()) continue;
+            allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
+        }
+        return inject_alloc_stmts(stmt, allocs);
+    }
+
+    stmt_t inject_index_let(const stmt_t &stmt) const {
+        auto &tg_grid = plan_.tg_grid;
+        auto &coord_info = plan_.coord_info;
+        stmt_t ret = stmt;
+        for (auto &d : conv_index_dims(plan_.desc.prop)) {
+            auto tg_idx = let_ctx_.get(coord_info.tg_index(d));
+            if (is_const(tg_idx)) continue;
+            auto base_tg_idx = let_ctx_.get(tg_grid.index_var(d));
+            if (base_tg_idx.is_empty()) continue;
+            auto value = unpack_tg_index(d);
+            ret = let_t::make(tg_idx, value, ret);
+        }
+        return ret;
+    }
+
+    expr_t unpack_tg_index(const prb_dim_t &dim) const {
+        auto &tg_grid = plan_.tg_grid;
+        auto base_idx = let_ctx_.get(tg_grid.index_var(dim));
+        if (base_idx.is_empty()) return expr_t();
+
+        expr_t value = base_idx;
+        auto &dims = tg_grid.dims(tg_grid.index(dim));
+        int ndims = (int)dims.size();
+        for (int i = 0; i < ndims; i++) {
+            if (dims[i] == dim) break;
+            auto i_dim_size
+                    = kernel_info_.find_arg(dims[i].str() + "_grid_size");
+            auto i_magic = kernel_info_.find_arg(dims[i].str() + "_magic");
+            value = ternary_op_t::make(
+                    op_kind_t::_idiv, value, i_dim_size, i_magic);
+        }
+        auto dim_size = kernel_info_.find_arg(dim.str() + "_grid_size");
+        auto magic = kernel_info_.find_arg(dim.str() + "_magic");
+        value = ternary_op_t::make(op_kind_t::_imod, value, dim_size, magic);
+        return value;
+    }
+
     void build_x2r() {
-        auto &x2r = ctx_.plan().x2r;
+        auto &x2r = plan_.x2r;
         auto a_buf = buf_mgr_.get("a", x2r.a_load.reg_layout().size());
         auto b_buf = buf_mgr_.get("b", x2r.b_load.reg_layout().size());
-        auto a_load
-                = create_stmt(x2r.a_load, ctx_.a_mem_buf(), a_buf, off_ctx_);
-        auto b_load
-                = create_stmt(x2r.b_load, ctx_.b_mem_buf(), b_buf, off_ctx_);
+        auto a_load = create_stmt(x2r.a_load, a_mem_buf(), a_buf, off_ctx_);
+        auto b_load = create_stmt(x2r.b_load, b_mem_buf(), b_buf, off_ctx_);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(a_load);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(b_load);
     }
 
     void build_mul() {
-        auto &fma = ctx_.plan().fma;
+        auto &fma = plan_.fma;
         auto &a_layout = fma.a_layout;
         auto &b_layout = fma.b_layout;
         auto &c_layout = fma.c_layout;
@@ -708,8 +720,13 @@ private:
         prb_dim_t dims[4];
         int blocks[4] = {1, 1, 1, 1};
         int sizes[4] = {1, 1, 1, 1};
+        dim_map_t<prb_dim_t, int> bmnk_map;
+        bmnk_map[prb_dims::b] = 0;
+        bmnk_map[prb_dims::m] = 1;
+        bmnk_map[prb_dims::n] = 2;
+        bmnk_map[prb_dims::k] = 3;
         for (auto &d : fma.inst_tile) {
-            int idx = ctx_.to_bmnk_idx(d);
+            int idx = bmnk_map.at(to_gemm(d, desc_.prop));
             dims[idx] = d;
             blocks[idx] = fma.inst_tile[d];
             sizes[idx] = (idx != 2 ? a_layout : b_layout).int_dim_size(d);
@@ -726,7 +743,7 @@ private:
         bool is_b_bcast = (blocks[0] * blocks[2] * blocks[3] == 1);
         int a_stride = is_a_bcast ? 0 : a_layout.inner_stride();
         int b_stride = is_b_bcast ? 0 : b_layout.inner_stride();
-        auto mad = mad_t::make(ctx_.hw(), c_layout.type(), fma.simd,
+        auto mad = mad_t::make(plan_.hw, c_layout.type(), fma.simd,
                 a_layout.type(), a_stride, b_layout.type(), b_stride);
         for (int b = 0; b < sizes[i0]; b += blocks[i0]) {
             off[dims[i0]] = b;
@@ -754,8 +771,8 @@ private:
     }
 
     void build_c_store() {
-        auto &fma = ctx_.plan().fma;
-        auto &epilogue = ctx_.plan().epilogue;
+        auto &fma = plan_.fma;
+        auto &epilogue = plan_.epilogue;
         auto &store = epilogue.c_store;
         auto c_tile = store.reg_layout().int_dim_sizes();
         auto &c_buf = buf_mgr_.find_buf("c");
@@ -774,105 +791,60 @@ private:
                 payload_layout = epilogue.reorder.dst;
                 payload_coord = prb_coord_t<int>();
             }
-            auto stmt = create_stmt(store, ctx_.c_mem_buf(), payload_buf,
-                    off_ctx_, coord, epilogue.tile, payload_layout,
-                    payload_coord);
+            auto stmt = create_stmt(store, c_mem_buf(), payload_buf, off_ctx_,
+                    coord, epilogue.tile, payload_layout, payload_coord);
             c_store_stmt_ = c_store_stmt_.append(stmt);
         });
     }
 
-    build_ctx_t &ctx_;
-    buffer_manager_t buf_mgr_;
-    offset_ctx_t off_ctx_;
+    expr_t mem_buf(tensor_kind_t abc) const {
+        const char *name = nullptr;
+        switch (abc) {
+            case tensor_kind_t::a:
+                name = pick_a(desc_.prop, "src", "wei", "dst");
+                break;
+            case tensor_kind_t::b:
+                name = pick_b(desc_.prop, "src", "wei", "dst");
+                break;
+            case tensor_kind_t::c:
+                name = pick_c(desc_.prop, "src", "wei", "dst");
+                break;
+            default: ir_error_not_expected();
+        }
+        return kernel_info_.find_arg(name);
+    }
+
+    expr_t a_mem_buf() const { return mem_buf(tensor_kind_t::a); }
+    expr_t b_mem_buf() const { return mem_buf(tensor_kind_t::b); }
+    expr_t c_mem_buf() const { return mem_buf(tensor_kind_t::c); }
+
+    kernel_desc_t desc_;
+    kernel_info_t kernel_info_;
+    grid_context_t grid_ctx_;
+    plan_t plan_;
+
+    mutable constraint_set_t cset_;
+    mutable ir_context_t ir_ctx_;
+    mutable buffer_manager_t buf_mgr_;
+    mutable let_ctx_t let_ctx_;
+    mutable offset_ctx_t off_ctx_;
 
     stmt_t x2r_mul_stmt_;
     stmt_t c_store_stmt_;
 };
 
-expr_t unpack(const grid_t &grid, const prb_dim_t &dim, build_ctx_t &ctx) {
-    auto base_idx = ctx.to_ir(grid.index_var(dim));
-    if (base_idx.is_empty()) return expr_t();
-
-    expr_t value = base_idx;
-    auto &dims = grid.dims(grid.index(dim));
-    int ndims = (int)dims.size();
-    for (int i = 0; i < ndims; i++) {
-        if (dims[i] == dim) break;
-        auto i_dim_size
-                = ctx.kernel_info().find_arg(dims[i].str() + "_grid_size");
-        auto i_magic = ctx.kernel_info().find_arg(dims[i].str() + "_magic");
-        value = ternary_op_t::make(
-                op_kind_t::_idiv, value, i_dim_size, i_magic);
-    }
-    auto dim_size = ctx.kernel_info().find_arg(dim.str() + "_grid_size");
-    auto magic = ctx.kernel_info().find_arg(dim.str() + "_magic");
-    value = ternary_op_t::make(op_kind_t::_imod, value, dim_size, magic);
-    return value;
-}
-
-stmt_t inject_index_let_stmts(const stmt_t &body, build_ctx_t &ctx) {
-    auto &tg_grid = ctx.plan().tg_grid;
-    auto &coord_info = ctx.plan().coord_info;
-    stmt_t ret = body;
-    for (auto &d : conv_index_dims(ctx.plan().desc.prop)) {
-        auto tg_idx = ctx.to_ir(coord_info.tg_index(d));
-        if (is_const(tg_idx)) continue;
-        auto base_tg_idx = ctx.to_ir(tg_grid.index_var(d));
-        if (base_tg_idx.is_empty()) continue;
-        auto value = unpack(tg_grid, d, ctx);
-        ret = let_t::make(tg_idx, value, ret);
-    }
-    return ret;
-}
-
-stmt_t inject_global_alloc_stmts(const stmt_t &stmt, build_ctx_t &ctx) {
-    std::vector<stmt_t> allocs;
-    for (int i = 0; i < ctx.kernel_info().nargs(); i++) {
-        auto &var = ctx.kernel_info().arg_var(i);
-        if (!var.type().is_ptr()) continue;
-        allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
-    }
-    auto ret = inject_alloc_stmts(stmt, allocs);
-    return ret;
-}
-
-void ir_builder_t::build() {
-    plan_t plan = create_conv_plan(desc_);
+stmt_t build_ir(const kernel_desc_t &desc, const kernel_info_t &kernel_info,
+        const grid_context_t &grid_ctx) {
+    auto plan = create_conv_plan(desc);
     if (!plan) ir_except_not_implemented("Cannot create plan.");
 
-    ir_info() << desc_ << std::endl;
+    ir_info() << desc << std::endl;
     ir_trace() << plan << std::endl;
 
-    constraint_set_t cset;
-    ir_context_t ir_ctx(desc_.exec_cfg(), cset);
-
-    build_ctx_t ctx(plan, kernel_info_, grid_ctx_, ir_ctx);
-
-    compute_builder_t cb(ctx);
-    cb.build();
-
-    stmt_t loop_stmt;
-    loop_stmt = cb.loop_nest();
-    loop_stmt = cb.inject_compute_alloc_stmts(loop_stmt);
-
-    stmt_ = loop_stmt;
-    stmt_ = cb.init_stmt(stmt_);
-    stmt_ = cb.zero_out_stmt().append(stmt_);
-    stmt_ = stmt_.append(cb.c_store_stmt());
-    stmt_ = cb.inject_out_alloc_stmts(stmt_);
-    stmt_ = cb.inject_header_alloc_stmts(stmt_);
-    stmt_ = inject_let_stmts(stmt_, ctx.init_let_stmts());
-    stmt_ = inject_global_alloc_stmts(stmt_, ctx);
-    stmt_ = inject_index_let_stmts(stmt_, ctx);
-
-    stmt_ = inject_external_var_let(stmt_, ir_ctx);
-    stmt_ = simplify(stmt_, ir_ctx);
-    stmt_ = optimize_alloc_let(stmt_, ir_ctx);
-    stmt_ = split_wide_stores(stmt_, ir_ctx);
-    stmt_ = eliminate_common_subexprs(stmt_, ir_ctx, 16, 0);
-    stmt_ = inject_bank_conflict_attribute(stmt_, ir_ctx);
-
-    ir_trace() << "Convolution kernel body:\n" << stmt_ << std::endl;
+    ir_builder_t builder(desc, kernel_info, grid_ctx, plan);
+    auto stmt = builder.build();
+    ir_trace() << "Convolution kernel body:\n" << stmt << std::endl;
+    return stmt;
 }
 
 } // namespace conv

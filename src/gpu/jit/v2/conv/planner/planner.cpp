@@ -165,10 +165,6 @@ void init_params(int argc, const char **argv) {
             .help("Loop nest.")
             .action(str_to_loop_nest)
             .default_value(loop_nest_t());
-    parser.add_argument("--spec")
-            .help("Dimension specialization.")
-            .action(str_to_spec)
-            .default_value(spec_t());
 
     parser.parse_args(argc, argv);
 
@@ -202,9 +198,7 @@ void init_params(int argc, const char **argv) {
     desc.iter_tile = parser.get<prb_tile_t>("--iter");
     desc.thread_group_tile = parser.get<prb_tile_t>("--tg");
     desc.loop_nest = parser.get<loop_nest_t>("--loop-nest");
-    desc.spec = parser.get<spec_t>("--spec");
     params.init_desc_defaults();
-    desc.normalize();
 }
 
 void planner_main(int argc, const char **argv) {
@@ -214,8 +208,6 @@ void planner_main(int argc, const char **argv) {
             auto plan = create_conv_plan(params.desc);
             std::cout << std::endl;
             std::cout << ir_utils::add_tag("plan", plan.str()) << std::endl;
-            std::cout << std::endl;
-            std::cout << plan.expr_ctx << std::endl;
             break;
         }
         case planner_mode_t::bench: {

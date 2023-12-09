@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,8 +52,7 @@ kernel_t<hw>::kernel_t(
 
     // Build IR for the kernel.
     grid_context_t grid_ctx;
-    ir_builder_t builder(desc, kernel_info, grid_ctx);
-    stmt_t body = builder.stmt();
+    stmt_t body = build_ir(desc, kernel_info, grid_ctx);
 
     alloc_manager_t alloc_mgr(body);
     setup_interface(body);

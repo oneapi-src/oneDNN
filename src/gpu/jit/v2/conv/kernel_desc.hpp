@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -168,97 +168,6 @@ inline loop_nest_t str_to_loop_nest(const std::string &s) {
     return ret;
 }
 
-// Dimension specialization.
-class spec_t {
-public:
-    void set_value(const prb_dim_t &dim, int value) {
-        constraints_[dim].set_value(value);
-    }
-    bool has_value(const prb_dim_t &dim) const {
-        return constraints_.has(dim) && constraints_.at(dim).has_value();
-    }
-    int value(const prb_dim_t &dim) const {
-        return constraints_.at(dim).value();
-    }
-
-    void set_divisor(const prb_dim_t &dim, int div) {
-        if (div == 1) return;
-        constraints_[dim].set_divisor(div);
-    }
-    int divisor(const prb_dim_t &dim) const {
-        if (!constraints_.has(dim)) return 1;
-        return constraints_.at(dim).divisor();
-    }
-
-    void add(const std::string &s) {
-        if (s.empty()) return;
-        for (size_t i = 0; i < s.length(); i++) {
-            if (std::isdigit(s[i])) {
-                auto dim = prb_dim_t::from_name(s.substr(0, i));
-                if (s.back() == 'x') {
-                    auto end = s.length() - 1;
-                    set_divisor(dim, std::stoi(s.substr(i, end - i)));
-                } else {
-                    set_value(dim, std::stoi(s.substr(i)));
-                }
-                break;
-            }
-        }
-    }
-
-    const dim_map_t<prb_dim_t, linear_constraint_t> &constraints() const {
-        return constraints_;
-    }
-
-    std::string str() const {
-        std::ostringstream oss;
-        bool is_first = true;
-        for (auto &d : constraints_) {
-            if (!has_value(d)) continue;
-            if (!is_first) oss << ",";
-            oss << d << value(d);
-            is_first = false;
-        }
-        for (auto &d : constraints_) {
-            if (divisor(d) == 1) continue;
-            if (!is_first) oss << ",";
-            oss << d << divisor(d) << "x";
-            is_first = false;
-        }
-        return oss.str();
-    }
-
-    IR_DEFINE_DUMP()
-
-    bool operator==(const spec_t &other) const {
-        return constraints_ == other.constraints_;
-    }
-
-    bool operator!=(const spec_t &other) const { return !operator==(other); }
-
-    size_t get_hash() const { return ir_utils::get_hash(constraints_); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(constraints_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(constraints_, in);
-    }
-
-private:
-    dim_map_t<prb_dim_t, linear_constraint_t> constraints_;
-};
-
-inline spec_t str_to_spec(const std::string &s) {
-    auto parts = gpu_utils::split(s, ",");
-    spec_t ret;
-    for (auto &p : parts) {
-        ret.add(p);
-    }
-    return ret;
-}
-
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group = false);
 layout_tag_t make_conv_layout_tag(
@@ -280,7 +189,6 @@ public:
     prb_tile_t iter_tile;
     prb_tile_t thread_group_tile;
     loop_nest_t loop_nest;
-    spec_t spec;
 
     bool is_empty() const { return prop == prop_kind::undef; }
 
@@ -323,8 +231,6 @@ public:
                 thread_group_tile = str_to_prb_tile(value);
             } else if (key == "--loop-nest") {
                 loop_nest = str_to_loop_nest(value);
-            } else if (key == "--spec") {
-                spec = str_to_spec(value);
             } else {
                 std::cout << "Unknown argument: " << key << std::endl;
                 ir_error_not_expected();
@@ -334,19 +240,6 @@ public:
         for (int i = 0; i < (int)parts.size(); i += 2) {
             parse(parts[i], parts[i + 1]);
         }
-        normalize();
-    }
-
-    void normalize() {
-        std::vector<prb_dim_t> to_remove;
-        auto &cc = spec.constraints();
-        for (auto &e : loop_nest.entries()) {
-            if (cc.has(e.dim) && cc[e.dim].has_value()
-                    && cc[e.dim].value() == 1)
-                to_remove.push_back(e.dim);
-        }
-        for (auto &d : to_remove)
-            loop_nest.remove(d);
     }
 
     bool fits(const problem_t &prb, bool check_tags = true) const {
@@ -357,14 +250,6 @@ public:
             if (!prb.dst_tag().matches(dst_tag, prb.shape())) return false;
         }
         if (prb.is_depthwise() != is_dw) return false;
-        // Check constraints.
-        auto &constraints = spec.constraints();
-        for (auto &d : constraints) {
-            auto &c = constraints[d];
-            int size = prb.shape().at(d);
-            if (c.has_value() && size != c.value()) return false;
-            if (size % c.divisor() != 0) return false;
-        }
         return true;
     }
 
@@ -388,7 +273,6 @@ public:
         add("--iter", iter_tile.str());
         add("--tg", thread_group_tile.str());
         add("--loop-nest", loop_nest.str());
-        add("--spec", spec.str());
 
         std::ostringstream oss;
         bool is_first = true;
@@ -414,7 +298,6 @@ public:
         oss << "Iteration tile:     " << iter_tile << std::endl;
         oss << "Thread group tile:  " << thread_group_tile << std::endl;
         oss << "Loop nest:          " << loop_nest << std::endl;
-        oss << "Specialization:     " << spec << std::endl;
         oss << "Command:            " << cmd_str();
         return ir_utils::add_tag("Desc", oss.str());
     }
@@ -428,7 +311,7 @@ public:
                 && (fma == other.fma) && (simd == other.simd)
                 && (regs == other.regs) && (iter_tile == other.iter_tile)
                 && (thread_group_tile == other.thread_group_tile)
-                && (loop_nest == other.loop_nest) && (spec == other.spec);
+                && (loop_nest == other.loop_nest);
     }
 
     bool operator!=(const kernel_desc_t &other) const {
@@ -437,7 +320,7 @@ public:
 
     size_t get_hash() const {
         return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag, hw,
-                fma, simd, regs, iter_tile, thread_group_tile, loop_nest, spec);
+                fma, simd, regs, iter_tile, thread_group_tile, loop_nest);
     }
 
     void serialize(std::ostream &out) const {
@@ -453,7 +336,6 @@ public:
         ir_utils::serialize(iter_tile, out);
         ir_utils::serialize(thread_group_tile, out);
         ir_utils::serialize(loop_nest, out);
-        ir_utils::serialize(spec, out);
     }
 
     void deserialize(std::istream &in) {
@@ -469,7 +351,6 @@ public:
         ir_utils::deserialize(iter_tile, in);
         ir_utils::deserialize(thread_group_tile, in);
         ir_utils::deserialize(loop_nest, in);
-        ir_utils::deserialize(spec, in);
     }
 
     // Helper methods.
