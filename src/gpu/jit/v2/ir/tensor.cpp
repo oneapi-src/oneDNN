@@ -811,15 +811,15 @@ block_t block_iterator_t::remaining_block() const {
     return block_t(b.dim, size, stride);
 }
 
-bool block_iterator_t::is_dense() const {
+bool block_iterator_t::is_dense(const prover_t &prover) const {
     if (is_end()) return false;
     expr_t stride = 1;
     for (int i = 0; i < block_idx_; i++) {
         auto &b = parent_->blocks()[i];
-        if (!b.has_same_stride(stride)) return false;
+        if (!prover.prove(b.stride == stride)) return false;
         stride = b.int_size() * b.stride;
     }
-    return block_.has_same_stride(stride);
+    return prover.prove(block_.stride == stride);
 }
 
 int block_iterator_t::elems(const prb_dim_t &dim) const {
@@ -952,10 +952,7 @@ template expr_t dim_mask_desc_t::to_expr(
 dim_mask_desc_t dim_mask_desc_t::map(const prb_coord_t<expr_t> &coord) const {
     auto ret = *this;
     ret.base = to_expr(coord);
-    if (!is_identity()) {
-        ir_assert(block == 1);
-        return ret;
-    }
+    if (!is_identity()) return ret;
     int x_div = linear_max_pow2_divisor(coord[x_dim]);
     ret.block = math::gcd(block, x_div);
     return ret;
@@ -1022,12 +1019,15 @@ mask_desc_t mask_desc_t::map(const prb_coord_t<expr_t> &coord) const {
     return ret;
 }
 
-bool mask_desc_t::is_uniform(const block_iterator_t &it) const {
+bool mask_desc_t::is_uniform(
+        const block_iterator_t &it, const prover_t &prover) const {
     for (auto &dm : dim_masks_) {
         if (!dm.has((*it).dim)) continue;
         if (!dm.is_identity()) return false;
         int dim_size = it.elems((*it).dim);
+        int dim_size_pow2 = utils::rnd_up_pow2(dim_size);
         if (dim_size > dm.block) return false;
+        if (!prover.prove(dm.bound % dim_size_pow2 == 0)) return false;
     }
     return true;
 }

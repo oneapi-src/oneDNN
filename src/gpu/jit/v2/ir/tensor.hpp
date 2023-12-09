@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "gpu/jit/ir/linear_expr.hpp"
 #include "gpu/jit/ir/problem.hpp"
 #include "gpu/jit/utils/utils.hpp"
+#include "gpu/jit/v2/ir/reqs.hpp"
 
 #include <cstring>
 #include <functional>
@@ -422,7 +423,7 @@ public:
 
     int block_index() const { return block_idx_; }
     block_t remaining_block() const;
-    bool is_dense() const;
+    bool is_dense(const prover_t &prover = prover_t::instance()) const;
     int elems(const prb_dim_t &dim = prb_dim_t()) const;
     layout_t sub_layout() const;
     std::string str() const;
@@ -515,7 +516,8 @@ public:
     int nmasks() const { return static_cast<int>(dim_masks_.size()); }
     const dim_mask_desc_t &operator[](int idx) const;
     mask_desc_t map(const prb_coord_t<expr_t> &coord) const;
-    bool is_uniform(const block_iterator_t &it) const;
+    bool is_uniform(const block_iterator_t &it,
+            const prover_t &prover = prover_t::instance()) const;
     std::string str() const;
     IR_DEFINE_DUMP()
 

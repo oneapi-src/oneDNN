@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -292,10 +292,15 @@ std::vector<problem_t> load_problems(const std::string &path) {
     return prbs;
 }
 
-bench_data_t bench(const kernel_desc_t &kernel_desc) {
-    if (!kernel_desc.is_supported()) return {};
-
+bench_data_t bench(const kernel_desc_t &_kernel_desc) {
     engine eng(engine::kind::gpu, 0);
+    auto kernel_desc = _kernel_desc;
+    kernel_desc.hw = hw_t(eng.get());
+    if (!kernel_desc.is_supported()) return {};
+    auto plan = create_conv_plan(kernel_desc);
+    if (!plan) return {};
+    kernel_desc.finalize(plan);
+
     auto prbs = generate_problems(kernel_desc);
     int nprbs = (int)prbs.size();
 

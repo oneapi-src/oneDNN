@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -132,6 +132,8 @@ private:
         kernel_params_t _params;
         if (plan_preset_t::instance().is_set()) {
             _desc = plan_preset_t::instance().get();
+            auto plan = create_conv_plan(_desc);
+            _desc.finalize(plan);
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);

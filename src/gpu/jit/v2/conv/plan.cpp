@@ -570,6 +570,14 @@ private:
     plan_t plan_;
 };
 
+prb_reqs_t plan_t::reqs() const {
+    prb_reqs_t ret;
+    ret.add(x2r.a_load.reqs());
+    ret.add(x2r.b_load.reqs());
+    ret.add(epilogue.c_store.reqs());
+    return ret;
+}
+
 plan_t create_conv_plan(const kernel_desc_t &desc) {
     plan_builder_t builder(desc);
     if (builder.build() != plan_status_t::ok) return plan_t();

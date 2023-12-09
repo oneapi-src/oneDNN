@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include "gpu/jit/ir/block_2d_utils.hpp"
 #include "gpu/jit/v2/ir/plan_utils.hpp"
+#include "gpu/jit/v2/ir/reqs.hpp"
 #include "gpu/jit/v2/ir/tensor.hpp"
 
 #include <string>
@@ -292,22 +293,23 @@ struct send_params_t {
 };
 
 struct send_1d_desc_t {
+    hw_t hw;
     send_op_t op = send_op_t::undef;
     int type_size = 0;
     int slots = 0;
 
     operator bool() const { return op != send_op_t::undef; }
 
-    bool base_alignment_ok(const expr_t &off) {
+    bool base_alignment_ok(const expr_t &off, const prover_t &prover) {
         int align = (type_size >= 16 ? 8 : 1);
-        if (max_pow2_divisor(off) % align != 0) return false;
+        if (!prover.prove(off % align == 0)) return false;
         return true;
     }
 
-    bool base_alignment_ok(const addr_t &addr) {
-        if (!base_alignment_ok(addr.base)) return false;
+    bool base_alignment_ok(const addr_t &addr, const prover_t &prover) {
+        if (!base_alignment_ok(addr.base, prover)) return false;
         for (auto &inc : addr.slot_incs) {
-            if (!base_alignment_ok(inc)) return false;
+            if (!base_alignment_ok(inc, prover)) return false;
         }
         return true;
     }
@@ -343,6 +345,7 @@ struct send_1d_entry_t {
 
 struct send_1d_plan_t : public base_plan_t {
     send_1d_desc_t desc;
+    prb_reqs_t reqs;
     addr_t addr;
     mask_t mask;
     std::vector<send_1d_entry_t> entries;
@@ -356,11 +359,11 @@ struct send_1d_plan_t : public base_plan_t {
     operator bool() const { return desc; }
 
     bool add_entry(const layout_iterator_t &it, const mask_desc_t &mask_desc,
-            int reg_off) {
+            int reg_off, const prover_t &prover) {
         auto &layout = it.parent();
         auto &off = it.block_offset();
         expr_t addr_inc = layout.offset_in_bytes(off);
-        if (!desc.base_alignment_ok(addr_inc)) return false;
+        if (!desc.base_alignment_ok(addr_inc, prover)) return false;
         std::vector<expr_t> mask_incs(nmasks());
         auto coord = it.coord();
         for (int i = 0; i < nmasks(); i++) {
@@ -417,9 +420,11 @@ struct send_2d_desc_t {
     prb_dim_t w_dim;
     prb_dim_t h_dim;
     bool is_valid = false;
+    expr_t base;
 
     send_2d_desc_t() = default;
-    send_2d_desc_t(const view_t &view, const send_params_t &params) {
+    send_2d_desc_t(const view_t &view, const send_params_t &params,
+            const prover_t &prover) {
         auto &plane = view.plane();
         if (!params.hint_2d) return;
         if (!plane) return;
@@ -440,9 +445,9 @@ struct send_2d_desc_t {
         h_rcount = ir_utils::safe_div(plane.h, h);
         w_dim = plane.w_dim;
         h_dim = plane.h_dim;
+        base = get_2d_base(view);
         try_promote_count();
-        if (!is_supported()) return;
-        is_valid = true;
+        is_valid = is_supported(view, prover);
     }
 
     operator bool() const { return is_valid; }
@@ -459,38 +464,25 @@ struct send_2d_desc_t {
         }
     }
 
-    bool is_supported() const {
-        // TODO: Refactor message dispatching support. Block
-        // 2D messages result in non-trivial restrictions
-        // which are much easier to propagate backwards
-        // rather than trying to prove them based on input
-        // restrictions.
-        // The basic idea is to require 2D message at a high
-        // level and then record all related restrictions
-        // while building the plan. These restrictions are
-        // then to be used while matching the top-level plan
-        // or plan descriptor.
-#if 0
-        if (!block_2d_width_ok(W, type.size()))
-            return fail_2d("Width is not supported.");
-        if (!block_2d_height_ok(H)) return fail_2d("Height is not supported.");
-        if (!block_2d_pitch_ok(hw, P, type.size(), false))
-            return fail_2d("Pitch is not supported.");
-#endif
-        return true;
-    }
+    bool is_supported(const view_t &view, const prover_t &prover) const {
+        if (w % block_2d_x_alignment(type.size()) != 0) return false;
 
-    // Base in bytes.
-    bool base_alignment_ok(const expr_t &base) const {
-        int align = block_2d_base_alignment(hw);
-        if (max_pow2_divisor(base) % align != 0) return false;
-        return true;
-    }
-
-    bool x_alignment_ok(const expr_t &x_base) const {
-        int align = block_2d_x_alignment(type.size());
-        if (max_pow2_divisor(x_base) % align != 0) return false;
-        if (w % align != 0) return false;
+        auto &plane = view.plane();
+        auto width_bytes = W * type.size();
+        auto pitch_bytes = P * type.size();
+        int base_align = block_2d_base_alignment(hw);
+        int x_align = block_2d_x_alignment(type.size());
+        if (!prover.prove(width_bytes >= 64)) return false;
+        if (!prover.prove(width_bytes <= (1 << 24))) return false;
+        if (!prover.prove(width_bytes % std::max(4, type.size()) == 0))
+            return false;
+        if (!prover.prove(H <= (1 << 24))) return false;
+        if (!prover.prove(pitch_bytes >= 64)) return false;
+        if (!prover.prove(pitch_bytes <= (1 << 24))) return false;
+        if (!prover.prove(pitch_bytes % 8 == 0)) return false;
+        if (!prover.prove(plane.y_stride == 1)) return false;
+        if (!prover.prove(base % base_align == 0)) return false;
+        if (!prover.prove(plane.x % x_align == 0)) return false;
         return true;
     }
 
@@ -549,6 +541,14 @@ struct send_2d_desc_t {
     }
 
     IR_DEFINE_DUMP()
+
+    static expr_t get_2d_base(const view_t &view) {
+        auto dim_mapper = view.dim_mapper();
+        dim_mapper.set_dim(view.plane().x_dim, 0);
+        dim_mapper.set_dim(view.plane().y_dim, 0);
+        auto l = view.base_layout().map(dim_mapper, view.coord(), view.tile());
+        return simplify_rewrite(l.base() * l.type().size());
+    }
 };
 
 struct send_2d_entry_t {
@@ -569,6 +569,7 @@ struct send_2d_entry_t {
 
 struct send_2d_plan_t : public base_plan_t {
     send_2d_desc_t desc;
+    prb_reqs_t reqs;
     expr_t base;
     expr_t x_base;
     expr_t y_base;
@@ -582,7 +583,8 @@ struct send_2d_plan_t : public base_plan_t {
     int nentries() const { return static_cast<int>(entries.size()); }
     operator bool() const { return desc; }
 
-    bool add_entry(const prb_coord_t<int> &coord, int reg_off) {
+    bool add_entry(const prb_coord_t<int> &coord, int reg_off,
+            const prover_t &prover) {
         entries.emplace_back();
         auto &e = entries.back();
         e.x_inc = coord.at(desc.w_dim);
@@ -631,6 +633,11 @@ struct send_plan_t : public base_plan_t {
     send_2d_plan_t &get_2d() { return _2d; }
     const send_2d_plan_t &get_2d() const { return _2d; }
 
+    const prb_reqs_t &reqs() const {
+        if (is_1d()) return _1d.reqs;
+        return _2d.reqs;
+    }
+
     const layout_t &reg_layout() const {
         if (is_1d()) return _1d.reg_layout;
         return _2d.reg_layout;
@@ -669,13 +676,14 @@ public:
     }
 
     bool try_build_1d() {
+        prb_reqs_t reqs;
         auto &layout = view_.layout();
         auto &mask_desc = view_.mask_desc();
-        auto inner_last = find_inner_last(mask_desc);
+        auto inner_last = find_inner_last(mask_desc, reqs);
         int type_size = layout.type().size();
         int inner_elems = inner_last.elems();
         int inner_bytes = type_size * inner_elems;
-        int slot_size = max_pow2_divisor(inner_bytes);
+        int slot_size = ir_utils::max_pow2_divisor(inner_bytes);
         int grf_size = plan_.hw.grf_size();
 
         // TODO: Add oword block support.
@@ -709,12 +717,13 @@ public:
         }
 
         send_1d_desc_t desc;
+        desc.hw = params_.hw;
         desc.op = params_.op;
         desc.type_size = slot_size;
         desc.slots = slots;
 
         addr_t addr(layout, slots, elems_per_slot);
-        if (!desc.base_alignment_ok(addr)) return false;
+        if (!desc.base_alignment_ok(addr, reqs.prover())) return false;
 
         auto reg_layout = middle_last.sub_layout();
         reg_layout.pad_bytes(grf_size);
@@ -737,27 +746,26 @@ public:
         int step_elems = slots * elems_per_slot;
         layout_iterator_t it(layout);
         int reg_off = 0;
-        plan.add_entry(it, mask_desc, reg_off);
+        plan.add_entry(it, mask_desc, reg_off, reqs.prover());
         while (it.has_next(step_elems)) {
             it.next(step_elems);
             reg_off += slots * slot_stride;
             reg_off = utils::rnd_up(reg_off, grf_size);
-            if (!plan.add_entry(it, mask_desc, reg_off)) return false;
+            if (!plan.add_entry(it, mask_desc, reg_off, reqs.prover()))
+                return false;
         }
+        plan.reqs = reqs;
         return true;
     }
 
     bool try_build_2d() {
-        send_2d_desc_t desc(view_, params_);
+        if (params_.kind != send_kind_t::_2d) return false;
+
+        prb_reqs_t reqs;
+        send_2d_desc_t desc(view_, params_, reqs.prover());
         if (!desc) return false;
 
         auto &plane = view_.plane();
-        auto base = get_2d_base(view_);
-        if (!desc.is_supported()) return false;
-        if (!desc.base_alignment_ok(base)) return false;
-        if (!desc.x_alignment_ok(plane.x)) return false;
-        if (!is_one(plane.y_stride)) return false;
-
         int grf_size = params_.hw.grf_size();
         auto reg_layout = desc.reg_layout(grf_size, view_.layout().desc());
         int entry_reg_size = utils::rnd_up(reg_layout.size(), grf_size);
@@ -771,7 +779,8 @@ public:
         auto &plan = plan_.get_2d();
         plan = send_2d_plan_t(plan_.hw);
         plan.desc = desc;
-        plan.base = base;
+        plan.reqs = reqs;
+        plan.base = desc.base;
         plan.x_base = plane.x;
         plan.y_base = plane.y;
         plan.mask = mask_t(view_.mask_desc());
@@ -789,7 +798,8 @@ public:
                 prb_coord_t<int> coord;
                 coord[plane.w_dim] = w;
                 coord[plane.h_dim] = h;
-                if (!plan.add_entry(coord, reg_off)) return false;
+                if (!plan.add_entry(coord, reg_off, reqs.prover()))
+                    return false;
                 reg_off += entry_reg_size;
             }
         }
@@ -797,13 +807,16 @@ public:
     }
 
 private:
-    block_iterator_t find_inner_last(const mask_desc_t &mask_desc) const {
+    block_iterator_t find_inner_last(
+            const mask_desc_t &mask_desc, prb_reqs_t &reqs) const {
         auto &layout = view_.layout();
         auto inner_last = begin(layout);
         int type_size = layout.type().size();
+        auto ok_to_return = [&]() { return true; };
         for (auto it = begin(layout); it != end(layout); ++it) {
-            if (!mask_desc.is_uniform(it)) break;
-            if (!it.is_dense()) break;
+            auto prover = reqs.prover(!ok_to_return());
+            if (!mask_desc.is_uniform(it, prover)) break;
+            if (!it.is_dense(prover)) break;
             if (type_size * it.elems() > params_.max_entry_reg_size) break;
             inner_last = it;
         }
@@ -833,14 +846,6 @@ private:
             }
         }
         plan = new_plan;
-    }
-
-    static expr_t get_2d_base(const view_t &view) {
-        auto dim_mapper = view.dim_mapper();
-        dim_mapper.set_dim(view.plane().x_dim, 0);
-        dim_mapper.set_dim(view.plane().y_dim, 0);
-        auto l = view.base_layout().map(dim_mapper, view.coord(), view.tile());
-        return l.base() * l.type().size();
     }
 
     send_params_t params_;

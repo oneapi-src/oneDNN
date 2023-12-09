@@ -20,6 +20,7 @@
 #include "gpu/jit/v2/conv/kernel_desc.hpp"
 #include "gpu/jit/v2/conv/problem.hpp"
 #include "gpu/jit/v2/ir/plan_utils.hpp"
+#include "gpu/jit/v2/ir/reqs.hpp"
 #include "gpu/jit/v2/ir/send.hpp"
 #include "gpu/jit/v2/ir/tensor.hpp"
 
@@ -266,6 +267,8 @@ struct plan_t : public base_plan_t {
         ret += epilogue.grf_usage_bytes();
         return ret;
     }
+
+    prb_reqs_t reqs() const;
 
     std::string str() const {
         if (!*this) return "(empty)";

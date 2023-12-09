@@ -20,6 +20,7 @@
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/kernel_desc.hpp"
 #include "gpu/jit/v2/conv/problem.hpp"
+#include "gpu/jit/v2/ir/reqs.hpp"
 #include "gpu/jit/v2/ir/tensor.hpp"
 
 namespace dnnl {
@@ -175,6 +176,8 @@ layout_tag_t make_conv_layout_tag(
 layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, int conv_ndims, const memory_desc_t &md);
 
+struct plan_t;
+
 class kernel_desc_t : public kernel_desc_base_t {
 public:
     prop_kind_t prop = prop_kind::undef;
@@ -189,17 +192,10 @@ public:
     prb_tile_t iter_tile;
     prb_tile_t thread_group_tile;
     loop_nest_t loop_nest;
+    prb_reqs_t reqs;
+    bool is_finalized = false;
 
     bool is_empty() const { return prop == prop_kind::undef; }
-
-    bool is_valid() const {
-        if (prop == prop_kind::undef) return false;
-        if (hw.is_undef()) return false;
-        if (fma == fma_kind_t::undef) return false;
-        if (simd == 0) return false;
-        if (regs == 0) return false;
-        return true;
-    }
 
     bool is_supported() const;
 
@@ -242,6 +238,8 @@ public:
         }
     }
 
+    void finalize(const plan_t &plan);
+
     bool fits(const problem_t &prb, bool check_tags = true) const {
         if (prb.prop() != prop) return false;
         if (check_tags) {
@@ -250,6 +248,7 @@ public:
             if (!prb.dst_tag().matches(dst_tag, prb.shape())) return false;
         }
         if (prb.is_depthwise() != is_dw) return false;
+        if (!reqs.fits(prb.shape())) return false;
         return true;
     }
 
@@ -311,7 +310,8 @@ public:
                 && (fma == other.fma) && (simd == other.simd)
                 && (regs == other.regs) && (iter_tile == other.iter_tile)
                 && (thread_group_tile == other.thread_group_tile)
-                && (loop_nest == other.loop_nest);
+                && (loop_nest == other.loop_nest)
+                && (is_finalized == other.is_finalized);
     }
 
     bool operator!=(const kernel_desc_t &other) const {
@@ -320,10 +320,12 @@ public:
 
     size_t get_hash() const {
         return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag, hw,
-                fma, simd, regs, iter_tile, thread_group_tile, loop_nest);
+                fma, simd, regs, iter_tile, thread_group_tile, loop_nest,
+                is_finalized);
     }
 
     void serialize(std::ostream &out) const {
+        ir_assert(is_finalized);
         ir_utils::serialize(prop, out);
         ir_utils::serialize(is_dw, out);
         ir_utils::serialize(src_tag, out);
@@ -336,6 +338,7 @@ public:
         ir_utils::serialize(iter_tile, out);
         ir_utils::serialize(thread_group_tile, out);
         ir_utils::serialize(loop_nest, out);
+        ir_utils::serialize(reqs, out);
     }
 
     void deserialize(std::istream &in) {
@@ -351,6 +354,8 @@ public:
         ir_utils::deserialize(iter_tile, in);
         ir_utils::deserialize(thread_group_tile, in);
         ir_utils::deserialize(loop_nest, in);
+        ir_utils::deserialize(reqs, in);
+        is_finalized = true;
     }
 
     // Helper methods.
