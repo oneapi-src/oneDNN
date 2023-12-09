@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,6 +50,11 @@ kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
 }
 
 struct plan_registry_instance_t {
+    static plan_registry_instance_t &get() {
+        static plan_registry_instance_t _instance;
+        return _instance;
+    }
+
     plan_registry_instance_t() {
         registry = ir_utils::deserialize_from_data<plan_registry_t>(
                 get_plan_registry_data());
@@ -65,7 +70,7 @@ struct plan_registry_instance_t {
 #endif
     }
 
-    ~plan_registry_instance_t() {
+    void dump() const {
         if (registry_path.empty()) return;
         ir_utils::serialize(registry, registry_path);
     }
@@ -79,8 +84,7 @@ const char *plan_registry_instance_t::env_registry_path_name
         = "GPU_CONV_PLAN_REGISTRY_PATH";
 
 plan_registry_t &plan_registry_impl(bool read_only = true) {
-    static plan_registry_instance_t instance;
-    if (!read_only && instance.registry_path.empty()) {
+    if (!read_only && plan_registry_instance_t::get().registry_path.empty()) {
         static std::once_flag flag;
         std::call_once(flag, [&] {
             printf("Error: ONEDNN_%s is not set. Exiting...\n",
@@ -88,7 +92,7 @@ plan_registry_t &plan_registry_impl(bool read_only = true) {
             exit(1);
         });
     }
-    return instance.registry;
+    return plan_registry_instance_t::get().registry;
 }
 
 const plan_registry_t &const_plan_registry() {
@@ -97,6 +101,10 @@ const plan_registry_t &const_plan_registry() {
 
 plan_registry_t &plan_registry() {
     return plan_registry_impl(/*read_only=*/false);
+}
+
+void dump_plan_registry() {
+    plan_registry_instance_t::get().dump();
 }
 
 } // namespace conv
