@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,9 +152,16 @@ const expr_t &size_var(const prb_dim_t &prb_dim) {
     return size_vars.at(prb_dim);
 }
 
-prb_dim_t to_prb_dim(const expr_t &idx_var) {
+prb_dim_t index_to_prb_dim(const expr_t &var) {
     for (auto &d : prb_dim_t::all()) {
-        if (index_var(d).is_same(idx_var)) return d;
+        if (index_var(d).is_same(var)) return d;
+    }
+    return prb_dims::undef;
+}
+
+prb_dim_t size_to_prb_dim(const expr_t &var) {
+    for (auto &d : prb_dim_t::all()) {
+        if (size_var(d).is_same(var)) return d;
     }
     return prb_dims::undef;
 }
