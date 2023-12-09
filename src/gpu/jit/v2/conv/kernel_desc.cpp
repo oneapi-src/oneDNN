@@ -245,6 +245,7 @@ std::string kernel_desc_t::str() const {
     oss << "A access kind:      " << to_string(a_access_kind) << std::endl;
     oss << "B access kind:      " << to_string(b_access_kind) << std::endl;
     oss << "C access kind:      " << to_string(c_access_kind) << std::endl;
+    if (reqs) oss << ir_utils::add_tag("Reqs", reqs.str()) << std::endl;
     oss << "Command:            " << cmd_str();
     return ir_utils::add_tag("Desc", oss.str());
 }

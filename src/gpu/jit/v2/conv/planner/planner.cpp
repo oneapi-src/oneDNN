@@ -102,7 +102,6 @@ void init_params(int argc, const char **argv) {
     } else {
         params.mode = planner_mode_t::trace;
     }
-    // Check that MKL is available.
     switch (params.mode) {
         case planner_mode_t::search:
         case planner_mode_t::auto_search: (void)mkl_iface_t::instance(); break;
