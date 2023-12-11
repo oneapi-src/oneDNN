@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -455,6 +455,11 @@ void jit_avx2_gemm_s8u8s32_kern::generate() {
 jit_avx2_gemm_s8u8s32_kern::jit_avx2_gemm_s8u8s32_kern(bool beta_zero,
         bool enable_offset_c, bool enable_offset_r, int unroll_m)
     : jit_generator(jit_name(), nullptr, 100000)
+    , beta_zero_(beta_zero)
+    , enable_offset_c_(enable_offset_c)
+    , enable_offset_r_(enable_offset_r)
+    , vnni_(mayiuse(avx2_vnni))
+    , unroll_m_(unroll_m)
     , arg_a_(0)
     , arg_b_(0)
     , arg_c_(0)
@@ -467,12 +472,6 @@ jit_avx2_gemm_s8u8s32_kern::jit_avx2_gemm_s8u8s32_kern(bool beta_zero,
     , coffset_ry_(0)
     , bcast_k2_(0)
     , bcast_k1_(0) {
-
-    beta_zero_ = beta_zero;
-    enable_offset_c_ = enable_offset_c;
-    enable_offset_r_ = enable_offset_r;
-    vnni_ = mayiuse(avx2_vnni);
-    unroll_m_ = unroll_m;
 
     assert(utils::one_of(unroll_m, 24, 16, 8, 4, 2, 1));
 

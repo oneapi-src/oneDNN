@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -435,10 +435,8 @@ void jit_avx2_kernel_sgemm_kern::generate() {
 }
 
 jit_avx2_kernel_sgemm_kern::jit_avx2_kernel_sgemm_kern(bool beta_zero)
-    : jit_generator(jit_name(), nullptr, 65536) {
+    : jit_generator(jit_name(), nullptr, 65536), beta_zero_(beta_zero) {}
 
-    beta_zero_ = beta_zero;
-}
 } // namespace x64
 } // namespace cpu
 } // namespace impl

@@ -767,11 +767,10 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     brg_matmul_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd,
             const float *oscales, int32_t src_zp, int32_t wei_zp,
             int32_t dst_zp, const float *dst_scales, matmul_helper_t &helper)
-        : bgmmc_(pd->get_brgemm_matmul_conf()) {
-
-        data_A_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
-        data_B_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
-        data_C_ptr_ = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+        : bgmmc_(pd->get_brgemm_matmul_conf())
+        , data_A_ptr_(CTX_IN_MEM(const char *, DNNL_ARG_SRC))
+        , data_B_ptr_(CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS))
+        , data_C_ptr_(CTX_OUT_MEM(char *, DNNL_ARG_DST)) {
 
         const memory_desc_wrapper weights_d(pd->weights_md(0));
         if (bgmmc_.packed_sparse_weights) {

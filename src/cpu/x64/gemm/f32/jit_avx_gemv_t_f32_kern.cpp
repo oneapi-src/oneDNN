@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -303,32 +303,28 @@ void jit_avx_gemv_t_f32_kern::generate() {
 // Function signature: gemv(*m, *n, *alpha, *a, *lda, *x, *incx, *y, *incy)
 jit_avx_gemv_t_f32_kern::jit_avx_gemv_t_f32_kern()
     : jit_generator(jit_name(), nullptr, 100000)
+    , is_avx2_(mayiuse(avx2))
+    , LDA_(is_windows ? rdi : r8)
+    , X_(is_windows ? rsi : r9)
+    , INCY_(r10)
+    , Y_(r11)
+    , I_(r13)
+    , J_(r12)
+    , AO_(r14)
+    , XO_(r15)
+    , YO_(rbx)
+    , YO2_(rbp)
     , arg_lda_(0)
     , arg_x_(0)
     , arg_incx_(0)
     , arg_y_(0)
     , arg_incy_(0) {
 
-    is_avx2_ = mayiuse(avx2);
-
     // Assign integer registers
     M_ = abi_param1;
     N_ = abi_param2;
     ALPHA_ = abi_param3;
     A_ = abi_param4;
-    LDA_ = is_windows ? rdi : r8;
-    X_ = is_windows ? rsi : r9;
-    INCY_ = r10;
-    Y_ = r11;
-
-    J_ = r12;
-    I_ = r13;
-
-    AO_ = r14;
-    XO_ = r15;
-
-    YO_ = rbx;
-    YO2_ = rbp;
 
     // Assign vector registers
     for (int i = 0; i < (N_UNROLL_); i++)

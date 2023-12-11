@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -516,14 +516,14 @@ void jit_avx512_core_gemv_bf16bf16f32_kern::generate() {
 jit_avx512_core_gemv_bf16bf16f32_kern::jit_avx512_core_gemv_bf16bf16f32_kern(
         bool trans)
     : jit_generator(jit_name(), nullptr, 20000)
+    , trans_(trans)
+    , bfloat16_(mayiuse(avx512_core_bf16))
     , arg_lda_(0)
     , arg_x_(0)
     , arg_incx_(0)
     , arg_y_(0)
     , arg_incy_(0) {
 
-    trans_ = trans;
-    bfloat16_ = mayiuse(avx512_core_bf16);
     assert(mayiuse(avx512_core));
 
     // Assign integer registers

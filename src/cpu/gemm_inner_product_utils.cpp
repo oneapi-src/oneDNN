@@ -157,9 +157,10 @@ pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     , bias_data_type_(bias_dt)
     , acc_data_type_(acc_dt)
     , dst_data_type_(dst_md->data_type)
+    , do_scale_(!attr->scales_.get(DNNL_ARG_SRC).has_default_values()
+              || !attr->scales_.get(DNNL_ARG_WEIGHTS).has_default_values())
     , ndims_(dst_md->ndims) {
-    do_scale_ = !attr->scales_.get(DNNL_ARG_SRC).has_default_values()
-            || !attr->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
+
     if (do_scale_) {
         int wei_mask = attr->scales_.get(DNNL_ARG_WEIGHTS).mask_;
         // matmul: per_oc: 1 << (ndims_ - 1)

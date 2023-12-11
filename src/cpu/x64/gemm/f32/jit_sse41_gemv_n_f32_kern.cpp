@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -313,16 +313,15 @@ void jit_sse41_gemv_n_f32_kern::generate() {
 // Function signature: gemv(*m, *n, *alpha, *a, *lda, *x, *incx, *y, *incy)
 jit_sse41_gemv_n_f32_kern::jit_sse41_gemv_n_f32_kern(void)
     : jit_generator(jit_name(), nullptr, 100000)
+    , has_avx512_(mayiuse(avx512_core))
+    , has_avx2_(mayiuse(avx2))
+    , has_avx_(mayiuse(avx))
+    , has_sse41_(mayiuse(sse41))
     , arg_lda_(0)
     , arg_x_(0)
     , arg_incx_(0)
     , arg_y_(0)
     , arg_incy_(0) {
-
-    has_avx512_ = mayiuse(avx512_core);
-    has_avx2_ = mayiuse(avx2);
-    has_avx_ = mayiuse(avx);
-    has_sse41_ = mayiuse(sse41);
 
     int unroll_m = 0;
     int unroll_n = 0;

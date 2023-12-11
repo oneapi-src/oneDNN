@@ -47,12 +47,12 @@ struct sparse_matmul_kernel_t : public jit_generator {
     };
 
     sparse_matmul_kernel_t(size_t vlen, const matmul_pd_t *pd)
-        : jit_generator(jit_name()), vlen_(vlen) {
-        simd_w_ = vlen_ / data_type_size();
-        N_ = pd->dst_md()->dims[1];
-        tail_block_size_ = N() % block_size();
-        tail_size_ = tail_block_size() % simd_w();
-    }
+        : jit_generator(jit_name())
+        , N_(pd->dst_md()->dims[1])
+        , vlen_(vlen)
+        , simd_w_(vlen_ / data_type_size())
+        , tail_block_size_(N() % block_size())
+        , tail_size_(tail_block_size() % simd_w()) {}
 
     ~sparse_matmul_kernel_t() override = default;
 

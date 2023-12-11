@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -487,6 +487,30 @@ void jit_avx512_core_gemm_s8u8s32_kern::generate() {
 jit_avx512_core_gemm_s8u8s32_kern::jit_avx512_core_gemm_s8u8s32_kern(
         bool beta_zero, bool enable_offset_c, bool enable_offset_r)
     : jit_generator(jit_name(), nullptr, 100000)
+    , beta_zero_(beta_zero)
+    , enable_offset_c_(enable_offset_c)
+    , enable_offset_r_(enable_offset_r)
+    , vnni_(mayiuse(avx512_core_vnni))
+    // Assign integer registers
+    , M_(is_windows ? rcx : rdi)
+    , N_(is_windows ? rdx : rsi)
+    , K_(is_windows ? r8 : rdx)
+    , A_(is_windows ? rsi : r8)
+    , B_(r9)
+    , C_(r10)
+    , LDC_(r11)
+    , I_(r12)
+    , J_(r13)
+    , LoopCount_(rax)
+    , AO_(r14)
+    , BO_(r15)
+    , CO1_(rbx)
+    , CO2_(rbp)
+    , AA_(is_windows ? rdi : rcx)
+    // Assign vector registers
+    , dp_scratch_(zmm6)
+    , ones_(zmm7)
+    // Zero-initialize
     , arg_a_(0)
     , arg_b_(0)
     , arg_c_(0)
@@ -498,31 +522,6 @@ jit_avx512_core_gemm_s8u8s32_kern::jit_avx512_core_gemm_s8u8s32_kern(
     , coffset_rx_(0)
     , coffset_ry_(0) {
 
-    beta_zero_ = beta_zero;
-    enable_offset_c_ = enable_offset_c;
-    enable_offset_r_ = enable_offset_r;
-    vnni_ = mayiuse(avx512_core_vnni);
-
-    // Assign integer registers
-    M_ = is_windows ? rcx : rdi;
-    N_ = is_windows ? rdx : rsi;
-    K_ = is_windows ? r8 : rdx;
-    A_ = is_windows ? rsi : r8;
-    B_ = r9;
-    C_ = r10;
-    LDC_ = r11;
-    I_ = r12;
-    J_ = r13;
-    LoopCount_ = rax;
-    AO_ = r14;
-    BO_ = r15;
-    CO1_ = rbx;
-    CO2_ = rbp;
-    AA_ = is_windows ? rdi : rcx;
-
-    // Assign vector registers
-    dp_scratch_ = zmm6;
-    ones_ = zmm7;
     for (int i = 0; i < (max_unroll_m_ >> 4); i++)
         a_regs_[i] = Zmm(i);
     b_regs_[0] = zmm4;
