@@ -26,9 +26,8 @@ namespace deconv {
 template <typename Telem, size_t Tdims>
 struct array_offset_calculator_t {
     template <typename... Targs>
-    array_offset_calculator_t(Telem *base, Targs... Fargs) : _dims {Fargs...} {
-        _base_ptr = base;
-    }
+    array_offset_calculator_t(Telem *base, Targs... Fargs)
+        : _base_ptr(base), _dims {Fargs...} {}
     template <typename... Targs>
     inline Telem &operator()(Targs... Fargs) {
         return *(_base_ptr + _offset(1, Fargs...));
