@@ -17,6 +17,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/memory.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"
@@ -638,14 +639,16 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, const memory_desc_wrapper &bias_d,
         primitive_attr_t &attr, int nthreads, bool reduce_src) {
+    // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(isa)) return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    if (!one_of(src_d.data_type(), data_type::u8, data_type::s8)
+    const bool dt_not_ok
+            = !one_of(src_d.data_type(), data_type::u8, data_type::s8)
             || weights_d.data_type() != data_type::s8
             || !one_of(dst_d.data_type(), data_type::f32, data_type::s32,
-                    data_type::s8, data_type::u8))
-        return status::unimplemented;
+                    data_type::s8, data_type::u8);
+    VDISPATCH_CONV_IC(!dt_not_ok, VERBOSE_UNSUPPORTED_DT_CFG);
 
     const int ndims = src_d.ndims();
     jcp.nthr = nthreads;
@@ -701,8 +704,9 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
             = zp.common(DNNL_ARG_SRC); // otherwise, it's per-channel
     assert(IMPLICATION(jcp.src_zero_point, jcp.zp_src_is_common));
 
-    if ((jcp.dst_zero_point || jcp.src_zero_point) && jcp.with_dw_conv)
-        return status::unimplemented;
+    VDISPATCH_CONV_IC(
+            !((jcp.dst_zero_point || jcp.src_zero_point) && jcp.with_dw_conv),
+            "implementation does not support zero-point");
 
     format_tag_t dat_tag = utils::pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
@@ -711,7 +715,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == dat_tag
             && jcp.dst_tag == dat_tag;
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_UNSUPPORTED_TAG);
 
     jcp.has_vnni = mayiuse(avx2_vnni);
 
@@ -729,14 +733,14 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
     using namespace injector;
     const bool post_ops_ok_ = post_ops_ok(post_ops_ok_args_t(isa,
             {eltwise, binary, sum}, jcp.post_ops, &dst_d, false, false, false));
-    if (!post_ops_ok_) return status::unimplemented;
+    VDISPATCH_CONV_IC(post_ops_ok_, VERBOSE_UNSUPPORTED_POSTOP);
 
     args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
             && jcp.f_pad == 0 && jcp.t_pad == 0 && jcp.l_pad == 0
             && jcp.stride_w == 1 && jcp.stride_h == 1 && jcp.stride_d == 1
             && jcp.ow == jcp.iw && jcp.oh == jcp.ih && jcp.od == jcp.id
             && jcp.kd == 1 && jcp.kh == 1 && jcp.kw == 1;
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_BAD_PARAM, "");
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
@@ -888,7 +892,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
             && jcp.reduce_dim % jcp.reduce_block == 0;
 
     assert(params_ok && "parameter values are inconsistent");
-    if (!params_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(params_ok, VERBOSE_BLOCKING_FAIL);
 
     jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 

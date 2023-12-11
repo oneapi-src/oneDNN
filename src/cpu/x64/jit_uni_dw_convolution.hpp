@@ -43,17 +43,23 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
                 jit_uni_dw_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(src_type, src_type, data_type::undef,
-                            dst_type, data_type::f32)
-                    && IMPLICATION(this->with_bias(),
+            using namespace data_type;
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(src_type, src_type,
+                                   data_type::undef, dst_type, f32),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, dst_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(
+                    IMPLICATION(this->with_bias(),
                             utils::one_of(this->desc()->bias_desc.data_type,
-                                    data_type::f32, data_type::bf16))
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, dst_type)
-                    && !has_zero_dim_memory();
-            if (!ok) return status::unimplemented;
+                                    f32, bf16)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
 
             auto status = jit_uni_dw_conv_fwd_kernel<isa, src_type>::init_conf(
                     jcp_, *desc(), src_md_, weights_md_, bias_md_, dst_md_,
@@ -115,13 +121,17 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
                 jit_uni_dw_convolution_bwd_data_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(diff_src_type, diff_dst_type,
-                            data_type::undef, diff_dst_type, data_type::f32)
-                    && attr()->has_default_values() && !has_zero_dim_memory();
-
-            if (!ok) return status::unimplemented;
+            using namespace data_type;
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(diff_src_type, diff_dst_type,
+                                   data_type::undef, diff_dst_type, f32),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             status_t status = jit_uni_dw_conv_bwd_data_kernel<isa,
                     diff_dst_type>::init_conf(jcp_, *desc(), diff_src_md_,
@@ -186,16 +196,23 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
                 jit_uni_dw_convolution_bwd_weights);
 
         status_t init(engine_t *engine) {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(src_type, diff_weights_type,
-                            data_type::undef, src_type, data_type::f32)
-                    && IMPLICATION(this->with_bias(),
+            using namespace data_type;
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(src_type, diff_weights_type,
+                                   data_type::undef, src_type, f32),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(
+                    IMPLICATION(this->with_bias(),
                             utils::one_of(
-                                    this->desc()->diff_bias_desc.data_type,
-                                    data_type::f32, data_type::bf16))
-                    && attr()->has_default_values() && !has_zero_dim_memory();
-            if (!ok) return status::unimplemented;
+                                    this->desc()->diff_bias_desc.data_type, f32,
+                                    bf16)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
 
             const int max_threads
                     = dnnl_in_parallel() ? 1 : dnnl_get_max_threads();

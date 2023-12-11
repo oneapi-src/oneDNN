@@ -47,24 +47,34 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
-            const bool args_ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(src_md(0)->data_type, s8, u8)
-                    && weights_md(0)->data_type == s8
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(
-                                    weights_md(1)->data_type, f32, s32, s8, u8))
-                    && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
-                    && desc()->accum_data_type == s32
-                    && attr()->has_default_values(smask_t::scales_runtime
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(utils::one_of(src_md(0)->data_type, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(
+                    weights_md(0)->data_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(
+                    utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(IMPLICATION(with_bias(),
+                                   utils::one_of(weights_md(1)->data_type, f32,
+                                           s32, s8, u8)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(
+                    desc()->accum_data_type == s32, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
-                            dst_md(0)->data_type)
-                    && attr()->post_ops_.check_sum_consistency(
-                            dst_md(0)->data_type, /* is_int8 */ true)
-                    && !has_zero_dim_memory() && attr_scales_ok()
-                    && zero_points_ok();
-            if (!args_ok) return status::unimplemented;
+                            dst_md(0)->data_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(
+                                   dst_md(0)->data_type, /* is_int8 */ true),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_CONV(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
 
             CHECK(jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jcp_, *desc(),
                     src_md_, weights_md_, dst_md_, bias_md_, attr_,
