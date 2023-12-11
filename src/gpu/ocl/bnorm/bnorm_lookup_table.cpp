@@ -75,8 +75,7 @@ gpu_arch_t to_hw(const std::string &s) {
     return gpu_arch_t::unknown;
 }
 
-int_filter_t::int_filter_t(const std::string &s) {
-    cmp_op_ = op_kind_t::_eq;
+int_filter_t::int_filter_t(const std::string &s) : cmp_op_(op_kind_t::_eq) {
     if (s.empty()) {
         value_ = 0;
         return;

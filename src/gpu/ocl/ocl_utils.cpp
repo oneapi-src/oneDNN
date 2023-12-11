@@ -398,7 +398,7 @@ void debugdump_processed_source(const std::string &source,
         // C preprocessor
         auto o = get_defines(options);
         std::string preprocess_cmd
-                = std::string() + "cpp -P " + o.c_str() + " | clang-format";
+                = std::string() + "cpp -P " + o + " | clang-format";
         execute_command(preprocess_cmd, source);
         std::cout << "OCL_ARCH_OPTIONS: " << cl_options << std::endl;
     }
