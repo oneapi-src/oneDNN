@@ -776,10 +776,11 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
 
     thread_info_t(const jit_avx512_core_bf16_convolution_bwd_weights_t *self,
             const exec_ctx_t &ctx, int ithr)
-        : scratchpad(ctx.get_scratchpad_grantor()), ithr(ithr) {
-        diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
-        src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-        diff_weights = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_WEIGHTS);
+        : src(CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC))
+        , diff_dst(CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST))
+        , diff_weights(CTX_OUT_MEM(void *, DNNL_ARG_DIFF_WEIGHTS))
+        , scratchpad(ctx.get_scratchpad_grantor())
+        , ithr(ithr) {
 
         const auto &jcp = self->kernel_->jcp;
         diff_bias = self->pd()->with_bias()
