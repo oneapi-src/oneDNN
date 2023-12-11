@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
@@ -102,20 +103,24 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
                     with_bias(), one_of(bias_md_.data_type, f32, s32, s8, u8))
             && is_deconv /* only deconv uses int8 */;
 
-    const bool ok = is_bwd_d()
-            && set_default_alg_kind(alg_kind::convolution_direct)
-            && impl_supports_datatype(diff_src_type)
-            && impl_supports_datatype(wei_type)
-            && impl_supports_datatype(diff_dst_type)
-            && one_of(true, is_f32_supported, is_xf16_supported,
-                    is_int8_supported)
-            && attr()->has_default_values(skip_mask, diff_src_type)
-            && IMPLICATION(is_deconv,
-                    attr()->post_ops_.check_sum_consistency(
-                            diff_src_type, is_int8_supported))
-            && !has_zero_dim_memory();
-
-    if (!ok) return status::unimplemented;
+    VDISPATCH_CONV(is_bwd_d(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_CONV(
+            impl_supports_datatype(diff_src_type), VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_CONV(impl_supports_datatype(wei_type), VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_CONV(
+            impl_supports_datatype(diff_dst_type), VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_CONV(one_of(true, is_f32_supported, is_xf16_supported,
+                           is_int8_supported),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+            VERBOSE_BAD_ALGORITHM);
+    VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_CONV(attr()->has_default_values(skip_mask, diff_src_type),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_CONV(IMPLICATION(is_deconv,
+                           attr()->post_ops_.check_sum_consistency(
+                                   diff_src_type, is_int8_supported)),
+            VERBOSE_UNSUPPORTED_POSTOP);
 
     const auto is_amx = brgemm_convolution_bwd_utils::is_amx(isa);
 

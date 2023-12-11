@@ -57,18 +57,27 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             | skip_mask_t::zero_points_runtime;
     if (one_of(src_type, u8, s8)) skip_mask |= skip_mask_t::scales_runtime;
 
-    bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
-            && expect_data_types(src_type, wei_type, data_type::undef, dst_type,
-                    data_type::undef)
-            && IMPLICATION(is_int8,
-                    one_of(bias_md_.data_type, data_type::undef, f32, s32, s8,
-                            u8))
-            && IMPLICATION(!is_int8,
-                    one_of(bias_md_.data_type, data_type::undef, f32, src_type))
-            && attr()->has_default_values(skip_mask, dst_type)
-            && attr()->post_ops_.check_sum_consistency(dst_type, is_int8)
-            && !has_zero_dim_memory() && zero_points_ok() && arg_scales_ok();
-    if (!ok) return status::unimplemented;
+    VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_CONV(expect_data_types(src_type, wei_type, data_type::undef,
+                           dst_type, data_type::undef),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_CONV(IMPLICATION(is_int8,
+                           one_of(bias_md_.data_type, data_type::undef, f32,
+                                   s32, s8, u8)),
+            VERBOSE_UNSUPPORTED_BIAS_CFG);
+    VDISPATCH_CONV(IMPLICATION(!is_int8,
+                           one_of(bias_md_.data_type, data_type::undef, f32,
+                                   src_type)),
+            VERBOSE_UNSUPPORTED_BIAS_CFG);
+    VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+            VERBOSE_BAD_ALGORITHM);
+    VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_CONV(attr()->has_default_values(skip_mask, dst_type),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(dst_type, is_int8),
+            VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_CONV(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
+    VDISPATCH_CONV(arg_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 
     CHECK(brgemm_convolution_utils::init_1x1_conf(jcp_, isa, *desc(), src_md_,
             weights_md_, dst_md_, bias_md_, attr_, dnnl_get_max_threads()));

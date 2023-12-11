@@ -70,7 +70,7 @@ inline status_t init_tag(memory_desc_t &md, const memory_desc_wrapper &mdw,
         tag = mdw.matches_one_of_tag(tag_value);
     }
 
-    if (tag != tag_value) return status::unimplemented;
+    VDISPATCH_CONV_IC(tag == tag_value, VERBOSE_UNSUPPORTED_TAG);
 
     return status::success;
 }
@@ -132,15 +132,24 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
         skip_mask |= (skip_mask_t::scales_runtime
                 | skip_mask_t::zero_points_runtime);
 
-    bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
-            && one_of(true, is_f32, is_int8, is_bf16, is_f16)
-            && (isa != isa_undef) && mayiuse(isa)
-            && IMPLICATION(is_int8,
-                    one_of(bia_type, data_type::undef, f32, s32, s8, u8))
-            && IMPLICATION(!is_int8,
-                    one_of(bia_type, data_type::undef, src_type, dst_type))
-            && attr()->has_default_values(skip_mask) && !has_zero_dim_memory();
-    if (!ok) return status::unimplemented;
+    VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_CONV(one_of(true, is_f32, is_int8, is_bf16, is_f16),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_CONV(
+            IMPLICATION(is_int8,
+                    one_of(bia_type, data_type::undef, f32, s32, s8, u8)),
+            VERBOSE_UNSUPPORTED_BIAS_CFG);
+    VDISPATCH_CONV(
+            IMPLICATION(!is_int8,
+                    one_of(bia_type, data_type::undef, src_type, dst_type)),
+            VERBOSE_UNSUPPORTED_BIAS_CFG);
+    VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+            VERBOSE_BAD_ALGORITHM);
+    VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_CONV(
+            (isa != isa_undef) && mayiuse(isa), "undefined or unsupported isa");
+    VDISPATCH_CONV(
+            attr()->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
 
     auto &jcp = jcp_;
 
@@ -152,13 +161,16 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const int ndims = src_d.ndims();
     const bool is_3d = ndims == 5;
     // Currently this kernel only supports 2D and 3D convolutions.
-    if (!utils::one_of(ndims, 4, 5)) return status::unimplemented;
+    VDISPATCH_CONV(utils::one_of(ndims, 4, 5),
+            "skipping implementation as it only supports 2d/3d convolutions");
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    if (!with_groups) return status::unimplemented;
+    VDISPATCH_CONV(with_groups,
+            "skipping non-grouped convolution in depthwise convolution "
+            "implementation");
     // dilations are not supported
-    if (cd.dilates[0] != 0 || cd.dilates[1] != 0
-            || (is_3d && cd.dilates[2] != 0))
-        return status::unimplemented;
+    VDISPATCH_CONV(!(cd.dilates[0] != 0 || cd.dilates[1] != 0
+                           || (is_3d && cd.dilates[2] != 0)),
+            "skipping implementation as it does not support dilations");
 
     jcp = zero<decltype(jcp)>();
     jcp.ngroups = weights_d.dims()[0];
@@ -192,7 +204,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     jcp.with_bias = with_bias();
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
 
-    if (!(everyone_is(1, jcp.ic, jcp.oc))) return status::unimplemented;
+    VDISPATCH_CONV((everyone_is(1, jcp.ic, jcp.oc)),
+            "multiple input/output channels detected");
 
     const auto def_data_tag = is_3d ? format_tag::ndhwc : format_tag::nhwc;
     const bool any_eligible = (cd.prop_kind == prop_kind::forward_inference)
@@ -206,7 +219,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     }
 
     CHECK(attr_.set_default_formats(dst_md()));
-    if (!post_ops_ok(jcp, *attr(), dst_d)) return status::unimplemented;
+    VDISPATCH_CONV(
+            post_ops_ok(jcp, *attr(), dst_d), VERBOSE_UNSUPPORTED_POSTOP);
     jcp.with_post_ops = attr()->post_ops_.len() > 0;
 
     jcp.isa = isa;
@@ -218,9 +232,9 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
 
     jcp.s8s8_compensation_required = jcp.src_dt == s8 && !isa_has_s8s8(jcp.isa);
-    if (jcp.s8s8_compensation_required
-            && cd.weights_desc.format_kind != format_kind::any)
-        return unimplemented;
+    VDISPATCH_CONV(!(jcp.s8s8_compensation_required
+                           && cd.weights_desc.format_kind != format_kind::any),
+            "compensation required for current datatype combination");
 
     const auto &src_scales = attr_.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr_.scales_.get(DNNL_ARG_WEIGHTS);
@@ -230,7 +244,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
 
     const bool scales_ok
             = attr_scales_ok({DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST});
-    if (!scales_ok) return status::unimplemented;
+    VDISPATCH_CONV(scales_ok, VERBOSE_UNSUPPORTED_SCALES_CFG);
 
     const auto zp_attr = attr()->zero_points_;
     jcp.src_zero_point = !zp_attr.has_default_values(DNNL_ARG_SRC);
@@ -244,10 +258,11 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
                     attr()->zero_points_.common(DNNL_ARG_SRC))
             && IMPLICATION(jcp.dst_zero_point,
                     attr()->zero_points_.common(DNNL_ARG_DST));
-    if (!params_ok) return status::unimplemented;
+    VDISPATCH_CONV(params_ok, VERBOSE_UNSUPPORTED_ZP_CFG);
 
-    if (jcp.src_zero_point && cd.weights_desc.format_kind != format_kind::any)
-        return unimplemented;
+    VDISPATCH_CONV(!(jcp.src_zero_point
+                           && cd.weights_desc.format_kind != format_kind::any),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
 
     // strd is only feasible for 1D (i.e., height dim is one)
     // and if there are no tails (for calculating matrix_B strides).

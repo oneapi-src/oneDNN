@@ -61,7 +61,8 @@ status_t fwd_conv_desc_create(
     dim_t ks = 1;
     for (int i = 0; i < ndims_spatial; i++) {
         // only unit strides are allowed for bwd-to-fwd conversion
-        if (bwd_conv_d->strides[i] != 1) return status::unimplemented;
+        VDISPATCH_CONV_IC(bwd_conv_d->strides[i] == 1,
+                "only unit strides are allowed for bwd-to-fwd conversion");
         const dim_t K
                 = bwd_weights_md.dims[bwd_weights_md.ndims - ndims_spatial + i];
         ks *= K;
@@ -101,10 +102,11 @@ status_t brgemm_convolution_bwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace data_type;
     using namespace utils;
 
-    const bool ok = is_bwd_d()
-            && set_default_alg_kind(alg_kind::convolution_direct)
-            && attr()->has_default_values() && !has_zero_dim_memory();
-    if (!ok) return status::unimplemented;
+    VDISPATCH_CONV(is_bwd_d(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+            VERBOSE_BAD_ALGORITHM);
+    VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_CONV(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
     convolution_desc_t fwd_conv_d = convolution_desc_t();
     CHECK(fwd_conv_desc_create(&fwd_conv_d, desc()));
