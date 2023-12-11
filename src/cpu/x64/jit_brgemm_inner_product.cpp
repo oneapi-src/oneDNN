@@ -1048,12 +1048,13 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
 
     thread_info_t(const brgemm_inner_product_bwd_weights_t *self,
             const exec_ctx_t &ctx, int ithr)
-        : scratchpad(ctx.get_scratchpad_grantor()), ithr(ithr) {
+        : src(CTX_IN_MEM(const char *, DNNL_ARG_SRC))
+        , diff_dst(CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST))
+        , diff_weights(CTX_OUT_MEM(char *, DNNL_ARG_DIFF_WEIGHTS))
+        , diff_bias(CTX_OUT_MEM(char *, DNNL_ARG_DIFF_BIAS))
+        , scratchpad(ctx.get_scratchpad_grantor())
+        , ithr(ithr) {
 
-        src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
-        diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
-        diff_weights = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_WEIGHTS);
-        diff_bias = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_BIAS);
         const auto &jbgp = self->pd()->jbgp_;
 
         const bool is_amx = jbgp.is_amx;

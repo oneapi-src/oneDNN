@@ -52,7 +52,7 @@ protected:
     dim_t inp_dsz;
     dim_t oc_block_sz;
     dim_t ow_size, dst_w_block, dst_stride;
-    dim_t dst_h_offset, dst_w_offset;
+    dim_t dst_w_offset, dst_h_offset;
     dim_t VL, n_vec, n_tail_vec;
     const reg64_t inp_ptr = r15;
     const reg64_t dst_ptr = r14;

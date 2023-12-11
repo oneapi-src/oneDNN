@@ -1370,9 +1370,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::generate() {
 }
 
 template <cpu_isa_t isa, typename Wmm>
-brdgmm_kernel_t<isa, Wmm>::brdgmm_kernel_t(const brgemm_t abrd) {
-    brgemm_kernel_ = new jit_brdgmm_kernel_base_t<isa, Wmm>(abrd);
-}
+brdgmm_kernel_t<isa, Wmm>::brdgmm_kernel_t(const brgemm_t abrd)
+    : brgemm_kernel_(new jit_brdgmm_kernel_base_t<isa, Wmm>(abrd)) {}
 
 template <cpu_isa_t isa, typename Wmm>
 status_t brdgmm_kernel_t<isa, Wmm>::create_kernel() {

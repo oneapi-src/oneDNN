@@ -33,19 +33,21 @@ namespace jit_avx512_core_brgemm_conv_trans_kernel {
 jit_avx512_core_brgemm_conv_trans_kernel_t::
         jit_avx512_core_brgemm_conv_trans_kernel_t(
                 const jit_brgemm_conv_conf_t &ajcp, const char *name)
-    : jit_generator(name), jcp(ajcp) {
-    inp_dsz = jcp.src_dsz;
-    ic_block_sz = inp_dsz * jcp.inp_ic_block;
-    dst_w_block = dst_w(jcp, jcp.ow_block);
-    dst_stride = jcp.copy_block_only ? dst_w_block : jcp.iwp;
+    : jit_generator(name)
+    , jcp(ajcp)
+    , inp_dsz(jcp.src_dsz)
+    , ic_block_sz(inp_dsz * jcp.inp_ic_block)
+    , iw_size(inp_dsz * jcp.ngroups * jcp.ic_without_padding)
+    , dst_w_block(dst_w(jcp, jcp.ow_block))
+    , dst_stride(jcp.copy_block_only ? dst_w_block : jcp.iwp)
+    , VL(cpu_isa_traits<avx512_core>::vlen)
+    , n_vec(jcp.inp_ic_block / jcp.simd_w)
+    , n_tail_vec((jcp.ic_without_padding % jcp.inp_ic_block) / jcp.simd_w) {
+
     const auto kh_stride
             = (jcp.relo_type == conv_brgemm_relo_type_t::whi) ? jcp.kh : 1;
     dst_w_offset = kh_stride * ic_block_sz;
     dst_h_offset = dst_stride * dst_w_offset;
-    iw_size = inp_dsz * jcp.ngroups * jcp.ic_without_padding;
-    VL = cpu_isa_traits<avx512_core>::vlen;
-    n_vec = jcp.inp_ic_block / jcp.simd_w;
-    n_tail_vec = (jcp.ic_without_padding % jcp.inp_ic_block) / jcp.simd_w;
 }
 
 int get_inp_size(int dst_size, int ext_k, int stride, int dilate) {

@@ -34,18 +34,18 @@ template <typename Vmm>
 jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::
         jit_avx512_core_brgemm_conv_bwd_trans_kernel_t(
                 const jit_brgemm_conv_conf_t &ajcp, const char *name)
-    : jit_generator(name), jcp(ajcp) {
-    inp_dsz = jcp.src_dsz;
-    oc_block_sz = inp_dsz * jcp.oc_block;
-    dst_w_block = jcp.ow_block;
-    dst_stride = jcp.owp;
-    dst_w_offset = oc_block_sz;
-    dst_h_offset = dst_stride * dst_w_offset;
-    ow_size = inp_dsz * jcp.ngroups * jcp.oc_without_padding;
-    VL = vreg_traits<Vmm>::vlen;
-    n_vec = jcp.oc_block / jcp.simd_w;
-    n_tail_vec = (jcp.oc_without_padding % jcp.oc_block) / jcp.simd_w;
-}
+    : jit_generator(name)
+    , jcp(ajcp)
+    , inp_dsz(jcp.src_dsz)
+    , oc_block_sz(inp_dsz * jcp.oc_block)
+    , ow_size(inp_dsz * jcp.ngroups * jcp.oc_without_padding)
+    , dst_w_block(jcp.ow_block)
+    , dst_stride(jcp.owp)
+    , dst_w_offset(oc_block_sz)
+    , dst_h_offset(dst_stride * dst_w_offset)
+    , VL(vreg_traits<Vmm>::vlen)
+    , n_vec(jcp.oc_block / jcp.simd_w)
+    , n_tail_vec((jcp.oc_without_padding % jcp.oc_block) / jcp.simd_w) {}
 
 template <typename Vmm>
 int jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::inp_w(

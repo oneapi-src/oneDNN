@@ -1634,9 +1634,8 @@ struct jit_copy_f32_t : public jit_brgemm_trans_to_vnni_t,
         : jit_brgemm_trans_to_vnni_t(conf, matrix_to_transform)
         , jit_generator(jit_name())
         , column_step(isa_max_vlen(conf->isa) / typesize_data)
-        , num_regs(isa_num_vregs(conf->isa)) {
-        col_shift = static_cast<dim_t>(column_step) * typesize_data;
-    }
+        , num_regs(isa_num_vregs(conf->isa))
+        , col_shift(static_cast<dim_t>(column_step) * typesize_data) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }

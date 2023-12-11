@@ -334,7 +334,10 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
 
     thread_info_t(const brgemm_convolution_bwd_weights_t *pcnv,
             const exec_ctx_t &ctx, int ithr)
-        : self(pcnv)
+        : src(CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC))
+        , diff_dst(CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST))
+        , diff_weights(CTX_OUT_MEM(void *, DNNL_ARG_DIFF_WEIGHTS))
+        , self(pcnv)
         , scratchpad(ctx.get_scratchpad_grantor())
         , ithr(ithr)
         , exec_ctx(ctx)
@@ -342,9 +345,6 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         , src_d(self->pd()->src_md())
         , diff_dst_d(self->pd()->diff_dst_md())
         , diff_weights_d(self->pd()->diff_weights_md(0)) {
-        diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
-        src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-        diff_weights = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_WEIGHTS);
 
         diff_bias = self->pd()->with_bias() && (jcp.oc % jcp.oc_block != 0)
                         && self->pd()->jcp_.bia_dt == data_type::f32

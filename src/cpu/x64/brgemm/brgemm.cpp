@@ -663,7 +663,7 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
 
 namespace {
 template <typename T>
-static inline int sign(T v) {
+inline int sign(T v) {
     return (v > 0) ? 1 : ((v < 0) ? -1 : 0);
 }
 

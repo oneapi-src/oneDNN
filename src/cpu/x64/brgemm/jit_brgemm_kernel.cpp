@@ -2525,9 +2525,8 @@ brgemm_attr_t::brgemm_attr_t()
     , static_offsets(nullptr) {}
 
 template <cpu_isa_t isa, typename Wmm>
-brgemm_kernel_common_t<isa, Wmm>::brgemm_kernel_common_t(const brgemm_t abrd) {
-    brgemm_kernel_ = new jit_brgemm_kernel_t<isa, Wmm>(abrd);
-}
+brgemm_kernel_common_t<isa, Wmm>::brgemm_kernel_common_t(const brgemm_t abrd)
+    : brgemm_kernel_(new jit_brgemm_kernel_t<isa, Wmm>(abrd)) {}
 
 template <cpu_isa_t isa, typename Wmm>
 status_t brgemm_kernel_common_t<isa, Wmm>::create_kernel() {
