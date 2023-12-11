@@ -46,19 +46,27 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = mayiuse(avx512_core) && is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && (expect_data_types(bf16, bf16, data_type::undef, bf16,
-                                data_type::undef)
+            // disabling verbose dispatch messages for unsupported isa for better readability
+            if (!mayiuse(avx512_core)) return status::unimplemented;
+
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(
+                    (expect_data_types(bf16, bf16, data_type::undef, bf16,
+                             data_type::undef)
                             || expect_data_types(bf16, bf16, data_type::undef,
-                                    f32, data_type::undef))
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(weights_md(1)->data_type, f32, bf16))
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops,
-                            dst_md()->data_type)
-                    && !has_zero_dim_memory();
-            if (!ok) return status::unimplemented;
+                                    f32, data_type::undef)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(attr()->has_default_values(
+                                   primitive_attr_t::skip_mask_t::post_ops,
+                                   dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(
+                    IMPLICATION(with_bias(),
+                            utils::one_of(weights_md(1)->data_type, f32, bf16)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
 
             CHECK(jit_avx512_core_bf16_fwd_kernel::init_conf(jcp_, *desc(),
                     src_md_, weights_md_, dst_md_, bias_md_, attr_,
@@ -122,16 +130,22 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace prop_kind;
-            bool ok = true && mayiuse(avx512_core) && is_bwd_d()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && (expect_data_types(data_type::f32, data_type::bf16,
-                                data_type::undef, data_type::bf16,
-                                data_type::undef)
-                            || expect_data_types(data_type::bf16,
-                                    data_type::bf16, data_type::undef,
-                                    data_type::bf16, data_type::undef))
-                    && attr()->has_default_values() && !has_zero_dim_memory();
-            if (!ok) return status::unimplemented;
+            using namespace data_type;
+            // disabling verbose dispatch messages for unsupported isa for better readability
+            if (!mayiuse(avx512_core)) return status::unimplemented;
+
+            VDISPATCH_CONV(is_bwd_d(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(
+                    (expect_data_types(f32, bf16, data_type::undef, bf16,
+                             data_type::undef)
+                            || expect_data_types(bf16, bf16, data_type::undef,
+                                    bf16, data_type::undef)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             status_t status = jit_avx512_core_bf16_bwd_data_kernel::init_conf(
                     jcp_, *desc(), diff_src_md_, weights_md_, diff_dst_md_,
@@ -183,19 +197,26 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t : public primitive_t {
                 jit_avx512_core_bf16_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && mayiuse(avx512_core) && is_bwd_w()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && (expect_data_types(data_type::bf16, data_type::bf16,
-                                data_type::undef, data_type::bf16,
-                                data_type::undef)
-                            || expect_data_types(data_type::bf16,
-                                    data_type::f32, data_type::undef,
-                                    data_type::bf16, data_type::undef))
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(diff_bias_md_.data_type,
-                                    data_type::f32, data_type::bf16))
-                    && attr()->has_default_values() && !has_zero_dim_memory();
-            if (!ok) return status::unimplemented;
+            using namespace data_type;
+            // disabling verbose dispatch messages for unsupported isa for better readability
+            if (!mayiuse(avx512_core)) return status::unimplemented;
+
+            VDISPATCH_CONV(is_bwd_w(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(
+                    (expect_data_types(bf16, bf16, data_type::undef, bf16,
+                             data_type::undef)
+                            || expect_data_types(bf16, f32, data_type::undef,
+                                    bf16, data_type::undef)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    IMPLICATION(with_bias(),
+                            utils::one_of(diff_bias_md_.data_type, f32, bf16)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             status_t status = jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
                     init_conf(jcp_, *desc(), src_md_, diff_weights_md_,

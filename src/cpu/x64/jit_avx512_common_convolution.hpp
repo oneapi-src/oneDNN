@@ -47,14 +47,17 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_t {
                 jit_avx512_common_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(src_type, wei_type, dst_type, dst_type,
-                            data_type::undef)
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, dst_type)
-                    && !has_zero_dim_memory();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(src_type, wei_type, dst_type,
+                                   dst_type, data_type::undef),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, dst_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
 
             CHECK(jit_avx512_common_conv_fwd_kernel::init_conf(jcp_, *desc(),
                     src_md_, weights_md_, dst_md_, bias_md_, attr_,
@@ -121,12 +124,17 @@ struct jit_avx512_common_convolution_bwd_data_t : public primitive_t {
                 jit_avx512_common_convolution_bwd_data_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(diff_src_type, wei_type,
-                            data_type::undef, diff_dst_type, data_type::undef)
-                    && attr()->has_default_values() && !has_zero_dim_memory();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(
+                    expect_data_types(diff_src_type, wei_type, data_type::undef,
+                            diff_dst_type, data_type::undef),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             status_t status
                     = jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
@@ -192,12 +200,17 @@ struct jit_avx512_common_convolution_bwd_weights_t : public primitive_t {
                 jit_avx512_common_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(src_type, diff_weights_type,
-                            diff_weights_type, diff_dst_type, data_type::undef)
-                    && attr()->has_default_values() && !has_zero_dim_memory();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(
+                    expect_data_types(src_type, diff_weights_type,
+                            diff_weights_type, diff_dst_type, data_type::undef),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             status_t status
                     = jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(

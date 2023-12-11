@@ -59,31 +59,50 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(src_md(0)->data_type, s8, u8)
-                    && weights_md(0)->data_type == s8
-                    && IMPLICATION(with_bias(), weights_md(1)->data_type == f32)
-                    && utils::one_of(
-                            dst_md(0)->data_type, f32, s32, s8, u8, bf16)
-                    && desc()->accum_data_type == s32
-                    && attr()->has_default_values(smask_t::scales_runtime
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+
+            VDISPATCH_CONV(utils::one_of(src_md(0)->data_type, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(
+                    weights_md(0)->data_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(
+                    IMPLICATION(with_bias(), weights_md(1)->data_type == f32),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_CONV(
+                    utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8, bf16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(
+                    desc()->accum_data_type == s32, VERBOSE_UNSUPPORTED_DT);
+
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+
+            VDISPATCH_CONV(
+                    attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
-                            dst_md(0)->data_type)
-                    && attr()->scales_.has_default_values(
-                            {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST,
-                                    DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
-                                    DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST})
-                    && attr()->post_ops_.check_sum_consistency(
-                            dst_md(0)->data_type,
-                            /* is_int8 */ true)
-                    && !has_zero_dim_memory() && attr_scales_ok()
-                    && zero_points_ok()
-                    && set_default_formats_common(
-                            dat_tag(), format_tag::any, dat_tag())
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+                            dst_md(0)->data_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(attr()->scales_.has_default_values({DNNL_ARG_SRC,
+                                   DNNL_ARG_WEIGHTS, DNNL_ARG_DST,
+                                   DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
+                                   DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST}),
+                    VERBOSE_UNSUPPORTED_ATTR);
+
+            VDISPATCH_CONV(set_default_formats_common(
+                                   dat_tag(), format_tag::any, dat_tag()),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(
+                                   dst_md(0)->data_type,
+                                   /* is_int8 */ true),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_CONV(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
@@ -200,16 +219,21 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             // for 1x1: Check that no better ISA is available.
             // for dw: Always fuse with same ISA.
             // Caveat: May be a better dw conv exists.
+            VDISPATCH_CONV(!mayiuse(avx512_core_amx),
+                    "heuristic to skip implementation when higher ISA is "
+                    "supported");
 
-            bool ok = !mayiuse(avx512_core_amx)
-                    && (attr_1x1.post_ops_.find(primitive_kind::sum) == -1)
-                    // TODO: Below may be further tuned.
-                    && (l2_cache < src_d.size())
-                    // load_grp_count check can be redundant due to l2 check
-                    // above. Adding it explicitly as the current driver doesn't
-                    // work if this condition fails.
-                    && (jcp_1x1.load_grp_count < 2);
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(attr_1x1.post_ops_.find(primitive_kind::sum) == -1,
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            // TODO: Below may be further tuned.
+            VDISPATCH_CONV(
+                    l2_cache * 2 < src_d.size(), "cache size check failed");
+
+            // load_grp_count check can be redundant due to l2 check
+            // above. Adding it explicitly as the current driver doesn't
+            // work if this condition fails.
+            VDISPATCH_CONV(jcp_1x1.load_grp_count < 2, "load group count > 1");
 
             int dw_po_index
                     = attr_1x1.post_ops_.find(primitive_kind::convolution);
@@ -225,12 +249,16 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             jcp_dw_ = &(fusable_pd->jcp_);
             dw_conv_pd_ = std::move(fusable_pd);
 
-            ok = true
-                    && (dnnl_memory_desc_equal(&src_md, dw_conv_pd_->src_md(0)))
-                    && (jcp_1x1.oc_without_padding % jcp_1x1.oc_block == 0)
-                    && IMPLICATION(jcp_dw_->ow_block,
-                            jcp_dw_->ow_block == jcp_dw_->ow);
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(
+                    dnnl_memory_desc_equal(&src_md, dw_conv_pd_->src_md(0)),
+                    VERBOSE_INCONSISTENT_MDS, "src_md", "dw_conv_pd_->src_md");
+            VDISPATCH_CONV(jcp_1x1.oc_without_padding % jcp_1x1.oc_block == 0,
+                    "output-channel is not an exact multiple of oc_block "
+                    "(currently unsupported padded output-channel)");
+            VDISPATCH_CONV(IMPLICATION(jcp_dw_->ow_block,
+                                   jcp_dw_->ow_block == jcp_dw_->ow),
+                    "heuristic: ow_block does not equal output-width "
+                    "(unsupported output-width partitioning)");
 
             assert(jcp_dw_);
             assert(dw_conv_pd_->dst_md(0)->format_kind != format_kind::any);

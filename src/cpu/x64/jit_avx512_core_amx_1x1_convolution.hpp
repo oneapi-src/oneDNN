@@ -66,15 +66,18 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
                                     | smask_t::sum_dt,
                             dst_md(0)->data_type);
 
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && (is_bf16_convolution || is_int8_convolution)
-                    && !has_zero_dim_memory() && attr_scales_ok()
-                    && attr()->post_ops_.check_sum_consistency(
-                            dst_md(0)->data_type,
-                            /* is_int8 */ is_int8_convolution)
-                    && zero_points_ok();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV((is_bf16_convolution || is_int8_convolution),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(
+                                   dst_md(0)->data_type,
+                                   /* is_int8 */ is_int8_convolution),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
 
             CHECK(jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jcp_, *desc(),
                     src_md_, weights_md_, dst_md_, bias_md_, attr_,
