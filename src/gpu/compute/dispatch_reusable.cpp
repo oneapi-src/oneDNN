@@ -448,7 +448,7 @@ void dispatch_compile_params_t::def_kernel_macros(
 
     // For each term, define each parameter
     for (size_t i = 0; i < num_terms; i++) {
-        const gws_indexing_term_t &term = terms[i];
+        const gws_indexing_term_t::compile_params_t &term = terms[i];
         const char *gws_dim_op;
         switch (term.op) {
             case (gws_op_t::ZERO): gws_dim_op = "ZERO"; break;
@@ -466,7 +466,7 @@ void dispatch_compile_params_t::def_kernel_macros(
 
         // GWS<X>_RT_IDX<Y>
         kernel_ctx.define_int(utils::format("%s_RT_IDX%d", gws_prefix, i),
-                static_cast<dim_t>(term.rt_data_index));
+                static_cast<dim_t>(i));
 
         // GWS<X>_IDX<Y>
         kernel_ctx.define_int(utils::format("%s_IDX%d", gws_prefix, i),

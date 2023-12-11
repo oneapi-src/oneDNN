@@ -81,40 +81,77 @@ inline std::string to_string(gws_op_t op) {
 // - idx is defined by an index into the gws indexing function
 // - the gws_op is used to simplify the expression if stride/max/block are known
 struct gws_indexing_term_t {
+    struct compile_params_t {
+        compile_params_t() = default;
+        compile_params_t(gws_op_t op, size_t gws_idx)
+            : op(op), gws_idx(gws_idx) {};
+
+#if __cplusplus >= 202002L
+        bool operator==(const compile_params_t &) const = default;
+#endif
+        std::string str() const {
+            std::stringstream ss;
+            ss << "<compile_params_t op=" << to_string(op)
+               << ", gws_idx=" << gws_idx << ">";
+            return ss.str();
+        }
+
+        gws_op_t op;
+        uint8_t padding[4] = {0, 0, 0, 0};
+        size_t gws_idx;
+    };
+
+    struct runtime_params_t {
+        runtime_params_t() = default;
+        runtime_params_t(dim_t size, stride_t stride, dim_t block)
+            : size(size), stride(stride), block(block) {};
+#if __cplusplus >= 202002L
+        bool operator==(const runtime_params_t &) const = default;
+#endif
+        dim_t size;
+        stride_t stride;
+        dim_t block;
+    };
+
     gws_indexing_term_t() = default;
 #if __cplusplus >= 202002L
     bool operator==(const gws_indexing_term_t &) const = default;
 #endif
-    gws_indexing_term_t(gws_op_t op, size_t data_idx, size_t gws_idx)
-        : op(op), rt_data_index(data_idx), gws_idx(gws_idx) {};
-    gws_op_t op;
-    uint8_t padding[4] = {0, 0, 0, 0};
-    size_t rt_data_index;
-    size_t gws_idx;
+    gws_indexing_term_t(gws_op_t op, size_t gws_idx, dim_t size,
+            stride_t stride, dim_t block)
+        : compile_params_(op, gws_idx), runtime_params_(size, stride, block) {};
 
     std::string str() const {
         std::stringstream ss;
-        ss << "<gws_indexing_term_t op=" << to_string(op)
-           << ", rt_idx=" << rt_data_index << ", gws_idx=" << gws_idx << ">";
+        ss << "<gws_indexing_term_t op=" << to_string(compile_params_.op)
+           << ", gws_idx=" << compile_params_.gws_idx
+           << ", size=" << runtime_params_.size
+           << ", stride=" << runtime_params_.stride
+           << ", block=" << runtime_params_.block << ">";
         return ss.str();
     }
+
+    const compile_params_t &compile_params() const { return compile_params_; }
+    const runtime_params_t &runtime_params() const { return runtime_params_; }
+
+    compile_params_t compile_params_;
+    runtime_params_t runtime_params_;
 };
 
 struct gws_term_list_t {
     void add_buffer_term(size_t buf_idx, gws_op_t op, size_t gws_idx,
             dim_t size, stride_t stride, dim_t block) {
         size_t idx = add_term(op, gws_idx, size, stride, block);
+        gpu_assert(idx <= MAX_INDEXING_TERMS);
         buf_idxs[buf_idx].emplace_back(idx);
     }
-    void add_dim_term(size_t dim_idx, gws_op_t op, size_t gws_idx, dim_t size,
-            stride_t stride, dim_t block) {
-        size_t idx = add_term(op, gws_idx, size, stride, block);
-        dim_idxs[dim_idx].emplace_back(idx);
+
+    const gws_indexing_term_t &operator[](size_t idx) const {
+        return terms[idx];
     }
+    size_t size() const { return terms.size(); }
+
     std::vector<gws_indexing_term_t> terms;
-    std::vector<dim_t> sizes;
-    std::vector<stride_t> strides;
-    std::vector<dim_t> blocks;
 
     std::unordered_map<size_t, std::vector<size_t>> buf_idxs;
     std::unordered_map<size_t, std::vector<size_t>> dim_idxs;
@@ -122,9 +159,7 @@ struct gws_term_list_t {
     std::string str() const {
         std::ostringstream ss;
         for (size_t i = 0; i < terms.size(); i++) {
-            ss << terms[i].str() << " (size=" << sizes[i]
-               << ", stride=" << strides[i] << ", block=" << blocks[i] << ")"
-               << std::endl;
+            ss << terms[i].str() << std::endl;
         }
         return ss.str();
     }
@@ -132,11 +167,17 @@ struct gws_term_list_t {
 private:
     size_t add_term(gws_op_t op, size_t gws_idx, dim_t size, stride_t stride,
             dim_t block) {
+        gws_indexing_term_t new_term(op, gws_idx, size, stride, block);
+
+        // Use an existing term if an exact match is found
+        for (size_t i = 0; i < terms.size(); i++) {
+            const gws_indexing_term_t &term = terms[i];
+            if (term == new_term) return i;
+        }
+
+        // Create a new term
         size_t ret = terms.size();
-        terms.emplace_back(op, terms.size(), gws_idx);
-        sizes.emplace_back(size);
-        strides.emplace_back(stride);
-        blocks.emplace_back(block);
+        terms.emplace_back(new_term);
         return ret;
     }
 };
@@ -203,7 +244,8 @@ struct dispatch_compile_params_t {
 
     subgroup_data_t subgroup;
     size_t num_terms = 0;
-    gws_indexing_term_t terms[MAX_INDEXING_TERMS] = {{gws_op_t::SOLO, 0, 0}};
+    gws_indexing_term_t::compile_params_t terms[MAX_INDEXING_TERMS]
+            = {{gws_op_t::SOLO, 0}};
 
     // Buffer definitions (each buffer has a name, and a collection of terms
     // used to compute the offset)
@@ -219,17 +261,15 @@ assert_trivially_serializable(dispatch_compile_params_t);
 class dispatch_runtime_params_t {
 public:
     dispatch_runtime_params_t() = default;
-    dispatch_runtime_params_t(const nd_range_t &nd_range,
-            const std::vector<stride_t> &strides,
-            const std::vector<dim_t> &sizes, const std::vector<dim_t> &blocks)
-        : nd_range(nd_range), num_terms(sizes.size()) {
-        gpu_assert(num_terms == strides.size());
-        gpu_assert(num_terms == blocks.size());
-        gpu_assert(num_terms <= MAX_INDEXING_TERMS);
+    dispatch_runtime_params_t(
+            const nd_range_t &nd_range, const gws_term_list_t &terms)
+        : nd_range(nd_range), num_terms(terms.size()) {
         for (size_t i = 0; i < num_terms; i++) {
-            rt_params.sizes[i] = sizes[i];
-            rt_params.strides[i] = static_cast<int64_t>(strides[i]);
-            rt_params.blocks[i] = blocks[i];
+            const gws_indexing_term_t::runtime_params_t &params
+                    = terms[i].runtime_params();
+            rt_params.sizes[i] = params.size;
+            rt_params.strides[i] = static_cast<int64_t>(params.stride);
+            rt_params.blocks[i] = params.block;
         }
         for (size_t i = num_terms; i < MAX_INDEXING_TERMS; i++) {
             rt_params.sizes[i] = 1;
@@ -462,7 +502,7 @@ public:
             const compute::nd_range_t &nd_range, subgroup_data_t subgroup) {
         compile_params.num_terms = term_list.terms.size();
         for (size_t i = 0; i < term_list.terms.size(); i++) {
-            compile_params.terms[i] = term_list.terms[i];
+            compile_params.terms[i] = term_list.terms[i].compile_params();
         }
 
         // Save buffer information
@@ -486,8 +526,7 @@ public:
         compile_params.subgroup = subgroup;
 
         // Set runtime params
-        runtime_params = dispatch_runtime_params_t(
-                nd_range, term_list.strides, term_list.sizes, term_list.blocks);
+        runtime_params = dispatch_runtime_params_t(nd_range, term_list);
     }
 
     const dispatch_compile_params_t &get_compile_params() const {
