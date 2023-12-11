@@ -5344,8 +5344,8 @@ void gemm_kernel_generator_t<hw>::loadMask(MaskAssignment assignment,
 
         uint32_t rsizeScaled = vmask.rsize / vmask.rdivide;
         uint32_t maskLen = vmask.bitRep * vmask.maskRep * rsizeScaled;
-        uint32_t fullMask = (1ul << maskLen) - 1;
-        uint32_t rep1Mask = (1ul << (vmask.bitRep * rsizeScaled)) - 1;
+        uint32_t fullMask = (uint64_t(1) << maskLen) - 1;
+        uint32_t rep1Mask = (uint64_t(1) << (vmask.bitRep * rsizeScaled)) - 1;
         uint32_t repMultiplier = fullMask / rep1Mask;
 
         auto flagType = flag.getType();
