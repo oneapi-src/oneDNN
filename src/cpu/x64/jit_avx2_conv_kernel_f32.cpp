@@ -16,6 +16,7 @@
 *******************************************************************************/
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory.hpp"
 #include "common/nstl.hpp"
@@ -586,6 +587,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr) {
+    // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(avx)) return status::unimplemented;
     jcp.isa = mayiuse(avx2) ? avx2 : avx;
 
@@ -637,7 +639,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     bool kernel_outside_src = false || ext_kw <= jcp.l_pad
             || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad || ext_kh <= jcp.b_pad
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
-    if (kernel_outside_src) return status::unimplemented;
+    VDISPATCH_CONV_IC(!kernel_outside_src,
+            "weights and src size mismatch due to padding");
 
     const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
     const auto dat_tag_ncx = pick(ndims - 3, ncw, nchw, ncdhw);
@@ -661,8 +664,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     // Disable this kernel on high width 1d object as gemm performs better until
     // optimizations can be made to fix it.
-    if (is_data_layout_nxc && ndims == 3 && jcp.ow > 11 * 1024)
-        return status::unimplemented;
+    VDISPATCH_CONV_IC(!(is_data_layout_nxc && ndims == 3 && jcp.ow > 11 * 1024),
+            "skip input shape with large width due to heuristic");
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
@@ -695,7 +698,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     }
 
     if (jcp.with_eltwise || jcp.with_binary)
-        if (!mayiuse(avx2)) return status::unimplemented;
+        VDISPATCH_CONV_IC(mayiuse(avx2),
+                "isa does not support eltwise and binary post-ops");
 
     using namespace injector;
     static constexpr bool sum_at_pos_0_only = true;
@@ -704,9 +708,9 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const bool post_ops_ok_ = post_ops_ok(post_ops_ok_args_t(jcp.isa,
             {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
             sum_requires_scale_one, sum_requires_zp_zero));
-    if (!post_ops_ok_) return status::unimplemented;
+    VDISPATCH_CONV_IC(post_ops_ok_, VERBOSE_UNSUPPORTED_POSTOP);
 
-    bool args_ok = true
+    bool tag_ok = true
             && IMPLICATION(flat,
                     jcp.wei_tag == wei_tag_Oxio
                             && ((tag_is_flat(jcp.src_tag, dat_tag_ncx,
@@ -719,10 +723,13 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
                             && ((jcp.src_tag == dat_tag_nCx8c
                                         && jcp.dst_tag == dat_tag_nCx8c)
                                     || (jcp.src_tag == dat_tag_nxc
-                                            && jcp.dst_tag == dat_tag_nxc)))
-            && jcp.ic <= src_d.padded_dims()[1]
+                                            && jcp.dst_tag == dat_tag_nxc)));
+    VDISPATCH_CONV_IC(tag_ok, VERBOSE_UNSUPPORTED_TAG);
+
+    bool channel_pad_ok = true && jcp.ic <= src_d.padded_dims()[1]
             && jcp.oc <= dst_d.padded_dims()[1];
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(channel_pad_ok,
+            "i/o channel size mismatch against padded channel dimension");
 
     jcp.ur_h = 1; /* no code-unrolling by h so far */
     jcp.ur_w = 3;
@@ -760,13 +767,14 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
-    args_ok = true && IMPLICATION(!is_data_layout_nxc, jcp.oc % simd_w == 0)
+    const bool args_ok = true
+            && IMPLICATION(!is_data_layout_nxc, jcp.oc % simd_w == 0)
             && jcp.l_pad <= jcp.ur_w
             && IMPLICATION(jcp.kw > 7,
                     (jcp.t_pad == 0 && jcp.l_pad == 0)
                             || (jcp.stride_w == 1 && jcp.stride_h == 1))
             && IMPLICATION(mimo && !is_data_layout_nxc, jcp.ic % simd_w == 0);
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(args_ok, "failed shape restrictions");
 
     jcp.ic_tail = is_data_layout_nxc ? jcp.ic % simd_w : 0;
     jcp.oc_tail = is_data_layout_nxc
@@ -787,8 +795,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         r_pad_no_tail = nstl::max(0,
                 calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,
                         jcp.stride_w, ext_kw));
-        if (jcp.ur_w < nstl::max(jcp.l_pad, r_pad_no_tail))
-            return status::unimplemented;
+        VDISPATCH_CONV_IC((jcp.ur_w >= nstl::max(jcp.l_pad, r_pad_no_tail)),
+                "width unroll from heuristic exceeds padding size");
     }
     assert(jcp.nb_oc_blocking > 0);
     assert(jcp.ur_w * (jcp.nb_oc_blocking + 1) <= num_avail_regs);
@@ -1098,6 +1106,7 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
         const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &diff_dst_d) {
+    // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(avx2)) return status::unimplemented;
 
     jcp.nthr = dnnl_get_max_threads();
@@ -1137,10 +1146,11 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
 
-    if ((jcp.dilate_w != 0 && jcp.stride_w != 1)
+    const bool dilate_ok = !((jcp.dilate_w != 0 && jcp.stride_w != 1)
             || (jcp.dilate_d != 0 && jcp.stride_d != 1)
-            || (jcp.dilate_h != 0 && jcp.stride_h != 1))
-        return status::unimplemented;
+            || (jcp.dilate_h != 0 && jcp.stride_h != 1));
+    VDISPATCH_CONV_IC(
+            dilate_ok, "unsupported shape with 'stride > 1' when 'dilate > 0'");
 
     const int simd_w = 8;
 
@@ -1169,8 +1179,9 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     bool ok_to_pad_channels = true && !is_data_layout_nxc && jcp.ngroups == 1;
 
     /* gemm-based convolution performs better in these cases */
-    if (jcp.ic < simd_w && jcp.kw > 3 && jcp.stride_w > 1)
-        return status::unimplemented;
+    VDISPATCH_CONV_IC(!(jcp.ic < simd_w && jcp.kw > 3 && jcp.stride_w > 1),
+            "unimplemented due to heuristic with ic, kw and stride_w as "
+            "parameters");
 
     if (ok_to_pad_channels) {
         jcp.oc = rnd_up(jcp.oc, simd_w);
@@ -1203,7 +1214,7 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             && jcp.oc <= diff_dst_d.padded_dims()[1]
             && jcp.dst_tag == required_dat_tag
             && jcp.src_tag == required_dat_tag && jcp.wei_tag == wei_tag;
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_UNSUPPORTED_TAG);
 
     const int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
     const int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
@@ -1219,7 +1230,8 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     bool kernel_outside_src = false || ext_kw <= jcp.l_pad
             || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad || ext_kh <= jcp.b_pad
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
-    if (kernel_outside_src) return status::unimplemented;
+    VDISPATCH_CONV_IC(!kernel_outside_src,
+            "weights and src size mismatch due to padding");
 
     int l_overflow = nstl::max(0, (ext_kw - 1 - jcp.l_pad) / jcp.stride_w);
 
@@ -1232,9 +1244,8 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
        per ur_w * nb_ic_blocking compute loops. Number of required registers
        is num_regs = ur_w * nb_ic_blocking + ur_w / stride_w <= max_regs.
        ur_w must be divisible by stride_w */
-    if (jcp.stride_w + 1 > max_regs) /* Minimal possible registers
-                                         distribution exceeds max_regs */
-        return status::unimplemented;
+    VDISPATCH_CONV_IC((jcp.stride_w + 1 <= max_regs),
+            "blocking requirement exceeds max available registers");
 
     int best_nfmas = 0;
     for (int b = 1; b <= 4; b++) {
@@ -1255,8 +1266,7 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             }
         }
     }
-    if (best_nfmas == 0) /* can't find appropriate blocking */
-        return status::unimplemented;
+    VDISPATCH_CONV_IC(best_nfmas > 0, "can't find appropriate blocking");
 
     jcp.ur_w_tail = jcp.iw % jcp.ur_w;
 
@@ -1270,7 +1280,7 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             || ((jcp.iw > jcp.ur_w) && (jcp.ur_w % jcp.stride_w != 0))
             /* r_pad must not extend beyond ur_w_tail */
             || ((jcp.iw > jcp.ur_w) && (jcp.r_pad + jcp.ur_w_tail < 0));
-    if (tails_not_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(!tails_not_ok, "tail size unsupported");
 
     /* adjust the thread decomposition
      * to improve the perf for small problem size
@@ -1313,6 +1323,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &diff_weights_d,
         const memory_desc_wrapper &diff_dst_d) {
+    // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(avx2)) return status::unimplemented;
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
@@ -1393,7 +1404,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const bool boundaries_ok = true && jcp.t_pad < max_h_pad
             && jcp.b_pad < max_h_pad && jcp.l_pad < max_w_pad
             && jcp.r_pad < max_w_pad && jcp.f_pad == 0 && jcp.back_pad == 0;
-    if (!boundaries_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(boundaries_ok, "padding size unsupported (overflow)");
 
     bool ok_to_pad_channels = true && !is_data_layout_nxc && jcp.ngroups == 1;
 
@@ -1418,8 +1429,11 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
                             && ((jcp.src_tag == dat_tag_nCx8c
                                         && jcp.dst_tag == dat_tag_nCx8c)
                                     || (jcp.src_tag == dat_tag_nxc
-                                            && jcp.dst_tag == dat_tag_nxc)))
-            && IMPLICATION(mimo && !is_data_layout_nxc, jcp.ic % simd_w == 0)
+                                            && jcp.dst_tag == dat_tag_nxc)));
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_UNSUPPORTED_TAG);
+
+    bool params_ok
+            = IMPLICATION(mimo && !is_data_layout_nxc, jcp.ic % simd_w == 0)
             && IMPLICATION(!is_data_layout_nxc, jcp.oc % simd_w == 0)
             && jcp.kw < 14 && jcp.kh <= jcp.t_pad + jcp.ih /* [bwd_w:r1] */
             && jcp.kh <= jcp.ih /* [bwd_w:r2] */
@@ -1428,7 +1442,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             && jcp.dilate_d == 0 && jcp.dilate_h == 0 && jcp.dilate_w == 0
             && jcp.ic <= src_d.padded_dims()[1]
             && jcp.oc <= diff_dst_d.padded_dims()[1];
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(params_ok, VERBOSE_BAD_PARAM, "");
 
     jcp.ic_block = flat ? jcp.ic : simd_w;
     jcp.nb_ic = div_up(jcp.ic, jcp.ic_block);

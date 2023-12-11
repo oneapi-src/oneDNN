@@ -19,6 +19,7 @@
 #include <limits>
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/memory.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"
@@ -686,6 +687,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr) {
+    // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(avx)) return status::unimplemented;
     jcp.isa = mayiuse(avx2) ? avx2 : avx;
 
@@ -784,7 +786,8 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     }
 
     if (jcp.with_eltwise || jcp.with_binary)
-        if (jcp.isa < avx2) return status::unimplemented;
+        VDISPATCH_CONV_IC(jcp.isa >= avx2,
+                "isa does not support eltwise and binary post-ops");
 
     using namespace injector;
     static constexpr bool sum_at_pos_0_only = true;
@@ -793,11 +796,12 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     const bool post_ops_ok_ = post_ops_ok(post_ops_ok_args_t(jcp.isa,
             {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
             sum_requires_scale_one, sum_requires_zp_zero));
-    if (!post_ops_ok_) return status::unimplemented;
+    VDISPATCH_CONV_IC(post_ops_ok_, VERBOSE_UNSUPPORTED_POSTOP);
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == dat_tag
             && jcp.wei_tag == wei_tag && jcp.dst_tag == dat_tag;
-    if (!args_ok) return status::unimplemented;
+
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_UNSUPPORTED_TAG);
 
     args_ok = true && jcp.id == jcp.od && jcp.ih == jcp.oh && jcp.iw == jcp.ow
             && IMPLICATION(!is_data_layout_nxc,
@@ -805,12 +809,12 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
             && jcp.f_pad == 0 && jcp.t_pad == 0 && jcp.l_pad == 0
             && jcp.stride_w == 1 && jcp.stride_h == 1 && jcp.stride_d == 1
             && jcp.kd == 1 && jcp.kh == 1 && jcp.kw == 1;
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_BAD_PARAM, "");
 
     // TODO: remove this restriction
     // optimized 1x1 bwd_w does not support Intel AVX
-    if (jcp.prop_kind == backward_weights && jcp.isa != avx2)
-        return status::unimplemented;
+    VDISPATCH_CONV_IC(!(jcp.prop_kind == backward_weights && jcp.isa != avx2),
+            VERBOSE_UNSUPPORTED_ISA);
 
     jcp.ic_block = jcp.oc_block = simd_w;
 
@@ -998,8 +1002,8 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const auto mb_with_nb_reduce
                 = static_cast<dim_t>(jcp.mb) * jcp.nb_reduce;
         // prevent too large argument to cpu reducer
-        if (mb_with_nb_reduce > std::numeric_limits<int>::max())
-            return status::unimplemented;
+        VDISPATCH_CONV_IC(mb_with_nb_reduce <= std::numeric_limits<int>::max(),
+                VERBOSE_BLOCKING_FAIL);
     }
 
     return status::success;
