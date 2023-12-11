@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,11 +36,10 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
     , buffer_block_ {xmm_size_ + zmm_size_ + xmm_size_}
     , buffer_nest_offset_ {xmm_size_ + zmm_size_}
     , src_prev_offset_ {static_cast<int>(this->vlen_ - 4 * sizeof(data_t))}
-    , use_h_parallelism_(use_h_parallel) {
-    W_ = J.W;
-    HW_ = J.H * J.W;
-    version_ = J.version;
-}
+    , HW_(J.H * J.W)
+    , W_(J.W)
+    , version_(J.version)
+    , use_h_parallelism_(use_h_parallel) {}
 
 template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::generate() {

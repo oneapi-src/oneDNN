@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -552,9 +552,8 @@ template struct cpu_reducer_2d_t<data_type::s32>;
 /* accumulator section */
 
 template <impl::data_type_t data_type>
-cpu_accumulator_1d_t<data_type>::cpu_accumulator_1d_t() : drv_(nullptr) {
-    drv_ = create_reduce_2d_drv<data_type>(1, 0, 0, 0, false);
-}
+cpu_accumulator_1d_t<data_type>::cpu_accumulator_1d_t()
+    : drv_(create_reduce_2d_drv<data_type>(1, 0, 0, 0, false)) {}
 
 template <impl::data_type_t data_type>
 cpu_accumulator_1d_t<data_type>::~cpu_accumulator_1d_t() {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -374,9 +374,11 @@ struct helper_vmovups_data_t {
     helper_vmovups_data_t(const batch_normalization_pd_t *pd,
             jit_generator *host, Zmm zmm_reserved_1, Zmm zmm_reserved_2,
             Zmm zmm_reserved_3, Zmm zmm_reserved_4, Reg64 reg_tmp)
-        : h_(host), bf16_emu_(nullptr) {
-        is_bf16_ = pd->src_md()->data_type == data_type::bf16;
-        is_f16_ = pd->src_md()->data_type == data_type::f16;
+        : h_(host)
+        , bf16_emu_(nullptr)
+        , is_bf16_(pd->src_md()->data_type == data_type::bf16)
+        , is_f16_(pd->src_md()->data_type == data_type::f16) {
+
         if (is_bf16_ && isa == avx512_core && !mayiuse(avx512_core_bf16)) {
             bf16_emu_ = utils::make_unique<bf16_emulation_t>(h_, zmm_reserved_1,
                     zmm_reserved_2, zmm_reserved_3, reg_tmp, zmm_reserved_4,
@@ -798,15 +800,14 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         , is_avx2_ne_xf16_(is_avx2_ne_xf16<isa>(pd))
         , jit_tail_(pd, this, reg_tmp_, reg_blk_has_tail_, reg_C_, vtail_mask_,
                   ktail_mask_)
-        , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
+        , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_)
+        , data_type_size_(types::data_type_size(pd->src_md()->data_type))
+        , acc_type_size_(sizeof(acc_data_t)) {
         static_assert(utils::one_of(isa, sse41, avx2, avx512_core),
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
                 = get_data_strides<isa>(pd_, tag_kind);
-
-        data_type_size_ = types::data_type_size(pd->src_md()->data_type);
-        acc_type_size_ = sizeof(acc_data_t);
     }
 };
 
@@ -1187,15 +1188,14 @@ struct jit_bnorm_fwd_t : public jit_generator {
                   ktail_mask_)
         , jit_relu_(pd, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_, valpha, vmask, reg_alpha_)
-        , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
+        , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_)
+        , data_type_size_(types::data_type_size(pd->src_md()->data_type))
+        , acc_type_size_(sizeof(acc_data_t)) {
         static_assert(utils::one_of(isa, sse41, avx2, avx512_core),
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
                 = get_data_strides<isa>(pd_, tag_kind);
-
-        data_type_size_ = types::data_type_size(pd->src_md()->data_type);
-        acc_type_size_ = sizeof(acc_data_t);
     }
 
     void generate() override {
@@ -1475,15 +1475,14 @@ struct jit_bnorm_bwd_t : public jit_generator {
                   ktail_mask_)
         , jit_relu_(pd, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
-        , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
+        , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_)
+        , data_type_size_(types::data_type_size(pd->src_md()->data_type))
+        , acc_type_size_(sizeof(acc_data_t)) {
         static_assert(utils::one_of(isa, sse41, avx2, avx512_core),
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
                 = get_data_strides<isa>(pd_, tag_kind);
-
-        data_type_size_ = types::data_type_size(pd->src_md()->data_type);
-        acc_type_size_ = sizeof(acc_data_t);
     }
 
     void generate() override {
@@ -1874,15 +1873,14 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
                   ktail_mask_)
         , jit_relu_(pd, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
-        , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
+        , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_)
+        , data_type_size_(types::data_type_size(pd->src_md()->data_type))
+        , acc_type_size_(sizeof(acc_data_t)) {
         static_assert(utils::one_of(isa, sse41, avx2, avx512_core),
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
                 = get_data_strides<isa>(pd_, tag_kind);
-
-        data_type_size_ = types::data_type_size(pd->src_md()->data_type);
-        acc_type_size_ = sizeof(acc_data_t);
     }
 
     void generate() override {
@@ -1911,16 +1909,19 @@ private:
 public:
     driver_t(const batch_normalization_pd_t *pd,
             const jit_memory_tag_kind_t tag_kind)
-        : pd_(pd), tag_kind_(tag_kind), simd_w(get_simd_w<isa>(tag_kind)) {
-        nthr_ = dnnl_get_max_threads();
-        N_ = pd_->MB();
-        S_ = pd_->D() * pd_->H() * pd_->W();
-        C_ = pd_->C();
-        C_blks_ = get_c_padded(pd_) / simd_w;
+        : pd_(pd)
+        , tag_kind_(tag_kind)
+        , simd_w(get_simd_w<isa>(tag_kind))
+        , nthr_(dnnl_get_max_threads())
+        , N_(pd_->MB())
+        , S_(pd_->D() * pd_->H() * pd_->W())
+        , C_(pd_->C())
+        , C_blks_(get_c_padded(pd_) / simd_w)
+        , dt_size_(types::data_type_size(pd_->src_md()->data_type)) {
 
         const size_t l3_size = platform::get_per_core_cache_size(3) * nthr_ / 2;
         int num_tensors = pd_->is_fwd() ? 1 : 2;
-        dt_size_ = types::data_type_size(pd_->src_md()->data_type);
+
         const size_t working_set_size
                 = dt_size_ * N_ * S_ * simd_w * num_tensors;
 

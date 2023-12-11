@@ -81,7 +81,9 @@ struct jit_bnorm_conf_t {
     int S_nthr_last_iter_ {0};
 
     jit_bnorm_conf_t(const batch_normalization_pd_t *pd, int nthr, int simd_w)
-        : pd_(pd), simd_w_(simd_w) {
+        : pd_(pd)
+        , simd_w_(simd_w)
+        , dt_size_(types::data_type_size(pd_->src_md()->data_type)) {
 
         const dim_t N = pd_->MB();
         const dim_t C_PADDED = get_c_padded(pd_);
@@ -93,7 +95,6 @@ struct jit_bnorm_conf_t {
         const memory_desc_wrapper src_d(pd_->src_md());
         is_nspc_ = is_nspc(src_d);
 
-        dt_size_ = types::data_type_size(pd_->src_md()->data_type);
         size_t data_size = dt_size_ * N * C_PADDED * SP;
         const size_t l3_size = platform::get_per_core_cache_size(3) * nthr;
         // TODO: cache balancing for nspc
@@ -244,14 +245,15 @@ struct jit_bnorm_t : public jit_generator {
                                                  : zword;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
-    int vlen_spat_data_
-            = 0; // set by ctor depending on data type (xF16 or FP32);
 
     const batch_normalization_pd_t *pd_ = nullptr;
     const jit_bnorm_conf_t *jbp_ = nullptr;
     bool is_bf16_ = false;
     bool is_f16_ = false;
     bool is_avx2_ne_xf16_ = false;
+
+    // set by ctor depending on data type (xF16 or FP32);
+    int vlen_spat_data_ = 0;
 
     Reg64 reg_param = abi_param1;
 
@@ -2073,18 +2075,18 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *pd, const jit_bnorm_conf_t *jbp)
-        : jit_generator(jit_name()), pd_(pd), jbp_(jbp) {
+        : jit_generator(jit_name())
+        , pd_(pd)
+        , jbp_(jbp)
+        , is_bf16_(pd_->src_md()->data_type == data_type::bf16)
+        , is_f16_(pd_->src_md()->data_type == data_type::f16)
+        , is_avx2_ne_xf16_(
+                  isa == avx2 && mayiuse(avx2_vnni_2) && (is_bf16_ || is_f16_))
+        , vlen_spat_data_(vlen / (1 + is_xf16())) // 32B of xF16 -> 64B of FP32
+        , unroll_blocks(isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1)
+        , unroll_regs(isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
-
-        is_bf16_ = pd_->src_md()->data_type == data_type::bf16;
-        is_f16_ = pd_->src_md()->data_type == data_type::f16;
-        is_avx2_ne_xf16_
-                = isa == avx2 && mayiuse(avx2_vnni_2) && (is_bf16_ || is_f16_);
-        vlen_spat_data_ = vlen / (1 + is_xf16()); // 32B of xF16 -> 64B of FP32
-
-        unroll_blocks = isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1;
-        unroll_regs = isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1;
     }
 
     void generate() override {

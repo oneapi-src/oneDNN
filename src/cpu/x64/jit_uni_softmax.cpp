@@ -942,15 +942,15 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         , jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
         , src_d_(pd_->invariant_src_md())
         , dst_d_(pd_->dst_md())
-        , diff_dst_d_(pd_->diff_dst_md()) {
-        is_bf16_ = utils::one_of(bf16, src_d_.data_type(), dst_d_.data_type());
-        is_f16_ = utils::one_of(f16, src_d_.data_type(), dst_d_.data_type());
-        is_avx2_ne_xf16_ = mayiuse(avx2_vnni_2) && !mayiuse(avx512_core)
-                && (is_bf16_ || is_f16_);
-        axis_simd_full_ = pd_->axis_size() / simd_w_;
-        axis_simd_tail_ = pd_->axis_size() % simd_w_;
-        need_scratchpad_ = utils::one_of(dst_d_.data_type(), u8, s8);
-        use_ext_aux_vmms_ = !is_logsoftmax_ && n_vregs > 16;
+        , diff_dst_d_(pd_->diff_dst_md())
+        , is_bf16_(utils::one_of(bf16, src_d_.data_type(), dst_d_.data_type()))
+        , is_f16_(utils::one_of(f16, src_d_.data_type(), dst_d_.data_type()))
+        , is_avx2_ne_xf16_(mayiuse(avx2_vnni_2) && !mayiuse(avx512_core)
+                  && (is_bf16_ || is_f16_))
+        , need_scratchpad_(utils::one_of(dst_d_.data_type(), u8, s8))
+        , use_ext_aux_vmms_(!is_logsoftmax_ && n_vregs > 16)
+        , axis_simd_full_(pd_->axis_size() / simd_w_)
+        , axis_simd_tail_(pd_->axis_size() % simd_w_) {
 
         const auto &post_ops = pd_->attr()->post_ops_;
         with_postops_ = post_ops.len() != 0;
@@ -1489,14 +1489,15 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
         : jit_softmax_kernel_base_t(pd)
         , jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
         , src_d_(pd_->invariant_src_md())
-        , dst_d_(pd_->dst_md()) {
+        , dst_d_(pd_->dst_md())
+        , need_scratchpad_(utils::one_of(dst_d_.data_type(), u8, s8))
+        , axis_size_(pd_->axis_size())
         // `axis_stride_`, `axis_simd_full_` and `axis_simd_tail_` are only
         // different pieces from the dense version.
-        axis_size_ = pd_->axis_size();
-        axis_stride_ = pd_->axis_stride();
-        axis_simd_full_ = axis_stride_ / simd_w_;
-        axis_simd_tail_ = axis_stride_ % simd_w_;
-        need_scratchpad_ = utils::one_of(dst_d_.data_type(), u8, s8);
+        , axis_stride_(pd_->axis_stride())
+        , axis_simd_full_(axis_stride_ / simd_w_)
+        , axis_simd_tail_(axis_stride_ % simd_w_) {
+
         // Scratchpad size is limited to a single simd_w, thus, no unrolling
         // for such cases.
         if (need_scratchpad_)
