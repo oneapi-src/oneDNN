@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/memory.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
@@ -551,6 +552,7 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr, int nthreads) {
+    // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(sse41)) return status::unimplemented;
 
     // TODO (Roma): this code is duplicated from the generic kernel; maybe the
@@ -620,7 +622,7 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     const bool post_ops_ok_ = post_ops_ok(post_ops_ok_args_t(sse41,
             {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
             sum_requires_scale_one, sum_requires_zp_zero));
-    if (!post_ops_ok_) return status::unimplemented;
+    VDISPATCH_CONV_IC(post_ops_ok_, VERBOSE_UNSUPPORTED_POSTOP);
 
     const auto dat_tag_nxc = utils::pick(ndims - 3, nwc, nhwc);
     const auto dat_tag_blocked = utils::pick(ndims - 3, nCw8c, nChw8c);
@@ -640,7 +642,7 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == dat_tag
             && jcp.wei_tag == wei_tag && jcp.dst_tag == dat_tag;
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_UNSUPPORTED_TAG);
 
     const int simd_w = 4;
 
@@ -651,7 +653,7 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
             && jcp.stride_h == 1 // TODO: support some strides
             && jcp.ow == jcp.iw && jcp.oh == jcp.ih // enforce rpad=0
             && jcp.kh == 1 && jcp.kw == 1;
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_BLOCKING_FAIL);
 
     jcp.ur = 1;
     if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);

@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/memory.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
@@ -383,6 +384,7 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr, int nthreads) {
+    // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(sse41)) return status::unimplemented;
 
     jcp.nthr = nthreads;
@@ -425,7 +427,8 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     bool kernel_outside_src = false || ext_kw <= jcp.l_pad
             || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad
             || ext_kh <= jcp.b_pad;
-    if (kernel_outside_src) return status::unimplemented;
+    VDISPATCH_CONV_IC(!kernel_outside_src,
+            "weights and src size mismatch due to padding");
 
     const auto dat_tag_nxc = (ndims == 3 ? nwc : nhwc);
     const auto dat_tag_ncx = (ndims == 3 ? ncw : nchw);
@@ -464,12 +467,12 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const bool post_ops_ok_ = post_ops_ok(post_ops_ok_args_t(sse41,
             {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
             sum_requires_scale_one, sum_requires_zp_zero));
-    if (!post_ops_ok_) return status::unimplemented;
+    VDISPATCH_CONV_IC(post_ops_ok_, VERBOSE_UNSUPPORTED_POSTOP);
 
     const bool flat = jcp.ic == 3;
     const bool mimo = !flat;
 
-    bool args_ok = true
+    const bool tag_ok = true
             && IMPLICATION(flat,
                     jcp.wei_tag == wei_tag_Oxio
                             && ((jcp.src_tag == dat_tag_ncx
@@ -481,10 +484,13 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
                             && ((jcp.src_tag == dat_tag_nCx8c
                                         && jcp.dst_tag == dat_tag_nCx8c)
                                     || (jcp.src_tag == dat_tag_nxc
-                                            && jcp.dst_tag == dat_tag_nxc)))
-            && jcp.ic <= src_d.padded_dims()[1]
+                                            && jcp.dst_tag == dat_tag_nxc)));
+    VDISPATCH_CONV_IC(tag_ok, VERBOSE_UNSUPPORTED_TAG);
+
+    const bool channel_pad_ok = true && jcp.ic <= src_d.padded_dims()[1]
             && jcp.oc <= dst_d.padded_dims()[1];
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(channel_pad_ok,
+            "i/o channel size mismatch against padded channel dimension");
 
     const int simd_w = 8; // 2 SSE vectors processing at once
 
@@ -496,12 +502,12 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_oc_blocking
             = is_data_layout_nxc ? 1 : 4; /* the optimal value for the kernel */
 
-    args_ok = true && jcp.oc % simd_w == 0 && jcp.l_pad <= jcp.ur_w
+    const bool args_ok = true && jcp.oc % simd_w == 0 && jcp.l_pad <= jcp.ur_w
             && IMPLICATION(jcp.kw > 7,
                     (jcp.t_pad == 0 && jcp.l_pad == 0)
                             || (jcp.stride_w == 1 && jcp.stride_h == 1))
             && IMPLICATION(mimo, jcp.ic % simd_w == 0);
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_BLOCKING_FAIL);
 
     int r_pad_no_tail = nstl::max(0,
             calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,
@@ -520,8 +526,8 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
                 calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,
                         jcp.stride_w, ext_kw));
 
-        if (jcp.ur_w < nstl::max(jcp.l_pad, r_pad_no_tail))
-            return status::unimplemented;
+        VDISPATCH_CONV_IC(jcp.ur_w >= nstl::max(jcp.l_pad, r_pad_no_tail),
+                "width unroll exceeds padding size");
     }
     assert(jcp.nb_oc_blocking > 0);
     assert(jcp.ur_w * (jcp.nb_oc_blocking + 1) <= num_avail_regs);

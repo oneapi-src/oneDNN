@@ -43,14 +43,20 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(f32, f32, f32, f32, f32)
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, f32)
-                    && !has_zero_dim_memory() && set_default_formats()
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(expect_data_types(f32, f32, f32, f32, f32),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, f32),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             CHECK(jit_sse41_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
                     *src_md(), *weights_md(), *dst_md(), *attr(),
