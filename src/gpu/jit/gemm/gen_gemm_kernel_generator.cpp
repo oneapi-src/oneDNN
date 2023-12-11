@@ -10769,6 +10769,11 @@ void gemm_kernel_generator_t<hw>::gemmApplyPostOps(int poMin, int poMax,
     }
 
     // Apply post-ops to all of C.
+    int C_grfs[256];
+    int C_ngrf = state.C_regs[0].getLen();
+    for (int r = 0; r < C_ngrf; r++)
+        C_grfs[r] = state.C_regs[0][r].getBase();
+
     for (int i = poMin; i < poMax; i++) {
         auto &entry = problem.postOps.entry_[i];
         switch (entry.kind) {
@@ -10788,8 +10793,7 @@ void gemm_kernel_generator_t<hw>::gemmApplyPostOps(int poMin, int poMax,
 
                 injector.set_scratch(scratch);
                 injector.prepare();
-                for (auto &rr : state.C_regs[0].ranges)
-                    injector.compute(rr);
+                injector.compute(C_grfs, C_ngrf);
                 break;
             }
             case primitive_kind::prelu:
