@@ -267,7 +267,7 @@ void conv_problem_t::init_transpose(const hw_t &hw) {
                         || fpmath_mode == dnnl_fpmath_mode_tf32)
                     && osp % 8 == 0);
     bool allow_bwd_d
-            = !is_bwd_d || (a_data_type == data_type::f32 && osp == isp);
+            = !is_bwd_d || (wei_data_type == data_type::f32 && osp == isp);
     bool allow_fwd = !is_fwd
             || (dst_data_type != data_type::f32
                     && dst_data_type != data_type::f64 && mb <= 8 && ih != iw

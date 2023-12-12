@@ -196,9 +196,9 @@ status_t conv_problem_t::init(
     osp = od * oh * ow;
 
     hw_t hw(engine);
+    init_transpose(hw);
     CHECK(init_abc_data_types(hw));
     CHECK(init_acc_data_type());
-    init_transpose(hw);
 
     return status::success;
 }
