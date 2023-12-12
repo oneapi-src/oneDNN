@@ -87,7 +87,18 @@ infer_status_code conv_fwd_core_op_t::infer_slice_ranges(
     int C_block = 1;
     int K_block = 1;
     int tile_p = 1;
+
     const auto use_rl = attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING);
+    auto inp_plain_dim = get_inputs()[0]->details_.get_plain_dims();
+    auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size();
+    auto wei_plain_dim = use_rl != ops::rl_kind::NO_LOWERING
+            ? attrs_.get<sc_dims>("origin_wei_plain_dims")
+            : get_inputs()[1]->details_.get_plain_dims();
+    auto wei_plain_size = wei_plain_dim.size();
+
+    sc_dim groups = attrs_.get_or_else("groups", 1);
+    bool is_dw_brdgmm = (groups > 1) && (groups == inp_plain_dim[1])
+            && (groups == wei_plain_dim[0]);
 
     if (config_data_) {
         if (use_nested_conv_fwd_generator()) {
@@ -98,6 +109,10 @@ infer_status_code conv_fwd_core_op_t::infer_slice_ranges(
             const conv_fwd_rl_config_t &tcfg
                     = *config_data_.get_as<conv_fwd_rl_config_t>();
             tile_p = tcfg.brgemm_m;
+        } else if (is_dw_brdgmm) {
+            const conv_dw_fwd_config_t &tcfg
+                    = *config_data_.get_as<conv_dw_fwd_config_t>();
+            tile_p = tcfg.im_h_block;
         } else {
             const conv_fwd_config_t &tcfg
                     = *config_data_.get_as<conv_fwd_config_t>();
@@ -109,12 +124,7 @@ infer_status_code conv_fwd_core_op_t::infer_slice_ranges(
     if (known_ranges_map[0].empty() && known_ranges_map[1].empty()) {
         return infer_status_code::RETRY;
     }
-    auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size();
-    auto wei_plain_dim = use_rl != ops::rl_kind::NO_LOWERING
-            ? attrs_.get<sc_dims>("origin_wei_plain_dims")
-            : get_inputs()[1]->details_.get_plain_dims();
 
-    auto wei_plain_size = wei_plain_dim.size();
     auto inp_dims = get_inputs()[0]->details_.get_blocking_dims(),
          wei_dims = get_inputs()[1]->details_.get_blocking_dims(),
          out_dims = get_outputs()[0]->details_.get_blocking_dims();
@@ -244,6 +254,7 @@ infer_status_code conv_fwd_core_op_t::infer_slice_ranges(
             for (unsigned i = 1; i < inp_dims.size(); i++) {
                 required_axis.emplace_back(i);
             }
+            if (is_dw_brdgmm) { required_axis.pop_back(); }
             if (!slice_full_on_axis(inp_dims, inp_tmp, required_axis)) {
                 return infer_status_code::RETRY;
             }
@@ -259,6 +270,7 @@ infer_status_code conv_fwd_core_op_t::infer_slice_ranges(
             for (unsigned i = 0; i < wei_dims.size(); i++) {
                 required_axis.emplace_back(i);
             }
+            if (is_dw_brdgmm) { required_axis.pop_back(); }
             if (!slice_full_on_axis(wei_dims, wei_slice, required_axis)) {
                 return infer_status_code::RETRY;
             }
@@ -274,6 +286,13 @@ infer_status_code conv_fwd_core_op_t::infer_slice_ranges(
         for (unsigned i = 1; i < out_dims.size(); i++) {
             out_slice.emplace_back(
                     std::make_pair(expr(0), dim2unsigned(out_dims[i])));
+        }
+        if (is_dw_brdgmm) {
+            if (!known_ranges_map[1].empty()) {
+                wei_slice.back() = known_ranges_map[1][0].back();
+            }
+            inp_slice.back() = known_ranges_map[0][0].back();
+            out_slice.back() = known_ranges_map[0][0].back();
         }
         fsmap.get(get_inputs()[0]) = slice_range_list {inp_slice};
         fsmap.get(get_inputs()[1]) = slice_range_list {wei_slice};
@@ -697,8 +716,10 @@ body_generator_ptr conv_fwd_core_op_t::create_generator() {
             ? attrs_.get<sc_dims>("pads_end")
             : attrs_.get<sc_dims>("paddings");
     auto input_plain_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto weight_plain_dims = get_inputs()[1]->details_.get_plain_dims();
     sc_dim groups = attrs_.get_or_else("groups", 1);
-    bool is_dw = (groups > 1) && (groups == input_plain_dims[1]);
+    bool is_dw_brdgmm = (groups > 1) && (groups == input_plain_dims[1])
+            && (groups == weight_plain_dims[0]);
 
 #define CREATE_GENERATOR(type) \
     utils::make_unique<type>(this, stride, dilations, pads_begin, pads_end, \
@@ -709,7 +730,7 @@ body_generator_ptr conv_fwd_core_op_t::create_generator() {
     } else if (attrs_.get_or_else("use_rl", ops::rl_kind::NO_LOWERING)
             == ops::rl_kind::FULL_LOWERING) {
         return CREATE_GENERATOR(gen_conv_fwd_rl_t);
-    } else if (is_dw) {
+    } else if (is_dw_brdgmm) {
         return CREATE_GENERATOR(gen_conv_dw_fwd_t);
     } else {
         auto ret = CREATE_GENERATOR(gen_conv_fwd_t);
@@ -743,7 +764,8 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
             : info_.inputs_[1]->details_.get_plain_dims();
     auto input_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
     sc_dim groups = attrs_.get_or_else("groups", 1);
-    bool is_dw = (groups > 1) && (groups == input_plain_dims[1]);
+    bool is_dw_brdgmm = (groups > 1) && (groups == input_plain_dims[1])
+            && (groups == weight_plain_dims[0]);
     int ic = input_plain_dims[1] / groups, oc = weight_plain_dims[0] / groups;
     const bool is_data_blocking
             = info_.inputs_[0]->details_.get_format().is_blocking();
@@ -774,7 +796,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
                 = *config_data_.get_as<conv_fwd_rl_config_t>();
         in_formats.reserve(2);
         K_block = tcfg.brgemm_n;
-    } else if (is_dw) {
+    } else if (is_dw_brdgmm) {
         const conv_dw_fwd_config_t &tcfg
                 = *config_data_.get_as<conv_dw_fwd_config_t>();
         auto body_gen = create_generator();
@@ -854,7 +876,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
             = (((channel_last_support && !force_blocking)
                        || (channel_last_support && force_channel_last))
                       && ic % C_block == 0 && oc % K_block == 0)
-            || dynamic || is_dw;
+            || dynamic || is_dw_brdgmm;
     // data layout
     if (use_channel_last) {
         data_format = is_3d ? sc_data_format_t::NDHWC()
@@ -879,7 +901,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
             COMPILE_ASSERT(0, "Invalid datatype for reduce lowering!");
         }
     } else {
-        if (is_dw) {
+        if (is_dw_brdgmm) {
             weight_format = sc_data_format_t(format_kinds::CDBA);
         } else {
             if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)

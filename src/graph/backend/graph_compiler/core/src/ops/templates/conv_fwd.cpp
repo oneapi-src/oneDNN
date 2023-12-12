@@ -23,6 +23,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
@@ -340,6 +341,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   adjust_config_for_cache_efficiency(ctx, cfg);
   validate_conv_fwd_default_config(ctx, cfg);
 
+  auto parent = this->owner_->get_inputs()[0]->producer_owner_;
   if (ic_ > 32 && cfg.C_block % 32 != 0) {
     // The performance will be very bad if C_bloc % 32 != 0 in convNxN
     cfg.C_block = utils::rnd_up(cfg.C_block, 64 / dtype_size);

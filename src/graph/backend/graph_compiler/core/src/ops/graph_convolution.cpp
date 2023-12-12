@@ -145,8 +145,6 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     COMPILE_ASSERT(ic / groups == kic,
             "ic/g should be equal to filter_ic, but got "
                     << ic / groups << " vs " << kic << ".");
-    COMPILE_ASSERT((groups == 1) || (groups > 1 && ic != groups),
-            "depthwise conv is not support yet!");
     if (attrs_.has_key("auto_pad")) {
         auto pad_type = attrs_.get<std::string>("auto_pad");
         if (pad_type == "VALID") {

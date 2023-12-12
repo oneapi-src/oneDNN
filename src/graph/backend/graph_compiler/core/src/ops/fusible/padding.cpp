@@ -339,7 +339,8 @@ stmt padding_op_t::get_zero_out_stmt(
         auto is_4d_out = ndims == 4;
 
         for (size_t i = real_padding_axis.back() + 1; i < ndims; i++) {
-            c *= get_expr_as_int(out->dims_[i]);
+            c *= range_list.empty() ? get_expr_as_int(out->dims_[i])
+                                    : get_expr_as_int(range[i].second);
         }
 
         // input plain format must be NCHW in conv_fwd_core

@@ -112,7 +112,9 @@ void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
             if (ndims != 4) { return; }
             sc_dim groups = op->attrs_.get_or_else("groups", 1);
             // depthwise convolution
-            if (groups > 1 && groups == data_plain_dims[1]) { return; }
+            bool is_dw_brdgmm = groups > 1 && groups == weight_plain_dims[0]
+                    && groups == data_plain_dims[1];
+            if (is_dw_brdgmm) { return; }
             auto dilations = ops::get_dilations(op->attrs_);
             auto has_dilation = std::any_of(dilations.begin(), dilations.end(),
                     [](int x) { return x != 1; });

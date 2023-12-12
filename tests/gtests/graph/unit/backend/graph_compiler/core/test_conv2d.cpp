@@ -1149,6 +1149,8 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dw) {
             // N, G, K, C, H, W, R, S, stride, padding, dilation
             {1, 8, 8, 8, 12, 12, 3, 3, 1, 0, 1},
             {14, 48, 48, 48, 114, 114, 3, 3, 2, 0, 1},
+            {14, 48, 48, 48, 114, 114, 3, 3, 2, 1, 1},
+            {14, 48, 48, 48, 114, 114, 5, 5, 2, 2, 1},
     };
     for (auto &wl : workload_list) {
         int idx = 0;

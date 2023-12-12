@@ -123,7 +123,7 @@ public:
     fusion_anchor_mgr_t *fusion, expr &output, const expr &input, \
     const expr &weight, std::vector<for_loop> &loops
   void compute_conv_no_padding(CONV_ARG_LIST) const;
-  void compute_conv_padding(CONV_ARG_LIST) const;
+  void compute_conv_physical_padding(CONV_ARG_LIST) const;
   void dynamic_compute_conv_no_padding(CONV_ARG_LIST) const;
   void dynamic_compute_conv_padding(CONV_ARG_LIST) const;
 #undef CONV_ARG_LIST
