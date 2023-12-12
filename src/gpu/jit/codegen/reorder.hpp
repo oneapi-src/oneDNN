@@ -864,9 +864,10 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 align_src_dst_offset(host, scope, esize, d, s);
                 s = s.reinterpret(local_src_type);
             }
-            if ((local_src_type == ngen::DataType::w) && dst_f) {
-                auto td = dst.format(i * dst_stride_bytes, local_src_type,
-                        esize, dst_stride * dst_type_size / src_type_size);
+            // local_* values only differ if the original type was xf
+            if ((src_type_size == 2) && to_ir(src_type).is_int() && dst_f) {
+                auto td = dst.format(i * dst_stride_bytes, src_type, esize,
+                        dst_stride * dst_type_size / src_type_size);
                 plan(mov, esize, td, s);
                 s = td;
             }

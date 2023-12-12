@@ -26,6 +26,7 @@
 #include "gpu/jit/ir/kernel_info.hpp"
 #include "gpu/jit/ir/post_ops.hpp"
 #include "gpu/jit/ir/tensor_config.hpp"
+#include "gpu/jit/ngen/ngen_register_allocator.hpp"
 #include "gpu/jit/pooling/pooling_kernel.hpp"
 #include "gpu/jit/utils/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -135,8 +136,19 @@ status_t gen_pooling_fwd_t::init(engine_t *engine) {
                 /*is_input=*/t.is_input && !t.is_output);
     }
 
-    kernel_ = make_kernel<pooling_kernel_t>(this, engine, cfg_,
-            "gen_pooling_fwd", kernel_info_, grf_mode_t::any, *pd());
+    while (!kernel_) {
+        try {
+            kernel_ = make_kernel<pooling_kernel_t>(this, engine, cfg_,
+                    "gen_pooling_fwd", kernel_info_, grf_mode_t::any, *pd());
+        } catch (const ngen::out_of_registers_exception &exc) {
+            ir_warning() << "loop too large: cut and retry!" << std::endl;
+            kernel_ = {};
+            if (!cfg_.cut()) {
+                ir_error_not_expected() << "minimal loop too large!";
+                break;
+            }
+        }
+    }
     set_version(cfg_.n_cuts());
     return (kernel_) ? status::success : status::runtime_error;
 }

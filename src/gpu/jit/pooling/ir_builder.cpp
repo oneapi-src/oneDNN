@@ -364,14 +364,19 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     ir_context_t ir_ctx(exec, init_cset);
 
+    auto acc_type = cfg.acc_type(simd);
+    auto acc_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "acc");
+    const auto acc_sc_size = acc_type.scalar().size();
+    const auto acc_size = acc_sc_size * lg[4] * lg[3] * lg[2] * lg[1] * lg[0];
+
     auto read_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "read");
     auto read_params = get_send_params(
             exec, send_op_t::load, send_address_t::a64, src_thr_view);
     read_params.try_legacy = false;
     auto read = make_access_builder(ir_ctx, src_thr_view, src_buf, read_buf,
             read_params, /*zero_out=*/false);
-    allocs.push_back(
-            alloc_t::make(read_buf, read.reg_buf_size(), alloc_kind_t::grf));
+    std::vector<stmt_t> read_alloc
+            = {alloc_t::make(read_buf, read.reg_buf_size(), alloc_kind_t::grf)};
     const auto &read_layout = read.reg_layout();
 
     // shall only get used on empty mb's; for all else there's epilogue builder
@@ -379,8 +384,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             exec, send_op_t::store, send_address_t::a64, dst_thr_view);
     write_params.try_legacy = false;
     auto write = make_access_builder(
-            ir_ctx, dst_thr_view, dst_buf, read_buf, write_params);
+            ir_ctx, dst_thr_view, dst_buf, acc_buf, write_params);
     const auto &write_layout = write.reg_layout();
+    auto write_stmt = write.stmt();
 
     tensor_t src_tile(read_layout.split_into_max_tile(simd, true));
     tensor_t dst_tile(write_layout.split_into_max_tile(simd, true));
@@ -391,11 +397,6 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     const type_t read_type(read_layout.type().kind(), simd);
     const type_t write_type(write_layout.type().kind(), simd);
-
-    auto acc_type = cfg.acc_type(simd);
-    auto acc_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "acc");
-    const auto acc_sc_size = acc_type.scalar().size();
-    const auto acc_size = acc_sc_size * lg[4] * lg[3] * lg[2] * lg[1] * lg[0];
 
     stmt_t stmt;
 
@@ -429,6 +430,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         return retn;
     };
     if (is_identity) {
+        allocs.emplace_back(read_alloc[0]);
+        write_stmt = substitute(write_stmt, acc_buf, read_buf);
         acc_buf = read_buf;
         acc_type = read_type;
         stmt = read.stmt();
@@ -484,6 +487,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             }
             acc_type = type_t::f32(simd);
         }
+        stmt = inject_alloc_stmts(stmt, read_alloc);
     }
 
     int buf_size = 0;
@@ -507,9 +511,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         stmt = if_t::make(shuffle_t::make_broadcast(exit_cond, simd), stmt);
 
     if ((dims[0] - prb.mb) / lg[0] >= 1) {
-        auto stop = gen_zero_out(simd, false, read_buf, dst_tile, write_layout);
+        auto stop = gen_zero_out(simd, false, acc_buf, dst_tile, write_layout);
         stmt = if_t::make(shuffle_t::make_broadcast(mb >= prb.mb, simd),
-                stop.append(write.stmt()), stmt);
+                stop.append(write_stmt), stmt);
     }
 
     stmt = schedule.create_bind_stmt(stmt);
@@ -528,7 +532,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     stmt = optimize_alloc_let(stmt, ir_ctx);
     stmt = stmt_group_t::make(stmt_label_t::kernel(), stmt);
 
-    const int regs = get_peak_regs(stmt, exec.grf_size()) + 8;
+    const int regs = get_peak_regs(stmt, exec.grf_size());
 
     ir_trace() << "Pooling kernel body:\n" << stmt << std::endl;
     ir_trace() << "Pooling cfg (~" << regs << " regs):\n" << cfg << std::endl;

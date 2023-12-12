@@ -62,20 +62,22 @@ class pooling_config_t : public prim_config_t {
 public:
     static bool check_compatibility(const pool_conf_t &prb,
             const exec_config_t &exec, const layout_t &src) {
-        // only 8 or 16 threads in a threadgroup are supported
-        const int max_tg = get_max_tg(exec);
-        if ((max_tg != 8) && (max_tg != 16)) return false;
+        const int max_tg = exec.hw().max_tg_size(exec.regs(), exec.simd());
+        if (max_tg % 8 != 0) return false;
 
         // only allow SIMD-aligned channel-first layouts
         const auto &oc_blk = src.blocks()[0];
         if ((oc_blk.dim_idx != 1) || (oc_blk.block % exec.simd())) return false;
 
-        // for now, prohibit Global ({o^k}dhw = 1) and Dense (odhw = idhw)
-        // TODO: enable both
-        if (((prb.od == 1) != (prb.kd == 1)) && ((prb.oh == 1) != (prb.kh == 1))
-                && ((prb.ow == 1) != (prb.kw == 1)))
-            return false;
-        if ((prb.od == prb.id) && (prb.oh == prb.ih) && (prb.ow == prb.iw))
+        // for some reason 3D pooling works poorly on PVC at the moment
+        // TODO: bring PVC 3D pooling back
+        if ((prb.kd > 1) && (exec.hw() >= ngen::HW::XeHPC)) return false;
+
+        // for now, prohibit Global
+        // TODO: enable asap
+        if ((prb.kd * prb.kh * prb.kw > 1) && ((prb.kd == 1) || (prb.od == 1))
+                && ((prb.kh == 1) || (prb.oh == 1))
+                && ((prb.kw == 1) || (prb.ow == 1)))
             return false;
 
         return true; // no more restrictions, the configuration is compatible
@@ -184,70 +186,26 @@ public:
         const auto &exec = exec_cfg();
         const int simd = exec.simd();
         const int eu_count = exec.hw().eu_count();
-        const int max_tg = get_max_tg(exec);
-
-        std::vector<int> padded {
-                int(src.dim(0)), int(src.dim(1)), prb.od, prb.oh, prb.ow};
-        const auto &mb = padded[0], &oc = padded[1];
-        auto &od = padded[2], &oh = padded[3], &ow = padded[4];
-
-        if (ow >= utils::rnd_up(ow, max_tg) * 7.f / 8.f)
-            ow = utils::rnd_up(ow, max_tg);
 
         //                  mb oc od oh ow kd kh kw
         //                  [0  1][2  3  4][5  6  7]
         std::vector<int> lg {1, 1, 1, 1, 1, 1, 1, 1};
         std::vector<int> tg {1, 1, 1}, kg {1, 1, 1};
 
-        const auto ohw = ow * oh;
-        if ((max_tg <= ohw * od) || (ohw == 3 * 3) || (ohw == 3 * 5)) {
-            auto loss = [&](int tgw) {
-                return utils::rnd_up(ow, tgw) * utils::rnd_up(oh, max_tg / tgw);
-            };
-            int ok_tgw = sqrt(max_tg);
-            ir_assert(ok_tgw == utils::rnd_up_pow2(ok_tgw));
-            for (int tgw = sqrt(max_tg); tgw > 0; tgw >>= 1) {
-                if (loss(tgw) < loss(ok_tgw)) ok_tgw = tgw;
-                if (loss(max_tg / tgw) <= loss(ok_tgw)) ok_tgw = max_tg / tgw;
-            }
-            tg[2] = utils::div_up(ow, utils::div_up(ow, ok_tgw));
-            tg[1] = utils::div_up(oh, utils::div_up(oh, max_tg / ok_tgw));
-        } else {
-            tg[2] = ow;
-            tg[1] = oh;
-            tg[0] = od;
-        }
-
-        if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2))
-            tg[1] += (tg[1] * tg[2] > 3 * 3) ? -1 : 1;
-
-        // lg[2], lg[3], lg[4] are to be set here
-
-        od = utils::rnd_up(od, tg[0] * lg[2]);
-        oh = utils::rnd_up(oh, tg[1] * lg[3]);
-        ow = utils::rnd_up(ow, tg[2] * lg[4]);
-
-        kg[0] = od / (tg[0] * lg[2]);
-        kg[1] = oh / (tg[1] * lg[3]);
-        kg[2] = ow / (tg[2] * lg[4]);
-
-        if (prb.ow % (tg[2] * lg[4]) == 0) {
-            kg[2] *= kg[1];
-            kg[1] = 1;
-        }
+        std::vector<int> padded {
+                int(src.dim(0)), int(src.dim(1)), prb.od, prb.oh, prb.ow};
+        const auto &mb = padded[0], &oc = padded[1];
+        auto &od = padded[2], &oh = padded[3], &ow = padded[4];
 
         const bool is_scalar = (prb.kd * prb.kh * prb.kw == 1);
 
-        const int safe_thr_count = eu_count * 7;
-        const int max_thr_work = utils::div_up(dim_t(utils::div_up(oc, simd))
-                        * mb * tg[0] * tg[1] * tg[2] * kg[0] * kg[1] * kg[2],
-                safe_thr_count);
-
         const int src_type_size = src.type().size();
         const int acc_type_size = acc_type(1).size();
-
         const int oc_blk = src.blocks()[0].block;
         const int mb_blk = (is_blocked_by_mb()) ? src.blocks()[1].block : mb;
+        // the constant being subtracted is heuristic
+        const int regs_per_tile
+                = exec.regs() - (!is_scalar ? is_blocked_by_mb() ? 8 : 28 : 0);
 
         auto optimize_load = [](int &dim, int mult) {
             const int optimal_load_size = 256;
@@ -256,63 +214,234 @@ public:
                 cut_dim(dim, null, 1);
         };
 
-        if (is_blocked_by_mb()) {
-            lg[1] = utils::max_div(oc_blk / simd, max_thr_work);
-            lg[0] = utils::max_div(mb_blk, max_thr_work / lg[1]);
-            if (!is_scalar) {
-                optimize_load(lg[0], lg[1] * simd * src_type_size);
-                optimize_load(lg[1], simd * src_type_size);
+        if (!is_scalar && (prb.kh * prb.kw <= 9)) {
+            // SMALL FILTERS
+
+            const int max_tg = exec.hw().max_tg_size(exec.regs(), exec.simd());
+            ir_assert(max_tg == utils::rnd_up_pow2(max_tg));
+
+            const bool ow_pow2
+                    = (ow > 1) && (utils::rnd_up_pow2(oh) * ow > max_tg);
+            if (ow_pow2)
+                ow = (ow > max_tg) ? utils::rnd_up(ow, max_tg)
+                                   : utils::rnd_up_pow2(ow);
+            else
+                oh = (oh > max_tg) ? utils::rnd_up(oh, max_tg)
+                                   : utils::rnd_up_pow2(oh);
+
+            tg[2] = std::min(max_tg, ow);
+            tg[1] = (ow_pow2) ? 1 : utils::max_div(oh, max_tg / tg[2]);
+
+            // lg[2], lg[3], lg[4] are to be set here
+
+            od = utils::rnd_up(od, tg[0] * lg[2]);
+            oh = utils::rnd_up(oh, tg[1] * lg[3]);
+            ow = utils::rnd_up(ow, tg[2] * lg[4]);
+
+            kg[0] = od / (tg[0] * lg[2]);
+            kg[1] = (oh / (tg[1] * lg[3])) * (ow / (tg[2] * lg[4]));
+            kg[2] = 1;
+
+            if (ow_pow2 && (mb >= 512)) { // lower TGs preferable at higher MBs
+                const int low_tg = max_tg / (2 * utils::div_up(mb, 512));
+                if (tg[2] / low_tg > 1) {
+                    kg[is_blocked_by_mb() ? 2 : 1] *= tg[2] / low_tg;
+                    tg[2] = low_tg;
+                }
             }
-        }
+            const int optimal_oc = std::max(2, 4 / src_type_size); // heuristic
+            const int max_grf
+                    = exec.grf_size() * exec.regs() * 3 / 4; // heuristic
+            // (src + acc) can be 1+2, 1+4, 2+2, 2+4, 4+4 bytes
+            const int simds_per_line
+                    = max_grf / (simd * (src_type_size + acc_type_size));
 
-        // the constant being subtracted is heuristic
-        const int regs_per_tile
-                = exec.regs() - (!is_scalar ? is_blocked_by_mb() ? 8 : 28 : 0);
-        const int simds_per_tile
-                = (regs_per_tile * 32 / simd - lg[0] * lg[1] * acc_type_size)
-                / src_type_size;
+            auto calc_non_sp = [](int scale, int simds, int opt, int per_line) {
+                int pow2 = 1;
+                for (int i = simds; i % 2 == 0; i /= 2)
+                    pow2 *= 2;
+                return scale
+                        * utils::max_div(
+                                (pow2 < opt) ? simds : pow2, per_line / scale);
+            };
+            if (is_blocked_by_mb()) {
+                lg[1] = oc_blk / simd;
+                lg[0] = mb_blk;
+                int null = 0;
+                while (lg[1] * lg[0] > simds_per_line) {
+                    if (lg[0] > 1)
+                        cut_dim(lg[0], null, 1);
+                    else
+                        cut_dim(lg[1], null, 1);
+                }
+            } else {
+                if (oc == oc_blk) {
+                    lg[1] = calc_non_sp(
+                            1, oc / simd, optimal_oc, simds_per_line);
+                } else if (oc_blk / simd <= simds_per_line) {
+                    lg[1] = calc_non_sp(oc_blk / simd, oc / oc_blk, optimal_oc,
+                            simds_per_line);
+                    if (lg[1] > 32) // HBM reader can break on very large OC
+                        lg[1] = utils::rnd_up(lg[1], 4); // heuristic
+                } else {
+                    lg[1] = utils::max_div(oc_blk / simd, simds_per_line);
+                }
+                if ((lg[1] < optimal_oc)
+                        || (lg[1] != utils::rnd_up_pow2(lg[1]))) {
+                    const int oc_simds_per_line = simds_per_line / lg[1];
+                    lg[0] = (mb <= oc_simds_per_line)
+                            ? mb
+                            : utils::max_div(mb, oc_simds_per_line);
+                }
+            }
+            lg[0] = calc_non_sp(1, prb.mb, 1, lg[0]);
 
-        if (simds_per_tile / (lg[0] * lg[1]) <= prb.kw) {
-            lg[7] = utils::max_div(prb.kw, simds_per_tile / (lg[0] * lg[1]));
-        } else if (simds_per_tile / (lg[0] * lg[1]) <= prb.kw * prb.kh) {
+            const dim_t total_simds = mb * (oc / simd) * od * oh * ow;
+            const dim_t safe_thr_count = eu_count * 4;
+
+            if (total_simds < safe_thr_count * lg[1] * lg[0]) {
+                auto find_div = [](int num, int total_simds, int thr_count) {
+                    if (total_simds <= thr_count) return 1;
+                    const int orig = num;
+                    num = 0;
+                    for (int div = sqrtf(orig); div >= 1; div--)
+                        if (orig % div == 0) {
+                            if (total_simds >= thr_count * (orig / div))
+                                num = std::max(num, orig / div);
+                            if (total_simds >= thr_count * div)
+                                num = std::max(num, div);
+                        }
+                    return (num == 0) ? orig : num;
+                };
+                if (total_simds < safe_thr_count * lg[1]) { // cut [0] and [1]
+                    // NOT heuristic; odd x8 SIMDs on HBM reads break the reader
+                    const int mult = std::max(1, 2 / src_type_size);
+                    if (lg[1] % mult == 0) {
+                        lg[0] = 1;
+                        lg[1] = find_div(lg[1] / mult, total_simds / mult,
+                                        safe_thr_count)
+                                * mult;
+                    }
+                } else { // only cut [0]
+                    lg[0] = find_div(lg[0], total_simds, safe_thr_count);
+                }
+            }
+            const int loop_space = simds_per_line / (lg[0] * lg[1])
+                    * (src_type_size + acc_type_size) / src_type_size;
             lg[7] = prb.kw;
-            lg[6] = utils::max_div(
-                    prb.kh, simds_per_tile / (lg[0] * lg[1] * prb.kw));
-        } else if (simds_per_tile / (lg[0] * lg[1])
-                <= prb.kw * prb.kh * prb.kd) {
-            lg[7] = prb.kw;
-            lg[6] = prb.kh;
-            lg[5] = utils::max_div(
-                    prb.kd, simds_per_tile / (lg[0] * lg[1] * prb.kw * prb.kh));
+            lg[6] = std::max(utils::max_div(prb.kh, loop_space / lg[7]), 1);
+            lg[5] = std::max(
+                    utils::max_div(prb.kd, loop_space / (lg[7] * lg[6])), 1);
         } else {
-            lg[7] = prb.kw;
-            lg[6] = prb.kh;
-            lg[5] = prb.kd;
-        }
+            // REGULAR FILTERS
 
-        if (!is_blocked_by_mb()) {
-            const int oc_outer = oc / simd;
-            const int layers_per_thr = simds_per_tile / (lg[7] * lg[6] * lg[5]);
-            if (max_thr_work > 1) {
-                lg[1] = std::min(max_thr_work,
-                        utils::max_div(oc_blk / simd, layers_per_thr));
-                lg[1] = utils::max_div(oc_outer, std::max(lg[1], 1));
+            const int max_tg = utils::max_div(
+                    exec.hw().max_tg_size(exec.regs(), exec.simd()), 16);
+
+            if (ow >= utils::rnd_up(ow, max_tg) * 7.f / 8.f)
+                ow = utils::rnd_up(ow, max_tg);
+
+            const auto ohw = ow * oh;
+            if ((max_tg <= ohw * od) || (ohw == 3 * 3) || (ohw == 3 * 5)) {
+                auto loss = [&](int tgw) {
+                    return utils::rnd_up(ow, tgw)
+                            * utils::rnd_up(oh, max_tg / tgw);
+                };
+                int ok_tgw = sqrt(max_tg);
+                ir_assert(ok_tgw == utils::rnd_up_pow2(ok_tgw));
+                for (int tgw = sqrt(max_tg); tgw > 0; tgw >>= 1) {
+                    if (loss(tgw) < loss(ok_tgw)) ok_tgw = tgw;
+                    if (loss(max_tg / tgw) <= loss(ok_tgw))
+                        ok_tgw = max_tg / tgw;
+                }
+                tg[2] = utils::div_up(ow, utils::div_up(ow, ok_tgw));
+                tg[1] = utils::div_up(oh, utils::div_up(oh, max_tg / ok_tgw));
+            } else {
+                tg[2] = ow;
+                tg[1] = oh;
+                tg[0] = od;
             }
-            if ((oc == lg[1] * simd) && (max_thr_work / lg[1] > 1)) {
-                const int mb_reg = layers_per_thr / lg[1] / src_type_size;
-                lg[0] = std::min(max_thr_work / lg[1],
-                        (mb_reg > mb_blk) ? utils::rnd_dn(mb_reg, mb_blk)
-                                          : utils::max_div(mb_blk, mb_reg));
-                lg[0] = utils::max_div(mb, std::max(lg[0], 1));
+
+            if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2))
+                tg[1] += (tg[1] * tg[2] > 3 * 3) ? -1 : 1;
+
+            // lg[2], lg[3], lg[4] are to be set here
+
+            od = utils::rnd_up(od, tg[0] * lg[2]);
+            oh = utils::rnd_up(oh, tg[1] * lg[3]);
+            ow = utils::rnd_up(ow, tg[2] * lg[4]);
+
+            kg[0] = od / (tg[0] * lg[2]);
+            kg[1] = oh / (tg[1] * lg[3]);
+            kg[2] = ow / (tg[2] * lg[4]);
+
+            if (prb.ow % (tg[2] * lg[4]) == 0) {
+                kg[2] *= kg[1];
+                kg[1] = 1;
             }
-            if ((lg[0] == 1) && (max_thr_work / lg[1] > 1)) {
-                const int oc_reg = layers_per_thr / lg[1] / src_type_size;
-                const int lg1 = std::min(max_thr_work / lg[1],
-                        utils::max_div(oc_outer / lg[1], oc_reg));
-                lg[1] *= utils::max_div(oc_outer / lg[1], std::max(lg1, 1));
+
+            const int safe_thr_count = eu_count * 7;
+            const int max_threads
+                    = utils::div_up(dim_t(utils::div_up(oc, simd)) * mb * tg[0]
+                                    * tg[1] * tg[2] * kg[0] * kg[1] * kg[2],
+                            safe_thr_count);
+
+            if (is_blocked_by_mb()) {
+                lg[1] = utils::max_div(oc_blk / simd, max_threads);
+                lg[0] = utils::max_div(mb_blk, max_threads / lg[1]);
+                if (!is_scalar) {
+                    optimize_load(lg[0], lg[1] * simd * src_type_size);
+                    optimize_load(lg[1], simd * src_type_size);
+                }
+            }
+
+            const int simds_per_tile = (regs_per_tile * 32 / simd
+                                               - lg[0] * lg[1] * acc_type_size)
+                    / src_type_size;
+
+            if (simds_per_tile / (lg[0] * lg[1]) <= prb.kw) {
+                lg[7] = utils::max_div(
+                        prb.kw, simds_per_tile / (lg[0] * lg[1]));
+            } else if (simds_per_tile / (lg[0] * lg[1]) <= prb.kw * prb.kh) {
+                lg[7] = prb.kw;
+                lg[6] = utils::max_div(
+                        prb.kh, simds_per_tile / (lg[0] * lg[1] * prb.kw));
+            } else if (simds_per_tile / (lg[0] * lg[1])
+                    <= prb.kw * prb.kh * prb.kd) {
+                lg[7] = prb.kw;
+                lg[6] = prb.kh;
+                lg[5] = utils::max_div(prb.kd,
+                        simds_per_tile / (lg[0] * lg[1] * prb.kw * prb.kh));
+            } else {
+                lg[7] = prb.kw;
+                lg[6] = prb.kh;
+                lg[5] = prb.kd;
+            }
+
+            if (!is_blocked_by_mb()) {
+                const int oc_outer = oc / simd;
+                const int layers_per_thr
+                        = simds_per_tile / (lg[7] * lg[6] * lg[5]);
+                if (max_threads > 1) {
+                    lg[1] = std::min(max_threads,
+                            utils::max_div(oc_blk / simd, layers_per_thr));
+                    lg[1] = utils::max_div(oc_outer, std::max(lg[1], 1));
+                }
+                if ((oc == lg[1] * simd) && (max_threads / lg[1] > 1)) {
+                    const int mb_reg = layers_per_thr / lg[1] / src_type_size;
+                    lg[0] = std::min(max_threads / lg[1],
+                            (mb_reg > mb_blk) ? utils::rnd_dn(mb_reg, mb_blk)
+                                              : utils::max_div(mb_blk, mb_reg));
+                    lg[0] = utils::max_div(mb, std::max(lg[0], 1));
+                }
+                if ((lg[0] == 1) && (max_threads / lg[1] > 1)) {
+                    const int oc_reg = layers_per_thr / lg[1] / src_type_size;
+                    const int lg1 = std::min(max_threads / lg[1],
+                            utils::max_div(oc_outer / lg[1], oc_reg));
+                    lg[1] *= utils::max_div(oc_outer / lg[1], std::max(lg1, 1));
+                }
             }
         }
-
         lg[1] *= simd;
         kg[0] *= utils::div_up(oc, lg[1]);
         kg[1] *= utils::div_up(mb, lg[0]);
@@ -377,10 +506,10 @@ public:
             cut_dim(lg[6], null, 1); // kh
         else if (lg[0] > 1)
             cut_dim(lg[0], kg[1], 1); // mb
-        else if (lg[7] > 1)
-            cut_dim(lg[7], null, 1); // kw
         else if (lg[1] / simd > 1)
             cut_dim(lg[1], kg[0], simd); // oc
+        else if (lg[7] > 1)
+            cut_dim(lg[7], null, 1); // kw
         else
             return false;
 
@@ -443,11 +572,6 @@ private:
             }
         up *= dn / scale;
         dn = scale;
-    }
-
-    static int get_max_tg(const exec_config_t &exec) {
-        return compute::device_info_t::max_eus_per_wg(
-                convert_ngen_arch_to_dnnl(exec.hw().to_ngen()));
     }
 
     std::string desc_str() const {
