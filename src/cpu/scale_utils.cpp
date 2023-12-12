@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "common/nstl.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,8 +31,7 @@ constexpr size_t scales_simd_w = 16;
 }
 
 void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
-        const arg_scales_t &attr_scales, size_t oc,
-        bool force_scales_book = false) {
+        const arg_scales_t &attr_scales, size_t oc, bool force_scales_book) {
     using namespace dnnl::impl::memory_tracking::names;
 
     const bool with_src_scales
@@ -51,7 +51,7 @@ void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
 
 const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
         const float *src_scales, const float *wei_scales, dim_t oc,
-        const primitive_attr_t *attr, float scale_adjust_factor = 1.0f) {
+        const primitive_attr_t *attr, float scale_adjust_factor) {
     using namespace dnnl::impl::memory_tracking::names;
 
     const auto &attr_scales = attr->scales_;
