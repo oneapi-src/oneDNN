@@ -84,6 +84,8 @@ status_t gen_reorder_t::pd_t::init(
                     has_native_bf16 && is_bf16_or_f32_or_bf8(dst_dt))
             && IMPLICATION(dst_dt == data_type::bf16,
                     has_native_bf16 && is_bf16_or_f32_or_bf8(src_dt))
+            && IMPLICATION(utils::one_of(data_type::f8_e5m2, src_dt, dst_dt),
+                    device_info->has_native(data_type::f8_e5m2))
             && IMPLICATION(src_dt == data_type::f64 || dst_dt == data_type::f64,
                     device_info->has_native(data_type::f64))
             && attr()->has_default_values(skip_mask) && extra_ok()
