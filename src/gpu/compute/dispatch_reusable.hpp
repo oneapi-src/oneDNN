@@ -146,6 +146,9 @@ public:
     subgroup_data_t() = default;
     subgroup_data_t(size_t buffer_idx, size_t size)
         : use_subgroup(true), buffer_idx_(buffer_idx), size_(size) {}
+#if __cplusplus >= 202002L
+    bool operator==(const subgroup_data_t &) const = default;
+#endif
 
     bool used() const { return use_subgroup; }
     size_t buffer_idx() const {
