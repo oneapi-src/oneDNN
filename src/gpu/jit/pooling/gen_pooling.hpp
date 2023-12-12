@@ -58,8 +58,8 @@ public:
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    pooling_config_t cfg;
-    kernel_info_t kernel_info;
+    pooling_config_t cfg_;
+    kernel_info_t kernel_info_;
     compute::kernel_t kernel_;
 };
 

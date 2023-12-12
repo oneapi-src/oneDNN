@@ -31,22 +31,20 @@ namespace jit {
 
 class pooling_ir_builder_t : public ir_builder_t {
 public:
-    pooling_ir_builder_t(pooling_config_t &cfg, kernel_info_t &ki,
+    pooling_ir_builder_t(pooling_config_t &cfg, const kernel_info_t &ki,
             const primitive_desc_t &pd)
-        : ir_builder_t(ki), pd_(pd), cfg_mutable_(cfg), ki_mutable_(ki) {
-        build();
+        : ir_builder_t(ki) {
+        while ((stmt_ = try_build(*this, kernel_info_, cfg, pd)).is_empty()) {
+            ir_warning() << "loop too large: cut and retry!" << std::endl;
+            const bool cut_ok = cfg.cut();
+            if (!cut_ok) ir_error_not_expected() << "minimal loop too large!";
+        }
     }
 
-    static compute::nd_range_t nd_range(const pooling_config_t &cfg);
-
 private:
-    void build() override;
+    void build() override {}
     static stmt_t try_build(pooling_ir_builder_t &pb, const kernel_info_t &ki,
             const pooling_config_t &cfg, const primitive_desc_t &pd);
-
-    const primitive_desc_t &pd_;
-    pooling_config_t &cfg_mutable_;
-    kernel_info_t &ki_mutable_;
 };
 
 } // namespace jit

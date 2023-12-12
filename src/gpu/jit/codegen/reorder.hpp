@@ -864,6 +864,12 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 align_src_dst_offset(host, scope, esize, d, s);
                 s = s.reinterpret(local_src_type);
             }
+            if ((local_src_type == ngen::DataType::w) && dst_f) {
+                auto td = dst.format(i * dst_stride_bytes, local_src_type,
+                        esize, dst_stride * dst_type_size / src_type_size);
+                plan(mov, esize, td, s);
+                s = td;
+            }
             plan(mov, esize, d, s);
 
             if (do_d0_align) {
@@ -942,6 +948,23 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 s = tmp.format(tmp_offset, dst_type, esize, tmp_stride);
             }
             plan(mov, mod, d, s);
+        }
+        return;
+    }
+
+    // w -> b
+    if ((src_type_size == 2) && dst_b) {
+        int step = get_step();
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+            ir_assert(math::is_pow2(esize));
+            auto s = src.format(i * src_stride_bytes, dst_type, esize,
+                    src_stride * src_type_size / dst_type_size);
+            auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
+                    esize, dst_stride);
+            plan(mov, esize, d, s);
         }
         return;
     }

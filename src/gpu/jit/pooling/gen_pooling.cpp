@@ -91,23 +91,30 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
 }
 
 status_t gen_pooling_fwd_t::init(engine_t *engine) {
-    cfg = pooling_config_t(
+    cfg_ = pooling_config_t(
             *pd()->exec_cfg, *pd()->pool_conf, *pd()->src, *pd()->dst);
     zero_points_config_t zp_cfg(pd());
-    cfg.set_zp_cfg(zp_cfg);
-    cfg.compute_grid();
+    cfg_.set_zp_cfg(zp_cfg);
+    cfg_.compute_grid();
+
+    if (auto blob = cache_blob()) {
+        int32_t version;
+        CHECK(blob.get_value((uint8_t *)&version, sizeof(version)));
+        while (version--)
+            cfg_.cut();
+    }
 
     tensor_config_t tensor_cfg;
     tensor_cfg.add_tensor("src", DNNL_ARG_SRC, true, false,
-            cfg.src_layout().user(), cfg.src_layout().user());
+            cfg_.src_layout().user(), cfg_.src_layout().user());
     tensor_cfg.add_tensor("dst", DNNL_ARG_DST, true, true,
-            cfg.dst_layout().user(), cfg.dst_layout().user());
+            cfg_.dst_layout().user(), cfg_.dst_layout().user());
 
-    init_extra_tensors(cfg.zp_cfg(), *pd()->attr(), *pd()->dst_md(),
+    init_extra_tensors(cfg_.zp_cfg(), *pd()->attr(), *pd()->dst_md(),
             /* ic = */ 1, /* oc = */ 1, tensor_cfg);
 
-    kernel_info = kernel_info_t();
-    kernel_info.set_nd_range(pooling_kernel_t<>::nd_range(cfg));
+    kernel_info_ = kernel_info_t();
+    kernel_info_.set_nd_range(cfg_.nd_range());
 
     // Initialize kernel arguments.
     for (auto &t : tensor_cfg.tensors()) {
@@ -124,23 +131,24 @@ status_t gen_pooling_fwd_t::init(engine_t *engine) {
             continue;
         }
 
-        kernel_info.register_user_arg(user_buf, user_arg_key,
+        kernel_info_.register_user_arg(user_buf, user_arg_key,
                 /*is_input=*/t.is_input && !t.is_output);
     }
 
-    kernel_ = make_kernel<pooling_kernel_t>(this, engine, cfg,
-            "gen_pooling_fwd", kernel_info, grf_mode_t::any, *pd());
+    kernel_ = make_kernel<pooling_kernel_t>(this, engine, cfg_,
+            "gen_pooling_fwd", kernel_info_, grf_mode_t::any, *pd());
+    set_version(cfg_.n_cuts());
     return (kernel_) ? status::success : status::runtime_error;
 }
 
 status_t gen_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
     std::vector<memory_storage_wrapper_t> storage_list;
-    kernel_info.init_memory_storage_list(storage_list, ctx, this);
+    kernel_info_.init_memory_storage_list(storage_list, ctx, this);
 
     compute::kernel_arg_list_t arg_list;
-    kernel_info.set_args(arg_list, storage_list);
+    kernel_info_.set_args(arg_list, storage_list);
 
-    return parallel_for(ctx, kernel_info.nd_range(), kernel_, arg_list);
+    return parallel_for(ctx, cfg_.nd_range(), kernel_, arg_list);
 }
 
 } // namespace jit

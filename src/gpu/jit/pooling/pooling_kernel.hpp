@@ -38,31 +38,23 @@ public:
     IR_KERNEL_FORWARD(hw)
 
     pooling_kernel_t(pooling_config_t &cfg, const std::string &kernel_name,
-            kernel_info_t &kernel_info, grf_mode_t grf_mode,
+            const kernel_info_t &kernel_info, grf_mode_t grf_mode,
             const primitive_desc_t &pd)
         : ir_kernel_t<hw>(kernel_name, cfg.exec_cfg(), kernel_info,
-                kernel_info.nd_range(), /* require_dpas = */ false, grf_mode)
-        , cfg_(cfg) {
-        pooling_ir_builder_t builder(cfg_, kernel_info, pd);
+                kernel_info.nd_range(), /* require_dpas = */ false, grf_mode) {
+        pooling_ir_builder_t builder(cfg, kernel_info, pd);
         stmt_t body = builder.stmt();
         setup_interface(body);
         generate_prologue();
         expr_binding_t expr_binding(hw);
         bind_external_vars(
-                body, cfg_.kernel_grid(), builder.local_id(), expr_binding);
+                body, cfg.kernel_grid(), builder.local_id(), expr_binding);
 
         // Generate assembly from IR.
         convert_ir_to_ngen<hw>(body, this, expr_binding);
 
         generate_epilogue();
     }
-
-    static compute::nd_range_t nd_range(const pooling_config_t &cfg) {
-        return pooling_ir_builder_t::nd_range(cfg);
-    }
-
-private:
-    pooling_config_t &cfg_;
 };
 
 } // namespace jit

@@ -118,27 +118,6 @@ private:
     const int ndims_;
 };
 
-void pooling_ir_builder_t::build() {
-    while ((stmt_ = try_build(*this, ki_mutable_, cfg_mutable_, pd_))
-                    .is_empty()) {
-        ir_warning() << "loop_grid too large, reduce and retry" << std::endl;
-        const auto simd = cfg_mutable_.exec_cfg().simd();
-        auto kg(cfg_mutable_.kernel_grid());
-        auto lg(cfg_mutable_.loop_grid());
-
-        if (lg[0] > 1)
-            pooling_config_t::reduce_dim(lg[0], kg[1], 1);
-        else if (lg[1] / simd > 1)
-            pooling_config_t::reduce_dim(lg[1], kg[0], simd);
-        else
-            ir_error_not_expected() << "minimal loop_grid too large!";
-
-        cfg_mutable_.set_kernel_grid(kg);
-        cfg_mutable_.set_loop_grid(lg);
-        ki_mutable_.set_nd_range(nd_range(cfg_mutable_));
-    }
-}
-
 class loop_bound_counter_t : public ir_mutator_t {
 public:
     int count(const expr_t &e) {
@@ -413,15 +392,42 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     const type_t read_type(read_layout.type().kind(), simd);
     const type_t write_type(write_layout.type().kind(), simd);
 
-    type_t acc_type = (!read_type.is_int())
-            ? (cfg.is_max()) ? read_type : type_t::f32(simd)
-            : type_t::s32(simd);
+    auto acc_type = cfg.acc_type(simd);
     auto acc_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "acc");
     const auto acc_sc_size = acc_type.scalar().size();
     const auto acc_size = acc_sc_size * lg[4] * lg[3] * lg[2] * lg[1] * lg[0];
 
     stmt_t stmt;
 
+    auto gen_fill_values = [](int simd, bool isneg, type_t type) {
+        ir_assert(type.scalar().size() <= 4);
+        const int mult = 4 / type.scalar().size();
+        const bool isint = type.is_int();
+        expr_t v;
+        switch (mult) {
+            case 1: v = (isneg) ? (isint) ? 0x80000000 : 0xFF800000 : 0; break;
+            case 2: v = (isneg) ? (isint) ? 0x80008000 : 0xFC00FC00 : 0; break;
+            case 4: v = (isneg) ? (isint) ? 0x80808080 : 0xFFFFFFFF : 0; break;
+            default: ir_error_not_expected();
+        }
+        v = cast_t::make(type_t::s32(), v);
+        auto v_long = shuffle_t::make_broadcast(v, simd);
+        auto v_short = shuffle_t::make_broadcast(v, simd / mult);
+        return std::make_pair(v_short, v_long);
+    };
+    auto gen_zero_out = [&](int simd, bool isneg, const expr_t &buf,
+                                const tensor_t &tile, const layout_t &layout) {
+        stmt_t retn;
+        const auto values = gen_fill_values(simd, isneg, layout.type());
+        layout.for_each_tile(tile, [&](const std::vector<dim_t> &s) {
+            const int off = layout(s) * layout.type().size();
+            if (off >= utils::rnd_dn(layout.size(), simd * 4))
+                retn = retn.append(store_t::make(buf, off, values.first));
+            else if (off % (simd * 4) == 0)
+                retn = retn.append(store_t::make(buf, off, values.second));
+        });
+        return retn;
+    };
     if (is_identity) {
         acc_buf = read_buf;
         acc_type = read_type;
@@ -431,51 +437,15 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         allocs.push_back(alloc_t::make(acc_buf, acc_size, alloc_kind_t::grf));
 
         stmt_t fill_stmt, compute_stmt = read.stmt();
-
         stmt = stmt_t();
-        if (!read_type.is_int() && cfg.is_max()) {
-            auto init = shuffle_t::make_broadcast(-INFINITY, simd);
-            for (int i = 0; i < acc_size; i += simd * acc_sc_size)
-                stmt = stmt.append(store_t::make(
-                        acc_buf, i, cast_t::make(acc_type, init)));
-            read_layout.for_each_tile(
-                    src_tile, [&](const std::vector<dim_t> &s) {
-                        int off = read_layout(s) * read_layout.type().size();
-                        auto op = cast_t::make(read_type, init);
-                        fill_stmt = fill_stmt.append(
-                                store_t::make(read_buf, off, op));
-                    });
-        } else {
-            ir_assert(read_layout.type().size() <= 4);
-            const int mult = 4 / read_layout.type().size();
-            const bool is_neg = cfg.is_max() && read_type.is_signed();
-            for (int i = 0; i < acc_size; i += simd * acc_sc_size)
-                stmt = stmt.append(store_t::make(acc_buf, i,
-                        shuffle_t::make_broadcast(
-                                cast_t::make(type_t::s32(),
-                                        (is_neg) ? 0x80000000 : 0x00000000),
-                                simd)));
-            expr_t v_init;
-            switch (mult) {
-                case 1: v_init = (is_neg) ? 0x80000000 : 0x00000000; break;
-                case 2: v_init = (is_neg) ? 0x80008000 : 0x00000000; break;
-                case 4: v_init = (is_neg) ? 0x80808080 : 0x00000000; break;
-                default: ir_assert(false) << "Not expected.";
-            }
-            v_init = cast_t::make(type_t::s32(), v_init);
-            auto op_long = shuffle_t::make_broadcast(v_init, simd);
-            auto op_short = shuffle_t::make_broadcast(v_init, simd / mult);
-            read_layout.for_each_tile(
-                    src_tile, [&](const std::vector<dim_t> &s) {
-                        int off = read_layout(s) * read_layout.type().size();
-                        if (off >= utils::rnd_dn(read_layout.size(), simd * 4))
-                            fill_stmt = fill_stmt.append(
-                                    store_t::make(read_buf, off, op_short));
-                        else if (off % (simd * 4) == 0)
-                            fill_stmt = fill_stmt.append(
-                                    store_t::make(read_buf, off, op_long));
-                    });
-        }
+
+        const bool is_neg = cfg.is_max()
+                && (!read_type.is_int() || read_type.is_signed());
+        const auto a_fv = gen_fill_values(simd, is_neg, acc_type);
+        for (int i = 0; i < acc_size; i += simd * 4)
+            stmt = stmt.append(store_t::make(acc_buf, i,
+                    (acc_size - i < simd * 4) ? a_fv.first : a_fv.second));
+        fill_stmt = gen_zero_out(simd, is_neg, read_buf, src_tile, read_layout);
 
         read_layout.for_each_tile(src_tile, [&](const std::vector<dim_t> &s) {
             const int off_l = read_layout(s) * read_layout.type().size();
@@ -537,14 +507,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         stmt = if_t::make(shuffle_t::make_broadcast(exit_cond, simd), stmt);
 
     if ((dims[0] - prb.mb) / lg[0] >= 1) {
-        stmt_t stop;
-        auto zero_bcast
-                = cast_t::make(read_type, shuffle_t::make_broadcast(0, simd));
-        for (int i = 0; i < acc_size / acc_sc_size; i += simd)
-            stop = stop.append(store_t::make(
-                    read_buf, i * read_type.scalar().size(), zero_bcast));
-        auto stop_cond = shuffle_t::make_broadcast(mb >= prb.mb, simd);
-        stmt = if_t::make(stop_cond, stop.append(write.stmt()), stmt);
+        auto stop = gen_zero_out(simd, false, read_buf, dst_tile, write_layout);
+        stmt = if_t::make(shuffle_t::make_broadcast(mb >= prb.mb, simd),
+                stop.append(write.stmt()), stmt);
     }
 
     stmt = schedule.create_bind_stmt(stmt);
@@ -569,18 +534,6 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     ir_trace() << "Pooling cfg (~" << regs << " regs):\n" << cfg << std::endl;
 
     return (regs > exec.regs()) ? stmt_t() : stmt;
-}
-
-compute::nd_range_t pooling_ir_builder_t::nd_range(
-        const pooling_config_t &cfg) {
-    const auto &kg = cfg.kernel_grid();
-    const auto &tg = cfg.thread_group_grid();
-    std::array<size_t, 3> local {size_t(tg[0] * cfg.exec_cfg().simd()),
-            size_t(tg[1]), size_t(tg[2])};
-    std::array<size_t, 3> global {size_t(kg[0]) * local[0],
-            size_t(kg[1]) * local[1], size_t(kg[2]) * local[2]};
-
-    return compute::nd_range_t(global.data(), local.data());
 }
 
 } // namespace jit

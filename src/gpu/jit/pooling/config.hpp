@@ -141,19 +141,6 @@ public:
         return (is_fwd()) ? fwd_dims : bwd_dims;
     }
 
-    static void reduce_dim(int &dn, int &up, int scale) {
-        static const std::array<int, 11> primes_up_to_31
-                = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31};
-        for (auto p : primes_up_to_31)
-            if (dn % (p * scale) == 0) {
-                up *= p;
-                dn /= p;
-                return;
-            }
-        up *= dn / scale;
-        dn = scale;
-    }
-
     int pad_block(const prb_dim_t &d) const override {
         switch (d.kind()) {
             default: return 1;
@@ -176,6 +163,19 @@ public:
     bool is_blocked_by_mb() const {
         const auto &blk = src_layout().user().blocks();
         return (blk.size() > 1) && (blk[1].dim_idx == 0);
+    }
+
+    type_t acc_type(int len) const {
+        const auto read_type = src_layout().user().type();
+        switch (0x10 * read_type.is_int() + is_max()) {
+            default:
+            case 0x00: return type_t::f32(len); break;
+            case 0x01: return type_t(read_type.kind(), len); break;
+            case 0x10: return type_t::s32(len); break;
+            case 0x11:
+                return ((read_type.is_signed()) ? type_t::s : type_t::u)(
+                        8 * std::max(2, read_type.size()), len);
+        }
     }
 
     void compute_grid() {
@@ -244,8 +244,7 @@ public:
                 safe_thr_count);
 
         const int src_type_size = src.type().size();
-        const int acc_type_size
-                = (!src.type().is_int() && is_max()) ? src_type_size : 4;
+        const int acc_type_size = acc_type(1).size();
 
         const int oc_blk = src.blocks()[0].block;
         const int mb_blk = (is_blocked_by_mb()) ? src.blocks()[1].block : mb;
@@ -254,7 +253,7 @@ public:
             const int optimal_load_size = 256;
             int null = 0;
             while ((dim * mult > optimal_load_size) && (dim > 1))
-                reduce_dim(dim, null, 1);
+                cut_dim(dim, null, 1);
         };
 
         if (is_blocked_by_mb()) {
@@ -324,6 +323,17 @@ public:
         set_thread_group_grid(grid_info_t(tg, "tg_idx"));
     }
 
+    compute::nd_range_t nd_range() const {
+        const auto &kg = kernel_grid();
+        const auto &tg = thread_group_grid();
+        std::array<size_t, 3> local {size_t(tg[0] * exec_cfg().simd()),
+                size_t(tg[1]), size_t(tg[2])};
+        std::array<size_t, 3> global {size_t(kg[0]) * local[0],
+                size_t(kg[1]) * local[1], size_t(kg[2]) * local[2]};
+
+        return compute::nd_range_t(global.data(), local.data());
+    }
+
     std::string str() const override {
         std::ostringstream oss;
         // clang-format off
@@ -352,6 +362,32 @@ public:
         oss << "  Configuration line:   " << get_config_line() << std::endl;
         // clang-format on
         return oss.str();
+    }
+
+    int n_cuts() const { return n_cuts_; }
+    bool cut() {
+        const auto simd = exec_cfg().simd();
+        auto kg(kernel_grid());
+        auto lg(loop_grid());
+        int null = 0;
+
+        if (lg[5] > 1)
+            cut_dim(lg[5], null, 1); // kd
+        else if (lg[6] > 1)
+            cut_dim(lg[6], null, 1); // kh
+        else if (lg[0] > 1)
+            cut_dim(lg[0], kg[1], 1); // mb
+        else if (lg[7] > 1)
+            cut_dim(lg[7], null, 1); // kw
+        else if (lg[1] / simd > 1)
+            cut_dim(lg[1], kg[0], simd); // oc
+        else
+            return false;
+
+        set_kernel_grid(kg);
+        set_loop_grid(lg);
+        n_cuts_++;
+        return true;
     }
 
 #define DECL_PARAM(name) \
@@ -386,6 +422,29 @@ public:
 #undef INIT_PARAM
 
 private:
+    int n_cuts_ = 0;
+
+    static void cut_dim(int &dn, int &up, int scale) {
+        // clang-format off
+        static const std::array<unsigned char, 54> primes_up_to_256 = {
+              2,   3,   5,   7,  11,  13,  17,  19,  23,  29,  31,
+             37,  41,  43,  47,  53,  59,  61,  67,  71,  73,  79,
+             83,  89,  97, 101, 103, 107, 109, 113, 127, 131, 137,
+            139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193,
+            197, 199, 211, 223, 227, 229, 233, 239, 241, 251,
+        };
+        // clang-format on
+        ir_assert(dn % scale == 0);
+        for (int p : primes_up_to_256)
+            if (dn % (p * scale) == 0) {
+                up *= p;
+                dn /= p;
+                return;
+            }
+        up *= dn / scale;
+        dn = scale;
+    }
+
     static int get_max_tg(const exec_config_t &exec) {
         return compute::device_info_t::max_eus_per_wg(
                 convert_ngen_arch_to_dnnl(exec.hw().to_ngen()));
