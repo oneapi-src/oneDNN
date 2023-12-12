@@ -58,6 +58,8 @@ public:
 
     inline std::vector<uint8_t> getBinary(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0");
     inline cl_kernel getKernel(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0");
+    bool binaryIsZebin() { return isZebin; }
+
     static inline HW detectHW(cl_context context, cl_device_id device);
     static inline void detectHWInfo(cl_context context, cl_device_id device, HW &outHW, Product &outProduct);
 
@@ -65,6 +67,7 @@ public:
     static inline void detectHWInfo(cl_context context, cl_device_id device, HW &outHW, int &outStepping);
 
 private:
+    bool isZebin = false;
     inline std::vector<uint8_t> getPatchTokenBinary(cl_context context, cl_device_id device, const std::vector<uint8_t> *code = nullptr, const std::string &options = "-cl-std=CL2.0");
 };
 
@@ -162,6 +165,7 @@ std::vector<uint8_t> OpenCLCodeGenerator<hw>::getBinary(cl_context context, cl_d
 
     for (bool defaultFormat : {true, false}) {
         bool legacy = defaultFormat ^ zebinFirst;
+        isZebin = !legacy;
 
         if (legacy) {
             try {
