@@ -113,8 +113,8 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
             ok = ok && (mask == 0 || mask == (1 << (d->c_desc.ndims - 1)));
 
             dim_t dims = {(mask > 0) ? d->m() : 1};
-            CHECK(memory_desc_init_by_tag(
-                    wei_scales_md, 1, &dims, f32, format_tag::a));
+            CHECK(memory_desc_init_by_tag(wei_scales_md, 1, &dims,
+                    wei_scales->data_type_, format_tag::a));
 
             auto status = post_ops_.prepend_binary(binary_mul, &wei_scales_md);
             if (status != status::success) return status;

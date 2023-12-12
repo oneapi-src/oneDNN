@@ -10979,14 +10979,26 @@ void gemm_kernel_generator_t<hw>::gemmApplyABOffset(const GEMMProblem &problem,
     // TODO: combine C adds into add3 on XeHP+.
     ngen::DataType c_type = problem.Tc.ngen();
     bool c_float = utils::one_of(c_type, ngen::DataType::hf, ngen::DataType::f);
-    //ngen::DataType tmp_type = c_float ? ngen::DataType::w : problem.Tc.ngen();
     auto temp = state.ra.alloc_sub(problem.Tc.ngen());
     auto bo_tmp
             = c_float ? state.ra.alloc_sub(problem.Tc.ngen()) : state.inputs.bo;
+    auto cvtOff = [&](ngen::Subregister &off, ngen::Subregister &tmp_off) {
+        auto copyTemp = state.ra.alloc_range(1);
+        auto tmp0 = copyTemp[0].sub(0, ngen::DataType::w);
+        int nelems_real = 1;
+        InstructionModifier modMov;
+        mov(nelems_real | modMov, tmp0(1), off.b()(1));
+        mov(nelems_real | modMov, tmp_off(1), tmp0(1));
+        state.ra.safeRelease(copyTemp);
+    };
     if (c_float) {
         auto k_tmp = state.ra.alloc_sub(problem.Tc.ngen());
         mov(1, k_tmp, state.k);
-        mov(1, bo_tmp, state.inputs.bo);
+        if (problem.Tb_off != Type::s32) {
+            cvtOff(state.inputs.bo, bo_tmp);
+        } else {
+            mov(1, bo_tmp, state.inputs.bo);
+        }
         mul(1, temp, k_tmp, bo_tmp);
         state.ra.safeRelease(k_tmp);
     } else {
@@ -11004,7 +11016,11 @@ void gemm_kernel_generator_t<hw>::gemmApplyABOffset(const GEMMProblem &problem,
     } else {
         auto ao_tmp = state.ra.alloc_sub(problem.Tc.ngen());
         if (c_float) {
-            mov(1, ao_tmp, state.inputs.ao);
+            if (problem.Ta_off != Type::s32) {
+                cvtOff(state.inputs.ao, ao_tmp);
+            } else {
+                mov(1, ao_tmp, state.inputs.ao);
+            }
             mul(1, temp, temp, ao_tmp);
         } else {
             mul(1, temp, temp, state.inputs.ao);
@@ -19369,7 +19385,7 @@ void gemm_kernel_generator_t<hw>::gemm(
         state.inputs.ao = state.inputs.abo.w(0);
         state.inputs.bo = state.inputs.abo.w(1);
 
-        auto loadABO = [&](const ngen::Subregister &xo,
+        auto loadABO = [&](const ngen::Subregister &xo, Type dt,
                                ngen::Subregister &xoPtr) {
             if (xoPtr.isInvalid())
                 mov(1, xo, 0);
@@ -19388,8 +19404,8 @@ void gemm_kernel_generator_t<hw>::gemm(
             }
         };
 
-        loadABO(state.inputs.ao, state.inputs.aoPtr);
-        loadABO(state.inputs.bo, state.inputs.boPtr);
+        loadABO(state.inputs.ao, problem.Ta_off, state.inputs.aoPtr);
+        loadABO(state.inputs.bo, problem.Tb_off, state.inputs.boPtr);
     }
 
     // Persistent thread preparation and re-entry.

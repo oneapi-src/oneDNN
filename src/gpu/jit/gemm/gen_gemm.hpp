@@ -102,15 +102,19 @@ struct gen_gemm_t : public gpu_gemm_t {
                               && utils::one_of(d->a_type(), u8, s8)
                               && utils::one_of(d->b_type(), f16, f32, bf16))
                     && attr()->mayiconvert(d->a_type(), f32);
-            if (wei_decomp) attr_skip_mask |= smask_t::fpmath_mode;
+            if (wei_decomp) {
+                attr_skip_mask |= smask_t::fpmath_mode;
+                attr_skip_mask |= smask_t::scales_runtime_data_type;
+                attr_skip_mask |= smask_t::zero_points_runtime_data_type;
+            }
 
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8)) {
                 ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp);
-                a_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC);
-                b_zp_ = !attr()->zero_points_.has_default_values(
-                        DNNL_ARG_WEIGHTS);
+
+                a_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_A);
+                b_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_B);
                 if (swap_ab_) std::swap(a_zp_, b_zp_);
 
                 int cmask_a = 0, cmask_b = 0, cmask_c = 0;
@@ -156,6 +160,11 @@ struct gen_gemm_t : public gpu_gemm_t {
                                             DNNL_ARG_DST)))
                     && attr()->post_ops_.check_sum_consistency(
                             d->c_type(), utils::one_of(d->a_type(), s8, u8));
+            for (const auto &s :
+                    {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+                ok &= utils::one_of(
+                        attr()->scales_.get(s).mask_, 0, 1 << 0, 1 << 1);
+            }
 
             status = init_post_ops();
             if (status != status::success) return status;
@@ -224,9 +233,11 @@ struct gen_gemm_t : public gpu_gemm_t {
                     with_a_zero_points(), with_b_zero_points(),
                     with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
                     beta(), post_ops_, eff_a_type(), eff_b_type(),
-                    desc()->c_type(), co_type, acc_type, eff_align_a(),
-                    eff_align_b(), align_c(), eff_m(), eff_n(), d->k(),
-                    eff_lda(), eff_ldb(), d->ldc(), d->batch(), prelu_wei_md);
+                    desc()->c_type(), co_type, acc_type,
+                    attr()->zero_points_.get_data_type(DNNL_ARG_A),
+                    eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
+                    d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch(),
+                    prelu_wei_md);
 
             if (status != status::success) return status;
 

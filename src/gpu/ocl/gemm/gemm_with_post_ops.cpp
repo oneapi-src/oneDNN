@@ -22,12 +22,20 @@ namespace gpu {
 namespace ocl {
 
 status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
+    using namespace data_type;
 
     const auto &d = desc();
     const auto attr_skip_mask = primitive_attr_t::skip_mask_t::scales_runtime
+            | primitive_attr_t::skip_mask_t::scales_runtime_data_type
             | primitive_attr_t::skip_mask_t::post_ops
-            | primitive_attr_t::skip_mask_t::zero_points_runtime;
+            | primitive_attr_t::skip_mask_t::fpmath_mode
+            | primitive_attr_t::skip_mask_t::zero_points_runtime
+            | primitive_attr_t::skip_mask_t::zero_points_runtime_data_type;
 
+    bool wei_decomp = (utils::one_of(d->c_type(), f32, f16, bf16)
+                              && utils::one_of(d->a_type(), u8, s8)
+                              && utils::one_of(d->b_type(), f16, f32, bf16))
+            && attr()->mayiconvert(d->a_type(), f32);
     bool ok = d->c_desc.ndims <= 4
             && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k())
             && attr()->has_default_values(attr_skip_mask);
@@ -36,7 +44,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     const primitive_attr_t *attributes_with_po = attr();
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
         const auto &mask = attr()->scales_.get(arg).mask_;
-        if (arg == DNNL_ARG_WEIGHTS)
+        if (arg == DNNL_ARG_WEIGHTS && !wei_decomp)
             ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
         else
             ok = ok && (mask == 0);
