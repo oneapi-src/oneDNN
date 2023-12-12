@@ -852,7 +852,8 @@ enum class BinaryOp { Add, Sub, Mul, Div, Min, Max, Prelu };
 
 // GEMM kernel problem description.
 struct GEMMProblem : public CommonProblem {
-    Type Ta, Tb, Tc, Tco, Ts; // Types for A/B/C/C offsets/scalars in registers.
+    Type Ta, Tb, Tc, Tco, Ta_off = Type::s32, Tb_off = Type::s32,
+                          Ts; // Types for A/B/C/C offsets/scalars in registers.
     Type Ta_ext, Tb_ext, Tc_ext; // Types for A/B/C data in memory.
 
     Scalar alpha, beta; // Scaling factors for A*B and C, respectively.
