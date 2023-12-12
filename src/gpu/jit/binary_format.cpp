@@ -144,40 +144,45 @@ public:
         threadend(SWSB(sb2, 1), r127);
     }
 
-    static compute::kernel_t make_kernel(compute::compute_engine_t *engine) {
+    static compute::kernel_t make_kernel(
+            compute::compute_engine_t *engine, bool *skip_check) {
         compute::kernel_t kernel;
+
+        *skip_check = false;
 
         if (hw != HW::Unknown) {
             binary_format_kernel_t<hw> binary_format_kernel;
 
             auto status
                     = engine->create_kernel(&kernel, &binary_format_kernel, {});
+
             if (status != status::success) return nullptr;
+            *skip_check = binary_format_kernel.binaryIsZebin();
         } else {
             switch (engine->device_info()->gpu_arch()) {
                 case compute::gpu_arch_t::gen9:
                     kernel = binary_format_kernel_t<HW::Gen9>::make_kernel(
-                            engine);
+                            engine, skip_check);
                     break;
                 case compute::gpu_arch_t::gen11:
                     kernel = binary_format_kernel_t<HW::Gen11>::make_kernel(
-                            engine);
+                            engine, skip_check);
                     break;
                 case compute::gpu_arch_t::xe_lp:
                     kernel = binary_format_kernel_t<HW::XeLP>::make_kernel(
-                            engine);
+                            engine, skip_check);
                     break;
                 case compute::gpu_arch_t::xe_hp:
                     kernel = binary_format_kernel_t<HW::XeHP>::make_kernel(
-                            engine);
+                            engine, skip_check);
                     break;
                 case compute::gpu_arch_t::xe_hpg:
                     kernel = binary_format_kernel_t<HW::XeHPG>::make_kernel(
-                            engine);
+                            engine, skip_check);
                     break;
                 case compute::gpu_arch_t::xe_hpc:
                     kernel = binary_format_kernel_t<HW::XeHPC>::make_kernel(
-                            engine);
+                            engine, skip_check);
                     break;
                 case compute::gpu_arch_t::unknown: kernel = nullptr; break;
             }
@@ -199,8 +204,15 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     auto stream = utils::downcast<compute::compute_stream_t *>(stream_generic);
     if (!stream) return status::invalid_arguments;
 
-    auto kernel = binary_format_kernel_t<HW::Unknown>::make_kernel(gpu_engine);
+    bool skip_check = false;
+    auto kernel = binary_format_kernel_t<HW::Unknown>::make_kernel(
+            gpu_engine, &skip_check);
     if (!kernel) return status::success;
+
+    if (skip_check) {
+        *ok = true;
+        return status::success;
+    }
 
     // Binary kernel check.
     uint32_t magic0 = MAGIC0;
