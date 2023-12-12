@@ -850,19 +850,10 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   }
 
   loops = concat_vec(batch_loops, {lm_c, ln_c});
-
-  if (!owner_->need_dynamic_internal_query() && fusion) {
-    // bind loop with axis
-    bound_axis bd_axis;
-    for (size_t i = 0; i < out_tensors_[0].get_plain_dims().size(); i++) {
-      bd_axis.emplace_back(std::vector<int> {static_cast<int>(i)});
-    }
-    // get binded mxp
-    auto mxp = fusion->get_binded_mxp();
-    COMPILE_ASSERT(mxp, "No binded partition found")
-    // bind loop with axis
-    mxp->init_axis_binder(owner_->get_outputs()[0], bd_axis);
-  }
+  // bind outer loops with axis hint
+  std::vector<int> bd_axis(out_tensors_[0].get_plain_dims().size());
+  std::iota(bd_axis.begin(), bd_axis.end(), 0);
+  bind_loop_axis(owner_->get_outputs()[0], loops, bd_axis);
 
   return true;
 }

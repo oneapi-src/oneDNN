@@ -427,8 +427,8 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
         sc_op_info_t &info, const vectorized_info_t &vx_info,
         const mask_compute_func_t &compute_lanes,
         const mask_compute_func_t &compute_scalar, any_map_t &attrs,
-        size_t wkld, bool use_mask, const tensor_slice *expand_loop_by,
-        bool unroll_inner_loop) {
+        const graph_tensor_ptr &expand_gt, size_t wkld, bool use_mask,
+        const tensor_slice *expand_loop_by, bool unroll_inner_loop) {
     if (!expand_loop_by) { expand_loop_by = &dst; }
     bool use_vectorized = false;
     vec_backend_require(ctx, use_vectorized);
@@ -552,6 +552,7 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
                     if (unroll_inner_loop) {
                         cur->attr()[stmt_attr_key::unroll_loop] = 0;
                     }
+                    bind_loop_axis(expand_gt, cur, i, true);
                 }
                 tcur.emplace_back(cur);
             }
@@ -589,6 +590,7 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
                 if (unroll_inner_loop) {
                     cur->attr()[stmt_attr_key::unroll_loop] = 0;
                 }
+                bind_loop_axis(expand_gt, cur, i, true);
                 tcur.emplace_back(cur);
             }
         } else if (iter_vars.at(i).isa<var>()) {
@@ -632,6 +634,7 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
                     cur->attr()[stmt_attr_key::unroll_loop] = 0;
                 }
             }
+            bind_loop_axis(expand_gt, cur, i, true);
         }
     }
     if (!tcur.empty() && tcur[0].defined()) {
@@ -695,9 +698,9 @@ void set_unknown_input_slice(fusible_op_t *cur,
     }
 }
 
-std::unordered_map<int, bound_axis> search_known_input_axis(
-        sc_op *cur, bound_axis_map &bdax_map) {
-    std::unordered_map<int, bound_axis> known_axis_map;
+std::unordered_map<int, binding_axis> search_known_input_axis(
+        sc_op *cur, binding_axis_map &bdax_map) {
+    std::unordered_map<int, binding_axis> known_axis_map;
     auto input_size = cur->get_inputs().size();
     for (size_t i = 0; i < input_size; i++) {
         auto &input = cur->get_inputs()[i];
@@ -711,7 +714,7 @@ std::unordered_map<int, bound_axis> search_known_input_axis(
     return known_axis_map;
 }
 
-void call_output_user_axis_binding(sc_op *cur, bound_axis_map &bdax_map) {
+void call_output_user_axis_binding(sc_op *cur, binding_axis_map &bdax_map) {
     for (auto &out : cur->get_outputs()) {
         for (auto &user : out->uses_) {
             if (auto bd_op = user.second->dyn_cast<
@@ -723,8 +726,8 @@ void call_output_user_axis_binding(sc_op *cur, bound_axis_map &bdax_map) {
 }
 
 void set_unknown_binding_axis(sc_op *cur,
-        const std::unordered_map<int, bound_axis> &known_axis_map,
-        bound_axis_map &bdax_map) {
+        const std::unordered_map<int, binding_axis> &known_axis_map,
+        binding_axis_map &bdax_map) {
     // set other unknown axis.
     auto input_size = cur->get_inputs().size();
     for (size_t i = 0; i < input_size; i++) {

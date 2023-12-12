@@ -473,7 +473,8 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         const std::vector<int> &vec_inp_a_axis,
         const std::vector<int> &vec_inp_b_axis,
         const std::vector<int> &vec_out_a_axis,
-        const std::vector<int> &vec_out_b_axis, size_t wkld, bool is_dynamic,
+        const std::vector<int> &vec_out_b_axis,
+        const graph_tensor_ptr &expand_gt, size_t wkld, bool is_dynamic,
         bool dynamic_no_padding, const sc_trans_kernel trans_kernel_used) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
@@ -770,6 +771,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                 cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                         expr(0), tsr.get_shape()[i], expr(cur_step),
                         std::move(body), true, for_type::NORMAL);
+                bind_loop_axis(expand_gt, cur, i, true);
             }
         }
         for (int i = static_cast<int>(blocking_dims.size()) - 1; i >= 0; i--) {
@@ -782,6 +784,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                 cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                         expr(0), tsr.get_shape()[i], expr(1), std::move(body),
                         true, for_type::NORMAL);
+                bind_loop_axis(expand_gt, cur, i, true);
             }
         }
     };

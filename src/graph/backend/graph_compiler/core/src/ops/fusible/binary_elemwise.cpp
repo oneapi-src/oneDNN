@@ -433,7 +433,7 @@ infer_status_code binary_elementwise_op_impl_t::pre_infer_slice_ranges(
 }
 
 void binary_elementwise_op_impl_t::infer_binding_axis(
-        bound_axis_map &bdax_map) {
+        binding_axis_map &bdax_map) {
     // search known axis from any input of cur fusbile op
     auto known_axis_map = search_known_input_axis(this, bdax_map);
     if (!bdax_map.get(get_outputs()[0]).empty()) return;
@@ -454,8 +454,8 @@ void binary_elementwise_op_impl_t::infer_binding_axis(
                 known_axis_map[unknown_idx] = known_axis_map[1 - unknown_idx];
             } else {
                 auto bc_axis = plain_bc_axis_[bc_input_idx];
-                bound_axis known_axis = known_axis_map[1 - unknown_idx],
-                           unknown_axis(known_axis.size());
+                binding_axis known_axis = known_axis_map[1 - unknown_idx],
+                             unknown_axis(known_axis.size());
                 if (unknown_idx != bc_input_idx) {
                     if (bc_axis == std::vector<int> {-1}) {
                         bc_axis[0] = get_inputs()[1 - bc_input_idx]
@@ -507,10 +507,10 @@ void binary_elementwise_op_impl_t::infer_binding_axis(
 }
 
 void binary_elementwise_op_impl_t::pre_infer_binding_axis(
-        bound_axis_map &bdax_map) {
+        binding_axis_map &bdax_map) {
     auto &outaxis = bdax_map.get(get_outputs()[0]);
     COMPILE_ASSERT(!outaxis.empty(),
-            "Unknown output axis found, could not pre bind axis")
+            "Unknown output axis found, could not pre infer binding axis")
 
     // check broadcast
     int bc_input_idx = get_broadcast_input();
@@ -608,7 +608,7 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
         sc_op_info_t &info, int bc_input_idx, const std::vector<int> &bc_axis,
         const vectorized_info_t &vx_info, const mask_compute_func_t &compute,
-        sc_data_type_t dtype = datatypes::f32, size_t wkld = 0UL,
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL,
         bool use_mask = false) {
     //  enable vectorize code
     bool use_vectorized = false;
@@ -780,6 +780,7 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
                     cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
                             floor, expr(int(vx_info.lanes)), cur, true,
                             for_type::NORMAL);
+                    bind_loop_axis(expand_gt, cur, i, true);
                 }
                 tcur.emplace_back(cur);
             }
@@ -819,6 +820,7 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
                         do_cast_and_fold(floor + tail),
                         use_scalar ? expr(1) : lanes, bld->pop_scope(), true,
                         for_type::NORMAL);
+                bind_loop_axis(expand_gt, cur, i, true);
                 tcur.emplace_back(cur);
             }
         } else if (iter_vars.at(i).isa<var>()) {
@@ -865,6 +867,7 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
                         dst.get_shape().at(i), expr(1), bld->pop_scope(), true,
                         for_type::NORMAL);
             }
+            bind_loop_axis(expand_gt, cur, i, true);
         }
     }
     if (!tcur.empty() && tcur[0].defined()) {
@@ -944,8 +947,7 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
         // reuse broadcast op
         compute_block_broadcast(ctx, get_owner_graph(), inputs, *dst[0], info_,
                 bc_input_idx, get_bc_axis(), vx_info_,
-                mask_compute_func_t(func), info_.outputs_[0]->details_.dtype_,
-                wkld, use_mask);
+                mask_compute_func_t(func), get_outputs()[0], wkld, use_mask);
     } else {
         auto func = [&](const std::vector<expr> &in,
                             std::vector<expr::lvalue_proxy_t> &out) -> stmt {
@@ -991,7 +993,7 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
 
         compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
                 vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
-                attrs_, wkld, use_mask);
+                attrs_, get_outputs()[0], wkld, use_mask);
     }
 }
 

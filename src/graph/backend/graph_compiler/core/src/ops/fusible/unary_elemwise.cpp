@@ -103,7 +103,7 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     }
     compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
             vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
-            attrs_, wkld, use_mask);
+            attrs_, get_outputs()[0], wkld, use_mask);
 }
 
 static infer_status_code infer_unary_slice_ranges(
@@ -137,22 +137,24 @@ infer_status_code unary_elementwise_op_impl_t::pre_infer_slice_ranges(
     return pre_infer_unary_slice_ranges(this, fsmap);
 }
 
-void infer_identical_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
+void infer_identical_binding_axis(
+        fusible_op_t *cur, binding_axis_map &bdax_map) {
     auto known_axis_map = search_known_input_axis(cur, bdax_map);
     if (!bdax_map.get(cur->get_outputs()[0]).empty()) return;
     bdax_map.get(cur->get_outputs()[0]) = known_axis_map[0];
     set_unknown_binding_axis(cur, known_axis_map, bdax_map);
 }
 
-void unary_elementwise_op_impl_t::infer_binding_axis(bound_axis_map &bdax_map) {
+void unary_elementwise_op_impl_t::infer_binding_axis(
+        binding_axis_map &bdax_map) {
     infer_identical_binding_axis(this, bdax_map);
 }
 
 void pre_infer_identical_binding_axis(
-        fusible_op_t *cur, bound_axis_map &bdax_map) {
+        fusible_op_t *cur, binding_axis_map &bdax_map) {
     auto &outaxis = bdax_map.get(cur->get_outputs()[0]);
     COMPILE_ASSERT(!outaxis.empty(),
-            "Unknown output axis found, could not pre bind axis")
+            "Unknown output axis found, could not pre infer binding axis")
     auto &input = cur->get_inputs()[0];
     auto &inpaxis = bdax_map.get(input);
     if (inpaxis.empty()) {
@@ -166,7 +168,7 @@ void pre_infer_identical_binding_axis(
 }
 
 void unary_elementwise_op_impl_t::pre_infer_binding_axis(
-        bound_axis_map &bdax_map) {
+        binding_axis_map &bdax_map) {
     pre_infer_identical_binding_axis(this, bdax_map);
 }
 

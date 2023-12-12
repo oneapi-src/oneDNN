@@ -414,21 +414,13 @@ public:
 
 func_c ir_simplifier_t::operator()(func_c f) {
     simplify_impl_t simpl {skip_rename_};
-    auto ret = simpl.dispatch(f);
-    if (!skip_if_loop_) {
-        if_loop_simplify_impl_t ilimpl;
-        ret = simpl.dispatch(ilimpl.dispatch(ret));
-    }
-    return ret;
+    if_loop_simplify_impl_t ilimpl;
+    return simpl.dispatch(ilimpl.dispatch(simpl.dispatch(f)));
 }
 stmt_c ir_simplifier_t::operator()(stmt_c f) const {
     simplify_impl_t simpl {skip_rename_};
-    auto ret = simpl.dispatch(std::move(f));
-    if (!skip_if_loop_) {
-        if_loop_simplify_impl_t ilimpl;
-        ret = simpl.dispatch(ilimpl.dispatch(ret));
-    }
-    return ret;
+    if_loop_simplify_impl_t ilimpl;
+    return simpl.dispatch(ilimpl.dispatch(simpl.dispatch(std::move(f))));
 }
 
 } // namespace gc

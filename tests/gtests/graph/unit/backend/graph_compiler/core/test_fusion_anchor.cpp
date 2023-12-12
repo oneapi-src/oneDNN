@@ -35,9 +35,9 @@ using namespace dnnl::impl::graph::gc::builder;
 TEST(GCCore_CPU_fusion_anchor_cpp, TestGroupedFusionAnchor) {
     sc_graph_t g;
     sc_dims input_dims = {20, 35, 32, 16};
-    auto finput0 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput1 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput2 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput0 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput1 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput2 = g.make_input(test_utils::make_tsr(input_dims));
 
     auto fadd = g.make("add",
             {finput0->get_outputs()[0], finput1->get_outputs()[0]}, {}, {});
@@ -72,14 +72,14 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestGroupedFusionAnchor) {
     int lanes = fadd->stc_cast<binary_elementwise_op_impl_t>()->get_lanes();
 
     _function_(datatypes::boolean, bbb,
-            _arg_("mul_out", datatypes::f32, {20UL, 35UL, 32UL, 16UL}),
-            _arg_("add_in_0", datatypes::f32, {20UL, 35UL, 32UL, 16UL}),
-            _arg_("add_in_1", datatypes::f32, {20UL, 35UL, 32UL, 16UL}),
-            _arg_("mul_in_1", datatypes::f32, {20UL, 35UL, 32UL, 16UL})) {
+            _arg_("mul_out", datatypes::s32, {20UL, 35UL, 32UL, 16UL}),
+            _arg_("add_in_0", datatypes::s32, {20UL, 35UL, 32UL, 16UL}),
+            _arg_("add_in_1", datatypes::s32, {20UL, 35UL, 32UL, 16UL}),
+            _arg_("mul_in_1", datatypes::s32, {20UL, 35UL, 32UL, 16UL})) {
         _bind_(mul_out, add_in_0, add_in_1, mul_in_1);
         _for_(m_o, 0, 20) {
             // Common parent node is right position for tensor define
-            _tensor_(add_out, datatypes::f32, {20UL, 35UL, 32UL, 16UL});
+            _tensor_(add_out, datatypes::s32, {20UL, 35UL, 32UL, 16UL});
             _for_(n_o, 0, 32) {
                 // Grouped Anchor 0
                 bld.push_scope();
@@ -165,9 +165,9 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestGroupedFusionAnchor) {
 TEST(GCCore_CPU_fusion_anchor_cpp, TestDynamicFusionAnchor) {
     sc_graph_t g;
     sc_dims input_dims = {20, 35, 16};
-    auto finput0 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput1 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput2 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput0 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput1 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput2 = g.make_input(test_utils::make_tsr(input_dims));
 
     auto fadd = g.make("add",
             {finput0->get_outputs()[0], finput1->get_outputs()[0]}, {}, {});
@@ -196,14 +196,14 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestDynamicFusionAnchor) {
     int lanes = fadd->stc_cast<binary_elementwise_op_impl_t>()->get_lanes();
 
     _function_(datatypes::boolean, bbb,
-            _arg_("mul_out", datatypes::f32, {20UL, 35UL, 16UL}),
-            _arg_("add_in_0", datatypes::f32, {20UL, 35UL, 16UL}),
-            _arg_("add_in_1", datatypes::f32, {20UL, 35UL, 16UL}),
-            _arg_("mul_in_1", datatypes::f32, {20UL, 35UL, 16UL})) {
+            _arg_("mul_out", datatypes::s32, {20UL, 35UL, 16UL}),
+            _arg_("add_in_0", datatypes::s32, {20UL, 35UL, 16UL}),
+            _arg_("add_in_1", datatypes::s32, {20UL, 35UL, 16UL}),
+            _arg_("mul_in_1", datatypes::s32, {20UL, 35UL, 16UL})) {
         _bind_(mul_out, add_in_0, add_in_1, mul_in_1);
         _for_(m_o, 0, 20) {
             _var_(dyn_shape, sc_data_type_t::s32());
-            _tensor_(add_out, datatypes::f32, {20UL, 35UL, 16UL});
+            _tensor_(add_out, datatypes::s32, {20UL, 35UL, 16UL});
             dyn_shape = builder::make_select(m_o > 10, expr(32), expr(3));
             bld.push_scope();
             {
@@ -247,9 +247,9 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor1) {
     // The last dim 55 could not be divided by max lanes, as the result, it
     // should be auto split into grouped anchor in avoid of loop merge break
     sc_dims input_dims = {20, 30, 55};
-    auto finput0 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput1 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput2 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput0 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput1 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput2 = g.make_input(test_utils::make_tsr(input_dims));
 
     auto fadd = g.make("add",
             {finput0->get_outputs()[0], finput1->get_outputs()[0]}, {}, {});
@@ -282,9 +282,9 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor2) {
     // The last dim 55 could not be divided by max lanes, as the result, it
     // should be auto split into grouped anchor in avoid of loop merge break
     sc_dims input_dims = {20, 30, 55};
-    auto finput0 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput1 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput2 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput0 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput1 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput2 = g.make_input(test_utils::make_tsr(input_dims));
 
     auto fadd = g.make("add",
             {finput0->get_outputs()[0], finput1->get_outputs()[0]}, {}, {});
@@ -316,9 +316,9 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor3) {
     // The last dim 55 could not be divided by max lanes, as the result, it
     // should be auto split into grouped anchor in avoid of loop merge break
     sc_dims input_dims = {20, 30, 55};
-    auto finput0 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput1 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput2 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput0 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput1 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput2 = g.make_input(test_utils::make_tsr(input_dims));
 
     auto frelu0 = g.make("relu", {finput0->get_outputs()[0]}, {}, {});
     auto frelu1 = g.make("relu", {finput1->get_outputs()[0]}, {}, {});
@@ -362,10 +362,10 @@ TEST(GCCore_CPU_fusion_anchor_cpp, TestSplitGroupedFusionAnchor4) {
     // The last dim 55 could not be divided by max lanes, as the result, it
     // should be auto split into grouped anchor in avoid of loop merge break
     sc_dims input_dims = {20, 30, 55};
-    auto finput0 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput1 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput2 = g.make_input({graph_tensor::make(input_dims)});
-    auto finput3 = g.make_input({graph_tensor::make(input_dims)});
+    auto finput0 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput1 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput2 = g.make_input(test_utils::make_tsr(input_dims));
+    auto finput3 = g.make_input(test_utils::make_tsr(input_dims));
 
     auto fadd0 = g.make("add",
             {finput0->get_outputs()[0], finput1->get_outputs()[0]}, {}, {});

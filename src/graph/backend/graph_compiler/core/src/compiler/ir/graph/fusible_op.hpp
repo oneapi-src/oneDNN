@@ -106,9 +106,9 @@ public:
 
     void commit_into_anchor(fusion_anchor_t *committed_anchor) override;
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override {}
+    void infer_binding_axis(binding_axis_map &bdax_map) override {}
 
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override {}
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override {}
 
     ~fusible_op_t() override = default;
 

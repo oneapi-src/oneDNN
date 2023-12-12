@@ -97,7 +97,9 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseOpPass) {
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
-    auto get_test_graph = [](const char *fuse_type = nullptr) {
+    auto ctx = get_test_ctx();
+
+    auto get_test_graph = [&ctx](const char *fuse_type = nullptr) {
         int M = 32, K = 64, N = 32;
         sc_graph_t mgr;
         auto in_a = mgr.make_input(
@@ -127,19 +129,19 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
                         {"channel_axis", 0}});
 
         mgr.make_output(quan->get_outputs());
+
+        graph_inline(mgr);
+        quantize::quantize_inline(mgr);
+        elemwise_dimension_alignment(mgr);
+        layout_propagation(mgr);
+        mixed_partition(mgr, ctx);
         return mgr;
     };
-
-    auto ctx = get_test_ctx();
 
     // full fusion version
     {
         sc_graph_t graph = get_test_graph();
-        graph_inline(graph);
-        quantize::quantize_inline(graph);
-        elemwise_dimension_alignment(graph);
-        layout_propagation(graph);
-        mixed_partition(graph, ctx);
+
         std::stringstream ss;
         print_graph(graph, ss, true);
         std::string expected_str
@@ -156,11 +158,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
     // break pre fusion version
     {
         sc_graph_t graph = get_test_graph(op_attr_key::break_pre_fuse);
-        graph_inline(graph);
-        quantize::quantize_inline(graph);
-        elemwise_dimension_alignment(graph);
-        layout_propagation(graph);
-        mixed_partition(graph, ctx);
+
         std::stringstream ss;
         print_graph(graph, ss, true);
         std::string expected_str
@@ -178,11 +176,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
     // break post fusion version
     {
         sc_graph_t graph = get_test_graph(op_attr_key::break_post_fuse);
-        graph_inline(graph);
-        quantize::quantize_inline(graph);
-        elemwise_dimension_alignment(graph);
-        layout_propagation(graph);
-        mixed_partition(graph, ctx);
 
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -201,11 +194,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
     // no fuse fusion version
     {
         sc_graph_t graph = get_test_graph(op_attr_key::no_fuse);
-        graph_inline(graph);
-        quantize::quantize_inline(graph);
-        elemwise_dimension_alignment(graph);
-        layout_propagation(graph);
-        mixed_partition(graph, ctx);
 
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -1116,6 +1104,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
     auto out0 = graph.make_output(mmm1->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    graph_driver_before_fusion(graph, ctx);
     // split outmost and merge inners
     mixed_partition(graph, ctx);
     auto mixed_op = get_mixed_op_from_graph(graph);
@@ -2335,7 +2324,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop1) {
     auto func = mixed_op->parti_list_[0]->func_;
     ASSERT_TRUE(func && func->body_.isa<stmts>());
     auto body = func->body_.static_as<stmts>();
-    ASSERT_TRUE(body->seq_.size() == 1 && body->seq_[0].isa<for_loop>());
+    ASSERT_TRUE(body->seq_.size() == 2 && body->seq_[0].isa<for_loop>());
     auto outer_loop = body->seq_[0].static_as<for_loop>();
     ASSERT_TRUE(outer_loop->body_.isa<stmts>());
     auto loop_body = outer_loop->body_.static_as<stmts>();

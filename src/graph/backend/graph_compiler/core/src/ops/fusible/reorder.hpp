@@ -76,8 +76,8 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
         const std::vector<int> &inp_a_axis, const std::vector<int> &inp_b_axis,
         const std::vector<int> &out_a_axis, const std::vector<int> &out_b_axis,
-        size_t wkld, bool is_dynamic, bool dynamic_no_padding,
-        const sc_trans_kernel trans_kernel_used);
+        const graph_tensor_ptr &expand_gt, size_t wkld, bool is_dynamic,
+        bool dynamic_no_padding, const sc_trans_kernel trans_kernel_used);
 bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
         std::vector<int> &inp_k_axis, std::vector<int> &out_n_axis,
         std::vector<int> &out_k_axis, const sc_dims &plain_dims,
@@ -96,8 +96,8 @@ void vnni_reorder_insert_kernel(sc_graph_t &graph, const context_ptr &ctx,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
         std::vector<int> &inp_n_axis, std::vector<int> &inp_k_axis,
         std::vector<int> &out_n_axis, std::vector<int> &out_k_axis,
-        size_t wkld = 0UL, bool is_dynamic = false,
-        bool dynamic_no_padding = false);
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL,
+        bool is_dynamic = false, bool dynamic_no_padding = false);
 void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
         const sc_data_format_t &input_format,
@@ -105,8 +105,9 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
         std::vector<int> &inp_n_axis, std::vector<int> &inp_k_axis,
         std::vector<int> &out_n_axis, std::vector<int> &out_k_axis,
-        size_t wkld = 0UL, const bool &is_vnni_reorder = false,
-        bool is_dynamic = false, bool dynamic_no_padding = false,
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL,
+        const bool &is_vnni_reorder = false, bool is_dynamic = false,
+        bool dynamic_no_padding = false,
         const sc_vnni_kernel vnni_kernel_used = sc_vnni_kernel::NO_VNNI);
 } // namespace gc
 } // namespace graph

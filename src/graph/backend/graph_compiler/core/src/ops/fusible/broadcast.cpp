@@ -322,6 +322,7 @@ void broadcast_op_t::compute_block(context_ptr ctx,
                     cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
                             expr(floor), expr(lanes), cur, true,
                             for_type::NORMAL);
+                    bind_loop_axis(get_outputs()[0], cur, i, true);
                 }
                 tcur.emplace_back(cur);
             }
@@ -348,6 +349,7 @@ void broadcast_op_t::compute_block(context_ptr ctx,
                         do_cast_and_fold(floor + tail),
                         use_scalar ? expr(1) : lanes, bld->pop_scope(), true,
                         for_type::NORMAL);
+                bind_loop_axis(get_outputs()[0], cur, i, true);
                 tcur.emplace_back(cur);
             }
         } else if (iter_vars.at(i).isa<var>()) {
@@ -383,6 +385,7 @@ void broadcast_op_t::compute_block(context_ptr ctx,
                         expr(0), dst_tsl->get_shape().at(i), expr(1),
                         bld->pop_scope(), true, for_type::NORMAL);
             }
+            bind_loop_axis(get_outputs()[0], cur, i, true);
         }
     }
     if (!tcur.empty() && tcur[0].defined()) {

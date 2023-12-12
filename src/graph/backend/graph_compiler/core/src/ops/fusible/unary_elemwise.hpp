@@ -39,8 +39,8 @@ public:
     infer_status_code pre_infer_slice_ranges(
             const context_ptr &ctx, fslice_map &fsmap) override;
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
+    void infer_binding_axis(binding_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;

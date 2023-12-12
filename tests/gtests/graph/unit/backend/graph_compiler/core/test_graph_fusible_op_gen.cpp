@@ -303,9 +303,9 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReduce) {
             {graph_tensor::make({32, 32, 64, 64}, sc_data_format_t::NCHW())});
     auto addop = mgr.make("reduce", ins->get_outputs(), {},
             {{"rd_axis", std::vector<int> {1}}, {"rd_op", 0},
-                    {"temp.no_optimize_op", true}});
+                    {"temp.no_split_reduce", true}});
     mgr.make_output(addop->get_outputs());
-    auto reducef = lower_graph(get_test_ctx(), mgr, {})->get_func("reduce_2");
+    auto reducef = lower_graph(get_test_ctx(), mgr, {})->get_func("reduce_1");
     ASSERT_TRUE(reducef);
     int simd_len = get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32);
     builder::ir_builder_t builder;

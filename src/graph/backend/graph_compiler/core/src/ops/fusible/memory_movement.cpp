@@ -1028,14 +1028,14 @@ infer_status_code tensor_view_op_t::pre_infer_slice_ranges(
 }
 
 // transpose_axis_map stores the transpose relation of src_axis --> dst_axis
-bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
+binding_axis infer_tensor_view_binding_axis(const binding_axis &src_axis,
         const sc_dims &src_dims, const sc_dims &dst_dims,
         const std::vector<int> &expand_dims = {},
         const std::vector<int> &transpose_axis_map = {}) {
-    bound_axis dst_axis, tv_axis_map;
+    binding_axis dst_axis, tv_axis_map;
 
     if (!transpose_axis_map.empty()) {
-        bound_axis real_src_axis;
+        binding_axis real_src_axis;
         COMPILE_ASSERT(src_dims.size() == dst_dims.size()
                         && src_dims.size() == transpose_axis_map.size(),
                 "src dims, dst dims, and transpose_axis_map shall have the "
@@ -1105,7 +1105,7 @@ bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
     return dst_axis;
 }
 
-void tensor_view_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+void tensor_view_op_t::infer_binding_axis(binding_axis_map &bdax_map) {
     auto known_axis_map = search_known_input_axis(this, bdax_map);
     if (!bdax_map.get(get_outputs()[0]).empty()) return;
     // src
@@ -1124,10 +1124,10 @@ void tensor_view_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     set_unknown_binding_axis(this, known_axis_map, bdax_map);
 }
 
-void tensor_view_op_t::pre_infer_binding_axis(bound_axis_map &bdax_map) {
+void tensor_view_op_t::pre_infer_binding_axis(binding_axis_map &bdax_map) {
     auto &outaxis = bdax_map.get(get_outputs()[0]);
     COMPILE_ASSERT(!outaxis.empty(),
-            "Unknown output axis found, could not pre bind axis")
+            "Unknown output axis found, could not pre infer binding axis")
     auto &input = get_inputs()[0];
     auto &inpaxis = bdax_map.get(input);
 

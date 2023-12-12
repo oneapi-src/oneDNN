@@ -445,6 +445,8 @@ ir_module_ptr managed_matmul_core_op_t::get_internal_func(
         const context_ptr &ctx) {
     assert(is_dynamic());
     if (!need_dynamic_internal_query()) { return nullptr; }
+    // query binding axis
+    query_binding_axis(get_owner_graph());
     auto ret = std::make_shared<ir_module_t>(ctx);
     auto gen_ptr = create_generator();
     std::vector<expr> ins;
@@ -826,11 +828,11 @@ bool managed_matmul_core_op_t::need_dynamic_internal_query_impl() const {
     return is_dynamic();
 }
 
-void managed_matmul_core_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+void managed_matmul_core_op_t::infer_binding_axis(binding_axis_map &bdax_map) {
     infer_matmul_binding_axis(this, bdax_map);
 }
 void managed_matmul_core_op_t::pre_infer_binding_axis(
-        bound_axis_map &bdax_map) {
+        binding_axis_map &bdax_map) {
     pre_matmul_binding_axis(this, bdax_map);
 }
 

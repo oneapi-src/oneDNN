@@ -70,8 +70,8 @@ public:
     void generate_prefetcher_body_for_tensor(const context_ptr &ctx,
             const std::vector<expr> &func_args, const std::vector<expr> &ins,
             const std::vector<int> &indices) override;
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
+    void infer_binding_axis(binding_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
     void set_config_by_key(
             const op_dispatch_key_t &key, const context_ptr &ctx) override;

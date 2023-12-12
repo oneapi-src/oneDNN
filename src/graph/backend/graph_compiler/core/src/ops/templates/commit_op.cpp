@@ -30,6 +30,8 @@ void commit_op(const context_ptr &ctx, const std::string &opname,
   const std::vector<graph_tensor_ptr> &inputs,
   const std::vector<graph_tensor_ptr> &outputs, const any_map_t &attr) {
   auto graph = graph::make_single_op_graph(opname, inputs, outputs, attr);
+  // query binding axis
+  query_binding_axis(graph);
   COMPILE_ASSERT(graph.ops_.size() == 3UL && graph.ops_[1]->isa<fusible_op_t>(),
     "commit_op only supports fusible op");
   auto op = graph.ops_[1]->stc_cast<fusible_op_t>();

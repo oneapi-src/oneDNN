@@ -22,6 +22,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <compiler/ir/graph/binding_axis.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/transform/parallel_workload_attr.hpp>
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
@@ -157,10 +158,10 @@ struct mixed_partition_acceptable : public virtual op_base_trait_t {
     virtual void commit_into_anchor(fusion_anchor_t *committed_anchor) = 0;
 
     // infer binding axis from inputs to outputs
-    virtual void infer_binding_axis(bound_axis_map &bdax_map) = 0;
+    virtual void infer_binding_axis(binding_axis_map &bdax_map) = 0;
 
     // infer binding axis from outputs to inputs
-    virtual void pre_infer_binding_axis(bound_axis_map &bdax_map) = 0;
+    virtual void pre_infer_binding_axis(binding_axis_map &bdax_map) = 0;
 };
 
 struct data_compensation_t : public virtual op_base_trait_t {};

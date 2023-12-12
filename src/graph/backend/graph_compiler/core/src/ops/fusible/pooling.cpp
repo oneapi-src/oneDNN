@@ -337,7 +337,7 @@ static void compute_block_pooling(
         sc_dims stride, sc_dims pads_begin,
         const std::vector<int> &in_fmt_vector, const vectorized_info_t &vx_info,
         sc_data_type_t in_dtype, sc_data_type_t out_dtype, any_map_t &attrs,
-        const graph_tensor_ptr &output_tensor = nullptr, size_t wkld = 0UL) {
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL) {
     /*** The final IR may look like below:
      * _for_(_fuseiter_i, 0, I, 1)
      *   _for_(_fuseiter_j, 0, J, 1)
@@ -573,33 +573,27 @@ static void compute_block_pooling(
                 : make_stmt<stmts_node_t>(std::vector<stmt> {cur});
         if (!body.ptr_same(cur)) add_parent_node(cur, body);
 
-        if (output_tensor != nullptr) {
-            // create output inner anchors for postop fusion
-            auto anchor_stmt = make_stmt<stmts_node_t>(std::vector<stmt> {});
-            body.static_as<stmts>()->seq_.emplace_back(anchor_stmt);
-            add_parent_node(anchor_stmt, body);
-            slice_range inner_slice = dst.get_ranges();
-            for (int j = i; j >= 0; j--) {
-                inner_slice[j].first = dst.get_offset()[j] + iter_vars[j];
-                inner_slice[j].second = ((static_cast<int>(j) == vx_info.axis)
-                                ? expr(int(vx_info.lanes))
-                                : expr(1));
-            }
-            fslice_map fsmap;
-            fsmap.get(output_tensor) = slice_range_list {inner_slice};
-            inner_anchors.emplace_back(
-                    std::make_shared<fusion_anchor_t>(anchor_stmt, fsmap));
+        // create output inner anchors for postop fusion
+        auto anchor_stmt = make_stmt<stmts_node_t>(std::vector<stmt> {});
+        body.static_as<stmts>()->seq_.emplace_back(anchor_stmt);
+        add_parent_node(anchor_stmt, body);
+        slice_range inner_slice = dst.get_ranges();
+        for (int j = i; j >= 0; j--) {
+            inner_slice[j].first = dst.get_offset()[j] + iter_vars[j];
+            inner_slice[j].second = ((static_cast<int>(j) == vx_info.axis)
+                            ? expr(int(vx_info.lanes))
+                            : expr(1));
         }
+        fslice_map fsmap;
+        fsmap.get(expand_gt) = slice_range_list {inner_slice};
+        inner_anchors.emplace_back(
+                std::make_shared<fusion_anchor_t>(anchor_stmt, fsmap));
 
         cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), 0,
                 dst.get_shape()[i],
                 (i == int(iter_vars.size() - 1)) ? int(vx_info.lanes) : 1, body,
                 true, i == 0 ? for_type::PARALLEL : for_type::NORMAL);
-        if (output_tensor && output_tensor->producer_owner_
-                && dynamic_cast<pooling_op_t *>(output_tensor->producer_owner_)
-                        == nullptr) {
-            cur->attr()[stmt_attr_key::merge_loop] = true;
-        }
+        bind_loop_axis(expand_gt, cur, i, true);
         add_parent_node(body, cur);
     }
 
@@ -892,7 +886,6 @@ static void pooling_backward_fill_zero_dst(const tensor_slice &dst,
                 (i == int(dst_idx.size() - 1)) ? int(vx_info.lanes) : 1,
                 std::move(body), true, for_type::NORMAL);
     }
-    cur->attr()[stmt_attr_key::merge_loop] = false;
     bld->emit(cur);
 }
 
@@ -901,7 +894,8 @@ static void compute_block_pooling_backward_avg(
         const tensor_slice &dst, sc_dims kernel, sc_dims stride,
         sc_dims pads_begin, const std::vector<int> &dst_fmt_vector,
         const vectorized_info_t &vx_info, sc_data_type_t in_dtype,
-        any_map_t &attrs, size_t wkld = 0UL) {
+        any_map_t &attrs, const graph_tensor_ptr &expand_gt,
+        size_t wkld = 0UL) {
     /***The final IR may look like below:
      * _for_(_fuseiter_i, 0, I, 1)
      *   _for_(_fuseiter_j, 0, J, 1)
@@ -1076,9 +1070,9 @@ static void compute_block_pooling_backward_avg(
                 std::move(body), true, for_type::NORMAL);
 
         cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
+        bind_loop_axis(expand_gt, cur, i, true);
     }
 
-    if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = false;
     cur = make_stmt<stmts_node_t>(
             std::vector<stmt> {define_kernel_size_var, std::move(cur)});
 
@@ -1090,7 +1084,8 @@ static void compute_block_pooling_backward_max(
         const tensor_slice &dst, sc_dims kernel, sc_dims stride,
         sc_dims pads_begin, const std::vector<int> &dst_fmt_vector,
         const vectorized_info_t &vx_info, sc_data_type_t in_dtype,
-        any_map_t &attrs, size_t wkld = 0UL) {
+        any_map_t &attrs, const graph_tensor_ptr &expand_gt,
+        size_t wkld = 0UL) {
     /***The final IR may look like below:
      * _for_(_fuseiter_i, 0, I, 1)
      *   _for_(_fuseiter_j, 0, J, 1)
@@ -1276,9 +1271,9 @@ static void compute_block_pooling_backward_max(
                 for_type::NORMAL);
 
         cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
+        bind_loop_axis(expand_gt, cur, i, true);
     }
 
-    if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = false;
     std::vector<stmt> func_body = defines_of_max;
     func_body.emplace_back(std::move(cur));
     cur = make_stmt<stmts_node_t>(std::move(func_body));
@@ -1322,13 +1317,13 @@ void pooling_backprop_op_t::compute_block(context_ptr ctx,
                 pads_begin_,
                 get_ncx_formatcode_vector_form_tensor(
                         info_.inputs_[0], channel_last_),
-                vx_info_, in_dtype, attrs_);
+                vx_info_, in_dtype, attrs_, get_inputs()[0]);
     } else {
         compute_block_pooling_backward_max(inputs, *dst[0], kernel_, stride_,
                 pads_begin_,
                 get_ncx_formatcode_vector_form_tensor(
                         info_.inputs_[1], channel_last_),
-                vx_info_, in_dtype, attrs_);
+                vx_info_, in_dtype, attrs_, get_inputs()[1]);
     }
 }
 

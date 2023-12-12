@@ -1195,7 +1195,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
   const expr &N_block_size_expr) const {
   expr M_sub_block = config.M_sub_block, N_sub_block = config.N_sub_block,
        K_sub_block = config.K_sub_block;
-  for_loop im_k, im_m, im_n, o_im_n;
+  for_loop im_k, im_m, im_n, o_im_m, o_im_n;
   int ori_M = static_cast<int>(ta.get_plain_dims()[0]),
       ori_K = static_cast<int>(ta.get_plain_dims()[1]),
       ori_N = static_cast<int>(tb.get_plain_dims()[1]);
@@ -1204,7 +1204,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
     if (is_dyn_threadpool()) { return v; }
     return (v + tid) % bound;
   };
-  _for_(m_b, 0, M_sub_block) {
+  _named_for_(o_im_m, m_b, 0, M_sub_block) {
     _named_for_(o_im_n, n_b, 0, N_sub_block) {
       expr m_b_idx, n_b_idx, k_b_idx, m_b_bigger_num, n_b_bigger_num,
         k_b_bigger_num;
@@ -1480,6 +1480,9 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
     im_m->attr()[stmt_attr_key::reduce_root_loop]
       = std::weak_ptr<stmt_base_t>(o_im_n.impl);
   }
+  // bind outer loops with axis hint
+  bind_loop_axis(owner_->get_outputs()[0], o_im_m, 0);
+  bind_loop_axis(owner_->get_outputs()[0], o_im_n, 1);
 }
 
 std::vector<expr> gen_managed_matmul_core_t::get_extra_args_from_func(
@@ -1551,7 +1554,7 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
       = divide_and_ceil(M / iim_block_, M_split_num) * iim_block_;
     expr N_block_size_expr
       = divide_and_ceil(N / iin_block_, N_split_num) * iin_block_;
-    for_loop o_im_n, im_k, im_m, im_n;
+    for_loop o_im_m, o_im_n, im_k, im_m, im_n;
     auto K_real_split = builder::make_min(divide_and_ceil(K, iik_block_),
       runtime_config_t::get().get_num_threads() / M_split_num / N_split_num);
     auto N_real_split
@@ -1575,7 +1578,7 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
         !is_partial_
           ? do_cast_and_fold(divide_and_ceil(K, iik_block_) * iik_block_)
           : K_single_thr_size_);
-      _for_(m_b, 0, M_sub_block) {
+      _named_for_(o_im_m, m_b, 0, M_sub_block) {
         _named_for_(o_im_n, n_b, 0, N_sub_block) {
           expr m_b_idx, n_b_idx, k_b_idx, m_b_bigger_num, n_b_bigger_num,
             k_b_bigger_num;
@@ -1772,6 +1775,9 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
         }
       }
     }
+    // bind outer loops with axis hint
+    bind_loop_axis(owner_->get_outputs()[0], o_im_m, 0);
+    bind_loop_axis(owner_->get_outputs()[0], o_im_n, 1);
     // todo: K_sub_block partial or not may need combinated with format
     // dispatch(outer dispatch key) to dispatch.(inner impl in format dispatch
     // key not impl internal dispatch key.); Find the fusion strategy with
@@ -1888,7 +1894,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   std::vector<int> M_anchor_info = {M_blk_num, M_block_size, M_ib_block_size},
                    N_anchor_info = {N_blk_num, N_block_size, N_ib_block_size},
                    K_anchor_info = {K_blk_num, K_block_size, K_ib_block_size};
-  for_loop mloop;
+  for_loop mloop, nloop, kloop;
   expr M_real_split = is_dynamic
     ? M_split_num
     : do_cast_and_fold(
@@ -1907,7 +1913,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     expr iim_block_tsr, iin_block_tsr, iik_block_tsr;
     _named_for_(
       mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
-      _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
+      _named_for_(
+        nloop, n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
         M_single_thr_size = get_balance211_length(
           M_expr / iim_block_, M_split_num, m_s, m_idx, X_bigger_num);
         M_single_thr_size = M_single_thr_size * iim_block_;
@@ -1917,7 +1924,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           N_expr / iin_block_, N_split_num, n_s, n_idx, X_bigger_num);
         N_single_thr_size = N_single_thr_size * iin_block_;
         n_idx = n_idx * iin_block_;
-        _for_(k_s, 0, K_split_num, 1,
+        _named_for_(kloop, k_s, 0, K_split_num, 1,
           M_split_num * N_split_num == num_threads ? for_type::NORMAL
                                                    : for_type::PARALLEL,
           M_split_num * N_split_num == num_threads ? 0 : K_split_num) {
@@ -2186,7 +2193,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     expr iim_block = iim_block_, iin_block = iin_block_, iik_block = iik_block_;
     _named_for_(
       mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
-      _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
+      _named_for_(
+        nloop, n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
         _tensor_(out_tmp_buf, out_dtype, out_tmp_buf_shape_expr);
         // fake plain dims to pass down.
         out_tmp_buf->attr().set(attr_keys::plain_dims,
@@ -2217,7 +2225,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           iin_block->attr().set(attr_keys::no_index2var, true);
           iik_block->attr().set(attr_keys::no_index2var, true);
         }
-        _for_(k_s, 0, K_real_split, 1, for_type::PARALLEL, K_split_num) {
+        _named_for_(
+          kloop, k_s, 0, K_real_split, 1, for_type::PARALLEL, K_split_num) {
           expr K_single_thr_size;
           if (!is_dynamic && K_block_size == K_ib_block_size) {
             K_single_thr_size = K_block_size;
@@ -2678,14 +2687,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   mloop->attr()[stmt_attr_key::parallel_loop_balanced]
     = M_block_size == M_ib_block_size;
 
-  if (!owner_->need_dynamic_internal_query() && fusion) {
-    // get binded mxp
-    auto mxp = fusion->get_binded_mxp();
-    COMPILE_ASSERT(mxp, "No binded partition found")
-    // bind loop with axis
-    mxp->init_axis_binder(
-      owner_->get_outputs()[0], bound_axis {{0}, {1}, {}, {0}, {1}});
-  }
+  // bind outer loops with axis hint
+  bind_loop_axis(owner_->get_outputs()[0], mloop, 0);
+  bind_loop_axis(owner_->get_outputs()[0], nloop, 1);
+  bind_loop_axis(owner_->get_outputs()[0], kloop, std::vector<int> {});
 
   return true;
 }

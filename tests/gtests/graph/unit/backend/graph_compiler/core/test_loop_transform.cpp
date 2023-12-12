@@ -316,6 +316,7 @@ TEST(GCCore_CPU_loop_transform_cpp, LoopTransformMergeAll) {
             }
         }
     }
+    li->attr().set(stmt_attr_key::skip_axis_binding_check, true);
     _named_for_(lj, i, 0, len, 1) {
         _for_(j, 0, i, 1) {
             _for_(k, 0, j, 1) {
@@ -343,7 +344,7 @@ TEST(GCCore_CPU_loop_transform_cpp, LoopTransformMergeAll) {
 
 TEST(GCCore_CPU_loop_transform_cpp, LoopMergeRecursivePass) {
     builder::ir_builder_t builder;
-    for_loop li[3];
+    for_loop li[3], lj;
     builder.push_scope();
     _tensor_(buf, datatypes::f32, {100, 100});
     _var_(len, datatypes::s32);
@@ -354,7 +355,7 @@ TEST(GCCore_CPU_loop_transform_cpp, LoopMergeRecursivePass) {
     _named_for_(li[1], i, 0, len) {
         // the inner loop is not mergable with first loop, but can be merged
         // with last loop
-        _for_(j, 1, len) { buf[i][j] = buf[i][j] * 1; }
+        _named_for_(lj, j, 1, len) { buf[i][j] = buf[i][j] * 1; }
     }
     _named_for_(li[2], i, 0, len) {
         _for_(j, 1, len) { buf[i][j] = buf[i][j] + 1; }
@@ -362,7 +363,9 @@ TEST(GCCore_CPU_loop_transform_cpp, LoopMergeRecursivePass) {
     auto body = builder.pop_scope().static_as<stmts>();
 
     li[0]->attr()[stmt_attr_key::merge_loop] = true;
+    li[0]->attr()[stmt_attr_key::skip_axis_binding_check] = true;
     li[1]->attr()[stmt_attr_key::merge_loop] = true;
+    lj->attr()[stmt_attr_key::skip_axis_binding_check] = true;
     li[2]->attr()[stmt_attr_key::merge_loop] = true;
 
     auto out = loop_merger_t()(body);
@@ -405,6 +408,7 @@ TEST(GCCore_CPU_loop_transform_cpp, LoopMergePass) {
     auto body_copy = builder.pop_scope();
 
     li[0]->attr()[stmt_attr_key::merge_loop] = true;
+    li[0]->attr()[stmt_attr_key::skip_axis_binding_check] = true;
     li[1]->attr()[stmt_attr_key::merge_loop] = true;
     li[2]->attr()[stmt_attr_key::merge_loop] = true;
 
@@ -457,6 +461,7 @@ TEST(GCCore_CPU_loop_transform_cpp, LoopMergeWithExprPass) {
     auto body = builder.pop_scope().static_as<stmts>();
 
     li[0]->attr()[stmt_attr_key::merge_loop] = true;
+    li[0]->attr()[stmt_attr_key::skip_axis_binding_check] = true;
     li[1]->attr()[stmt_attr_key::merge_loop] = true;
     li[2]->attr()[stmt_attr_key::merge_loop] = true;
     li[3]->attr()[stmt_attr_key::merge_loop] = true;
@@ -506,6 +511,7 @@ TEST(GCCore_CPU_loop_transform_cpp, LoopUnrollPass) {
     auto body = builder.pop_scope().static_as<stmts>();
 
     li->attr()[stmt_attr_key::merge_loop] = true;
+    li->attr()[stmt_attr_key::skip_axis_binding_check] = true;
     li2->attr()[stmt_attr_key::merge_loop] = true;
     lj->attr()[stmt_attr_key::unroll_loop] = 0;
 

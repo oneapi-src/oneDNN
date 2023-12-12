@@ -72,7 +72,7 @@ template struct gt_map_t<graph_tensor_ptr>;
 template struct gt_map_t<std::vector<int>>;
 template struct gt_map_t<expr>;
 template struct gt_map_t<fusion_anchor_t *>;
-template struct gt_map_t<bound_axis>;
+template struct gt_map_t<binding_axis>;
 
 sc_op_ptr op_traits::auto_copyable_t::copy(
         const std::vector<graph_tensor_ptr> &ins,

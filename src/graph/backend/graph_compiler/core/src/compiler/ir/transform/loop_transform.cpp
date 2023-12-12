@@ -26,6 +26,7 @@
 #include "auto_cast.hpp"
 #include "constant_fold.hpp"
 #include "tensor_shrink.hpp"
+#include <compiler/ir/graph/binding_axis.hpp>
 #include <util/utils.hpp>
 
 SC_MODULE(ir.loop_transform)
@@ -316,6 +317,9 @@ for_loop for_loop_node_t::split(int64_t block, node_ptr_map *node_remap) {
     auto inner_for = build_inner_for(this, min, block, node_remap);
 
     body_ = make_stmt<stmts_node_t>(std::vector<stmt>({inner_for}));
+
+    // copy loop binding axis hint
+    copy_binding_axis_hint(this, inner_for.get());
     return inner_for;
 }
 
@@ -343,6 +347,9 @@ for_loop for_loop_node_t::split_on_num_threads(
                 = attr()[stmt_attr_key::parallel_loop_balanced];
     }
     body_ = make_stmt<stmts_node_t>(std::vector<stmt>({inner_for}));
+
+    // copy loop binding axis hint
+    copy_binding_axis_hint(this, inner_for.get());
     return inner_for;
 }
 
@@ -445,6 +452,9 @@ for_loop for_loop_node_t::fuse(const for_loop &ax, node_ptr_map *node_remap) {
     body_ = std::move(newbody);
 
     ax->var_ = expr(); // invalidate ax
+
+    // fuse loop binding axis hint
+    fuse_binding_axis_hint(this, ax.get());
     return for_loop(shared_from_this());
 }
 
@@ -642,6 +652,9 @@ int for_loop_node_t::merge_all(stmt parent, for_loop ax) {
     for_loop_node_t *ths = this;
     for_loop axis = std::move(ax);
     int num_loops = 0;
+    // skip axis binding check attr, usually marked in UT.
+    bool skip_ab_check = any_map_t::fetch_or_else(
+            ths->attr_.get(), stmt_attr_key::skip_axis_binding_check, false);
     for (;;) {
         // if there is no inner loops, break
         if (!ths || !axis.defined()) { break; }
@@ -652,6 +665,10 @@ int for_loop_node_t::merge_all(stmt parent, for_loop ax) {
         check_loop_for_merge(ths, axis.get());
         // if the loops are not mergable, break
         if (!is_loop_range_same(ths, axis.get())) { break; }
+        // check binding axis
+        if (!skip_ab_check && !check_loop_binding_axis(ths, axis.get())) {
+            break;
+        }
         do_merge(ths, parent, axis);
         num_loops++;
         parent = ths->body_;

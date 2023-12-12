@@ -62,6 +62,29 @@ static bool is_dynamic_reorder_inplace(sc_op *op, const context_ptr &ctx) {
             == op->get_outputs()[0]->details_.get_strides();
 }
 
+// if the reorder is tensor view in dynamic, does not need fusion manager,
+// but do inplace itself.
+ir_module_ptr inplaced_reorder_get_func(sc_op *op, const context_ptr &ctx) {
+    auto modu = std::make_shared<ir_module_t>(ctx);
+
+    std::vector<expr> ins;
+    // real_outs are the output tensors in the function arguments
+    std::vector<expr> real_outs;
+    auto func = graph::create_func_decl_for_op(op, ins, real_outs);
+    builder::ir_builder_t bld;
+    bld.push_scope();
+    bld.push_evaluate(builder::make_write_struct(real_outs[0],
+            builder::make_read_struct(ins[0], dyn_tsr_struct_t::name,
+                    dyn_tsr_struct_t::fields::data_ptr),
+            dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::data_ptr));
+    bld.push_returns(true);
+    auto body = bld.pop_scope();
+    func->body_ = std::move(body);
+    modu->add_func({func});
+    modu->set_entry_func_idx(0);
+    return modu;
+}
+
 ir_module_ptr reorder_op_t::get_func(context_ptr ctx) {
     attrs_.set(op_attr_key::no_fuse, true);
     // if the reorder is tensor view in dynamic, do inplacement.
@@ -852,11 +875,11 @@ infer_status_code reorder_op_t::pre_infer_slice_ranges(
     return infer_status_code::OK;
 }
 
-void reorder_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+void reorder_op_t::infer_binding_axis(binding_axis_map &bdax_map) {
     infer_identical_binding_axis(this, bdax_map);
 }
 
-void reorder_op_t::pre_infer_binding_axis(bound_axis_map &bdax_map) {
+void reorder_op_t::pre_infer_binding_axis(binding_axis_map &bdax_map) {
     pre_infer_identical_binding_axis(this, bdax_map);
 }
 
@@ -1056,8 +1079,9 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
-        size_t wkld = 0UL, bool is_innermost_dim_strided = false,
-        bool is_dynamic = false, bool dynamic_no_padding = false) {
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL,
+        bool is_innermost_dim_strided = false, bool is_dynamic = false,
+        bool dynamic_no_padding = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     auto bld = builder::get_current_builder();
@@ -1156,6 +1180,7 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
                             ? expr(step)
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
+            bind_loop_axis(expand_gt, cur, i);
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
@@ -1209,6 +1234,7 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
                             ? expr(step)
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
+            bind_loop_axis(expand_gt, cur, i);
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
@@ -1225,7 +1251,8 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
-        const sc_dims &plain_dims, any_map_t &attrs, size_t wkld = 0UL,
+        const sc_dims &plain_dims, any_map_t &attrs,
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL,
         bool is_innermost_dim_strided = false, bool is_dynamic = false,
         bool dynamic_no_padding = false) {
     auto input = src.get_real_tensor();
@@ -1353,6 +1380,7 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
                         ? expr(static_cast<int>(step))
                         : expr(1),
                 std::move(body), true, for_type::NORMAL);
+        bind_loop_axis(expand_gt, cur, i, true);
     }
     cur->attr()[stmt_attr_key::merge_loop] = true;
     bld->emit(cur);
@@ -1364,8 +1392,9 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
-        size_t wkld = 0UL, bool is_innermost_dim_strided = false,
-        bool is_dynamic = false, bool dynamic_no_padding = false) {
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL,
+        bool is_innermost_dim_strided = false, bool is_dynamic = false,
+        bool dynamic_no_padding = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     auto bld = builder::get_current_builder();
@@ -1491,6 +1520,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
                             ? expr(static_cast<int>(step))
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
+            bind_loop_axis(expand_gt, cur, i, true);
         }
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);
@@ -1561,6 +1591,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
                             ? expr(static_cast<int>(step))
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
+            bind_loop_axis(expand_gt, cur, i, true);
             loops.push_back(cur);
         }
         bld->emit(cur);
@@ -1573,8 +1604,9 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims1, bool output_loop, any_map_t &attrs,
-        size_t wkld = 0UL, bool is_innermost_dim_strided = false,
-        bool is_dynamic = false, bool dynamic_no_padding = false) {
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL,
+        bool is_innermost_dim_strided = false, bool is_dynamic = false,
+        bool dynamic_no_padding = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     auto bld = builder::get_current_builder();
@@ -1698,6 +1730,7 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
                             ? expr(static_cast<int>(step))
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
+            bind_loop_axis(expand_gt, cur, i, true);
         }
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);
@@ -1744,6 +1777,7 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
                             ? expr(static_cast<int>(step))
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
+            bind_loop_axis(expand_gt, cur, i, true);
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
@@ -1762,8 +1796,9 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
-        size_t wkld = 0UL, bool is_innermost_dim_strided = false,
-        bool is_dynamic = false, int impl_alg = 0) {
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL,
+        bool is_innermost_dim_strided = false, bool is_dynamic = false,
+        int impl_alg = 0) {
     COMPILE_ASSERT(input_format.is_convertible(output_format),
             "Can not convert input format "
                     << input_format << " to output format " << output_format
@@ -1782,8 +1817,8 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
                     vnni_kernel_used)) {
         compute_vnni_reorder(graph, ctx, src, dst, input_format, output_format,
                 dtype, plain_dims, output_loop, attrs, inp_a_axis, inp_b_axis,
-                out_a_axis, out_b_axis, wkld, is_vnni_reorder, is_dynamic,
-                dynamic_no_padding, vnni_kernel_used);
+                out_a_axis, out_b_axis, expand_gt, wkld, is_vnni_reorder,
+                is_dynamic, dynamic_no_padding, vnni_kernel_used);
     } else if (!is_innermost_dim_strided
             && can_be_fast_transpose(graph, ctx, inp_a_axis, inp_b_axis,
                     out_a_axis, out_b_axis, plain_dims, input_format,
@@ -1791,25 +1826,25 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
                     dynamic_no_padding, trans_kernel_used)) {
         compute_fast_transpose(graph, ctx, src, dst, input_format,
                 output_format, dtype, plain_dims, output_loop, attrs,
-                inp_a_axis, inp_b_axis, out_a_axis, out_b_axis, wkld,
+                inp_a_axis, inp_b_axis, out_a_axis, out_b_axis, expand_gt, wkld,
                 is_dynamic, dynamic_no_padding, trans_kernel_used);
     } else if (is_not_blocking(input_format)
             && is_not_blocking(output_format)) {
         compute_reorder_stride2stride(graph, ctx, src, dst, input_format,
-                output_format, dtype, plain_dims, output_loop, attrs, wkld,
-                is_innermost_dim_strided, is_dynamic, dynamic_no_padding);
+                output_format, dtype, plain_dims, output_loop, attrs, expand_gt,
+                wkld, is_innermost_dim_strided, is_dynamic, dynamic_no_padding);
     } else if (is_not_blocking(input_format) && output_format.is_blocking()) {
         compute_reorder_stride2block(graph, ctx, src, dst, input_format,
-                output_format, dtype, plain_dims, output_loop, attrs, wkld,
-                is_innermost_dim_strided, is_dynamic, dynamic_no_padding);
+                output_format, dtype, plain_dims, output_loop, attrs, expand_gt,
+                wkld, is_innermost_dim_strided, is_dynamic, dynamic_no_padding);
     } else if (input_format.is_blocking() && is_not_blocking(output_format)) {
         compute_reorder_block2stride(graph, ctx, src, dst, input_format,
-                output_format, dtype, plain_dims, attrs, wkld,
+                output_format, dtype, plain_dims, attrs, expand_gt, wkld,
                 is_innermost_dim_strided, is_dynamic, dynamic_no_padding);
     } else if (input_format.is_blocking() && output_format.is_blocking()) {
         compute_reorder_block2block(graph, ctx, src, dst, input_format,
-                output_format, dtype, plain_dims, output_loop, attrs, wkld,
-                is_innermost_dim_strided, is_dynamic, dynamic_no_padding);
+                output_format, dtype, plain_dims, output_loop, attrs, expand_gt,
+                wkld, is_innermost_dim_strided, is_dynamic, dynamic_no_padding);
     } else {
         std::ostringstream ss;
         ss << "Unsupported data format. in = " << input_format
@@ -1931,9 +1966,11 @@ void reorder_op_t::compute_block(context_ptr ctx,
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
     auto &input_format = info_.inputs_[0]->details_.get_format();
     auto &output_format = info_.outputs_[0]->details_.get_format();
+    bool output_loop = use_output_loop();
     compute_reorder_block(get_owner_graph(), ctx, *inputs[0], *dst[0],
             input_format, output_format, info_.inputs_[0]->details_.dtype_,
-            plain_dims_, use_output_loop(), attrs_, wkld,
+            plain_dims_, output_loop, attrs_,
+            output_loop ? get_outputs()[0] : get_inputs()[0], wkld,
             is_innermost_dim_strided, is_dynamic(), info_.cur_impl_);
 }
 

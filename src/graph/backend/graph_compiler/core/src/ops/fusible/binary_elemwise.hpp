@@ -94,9 +94,9 @@ public:
     void set_plain_bc_axis();
     vectorized_info_t &get_vx_info() { return vx_info_; }
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
+    void infer_binding_axis(binding_axis_map &bdax_map) override;
 
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
 private:
     elt_operator elt_op_;

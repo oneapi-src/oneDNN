@@ -88,8 +88,8 @@ public:
             int num_threads) override;
     shape_rl_vec get_dynamic_shape_relations() const override;
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
+    void infer_binding_axis(binding_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
 private:
     // the axis which need reduction
@@ -159,8 +159,8 @@ public:
     // get type of reduction
     const reduce_operator get_rd_op() const { return rd_op_; }
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
+    void infer_binding_axis(binding_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
     // set the attributes of the reduce buffer, like init values
     virtual void set_reduce_buffer(const tensor &buf) = 0;

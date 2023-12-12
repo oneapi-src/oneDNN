@@ -252,6 +252,7 @@ void padding_op_t::compute_block(context_ptr ctx,
                         ? expr(step)
                         : expr(1),
                 std::move(body), true, for_type::NORMAL);
+        bind_loop_axis(get_inputs()[0], cur, i, true);
     }
 
     bld->emit(cur);
