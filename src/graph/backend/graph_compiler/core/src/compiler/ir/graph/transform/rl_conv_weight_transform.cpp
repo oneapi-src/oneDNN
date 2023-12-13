@@ -55,21 +55,20 @@ static bool use_rl(const context_ptr &ctx, const sc_data_type_t &data_dtype,
                     [weight_dims, ndims](
                             int x) { return x <= weight_dims[ndims - 1]; });
     auto ic = weight_dims[1];
-    auto kw = weight_dims[ndims - 1];
-    auto iw = data_dims[ndims - 1];
+    auto kh = weight_dims[ndims - 2];
+    auto ih = data_dims[ndims - 2];
 
     // Note: the current rl algorithm expects kw <= iw for init aux buffer
     // handling
     return (!is_1x1 && ndims == 4 && is_small_padding && (ic <= (tile_col / 2))
-            && ((ic % vnni_blk != 0 && kw * ic <= threshold)
+            && ((ic % vnni_blk != 0 && kh * ic <= threshold)
                     || (ic % vnni_blk == 0))
-            && kw <= iw);
+            && kh <= ih);
 }
 
 static void query_accu_info_for_rl(const context_ptr &ctx,
         const sc_data_type_t &dtype, const int kh, const int kw, const int ic,
-        const int LDA, int &num_brgemm_k, int &brgemm_k, int &extra_padding,
-        int &kind) {
+        int &num_brgemm_k, int &brgemm_k, int &extra_padding, int &kind) {
     assert(ops::is_amx_dtype(ctx, dtype));
     bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, dtype);
     int vnni_blk = is_vnni_low_fp ? 2 : 4;
@@ -156,10 +155,9 @@ void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
             int brgemm_k = 1;
             int extra_padding = 0;
             auto kind = ops::rl_kind::NO_LOWERING;
-            auto LDA = kw * ic * sw;
 
-            query_accu_info_for_rl(ctx, data_dtype, kh, kw, ic, LDA,
-                    num_brgemm_k, brgemm_k, extra_padding, kind);
+            query_accu_info_for_rl(ctx, data_dtype, kh, kw, ic, num_brgemm_k,
+                    brgemm_k, extra_padding, kind);
             if (kind == ops::rl_kind::NO_LOWERING) { return; }
 #if 0
             //     fall-back for small amx utilization
@@ -194,7 +192,7 @@ void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
                 // B-OIHW->reorder->HWIO->view->KN->(padding on "K")
                 auto wei_shape_2d = sc_dims {ic * kh * kw, oc};
                 auto trans_wei = graph.make("reorder", {weight}, {},
-                        {{"out_format", sc_data_format_t(format_kinds::CDBA)},
+                        {{"out_format", sc_data_format_t(format_kinds::DCBA)},
                                 {"internal", true}});
                 if (is_constant_weight) {
                     trans_wei->attrs_.set("constant", const_kind::local_const);

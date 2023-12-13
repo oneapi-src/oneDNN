@@ -35,7 +35,7 @@ struct conv_fwd_rl_config_t {
     : brgemm_m(brgemm_m), brgemm_n(brgemm_n) {}
 };
 
-enum class parallel_kind : int { BATCH = 0, WIDTH };
+enum class parallel_kind : int { BATCH = 0, HEIGHT };
 namespace rl_kind {
 constexpr int NO_LOWERING = 0;
 constexpr int FULL_LOWERING = 1;

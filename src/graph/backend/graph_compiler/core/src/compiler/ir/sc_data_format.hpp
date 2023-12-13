@@ -159,6 +159,7 @@ SC_DEF_FMT(ABC, 0, 1, 2)
 SC_DEF_FMT(ABCD, 0, 1, 2, 3)
 SC_DEF_FMT(ABCDE, 0, 1, 2, 3, 4)
 SC_DEF_FMT(CDBA, 2, 3, 1, 0)
+SC_DEF_FMT(DCBA, 3, 2, 1, 0)
 
 // channel last format
 SC_DEF_FMT(ACB, 0, 2, 1)

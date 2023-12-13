@@ -1292,7 +1292,7 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_10) {
 TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_11) {
     REQUIRE_AMX();
     check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 1, 1, 1,
-            1, 3, 3, 3, {1, 1}, {1, 1}, {1, 0}, {1, 0}, false, true);
+            3, 3, 3, 3, {1, 1}, {1, 1}, {1, 0}, {1, 0}, false, true);
 }
 
 TEST(GCCore_CPU_qconv2d_u8s8s32_rl_bias, padding_1) {

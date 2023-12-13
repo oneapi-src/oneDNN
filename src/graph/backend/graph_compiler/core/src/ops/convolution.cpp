@@ -842,8 +842,9 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
         channel_last_support = is_1x1 || ops::is_amx_dtype(ctx, src_dtype)
                 || (has_pad && attrs_.get_or_else("inverse_filter", false))
                 || use_rl == ops::rl_kind::FULL_LOWERING;
-        if (use_rl != ops::rl_kind::NO_LOWERING && groups > 1)
+        if (ops::rl_kind::KW_LOWERING == use_rl && groups > 1) {
             channel_last_support = false;
+        }
     }
 
     std::string test_format;
