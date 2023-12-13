@@ -61,6 +61,10 @@ static expr gen_vec_const_int(uint32_t lanes, int64_t f) {
     return make_expr<constant_node>(f, sc_data_type_t::s32(lanes));
 }
 
+static expr gen_vec_const_u32(uint32_t lanes, int64_t f) {
+    return make_expr<constant_node>(f, sc_data_type_t::u32(lanes));
+}
+
 static std::vector<expr> make_args_by_intrinsic(const intrin_call_c &node) {
     std::vector<expr> ret;
     int idx = 0;
@@ -162,55 +166,54 @@ static expr_c create_cast_f32_to_bf16(const context_ptr &ctx, const cast_c &v) {
 
 static expr_c create_cast_fp16_to_f32(const context_ptr &ctx, const cast_c &v) {
     if (ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu
-            && (ctx->machine_.cpu_flags_.fAVX512AMXFP16
-                    || ctx->machine_.cpu_flags_.fAVX512FP16)) {
+            && (ctx->machine_.cpu_flags_.fAVX512FP16)) {
         return v;
     } else {
         auto &in = v->in_;
-        auto uint32_v
-                = builder::make_cast(sc_data_type_t::u32(in->dtype_.lanes_),
-                        builder::make_reinterpret(
-                                in, sc_data_type_t::u16(in->dtype_.lanes_)));
-        auto e = builder::make_int_and(uint32_v,
-                         builder::make_constant(
-                                 std::vector<union_val>(
-                                         in->dtype_.lanes_, (int64_t)0x7C00),
-                                 sc_data_type_t::u32(in->dtype_.lanes_)))
-                >> 10;
-        auto m = builder::make_int_and(uint32_v,
-                         builder::make_constant(
-                                 std::vector<union_val>(
-                                         in->dtype_.lanes_, (int64_t)0x03FF),
-                                 sc_data_type_t::u32(in->dtype_.lanes_)))
-                << 13;
-        auto l = builder::make_cast(sc_data_type_t::u32(in->dtype_.lanes_),
-                         builder::make_reinterpret(
-                                 m, sc_data_type_t::f32(v->dtype_.lanes_)))
-                >> 23;
+        const auto lanes = in->dtype_.lanes_;
+        auto u32_dtype = sc_data_type_t::u32(lanes);
+
+        auto uint32_v = builder::make_cast(u32_dtype,
+                builder::make_reinterpret(in, sc_data_type_t::u16(lanes)));
+        // const uint32_t e = (x & 0x7C00) >> 10;
+        auto e = (builder::make_int_and(
+                         uint32_v, gen_vec_const_u32(lanes, UINT64_C(0X7C00))))
+                >> gen_vec_const_u32(lanes, UINT64_C(10));
+        // const uint32_t m = (x & 0x03FF) << 13;
+        auto m = (builder::make_int_and(
+                         uint32_v, gen_vec_const_u32(lanes, UINT64_C(0X03FF))))
+                << gen_vec_const_u32(lanes, UINT64_C(13));
+        // const uint32_t v = as_uint((float)m) >> 23;
+        auto l = (builder::make_reinterpret(
+                         builder::make_cast(sc_data_type_t::f32(lanes), m),
+                         u32_dtype))
+                >> gen_vec_const_u32(lanes, UINT64_C(23));
 
         // (x & 0x8000) << 16
-        auto cond1 = builder::make_int_and(uint32_v,
-                             builder::make_constant(
-                                     std::vector<union_val>(in->dtype_.lanes_,
-                                             (int64_t)0x8000),
-                                     sc_data_type_t::u32(in->dtype_.lanes_)))
-                << 16;
-        // (e != 0)
-        auto tmp_bool_2 = builder::make_cmp_ne(e, 0);
-        // ((e + 112) << 23 | m)
-        auto tmp_cond_2 = builder::make_int_and((e + 112) << 23, m);
-        auto cond2 = tmp_bool_2 * tmp_cond_2;
-        //((e == 0) & (m != 0))
-        auto tmp_bool_3 = builder::make_int_and(
-                builder::make_cmp_eq(e, 0), builder::make_cmp_ne(m, 0));
-        // ((l - 37) << 23 | ((m << (150 - l)) & 0x007FE000))
-        auto tmp_cond_3 = builder::make_int_or((l - 37) << 23,
-                builder::make_int_and(m << (150 - l),
-                        builder::make_constant(
-                                std::vector<union_val>(
-                                        in->dtype_.lanes_, (int64_t)0x007FE000),
-                                sc_data_type_t::u32(in->dtype_.lanes_))));
-        auto cond3 = tmp_bool_3 * tmp_cond_3;
+        auto cond1 = (builder::make_int_and(uint32_v,
+                             gen_vec_const_u32(lanes, UINT64_C(0x8000))))
+                << gen_vec_const_u32(lanes, UINT64_C(16));
+        // (e != 0) *  ((e + 112) << 23 | m)
+        auto tmp_cond_2 = builder::make_int_or(
+                (e + gen_vec_const_u32(lanes, UINT64_C(112)))
+                        << gen_vec_const_u32(lanes, UINT64_C(23)),
+                m);
+        auto cond2 = builder::make_select(
+                e != gen_vec_const_u32(lanes, UINT64_C(0)), tmp_cond_2,
+                gen_vec_const_u32(lanes, UINT64_C(0)));
+        //((e == 0) & (m != 0)) * ((l - 37) << 23 | ((m << (150 - l)) &
+        // 0x007FE000))
+        auto tmp_cond_3 = builder::make_int_or(
+                (l - gen_vec_const_u32(lanes, UINT64_C(37)))
+                        << gen_vec_const_u32(lanes, UINT64_C(23)),
+                builder::make_int_and(
+                        (m << (gen_vec_const_u32(lanes, UINT64_C(150)) - l)),
+                        gen_vec_const_u32(lanes, UINT64_C(0X007FE000))));
+        auto cond3 = builder::make_select(
+                e == gen_vec_const_u32(lanes, UINT64_C(0)),
+                builder::make_select(m != gen_vec_const_u32(lanes, UINT64_C(0)),
+                        tmp_cond_3, gen_vec_const_u32(lanes, UINT64_C(0))),
+                gen_vec_const_u32(lanes, UINT64_C(0)));
         /*
         (x & 0x8000) << 16 | (e != 0) * ((e + 112) << 23 | m)
                     | ((e == 0) & (m != 0))
@@ -219,12 +222,10 @@ static expr_c create_cast_fp16_to_f32(const context_ptr &ctx, const cast_c &v) {
         auto f32_v = builder::make_int_or(
                 builder::make_int_or(cond1, cond2), cond3);
         auto tmpf32 = copy_attr(*v,
-                builder::make_reinterpret(
-                        f32_v, sc_data_type_t::f32(v->dtype_.lanes_)));
+                builder::make_reinterpret(f32_v, sc_data_type_t::f32(lanes)));
         if (!v->dtype_.is_etype(sc_data_etype::F32)) {
             tmpf32 = builder::make_cast(v->dtype_, tmpf32);
         }
-
         return tmpf32;
     }
 }
@@ -232,63 +233,58 @@ static expr_c create_cast_fp16_to_f32(const context_ptr &ctx, const cast_c &v) {
 static expr_c create_cast_f32_to_fp16(const context_ptr &ctx, const cast_c &v) {
     auto &in = v->in_;
     if (ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu
-            && (ctx->machine_.cpu_flags_.fAVX512AMXFP16
-                    || ctx->machine_.cpu_flags_.fAVX512FP16)) {
+            && (ctx->machine_.cpu_flags_.fAVX512FP16)) {
         return v;
     } else {
-        auto uint32_v = builder::make_reinterpret(
-                in, sc_data_type_t::u32(in->dtype_.lanes_));
+        COMPILE_ASSERT(in->dtype_.is_etype(sc_data_etype::F32),
+                "fp16 should be cast from f32.");
+        const auto lanes = in->dtype_.lanes_;
+        auto u32_dtype = sc_data_type_t::u32(lanes);
 
-        auto b = uint32_v
-                + builder::make_constant(
-                        std::vector<union_val>(
-                                in->dtype_.lanes_, (int64_t)0x00001000),
-                        sc_data_type_t::u32(in->dtype_.lanes_));
-        auto e = builder::make_int_and(b,
-                         builder::make_constant(
-                                 std::vector<union_val>(in->dtype_.lanes_,
-                                         (int64_t)0x7F800000),
-                                 sc_data_type_t::u32(in->dtype_.lanes_)))
-                >> 23;
-        auto m = builder::make_int_and(b,
-                builder::make_constant(std::vector<union_val>(in->dtype_.lanes_,
-                                               (int64_t)0x007FFFFF),
-                        sc_data_type_t::u32(in->dtype_.lanes_)));
+        auto uint32_v = builder::make_reinterpret(in, u32_dtype);
+        auto b = uint32_v + gen_vec_const_u32(lanes, UINT64_C(0x00001000));
+        auto e = builder::make_int_and(
+                         b, gen_vec_const_u32(lanes, UINT64_C(0x7F800000)))
+                >> gen_vec_const_u32(lanes, UINT64_C(23));
+        auto m = builder::make_int_and(
+                b, gen_vec_const_u32(lanes, UINT64_C(0x007FFFFF)));
         // (b & 0x80000000) >> 16
-        auto cond1 = builder::make_int_and(b,
-                             builder::make_constant(
-                                     std::vector<union_val>(in->dtype_.lanes_,
-                                             (int64_t)0x80000000),
-                                     sc_data_type_t::u32(in->dtype_.lanes_)))
-                >> 16;
-        // (e > 112)
-        auto tmp_bool_2 = builder::make_cmp_gt(e, 112);
-        // (((e - 112) << 10) & 0x7C00)
-        auto tmp_cond_2 = builder::make_int_and((e - 112) << 10,
+        auto cond1 = builder::make_int_and(
+                             b, gen_vec_const_u32(lanes, UINT64_C(0x80000000)))
+                >> gen_vec_const_u32(lanes, UINT64_C(16));
+        // (e > 112) * (((e - 112) << 10) & 0x7C00)
+        auto tmp_cond_2 = builder::make_int_and(
+                (e - gen_vec_const_u32(lanes, UINT64_C(112)))
+                        << gen_vec_const_u32(lanes, UINT64_C(10)),
                 builder::make_constant(std::vector<union_val>(in->dtype_.lanes_,
                                                (int64_t)0x7C00),
                         sc_data_type_t::u32(in->dtype_.lanes_)));
         // (e > 112) * ((((e - 112) << 10) & 0x7C00) | m >> 13)
-        auto cond2 = tmp_bool_2 * builder::make_int_or(tmp_cond_2, m >> 13);
-        // ((e < 113) & (e > 101))
-        auto tmp_bool_3 = builder::make_int_and(
-                builder::make_cmp_lt(e, 113), builder::make_cmp_gt(e, 101));
-        // ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1)
-        auto tmp_cond_3 = (((builder::make_constant(
-                                     std::vector<union_val>(in->dtype_.lanes_,
-                                             (int64_t)0x007FF000),
-                                     sc_data_type_t::u32(in->dtype_.lanes_))
-                                    + m)
-                                   >> (125 - e))
-                                  + 1)
-                >> 1;
-        //((e < 113) & (e > 101)) * ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1)
-        auto cond3 = tmp_bool_3 * tmp_cond_3;
-        auto cond4 = builder::make_cmp_gt(e, 143)
-                * builder::make_constant(
-                        std::vector<union_val>(
-                                in->dtype_.lanes_, (int64_t)0x7FFF),
-                        sc_data_type_t::u32(in->dtype_.lanes_));
+        auto cond2 = builder::make_select(
+                e > gen_vec_const_u32(lanes, UINT64_C(112)),
+                builder::make_int_or(tmp_cond_2,
+                        m >> gen_vec_const_u32(lanes, UINT64_C(13))),
+                gen_vec_const_u32(lanes, UINT64_C(0)));
+        // ((e < 113) & (e > 101)) * ((((0x007FF000 + m) >> (125 - e)) + 1) >>
+        // 1)
+        auto tmp_cond_3
+                = (((gen_vec_const_u32(lanes, UINT64_C(0x007FF000)) + m)
+                           >> (gen_vec_const_u32(lanes, UINT64_C(125)) - e))
+                          + gen_vec_const_u32(lanes, UINT64_C(1)))
+                >> gen_vec_const_u32(lanes, UINT64_C(1));
+        //((e < 113) & (e > 101)) * ((((0x007FF000 + m) >> (125 - e)) + 1)
+        //>> 1)
+        auto cond3 = builder::make_select(
+                e < gen_vec_const_u32(lanes, UINT64_C(113)),
+                builder::make_select(
+                        e > gen_vec_const_u32(lanes, UINT64_C(101)), tmp_cond_3,
+                        gen_vec_const_u32(lanes, UINT64_C(0))),
+                gen_vec_const_u32(lanes, UINT64_C(0)));
+        // (e > 143) * 0x7FFF
+        auto cond4 = builder::make_select(
+                e > gen_vec_const_u32(lanes, UINT64_C(143)),
+                gen_vec_const_u32(lanes, UINT64_C(0x7FFF)),
+                gen_vec_const_u32(lanes, UINT64_C(0)));
         /*
         (b & 0x80000000) >> 16
                 | (e > 112) * ((((e - 112) << 10) & 0x7C00) | m >> 13)

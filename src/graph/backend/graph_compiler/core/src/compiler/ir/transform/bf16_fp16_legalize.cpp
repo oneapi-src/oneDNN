@@ -55,9 +55,6 @@ static bool define_can_promote(const context_ptr &ctx, const define_c &v) {
                     && any_map_t::fetch_or_else(
                             v->var_->attr_.get(), "can_promote_to_f32", true);
         } else if (v->var_->dtype_.is_etype(sc_data_etype::F16)) {
-            COMPILE_ASSERT(ctx->machine_.cpu_flags_.fAVX512FP16
-                            || ctx->machine_.cpu_flags_.fAVX512AMXFP16,
-                    "current cpu does not support fp16 data type.");
             // Only amxfp16 needs to do legalization.
             return ctx->machine_.cpu_flags_.fAVX512AMXFP16
                     && v->var_->dtype_.lanes_
