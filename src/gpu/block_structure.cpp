@@ -24,7 +24,7 @@ block_layout_t block_layout_t::normalized(bool remove_size_1_blocks) const {
     if (num_blocks == 0) return block_layout_t();
     block_layout_t res;
 
-    std::vector<block_t> block_vec(blocks.size());
+    std::vector<block_t> block_vec(num_blocks);
     memcpy(&block_vec[0], &blocks[0], num_blocks * sizeof(block_t));
 
     std::vector<block_t> new_blocks = normalize_blocks(block_vec);
@@ -40,25 +40,15 @@ std::vector<block_t> normalize_blocks(
     if (blocks.empty()) return {};
     std::vector<block_t> res;
 
-    block_t block = blocks[0];
-    for (size_t i = 1; i < blocks.size(); i++) {
-        const block_t &next_block = blocks[i];
-        // Skip the block if size=1
-        if (block.block == 1 && remove_size_1_blocks) {
-            block = next_block;
-            continue;
-        }
+    for (const block_t &block : blocks) {
+        if (remove_size_1_blocks && block.block == 1) continue;
 
-        if (block.can_merge(next_block)) {
-            block.block *= next_block.block;
+        if (!res.empty() && res.back().can_merge(block)) {
+            res.back().block *= block.block;
         } else {
             res.emplace_back(block);
-            block = next_block;
         }
     }
-
-    // Append the final block
-    if (!remove_size_1_blocks || block.block > 1) res.emplace_back(block);
 
     return res;
 }
