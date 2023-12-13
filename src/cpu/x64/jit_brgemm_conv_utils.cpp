@@ -2025,7 +2025,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
                 && IMPLICATION(jcp.s8s8_compensation_required,
                         everyone_is(0, jcp.t_pad, jcp.b_pad));
 
-        bool perf_relo = false;
         const float rnd_rd_whi = rnd_up(rd_whi, jcp.simd_w);
         const auto rnd_khkwic
                 = (float)jcp.kh * jcp.kw * rnd_up(jcp.ic, jcp.simd_w);
@@ -2033,6 +2032,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
                 = (float)jcp.src_dsz * jcp.mb * jcp.id * jcp.ih * jcp.iw;
         const auto wei_per_ic
                 = (float)jcp.wei_dsz * jcp.oc * jcp.kd * jcp.kh * jcp.kw;
+        // Heuristics for determining relo_whi makes sense for performance
+        bool perf_relo = false;
         if (is_amx(jcp.isa)) {
             if ((jcp.ic < jcp.simd_w / 2
                         || (rd_whi > jcp.simd_w
@@ -2040,7 +2041,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
                                 && IMPLICATION(relo_conv_weights_whi,
                                         wei_per_ic / src_per_ic <= 4)))
                     && rd_whi / rnd_rd_whi > rd_wi / rnd_rd_wi
-                    && (jcp.ow > 48 || jcp.ow % 16 == 0))
+                    && (jcp.ow > 48 || jcp.ow % 16 == 0)
+                    && IMPLICATION(try_relo_wi, rd_whi / rnd_rd_whi > 0.7f))
                 perf_relo = true;
         } else {
             if (one_of(jcp.wei_dt, f32, s8)) {
