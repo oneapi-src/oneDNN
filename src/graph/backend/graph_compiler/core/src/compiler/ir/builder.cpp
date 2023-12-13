@@ -518,6 +518,35 @@ expr make_extract(const expr_c &v_a, const int imm, const int lanes) {
             any_map_t {{"extract_imm", imm}, {"lanes", lanes}});
 }
 
+static expr flatten_2d_index(
+        const expr_c &v_a, const expr_c &row, const expr_c &col) {
+    uint64_t parent_rows = v_a->dtype_.rows_;
+    if (parent_rows == 0) { parent_rows = 1; }
+    uint64_t parent_cols = v_a->dtype_.lanes_ / parent_rows;
+    auto p_cols_expr = make_constant({parent_cols}, datatypes::u16);
+    return (make_cast(datatypes::u16, row) * p_cols_expr
+                   + make_cast(datatypes::u16, col))
+            * make_constant(
+                    {(uint64_t)utils::get_sizeof_etype(v_a->dtype_.type_code_)},
+                    datatypes::u16);
+}
+
+expr make_insert(const expr_c &v_a, const expr_c &v_b, const expr_c &row,
+        const expr_c &col) {
+    return make_expr<intrin_call_node>(intrin_type::insert,
+            std::vector<expr> {v_a.remove_const(), v_b.remove_const(),
+                    flatten_2d_index(v_a, row, col)},
+            any_map_t {});
+}
+
+expr make_extract(const expr_c &v_a, const expr_c &row, const expr_c &col,
+        uint32_t rows, uint32_t cols) {
+    return make_expr<intrin_call_node>(intrin_type::extract,
+            std::vector<expr> {
+                    v_a.remove_const(), flatten_2d_index(v_a, row, col)},
+            any_map_t {{"rows", rows}, {"cols", cols}});
+}
+
 expr make_read_struct(const expr_c &in, const std::string &struct_name,
         const int &field_name) {
     return make_expr<intrin_call_node>(intrin_type::read_struct,

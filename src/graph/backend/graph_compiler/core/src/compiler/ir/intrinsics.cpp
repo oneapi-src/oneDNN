@@ -240,7 +240,7 @@ struct permutexvar_handler_t : public binary_intrinsic_handler_t {
 
 struct insert_handler_t : public trinary_intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
-        assert(node.args_.size() == 2);
+        assert(node.args_.size() == 2 || node.args_.size() == 3);
         node.dtype_ = node.args_[0]->dtype_;
     }
     insert_handler_t() : trinary_intrinsic_handler_t("insert") {}
@@ -248,10 +248,17 @@ struct insert_handler_t : public trinary_intrinsic_handler_t {
 
 struct extract_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
-        assert(node.args_.size() == 1);
-        node.dtype_ = sc_data_type_t(node.args_[0]->dtype_.type_code_);
-        if (node.intrin_attrs_->get<int>("lanes") > 1) {
-            node.dtype_.lanes_ = node.intrin_attrs_->get<int>("lanes");
+        assert(node.args_.size() == 1 || node.args_.size() == 2);
+        if (node.args_.size() == 1) {
+            node.dtype_ = sc_data_type_t(node.args_[0]->dtype_.type_code_);
+            auto lanes = node.intrin_attrs_->get<int>("lanes");
+            if (lanes > 1) { node.dtype_.lanes_ = lanes; }
+        } else {
+            auto rows = node.intrin_attrs_->get<uint32_t>("rows");
+            auto cols = node.intrin_attrs_->get<uint32_t>("cols");
+            auto lanes = rows > 0 ? (rows * cols) : cols;
+            node.dtype_ = sc_data_type_t(
+                    node.args_[0]->dtype_.type_code_, lanes, rows);
         }
     }
     extract_handler_t() : intrinsic_handler_t("extract") {}
