@@ -421,9 +421,11 @@ struct named_buffer_t : public memory_desc_t {
             dim_ids.emplace_back(dim);
         }
 
-        // Add the block
-        blk.inner_idxs[blk.inner_nblks] = static_cast<dim_t>(dim_idx);
-        blk.inner_blks[blk.inner_nblks++] = size;
+        // Add the block, if it needs to be placed in front of an existing one
+        if (blk.inner_nblks > 0) {
+            blk.inner_idxs[blk.inner_nblks] = static_cast<dim_t>(dim_idx);
+            blk.inner_blks[blk.inner_nblks++] = size;
+        }
 
         // Update the strides
         for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
