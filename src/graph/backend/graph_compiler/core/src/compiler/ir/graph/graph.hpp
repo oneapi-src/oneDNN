@@ -201,6 +201,12 @@ constexpr const char *layout_input_index = "layout_input_index";
 // Could use mask select to process output for reduce, matmul or other memory
 // movement op.
 constexpr const char *use_padded_mask = "use_padded_mask";
+// Boolean. If true, it will skip graph pass div_bcast_transform. The precision
+// requirements are high, and division must be used in the calculation of op.
+constexpr const char *must_div = "must_div";
+// Boolean. If true, the optimized formula will be used when norm calculates
+// mean and var.
+constexpr const char *use_norm_opt = "use_norm_opt";
 }; // namespace op_attr_key
 
 class sc_graph_t;

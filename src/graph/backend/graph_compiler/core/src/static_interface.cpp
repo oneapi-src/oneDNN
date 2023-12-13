@@ -63,9 +63,18 @@
     F(pow); \
     F(mish); \
     F(soft_plus); \
+    F(soft_plus_bwd); \
     F(square); \
     F(swish); \
     F(prelu); \
+    F(abs_bwd); \
+    F(clamp_bwd); \
+    F(elu_bwd); \
+    F(hardswish_bwd) \
+    F(hardsigmoid_bwd) \
+    F(sqrt_bwd) \
+    F(mish_bwd) \
+    F(prelu_bwd) \
     F(hardsigmoid); \
     F(clamp); \
     F(leaky_relu); \

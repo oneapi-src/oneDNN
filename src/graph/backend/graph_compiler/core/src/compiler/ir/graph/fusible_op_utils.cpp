@@ -107,8 +107,6 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
             copyable, "The fusible op should be copyable: " << op->op_name_);
     auto copied = copyable->copy(ins, outs, g);
     copied->info_.cur_impl_ = op->info_.cur_impl_;
-    COMPILE_ASSERT(copied->get_outputs().size() == 1,
-            "Currently only support 1 output only");
     g.make_output(outs);
     g.attrs_.set(mixed_partition_hint::single_op_graph, true);
     g.attrs_.set(mixed_partition_hint::optimized_sub_graph,
@@ -179,8 +177,14 @@ stmt mask_compute_func_t::operator()(const std::vector<expr> &in,
     if (cur_idx.defined() && upper_bound.defined()) {
         auto bld = builder::get_current_builder();
         bld->emit(ret);
-        return builder::make_assign_unattached(out[0],
-                make_select_by_mask(out[0], cur_idx, upper_bound, lanes));
+        const size_t len = out.size();
+        std::vector<stmt_c> cur_list;
+        cur_list.reserve(len);
+        for (size_t i = 0; i < len; i++) {
+            cur_list.emplace_back(builder::make_assign_unattached(out[i],
+                    make_select_by_mask(out[i], cur_idx, upper_bound, lanes)));
+        }
+        return builder::make_stmts_unattached(cur_list);
     }
     return ret;
 }

@@ -20,6 +20,7 @@
 #include <cfenv>
 #include <cmath>
 #include <stdlib.h>
+#include "util/any_map.hpp"
 #include <test_utils.hpp>
 namespace dnnl {
 namespace impl {
@@ -39,9 +40,123 @@ static void ref_leaky_relu(T *out, const T *in, size_t size, float alpha) {
 }
 
 template <typename T>
-static void ref_prelu(T *out, const T *in, const T *alpha, size_t size) {
+static void ref_prelu(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attr) {
     test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
-        out[i] = (in[i] > 0) ? in[i] : T(alpha[i] * in[i]);
+        out[i] = (in_1[i] > 0) ? in_1[i] : T(in_2[i] * in_1[i]);
+    });
+}
+
+template <typename T>
+static void ref_abs_bwd(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attrs) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        out[i] = (in_1[i] > 0) ? in_2[i] : (T)((in_1[i] < 0) ? -in_2[i] : 0);
+    });
+}
+
+template <typename T>
+static void ref_clamp_bwd(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attrs) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        float min = attrs.get<float>("min");
+        float max = attrs.get<float>("max");
+        out[i] = (in_1[i] > min) && (in_1[i] < max) ? in_2[i] : (T)0;
+    });
+}
+
+template <typename T>
+static void ref_elu_bwd(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attrs) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        float alpha = attrs.get<float>("alpha");
+        bool use_dst = attrs.get<bool>("use_dst");
+        if (use_dst) {
+            out[i] = in_1[i] > 0 ? (T)in_2[i]
+                                 : (T)(in_2[i] * (in_1[i] * alpha));
+        } else {
+            out[i] = in_1[i] > 0
+                    ? (T)in_2[i]
+                    : (T)(in_2[i] * (T)(alpha * std::exp(in_1[i])));
+        }
+    });
+}
+
+template <typename T>
+static void ref_hardswish_bwd(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attrs) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        float alpha = attrs.get<float>("alpha");
+        float beta = attrs.get<float>("beta");
+        auto v = alpha * in_1[i] + beta;
+        auto w = 2.f * alpha * in_1[i] + beta;
+        out[i] = v <= 0.f ? (T)0.f : v >= 1.f ? (T)in_2[i] : (T)(in_2[i] * w);
+    });
+}
+
+template <typename T>
+static void ref_hardsigmoid_bwd(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attrs) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        float alpha = attrs.get<float>("alpha");
+        float beta = attrs.get<float>("beta");
+        auto v = (T)(alpha * in_1[i] + beta);
+        auto w = (T)(alpha * in_2[i]);
+        out[i] = v > 0.f ? v < 1.f ? (T)w : (T)0.f : (T)0.f;
+    });
+}
+
+template <typename T>
+static void ref_sqrt_bwd(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attrs) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        float use_dst = attrs.get<bool>("use_dst");
+        auto d = (T)(in_2[i] / (in_1[i] * 2.f));
+        auto s = (T)(in_2[i] / (std::sqrt(in_1[i]) * 2.f));
+        out[i] = use_dst ? d : s;
+    });
+}
+
+template <typename T>
+static void ref_mish_bwd(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attrs) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        auto w = (T)(std::exp(3.f * in_1[i]) + 4.f * std::exp(in_1[i] * 2.f)
+                + std::exp(in_1[i]) * (4.f * in_1[i] + 6.f)
+                + 4.f * (in_1[i] + 1.f));
+        auto sig = (T)(std::exp(2.f * in_1[i]) + 2.f * std::exp(in_1[i]) + 2.f);
+        out[i] = in_2[i] * ((std::exp(in_1[i]) * w) / std::pow(sig, 2));
+    });
+}
+
+template <typename T>
+static void ref_tanh_bwd(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attrs) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        bool use_dst = attrs.get<bool>("use_dst");
+        auto src = (T)in_2[i] * (1 - std::pow(std::tanh(in_1[i]), 2));
+        auto dst = (T)in_2[i] * (1 - std::pow(in_1[i], in_1[i]));
+        out[i] = use_dst ? dst : src;
+    });
+}
+
+template <typename T>
+static void ref_softplus_bwd(
+        T *out, const T *in_1, const T *in_2, size_t size, any_map_t &attrs) {
+    T beta = attrs.get_or_else<T>("beta", 1.f);
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        T inp = beta * in_1[i];
+        T ret = (T)1.f / (T)((T)1.f + 1 / expf(inp));
+        out[i] = ret * in_2[i];
+    });
+}
+
+template <typename T>
+static void ref_prelu_bwd(T *out1, T *out2, const T *in_1, const T *in_2,
+        const T *in_3, size_t size, any_map_t &attrs) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        out1[i] = in_1[i] > (T)0 ? (T)in_3[i] : (T)(in_3[i] * in_2[i]);
+        out2[i] = std::min((T)0, in_1[i]) * in_3[i];
     });
 }
 

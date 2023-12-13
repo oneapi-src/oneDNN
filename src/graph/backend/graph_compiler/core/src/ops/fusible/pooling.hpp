@@ -36,7 +36,7 @@ constexpr const char *kernel = "kernel";
 constexpr const char *exclude_pad = "exclude_pad";
 constexpr const char *rounding_type = "rounding_type";
 constexpr const char *auto_pad = "auto_pad";
-constexpr const char *input_shape = "input_shape";
+constexpr const char *src_shape = "src_shape";
 constexpr const char *data_format = "data_format";
 } // namespace pooling_attr_key
 

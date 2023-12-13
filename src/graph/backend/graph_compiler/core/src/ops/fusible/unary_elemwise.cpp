@@ -523,7 +523,6 @@ OP_REGISTER(soft_plus_op_t, soft_plus)
 OP_REGISTER(square_op_t, square)
 OP_REGISTER(swish_op_t, swish)
 OP_REGISTER(hardsigmoid_op_t, hardsigmoid)
-
 } // namespace gc
 } // namespace graph
 } // namespace impl

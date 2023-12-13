@@ -191,12 +191,13 @@ void batchnorm_forward_training_op::get_graph_impl(
             = static_cast<int>(inputs[0]->details_.get_plain_dims().size());
     auto src = inputs[0], mean = inputs[1], variance = inputs[2],
          scale = inputs[3], shift = inputs[4];
-    auto src_pass2 = inputs[0];
+    auto src_pass2 = inputs[0], src_pass3 = inputs[0];
 
     auto epsilon = graph->make<constant_op_t>(
             std::make_shared<static_data_t>(
                     std::vector<float> {attrs_.get_or_else("epsilon", 1e-5f)}),
             datatypes::f32, sc_dims {1});
+    bool use_bnorm_opt = attrs_.get_or_else(op_attr_key::use_norm_opt, false);
     if (is_src_bf16) {
         auto cast0 = graph->make(
                 "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
@@ -205,6 +206,13 @@ void batchnorm_forward_training_op::get_graph_impl(
                 {{"dtype", datatypes::f32},
                         {op_attr_key::break_pre_fuse, true}});
         src_pass2 = cast0_pass2->get_outputs()[0];
+        if (!use_bnorm_opt) {
+            auto cast0_pass3 = graph->make("cast", {inputs[0]}, {},
+                    {{"dtype", datatypes::f32},
+                            {op_attr_key::break_pre_fuse, true},
+                            {op_attr_key::not_redundant, true}});
+            src_pass3 = cast0_pass3->get_outputs()[0];
+        }
     }
     if (is_ssmv_bf16) {
         auto cast1 = graph->make(
@@ -238,44 +246,63 @@ void batchnorm_forward_training_op::get_graph_impl(
     for (auto ax : rd_axis) {
         channel_size *= inputs[0]->details_.get_plain_dims()[ax];
     }
-    auto rchan_size_op = graph->make<constant_op_t>(
-            std::make_shared<static_data_t>(
-                    std::vector<float> {1 / channel_size}),
+    auto chan_size_op = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {channel_size}),
             datatypes::f32, sc_dims {1});
     auto reduce0 = graph->make("reduce", {src}, {},
             {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
-    auto new_mean = graph->make("mul",
-            {reduce0->get_outputs()[0], rchan_size_op->get_outputs()[0]}, {},
-            {{op_attr_key::break_post_fuse, true}});
-    auto src_squared = graph->make("mul", {src, src}, {}, {});
-    auto reduce0_squared = graph->make("mul",
-            {reduce0->get_outputs()[0], reduce0->get_outputs()[0]}, {}, {});
-    auto reduce0_squared_mul = graph->make("mul",
-            {reduce0_squared->get_outputs()[0],
-                    rchan_size_op->get_outputs()[0]},
-            {}, {});
-    auto reduce1 = graph->make("reduce", {src_squared->get_outputs()[0]}, {},
-            {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
-    auto sub0 = graph->make("sub",
-            {reduce1->get_outputs()[0], reduce0_squared_mul->get_outputs()[0]},
-            {}, {});
-    auto new_var = graph->make("mul",
-            {sub0->get_outputs()[0], rchan_size_op->get_outputs()[0]}, {},
-            {{op_attr_key::break_post_fuse, true}});
+    std::shared_ptr<sc_op> new_mean, new_var;
+    if (use_bnorm_opt) {
+        new_mean = graph->make("div",
+                {reduce0->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
+                {{op_attr_key::break_post_fuse, true},
+                        {op_attr_key::must_div, true}});
+        auto src_squared = graph->make("mul", {src, src}, {}, {});
+        auto reduce0_squared = graph->make("mul",
+                {reduce0->get_outputs()[0], reduce0->get_outputs()[0]}, {}, {});
+        auto reduce0_squared_mul = graph->make("div",
+                {reduce0_squared->get_outputs()[0],
+                        chan_size_op->get_outputs()[0]},
+                {}, {{op_attr_key::must_div, true}});
+        auto reduce1 = graph->make("reduce", {src_squared->get_outputs()[0]},
+                {}, {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
+        auto sub0 = graph->make("sub",
+                {reduce1->get_outputs()[0],
+                        reduce0_squared_mul->get_outputs()[0]},
+                {}, {});
+        new_var = graph->make("div",
+                {sub0->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
+                {{op_attr_key::break_post_fuse, true},
+                        {op_attr_key::must_div, true}});
+    } else {
+        new_mean = graph->make("div",
+                {reduce0->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
+                {{op_attr_key::break_post_fuse, true},
+                        {op_attr_key::must_div, true}});
+        auto diff = graph->make("sub", {src_pass3, new_mean->get_outputs()[0]},
+                {}, {{"bc_axis", bc_axis}});
+        auto diff_squared = graph->make("mul",
+                {diff->get_outputs()[0], diff->get_outputs()[0]}, {}, {});
+        auto reduce1 = graph->make("reduce", {diff_squared->get_outputs()[0]},
+                {}, {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
+        new_var = graph->make("div",
+                {reduce1->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
+                {{op_attr_key::break_post_fuse, true},
+                        {op_attr_key::must_div, true}});
+    }
 
     // normalization of src (x_normalized)
     auto sub1 = graph->make("sub", {src_pass2, new_mean->get_outputs()[0]}, {},
             {{"bc_axis", bc_axis}});
     auto add0 = graph->make("add",
             {new_var->get_outputs()[0], epsilon->get_outputs()[0]}, {}, {});
-    auto rsqrt = graph->make("squared_root", {add0->get_outputs()[0]}, {},
-            {{"reciprocal", true}});
-    auto mul1 = graph->make("mul",
-            {sub1->get_outputs()[0], rsqrt->get_outputs()[0]}, {},
+    auto sqrt = graph->make("squared_root", {add0->get_outputs()[0]}, {}, {});
+    auto div1 = graph->make("div",
+            {sub1->get_outputs()[0], sqrt->get_outputs()[0]}, {},
             {{"bc_axis", bc_axis}});
     // gamma*x_normalized + beta
     auto mul2 = graph->make(
-            "mul", {mul1->get_outputs()[0], scale}, {}, {{"bc_axis", bc_axis}});
+            "mul", {div1->get_outputs()[0], scale}, {}, {{"bc_axis", bc_axis}});
     auto add1 = graph->make(
             "add", {mul2->get_outputs()[0], shift}, {}, {{"bc_axis", bc_axis}});
 
@@ -458,21 +485,20 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
     for (auto ax : rd_axis) {
         channel_size *= inputs[0]->details_.get_plain_dims()[ax];
     }
-    auto rchan_size_op = graph->make<constant_op_t>(
-            std::make_shared<static_data_t>(
-                    std::vector<float> {1 / channel_size}),
+    auto chan_size_op = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {channel_size}),
             datatypes::f32, sc_dims {1});
     // var + eps
     auto var_eps = graph->make(
             "add", {variance, const_op->get_outputs()[0]}, {}, {});
     // rsqrt(var + eps)
-    auto rsqrt_var_eps = graph->make(
-            "squared_root", var_eps->get_outputs(), {}, {{"reciprocal", true}});
+    auto sqrt_var_eps = graph->make("squared_root", var_eps->get_outputs(), {},
+            {{"reciprocal", false}});
     // x - mu
     auto x_mu = graph->make("sub", {src, mean}, {}, {{"bc_axis", bc_axis}});
     // x_hat = (x - mu) *  rsqrt(var + eps)
-    auto x_hat = graph->make("mul",
-            {x_mu->get_outputs()[0], rsqrt_var_eps->get_outputs()[0]}, {},
+    auto x_hat = graph->make("div",
+            {x_mu->get_outputs()[0], sqrt_var_eps->get_outputs()[0]}, {},
             {{"bc_axis", bc_axis}});
     // ------ calculate x_hat end ------
 
@@ -480,8 +506,8 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
     auto x_mu_pass2
             = graph->make("sub", {src_pass2, mean}, {}, {{"bc_axis", bc_axis}});
     // x_hat = (x - mu) *  rsqrt(var + eps)
-    auto x_hat_pass2 = graph->make("mul",
-            {x_mu_pass2->get_outputs()[0], rsqrt_var_eps->get_outputs()[0]}, {},
+    auto x_hat_pass2 = graph->make("div",
+            {x_mu_pass2->get_outputs()[0], sqrt_var_eps->get_outputs()[0]}, {},
             {{"bc_axis", bc_axis}});
     // ------ duplicate x_mu && x_hat end ------
 
@@ -504,16 +530,16 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
             {x_hat_gamma_delta->get_outputs()[0], beta_delta->get_outputs()[0]},
             {}, {{"bc_axis", bc_axis}});
     //  * (1 / channel_size)
-    auto rescale = graph->make("mul",
-            {add->get_outputs()[0], rchan_size_op->get_outputs()[0]}, {}, {});
+    auto rescale = graph->make("div",
+            {add->get_outputs()[0], chan_size_op->get_outputs()[0]}, {}, {});
     // get subtract results
     auto sub = graph->make(
             "sub", {output_delta_pass2, rescale->get_outputs()[0]}, {}, {});
     // final mul: x_delta = gamma * rsqrt(var + eps) * sub_result
-    auto mul = graph->make(
-            "mul", {rsqrt_var_eps->get_outputs()[0], gamma}, {}, {});
+    auto div = graph->make(
+            "div", {gamma, sqrt_var_eps->get_outputs()[0]}, {}, {});
     auto x_delta
-            = graph->make("mul", {sub->get_outputs()[0], mul->get_outputs()[0]},
+            = graph->make("mul", {sub->get_outputs()[0], div->get_outputs()[0]},
                     {}, {{"bc_axis", bc_axis}});
     // ------ calculate x_delta end ------
     // output

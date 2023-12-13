@@ -263,6 +263,10 @@ public:
     int get_broadcast_input() const;
 };
 
+class binary_backward_op_t : public fusible_op_t,
+                             public op_traits::may_inplace_t,
+                             public op_traits::auto_copyable_t {};
+
 inline bool is_broadcast_op(const sc_op *op) {
     return (op->isa<op_traits::may_broadcast_t>()
             && op->dyn_cast<const op_traits::may_broadcast_t>()

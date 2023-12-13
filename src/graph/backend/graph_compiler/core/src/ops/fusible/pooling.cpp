@@ -41,7 +41,7 @@ static inline any_map_t add_pl_type_and_in_shape(
         const any_map_t &attrs, int pl_type, const sc_dims &input_shape) {
     auto ret = attrs;
     ret[pooling_attr_key::pooling_type] = pl_type;
-    ret[pooling_attr_key::input_shape] = input_shape;
+    ret[pooling_attr_key::src_shape] = input_shape;
     return ret;
 }
 
@@ -729,12 +729,23 @@ pooling_backprop_op_t::pooling_backprop_op_t(
     check_and_set_kernel_strides_and_pooling_type(
             attrs_, n_kernel_dims, kernel_, stride_, pooling_type_);
 
+    sc_dims input_plain_shape;
     // set pads_begin_ and pads_begin_
-    COMPILE_ASSERT(attrs.has_key(pooling_attr_key::input_shape),
-            "the pooling_backprop_op_t op should have input_shape "
-            "attribute");
-    sc_dims input_plain_shape
-            = attrs.get<sc_dims>(pooling_attr_key::input_shape);
+    if (pooling_type_ == pooling_type_t::avg) {
+        COMPILE_ASSERT(
+                attrs.has_key(pooling_attr_key::src_shape) || ins.size() == 2,
+                "the pooling_backprop_op_t op should have input_shape.");
+        bool ins_has_src_shape = ins.size() == 2;
+        input_plain_shape = ins_has_src_shape
+                ? ins[1]->details_.get_plain_dims()
+                : attrs.get<sc_dims>(pooling_attr_key::src_shape);
+    } else {
+        COMPILE_ASSERT(attrs.has_key(pooling_attr_key::src_shape),
+                "the pooling_backprop_op_t op should have input_shape "
+                "attribute");
+        input_plain_shape = attrs.get<sc_dims>(pooling_attr_key::src_shape);
+    }
+
     check_and_set_pads_begin_and_pads_end(
             attrs_, input_plain_shape, pads_begin_, pads_end_, channel_last_);
 

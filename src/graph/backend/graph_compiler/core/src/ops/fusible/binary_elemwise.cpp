@@ -22,6 +22,8 @@
 #include <string>
 #include <utility>
 #include "binary_elemwise.hpp"
+#include "compiler/ir/attr_keys.hpp"
+#include "ops/fusible/unary_elemwise.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/brgemm_fusion.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
@@ -36,6 +38,11 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
+
+template <class T>
+static expr_c constant_maker(T data, const sc_data_type_t &dtype) {
+    return make_expr<constant_node>(data, dtype);
+};
 
 std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
 binary_elementwise_op_impl_t::get_inplace_map() {
@@ -604,6 +611,267 @@ shape_rl_vec binary_elementwise_op_impl_t::get_dynamic_shape_relations() const {
     return ret;
 }
 
+static stmt select_algorithm(elt_operator elt_op, const expr &in0,
+        const expr &in1, const expr &out, const any_map_t &attrs,
+        const sc_op_info_t &info) {
+    std::vector<stmt_c> cur_list;
+    auto var_maker = [&cur_list, &in0](const std::string &name) {
+        auto var = builder::make_var(in0->dtype_, name);
+        cur_list.emplace_back(builder::make_var_tensor_def_unattached(var));
+        return var;
+    };
+    auto assign_maker = [&cur_list](const expr &def_var, const expr &def_val) {
+        cur_list.emplace_back(
+                builder::make_assign_unattached(def_var, def_val));
+    };
+    switch (elt_op) {
+        case elt_operator::ADD: {
+            return builder::make_assign_unattached(out, in0 + in1);
+        } break;
+        case elt_operator::SUB: {
+            return builder::make_assign_unattached(out, in0 - in1);
+        } break;
+        case elt_operator::MUL: {
+            return builder::make_assign_unattached(out, in0 * in1);
+        } break;
+        case elt_operator::DIV: {
+            return builder::make_assign_unattached(out, in0 / in1);
+        } break;
+        case elt_operator::MIN: {
+            return builder::make_assign_unattached(
+                    out, builder::make_min(in0, in1));
+        } break;
+        case elt_operator::MAX: {
+            return builder::make_assign_unattached(
+                    out, builder::make_max(in0, in1));
+        } break;
+        case elt_operator::SQD_DIFF: {
+            return builder::make_assign_unattached(
+                    out, (in0 - in1) * (in0 - in1));
+        } break;
+        case elt_operator::PRELU: {
+            return builder::make_assign_unattached(out,
+                    builder::make_select(in0 >= make_expr<constant_node>(
+                                                 (int64_t)0, in0->dtype_),
+                            in0, in0 * in1));
+        } break;
+        case elt_operator::ABS_BWD: {
+            return builder::make_assign_unattached(out,
+                    builder::make_select(
+                            in0 > make_expr<constant_node>(0.f, in0->dtype_),
+                            in1,
+                            builder::make_select(in0
+                                            != make_expr<constant_node>(
+                                                    0.f, in0->dtype_),
+                                    builder::make_sub(make_expr<constant_node>(
+                                                              0.f, in0->dtype_),
+                                            in1),
+                                    make_expr<constant_node>(
+                                            0.f, in0->dtype_))));
+        } break;
+        case elt_operator::CLAMP_BWD: {
+            return builder::make_assign_unattached(out,
+                    builder::make_select(in0 > make_expr<constant_node>(
+                                                 (float)attrs.get<float>("min"),
+                                                 in0->dtype_),
+                            builder::make_select(
+                                    in0 < make_expr<constant_node>(
+                                            (float)attrs.get<float>("max"),
+                                            in0->dtype_),
+                                    in1,
+                                    make_expr<constant_node>(0.f, in1->dtype_)),
+                            make_expr<constant_node>(0.f, in0->dtype_)));
+        } break;
+        case elt_operator::ELU_BWD: {
+            expr used_inp = builder::make_select(
+                    in0 > make_expr<constant_node>(0.f, in0->dtype_), in1,
+                    in1
+                            * make_expr<constant_node>(
+                                    (float)attrs.get<float>("alpha"),
+                                    in0->dtype_)
+                            * builder::make_exp(in0));
+            expr used_out = builder::make_select(
+                    in0 > make_expr<constant_node>(0.f, in0->dtype_), in1,
+                    in1
+                            * (in0
+                                    + make_expr<constant_node>(
+                                            (float)attrs.get<float>("alpha"),
+                                            in0->dtype_)));
+            expr res = attrs.get_or_else<bool>("use_dst", true) ? used_out
+                                                                : used_inp;
+            return builder::make_assign_unattached(out, res);
+        } break;
+        case elt_operator::HARDSWISH_BWD: {
+            auto alpha = attrs.get_or_else<float>("alpha", 1.f / 6.f);
+            auto beta = attrs.get_or_else<float>("beta", 0.5f);
+            expr test_expr = make_expr<constant_node>(alpha, in0->dtype_) * in0
+                    + make_expr<constant_node>(beta, in0->dtype_);
+            expr cal_expr = in1
+                    * (make_expr<constant_node>(2.f, in0->dtype_)
+                                    * make_expr<constant_node>(
+                                            alpha, in0->dtype_)
+                                    * in0
+                            + make_expr<constant_node>(beta, in0->dtype_));
+            expr res = builder::make_select(
+                    (test_expr) <= make_expr<constant_node>(0.f, in0->dtype_),
+                    make_expr<constant_node>(0.f, in0->dtype_),
+                    builder::make_select(
+                            (test_expr) >= make_expr<constant_node>(
+                                    1.f, in0->dtype_),
+                            in1, cal_expr));
+            return builder::make_assign_unattached(out, res);
+        } break;
+        case elt_operator::HARDSIGMOID_BWD: {
+            auto alpha = constant_maker<float>(
+                    attrs.get<float>("alpha"), in0->dtype_);
+            auto beta = constant_maker<float>(
+                    attrs.get<float>("beta"), in0->dtype_);
+            auto one_f = constant_maker<float>(1.f, in0->dtype_);
+            auto zero_f = constant_maker<float>(0.f, in0->dtype_);
+            expr test_expr = in0 * alpha + beta;
+            auto f_var0 = var_maker("f_var0");
+            assign_maker(f_var0, test_expr);
+            expr cal_expr = in1 * alpha;
+            auto f_var1 = var_maker("f_var1");
+            assign_maker(f_var1, cal_expr);
+            expr res = builder::make_select(f_var0 < one_f,
+                    builder::make_select(f_var0 > zero_f, f_var1, zero_f),
+                    zero_f);
+            assign_maker(out, res);
+            return builder::make_stmts_unattached(cur_list);
+        } break;
+        case elt_operator::SQRT_BWD: {
+            bool use_dst = attrs.get_or_else<bool>("use_dst", true);
+            auto half_f = constant_maker<float>(0.5f, in0->dtype_);
+            expr f_var = var_maker("f_var");
+            if (use_dst) {
+                auto dst_expr = (half_f / in0);
+                dst_expr->attr()[attr_keys::fast_math] = false;
+                assign_maker(f_var, dst_expr);
+            } else {
+                auto src_expr = half_f / builder::make_sqrt(in0);
+                src_expr->attr()[attr_keys::fast_math] = false;
+                assign_maker(f_var, src_expr);
+            }
+            auto ret = f_var * in1;
+            ret->attr()[attr_keys::fast_math] = false;
+            assign_maker(out, ret);
+            return builder::make_stmts_unattached(cur_list);
+        } break;
+        case elt_operator::MISH_BWD: {
+            auto min_inp = builder::make_min(
+                    in0, constant_maker<float>(22.180708f, in0->dtype_));
+            auto min_var = var_maker("inp_min_var_" + fusion_create_var_idx());
+            assign_maker(min_var, min_inp);
+            // e^x
+            auto exp_f = builder::make_exp(min_var);
+            auto var_exp_f = var_maker("exp_var_" + fusion_create_var_idx());
+            assign_maker(var_exp_f, exp_f);
+            // e^2x
+            auto exp_f2 = var_exp_f * var_exp_f;
+            auto exp_f2_var = var_maker("exp_f2_var" + fusion_create_var_idx());
+            assign_maker(exp_f2_var, exp_f2);
+            // 4 * e^2x
+            auto formular_0
+                    = exp_f2_var * constant_maker<float>(4.f, in0->dtype_);
+            auto f_var0 = var_maker("f_var0" + fusion_create_var_idx());
+            assign_maker(f_var0, formular_0);
+            // e^3x + 4 * e^2x
+            auto formular_1
+                    = builder::make_fmadd(var_exp_f, exp_f2_var, f_var0);
+            auto f_var1 = var_maker("f_var1" + fusion_create_var_idx());
+            assign_maker(f_var1, formular_1);
+            // x + 1.f
+            auto formular_2 = in0 + constant_maker<float>(1.f, in0->dtype_);
+            auto f_var2 = var_maker("f_var2" + fusion_create_var_idx());
+            assign_maker(f_var2, formular_2);
+            auto formular_3 = f_var2 + constant_maker(0.5f, in0->dtype_);
+            auto f_var3 = var_maker("f_var3" + fusion_create_var_idx());
+            assign_maker(f_var3, formular_3);
+            // 4 * (1 + 1.5f)
+            auto formular_4 = constant_maker(4.f, in0->dtype_) * f_var3;
+            auto f_var4 = var_maker("f_var4" + fusion_create_var_idx());
+            assign_maker(f_var4, formular_4);
+            // e^3x + 4*e^2x + 4*(x+1.5)*e^x
+            auto formular_5 = builder::make_fmadd(f_var4, var_exp_f, f_var1);
+            auto f_var5 = var_maker("f_var5" + fusion_create_var_idx());
+            assign_maker(f_var5, formular_5);
+            // omega = e^3x + 4*e^2x + 4*e^x*(x+1.5) + 4*(x+1)
+            auto formular_6 = builder::make_fmadd(
+                    constant_maker(4.f, in0->dtype_), f_var2, f_var5);
+            auto f_var6 = var_maker("f_var6" + fusion_create_var_idx());
+            assign_maker(f_var6, formular_6);
+            // delta = (e^x+1)^2 + 1
+            auto formular_7
+                    = var_exp_f + constant_maker<float>(1.f, in0->dtype_);
+            auto f_var7 = var_maker("f_var7" + fusion_create_var_idx());
+            assign_maker(f_var7, formular_7);
+            auto formular_8 = f_var7 * f_var7;
+            auto f_var8 = var_maker("f_var8" + fusion_create_var_idx());
+            assign_maker(f_var8, formular_8);
+            auto formular_9 = f_var8 + constant_maker<float>(1.f, in0->dtype_);
+            auto f_var9 = var_maker("f_var9" + fusion_create_var_idx());
+            assign_maker(f_var9, formular_9);
+            auto formular_10 = f_var9 * f_var9;
+            auto f_var10 = var_maker("f_var10");
+            assign_maker(f_var10, formular_10);
+            auto formular_11 = exp_f * f_var6;
+            auto f_var11 = var_maker("f_var11");
+            assign_maker(f_var11, formular_11);
+            auto formular_12 = f_var11 / f_var10;
+            formular_12->attr()[attr_keys::fast_math] = false;
+            auto f_var12 = var_maker("f_var12");
+            assign_maker(f_var12, formular_12);
+            auto res = f_var12 * in1;
+            res->attr()[attr_keys::fast_math] = false;
+            assign_maker(out, res);
+            return builder::make_stmts_unattached(cur_list);
+        } break;
+        case elt_operator::TANH_BWD: {
+            bool use_dst = attrs.get_or_else<bool>("use_dst", true);
+            tanh_op_t tanh_compute(info.inputs_[0]);
+            const auto &tanh_ret = tanh_compute.compute_element(in0);
+            expr src = builder::make_mul(in1,
+                    builder::make_sub(
+                            make_expr<constant_node>(1.f, in0->dtype_),
+                            builder::make_mul(tanh_ret, tanh_ret)));
+            expr dst = builder::make_mul(in1,
+                    builder::make_sub(
+                            make_expr<constant_node>(1.f, in0->dtype_),
+                            builder::make_mul(in0, in0)));
+            expr res = use_dst ? dst : src;
+            return builder::make_assign_unattached(out, res);
+        } break;
+        case elt_operator::SOFTPLUS_BWD: {
+            float beta = attrs.get_or_else<float>("beta", 1.f);
+            sigmoid_op_t sigmoid_compute(info.inputs_[0]);
+            bool is_f32 = in0->dtype_.type_code_ == sc_data_etype::F32;
+            auto make_cast_f32 = [](const expr &inp) {
+                return builder::make_cast(
+                        sc_data_type_t::f32(inp->dtype_.lanes_), inp);
+            };
+            auto sigmoid_inp = is_f32 ? in0 : make_cast_f32(in0);
+            const auto &sigmoid_ret
+                    = sigmoid_compute.compute_element(sigmoid_inp
+                            * constant_maker<float>(beta,
+                                    sc_data_type_t::f32(in0->dtype_.lanes_)));
+            auto inp2 = is_f32 ? in1 : make_cast_f32(in1);
+            auto f_val = builder::make_mul(sigmoid_ret, inp2);
+            auto res_val
+                    = is_f32 ? f_val : builder::make_cast(in0->dtype_, f_val);
+            auto res = builder::make_assign_unattached(out, res_val);
+            return res;
+        } break;
+        default: {
+            COMPILE_ASSERT(false,
+                    "Unsupport elementwise op "
+                    "found.\n");
+            return stmt();
+        } break;
+    }
+    return stmt();
+}
+
 void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
         sc_op_info_t &info, int bc_input_idx, const std::vector<int> &bc_axis,
@@ -675,7 +943,6 @@ void compute_block_broadcast(const context_ptr &ctx, sc_graph_t &graph,
         tail_int = get_expr_as_int(tail);
         COMPILE_ASSERT((floor_int + tail_int), "Don't support shape len is 0.");
     }
-
     auto last_axis = expr(floor + tail);
     const int INVALID_AXIS_MASK = -64;
     int last_axis_mask = INVALID_AXIS_MASK;
@@ -907,93 +1174,92 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     }
     // use broad-cast
     int bc_input_idx = get_broadcast_input();
-    if (bc_input_idx != -1) {
-        auto func = [&](const std::vector<expr> &ins,
-                            std::vector<expr::lvalue_proxy_t> &outs) -> stmt {
-            auto in_0 = ins[1 - bc_input_idx], in_1 = ins[bc_input_idx];
-            switch (elt_op_) {
-                case elt_operator::ADD:
-                    return builder::make_assign_unattached(
-                            outs[0], in_0 + in_1);
-                case elt_operator::SUB:
-                    return builder::make_assign_unattached(
-                            outs[0], in_0 - in_1);
-                case elt_operator::MUL:
-                    return builder::make_assign_unattached(
-                            outs[0], in_0 * in_1);
-                case elt_operator::DIV:
-                    return builder::make_assign_unattached(
-                            outs[0], in_0 / in_1);
-                case elt_operator::MIN:
-                    return builder::make_assign_unattached(
-                            outs[0], builder::make_min(in_0, in_1));
-                case elt_operator::MAX:
-                    return builder::make_assign_unattached(
-                            outs[0], builder::make_max(in_0, in_1));
-                case elt_operator::SQD_DIFF:
-                    return builder::make_assign_unattached(
-                            outs[0], (in_0 - in_1) * (in_0 - in_1));
-                case elt_operator::PRELU:
-                    return builder::make_assign_unattached(outs[0],
-                            builder::make_select(
-                                    in_0 >= make_expr<constant_node>(
-                                            (int64_t)0, in_0->dtype_),
-                                    in_0, in_0 * in_1));
-                default:
-                    COMPILE_ASSERT(false, "Unsupport elementwise op found.\n");
-                    return stmt();
-            }
-        };
-        // reuse broadcast op
-        compute_block_broadcast(ctx, get_owner_graph(), inputs, *dst[0], info_,
-                bc_input_idx, get_bc_axis(), vx_info_,
-                mask_compute_func_t(func), get_outputs()[0], wkld, use_mask);
-    } else {
-        auto func = [&](const std::vector<expr> &in,
-                            std::vector<expr::lvalue_proxy_t> &out) -> stmt {
-            auto out_dtype = out[0]->dtype_;
-            expr in0 = in[0], in1 = in[1];
+    bool use_broadcast = bc_input_idx != -1;
+    auto func = [&](const std::vector<expr> &in,
+                        const std::vector<expr::lvalue_proxy_t> &out) -> stmt {
+        auto out_dtype = out[0]->dtype_;
+        expr in0, in1;
+        if (use_broadcast) {
+            in0 = in[1 - bc_input_idx], in1 = in[bc_input_idx];
+        } else {
+            in0 = in[0], in1 = in[1];
             if (in[0]->dtype_ != out_dtype) {
                 in0 = builder::make_cast(out_dtype, in[0]);
             }
             if (in[1]->dtype_ != out_dtype) {
                 in1 = builder::make_cast(out_dtype, in[1]);
             }
-            switch (elt_op_) {
-                case elt_operator::ADD:
-                    return builder::make_assign_unattached(out[0], in0 + in1);
-                case elt_operator::SUB:
-                    return builder::make_assign_unattached(out[0], in0 - in1);
-                case elt_operator::MUL:
-                    return builder::make_assign_unattached(out[0], in0 * in1);
-                case elt_operator::DIV:
-                    return builder::make_assign_unattached(out[0], in0 / in1);
-                case elt_operator::MIN:
-                    return builder::make_assign_unattached(
-                            out[0], builder::make_min(in0, in1));
-                case elt_operator::MAX:
-                    return builder::make_assign_unattached(
-                            out[0], builder::make_max(in0, in1));
-                case elt_operator::SQD_DIFF:
-                    return builder::make_assign_unattached(
-                            out[0], (in0 - in1) * (in0 - in1));
-                case elt_operator::PRELU:
-                    return builder::make_assign_unattached(out[0],
-                            builder::make_select(
-                                    in0 >= make_expr<constant_node>(
-                                            (int64_t)0, in0->dtype_),
-                                    in0, in0 * in1));
-                default:
-                    COMPILE_ASSERT(false,
-                            "Unsupport elementwise op "
-                            "found.\n");
-                    return stmt();
-            }
-        };
-
+        }
+        return select_algorithm(elt_op_, in0, in1, out[0], attrs_, info_);
+    };
+    if (use_broadcast) {
+        // reuse broadcast op
+        compute_block_broadcast(ctx, get_owner_graph(), inputs, *dst[0], info_,
+                bc_input_idx, get_bc_axis(), vx_info_,
+                mask_compute_func_t(func), get_outputs()[0], wkld, use_mask);
+    } else {
         compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
                 vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
                 attrs_, get_outputs()[0], wkld, use_mask);
+    }
+}
+
+void unary_backward_base_t::compute_block(context_ptr ctx,
+        const std::vector<tensor_slice *> &dst,
+        const std::vector<const tensor_slice *> &inputs) {
+    size_t wkld = compute_fusible_workload(ctx, dst, inputs);
+    auto vx_info = get_vx_info();
+    auto elt_op = get_elt_operator();
+    // set default vectorized information
+    vx_info.axis = dst[0]->get_shape().size() - 1;
+
+    for (int64_t i = dst[0]->nslice_dims() - 1; i >= 0; --i) {
+        auto cur_dim = dst[0]->get_shape()[i];
+        if (!cur_dim.isa<constant>()
+                || get_const_as_int(cur_dim.checked_as<constant>())) {
+            vx_info.axis = i;
+            break;
+        }
+    }
+    vx_info.lanes
+            = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
+    bool use_mask = attrs_.get_or_else(op_attr_key::use_padded_mask, true);
+    if (get_owner_graph().is_dynamic()) {
+        use_mask &= info_.cur_impl_ != impl_kind_t::no_padding;
+    }
+    auto func = [&](const std::vector<expr> &in,
+                        const std::vector<expr::lvalue_proxy_t> &out) -> stmt {
+        auto out_dtype = out[0]->dtype_;
+        expr in0, in1;
+        in0 = in[0], in1 = in[1];
+        if (in[0]->dtype_ != out_dtype) {
+            in0 = builder::make_cast(out_dtype, in[0]);
+        }
+        if (in[1]->dtype_ != out_dtype) {
+            in1 = builder::make_cast(out_dtype, in[1]);
+        }
+        return select_algorithm(elt_op, in0, in1, out[0], attrs_, info_);
+    };
+    compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
+            vx_info, mask_compute_func_t(func), mask_compute_func_t(func),
+            attrs_, get_outputs()[0], wkld, use_mask);
+}
+
+unary_backward_base_t::unary_backward_base_t(
+        graph_tensor_ptr lhs, graph_tensor_ptr rhs, elt_operator elt_op)
+    : unary_backward_base_t({std::move(lhs), std::move(rhs)}, {}, {}) {
+    set_elt_operator(elt_op);
+    switch (elt_op) {
+        case elt_operator::ABS_BWD: op_name_ = "abs_bwd"; break;
+        case elt_operator::CLAMP_BWD: op_name_ = "clamp_bwd"; break;
+        case elt_operator::ELU_BWD: op_name_ = "elu_bwd"; break;
+        case elt_operator::HARDSWISH_BWD: op_name_ = "hardswish_bwd"; break;
+        case elt_operator::HARDSIGMOID_BWD: op_name_ = "hardsigmoid_bwd"; break;
+        case elt_operator::MISH_BWD: op_name_ = "mish_bwd"; break;
+        case elt_operator::SQRT_BWD: op_name_ = "sqrt_bwd"; break;
+        case elt_operator::TANH_BWD: op_name_ = "tanh_bwd"; break;
+        case elt_operator::SOFTPLUS_BWD: op_name_ = "soft_plus_bwd"; break;
+        default: break;
     }
 }
 
@@ -1005,7 +1271,15 @@ OP_REGISTER(min_op_t, min)
 OP_REGISTER(max_op_t, max)
 OP_REGISTER(squared_diff_op_t, squared_diff)
 OP_REGISTER(prelu_op_t, prelu)
-
+OP_REGISTER(abs_bwd_op_t, abs_bwd)
+OP_REGISTER(clamp_bwd_op_t, clamp_bwd)
+OP_REGISTER(elu_bwd_op_t, elu_bwd)
+OP_REGISTER(hardswish_bwd_op_t, hardswish_bwd)
+OP_REGISTER(hardsigmoid_bwd_op_t, hardsigmoid_bwd)
+OP_REGISTER(sqrt_bwd_op_t, sqrt_bwd)
+OP_REGISTER(mish_bwd_op_t, mish_bwd)
+OP_REGISTER(tanh_bwd_op_t, tanh_bwd)
+OP_REGISTER(softplus_bwd_op_t, soft_plus_bwd)
 } // namespace gc
 } // namespace graph
 } // namespace impl
