@@ -210,7 +210,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
           int max_job_per_thread = utils::divide_and_ceil(total_jobs, nthreads);
           if ((float)min_job_per_thread / max_job_per_thread <= 0.7
             && cfg.M_block * cfg.N_block * K > 32 * 32 * 32 * 8) {
-            if (!possible_blks.empty()) {
+            if (possible_blks.size() > 1) {
               possible_blks.erase(possible_blks.begin());
               cfg.M_block = possible_blks.front();
               break;
