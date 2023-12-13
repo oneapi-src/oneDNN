@@ -171,10 +171,12 @@ int fill_random_real_sparse(
 }
 #endif
 
-int fill_random_real(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem_fp) {
+int fill_random_real(dnn_mem_t &mem_fp, const_dnnl_memory_t dnnl_memory) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-    if (mem_fp.format_kind() == dnnl_format_kind_sparse)
+    if (mem_fp.format_kind() == dnnl_format_kind_sparse) {
+        assert(dnnl_memory != nullptr);
         return fill_random_real_sparse(dnnl_memory, mem_fp);
+    }
 #endif
     return fill_random_real_dense(mem_fp);
 }
