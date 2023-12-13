@@ -139,13 +139,13 @@ primitive:
 
 The operation supports the following combinations of data types:
 
-| Propagation | Source                      | Destination                 |
-|:------------|:----------------------------|:----------------------------|
-| forward     | f32, bf16, f16, u8, s8, f64 | f32, bf16, f16, u8, s8, f64 |
-| backward    | f32, bf16, f16, f64         | f32, bf16, f16, f64         |
+| Propagation | Source                      | Destination                 | Scale and Shift|
+|:------------|:----------------------------|:----------------------------|----------------|
+| forward     | f32, bf16, f16, u8, s8, f64 | f32, bf16, f16, u8, s8, f64 | f32, bf16, f16 |
+| backward    | f32, bf16, f16, f64         | f32, bf16, f16, f64         | f32, bf16, f16 |
 
-Mean, Variance and ScaleShift data types are always f32 and independent of
-Source or Destination data types.
+Mean and Variance data types are always f32 and independent of Source and
+Destination data types.
 
 ### Data Representation
 
@@ -168,8 +168,6 @@ is #dnnl_tnc, the best performance can be expected for statistics with the
 
 If #dnnl_use_scale or #dnnl_use_shift are used, the scale (\f$\gamma\f$) and
 shift (\f$\beta\f$) are separate 1D tensors of shape \f$C\f$.
-
-The format of the corresponding memory object must be #dnnl_nc (#dnnl_ab).
 
 #### Source, Destination, and Their Gradients
 
@@ -196,6 +194,7 @@ The layer normalization primitive is optimized for the following memory formats:
    - Only tensors of 6 or fewer dimensions are supported.
    - Different data types for source and destination is not supported.
    - Integer data types for source and destination are not supported.
+   - Only f32 data type is supported for scale and shift
 
 ## Performance Tips
 1. For data tensors \src, \dst, \diffsrc, and \diffdst, use memory formats
