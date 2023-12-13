@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,6 +190,8 @@ struct gemm_matmul_t : public gpu_primitive_t {
                             auto mask = po.prelu.mask;
                             int new_mask = 0;
                             int batch_idx = reshape_size - 1;
+                            int batch_dim = 1;
+                            int mask_dim = 1;
                             //get mask for batch dim
                             for (int i = 0; i < c_md->ndims - batch_idx; i++) {
                                 if (mask >> i & 1) {
@@ -197,8 +199,13 @@ struct gemm_matmul_t : public gpu_primitive_t {
                                     if (new_mask != 0)
                                         return status::unimplemented;
                                     new_mask |= c_md->dims[i] == 1 ? 0 : 1;
+                                    mask_dim *= c_md->dims[i];
                                 }
+                                batch_dim *= c_md->dims[i];
                             }
+                            //post ops cannot be applied if applied on only on a subset of batch dims
+                            if (batch_dim != mask_dim)
+                                return status::unimplemented;
                             //get non-batch part of mask
                             auto shift = c_md->ndims - batch_idx;
                             auto non_batch_mask = mask >> shift;
