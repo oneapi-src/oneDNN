@@ -1532,6 +1532,15 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             "skipping implementation as it does not support small 3d shapes "
             "with small oc");
 
+    // TODO: optimize 2d/3d shapes with small iw for f32
+    const auto is_small_iw = jcp.iw < 64;
+    const auto is_2d_or_3d = jcp.ih > 1 || jcp.id > 1;
+    const bool is_f32
+            = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
+    VDISPATCH_CONV_IC(!(is_f32 && is_small_iw && is_2d_or_3d),
+            "skipping implementation due to performance reason for 2d/3d "
+            "shapes with small iw");
+
     const bool is_signed_input = jcp.src_dt == s8;
     jcp.s8s8_compensation_required = is_signed_input && !isa_has_s8s8(jcp.isa);
     jcp.has_int8_vnni = isa_has_int8_vnni(jcp.isa);
@@ -1552,8 +1561,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                                       || is_superset(jcp.isa, avx2_vnni_2)),
             "unsupported isa for current datatype combination");
 
-    const bool is_f32
-            = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
     VDISPATCH_CONV_IC(IMPLICATION(is_f32, one_of(isa, avx512_core, avx2)),
             "unsupported isa for current datatype combination");
 
