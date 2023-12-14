@@ -311,27 +311,28 @@ std::vector<tile_scheme_t> get_tile_schemes() {
 }
 // clang-format on
 
-class plan_search_manager_t {
+class kernel_search_manager_t {
 public:
-    plan_search_manager_t(const kernel_desc_t &base_desc)
+    kernel_search_manager_t(const kernel_desc_t &base_desc)
         : base_desc_(base_desc) {
         eng_ = engine(engine::kind::gpu, 0);
     }
 
     void search() {
+        std::cout << "Starting kernel search" << std::endl;
         auto &registry = plan_registry();
         auto descs = gen_descs();
-        std::cout << "Starting search, descs: " << descs.size() << std::endl;
         for (size_t i = 0; i < descs.size(); i++) {
             auto &d = descs[i];
-            std::cout << "Running benchmark for desc_" << i << std::endl;
-            std::cout << "  Desc cmd: " << d.cmd_str() << std::endl;
+            std::cout << "Running benchmark for descriptor: " << d.cmd_str()
+                      << std::endl;
             auto bd = bench(d);
-            std::cout << "  Status:   " << (bd ? "OK" : "FAIL") << std::endl;
+            if (!bd) std::cout << "Benchmarking failed" << std::endl;
             if (!bd) continue;
             auto model = model_fit(bd);
             registry.set(d, model);
         }
+        std::cout << "Kernel search completed" << std::endl;
     }
 
 private:
@@ -356,6 +357,8 @@ private:
         std::minstd_rand seed;
         std::shuffle(ret.begin(), ret.end(), seed);
         ret.resize(std::min((int)ret.size(), 8));
+        std::cout << "Generated " << ret.size() << " kernel descriptors"
+                  << std::endl;
         return ret;
     }
 
@@ -372,7 +375,7 @@ private:
 };
 
 void search(const kernel_desc_t &desc) {
-    plan_search_manager_t mger(desc);
+    kernel_search_manager_t mger(desc);
     mger.search();
 }
 

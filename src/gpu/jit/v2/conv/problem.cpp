@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -150,6 +150,24 @@ std::string problem_t::str() const {
     oss << "  Weights:     " << wei_tag_ << std::endl;
     oss << "  Destination: " << dst_tag_ << std::endl;
     oss << "  Descriptor:  " << desc_str();
+    return oss.str();
+}
+
+std::string problem_t::csv_str() const {
+    std::vector<std::string> parts;
+    parts.push_back(hw_.brief_str());
+    parts.push_back(ir_utils::to_string(prop_));
+    parts.push_back(src_tag_.str());
+    parts.push_back(wei_tag_.str());
+    parts.push_back(dst_tag_.str());
+    parts.push_back(desc_str());
+    std::ostringstream oss;
+    bool is_first = true;
+    for (auto &p : parts) {
+        if (!is_first) oss << ",";
+        oss << p;
+        is_first = false;
+    }
     return oss.str();
 }
 

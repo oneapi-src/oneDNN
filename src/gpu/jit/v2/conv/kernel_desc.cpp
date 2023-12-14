@@ -184,20 +184,69 @@ bool is_grf_usage_ok(const kernel_desc_t &desc) {
 }
 
 bool kernel_desc_t::is_supported() const {
-    if (prop == prop_kind::undef) return false;
-    if (hw.is_undef()) return false;
-    if (fma == fma_kind_t::undef) return false;
-    if (simd == 0) return false;
-    if (regs == 0) return false;
-    if (!is_tg_size_ok(*this)) return false;
-    if (!is_grf_usage_ok(*this)) return false;
+    ir_check(prop != prop_kind::undef)
+            << "Invalid prop: " << ir_utils::to_string(prop);
+    ir_check(!hw.is_undef()) << "Invalid hw: " << jit::to_string(hw.to_ngen());
+    ir_check(fma != fma_kind_t::undef)
+            << "Invalid fma: " << jit::to_string(fma);
+    ir_check(simd != 0) << "Invalid simd: " << simd;
+    ir_check(regs != 0) << "Invalid regs: " << regs;
+    ir_check(is_tg_size_ok(*this))
+            << "Invalid thread_group_tile: " << thread_group_tile;
+    ir_check(is_grf_usage_ok(*this)) << "GRF usage exceeded";
     return true;
+}
+
+void kernel_desc_t::set(const std::string &s) {
+    operator=(kernel_desc_t());
+    if (s.empty()) return;
+    auto iface = cli_iface();
+    iface.parse(s, this);
+    set_defaults();
+}
+
+void kernel_desc_t::set_defaults() {
+    if (loop_nest.is_empty()) {
+        switch (prop) {
+            case prop_kind::forward:
+                loop_nest.add(prb_dims::kw);
+                loop_nest.add(prb_dims::kh);
+                loop_nest.add(prb_dims::kd);
+                loop_nest.add(prb_dims::ic);
+                break;
+            default: break;
+        }
+    }
 }
 
 void kernel_desc_t::finalize(const plan_t &plan) {
     is_finalized = true;
     reqs = plan.reqs();
     reqs.simplify();
+}
+
+std::string kernel_desc_t::cmd_str() const {
+    return cli_iface().cmd_str(this);
+}
+
+std::string kernel_desc_t::str() const {
+    std::ostringstream oss;
+    oss << "Propagation:        " << ir_utils::to_string(prop) << std::endl;
+    oss << "Source tag:         " << src_tag << std::endl;
+    oss << "Weights tag:        " << wei_tag << std::endl;
+    oss << "Destination tag:    " << dst_tag << std::endl;
+    oss << "HW:                 " << ir_utils::to_lower(hw.str()) << std::endl;
+    oss << "FMA kind:           " << to_string(fma) << std::endl;
+    oss << "SIMD:               " << simd << std::endl;
+    oss << "Registers:          " << regs << std::endl;
+    oss << "Iteration tile:     " << iter_tile << std::endl;
+    oss << "Thread group tile:  " << thread_group_tile << std::endl;
+    oss << "Loop nest:          " << loop_nest << std::endl;
+    oss << "A access kind:      " << to_string(a_access_kind) << std::endl;
+    oss << "B access kind:      " << to_string(b_access_kind) << std::endl;
+    oss << "C access kind:      " << to_string(c_access_kind) << std::endl;
+    oss << "Command:            " << cmd_str();
+    return ir_utils::add_tag("Desc", oss.str());
 }
 
 void init_kernel_info_div_magic(
@@ -265,6 +314,76 @@ kernel_desc_t kernel_desc_t::deserialize(const serialized_t &s) {
     kernel_desc_t desc;
     desc.deserialize(iss);
     return desc;
+}
+
+ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
+#define MAKE_SETTER(lhs, rhs) \
+    *static_cast<void (*)(kernel_desc_t *, const std::string &)>( \
+            [](kernel_desc_t *desc, const std::string &value) { \
+                desc->lhs = rhs; \
+            })
+#define MAKE_GETTER(value) \
+    *static_cast<std::string (*)(const kernel_desc_t *)>( \
+            [](const kernel_desc_t *desc) { return value; })
+    ir_utils::cli_iface_t<kernel_desc_t> iface;
+    iface.add_arg("--prop", "Propagation kind (fwd, bwd_d or bwd_w).",
+            MAKE_GETTER(ir_utils::to_string(desc->prop)),
+            MAKE_SETTER(prop, ir_utils::str_to_prop_kind(value)));
+    iface.add_arg("--dw",
+            "Whether the problem is a depthwise convolution (0 or 1).",
+            MAKE_GETTER(std::string(desc->is_dw ? "1" : "0")),
+            MAKE_SETTER(is_dw, ir_utils::str_to_bool(value)));
+    iface.add_arg("--src", "Source layout tag (e.g. axb:f32).",
+            MAKE_GETTER(desc->src_tag.str()),
+            MAKE_SETTER(
+                    src_tag, make_conv_layout_tag(tensor_kind_t::src, value)));
+    iface.add_arg("--wei", "Weights layout tag (e.g. axcb:f32).",
+            MAKE_GETTER(desc->wei_tag.str()),
+            MAKE_SETTER(
+                    wei_tag, make_conv_layout_tag(tensor_kind_t::wei, value)));
+    iface.add_arg("--dst", "Destination layout tag (e.g. axb:f32).",
+            MAKE_GETTER(desc->dst_tag.str()),
+            MAKE_SETTER(
+                    dst_tag, make_conv_layout_tag(tensor_kind_t::dst, value)));
+    iface.add_arg("--hw", "Hardware (xehpc).",
+            MAKE_GETTER(ir_utils::to_lower(jit::to_string(desc->hw.to_ngen()))),
+            MAKE_SETTER(hw, str_to_hw(value)));
+    iface.add_arg("--fma", "FMA kind (mad).", MAKE_GETTER(to_string(desc->fma)),
+            MAKE_SETTER(fma, str_to_fma_kind(value)));
+    iface.add_arg("--simd", "SIMD size (16 or 32).",
+            MAKE_GETTER(std::to_string(desc->simd)),
+            MAKE_SETTER(simd, std::stoi(value)));
+    iface.add_arg("--regs", "Number of registers (128 or 256).",
+            MAKE_GETTER(std::to_string(desc->regs)),
+            MAKE_SETTER(regs, std::stoi(value)));
+    iface.add_arg("--iter", "Iteration tile (e.g. mb32ic16oc16).",
+            MAKE_GETTER(desc->iter_tile.str()),
+            MAKE_SETTER(iter_tile, str_to_prb_tile(value)));
+    iface.add_arg("--tg", "Threadgroup tile (e.g. ow4oc4).",
+            MAKE_GETTER(desc->thread_group_tile.str()),
+            MAKE_SETTER(thread_group_tile, str_to_prb_tile(value)));
+    iface.add_arg("--loop-nest",
+            "Loop nest, ordered from innermost to outermost (e.g. "
+            "kw,kh,kd,ic).",
+            MAKE_GETTER(desc->loop_nest.str()),
+            MAKE_SETTER(loop_nest, str_to_loop_nest(value)));
+    iface.add_arg("--a-access", "Access type for A (block, scattered, 2d).",
+            MAKE_GETTER(to_string(desc->a_access_kind)),
+            MAKE_SETTER(a_access_kind, str_to_send_kind(value)));
+    iface.add_arg("--b-access", "Access type for B (block, scattered, 2d).",
+            MAKE_GETTER(to_string(desc->b_access_kind)),
+            MAKE_SETTER(b_access_kind, str_to_send_kind(value)));
+    iface.add_arg("--c-access", "Access type for C (block, scattered, 2d).",
+            MAKE_GETTER(to_string(desc->c_access_kind)),
+            MAKE_SETTER(c_access_kind, str_to_send_kind(value)));
+    return iface;
+#undef MAKE_SETTER
+#undef MAKE_GETTER
+}
+
+void kernel_desc_t::show_help() {
+    kernel_desc_t desc;
+    desc.set("--help");
 }
 
 grid_t create_thread_group_grid(const kernel_desc_t &desc) {
