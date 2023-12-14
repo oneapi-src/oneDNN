@@ -58,7 +58,7 @@ struct ref_layer_normalization_fwd_t : public sycl_gpu_primitive_t {
                     && utils::one_of(
                             dst_md(0)->data_type, f32, bf16, f16, s8, u8)
                     && stat_md()->data_type == f32
-                    && check_scale_shift_data_type()
+                    && check_scale_shift_data_type({f32, bf16, f16})
                     && attr()->has_default_values(sm::scales_runtime)
                     && attr_scales_ok() && set_default_formats_common();
             if (!ok) return status::unimplemented;
@@ -107,7 +107,7 @@ struct ref_layer_normalization_bwd_t : public sycl_gpu_primitive_t {
                     && utils::one_of(diff_dst_md(0)->data_type, f32, bf16)
                     && utils::one_of(diff_src_md(0)->data_type, f32, bf16)
                     && stat_md()->data_type == f32
-                    && check_scale_shift_data_type()
+                    && check_scale_shift_data_type({f32, bf16, f16})
                     && attr()->has_default_values()
                     && set_default_formats_common();
 
