@@ -37,6 +37,7 @@ enum class planner_mode_t {
     trace,
     bench,
     search,
+    auto_search,
 };
 
 struct params_t {
@@ -55,12 +56,13 @@ bool find_remove(const char *arg, std::string &s) {
 
 void print_help() {
     std::cout
-            << R"(Usage: gpu_conv_planner [--help] [--bench] [--search] [kernel descriptor arguments]
+            << R"(Usage: gpu_conv_planner [--help] [--bench] [--search] [--auto-search] [kernel descriptor arguments]
 
 Optional arguments:
   --help                Shows help message and exits.
   --bench               Runs benchmarking with provided kernel descriptor.
   --search              Runs search, iterate through missing kernel descriptor properties.
+  --auto-search         Runs auto-search to rebuild kernel registry.
 
 )";
     std::cout << "Kernel descriptor arguments:" << std::endl;
@@ -74,6 +76,7 @@ void init_params(int argc, const char **argv) {
     auto cmd_args = oss.str();
     bool has_bench = find_remove("--bench", cmd_args);
     bool has_search = find_remove("--search", cmd_args);
+    bool has_auto_search = find_remove("--auto-search", cmd_args);
     bool has_help = (argc == 1) || find_remove("--help", cmd_args);
 
     if (has_help) {
@@ -81,20 +84,28 @@ void init_params(int argc, const char **argv) {
         exit(0);
     }
 
-    if (has_bench && has_search) {
-        std::cout << "Error: --bench and --search are exclusive." << std::endl;
+    int mode_count = 0;
+    mode_count += (int)has_bench;
+    mode_count += (int)has_search;
+    mode_count += (int)has_auto_search;
+    if (mode_count > 1) {
+        std::cout << "Error: --bench, --search and --auto-search are exclusive."
+                  << std::endl;
         exit(1);
     }
     if (has_bench) {
         params.mode = planner_mode_t::bench;
     } else if (has_search) {
         params.mode = planner_mode_t::search;
+    } else if (has_auto_search) {
+        params.mode = planner_mode_t::auto_search;
     } else {
         params.mode = planner_mode_t::trace;
     }
     // Check that MKL is available.
     switch (params.mode) {
-        case planner_mode_t::search: (void)mkl_iface_t::instance(); break;
+        case planner_mode_t::search:
+        case planner_mode_t::auto_search: (void)mkl_iface_t::instance(); break;
         default: break;
     }
     auto iface = params.desc.cli_iface();
@@ -113,6 +124,10 @@ void planner_main(int argc, const char **argv) {
         }
         case planner_mode_t::bench: {
             bench(params.desc);
+            break;
+        }
+        case planner_mode_t::auto_search: {
+            auto_search();
             break;
         }
         case planner_mode_t::search: {

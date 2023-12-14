@@ -379,6 +379,20 @@ void search(const kernel_desc_t &desc) {
     mger.search();
 }
 
+void auto_search() {
+    // clang-format off
+    std::vector<const char *> recipes = {
+        "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128",
+        "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --a-access 2d --b-access block --c-access 2d",
+    };
+    // clang-format on
+    for (const char *r : recipes) {
+        kernel_desc_t desc;
+        desc.set(r);
+        search(desc);
+    }
+}
+
 } // namespace planner
 } // namespace conv
 } // namespace v2
