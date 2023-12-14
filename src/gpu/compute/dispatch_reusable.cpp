@@ -247,12 +247,35 @@ public:
         return status::success;
     }
 
-    std::vector<block_bin_t> compute_block_bins() {
+    std::vector<block_bin_t> compute_block_bins(
+            const lws_strategy_t &lws_strat, const subgroup_data_t &subgroup) {
         std::vector<block_bin_t> bins;
         for (size_t i = 0; i < master_layout.size(); i++) {
             const mapped_block_t &mapped_blocks = master_layout[i];
 
-            // Check if this block can be added to an existing bin
+            // mapped_block_t that are in the lws have to be
+            // at the start of a new bin
+            if (subgroup.used()) {
+                // The subgroup block has to be in the lws
+                size_t sg_buf_idx = subgroup.buffer_idx();
+                if (!mapped_blocks.is_broadcasted(sg_buf_idx)) {
+                    const block_t &buf_block
+                            = mapped_blocks.get_buffer_blocks().at(sg_buf_idx);
+                    if (static_cast<size_t>(buf_block.stride * buf_block.block)
+                            <= subgroup.size()) {
+                        // This mapped_block_t corresponds to the subgroup block
+                        bins.emplace_back(mapped_blocks, num_layouts, true);
+                        continue;
+                    }
+                }
+            }
+
+            // The lws_strategy_t can specify other blocks to be in the lws as well
+            if (lws_strat.is_included(mapped_blocks)) {
+                bins.emplace_back(mapped_blocks, num_layouts, true);
+                continue;
+            }
+
             bool found_bin = false;
             for (block_bin_t &bin : bins) {
                 if (bin.get_blocks().back().can_merge(mapped_blocks)) {
@@ -409,12 +432,16 @@ status_t reusable_dispatch_config_t::generate(
         CHECK(equalizer.register_layout(new_layout));
     }
 
-    std::vector<block_bin_t> bins = equalizer.compute_block_bins();
+    std::vector<block_bin_t> bins
+            = equalizer.compute_block_bins(lws_strategy, subgroup);
 
-    // Map bins into gws dims
+    // Map bins into gws dims - start with lws bins, then map the rest
     gws_bin_mapping_t gws_map(subgroup);
     for (const block_bin_t &bin : bins) {
-        gws_map.add(bin);
+        if (bin.is_in_lws()) gws_map.add(bin);
+    }
+    for (const block_bin_t &bin : bins) {
+        if (!bin.is_in_lws()) gws_map.add(bin);
     }
 
     for (size_t i = 0; i < buffers.size(); i++) {

@@ -315,6 +315,12 @@ struct lws_strategy_t {
 
     virtual work_size create_lws(const work_size &gws) const = 0;
 
+    // Determine if a given block (mapped to each buffer) should be in the lws.
+    // Gets called for each block dispatched to the GWS.
+    // XXX: If a subgroup is used, its block must be added to the lws. It will not get
+    // dispatched to this function, and will always be included.
+    virtual bool is_included(const mapped_block_t &blocks) const = 0;
+
     size_t get_max_wg_size() const {
         bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
         return engine->device_info()->max_wg_size(large_grf_mode);
@@ -335,6 +341,11 @@ struct default_lws_strategy_t : public lws_strategy_t {
         get_optimal_lws(gws.data(), lws.data(), gws.size(), -1,
                 engine->device_info()->gpu_arch());
         return lws;
+    }
+
+    // this strategy doesn't care which blocks are in the lws
+    bool is_included(const mapped_block_t &blocks) const override {
+        return false;
     }
 };
 
