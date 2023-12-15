@@ -214,6 +214,7 @@ private:
             sectionHeaders[3].type = SectionHeader::Type::Program;
             sectionHeaders[3].offset = sectionHeaders[2].offset + align(szMetadata);
             sectionHeaders[3].size = szKernel;
+            sectionHeaders[3].flags = 6;    /* SHF_ALLOC | SHF_EXECINSTR */
 
             sectionHeaders[4].name = offsetof(StringTable, snNote);
             sectionHeaders[4].type = SectionHeader::Type::Note;
