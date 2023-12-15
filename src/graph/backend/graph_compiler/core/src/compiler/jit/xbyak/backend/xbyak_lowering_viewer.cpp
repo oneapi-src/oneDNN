@@ -1341,12 +1341,9 @@ void xbyak_lowering_viewer::handle_reinterpret(
             handle_x86_mov(op_dst, op_src);
         } break;
         case 2: { // 16-bit
-            // just allow R_2_xmm or xmm_2_R
-            if (is_x86_simd(rhs->dtype_) != is_x86_simd(lhs->dtype_)) {
+            if (op_dst.is_xyz() || op_src.is_xyz()) {
                 XBYAK_GEN(vmovd, AVX_XMR32_XMR32, op_dst, op_src);
             } else {
-                assert(rhs->dtype_.type_code_ != sc_data_etype::F16
-                        && lhs->dtype_.type_code_ != sc_data_etype::F16);
                 handle_x86_mov(op_dst, op_src);
             }
         } break;

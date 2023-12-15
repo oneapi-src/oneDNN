@@ -16,12 +16,12 @@
 
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/ir_comparer.hpp>
-#include <compiler/ir/transform/fp16_legalizer.hpp>
 #include <util/any_map.hpp>
 
 #include <cstdint>
 #include "compiler/ir/builder.hpp"
 #include "compiler/ir/transform/simplify.hpp"
+#include "compiler/jit/xbyak/ir/transform/fp16_legalizer.hpp"
 #include "context.hpp"
 #include "util/fp16.hpp"
 #include "gtest/gtest.h"

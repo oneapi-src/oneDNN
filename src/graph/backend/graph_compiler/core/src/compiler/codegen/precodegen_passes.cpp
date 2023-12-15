@@ -36,7 +36,6 @@
 #include <compiler/ir/transform/dessa_transform.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/dynamic_parallel_transform.hpp>
-#include <compiler/ir/transform/fp16_legalizer.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
 #include <compiler/ir/transform/index2var.hpp>
 #include <compiler/ir/transform/index_flatten.hpp>
@@ -136,8 +135,6 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(utils::make_unique<dead_func_eliminate_t>());
     ret.emplace_back(module_function_pass_t::make<bf16_fp16_eliminator_t>(ctx));
     ret.emplace_back(utils::make_unique<target_specific_lowering_cpu_t>(ctx));
-    ret.emplace_back(
-            module_function_pass_t::make<fp16_legalizer_t>(ctx->machine_));
     ret.emplace_back(utils::make_unique<func_inliner_t>());
     ret.emplace_back(utils::make_unique<dead_func_eliminate_t>());
     ret.emplace_back(module_function_pass_t::make<loop_unroller_t>());

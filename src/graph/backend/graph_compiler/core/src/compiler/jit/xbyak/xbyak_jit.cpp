@@ -49,6 +49,7 @@
 #include <compiler/jit/xbyak/ir/transform/avx2_mask_indexing_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
+#include <compiler/jit/xbyak/ir/transform/fp16_legalizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/indexing_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/intrinsics_combine.hpp>
 #include <compiler/jit/xbyak/ir/transform/low_level_legalizer.hpp>
@@ -72,6 +73,8 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
 
     ret.emplace_back(module_function_pass_t::make<module_var_resolver_t>());
     ret.emplace_back(module_function_pass_t::make<indexing_transform_t>());
+    ret.emplace_back(
+            module_function_pass_t::make<fp16_legalizer_t>(ctx->machine_));
     ret.emplace_back(utils::make_unique<constant_folder_t>(false));
     ret.emplace_back(utils::make_unique<auto_caster_t>());
     ret.emplace_back(
