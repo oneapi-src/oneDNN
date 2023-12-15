@@ -914,6 +914,98 @@ private:
     int32_t seed_;
 };
 
+template <typename T>
+class cli_iface_t {
+public:
+    using get_func_t = std::string (&)(const T *);
+    using set_func_t = void (&)(T *, const std::string &);
+
+    void add_arg(const std::string &key, const std::string &help,
+            get_func_t getter, set_func_t setter) {
+        args_.emplace_back((int)args_.size(), key, help, getter, setter);
+    }
+
+    void parse(const std::string &s, T *obj) {
+        bool is_help = (s.find("--help") != std::string::npos);
+        if (is_help) {
+            for (auto &a : args_) {
+                std::cout << "  ";
+                std::cout << std::left << std::setw(22) << a.key;
+                std::cout << a.help << std::endl;
+            }
+            return;
+        }
+        std::vector<bool> seen(args_.size());
+        auto parse_part = [&](const std::string &key,
+                                  const std::string &value) {
+            for (auto &a : args_) {
+                if (a.key == key) {
+                    if (seen[a.idx]) {
+                        std::cout << "Error: argument set twice: " << key
+                                  << std::endl;
+                        ir_error_not_expected();
+                    }
+                    a.setter(obj, value);
+                    seen[a.idx] = true;
+                    return;
+                }
+            }
+            std::cout << "Error: unknown argument: " << key << std::endl;
+            ir_error_not_expected();
+        };
+        std::vector<std::string> parts;
+        for (auto &p : gpu_utils::split(s, " ")) {
+            if (p.empty()) continue;
+            parts.push_back(p);
+        }
+        int nparts = (int)parts.size();
+        for (int i = 0; i < nparts; i += 2) {
+            if (i + 1 >= nparts) {
+                std::cout << "Error: value is missing for argument: "
+                          << parts[i] << std::endl;
+                ir_error_not_expected();
+            }
+            parse_part(parts[i], parts[i + 1]);
+        }
+    }
+
+    std::string cmd_str(const T *obj) const {
+        std::vector<std::string> parts;
+        auto add = [&](const std::string &key, const std::string &value) {
+            if (value.empty()) return;
+            parts.push_back(key);
+            parts.push_back(value);
+        };
+        for (auto &a : args_) {
+            add(a.key, a.getter(obj));
+        }
+        std::ostringstream oss;
+        bool is_first = true;
+        for (auto &p : parts) {
+            if (!is_first) oss << " ";
+            oss << p;
+            is_first = false;
+        }
+        return oss.str();
+    }
+
+private:
+    struct arg_t {
+        arg_t(int idx, const std::string &key, const std::string &help,
+                get_func_t getter, set_func_t setter)
+            : idx(idx), key(key), help(help), getter(getter), setter(setter) {}
+
+        int idx = -1;
+        std::string key;
+        std::string help;
+        get_func_t getter;
+        set_func_t setter;
+        bool is_parsed = false;
+    };
+
+    std::vector<arg_t> args_;
+};
+
 inline std::unordered_map<std::string, int> to_string_int_map(
         const std::string &s) {
     std::unordered_map<std::string, int> ret;
