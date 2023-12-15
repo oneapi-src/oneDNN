@@ -161,7 +161,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_matmul_post_ops_cpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
-
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant
@@ -174,7 +173,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_matmul_post_ops_cpu)
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
-
                     pm::pb_op_t *pmatmul
                             = pgraph->append_op(graph::op_kind::MatMul,
                                     in_edges_t {in_edge(0, dequant_data, 0),
@@ -306,7 +304,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_matmul_add_post_ops_cpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
-
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant
@@ -428,6 +425,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops_cpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -438,6 +437,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops_cpu)
                     auto popt_quant_wei_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant = popt_quant_wei_graph->append_op(
                             graph::op_kind::Quantize);
+                    pquant->append_decision_function(is_int8_quantization);
                     pquant->append_decision_function(check_if_constant_weight);
                     popt_quant_wei_graph->create_input_port(0, pquant, 0);
                     popt_quant_wei_graph->create_output_port(0, pquant, 0);
@@ -447,6 +447,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops_cpu)
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt_quant_wei, 0)});
+                    dequant_weight->append_decision_function(
+                            is_int8_quantization);
 
                     pm::pb_op_t *typecast_weight
                             = pgraph->append_op(graph::op_kind::TypeCast,
@@ -614,6 +616,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -633,6 +637,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt_quant_wei, 0)});
+                    dequant_weight->append_decision_function(
+                            is_int8_quantization);
 
                     pm::pb_op_t *typecast_weight
                             = pgraph->append_op(graph::op_kind::TypeCast,
@@ -651,6 +657,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     // post add with dequant->typecast
                     pm::pb_op_t *pdequant_add
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    pdequant_add->append_decision_function(
+                            is_int8_quantization);
                     pm::pb_op_t *typecast_add
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, pdequant_add, 0)});
@@ -698,6 +706,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -737,6 +747,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     // post add with dequant->typecast
                     pm::pb_op_t *pdequant_add
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    pdequant_add->append_decision_function(
+                            is_int8_quantization);
                     pdequant_add->append_decision_function(check_zps_values<0>);
                     pm::pb_op_t *typecast_add
                             = pgraph->append_op(graph::op_kind::TypeCast,

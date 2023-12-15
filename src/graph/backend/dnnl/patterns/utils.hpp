@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -211,6 +211,21 @@ inline bool check_if_constant_weight(op_t *op) {
     }
 }
 
+inline bool is_int8_quantization(const op_t *op) {
+    const op_kind_t kind = op->get_kind();
+    if (kind == graph::op_kind::Quantize) {
+        const auto &out = op->get_output_value(0)->get_logical_tensor();
+        return graph::utils::one_of(
+                out.data_type, graph::data_type::s8, graph::data_type::u8);
+    } else if (kind == graph::op_kind::Dequantize) {
+        const auto &in = op->get_input_value(0)->get_logical_tensor();
+        return graph::utils::one_of(
+                in.data_type, graph::data_type::s8, graph::data_type::u8);
+    } else {
+        return false;
+    }
+}
+
 // Optional BiasAdd after operator like Conv/ConvTranspose/Matmul. If
 // `maybe_typecase` is true, there will also be an optional TypeCast before the
 // 2nd input of BiasAdd.
@@ -246,6 +261,7 @@ inline graph::utils::pm::repetition_t *post_quantized_add(
         graph::utils::pm::pb_node_t *input, bool check_zps = false) {
     graph::utils::pm::pb_op_t *pdequant_add
             = pgraph->append_op(graph::op_kind::Dequantize);
+    pdequant_add->append_decision_function(is_int8_quantization);
     if (check_zps) pdequant_add->append_decision_function(check_zps_values<0>);
     graph::utils::pm::pb_op_t *padd = pgraph->append_op(graph::op_kind::Add,
             graph::utils::pm::in_edges_t {
@@ -288,6 +304,7 @@ inline graph::utils::pm::pb_node_t *optional_smooth_quant(
     graph::utils::pm::pb_op_t *quant_out
             = p_curr_graph->append_op(graph::op_kind::Quantize,
                     graph::utils::pm::in_edges_t {in_edge(0, opt, 0)});
+    quant_out->append_decision_function(is_int8_quantization);
     if (optional_qout) {
         p_curr_graph->create_input_port(0, opt, 0);
         p_curr_graph->create_output_port(0, quant_out, 0);
