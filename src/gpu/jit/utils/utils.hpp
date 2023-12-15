@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -218,12 +218,13 @@ bool contains(const std::vector<T> &vec, const U &u) {
 #define ir_error_not_expected() ir_assert(false) << "Not expected. "
 #define ir_except_not_implemented(msg) throw std::runtime_error(msg)
 
-template <int level>
-class logger_t {
+template <int level, bool value = true, bool add_new_line = false>
+class base_logger_t {
 public:
-    logger_t(std::ostream &out = std::cout) : out_(out) {}
-
-    operator bool() const { return true; }
+    base_logger_t(std::ostream &out = std::cout) : out_(out) {}
+    ~base_logger_t() {
+        if (add_new_line) out_ << std::endl;
+    }
 
     static bool is_enabled() {
 #if defined(DNNL_DEV_MODE)
@@ -233,15 +234,17 @@ public:
 #endif
     }
 
+    operator bool() const { return value; }
+
     template <typename T>
-    logger_t &operator<<(const T &obj) {
+    base_logger_t &operator<<(const T &obj) {
         using dnnl::impl::gpu::jit::operator<<;
         maybe_print_header();
         out_ << obj;
         return *this;
     }
 
-    logger_t &operator<<(std::ostream &(*os)(std::ostream &)) {
+    base_logger_t &operator<<(std::ostream &(*os)(std::ostream &)) {
         maybe_print_header();
         out_ << os;
         return *this;
@@ -262,6 +265,17 @@ private:
     std::ostream &out_;
     bool is_first_print_ = true;
 };
+
+template <int level>
+class logger_t : public base_logger_t<level> {
+public:
+    logger_t() : base_logger_t<level>() {}
+};
+
+template <int level>
+base_logger_t<level, false, true> make_check_logger() {
+    return base_logger_t<level, false, true>();
+}
 
 #define ir_perf() \
     ir_utils::logger_t<ir_utils::LOG_PERF>::is_enabled() \
@@ -288,6 +302,11 @@ private:
 #define ir_trace() \
     ir_utils::logger_t<ir_utils::LOG_TRACE>::is_enabled() \
             && ir_utils::logger_t<ir_utils::LOG_TRACE>()
+
+#define ir_check(cond) \
+    if (!(cond)) \
+    return ir_utils::logger_t<ir_utils::LOG_TRACE>::is_enabled() \
+            && ir_utils::make_check_logger<ir_utils::LOG_TRACE>()
 
 // Pretty printers for STL objects.
 template <typename KeyT, typename HashT, typename EqualT>
