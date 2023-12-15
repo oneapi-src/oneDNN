@@ -171,7 +171,10 @@ public:
                     break;
                 }
             }
-            if (!is_mapped) return status::unimplemented;
+            if (!is_mapped) {
+                master_layout.emplace_back(num_layouts, block);
+                is_mapped_to.push_back(true);
+            }
         }
         num_layouts++;
 
@@ -200,7 +203,7 @@ public:
         }
 
         for (size_t i = 0; i < DNNL_MAX_NDIMS; i++) {
-            if (layout_dim_sizes[i] == 1) continue;
+            if (layout_dim_sizes[i] == 1 || master_dim_sizes[i] == 1) continue;
             if (layout_dim_sizes[i] != master_dim_sizes[i]) {
                 return status::runtime_error;
             }
