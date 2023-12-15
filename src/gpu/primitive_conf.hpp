@@ -1219,6 +1219,30 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
 }
 
 constexpr int prelu_max_ndims = 5;
+inline status_t get_prelu_md(int prelu_mask, const dim_t *dst_dims,
+        memory_desc_t &weight_mem_desc, int weight_ndims) {
+    format_tag_t weights_tag;
+    dims_t weight_dims {};
+    for (int d = 0; d < weight_ndims; ++d) {
+        if (((prelu_mask >> d) & 0x1) == 1) {
+            weight_dims[d] = dst_dims[d];
+        } else {
+            weight_dims[d] = 1;
+        }
+    }
+    switch (weight_ndims) {
+        case 1: weights_tag = format_tag_t::dnnl_a; break;
+        case 2: weights_tag = format_tag_t::dnnl_ab; break;
+        case 3: weights_tag = format_tag_t::dnnl_acb; break;
+        case 4: weights_tag = format_tag_t::dnnl_acdb; break;
+        case 5: weights_tag = format_tag_t::dnnl_acdeb; break;
+        default: weights_tag = format_tag_t::dnnl_format_tag_undef; break;
+    }
+    CHECK(memory_desc_init_by_tag(weight_mem_desc, weight_ndims, weight_dims,
+            data_type_t::dnnl_f32, weights_tag));
+    return status::success;
+}
+
 inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
         const post_ops_t &post_ops, const dim_t *dst_dims) {
     const int po_nop_id = 0;
@@ -1261,36 +1285,19 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             assert(dst_dims != nullptr);
 
             memory_desc_t weight_mem_desc;
-            dims_t weight_dims {};
-            format_tag_t weights_tag;
             int weight_ndims = 0;
             if (e.prelu.mask == 0) {
                 weight_ndims = 1;
-                weight_dims[0] = 1;
-                weights_tag = format_tag_t::dnnl_a;
             } else {
                 // prelu weights are assumed to be up to prelu_max_ndims dims
                 for (int d = 0; d < prelu_max_ndims; ++d) {
                     if (((e.prelu.mask >> d) & 0x1) == 1) {
                         weight_ndims = d + 1;
-                        weight_dims[d] = dst_dims[d];
-                    } else {
-                        weight_dims[d] = 1;
                     }
                 }
-                switch (weight_ndims) {
-                    case 1: weights_tag = format_tag_t::dnnl_a; break;
-                    case 2: weights_tag = format_tag_t::dnnl_ab; break;
-                    case 3: weights_tag = format_tag_t::dnnl_acb; break;
-                    case 4: weights_tag = format_tag_t::dnnl_acdb; break;
-                    case 5: weights_tag = format_tag_t::dnnl_acdeb; break;
-                    default:
-                        weights_tag = format_tag_t::dnnl_format_tag_undef;
-                        break;
-                }
             }
-            CHECK(memory_desc_init_by_tag(weight_mem_desc, weight_ndims,
-                    weight_dims, data_type_t::dnnl_f32, weights_tag));
+            CHECK(get_prelu_md(
+                    e.prelu.mask, dst_dims, weight_mem_desc, weight_ndims));
             const memory_desc_wrapper weight_mdw(weight_mem_desc);
             const auto mdi = memory_desc_info_t::create(weight_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
