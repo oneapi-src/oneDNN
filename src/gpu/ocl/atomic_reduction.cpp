@@ -392,7 +392,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     phase.conf.def_kernel_macros(kernel_ctx);
 
     // All of the variables needed to compute strides
-    kernel_ctx.define_int("SUBGROUP_SIZE", phase.subgroup_size);
     kernel_ctx.define_int("LOCAL_SIZE", phase.local_acc);
     kernel_ctx.define_int("REDUCTION_SIZE", phase.reduction_block.block);
     kernel_ctx.define_int("INNER_DIM_SIZE", phase.inner_block.block);

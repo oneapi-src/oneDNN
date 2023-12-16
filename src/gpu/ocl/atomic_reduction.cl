@@ -114,20 +114,21 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
         dispatch_gws_rt_params_t gws_params) {
     const uint local_idx = get_sub_group_id();
     const uint sglid = get_sub_group_local_id();
+    const uint subgroup_size = get_max_sub_group_size();
 
     // src inner dim is split into the subgroup, vectorization, and inner_group blocks
     // subgroup and inner_group blocks are dispatched, and the vectorization block
     // is handled by a single work item. Since the vectorization size is compiled in,
     // update offsets using it: the inner_group stride is subgroup_size * vec_size
     off_t SRC_OFF = GWS_GET_OFF(SRC, gws_params) - sglid;
-    off_t src_ig_idx = SRC_OFF / SUBGROUP_SIZE;
-    SRC_OFF += src_ig_idx * (VECT_DT_N - 1) * SUBGROUP_SIZE;
+    off_t src_ig_idx = SRC_OFF / subgroup_size;
+    SRC_OFF += src_ig_idx * (VECT_DT_N - 1) * subgroup_size;
     src += SRC_OFF;
 
     // Do the same for dst
     off_t DST_OFF = GWS_GET_OFF(DST, gws_params);
-    off_t dst_ig_idx = DST_OFF / SUBGROUP_SIZE;
-    DST_OFF += dst_ig_idx * (VECT_DT_N - 1) * SUBGROUP_SIZE;
+    off_t dst_ig_idx = DST_OFF / subgroup_size;
+    DST_OFF += dst_ig_idx * (VECT_DT_N - 1) * subgroup_size;
     dst += DST_OFF;
 
     off_t red_idx = SRC_OFF / INNER_DIM_SIZE % REDUCTION_SIZE;
@@ -149,9 +150,10 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
 
 #if LOCAL_SIZE > 1
     // Store results to SLM
-    __local DEF_ACC_DATA_T local_acc_buf[LOCAL_SIZE][SUBGROUP_SIZE * VECT_DT_N];
+    __local DEF_ACC_DATA_T
+            local_acc_buf[LOCAL_SIZE][GWS_SGS_DEFAULT * VECT_DT_N];
     unroll_for(int i = 0; i < VECT_DT_N; i++) {
-        local_acc_buf[local_idx][sglid + i * SUBGROUP_SIZE] = GET_ELEM(acc, i);
+        local_acc_buf[local_idx][sglid + i * subgroup_size] = GET_ELEM(acc, i);
     }
 
     // Wait for all subgroups to finish
@@ -165,7 +167,7 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
         for (int slm_off = 1; slm_off < LOCAL_SIZE; slm_off++) {
             for (int v = 0; v < VECT_DT_N; v++) {
                 DEF_ACC_DATA_T slm_data
-                        = local_acc_buf[slm_off][sglid + v * SUBGROUP_SIZE];
+                        = local_acc_buf[slm_off][sglid + v * subgroup_size];
                 GET_ELEM(local_acc, v)
                         = ACCUMULATE_FURTHER(GET_ELEM(local_acc, v), slm_data);
             }
@@ -180,11 +182,11 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
 #if ATOMIC_REDUCTION_SIZE > 1
             DST_DATA_T dst_data = TO_DST(GET_ELEM(local_acc, v));
             DST_DATA_T old_val
-                    = ATOMIC_ACCUMULATE(&dst[v * SUBGROUP_SIZE], dst_data);
+                    = ATOMIC_ACCUMULATE(&dst[v * subgroup_size], dst_data);
 #else
             DST_DATA_T dst_data
                     = TO_DST(FINALIZE(convert_float(GET_ELEM(local_acc, v))));
-            dst[v * SUBGROUP_SIZE] = dst_data;
+            dst[v * subgroup_size] = dst_data;
 #endif
         }
     }
