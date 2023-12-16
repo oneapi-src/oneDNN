@@ -141,6 +141,7 @@ status_t gen_pooling_fwd_t::init(engine_t *engine) {
             kernel_ = make_kernel<pooling_kernel_t>(this, engine, cfg_,
                     "gen_pooling_fwd", kernel_info_, grf_mode_t::any, *pd());
         } catch (const ngen::out_of_registers_exception &exc) {
+            UNUSED(exc);
             ir_warning() << "loop too large: cut and retry!" << std::endl;
             kernel_ = {};
             if (!cfg_.cut()) {

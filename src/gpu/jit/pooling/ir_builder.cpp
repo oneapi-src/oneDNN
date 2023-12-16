@@ -28,6 +28,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
+#include "gpu/jit/codegen/ngen_helpers.hpp"
 #include "gpu/jit/ir/epilogue.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/ir.hpp"
@@ -403,13 +404,16 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     auto gen_fill_values = [](int simd, bool isneg, type_t type) {
         ir_assert(type.scalar().size() <= 4);
         const int mult = 4 / type.scalar().size();
-        const bool isint = type.is_int();
-        expr_t v;
-        switch (mult) {
-            case 1: v = (isneg) ? (isint) ? 0x80000000 : 0xFF800000 : 0; break;
-            case 2: v = (isneg) ? (isint) ? 0x80008000 : 0xFC00FC00 : 0; break;
-            case 4: v = (isneg) ? (isint) ? 0x80808080 : 0xFFFFFFFF : 0; break;
-            default: ir_error_not_expected();
+        expr_t v = 0;
+        if (isneg) {
+            switch (to_ngen(type.scalar())) {
+                case ngen::DataType::f: v = 0xFF7FFFFF; break;
+                case ngen::DataType::bf: v = 0xFF7FFF7F; break;
+                case ngen::DataType::hf: v = 0xFBFFFBFF; break;
+                default:
+                    v = (mult > 1) ? (mult > 2) ? 0x80808080 : 0x80008000
+                                   : 0x80000000;
+            }
         }
         v = cast_t::make(type_t::s32(), v);
         auto v_long = shuffle_t::make_broadcast(v, simd);
@@ -429,12 +433,17 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         });
         return retn;
     };
+    const bool is_neg
+            = cfg.is_max() && (!read_type.is_int() || read_type.is_signed());
     if (is_identity) {
         allocs.emplace_back(read_alloc[0]);
         write_stmt = substitute(write_stmt, acc_buf, read_buf);
         acc_buf = read_buf;
         acc_type = read_type;
-        stmt = read.stmt();
+        stmt = (check_idhw)
+                ? gen_zero_out(simd, is_neg, acc_buf, dst_tile, write_layout)
+                : stmt_t();
+        stmt = stmt.append(read.stmt());
     } else {
         ir_assert(acc_size % simd == 0);
         allocs.push_back(alloc_t::make(acc_buf, acc_size, alloc_kind_t::grf));
@@ -442,8 +451,6 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         stmt_t fill_stmt, compute_stmt = read.stmt();
         stmt = stmt_t();
 
-        const bool is_neg = cfg.is_max()
-                && (!read_type.is_int() || read_type.is_signed());
         const auto a_fv = gen_fill_values(simd, is_neg, acc_type);
         for (int i = 0; i < acc_size; i += simd * 4)
             stmt = stmt.append(store_t::make(acc_buf, i,
