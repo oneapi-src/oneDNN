@@ -34,12 +34,15 @@
 #include <runtime/context.hpp>
 #include <runtime/data_type.hpp>
 #include <runtime/kernel_include/x86simd/vec_u32x4.hpp>
+#include <runtime/logging.hpp>
 #include <runtime/os.hpp>
 #include <runtime/thread_locals.hpp>
 #include <unordered_map>
 #include <util/hash_utils.hpp>
 #include <util/null_check.hpp>
 #include <util/os.hpp>
+
+SC_MODULE(runtime.brgemm_onednn);
 
 using namespace dnnl::impl::cpu::x64;
 namespace gc = dnnl::impl::graph::gc;
@@ -74,6 +77,14 @@ static size_t get_dtype_sizeof(int dtype) {
                     "Get dtype size error, currently only support datatype "
                     "f32/s32/f16/bf16/s8/u8");
     }
+}
+
+static int64_t get_brgemm_attr_dispatch_avx(const attrs_setting_t &attrs) {
+    for (int i = 0; i < attrs.num_; i++) {
+        const std::pair<attr_key, int64_t> &it = attrs.map_[i];
+        if (it.first == attr_key::dispatch_avx) { return it.second; }
+    }
+    return 0;
 }
 
 static brgemm_attr_t get_dnnl_brgemm_attrs(const attrs_setting_t &attrs) {
@@ -232,7 +243,6 @@ struct alignas(64) brg_arg_t {
     int64_t brg_postops[postops_setting_t::max_postops_num
             * postops_setting_t::op_size / sizeof(int64_t)]
             = {0};
-    int64_t pad[1] = {0};
     char bd_mask[];
 
     brg_arg_t(float alpha, float beta, int LDA, int LDB, int LDC, int M, int N,
@@ -442,6 +452,20 @@ struct brg_desc_safe_t {
             auto fallback_isa = (int)dtype_size == 2 ? avx512_core_bf16
                     : (int)dtype_size == 1           ? avx512_core_vnni
                                                      : isa_undef;
+
+            auto attrs_setting_ptr
+                    = reinterpret_cast<const attrs_setting_t *>(attrs_setting);
+            if (attrs_setting_ptr) {
+                int64_t dispatch_avx
+                        = get_brgemm_attr_dispatch_avx(*attrs_setting_ptr);
+                if (dispatch_avx) {
+                    SC_MODULE_WARN
+                            << "Dispatch to AVX isa: " << fallback_isa
+                            << " (avx512_core_vnni: " << avx512_core_vnni
+                            << ", avx512_core_bf16: " << avx512_core_bf16;
+                    return fallback_isa;
+                }
+            }
 
             if (dnnl_dtypeA != dnnl_f32 && (arg.K < (4 / (int)dtype_size)))
                 return fallback_isa;

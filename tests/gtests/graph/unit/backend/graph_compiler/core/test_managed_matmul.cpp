@@ -389,6 +389,32 @@ TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_16) {
                                  datatypes::s8, datatypes::s8, false},
             managed_matmul_core_config_t(), true);
 }
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_17) {
+    REQUIRE_AMX();
+    REQUIRE_VNNI();
+    SET_THREADS_OR_SKIP(8);
+    const managed_gemm_params_t param {{1, 4096}, {4096, 16384}, {1, 16384},
+            datatypes::u8, datatypes::s8, false};
+    check_managed_matmul(param, managed_matmul_core_config_t(), true);
+
+    sc_graph_t graph;
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    auto data = graph.make_input({graph_tensor::make(
+            param.input_dims_, sc_data_format_t(), param.input_dtype_)});
+    auto weight = graph.make_input({graph_tensor::make(
+            param.weight_dims_, sc_data_format_t(), param.weight_dtype_)});
+    auto mmm = graph.make("managed_matmul_core",
+            {data->get_outputs()[0], weight->get_outputs()[0]},
+            {graph_tensor::make(
+                    param.out_dims_, sc_data_format_t(), datatypes::s32)},
+            {});
+    auto gen = mmm->dyn_cast<ops::managed_matmul_core_op_t>()
+                       ->create_generator();
+    auto mmm_gen = dynamic_cast<ops::gen_managed_matmul_core_t *>(gen.get());
+    // If use amx, iik_block is 64; if use avx, iik_block is 16.
+    ASSERT_EQ(mmm_gen->iik_block_, 16);
+}
+
 // test iter anchor, currently only mmm that 1) outputs plain format; 2) has
 // post fusion; 3) has splits on K; 4) has imbalance, will use iter anchor
 TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_FUSED_SIGMOID1) {

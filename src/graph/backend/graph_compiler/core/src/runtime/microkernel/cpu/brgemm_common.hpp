@@ -68,6 +68,7 @@ enum attr_key {
     hint_prfC_dist2,
     var_bs, // bool, enable variable batch size for uker
     bs_group, // int, grouping in bs, used by brdgmm
+    dispatch_avx, // use avx instead of amx isa
     nkeys, // brgemm internal attribute nkeys
     // extra attribute for range brgemm cache.
     M_range_upper_bound, // generate brg with M from 1 to M_range_upper_bound

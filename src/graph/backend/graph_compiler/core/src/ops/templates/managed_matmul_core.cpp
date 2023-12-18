@@ -232,7 +232,7 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   get_managed_matmul_config(ctx->machine_, cfg.M_split_num, cfg.N_split_num,
     cfg.M_sub_block, cfg.N_sub_block, cfg.K_sub_block, cfg.im_loop_order, M, N,
     K, iim_block, iin_block, iik_block, sizeofdtypeA, sizeofdtypeC, is_int8,
-    is_f32 || no_vnni_low_fp, owner_->is_dynamic());
+    is_f32 || no_vnni_low_fp, owner_->is_dynamic(), dispatch_avx_);
   return std::move(ret);
 }
 
@@ -548,6 +548,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     in_tensors_.size() == 2, "input logical tensor size should be two.");
   COMPILE_ASSERT(
     out_tensors_.size() == 1, "output logical tensor size should be one.");
+  if (owner->attrs_.get_or_else("dispatch_avx", false)) { dispatch_avx_ = 1; }
   const int64_t plain_M = get_mma_plain_dims()[0];
   const int64_t plain_K = get_mma_plain_dims()[1];
   const int64_t plain_N = get_mmb_plain_dims()[1];
@@ -589,7 +590,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
       K_block_default = 32;
     }
   } else {
-    bool is_amx = get_default_context()->use_amx();
+    bool is_amx = get_default_context()->use_amx() && !dispatch_avx_;
     assert(utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8));
     if (plain_M <= 1024 || (plain_M / num_threads / 64 < 8 && is_amx)) {
       M_block_default = 32;
@@ -632,7 +633,8 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
       }
     } else if (is_int8) {
       // vnni-int8 perfers padding iik_block_ to algin 16 when M <=2048
-      if (plain_M < 2048 && !get_default_context()->use_amx()) {
+      bool is_amx = get_default_context()->use_amx() && !dispatch_avx_;
+      if (plain_M < 2048 && !is_amx) {
         iik_block_ = 16;
       } else {
         iik_block_ = suggest_aligned_block(plain_K, K_block_default, 4, 16);
@@ -1200,6 +1202,8 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
       ori_K = static_cast<int>(ta.get_plain_dims()[1]),
       ori_N = static_cast<int>(tb.get_plain_dims()[1]);
   expr tid = builder::make_get_group_thread_id(-1);
+  sc_brgemm_attrs_t brg_attrs;
+  brg_attrs[brgemm::attr_key::dispatch_avx] = dispatch_avx_;
   auto doroll = [&tid](const expr &v, const expr &bound) {
     if (is_dyn_threadpool()) { return v; }
     return (v + tid) % bound;
@@ -1292,12 +1296,13 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
               auto eval = builtin::brgemm_init_update(tensor_ptr(A, aidx),
                 tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
                 iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
-                ta.dtype_, tb.dtype_);
+                ta.dtype_, tb.dtype_, brg_attrs);
             }
             _else_ {
               builtin::brgemm_update(tensor_ptr(A, aidx), tensor_ptr(B, bidx),
                 tensor_ptr(C, cidx), bs, iim_block_, iin_block_, iik_block_,
-                LDA, LDB, LDC, stride_a, stride_b, ta.dtype_, tb.dtype_);
+                LDA, LDB, LDC, stride_a, stride_b, ta.dtype_, tb.dtype_,
+                brg_attrs);
             }
             if (fusion && !is_partial) {
               _if_(k_b == K_sub_block - 1) {
@@ -1515,6 +1520,7 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
   static std::atomic<int> func_idx = {0};
   expr partial_C;
   sc_brgemm_attrs_t brg_attrs;
+  brg_attrs[brgemm::attr_key::dispatch_avx] = dispatch_avx_;
   _function_(datatypes::boolean, managed_matmul_single_core, {outputs[0]},
     {inputs[0]}, {inputs[1]}, _arg_("M_split_num", datatypes::index),
     _arg_("N_split_num", datatypes::index),
