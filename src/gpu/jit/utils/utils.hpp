@@ -789,34 +789,43 @@ void deserialize(T &t, const std::string &path) {
 }
 
 template <typename T>
-void serialize_to_file(
-        const T &t, const std::string &file_name, const std::string &var_name) {
+void serialize_to_file(const T &t, const std::string &file_name,
+        const std::string &var_name,
+        const std::vector<std::string> &namespaces = {}) {
     std::ostringstream t_oss;
     serialize(t, t_oss);
     auto str = t_oss.str();
     auto data = std::vector<uint8_t>(str.begin(), str.end());
     std::ostringstream oss;
-    oss << "std::vector<uint64_t> " << var_name << " = {" << std::endl;
+    oss << "#include <cstdint>\n";
+    oss << "#include <vector>\n\n";
+    for (auto &ns : namespaces)
+        oss << "namespace " << ns << " {\n";
+    oss << "\n// clang-format off\n";
+    oss << "const std::vector<uint64_t> &get_" << var_name << "() {\n";
+    oss << "    static std::vector<uint64_t> data = {\n";
+    oss << "        ";
     size_t bytes = data.size();
     size_t u64_bytes = sizeof(uint64_t);
     for (size_t i = 0; i < bytes; i += u64_bytes) {
         uint64_t v = 0;
-        for (size_t j = 0; j < std::min(bytes - i, u64_bytes); j++) {
-            v |= ((uint64_t)data[i + j]) << (j * 8);
-        }
+        size_t len = std::min(bytes - i, u64_bytes);
+        std::memcpy(&v, &data[i], len);
         oss << "0x" << std::setfill('0') << std::setw(16) << std::hex << v;
         if (i + u64_bytes < bytes) {
+            bool eol = ((i / u64_bytes + 1) % 8 == 0);
             oss << ",";
-            if ((i / u64_bytes + 1) % 8 == 0) {
-                oss << std::endl;
-            } else {
-                oss << " ";
-            }
+            oss << (eol ? "\n        " : " ");
         }
     }
-    oss << "};";
+    oss << "\n    };";
+    oss << "\n    return data;";
+    oss << "\n};";
+    oss << "\n// clang-format on\n\n";
+    for (auto it = namespaces.rbegin(); it != namespaces.rend(); it++)
+        oss << "} // namespace " << *it << "\n";
     std::ofstream out(file_name);
-    out << oss.str() << std::endl;
+    out << oss.str();
 }
 
 inline bool str_to_bool(const std::string &s) {
