@@ -202,10 +202,18 @@ status_t atomic_reduction_conf_t::init_dispatcher(
     dst.format_desc.blocking.strides[dst_outer_idx]
             = inner_block.block / vect_size;
 
+    // Create a term corresponding to local+global reductions
+    compute::named_buffer_t reduction("REDUCE", src);
+    reduction.remove_dim(reduction_dims_t::outer);
+    reduction.remove_dim(reduction_dims_t::loop);
+    reduction.remove_dim(reduction_dims_t::inner_group);
+    reduction.remove_dim(reduction_dims_t::subgroup);
+
     // Create the dispatcher
     compute::reusable_dispatch_config_t config(engine, dispatch_dims);
     CHECK(config.register_buffer(src));
     CHECK(config.register_buffer(dst));
+    CHECK(config.register_buffer(reduction));
     CHECK(config.use_subgroup(
             src.get_name(), static_cast<size_t>(subgroup_size)));
 
@@ -393,7 +401,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     // All of the variables needed to compute strides
     kernel_ctx.define_int("LOCAL_SIZE", phase.local_acc);
-    kernel_ctx.define_int("REDUCTION_SIZE", phase.reduction_block.block);
     kernel_ctx.define_int("INNER_DIM_SIZE", phase.inner_block.block);
     kernel_ctx.define_int("ATOMIC_REDUCTION_SIZE", phase.global_acc);
     // End stride vars
@@ -489,6 +496,8 @@ status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
 
         reduction_arg_list.set(0, src_mem);
         reduction_arg_list.set(1, dst_mem);
+        reduction_arg_list.append(
+                static_cast<int>(phase.reduction_block.block));
         reduction_arg_list.append(phase.rt_conf.get());
 
         CHECK(parallel_for(ctx, nd_range, kernel, reduction_arg_list));

@@ -110,7 +110,7 @@
 
 KERNEL_ATTR
 __kernel void atomic_reduce(__global SRC_DATA_T *src,
-        __global ATOMIC(DST_DATA_T) * dst,
+        __global ATOMIC(DST_DATA_T) * dst, off_t num_reductions,
         dispatch_gws_rt_params_t gws_params) {
     const uint local_idx = get_sub_group_id();
     const uint sglid = get_sub_group_local_id();
@@ -131,18 +131,18 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
     DST_OFF += dst_ig_idx * (VECT_DT_N - 1) * subgroup_size;
     dst += DST_OFF;
 
-    off_t red_idx = SRC_OFF / INNER_DIM_SIZE % REDUCTION_SIZE;
+    off_t red_idx = GWS_GET_OFF(REDUCE, gws_params);
 
     VECT_DEF_ACC_DATA_T acc = INIT_ACC;
     int i = 0;
-    for (; i < num_reductions / REDUCTION_WI_COUNT; i++) {
+    unroll_16_for(; i < num_reductions / REDUCTION_WI_COUNT; i++) {
         const int src_off = i * SRC_SIMD_STRIDE;
         const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
         acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
     }
 
     // Check the final iteration, some SIMD reductions may still be needed
-    if (i * REDUCTION_WI_COUNT + red_idx < REDUCTION_SIZE) {
+    if (i * REDUCTION_WI_COUNT + red_idx < num_reductions) {
         const int src_off = i * SRC_SIMD_STRIDE;
         const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
         acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
