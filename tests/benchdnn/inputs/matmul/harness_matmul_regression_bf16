@@ -17,3 +17,11 @@
 --reset
 --dt=bf16:bf16:bf16
 2x1280:1280x65_n"parallel_reduction"
+
+# test for dynamic N with prelu
+--reset
+--dt=bf16
+--stag=ab --wtag=ab --dtag=ab
+--runtime_dims_masks=0:2
+--attr-post-ops=prelu:per_oc
+3x20:20x4

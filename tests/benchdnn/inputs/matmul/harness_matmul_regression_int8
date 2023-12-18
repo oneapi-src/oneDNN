@@ -20,3 +20,11 @@
 --dt=s8:s8:s8
 --stag=ab,ba --wtag=ba --dtag=AB16b16a
 11x13:13x16
+
+# test for dynamic N with prelu
+--reset
+--dt=s8:s8:s32
+--stag=ab --wtag=ab --dtag=ab
+--runtime_dims_masks=0:2
+--attr-post-ops=prelu:per_oc
+3x20:20x4
