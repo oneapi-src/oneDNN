@@ -718,7 +718,15 @@
 #define AS_SRC_DATA4_T CONCAT2(as_, SRC_DATA4_T)
 #define AS_SRC_DATA8_T CONCAT2(as_, SRC_DATA8_T)
 #define AS_SRC_DATA16_T CONCAT2(as_, SRC_DATA16_T)
-#if SRC_DT_BF16
+#if SRC_DT_U8
+#define SRC_TO_REF(x) convert_float(x)
+#define SRC_TO_REF8(x) convert_float8(x)
+#define REF_TO_SRC(x) convert_uchar(x)
+#elif SRC_DT_S8
+#define SRC_TO_REF(x) convert_float(x)
+#define SRC_TO_REF8(x) convert_float8(x)
+#define REF_TO_SRC(x) convert_char(x)
+#elif SRC_DT_BF16
 #define SRC_TO_REF(x) cvt_bf16_to_f32(x)
 #define SRC_TO_REF8(x) cvt_bf16_to_f32(x)
 #define REF_TO_SRC(x) cvt_f32_to_bf16(x)

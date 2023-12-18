@@ -305,6 +305,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     auto &scale = CTX_IN_STORAGE(DNNL_ARG_SCALE);
     auto &shift = CTX_IN_STORAGE(DNNL_ARG_SHIFT);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &src_scale = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    auto &dst_scale = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -314,6 +316,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     arg_list.set(4, scale);
     arg_list.set(5, shift);
     arg_list.set(6, conf.eps);
+    arg_list.set(7, src_scale);
+    arg_list.set(8, dst_scale);
 
     auto nd_range_kernel = conf.dispatch.nd_range();
 

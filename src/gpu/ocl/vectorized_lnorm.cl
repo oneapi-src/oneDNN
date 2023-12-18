@@ -54,7 +54,8 @@
 KERNEL_ATTR
 __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
-        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps) {
+        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps,
+        __global float *src_scale, __global float *dst_scale) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -117,6 +118,14 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
         x[NDIMS - 1] = c * SUB_GROUP_SIZE * VECT_DT_N + c_block_off;
         int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         VECT_FLOAT_T v_dst = sm * (v_src[c] - v_mean) + sv;
+
+#if WITH_SRC_SCALES
+        v_dst *= src_scale[0];
+#endif
+#if WITH_DST_SCALES
+        v_dst /= dst_scale[0];
+#endif
+
         STORE_VECT_DATA(&dst[dst_off], v_dst);
     }
 #else // USE_SRC_BUFFER
@@ -167,7 +176,14 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
         const int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         const VECT_FLOAT_T v_src = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
                 VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
-        const VECT_FLOAT_T v_dst = sm * (v_src - v_mean) + sv;
+        VECT_FLOAT_T v_dst = sm * (v_src - v_mean) + sv;
+
+#if WITH_SRC_SCALES
+        v_dst *= src_scale[0];
+#endif
+#if WITH_DST_SCALES
+        v_dst /= dst_scale[0];
+#endif
 
         STORE_VECT_DATA(&dst[dst_off], v_dst);
     }

@@ -29,7 +29,8 @@
 KERNEL_ATTR
 __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
-        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps) {
+        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps,
+        __global float *src_scale, __global float *dst_scale) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -108,7 +109,14 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
 
-        dst[dst_off] = TO_DST(sm * (SRC_TO_REF(src[src_off]) - v_mean) + sv);
+        float d = (sm * (SRC_TO_REF(src[src_off]) - v_mean) + sv);
+#if WITH_SRC_SCALES
+        d *= src_scale[0];
+#endif
+#if WITH_DST_SCALES
+        d /= dst_scale[0];
+#endif
+        dst[dst_off] = TO_DST(d);
     }
 
     if (CALCULATE_STATS) {
@@ -129,7 +137,8 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 KERNEL_ATTR
 __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
-        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps) {
+        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps,
+        __global float *src_scale, __global float *dst_scale) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -178,10 +187,20 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         x[NDIMS - 1] = c;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+
 #if SRC_DT_F64 && DST_DT_F64
         dst[dst_off] = sm * (src[src_off] - v_mean) + sv;
 #else
-        dst[dst_off] = TO_DST(sm * (SRC_TO_REF(src[src_off]) - v_mean) + sv);
+
+        ACC_DATA_T d = (sm * (SRC_TO_REF(src[src_off]) - v_mean) + sv);
+
+#if WITH_SRC_SCALES
+        d *= src_scale[0];
+#endif
+#if WITH_DST_SCALES
+        d /= dst_scale[0];
+#endif
+        dst[dst_off] = TO_DST(d);
 #endif
     }
 
