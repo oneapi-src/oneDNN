@@ -67,7 +67,8 @@ private:
     std::vector<std::vector<brgemm_batch_element_t>> static_offsets_list_;
 };
 
-#define BRGEMM_KERNEL_GLOBAL_STORAGE
+// global storage disabled for now
+// #define BRGEMM_KERNEL_GLOBAL_STORAGE
 
 struct brgemm_kernel_container_t {
     brgemm_kernel_container_t() {}
