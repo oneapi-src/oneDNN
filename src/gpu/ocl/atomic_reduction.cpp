@@ -398,7 +398,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     // All of the variables needed to compute strides
     kernel_ctx.define_int("LOCAL_SIZE", phase.local_acc);
-    kernel_ctx.define_int("INNER_DIM_SIZE", phase.inner_block.block);
     kernel_ctx.define_int("ATOMIC_REDUCTION_SIZE", phase.global_acc);
     // End stride vars
 
@@ -488,6 +487,7 @@ status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
 
         reduction_arg_list.set(0, src_mem);
         reduction_arg_list.set(1, dst_mem);
+        reduction_arg_list.append(into<int>(phase.inner_block.block));
         reduction_arg_list.append(pd()->div);
         reduction_arg_list.append(pd()->power);
         reduction_arg_list.append(pd()->eps);
