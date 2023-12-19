@@ -23,6 +23,9 @@
     F(abs); \
     F(matmul_core); \
     F(softmax); \
+    F(log_softmax); \
+    F(log_softmax_bwd); \
+    F(softmax_bwd); \
     F(static_reshape); \
     F(dynamic_reshape); \
     F(shape_of_tensor); \

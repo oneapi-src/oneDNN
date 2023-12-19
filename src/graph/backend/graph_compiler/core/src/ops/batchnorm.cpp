@@ -251,12 +251,12 @@ void batchnorm_forward_training_op::get_graph_impl(
             datatypes::f32, sc_dims {1});
     auto reduce0 = graph->make("reduce", {src}, {},
             {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
-    std::shared_ptr<sc_op> new_mean, new_var;
+    std::shared_ptr<sc_op> new_var;
+    auto new_mean = graph->make("div",
+            {reduce0->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
+            {{op_attr_key::break_post_fuse, true},
+                    {op_attr_key::must_div, true}});
     if (use_bnorm_opt) {
-        new_mean = graph->make("div",
-                {reduce0->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
-                {{op_attr_key::break_post_fuse, true},
-                        {op_attr_key::must_div, true}});
         auto src_squared = graph->make("mul", {src, src}, {}, {});
         auto reduce0_squared = graph->make("mul",
                 {reduce0->get_outputs()[0], reduce0->get_outputs()[0]}, {}, {});
@@ -275,10 +275,6 @@ void batchnorm_forward_training_op::get_graph_impl(
                 {{op_attr_key::break_post_fuse, true},
                         {op_attr_key::must_div, true}});
     } else {
-        new_mean = graph->make("div",
-                {reduce0->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
-                {{op_attr_key::break_post_fuse, true},
-                        {op_attr_key::must_div, true}});
         auto diff = graph->make("sub", {src_pass3, new_mean->get_outputs()[0]},
                 {}, {{"bc_axis", bc_axis}});
         auto diff_squared = graph->make("mul",

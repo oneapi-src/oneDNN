@@ -194,15 +194,21 @@ void normalize_common_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     }
     bool use_norm_opt = attrs_.get_or_else(op_attr_key::use_norm_opt, false);
     std::shared_ptr<sc_op> fmean, fvar, fdiff;
+    // reduce X
+    auto reduce0 = graph->make("reduce", {inputs0}, {},
+            {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
+    fmean = graph->make("div",
+            {reduce0->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
+            {{op_attr_key::must_div, true}});
     if (use_norm_opt) {
         // x^2
         auto fsquare = graph->make("mul", {inputs0, inputs0}, {}, {}); // 1
         // mean of x^2
-        auto fsqd_mean = graph->make("reduce_mean", {fsquare->get_outputs()[0]},
-                {}, {{"rd_axis", rd_axis}}); // 2
-        // mean of X
-        fmean = graph->make(
-                "reduce_mean", {inputs0}, {}, {{"rd_axis", rd_axis}}); // 3
+        auto reduce1 = graph->make("reduce", fsquare->get_outputs(), {},
+                {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
+        auto fsqd_mean = graph->make("div",
+                {reduce1->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
+                {{op_attr_key::must_div, true}});
         // square of mean
         auto fmean_sqd = graph->make("mul",
                 {fmean->get_outputs()[0], fmean->get_outputs()[0]}, {},
@@ -216,12 +222,6 @@ void normalize_common_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                 {fsqd_mean->get_outputs()[0], fmean_sqd->get_outputs()[0]}, {},
                 {}); // 6
     } else {
-        // reduce X
-        auto reduce0 = graph->make("reduce", {inputs0}, {},
-                {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
-        fmean = graph->make("div",
-                {reduce0->get_outputs()[0], chan_size_op->get_outputs()[0]}, {},
-                {{op_attr_key::must_div, true}});
         // x-x_mean
         fdiff = graph->make("sub", {inputs0, fmean->get_outputs()[0]}, {},
                 {{"bc_axis", non_normalized_bc_axis}});
