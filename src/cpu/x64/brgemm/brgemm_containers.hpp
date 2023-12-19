@@ -67,7 +67,8 @@ private:
     std::vector<std::vector<brgemm_batch_element_t>> static_offsets_list_;
 };
 
-#define BRGEMM_KERNEL_GLOBAL_STORAGE
+// global storage disabled for now
+// #define BRGEMM_KERNEL_GLOBAL_STORAGE
 
 struct brgemm_kernel_container_t {
     brgemm_kernel_container_t() {}
@@ -98,7 +99,9 @@ private:
 #else
     std::set<std::shared_ptr<brgemm_kernel_t>,
             decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>
-            set_;
+            set_ {std::set<std::shared_ptr<brgemm_kernel_t>,
+                    decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>(
+                    brgemm_kernel_container_t::brgemm_kernel_cmp)};
     std::set<std::shared_ptr<brgemm_kernel_t>,
             decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>& get_set_() {
                 return set_;
