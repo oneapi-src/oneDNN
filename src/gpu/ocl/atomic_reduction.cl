@@ -51,7 +51,7 @@
 #elif defined(IS_MUL)
 #define ACCUMULATE_INITIAL(x, y) (x * y)
 #else
-#define ACCUMULATE_INITIAL(x, y) (x + pow(fabs(y), POWER))
+#define ACCUMULATE_INITIAL(x, y) (x + pow(fabs(y), power))
 #endif
 
 // Define secondary accumulation functions
@@ -70,15 +70,15 @@
 
 // Finalize reduction at the end of the kernel
 #if defined(IS_MEAN)
-#define FINALIZE(x) (x / DIV)
+#define FINALIZE(x) (x / div)
 #elif defined(IS_LP_MAX)
-#define FINALIZE(x) rootn(fmax(x, EPS), POWER)
+#define FINALIZE(x) rootn(fmax(x, eps), power)
 #elif defined(IS_LP_SUM)
-#define FINALIZE(x) rootn(x + EPS, POWER)
+#define FINALIZE(x) rootn(x + eps, power)
 #elif defined(IS_P_MAX)
-#define FINALIZE(x) fmax(x, EPS)
+#define FINALIZE(x) fmax(x, eps)
 #elif defined(IS_P_SUM)
-#define FINALIZE(x) (x + EPS)
+#define FINALIZE(x) (x + eps)
 #else
 #define FINALIZE(x) (x)
 #endif
@@ -110,7 +110,8 @@
 
 KERNEL_ATTR
 __kernel void atomic_reduce(__global SRC_DATA_T *src,
-        __global ATOMIC(DST_DATA_T) * dst, off_t num_reductions,
+        __global ATOMIC(DST_DATA_T) * dst, off_t div,
+        float power, float eps, off_t num_reductions,
         dispatch_gws_rt_params_t gws_params) {
     const uint local_idx = get_sub_group_id();
     const uint sglid = get_sub_group_local_id();

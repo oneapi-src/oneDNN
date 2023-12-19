@@ -392,7 +392,7 @@ status_t atomic_reduction_t::pd_t::init_finalization_pd(engine_t *engine) {
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const atomic_reduction_conf_t &phase, int div, float power, float eps) {
+        const atomic_reduction_conf_t &phase) {
     using namespace alg_kind;
 
     kernel_ctx.set_data_type(phase.src_type);
@@ -407,10 +407,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     // To use atomic_global_add
     kernel_ctx.add_option("-cl-std=CL2.0");
-
-    kernel_ctx.define_int("DIV", div);
-    kernel_ctx.define_float("POWER", power);
-    kernel_ctx.define_float("EPS", eps);
 
     kernel_ctx.define_int("IS_FINAL", phase.is_final);
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
@@ -447,7 +443,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 status_t atomic_reduction_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx,
         const atomic_reduction_conf_t &phase) const {
-    CHECK(init_kernel_ctx_common(kernel_ctx, phase, div, power, eps));
+    CHECK(init_kernel_ctx_common(kernel_ctx, phase));
     return status::success;
 }
 
@@ -495,6 +491,9 @@ status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
 
         reduction_arg_list.set(0, src_mem);
         reduction_arg_list.set(1, dst_mem);
+        reduction_arg_list.append(pd()->div);
+        reduction_arg_list.append(pd()->power);
+        reduction_arg_list.append(pd()->eps);
         reduction_arg_list.append(
                 static_cast<int>(phase.reduction_block.block));
         reduction_arg_list.append(phase.rt_conf.get());
