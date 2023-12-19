@@ -48,7 +48,7 @@
 
 namespace Xbyak_aarch64 {
 namespace util {
-#define XBYAK_AARCH64_ERROR_ fprintf(stderr, "%s, %d, Error occurrs during read cache infomation.\n", __FILE__, __LINE__);
+#define XBYAK_AARCH64_ERROR_ fprintf(stderr, "%s, %d, Error occured while reading cache infomation.\n", __FILE__, __LINE__);
 #define XBYAK_AARCH64_PATH_NODES "/sys/devices/system/node/node"
 #define XBYAK_AARCH64_PATH_CORES "/sys/devices/system/node/node0/cpu"
 #define XBYAK_AARCH64_PATH_CACHE_DIR "/sys/devices/system/cpu/cpu0/cache"
@@ -103,6 +103,8 @@ private:
     strncat(file_pattern, "[0-9]+", 16);
 
     DIR *dir = opendir(dir_path);
+    if (dir == NULL)
+      return retVal;
     struct dirent *dp;
 
     dp = readdir(dir);
@@ -438,12 +440,16 @@ private:
 
     FILE *file = fopen(path_midr_el1, "r");
     if (file == nullptr) {
-      throw Error(ERR_INTERNAL);
+      // sysfs is unaccessible for AWS Lambdas
+      fprintf(stderr, "%s, %d: Can't open MIDR_EL1 sysfs entry\n", __FILE__, __LINE__);
+      cacheInfo_.midr_el1 = 0xFF << 24;
       return;
     }
 
     if (fread(buf, sizeof(char), 64, file) == 0) {
-      throw Error(ERR_INTERNAL);
+      // File can be empty if invoked inside docker container
+      fprintf(stderr, "%s, %d: Can't read MIDR_EL1 sysfs entry\n", __FILE__, __LINE__);
+      cacheInfo_.midr_el1 = 0xFF << 24;
       return;
     }
 
