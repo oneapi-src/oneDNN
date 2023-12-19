@@ -137,7 +137,7 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     sc_dim groups = attrs_.get_or_else("groups", 1);
     auto ic = data_format == "NXC" ? input_dims[ndims - 1] : input_dims[1];
     auto oc = data_format == "NXC" ? filter_dims[ndims - 1] : filter_dims[0];
-    auto kic = data_format == "NXC" ? filter_dims[ndims - 2] : filter_dims[1];
+    auto kic = filter_format == "XIO" ? filter_dims[ndims - 2] : filter_dims[1];
     COMPILE_ASSERT(ic % groups == 0 && oc % groups == 0,
             "input channel and output channel must both be divisible by "
             "groups, but got ic("
