@@ -317,6 +317,22 @@ def convert_dts(mds, prim_kind):
             dt += " " + f"--bia_dt={bias_dt}"
         return dt
 
+    def convert_dts_with_ss(mds):
+        dt = convert_dts_multiple(mds)
+        mds_scale = [md for md in mds if "scale" in md["arg"]]
+        mds_shift = [md for md in mds if "shift" in md["arg"]]
+
+        if len(mds_scale) != 0:
+            md_scale = mds_scale[0]
+            scale_dt = md_scale["data_type"]
+            dt += " " + f"--ss_dt={scale_dt}"
+        elif len(mds_shift) != 0:
+            md_shift = mds_shift[0]
+            shift_dt = md_shift["data_type"]
+            dt += " " + f"--ss_dt={shift_dt}"
+
+        return dt
+
     convert_dts = {
         "batch_normalization": convert_dts_common,
         "binary": convert_dts_multiple_src,
@@ -326,7 +342,7 @@ def convert_dts(mds, prim_kind):
         "eltwise": convert_dts_common,
         "inner_product": convert_dts_multiple,
         "group_normalization": convert_dts_multiple,
-        "layer_normalization": convert_dts_multiple,
+        "layer_normalization": convert_dts_with_ss,
         "lrn": convert_dts_common,
         "matmul": convert_dts_with_bias,
         "pooling": convert_dts_multiple,
