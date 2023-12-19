@@ -258,20 +258,21 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
     const dim_t *src_padded_dims = src_mdw.padded_dims();
     const dim_t *dst_dims = dst_mdw.dims();
 
+    bool is_reduction_dim[DNNL_MAX_NDIMS];
     for (int i = 0; i < ndims; i++) {
         // Actually reduced dimensions
         if (src_dims[i] != dst_dims[i]) {
-            conf.is_reduction_dim[i] = true;
+            is_reduction_dim[i] = true;
             continue;
         }
 
         // Size-1 dims can be treated as reducible (at no cost):
         if (src_dims[i] == 1 && src_padded_dims[i] == 1) {
-            conf.is_reduction_dim[i] = true;
+            is_reduction_dim[i] = true;
             continue;
         }
 
-        conf.is_reduction_dim[i] = false;
+        is_reduction_dim[i] = false;
     }
 
     std::vector<reduction_subproblem_t> subprbs;
@@ -280,9 +281,7 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
     //DST zero-padding not supported on reduction dims
     reduction_subproblem_t &last_subprb = subprbs.back();
     for (const auto &zpad : last_subprb.dst_zpads) {
-        if (conf.is_reduction_dim[zpad.dim_idx]) {
-            return status::unimplemented;
-        }
+        if (is_reduction_dim[zpad.dim_idx]) return status::unimplemented;
     }
 
     // DST zero-padding is not supported for algs which modify input 0s
@@ -301,7 +300,7 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
     const bool alg_affected_by_zeros = utils::one_of(
             desc()->alg_kind, reduction_min, reduction_max, reduction_mul);
     for (const auto &zpad : first_subprb.src_zpads) {
-        if (alg_affected_by_zeros && conf.is_reduction_dim[zpad.dim_idx]) {
+        if (alg_affected_by_zeros && is_reduction_dim[zpad.dim_idx]) {
             return status::unimplemented;
         }
     }
@@ -323,6 +322,7 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
         phases.emplace_back(subprbs[i], src_dt, dst_dt, is_first, is_final,
                 *compute_engine->device_info(), large_grf_mode);
         atomic_reduction_conf_t &phase = phases.back();
+        phase.alg = desc()->alg_kind;
         if (phase.inner_block.block % phase.subgroup_size != 0) {
             return status::unimplemented;
         }
@@ -338,27 +338,25 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
             // f32 sum/mean (initialized to 0) and f32 min (initialized to inf)
             // are supported. Better filling logic could enable f16 atomic operations.
             ok = ok && phase.dst_type == data_type::f32
-                    && utils::one_of(desc()->alg_kind, reduction_mean,
+                    && utils::one_of(phase.alg, reduction_mean,
                             reduction_sum, reduction_min);
             if (!ok) return status::unimplemented;
         }
     }
 
     // Compute div from basic mdw dims
-    conf.div = 1;
+    div = 1;
     for (int i = 0; i < src_mdw.ndims(); i++) {
-        if (conf.is_reduction_dim[i]) conf.div *= src_dims[i];
+        if (is_reduction_dim[i]) div *= src_dims[i];
     }
 
     // Set conf values
-    conf.alg = desc()->alg_kind;
-    conf.power = desc()->p;
-    conf.eps = desc()->eps;
-    conf.attr_info = attr_info_t::create(attr());
+    power = desc()->p;
+    eps = desc()->eps;
 
     // If the final kernel uses atomic accumulation, we need a finalization kernel
-    bool alg_needs_finalization = utils::one_of(conf.alg, reduction_mean,
-            reduction_norm_lp_max, reduction_norm_lp_sum,
+    bool alg_needs_finalization = utils::one_of(desc()->alg_kind,
+            reduction_mean, reduction_norm_lp_max, reduction_norm_lp_sum,
             reduction_norm_lp_power_p_max, reduction_norm_lp_power_p_sum);
     if (alg_needs_finalization && phases.back().global_acc > 1) {
         needs_finalization = true;
@@ -374,11 +372,13 @@ status_t atomic_reduction_t::pd_t::init_finalization_pd(engine_t *engine) {
     eltwise_desc_t eltwise_desc;
     memory_desc_t eltwise_mem_desc(*dst_md());
     // XXX: Just for mean currently
-    if (conf.alg != alg_kind::reduction_mean) return status::unimplemented;
+    if (desc()->alg_kind != alg_kind::reduction_mean) {
+        return status::unimplemented;
+    }
     CHECK(eltwise_desc_init(&eltwise_desc, prop_kind_t::dnnl_forward,
             alg_kind_t::dnnl_eltwise_linear, &eltwise_mem_desc,
-            &eltwise_mem_desc, nullptr, nullptr,
-            1.0f / static_cast<float>(conf.div), 0));
+            &eltwise_mem_desc, nullptr, nullptr, 1.0f / static_cast<float>(div),
+            0));
 
     primitive_attr_t eltwise_attr(*attr());
     if (!eltwise_attr.is_initialized()) return status::out_of_memory;
@@ -392,7 +392,7 @@ status_t atomic_reduction_t::pd_t::init_finalization_pd(engine_t *engine) {
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const reduction_conf_t &conf, const atomic_reduction_conf_t &phase) {
+        const atomic_reduction_conf_t &phase, int div, float power, float eps) {
     using namespace alg_kind;
 
     kernel_ctx.set_data_type(phase.src_type);
@@ -408,16 +408,16 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     // To use atomic_global_add
     kernel_ctx.add_option("-cl-std=CL2.0");
 
-    kernel_ctx.define_int("DIV", conf.div);
-    kernel_ctx.define_float("POWER", conf.power);
-    kernel_ctx.define_float("EPS", conf.eps);
+    kernel_ctx.define_int("DIV", div);
+    kernel_ctx.define_float("POWER", power);
+    kernel_ctx.define_float("EPS", eps);
 
     kernel_ctx.define_int("IS_FINAL", phase.is_final);
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
 
     kernel_ctx.define_int("VECT_DT_N", phase.vect_size);
 
-    switch (conf.alg) {
+    switch (phase.alg) {
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
         case reduction_min: kernel_ctx.define_int("IS_MIN", 1); break;
         case reduction_mean: kernel_ctx.define_int("IS_MEAN", 1); break;
@@ -447,7 +447,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 status_t atomic_reduction_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx,
         const atomic_reduction_conf_t &phase) const {
-    CHECK(init_kernel_ctx_common(kernel_ctx, conf, phase));
+    CHECK(init_kernel_ctx_common(kernel_ctx, phase, div, power, eps));
     return status::success;
 }
 
@@ -480,8 +480,7 @@ status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
         // Initialize dst if we're using atomic (global) accumulation
         if (phase.global_acc > 1) {
             // min -> fill with inf (11111111), otherwise sum/mean fill with 0
-            uint8_t pattern
-                    = pd()->conf.alg == alg_kind::reduction_min ? 255 : 0;
+            uint8_t pattern = phase.alg == alg_kind::reduction_min ? 255 : 0;
             const size_t dst_data_size = types::data_type_size(phase.dst_type);
             const size_t num_dst_elems = static_cast<size_t>(
                     phase.outer_block.block * phase.inner_block.block);

@@ -37,6 +37,7 @@ struct atomic_reduction_conf_t : public reduction_subproblem_t {
             bool large_grf_mode);
     status_t init_dispatcher(const compute::compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr);
+    alg_kind_t alg;
     data_type_t src_type, dst_type;
 
     compute::dispatch_compile_params_t conf;
@@ -78,7 +79,8 @@ struct atomic_reduction_t : public gpu_primitive_t {
         status_t init_finalization_pd(engine_t *engine);
         void init_scratchpad();
 
-        reduction_conf_t conf;
+        int div;
+        float eps, power;
         std::vector<atomic_reduction_conf_t> phases;
         bool needs_finalization = false;
         std::shared_ptr<primitive_desc_t> eltwise_pd_;
