@@ -892,19 +892,47 @@ inline status_t memory_desc_init_by_md_and_dt(memory_desc_t &md,
 /** returns true if memory desc @p md corresponds to the given format tag and
  * strides.
  * In order to align with memory descriptor equality comparisons and hashing,
- * the strides of unit dimensions are ignored. */
-inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag) {
+ * the strides of unit dimensions are ignored.
+ * If strides are not passed (or passed as nullptr) the dense structure is
+ * assumed (i.e. the one that memory_desc_init_by_tag() returns).
+ * Strides might contain `0` value, indicating the stride must match the one
+ * that memory_desc_init_by_tag() returns.
+ * Strides might contain `-1` values, that would be ignored during the
+ * comparison. For instance, this can be used if a stride along minibatch
+ * doesn't matter. */
+inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
+        const dims_t strides = nullptr) {
     if (md.format_kind != types::format_tag_to_kind(tag)) return false;
-
-    if (md.format_kind != format_kind::blocked)
-        return false; // unimplemented yet
 
     memory_desc_t md_gold;
     status_t status = memory_desc_init_by_tag(
             md_gold, md.ndims, md.dims, md.data_type, tag);
     if (status != status::success) return false;
 
-    return types::blocking_desc_is_equal(md, md_gold);
+    if (md.format_kind != format_kind::blocked)
+        return false; // unimplemented yet
+
+    const auto &blk = md.format_desc.blocking;
+    const auto &blk_gold = md_gold.format_desc.blocking;
+
+    using utils::array_cmp;
+    bool same_blocks = true && blk.inner_nblks == blk_gold.inner_nblks
+            && array_cmp(blk.inner_blks, blk_gold.inner_blks, blk.inner_nblks)
+            && array_cmp(blk.inner_idxs, blk_gold.inner_idxs, blk.inner_nblks);
+
+    if (!same_blocks) return false;
+
+    if (strides == nullptr)
+        return array_cmp(blk.strides, blk_gold.strides, md.ndims);
+
+    for (int d = 0; d < md.ndims; ++d) {
+        dim_t stride = strides[d];
+        if (stride == -1) continue;
+        if (stride == 0) stride = blk_gold.strides[d];
+        if (blk.strides[d] != stride) return false;
+    }
+
+    return true;
 }
 
 /** returns matching tag (or undef if match is not found)

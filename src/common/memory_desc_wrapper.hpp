@@ -379,10 +379,11 @@ struct memory_desc_wrapper : public c_compatible {
     /** returns true if one memory can be reordered to another */
     bool consistent_with(const memory_desc_wrapper &rhs) const;
 
-    /** returns true if the memory desc corresponds to the given format tag.
+    /** returns true if the memory desc corresponds to the given format tag and
+     * strides.
      * @sa memory_desc_matches_tag */
-    bool matches_tag(format_tag_t tag) const {
-        return memory_desc_matches_tag(*md_, tag);
+    bool matches_tag(format_tag_t tag, const dims_t strides = nullptr) const {
+        return memory_desc_matches_tag(*md_, tag, strides);
     }
 
     /** returns matching tag (or undef if match is not found)
