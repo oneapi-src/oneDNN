@@ -17,7 +17,6 @@
 #include "common/compiler_workarounds.hpp"
 
 #include "common/eltwise_pd.hpp"
-#include "common/scratchpad.hpp"
 #include "gpu/block_structure.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/device_info.hpp"
@@ -31,11 +30,13 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+using namespace gpu_utils;
+
 class atomic_lws_strategy_t : public compute::lws_strategy_t {
 public:
     bool is_included(const compute::mapped_block_t &blocks) const override {
         for (const block_t &block : inc_blocks) {
-            if (blocks.get_dim_idx() == static_cast<size_t>(block.dim_idx)) {
+            if (blocks.get_dim_idx() == into<size_t>(block.dim_idx)) {
                 return true;
             }
         }
@@ -43,8 +44,7 @@ public:
     };
 
     void include(compute::dim_id_t dim, size_t size) {
-        inc_blocks.emplace_back(
-                static_cast<dim_t>(dim), static_cast<dim_t>(size), 1);
+        inc_blocks.emplace_back(into<dim_t>(dim), into<dim_t>(size), 1);
     }
 
 private:
@@ -58,9 +58,8 @@ private:
             const auto &bins = mapper.get_bins(i);
             if (bins.empty()) continue;
             for (const block_t &inc_block : inc_blocks) {
-                if (bins[0].get_dim_idx()
-                        == static_cast<size_t>(inc_block.dim_idx)) {
-                    lws[i] *= static_cast<size_t>(inc_block.block);
+                if (bins[0].get_dim_idx() == into<size_t>(inc_block.dim_idx)) {
+                    lws[i] *= into<size_t>(inc_block.block);
                 }
             }
         }
@@ -106,8 +105,8 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
     // number of subgroups (threads) to saturate the GPU
     const int target_subgroups = eu_count * threads_per_eu;
 
-    const dim_t max_local_size = std::min(
-            static_cast<dim_t>(max_sg_per_wg), reduction_block.block);
+    const dim_t max_local_size
+            = std::min(into<dim_t>(max_sg_per_wg), reduction_block.block);
     dim_t wg_per_inner = utils::div_up(inner_block.block, subgroup_size);
     const dim_t max_num_sg = max_local_size * wg_per_inner * outer_block.block;
 
@@ -119,16 +118,16 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
     const int sparsity_threshold = 16;
     if (target_subgroups / max_num_sg > sparsity_threshold) {
         const int target_per_phase
-                = static_cast<int>(std::cbrt(reduction_block.block));
+                = into<int>(std::cbrt(reduction_block.block));
         global_acc = target_per_phase;
         local_acc = utils::rnd_up_pow2(target_per_phase);
     } else {
         global_acc = 1;
         local_acc = utils::rnd_up_pow2(
-                static_cast<dim_t>(std::sqrt(reduction_block.block)));
+                into<dim_t>(std::sqrt(reduction_block.block)));
     }
     if (local_acc > reduction_block.block) local_acc /= 2;
-    local_acc = std::min(local_acc, static_cast<dim_t>(max_sg_per_wg));
+    local_acc = std::min(local_acc, into<dim_t>(max_sg_per_wg));
 
     // Increase vector size to increase block size, without reducing saturation
     bool is_pre_xe_hp = arch < compute::gpu_arch_t::xe_hp;
@@ -144,8 +143,7 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
         if (inner_block.block % (vec * subgroup_size) != 0) continue;
 
         // Limit maximum vector size based on max load size
-        if (vec * subgroup_size
-                        * static_cast<int>(types::data_type_size(src_type))
+        if (vec * subgroup_size * into<int>(types::data_type_size(src_type))
                 > max_load_size) {
             continue;
         }
@@ -214,13 +212,12 @@ status_t atomic_reduction_conf_t::init_dispatcher(
     CHECK(config.register_buffer(src));
     CHECK(config.register_buffer(dst));
     CHECK(config.register_buffer(reduction));
-    CHECK(config.use_subgroup(
-            src.get_name(), static_cast<size_t>(subgroup_size)));
+    CHECK(config.use_subgroup(src.get_name(), into<size_t>(subgroup_size)));
 
     compute::reusable_dispatch_t dispatch;
     atomic_lws_strategy_t lws_strat(engine, gpu_attr);
-    lws_strat.include(reduction_dims::local, local_acc);
-    lws_strat.include(reduction_dims::subgroup, subgroup_size);
+    lws_strat.include(reduction_dims::local, into<size_t>(local_acc));
+    lws_strat.include(reduction_dims::subgroup, into<size_t>(subgroup_size));
     CHECK(config.generate(dispatch, lws_strat));
     conf = dispatch.get_compile_params();
     rt_conf = dispatch.get_runtime_params();
@@ -243,7 +240,7 @@ void atomic_reduction_t::pd_t::init_scratchpad() {
     for (size_t i = 0; i < num_scratchpads; i++) {
         const atomic_reduction_conf_t &phase = phases[i];
         const size_t sp_data_size = types::data_type_size(phase.dst_type);
-        const size_t num_dst_elems = static_cast<size_t>(
+        const size_t num_dst_elems = into<size_t>(
                 phase.outer_block.block * phase.inner_block.block);
         scratchpad.book(
                 keys[i], num_dst_elems, sp_data_size, OCL_BUFFER_ALIGNMENT);
@@ -478,7 +475,7 @@ status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
             // min -> fill with inf (11111111), otherwise sum/mean fill with 0
             uint8_t pattern = phase.alg == alg_kind::reduction_min ? 255 : 0;
             const size_t dst_data_size = types::data_type_size(phase.dst_type);
-            const size_t num_dst_elems = static_cast<size_t>(
+            const size_t num_dst_elems = into<size_t>(
                     phase.outer_block.block * phase.inner_block.block);
             size_t dst_size = num_dst_elems * dst_data_size;
             compute::compute_stream_t *compute_stream
@@ -494,8 +491,7 @@ status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
         reduction_arg_list.append(pd()->div);
         reduction_arg_list.append(pd()->power);
         reduction_arg_list.append(pd()->eps);
-        reduction_arg_list.append(
-                static_cast<int>(phase.reduction_block.block));
+        reduction_arg_list.append(into<int>(phase.reduction_block.block));
         reduction_arg_list.append(phase.rt_conf.get());
 
         CHECK(parallel_for(ctx, nd_range, kernel, reduction_arg_list));
