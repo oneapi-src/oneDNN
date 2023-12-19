@@ -99,7 +99,9 @@ private:
 #else
     std::set<std::shared_ptr<brgemm_kernel_t>,
             decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>
-            set_;
+            set_ {std::set<std::shared_ptr<brgemm_kernel_t>,
+                    decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>(
+                    brgemm_kernel_container_t::brgemm_kernel_cmp)};
     void lock_write() {}
     void unlock_write() {}
 #endif
