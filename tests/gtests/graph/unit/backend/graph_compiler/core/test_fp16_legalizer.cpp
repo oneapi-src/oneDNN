@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-
+#if SC_BUILTIN_JIT_ENABLED
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <util/any_map.hpp>
@@ -87,3 +87,4 @@ TEST(GCCore_CPU_fp16_legalizer, TestFp16Transform) {
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
+#endif
