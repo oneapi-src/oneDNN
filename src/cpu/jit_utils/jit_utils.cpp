@@ -16,6 +16,7 @@
 *******************************************************************************/
 
 #include <mutex>
+#include <iostream>
 
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
@@ -60,7 +61,7 @@ void dump_jit_code(const void *code, size_t code_size, const char *code_name) {
         // TODO (Roma): support prefix for code / linux perf dumps
         snprintf(fname, MAX_FNAME_LEN, DUMP_BASE_FNAME "%s" DUMP_EXT_FNAME,
                 code_name);
-
+        std::cout << "[ oneDNN ] dump_jit_code: " << fname << std::endl;
         FILE *fp = fopen(fname, "wb+");
         // Failure to dump code is not fatal
         if (fp) {
@@ -137,7 +138,9 @@ void register_jit_code(const void *code, size_t code_size,
     char unique_code_name[MAX_CODENAME_LEN + 1];
     snprintf(unique_code_name, MAX_CODENAME_LEN, "%s.%d", code_name,
             unique_id++);
-
+    if (code && get_jit_dump()) {
+        std::cout << "[ oneDNN ] register_jit_code: " << unique_code_name << ", " << code_name << std::endl;
+    }
     dump_jit_code(code, code_size, unique_code_name);
     // VTune Profiler does not need a unique name, because it uses
     // unique method_id
