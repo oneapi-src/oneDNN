@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -384,10 +384,9 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     // TODO: seprate diff_c_offsets from diff-states & seprate h- and c- off
     rnn.ws_c_states_cell_size
             = is_lstm ? rnn.mb * rnn.states_ws_ld * aux_elsz : 0;
-    rnn.ws_c_states_size = is_lstm
-            ? (copy_src_layer ? rnn.n_layer + 1 : rnn.n_layer) * rnn.n_dir
-                    * (rnn.n_iter + 1) * rnn.ws_c_states_cell_size
-            : 0;
+    rnn.ws_c_states_size = is_lstm ? rnn.n_layer * rnn.n_dir * (rnn.n_iter + 1)
+                    * rnn.ws_c_states_cell_size
+                                   : 0;
 
     auto scratch_diff_n_states
             = copy_diff_dst_layer || copy_diff_src_layer || rnn.n_layer != 1

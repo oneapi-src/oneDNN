@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -248,9 +248,11 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
     __global AUX_DATA_T *src_c = (__global AUX_DATA_T *)(src_c_base);
     __global AUX_DATA_T *dst_c = dst_c_base;
     if (s < dhc) {
+        int ws_c_state_offset = off_ws_c_state(n_layer, n_dir, n_iter, batch,
+                states_ws_ld, lay, dir, -1, b, s);
         const param4 c_strides
                 = {lay_c_stride, dir_c_stride, b_c_stride, s_c_stride};
-        dst_c[ws_state_offset] = src_c_base
+        dst_c[ws_c_state_offset] = src_c_base
                 ? src_c[src_i_c_off(c_strides, lay, dir, b, s)]
                 : TO_WS_STATE(0.0f);
     }
@@ -423,7 +425,7 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
             = {lay_c_stride, dir_c_stride, b_c_stride, s_c_stride};
     if (dst_c_base && s < dhc) {
         dst_c[dst_i_c_off(c_strides, lay, dir, b, s)]
-                = src_c[off_ws_state(n_layer, n_dir, n_iter, batch,
+                = src_c[off_ws_c_state(n_layer, n_dir, n_iter, batch,
                         states_ws_ld, lay, dir, n_iter - 1, b, s)];
     }
 #endif

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -548,6 +548,20 @@ struct workspace_t {
                 conf_.mb, i4, conf_.states_ws_ld);
     }
 
+    dim_t calc_off_ws_c_state(
+            dim_t i0_, dim_t i1, dim_t i2_, dim_t i3, dim_t i4) const {
+        // Logical index into workspace grid
+        auto i0 = i0_;
+        auto i0_size = conf_.n_layer;
+        auto i2 = i2_ + 1;
+
+        gpu_assert(i0 >= 0) << "Logical index must be larger than 0";
+
+        MAYBE_UNUSED(i0_size);
+        return OFF5(i0, i0_size, i1, conf_.n_dir, i2, conf_.n_iter + 1, i3,
+                conf_.mb, i4, conf_.states_ws_ld);
+    }
+
     dim_t calc_off_ws_gates(
             dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4, dim_t i5) const {
         return i0 * conf_.n_dir * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
@@ -589,7 +603,7 @@ struct workspace_t {
         if (!c_states_) return nullptr;
         // conf_.aux_data_type is float for all datatypes except f16
         // so can be used for lstm_elemwise_u8s8 case as well
-        auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
+        auto off_ = calc_off_ws_c_state(layer, dir, time, 0, 0)
                 * types::data_type_size(conf_.aux_data_type);
         return c_states_->get_sub_storage(off_, conf_.ws_c_states_cell_size);
     }
