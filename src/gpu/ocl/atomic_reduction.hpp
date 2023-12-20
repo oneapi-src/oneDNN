@@ -24,11 +24,60 @@
 #include "gpu/gpu_reduction_pd.hpp"
 #include "gpu/ocl/reduction_utils.h"
 #include "gpu/primitive_conf.hpp"
+#include "gpu/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+struct atomic_reduction_key_params_t {
+    status_t create_generator(const compute::compute_engine_t &engine,
+            compute::kernel_bundle_t &bundle) const {
+        auto status = engine.create_kernel_bundle(
+                bundle, get_kernel_names(), get_kernel_ctx());
+        return status;
+    }
+
+    const std::vector<const char *> &get_kernel_names() const {
+        static const std::vector<const char *> kernel_names = {"atomic_reduce"};
+        return kernel_names;
+    }
+
+#if __cplusplus >= 202002L
+    bool operator==(const atomic_reduction_key_params_t &) const = default;
+#endif
+    serialized_t serialize() const {
+        assert_trivially_serializable(atomic_reduction_key_params_t);
+
+        serialized_t s {};
+        s.append(*this);
+        return s;
+    }
+
+    static atomic_reduction_key_params_t deserialize(const serialized_t &s) {
+        atomic_reduction_key_params_t t {};
+        deserializer_t d(s);
+        d.pop(t);
+        return t;
+    }
+
+    compute::kernel_ctx_t get_kernel_ctx() const;
+    // Basic reduction parameters
+    alg_kind_t alg;
+    data_type_t src_type, dst_type;
+
+    // Implementation-specific parameters
+    bool is_first, is_final;
+    bool padding[6] = {0};
+    int subgroup_size;
+    int vect_size;
+    int global_acc;
+    dim_t local_acc;
+
+    compute::dispatch_compile_params_t params;
+};
+assert_trivially_serializable(atomic_reduction_key_params_t);
 
 struct atomic_reduction_conf_t : public reduction_subproblem_t {
     atomic_reduction_conf_t(const reduction_subproblem_t &subprb,
@@ -37,17 +86,9 @@ struct atomic_reduction_conf_t : public reduction_subproblem_t {
             bool large_grf_mode);
     status_t init_dispatcher(const compute::compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr);
-    alg_kind_t alg;
-    data_type_t src_type, dst_type;
 
-    compute::dispatch_compile_params_t conf;
+    atomic_reduction_key_params_t conf;
     compute::dispatch_runtime_params_t rt_conf;
-
-    bool is_first, is_final;
-    int subgroup_size;
-    int global_acc;
-    dim_t local_acc;
-    int vect_size;
 };
 
 struct atomic_reduction_t : public gpu_primitive_t {
@@ -74,8 +115,6 @@ struct atomic_reduction_t : public gpu_primitive_t {
         }
 
         status_t init_conf(engine_t *engine);
-        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-                const atomic_reduction_conf_t &phase) const;
         status_t init_finalization_pd(engine_t *engine);
         void init_scratchpad();
 
@@ -90,10 +129,8 @@ struct atomic_reduction_t : public gpu_primitive_t {
         auto &phases = pd()->phases;
 
         for (auto &phase : phases) {
-            compute::kernel_ctx_t kernel_ctx(pd()->attr());
-            CHECK(pd()->init_kernel_ctx(kernel_ctx, phase));
             compute::kernel_t kernel;
-            CHECK(create_kernel(engine, &kernel, "atomic_reduce", kernel_ctx));
+            CHECK(create_kernel(engine, kernel, "atomic_reduce", phase.conf));
             kernels_.push_back(kernel);
         }
 
