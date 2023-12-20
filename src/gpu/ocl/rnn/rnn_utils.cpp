@@ -354,19 +354,12 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     bool require_copy_diff_src_layer = [&]() {
         if (is_fwd) return false;
 
-        auto &strides = diff_src_layer_d.strides();
-        auto &pdims = diff_src_layer_d.padded_dims();
-
         // Unimplemented
         if (rnn.merge_gemm_iter || rnn.merge_gemm_layer) return true;
 
         // Direction need to be summed together. This requires generating new
         // GEMM kernels to perform a sum accumulation for the final accumulation.
         if (rnn.n_dir > 1) return true;
-
-        // A new kernel needs to be generated if the strides differ.
-        if (pdims[1] == 1 || rnn.scratch_diff_states_ld != strides[1])
-            return true;
 
         return false;
     }();
