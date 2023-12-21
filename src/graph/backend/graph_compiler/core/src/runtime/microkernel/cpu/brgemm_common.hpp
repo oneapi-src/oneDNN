@@ -238,6 +238,12 @@ using sc_brgemm_postops_setting_t = std::vector<brgemm::postop_setting_t>;
 } // namespace impl
 } // namespace dnnl
 
+static constexpr int PALETTE_SIZE = 64;
+
+// insert palette ptr to global map, return the inserted dnnl palette ptr
+// will return existing one if there's same one
+char *insert_global_palette(char *palette);
+
 void *do_get_amx_tile_buf(const char *palette,
         dnnl::impl::graph::gc::runtime::stream_t *stream, bool &amx_exclusive,
         bool &need_config_amx);

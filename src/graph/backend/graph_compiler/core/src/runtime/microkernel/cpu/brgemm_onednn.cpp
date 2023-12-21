@@ -337,7 +337,6 @@ struct brg_arg_ptr_eq_to_t {
     }
 };
 
-static constexpr int PALETTE_SIZE = 64;
 struct palette_ptr_t {
     char *ptr_;
 
@@ -791,6 +790,14 @@ static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
     bool need_config_amx = true;
     return do_get_amx_tile_buf(
             brg_desc->palette_, stream, amx_exclusive, need_config_amx);
+}
+
+char *insert_global_palette(char *palette) {
+    std::lock_guard<std::mutex> g(g_brg_desc_s.lock_);
+    // unordered_set `insert` will check if identical palette exists
+    // if so, reuse it to reduce runtime palette switching
+    auto insert_res = g_brg_desc_s.palettes_.insert(palette_ptr_t(palette));
+    return insert_res.first->ptr_;
 }
 
 extern "C" {
