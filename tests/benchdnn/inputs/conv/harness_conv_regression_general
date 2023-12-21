@@ -387,3 +387,8 @@ ic64ih14oc24oh14kh5ph2_n"zp_with_top_and_bottom_vpad"
 --reset
 --skip-impl=ref,x64:gemm
 --dir=FWD_I --dt=bf16:bf16:f32 mb1_ic48oc16_ih8kh2sh2ph0
+
+# test 3d 1x1 convolution for correct rtus transform
+--reset
+--skip-impl=ref,x64:gemm
+--dir=FWD_I --dt=u8:s8:u8 mb1_ic65oc1_id3ih2iw9kd1kh1kw1pd0ph0pw0
