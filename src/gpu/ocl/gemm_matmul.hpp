@@ -243,13 +243,15 @@ struct gemm_matmul_t : public gpu_primitive_t {
             }
 
             // We create a gemm_pd and resolve 'any' desc by querying gemm_pd
-            bool ok = is_dense_format_kind()
-                    && status::success
-                            == create_gemm_pd(gemm_pd_, engine, a_md, b_md,
-                                    c_md, bias_md, acc_dt, &gemm_attr)
-                    && status::success == set_default_params()
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_MATMUL(
+                    is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
+            VDISPATCH_MATMUL_SC(create_gemm_pd(gemm_pd_, engine, a_md, b_md,
+                                        c_md, bias_md, acc_dt, &gemm_attr),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "gemm");
+            VDISPATCH_MATMUL_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_MATMUL_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
             if (reshape) {
                 CHECK(memory_desc_reshape(
                         src_md_, src_md_, orig_dims, orig_a_dims));
