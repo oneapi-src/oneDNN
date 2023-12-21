@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -950,18 +950,34 @@ void flex_rewrite::op_attrs_rewrite(deserialized_graph &dgraph) {
     }
 }
 
+inline bool is_int8_quantization(deserialized_op aop) {
+    if (aop.kind_ == "Dequantize") {
+        const auto dt = aop.in_lts_.front().get_data_type();
+        return (dt == logical_tensor::data_type::u8
+                || dt == logical_tensor::data_type::s8);
+    } else if (aop.kind_ == "Quantize") {
+        const auto dt = aop.out_lts_.front().get_data_type();
+        return (dt == logical_tensor::data_type::u8
+                || dt == logical_tensor::data_type::s8);
+    } else {
+        // should not reach here
+        return false;
+    }
+}
+
 void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
     for (auto &aop : dgraph.ops_) {
         if (aop.kind_ != "Dequantize" && aop.kind_ != "Quantize") continue;
 
         auto &attr = aop.attrs_;
-        if (attr.find("scales") == attr.end() || attr.find("zps") == attr.end()
+        const auto is_int8 = is_int8_quantization(aop);
+        if (attr.find("scales") == attr.end()
                 || attr.find("qtype") == attr.end()
                 || attr["qtype"].str_value_ != "per_channel")
             continue;
+        if (is_int8 && attr.find("zps") == attr.end()) continue;
 
         auto pre_scales = attr["scales"].f32_vector_;
-        auto pre_zps = attr["zps"].s64_vector_;
         int64_t axis = 1;
         auto ndims = aop.in_lts_.front().shape_.size();
         if (attr.find("axis") != attr.end()) {
@@ -979,17 +995,20 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
         fill_scales(e, dummy, scales_fp);
         for (int i = 0; i < scales_fp.nelems(); i++)
             scales[i] = scales_fp.get_elem(i);
-
-        std::vector<int64_t> zps;
-        for (int64_t i = 0; i < scales_zp_dim; i++) {
-            if (static_cast<size_t>(i) < pre_zps.size()) {
-                zps.push_back(pre_zps[i]);
-            } else {
-                zps.push_back(0);
-            }
-        }
         aop.attrs_["scales"].f32_vector_ = scales;
-        aop.attrs_["zps"].s64_vector_ = zps;
+
+        if (is_int8) {
+            auto pre_zps = attr["zps"].s64_vector_;
+            std::vector<int64_t> zps;
+            for (int64_t i = 0; i < scales_zp_dim; i++) {
+                if (static_cast<size_t>(i) < pre_zps.size()) {
+                    zps.push_back(pre_zps[i]);
+                } else {
+                    zps.push_back(0);
+                }
+            }
+            aop.attrs_["zps"].s64_vector_ = zps;
+        }
     }
 }
 

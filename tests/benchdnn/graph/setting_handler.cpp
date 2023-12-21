@@ -1699,12 +1699,15 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
 
     if (op_kind == "Dequantize" || op_kind == "Quantize") {
         std::vector<float> scales {};
-        base_op_ref.get_attr_f32_vector(scales, "scales");
-        arg_scales.set(arg, {scale_policy, scales.front()});
+        const auto has_scales
+                = base_op_ref.get_attr_f32_vector(scales, "scales");
+        if (has_scales) arg_scales.set(arg, {scale_policy, scales.front()});
+
         std::vector<int64_t> zps;
-        base_op_ref.get_attr_s64_vector(zps, "zps");
+        const auto has_zps = base_op_ref.get_attr_s64_vector(zps, "zps");
         // currently, zps only support per_tensor quantization in primitive
-        if (!zps.empty()) zp.set(arg, attr_t::policy_t::COMMON, zps.front());
+        if (has_zps && !zps.empty())
+            zp.set(arg, attr_t::policy_t::COMMON, zps.front());
     } else if (op_kind == "DynamicDequantize" || op_kind == "DynamicQuantize") {
         //  TODO: benchdnn needs to alloc memory based on is_def() function.
         //  so add tmp value for per_tensor scales && zps to make is_def()
