@@ -532,6 +532,19 @@ void threadpool_scheduler::select_and_run_jobs(uint64_t tid) {
     }
 }
 
+int64_t threadpool_adapter_t::before_parallel(threadpool_scheduler *ths) {
+    return 0;
+}
+
+int64_t threadpool_adapter_t::parse_tid(
+        std::atomic<int64_t> &v, threadpool_scheduler *ths, int64_t i) {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+    return v++;
+#else
+    return i;
+#endif
+}
+
 threadpool_scheduler *threadpool_adapter_t::all_thread_prepare(
         threadpool_scheduler *ths, runtime::stream_t *stream, int threads) {
     if (!main_sched || main_sched->num_queues_ != (size_t)threads) {
@@ -552,6 +565,7 @@ void threadpool_adapter_t::main_thread(threadpool_scheduler *sched,
         main_func_t f, runtime::stream_t *stream, void *mod_data,
         generic_val *args) {
     threadlocals.current_sched = sched;
+    threadlocals.work_tid = 0;
     sched->queues_[0].thr_state_ = queue::thread_state::SCHEDULING;
     f(stream, mod_data, args);
     sched->cur_section_.store(&dummy_section, std::memory_order_release);

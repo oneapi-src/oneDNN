@@ -152,6 +152,7 @@ static thread_local thread_manager *current_active_thr_mgr = nullptr;
 
 struct mtp_threadpool_adapter_t {
     static constexpr bool can_optimize_single_thread = true;
+    using TyState = int;
 
     static thread_manager *all_thread_prepare(
             thread_manager *ths, runtime::stream_t *stream, int threads) {
@@ -159,10 +160,11 @@ struct mtp_threadpool_adapter_t {
         return ths;
     }
 
-    static void before_parallel(thread_manager *ths) {
+    static TyState before_parallel(thread_manager *ths) {
         ths->state.trigger = 1;
         ths->state.execution_flags
                 = gc::runtime::thread_pool_flags::THREAD_POOL_DEFAULT;
+        return 0;
     }
 
     static void main_thread(thread_manager *ths, thread_manager::main_func_t f,
@@ -200,6 +202,10 @@ struct mtp_threadpool_adapter_t {
             ths->state.trigger = -1;
             ths->state.execution_flags = 0;
         }
+    }
+
+    static int64_t parse_tid(TyState, thread_manager *ths, int64_t i) {
+        return i;
     }
 
     static void single_thread(thread_manager *ths,

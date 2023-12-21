@@ -40,6 +40,14 @@ using namespace dnnl::impl::graph::gc;
 
 using namespace runtime::dynamic_threadpool;
 
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+#include <test_thread.hpp>
+#define dnnl_thread_env() \
+    dnnl::testing::scoped_tp_activation_t unused_raii {}
+#else
+#define dnnl_thread_env()
+#endif
+
 namespace dyn_tp_test {
 // a testing threadpool assuming there are N+4 threads, when there are actually
 // N threads
@@ -218,24 +226,31 @@ TEST(GCCore_CPU_dyn_thread_pool, TestBarrier) {
                 runtime::get_default_stream(), nullptr, buffers);
     };
 
-    test_buffer<float> expected = alloc_array<float>(32 * 128 * 1024);
-    utils::parallel_for(0, 32, 1, [&](int bs) {
-        for (int i = 0; i < 128; i++) {
-            float sum = 0;
-            for (int j = 0; j < 1024; j++) {
-                sum += input[bs * 128 * 1024 + i * 1024 + j];
+    test_buffer<float> expected;
+    {
+        dnnl_thread_env();
+        expected = alloc_array<float>(32 * 128 * 1024);
+        utils::parallel_for(0, 32, 1, [&](int bs) {
+            for (int i = 0; i < 128; i++) {
+                float sum = 0;
+                for (int j = 0; j < 1024; j++) {
+                    sum += input[bs * 128 * 1024 + i * 1024 + j];
+                }
+                for (int j = 0; j < 1024; j++) {
+                    expected[bs * 128 * 1024 + i * 1024 + j]
+                            = 1.0f + sum + std::cos(j);
+                }
             }
-            for (int j = 0; j < 1024; j++) {
-                expected[bs * 128 * 1024 + i * 1024 + j]
-                        = 1.0f + sum + std::cos(j);
-            }
-        }
-    });
-    run(runtime::dynamic_threadpool::thread_main, buffers);
+        });
+        run(runtime::dynamic_threadpool::thread_main, buffers);
+    }
     test_utils::compare_data(out, expected);
     SET_THREADS_OR_SKIP(num_real_threads);
     out.zeroout();
-    run(dyn_tp_test::thread_main_testing, buffers);
+    {
+        dnnl_thread_env();
+        run(dyn_tp_test::thread_main_testing, buffers);
+    }
     test_utils::compare_data(out, expected);
 }
 
@@ -345,13 +360,19 @@ TEST(GCCore_CPU_dyn_thread_pool, TestMultiLevelSync) {
                 },
                 runtime::get_default_stream(), nullptr, buffers);
     };
-    run(runtime::dynamic_threadpool::thread_main, buffers);
+    {
+        dnnl_thread_env();
+        run(runtime::dynamic_threadpool::thread_main, buffers);
+    }
     for (int i = 0; i < 4; i++) {
         ASSERT_EQ(result[i], 2);
     }
     result.zeroout();
-    SET_THREADS_OR_SKIP(num_real_threads);
-    run(dyn_tp_test::thread_main_testing, buffers);
+    {
+        dnnl_thread_env();
+        SET_THREADS_OR_SKIP(num_real_threads);
+        run(dyn_tp_test::thread_main_testing, buffers);
+    }
     for (int i = 0; i < 4; i++) {
         ASSERT_EQ(result[i], 2);
     }

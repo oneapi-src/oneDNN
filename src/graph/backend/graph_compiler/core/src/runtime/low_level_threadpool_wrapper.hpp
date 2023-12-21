@@ -57,12 +57,13 @@ void call_threadpool(TSched *ths, main_func_t f, runtime::stream_t *stream,
 #endif
     ths = T::all_thread_prepare(ths, stream, threads);
     if (threads > 1 || !T::can_optimize_single_thread) {
-        T::before_parallel(ths);
+        typename T::TyState rtl_state {T::before_parallel(ths)};
 
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
         SC_NO_OP();
 #pragma omp parallel for
-        for (int i = 0; i < threads; i++) {
+        for (int it = 0; it < threads; it++) {
+            int64_t i = it;
             SC_NO_OP();
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
         oneapi::tbb::task_arena arena(threads);
@@ -71,6 +72,7 @@ void call_threadpool(TSched *ths, main_func_t f, runtime::stream_t *stream,
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
         dnnl::impl::parallel(threads, [&](int64_t i, int64_t dummy) {
 #endif
+            i = T::parse_tid(rtl_state, ths, i);
             // use helper func to workaround a icx compiler bug
             auto &tls = get_tls_helper();
             tls.in_managed_thread_pool_ = true;

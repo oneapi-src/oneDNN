@@ -160,10 +160,10 @@ using namespace env_key;
 runtime_config_t::runtime_config_t() {
     thread_pool_table_ = &sc_pool_table;
     constexpr int default_MTP =
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
-            (int)thread_pool_mode_t::MANAGED;
-#else
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
             (int)thread_pool_mode_t::DYNAMIC;
+#else
+            (int)thread_pool_mode_t::MANAGED;
 #endif
     auto mtp_val
             = utils::getenv_int(env_names[SC_MANAGED_THREAD_POOL], default_MTP);

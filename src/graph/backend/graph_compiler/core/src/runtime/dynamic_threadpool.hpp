@@ -195,12 +195,10 @@ struct threadpool_scheduler {
 using main_func_t = void (*)(stream_t *, void *, generic_val *);
 struct threadpool_adapter_t {
     static constexpr bool can_optimize_single_thread = false;
+    using TyState = std::atomic<int64_t>;
 
     static threadpool_scheduler *all_thread_prepare(
             threadpool_scheduler *ths, runtime::stream_t *stream, int threads);
-
-    static void before_parallel(threadpool_scheduler *ths) {}
-
     static void main_thread(threadpool_scheduler *sched, main_func_t f,
             runtime::stream_t *stream, void *mod_data, generic_val *args);
 
@@ -210,6 +208,9 @@ struct threadpool_adapter_t {
 
     static void single_thread(threadpool_scheduler *ths, main_func_t f,
             runtime::stream_t *stream, void *mod_data, generic_val *args);
+    static int64_t before_parallel(threadpool_scheduler *ths);
+    static int64_t parse_tid(
+            std::atomic<int64_t> &v, threadpool_scheduler *ths, int64_t i);
 };
 
 } // namespace dynamic_threadpool
