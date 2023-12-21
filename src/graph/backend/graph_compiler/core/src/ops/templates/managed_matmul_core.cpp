@@ -570,11 +570,19 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     || is_dynamic_dim(plain_K);
   if (is_f32 || no_vnni_low_fp) {
     if (is_spr_like) {
-      // prefer small blocks
-      if (plain_M <= 4096) {
+      // prefer small blocks: someone is small but none is too great
+      bool case_great_K = (std::min(plain_M, plain_N) > 512)
+        && (plain_K / std::min(plain_M, plain_N) > 16);
+      bool case_small_MNK = (plain_M < 1024 || plain_N < 1024 || plain_K < 512)
+        && !(plain_M >= 7168 || plain_N >= 7168);
+      if (case_great_K || case_small_MNK) {
         M_block_default = 16;
         N_block_default = 16;
         K_block_default = 16;
+      } else if (plain_M <= 4096 && plain_N <= 4096 && plain_K <= 8192) {
+        M_block_default = 32;
+        N_block_default = 32;
+        K_block_default = 32;
       }
     } else {
       if (plain_M <= 256) { M_block_default = 32; }

@@ -1235,8 +1235,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SyncTensorViewShrinkInfo) {
     EXPECT_TRUE(matmul_out.isa<tensor>()
             && utils::string_startswith(matmul_out.static_as<tensor>()->name_,
                     "managed_matmul_core"));
-    // No tensor shrink attr is expected
-    EXPECT_FALSE(
+    EXPECT_TRUE(
             matmul_out->attr().has_key(tensor_shrinker_attrs::should_shrink));
 }
 
@@ -1700,7 +1699,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically2) {
             {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
     auto sig = graph.make("sigmoid", {gemm0->get_outputs()[0]}, {}, {});
     auto reo0 = graph.make("reorder", {sig->get_outputs()[0]}, {},
-            {{"out_format", sc_data_format_t::MKmk(4, 16)},
+            {{"out_format", sc_data_format_t::MKmk(4, 64)},
                     {"internal", true}});
     auto gemm1 = graph.make("managed_matmul_core",
             {input1->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
@@ -1844,7 +1843,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
     auto mmm0 = graph.make("managed_matmul_core",
             {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
     {
-        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 16, 4, 0};
+        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 8, 4, 0};
         mmm0->dyn_cast<op_traits::configurable_t>()->set_config(
                 reflection::general_object_t::make(cfg));
     }
@@ -1853,7 +1852,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
     auto mmm1 = graph.make("managed_matmul_core",
             {input0->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
     {
-        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 16, 4, 0};
+        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 8, 4, 0};
         mmm1->dyn_cast<op_traits::configurable_t>()->set_config(
                 reflection::general_object_t::make(cfg));
     }
@@ -1872,8 +1871,8 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
     print_graph(graph, ss, true);
     std::string expected_str
             = R"(graph(v0: f32[4, 4096], v1: f32[4096, 11008], v2: f32[4096, 11008]) -> [v3: f32[4, 11008]] {
-  [v4: f32[4, 11008]] = outerloop_1X16X1X1X16_partition_managed_matmul_core_relu(v0, v2)
-  [v3: f32[4, 11008]] = outerloop_1X16X1X1X16_partition_managed_matmul_core_relu_add(v0, v1, v4)
+  [v4: f32[4, 11008]] = outerloop_1X16X1X1X8_partition_managed_matmul_core_relu(v0, v2)
+  [v3: f32[4, 11008]] = outerloop_1X16X1X1X8_partition_managed_matmul_core_relu_add(v0, v1, v4)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);
