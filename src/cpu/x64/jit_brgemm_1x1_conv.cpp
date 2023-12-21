@@ -282,11 +282,13 @@ void brgemm_1x1_convolution_fwd_t<isa>::maybe_rtus(int ithr,
     while (od < OD) {
         // copy to end of column
         const auto nh = nstl::min(count / OW, OH - oh);
-        call_kernel(nh, 0, od, oh, ow);
-        count -= nh * OW;
-        if (count == 0) return;
-        oh = (oh + nh) % OH;
-        if (oh == 0) od++;
+        if (nh > 0) {
+            call_kernel(nh, 0, od, oh, ow);
+            count -= nh * OW;
+            if (count == 0) return;
+            oh = (oh + nh) % OH;
+            if (oh == 0) od++;
+        }
         if (count < OW) {
             // copy partial row
             const auto nw = count;
