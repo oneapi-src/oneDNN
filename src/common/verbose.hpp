@@ -80,7 +80,7 @@ struct const_expr_value {
 
 // Logging info
 #ifdef _WIN32
-#define VINFO((apitype, logtype, logsubtype, component, msg, ...)
+#define VINFO(apitype, logtype, logsubtype, component, msg, ...)
 #else
 #define VINFO(apitype, logtype, logsubtype, component, msg, ...) \
     do { \
