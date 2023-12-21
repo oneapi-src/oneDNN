@@ -267,14 +267,6 @@ class binary_backward_op_t : public fusible_op_t,
                              public op_traits::may_inplace_t,
                              public op_traits::auto_copyable_t {};
 
-inline bool is_broadcast_op(const sc_op *op) {
-    return (op->isa<op_traits::may_broadcast_t>()
-            && op->dyn_cast<const op_traits::may_broadcast_t>()
-                            ->get_non_broadcast_input_index(true)
-                            .size()
-                    != op->get_inputs().size());
-}
-
 class unary_elementwise_op_t : public fusible_op_t,
                                public op_traits::may_inplace_t,
                                public op_traits::brgemm_fusion_acceptable_t,

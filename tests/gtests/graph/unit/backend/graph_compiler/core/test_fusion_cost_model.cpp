@@ -105,6 +105,38 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp2) {
     EXPECT_EQ(ss.str(), expected_str);
 }
 
+TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp3) {
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(28);
+
+    sc_graph_t graph;
+    int BS = 1, C = 64, H = 1, W = 1, K = 64;
+
+    auto input0 = graph.make_input({graph_tensor::make({BS, C, H, W})});
+    auto weight0 = graph.make_input({graph_tensor::make({K, C, 1, 1})});
+    auto input1 = graph.make_input({graph_tensor::make({BS, K, 112, 112})});
+    auto conv0 = graph.make("conv_fwd_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {},
+            {{"strides", sc_dims {1, 1}}, {"paddings", sc_dims {0, 0}}});
+    auto relu0 = graph.make("relu", conv0->get_outputs(), {}, {});
+    auto sigmoid0 = graph.make("sigmoid", relu0->get_outputs(), {}, {});
+    // This broadcast add should be rejected by cost model due to paralellism
+    auto add0 = graph.make("add",
+            {sigmoid0->get_outputs()[0], input1->get_outputs()[0]}, {}, {});
+    graph.make_output(add0->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    // turn on cost model
+    ctx->flags_.use_cost_model_ = true;
+    graph_driver_before_fusion(graph, ctx);
+    mixed_partition(graph, ctx);
+
+    // standalone add op is expected
+    EXPECT_TRUE(std::any_of(graph.ops_.begin(), graph.ops_.end(),
+            [](const sc_op_ptr &op) { return op->op_name_ == "add"; }));
+}
+
 TEST(GCCore_CPU_fusion_cost_model_cpp, TestFusePreLoadBufferCheck) {
     sc_graph_t graph;
 
