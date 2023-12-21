@@ -213,6 +213,11 @@ public:
                     algorithm::convolution_direct, src_md, wei_md,
                     memory::desc(), dst_md, strides, padding_l, padding_r,
                     attr);
+            auto *impl_name = pd.impl_info_str();
+            if (strcmp(impl_name, "jit:ir_v2") != 0) {
+                std::cout << "Error: expected conv_v2." << std::endl;
+                exit(1);
+            }
             auto prim = convolution_forward(pd);
             set_primitive(prim);
             return true;

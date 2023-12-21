@@ -108,6 +108,14 @@ void init_params(int argc, const char **argv) {
         case planner_mode_t::auto_search: (void)mkl_iface_t::instance(); break;
         default: break;
     }
+    // Check if conv v2 is enabled.
+    bool enable_conv_v2 = gpu_utils::dev_getenv("enable_conv_v2", false);
+    if (!enable_conv_v2) {
+        std::cout << "Error: conv_v2 is not enabled, set "
+                     "enable_conv_v2=1 in environment."
+                  << std::endl;
+        exit(1);
+    }
     auto iface = params.desc.cli_iface();
     iface.parse(cmd_args, &params.desc);
     params.desc.set_defaults();
