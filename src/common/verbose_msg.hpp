@@ -97,5 +97,6 @@
 #define VERBOSE_UNSUPPORTED_MEM_STRIDE "unsupported memory stride"
 #define VERBOSE_SCRATCHPAD_LIMIT "scratchpad memory limit exceeded"
 #define VERBOSE_PRIMITIVE_CREATION_FAIL "failed to create nested primitive %s"
+#define VERBOSE_UNSUPPORTED_FEATURE "%s feature unavailable for device"
 
 #endif
