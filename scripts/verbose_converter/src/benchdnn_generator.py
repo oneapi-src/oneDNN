@@ -413,11 +413,19 @@ def convert_tags(mds, prim_kind):
                 tags += f" --{md_arg}tag=any"
             else:
                 md_strides = md["strides"]
-                if md_strides == "":
+
+                def tag_has_blocks(string):
+                    for l in string:
+                        if l.isupper():
+                            return True
+                    return False
+
+                md_tag_has_blocks = tag_has_blocks(md["tag"])
+                if md_strides != "" and not md_tag_has_blocks:
+                    strides += f"{md_strides}"
+                else:
                     md_tag = md["tag"]
                     tags += f" --{md_arg}tag={md_tag}"
-                else:
-                    strides += f"{md_strides}"
             if md_arg != "d":
                 strides += f":"
 
@@ -717,8 +725,10 @@ def convert_scratchpad_mode(scratchpad_mode, prim_kind):
 def convert_fpmath_mode(fpmath_mode, prim_kind):
     return fpmath_mode
 
+
 def convert_acc_mode(acc_mode, prim_kind):
     return acc_mode
+
 
 def convert_attrs(exts, prim_kind):
     converters = {
