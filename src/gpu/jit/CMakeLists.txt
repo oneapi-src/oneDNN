@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2023 Intel Corporation
+# Copyright 2020-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,5 +53,9 @@ set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
 
 if(DNNL_GPU_CONV_PLANNER)
+    if (NOT DNNL_GPU_RUNTIME STREQUAL "OCL")
+        message(FATAL_ERROR "GPU convolution planner requires OpenCL GPU runtime. "
+            "Build with -DONEDNN_GPU_RUNTIME=OCL.")
+    endif()
     add_subdirectory(v2/conv/planner)
 endif()
