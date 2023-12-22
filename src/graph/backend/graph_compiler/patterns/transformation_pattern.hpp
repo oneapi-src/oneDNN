@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,11 @@ public:
                 = get_attr<graph::pass::Pattern>("Pattern");
         pattern_utils_t pu;
         for (const auto &pgraph : pgraphs) {
+            // check if min_op_num in the pattern is larger than
+            // num_unpartitioned_ops in the graph, if true,
+            // no need to run this pattern any more
+            if (pgraph->get_min_op_num() > agraph.num_unpartitioned_ops())
+                continue;
             // match the given pattern in the graph
             std::vector<std::vector<op_t *>> matched_pairs_list;
             pu.match(agraph, pgraph, matched_pairs_list);
