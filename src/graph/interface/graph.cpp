@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -202,6 +202,7 @@ status_t dnnl_graph_graph::finalize() {
     // if the graph is already built, return directly.
     // TODO(xxx): actually we may need to a verification here.
     if (finalized_) return status::success;
+    num_unpartitioned_ops_ = num_ops();
 
     // map of {backend op: vector of input tensor_ids}
     std::unordered_map<graph_t::op_t *, std::vector<size_t>> op_to_tensor_id;
@@ -421,6 +422,7 @@ status_t DNNL_API dnnl_graph_graph_filter(
     std::vector<const backend_t *> &backends
             = backend_registry_t::get_singleton().get_registered_backends();
     for (auto cbkd : backends) {
+        if (graph->num_unpartitioned_ops() == 0) break;
         backend_t *bkd = const_cast<backend_t *>(cbkd);
         status_t ret = bkd->get_partitions(*graph, policy);
         if (ret != status::success) return status::invalid_graph;
