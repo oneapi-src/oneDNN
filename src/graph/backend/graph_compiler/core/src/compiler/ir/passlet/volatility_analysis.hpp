@@ -25,6 +25,7 @@ namespace impl {
 namespace graph {
 namespace gc {
 namespace passlet {
+
 struct volatility_result_t {
     enum state_t {
         UNDEF,
@@ -79,7 +80,7 @@ inline bool non_volatile_expr(const expr_base *s) {
                 case intrin_type::round_and_cast:
                 case intrin_type::shl:
                 case intrin_type::shr:
-                case intrin_type::load_const_mem: return true; break;
+                case intrin_type::constant_load: return true; break;
                 default: break;
             }
             return false;

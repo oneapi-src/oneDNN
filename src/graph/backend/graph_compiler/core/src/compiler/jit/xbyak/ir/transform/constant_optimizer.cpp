@@ -71,7 +71,7 @@ public:
             new_const->attr().set(attr_keys::force_simd_encode, true);
             return builder::make_broadcast(new_const, dtype.lanes_);
         } else if (HAS_KEY_LOAD(v)) {
-            return make_expr<intrin_call_node>(intrin_type::load_const_mem,
+            return make_expr<intrin_call_node>(intrin_type::constant_load,
                     std::vector<expr> {v.remove_const()}, any_map_t());
         } else {
             return v;
