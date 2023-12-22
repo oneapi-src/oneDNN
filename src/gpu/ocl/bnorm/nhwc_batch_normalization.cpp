@@ -242,7 +242,8 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
             p.vect_size = get_nhwc_vect_size(p.ic_block, conf.max_vect_size());
             p.use_fused_atomics_reduction = 0;
             params.push_back(p);
-            if (hw_params.gpu_arch >= compute::gpu_arch_t::xe_hpc) {
+            if (hw_params.gpu_arch >= compute::gpu_arch_t::xe_hpc
+                    && !pd->attr()->deterministic_) {
                 // atomics-based reduction on PVC+ only, perforformance reasons
                 p.use_fused_atomics_reduction = 1;
                 params.push_back(p);
