@@ -86,7 +86,8 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
     exec_cfg->set_regs(hw.prefer_large_grf(gpu_attr) ? 256 : 128);
     exec_cfg->set_simd(16);
 
-    return (pooling_config_t::check_compatibility(*pool_conf, *exec_cfg, *src))
+    return (pooling_config_t::check_compatibility(
+                   *pool_conf, *exec_cfg, *src, attr()->post_ops_, dst->type()))
             ? status::success
             : status::unimplemented;
 }

@@ -61,7 +61,8 @@ public:
 class pooling_config_t : public prim_config_t {
 public:
     static bool check_compatibility(const pool_conf_t &prb,
-            const exec_config_t &exec, const layout_t &src) {
+            const exec_config_t &exec, const layout_t &src,
+            const post_ops_t &po, type_t dst_dt) {
         const int max_tg = exec.hw().max_tg_size(exec.regs(), exec.simd());
         if (max_tg % 8 != 0) return false;
 
@@ -78,6 +79,37 @@ public:
         if ((prb.kd * prb.kh * prb.kw > 1) && ((prb.kd == 1) || (prb.od == 1))
                 && ((prb.kh == 1) || (prb.oh == 1))
                 && ((prb.kw == 1) || (prb.ow == 1)))
+            return false;
+
+        // this one is trickier; as there are no masks on OC for performance
+        // reasons, padded OC may end up containing garbage, so there's some
+        // protection against that
+        bool has_additive_po = false;
+        float total_added = 0;
+        for (int i = 0; i < po.len(); i++) {
+            if ((po.entry_[i].is_binary()
+                        && ((total_added != 0)
+                                || (po.entry_[i].binary.alg == dnnl_binary_add)
+                                || (po.entry_[i].binary.alg
+                                        == dnnl_binary_sub)))
+                    || po.entry_[i].is_sum(false, false)) {
+                has_additive_po = true;
+                break;
+            } else if (po.entry_[i].is_eltwise(false)
+                    && (po.entry_[i].eltwise.alg == dnnl_eltwise_linear)) {
+                if (total_added != 0) {
+                    has_additive_po = true;
+                    break;
+                }
+                total_added += po.entry_[i].eltwise.beta;
+            }
+        }
+        has_additive_po |= (!dst_dt.is_int() && (total_added != 0))
+                || (dst_dt.is_int() && (fabsf(total_added) >= 1));
+        if ((prb.c % oc_blk.block)
+                && (has_additive_po || (prb.id / prb.stride_d < prb.od)
+                        || (prb.ih / prb.stride_h < prb.oh)
+                        || (prb.iw / prb.stride_w < prb.ow)))
             return false;
 
         return true; // no more restrictions, the configuration is compatible
