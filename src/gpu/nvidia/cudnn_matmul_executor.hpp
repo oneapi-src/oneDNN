@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -126,7 +126,7 @@ struct cudnn_matmul_scratch_runtime_args_bias_exec_t
 
         init_scratch_buffer(scratchpad_size);
 
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
+        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -159,7 +159,7 @@ struct cudnn_matmul_runtime_args_scratch_exec_t
 
         init_scratch_buffer(scratchpad_size);
 
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
+        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -190,7 +190,7 @@ struct cudnn_matmul_runtime_args_bias_exec_t : public cudnn_matmul_exec_base_t {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
+        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -221,7 +221,7 @@ struct cudnn_matmul_runtime_args_exec_t : public cudnn_matmul_exec_base_t {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
+        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -254,7 +254,7 @@ struct cudnn_matmul_bias_scratch_exec_t : public cudnn_matmul_exec_base_t {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
+        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -284,7 +284,7 @@ struct cudnn_matmul_scratch_exec_t : public cudnn_matmul_exec_base_t {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
+        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -316,7 +316,7 @@ struct cudnn_matmul_bias_exec_t : public cudnn_matmul_exec_base_t {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
+        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -347,7 +347,7 @@ struct cudnn_matmul_exec_t : public cudnn_matmul_exec_base_t {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
+        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);

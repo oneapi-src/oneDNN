@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -61,7 +61,7 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
                     ::sycl::access::mode::read_write>(temp_reorder_mem, cgh);
         }
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
+        compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
@@ -100,7 +100,7 @@ status_t cudnn_convolution_bwd_data_t::execute_convolution(
         auto arg_filter_scratch = CTX_SCRATCH_SYCL_MEMORY(
                 memory_tracking::names::key_conv_cudnn_filter);
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
+        compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
@@ -128,7 +128,7 @@ status_t cudnn_convolution_bwd_weights_t::execute_zero_dims(
         auto arg_diff_weights = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
         auto arg_diff_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
+        compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
@@ -163,7 +163,7 @@ status_t cudnn_convolution_bwd_weights_t::execute_convolution(
             arg_diff_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
         }
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
+        compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);

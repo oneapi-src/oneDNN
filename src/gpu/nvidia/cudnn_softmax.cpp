@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,7 +44,7 @@ status_t cudnn_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
                 sizeof(float)));
 
     auto status = cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        compat::host_task(cgh, [=](const compat::interop_handle &) {
+        compat::host_task(cgh, [=, this](const compat::interop_handle &) {
             host_scales_[2] = host_scales_[0] / host_scales_[1];
         });
     });
@@ -55,7 +55,7 @@ status_t cudnn_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
+        compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
             std::vector<void *> args;
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
@@ -84,7 +84,7 @@ status_t cudnn_softmax_bwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
         auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
+        compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
             std::vector<void *> args;
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
