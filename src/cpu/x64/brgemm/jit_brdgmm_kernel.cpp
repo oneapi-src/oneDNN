@@ -157,8 +157,7 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::load_permute_vmm() {
     if (is_fast_vnni_int8()) {
         // load permute indices from data section
-        mov(reg_tmp, permute_index_table);
-        vmovdqu32(vmm_permute(), ptr[reg_tmp]);
+        vmovdqu32(vmm_permute(), ptr[rip + permute_index_table]);
     }
 }
 
@@ -837,7 +836,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::pad_comp_kernel(
     Label jmp_table_base;
     std::vector<Label> jmp_table_labels(max_m_unroll + 1);
     // jmp table
-    mov(reg_table_base, jmp_table_base);
+    lea(reg_table_base, ptr[rip + jmp_table_base]);
     lea(reg_table_base, ptr[reg_table_base + reg_pad * sizeof(void *)]);
     jmp(ptr[reg_table_base], T_NEAR);
     align(8);
@@ -1001,7 +1000,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
         std::vector<Label> jmp_table_labels(m_blocks);
         if (has_top_padding) {
             // jmp table
-            mov(reg_table_base, jmp_table_base);
+            lea(reg_table_base, ptr[rip + jmp_table_base]);
             lea(reg_table_base,
                     ptr[reg_table_base + reg_aux_A_vpad_top * sizeof(void *)]);
             jmp(ptr[reg_table_base], T_NEAR);
