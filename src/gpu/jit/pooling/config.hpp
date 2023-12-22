@@ -349,10 +349,12 @@ public:
                     // NOT heuristic; odd x8 SIMDs on HBM reads break the reader
                     const int mult = std::max(1, 2 / src_type_size);
                     if (lg[1] % mult == 0) {
+                        const auto old_lg1 = lg[1];
                         lg[0] = 1;
                         lg[1] = find_div(lg[1] / mult, total_simds / mult,
                                         safe_thr_count)
                                 * mult;
+                        if ((lg[1] > 1) && (lg[1] % 2)) lg[1] = old_lg1 / lg[1];
                     }
                 } else { // only cut [0]
                     lg[0] = find_div(lg[0], total_simds, safe_thr_count);
