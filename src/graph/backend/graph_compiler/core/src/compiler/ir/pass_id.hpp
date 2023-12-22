@@ -66,6 +66,7 @@ enum pass_id {
     buffer_scheduler,
     dyn_boundary_check,
     local_tensor_lowering_cpu,
+    loop_splitter,
     ssa_transform,
     value_numbering,
     loop_invariant_code_motion,
