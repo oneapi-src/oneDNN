@@ -348,6 +348,7 @@ static void try_execute_broadcast_work(threadpool_scheduler *sched,
             return;
         }
         if (tid < thework->loop_len_) {
+            threadlocals.cur_itr = &tid;
             thework->layer_.pfunc_(sched->stream_, cur_sect->module_, &tid,
                     nullptr, cur_sect->args_);
         }
@@ -536,8 +537,8 @@ int64_t threadpool_adapter_t::before_parallel(threadpool_scheduler *ths) {
     return 0;
 }
 
-int64_t threadpool_adapter_t::parse_tid(
-        std::atomic<int64_t> &v, threadpool_scheduler *ths, int64_t i) {
+int64_t threadpool_adapter_t::parse_tid(std::atomic<int64_t> &v,
+        threadpool_scheduler *ths, thread_local_buffer_t &tls, int64_t i) {
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
     return v++;
 #else

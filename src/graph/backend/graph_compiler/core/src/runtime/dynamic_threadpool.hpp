@@ -34,6 +34,8 @@ namespace memory_pool {
 struct filo_memory_pool_t;
 }
 namespace runtime {
+struct thread_local_buffer_t;
+
 namespace dynamic_threadpool {
 
 using closure_t = void (*)(void *stream, void *mod_data, uint64_t *itr,
@@ -209,8 +211,8 @@ struct threadpool_adapter_t {
     static void single_thread(threadpool_scheduler *ths, main_func_t f,
             runtime::stream_t *stream, void *mod_data, generic_val *args);
     static int64_t before_parallel(threadpool_scheduler *ths);
-    static int64_t parse_tid(
-            std::atomic<int64_t> &v, threadpool_scheduler *ths, int64_t i);
+    static int64_t parse_tid(std::atomic<int64_t> &v, threadpool_scheduler *ths,
+            thread_local_buffer_t &tls, int64_t i);
 };
 
 } // namespace dynamic_threadpool

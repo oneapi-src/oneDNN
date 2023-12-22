@@ -204,7 +204,11 @@ struct mtp_threadpool_adapter_t {
         }
     }
 
-    static int64_t parse_tid(TyState, thread_manager *ths, int64_t i) {
+    static int64_t parse_tid(TyState, thread_manager *ths,
+            thread_local_buffer_t &tls, int64_t i) {
+#ifdef SC_KERNEL_PROFILE
+        tls.additional_->instance_id_ = ths->instance_id_;
+#endif
         return i;
     }
 
@@ -215,7 +219,7 @@ struct mtp_threadpool_adapter_t {
         tls.in_managed_thread_pool_ = true;
         tls.additional_->linear_thread_id_ = 0;
 #ifdef SC_KERNEL_PROFILE
-        tls.additional_->instance_id_ = instance_id_;
+        tls.additional_->instance_id_ = ths->instance_id_;
 #endif
         f(stream, mod_data, args);
         cleanup_worker_thread_state();

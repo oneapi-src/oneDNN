@@ -72,14 +72,11 @@ void call_threadpool(TSched *ths, main_func_t f, runtime::stream_t *stream,
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
         dnnl::impl::parallel(threads, [&](int64_t i, int64_t dummy) {
 #endif
-            i = T::parse_tid(rtl_state, ths, i);
             // use helper func to workaround a icx compiler bug
             auto &tls = get_tls_helper();
+            i = T::parse_tid(rtl_state, ths, tls, i);
             tls.in_managed_thread_pool_ = true;
             tls.additional_->linear_thread_id_ = i;
-#ifdef SC_KERNEL_PROFILE
-            tls.additional_->instance_id_ = instance_id_;
-#endif
             if (i == 0) {
                 T::main_thread(ths, f, stream, mod_data, args);
             } else {
