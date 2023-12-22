@@ -345,18 +345,16 @@ TEST(GCCore_CPU_graph_reshape_cpp, TestSingleOptimizeMultipleUse) {
                                            {{"values", data}})
                                    ->get_outputs()[0];
             }
-            auto tv = expected.make("tensor_view", {in0},
+            auto cp_reorder = expected.make("reorder", {in0}, {},
+                    {{"internal", true}, {"actually_copy", true},
+                            {"out_format", in0->details_.get_format()}});
+            auto tv = expected.make("tensor_view", cp_reorder->get_outputs(),
                     {graph_tensor::make({10, 10, 20, 10})},
                     {{"shape", sc_dims {10, 10, 20, 10}}});
             auto relu_out
                     = expected.make("relu", {tv->get_outputs()[0]}, {}, {})
                               ->get_outputs()[0];
-            auto cp_reorder = expected.make("reorder", tv->get_outputs(), {},
-                    {{"internal", true}, {"actually_copy", true},
-                            {"out_format",
-                                    tv->get_outputs()[0]
-                                            ->details_.get_format()}});
-            expected.make_output({cp_reorder->get_outputs()[0], relu_out});
+            expected.make_output({tv->get_outputs()[0], relu_out});
         }
         EXPECT_TRUE(compare_graph(g, expected));
     }
