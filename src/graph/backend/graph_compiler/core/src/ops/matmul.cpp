@@ -284,10 +284,33 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                     inputs[2]->details_.dtype_ == inputs[0]->details_.dtype_,
                     "All inputs should have same data type.")
         }
-        int last_axis = outputs[0]->details_.get_plain_dims().size() - 1;
+        auto &matmul_output_shape
+                = matmul->get_outputs()[0]->details_.get_plain_dims();
+        int matmul_output_shape_size = matmul_output_shape.size();
+        auto &bias_shape = ins->get_outputs()[2]->details_.get_plain_dims();
+        int bias_shape_size = bias_shape.size();
+        COMPILE_ASSERT(bias_shape_size == matmul_output_shape_size
+                        || bias_shape_size == 1,
+                "Rank of bias should be 1 or same to matmul output");
+        std::vector<int> bc_axes;
+        for (int axis_id = bias_shape_size - 1; axis_id >= 0; --axis_id) {
+            auto bias_dim = bias_shape[axis_id];
+            if (bias_dim != 1) {
+                int matmul_output_axis;
+                if (matmul_output_shape_size == bias_shape_size) {
+                    matmul_output_axis = axis_id;
+                } else { // bias_shape_size is 1, axis_id is 0
+                    matmul_output_axis = matmul_output_shape_size - 1;
+                }
+                COMPILE_ASSERT(
+                        bias_dim == matmul_output_shape[matmul_output_axis],
+                        "Cannot broadcast bias");
+                bc_axes.push_back(matmul_output_axis);
+            }
+        }
         auto bias = graph->make("add",
                 {matmul->get_outputs()[0], ins->get_outputs()[2]}, {},
-                {{"bc_axis", std::vector<int> {last_axis}}});
+                {{"bc_axis", bc_axes}});
         graph->make_output(bias->get_outputs());
     } else {
         graph->make_output(matmul->get_outputs());
