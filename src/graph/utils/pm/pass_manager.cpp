@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,6 +107,7 @@ impl::status_t pass_manager_t::run_passes(
             for (auto &pass : new_passes) {
                 status = pass->run(agraph);
                 if (status != impl::status::success) return status;
+                if (agraph.num_unpartitioned_ops() == 0) break;
             }
         } else {
             if (read_json) {
@@ -123,6 +124,7 @@ impl::status_t pass_manager_t::run_passes(
                     status = pass->run(agraph);
                     if (status != impl::status::success) return status;
                 }
+                if (agraph.num_unpartitioned_ops() == 0) break;
             }
         }
     } else {
@@ -132,6 +134,7 @@ impl::status_t pass_manager_t::run_passes(
                 status = pass->run(agraph);
                 if (status != impl::status::success) return status;
             }
+            if (agraph.num_unpartitioned_ops() == 0) break;
         }
     }
 
