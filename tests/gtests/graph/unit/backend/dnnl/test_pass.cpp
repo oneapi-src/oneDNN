@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -4640,6 +4640,7 @@ TEST(test_pass_pass, DnnlSingleOpReplacement) {
             op->set_attr<bool>(op_attr::exclude_pad, false);
             op->set_attr<std::string>(op_attr::rounding_type, "floor");
         }
+        agraph.finalize();
         ASSERT_EQ(op->get_kind(), akind);
         pm.run_passes(agraph, "no_config");
 
