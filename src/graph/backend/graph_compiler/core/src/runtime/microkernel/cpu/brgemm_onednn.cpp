@@ -697,6 +697,7 @@ brgemm_kernel_info *brg_range_handle_t::get_linear_kernel(
 void brg_range_handle_t::brg_list_call(int M_real, int N_real, int K_real,
         const void **A_list, const void **B_list, void *C, int num,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
+        const void *top_pad, const void *bottom_pad,
         dnnl::impl::graph::gc::runtime::stream_t *stream) {
     brgemm_kernel_info *brg = get_linear_kernel(M_real, N_real, K_real);
     // default use runtime kernel creation.
@@ -708,11 +709,12 @@ void brg_range_handle_t::brg_list_call(int M_real, int N_real, int K_real,
                 nullptr);
     }
     dnnl_brgemm_list_call(brg, A_list, B_list, C, num, stride_a, stride_b, len,
-            dtypeA, dtypeB, stream);
+            dtypeA, dtypeB, top_pad, bottom_pad, stream);
 }
 
 void brg_range_handle_t::brg_strd_call(int M_real, int N_real, int K_real,
-        const void *A, const void *B, void *C, int num,
+        const void *A, const void *B, void *C, int num, const void *top_pad,
+        const void *bottom_pad,
         dnnl::impl::graph::gc::runtime::stream_t *stream) {
     brgemm_kernel_info *brg = get_linear_kernel(M_real, N_real, K_real);
     if (!brg) {
@@ -727,7 +729,7 @@ void brg_range_handle_t::brg_strd_call(int M_real, int N_real, int K_real,
                 brgemm_strd, extra_args->dtypeA, extra_args->dtypeB,
                 extra_args->brg_attrs, nullptr, nullptr);
     }
-    dnnl_brgemm_call(brg, A, B, C, num, stream);
+    dnnl_brgemm_call(brg, A, B, C, num, top_pad, bottom_pad, stream);
 }
 
 namespace dnnl {
@@ -812,29 +814,65 @@ SC_API void *dnnl_brgemm_func(int M, int N, int K, int LDA, int LDB, int LDC,
 }
 
 SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
-        const void *B, void *C, int num, gc::runtime::stream_t *stream) {
+        const void *B, void *C, int num, const void *top_pad,
+        const void *bottom_pad, gc::runtime::stream_t *stream) {
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
+#ifdef _MSC_VER
+    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+            num * sizeof(brgemm_batch_element_t));
+#else
+#if CLANGVERSION <= 3
+    std::unique_ptr<brgemm_batch_element_t[]> batch_v(
+            new brgemm_batch_element_t[num]);
+    brgemm_batch_element_t *batch = batch_v.get();
+#else
+    brgemm_batch_element_t batch[num]; // NOLINT
+#endif
+#endif
+    for (int i = 0; i < num; ++i) {
+        if (top_pad) batch[i].vvpad.top = ((int *)top_pad)[i];
+        if (bottom_pad) batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+    }
     brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A, (void **)B,
-            nullptr, (void *)C, tmp_amx_tile_buf);
+            batch, (void *)C, tmp_amx_tile_buf);
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 }
 
 SC_API void dnnl_brgemm_call_range(brg_range_handle_t *brg_range_desc,
         int M_real, int N_real, int K_real, const void *A, const void *B,
-        void *C, int num, gc::runtime::stream_t *stream) {
-    brg_range_desc->brg_strd_call(M_real, N_real, K_real, A, B, C, num, stream);
+        void *C, int num, const void *top_pad, const void *bottom_pad,
+        gc::runtime::stream_t *stream) {
+    brg_range_desc->brg_strd_call(
+            M_real, N_real, K_real, A, B, C, num, top_pad, bottom_pad, stream);
 }
 
 SC_API void dnnl_brgemm_call_postops(brgemm_kernel_info *brg_desc,
-        const void *A, const void *B, void *C, int num,
-        const void *postops_data, void *c_buf, gc::runtime::stream_t *stream) {
+        const void *A, const void *B, void *C, int num, const void *top_pad,
+        const void *bottom_pad, const void *postops_data, void *c_buf,
+        gc::runtime::stream_t *stream) {
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
+#ifdef _MSC_VER
+    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+            num * sizeof(brgemm_batch_element_t));
+#else
+#if CLANGVERSION <= 3
+    std::unique_ptr<brgemm_batch_element_t[]> batch_v(
+            new brgemm_batch_element_t[num]);
+    brgemm_batch_element_t *batch = batch_v.get();
+#else
+    brgemm_batch_element_t batch[num]; // NOLINT
+#endif
+#endif
+    for (int i = 0; i < num; ++i) {
+        if (top_pad) batch[i].vvpad.top = ((int *)top_pad)[i];
+        if (bottom_pad) batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+    }
     brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
-            (void **)B, nullptr, (void *)c_buf, (void *)C,
+            (void **)B, batch, (void *)c_buf, (void *)C,
             *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
             tmp_amx_tile_buf);
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
@@ -852,6 +890,7 @@ SC_API void *dnnl_brgemm_list_func(int M, int N, int K, int LDA, int LDB,
 SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
         const void **A_list, const void **B_list, void *C, int num,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
+        const void *top_pad, const void *bottom_pad,
         gc::runtime::stream_t *stream) {
     const int batch_num = num * len;
 #ifdef _MSC_VER
@@ -875,6 +914,12 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
                     = (((char **)A_list)[i] + (j * stride_a * sizeofA));
             batch[i * num + j].ptr.B
                     = (((char **)B_list)[i] + (j * stride_b * sizeofB));
+            if (top_pad) {
+                batch[i * num + j].vvpad.top = ((int *)top_pad)[i * num + j];
+            }
+            if (bottom_pad)
+                batch[i * num + j].vvpad.bottom
+                        = ((int *)bottom_pad)[i * num + j];
         }
     }
     bool amx_exclusive = false;
@@ -891,15 +936,18 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
 SC_API void dnnl_brgemm_list_call_range(brg_range_handle_t *brg_range_desc,
         int M_real, int N_real, int K_real, const void **A_list,
         const void **B_list, void *C, int num, int stride_a, int stride_b,
-        int len, int dtypeA, int dtypeB, gc::runtime::stream_t *stream) {
+        int len, int dtypeA, int dtypeB, const void *top_pad,
+        const void *bottom_pad, gc::runtime::stream_t *stream) {
     brg_range_desc->brg_list_call(M_real, N_real, K_real, A_list, B_list, C,
-            num, stride_a, stride_b, len, dtypeA, dtypeB, stream);
+            num, stride_a, stride_b, len, dtypeA, dtypeB, top_pad, bottom_pad,
+            stream);
 }
 
 SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
         const void **A_list, const void **B_list, void *C, int num,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
-        const void *postops_data, void *c_buf, gc::runtime::stream_t *stream) {
+        const void *top_pad, const void *bottom_pad, const void *postops_data,
+        void *c_buf, gc::runtime::stream_t *stream) {
     const int batch_num = num * len;
 #ifdef _MSC_VER
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
@@ -922,8 +970,14 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
                     = (((char **)A_list)[i] + (j * stride_a * sizeofA));
             batch[i * num + j].ptr.B
                     = (((char **)B_list)[i] + (j * stride_b * sizeofB));
+            if (top_pad)
+                batch[i * num + j].vvpad.top = ((int *)top_pad)[i * num + j];
+            if (bottom_pad)
+                batch[i * num + j].vvpad.bottom
+                        = ((int *)bottom_pad)[i * num + j];
         }
     }
+    for (int i = 0; i < num; ++i) {}
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, batch_num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
@@ -964,8 +1018,9 @@ SC_API int dnnl_brgemm_init(
 SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
         int num, int M, int N, int K, int LDA, int LDB, int LDC, int stride_a,
         int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
-        char *bd_mask, const void *postops_setting, const void *postops_data,
-        void *c_buf, gc::runtime::stream_t *stream) {
+        char *bd_mask, const void *postops_setting, const void *top_pad,
+        const void *bottom_pad, const void *postops_data, void *c_buf,
+        gc::runtime::stream_t *stream) {
     float alpha = 1.0, beta = 0.0;
     auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
             K, static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
@@ -974,12 +1029,29 @@ SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
+    const int batch_num = num;
+#ifdef _MSC_VER
+    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+            batch_num * sizeof(brgemm_batch_element_t));
+#else
+#if CLANGVERSION <= 3
+    std::unique_ptr<brgemm_batch_element_t[]> batch_v(
+            new brgemm_batch_element_t[batch_num]);
+    brgemm_batch_element_t *batch = batch_v.get();
+#else
+    brgemm_batch_element_t batch[batch_num]; // NOLINT
+#endif
+#endif
+    for (int i = 0; i < num; ++i) {
+        if (top_pad) batch[i].vvpad.top = ((int *)top_pad)[i];
+        if (bottom_pad) batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+    }
     if (postops_setting == nullptr) {
         brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
-                (void **)B, nullptr, (void *)C, tmp_amx_tile_buf);
+                (void **)B, batch, (void *)C, tmp_amx_tile_buf);
     } else {
         brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
-                (void **)B, nullptr, (void *)c_buf, (void *)C,
+                (void **)B, batch, (void *)c_buf, (void *)C,
                 *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
                 tmp_amx_tile_buf);
     }
@@ -990,8 +1062,9 @@ SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
 SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
         int M, int N, int K, int LDA, int LDB, int LDC, int stride_a,
         int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
-        char *bd_mask, const void *postops_setting, const void *postops_data,
-        void *c_buf, gc::runtime::stream_t *stream) {
+        char *bd_mask, const void *postops_setting, const void *top_pad,
+        const void *bottom_pad, const void *postops_data, void *c_buf,
+        gc::runtime::stream_t *stream) {
     float alpha = 1.0, beta = 1.0;
     auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
             K, static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
@@ -1000,12 +1073,29 @@ SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
+    const int batch_num = num;
+#ifdef _MSC_VER
+    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+            batch_num * sizeof(brgemm_batch_element_t));
+#else
+#if CLANGVERSION <= 3
+    std::unique_ptr<brgemm_batch_element_t[]> batch_v(
+            new brgemm_batch_element_t[batch_num]);
+    brgemm_batch_element_t *batch = batch_v.get();
+#else
+    brgemm_batch_element_t batch[batch_num]; // NOLINT
+#endif
+#endif
+    for (int i = 0; i < num; ++i) {
+        if (top_pad) batch[i].vvpad.top = ((int *)top_pad)[i];
+        if (bottom_pad) batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+    }
     if (postops_setting == nullptr) {
         brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
-                (void **)B, nullptr, (void *)C, tmp_amx_tile_buf);
+                (void **)B, batch, (void *)C, tmp_amx_tile_buf);
     } else {
         brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
-                (void **)B, nullptr, (void *)c_buf, (void *)C,
+                (void **)B, batch, (void *)c_buf, (void *)C,
                 *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
                 tmp_amx_tile_buf);
     }
@@ -1017,7 +1107,8 @@ static int dnnl_brgemm_list_update_func(const void **A_list,
         const void **B_list, void *C, int num, int M, int N, int K, int LDA,
         int LDB, int LDC, int stride_a, int stride_b, int len, int dtypeA,
         int dtypeB, float beta, const void *brg_attrs, char *bd_mask,
-        const void *postops_setting, const void *postops_data, void *c_buf,
+        const void *postops_setting, const void *top_pad,
+        const void *bottom_pad, const void *postops_data, void *c_buf,
         gc::runtime::stream_t *stream) {
     float alpha = 1.0;
     const int batch_num = num * len;
@@ -1041,6 +1132,11 @@ static int dnnl_brgemm_list_update_func(const void **A_list,
                     = (((char **)A_list)[i] + (j * stride_a * sizeofA));
             batch[i * num + j].ptr.B
                     = (((char **)B_list)[i] + (j * stride_b * sizeofB));
+            if (top_pad)
+                batch[i * num + j].vvpad.top = ((int *)top_pad)[i * num + j];
+            if (bottom_pad)
+                batch[i * num + j].vvpad.bottom
+                        = ((int *)bottom_pad)[i * num + j];
         }
     }
     auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
@@ -1069,12 +1165,14 @@ SC_API int dnnl_brgemm_init_list_update(const void **A_list,
         const void **B_list, void *C, int num, int M, int N, int K, int LDA,
         int LDB, int LDC, int stride_a, int stride_b, int len, int dtypeA,
         int dtypeB, const void *brg_attrs, char *bd_mask,
-        const void *postops_setting, const void *postops_data, void *c_buf,
+        const void *postops_setting, const void *top_pad,
+        const void *bottom_pad, const void *postops_data, void *c_buf,
         gc::runtime::stream_t *stream) {
     float beta = 0.f;
     int ret = dnnl_brgemm_list_update_func(A_list, B_list, C, num, M, N, K, LDA,
             LDB, LDC, stride_a, stride_b, len, dtypeA, dtypeB, beta, brg_attrs,
-            bd_mask, postops_setting, postops_data, c_buf, stream);
+            bd_mask, postops_setting, top_pad, bottom_pad, postops_data, c_buf,
+            stream);
     return ret;
 }
 
@@ -1082,11 +1180,13 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
         void *C, int num, int M, int N, int K, int LDA, int LDB, int LDC,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
         const void *brg_attrs, char *bd_mask, const void *postops_setting,
-        const void *postops_data, void *c_buf, gc::runtime::stream_t *stream) {
+        const void *top_pad, const void *bottom_pad, const void *postops_data,
+        void *c_buf, gc::runtime::stream_t *stream) {
     float beta = 1.f;
     int ret = dnnl_brgemm_list_update_func(A_list, B_list, C, num, M, N, K, LDA,
             LDB, LDC, stride_a, stride_b, len, dtypeA, dtypeB, beta, brg_attrs,
-            bd_mask, postops_setting, postops_data, c_buf, stream);
+            bd_mask, postops_setting, top_pad, bottom_pad, postops_data, c_buf,
+            stream);
     return ret;
 }
 

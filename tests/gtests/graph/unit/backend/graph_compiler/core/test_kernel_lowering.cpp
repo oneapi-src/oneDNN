@@ -209,10 +209,11 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLowering) {
         expr brg_c_buf = c_buf;
         builtin::brgemm_init_update(A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9,
                 datatypes::bf16, datatypes::bf16, attrs_0, bd_mask_0, 0, 1,
-                postop_set_0, postop_data_0, brg_c_buf);
+                get_ir_null(), get_ir_null(), postop_set_0, postop_data_0,
+                brg_c_buf);
         builtin::brgemm_update(A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9,
                 datatypes::bf16, datatypes::bf16, attrs_1, bd_mask_1, 0, 1,
-                postop_set_1, postop_data_1);
+                get_ir_null(), get_ir_null(), postop_set_1, postop_data_1);
         ///////////// list calls
         builtin::brgemm_list_update(A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
                 datatypes::bf16, datatypes::bf16);
@@ -224,7 +225,8 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLowering) {
                 datatypes::bf16, datatypes::bf16);
         builtin::brgemm_list_update(A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
                 datatypes::bf16, datatypes::bf16, attrs_0, bd_mask_0, 0, 1,
-                postop_set_0, postop_data_0, brg_c_buf);
+                get_ir_null(), get_ir_null(), postop_set_0, postop_data_0,
+                brg_c_buf);
     }
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.brgemm_backend_ = scflags_t::brgemm_t::dnnl;
@@ -311,59 +313,65 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLowering) {
         DEFINE_POSTOP_DATA_TENSORS(1);
         _tensor_(c_buf, datatypes::f32, {100});
 
-        _evaluate_call_(strd_call, kernel1, A, B, C, 1, ir_nullptr);
-        _evaluate_call_(strd_call, kernel1, A, B, C, 2, ir_nullptr);
+        _evaluate_call_(strd_call, kernel1, A, B, C, 1, ir_nullptr, ir_nullptr,
+                ir_nullptr);
+        _evaluate_call_(strd_call, kernel1, A, B, C, 2, ir_nullptr, ir_nullptr,
+                ir_nullptr);
         _var_(c, datatypes::s32);
         _evaluate_call_(strd_init_update, A, B, C, 1, 2, 3, 4, 5, c, 7, 8, 9,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
                 ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
 
-        _evaluate_call_(strd_call, kernel2, A, B, C, 1, ir_nullptr);
+        _evaluate_call_(strd_call, kernel2, A, B, C, 1, ir_nullptr, ir_nullptr,
+                ir_nullptr);
         _evaluate_call_(strd_update, A, B, C, 1, 2, 3, 4, 5, c, 7, 8, 9,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
                 ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
 
-        _evaluate_call_(strd_call, kernel1, A, B, C, 1, ir_nullptr);
+        _evaluate_call_(strd_call, kernel1, A, B, C, 1, ir_nullptr, ir_nullptr,
+                ir_nullptr);
         _evaluate_call_(strd_init_update, A, B, C, 1, 2, 3, 4, 5, c, 7, 8, 9,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
                 ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
 
-        _evaluate_call_(strd_call, kernel2, A, B, C, 1, ir_nullptr);
-        _evaluate_call_(strd_call, kernel5, A, B, C, 1, ir_nullptr);
+        _evaluate_call_(strd_call, kernel2, A, B, C, 1, ir_nullptr, ir_nullptr,
+                ir_nullptr);
+        _evaluate_call_(strd_call, kernel5, A, B, C, 1, ir_nullptr, ir_nullptr,
+                ir_nullptr);
         _evaluate_call_(strd_update, A, B, C, 1, 2, 3, 4, 5, c, 7, 8, 9,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
                 ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
 
         POSTOP_DATA_INIT(0, 0);
         _evaluate_call_(strd_call_postop, kernel6[0], A, B, C, 1, postop_data_0,
-                c_buf, ir_nullptr);
+                c_buf, ir_nullptr, ir_nullptr, ir_nullptr);
         POSTOP_DATA_INIT(1, 1);
         _tensor_(c_buf_1, datatypes::f32, {expr(2) * 3});
         _evaluate_call_(strd_call_postop, kernel7[0], A, B, C, 1, postop_data_1,
-                c_buf_1, ir_nullptr);
+                c_buf_1, ir_nullptr, ir_nullptr, ir_nullptr);
 
         _evaluate_call_(ptr_call, list_k1, A, B, C, 1, 8, 9, 10,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
         _evaluate_call_(ptr_update, A, B, C, 1, 2, c, 4, 5, 6, 7, 8, 9, 10,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
                 ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
         _evaluate_call_(ptr_call, list_k1, A, B, C, 1, 8, 9, 10,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
         _evaluate_call_(ptr_update, A, B, C, 1, 2, c, 4, 5, 6, 7, 8, 9, 10,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
                 ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
         POSTOP_DATA_INIT(2, 0);
         _evaluate_call_(ptr_call_postop, list_k2[0], A, B, C, 1, 8, 9, 10,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
-                postop_data_2, c_buf, ir_nullptr);
+                postop_data_2, c_buf, ir_nullptr, ir_nullptr, ir_nullptr);
     }
     m2->add_func({expected});
     ir_comparer cmp(true);
@@ -373,8 +381,10 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLowering) {
         EXPECT_TRUE(cmp.compare(
                 m2->get_module_vars()[i], res->get_module_vars()[i]));
     }
-    EXPECT_TRUE(
-            cmp.compare(m2->get_contents()[0], res->get_contents()[0], false));
+    for (unsigned i = 0; i < m2->get_contents().size(); i++) {
+        EXPECT_TRUE(cmp.compare(
+                m2->get_contents()[i], res->get_contents()[i], false));
+    }
 }
 
 TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLoweringNoOptim) {
@@ -409,16 +419,18 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLoweringNoOptim) {
         expr brg_c_buf = c_buf;
         builtin::brgemm_init_update(A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9,
                 datatypes::bf16, datatypes::bf16, attrs_0, bd_mask_0, 0, 1,
-                postop_set_0, postop_data_0, brg_c_buf);
+                get_ir_null(), get_ir_null(), postop_set_0, postop_data_0,
+                brg_c_buf);
         builtin::brgemm_update(A, B, C, 1, 2, 3, 4, 5, c, 7, 8, 9,
                 datatypes::bf16, datatypes::bf16, attrs_1, bd_mask_1, 0, 1,
-                postop_set_1, postop_data_1);
+                get_ir_null(), get_ir_null(), postop_set_1, postop_data_1);
         ///////////// list calls
         builtin::brgemm_list_update(A, B, C, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1,
                 datatypes::bf16, datatypes::bf16);
         builtin::brgemm_list_update(A, B, C, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1,
                 datatypes::bf16, datatypes::bf16, attrs_0, bd_mask_0, 0, 1,
-                postop_set_0, postop_data_0, brg_c_buf);
+                get_ir_null(), get_ir_null(), postop_set_0, postop_data_0,
+                brg_c_buf);
     }
     expr ir_nullptr = make_expr<constant_node>(0UL, datatypes::pointer);
     expr ir_zero = make_expr<constant_node>(0UL, datatypes::index);
@@ -448,33 +460,33 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLoweringNoOptim) {
         _evaluate_call_(strd_init_update, A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
                 ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
         _var_(c, datatypes::s32);
         _evaluate_call_(strd_update, A, B, C, 1, 2, 3, 4, 5, c, 7, 8, 9,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
                 ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
         POSTOP_DATA_INIT(0, 0);
         _evaluate_call_(strd_init_update, A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
-                attrs_tsr_0, bd_mask_arr_0[0], postop_set_tsr_0, postop_data_0,
-                c_buf, ir_nullptr);
+                attrs_tsr_0, bd_mask_arr_0[0], postop_set_tsr_0, ir_nullptr,
+                ir_nullptr, postop_data_0, c_buf, ir_nullptr);
         POSTOP_DATA_INIT(1, 1);
         _tensor_(c_buf_1, datatypes::f32, {expr(2) * 3});
         _evaluate_call_(strd_update, A, B, C, 1, 2, 3, 4, 5, c, 7, 8, 9,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
-                attrs_tsr_1, bd_mask_arr_1[0], postop_set_tsr_1, postop_data_1,
-                c_buf_1, ir_nullptr);
+                attrs_tsr_1, bd_mask_arr_1[0], postop_set_tsr_1, ir_nullptr,
+                ir_nullptr, postop_data_1, c_buf_1, ir_nullptr);
 
         _evaluate_call_(ptr_update, A, B, C, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
                 ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
         POSTOP_DATA_INIT(2, 0);
         _evaluate_call_(ptr_update, A, B, C, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1,
                 datatypes::bf16.as_etype_int(), datatypes::bf16.as_etype_int(),
-                attrs_tsr_0, bd_mask_arr_0[0], postop_set_tsr_0, postop_data_2,
-                c_buf, ir_nullptr);
+                attrs_tsr_0, bd_mask_arr_0[0], postop_set_tsr_0, ir_nullptr,
+                ir_nullptr, postop_data_2, c_buf, ir_nullptr);
     }
     m2->add_func({expected});
     ir_comparer cmp(true);
@@ -483,8 +495,10 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLoweringNoOptim) {
         EXPECT_TRUE(cmp.compare(
                 m2->get_module_vars()[i], res->get_module_vars()[i]));
     }
-    EXPECT_TRUE(
-            cmp.compare(m2->get_contents()[0], res->get_contents()[0], false));
+    for (size_t i = 0; i < m2->get_contents().size(); ++i) {
+        EXPECT_TRUE(cmp.compare(
+                m2->get_contents()[i], res->get_contents()[i], false));
+    }
 }
 
 TEST(GCCore_CPU_kernel_lowering_cpp, TestBrgemmAttrs) {
@@ -532,10 +546,10 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestBrgemmAttrs) {
 
         _evaluate_call_(ptr_call, list_k[0UL], A, B, C, 1, 8, 9, 10,
                 datatypes::s8.as_etype_int(), datatypes::s8.as_etype_int(),
-                ir_nullptr);
+                ir_nullptr, get_ir_null(), get_ir_null());
         _evaluate_call_(ptr_call, k, A, B, C, 1, 8, 9, 10,
                 datatypes::s8.as_etype_int(), datatypes::s8.as_etype_int(),
-                ir_nullptr);
+                ir_nullptr, get_ir_null(), get_ir_null());
     }
 
     _function_(datatypes::void_t, init_func, {}) {
@@ -604,10 +618,10 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestBrgemmSharedBdmask) {
 
         _evaluate_call_(ptr_call, list_k1[0], A, B, C, 1, 8, 9, 2,
                 datatypes::s8.as_etype_int(), datatypes::s8.as_etype_int(),
-                ir_nullptr);
+                ir_nullptr, get_ir_null(), get_ir_null());
         _evaluate_call_(ptr_call, list_k2[0], A, B, C, 1, 8, 9, 2,
                 datatypes::s8.as_etype_int(), datatypes::s8.as_etype_int(),
-                ir_nullptr);
+                ir_nullptr, get_ir_null(), get_ir_null());
     }
 
     _function_(datatypes::void_t, init_func, {}) {
@@ -684,16 +698,16 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestRangeKernelLowering) {
         _tensor_(A, datatypes::f32, {100});
         _tensor_(B, datatypes::f32, {100});
         _tensor_(C, datatypes::f32, {100});
-        _evaluate_call_(
-                strd_range_func, handle_0, 2, 3, 4, A, B, C, 1, ir_nullptr);
-        _evaluate_call_(
-                strd_range_func, handle_1, 2, 3, 4, A, B, C, 1, ir_nullptr);
+        _evaluate_call_(strd_range_func, handle_0, 2, 3, 4, A, B, C, 1,
+                ir_nullptr, ir_nullptr, ir_nullptr);
+        _evaluate_call_(strd_range_func, handle_1, 2, 3, 4, A, B, C, 1,
+                ir_nullptr, ir_nullptr, ir_nullptr);
         _evaluate_call_(list_range_func, handle_2, 3, 4, 5, A, B, C, 2, 9, 10,
                 1, datatypes::f32.as_etype_int(), datatypes::f32.as_etype_int(),
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
         _evaluate_call_(list_range_func, handle_3, 3, 4, 5, A, B, C, 2, 9, 10,
                 1, datatypes::f32.as_etype_int(), datatypes::f32.as_etype_int(),
-                ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr);
     }
     m2->add_func({expected});
     ir_comparer cmp(true);

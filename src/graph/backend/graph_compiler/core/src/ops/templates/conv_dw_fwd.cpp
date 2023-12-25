@@ -188,11 +188,11 @@ float gen_conv_dw_fwd_t::get_gflop() const {
     fusion_anchor_mgr_t *fusion, expr &output, const expr &input, \
     const expr &weight, std::vector<for_loop> &loops
 
-void gen_conv_dw_fwd_t::dynamic_compute_conv_no_padding(CONV_ARG_LIST) const {
+void gen_conv_dw_fwd_t::dynamic_conv_logical_padding(CONV_ARG_LIST) const {
   COMPILE_ASSERT(false, "dynamic compute conv no padding is not supported!");
 }
 
-void gen_conv_dw_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
+void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
   expr weight_k_start = 0;
   if (fusion) {
     auto mxp = fusion->get_binded_mxp();
@@ -202,6 +202,7 @@ void gen_conv_dw_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
       weight_k_start = slice.back().first;
     }
   }
+
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   int mb_expr_ = static_cast<uint64_t>(get_expr_as_int(input_expr_dims[0]));
   int g_expr_ = get_expr_as_int(input_expr_dims.back());
@@ -267,20 +268,39 @@ void gen_conv_dw_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                       _if_(w < ow_) {
                         _tensor_(A_list, datatypes::pointer, {kh_ * kw_});
                         _tensor_(B_list, datatypes::pointer, {kh_ * kw_});
+                        _tensor_(top_pad, datatypes::s32, {kh_ * kw_});
+                        _tensor_(bottom_pad, datatypes::s32, {kh_ * kw_});
                         _for_(im_h_i, 0, im_h_block) {
                           _if_(h + im_h_i < oh_) {
+                            _var_init_(cnt, datatypes::s32, 0);
                             _for_(r, 0, kh_) {
                               _for_(s, 0, kw_) {
-                                auto idx = r * kw_ + s;
-                                std::vector<expr> input_pos
-                                  = std::vector<expr> {n,
-                                    (h + im_h_i) * sh_ + r, w * sw_ + s,
-                                    (pg * g_num_block_pt + o_g) * g_block};
-                                A_list[idx] = tensor_ptr(input, input_pos);
-                                B_list[idx] = tensor_ptr(weight,
-                                  std::vector<expr> {r, s, 0,
-                                    (pg * g_num_block_pt + o_g) * g_block
-                                      + weight_k_start});
+                                auto ih = builder::make_cast(datatypes::s32,
+                                            (h + im_h_i) * sh_ + r)
+                                  - ph_b_;
+                                auto iw = builder::make_cast(
+                                            datatypes::s32, w * sw_ + s)
+                                  - pw_b_;
+                                _if_(ih >= 0 && ih < ih_) {
+                                  top_pad[cnt] = make_select(iw < 0,
+                                    divide_and_ceil((0 - iw), sw_), expr(0));
+                                  bottom_pad[cnt] = make_select(
+                                    iw + (im_w_block - 1) * sw_ + 1 > iw_,
+                                    builder::make_cast(datatypes::s32,
+                                      divide_and_ceil(
+                                        (iw + (im_w_block - 1) * sw_ + 1) - iw_,
+                                        sw_)),
+                                    expr(0));
+                                  std::vector<expr> input_pos
+                                    = std::vector<expr> {n, ih, iw,
+                                      (pg * g_num_block_pt + o_g) * g_block};
+                                  A_list[cnt] = tensor_ptr(input, input_pos);
+                                  B_list[cnt] = tensor_ptr(weight,
+                                    std::vector<expr> {r, s, 0,
+                                      (pg * g_num_block_pt + o_g) * g_block
+                                        + weight_k_start});
+                                  cnt = cnt + 1;
+                                }
                               }
                             }
                             std::vector<expr> output_pos
@@ -288,13 +308,18 @@ void gen_conv_dw_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                                 (pg * g_num_block_pt + o_g) * g_block};
 
                             sc_brgemm_attrs_t brg_attrs {
-                              {brgemm::attr_key::max_bs, kw_ * kh_},
-                              {brgemm::attr_key::bs_group, sw_ == 1 ? kw_ : 1}};
+                              {brgemm::attr_key::bs_group, sw_ == 1 ? kw_ : 1},
+                              {brgemm::attr_key::max_top_vpad,
+                                utils::divide_and_ceil(pw_b_, sw_)},
+                              {brgemm::attr_key::max_bottom_vpad,
+                                utils::divide_and_ceil(pw_e_, sw_)}};
                             builtin::brgemm_init_list_update(A_list, B_list,
                               tensor_ptr(output, output_pos), 1, im_w_block,
                               g_block, -1, LDA, -1, LDC, 1 /*useless*/,
-                              1 /*useless*/, kh_ * kw_, get_input_dtype(),
-                              get_weight_dtype(), brg_attrs);
+                              1 /*useless*/, cnt, get_input_dtype(),
+                              get_weight_dtype(), brg_attrs,
+                              sc_brgemm_bd_mask_t(), get_ir_zero_index(), 1,
+                              top_pad, bottom_pad);
 
                             // im_w_block * g_block
                             create_fusion_anchor(fusion,
@@ -1085,7 +1110,7 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
   loops = {ln, ld, lp, lg};
 }
 
-void gen_conv_dw_fwd_t::dynamic_compute_conv_padding(CONV_ARG_LIST) const {
+void gen_conv_dw_fwd_t::dynamic_conv_physical_padding(CONV_ARG_LIST) const {
   COMPILE_ASSERT(
     false, "dynamic compute conv with padding is not yet supported!");
 }
@@ -1152,19 +1177,18 @@ bool gen_conv_dw_fwd_t::generate(context_ptr ctx,
   expr input = inputs[op_params_t::data];
   expr weight = inputs[op_params_t::weight];
 
-  if (pd_b_ == 0 && ph_b_ == 0 && pw_b_ == 0 && pd_e_ == 0 && ph_e_ == 0
-    && pw_e_ == 0 && !is_3d_) {
+  if (!is_3d_ && attrs_.get_or_else("padding_value", 0) == 0) {
     COMPILE_ASSERT(!is_3d_, "conv dw fwd does not support 3d yet.");
     if (is_dynamic()) {
-      dynamic_compute_conv_no_padding(
+      dynamic_conv_logical_padding(
         ctx, config, fusion, output, input, weight, loops);
     } else {
-      compute_conv_no_padding(
+      compute_conv_logical_padding(
         ctx, config, fusion, output, input, weight, loops);
     }
   } else {
     if (is_dynamic()) {
-      dynamic_compute_conv_padding(
+      dynamic_conv_physical_padding(
         ctx, config, fusion, output, input, weight, loops);
     } else {
       compute_conv_physical_padding(

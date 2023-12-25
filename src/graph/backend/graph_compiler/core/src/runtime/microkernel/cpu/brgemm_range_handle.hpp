@@ -82,10 +82,12 @@ struct brg_range_handle_t {
             int M_real, int N_real, int K_real) const;
     void brg_list_call(int M_real, int N_real, int K_real, const void **A_list,
             const void **B_list, void *C, int num, int stride_a, int stride_b,
-            int len, int dtypeA, int dtypeB,
+            int len, int dtypeA, int dtypeB, const void *top_pad,
+            const void *bottom_pad,
             dnnl::impl::graph::gc::runtime::stream_t *stream);
     void brg_strd_call(int M_real, int N_real, int K_real, const void *A,
-            const void *B, void *C, int num,
+            const void *B, void *C, int num, const void *top_pad,
+            const void *bottom_pad,
             dnnl::impl::graph::gc::runtime::stream_t *stream);
 };
 #endif

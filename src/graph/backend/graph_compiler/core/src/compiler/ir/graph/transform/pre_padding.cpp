@@ -64,10 +64,12 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
                     bool is_dw_brdgmm = groups > 1
                             && groups == weight_plain_dims[0]
                             && groups == data_plain_dims[1];
+                    auto padding_value
+                            = node->attrs_.get_or_else("padding_value", 0);
                     // TODO(xurui)
                     // Only support extract padding op from 2d conv for now.
-                    if (((data_plain_dims.size() != 4)
-                                || (!is_amx_dtype && !is_dw_brdgmm))) {
+                    if (((data_plain_dims.size() != 4) || !is_amx_dtype
+                                || (is_dw_brdgmm && padding_value == 0))) {
                         return;
                     }
                     // Only apply to inference
@@ -86,8 +88,6 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
                             == ops::rl_kind::FULL_LOWERING)
                         return;
 
-                    auto padding_value
-                            = node->attrs_.get_or_else("padding_value", 0);
                     auto pads_begin = node->attrs_.has_key("pads_begin")
                             ? node->attrs_.get<sc_dims>("pads_begin")
                             : node->attrs_.get<sc_dims>("paddings");

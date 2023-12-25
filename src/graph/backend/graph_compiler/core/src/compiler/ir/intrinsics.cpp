@@ -491,7 +491,9 @@ sc_data_type_t arg_types[NUM_FULL_ARGS_STRIDE] = {
         datatypes::boolean, // do_only_comp
         datatypes::boolean, // do_only_zp_a_val
         datatypes::pointer, // c_buf
-        datatypes::index // bdmask_idx
+        datatypes::index, // bdmask_idx
+        datatypes::pointer, // top_pad
+        datatypes::pointer // bottom_pad
 };
 
 sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST] = {
@@ -523,7 +525,9 @@ sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST] = {
         datatypes::boolean, // do_only_comp
         datatypes::boolean, // do_only_zp_a_val
         datatypes::pointer, // c_buf
-        datatypes::index // bdmask_idx
+        datatypes::index, // bdmask_idx
+        datatypes::pointer, // top_pad
+        datatypes::pointer // bottom_pad
 };
 } // namespace brgemm_args
 

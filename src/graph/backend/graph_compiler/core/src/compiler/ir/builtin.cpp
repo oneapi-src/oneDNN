@@ -174,6 +174,8 @@ static std::pair<func_t, func_t> declare_brgemm_kernel_creator(
                 _arg_("func", datatypes::pointer),
                 _arg_("A", datatypes::pointer), _arg_("B", datatypes::pointer),
                 _arg_("C", datatypes::pointer), _arg_("num", datatypes::s32),
+                _arg_("top_pad", datatypes::pointer),
+                _arg_("bottom_pad", datatypes::pointer),
                 _arg_("stream", datatypes::pointer)};
         if (has_postop) {
             caller_args.insert(
@@ -205,6 +207,8 @@ static std::pair<func_t, func_t> declare_brgemm_kernel_creator(
                 _arg_("stride_b", datatypes::s32), _arg_("len", datatypes::s32),
                 _arg_("dtypeA", datatypes::s32),
                 _arg_("dtypeB", datatypes::s32),
+                _arg_("top_pad", datatypes::pointer),
+                _arg_("bottom_pad", datatypes::pointer),
                 _arg_("stream", datatypes::pointer)};
         if (has_postop) {
             caller_args.insert(
@@ -257,6 +261,8 @@ static func_t declare_brgemm_update_funcs(
                 _arg_("brg_attrs", datatypes::pointer),
                 _arg_("bd_mask", datatypes::pointer),
                 _arg_("postops_setting", datatypes::pointer),
+                _arg_("top_pad", datatypes::pointer),
+                _arg_("bottom_pad", datatypes::pointer),
                 _arg_("postops_data", datatypes::pointer),
                 _arg_("c_buf", datatypes::pointer),
                 _arg_("stream", datatypes::pointer)};
@@ -281,6 +287,8 @@ static func_t declare_brgemm_update_funcs(
                 _arg_("brg_attrs", datatypes::pointer),
                 _arg_("bd_mask", datatypes::pointer),
                 _arg_("postops_setting", datatypes::pointer),
+                _arg_("top_pad", datatypes::pointer),
+                _arg_("bottom_pad", datatypes::pointer),
                 _arg_("postops_data", datatypes::pointer),
                 _arg_("c_buf", datatypes::pointer),
                 _arg_("stream", datatypes::pointer)};
@@ -299,6 +307,8 @@ func_t get_brgemm_call_range_func(brgemm_mode mode) {
                 _arg_("K_real", datatypes::s32), _arg_("A", datatypes::pointer),
                 _arg_("B", datatypes::pointer), _arg_("C", datatypes::pointer),
                 _arg_("num", datatypes::s32),
+                _arg_("top_pad", datatypes::pointer),
+                _arg_("bottom_pad", datatypes::pointer),
                 _arg_("stream", datatypes::pointer)};
 
         static func_t update
@@ -316,6 +326,8 @@ func_t get_brgemm_call_range_func(brgemm_mode mode) {
                 _arg_("stride_b", datatypes::s32), _arg_("len", datatypes::s32),
                 _arg_("dtypeA", datatypes::s32),
                 _arg_("dtypeB", datatypes::s32),
+                _arg_("top_pad", datatypes::pointer),
+                _arg_("bottom_pad", datatypes::pointer),
                 _arg_("stream", datatypes::pointer)};
         static func_t brgemm_func
                 = mark_brgemm_func(_decl_func("dnnl_brgemm_list_call_range",
@@ -357,12 +369,12 @@ evaluate brgemm_init_update(const expr &A, const expr &B, const expr &C,
         const expr &stride_b, const sc_data_type_t &dtypeA,
         const sc_data_type_t &dtypeB, const sc_brgemm_attrs_t &brg_attrs,
         const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
-        const int &bd_mask_set_num,
+        const int &bd_mask_set_num, const expr &top_pad, const expr &bottom_pad,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
     return builder::get_current_builder()
             ->brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a, stride_b,
-                    postops_data, c_buf, bd_mask_idx,
+                    postops_data, c_buf, bd_mask_idx, top_pad, bottom_pad,
                     {brgemm_args::cpu_t {true}, dtypeA, dtypeB,
                             infer_output_dtype(dtypeA), brg_attrs, bd_mask,
                             bd_mask_set_num, postops_set})
@@ -376,11 +388,13 @@ evaluate brgemm_init_update_allow_fusion(const expr &A, const expr &B,
         const sc_data_type_t &dtypeA, const sc_data_type_t &dtypeB,
         const sc_brgemm_attrs_t &brg_attrs, const sc_brgemm_bd_mask_t &bd_mask,
         const expr &bd_mask_idx, const int &bd_mask_set_num,
+        const expr &top_pad, const expr &bottom_pad,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
     auto ret = brgemm_init_update(A, B, C, num, M, N, K, LDA, LDB, LDC,
             stride_a, stride_b, dtypeA, dtypeB, brg_attrs, bd_mask, bd_mask_idx,
-            bd_mask_set_num, postops_set, postops_data, c_buf)
+            bd_mask_set_num, top_pad, bottom_pad, postops_set, postops_data,
+            c_buf)
                        .checked_as<evaluate>();
     builder::get_current_builder()
             ->get_current_scope()
@@ -398,12 +412,12 @@ evaluate brgemm_update(const expr &A, const expr &B, const expr &C,
         const expr &stride_b, const sc_data_type_t &dtypeA,
         const sc_data_type_t &dtypeB, const sc_brgemm_attrs_t &brg_attrs,
         const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
-        const int &bd_mask_set_num,
+        const int &bd_mask_set_num, const expr &top_pad, const expr &bottom_pad,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
     return builder::get_current_builder()
             ->brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a, stride_b,
-                    postops_data, c_buf, bd_mask_idx,
+                    postops_data, c_buf, bd_mask_idx, top_pad, bottom_pad,
                     {brgemm_args::cpu_t {false}, dtypeA, dtypeB,
                             infer_output_dtype(dtypeA), brg_attrs, bd_mask,
                             bd_mask_set_num, postops_set})
@@ -416,7 +430,7 @@ evaluate brgemm_list_update(const expr &A, const expr &B, const expr &C,
         const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
         const sc_data_type_t &dtypeB, const sc_brgemm_attrs_t &brg_attrs,
         const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
-        const int &bd_mask_set_num,
+        const int &bd_mask_set_num, const expr &top_pad, const expr &bottom_pad,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
     A->attr()[attr_keys::no_index2var] = true;
@@ -425,7 +439,8 @@ evaluate brgemm_list_update(const expr &A, const expr &B, const expr &C,
     B->attr()["list_brgemm_arg"] = true;
     return builder::get_current_builder()
             ->list_brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a,
-                    stride_b, len, postops_data, c_buf, bd_mask_idx,
+                    stride_b, len, postops_data, c_buf, bd_mask_idx, top_pad,
+                    bottom_pad,
                     brgemm_args::extra_args_t(brgemm_args::cpu_t {false},
                             dtypeA, dtypeB, infer_output_dtype(dtypeA),
                             brg_attrs, bd_mask, bd_mask_set_num, postops_set))
@@ -438,7 +453,7 @@ evaluate brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
         const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
         const sc_data_type_t &dtypeB, const sc_brgemm_attrs_t &brg_attrs,
         const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
-        const int &bd_mask_set_num,
+        const int &bd_mask_set_num, const expr &top_pad, const expr &bottom_pad,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
     A->attr()[attr_keys::no_index2var] = true;
@@ -447,7 +462,8 @@ evaluate brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
     B->attr()["list_brgemm_arg"] = true;
     return builder::get_current_builder()
             ->list_brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a,
-                    stride_b, len, postops_data, c_buf, bd_mask_idx,
+                    stride_b, len, postops_data, c_buf, bd_mask_idx, top_pad,
+                    bottom_pad,
                     brgemm_args::extra_args_t(brgemm_args::cpu_t {true}, dtypeA,
                             dtypeB, infer_output_dtype(dtypeA), brg_attrs,
                             bd_mask, bd_mask_set_num, postops_set))

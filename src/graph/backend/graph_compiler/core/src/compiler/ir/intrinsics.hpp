@@ -70,12 +70,12 @@ constexpr int STRIDE_B = 11;
 constexpr int NUM_BASIC_ARGS_STRIDE = STRIDE_B + 1;
 constexpr int LEN = 12;
 constexpr int NUM_BASIC_ARGS_LIST = LEN + 1;
-// extra +2 for c_buf and bdmask_idx
+// extra +4 for c_buf, bdmask_idx, top_pad, bottom_pad
 constexpr int NUM_FULL_ARGS_STRIDE
-        = NUM_BASIC_ARGS_STRIDE + brgemm::postops_data_init_func_nargs + 2;
-// extra +2 for c_buf and bdmask_idx
+        = NUM_BASIC_ARGS_STRIDE + brgemm::postops_data_init_func_nargs + 4;
+// extra +4 for c_buf, bdmask_idx, top_pad, bottom_pad
 constexpr int NUM_FULL_ARGS_LIST
-        = NUM_BASIC_ARGS_LIST + brgemm::postops_data_init_func_nargs + 2;
+        = NUM_BASIC_ARGS_LIST + brgemm::postops_data_init_func_nargs + 4;
 
 struct cpu_t {
     // use init_update or update
@@ -91,8 +91,10 @@ constexpr int brg_attrs = 2;
 constexpr int bd_mask = 3;
 constexpr int postops_setting = 4;
 constexpr int cache_nargs = postops_setting + 1;
-constexpr int postops_data = 5;
-constexpr int c_buf = 6;
+constexpr int top_pad = 5;
+constexpr int bottom_pad = 6;
+constexpr int postops_data = 7;
+constexpr int c_buf = 8;
 constexpr int nargs = c_buf + 1;
 } // namespace extra_args_offset
 

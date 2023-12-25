@@ -366,10 +366,18 @@ static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
                     /*c_buf*/
                     args[brgemm_args::NUM_FULL_ARGS_STRIDE
                             + brgemm_args::extra_args_offset::c_buf],
+                    args[brgemm_args::NUM_FULL_ARGS_STRIDE
+                            + brgemm_args::extra_args_offset::top_pad],
+                    args[brgemm_args::NUM_FULL_ARGS_STRIDE
+                            + brgemm_args::extra_args_offset::bottom_pad],
                     /*ctx*/ args.back());
         }
         return run_func(cache, args[brgemm_args::A], args[brgemm_args::B],
                 args[brgemm_args::C], args[brgemm_args::NUM],
+                args[brgemm_args::NUM_FULL_ARGS_STRIDE
+                        + brgemm_args::extra_args_offset::top_pad],
+                args[brgemm_args::NUM_FULL_ARGS_STRIDE
+                        + brgemm_args::extra_args_offset::bottom_pad],
                 /*ctx*/ args.back());
     } else {
         const int expected_num_args = brgemm_args::NUM_FULL_ARGS_LIST
@@ -393,6 +401,10 @@ static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
                     /*c_buf*/
                     args[brgemm_args::NUM_FULL_ARGS_LIST
                             + brgemm_args::extra_args_offset::c_buf],
+                    args[brgemm_args::NUM_FULL_ARGS_LIST
+                            + brgemm_args::extra_args_offset::top_pad],
+                    args[brgemm_args::NUM_FULL_ARGS_LIST
+                            + brgemm_args::extra_args_offset::bottom_pad],
                     /*ctx*/ args.back());
         }
         return run_func(cache, args[brgemm_args::A], args[brgemm_args::B],
@@ -403,6 +415,10 @@ static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
                         + brgemm_args::extra_args_offset::dtypeA],
                 args[brgemm_args::NUM_FULL_ARGS_LIST
                         + brgemm_args::extra_args_offset::dtypeB],
+                args[brgemm_args::NUM_FULL_ARGS_LIST
+                        + brgemm_args::extra_args_offset::top_pad],
+                args[brgemm_args::NUM_FULL_ARGS_LIST
+                        + brgemm_args::extra_args_offset::bottom_pad],
                 /*ctx*/ args.back());
     }
 }
@@ -418,6 +434,10 @@ static expr range_brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
                 args[brgemm_args::K], args[brgemm_args::A],
                 args[brgemm_args::B], args[brgemm_args::C],
                 args[brgemm_args::NUM],
+                args[brgemm_args::NUM_FULL_ARGS_STRIDE
+                        + brgemm_args::extra_args_offset::top_pad],
+                args[brgemm_args::NUM_FULL_ARGS_STRIDE
+                        + brgemm_args::extra_args_offset::bottom_pad],
                 /*ctx*/ args.back());
     } else {
         const int expected_num_args = brgemm_args::NUM_FULL_ARGS_LIST
@@ -433,6 +453,10 @@ static expr range_brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
                         + brgemm_args::extra_args_offset::dtypeA],
                 args[brgemm_args::NUM_FULL_ARGS_LIST
                         + brgemm_args::extra_args_offset::dtypeB],
+                args[brgemm_args::NUM_FULL_ARGS_LIST
+                        + brgemm_args::extra_args_offset::top_pad],
+                args[brgemm_args::NUM_FULL_ARGS_LIST
+                        + brgemm_args::extra_args_offset::bottom_pad],
                 /*ctx*/ args.back());
     }
 }
@@ -585,7 +609,7 @@ public:
             int bd_mask_arg_offset
                     = num_full_args + +brgemm_args::extra_args_offset::bd_mask;
             expr bd_mask = args[bd_mask_arg_offset];
-            expr bd_mask_idx = args[num_full_args - 1];
+            expr bd_mask_idx = args[num_full_args - 3];
             assert(bd_mask.defined() && bd_mask_idx.defined());
 
             expr result = get_ir_null();
@@ -711,10 +735,11 @@ public:
                         << ".");
 
         // layout of v->args (full args):
-        //    | basic_args | postops_data list(11 elems) | c_buf | bdmask_idx
+        //    | basic_args | postops_data list(11 elems) | c_buf | bdmask_idx |
+        //    top_pad | bottom_pad
         std::vector<expr> brg_postops_data
                 = std::vector<expr>(v->args_.begin() + num_basic_args,
-                        v->args_.begin() + num_full_args - 2);
+                        v->args_.begin() + num_full_args - 4);
         COMPILE_ASSERT(
                 brg_postops_data.size() == brgemm::postops_data_init_func_nargs,
                 "brg_postops_data.size() is expected to be "
@@ -727,8 +752,8 @@ public:
 
         // layout of opt_args:
         //    | basic_args | postops_data list(11 elems) | c_buf | bdmask_idx
-        //    | dtypeA | dtypeB | attrs | bd_mask | postops setting
-        //    | postops data | c_buf | stream |
+        //    | dtypeA | dtypeB | attrs | bd_mask | postops setting | top_pad |
+        //    bottom_pad | postops data | c_buf | stream |
         // The 1st c_buf will be replaced by 2nd c_buf
         std::vector<expr> opt_args {v->args_.begin(), v->args_.end()};
         opt_args.emplace_back(dtypeA.as_etype_int());
@@ -741,7 +766,7 @@ public:
         // bd mask
         expr bd_mask_arr = get_ir_null(), cur_bd_mask = get_ir_null();
         if (use_bdmask) {
-            expr bd_mask_idx = v->args_[num_full_args - 1];
+            expr bd_mask_idx = v->args_[num_full_args - 3];
             expr bd_mask_len = v->args_[brgemm_args::M];
             auto bd_mask_arg = get_brgemm_bd_mask_arg(mod_, bd_mask,
                     bd_mask_idx, bd_mask_len, brg_bdmask_set_num_,
@@ -755,6 +780,13 @@ public:
         expr brg_setting_arg = get_brgemm_postops_setting_arg(
                 mod_, brg_postops_setting, postop_set_cache_);
         opt_args.emplace_back(brg_setting_arg);
+
+        // top and bottom padding
+        expr top_pad = v->args_[num_full_args - 2],
+             bottom_pad = v->args_[num_full_args - 1];
+        opt_args.emplace_back(top_pad);
+        opt_args.emplace_back(bottom_pad);
+
         // brgemm postops data
         std::vector<stmt_c> &ret = brg_postop_init_;
         expr brg_data_arg;
@@ -771,7 +803,7 @@ public:
         opt_args.emplace_back(brg_data_arg);
 
         // brgemm c buf, currently we create a local buffer with M*N size
-        expr brg_c_buf = v->args_[num_full_args - 2];
+        expr brg_c_buf = v->args_[num_full_args - 4];
         assert(brg_c_buf.defined());
         if (brg_c_buf->equals(get_ir_null())) {
             if (!brg_postops_setting.empty()) {
@@ -790,13 +822,13 @@ public:
 
         // layout of no_opt_args:
         //    | basic_args | dtypeA | dtypeB | attrs | bd_mask | postops setting
-        //    | postops data | c_buf | stream |
+        //    | top_pad | bottom_pad | postops data | c_buf | stream |
         std::vector<expr> no_opt_args(
                 opt_args.begin(), opt_args.begin() + num_basic_args);
         // +2 for old c_buf and bdmask_idx
         no_opt_args.insert(no_opt_args.end(),
                 opt_args.begin() + num_basic_args
-                        + brgemm::postops_data_init_func_nargs + 2,
+                        + brgemm::postops_data_init_func_nargs + 4,
                 opt_args.end());
         no_opt_args[num_basic_args + 3] = cur_bd_mask;
 

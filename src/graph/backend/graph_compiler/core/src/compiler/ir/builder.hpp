@@ -177,7 +177,8 @@ public:
             const expr_c &K, const expr_c &lda, const expr_c &ldb,
             const expr_c &ldc, const expr_c &a_stride, const expr_c &b_stride,
             const std::vector<expr> &postops_data, const expr_c &c_buf,
-            const expr_c &bd_mask_idx, const brgemm_args::extra_args_t &extras);
+            const expr_c &bd_mask_idx, const expr_c &top_pad,
+            const expr_c &bottom_pad, const brgemm_args::extra_args_t &extras);
 
     /**
      * Makes a brgemm-call node and evaluates it
@@ -188,6 +189,7 @@ public:
             const expr_c &ldc, const expr_c &a_stride, const expr_c &b_stride,
             const expr_c &len, const std::vector<expr> &postops_data,
             const expr_c &c_buf, const expr_c &bd_mask_idx,
+            const expr_c &top_pad, const expr_c &bottom_pad,
             const brgemm_args::extra_args_t &extras);
 
     /**

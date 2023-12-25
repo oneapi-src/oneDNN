@@ -41,7 +41,7 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnF32) {
     dnnl_brgemm_init_update(A.data(), B.data(), C.data(), blocks, M, N, K, K, N,
             N, M * K, K * N, datatypes::f32.as_etype_int(),
             datatypes::f32.as_etype_int(), /*attrs*/ nullptr,
-            /*bd_mask*/ nullptr, /*postop set*/ nullptr,
+            /*bd_mask*/ nullptr, nullptr, nullptr, /*postop set*/ nullptr,
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     for (auto i : C) {
@@ -74,13 +74,13 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnBF16) {
     dnnl_brgemm_init_update(A_bf16.data(), B_bf16.data(), C_bf16.data(), blocks,
             M, N, K, K, N, N, M * K, K * N, datatypes::bf16.as_etype_int(),
             datatypes::bf16.as_etype_int(), /*attrs*/ nullptr,
-            /*bd_mask*/ nullptr, /*postop set*/ nullptr,
+            /*bd_mask*/ nullptr, nullptr, nullptr, /*postop set*/ nullptr,
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     dnnl_brgemm_init_update(A.data(), B.data(), C_ref.data(), blocks, M, N, K,
             K, N, N, M * K, K * N, datatypes::f32.as_etype_int(),
             datatypes::f32.as_etype_int(), /*attrs*/ nullptr,
-            /*bd_mask*/ nullptr, /*postop set*/ nullptr,
+            /*bd_mask*/ nullptr, nullptr, nullptr, /*postop set*/ nullptr,
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     for (unsigned i = 0; i < C_bf16.size(); i++) {
@@ -114,13 +114,13 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnS8S8) {
     dnnl_brgemm_init_update(qA.data(), qB.data(), qC.data(), blocks, M, N, K, K,
             N, N, M * K, K * N, datatypes::s8.as_etype_int(),
             datatypes::s8.as_etype_int(), /*attrs*/ nullptr,
-            /*bd_mask*/ nullptr, /*postop set*/ nullptr,
+            /*bd_mask*/ nullptr, nullptr, nullptr, /*postop set*/ nullptr,
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     dnnl_brgemm_init_update(refA.data(), refB.data(), refC.data(), blocks, M, N,
             K, K, N, N, M * K, K * N, datatypes::f32.as_etype_int(),
             datatypes::f32.as_etype_int(), /*attrs*/ nullptr,
-            /*bd_mask*/ nullptr, /*postop set*/ nullptr,
+            /*bd_mask*/ nullptr, nullptr, nullptr, /*postop set*/ nullptr,
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     for (unsigned i = 0; i < qC.size(); i++) {
@@ -147,13 +147,13 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnU8S8) {
     dnnl_brgemm_init_update(qA.data(), qB.data(), qC.data(), blocks, M, N, K, K,
             N, N, M * K, 16 * N, datatypes::u8.as_etype_int(),
             datatypes::s8.as_etype_int(), /*attrs*/ nullptr,
-            /*bd_mask*/ nullptr, /*postop set*/ nullptr,
+            /*bd_mask*/ nullptr, nullptr, nullptr, /*postop set*/ nullptr,
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     dnnl_brgemm_init_update(refA.data(), refB.data(), refC.data(), blocks, M, N,
             K, K, N, N, M * K, K * N, datatypes::f32.as_etype_int(),
             datatypes::f32.as_etype_int(), /*attrs*/ nullptr,
-            /*bd_mask*/ nullptr, /*postop set*/ nullptr,
+            /*bd_mask*/ nullptr, nullptr, nullptr, /*postop set*/ nullptr,
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     for (unsigned i = 0; i < qC.size(); i++) {
@@ -303,7 +303,8 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnAttrs) {
             M * K, K * N, 1, datatypes::u8.as_etype_int(),
             datatypes::s8.as_etype_int(), /*attrs*/ attrs,
             /*bd_mask*/ bd_mask.data(), /*postop set*/ nullptr,
-            /*postop data*/ nullptr, /*c_buf*/ nullptr,
+            /*postop data*/ nullptr, /*c_buf*/ nullptr, /*top_pad*/ nullptr,
+            /*bottom_pad*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
 
     int mask_start = std::accumulate(bd_mask.begin(), bd_mask.end(), 0);
@@ -347,16 +348,17 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnRange) {
             /*N_tail_value*/ brg_range_tail_value::no_tail,
             /*K_tail_value*/ brg_range_tail_value::no_tail);
     dnnl_brgemm_call_range(&stride_handle, M, N, K, qA.data(), qB.data(),
-            qC_strd.data(), blocks, runtime::get_default_stream());
+            qC_strd.data(), blocks, nullptr, nullptr,
+            runtime::get_default_stream());
     const void *qA_ptr = qA.data(), *qB_ptr = qB.data();
     dnnl_brgemm_list_call_range(&list_handle, M, N, K, &qA_ptr, &qB_ptr,
             qC_list.data(), blocks, M * K, 16 * N, 1,
-            datatypes::u8.as_etype_int(), datatypes::s8.as_etype_int(),
-            runtime::get_default_stream());
+            datatypes::u8.as_etype_int(), datatypes::s8.as_etype_int(), nullptr,
+            nullptr, runtime::get_default_stream());
     dnnl_brgemm_init_update(refA.data(), refB.data(), refC.data(), blocks, M, N,
             K, K, N, N, M * K, K * N, datatypes::f32.as_etype_int(),
             datatypes::f32.as_etype_int(), /*attrs*/ nullptr,
-            /*bd_mask*/ nullptr, /*postop set*/ nullptr,
+            /*bd_mask*/ nullptr, nullptr, nullptr, /*postop set*/ nullptr,
             /*postop data*/ nullptr, /*c_buf*/ nullptr,
             /*ctx*/ runtime::get_default_stream());
     for (unsigned i = 0; i < qC_strd.size(); i++) {
