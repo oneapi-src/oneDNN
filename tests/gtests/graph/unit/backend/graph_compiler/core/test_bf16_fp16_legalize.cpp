@@ -45,14 +45,21 @@ void dotest_low_precision_fp_promote_binary(
         stmt aaa, bbb;
         ir_comparer cmper(true);
         bld.push_scope();
-        builder::make_var(DBF16, "c") = OP(
-                builder::make_var(DBF16, "a"), builder::make_var(DBF16, "b"));
+        {
+            expr c = builder::make_var(DBF16, "c");
+            expr a = builder::make_var(DBF16, "a");
+            expr b = builder::make_var(DBF16, "b");
+            bld.push_assign(c, OP(a, b));
+        }
         aaa = bld.pop_scope();
 
         bld.push_scope();
-        builder::make_var(DBF16, "c")
-                = BF16(OP(F32(builder::make_var(DBF16, "a")),
-                        F32(builder::make_var(DBF16, "b"))));
+        {
+            expr c = builder::make_var(DBF16, "c");
+            expr a = builder::make_var(DBF16, "a");
+            expr b = builder::make_var(DBF16, "b");
+            bld.push_assign(c, BF16(OP(F32(a), F32(b))));
+        }
         bbb = bld.pop_scope();
 
         bf16_fp16_promote_impl_t pass;
@@ -62,22 +69,20 @@ void dotest_low_precision_fp_promote_binary(
     {
         SKIP_F16(datatypes::f16);
         builder::ir_builder_t bld;
-        stmt aaa, bbb;
+        stmt aaa;
         ir_comparer cmper(true);
         bld.push_scope();
-        builder::make_var(DF16, "c") = OP(
-                builder::make_var(DF16, "a"), builder::make_var(DF16, "b"));
+        {
+            expr c = builder::make_var(DF16, "c");
+            expr a = builder::make_var(DF16, "a");
+            expr b = builder::make_var(DF16, "b");
+            bld.push_assign(c, OP(a, b));
+        }
         aaa = bld.pop_scope();
-
-        bld.push_scope();
-        builder::make_var(DF16, "c")
-                = BF16(OP(F32(builder::make_var(DF16, "a")),
-                        F32(builder::make_var(DF16, "b"))));
-        bbb = bld.pop_scope();
 
         bf16_fp16_promote_impl_t pass;
         auto ccc = pass.dispatch(aaa);
-        EXPECT_TRUE(cmper.compare(ccc, bbb, false));
+        EXPECT_TRUE(cmper.compare(ccc, aaa, false));
     }
 }
 
@@ -88,12 +93,20 @@ void dotest_low_precision_fp_promote_cmp(
         stmt aaa, bbb;
         ir_comparer cmper(true);
         bld.push_scope();
-        builder::make_var(DBF16, "c") = OP(
-                builder::make_var(DBF16, "a"), builder::make_var(DBF16, "b"));
+        {
+            expr c = builder::make_var(DBF16, "c");
+            expr a = builder::make_var(DBF16, "a");
+            expr b = builder::make_var(DBF16, "b");
+            bld.push_assign(c, OP(a, b));
+        }
         aaa = bld.pop_scope();
         bld.push_scope();
-        builder::make_var(DBF16, "c") = OP(F32(builder::make_var(DBF16, "a")),
-                F32(builder::make_var(DBF16, "b")));
+        {
+            expr c = builder::make_var(DBF16, "c");
+            expr a = builder::make_var(DBF16, "a");
+            expr b = builder::make_var(DBF16, "b");
+            bld.push_assign(c, OP(F32(a), F32(b)));
+        }
         bbb = bld.pop_scope();
 
         bf16_fp16_promote_impl_t pass;
@@ -103,20 +116,20 @@ void dotest_low_precision_fp_promote_cmp(
     {
         SKIP_F16(datatypes::f16);
         builder::ir_builder_t bld;
-        stmt aaa, bbb;
+        stmt aaa;
         ir_comparer cmper(true);
         bld.push_scope();
-        builder::make_var(DF16, "c") = OP(
-                builder::make_var(DF16, "a"), builder::make_var(DF16, "b"));
+        {
+            expr c = builder::make_var(DF16, "c");
+            expr a = builder::make_var(DF16, "a");
+            expr b = builder::make_var(DF16, "b");
+            bld.push_assign(c, OP(a, b));
+        }
         aaa = bld.pop_scope();
-        bld.push_scope();
-        builder::make_var(DF16, "c") = OP(F32(builder::make_var(DF16, "a")),
-                F32(builder::make_var(DF16, "b")));
-        bbb = bld.pop_scope();
 
         bf16_fp16_promote_impl_t pass;
         auto ccc = pass.dispatch(aaa);
-        EXPECT_TRUE(cmper.compare(ccc, bbb, false));
+        EXPECT_TRUE(cmper.compare(ccc, aaa, false));
     }
 }
 
@@ -126,11 +139,12 @@ void dotest_low_precision_fp_promote_single(expr (*OP)(const expr_c &)) {
         stmt aaa, bbb;
         ir_comparer cmper(true);
         bld.push_scope();
-        builder::make_var(DBF16, "c") = OP(builder::make_var(DBF16, "a"));
+        bld.push_assign(builder::make_var(DBF16, "c"),
+                OP(builder::make_var(DBF16, "a")));
         aaa = bld.pop_scope();
         bld.push_scope();
-        builder::make_var(DBF16, "c")
-                = BF16(OP(F32(builder::make_var(DBF16, "a"))));
+        bld.push_assign(builder::make_var(DBF16, "c"),
+                BF16(OP(F32(builder::make_var(DBF16, "a")))));
         bbb = bld.pop_scope();
 
         bf16_fp16_promote_impl_t pass;
@@ -143,16 +157,13 @@ void dotest_low_precision_fp_promote_single(expr (*OP)(const expr_c &)) {
         stmt aaa, bbb;
         ir_comparer cmper(true);
         bld.push_scope();
-        builder::make_var(DF16, "c") = OP(builder::make_var(DF16, "a"));
+        bld.push_assign(
+                builder::make_var(DF16, "c"), OP(builder::make_var(DF16, "a")));
         aaa = bld.pop_scope();
-        bld.push_scope();
-        builder::make_var(DF16, "c")
-                = F16(OP(F32(builder::make_var(DF16, "a"))));
-        bbb = bld.pop_scope();
 
         bf16_fp16_promote_impl_t pass;
         auto ccc = pass.dispatch(aaa);
-        EXPECT_TRUE(cmper.compare(ccc, bbb, false));
+        EXPECT_TRUE(cmper.compare(ccc, aaa, false));
     }
 }
 
@@ -170,7 +181,6 @@ void dotest_low_precision_fp_promote_assign() {
         builder::make_var(DF32, "b") = F32(builder::make_var(DBF16, "c"));
 
         bbb = bld.pop_scope();
-
         bf16_fp16_promote_impl_t pass;
         auto ccc = pass.dispatch(aaa);
         EXPECT_TRUE(cmper.compare(ccc, bbb, false));
@@ -185,14 +195,13 @@ void dotest_low_precision_fp_promote_assign() {
         builder::make_var(DF32, "b") = builder::make_var(DF16, "c");
         aaa = bld.pop_scope();
         bld.push_scope();
-        builder::make_var(DF16, "c") = BF16(builder::make_var(DF32, "a"));
+        builder::make_var(DF16, "c") = F16(builder::make_var(DF32, "a"));
         builder::make_var(DF32, "b") = F32(builder::make_var(DF16, "c"));
 
         bbb = bld.pop_scope();
-
         bf16_fp16_promote_impl_t pass;
         auto ccc = pass.dispatch(aaa);
-        EXPECT_TRUE(cmper.compare(ccc, bbb, false));
+        EXPECT_TRUE(cmper.compare(ccc, aaa, false));
     }
 }
 
@@ -203,16 +212,17 @@ void dotest_low_precision_fp_promote_select() {
         ir_comparer cmper(true);
         bld.push_scope();
         // fake dtype of condition.
-        builder::make_var(DBF16, "c") = builder::make_select(
-                builder::make_var(DBF16, "cond"), builder::make_var(DBF16, "a"),
-                builder::make_var(DBF16, "b"));
+        bld.push_assign(builder::make_var(DBF16, "c"),
+                builder::make_select(builder::make_var(DBF16, "cond"),
+                        builder::make_var(DBF16, "a"),
+                        builder::make_var(DBF16, "b")));
         aaa = bld.pop_scope();
 
         bld.push_scope();
-        builder::make_var(DBF16, "c")
-                = BF16(builder::make_select(builder::make_var(DBF16, "cond"),
+        bld.push_assign(builder::make_var(DBF16, "c"),
+                BF16(builder::make_select(builder::make_var(DBF16, "cond"),
                         F32(builder::make_var(DBF16, "a")),
-                        F32(builder::make_var(DBF16, "b"))));
+                        F32(builder::make_var(DBF16, "b")))));
         bbb = bld.pop_scope();
 
         bf16_fp16_promote_impl_t pass;
@@ -222,25 +232,19 @@ void dotest_low_precision_fp_promote_select() {
     {
         SKIP_F16(datatypes::f16);
         builder::ir_builder_t bld;
-        stmt aaa, bbb;
+        stmt aaa;
         ir_comparer cmper(true);
         bld.push_scope();
         // fake dtype of condition.
-        builder::make_var(DF16, "c") = builder::make_select(
-                builder::make_var(DF16, "cond"), builder::make_var(DF16, "a"),
-                builder::make_var(DF16, "b"));
+        bld.push_assign(builder::make_var(DF16, "c"),
+                builder::make_select(builder::make_var(DF16, "cond"),
+                        builder::make_var(DF16, "a"),
+                        builder::make_var(DF16, "b")));
         aaa = bld.pop_scope();
-
-        bld.push_scope();
-        builder::make_var(DF16, "c")
-                = BF16(builder::make_select(builder::make_var(DF16, "cond"),
-                        F32(builder::make_var(DF16, "a")),
-                        F32(builder::make_var(DF16, "b"))));
-        bbb = bld.pop_scope();
 
         bf16_fp16_promote_impl_t pass;
         auto ccc = pass.dispatch(aaa);
-        EXPECT_TRUE(cmper.compare(ccc, bbb, false));
+        EXPECT_TRUE(cmper.compare(ccc, aaa, false));
     }
 }
 
@@ -294,53 +298,6 @@ TEST(GCCore_CPU_hplegalize_cpp, TestBF16CastElimination) {
         e = builder::make_max(F32(a) + F32(b), F32(a) - F32(b));
         _var_(d, DBF16);
         d = BF16(builder::make_max(F32(a), e));
-        c = d;
-        _return_(1);
-    }
-    bf16_fp16_promote_impl_t promote_pass;
-    bf16_fp16_elimination_analyzer_t analysis_pass(get_test_ctx());
-    bf16_fp16_cast_elimination_impl_t elimination_pass(
-            get_test_ctx(), analysis_pass.var_use_cnt_);
-    auto ddd = promote_pass.dispatch(aaa);
-    EXPECT_TRUE(cmper.compare(ddd, bbb, false));
-    cmper.reset();
-    auto eee = analysis_pass.dispatch(ddd);
-    auto fff = elimination_pass.dispatch(eee);
-    EXPECT_TRUE(cmper.compare(fff, ccc, false));
-}
-
-TEST(GCCore_CPU_hplegalize_cpp, TestAMXF16CastElimination) {
-    REQUIRE_AVX512AMXFP16();
-    builder::ir_builder_t builder;
-    ir_comparer cmper(true);
-    _function_(datatypes::s32, aaa, _arg_("a", DF16), _arg_("b", DF16),
-            _arg_("c", DF16)) {
-        _bind_(a, b, c);
-        _var_(e, DF16);
-        e = builder::make_max(a + b, a - b);
-        _var_(d, DF16);
-        d = builder::make_max(a, e);
-        c = d;
-        _return_(1);
-    }
-    _function_(datatypes::s32, bbb, _arg_("a", DF16), _arg_("b", DF16),
-            _arg_("c", DF16)) {
-        _bind_(a, b, c);
-        _var_(e, DF16);
-        e = F16(builder::make_max(
-                F32(F16(F32(a) + F32(b))), F32(F16(F32(a) - F32(b)))));
-        _var_(d, DF16);
-        d = F16(builder::make_max(F32(a), F32(e)));
-        c = d;
-        _return_(1);
-    }
-    _function_(datatypes::s32, ccc, _arg_("a", DF16), _arg_("b", DF16),
-            _arg_("c", DF16)) {
-        _bind_(a, b, c);
-        _var_(e, DF32);
-        e = builder::make_max(F32(a) + F32(b), F32(a) - F32(b));
-        _var_(d, DF16);
-        d = F16(builder::make_max(F32(a), e));
         c = d;
         _return_(1);
     }
@@ -426,8 +383,8 @@ TEST(GCCore_CPU_hplegalize_cpp, TestBF16Lower) {
     }
 }
 
-TEST(GCCore_CPU_hplegalize_cpp, TestAMXF16Lower) {
-    REQUIRE_AVX512AMXFP16();
+TEST(GCCore_CPU_hplegalize_cpp, TestF16Lower) {
+    REQUIRE_AVX512FP16();
     builder::ir_builder_t builder;
     int lanes = 1;
     _function_(datatypes::s32, aaa, _arg_("a", datatypes::f16, {lanes}),
@@ -445,9 +402,7 @@ TEST(GCCore_CPU_hplegalize_cpp, TestAMXF16Lower) {
     fp16_t a[1] = {fa};
     fp16_t b[1] = {fb};
     fp16_t c[1];
-    fc_ref = float(
-            fp16_t((float(a[0]) + float(b[0])) * (float(a[0]) - float(b[0]))
-                    + 3.14159F));
+    fc_ref = float(fp16_t((a[0] + b[0]) * (a[0] - b[0]) + fp16_t(3.14159F)));
     auto fptr = jit_engine_t::make(get_default_context())
                         ->get_entry_func(ir_module_t::from_entry_func(
                                                  get_default_context(), aaa),
@@ -479,9 +434,8 @@ TEST(GCCore_CPU_hplegalize_cpp, TestAMXF16Lower) {
             vfb[i] = get_rand();
             va[i] = fp16_t(vfa[i]);
             vb[i] = fp16_t(vfb[i]);
-            vfc_ref[i] = float(fp16_t((float(va[i]) + float(vb[i]))
-                            * (float(va[i]) - float(vb[i]))
-                    + 3.14159));
+            vfc_ref[i] = float(fp16_t(
+                    (va[i] + vb[i]) * (va[i] - vb[i]) + fp16_t(3.14159F)));
         }
 
         fptr = jit_engine_t::make(get_default_context())
