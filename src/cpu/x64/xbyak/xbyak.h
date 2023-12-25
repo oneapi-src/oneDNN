@@ -969,6 +969,7 @@ public:
 			base_ = r;
 		}
 	}
+    XBYAK_CONSTEXPR RegExp(const RegExp& rhs) : base_(rhs.base_), index_(rhs.index_), scale_(rhs.scale_), disp_(rhs.disp_) { }
 	bool isVsib(int bit = 128 | 256 | 512) const { return index_.isBit(bit); }
 	RegExp optimize() const
 	{
