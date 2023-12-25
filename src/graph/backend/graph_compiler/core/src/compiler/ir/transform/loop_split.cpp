@@ -39,6 +39,10 @@ public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
 
+    inline int64_t divide_and_ceil(int64_t x, int64_t y) {
+        return (x + y - 1) / y;
+    }
+
     // not interested in any exprs
     expr_c dispatch(expr_c v) override { return v; }
 
@@ -46,9 +50,9 @@ public:
         auto vv = ir_visitor_t::visit(std::move(v)).static_as<for_loop_c>();
         // New range for this for loop
         stmt new_body;
-        auto for_range_new_end = [&](uint64_t new_end) -> stmt_c {
+        auto for_range_new_end = [&](int64_t new_end) -> stmt_c {
             const auto end = vv->iter_end_.dyn_as<constant>();
-            if (end.defined() && (end->get_index() > new_end)) {
+            if (end.defined() && (get_const_as_int(end) > new_end)) {
                 auto iter_end = builder::make_constant(
                         {new_end}, vv->iter_end_->dtype_);
                 return copy_attr(*vv,
@@ -58,14 +62,14 @@ public:
             }
             return vv;
         };
-        auto for_range_new_beg = [&](uint64_t new_beg) -> stmt_c {
+        auto for_range_new_beg = [&](int64_t new_beg) -> stmt_c {
             const auto begn = vv->iter_begin_.dyn_as<constant>();
             const auto step = vv->step_.dyn_as<constant>();
             if (begn.defined() && step.defined()
-                    && (begn->get_index() < new_beg)) {
-                auto old_beg = begn->get_index();
-                auto old_stp = step->get_index();
-                auto n = utils::divide_and_ceil(new_beg - old_beg, old_stp);
+                    && (get_const_as_int(begn) < new_beg)) {
+                auto old_beg = get_const_as_int(begn);
+                auto old_stp = get_const_as_int(step);
+                auto n = divide_and_ceil(new_beg - old_beg, old_stp);
                 auto iter_beg = builder::make_constant(
                         {n * old_stp + old_beg}, vv->iter_begin_->dtype_);
                 return copy_attr(*vv,
@@ -98,7 +102,7 @@ public:
                             });
         if (cond.has_value()) {
             const auto c = cond.get();
-            const auto n = c->r_.static_as<constant>()->get_index();
+            const auto n = get_const_as_int(c->r_.static_as<constant>());
             switch (c->node_type_) {
                 case sc_expr_type::cmp_lt: return for_range_new_end(n);
                 case sc_expr_type::cmp_le: return for_range_new_end(n + 1);
