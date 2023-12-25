@@ -1214,7 +1214,7 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                               (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
                               q_o * config.tile_q * sw_ + dw_ * s * kw_step, 0}
                             : std::vector<expr> {n,
-                              (p_o * config.tile_p + p_i) * sh_ + dw_ * r,
+                              (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
                               q_o * config.tile_q * sw_ + dw_ * s * kw_step,
                               (g * C_num_block + c_o) * config.C_block};
 
