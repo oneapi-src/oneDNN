@@ -3131,6 +3131,8 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
         } else {
             if (!op->attrs_.get_or_else(op_attr_key::break_pre_fuse, false)) {
                 std::vector<mixed_parti_t::ptr> avaliable_input_parti;
+                // any op marked as `break_post_fuse` should be excluded
+                std::vector<sc_op *> excluded_ops;
                 // collect avaliable input partition
                 auto sorted_inputs = get_sorted_inputs_by_layout_input(op);
                 for (auto &in : sorted_inputs) {
@@ -3157,8 +3159,41 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                                        << in->producer_owner_->op_name_ << "_"
                                        << in->producer_owner_->logical_op_id_
                                        << " is marked as break post fuse";
+                        // Although input op has been marked as break post fuse,
+                        // it maybe already fused into avaliable input partition
+                        // belonging to another ones
+                        excluded_ops.emplace_back(in->producer_owner_);
                     }
                 }
+                // filter input partition
+                auto filter_input_partition = [&avaliable_input_parti,
+                                                      &excluded_ops]() {
+                    // avoid duplication
+                    std::unordered_set<mixed_parti_t *> unique_parti_set;
+                    for (auto iter = avaliable_input_parti.begin();
+                            iter != avaliable_input_parti.end();) {
+                        // get root partition as key
+                        auto root_parti = (*iter)->get_root();
+                        if (unique_parti_set.find(root_parti)
+                                != unique_parti_set.end()) {
+                            iter = avaliable_input_parti.erase(iter);
+                        } else {
+                            unique_parti_set.insert(root_parti);
+                            // double-check whether contains excluded ops
+                            if (std::any_of(excluded_ops.begin(),
+                                        excluded_ops.end(),
+                                        [&root_parti](sc_op *op) {
+                                            return root_parti->contains(op);
+                                        })) {
+                                iter = avaliable_input_parti.erase(iter);
+                            } else {
+                                iter++;
+                            }
+                        }
+                    }
+                };
+                // filter duplicated ones
+                filter_input_partition();
                 // try pre op fusion
                 parent_partition = try_execute_pre_op_fusion(
                         ctx, op, avaliable_input_parti);

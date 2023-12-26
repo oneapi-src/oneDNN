@@ -190,6 +190,8 @@ bool static_fusion_cost_model_t::make_decision_for_op(
 
     // double check parallelism of standalone op
     if (need_double_check_standalone_parallel(op, binded_mxp_)) {
+        SC_MODULE_INFO << "double check standalone parallellism for "
+                       << op->op_name_ << op->logical_op_id_;
         mixed_parti_t op_parti(binded_mxp_->ctx_,
                 std::const_pointer_cast<sc_op>(op->shared_from_this()));
         float standalone_parallel
@@ -301,6 +303,8 @@ bool dynamic_fusion_cost_model_t::make_decision_for_op(
             && evaluate_loop_parallel_balance(
                        binded_mxp_->get_outer_loops(), thr_cond, true)
                     == 0.f) {
+        SC_MODULE_INFO << "double check standalone parallellism for "
+                       << op->op_name_ << op->logical_op_id_;
         mixed_parti_t tunable_parti(binded_mxp_->ctx_,
                 std::const_pointer_cast<sc_op>(op->shared_from_this()));
         if (evaluate_loop_parallel_balance(

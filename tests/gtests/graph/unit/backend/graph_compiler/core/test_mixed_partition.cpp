@@ -2670,3 +2670,37 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, InferSliceForBMMWithBroadcast) {
 )";
     EXPECT_EQ(ss.str(), expected_str);
 }
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFilterInputPartition) {
+    sc_graph_t graph;
+
+    SET_THREADS_OR_SKIP(10);
+    /** Build following graph
+     *      relu0
+     *      /   \
+     *     |    relu1 ("break_post_fues":true)
+     *      \   /
+     *      add0
+     */
+    auto input = graph.make_input({graph_tensor::make({10, 20, 30})});
+    auto relu0 = graph.make("relu", input->get_outputs(), {}, {});
+    // relu1 is marked as `break_post_fuse`
+    auto relu1 = graph.make(
+            "relu", relu0->get_outputs(), {}, {{"break_post_fuse", true}});
+    // Although `add0` can still be fused with `relu0`, it could not be fused
+    // with input partition including `relu1`
+    auto add0 = graph.make(
+            "add", {relu0->get_outputs()[0], relu1->get_outputs()[0]}, {}, {});
+    graph.make_output(add0->get_outputs());
+
+    mixed_partition(graph, get_test_ctx());
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    std::string expected_str
+            = R"(graph(v0: f32[10, 20, 30]) -> [v1: f32[10, 20, 30]] {
+  [v2: f32[10, 20, 30], v3: f32[10, 20, 30]] = outerloop_10X20_partition_relu_relu(v0)
+  [v1: f32[10, 20, 30]] = add(v2, v3)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+}
