@@ -6,8 +6,8 @@
     --attr-fpmath=MATHMODE[:APPLY_TO_INT]
     --attr-acc-mode=ACCMODE
     --attr-deterministic=BOOL
-    --attr-scales=ARG:POLICY[:SCALE][+...]
-    --attr-zero-points=ARG:POLICY[:ZEROPOINT][+...]
+    --attr-scales=ARG:POLICY[:SCALE[:DATA_TYPE[:GROUPS]]][+...]
+    --attr-zero-points=ARG:POLICY[:ZEROPOINT[:DATA_TYPE[:GROUPS]]][+...]
     --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
                     ELTWISE[:ALPHA[:BETA[:SCALE]]]
                     DW:KkSsPp[:DST_DT]
@@ -72,6 +72,12 @@ scale value. Supported values are:
   - `per_oc`         same as `per_dim_0` for non-grouped case of `WEI` argument,
                      same as `per_dim_01` for grouped case of `WEI` argument,
                      same as `per_dim_1` for arguments other than `WEI`.
+  - `per_ocic`       same as `per_dim_01` for non-grouped case of `WEI` argument
+                     or for non-batched Matmul case of `WEI` argument,
+                     corresponds to `mask = (1 << 1) + (1 << 2)` for grouped case
+                     of `WEI` argument.
+                     corresponds to `mask = (1 << batch_ndims) + (1 << batch_ndims + 1)`
+                     for batched Matmul case of `WEI` argument.
   - `per_dim_2`      corresponds to `mask = 1 << 2` and means elements of dim3
                      will be multiplied by scale factors different for each
                      point. Number of scale factors is equal to dims[2].
@@ -87,6 +93,12 @@ scale value. Supported values are:
 `SCALE` is required for the `common` policy only, and specifies a floating-point
 value which is passed for execution at runtime. Specifying a value for any other
 policies will trigger an error.
+
+`DATA_TYPE` specifies data type for scale factors. Supported values are
+`f32` (the default), `f16`, `bf16`.
+
+`GROUPS` specifies how scales are grouped along dimensions where multiple scale
+factors are used.
 
 To specify more than one memory argument for this attribute, `+` delimiter is
 used.
@@ -108,6 +120,12 @@ values are:
 `ZEROPOINT` is required for the `common` policy only, an specifies an integer
 value which is passed for execution at runtime. Specifying a value for any other
 policies will trigger an error.
+
+`DATA_TYPE` specifies data type for zero points. Supported values are
+`s32` (the default), `s8`, `u8`.
+
+`GROUPS` specifies how zero points are grouped along dimensions where multiple
+zero points factors are used.
 
 To specify more than one memory argument for this attribute, `+` delimiter is
 used.
@@ -252,4 +270,13 @@ value to the destination memory, second one adds a tensor of same size with
 ``` sh
   ./benchdnn --conv --attr-post-ops=add:s32:common,add:f32:per_tensor:axb \
              ic16oc16ih4oh4kh1ph0
+```
+
+Run a matmul problem with weights decompression where weights `bf16` scales and
+`s8` zero points have scales along `ic` and `oc` dimensions, have groups along
+`ic` dimension:
+``` sh
+  ./benchdnn --matmul --dt=f32:s8:f32 --attr-fpmath=bf16:true \
+             --attr-scales=wei:per_ocic:bf16:2x1 \
+             --attr-zero-points=wei:per_ocic:s8:2x1 6x4:4x5
 ```
