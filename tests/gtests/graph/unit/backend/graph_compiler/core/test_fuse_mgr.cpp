@@ -87,9 +87,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerElemBlock) {
         auto tb = tensor_ptr(tbuf, {0}, {}, true);
         auto b = tensor_ptr(buf, {0}, {}, true);
         _for_(i, 0, 32, lanes) {
-            tb[span_t({i}, lanes)] = builder::make_max(b[span_t({i}, lanes)],
+            tb[span_t({i}, lanes)] = builder::make_max(
                     builder::make_constant(
-                            {0UL}, sc_data_type_t(sc_data_etype::S32, lanes)));
+                            {0UL}, sc_data_type_t(sc_data_etype::S32, lanes)),
+                    b[span_t({i}, lanes)]);
             auto o = tensor_ptr(out, {0}, {}, true);
             tb = tensor_ptr(tbuf, {0}, {}, true);
             b = tensor_ptr(buf, {0}, {}, true);
@@ -568,9 +569,9 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerVectorizedReLU) {
         _for_(i, 0, 100, 1) {
             _for_(j, 0, 256, int(lanes)) {
                 out_tptr[span_t({i, j}, lanes)]
-                        = builder::make_max(buf_tptr[span_t({i, j}, lanes)],
-                                make_expr<constant_node>((int64_t)0,
-                                        sc_data_type_t::s32(lanes)));
+                        = builder::make_max(make_expr<constant_node>((int64_t)0,
+                                                    sc_data_type_t::s32(lanes)),
+                                buf_tptr[span_t({i, j}, lanes)]);
             }
         }
         _return_(123);
@@ -1634,10 +1635,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionUnaryOp) {
         auto fuse_tptr = builder::tensor_ptr(_fuse_buf, {0, 0}, {}, true);
         _for_(ii, 0, 10) {
             _for_(jj, 0, 256, static_cast<int>(lanes)) {
-                fuse_tptr[span_t({ii, jj}, lanes)]
-                        = builder::make_max(inp0_tptr[span_t({ii, jj}, lanes)],
-                                make_expr<constant_node>((uint64_t)0,
-                                        sc_data_type_t::s32(lanes)));
+                fuse_tptr[span_t({ii, jj}, lanes)] = builder::make_max(
+                        make_expr<constant_node>(
+                                (uint64_t)0, sc_data_type_t::s32(lanes)),
+                        inp0_tptr[span_t({ii, jj}, lanes)]);
                 auto out0_tptr = builder::tensor_ptr(out0, {ii, 0}, {}, true);
                 auto inp1_tptr = builder::tensor_ptr(inp1, {ii, 0}, {}, true);
                 fuse_tptr = builder::tensor_ptr(_fuse_buf, {ii, 0}, {}, true);

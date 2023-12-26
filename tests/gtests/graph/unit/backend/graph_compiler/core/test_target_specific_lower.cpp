@@ -152,9 +152,9 @@ TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerSaturatedCast) {
         h = builder::make_saturated_cast(
                 make_max(c, make_const(0, 16)), sc_data_type_t::u8(16));
         h = builder::make_saturated_cast(
-                make_round_and_cast(make_max(d,
-                                            make_expr<constant_node>(0.0f,
-                                                    sc_data_type_t::f32(16))),
+                make_round_and_cast(make_max(make_expr<constant_node>(0.0f,
+                                                     sc_data_type_t::f32(16)),
+                                            d),
                         sc_data_type_t::s32(16)),
                 sc_data_type_t::u8(16));
     }
@@ -192,3 +192,32 @@ TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerGetTidGid) {
     auto ddddmod = ir_module_t::from_entry_func(get_default_context(), ddd);
     EXPECT_SC_ERROR(pass(ddddmod), "get_group_id");
 }
+
+#ifndef NDEBUG
+TEST(GCCore_CPU_target_specific_lower_cpp, TestMinMaxAutoSwap) {
+    builder::ir_builder_t builder;
+    _function_(datatypes::void_t, aaa) {
+        _var_(a, datatypes::f32);
+        _var_(b, datatypes::f32);
+
+        b = make_max(make_min(a, make_expr<constant_node>(127.0f)),
+                make_expr<constant_node>(-128.0f));
+    }
+    _function_(datatypes::void_t, expected) {
+        _var_(a, datatypes::f32);
+        _var_(b, datatypes::f32);
+        // auto swap const and var position in avoid of NaN
+        b = make_max(make_expr<constant_node>(-128.0f),
+                make_min(make_expr<constant_node>(127.0f), a));
+    }
+
+    auto ctx = get_default_context();
+    target_specific_lowering_cpu_t pass {ctx};
+    auto mod = ir_module_t::from_entry_func(ctx, aaa);
+    auto retmod = pass(mod);
+    auto ret = retmod->get_func("aaa");
+    ASSERT_TRUE(ret);
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(ret, expected, false));
+}
+#endif

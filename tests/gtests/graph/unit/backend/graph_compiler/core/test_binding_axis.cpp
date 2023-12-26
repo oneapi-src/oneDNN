@@ -80,13 +80,12 @@ TEST(GCCore_CPU_graph_binding_axis, TestMHAPostOps) {
                                     {bs, m_o, n_o, m_i, 0}, {},
                                     true)[span_t({0, 0, 0, 0, n_i}, lanes)]
                                     = builder::make_max(
+                                            make_expr<constant_node>((int64_t)0,
+                                                    sc_data_type_t::s32(lanes)),
                                             builder::tensor_ptr(inp0,
                                                     {bs, m_o, n_o, m_i, 0}, {},
                                                     true)[span_t(
-                                                    {0, 0, 0, 0, n_i}, lanes)],
-                                            make_expr<constant_node>((int64_t)0,
-                                                    sc_data_type_t::s32(
-                                                            lanes)));
+                                                    {0, 0, 0, 0, n_i}, lanes)]);
                         }
                     }
                 }
@@ -115,11 +114,11 @@ TEST(GCCore_CPU_graph_binding_axis, TestMHAPostOps) {
                     builder::tensor_ptr(_relu_out_1, {bs, m_o, 0, 0, 0}, {},
                             true)[{0, 0, 0, m_i, 0}]
                             = builder::make_max(
+                                    make_expr<constant_node>(
+                                            (int64_t)0, sc_data_type_t::s32()),
                                     builder::tensor_ptr(_reduce_out_0,
                                             {bs, m_o, 0, 0, 0}, {},
-                                            true)[{0, 0, 0, m_i, 0}],
-                                    make_expr<constant_node>(
-                                            (int64_t)0, sc_data_type_t::s32()));
+                                            true)[{0, 0, 0, m_i, 0}]);
                 }
                 /** NOTE: `m_o` and `n_o` loop come from different binding axis
                  * respectively, as the result, they could never be merged

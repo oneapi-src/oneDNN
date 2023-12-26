@@ -195,7 +195,7 @@ bool unary_elementwise_op_impl_t::register_brgemm_fusion(const context_ptr &ctx,
 
 expr relu_op_t::compute_element(expr in) {
     return builder::make_max(
-            in, make_expr<constant_node>((int64_t)0, in->dtype_));
+            make_expr<constant_node>((int64_t)0, in->dtype_), in);
 }
 
 expr leaky_relu_op_t::compute_element(expr in) {
@@ -408,9 +408,8 @@ expr clamp_op_t::compute_element(expr in) {
     auto dtype = in->dtype_;
     float clamp_min = attrs_.get<float>("min");
     float clamp_max = attrs_.get<float>("max");
-    return builder::make_max(
-            builder::make_min(in, make_expr<constant_node>(clamp_max, dtype)),
-            make_expr<constant_node>(clamp_min, dtype));
+    return builder::make_max(make_expr<constant_node>(clamp_min, dtype),
+            builder::make_min(make_expr<constant_node>(clamp_max, dtype), in));
 }
 
 #define DEFINE_AND_ASSERT_DTYPE(op) \
@@ -465,7 +464,7 @@ expr log_op_t::compute_element(expr in) {
 expr mish_op_t::compute_element(expr in) {
     DEFINE_AND_ASSERT_DTYPE("mish");
     auto tmp = builder::make_min(
-            in, make_expr<constant_node>(44.361415f, dtype));
+            make_expr<constant_node>(44.361415f, dtype), in);
     auto f_one = make_expr<constant_node>(1.f, dtype);
     auto f_temp = builder::make_exp(tmp) + f_one;
     f_temp = f_temp * f_temp;

@@ -558,7 +558,7 @@ public:
                             builder::make_max(inval1, zero), v->dtype_);
                 } else if (intype == sc_data_type_t::f32(16)) {
                     auto zero = gen_vec_const(16, 0.0f);
-                    auto real_in = builder::make_max(inval1, zero);
+                    auto real_in = builder::make_max(zero, inval1);
                     real_in = builder::make_round_and_cast(
                             real_in, sc_data_type_t::s32(16));
                     return builder::make_saturated_cast(real_in, v->dtype_);
@@ -706,6 +706,21 @@ public:
                     "get_group_id cannot be used outside of nested parallel.");
             return expr();
         }
+#ifndef NDEBUG
+        else if (v->type_ == intrin_type::min || v->type_ == intrin_type::max) {
+            COMPILE_ASSERT(v->args_.size() == 2,
+                    "Invalid arg size: " << v->args_.size() << ", should be 2");
+            auto l = ret.checked_as<intrin_call_c>()->args_[0];
+            auto r = ret.checked_as<intrin_call_c>()->args_[1];
+            if (!l.isa<constant>() && r.isa<constant>()
+                    && get_etype_category_nothrow(r->dtype_)
+                            == type_category::CATE_FLOAT) {
+                // min(x, c) => min(c, x)
+                // max(x, c) => max(c, x)
+                return builder::remake_binary(r, l, v);
+            }
+        }
+#endif
         intrin_func_creator lower_func = nullptr;
         intrin_func_namer namer_func = nullptr;
         switch (v->type_) {
