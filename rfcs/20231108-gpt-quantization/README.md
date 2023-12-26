@@ -232,6 +232,28 @@ attr_per_dim0_dim1g.set_scales(DNNL_ARG_DST, (1 << 1) | (1 << 0), 1, G, data_typ
 // Not possible
 ```
 
+## int4 data type
+
+## Option 1
+
+ Add int4(s4 & u4) data type as a storage data type into oneDNN:
+ - int4 support will be limited to weights decompression;
+ - int4 will require associated memory descriptor to have amount of elements divisible by 2,
+   because int4 requires half of byte, but allocation size is in bytes.
+
+```c
+// dnnl_common_types.h
+
+/// Data type specification
+typedef enum {
+    ...
+    dnnl_s4 = 11,
+    dnnl_u4 = 12,
+    ...
+} dnnl_data_type_t;
+```
+
+
 # References
 
 1. [GPTQ: ACCURATE POST-TRAINING QUANTIZATION FOR GENERATIVE PRE-TRAINED TRANSFORMERS][1]
