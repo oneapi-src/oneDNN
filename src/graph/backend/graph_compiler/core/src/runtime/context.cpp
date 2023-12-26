@@ -20,6 +20,7 @@
 #include "memorypool.hpp"
 #include "parallel.hpp"
 #include "runtime.hpp"
+#include "thread_locals.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -39,6 +40,9 @@ static engine_vtable_t vtable {global_alloc, global_free,
         memory_pool::alloc_by_mmap, memory_pool::dealloc_by_mmap,
         create_and_register_const_cache,
         [](engine_t *) -> size_t { return 999999; }};
+
+engine_t::engine_t(engine_vtable_t *vtable)
+    : vtable_(vtable), registry_(get_thread_locals_registry()) {}
 
 static engine_t default_engine {&vtable};
 stream_t default_stream {

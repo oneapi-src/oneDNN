@@ -111,6 +111,7 @@ inline thread_local_buffer_t &get_tls(runtime::stream_t *stream) {
     return ret;
 }
 
+const std::shared_ptr<thread_local_registry_t> &get_thread_locals_registry();
 } // namespace runtime
 } // namespace gc
 } // namespace graph
