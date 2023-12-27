@@ -39,12 +39,6 @@ static volatility_result_t::state_t merge_state(
     return volatility_result_t::UNDEF;
 }
 
-static bool is_tensor_read_only(const expr_base *s) {
-    return (s->node_type_ == sc_expr_type::tensor)
-            && any_map_t::fetch_or_else(
-                    s->attr_.get(), attr_keys::read_only_tensor, false);
-}
-
 static bool expr_can_hoist(const expr_base *s) {
     return non_volatile_expr(s) || is_pure_func_call(s->node_ptr_from_this())
             || is_tensor_read_only(s);
