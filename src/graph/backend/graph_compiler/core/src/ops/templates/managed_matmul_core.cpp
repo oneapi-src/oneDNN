@@ -853,12 +853,6 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
     if (is_dyn_threadpool()) { return v; }
     return (v + tid) % bound;
   };
-  expr B_vnni_tensor;
-  _tensor_(B_vnni, get_B_dtype(),
-    {utils::divide_and_ceil(ori_N, iin_block_),
-      utils::divide_and_ceil(ori_K, iik_block_), iik_block_ / dtype_block,
-      iin_block_, dtype_block});
-  B_vnni_tensor = B_vnni;
 
   _for_(n_b, 0, N_sub_block) {
     _named_for_(o_im_m, m_b, 0, M_sub_block) {
@@ -883,37 +877,19 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
             n_idx + n_b_idx * iin_block_ + (doroll(n_o, n_o_end)) * iin_block_);
           // do reorder here
           {
-            trace_guard_t tg(ctx, "vnni_reorder_B");
-            B_vnni_tensor->attr()[tensor_shrinker_attrs::should_shrink]
-              = tensor_shrinker_t::shrink_info_t {
-                {n_start_idx / iin_block_, k_start_idx / iik_block_, 0, 0, 0},
-                {1,
-                  utils::divide_and_ceil(
-                    is_partial ? K_anchor_info[1] : ori_K, iik_block_),
-                  iik_block_ / dtype_block, iin_block_, dtype_block},
-                stmts()};
-            auto commit_reorder_B
-              = [&](int length_N, int length_K, const expr &ko) {
-                  slice_range b_old_range
-                    = {{k_start_idx + ko * iik_block_, length_K},
-                      {n_start_idx, length_N}};
-                  if (in_tensors_[1].get_format() == sc_data_format_t::NK()) {
-                    std::swap(b_old_range[0], b_old_range[1]);
-                  }
-                  ops::commit_op(ctx, "reorder",
-                    {tensor_slice(B, std::move(b_old_range))},
-                    {tensor_slice(B_vnni_tensor,
-                      {{n_start_idx / iin_block_, 1},
-                        {(k_start_idx + ko * iik_block_) / iik_block_,
-                          utils::divide_and_ceil(length_K, iik_block_)},
-                        {0, iik_block_ / dtype_block}, {0, iin_block_},
-                        {0, dtype_block}})},
-                    {graph_tensor::make({ori_K, ori_N},
-                      in_tensors_[1].get_format(), datatypes::bf16)},
-                    {},
-                    {{"out_format",
-                      sc_data_format_t::NKkn2k(iik_block_, iin_block_)}});
-                };
+            trace_guard_t tg(ctx, "vnni_reorder_B_anchor");
+            auto commit_reorder_B_anchor = [&](int length_N, int length_K,
+                                             const expr &ko) {
+              slice_range B_slice = {{n_start_idx / iin_block_, 1},
+                {(k_start_idx + ko * iik_block_) / iik_block_,
+                  utils::divide_and_ceil(length_K, iik_block_)},
+                {0, iik_block_ / dtype_block}, {0, iin_block_},
+                {0, dtype_block}};
+              fusion->create_fusion_anchor(
+                slice_map {
+                  {owner_->get_inputs()[1].get(), slice_range_list {B_slice}}},
+                nullptr, true);
+            };
 
             int N_real_split = std::min(
               static_cast<int>(utils::divide_and_ceil(ori_N, iin_block_)),
@@ -925,24 +901,26 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
             // discuss reorder type, which has different input slice
             if (ori_K % iik_block_ == 0 && ori_N % iin_block_ == 0) {
               // no padding
-              _for_(ko, 0, bs) { commit_reorder_B(iin_block_, iik_block_, ko); }
+              _for_(ko, 0, bs) {
+                commit_reorder_B_anchor(iin_block_, iik_block_, ko);
+              }
             } else if (ori_K % iik_block_ == 0) {
               // padding on N axis
               _for_(ko, 0, bs) {
                 _if_(n_s == N_real_split - 1 && n_b == N_sub_block - 1
                   && n_o == n_o_end - 1) {
-                  commit_reorder_B(ori_N % iin_block_, iik_block_, ko);
+                  commit_reorder_B_anchor(ori_N % iin_block_, iik_block_, ko);
                 }
-                _else_ { commit_reorder_B(iin_block_, iik_block_, ko); }
+                _else_ { commit_reorder_B_anchor(iin_block_, iik_block_, ko); }
               }
             } else if (ori_N % iin_block_ == 0) {
               // padding on K axis
               _for_(ko, 0, bs) {
                 _if_(k_s == K_real_split - 1 && k_b == K_sub_block - 1
                   && ko == bs - 1) {
-                  commit_reorder_B(iin_block_, ori_K % iik_block_, ko);
+                  commit_reorder_B_anchor(iin_block_, ori_K % iik_block_, ko);
                 }
-                _else_ { commit_reorder_B(iin_block_, iik_block_, ko); }
+                _else_ { commit_reorder_B_anchor(iin_block_, iik_block_, ko); }
               }
             } else {
               // padding on both K and N axes
@@ -951,19 +929,21 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
                   && n_o == n_o_end - 1) {
                   _if_(k_s == K_real_split - 1 && k_b == K_sub_block - 1
                     && ko == bs - 1) {
-                    commit_reorder_B(
+                    commit_reorder_B_anchor(
                       ori_N % iin_block_, ori_K % iik_block_, ko);
                   }
                   _else_ {
-                    commit_reorder_B(ori_N % iin_block_, iik_block_, ko);
+                    commit_reorder_B_anchor(ori_N % iin_block_, iik_block_, ko);
                   }
                 }
                 _else_ {
                   _if_(k_s == K_real_split - 1 && k_b == K_sub_block - 1
                     && ko == bs - 1) {
-                    commit_reorder_B(iin_block_, ori_K % iik_block_, ko);
+                    commit_reorder_B_anchor(iin_block_, ori_K % iik_block_, ko);
                   }
-                  _else_ { commit_reorder_B(iin_block_, iik_block_, ko); }
+                  _else_ {
+                    commit_reorder_B_anchor(iin_block_, iik_block_, ko);
+                  }
                 }
               }
             }
@@ -1006,15 +986,14 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
             auto stride_b = iik_block_ * iin_block_;
             _if_(k_b == 0) {
               auto eval = builtin::brgemm_init_update(tensor_ptr(A, aidx),
-                tensor_ptr(B_vnni_tensor, bidx), tensor_ptr(C, cidx), bs,
-                iim_block_, iin_block_, iik_block_, LDA, LDB, LDC, stride_a,
-                stride_b, ta.dtype_, tb.dtype_);
+                tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
+                iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
+                ta.dtype_, tb.dtype_);
             }
             _else_ {
-              builtin::brgemm_update(tensor_ptr(A, aidx),
-                tensor_ptr(B_vnni_tensor, bidx), tensor_ptr(C, cidx), bs,
-                iim_block_, iin_block_, iik_block_, LDA, LDB, LDC, stride_a,
-                stride_b, ta.dtype_, tb.dtype_);
+              builtin::brgemm_update(tensor_ptr(A, aidx), tensor_ptr(B, bidx),
+                tensor_ptr(C, cidx), bs, iim_block_, iin_block_, iik_block_,
+                LDA, LDB, LDC, stride_a, stride_b, ta.dtype_, tb.dtype_);
             }
             if (fusion && !is_partial) {
               _if_(k_b == K_sub_block - 1) {
@@ -1955,63 +1934,52 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                       {0, K / iik_block_}, {0, iim_block_}, {0, iik_block_}}}}},
                 nullptr, true);
             }
-            if (in_tensors_[0].get_format() == sc_data_format_t::NK()
-              && is_A_vnni_low_fp) {
-              trace_guard_t tg(ctx, "transpose_A");
-              expr A_trans_tensor;
-              _tensor_(A_trans, get_A_dtype(),
-                {M / iim_block_, K / iik_block_, iim_block_, iik_block_});
-              A_trans_tensor = A_trans;
-              A_trans_tensor->attr()[tensor_shrinker_attrs::should_shrink]
-                = tensor_shrinker_t::shrink_info_t {
-                  {m_idx / iim_block_, 0, 0, 0},
-                  {M_block_size / iim_block_, K / iik_block_, iim_block_,
-                    iik_block_},
-                  stmts()};
-              // do transpose A
-              auto commit_reorder_A = [&](int length_M) {
-                int length_K = in_tensors_[0].get_plain_dims()[1];
-                ops::commit_op(ctx, "reorder",
-                  {tensor_slice(A, {{0, length_K}, {m_idx, length_M}})},
-                  {tensor_slice(A_trans_tensor,
-                    {{m_idx / iim_block_,
+            if (in_tensors_[0].get_format().is_blocking() && is_A_vnni_low_fp) {
+              trace_guard_t tg(ctx, "transpose_A_anchor");
+              // insert transpose A anchor
+              auto commit_reorder_A_anchor = [&](int length_M) {
+                slice_range A_slice
+                  = {{m_idx / iim_block_,
                        utils::divide_and_ceil(length_M, iim_block_)},
-                      {0, K / iik_block_}, {0, iim_block_}, {0, iik_block_}})},
-                  {graph_tensor::make(in_tensors_[0].get_plain_dims(),
-                    sc_data_format_t::NK(), A_dtype)},
-                  {},
-                  {{"out_format",
-                    sc_data_format_t::MKmk(iim_block_, iik_block_)}});
+                    {0, K / iik_block_}, {0, iim_block_}, {0, iik_block_}};
+                fusion->create_fusion_anchor(
+                  slice_map {{owner_->get_inputs()[0].get(),
+                    slice_range_list {A_slice}}},
+                  nullptr, true);
               };
               if (in_tensors_[0].get_plain_dims()[0] % iim_block_ == 0) {
                 if (M_block_size == M_ib_block_size) {
-                  commit_reorder_A(M_block_size);
+                  commit_reorder_A_anchor(M_block_size);
                 } else {
-                  _if_(m_s < M_blk_num) { commit_reorder_A(M_block_size); }
-                  _else_ { commit_reorder_A(M_ib_block_size); }
+                  _if_(m_s < M_blk_num) {
+                    commit_reorder_A_anchor(M_block_size);
+                  }
+                  _else_ { commit_reorder_A_anchor(M_ib_block_size); }
                 }
               } else {
                 // has padding on M axis
                 if (M_block_size == M_ib_block_size) {
                   _if_(m_s == M_real_split - 1) {
-                    commit_reorder_A(M_block_size - iim_block_
+                    commit_reorder_A_anchor(M_block_size - iim_block_
                       + in_tensors_[0].get_plain_dims()[0] % iim_block_);
                   }
-                  _else_ { commit_reorder_A(M_block_size); }
+                  _else_ { commit_reorder_A_anchor(M_block_size); }
                 } else {
-                  _if_(m_s < M_blk_num) { commit_reorder_A(M_block_size); }
+                  _if_(m_s < M_blk_num) {
+                    commit_reorder_A_anchor(M_block_size);
+                  }
                   _else_ {
                     _if_(m_s == M_real_split - 1) {
-                      commit_reorder_A(M_ib_block_size - iim_block_
+                      commit_reorder_A_anchor(M_ib_block_size - iim_block_
                         + in_tensors_[0].get_plain_dims()[0] % iim_block_);
                     }
-                    _else_ { commit_reorder_A(M_ib_block_size); }
+                    _else_ { commit_reorder_A_anchor(M_ib_block_size); }
                   }
                 }
               }
-              A = A_trans_tensor;
             }
           } else {
+            // dynamic
             _tensor_(iim_block_tmp, datatypes::s32, {1});
             _tensor_(iin_block_tmp, datatypes::s32, {1});
             _tensor_(iik_block_tmp, datatypes::s32, {1});
@@ -2264,75 +2232,62 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                       {0, iim_block_}, {0, iik_block_}}}}},
                 nullptr, true);
             }
-            if (in_tensors_[0].get_format() == sc_data_format_t::NK()
-              && is_A_vnni_low_fp) {
-              trace_guard_t tg(ctx, "transpose_A");
-              expr A_trans_tensor;
-              _tensor_(A_trans, get_A_dtype(),
-                {M / iim_block_, K / iik_block_, iim_block_, iik_block_});
-              A_trans_tensor = A_trans;
-              A_trans_tensor->attr()[tensor_shrinker_attrs::should_shrink]
-                = tensor_shrinker_t::shrink_info_t {
-                  {m_idx / iim_block_, k_idx / iik_block_, 0, 0},
-                  {M_block_size / iim_block_, K_block_size / iik_block_,
-                    iim_block_, iik_block_},
-                  stmts()};
-              // do transpose A
-              auto commit_reorder_A = [&](int length_M, int length_K) {
-                ops::commit_op(ctx, "reorder",
-                  {tensor_slice(A, {{k_idx, length_K}, {m_idx, length_M}})},
-                  {tensor_slice(A_trans_tensor,
-                    {{m_idx / iim_block_,
+            if (in_tensors_[0].get_format().is_blocking() && is_A_vnni_low_fp) {
+              trace_guard_t tg(ctx, "transpose_A_anchor");
+              auto commit_reorder_A_anchor = [&](int length_M, int length_K) {
+                slice_range A_slice
+                  = {{m_idx / iim_block_,
                        utils::divide_and_ceil(length_M, iim_block_)},
-                      {k_idx / iik_block_,
-                        utils::divide_and_ceil(length_K, iik_block_)},
-                      {0, iim_block_}, {0, iik_block_}})},
-                  {graph_tensor::make(in_tensors_[0].get_plain_dims(),
-                    sc_data_format_t::NK(), A_dtype)},
-                  {},
-                  {{"out_format",
-                    sc_data_format_t::MKmk(iim_block_, iik_block_)}});
+                    {k_idx / iik_block_,
+                      utils::divide_and_ceil(length_K, iik_block_)},
+                    {0, iim_block_}, {0, iik_block_}};
+                fusion->create_fusion_anchor(
+                  slice_map {{owner_->get_inputs()[0].get(),
+                    slice_range_list {A_slice}}},
+                  nullptr, true);
               };
               auto discuss_K = [&](int length_M) {
                 if (K_block_size == K_ib_block_size) {
-                  commit_reorder_A(length_M, K_block_size);
+                  commit_reorder_A_anchor(length_M, K_block_size);
                 } else {
                   _if_(k_s < K_blk_num) {
-                    commit_reorder_A(length_M, K_block_size);
+                    commit_reorder_A_anchor(length_M, K_block_size);
                   }
-                  _else_ { commit_reorder_A(length_M, K_ib_block_size); }
+                  _else_ { commit_reorder_A_anchor(length_M, K_ib_block_size); }
                 }
               };
               auto discuss_K2 = [&](int length_M) {
                 if (K_block_size == K_ib_block_size) {
                   _if_(k_s == K_real_split - 1) {
-                    commit_reorder_A(length_M,
+                    commit_reorder_A_anchor(length_M,
                       K_block_size - iik_block_
                         + in_tensors_[0].get_plain_dims()[1] % iik_block_);
                   }
-                  _else_ { commit_reorder_A(length_M, K_block_size); }
+                  _else_ { commit_reorder_A_anchor(length_M, K_block_size); }
                 } else {
                   _if_(k_s < K_blk_num) {
-                    commit_reorder_A(length_M, K_block_size);
+                    commit_reorder_A_anchor(length_M, K_block_size);
                   }
                   _else_ {
                     _if_(k_s == K_real_split - 1) {
-                      commit_reorder_A(length_M,
+                      commit_reorder_A_anchor(length_M,
                         K_ib_block_size - iik_block_
                           + in_tensors_[0].get_plain_dims()[1] % iik_block_);
                     }
-                    _else_ { commit_reorder_A(length_M, K_ib_block_size); }
+                    _else_ {
+                      commit_reorder_A_anchor(length_M, K_ib_block_size);
+                    }
                   }
                 }
               };
               auto discuss_M = [&](int length_K) {
                 if (M_block_size == M_ib_block_size) {
-                  commit_reorder_A(M_block_size, length_K);
+                  commit_reorder_A_anchor(M_block_size, length_K);
                 } else {
                   _if_(m_s < M_blk_num) {
-                    commit_reorder_A(M_block_size, length_K);
+                    commit_reorder_A_anchor(M_block_size, length_K);
                   }
-                  _else_ { commit_reorder_A(M_ib_block_size, length_K); }
+                  _else_ { commit_reorder_A_anchor(M_ib_block_size, length_K); }
                 }
               };
               if (in_tensors_[0].get_plain_dims()[0] % iim_block_ == 0
@@ -2399,13 +2354,9 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                   }
                 }
               }
-              A = A_trans_tensor;
             }
           }
-          if (!is_dynamic
-            && utils::is_one_of(in_tensors_[1].get_format(),
-              sc_data_format_t::MK(), sc_data_format_t::NK())
-            && is_B_vnni_low_fp) {
+          if (!is_dynamic && is_B_vnni_low_fp) {
             single_thread_reorder_matmul_call(ctx, in_tensors_[0],
               in_tensors_[1], out_tensors_[0], config, M_single_thr_size,
               N_single_thr_size, K_single_thr_size, m_idx, n_idx, k_idx, A, B,
