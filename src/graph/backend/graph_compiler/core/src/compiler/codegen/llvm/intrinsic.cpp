@@ -288,6 +288,12 @@ void codegen_llvm_vis_t::view(intrin_call_c v) {
                         || v->type_ == intrin_type::reduce_mul)
                     && cate == CATE_FLOAT) {
                 bool is_fp16 = v->args_[0]->dtype_.is_etype(sc_data_etype::F16);
+                auto start_val = v->type_ == intrin_type::reduce_mul
+                        ? APFloat(1.0f)
+                        : APFloat(0.0f);
+                auto fp16_start_val = v->type_ == intrin_type::reduce_mul
+                        ? static_cast<uint16_t>(0x3C00)
+                        : static_cast<uint16_t>(0);
                 current_val_ = builder_.CreateIntrinsic(
 #if SC_LLVM_BACKEND > 11
                         cur_intrinsic, {inval->getType()},
@@ -300,8 +306,8 @@ void codegen_llvm_vis_t::view(intrin_call_c v) {
 #endif
                         {ConstantFP::get(get_type(v->dtype_),
                                  is_fp16 ? APFloat(APFloat::IEEEhalf(),
-                                         APInt(16, static_cast<uint16_t>(0)))
-                                         : APFloat(0.0f)),
+                                         APInt(16, fp16_start_val))
+                                         : start_val),
                                 inval});
                 llvm::cast<CallInst>(*current_val_)
                         .setFastMathFlags(builder_.getFastMathFlags());

@@ -365,8 +365,8 @@ static func_t create_exp_func(const ir_module_ptr &mod,
     auto ONE_i = make_expr<constant_node>(
             INT64_C(1), sc_data_type_t::s32(elements));
     auto ty_epi_32 = sc_data_type_t::s32(elements);
-    auto overflow_x = gen_vec_const(elements, 88.7228f);
-    auto underflow_x = gen_vec_const(elements, -87.3365f);
+    auto overflow_x = gen_vec_const(elements, 88.72283935f);
+    auto underflow_x = gen_vec_const(elements, -87.33654785f);
     auto ret_infinity = make_expr<constant_node>(
             std::numeric_limits<float>::infinity(), type);
 

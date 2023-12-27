@@ -149,9 +149,7 @@ static void test_single_mul(int lastdim) {
             });
 }
 TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp4) {
-    // the below case may fail when llvm backend used, which needs further
-    // more investigation
-    // test_single_mul(3);
+    test_single_mul(3);
     SET_THREADS_OR_SKIP(1);
     test_single_mul(256);
 }
