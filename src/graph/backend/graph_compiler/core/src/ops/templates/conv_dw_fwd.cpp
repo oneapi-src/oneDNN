@@ -292,9 +292,16 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
                                         sw_)),
                                     expr(0));
                                   std::vector<expr> input_pos
-                                    = std::vector<expr> {n, ih, iw,
+                                    = std::vector<expr> {n, ih, w * sw_ + s,
                                       (pg * g_num_block_pt + o_g) * g_block};
-                                  A_list[cnt] = tensor_ptr(input, input_pos);
+                                  A_list[cnt]
+                                    = builder::make_cast(datatypes::pointer,
+                                      builder::make_cast(datatypes::index,
+                                        tensor_ptr(input, input_pos))
+                                        - builder::make_cast(datatypes::index,
+                                          pw_b_ * ic_ * groups_
+                                            * utils::get_sizeof_type(
+                                              get_input_dtype())));
                                   B_list[cnt] = tensor_ptr(weight,
                                     std::vector<expr> {r, s, 0,
                                       (pg * g_num_block_pt + o_g) * g_block

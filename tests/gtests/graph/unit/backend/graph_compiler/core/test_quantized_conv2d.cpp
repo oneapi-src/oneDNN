@@ -941,7 +941,7 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_dw, no_padding_2) {
             false);
 }
 TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_dw, padding_1) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 8, 8, 8, 12,
             12, 3, 3, {1, 1}, {1, 1}, {1, 1}, {1, 1}, false, true, false, true);
     check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 8, 8, 8, 12,
@@ -949,7 +949,7 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_dw, padding_1) {
             false);
 }
 TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_dw, padding_2) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 14, 48, 48, 48,
             28, 28, 3, 3, {2, 2}, {1, 1}, {1, 1}, {1, 1}, false, true, false,
             true);
