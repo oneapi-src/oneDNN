@@ -1210,7 +1210,7 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
             auto idx_len
                     = cast_to_s32(
                               dst_slice_shape[output_origin_axis_vectorized])
-                    - cast_to_s32(iter_vars[input_origin_axis_vectorized]);
+                    - cast_to_s32(iter_vars[output_origin_axis_vectorized]);
             auto cur_step = builder::make_min(
                     builder::make_max(builder::make_constant(0), idx_len),
                     step);
@@ -1499,7 +1499,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
                 {builder::make_assign_unattached(
                         builder::make_indexing(output, out_indexes, step),
                         // here, use src.tptr instead of input is aimed to avoid
-                        // input is tensor_view_op. Oherwisw, it will throw
+                        // input is tensor_view_op. otherwise, it will throw
                         // illegal exception in index_flatten
                         builder::make_indexing(
                                 src.tptr_, loop_indexes, step))});

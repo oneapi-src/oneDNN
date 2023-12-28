@@ -26,7 +26,7 @@ namespace graph {
 namespace gc {
 namespace runtime {
 
-const_cache_proxy::~const_cache_proxy() {}
+const_cache_proxy::~const_cache_proxy() = default;
 
 void *const_cache_proxy::acquire(int32_t *inited) {
     if (check_alive_and_ref()) {
