@@ -172,7 +172,6 @@ std::string ocl_gpu_device_info_t::get_cl_ext_options() const {
                     device_ext_t::intel_dot_accumulate))
             opts += std::string("-D") + ext2cl_str(ext) + " ";
     }
-    if (!opts.empty()) { opts[opts.size() - 1] = '\0'; }
     return opts;
 }
 
