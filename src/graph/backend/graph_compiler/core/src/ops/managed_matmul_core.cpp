@@ -252,8 +252,7 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                         if (A_dims.size() == 2) {
                             if (!dynamic && is_A_vnni_low_fp
                                     && A_format == sc_data_format_t::NK()) {
-                                in_formats.push_back({sc_data_format_t::MKmk(
-                                        iim_block, iik_block)});
+                                in_formats.push_back({sc_data_format_t::NK()});
                             } else {
                                 if (constant_A
                                         || (!dynamic && A_format.is_blocking()
@@ -294,7 +293,26 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                             } else if (is_B_vnni_low_fp) {
                                 // do vnni reorder in template for
                                 // transposed matmul
-                                if (!dynamic) {
+                                bool special_b
+                                        = B_format == sc_data_format_t::NK();
+                                bool shape_small = (M <= 512 && K < 4096
+                                        && N * K <= 4096 * 4096);
+                                if (!dynamic
+                                        && ((B_format == sc_data_format_t::MK()
+                                                    && attrs_.get_or_else(
+                                                            "transposed"
+                                                            "_a",
+                                                            false))
+                                                || (special_b
+                                                        && attrs_.get_or_else(
+                                                                "transposed"
+                                                                "_b",
+                                                                false)
+                                                        && shape_small))) {
+                                    // do pre-op fusion for NK -> NKkn2k
+                                    // only when shapes are small.
+                                    ret_B_format = B_format;
+                                } else {
                                     ret_B_format = sc_data_format_t::NKkn2k(
                                             iik_block, iin_block);
                                 }
