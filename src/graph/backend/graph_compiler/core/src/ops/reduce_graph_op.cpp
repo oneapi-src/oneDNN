@@ -84,6 +84,8 @@ void reduce_mean_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     }
     // input
     graph_tensor_ptr inputs0 = inputs[0];
+    // cast input
+    inputs0 = cast_input_dtype(inputs[0], graph);
     auto reduce_num = graph->make<constant_op_t>(
             std::make_shared<static_data_t>(std::vector<float> {item_cnt}),
             datatypes::f32, sc_dims {1});
@@ -92,7 +94,9 @@ void reduce_mean_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             {reduce_sum->get_outputs()[0], reduce_num->get_outputs()[0]}, {},
             {});
     // output
-    graph->make_output(reduce_sum_div->get_outputs());
+    sc_op_ptr output_op = reduce_sum_div;
+    output_op = cast_output_dtype(outputs[0], graph, output_op);
+    graph->make_output(output_op->get_outputs());
 }
 
 void reduce_l2_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
@@ -104,11 +108,15 @@ void reduce_l2_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
 
     // input
     graph_tensor_ptr inputs0 = inputs[0];
+    // cast input
+    inputs0 = cast_input_dtype(inputs[0], graph);
     auto square_val = graph->make("square", inputs, {}, {});
     auto reduce_val
             = graph->make("reduce_sum", square_val->get_outputs(), {}, attrs_);
     auto l2_res
             = graph->make("squared_root", reduce_val->get_outputs(), {}, {});
+    // cast output
+    l2_res = cast_output_dtype(outputs[0], graph, l2_res);
     // output
     graph->make_output(l2_res->get_outputs());
 }
@@ -122,9 +130,13 @@ void reduce_l1_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
 
     // input
     graph_tensor_ptr inputs0 = inputs[0];
+    // cast input
+    inputs0 = cast_input_dtype(inputs[0], graph);
     auto abs_val = graph->make("abs", inputs, {}, {});
     auto reduce_l1
             = graph->make("reduce_sum", abs_val->get_outputs(), {}, attrs_);
+    // cast output
+    reduce_l1 = cast_output_dtype(outputs[0], graph, reduce_l1);
     // output
     graph->make_output(reduce_l1->get_outputs());
 }

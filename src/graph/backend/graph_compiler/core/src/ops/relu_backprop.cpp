@@ -45,6 +45,8 @@ relu_backprop_op::relu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
 }
 
 void relu_backprop_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
+    // no need to insert explicit cast for relu_backprop, since the computation
+    // of "select_one" is not sensitive to dtype.
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -59,7 +61,6 @@ void relu_backprop_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     sc_op_ptr select_one = graph->make("select_one", {inputs[0]}, {}, {});
     sc_op_ptr mul = graph->make(
             "mul", {inputs[1], select_one->get_outputs()[0]}, {}, {});
-
     // output
     graph->make_output(mul->get_outputs());
 }

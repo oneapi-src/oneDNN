@@ -44,27 +44,6 @@ void softmax_base_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {}
 
-graph_tensor_ptr softmax_base_t::cast_input_dtype(
-        graph_tensor_ptr &inp, std::shared_ptr<sc_graph_t> &graph) {
-    graph_tensor_ptr input = inp;
-    if (inp->details_.dtype_ == datatypes::bf16) {
-        auto cast_input
-                = graph->make("cast", {inp}, {}, {{"dtype", datatypes::f32}});
-        input = cast_input->get_outputs()[0];
-    }
-    return input;
-}
-
-std::shared_ptr<sc_op> softmax_base_t::cast_output_dtype(graph_tensor_ptr &inp,
-        std::shared_ptr<sc_graph_t> &graph, std::shared_ptr<sc_op> &last_op) {
-    std::shared_ptr<sc_op> &cast_output = last_op;
-    if (inp->details_.dtype_ == datatypes::bf16) {
-        cast_output = graph->make("cast", last_op->get_outputs(), {},
-                {{"dtype", datatypes::bf16}});
-    }
-    return cast_output;
-}
-
 graph_tensor_ptr softmax_base_t::get_stable_exp_inp(
         const graph_tensor_ptr &input, const std::vector<int> &axis,
         std::shared_ptr<sc_graph_t> &graph) {

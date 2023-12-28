@@ -45,12 +45,6 @@ public:
             override;
     std::vector<int> &get_axis() { return axis_; }
     void set_axis(const std::vector<int> &axis) { this->axis_ = axis; }
-
-    graph_tensor_ptr cast_input_dtype(
-            graph_tensor_ptr &inp, std::shared_ptr<sc_graph_t> &graph);
-    std::shared_ptr<sc_op> cast_output_dtype(graph_tensor_ptr &inp,
-            std::shared_ptr<sc_graph_t> &graph,
-            std::shared_ptr<sc_op> &last_op);
     graph_tensor_ptr get_stable_exp_inp(const graph_tensor_ptr &input,
             const std::vector<int> &axis, std::shared_ptr<sc_graph_t> &graph);
 

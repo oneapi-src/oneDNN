@@ -43,9 +43,10 @@ void pow_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     inputs = remake_logical_tensors(info_.inputs_);
     outputs = remake_logical_tensors(info_.outputs_);
     auto pos_beta = std::fabs(beta_);
-    sc_op_ptr fast_cal_last_op;
+    sc_op_ptr fast_cal_last_op, output_op;
     // input
     graph->make_input(inputs);
+    inputs[0] = cast_input_dtype(inputs[0], graph);
     // fast calculation path
     if (pos_beta == 0.f) {
         float one = 1.f;
@@ -89,9 +90,7 @@ void pow_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         auto fmul = graph->make("mul",
                 {flog->get_outputs()[0], exponent->get_outputs()[0]}, {}, {});
         // pow = exp(log(x)*y)
-        auto fexp = graph->make("exp", {fmul->get_outputs()[0]}, {}, {});
-        // output
-        graph->make_output(fexp->get_outputs());
+        output_op = graph->make("exp", {fmul->get_outputs()[0]}, {}, {});
     }
     if (fast_cal_last_op) {
         // process -0.5f with rsqrt.
@@ -99,8 +98,10 @@ void pow_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             fast_cal_last_op = graph->make(
                     "reciprocal", fast_cal_last_op->get_outputs(), {}, {});
         }
-        graph->make_output(fast_cal_last_op->get_outputs());
+        output_op = fast_cal_last_op;
     }
+    output_op = cast_output_dtype(outputs[0], graph, output_op);
+    graph->make_output(output_op->get_outputs());
 }
 
 void pow_op::query_format(context_ptr ctx,

@@ -99,6 +99,10 @@ void batchnorm_inference_op::get_graph_impl(
                     info_.inputs_[0]->details_.get_plain_dims().size() - 1)};
     // input
     graph->make_input(inputs);
+    // insert cast if input is of dtype bf16
+    for (size_t idx = 0; idx < inputs.size(); ++idx) {
+        inputs[idx] = cast_input_dtype(inputs[idx], graph);
+    }
     // eps constant;
     auto const_op = graph->make<constant_op_t>(
             std::make_shared<static_data_t>(std::vector<float> {epsilon}),
@@ -124,8 +128,10 @@ void batchnorm_inference_op::get_graph_impl(
             any_map_t({{"bc_axis", bc_axis}}));
 
     auto y1 = graph->make("add",
-            {x1->get_outputs()[0], bn_add->get_outputs()[0]}, {outputs[0]},
+            {x1->get_outputs()[0], bn_add->get_outputs()[0]}, {},
             any_map_t({{"bc_axis", bc_axis}}));
+    // insert cast if output is bf16 dtype
+    y1 = cast_output_dtype(outputs[0], graph, y1);
     // output
     graph->make_output(y1->get_outputs());
 }
@@ -183,10 +189,6 @@ void batchnorm_forward_training_op::get_graph_impl(
 
     // input
     graph->make_input(inputs);
-    bool is_src_bf16
-            = info_.inputs_[0]->details_.dtype_.is_etype(sc_data_etype::BF16);
-    bool is_ssmv_bf16
-            = info_.inputs_[1]->details_.dtype_.is_etype(sc_data_etype::BF16);
     int num_dims
             = static_cast<int>(inputs[0]->details_.get_plain_dims().size());
     auto src = inputs[0], mean = inputs[1], variance = inputs[2],
@@ -198,36 +200,21 @@ void batchnorm_forward_training_op::get_graph_impl(
                     std::vector<float> {attrs_.get_or_else("epsilon", 1e-5f)}),
             datatypes::f32, sc_dims {1});
     bool use_bnorm_opt = attrs_.get_or_else(op_attr_key::use_norm_opt, false);
-    if (is_src_bf16) {
-        auto cast0 = graph->make(
-                "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
-        src = cast0->get_outputs()[0];
-        auto cast0_pass2 = graph->make("cast", {inputs[0]}, {},
-                {{"dtype", datatypes::f32},
-                        {op_attr_key::break_pre_fuse, true}});
-        src_pass2 = cast0_pass2->get_outputs()[0];
-        if (!use_bnorm_opt) {
-            auto cast0_pass3 = graph->make("cast", {inputs[0]}, {},
-                    {{"dtype", datatypes::f32},
-                            {op_attr_key::break_pre_fuse, true},
-                            {op_attr_key::not_redundant, true}});
-            src_pass3 = cast0_pass3->get_outputs()[0];
-        }
+    // insert cast if input is bf16
+    src = cast_input_dtype(inputs[0], graph,
+            {{"dtype", datatypes::f32}, {op_attr_key::not_redundant, true}});
+    src_pass2 = cast_input_dtype(inputs[0], graph,
+            {{"dtype", datatypes::f32}, {op_attr_key::break_pre_fuse, true},
+                    {op_attr_key::not_redundant, true}});
+    if (!use_bnorm_opt) {
+        src_pass3 = cast_input_dtype(inputs[0], graph,
+                {{"dtype", datatypes::f32}, {op_attr_key::break_pre_fuse, true},
+                        {op_attr_key::not_redundant, true}});
     }
-    if (is_ssmv_bf16) {
-        auto cast1 = graph->make(
-                "cast", {inputs[1]}, {}, {{"dtype", datatypes::f32}});
-        scale = cast1->get_outputs()[0];
-        auto cast2 = graph->make(
-                "cast", {inputs[2]}, {}, {{"dtype", datatypes::f32}});
-        shift = cast2->get_outputs()[0];
-        auto cast3 = graph->make(
-                "cast", {inputs[3]}, {}, {{"dtype", datatypes::f32}});
-        mean = cast3->get_outputs()[0];
-        auto cast4 = graph->make(
-                "cast", {inputs[4]}, {}, {{"dtype", datatypes::f32}});
-        variance = cast4->get_outputs()[0];
-    }
+    mean = cast_input_dtype(inputs[1], graph);
+    variance = cast_input_dtype(inputs[2], graph);
+    scale = cast_input_dtype(inputs[3], graph);
+    shift = cast_input_dtype(inputs[4], graph);
 
     std::vector<int> rd_axis, bc_axis;
     if (format == "NCX") {
@@ -340,22 +327,14 @@ void batchnorm_forward_training_op::get_graph_impl(
                 {mul5->get_outputs()[0], mul6->get_outputs()[0]}, {}, {});
     }
 
-    if (is_src_bf16) {
-        add1 = graph->make(
-                "cast", add1->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+    // insert cast if output is bf16
+    add1 = cast_output_dtype(outputs[0], graph, add1);
+    if (attrs_.get_or_else("momentum", float(1.)) != 1.f) {
+        add2 = cast_output_dtype(outputs[1], graph, add2);
+        add3 = cast_output_dtype(outputs[2], graph, add3);
     }
-    if (is_ssmv_bf16) {
-        if (attrs_.get_or_else("momentum", float(1.)) != 1.f) {
-            add2 = graph->make("cast", add2->get_outputs(), {},
-                    {{"dtype", datatypes::bf16}});
-            add3 = graph->make("cast", add3->get_outputs(), {},
-                    {{"dtype", datatypes::bf16}});
-        }
-        new_mean = graph->make("cast", new_mean->get_outputs(), {},
-                {{"dtype", datatypes::bf16}});
-        new_var = graph->make("cast", new_var->get_outputs(), {},
-                {{"dtype", datatypes::bf16}});
-    }
+    new_mean = cast_output_dtype(outputs[3], graph, new_mean);
+    new_var = cast_output_dtype(outputs[4], graph, new_var);
     // output
     graph->make_output({add1->get_outputs()[0], add2->get_outputs()[0],
             add3->get_outputs()[0], new_mean->get_outputs()[0],
@@ -416,10 +395,6 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
     outputs = remake_logical_tensors(info_.outputs_);
     int num_dims
             = static_cast<int>(inputs[0]->details_.get_plain_dims().size());
-    bool is_bf16_src
-            = (inputs[0]->details_.dtype_.is_etype(sc_data_etype::BF16));
-    bool is_bf16_gamma
-            = (inputs[2]->details_.dtype_.is_etype(sc_data_etype::BF16));
 
     float epsilon = attrs_.get<float>("epsilon");
     auto data_format = attrs_.get_or_else<std::string>("data_format", "NXC");
@@ -442,35 +417,20 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
     graph_tensor_ptr src = inputs[0], output_delta = inputs[1],
                      mean = inputs[2], variance = inputs[3], gamma = inputs[4];
     graph_tensor_ptr src_pass2 = inputs[0], output_delta_pass2 = inputs[1];
-    if (is_bf16_src) {
-        auto cast0 = graph->make("cast", {inputs[0]}, {},
-                {{"dtype", datatypes::f32},
-                        {op_attr_key::not_redundant, true}});
-        src = cast0->get_outputs()[0];
-        auto cast0_pass2 = graph->make("cast", {inputs[0]}, {},
-                {{"dtype", datatypes::f32}, {op_attr_key::break_pre_fuse, true},
-                        {op_attr_key::not_redundant, true}});
-        src_pass2 = cast0_pass2->get_outputs()[0];
-        auto cast1 = graph->make("cast", {inputs[1]}, {},
-                {{"dtype", datatypes::f32},
-                        {op_attr_key::not_redundant, true}});
-        output_delta = cast1->get_outputs()[0];
-        auto cast1_pass2 = graph->make("cast", {inputs[1]}, {},
-                {{"dtype", datatypes::f32}, {op_attr_key::break_pre_fuse, true},
-                        {op_attr_key::not_redundant, true}});
-        output_delta_pass2 = cast1_pass2->get_outputs()[0];
-    }
-    if (is_bf16_gamma) {
-        auto cast2 = graph->make(
-                "cast", {inputs[2]}, {}, {{"dtype", datatypes::f32}});
-        gamma = cast2->get_outputs()[0];
-        auto cast3 = graph->make(
-                "cast", {inputs[3]}, {}, {{"dtype", datatypes::f32}});
-        mean = cast3->get_outputs()[0];
-        auto cast4 = graph->make(
-                "cast", {inputs[4]}, {}, {{"dtype", datatypes::f32}});
-        variance = cast4->get_outputs()[0];
-    }
+    // cast input if its dtype is bf16
+    src = cast_input_dtype(inputs[0], graph,
+            {{"dtype", datatypes::f32}, {op_attr_key::not_redundant, true}});
+    src_pass2 = cast_input_dtype(inputs[0], graph,
+            {{"dtype", datatypes::f32}, {op_attr_key::break_pre_fuse, true},
+                    {op_attr_key::not_redundant, true}});
+    output_delta = cast_input_dtype(inputs[1], graph,
+            {{"dtype", datatypes::f32}, {op_attr_key::not_redundant, true}});
+    output_delta_pass2 = cast_input_dtype(inputs[1], graph,
+            {{"dtype", datatypes::f32}, {op_attr_key::break_pre_fuse, true},
+                    {op_attr_key::not_redundant, true}});
+    mean = cast_input_dtype(inputs[2], graph);
+    variance = cast_input_dtype(inputs[3], graph);
+    gamma = cast_input_dtype(inputs[4], graph);
     // ------ calculate x_hat start ------
     // eps constant
     auto const_op = graph->make<constant_op_t>(
@@ -539,23 +499,11 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
                     {}, {{"bc_axis", bc_axis}});
     // ------ calculate x_delta end ------
     // output
-    graph_tensor_ptr x_delta_out = x_delta->get_outputs()[0],
-                     gamma_delta_out = gamma_delta->get_outputs()[0],
-                     beta_delta_out = beta_delta->get_outputs()[0];
-    if (is_bf16_src) {
-        auto cast_out0 = graph->make(
-                "cast", {x_delta_out}, {}, {{"dtype", datatypes::bf16}});
-        x_delta_out = cast_out0->get_outputs()[0];
-    }
-    if (is_bf16_gamma) {
-        auto cast_out1 = graph->make(
-                "cast", {gamma_delta_out}, {}, {{"dtype", datatypes::bf16}});
-        gamma_delta_out = cast_out1->get_outputs()[0];
-        auto cast_out2 = graph->make(
-                "cast", {beta_delta_out}, {}, {{"dtype", datatypes::bf16}});
-        beta_delta_out = cast_out2->get_outputs()[0];
-    }
-    graph->make_output({x_delta_out, gamma_delta_out, beta_delta_out});
+    x_delta = cast_output_dtype(outputs[0], graph, x_delta);
+    gamma_delta = cast_output_dtype(outputs[1], graph, gamma_delta);
+    beta_delta = cast_output_dtype(outputs[2], graph, beta_delta);
+    graph->make_output({x_delta->get_outputs()[0],
+            gamma_delta->get_outputs()[0], beta_delta->get_outputs()[0]});
 }
 
 void batchnorm_training_backprop_op_t::query_format(context_ptr ctx,
