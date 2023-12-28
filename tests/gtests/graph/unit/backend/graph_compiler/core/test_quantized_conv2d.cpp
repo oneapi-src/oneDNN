@@ -82,8 +82,10 @@ void check_qconv(conv_fwd_config_t cfg, int N, int G, int K, int C, int H,
 
     auto src_dtype = sc_data_traits_t<src_type>::type();
     auto wei_dtype = sc_data_traits_t<wei_type>::type();
-    sc_dims data_dims = {N, C, H, W};
-    sc_dims weight_dims = {K, C / G, R, S};
+    sc_dims data_dims
+            = G > 1 ? sc_dims {N, G, C / G, H, W} : sc_dims {N, C, H, W};
+    sc_dims weight_dims
+            = G > 1 ? sc_dims {G, K / G, C / G, R, S} : sc_dims {K, C, R, S};
     auto g_data = g.make_input({make_tensor(data_dims, src_dtype)});
     auto g_weight = g.make_input({make_tensor(weight_dims, wei_dtype)});
     auto g_conv_out = g.make("conv_fwd_core",
@@ -413,6 +415,8 @@ void check_rl_qconv(conv_fwd_rl_config_t cfg, int N, int G, int K, int C, int H,
     if (stride.size() == 2) { stride_w = stride[1]; }
     int padding_h = pads_begin[0], padding_w = pads_begin[0];
     if (pads_begin.size() == 2) { padding_w = pads_begin[1]; }
+    int padding_h_end = pads_end[0], padding_w_end = pads_end[0];
+    if (pads_end.size() == 2) { padding_w_end = pads_end[1]; }
     int dilation_h = dilations[0], dilation_w = dilations[0];
     if (dilations.size() == 2) { dilation_w = dilations[1]; }
     COMPILE_ASSERT(C % G == 0 && K % G == 0,
@@ -420,8 +424,9 @@ void check_rl_qconv(conv_fwd_rl_config_t cfg, int N, int G, int K, int C, int H,
                     << C << "), K(" << K << "), G(" << G << ").");
 
     sc_graph_t g;
-    auto src_shape = sc_dims {N, C, H, W};
-    auto wei_shape = sc_dims {K, C / G, R, S};
+    auto src_shape = G > 1 ? sc_dims {N, G, C / G, H, W} : sc_dims {N, C, H, W};
+    auto wei_shape = G > 1 ? sc_dims {G, K / G, C / G, R, S}
+                           : sc_dims {K, C / G, R, S};
     auto src_dtype = sc_data_traits_t<src_type>::type();
     auto wei_dtype = sc_data_traits_t<wei_type>::type();
     auto g_data = g.make_input({make_tensor(src_shape, src_dtype)});
@@ -439,14 +444,12 @@ void check_rl_qconv(conv_fwd_rl_config_t cfg, int N, int G, int K, int C, int H,
             ->need_compensation_
             = true;
     g.attrs_[sc_graph_t::attr_key_t::quantize] = true;
-    auto out_shape = ops::conv_fwd_core_op_t::infer_out_dims(
-            g_conv_out->get_owner_graph(), src_shape, wei_shape, pads_begin,
-            pads_end, stride, dilations);
-    COMPILE_ASSERT(out_shape.size() == src_shape.size(),
-            "out_shape is expected to be same size vs src_shape, but got "
-                    << out_shape.size() << " vs " << src_shape.size());
-    int P = out_shape[2], Q = out_shape[3];
-
+    int P = (H + padding_h + padding_h_end - dilation_h * (R - 1) - 1)
+                    / stride_h
+            + 1,
+        Q = (W + padding_w + padding_w_end - dilation_w * (S - 1) - 1)
+                    / stride_w
+            + 1;
     std::vector<sc_op_ptr> args = {g_data, g_weight};
     sc_op_ptr final_out = g_conv_out;
     auto bc_axis = std::vector<int> {1};
@@ -922,6 +925,18 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_groups, no_padding_2_NXC) {
             28, 28, 3, 3, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, true, false,
             true);
 }
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_groups, no_padding_3_NCX) {
+    REQUIRE_AMX();
+    check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 16, 3712,
+            3712, 14, 14, 3, 3, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, true,
+            false, false);
+}
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_groups, no_padding_3_NXC) {
+    REQUIRE_AMX();
+    check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 16, 3712,
+            3712, 14, 14, 3, 3, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, true,
+            false, true);
+}
 // dw conv
 TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_dw, no_padding_1) {
     REQUIRE_VNNI();
@@ -980,6 +995,18 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_groups, with_padding_2_NXC) {
     check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 14, 2, 48, 48,
             114, 114, 3, 3, {2, 2}, {1, 1}, {1, 1}, {1, 1}, false, true, false,
             true);
+}
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_groups, with_padding_3_NCX) {
+    REQUIRE_AMX();
+    check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 16, 3712,
+            3712, 14, 14, 3, 3, {2, 2}, {1, 1}, {1, 1}, {1, 1}, false, true,
+            false, false);
+}
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3_with_groups, with_padding_3_NXC) {
+    REQUIRE_AMX();
+    check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), 1, 16, 3712,
+            3712, 14, 14, 3, 3, {2, 2}, {1, 1}, {1, 1}, {1, 1}, false, true,
+            false, true);
 }
 
 TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage1_NCX) {

@@ -100,22 +100,22 @@ gen_conv_dw_fwd_t::gen_conv_dw_fwd_t(sc_op *owner, const sc_dims &stride,
   auto out_plain_dims = get_output_plain_dims();
   if (owner) { attrs_ = owner->attrs_; }
   COMPILE_ASSERT(
-    utils::is_one_of(static_cast<int>(input_plain_dims.size()), 3, 4, 5),
-    "Wrong input dims, expected to be 3D, 4D or 5D input, but got "
+    utils::is_one_of(static_cast<int>(input_plain_dims.size()), 4, 5, 6),
+    "Wrong input dims, expected to be  4D, 5D or 6D input, but got "
       << input_plain_dims.size() << "D.");
   COMPILE_ASSERT(
-    utils::is_one_of(static_cast<int>(weight_plain_dims.size()), 3, 4, 5)
+    utils::is_one_of(static_cast<int>(weight_plain_dims.size()), 4, 5, 6)
       && (weight_plain_dims.size() == input_plain_dims.size()),
-    "Wrong weight dims, only support 3D, 4D or 5D weights, but got "
+    "Wrong weight dims, only support 4D 5D or 6D weights, but got "
       << weight_plain_dims.size() << "D.");
   COMPILE_ASSERT(
-    utils::is_one_of(static_cast<int>(out_plain_dims.size()), 3, 4, 5)
+    utils::is_one_of(static_cast<int>(out_plain_dims.size()), 4, 5, 6)
       && (out_plain_dims.size() == input_plain_dims.size()),
-    "Wrong output dims, only support 3D, 4D or 5D weights, but got "
+    "Wrong output dims, only support 4D , 5D or 6D output, but got "
       << out_plain_dims.size() << "D.");
 
   ndims_ = input_plain_dims.size();
-  is_3d_ = (ndims_ == 5);
+  is_3d_ = (ndims_ == 6);
 
   COMPILE_ASSERT(is_3d_
       ? utils::is_one_of(static_cast<int>(pads_begin.size()), 1, 3)
@@ -133,21 +133,24 @@ gen_conv_dw_fwd_t::gen_conv_dw_fwd_t(sc_op *owner, const sc_dims &stride,
     "Wrong dilation dims, should be 1D, 2D or 3D, but got " << dilation.size()
                                                             << "D.");
   groups_ = static_cast<int>(attrs_.get_or_else("groups", 1));
-  COMPILE_ASSERT(input_plain_dims[1] / groups_ == weight_plain_dims[1],
-    "expect input_plain_dims[1] / groups == weight_plain_dims[1], but got "
-      << input_plain_dims[1] / groups_ << " vs " << weight_plain_dims[1]
-      << ".");
+  COMPILE_ASSERT(input_plain_dims[1] == weight_plain_dims[0]
+      && input_plain_dims[1] == groups_,
+    "expect input groups == weight groups, but got "
+      << input_plain_dims[1] << " vs " << weight_plain_dims[0] << ".");
+  COMPILE_ASSERT(
+    input_plain_dims[2] == weight_plain_dims[2] && input_plain_dims[2] == 1,
+    "expect input ic and weight ic equal  to 1");
 
   mb_ = input_plain_dims[0];
-  ic_ = input_plain_dims[1] / groups_;
-  id_ = is_3d_ ? input_plain_dims[2] : 1;
+  ic_ = input_plain_dims[2];
+  id_ = is_3d_ ? input_plain_dims[ndims_ - 3] : 1;
   ih_ = input_plain_dims[ndims_ - 2];
   iw_ = input_plain_dims[ndims_ - 1];
-  oc_ = weight_plain_dims[0] / groups_;
-  kd_ = is_3d_ ? weight_plain_dims[2] : 1;
+  oc_ = weight_plain_dims[1];
+  kd_ = is_3d_ ? weight_plain_dims[ndims_ - 3] : 1;
   kh_ = weight_plain_dims[ndims_ - 2];
   kw_ = weight_plain_dims[ndims_ - 1];
-  od_ = is_3d_ ? out_plain_dims[2] : 1;
+  od_ = is_3d_ ? out_plain_dims[ndims_ - 3] : 1;
   oh_ = out_plain_dims[ndims_ - 2];
   ow_ = out_plain_dims[ndims_ - 1];
   pd_b_ = is_3d_ ? pads_begin[0] : 0;
@@ -160,20 +163,20 @@ gen_conv_dw_fwd_t::gen_conv_dw_fwd_t(sc_op *owner, const sc_dims &stride,
   dh_ = dilation[0], dw_ = dilation[0];
 
   if (pads_begin.size() > 1) {
-    ph_b_ = pads_begin[ndims_ - 4];
-    pw_b_ = pads_begin[ndims_ - 3];
+    ph_b_ = pads_begin[ndims_ - 5];
+    pw_b_ = pads_begin[ndims_ - 4];
   }
   if (pads_end.size() > 1) {
-    ph_e_ = pads_end[ndims_ - 4];
-    pw_e_ = pads_end[ndims_ - 3];
+    ph_e_ = pads_end[ndims_ - 5];
+    pw_e_ = pads_end[ndims_ - 4];
   }
   if (stride.size() > 1) {
-    sh_ = stride[ndims_ - 4];
-    sw_ = stride[ndims_ - 3];
+    sh_ = stride[ndims_ - 5];
+    sw_ = stride[ndims_ - 4];
   }
   if (dilation.size() > 1) {
-    dh_ = dilation[ndims_ - 4];
-    dw_ = dilation[ndims_ - 3];
+    dh_ = dilation[ndims_ - 5];
+    dw_ = dilation[ndims_ - 4];
   }
 }
 
@@ -205,7 +208,7 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
 
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   int mb_expr_ = static_cast<uint64_t>(get_expr_as_int(input_expr_dims[0]));
-  int g_expr_ = get_expr_as_int(input_expr_dims.back());
+  int g_expr_ = get_expr_as_int(input_expr_dims[input_expr_dims.size() - 2]);
 
   int bs_threads = config.bs_threads;
   int h_threads = config.h_threads;
@@ -293,26 +296,28 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
                                     expr(0));
                                   std::vector<expr> input_pos
                                     = std::vector<expr> {n, ih, w * sw_ + s,
-                                      (pg * g_num_block_pt + o_g) * g_block};
+                                      (pg * g_num_block_pt + o_g) * g_block, 0};
+                                  A_list[cnt] = tensor_ptr(input, input_pos);
                                   A_list[cnt]
                                     = builder::make_cast(datatypes::pointer,
-                                      builder::make_cast(datatypes::index,
-                                        tensor_ptr(input, input_pos))
+                                      builder::make_cast(
+                                        datatypes::index, A_list[cnt])
                                         - builder::make_cast(datatypes::index,
-                                          pw_b_ * ic_ * groups_
+                                          pw_b_ * ic_ * g_expr_
                                             * utils::get_sizeof_type(
                                               get_input_dtype())));
                                   B_list[cnt] = tensor_ptr(weight,
                                     std::vector<expr> {r, s, 0,
                                       (pg * g_num_block_pt + o_g) * g_block
-                                        + weight_k_start});
+                                        + weight_k_start,
+                                      0});
                                   cnt = cnt + 1;
                                 }
                               }
                             }
                             std::vector<expr> output_pos
                               = std::vector<expr> {n, h + im_h_i, w,
-                                (pg * g_num_block_pt + o_g) * g_block};
+                                (pg * g_num_block_pt + o_g) * g_block, 0};
 
                             sc_brgemm_attrs_t brg_attrs {
                               {brgemm::attr_key::bs_group, sw_ == 1 ? kw_ : 1},
@@ -334,28 +339,32 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
                               slice_range {{n, 1UL}, {h + im_h_i, 1},
                                 {w, im_w_block},
                                 {(pg * g_num_block_pt + o_g) * g_block,
-                                  g_block}});
+                                  g_block},
+                                {0, 1}});
                           }
                         }
                         // im_h_block * im_w_block * g_block
                         create_fusion_anchor(fusion, owner_->get_outputs()[0],
                           slice_range {{n, 1UL}, {h, im_h_block},
                             {w, im_w_block},
-                            {(pg * g_num_block_pt + o_g) * g_block, g_block}});
+                            {(pg * g_num_block_pt + o_g) * g_block, g_block},
+                            {0, 1}});
                       }
                     }
                     // im_h_block * w_block * g_block
                     create_fusion_anchor(fusion, owner_->get_outputs()[0],
                       slice_range {{n, 1UL}, {h, im_h_block},
                         {(pw * w_num_block_pt + o_w) * w_block, w_block},
-                        {(pg * g_num_block_pt + o_g) * g_block, g_block}});
+                        {(pg * g_num_block_pt + o_g) * g_block, g_block},
+                        {0, 1}});
                   }
                   // h_block * w_block * g_block
                   create_fusion_anchor(fusion, owner_->get_outputs()[0],
                     slice_range {{n, 1UL},
                       {(ph * h_num_block_pt + o_h) * h_block, h_block},
                       {(pw * w_num_block_pt + o_w) * w_block, w_block},
-                      {(pg * g_num_block_pt + o_g) * g_block, g_block}});
+                      {(pg * g_num_block_pt + o_g) * g_block, g_block},
+                      {0, 1}});
                 }
               }
               // h_block * w_block * g_num_block_pt * g_block
@@ -363,14 +372,16 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
                 slice_range {{n, 1UL},
                   {(ph * h_num_block_pt + o_h) * h_block, h_block},
                   {(pw * w_num_block_pt + o_w) * w_block, w_block},
-                  {(pg * g_num_block_pt) * g_block, g_num_block_pt * g_block}});
+                  {(pg * g_num_block_pt) * g_block, g_num_block_pt * g_block},
+                  {0, 1}});
             }
             // h_block * w_num_block_pt * w_block * g_num_block_pt * g_block
             create_fusion_anchor(fusion, owner_->get_outputs()[0],
               slice_range {{n, 1UL},
                 {(ph * h_num_block_pt + o_h) * h_block, h_block},
                 {(pw * w_num_block_pt) * w_block, w_num_block_pt * w_block},
-                {(pg * g_num_block_pt) * g_block, g_num_block_pt * g_block}});
+                {(pg * g_num_block_pt) * g_block, g_num_block_pt * g_block},
+                {0, 1}});
           }
           // h_num_block_pt * h_block * w_num_block_pt * w_block *
           // g_num_block_pt * g_block
@@ -378,7 +389,8 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
             slice_range {{n, 1UL},
               {(ph * h_num_block_pt) * h_block, h_num_block_pt * h_block},
               {(pw * w_num_block_pt) * w_block, w_num_block_pt * w_block},
-              {(pg * g_num_block_pt) * g_block, g_num_block_pt * g_block}});
+              {(pg * g_num_block_pt) * g_block, g_num_block_pt * g_block},
+              {0, 1}});
         }
       }
     }
@@ -389,11 +401,13 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
 
 void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
   expr weight_k_start = 0;
-  auto mxp = fusion->get_binded_mxp();
-  auto anchor = mxp->lookup_anchor_map(this->owner_, false);
-  if (anchor) {
-    auto slice = anchor->fsmap_.get(this->owner_->get_outputs()[0])[0];
-    weight_k_start = slice.back().first;
+  if (fusion) {
+    auto mxp = fusion->get_binded_mxp();
+    auto anchor = mxp->lookup_anchor_map(this->owner_, false);
+    if (anchor) {
+      auto slice = anchor->fsmap_.get(this->owner_->get_outputs()[0])[0];
+      weight_k_start = slice.back().first;
+    }
   }
   for_loop ln, ld, lp, lg;
   const auto dtype_input = get_input_dtype();
@@ -402,7 +416,7 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
   const int num_threads = runtime_config_t::get().get_num_threads();
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   int mb_expr_ = static_cast<uint64_t>(get_expr_as_int(input_expr_dims[0]));
-  int g_expr_ = get_expr_as_int(input_expr_dims.back());
+  int g_expr_ = get_expr_as_int(input_expr_dims[input_expr_dims.size() - 2]);
   int g_block = g_expr_ == groups_ ? config.g_block : g_expr_;
   // no need to include groups for LDA as it's used by sub-tensor
   // instead of origin input tensor.
@@ -552,8 +566,8 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
               auto cur_oh = h_o * config.im_h_block + h_i;
               auto cur_ih = cur_oh * sh_ - ph_b_;
               std::vector<expr> output_pos = is_3d_
-                ? std::vector<expr> {n, cur_od, cur_oh, cur_ow_begin, cur_g}
-                : std::vector<expr> {n, cur_oh, cur_ow_begin, cur_g};
+                ? std::vector<expr> {n, cur_od, cur_oh, cur_ow_begin, cur_g, 0}
+                : std::vector<expr> {n, cur_oh, cur_ow_begin, cur_g, 0};
 
               if (is_3d_) {
                 update_pad_idx(cur_od, cur_id, kd_, dd_, id_, out_nopad_front,
@@ -569,87 +583,90 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                   config.im_w_block, g_block, LDC, dtype_output, padding_value);
               };
 
-              auto process_tile_with_pad =
-                [&](const expr &d_begin, const expr &d_end, const expr &h_begin,
-                  const expr &h_end, const expr &left_pad,
-                  const expr &w_block_size_without_pad, const pad_kind &kind,
-                  const expr &aux_buf_hi = 0, const bool &update_mode = false) {
-                  _for_(kd, d_begin, d_end) {
-                    _for_(kh, h_begin, h_end) {
-                      if (is_3d_) { aux_buf_d = kd - d_begin; }
-                      aux_buf_h = update_mode ? aux_buf_hi : (kh - h_begin);
-                      if (kind == LEFT_PAD || kind == BOTH_PAD) {
-                        builtin::brgemm_init(
-                          tensor_ptr(global_aux_buffer,
-                            is_3d_ ? std::vector<expr> {tid, aux_buf_d,
-                              aux_buf_h, 0, 0}
-                                   : std::vector<expr> {tid, aux_buf_h, 0, 0}),
-                          builder::make_cast(datatypes::s32, left_pad), g_block,
-                          LDA, dtype_input, padding_value);
-                      }
+              auto process_tile_with_pad = [&](const expr &d_begin,
+                                             const expr &d_end,
+                                             const expr &h_begin,
+                                             const expr &h_end,
+                                             const expr &left_pad,
+                                             const expr
+                                               &w_block_size_without_pad,
+                                             const pad_kind &kind,
+                                             const expr &aux_buf_hi = 0,
+                                             const bool &update_mode = false) {
+                _for_(kd, d_begin, d_end) {
+                  _for_(kh, h_begin, h_end) {
+                    if (is_3d_) { aux_buf_d = kd - d_begin; }
+                    aux_buf_h = update_mode ? aux_buf_hi : (kh - h_begin);
+                    if (kind == LEFT_PAD || kind == BOTH_PAD) {
+                      builtin::brgemm_init(
+                        tensor_ptr(global_aux_buffer,
+                          is_3d_ ? std::vector<expr> {tid, aux_buf_d, aux_buf_h,
+                            0, 0}
+                                 : std::vector<expr> {tid, aux_buf_h, 0, 0}),
+                        builder::make_cast(datatypes::s32, left_pad), g_block,
+                        LDA, dtype_input, padding_value);
+                    }
 
-                      // mapping dst to src_padded then
-                      // mapping to original src to copy the
-                      // origin elements.
-                      _for_(aux_buf_w, left_pad, w_block_size_without_pad) {
-                        _for_(k, 0, g_block, (int)lanes) {
-                          if (is_3d_) {
-                            global_aux_buffer[span_t(
-                              {tid, aux_buf_d, aux_buf_h, aux_buf_w, k}, lanes)]
-                              = input[span_t(
-                                {n, cur_id + kd * d_nopad_begin_idx,
-                                  cur_ih + kh * dh_, cur_iw + aux_buf_w,
-                                  cur_g + k},
-                                lanes)];
-                          } else {
-                            global_aux_buffer[span_t(
-                              {tid, aux_buf_h, aux_buf_w, k}, lanes)]
-                              = input[span_t({n, cur_ih + kh * dh_,
-                                               cur_iw + aux_buf_w, cur_g + k},
-                                lanes)];
-                          }
-                        }
-                      }
-
-                      if (kind == RIGHT_PAD || kind == BOTH_PAD) {
-                        builtin::brgemm_init(
-                          tensor_ptr(global_aux_buffer,
-                            is_3d_ ? std::vector<expr> {tid, aux_buf_d,
-                              aux_buf_h, w_block_size_without_pad, 0}
-                                   : std::vector<expr> {tid, aux_buf_h,
-                                     w_block_size_without_pad, 0}),
-                          builder::make_cast(datatypes::s32,
-                            aux_w_block_size - w_block_size_without_pad),
-                          g_block, LDA, dtype_input, padding_value);
-                      }
-
-                      _for_(kw, 0, kw_) {
-                        expr idx;
+                    // mapping dst to src_padded then
+                    // mapping to original src to copy the
+                    // origin elements.
+                    _for_(aux_buf_w, left_pad, w_block_size_without_pad) {
+                      _for_(k, 0, g_block, (int)lanes) {
                         if (is_3d_) {
-                          auto valid_kh
-                            = (h_nopad_end_idx - h_nopad_begin_idx - 1) / dh_
-                            + 1;
-                          idx = builder::make_cast(datatypes::u32,
-                            use_var_bs ? (
-                              aux_buf_d * valid_kh * kw_ + aux_buf_h * kw_ + kw)
-                                       : (kd * kh_ * kw_ + kh * kw_ + kw));
+                          global_aux_buffer[span_t(
+                            {tid, aux_buf_d, aux_buf_h, aux_buf_w, k}, lanes)]
+                            = input[span_t({n, cur_id + kd * d_nopad_begin_idx,
+                                             cur_ih + kh * dh_,
+                                             cur_iw + aux_buf_w, cur_g + k, 0},
+                              lanes)];
                         } else {
-                          idx = builder::make_cast(datatypes::u32,
-                            use_var_bs ? (aux_buf_h * kw_ + kw)
-                                       : (kh * kw_ + kw));
+                          global_aux_buffer[span_t(
+                            {tid, aux_buf_h, aux_buf_w, k}, lanes)]
+                            = input[span_t({n, cur_ih + kh * dh_,
+                                             cur_iw + aux_buf_w, cur_g + k, 0},
+                              lanes)];
                         }
-
-                        // TODO(xxx): pack input for dilated
-                        // conv
-                        A_list[idx] = tensor_ptr(global_aux_buffer,
-                          is_3d_
-                            ? std::vector<expr> {tid, aux_buf_d, aux_buf_h,
-                              kw * dw_, 0}
-                            : std::vector<expr> {tid, aux_buf_h, kw * dw_, 0});
                       }
                     }
+
+                    if (kind == RIGHT_PAD || kind == BOTH_PAD) {
+                      builtin::brgemm_init(
+                        tensor_ptr(global_aux_buffer,
+                          is_3d_ ? std::vector<expr> {tid, aux_buf_d, aux_buf_h,
+                            w_block_size_without_pad, 0}
+                                 : std::vector<expr> {tid, aux_buf_h,
+                                   w_block_size_without_pad, 0}),
+                        builder::make_cast(datatypes::s32,
+                          aux_w_block_size - w_block_size_without_pad),
+                        g_block, LDA, dtype_input, padding_value);
+                    }
+
+                    _for_(kw, 0, kw_) {
+                      expr idx;
+                      if (is_3d_) {
+                        auto valid_kh
+                          = (h_nopad_end_idx - h_nopad_begin_idx - 1) / dh_ + 1;
+                        idx = builder::make_cast(datatypes::u32,
+                          use_var_bs ? (
+                            aux_buf_d * valid_kh * kw_ + aux_buf_h * kw_ + kw)
+                                     : (kd * kh_ * kw_ + kh * kw_ + kw));
+                      } else {
+                        idx = builder::make_cast(datatypes::u32,
+                          use_var_bs ? (aux_buf_h * kw_ + kw)
+                                     : (kh * kw_ + kw));
+                      }
+
+                      // TODO(xxx): pack input for dilated
+                      // conv
+                      A_list[idx] = tensor_ptr(global_aux_buffer,
+                        is_3d_
+                          ? std::vector<expr> {tid, aux_buf_d, aux_buf_h,
+                            kw * dw_, 0}
+                          : std::vector<expr> {tid, aux_buf_h, kw * dw_, 0});
+                    }
                   }
-                };
+                }
+              };
 
               auto fill_aux_buffer = [&](const expr &d_nopad_begin = 0,
                                        const expr &d_nopad_end = 1) {
@@ -869,7 +886,7 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                               : (kd * kh_ * kw_ + kh * kw_ + kw));
                           A_list[idx] = tensor_ptr(input,
                             std::vector<expr> {n, cur_id + kd * dd_,
-                              cur_ih + kh * dh_, cur_iw + kw * dw_, cur_g});
+                              cur_ih + kh * dh_, cur_iw + kw * dw_, cur_g, 0});
                         }
                       }
                     }
@@ -905,7 +922,7 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                               + (kh - h_nopad_begin_idx) * kw_ + kw));
                           B_list[idx] = tensor_ptr(weight,
                             std::vector<expr> {
-                              kd, kh, kw, 0, cur_g + weight_k_start});
+                              kd, kh, kw, 0, cur_g + weight_k_start, 0});
                         }
                       }
                     }
@@ -917,7 +934,7 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                             datatypes::u32, kd * kh_ * kw_ + kh * kw_ + kw);
                           B_list[idx] = tensor_ptr(weight,
                             std::vector<expr> {
-                              kd, kh, kw, 0, cur_g + weight_k_start});
+                              kd, kh, kw, 0, cur_g + weight_k_start, 0});
                         }
                       }
                     }
@@ -971,8 +988,8 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                             (use_var_bs ? (kh - h_nopad_begin_idx) : kh) * kw_
                               + kw);
                           A_list[idx] = tensor_ptr(input,
-                            std::vector<expr> {
-                              n, cur_ih + kh * dh_, cur_iw + kw * dw_, cur_g});
+                            std::vector<expr> {n, cur_ih + kh * dh_,
+                              cur_iw + kw * dw_, cur_g, 0});
                         }
                       }
                     }
@@ -998,7 +1015,7 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                           expr idx = builder::make_cast(datatypes::u32,
                             (kh - h_nopad_begin_idx) * kw_ + kw);
                           auto weight_idx = std::vector<expr> {
-                            kh, kw, 0UL, cur_g + weight_k_start};
+                            kh, kw, 0UL, cur_g + weight_k_start, 0};
                           B_list[idx] = tensor_ptr(weight, weight_idx);
                         }
                       }
@@ -1009,7 +1026,7 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                             = builder::make_cast(datatypes::u32, kh * kw_ + kw);
                           B_list[idx] = tensor_ptr(weight,
                             std::vector<expr> {
-                              kh, kw, 0, cur_g + weight_k_start});
+                              kh, kw, 0, cur_g + weight_k_start, 0});
                         }
                       }
                     }
@@ -1027,11 +1044,13 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                 if (is_3d_) {
                   create_fusion_anchor(fusion, owner_->get_outputs()[0],
                     slice_range {{n, 1}, {cur_od, 1}, {cur_oh, 1},
-                      {cur_ow_begin, config.im_w_block}, {cur_g, g_block}});
+                      {cur_ow_begin, config.im_w_block}, {cur_g, g_block},
+                      {0, 1}});
                 } else {
                   create_fusion_anchor(fusion, owner_->get_outputs()[0],
                     slice_range {{n, 1}, {cur_oh, 1},
-                      {cur_ow_begin, config.im_w_block}, {cur_g, g_block}});
+                      {cur_ow_begin, config.im_w_block}, {cur_g, g_block},
+                      {0, 1}});
                 }
               }
             }
@@ -1041,12 +1060,14 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                 create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   slice_range {{n, 1}, {cur_od, 1},
                     {h_o * config.im_h_block, config.im_h_block},
-                    {cur_ow_begin, config.im_w_block}, {cur_g, g_block}});
+                    {cur_ow_begin, config.im_w_block}, {cur_g, g_block},
+                    {0, 1}});
               } else {
                 create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   slice_range {{n, 1},
                     {h_o * config.im_h_block, config.im_h_block},
-                    {cur_ow_begin, config.im_w_block}, {cur_g, g_block}});
+                    {cur_ow_begin, config.im_w_block}, {cur_g, g_block},
+                    {0, 1}});
               }
             }
           }
@@ -1056,12 +1077,12 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
               create_fusion_anchor(fusion, owner_->get_outputs()[0],
                 slice_range {{n, 1}, {cur_od, 1},
                   {h_o * config.im_h_block, config.im_h_block},
-                  {cur_ow_begin, config.im_w_block}, {0, g_expr_}});
+                  {cur_ow_begin, config.im_w_block}, {0, g_expr_}, {0, 1}});
             } else {
               create_fusion_anchor(fusion, owner_->get_outputs()[0],
                 slice_range {{n, 1},
                   {h_o * config.im_h_block, config.im_h_block},
-                  {cur_ow_begin, config.im_w_block}, {0, g_expr_}});
+                  {cur_ow_begin, config.im_w_block}, {0, g_expr_}, {0, 1}});
             }
           }
         }
@@ -1076,11 +1097,11 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
           if (is_3d_) {
             create_fusion_anchor(fusion, owner_->get_outputs()[0],
               slice_range {{n, 1}, {cur_od, 1}, {h_start, h_len},
-                {w_start, w_len}, {0, g_expr_}});
+                {w_start, w_len}, {0, g_expr_}, {0, 1}});
           } else {
             create_fusion_anchor(fusion, owner_->get_outputs()[0],
-              slice_range {
-                {n, 1}, {h_start, h_len}, {w_start, w_len}, {0, g_expr_}});
+              slice_range {{n, 1}, {h_start, h_len}, {w_start, w_len},
+                {0, g_expr_}, {0, 1}});
           }
         }
       }
@@ -1095,11 +1116,11 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
         if (is_3d_) {
           create_fusion_anchor(fusion, owner_->get_outputs()[0],
             slice_range {{n, 1}, {0, od_}, {h_start, h_len}, {w_start, w_len},
-              {0, g_expr_}});
+              {0, g_expr_}, {0, 1}});
         } else {
           create_fusion_anchor(fusion, owner_->get_outputs()[0],
-            slice_range {
-              {n, 1}, {h_start, h_len}, {w_start, w_len}, {0, g_expr_}});
+            slice_range {{n, 1}, {h_start, h_len}, {w_start, w_len},
+              {0, g_expr_}, {0, 1}});
         }
       }
     }
@@ -1107,10 +1128,11 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
       // im_h_block * im_w_block * groups_
       if (is_3d_) {
         create_fusion_anchor(fusion, owner_->get_outputs()[0],
-          slice_range {{n, 1}, {0, od_}, {0, oh_}, {0, ow_}, {0, g_expr_}});
+          slice_range {
+            {n, 1}, {0, od_}, {0, oh_}, {0, ow_}, {0, g_expr_}, {0, 1}});
       } else {
         create_fusion_anchor(fusion, owner_->get_outputs()[0],
-          slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, g_expr_}});
+          slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, g_expr_}, {0, 1}});
       }
     }
   }

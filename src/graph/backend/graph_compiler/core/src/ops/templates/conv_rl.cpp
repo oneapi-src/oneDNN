@@ -65,6 +65,48 @@ config_ptr gen_conv_fwd_rl_t::get_default_config(context_ptr ctx) const {
   return std::move(ret);
 }
 
+std::vector<expr> gen_conv_fwd_rl_t::data_offset(expr N, expr G, expr C, expr D,
+  expr H, expr W, expr C_block, expr c_idx) const {
+  return is_group_conv_
+    ? (!blocking_input_ ? std::vector<expr> {N, H, W, G, C * C_block + c_idx}
+                        : std::vector<expr> {N, G, C, H, W, c_idx})
+    : (!blocking_input_ ? std::vector<expr> {N, H, W, C * C_block + c_idx}
+                        : std::vector<expr> {N, C, H, W, c_idx});
+}
+
+std::vector<expr> gen_conv_fwd_rl_t::output_offset(expr N, expr G, expr C,
+  expr D, expr H, expr W, expr C_block, expr c_idx) const {
+  return is_group_conv_
+    ? (!blocking_output_ ? std::vector<expr> {N, H, W, G, C * C_block + c_idx}
+                         : std::vector<expr> {N, G, C, H, W, c_idx})
+    : (!blocking_output_ ? std::vector<expr> {N, H, W, C * C_block + c_idx}
+                         : std::vector<expr> {N, C, H, W, c_idx});
+}
+
+void gen_conv_fwd_rl_t::create_anchor(fusion_anchor_mgr_t *fusion,
+  const graph_tensor_ptr &output_gt, const expr &n, const int n_len,
+  const expr &g, const expr &g_len, const expr &k, const int k_len,
+  const expr &d, const int d_len, const expr &p, const expr &p_len,
+  const expr &q, const int q_len, const int K_block) const {
+  if (fusion) {
+    if (is_group_conv_) {
+      fusion->create_fusion_anchor(slice_map {{output_gt.get(),
+        blocking_output_
+          ? slice_range_list {{{n, n_len}, {g, g_len}, {k, k_len}, {p, p_len},
+            {q, q_len}, {0, K_block}}}
+          : slice_range_list {{{n, n_len}, {p, p_len}, {q, q_len}, {g, g_len},
+            {k * K_block, k_len * K_block}}}}});
+
+    } else {
+      fusion->create_fusion_anchor(slice_map {{output_gt.get(),
+        blocking_output_ ? slice_range_list {{{n, n_len}, {k, k_len},
+          {p, p_len}, {q, q_len}, {0, K_block}}}
+                         : slice_range_list {{{n, n_len}, {p, p_len},
+                           {q, q_len}, {k * K_block, k_len * K_block}}}}});
+    }
+  }
+}
+
 void gen_conv_fwd_rl_t::validate_default_config(
   const context_ptr &ctx, conv_fwd_rl_config_t &cfg) const {}
 
@@ -95,43 +137,45 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
   auto out_plain_dims = get_output_plain_dims();
 
   ndims_ = input_plain_dims.size();
-  COMPILE_ASSERT(
-    ndims_ == 4, "reduce lowering currently only support 4D input!")
+  groups_ = static_cast<int>(attrs_.get_or_else("groups", 1));
+  is_group_conv_ = groups_ > 1;
+  COMPILE_ASSERT(ndims_ == 4UL + is_group_conv_,
+    "reduce lowering currently only support 4D input!")
   COMPILE_ASSERT(weight_plain_dims.size() == ndims_,
     "Wrong weight dims, only support 4D weights, but got "
       << weight_plain_dims.size() << "D.");
 
-  groups_ = static_cast<int>(attrs_.get_or_else("groups", 1));
-  COMPILE_ASSERT(input_plain_dims[1] / groups_ == weight_plain_dims[1],
-    "expect input_plain_dims[1] / groups == weight_plain_dims[1], but got "
-      << input_plain_dims[1] / groups_ << " vs " << weight_plain_dims[1]
-      << ".");
+  COMPILE_ASSERT(input_plain_dims[1 + is_group_conv_]
+      == weight_plain_dims[1 + is_group_conv_],
+    "expect ic == kic, but got "
+      << input_plain_dims[1 + is_group_conv_] << " vs "
+      << weight_plain_dims[1 + is_group_conv_] << ".");
 
   mb_ = input_plain_dims[0];
-  ic_ = input_plain_dims[1] / groups_;
-  ih_ = input_plain_dims[2];
-  iw_ = input_plain_dims[3];
+  ic_ = input_plain_dims[1 + is_group_conv_];
+  ih_ = input_plain_dims[2 + is_group_conv_];
+  iw_ = input_plain_dims[3 + is_group_conv_];
 
-  oc_ = weight_plain_dims[0] / groups_;
-  kh_ = weight_plain_dims[2];
-  kw_ = weight_plain_dims[3];
-  oh_ = out_plain_dims[2];
-  ow_ = out_plain_dims[3];
+  oc_ = weight_plain_dims[is_group_conv_];
+  kh_ = weight_plain_dims[2 + is_group_conv_];
+  kw_ = weight_plain_dims[3 + is_group_conv_];
+  oh_ = out_plain_dims[2 + is_group_conv_];
+  ow_ = out_plain_dims[3 + is_group_conv_];
   pt_ = pads_begin[0], pb_ = pads_begin[0];
   pl_ = pads_end[0], pr_ = pads_end[0];
   if (pads_begin.size() > 1) {
-    pt_ = pads_begin[ndims_ - 4];
-    pl_ = pads_begin[ndims_ - 3];
+    pt_ = pads_begin[ndims_ - 4 - is_group_conv_];
+    pl_ = pads_begin[ndims_ - 3 - is_group_conv_];
   }
   if (pads_end.size() > 1) {
-    pb_ = pads_end[ndims_ - 4];
-    pr_ = pads_end[ndims_ - 3];
+    pb_ = pads_end[ndims_ - 4 - is_group_conv_];
+    pr_ = pads_end[ndims_ - 3 - is_group_conv_];
   }
 
   sh_ = stride[0], sw_ = stride[0];
   if (stride.size() > 1) {
-    sh_ = stride[ndims_ - 4];
-    sw_ = stride[ndims_ - 3];
+    sh_ = stride[ndims_ - 4 - is_group_conv_];
+    sw_ = stride[ndims_ - 3 - is_group_conv_];
   }
 
   LDA_ = kh_ * ic_ * sw_;
@@ -158,6 +202,8 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
       + extra_padding_;
   }
   aux_buf_size_ = (actual_iw_ - 1) * kh_ * ic_ + last_row_size;
+  blocking_input_ = get_input_blocking_dims().size() > ndims_;
+  blocking_output_ = get_output_blocking_dims().size() > ndims_;
 }
 
 bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
@@ -168,8 +214,6 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
     "Expecting 2 inputs for conv, but got " << inputs.size() << " inputs.");
   COMPILE_ASSERT(outputs.size() == 1,
     "Expecting 1 output for conv, but got " << outputs.size() << " output.");
-  auto blocking_input = get_input_blocking_dims().size() > ndims_;
-  auto blocking_output = get_output_blocking_dims().size() > ndims_;
 
   int brgemm_m = config.brgemm_m;
   int brgemm_n = config.brgemm_n;
@@ -242,10 +286,15 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
                             : 0);
   int oh_pr_idx = oh_num_pb > 0 ? (oh_ - oh_num_pb) : -1;
   auto padding_value = attrs_.get_or_else("padding_value", 0);
-  auto ic_lanes = ic_;
-  auto ic_real_lane = std::min(lanes, get_minimal_lanes(ic_lanes));
-  expr ic_mask
-    = builder::make_cast(get_dtype(ic_real_lane), convert_int_to_mask(ic_));
+  auto ic_lanes
+    = ic_ * utils::get_sizeof_type(get_input_dtype()) / 8 > cache_line_size
+    ? 1
+    : ic_;
+  auto ic_real_lane
+    = ic_lanes == 1 ? 1 : std::min(lanes, get_minimal_lanes(ic_lanes));
+  expr ic_mask = ic_lanes == 1
+    ? expr()
+    : builder::make_cast(get_dtype(ic_real_lane), convert_int_to_mask(ic_));
 
   auto init_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &g,
                         const expr &p, const expr &init_idx, const expr &tid) {
@@ -264,11 +313,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         _for_(c_i, 0, ic_, ic_lanes) {
           aux_buf[span_t({iw * kh_ * ic_ + cur_pt * ic_ + kh * ic_ + c_i},
             ic_real_lane, ic_mask)]
-            = input[span_t(blocking_input
-                ? std::vector<expr> {n_o, g, p * sh_ + kh - p_offset, iw - pl_,
-                  c_i}
-                : std::vector<expr> {n_o, p * sh_ + kh - p_offset, iw - pl_,
-                  g * ic_ + c_i},
+            = input[span_t(data_offset(n_o, g, 0, 0, p * sh_ + kh - p_offset,
+                             iw - pl_, 1, c_i),
               ic_real_lane, ic_mask)];
         }
       }
@@ -305,11 +351,9 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           aux_buf[span_t(
             {(actual_iw_ - 1) * kh_ * ic_ + hi * ic_ + ci + cur_pt * ic_},
             ic_real_lane, ic_mask)]
-            = input[span_t(blocking_input
-                ? std::vector<expr> {n_o, g, hi + init_idx * sh_ - p_offset,
-                  actual_iw_ - pl_ - 1, ci}
-                : std::vector<expr> {n_o, hi + init_idx * sh_ - p_offset,
-                  actual_iw_ - pl_ - 1, g * ic_ + ci},
+            = input[span_t(
+              data_offset(n_o, g, 0, 0, hi + init_idx * sh_ - p_offset,
+                actual_iw_ - pl_ - 1, 1, ci),
               ic_real_lane, ic_mask)];
         }
       }
@@ -343,11 +387,9 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           aux_buf[span_t(
             {((p - init_idx) - 1) * sh_ * ic_ + iw * kh_ * ic_ + h * ic_ + c_i},
             ic_real_lane, ic_mask)]
-            = input[span_t(blocking_input
-                ? std::vector<expr> {n_o, g, (p - 1) * sh_ + kh_ - pt_ + h,
-                  iw - 1 - pl_, c_i}
-                : std::vector<expr> {n_o, (p - 1) * sh_ + kh_ - pt_ + h,
-                  iw - 1 - pl_, g * ic_ + c_i},
+            = input[span_t(
+              data_offset(n_o, g, 0, 0, (p - 1) * sh_ + kh_ - pt_ + h,
+                iw - 1 - pl_, 1, c_i),
               ic_real_lane, ic_mask)];
         }
       }
@@ -379,10 +421,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           B_list[i] = tensor_ptr(weight, {i, g * K_num_block + k_o, 0, 0, 0});
         }
         auto out_tsr = tensor_ptr(output,
-          blocking_output ? std::vector<expr> {n_o, g, p, q * config.brgemm_m,
-            k_o * config.brgemm_n}
-                          : std::vector<expr> {n_o, p, q * config.brgemm_m,
-                            (g * K_num_block + k_o) * config.brgemm_n});
+          output_offset(n_o, g, 0, 0, p, q * config.brgemm_m,
+            K_num_block * config.brgemm_n, k_o * config.brgemm_n));
 
         const auto hint_A_size = config.brgemm_m * brgemm_k_ * num_brgemm_k_;
         const auto hint_B_size = num_brgemm_k_ * brgemm_k_ * config.brgemm_n;
@@ -393,12 +433,11 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           {brgemm::attr_key::hint_expected_C_size, hint_C_size},
           {brgemm::attr_key::use_interleave_stores, true},
           {brgemm::attr_key::use_uker, true}};
-
         {
           trace_guard_t trg(ctx, "brgemm");
           builtin::brgemm_init_list_update(A_list, B_list, out_tsr, 1,
             config.brgemm_m, config.brgemm_n, brgemm_k_, LDA_, config.brgemm_n,
-            blocking_output
+            blocking_output_
               ? oc_
               : groups_ * oc_ /* channel last for g=1, blocking for g>1 */,
             1 /*useless*/, 1 /*useless*/, num_brgemm_k_, get_input_dtype(),
@@ -409,21 +448,25 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         // brgemm_m * brgemm_n
         trace_guard_t trg(ctx, "post-op fusion");
         create_fusion_anchor(fusion, owner_->get_outputs()[0],
-          blocking_output
-            ? slice_range {{n_o, 1}, {g, 1}, {p, 1},
-              {q * config.brgemm_m, config.brgemm_m},
-              {k_o * config.brgemm_n, config.brgemm_n}}
-            : slice_range {{n_o, 1}, {p, 1},
-              {q * config.brgemm_m, config.brgemm_m},
-              {(g * K_num_block + k_o) * config.brgemm_n, config.brgemm_n}});
+          is_group_conv_
+            ? (blocking_output_
+                ? slice_range {{n_o, 1}, {g, 1}, {0, 1}, {p, 1},
+                  {q * config.brgemm_m, config.brgemm_m},
+                  {k_o * config.brgemm_n, config.brgemm_n}}
+                : slice_range {{n_o, 1}, {p, 1},
+                  {q * config.brgemm_m, config.brgemm_m}, {g, 1},
+                  {k_o * config.brgemm_n, config.brgemm_n}})
+            : (blocking_output_ ? slice_range {{n_o, 1}, {g, 1}, {p, 1},
+                 {q * config.brgemm_m, config.brgemm_m},
+                 {k_o * config.brgemm_n, config.brgemm_n}}
+                                : slice_range {{n_o, 1}, {p, 1},
+                                  {q * config.brgemm_m, config.brgemm_m},
+                                  {(g * K_num_block + k_o) * config.brgemm_n,
+                                    config.brgemm_n}}));
       }
       // brgemm_m * oc_
-      create_fusion_anchor(fusion, owner_->get_outputs()[0],
-        blocking_output
-          ? slice_range {{n_o, 1}, {g, 1}, {p, 1},
-            {q * config.brgemm_m, config.brgemm_m}, {0, oc_}}
-          : slice_range {{n_o, 1}, {p * config.brgemm_m, config.brgemm_m},
-            {q, 1}, {g * oc_, oc_}});
+      create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, g, 1, 0, 1, 0, 1,
+        p, 1, q * config.brgemm_m, config.brgemm_m, oc_);
     }
   };
 
@@ -447,25 +490,19 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
             update_aux_buf(aux_buf, n_o, g, p, 0);
           }
           do_compute(aux_buf, n_o, g, p, 0);
-          // oh_ * oc_
-          create_fusion_anchor(fusion, owner_->get_outputs()[0],
-            blocking_output
-              ? slice_range {{n_o, 1}, {g, 1}, {p, 1}, {0, ow_}, {0, oc_}}
-              : slice_range {{n_o, 1}, {p, 1}, {0, ow_}, {g * oc_, oc_}});
+          // ow_ * oc_
+          create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, g, 1, 0, 1, 0,
+            1, p, 1, 0, ow_, oc_);
         }
         if (mb_ * groups_ >= num_threads) {
           // oh_ * ow_ * oc_
-          create_fusion_anchor(fusion, owner_->get_outputs()[0],
-            blocking_output
-              ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {0, ow_}, {0, oc_}}
-              : slice_range {{n_o, 1}, {0, oh_}, {0, ow_}, {g * oc_, oc_}});
+          create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, g, 1, 0, 1, 0,
+            1, 0, oh_, 0, ow_, oc_);
         }
       }
       // oh_ * ow_ * oc_
-      create_fusion_anchor(fusion, owner_->get_outputs()[0],
-        blocking_output
-          ? slice_range {{n_o, 1}, {0, groups_}, {0, oh_}, {0, ow_}, {0, oc_}}
-          : slice_range {{n_o, 1}, {0, oh_}, {0, ow_}, {0, groups_ * oc_}});
+      create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, 0, groups_, 0, 1,
+        0, 1, 0, oh_, 0, ow_, oc_);
     }
     lp->attr().set(stmt_attr_key::no_loop_fuse, true);
   } else {
@@ -494,10 +531,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
             }
             do_compute(aux_buf, n_o, g, p, init_idx);
             // ow_ * oc_
-            create_fusion_anchor(fusion, owner_->get_outputs()[0],
-              blocking_output
-                ? slice_range {{n_o, 1}, {g, 1}, {p, 1}, {0, ow_}, {0, oc_}}
-                : slice_range {{n_o, 1}, {p, 1}, {0, ow_}, {g * oc_, oc_}});
+            create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, g, 1, 0, 1,
+              0, 1, p, 1, 0, ow_, oc_);
           }
         }
       }

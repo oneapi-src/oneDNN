@@ -62,8 +62,10 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
                             ctx, node->get_inputs()[0]->details_.dtype_);
                     sc_dim groups = node->attrs_.get_or_else("groups", 1);
                     bool is_dw_brdgmm = groups > 1
-                            && groups == weight_plain_dims[0]
-                            && groups == data_plain_dims[1];
+                            && weight_plain_dims.size() >= 5
+                            && data_plain_dims.size() >= 5
+                            && 1 == weight_plain_dims[1]
+                            && 1 == data_plain_dims[2];
                     auto padding_value
                             = node->attrs_.get_or_else("padding_value", 0);
                     // TODO(xurui)

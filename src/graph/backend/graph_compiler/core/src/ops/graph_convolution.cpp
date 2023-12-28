@@ -198,6 +198,35 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     }
 }
 
+sc_dims parse_shape_to_NGCX(
+        const sc_dims &shape, std::string format, int groups) {
+    size_t ndims = shape.size();
+    auto NCX_shape = shape;
+    if (format == "NXC") { permute_shape_NXC2NCX(NCX_shape); }
+    auto ret_shape = sc_dims(ndims + 1, 0);
+    ret_shape[0] = NCX_shape[0]; // N
+    ret_shape[1] = groups; //  G
+    ret_shape[2] = NCX_shape[1] / groups; // IC
+    for (auto i = 2UL; i < ndims; i++) {
+        ret_shape[i + 1] = NCX_shape[i];
+    }
+    return ret_shape;
+}
+
+sc_dims parse_shape_to_GOIX(
+        const sc_dims &shape, std::string format, int groups) {
+    size_t ndims = shape.size();
+    auto OIX_shape = shape;
+    if (format == "XIO") { permute_shape_XIO2OIX(OIX_shape); }
+    auto ret_shape = sc_dims(ndims + 1, 0);
+    ret_shape[0] = groups; // G
+    ret_shape[1] = OIX_shape[0] / groups; // K
+    for (auto i = 1UL; i < ndims; i++) {
+        ret_shape[i + 1] = OIX_shape[i];
+    }
+    return ret_shape;
+}
+
 void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
@@ -213,6 +242,7 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
     auto dim = input->details_.get_plain_dims().size();
+    sc_dim groups = attrs_.get_or_else("groups", 1);
     COMPILE_ASSERT(dim == 3 || dim == 4 || dim == 5,
             "Only support conv1D, conv2D and conv3D.");
     auto is_3D = (dim == 5);
@@ -239,8 +269,52 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                                       : sc_data_format_t::KCRS()}});
         filter = permute_weight->get_outputs()[0];
     }
-
+    if (groups > 1) {
+        input = (graph->make("reorder", {input}, {},
+                         {{"out_format",
+                                  is_3D ? sc_data_format_t::NDHWC()
+                                        : sc_data_format_t::NHWC()},
+                                 {"internal", true}}))
+                        ->get_outputs()[0];
+        input = (graph->make("tensor_view", {input}, {},
+                         {{"shape",
+                                  parse_shape_to_NGCX(
+                                          info_.inputs_[0]
+                                                  ->details_.get_plain_dims(),
+                                          data_format, groups)},
+                                 {"format",
+                                         is_3D ? sc_data_format_t::NDHWGC()
+                                               : sc_data_format_t::NHWGC()},
+                                 {"expand_dim", std::vector<int> {}}}))
+                        ->get_outputs()[0];
+        filter = (graph->make("reorder", {filter}, {},
+                          {{"out_format",
+                                   is_3D ? sc_data_format_t::KCDRS()
+                                         : sc_data_format_t::KCRS()},
+                                  {"internal", true}}))
+                         ->get_outputs()[0];
+        filter = (graph->make("tensor_view", {filter}, {},
+                          {{"shape",
+                                   parse_shape_to_GOIX(
+                                           info_.inputs_[1]
+                                                   ->details_.get_plain_dims(),
+                                           filter_format, groups)},
+                                  {"format",
+                                          is_3D ? sc_data_format_t::GKCDRS()
+                                                : sc_data_format_t::GKCRS()},
+                                  {"expand_dim", std::vector<int> {}}}))
+                         ->get_outputs()[0];
+    }
     conv = graph->make("conv_fwd_core", {input, filter}, {}, attrs);
+    if (groups > 1) {
+        conv = graph->make("tensor_view", conv->get_outputs(), {},
+                {{"shape", info_.outputs_[0]->details_.get_plain_dims()},
+                        {"format",
+                                is_3D ? sc_data_format_t::NCDHW()
+                                      : sc_data_format_t::NCHW()},
+                        {"expand_dim", std::vector<int> {}}});
+    }
+
     if (data_format == "NXC") {
         // conv_fwd_core's output is with NCX plain shape
         // need to permute NCX to NXC
