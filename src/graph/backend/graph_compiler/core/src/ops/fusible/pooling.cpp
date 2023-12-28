@@ -931,8 +931,6 @@ static void compute_block_pooling_backward_avg(
     // fill dst delta with 0
     pooling_backward_fill_zero_dst(dst, in_dtype, vx_info);
 
-    auto in_vectorized_dtype
-            = sc_data_type_t(in_dtype.type_code_, vx_info.lanes);
     // builder
     auto bld = builder::get_current_builder();
 
@@ -956,16 +954,13 @@ static void compute_block_pooling_backward_avg(
                 std::string("_fuseiter") + fusion_create_idx()));
     }
 
-    auto kernel_size_var
-            = builder::make_var(in_vectorized_dtype, "kernel_size");
+    auto kernel_size_var = builder::make_var(in_dtype, "kernel_size");
     auto define_kernel_size_var
             = make_stmt<define_node_t>(kernel_size_var, linkage::local, expr());
 
     // the indices of output delta
     std::vector<expr> dst_delta_idx;
     std::vector<expr> conds(kernel.size());
-    auto vectorized_int
-            = sc_data_type_t(datatypes::s32.type_code_, vx_info.lanes);
 
     expr kernel_size_multi_expr = kernel_size_var;
     bool multi_first = true;
@@ -986,19 +981,19 @@ static void compute_block_pooling_backward_avg(
             dst_delta_idx.emplace_back(idx);
             auto window_start = make_expr<intrin_call_node>(intrin_type::max,
                     std::vector<expr> {make_expr<constant_node>(
-                                               int64_t(0), vectorized_int),
+                                               int64_t(0), datatypes::s32),
                             int(stride[pads_stride_index])
                                             * make_expr<cast_node>(
-                                                    vectorized_int,
+                                                    datatypes::s32,
                                                     iter_vars[i])
                                     - int(pads_begin[pads_stride_index])},
                     any_map_t());
             auto window_end = make_expr<intrin_call_node>(intrin_type::min,
-                    std::vector<expr> {make_expr<cast_node>(vectorized_int,
+                    std::vector<expr> {make_expr<cast_node>(datatypes::s32,
                                                dst.get_shape()[i]),
                             int(stride[pads_stride_index])
                                             * make_expr<cast_node>(
-                                                    vectorized_int,
+                                                    datatypes::s32,
                                                     iter_vars[i])
                                     - int(pads_begin[pads_stride_index])
                                     + int(kernel[pads_stride_index])},
@@ -1030,10 +1025,8 @@ static void compute_block_pooling_backward_avg(
                     kernel_size_var, kernel_size_multi_expr);
         } else {
             kernel_size_asnode = make_stmt<assign_node_t>(kernel_size_var,
-                    make_expr<constant_node>(
-                            float(kernel_size), in_vectorized_dtype));
+                    make_expr<constant_node>(float(kernel_size), in_dtype));
         }
-
     } else {
         COMPILE_ASSERT(0, "unsupported in_dtype.");
     }
@@ -1043,10 +1036,15 @@ static void compute_block_pooling_backward_avg(
     for (int i = kernel_iter_vars.size() - 1; i >= 0; i--) {
         stmt else_stmt, then_stmt;
         if (i == int(kernel_iter_vars.size() - 1)) {
+            expr kernel_size = kernel_size_var;
+            if (vx_info.lanes > 1) {
+                kernel_size = builder::make_broadcast(
+                        kernel_size_var, vx_info.lanes);
+            }
+
             then_stmt = make_stmt<assign_node_t>(indexed_dst_delta,
                     builder::make_add(indexed_dst_delta,
-                            builder::make_div(
-                                    indexed_src_delta, kernel_size_var)));
+                            builder::make_div(indexed_src_delta, kernel_size)));
         } else {
             then_stmt = cur;
         }
