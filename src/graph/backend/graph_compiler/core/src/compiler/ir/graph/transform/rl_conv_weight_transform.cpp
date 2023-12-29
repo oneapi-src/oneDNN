@@ -77,9 +77,10 @@ static void query_accu_info_for_rl(const context_ptr &ctx,
     int tile_col = is_vnni_low_fp ? 32 : 64;
     int threshold = get_full_lowering_threshold(tile_col);
 
+    // Notes: Here force group conv with small ic to conv_rl because group convs
+    // will prefer NHWGC while the kw_lowering only support NGHWC now
     if (kw * ic <= threshold || ic % vnni_blk != 0 || groups > 1) {
         kind = ops::rl_kind::FULL_LOWERING;
-
         auto total_raw_accu = kw * kh * ic;
         num_brgemm_k = utils::divide_and_ceil(total_raw_accu, tile_col);
         auto total_padded_accu

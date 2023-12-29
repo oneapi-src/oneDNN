@@ -500,8 +500,9 @@ float gen_conv_fwd_t::get_gflop() const {
   return result;
 }
 
-std::vector<expr> gen_conv_fwd_t::data_offset(expr N, expr G, expr C, expr D,
-  expr H, expr W, expr C_block, expr c_idx) const {
+std::vector<expr> gen_conv_fwd_t::data_offset(const expr &N, const expr &G,
+  const expr &C, const expr &D, const expr &H, const expr &W,
+  const expr &C_block, const expr &c_idx) const {
   return is_group_conv_
     ? (is_3d_ ? (!blocking_input_
            ? std::vector<expr> {N, D, H, W, G, C * C_block + c_idx}
@@ -516,8 +517,9 @@ std::vector<expr> gen_conv_fwd_t::data_offset(expr N, expr G, expr C, expr D,
         : (!blocking_input_ ? std::vector<expr> {N, H, W, C * C_block + c_idx}
                             : std::vector<expr> {N, C, H, W, c_idx}));
 }
-std::vector<expr> gen_conv_fwd_t::output_offset(expr N, expr G, expr C, expr D,
-  expr H, expr W, expr C_block, expr c_idx) const {
+std::vector<expr> gen_conv_fwd_t::output_offset(const expr &N, const expr &G,
+  const expr &C, const expr &D, const expr &H, const expr &W,
+  const expr &C_block, const expr &c_idx) const {
   return is_group_conv_
     ? (is_3d_ ? (!blocking_output_
            ? std::vector<expr> {N, D, H, W, G, C * C_block + c_idx}
@@ -532,8 +534,8 @@ std::vector<expr> gen_conv_fwd_t::output_offset(expr N, expr G, expr C, expr D,
         : (!blocking_output_ ? std::vector<expr> {N, H, W, C * C_block + c_idx}
                              : std::vector<expr> {N, C, H, W, c_idx}));
 }
-std::vector<expr> gen_conv_fwd_t::weight_offset(
-  expr G, expr K, expr C, expr D, expr R, expr S) const {
+std::vector<expr> gen_conv_fwd_t::weight_offset(const expr &G, const expr &K,
+  const expr &C, const expr &D, const expr &R, const expr &S) const {
   int kpack = 1;
   auto dtype_input = get_input_dtype();
   if (dtype_input == datatypes::bf16) { kpack = 2; }

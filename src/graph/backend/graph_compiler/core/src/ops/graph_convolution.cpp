@@ -199,7 +199,7 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
 }
 
 sc_dims parse_shape_to_NGCX(
-        const sc_dims &shape, std::string format, int groups) {
+        const sc_dims &shape, const std::string &format, int groups) {
     size_t ndims = shape.size();
     auto NCX_shape = shape;
     if (format == "NXC") { permute_shape_NXC2NCX(NCX_shape); }
@@ -214,7 +214,7 @@ sc_dims parse_shape_to_NGCX(
 }
 
 sc_dims parse_shape_to_GOIX(
-        const sc_dims &shape, std::string format, int groups) {
+        const sc_dims &shape, const std::string &format, int groups) {
     size_t ndims = shape.size();
     auto OIX_shape = shape;
     if (format == "XIO") { permute_shape_XIO2OIX(OIX_shape); }

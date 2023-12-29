@@ -65,8 +65,9 @@ config_ptr gen_conv_fwd_rl_t::get_default_config(context_ptr ctx) const {
   return std::move(ret);
 }
 
-std::vector<expr> gen_conv_fwd_rl_t::data_offset(expr N, expr G, expr C, expr D,
-  expr H, expr W, expr C_block, expr c_idx) const {
+std::vector<expr> gen_conv_fwd_rl_t::data_offset(const expr &N, const expr &G,
+  const expr &C, const expr &D, const expr &H, const expr &W,
+  const expr &C_block, const expr &c_idx) const {
   return is_group_conv_
     ? (!blocking_input_ ? std::vector<expr> {N, H, W, G, C * C_block + c_idx}
                         : std::vector<expr> {N, G, C, H, W, c_idx})
@@ -74,8 +75,9 @@ std::vector<expr> gen_conv_fwd_rl_t::data_offset(expr N, expr G, expr C, expr D,
                         : std::vector<expr> {N, C, H, W, c_idx});
 }
 
-std::vector<expr> gen_conv_fwd_rl_t::output_offset(expr N, expr G, expr C,
-  expr D, expr H, expr W, expr C_block, expr c_idx) const {
+std::vector<expr> gen_conv_fwd_rl_t::output_offset(const expr &N, const expr &G,
+  const expr &C, const expr &D, const expr &H, const expr &W,
+  const expr &C_block, const expr &c_idx) const {
   return is_group_conv_
     ? (!blocking_output_ ? std::vector<expr> {N, H, W, G, C * C_block + c_idx}
                          : std::vector<expr> {N, G, C, H, W, c_idx})
@@ -333,16 +335,16 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         int threshold = (oh_ % num_threads) * job1;
         _if_(p == 0) {
           // left-most region
-          last_row = ((job1 - 1) * sh_ + kh_ - pt_) * ic_;
+          last_row = ((job1 - 1) * sh_ + kh_ - pt_);
         }
         _else_ {
           _if_(p == oh_ - job2) {
             // right-most region
-            last_row = ((job2 - 1) * sh_ + kh_ - real_pb) * ic_;
+            last_row = ((job2 - 1) * sh_ + kh_ - real_pb);
           }
           _else_ {
-            _if_(p >= threshold) { last_row = ((job2 - 1) * sh_ + kh_) * ic_; }
-            _else_ { last_row = ((job1 - 1) * sh_ + kh_) * ic_; }
+            _if_(p >= threshold) { last_row = ((job2 - 1) * sh_ + kh_); }
+            _else_ { last_row = ((job1 - 1) * sh_ + kh_); }
           }
         }
       }

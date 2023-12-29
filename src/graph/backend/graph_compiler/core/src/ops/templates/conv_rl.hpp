@@ -94,10 +94,12 @@ public:
   void schedule_loops(context_ptr ctx, const conv_fwd_rl_config_t &config,
     stmt body, std::vector<for_loop> &fors) const override;
 
-  std::vector<expr> data_offset(expr N, expr G, expr C, expr D, expr H, expr W,
-    expr C_block, expr c_idx = expr(0)) const;
-  std::vector<expr> output_offset(expr N, expr G, expr C, expr D, expr H,
-    expr W, expr C_block, expr c_idx = expr(0)) const;
+  std::vector<expr> data_offset(const expr &N, const expr &G, const expr &C,
+    const expr &D, const expr &H, const expr &W, const expr &C_block,
+    const expr &c_idx = expr(0)) const;
+  std::vector<expr> output_offset(const expr &N, const expr &G, const expr &C,
+    const expr &D, const expr &H, const expr &W, const expr &C_block,
+    const expr &c_idx = expr(0)) const;
   void create_anchor(fusion_anchor_mgr_t *fusion,
     const graph_tensor_ptr &output_gt, const expr &n, const int n_len,
     const expr &g, const expr &g_len, const expr &k, const int k_len,

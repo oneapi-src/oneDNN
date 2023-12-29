@@ -60,7 +60,7 @@ public:
     static void infer_auto_pad(sc_graph_t &owner_graph,
             const sc_dims &input_dims, const sc_dims &weight_dims,
             const sc_dims &stride, const sc_dims &dilation, any_map_t &attrs,
-            bool is_same_upper);
+            bool is_same_upper, bool is_NGCX_layout = false);
     sc_data_type_t infer_out_dtype(const sc_data_type_t &input_dtype,
             const sc_data_type_t &weight_dtype);
     void check_dtypes(const sc_data_type_t &data_dtype,

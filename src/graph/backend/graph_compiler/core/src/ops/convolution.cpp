@@ -104,6 +104,8 @@ infer_status_code conv_fwd_core_op_t::infer_slice_ranges(
             "Group conv format should be NGCX and GOIX");
     bool is_dw_brdgmm = (groups > 1) && (1 == inp_plain_dim[2])
             && (1 == wei_plain_dim[1]);
+
+    // TODO(Zhicong): Add the infer slice range support for NGCHW like layout
     if (groups > 1) { return infer_status_code::FAIL; }
 
     if (config_data_) {
@@ -474,34 +476,38 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
 void conv_fwd_core_op_t::infer_auto_pad(sc_graph_t &owner_graph,
         const sc_dims &input_dims, const sc_dims &weight_dims,
         const sc_dims &stride, const sc_dims &dilation, any_map_t &attrs,
-        bool is_same_upper) {
+        bool is_same_upper, bool is_NGCX_layout) {
     int ndims = input_dims.size();
-    sc_dims stride_dims(ndims - 2, stride[0]);
+    sc_dims stride_dims(ndims - 2 - is_NGCX_layout, stride[0]);
     if (stride.size() > 1) { stride_dims = stride; }
-    sc_dims dilation_dims(ndims - 2, dilation[0]);
+    sc_dims dilation_dims(ndims - 2 - is_NGCX_layout, dilation[0]);
     if (dilation.size() > 1) { dilation_dims = dilation; }
-    sc_dims pads_begin(ndims - 2, 0);
-    sc_dims pads_end(ndims - 2, 0);
+    sc_dims pads_begin(ndims - 2 - is_NGCX_layout, 0);
+    sc_dims pads_end(ndims - 2 - is_NGCX_layout, 0);
     auto calc_total_padding = [](int i, int k, int o, int s, int d) {
         return std::max((o - 1) * s + (d * (k - 1) + 1) - i, 0);
     };
-    for (int i = 2; i < ndims; ++i) {
+    for (int i = 2 + is_NGCX_layout; i < ndims; ++i) {
         if (is_dynamic_dim(input_dims[i]) || is_dynamic_dim(weight_dims[i])
-                || is_dynamic_dim(stride_dims[i - 2])) {
+                || is_dynamic_dim(stride_dims[i - 2 - is_NGCX_layout])) {
             // pads_begin not necessarily equal to pads_end
-            pads_begin[i - 2] = owner_graph.get_next_dynamic_placeholder();
-            pads_end[i - 2] = owner_graph.get_next_dynamic_placeholder();
+            pads_begin[i - 2 - is_NGCX_layout]
+                    = owner_graph.get_next_dynamic_placeholder();
+            pads_end[i - 2 - is_NGCX_layout]
+                    = owner_graph.get_next_dynamic_placeholder();
         } else {
-            sc_dim output_dim
-                    = utils::divide_and_ceil(input_dims[i], stride_dims[i - 2]);
+            sc_dim output_dim = utils::divide_and_ceil(
+                    input_dims[i], stride_dims[i - 2 - is_NGCX_layout]);
             sc_dim total_pad = calc_total_padding(input_dims[i], weight_dims[i],
-                    output_dim, stride_dims[i - 2], dilation_dims[i - 2]);
+                    output_dim, stride_dims[i - 2 - is_NGCX_layout],
+                    dilation_dims[i - 2 - is_NGCX_layout]);
             if (total_pad % 2 == 0) {
-                pads_begin[i - 2] = pads_end[i - 2] = total_pad / 2;
+                pads_begin[i - 2 - is_NGCX_layout]
+                        = pads_end[i - 2 - is_NGCX_layout] = total_pad / 2;
             } else {
-                pads_begin[i - 2]
+                pads_begin[i - 2 - is_NGCX_layout]
                         = is_same_upper ? total_pad / 2 : total_pad / 2 + 1;
-                pads_end[i - 2]
+                pads_end[i - 2 - is_NGCX_layout]
                         = is_same_upper ? total_pad / 2 + 1 : total_pad / 2;
             }
         }
@@ -552,6 +558,24 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
     ndims_ = indims.size();
     auto strides = attrs_.get<sc_dims>("strides");
     auto dilations = get_dilations(attrs_);
+    sc_dim groups = attrs_.get_or_else("groups", 1);
+    // processing padding info
+    // if auto_pad is set, original pads_begin/pads_end values will be omitted
+    // so we directly overwrite attrs_
+    if (attrs_.has_key("auto_pad")) {
+        auto pad_type = attrs_.get<std::string>("auto_pad");
+        if (pad_type == "VALID") {
+            attrs_.set<sc_dims>(
+                    "pads_begin", sc_dims(ndims_ - 2 - (groups > 1), 0));
+            attrs_.set<sc_dims>(
+                    "pads_end", sc_dims(ndims_ - 2 - (groups > 1), 0));
+        } else if (pad_type == "SAME_UPPER" || pad_type == "SAME_LOWER") {
+            // output spatial dims are equal to input spatial dims
+            infer_auto_pad(get_owner_graph(), indims, weightdims, strides,
+                    dilations, attrs_, pad_type == "SAME_UPPER", groups > 1);
+        }
+        attrs_.set<std::string>("auto_pad", "none");
+    }
     sc_dims pads_begin, pads_end;
     if (attrs_.has_key("pads_begin")) {
         COMPILE_ASSERT(attrs_.has_key("pads_end"),
@@ -562,7 +586,6 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
         pads_begin = attrs_.get<sc_dims>("paddings");
         pads_end = pads_begin;
     }
-    sc_dim groups = attrs_.get_or_else("groups", 1);
     if (groups > 1) {
         COMPILE_ASSERT(indims[1] == groups && weightdims[0] == groups,
                 "groups should be euqal to attribute");
@@ -653,6 +676,14 @@ bool conv_fwd_core_op_t::use_conv1d(const context_ptr &ctx) {
             && (!ctx->machine_.brgemm_use_amx_
                     || (ctx->machine_.brgemm_use_amx_
                             && !ctx->machine_.cpu_flags_.fAVX512AMXINT8));
+    bool is_dyn_quan = attrs_.has_key(attr_keys::dyn_data_zero_points);
+    auto dyn_data_zero_points = attrs_.get_or_else(
+            attr_keys::dyn_data_zero_points, graph_tensor_ptr());
+    auto dyn_weight_zero_points = attrs_.get_or_else(
+            attr_keys::dyn_weight_zero_points, graph_tensor_ptr());
+    if (is_dyn_quan && !dyn_data_zero_points && !dyn_weight_zero_points) {
+        return false;
+    }
     auto data_zero_points = attrs_.get_or_else(
             attr_keys::data_zero_points, std::vector<int> {0});
     auto weight_zero_points = attrs_.get_or_else(
@@ -662,6 +693,7 @@ bool conv_fwd_core_op_t::use_conv1d(const context_ptr &ctx) {
                     [](int i) { return i == 0; })) {
         return false;
     }
+
     if ((!weight_zero_points.empty()
                 && !std::all_of(weight_zero_points.begin(),
                         weight_zero_points.end(), [](int i) { return i == 0; }))
@@ -1206,7 +1238,7 @@ sc_op_ptr conv_fwd_core_op_t::get_data_compensation(sc_graph_t &mgr) {
         return nullptr;
     }
     bool is_group_conv = groups > 1;
-    COMPILE_ASSERT(wei_plain_dim.size() >= 4,
+    COMPILE_ASSERT(wei_plain_dim.size() >= 4UL + is_group_conv,
             "Convolution should have >= 4 dimension(at least 2d)")
     bool is_3d = wei_plain_dim.size() > (!is_group_conv ? 4 : 5);
     int kd = is_3d ? wei_plain_dim.at(2 + is_group_conv) : 1;
