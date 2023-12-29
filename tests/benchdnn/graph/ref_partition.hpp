@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,6 +64,9 @@ private:
 
     // bf16 cases:use f32 as intermediate tensor dt to improve accuracy
     void handle_special_case_bf16(res_t *res);
+
+    // rewrite x16->f32 from typecast (f32->x16) to typecast (x16->f32)
+    void handle_typecast_x16();
 
     // Objects below are constructed.
     // OPs in the partition, which is Topo ordered

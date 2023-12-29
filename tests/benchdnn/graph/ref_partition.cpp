@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ ref_partition_t::ref_partition_t(const deserialized_graph &dg,
 void ref_partition_t::init_ref(const bench_mode_t mode,
         const std::vector<size_t> &graph_in_ports,
         partition_mem_map_t &partition_mem_map, res_t *res) {
-
+    handle_typecast_x16();
     handle_special_case_bf16(res);
     for (const auto &par_op_ref : partition_ops_ref_) {
         // res should be independent from op to op
@@ -344,6 +344,42 @@ bool ref_partition_t::is_bf16_partition_support_f32_intermediate_result()
     }
 
     return true;
+}
+
+//     TypeCast (f32->x16)
+//        |    ->
+//       OPs*  ->  change all tensors to f32
+//        |    ->
+//     TypeCast (x16->f32) Stop if find x16->f32 Typecast
+void ref_partition_t::handle_typecast_x16() {
+
+    // depth first search to change all tensor to f32
+    // unless we meet x16->f32 TypeCast
+    std::function<void(size_t)> dfs = [&](size_t lt_id) {
+        bf16_to_f32_rewrite_lt_id_.insert(lt_id);
+        if (in_lt_2_ops_.find(lt_id) == in_lt_2_ops_.end()) return;
+        for (const auto &op : in_lt_2_ops_.at(lt_id)) {
+            // find a x16 -> f32 typecast, skip this path
+            if (op.get().kind_ == "TypeCast"
+                    && (op.get().in_lts_[0].data_type_ == "bf16"
+                            || op.get().in_lts_[0].data_type_ == "f16")
+                    && op.get().out_lts_[0].data_type_ == "f32")
+                continue;
+            for (const auto &lt : op.get().out_lts_) {
+                dfs(lt.id_);
+            }
+        }
+    };
+    for (const auto &par_op_ref : partition_ops_ref_) {
+        const auto &op = par_op_ref.get();
+        // find a f32 -> x16 typecast
+        if (op.kind_ == "TypeCast"
+                && (op.out_lts_[0].data_type_ == "bf16"
+                        || op.out_lts_[0].data_type_ == "f16")
+                && op.in_lts_[0].data_type_ == "f32") {
+            dfs(op.out_lts_[0].id_);
+        }
+    }
 }
 
 void ref_partition_t::handle_special_case_bf16(res_t *res) {
