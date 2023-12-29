@@ -38,6 +38,7 @@ enum class broadcasting_strategy_t {
     per_mb_w, // [n, 1, 1, 1, w] // Broadcast per batch and width
     per_w, // [1, 1, 1, 1, w] // Broadcast per width
     shared_axes, // [n, 1, d, h, 1] // General case broadcast (any combination)
+    batch, // [1, c, d, h, w] // Broadcast only batch
     no_broadcast, // [n, c, d, h, w]
     unsupported
 };
