@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2371,8 +2371,7 @@ private:
                 blocking_checker_t blocking_checker(cfg);
                 bool transposed = cfg.prb().ab_swap_transpose;
                 if (!params.is_empty()
-                        && (!transposed
-                                || blocking_checker.is_ok(params.blocking()))) {
+                        && (blocking_checker.is_ok(params.blocking()))) {
                     if (transposed) {
                         params_gen_ = params_generator_t(cfg, params);
                     } else {
