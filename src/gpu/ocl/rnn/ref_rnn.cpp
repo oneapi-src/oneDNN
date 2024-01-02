@@ -99,7 +99,6 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.dst_dt = rnn.dst_data_type;
 
     ocl_conf.is_fwd = rnn.is_fwd;
-    ocl_conf.n_bias = rnn.n_bias;
 
     ocl_conf.with_bias = rnn_pd->with_bias();
     ocl_conf.with_src_iter = rnn_pd->with_src_iter();
@@ -259,7 +258,6 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     if (with_dst_iter_c)
         def_block_offsets(inner_layouts.dst_iter_c, kernel_ctx, "DST_I_C");
     def_block_offsets(inner_layouts.bias, kernel_ctx, "BIAS");
-    kernel_ctx.define_int("N_BIAS", n_bias);
 
     if (!is_fwd) {
         def_block_offsets(
@@ -1147,7 +1145,6 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(n_layer));
     arg_list.append(into<int32_t>(n_dir));
-    arg_list.append(into<int32_t>(n_bias));
     arg_list.append(data_shift);
     arg_list.append(data_scale);
 

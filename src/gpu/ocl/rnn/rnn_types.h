@@ -62,7 +62,23 @@ typedef struct param4 {
 #define OFF3(i0, D0, i1, D1, i2, D2) (((i0) * (D1) + (i1)) * (D2) + (i2))
 #define OFF2(i0, D0, i1, D1) ((i0) * (D1) + (i1))
 
-int comp_off(int n_dir, int n_bias, int dhc, int i0, int i1, int i2, int i3) {
+#if CELL_KIND == VANILLA_RNN
+const int n_gates = 1;
+const int n_bias = 1;
+#elif CELL_KIND == VANILLA_LSTM
+const int n_gates = 4;
+const int n_bias = 4;
+#elif CELL_KIND == LBR_GRU
+const int n_gates = 3;
+const int n_bias = 4;
+#elif CELL_KIND == VANILLA_GRU
+const int n_gates = 3;
+const int n_bias = 3;
+#else
+#error "Unimplemented cell kind"
+#endif
+
+int comp_off(int n_dir, int dhc, int i0, int i1, int i2, int i3) {
     return (((i0 * n_dir + i1) * n_bias + i2) * dhc + i3);
 }
 
@@ -89,8 +105,8 @@ int off_ws_gates(int n_dir, int n_iter, int batch, int gates_ws_ld, int dhc,
             + i1 * n_iter * batch * gates_ws_ld + i2 * batch * gates_ws_ld
             + i3 * gates_ws_ld + i4 * dhc + i5;
 }
-int off_ws_bias(int n_layer, int n_dir, int n_bias, int dhc, int i0, int i1,
-        int i2, int i3) {
+int off_ws_bias(
+        int n_layer, int n_dir, int dhc, int i0, int i1, int i2, int i3) {
     return OFF4(i0, n_layer, i1, n_dir, i2, n_bias, i3, dhc);
 }
 // grid offset for lbr GRU, LD = DHC
@@ -99,7 +115,7 @@ int off_ws_grid_offset(int n_layer, int n_dir, int n_iter, int batch, int dhc,
     return OFF5(i0, n_layer, i1, n_dir, i2, n_iter, i3, batch, i4, dhc);
 }
 
-int off_ker_bias(int n_gates, int dhc, int i0, int i1) {
+int off_ker_bias(int dhc, int i0, int i1) {
     return OFF2(i0, n_gates, i1, dhc);
 }
 int off_scratch_diff_states(int n_layer, int n_dir, int n_states, int n_iter,

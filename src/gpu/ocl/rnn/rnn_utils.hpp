@@ -249,8 +249,6 @@ struct ocl_conf_t {
 
     inner_layouts_t inner_layouts = {};
 
-    int n_bias = 0;
-
     int wei_qparam_mask = 0;
 
     int elemwise_bwd_batch_block = 0;
@@ -269,7 +267,7 @@ struct ocl_conf_t {
     bool copy_src_layer = false;
     bool copy_diff_dst_layer = false;
     bool copy_diff_src_layer;
-    uint8_t pad[5] = {};
+    uint8_t pad[1] = {};
 };
 
 struct conf_t {

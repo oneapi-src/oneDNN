@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,7 +75,6 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     arg_list.append(into<int32_t>(batch));
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_gates));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     if (aprop == dnnl_forward) {
         rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
@@ -150,7 +149,6 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     arg_list.append(into<int32_t>(batch));
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_gates));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     if (aprop == dnnl_forward) {
         rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
@@ -228,7 +226,6 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_bias));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     arg_list.append(pd()->rnn_conf.tm_cscale);
     return parallel_for(ctx, nd_range, elemwise_fwd_kernel_, arg_list);
@@ -288,7 +285,6 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     arg_list.append(into<int32_t>(batch));
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_gates));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     if (aprop == dnnl_forward) {
         rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
@@ -367,7 +363,6 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.append(into<int32_t>(batch));
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_gates));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     if (aprop == dnnl_forward) {
         rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
