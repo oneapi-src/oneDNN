@@ -68,13 +68,14 @@ protected:
 
         const bool is_src_int8 = p.src_dt == memory::data_type::s8
                 || p.src_dt == memory::data_type::u8;
-        auto aa = allows_attr_t {false};
-
-        if (is_src_int8) aa.scales = true;
-        if (get_test_engine_kind() == engine::kind::cpu) {
-            aa.po_eltwise = true;
-            aa.po_binary = true;
-        }
+        auto aa = allows_attr_t {
+                false, /* po_sum */
+                true, /* po_eltwise */
+                true, /* po_binary*/
+                false, /* po_prelu*/
+                false, /* zp */
+                is_src_int8, /* scales */
+        };
 
         auto src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
         auto dst_md = memory::desc(p.dims, p.dst_dt, p.dst_tag);
