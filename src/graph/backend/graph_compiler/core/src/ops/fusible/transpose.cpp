@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -295,8 +295,7 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
         trans_kernel_used = sc_trans_kernel::NO_TRANS;
         return false;
     } else if (is_float
-            && (dynamic_no_padding
-                    || (!is_dynamic && !meet_kernel_require(f32_threshold)))) {
+            && (!is_dynamic && !meet_kernel_require(f32_threshold))) {
         trans_kernel_used = sc_trans_kernel::NO_TRANS;
         return false;
     }
