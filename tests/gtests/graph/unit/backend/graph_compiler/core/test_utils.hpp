@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -163,6 +163,13 @@
 
 #define SKIP_AMX() \
     if (IS_AMX_AVAILABLE()) { GTEST_SKIP(); }
+
+#define SKIP_ON_INSUFFICIENT_LANES(lanes, etype) \
+    if (::dnnl::impl::graph::gc::get_default_context()->get_max_vector_lanes( \
+                etype) \
+            < lanes) { \
+        GTEST_SKIP(); \
+    }
 
 #define SKIP_BOUNDARY_CHECK()
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,9 +32,10 @@ using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::utils;
 using namespace dnnl::impl::graph::gc::test_utils;
 
-#define DBF16 sc_data_type_t::bf16(8)
-#define DF16 sc_data_type_t::f16(8)
-#define DF32 sc_data_type_t::f32(8)
+#define LANES 8
+#define DBF16 sc_data_type_t::bf16(LANES)
+#define DF16 sc_data_type_t::f16(LANES)
+#define DF32 sc_data_type_t::f32(LANES)
 #define BF16(x) builder::make_cast(DBF16, x)
 #define F16(x) builder::make_cast(DF16, x)
 #define F32(x) builder::make_cast(DF32, x)
@@ -207,6 +208,8 @@ void dotest_low_precision_fp_promote_assign() {
 
 void dotest_low_precision_fp_promote_select() {
     {
+        // check max vector lanes to ensure promotion will take place
+        SKIP_ON_INSUFFICIENT_LANES(LANES, sc_data_etype::F32);
         builder::ir_builder_t bld;
         stmt aaa, bbb;
         ir_comparer cmper(true);
@@ -231,6 +234,8 @@ void dotest_low_precision_fp_promote_select() {
     }
     {
         SKIP_F16(datatypes::f16);
+        // check max vector lanes to ensure promotion will take place
+        SKIP_ON_INSUFFICIENT_LANES(LANES, sc_data_etype::F32);
         builder::ir_builder_t bld;
         stmt aaa;
         ir_comparer cmper(true);
