@@ -2523,6 +2523,8 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 if (atomic && !nativeAtomic) simdCap = 16;
                 maxElements = simdCap * maxNPack;
                 if (T.size() > stride) maxElements = maxElements * stride / T;
+                R = r;
+                C = c;
             }
 
             auto maxABlock = maxElements / (byte1PerSlot ? 1 : atype.crosspack);
@@ -2550,7 +2552,6 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                     yblock = atype.crosspack; // Remainder loop: no longer packed in memory
 
                 block.crosspack = atype.crosspack;
-                Y = div_up(Y, atype.crosspack);
             };
 
             switch (atype.layout) {
@@ -2695,7 +2696,22 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 }
             }
 
-            int nbytes = (rblock * cblock) * T;
+            bool needFRMask
+                    = pseudo && (!remainderR && !is_zero_or_pow2(rblock));
+            bool needFCMask
+                    = pseudo && (!remainderC && !is_zero_or_pow2(cblock));
+
+            if (needFRMask || needFCMask) {
+                // Create fixed mask for this block.
+                auto &fmask = needFRMask ? block.rowMask.fixed
+                                         : block.colMask.fixed;
+                int logicalSlots = (rblock * cblock * T) / maskGranularity;
+                fmask.isFixed = true;
+                fmask.rsize = rblock * cblock;
+                fmask.value = (uint32_t(1) << logicalSlots) - 1;
+            }
+
+            int nbytes = roundup_pow2(rblock * cblock) * T;
             block.simdSize
                     = clamp(roundup_pow2(nbytes) / maskGranularity, 1, maxSIMD);
             block.ld = colMajor ? rblock : cblock;
@@ -10068,16 +10084,19 @@ bool gemm_kernel_generator_t<hw>::gemmFinalizeSums(const GEMMProblem &problem,
     MOCK_BARRIERS barrierwait();
 
     auto step1 = [&](bool isB, int r, int c) {
+        std::vector<MaskAssignment> masks;
+
         ABs_SLM[isB].setAlignment(r * c * Tc);
         ABs_SLM[isB].crosspack = 1;
         ABs_SLM[isB].layout = !isB ? MatrixLayout::Pc : MatrixLayout::Pr;
         ABs_SLM[isB].packSize = r * c;
-        // Use pseudoblock to share address registers between regular and atomic accesses.
+        // Use pseudoblock to share address registers between regular and atomic accesses,
+        //  or for non-power-of-2 sizes.
+        bool useBlock = AB_coopSplitMN[isB] && is_zero_or_pow2(isB ? c : r);
         ABs_strategySLMAtomic[isB].base = AddressBase::createSLM();
         ABs_strategySLMAtomic[isB].padded = true;
-        ABs_strategySLMAtomic[isB].accessType = AB_coopSplitMN[isB]
-                ? AccessType::Block
-                : AccessType::PseudoBlock;
+        ABs_strategySLMAtomic[isB].accessType
+                = useBlock ? AccessType::Block : AccessType::PseudoBlock;
         ABs_strategySLMAtomic[isB].atomic = !AB_coopSplitMN[isB];
         ABs_strategySLMAtomic[isB].newDP = (hw >= HW::XeHPG);
         ABs_strategySLM[isB] = ABs_strategySLMAtomic[isB];
@@ -10092,7 +10111,12 @@ bool gemm_kernel_generator_t<hw>::gemmFinalizeSums(const GEMMProblem &problem,
                 && getRegLayout(Tc, ABs_layoutSLM[isB], r, c, false, false,
                         true, AvoidFragment, maxRBlock, 0, ABs_SLM[isB],
                         ABs_strategySLMAtomic[isB])
-                && matchLayouts(Tc, ABs_layoutSLM[isB], *ABs_layout[isB]);
+                && matchLayouts(Tc, ABs_layoutSLM[isB], *ABs_layout[isB])
+                && assignMasks(ABs_layoutSLM[isB], LoopM, LoopN, masks,
+                        strategy, state, false);
+
+        Subregister remainders[3] = {Subregister {}};
+        loadMasks(masks, remainders, strategy, state);
 
         Subregister adjBase = ABs_base[isB] = state.ra.alloc_sub<uint32_t>();
         uint32_t slmOffset
@@ -10123,6 +10147,7 @@ bool gemm_kernel_generator_t<hw>::gemmFinalizeSums(const GEMMProblem &problem,
         setupAddr(Tc, ABs_addrs[isB], adjBase, ABs_layoutSLM[isB],
                 Subregister(), ABs_SLM[isB], ABs_strategySLMAtomic[isB],
                 strategy, state);
+        releaseMaskAssignments(masks, state);
 
         if (AB_coopSplitMN[isB]) state.ra.safeRelease(adjBase);
 
