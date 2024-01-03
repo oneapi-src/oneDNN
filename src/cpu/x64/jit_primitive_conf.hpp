@@ -719,6 +719,8 @@ struct jit_brgemm_conv_conf_t {
     bool is_is_blocking;
     bool is_os_blocking;
     bool is_rtus;
+    bool is_reduced_rtus;
+    size_t rtus_ic_size, rtus_padded_ic_size;
     bool ununroll_bd_loop {false};
     int nb_ic, ic_block, inp_ic_block;
     int nb_tr_ic, tr_ic_block, tr_ic_tail;
