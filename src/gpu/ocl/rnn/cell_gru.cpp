@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,8 +67,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 
         // 3. activation zt and rt + elemwise multiplication rt,ht-1
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
-                workspace, scratch_gates, nullptr, scratch.cell(), nullptr,
-                nullptr, nullptr, 0, nullptr, bias, tm_scales, diff_bias,
+                user_data, workspace, scratch_gates, nullptr, scratch.cell(),
+                nullptr, nullptr, nullptr, 0, nullptr, tm_scales, diff_bias,
                 PART_ONE));
 
         // 4. gemm Wh[2],h~t
@@ -78,8 +78,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 
         // 5. activation h~t + calculate ht
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
-                workspace, scratch_gates, nullptr, scratch.cell(), nullptr,
-                nullptr, nullptr, 0, nullptr, bias, tm_scales, diff_bias,
+                user_data, workspace, scratch_gates, nullptr, scratch.cell(),
+                nullptr, nullptr, nullptr, 0, nullptr, tm_scales, diff_bias,
                 PART_TWO));
 
     } else {
@@ -110,11 +110,11 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 
         // 1. calculate dG2, dG1, and part of dht-1
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
-                diff_gates.get(), scratch.cell(), diff_states.get(),
-                diff_states_iter.get(), diff_states_layer.get(),
-                diff_states_layer_ld, scratch.diff_ht(), bias, tm_scales,
-                diff_bias, PART_ONE));
+                ocl_conf.elemwise_bwd_batch_block, user_data, workspace,
+                scratch_gates, diff_gates.get(), scratch.cell(),
+                diff_states.get(), diff_states_iter.get(),
+                diff_states_layer.get(), diff_states_layer_ld,
+                scratch.diff_ht(), tm_scales, diff_bias, PART_ONE));
 
         // 2. calculate intermediate d(hG1)
         // d(hG1) = dG2 * W2h^t
@@ -125,11 +125,11 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
         // 3. calculate dG1^ and part of dht-1
         // hg1 needs to be bf16 as it is used as gemm output
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
-                diff_gates.get(), scratch.cell(), diff_states.get(),
-                diff_states_iter.get(), diff_states_layer.get(),
-                diff_states_layer_ld, scratch.diff_ht(), bias, tm_scales,
-                diff_bias, PART_TWO));
+                ocl_conf.elemwise_bwd_batch_block, user_data, workspace,
+                scratch_gates, diff_gates.get(), scratch.cell(),
+                diff_states.get(), diff_states_iter.get(),
+                diff_states_layer.get(), diff_states_layer_ld,
+                scratch.diff_ht(), tm_scales, diff_bias, PART_TWO));
 
         // 4. calculate diff weights
         // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)

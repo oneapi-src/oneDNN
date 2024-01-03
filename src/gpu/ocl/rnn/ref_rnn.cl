@@ -708,9 +708,8 @@ float deq_w(ACC_DATA_T s, int gate, int j, __global float *scales,
 // for int8 LSTM
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_elemwise_fwd(int dir, int lay, int iter,
-        __global ACC_DATA_T *scratch_gates, __global float *scales,
-        __global float *bias_base, float alpha, float data_shift,
-        float data_scale, __global float *tm_scales,
+        __global ACC_DATA_T *scratch_gates, __global float *scales, float alpha,
+        float data_shift, float data_scale, __global float *tm_scales,
         __global WS_STATE_DATA_T *h_states_t_l, __global float *c_states_t_l,
         __global float *c_states_tm1_l, __global AUX_DATA_T *ws_gates,
         __global float *ws_bias, int states_ws_ld, int scratch_gates_ld,
@@ -755,13 +754,12 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_elemwise_fwd(
         int dir, int lay, int iter, __global AUX_DATA_T *scratch_gates,
-        __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
+        __global AUX_DATA_T *bias, float alpha, __global float *tm_scales,
         __global WS_STATE_DATA_T *h_states_t_l,
         __global AUX_DATA_T *c_states_t_l, __global AUX_DATA_T *c_states_tm1_l,
         __global AUX_DATA_T *ws_gates, __global AUX_DATA_T *ws_grid,
         int states_ws_ld, int gates_ws_ld, int scratch_gates_ld, int batch,
-        int dhc, int n_layer, int n_iter_scratch_gates, int bias_lay_stride,
-        int bias_dir_stride, int bias_s2, int bias_s3,
+        int dhc, int n_layer, int n_iter_scratch_gates,
 #if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale
 #elif CELL_KIND == LBR_GRU
@@ -774,10 +772,6 @@ ref_rnn_elemwise_fwd(
     const int j = get_global_id(0); // dhc
 
     if (j >= dhc || i >= batch) return;
-    const param4 strides = {bias_lay_stride, bias_dir_stride, bias_s2, bias_s3};
-
-    const __global AUX_DATA_T *bias
-            = bias_base + bias_off(strides, lay, dir, 0, 0);
 
 #if CELL_KIND == VANILLA_LSTM
     vanilla_lstm_gates_t gates = compute_gates_vanilla_lstm(
@@ -893,7 +887,7 @@ ref_rnn_elemwise_fwd(
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         __global SRC_DATA_T *scratch_diff_gates,
-        __global AUX_DATA_T *scratch_gates, __global AUX_DATA_T *bias_base,
+        __global AUX_DATA_T *scratch_gates, __global AUX_DATA_T *bias,
         float alpha, __global float *tm_scales,
         __global WS_STATE_DATA_T *states_tm1_l,
         __global AUX_DATA_T *c_states_t_l, __global AUX_DATA_T *c_states_tm1_l,
@@ -931,14 +925,6 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 
     DIFF_DATA_T diff_bias_acc[n_bias] = {0};
 
-#if RECOMPUTE_GATES
-    // An assumption that diff_bias and bias layouts are equal
-    const param4 b_strides
-            = {lay_stride, dir_stride, diff_bias_s2, diff_bias_s3};
-
-    const __global AUX_DATA_T *bias
-            = bias_base + bias_off(b_strides, lay, dir, 0, 0);
-#endif
     for (int batch_id = 0; batch_id < ELEMWISE_BWD_BATCH_BLOCK; batch_id++) {
         int i = i_ + batch_id;
         if (i >= batch) break;

@@ -1087,7 +1087,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             for (dim_t i = 0; i < n_iter; i++) {
                 dim_t iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
                 CHECK((this->*cell_func)(engine, ctx, dir, lay, iter,
-                        offset_wei_layer, wei_iter_offsets, bias, user_data,
+                        offset_wei_layer, wei_iter_offsets, user_data,
                         workspace, scratch, wei_layer, wei_iter,
                         diff_weights_layer, diff_weights_iter, diff_bias,
                         scales, tm_scales));
@@ -1553,7 +1553,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS_ITER);
     auto &diff_bias_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
-    const rnn_utils::user_data_t user_data(src_layer_native_,
+    const rnn_utils::user_data_t user_data(src_layer_native_, bias_native_,
             diff_src_layer_native_, diff_dst_layer_native_, rnn, pd()->off);
 
     DPRINT("\n%s\n", "+++++++++++++++");
@@ -1623,7 +1623,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     if (rnn.copy_bias) {
         CHECK(bias_prepare(ctx, compute_stream, n_layer, n_dir, n_bias, n_gates,
                 dhc, workspace.bias(), *scales_buf, wei_layer_native_,
-                wei_iter_native_, bias_native_));
+                wei_iter_native_, user_data.bias()));
     }
     DPRINT("\n%s(%d) WS before copy init\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(ctx, compute_stream, workspace);
@@ -1656,10 +1656,10 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     }
 
     // run the execution on the grid
-    CHECK((this->*grid_computation)(engine, ctx, bias_native_, user_data,
-            workspace, scratch, wei_layer_native_, wei_iter_native_,
-            diff_weights_layer_native_, diff_weights_iter_native_,
-            diff_bias_native_, scales_buf, tm_scales_buf));
+    CHECK((this->*grid_computation)(engine, ctx, user_data, workspace, scratch,
+            wei_layer_native_, wei_iter_native_, diff_weights_layer_native_,
+            diff_weights_iter_native_, diff_bias_native_, scales_buf,
+            tm_scales_buf));
 
     DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(ctx, compute_stream, workspace);

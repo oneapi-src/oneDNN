@@ -44,7 +44,8 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
         arg_list.append(*scratch_diff_gates);
         arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
-    arg_list.append(bias);
+    auto bias = user_data.bias(lay, dir);
+    arg_list.append(bias ? *bias : memory_storage_t::empty_storage());
     arg_list.append(pd()->desc()->alpha);
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
@@ -76,9 +77,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
-    if (aprop == dnnl_forward) {
-        rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
-    } else {
+    if (aprop == dnnl_backward) {
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
@@ -119,7 +118,8 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
         arg_list.append(*scratch_diff_gates);
         arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
-    arg_list.append(bias);
+    auto bias = user_data.bias(lay, dir);
+    arg_list.append(bias ? *bias : memory_storage_t::empty_storage());
     arg_list.append(pd()->desc()->alpha);
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
@@ -150,9 +150,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
-    if (aprop == dnnl_forward) {
-        rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
-    } else {
+    if (aprop == dnnl_backward) {
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
@@ -195,7 +193,6 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
         arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
     arg_list.append(scales ? *scales : memory_storage_t::empty_storage());
-    arg_list.append(bias);
     arg_list.append(pd()->desc()->alpha);
     arg_list.append(data_shift);
     arg_list.append(data_scale);
@@ -253,7 +250,8 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
         arg_list.append(*scratch_diff_gates);
         arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
-    arg_list.append(bias);
+    auto bias = user_data.bias(lay, dir);
+    arg_list.append(bias ? *bias : memory_storage_t::empty_storage());
     arg_list.append(pd()->desc()->alpha);
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
@@ -286,9 +284,7 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
-    if (aprop == dnnl_forward) {
-        rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
-    } else {
+    if (aprop == dnnl_backward) {
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
@@ -332,7 +328,8 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
         arg_list.append(*scratch_diff_gates);
         arg_list.append(scratch_gates ? *scratch_gates : *scratch_diff_gates);
     }
-    arg_list.append(bias);
+    auto bias = user_data.bias(lay, dir);
+    arg_list.append(bias ? *bias : memory_storage_t::empty_storage());
     arg_list.append(pd()->desc()->alpha);
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
 
@@ -364,9 +361,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
-    if (aprop == dnnl_forward) {
-        rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
-    } else {
+    if (aprop == dnnl_backward) {
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
         arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));

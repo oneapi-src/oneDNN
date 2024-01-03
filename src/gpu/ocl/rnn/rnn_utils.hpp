@@ -39,6 +39,7 @@
 #define elemwise_sig(f) \
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
+            const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
@@ -48,12 +49,13 @@
             const memory_storage_t *scratch_diff_states_iter_s1, \
             const memory_storage_t *scratch_diff_states_layer, \
             dim_t diff_states_layer_ld, const memory_storage_t *scales, \
-            const memory_storage_t &bias, const memory_storage_t *tm_scales, \
+            const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru_lbr(f) \
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
+            const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
@@ -61,13 +63,13 @@
             const memory_storage_t *scratch_diff_states, \
             const memory_storage_t *scratch_diff_states_iter, \
             const memory_storage_t *scratch_diff_states_layer, \
-            dim_t diff_states_layer_ld, const memory_storage_t &bias, \
-            const memory_storage_t *tm_scales, \
+            dim_t diff_states_layer_ld, const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru(f) \
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
+            const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
@@ -76,14 +78,13 @@
             const memory_storage_t *scratch_diff_states_iter, \
             const memory_storage_t *scratch_diff_states_layer, \
             dim_t diff_states_layer_ld, const memory_storage_t *scratch_dhG1, \
-            const memory_storage_t &bias, const memory_storage_t *tm_scales, \
+            const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias, int part) const
 
 #define cell_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, dim_t dir, dim_t lay, \
             dim_t iter, dim_t wei_layer_offset, \
             const std::vector<dim_t> &wei_iter_offsets, \
-            const memory_storage_t &bias, \
             const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
@@ -96,7 +97,6 @@
 
 #define grid_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, \
-            const memory_storage_t &bias, \
             const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
@@ -399,10 +399,11 @@ inline void append_strides(compute::kernel_arg_list_t &arg_list,
 
 struct user_data_t {
     using mst = memory_storage_t;
-    user_data_t(const mst &src_layer, const mst &diff_src_layer,
-            const mst &diff_dst_layer, const conf_t &conf,
-            const rnn_offsets_t &offsets)
+    user_data_t(const mst &src_layer, const mst &bias,
+            const mst &diff_src_layer, const mst &diff_dst_layer,
+            const conf_t &conf, const rnn_offsets_t &offsets)
         : src_layer_(src_layer)
+        , bias_(bias)
         , diff_src_layer_(diff_src_layer)
         , diff_dst_layer_(diff_dst_layer)
         , conf_(conf)
@@ -471,6 +472,19 @@ struct user_data_t {
         return src_layer_.get_sub_storage(offset, cell_size * n_cells);
     }
 
+    const mst &bias() const { return bias_; }
+    std::unique_ptr<mst> bias(dim_t lay, dim_t dir) const {
+        if (bias().data_handle() == nullptr) return nullptr;
+
+        // bia dimension order: lay, dir, gates, dhc
+        auto type_size = types::data_type_size(conf_.aux_data_type);
+        auto layer_stride = offsets_.bias[0] * type_size;
+        auto dir_stride = offsets_.bias[1] * type_size;
+        auto cell_size = dir_stride;
+        auto offset = layer_stride * lay + dir_stride * dir;
+        return bias().get_sub_storage(offset, cell_size);
+    }
+
     const mst &diff_src_layer() const { return diff_src_layer_; }
     std::unique_ptr<mst> diff_src_layer(
             dim_t dir, dim_t iter_, bool all_iter = false) const {
@@ -505,6 +519,7 @@ struct user_data_t {
     }
 
     const mst &src_layer_;
+    const mst &bias_;
     const mst &diff_src_layer_;
     const mst &diff_dst_layer_;
     const conf_t &conf_;
