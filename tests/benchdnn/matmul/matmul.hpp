@@ -182,6 +182,12 @@ struct prb_t : public prb_vdims_t {
     }
     int bias_broadcast_mask() const { return bia_mask; }
 
+    bool weights_decompression() const {
+        return src_dt() != dnnl_s8 && src_dt() != dnnl_u8
+                && (wei_dt() == dnnl_s8 || wei_dt() == dnnl_u8)
+                && attr.fpmath_mode.force;
+    }
+
     dnnl_data_type_t src_dt() const { return dt[0]; }
     dnnl_data_type_t wei_dt() const { return dt[1]; }
     dnnl_data_type_t dst_dt() const { return dt[2]; }

@@ -66,6 +66,8 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const int64_t MB = prb->mb;
     const int batch_ndims = dst_m.ndims() - 2;
 
+    const bool wei_decompression = prb->weights_decompression();
+
     // Fast return if any dim is zero. Common logic doesn't apply because of
     // broadcast semantics.
     for (int d = 0; d < dst_m.ndims(); d++) {
@@ -94,6 +96,13 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
                                     : 0;
             auto s = src[src_off_f(prb, src_mb, m, k)] - src_zp;
             auto w = wei[wei_off_f(prb, wei_mb, k, n)] - wei_zp;
+            // Compression scaling happens before the matmul, unlike regular
+            // quantization, to preserve the accuracy.
+            if (has_wei_scale && wei_decompression) {
+                float wei_scale
+                        = wei_scales.get_elem(wei_scale_mask > 0 ? n : 0);
+                w *= wei_scale;
+            }
             dst += s * w;
         }
         ((float *)dst_tmp)[dst_off_f(prb, mb, m, n)] = dst;
@@ -106,7 +115,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         float &dst = ((float *)dst_m)[dst_off];
 
         float wei_scale = 1.f;
-        if (has_wei_scale)
+        if (has_wei_scale && !wei_decompression)
             wei_scale = wei_scales.get_elem(wei_scale_mask > 0 ? n : 0);
         float tmp = ((float *)dst_tmp)[dst_off] * src_scale * wei_scale;
 

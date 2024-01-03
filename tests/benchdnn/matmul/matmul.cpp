@@ -474,6 +474,12 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
 
+        // GPU does not support weights decompression
+        if (prb->weights_decompression()) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+
         // GPU for x8s8bf16 doesn't support:
         // * Destination zero-point.
         // * Any run-time dimensions.
