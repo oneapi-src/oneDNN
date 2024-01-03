@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -151,18 +151,22 @@ cold_cache_t::cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args)
 
         for (size_t i = 0; i < n_buffers_; i++) {
             cc_entry[i] = dnn_mem_t(orig_cc_mem_md, get_test_engine());
-            if (has_bench_mode_modifier(mode_modifier_t::no_host_memory))
-                continue;
 
-            auto st = fill_random_real(orig_mem, cc_entry[i]);
-            if (st != OK) {
-                BENCHDNN_PRINT(0,
-                        "Error: filling for cold cache tensor %zu failed "
-                        "(%s:%d)!\n",
-                        i, __FILE__, __LINE__);
-                return;
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            // Sparse memories require this call to replicate the exact original
+            // data distribution because the data structure affects performance
+            // in a direct way.
+            if (cc_entry[i].format_kind() == dnnl_format_kind_sparse) {
+                auto st = fill_random_real(orig_mem, cc_entry[i]);
+                if (st != OK) {
+                    BENCHDNN_PRINT(0,
+                            "Error: filling for cold cache tensor %zu failed "
+                            "(%s:%d)!\n",
+                            i, __FILE__, __LINE__);
+                    return;
+                }
             }
-
+#endif
             if (cc_entry[i].is_mapped()) cc_entry[i].unmap();
         }
     }
