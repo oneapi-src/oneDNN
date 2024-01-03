@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -170,6 +170,34 @@ status_t get_ocl_devices(
         }
     }
     // No devices found but still return success
+    return status::success;
+}
+
+status_t get_ocl_devices(std::vector<cl_device_id> *devices,
+        std::vector<ocl_wrapper_t<cl_device_id>> *sub_devices,
+        cl_device_type device_type) {
+    std::vector<cl_device_id> devices_tmp;
+    std::vector<ocl_wrapper_t<cl_device_id>> sub_devices_tmp;
+
+    CHECK(get_ocl_devices(&devices_tmp, device_type));
+
+    for (cl_device_id d : devices_tmp) {
+        cl_uint max_sub_devices;
+        cl_device_partition_property properties[3]
+                = {CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+                        CL_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE, 0};
+        cl_int err = clCreateSubDevices(
+                d, properties, 0, nullptr, &max_sub_devices);
+        if (err == CL_DEVICE_PARTITION_FAILED) continue;
+        OCL_CHECK(err);
+        std::vector<cl_device_id> sds(max_sub_devices);
+        OCL_CHECK(clCreateSubDevices(
+                d, properties, max_sub_devices, sds.data(), nullptr));
+        for (cl_device_id sd : sds)
+            sub_devices_tmp.emplace_back(sd);
+    }
+    *devices = devices_tmp;
+    *sub_devices = std::move(sub_devices_tmp);
     return status::success;
 }
 
@@ -502,6 +530,30 @@ status_t create_ocl_program(gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program,
     OCL_CHECK(err);
 
     return status::success;
+}
+
+status_t get_device_uuid(
+        gpu::compute::device_uuid_t &uuid, cl_device_id ocl_dev) {
+    // This function is used only with SYCL that works with OpenCL 3.0
+    // that supports `cl_khr_device_uuid` extension.
+#if defined(cl_khr_device_uuid)
+    static_assert(
+            CL_UUID_SIZE_KHR == 16, "CL_UUID_SIZE_KHR is expected to be 16");
+
+    cl_uchar ocl_dev_uuid[CL_UUID_SIZE_KHR] = {};
+    OCL_CHECK(clGetDeviceInfo(ocl_dev, CL_DEVICE_UUID_KHR, CL_UUID_SIZE_KHR,
+            ocl_dev_uuid, nullptr));
+
+    uint64_t uuid_packed[CL_UUID_SIZE_KHR / sizeof(uint64_t)] = {};
+    for (size_t i = 0; i < CL_UUID_SIZE_KHR; ++i) {
+        size_t shift = i % sizeof(uint64_t) * CHAR_BIT;
+        uuid_packed[i / sizeof(uint64_t)]
+                |= (((uint64_t)ocl_dev_uuid[i]) << shift);
+    }
+    uuid = gpu::compute::device_uuid_t(uuid_packed[0], uuid_packed[1]);
+    return status::success;
+#endif
+    return status::runtime_error;
 }
 
 } // namespace ocl

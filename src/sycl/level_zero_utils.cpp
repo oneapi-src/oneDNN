@@ -152,7 +152,7 @@ status_t func_zeModuleGetNativeBinary(ze_module_handle_t hModule, size_t *pSize,
 // we query it directly from Level0 with the zeDeviceGetProperties function.
 // The `get_device_uuid` function packs 128 bits of the device UUID, which are
 // represented as an uint8_t array of size 16, to 2 uint64_t values.
-device_uuid_t get_device_uuid(const ::sycl::device &dev) {
+gpu::compute::device_uuid_t get_device_uuid(const ::sycl::device &dev) {
     static_assert(ZE_MAX_DEVICE_UUID_SIZE == 16,
             "ZE_MAX_DEVICE_UUID_SIZE is expected to be 16");
 
@@ -171,7 +171,7 @@ device_uuid_t get_device_uuid(const ::sycl::device &dev) {
         size_t shift = i % sizeof(uint64_t) * CHAR_BIT;
         uuid[i / sizeof(uint64_t)] |= (((uint64_t)ze_device_id[i]) << shift);
     }
-    return device_uuid_t(uuid[0], uuid[1]);
+    return gpu::compute::device_uuid_t(uuid[0], uuid[1]);
 }
 
 status_t sycl_create_kernel_with_level_zero(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -161,6 +161,11 @@ status_t create_ocl_engine(
 
 status_t get_kernel_binary(
         const ::sycl::kernel &kernel, gpu::compute::binary_t &binary);
+
+status_t create_ocl_engine(
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                *ocl_engine,
+        const sycl_engine_base_t *engine);
 
 } // namespace sycl
 } // namespace impl

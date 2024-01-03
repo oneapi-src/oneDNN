@@ -28,8 +28,7 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-using device_uuid_t = std::tuple<uint64_t, uint64_t>;
-device_uuid_t get_device_uuid(const ::sycl::device &dev);
+gpu::compute::device_uuid_t get_device_uuid(const ::sycl::device &dev);
 
 // including sycl_engine_base.hpp leads to circular dependencies, w/a for now.
 class sycl_engine_base_t;

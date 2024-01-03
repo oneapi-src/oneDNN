@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,14 @@ namespace gpu {
 namespace compute {
 
 using binary_t = std::vector<uint8_t>;
+using device_uuid_t = std::tuple<uint64_t, uint64_t>;
+
+struct device_uuid_hasher_t {
+    size_t operator()(const device_uuid_t &uuid) const {
+        const size_t seed = hash_combine(0, std::get<0>(uuid));
+        return hash_combine(seed, std::get<1>(uuid));
+    }
+};
 
 // Stores global/local ranges to use for kernel enqueueing
 class nd_range_t {
