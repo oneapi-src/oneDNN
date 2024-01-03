@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -7278,10 +7278,6 @@ void gemm_kernel_generator_t<hw>::outerProductSystolic(int h, int ha, int hb,
                 if (!last && (rc == 8 || canAtomicNon8x8)) mod |= Atomic;
                 if (rc != 8 && strategy.extendedAtomicFMA) hw_unsupported();
             }
-
-#ifdef PRERELEASE_HW
-            if (hhbase + ksys < opCount) mod |= Fwd;
-#endif
 
             useDPASW ? dpasw(mod, sdepth, rc, C0, C0, V0, N0)
                      : dpas(mod, sdepth, rc, C0, C0, V0, N0);
