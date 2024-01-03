@@ -815,7 +815,8 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
 
         const auto append_scales = [&](int exec_arg) {
             const int exec_sc_arg = DNNL_ARG_ATTR_SCALES | exec_arg;
-            int64_t count = 1;
+            dims_t dims = {};
+            int64_t ndims = 1;
             const auto mask
                     = sc.get_mask(exec_arg, prim_kind, wei_md, has_groups);
 
@@ -823,17 +824,19 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    const auto dims = md2dims(prb_md);
-                    const auto ndims = static_cast<int>(dims.size());
-                    count = dims_nelems(dims, ndims, mask);
+                    dims = md2dims(prb_md);
+                    ndims = static_cast<int>(dims.size());
                 } else {
-                    const auto dims = md2dims(md);
-                    const auto ndims = static_cast<int>(dims.size());
-                    count = dims_nelems(dims, ndims, mask);
+                    dims = md2dims(md);
+                    ndims = static_cast<int>(dims.size());
                 }
+            } else {
+                dims = {1};
+                ndims = 1;
             }
             const auto dt = sc.get(exec_arg).dt;
-            auto scales_md = dnn_mem_t::init_md(1, &count, dt, tag::abx);
+            auto scales_md
+                    = dnn_mem_t::init_md(ndims, dims.data(), dt, tag::abx);
             mem_map.emplace(exec_sc_arg, dnn_mem_t(scales_md, test_engine));
         };
 
@@ -860,23 +863,22 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
         const auto append_zero_points = [&](int exec_arg) {
             const int exec_zp_arg = DNNL_ARG_ATTR_ZERO_POINTS | exec_arg;
             const auto &e = zp.get(exec_arg);
-            int64_t count = 1;
+            int64_t ndims = 1;
+            dims_t dims = {};
             const auto mask = zp.get_mask(exec_arg, prim_kind, wei_md);
 
             if (mask > 0) {
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    const auto dims = md2dims(prb_md);
-                    const auto ndims = static_cast<int>(dims.size());
-                    count = dims_nelems(dims, ndims, mask);
+                    dims = md2dims(prb_md);
+                    ndims = static_cast<int>(dims.size());
                 } else {
-                    const auto dims = md2dims(md);
-                    const auto ndims = static_cast<int>(dims.size());
-                    count = dims_nelems(dims, ndims, mask);
+                    dims = md2dims(md);
+                    ndims = static_cast<int>(dims.size());
                 }
             }
-            auto zp_md = dnn_mem_t::init_md(1, &count, e.dt, tag::abx);
+            auto zp_md = dnn_mem_t::init_md(ndims, dims.data(), e.dt, tag::abx);
             mem_map.emplace(exec_zp_arg, dnn_mem_t(zp_md, test_engine));
         };
 

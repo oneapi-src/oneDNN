@@ -128,18 +128,24 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     // Overload PER_OC wei_mask definition for batched case
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    if (wei_scale.policy == policy_t::PER_OC) {
+    if (wei_scale.policy == policy_t::PER_OC
+            || wei_scale.policy == policy_t::PER_OCIC) {
         const auto &dst_rt_dims
                 = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
-        int wei_mask = (1 << (dst_rt_dims.size() - 1));
+        int wei_mask = 1 << (dst_rt_dims.size() - 1);
+        if (wei_scale.policy == policy_t::PER_OCIC)
+            wei_mask += 1 << (dst_rt_dims.size() - 2);
         attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
     }
     // Overload PER_OC wei_mask definition for batched case
     auto wei_zp = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS);
-    if (wei_zp.policy == policy_t::PER_OC) {
+    if (wei_zp.policy == policy_t::PER_OC
+            || wei_zp.policy == policy_t::PER_OCIC) {
         const auto &dst_rt_dims
                 = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
         int wei_mask = (1 << (dst_rt_dims.size() - 1));
+        if (wei_zp.policy == policy_t::PER_OCIC)
+            wei_mask += 1 << (dst_rt_dims.size() - 2);
         attr_args.prepare_zero_points(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
     }
 

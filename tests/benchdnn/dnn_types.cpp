@@ -152,6 +152,7 @@ policy_t attr_t::str2policy(const std::string &str) {
     if (s.compare(STRINGIFY(_plc)) == 0) return _plc
     CASE(COMMON);
     CASE(PER_OC);
+    CASE(PER_OCIC);
     CASE(PER_DIM_0);
     CASE(PER_DIM_1);
     CASE(PER_DIM_01);
@@ -166,6 +167,7 @@ policy_t attr_t::str2policy(const std::string &str) {
 const char *attr_t::policy2str(policy_t policy) {
     if (policy == COMMON) return "common";
     if (policy == PER_OC) return "per_oc";
+    if (policy == PER_OCIC) return "per_ocic";
     if (policy == PER_DIM_0) return "per_dim_0";
     if (policy == PER_DIM_1) return "per_dim_1";
     if (policy == PER_DIM_01) return "per_dim_01";
@@ -181,6 +183,7 @@ int attr_t::get_default_mask(policy_t policy) {
         case PER_DIM_0: return (1 << 0);
         case PER_OC:
         case PER_DIM_1: return (1 << 1);
+        case PER_OCIC:
         case PER_DIM_01: return (1 << 0) + (1 << 1);
         case PER_DIM_2: return (1 << 2);
         case PER_DIM_3: return (1 << 3);
@@ -210,6 +213,9 @@ int attr_t::policy2mask(int arg, policy_t policy,
     } else if (prim_kind == dnnl_matmul) {
         switch (policy) {
             case PER_OC: return (1 << (query_md_ndims(wei_md) - 1));
+            case PER_OCIC:
+                return (1 << (query_md_ndims(wei_md) - 1))
+                        + (1 << (query_md_ndims(wei_md) - 2));
             default: SAFE(FAIL, CRIT); return -1;
         }
     } else {
