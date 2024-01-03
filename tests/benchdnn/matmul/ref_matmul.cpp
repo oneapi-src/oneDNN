@@ -67,6 +67,16 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const int batch_ndims = dst_m.ndims() - 2;
 
     const bool wei_decompression = prb->weights_decompression();
+    const bool wei_scale_per_n = wei_scale_mask & (1 << (wei_m.ndims() - 1));
+    const bool wei_scale_per_k = wei_scale_mask & (1 << (wei_m.ndims() - 2));
+    const int64_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
+    const int64_t wei_scale_stride_k
+            = wei_scale_per_k ? wei_scale_per_n ? N : 1 : 0;
+
+    const bool wei_zp_per_n = wei_zp_mask & (1 << (wei_m.ndims() - 1));
+    const bool wei_zp_per_k = wei_zp_mask & (1 << (wei_m.ndims() - 2));
+    const int64_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
+    const int64_t wei_zp_stride_k = wei_zp_per_k ? wei_zp_per_n ? N : 1 : 0;
 
     // Fast return if any dim is zero. Common logic doesn't apply because of
     // broadcast semantics.
@@ -89,18 +99,19 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         const int64_t wei_mb
                 = dst_m.get_scale_idx(mb, wei_broadcast_mask, batch_ndims);
 
-        int wei_zp = has_wei_zp ? wei_zps.get_elem(wei_zp_mask > 0 ? n : 0) : 0;
-
         for (int64_t k = 0; k < K; ++k) {
             int src_zp = has_src_zp ? src_zps.get_elem(src_zp_mask > 0 ? k : 0)
+                                    : 0;
+            int wei_zp = has_wei_zp ? wei_zps.get_elem(
+                                 wei_zp_stride_k * k + wei_zp_stride_n * n)
                                     : 0;
             auto s = src[src_off_f(prb, src_mb, m, k)] - src_zp;
             auto w = wei[wei_off_f(prb, wei_mb, k, n)] - wei_zp;
             // Compression scaling happens before the matmul, unlike regular
             // quantization, to preserve the accuracy.
             if (has_wei_scale && wei_decompression) {
-                float wei_scale
-                        = wei_scales.get_elem(wei_scale_mask > 0 ? n : 0);
+                float wei_scale = wei_scales.get_elem(
+                        wei_scale_stride_k * k + wei_scale_stride_n * n);
                 w *= wei_scale;
             }
             dst += s * w;
