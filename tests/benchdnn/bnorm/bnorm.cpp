@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -586,6 +586,25 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     return OK;
 }
 
+std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb, dir_t dir) {
+    std::vector<data_kind_t> check_kinds;
+    if ((prb->dir & FLAG_FWD) && (dir & FLAG_FWD)) {
+        if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
+            check_kinds.push_back(MEAN);
+            check_kinds.push_back(VAR);
+        }
+        check_kinds.push_back(DST);
+    } else if ((prb->dir & FLAG_BWD) && (dir & FLAG_BWD)) {
+        if (prb->dir & FLAG_WEI) {
+            if (prb->use_sc()) check_kinds.push_back(SC);
+            if (prb->use_sh()) check_kinds.push_back(SH);
+        }
+        check_kinds.push_back(SRC);
+    }
+    // `check_kinds` is empty for `(prb->dir & FLAG_BWD) && (dir & FLAG_FWD)`.
+    return check_kinds;
+}
+
 int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
     v_prim.resize(2); // just fwd or fwd + bwd.
@@ -623,21 +642,11 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     SAFE(execute_and_wait(v_prim[0], args, res), WARN);
 
-    // Running ref to collect src_hat (used instead of src + mean) and ws, if
-    // fuse_relu flag is requested.
     if (has_bench_mode_bit(mode_bit_t::corr)) {
-        if (prb->dir & FLAG_FWD) {
-            std::vector<data_kind_t> kinds {DST};
-            if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
-                kinds.push_back(MEAN);
-                kinds.push_back(VAR);
-            }
+        check_correctness(prb, get_kinds_to_check(prb, FLAG_FWD), args,
+                ref_args, setup_cmp, res);
 
-            // TODO: make kinds empty for BWD?
-            check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
-
-            if (prb->debug_check_ws) check_fwd_ws(mem_map, res);
-        }
+        if (prb->debug_check_ws) check_fwd_ws(mem_map, res);
     }
 
     if (prb->dir & FLAG_BWD) {
@@ -654,11 +663,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         SAFE(execute_and_wait(v_prim[1], args, res), WARN);
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
-            std::vector<data_kind_t> kinds {SRC};
-            if (prb->use_sc() && (prb->dir & FLAG_WEI)) kinds.push_back(SC);
-            if (prb->use_sh() && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
-
-            check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
+            check_correctness(prb, get_kinds_to_check(prb, FLAG_BWD), args,
+                    ref_args, setup_cmp, res);
         }
     }
 

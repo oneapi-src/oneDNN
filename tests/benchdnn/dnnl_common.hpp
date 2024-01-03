@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -541,6 +541,9 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         const args_t &args, const args_t &ref_args,
         const setup_cmp_func_t &setup_cmp_func, res_t *res,
         dnnl_primitive_t prim_ref = nullptr) {
+    // Forward-for-backward service primitives define `kinds` as empty to skip
+    // validation. This is to avoid extra checks on higher level.
+    if (kinds.empty()) return;
 
     for (int i = 0; i < args.size(); ++i) {
         TIME_COMPARE(check_zero_padding(args.dnn_mem(i), args.arg(i), res));
