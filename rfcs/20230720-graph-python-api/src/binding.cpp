@@ -1,18 +1,18 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*******************************************************************************/
+ * Copyright 2021-2024 Intel Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 
 #include "pybind11/numpy.h"
 #include "pybind11/pybind11.h"
@@ -21,18 +21,6 @@
 #include <sstream>
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
-
-#ifdef ONEDNN_BUILD_WITH_SYCL
-#if __has_include(<sycl/sycl.hpp>)
-#include <sycl/sycl.hpp>
-#elif __has_include(<CL/sycl.hpp>)
-#include <CL/sycl.hpp>
-#else
-#error "Unsupported compiler"
-#endif
-#include "dpctl4pybind11.hpp"
-#include "oneapi/dnnl/dnnl_graph_sycl.hpp"
-#endif
 
 using cpartition = dnnl::graph::compiled_partition;
 using engine = dnnl::graph::engine;
@@ -72,17 +60,9 @@ auto eng2string = [](const engine &eng) {
 void bind_engine(pybind11::module &m) {
     pybind11::class_<engine> eng(m, "engine");
 
-    eng.def(pybind11::init<engine::kind, int>());
-#ifdef ONEDNN_BUILD_WITH_SYCL
-    eng.def(pybind11::init([](const sycl::device &adevice,
-                                   const sycl::context &acontext) {
-        static dnnl::graph::allocator alloc {};
-        auto aengine = dnnl::graph::sycl_interop::make_engine_with_allocator(
-                adevice, acontext, alloc);
-        return aengine;
-    }));
-#endif
+    eng.def(pybind11::init<engine::kind, size_t>());
     eng.def("get_kind", &engine::get_kind);
+    eng.def("get_count", &engine::get_count);
     eng.def("__repr__", eng2string);
 
     pybind11::enum_<engine::kind>(eng, "kind")
@@ -158,8 +138,9 @@ auto lt2string = [](const logical_tensor &lt) {
        << ", shape = " << dims2string(lt.get_dims());
     if (lt.get_layout_type() == logical_tensor::layout_type::opaque) {
         ss << ", layout_id = " << lt.get_layout_id();
+    } else if (lt.get_layout_type() == logical_tensor::layout_type::strided) {
+      ss << ", stride = " << dims2string(lt.get_strides());
     } else {
-        ss << ", stride = " << dims2string(lt.get_strides());
     }
     ss << ")";
     return ss.str();
@@ -168,14 +149,20 @@ auto lt2string = [](const logical_tensor &lt) {
 void bind_logical_tensor(pybind11::module &m) {
     pybind11::class_<logical_tensor> lt(m, "logical_tensor");
 
+    lt.def(pybind11::init<size_t, logical_tensor::data_type,
+                          logical_tensor::layout_type>());
     lt.def(pybind11::init<size_t, logical_tensor::data_type, int32_t,
-            logical_tensor::layout_type, logical_tensor::property_type>());
+                          logical_tensor::layout_type,
+                          logical_tensor::property_type>());
     lt.def(pybind11::init<size_t, logical_tensor::data_type,
-            logical_tensor::dims, logical_tensor::layout_type,
-            logical_tensor::property_type>());
-    lt.def(pybind11::init<size_t, logical_tensor::data_type,
-            logical_tensor::dims, logical_tensor::dims,
-            logical_tensor::property_type>());
+                          logical_tensor::dims, logical_tensor::layout_type,
+                          logical_tensor::property_type>());
+    lt.def(
+        pybind11::init<size_t, logical_tensor::data_type, logical_tensor::dims,
+                       logical_tensor::dims, logical_tensor::property_type>());
+    lt.def(
+        pybind11::init<size_t, logical_tensor::data_type, logical_tensor::dims,
+                       size_t, logical_tensor::property_type>());
     lt.def("get_id", &logical_tensor::get_id);
     lt.def("get_data_type", &logical_tensor::get_data_type);
     lt.def("get_layout_type", &logical_tensor::get_layout_type);
@@ -184,6 +171,7 @@ void bind_logical_tensor(pybind11::module &m) {
     lt.def("get_mem_size", &logical_tensor::get_mem_size);
     lt.def("get_dims", &logical_tensor::get_dims);
     lt.def("get_strides", &logical_tensor::get_strides);
+    lt.def("is_equal", &logical_tensor::is_equal);
     lt.def("__repr__", lt2string);
 
     pybind11::enum_<logical_tensor::data_type>(lt, "data_type")
@@ -248,6 +236,12 @@ void bind_op(pybind11::module &m) {
     pybind11::class_<op> opr(m, "op");
 
     opr.def(pybind11::init<size_t, op::kind, std::string>());
+    opr.def(pybind11::init(
+        [](size_t id, op::kind kind, const std::vector<logical_tensor> &inputs,
+           const std::vector<logical_tensor> &outputs, std::string name) {
+          auto aop = op(id, kind, inputs, outputs, name);
+          return aop;
+        }));
     opr.def("set_attr", [](op &aop, op::attr key, pybind11::object val) {
         set_op_attribute(aop, val, key);
     });
@@ -398,6 +392,8 @@ void bind_partition(pybind11::module &m) {
     pybind11::class_<partition> p(m, "partition");
 
     p.def(pybind11::init<>());
+    p.def(pybind11::init(
+        [](const op &op, engine::kind ekind) { return partition(op, ekind); }));
     p.def("get_ops_num", &partition::get_ops_num);
     p.def("get_ops", &partition::get_ops);
     p.def("get_id", &partition::get_id);
@@ -417,6 +413,7 @@ void bind_stream(pybind11::module &m) {
     pybind11::class_<stream> strm(m, "stream");
 
     strm.def(pybind11::init<engine &>());
+    strm.def("get_engine", &stream::get_engine);
     strm.def("wait", &stream::wait);
 }
 
@@ -470,6 +467,25 @@ pybind11::buffer_info to_buffer_info(tensor &t, logical_tensor &lt) {
             strides);
 }
 
+logical_tensor::data_type convert_from_array_dtype(const pybind11::array &a) {
+  auto tgt_dtype = a.dtype();
+  if (tgt_dtype.is(pybind11::dtype::of<float>())) {
+    return logical_tensor::data_type::f32;
+  } else if (tgt_dtype.is(pybind11::dtype::of<int8_t>())) {
+    return logical_tensor::data_type::s8;
+  } else if (tgt_dtype.is(pybind11::dtype::of<uint8_t>())) {
+    return logical_tensor::data_type::u8;
+  } else if (tgt_dtype.is(pybind11::dtype::of<int32_t>())) {
+    return logical_tensor::data_type::s32;
+  } else if (tgt_dtype.is(pybind11::dtype::of<bool>())) {
+    return logical_tensor::data_type::boolean;
+  } else {
+    // not support fp16 and bf16 yet
+    assert(!"unsupported data type.");
+  }
+  return logical_tensor::data_type::undef;
+}
+
 void bind_tensor(pybind11::module &m) {
     pybind11::class_<tensor> t(m, "tensor", pybind11::buffer_protocol());
 
@@ -481,27 +497,39 @@ void bind_tensor(pybind11::module &m) {
     t.def(pybind11::init([](logical_tensor &lt, engine &eng) {
         return tensor(lt, eng, nullptr);
     }));
-#ifdef ONEDNN_BUILD_WITH_SYCL
-    t.def(pybind11::init([](logical_tensor &lt, engine &eng,
-                                 dpctl::tensor::usm_ndarray matrix) {
-        return tensor(lt, eng, matrix.get_data());
+    t.def(pybind11::init([](logical_tensor &lt, engine &eng, int64_t data_ptr) {
+      return tensor(lt, eng, reinterpret_cast<void *>(data_ptr));
     }));
-#endif
+    t.def(
+        "set_data_handle",
+        [](tensor &self, int64_t data_ptr) {
+          self.set_data_handle(reinterpret_cast<void *>(data_ptr));
+        },
+        pybind11::arg("data_ptr"));
+    t.def("get_data_handle", [](tensor &self) {
+      return reinterpret_cast<int64_t>(self.get_data_handle());
+    });
     t.def("get_engine", &tensor::get_engine);
+    t.def("from_numpy", [](pybind11::array &b, const engine &eng) {
+      // create a logical tensor with id `0`
+      logical_tensor::dims shape{b.shape(), b.shape() + b.ndim()};
+      logical_tensor::dims strides{b.strides(), b.strides() + b.ndim()};
+      logical_tensor lt{0, convert_from_array_dtype(b), shape, strides};
+      // get mutable pointer from array
+      return tensor{lt, eng, b.mutable_data()};
+    });
     t.def(
-            "from_numpy",
-            [](tensor &x, pybind11::buffer b) {
-                auto bufinfo = b.request();
-                x.set_data_handle(bufinfo.ptr);
-            },
-            pybind11::arg("b"));
-    t.def(
-            "to_numpy",
-            [](tensor &x, logical_tensor &lt) {
-                auto bufinfo = to_buffer_info(x, lt);
-                return pybind11::array(bufinfo);
-            },
-            pybind11::arg("lt"));
+        "to_numpy",
+        [](tensor &self, logical_tensor &lt) {
+          auto bufinfo = to_buffer_info(self, lt);
+          // pass any valid pybind object to `base` to make sure there is
+          // no memory copy between returned array and self tensor, see
+          // details at https://github.com/pybind/pybind11/issues/323
+          return pybind11::array(pybind11::dtype(bufinfo), bufinfo.shape,
+                                 bufinfo.strides, bufinfo.ptr,
+                                 /* base = */ pybind11::str{});
+        },
+        pybind11::arg("lt"));
 }
 
 void bind_status(pybind11::module &m) {
@@ -521,28 +549,32 @@ void bind_status(pybind11::module &m) {
 }
 
 void bind(pybind11::module &m) {
-    m.doc() = R"pbdoc(
+  m.doc() = R"pbdoc(
         oneDNN Graph API Python binding
         -------------------------------
-        .. currentmodule:: dnng
+        .. currentmodule:: dnnl_graph
         .. autosummary::
            :toctree: _generate
     )pbdoc";
 
-    bind_status(m);
-    bind_graph(m);
-    bind_logical_tensor(m);
-    bind_engine(m);
-    bind_op(m);
-    bind_tensor(m);
-    bind_partition(m);
-    bind_cpartition(m);
-    bind_stream(m);
+  // the version macros are defined in dnnl_version.h.
+  std::ostringstream oss;
+  oss << "v" << DNNL_VERSION_MAJOR << "." << DNNL_VERSION_MINOR << "."
+      << DNNL_VERSION_PATCH << "+" << DNNL_VERSION_HASH;
+  m.attr("__version__") = oss.str();
+
+  bind_status(m);
+  bind_graph(m);
+  bind_logical_tensor(m);
+  bind_engine(m);
+  bind_op(m);
+  bind_tensor(m);
+  bind_partition(m);
+  bind_cpartition(m);
+  bind_stream(m);
 }
 
-PYBIND11_MODULE(dnng, m) {
-    bind(m);
-}
+PYBIND11_MODULE(dnnl_graph, m) { bind(m); }
 
 } // namespace binding
 } // namespace graph
