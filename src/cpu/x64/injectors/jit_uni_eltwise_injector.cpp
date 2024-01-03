@@ -1816,7 +1816,7 @@ size_t jit_uni_eltwise_injector_f32<isa, Wmm>::op_vecs_count(
         switch (alg) {
             case eltwise_gelu_tanh:
             case eltwise_swish: ret = 1; break;
-            case eltwise_log: ret = 1 + (isa == sse41); break;
+            case eltwise_log: ret = 1 + utils::one_of(isa, sse41, avx); break;
             case eltwise_pow: ret = n_vregs_ + 2; break;
             default: ret = 0;
         }
