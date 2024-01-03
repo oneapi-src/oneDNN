@@ -34,9 +34,10 @@
 
 namespace bnorm {
 
-static int prepare_fwd_with_stats(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &src_add, const dnn_mem_t &mean, const dnn_mem_t &var,
-        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res) {
+static int prepare_fwd_with_stats(const prb_t *prb, const cfg_t &cfg,
+        const dnn_mem_t &src, const dnn_mem_t &src_add, const dnn_mem_t &mean,
+        const dnn_mem_t &var, const dnn_mem_t &sc, const dnn_mem_t &sh,
+        res_t *res) {
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
     const bool fill_src_add = prb->fuse_add_relu();
@@ -71,65 +72,17 @@ static int prepare_fwd_with_stats(const prb_t *prb, const dnn_mem_t &src,
     return OK;
 }
 
-static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &src_add, const dnn_mem_t &mean, const dnn_mem_t &var,
-        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res) {
-    /** Idea: choose src[] values so that both mean and variance are computed
-     * exactly (independently of the order of the computations).
-     *
-     * The `exactness` is achieved via [a1]: src[i] + src[i+1] = 2 * mean.
-     *
-     * The variation in src is allowed in the last flex_bits bits.
-     * If the sequence (L) is too big (flex_bits <= min_flex_bits), the mean
-     * value is set to 0 and src is partially filled with zeros (according to
-     * density so that at least want_flex_bits is reserved for src variation.
-     * Once src is set, variance is computed.
-     *
-     * ALG_0: mean is set to 0
-     * ALG_1: mean is set to 2^prb, where prb \in {-2, -1, ..., 4}
-     * ALG_AUTO: choose between ALG_0 and ALG_1 automatically */
-    const int64_t exact_bits = digits_dt(prb->dt);
-    const int64_t L = prb->mb * prb->id * prb->ih * prb->iw;
-    const int64_t logL = (int64_t)ceilf(log2f(L));
-
-    assert(logL <= 0 || (1LL << (logL - 1)) < L);
-    assert(L <= (1LL << logL));
-
-    const int64_t min_flex_bits = 3;
-    const int64_t want_flex_bits = MIN2(6, exact_bits / 2);
-
-    check_alg_t alg = prb->check_alg;
-    if (alg == ALG_AUTO) /* choose appropriate checking algorithm */
-        alg = (exact_bits - logL) / 2 - 1 >= min_flex_bits ? ALG_1 : ALG_0;
-
-    const int64_t flex_bits = alg == ALG_0
-            ? want_flex_bits /* BFloat16 has only 7 bits of mantissa */
-            : MIN2(prb->dt == dnnl_bf16 ? 7 : exact_bits,
-                    (exact_bits - logL) / 2 - 1);
-
-    if (flex_bits < min_flex_bits) {
-        res->state = UNTESTED;
-        return FAIL;
-    }
-
-    const int64_t flex_mask = (static_cast<int64_t>(1) << flex_bits) - 1;
-
-    /* density: (exact_bits - log_2(L * density)) / 2 >= flex_bits */
-    const float density = alg == ALG_0
-            ? 1.f * (1 << (exact_bits - 2 * flex_bits)) / L
-            : 1.f;
-    assert((exact_bits - ceilf(log2f(L * density))) / 2 >= flex_bits);
-
-    BENCHDNN_PRINT(6, "check_alg: %s, density = %g, flex_bits = " IFMT "\n",
-            check_alg2str(alg), density, flex_bits);
-
+static int prepare_fwd_no_stats(const prb_t *prb, const cfg_t &cfg,
+        const dnn_mem_t &src, const dnn_mem_t &src_add, const dnn_mem_t &mean,
+        const dnn_mem_t &var, const dnn_mem_t &sc, const dnn_mem_t &sh,
+        res_t *res) {
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
     const bool fill_src_add = prb->fuse_add_relu();
 
     benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
         const float m = ((float *)mean)[c]
-                = alg == ALG_0 ? 0.f : 0.25f * (1 << (c % 7));
+                = cfg.check_alg_ == ALG_0 ? 0.f : 0.25f * (1 << (c % 7));
         float v = 0; /* current variance */
 
         for (int64_t mb = 0; mb < prb->mb; ++mb) {
@@ -145,18 +98,21 @@ static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
                 const int64_t sp = d * prb->ih * prb->iw + h * prb->iw + w;
                 const int64_t l = l_base + sp;
 
-                if (alg == ALG_0 && !flip_coin(l / 2 * 257ULL, density)) {
+                if (cfg.check_alg_ == ALG_0
+                        && !flip_coin(l / 2 * 257ULL, cfg.density_)) {
                     s[sp] = 0;
                     if (fill_src_add) src_add.set_elem(off + sp, 1.f);
                     continue;
                 }
 
-                const int64_t gen = (l / 2 * 1637) & flex_mask;
+                const int64_t gen = (l / 2 * 1637) & cfg.flex_mask_;
                 const int sgn = l % 2 == 0 ? 1 : -1; /* [a1] */
-                const float f = 1.f * sgn * gen / (1 << flex_bits);
+                const float f = 1.f * sgn * gen / (1 << cfg.flex_bits_);
 
-                s[sp] = alg == ALG_0 ? f : m * (1.f + f);
-                if (L % 2 && (mb * prb->id * prb->ih * prb->iw + sp == L - 1)) {
+                s[sp] = cfg.check_alg_ == ALG_0 ? f : m * (1.f + f);
+                if (cfg.L_ % 2
+                        && (mb * prb->id * prb->ih * prb->iw + sp
+                                == cfg.L_ - 1)) {
                     s[sp] = m;
                 }
                 v += (s[sp] - m) * (s[sp] - m);
@@ -196,13 +152,15 @@ int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
     const auto &ref_sc = ref_mem_map[DNNL_ARG_SCALE];
     const auto &ref_sh = ref_mem_map[DNNL_ARG_SHIFT];
 
+    cfg_t cfg(prb);
+
     if (prb->flags & GLOB_STATS)
-        SAFE(prepare_fwd_with_stats(prb, ref_src, ref_src_add, ref_mean,
+        SAFE(prepare_fwd_with_stats(prb, cfg, ref_src, ref_src_add, ref_mean,
                      ref_var, ref_sc, ref_sh, res),
                 WARN);
     else
-        SAFE(prepare_fwd_no_stats(prb, ref_src, ref_src_add, ref_mean, ref_var,
-                     ref_sc, ref_sh, res),
+        SAFE(prepare_fwd_no_stats(prb, cfg, ref_src, ref_src_add, ref_mean,
+                     ref_var, ref_sc, ref_sh, res),
                 WARN);
 
     auto &src = mem_map[DNNL_ARG_SRC];
