@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,8 +55,8 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
 
     const int src_zp_mask = attr_t::get_default_mask(
             prb->attr.zero_points.get(DNNL_ARG_SRC).policy);
-    const int wei_zp_mask = attr_t::get_default_mask(
-            prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).policy);
+    const int wei_zp_mask = prb->attr.zero_points.get_mask(
+            DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.md_);
     const int dst_zp_mask = attr_t::get_default_mask(
             prb->attr.zero_points.get(DNNL_ARG_DST).policy);
 

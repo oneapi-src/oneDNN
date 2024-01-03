@@ -804,11 +804,12 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
     if (!prb->attr.zero_points.is_def()) {
         const auto &zp = prb->attr.zero_points;
 
+        const auto &wei_md = query_md(const_pd, DNNL_ARG_WEIGHTS);
+
         const auto append_zero_points = [&](int exec_arg) {
             const int exec_zp_arg = DNNL_ARG_ATTR_ZERO_POINTS | exec_arg;
-            const auto &e = zp.get(exec_arg);
             int64_t count = 1;
-            const auto mask = attr_t::get_default_mask(e.policy);
+            const auto mask = zp.get_mask(exec_arg, prim_kind, wei_md);
 
             if (mask > 0) {
                 const auto &md = query_md(const_pd, exec_arg);

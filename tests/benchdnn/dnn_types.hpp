@@ -135,6 +135,15 @@ struct attr_t {
             return it == points.end() ? entry_t() : it->second;
         }
 
+        int get_mask(int arg,
+                dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
+                const_dnnl_memory_desc_t wei_md = nullptr,
+                bool has_groups = false) const {
+            const auto &e = get(arg);
+            return attr_t::policy2mask(
+                    arg, e.policy, prim_kind, wei_md, has_groups);
+        }
+
         zero_points_t() : points() {} // needed for debug icc190 build;
         std::map<int, entry_t> points;
     };
@@ -504,6 +513,10 @@ struct attr_args_t {
 
     void prepare_scales(const attr_t &attr, int arg, int mask = -1) {
         entries.insert(std::make_pair(arg, mask));
+    };
+
+    void prepare_zero_points(const attr_t &attr, int arg, int mask = -1) {
+        entries.insert(std::make_pair(DNNL_ARG_ATTR_ZERO_POINTS | arg, mask));
     };
 
     int prepare_post_ops_mds(

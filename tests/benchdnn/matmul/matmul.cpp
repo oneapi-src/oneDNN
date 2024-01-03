@@ -134,6 +134,15 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         int wei_mask = (1 << (dst_rt_dims.size() - 1));
         attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
     }
+    // Overload PER_OC wei_mask definition for batched case
+    auto wei_zp = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS);
+    if (wei_zp.policy == policy_t::PER_OC) {
+        const auto &dst_rt_dims
+                = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
+        int wei_mask = (1 << (dst_rt_dims.size() - 1));
+        attr_args.prepare_zero_points(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
+    }
+
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
