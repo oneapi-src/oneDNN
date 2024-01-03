@@ -642,12 +642,10 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     SAFE(execute_and_wait(v_prim[0], args, res), WARN);
 
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
-        check_correctness(prb, get_kinds_to_check(prb, FLAG_FWD), args,
-                ref_args, setup_cmp, res);
-
-        if (prb->debug_check_ws) check_fwd_ws(mem_map, res);
-    }
+    check_correctness(prb, get_kinds_to_check(prb, FLAG_FWD), args, ref_args,
+            setup_cmp, res);
+    if (prb->debug_check_ws && has_bench_mode_bit(mode_bit_t::corr))
+        check_fwd_ws(mem_map, res);
 
     if (prb->dir & FLAG_BWD) {
         // Pass same memory map as we need data from forward on backward.
@@ -662,10 +660,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
         SAFE(execute_and_wait(v_prim[1], args, res), WARN);
 
-        if (has_bench_mode_bit(mode_bit_t::corr)) {
-            check_correctness(prb, get_kinds_to_check(prb, FLAG_BWD), args,
-                    ref_args, setup_cmp, res);
-        }
+        check_correctness(prb, get_kinds_to_check(prb, FLAG_BWD), args,
+                ref_args, setup_cmp, res);
     }
 
     return measure_perf(prb->ctx_exe, res, prim, args);

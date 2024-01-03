@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -240,10 +240,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
-        check_correctness(
-                prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
-    }
+    check_correctness(
+            prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

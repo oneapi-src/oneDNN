@@ -541,6 +541,9 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         const args_t &args, const args_t &ref_args,
         const setup_cmp_func_t &setup_cmp_func, res_t *res,
         dnnl_primitive_t prim_ref = nullptr) {
+    // Fast exit for any modes but correctness.
+    if (!has_bench_mode_bit(mode_bit_t::corr)) return;
+
     // Forward-for-backward service primitives define `kinds` as empty to skip
     // validation. This is to avoid extra checks on higher level.
     if (kinds.empty()) return;
