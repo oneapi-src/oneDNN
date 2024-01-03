@@ -561,27 +561,9 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         cmp.set_has_prim_ref(bool(prim_ref));
         setup_cmp_func(cmp, prb, kind, ref_args);
 
-        int arg = 0;
-        switch (kind) {
-            case DST: arg = DNNL_ARG_DST; break;
-            case SRC: arg = DNNL_ARG_DIFF_SRC; break;
-            case SRC_1: arg = DNNL_ARG_DIFF_SRC_1; break;
-            case WEI: arg = DNNL_ARG_DIFF_WEIGHTS; break;
-            case BIA: arg = DNNL_ARG_DIFF_BIAS; break;
-            case MEAN: arg = DNNL_ARG_MEAN; break;
-            case VAR: arg = DNNL_ARG_VARIANCE; break;
-            case SC: arg = DNNL_ARG_DIFF_SCALE; break;
-            case SH: arg = DNNL_ARG_DIFF_SHIFT; break;
-            case DST_ITER: arg = DNNL_ARG_DST_ITER; break;
-            case DST_ITER_C: arg = DNNL_ARG_DST_ITER_C; break;
-            case AUGRU_ATTENTION: arg = DNNL_ARG_DIFF_AUGRU_ATTENTION; break;
-            case SRC_ITER: arg = DNNL_ARG_DIFF_SRC_ITER; break;
-            case SRC_ITER_C: arg = DNNL_ARG_DIFF_SRC_ITER_C; break;
-            case WEI_ITER: arg = DNNL_ARG_DIFF_WEIGHTS_ITER; break;
-            case WEI_PEEPHOLE: arg = DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE; break;
-            case WEI_PROJECTION: arg = DNNL_ARG_DIFF_WEIGHTS_PROJECTION; break;
-            default: assert(!"unsupported kind"); SAFE_V(FAIL);
-        }
+        int arg = data_kind2exec_arg(kind);
+        assert(arg > 0);
+
         const auto &mem_dt = args.find(arg);
         const auto &mem_fp = ref_args.find(arg);
 

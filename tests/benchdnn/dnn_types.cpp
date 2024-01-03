@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,8 +39,6 @@
 #include "utils/cold_cache.hpp"
 #include "utils/parser.hpp"
 #include "utils/stream_kind.hpp"
-
-#define BENCHDNN_DNNL_ARG_UNDEF 0
 
 namespace tag {
 const char *x {"x"};
