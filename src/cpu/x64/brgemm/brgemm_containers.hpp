@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,10 +85,6 @@ struct brgemm_kernel_container_t {
 private:
     std::vector<const brgemm_kernel_t *> refs_;
 #ifdef BRGEMM_KERNEL_GLOBAL_STORAGE
-    static std::set<std::shared_ptr<brgemm_kernel_t>,
-            decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>
-            set_;
-
     static utils::rw_mutex_t &rw_mutex() {
         static utils::rw_mutex_t mutex;
         return mutex;
@@ -103,9 +99,14 @@ private:
             set_ {std::set<std::shared_ptr<brgemm_kernel_t>,
                     decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>(
                     brgemm_kernel_container_t::brgemm_kernel_cmp)};
+
     void lock_write() {}
     void unlock_write() {}
 #endif
+    std::set<std::shared_ptr<brgemm_kernel_t>,
+            decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *> &
+    get_set();
+
     std::map<const brgemm_t *, const brgemm_kernel_t *> brgemm_map_;
 };
 

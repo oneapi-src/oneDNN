@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ public:
     Xbyak::Zmm bf16_emu_reserv_1_ = Xbyak::Zmm(28);
     Xbyak::Zmm bf16_emu_reserv_2_ = Xbyak::Zmm(29);
     Xbyak::Zmm bf16_emu_reserv_3_ = Xbyak::Zmm(30);
-    Xbyak::Reg64 reg_tmp_ = Xbyak::util::rax;
+    Xbyak::Reg64 reg_tmp_ = Xbyak::Reg64(Xbyak::Operand::RAX);
     Xbyak::Zmm bf16_emu_reserv_4_ = Xbyak::Zmm(31);
 };
 

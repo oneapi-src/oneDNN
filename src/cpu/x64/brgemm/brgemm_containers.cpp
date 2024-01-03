@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,14 +26,18 @@ using namespace dnnl::impl::utils;
 
 namespace brgemm_containers {
 
-#ifdef BRGEMM_KERNEL_GLOBAL_STORAGE
 std::set<std::shared_ptr<brgemm_kernel_t>,
-        decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>
-        brgemm_kernel_container_t::set_
-        = std::set<std::shared_ptr<brgemm_kernel_t>,
-                decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>(
-                brgemm_kernel_container_t::brgemm_kernel_cmp);
+        decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *> &
+brgemm_kernel_container_t::get_set() {
+#ifdef BRGEMM_KERNEL_GLOBAL_STORAGE
+    static std::set<std::shared_ptr<brgemm_kernel_t>,
+            decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>
+            set_ = std::set<std::shared_ptr<brgemm_kernel_t>,
+                    decltype(brgemm_kernel_container_t::brgemm_kernel_cmp) *>(
+                    brgemm_kernel_container_t::brgemm_kernel_cmp);
 #endif
+    return set_;
+}
 
 bool brgemm_desc_container_t::insert(int idx, brgemm_t &brg,
         const std::vector<char> &bd_mask,
@@ -106,7 +110,7 @@ status_t brgemm_kernel_container_t::insert(int idx, const brgemm_t *brg) {
         CHECK(brgemm_kernel_create(&brg_kernel, *brg));
         std::shared_ptr<brgemm_kernel_t> sptr(brg_kernel);
         lock_write();
-        const auto kernel_ret = set_.insert(sptr);
+        const auto kernel_ret = get_set().insert(sptr);
         refs_[idx] = kernel_ret.first->get();
         unlock_write();
         const auto brgemm_ret = brgemm_map_.insert({brg, refs_[idx]});
