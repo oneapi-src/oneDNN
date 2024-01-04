@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -140,6 +140,7 @@ private:
 
     const bool save_state_;
     const Xbyak::Reg64 p_table;
+    Xbyak::Reg64 reg_vmm_stack_ptr_;
     const Xbyak::Opmask k_mask;
     const bool is_fwd_;
     const bool use_dst_;
@@ -183,6 +184,9 @@ private:
 
     size_t aux_vecs_count();
     size_t aux_gprs_count();
+    bool need_vmm_stack_ptr();
+    size_t op_vecs_count();
+    size_t get_stack_vmm_space();
 
     void compute_body(
             const injector_utils::vmm_index_set_iterator_t &start_idx_it,
