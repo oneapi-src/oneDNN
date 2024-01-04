@@ -150,6 +150,39 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             is_small_scratch && dst_layer_is_trivial_stride
                     && !(rnn.is_fwd || is_gru));
 
+    bool can_fuse_gemm = rnn.dt_conf == all_f32 && rnn.is_fwd
+            && utils::one_of(rd.cell_kind, alg_kind::vanilla_rnn,
+                    alg_kind::vanilla_lstm);
+
+    if (rnn.is_fwd) {
+        // Since RNN cells may result in very small workloads the CPU overhead to
+        // dispatch kernels may be significant.
+        // dhc = 64, mb >= 2048 -> 2^23
+        // dhc <= 128, mb <= 128 -> 2^21
+        // Poor performance if dhc % subgroup_size != 0 (OpenCL compiles poorly when mn_tail is enabled)
+        size_t fuse_gemm_limit = 0;
+        rnn.cell_fusion.gemm_iter
+                = dev_getenv("fuse_gemm_iter", !rnn.merge_gemm_iter)
+                && can_fuse_gemm;
+        rnn.cell_fusion.gemm_layer
+                = dev_getenv("fuse_gemm_layer",
+                          rnn.cell_fusion.gemm_iter && !rnn.merge_gemm_layer)
+                && can_fuse_gemm;
+
+        // Currently, external gemm_iter always accumulates in C. As such,
+        // external gemm_layer is required to initialize the memory.
+        gpu_assert(IMPLICATION(
+                rnn.cell_fusion.gemm_layer, rnn.cell_fusion.gemm_iter));
+        rnn.dhc_loop = std::min(
+                static_cast<dim_t>(dev_getenv("dhc_loop", 1)), rnn.dhc);
+        if (rnn.dhc_loop == 0) rnn.dhc_loop = rnn.dhc;
+        bool can_iter_loop = rnn.cell_fusion.gemm_iter
+                && (rnn.merge_gemm_layer || rnn.cell_fusion.gemm_layer)
+                && rnn.dhc_loop >= rnn.dhc;
+        rnn.iter_loop = can_iter_loop ? dev_getenv("iter_loop", 1) : 1;
+        if (rnn.iter_loop == 0) rnn.iter_loop = rnn.n_iter;
+    }
+
     // Decide to copy bias
     rnn.copy_bias = rnn.is_int8;
 
@@ -606,9 +639,13 @@ status_t rnn_utils::set_expected_desc(
     return status::success;
 }
 
-memory_storage_t &rnn_utils::get_storage(
-        const std::unique_ptr<memory_storage_t> &storage) {
+const memory_storage_t &rnn_utils::get_storage(
+        const memory_storage_t *storage) {
     return storage ? *storage : memory_storage_t::empty_storage();
+}
+const memory_storage_t &rnn_utils::get_storage(
+        const std::unique_ptr<memory_storage_t> &storage) {
+    return rnn_utils::get_storage(storage.get());
 }
 
 } // namespace ocl

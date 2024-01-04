@@ -56,12 +56,16 @@
 #define OFF3(i0, D0, i1, D1, i2, D2) (((i0) * (D1) + (i1)) * (D2) + (i2))
 #define OFF2(i0, D0, i1, D1) ((i0) * (D1) + (i1))
 
+const int vanilla_rnn_n_gates = 1;
+const int vanilla_rnn_n_bias = 1;
+const int vanilla_lstm_n_gates = 4;
+const int vanilla_lstm_n_bias = 4;
 #if CELL_KIND == VANILLA_RNN
-const int n_gates = 1;
-const int n_bias = 1;
+const int n_gates = vanilla_rnn_n_gates;
+const int n_bias = vanilla_rnn_n_bias;
 #elif CELL_KIND == VANILLA_LSTM
-const int n_gates = 4;
-const int n_bias = 4;
+const int n_gates = vanilla_lstm_n_gates;
+const int n_bias = vanilla_lstm_n_bias;
 #elif CELL_KIND == LBR_GRU
 const int n_gates = 3;
 const int n_bias = 4;

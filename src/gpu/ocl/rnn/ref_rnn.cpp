@@ -179,7 +179,8 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.is_testmode = rnn.is_testmode;
 
     ocl_conf.threads_per_eu = 0; // Currently unset, to be set later
-    ocl_conf.subgroup_size = device_info.max_subgroup_size();
+    ocl_conf.subgroup_size = dev_getenv(
+            "subgroup_size", device_info.max_subgroup_size(ocl_conf.acc_dt));
     auto max_elemwise_threads
             = utils::div_up(rnn.mb * rnn.dhc, ocl_conf.subgroup_size);
     auto max_elemwise_threads_per_eu
@@ -195,6 +196,38 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
                                             / preferred_threads_per_eu))));
     ocl_conf.need_bias_atomic_reduce
             = !ocl_conf.is_fwd && ocl_conf.elemwise_bwd_batch_block < rnn.mb;
+
+    ocl_conf.cell_comp.is_enabled
+            = rnn.cell_fusion.gemm_layer || rnn.cell_fusion.gemm_iter;
+    if (ocl_conf.cell_comp.is_enabled) {
+        bool fuse_gemm_layer = rnn.cell_fusion.gemm_layer;
+        bool fuse_gemm_iter = rnn.cell_fusion.gemm_iter;
+        int dhc_thr = dev_getenv("dhc_thr", 1);
+        int dhc_tg = dev_getenv("dhc_tg", ocl_conf.subgroup_size);
+        int dhc_tail
+                = dev_getenv("dhc_tail", rnn.dhc % (dhc_tg * dhc_thr) != 0);
+        int mb_thr = dev_getenv("mb_thr", 1);
+        int mb_tg = dev_getenv("mb_tg", 1);
+        int mb_tail = dev_getenv("mb_tail", rnn.mb % (mb_tg * mb_thr) != 0);
+        int k_block = ocl_conf.subgroup_size;
+
+        gpu_assert(dhc_tg % (dhc_thr * ocl_conf.subgroup_size) == 0);
+        gpu_assert(mb_tg % mb_thr == 0);
+
+        ocl_conf.cell_comp.compute_gemm_layer = fuse_gemm_layer;
+        ocl_conf.cell_comp.gemm_layer_k_tail
+                = fuse_gemm_layer && (rnn.slc % k_block != 0);
+        ocl_conf.cell_comp.compute_gemm_iter = fuse_gemm_iter;
+        ocl_conf.cell_comp.gemm_iter_k_tail
+                = fuse_gemm_iter && (rnn.sic % k_block != 0);
+        ocl_conf.cell_comp.dhc_tail = dhc_tail;
+        ocl_conf.cell_comp.mb_tail = mb_tail;
+        ocl_conf.cell_comp.enable_iter_block = rnn.iter_loop != 1;
+        ocl_conf.cell_comp.dhc_thr = dhc_thr;
+        ocl_conf.cell_comp.dhc_tg = dhc_tg;
+        ocl_conf.cell_comp.mb_thr = mb_thr;
+        ocl_conf.cell_comp.mb_tg = mb_tg;
+    }
 
     return status::success;
 }
@@ -290,9 +323,11 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
 
     def_data_type(kernel_ctx, src_dt, "WS_STATE");
     def_data_type(kernel_ctx, src_dt, "SRC");
-    def_data_type(kernel_ctx, wei_dt, "WEI");
+    def_data_type(kernel_ctx, wei_dt, "WEI_LAYER");
+    def_data_type(kernel_ctx, wei_dt, "WEI_ITER");
     def_data_type(kernel_ctx, acc_dt, "ACC");
     def_data_type(kernel_ctx, aux_dt, "AUX");
+    def_data_type(kernel_ctx, bia_dt, "BIAS");
     def_data_type(kernel_ctx, dst_dt, "DST");
     def_data_type(kernel_ctx, input_dt, "INPUT");
     def_data_type(kernel_ctx, output_dt, "OUTPUT");
@@ -302,6 +337,24 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("COPY_BIAS", copy_bias);
     kernel_ctx.define_int("WEI_QPARAM_MASK", wei_qparam_mask);
     kernel_ctx.define_int("IS_TESTMODE", is_testmode);
+
+    if (cell_comp.is_enabled) {
+        kernel_ctx.define_int("CELL_COMP_ENABLED", cell_comp.is_enabled);
+        kernel_ctx.define_int(
+                "CELL_COMPUTE_GEMM_LAYER", cell_comp.compute_gemm_layer);
+        kernel_ctx.define_int(
+                "CELL_GEMM_LAYER_K_TAIL", cell_comp.gemm_layer_k_tail);
+        kernel_ctx.define_int(
+                "CELL_COMPUTE_GEMM_ITER", cell_comp.compute_gemm_iter);
+        kernel_ctx.define_int(
+                "CELL_GEMM_ITER_K_TAIL", cell_comp.gemm_iter_k_tail);
+        kernel_ctx.define_int("CELL_DHC_TAIL", cell_comp.dhc_tail);
+        kernel_ctx.define_int("CELL_MB_TAIL", cell_comp.mb_tail);
+        kernel_ctx.define_int(
+                "CELL_ENABLE_ITER_BLOCK", cell_comp.enable_iter_block);
+        kernel_ctx.define_int("CELL_DHC_THR", cell_comp.dhc_thr);
+        kernel_ctx.define_int("CELL_BATCH_THR", cell_comp.mb_thr);
+    }
 
     return status::success;
 }
@@ -526,7 +579,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
     init_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->src_md(1),
             this->weights_md(0), this->weights_md(1), this->dst_md(0),
-            is_xe_hpc);
+            acc_data_t, device_info);
 
     if (rnn_conf.is_int8) {
         auto has_trivial_strides = [](const memory_desc_wrapper &md) {
@@ -627,8 +680,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                 "memory_desc_init_by_tag()");
     }
 
-    rnn_conf.acc_data_type = acc_data_t;
-    rnn_conf.acc_data_type_elsz = types::data_type_size(acc_data_t);
     VDISPATCH_RNN_SC(init_ocl_conf<aprop>(
                              ocl_conf, rnn_conf, this, device_info, this->off),
             "init_ocl_conf<>()");
@@ -1127,7 +1178,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             }
 
             if ((aprop == prop_kind::forward || rnn.recompute_gates)
-                    && rnn.merge_gemm_layer) {
+                    && rnn.merge_gemm_layer && !rnn.cell_fusion.gemm_layer) {
                 auto grid_layer = (!rnn.copy_src_layer && lay == 0)
                         ? user_data.src_layer(dir, 0, true)
                         : workspace.states_range(
@@ -1141,7 +1192,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                         grid_layer, *scratch.gates(), gemm_grid_layer_fwd));
             }
 
-            for (dim_t i = 0; i < n_iter; i++) {
+            for (dim_t i = 0; i < n_iter; i += rnn.iter_loop) {
                 dim_t iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
                 CHECK((this->*cell_func)(engine, ctx, dir, lay, iter,
                         offset_wei_layer, wei_iter_offsets, user_data,
