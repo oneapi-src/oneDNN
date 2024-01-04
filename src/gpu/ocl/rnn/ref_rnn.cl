@@ -713,8 +713,7 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter,
         __global WS_STATE_DATA_T *h_states_t_l, __global float *c_states_t_l,
         __global float *c_states_tm1_l, __global AUX_DATA_T *ws_gates,
         __global float *ws_bias, int states_ws_ld, int scratch_gates_ld,
-        int batch, int dhc, int n_layer, int n_dir, int n_iter_scratch_gates,
-        float tm_cscale) {
+        int batch, int dhc, int n_layer, int n_dir, float tm_cscale) {
     const int i = get_global_id(1); // batch
     const int j = get_global_id(0); // dhc
 
@@ -752,14 +751,13 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 #else
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
-ref_rnn_elemwise_fwd(
-        int dir, int lay, int iter, __global AUX_DATA_T *scratch_gates,
+ref_rnn_elemwise_fwd(__global AUX_DATA_T *scratch_gates,
         __global AUX_DATA_T *bias, float alpha, __global float *tm_scales,
         __global WS_STATE_DATA_T *h_states_t_l,
         __global AUX_DATA_T *c_states_t_l, __global AUX_DATA_T *c_states_tm1_l,
         __global AUX_DATA_T *ws_gates, __global AUX_DATA_T *ws_grid,
         int states_ws_ld, int gates_ws_ld, int scratch_gates_ld, int batch,
-        int dhc, int n_layer, int n_iter_scratch_gates,
+        int dhc,
 #if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale
 #elif CELL_KIND == LBR_GRU
@@ -893,9 +891,8 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         __global AUX_DATA_T *c_states_t_l, __global AUX_DATA_T *c_states_tm1_l,
         __global AUX_DATA_T *ws_gates, __global AUX_DATA_T *ws_grid,
         int states_ws_ld, int gates_ws_ld, int scratch_diff_gates_ld,
-        int scratch_gates_ld, int batch, int dhc, int n_layer,
-        int n_iter_scratch_gates, int n_dir, int n_states, int n_iter,
-        int scratch_diff_states_ld, int diff_states_layer_ld,
+        int scratch_gates_ld, int batch, int dhc, int scratch_diff_states_ld,
+        int diff_states_layer_ld,
 #if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale,
 #elif CELL_KIND == LBR_GRU

@@ -35,9 +35,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
             : elemwise_bwd_kernel_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.append(into<int32_t>(dir));
-    arg_list.append(into<int32_t>(lay));
-    arg_list.append(into<int32_t>(iter));
+    if (aprop == prop_kind::backward) {
+        arg_list.append(into<int32_t>(dir));
+        arg_list.append(into<int32_t>(lay));
+        arg_list.append(into<int32_t>(iter));
+    }
     if (aprop == prop_kind::forward) {
         arg_list.append(*scratch_gates);
     } else {
@@ -75,12 +77,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
 
     arg_list.append(into<int32_t>(batch));
     arg_list.append(into<int32_t>(dhc));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     if (aprop == dnnl_backward) {
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
         arg_list.append(into<int32_t>(pd()->rnn_conf.scratch_diff_states_ld));
         arg_list.append(into<int32_t>(diff_states_layer_ld));
     }
@@ -109,9 +106,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
             : elemwise_bwd_kernel_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.append(into<int32_t>(dir));
-    arg_list.append(into<int32_t>(lay));
-    arg_list.append(into<int32_t>(iter));
+    if (aprop == prop_kind::backward) {
+        arg_list.append(into<int32_t>(dir));
+        arg_list.append(into<int32_t>(lay));
+        arg_list.append(into<int32_t>(iter));
+    }
     if (aprop == prop_kind::forward) {
         arg_list.append(*scratch_gates);
     } else {
@@ -148,12 +147,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     }
     arg_list.append(into<int32_t>(batch));
     arg_list.append(into<int32_t>(dhc));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     if (aprop == dnnl_backward) {
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
         arg_list.append(into<int32_t>(pd()->rnn_conf.scratch_diff_states_ld));
         arg_list.append(into<int32_t>(diff_states_layer_ld));
     }
@@ -223,7 +217,6 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     arg_list.append(pd()->rnn_conf.tm_cscale);
     return parallel_for(ctx, nd_range, elemwise_fwd_kernel_, arg_list);
 }
@@ -241,9 +234,11 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
             : elemwise_bwd_kernel_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.append(into<int32_t>(dir));
-    arg_list.append(into<int32_t>(lay));
-    arg_list.append(into<int32_t>(iter));
+    if (aprop == prop_kind::backward) {
+        arg_list.append(into<int32_t>(dir));
+        arg_list.append(into<int32_t>(lay));
+        arg_list.append(into<int32_t>(iter));
+    }
     if (aprop == prop_kind::forward) {
         arg_list.append(*scratch_gates);
     } else {
@@ -282,12 +277,7 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     }
     arg_list.append(into<int32_t>(batch));
     arg_list.append(into<int32_t>(dhc));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     if (aprop == dnnl_backward) {
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
         arg_list.append(into<int32_t>(pd()->rnn_conf.scratch_diff_states_ld));
         arg_list.append(into<int32_t>(diff_states_layer_ld));
     }
@@ -319,9 +309,11 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
             : elemwise_bwd_kernel_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.append(into<int32_t>(dir));
-    arg_list.append(into<int32_t>(lay));
-    arg_list.append(into<int32_t>(iter));
+    if (aprop == prop_kind::backward) {
+        arg_list.append(into<int32_t>(dir));
+        arg_list.append(into<int32_t>(lay));
+        arg_list.append(into<int32_t>(iter));
+    }
     if (aprop == prop_kind::forward) {
         arg_list.append(*scratch_gates);
     } else {
@@ -359,12 +351,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     }
     arg_list.append(into<int32_t>(batch));
     arg_list.append(into<int32_t>(dhc));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter_scratch_gates));
     if (aprop == dnnl_backward) {
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_states));
-        arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
         arg_list.append(into<int32_t>(pd()->rnn_conf.scratch_diff_states_ld));
         arg_list.append(into<int32_t>(diff_states_layer_ld));
     }
