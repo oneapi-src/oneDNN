@@ -147,8 +147,9 @@ int fill_zero_points(
     return OK;
 }
 
-int fill_random_real_dense(dnn_mem_t &mem_fp, const fill_cfg_t &fill_cfg) {
-    auto nelems = mem_fp.nelems();
+int fill_random_real_dense(
+        dnn_mem_t &mem, dnn_mem_t &mem_ref, const fill_cfg_t &fill_cfg) {
+    auto nelems = mem_ref.nelems();
     if (nelems == 0) return OK;
 
     BENCHDNN_PRINT(6, "%s\n", fill_cfg.print_verbose().c_str());
@@ -158,9 +159,15 @@ int fill_random_real_dense(dnn_mem_t &mem_fp, const fill_cfg_t &fill_cfg) {
     // whether the tensor is dense or sparse (this is by design). Because of
     // that we need to adjust the `nelems` value for the sparse tensor as the
     // number of elements to fill is equal to `nnz`.
-    if (mem_fp.format_kind() == dnnl_format_kind_sparse)
-        nelems = query_md_nnz(mem_fp.md_);
+    if (mem_ref.format_kind() == dnnl_format_kind_sparse)
+        nelems = query_md_nnz(mem_ref.md_);
 #endif
+
+    // Note: fill_cfg_t drives value distribution, but the final rounding is
+    // in compliance with the memory object the values are inserted. Depending
+    // on a case, it may or may not benefit to force same data type for filling
+    // and final memory object data type.
+    const dnnl_data_type_t round_dt = mem ? mem.dt() : mem_ref.dt();
 
     /* Do fixed partitioning to have same filling for any number of threads */
     static constexpr int64_t chunk_size = 64;
@@ -189,17 +196,19 @@ int fill_random_real_dense(dnn_mem_t &mem_fp, const fill_cfg_t &fill_cfg) {
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             float val = get_val();
-            mem_fp.set_elem(
-                    idx, round_to_nearest_representable(mem_fp.dt(), val));
+            mem_ref.set_elem(
+                    idx, round_to_nearest_representable(round_dt, val));
         }
     });
+
+    if (mem) SAFE(mem.reorder(mem_ref), WARN);
 
     return OK;
 }
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-int fill_random_real_sparse(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem_fp,
-        const fill_cfg_t &fill_cfg) {
+int fill_random_real_sparse(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem,
+        dnn_mem_t &mem_ref, const fill_cfg_t &fill_cfg) {
     auto orig_cc_mem_md = query_md(dnnl_memory);
     const int nhandles = query_md_num_handles(orig_cc_mem_md);
     assert(nhandles == 3);
@@ -208,7 +217,7 @@ int fill_random_real_sparse(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem_fp,
     // The assumption is every sparse format contains three handles and the
     // second and the third are responsible for a sparsity pattern.
     for (int idx = 1; idx < nhandles; idx++) {
-        void *dst_ptr = mem_fp.get_mapped_pointer<void>(idx);
+        void *dst_ptr = mem_ref.get_mapped_pointer<void>(idx);
         void *src_ptr = nullptr;
         dnnl_memory_get_data_handle_v2(dnnl_memory, &src_ptr, idx);
 
@@ -216,17 +225,23 @@ int fill_random_real_sparse(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem_fp,
         std::memcpy(dst_ptr, src_ptr, size);
     }
 
-    return fill_random_real_dense(mem_fp, fill_cfg);
+    return fill_random_real_dense(mem, mem_ref, fill_cfg);
 }
 #endif
 
-int fill_random_real(dnn_mem_t &mem_fp, const fill_cfg_t &fill_cfg,
-        const_dnnl_memory_t dnnl_memory) {
+int fill_random_real(dnn_mem_t &mem, dnn_mem_t &mem_ref,
+        const fill_cfg_t &fill_cfg, const_dnnl_memory_t dnnl_memory) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-    if (mem_fp.format_kind() == dnnl_format_kind_sparse) {
+    if (mem_ref.format_kind() == dnnl_format_kind_sparse) {
         assert(dnnl_memory != nullptr);
-        return fill_random_real_sparse(dnnl_memory, mem_fp, fill_cfg);
+        return fill_random_real_sparse(dnnl_memory, mem, mem_ref, fill_cfg);
     }
 #endif
-    return fill_random_real_dense(mem_fp, fill_cfg);
+    return fill_random_real_dense(mem, mem_ref, fill_cfg);
+}
+
+int fill_random_real(dnn_mem_t &mem_ref, const fill_cfg_t &fill_cfg,
+        const_dnnl_memory_t dnnl_memory) {
+    dnn_mem_t dummy;
+    return fill_random_real(dummy, mem_ref, fill_cfg, dnnl_memory);
 }
