@@ -698,10 +698,12 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
     const int max_m_blk = nstl::min(256, matmul.M);
     int min_m_blk = nstl::min(32, matmul.M);
 
+    dim_t min_m_chunks = div_up(matmul.M, max_m_blk);
+
     int n_blk = bgmmc.N_blk;
     const int n_chunks = div_up(matmul.N, n_blk);
     const int max_n_chunks = bgmmc.use_buffer_a ? 16 : 1;
-    const int n_chunks_start = nstl::min(max_n_chunks, div_up(matmul.N, n_blk));
+    const int n_chunks_start = nstl::min(max_n_chunks, n_chunks);
 
     // Note: do not extend K_blk for 'bwd_w' cases
     const bool use_extended_k_blk = matmul.K > 1024
@@ -713,8 +715,9 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
 
     // for cases with low parallel work, reduce 'min_m_blk' to
     // increase potential parallelization balance.
-    const size_t max_parallel = matmul.batch * n_chunks;
-    const bool low_parallel_work = static_cast<size_t>(nthr) > max_parallel;
+    const dim_t max_parallel = matmul.batch * n_chunks;
+    const dim_t max_bmn_parallel = max_parallel * min_m_chunks;
+    const bool low_parallel_work = nthr > max_parallel;
     if (low_parallel_work) {
 
         min_m_blk = nstl::min(matmul.M, 16);
@@ -769,8 +772,7 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
                 return n;
             };
 
-            dim_t min_m_chunks = div_up(matmul.M, max_m_blk);
-            int nthr_bmn = max_div(max_parallel * min_m_chunks, nthr);
+            int nthr_bmn = max_div(max_bmn_parallel, nthr);
             int nthr_k = nstl::max(nthr / nthr_bmn, 1);
             int nthr_remainder = nthr % nthr_bmn;
 
@@ -792,6 +794,19 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
             last_nthr_k = nthr_k;
         }
     }
+
+    // Use large m-blocking if possible.
+    const bool is_huge_n = matmul.N >= 20000;
+    const bool large_bmn_parallelism = max_bmn_parallel > 10 * nthr;
+    const bool has_m_tail = matmul.M % max_m_blk != 0;
+    const bool use_k_partitioning = start_nthr_k > 1;
+    bool use_large_m_blk = is_huge_n && large_bmn_parallelism && !has_m_tail;
+    use_large_m_blk &= !use_k_partitioning;
+
+    // TODO: Expand to other data types.
+    use_large_m_blk = use_large_m_blk && bm_conf_utils.is_f32();
+
+    if (use_large_m_blk) min_m_blk = max_m_blk;
 
     matmul_avx512_blocking_params_t cur_params(matmul, nthr);
     float best_imbalance = 1.f; // reduce
