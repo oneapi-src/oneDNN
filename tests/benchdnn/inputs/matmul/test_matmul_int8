@@ -43,8 +43,8 @@
 --reset
 --dt=f32:s8:f32,bf16:s8:bf16
 --attr-fpmath=bf16:true
---attr-scales=wei:common:1.25,wei:per_oc
---attr-zero-points=wei:common:-1,wei:per_oc
+--attr-scales=wei:common:1.25:f32,wei:per_oc:bf16,wei:per_ocic:bf16:1x1
+--attr-zero-points=wei:common:-1:s8,wei:per_oc:u8,wei:per_ocic:u8:1x1
 --batch=shapes_2d
 # Run-time
 --stag=abc,acb --wtag=abc,acb --dtag=abc,bac
