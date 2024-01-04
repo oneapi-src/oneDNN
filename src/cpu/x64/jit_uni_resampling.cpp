@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -220,6 +220,13 @@ status_t jit_uni_resampling_fwd_t::get_proper_kernel_for_avx(
         return safe_ptr_assign(kernel_,
                 new jit_uni_resampling_kernel_t<avx2_vnni_2, Xbyak::Ymm>(
                         conf, dst_md));
+
+    if (is_superset(conf.isa, avx2)) {
+        return safe_ptr_assign(kernel_,
+                new jit_uni_resampling_kernel_t<avx2, Xbyak::Ymm>(
+                        conf, dst_md));
+    }
+
     if (is_src_i8 || is_dst_i8)
         return safe_ptr_assign(kernel_,
                 new jit_uni_resampling_kernel_t<avx, Xbyak::Xmm>(conf, dst_md));

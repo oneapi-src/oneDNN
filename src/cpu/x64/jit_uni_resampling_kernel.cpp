@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -917,6 +917,7 @@ template struct jit_uni_resampling_kernel_t<avx512_core_fp16, Zmm>;
 template struct jit_uni_resampling_kernel_t<avx512_core, Zmm>;
 template struct jit_uni_resampling_kernel_t<avx512_core, Ymm>;
 template struct jit_uni_resampling_kernel_t<avx2_vnni_2, Ymm>;
+template struct jit_uni_resampling_kernel_t<avx2, Ymm>;
 template struct jit_uni_resampling_kernel_t<avx, Ymm>;
 template struct jit_uni_resampling_kernel_t<avx, Xmm>;
 template struct jit_uni_resampling_kernel_t<sse41, Xmm>;
