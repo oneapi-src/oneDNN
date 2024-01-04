@@ -157,7 +157,8 @@ cold_cache_t::cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args)
             // data distribution because the data structure affects performance
             // in a direct way.
             if (cc_entry[i].format_kind() == dnnl_format_kind_sparse) {
-                auto st = fill_random_real(cc_entry[i], orig_mem);
+                auto st = fill_random_real(
+                        cc_entry[i], get_default_fill_cfg(), orig_mem);
                 if (st != OK) {
                     BENCHDNN_PRINT(0,
                             "Error: filling for cold cache tensor %zu failed "
