@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -379,6 +379,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
            (f32)[Query]    [Key](f32)
                       \     /
                        MatMul
+                         |
+                    Divide (optional)
       (f32)[Fill Value]  |
    (bool)[Att Mask]   \  |
                     \  \ |
@@ -404,8 +406,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
-                    auto select = pgraph->append_op(
-                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
+                    auto fscore_scale = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::Divide, matmul_qk);
+                    auto select = pgraph->append_op(graph::op_kind::Select,
+                            {in_edge(2, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(
                             graph::op_kind::SoftMax, {in_edge(0, select, 0)});
                     auto matmul_v = pgraph->append_op(
@@ -1058,6 +1062,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
            (bf16)[Query]    [Key](bf16)
                       \     /
                        MatMul
+                         |
+                    Divide (optional)
      (bf16)[Fill Value]  |
    (bool)[Att Mask]   \  |
                     \  \ |
@@ -1083,8 +1089,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
-                    auto select = pgraph->append_op(
-                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
+                    auto fscore_scale = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::Divide, matmul_qk);
+                    auto select = pgraph->append_op(graph::op_kind::Select,
+                            {in_edge(2, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(
                             graph::op_kind::SoftMax, {in_edge(0, select, 0)});
                     auto matmul_v = pgraph->append_op(
@@ -2134,6 +2142,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
              Dequantize Dequantize
                    \     /
                     MatMul
+                      |
+                Divide (optional)
   (fp32)[Fill Value]  |
 (bool)[Att Mask]   \  |
                  \  \ |
@@ -2170,8 +2180,11 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
                                     in_edge(1, dequantize_key, 0)});
-                    auto fscore_select = pgraph->append_op(
-                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
+                    auto fscore_scale = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::Divide, matmul_qk);
+                    auto fscore_select
+                            = pgraph->append_op(graph::op_kind::Select,
+                                    {in_edge(2, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, fscore_select, 0)});
                     auto quantize_softmax = pgraph->append_op(
@@ -2204,6 +2217,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
               TypeCast   TypeCast
                    \     /
                     MatMul
+                      |
+                Divide (optional)
   (bf16)[Fill Value]  |
 (bool)[Att Mask]   \  |
                  \  \ |
@@ -2252,8 +2267,11 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_query, 0),
                                     in_edge(1, cast_key, 0)});
-                    auto fscore_select = pgraph->append_op(
-                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
+                    auto fscore_scale = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::Divide, matmul_qk);
+                    auto fscore_select
+                            = pgraph->append_op(graph::op_kind::Select,
+                                    {in_edge(2, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, fscore_select, 0)});
                     auto cast_softmax_fp32 = pgraph->append_op(
