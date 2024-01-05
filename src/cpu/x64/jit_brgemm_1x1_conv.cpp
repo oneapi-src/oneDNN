@@ -87,16 +87,14 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     const float alpha = 1.0;
     const float beta = 1.0;
     const auto &p = attr()->post_ops_;
-    const int sum_idx = p.find(primitive_kind::sum);
-    with_sum = (sum_idx != -1);
-    sum_scale = with_sum ? p.entry_[sum_idx].sum.scale : 0.0;
+    const bool with_sum = p.find(primitive_kind::sum) != -1;
 
-    ic_chunks = div_up(jcp_.nb_ic, jcp_.nb_ic_blocking);
-    need_postwork = jcp_.with_bias || jcp_.with_eltwise || jcp_.with_binary
+    ic_chunks_ = div_up(jcp_.nb_ic, jcp_.nb_ic_blocking);
+    need_postwork_ = jcp_.with_bias || jcp_.with_eltwise || jcp_.with_binary
             || (one_of(src_type, u8, s8) && wei_type == s8) // oscales needed
             || (jcp_.dst_dt != jcp_.acc_dt) || jcp_.with_sum;
 
-    int i_init_begin = (ic_chunks == 1) ? 1 : 0;
+    int i_init_begin = (ic_chunks_ == 1) ? 1 : 0;
     int i_init_end = 2;
 
     for_(int i_M = 0; i_M < 2; i_M++)
@@ -142,7 +140,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         // if post-ops are required and there are no intermediate calculations
         // (like ic_chunks > 1) then we don't need code without post-ops in
         // brgemm kernel
-        if (need_postwork && ic_chunks == 1) brgattr.postops_only = true;
+        if (need_postwork_ && ic_chunks_ == 1) brgattr.postops_only = true;
 
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
         auto LDD = jcp_.oc_without_padding;
@@ -372,7 +370,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
     const bool is_os_tail = jcp.is_os_blocking ? (jcp.os - os < jcp.os_block)
                                                : (OW - ow < jcp.ow_block);
     const bool is_oc_tail = (jcp.oc - oc < jcp.oc_block);
-    const bool is_ic_tail = (icc == pd()->ic_chunks - 1
+    const bool is_ic_tail = (icc == pd()->ic_chunks_ - 1
             && ((jcp.ic - ic) % jcp.ic_block != 0));
 
     const auto src_offset = n * src_d_sz + id * src_h_sz + ih * src_w_sz
@@ -394,11 +392,11 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
 
     const auto comp_offset = (g * jcp.nb_oc + ocb) * jcp.oc_block;
     int32_t *src_zp_comp_ptr
-            = (jcp.src_zero_point && icc == pd()->ic_chunks - 1)
+            = (jcp.src_zero_point && icc == pd()->ic_chunks_ - 1)
             ? &src_zp_comp[comp_offset]
             : nullptr;
     int32_t *s8s8_comp_ptr
-            = (jcp.s8s8_compensation_required && icc == pd()->ic_chunks - 1)
+            = (jcp.s8s8_compensation_required && icc == pd()->ic_chunks_ - 1)
             ? &s8s8_compensation[comp_offset]
             : nullptr;
 
@@ -444,8 +442,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         }
     };
 
-    const auto do_post_work = (pd()->need_postwork || jcp.use_buffer)
-            && icc == pd()->ic_chunks - 1;
+    const auto do_post_work = (pd()->need_postwork_ || jcp.use_buffer)
+            && icc == pd()->ic_chunks_ - 1;
 
     if (nb_ic_b > 0) {
         const auto brg_idx
@@ -519,7 +517,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_os_blocking(
                 char *inp_buffer_sp = (jcp.is_rtus)
                         ? inp_buffer + src_dsz * os * jcp.LDA
                         : nullptr;
-                for (int icc = 0; icc < pd()->ic_chunks; icc++) {
+                for (int icc = 0; icc < pd()->ic_chunks_; icc++) {
                     if (jcp.is_rtus)
                         maybe_rtus(ithr, brgemm_ctx.src, inp_buffer_sp,
                                 inp_buffer_mask, g, n, icc, od, oh, ow);
@@ -578,7 +576,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_full_spatial(
             assert(!"Unknown loop order");
 
         for (auto work = start; work < end; work++) {
-            for (int icc = 0; icc < pd()->ic_chunks; icc++) {
+            for (int icc = 0; icc < pd()->ic_chunks_; icc++) {
                 const int ow = owb * jcp.ow_block;
                 exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, nullptr, g, n,
                         ocb, od, oh, ow, icc, &last_brg_idx, oscales,
