@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -250,35 +250,32 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                             if (treat_as_static) { iik_block = iik_block_; }
                         }
                         if (A_dims.size() == 2) {
-                            if (!dynamic && is_A_vnni_low_fp
-                                    && A_format == sc_data_format_t::NK()) {
-                                in_formats.push_back({sc_data_format_t::NK()});
+                            if (constant_A
+                                    || (!dynamic && A_format.is_blocking()
+                                            && p2bmp_a.at(0).size() > 1
+                                            && p2bmp_a.at(1).size() > 1)
+                                    || A_isp || (!dynamic && M % iim_block)
+                                    || (!dynamic && K % iik_block)
+                                    || (!dynamic && is_A_vnni_low_fp
+                                            && A_format
+                                                    == sc_data_format_t::
+                                                            NK())) {
+                                ret_A_format = sc_data_format_t::MKmk(
+                                        iim_block, iik_block);
                             } else {
-                                if (constant_A
-                                        || (!dynamic && A_format.is_blocking()
-                                                && p2bmp_a.at(0).size() > 1
-                                                && p2bmp_a.at(1).size() > 1)
-                                        || A_isp || (!dynamic && M % iim_block)
-                                        || (!dynamic && K % iik_block)) {
-                                    ret_A_format = sc_data_format_t::MKmk(
-                                            iim_block, iik_block);
-                                } else {
-                                    ret_A_format = sc_data_format_t::MK();
-                                }
-                                if (dynamic && A_format.is_blocking()
-                                        && p2bmp_a.at(0).size() > 1
-                                        && p2bmp_a.at(1).size() > 1) {
-                                    ret_A_format = A_format;
-                                    iim_block = transposed_a
-                                            ? A_format.blocks_[1]
-                                            : A_format.blocks_[0];
-                                    iik_block = transposed_a
-                                            ? A_format.blocks_[0]
-                                            : A_format.blocks_[1];
-                                }
-                                if (!dynamic) {
-                                    in_formats.push_back({ret_A_format});
-                                }
+                                ret_A_format = sc_data_format_t::MK();
+                            }
+                            if (dynamic && A_format.is_blocking()
+                                    && p2bmp_a.at(0).size() > 1
+                                    && p2bmp_a.at(1).size() > 1) {
+                                ret_A_format = A_format;
+                                iim_block = transposed_a ? A_format.blocks_[1]
+                                                         : A_format.blocks_[0];
+                                iik_block = transposed_a ? A_format.blocks_[0]
+                                                         : A_format.blocks_[1];
+                            }
+                            if (!dynamic) {
+                                in_formats.push_back({ret_A_format});
                             }
                         } else {
                             COMPILE_ASSERT(0,
@@ -293,26 +290,7 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                             } else if (is_B_vnni_low_fp) {
                                 // do vnni reorder in template for
                                 // transposed matmul
-                                bool special_b
-                                        = B_format == sc_data_format_t::NK();
-                                bool shape_small = (M <= 512 && K < 4096
-                                        && N * K <= 4096 * 4096);
-                                if (!dynamic
-                                        && ((B_format == sc_data_format_t::MK()
-                                                    && attrs_.get_or_else(
-                                                            "transposed"
-                                                            "_a",
-                                                            false))
-                                                || (special_b
-                                                        && attrs_.get_or_else(
-                                                                "transposed"
-                                                                "_b",
-                                                                false)
-                                                        && shape_small))) {
-                                    // do pre-op fusion for NK -> NKkn2k
-                                    // only when shapes are small.
-                                    ret_B_format = B_format;
-                                } else {
+                                if (!dynamic) {
                                     ret_B_format = sc_data_format_t::NKkn2k(
                                             iik_block, iin_block);
                                 }
