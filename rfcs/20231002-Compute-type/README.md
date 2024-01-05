@@ -155,6 +155,42 @@ If this option gets traction, I would recommend to make `compute_type`
 take precedence, and allow it to be non-default only when one of the
 inputs is integral.
 
+# 3.e Introduce `intmath_mode` attribute
+
+Comparing to the 3.c this option separates math_mode into 2 independent
+compute modes for integer and floating primitives. The reason is that
+while `fpmath_mode` is a hint to speed-up the computations,
+`intmath_mode` is a requirement to compute in higher precision to
+preserve accuracy.
+
+The main benefit of this approach is that we split these 2 different
+features into 2 independent APIs to make them simpler for both
+implementations and users.
+
+The downside is it is not always clear if a primitive has integral or
+floating-point compute data type, especially if it does not have weights
+(for example, normalization) or has multiple weights with different
+data types (for example, RNN). We will have to document which primitives
+rely on math mode and which ignore it.
+
+Example for weights decompression.
+```c++
+memory::desc src_md({M, K}, memory::data_type::f32, {K, 1});
+memory::desc wei_md({K, N}, memory::data_type::s8, memory::format_tag::any);
+memory::desc dst_md({M, N}, memory::data_type::f32, {N, 1});
+
+primitive_attr attr;
+attr.set_scales_mask(DNNL_ARGS_WEIGHTS, weights_scales_mask);
+attr.set_zero_points_mask(DNNL_ARGS_WEIGHTS, weights_zero_points_mask);
+
+// default fpmath_mode should fail to create the primitive
+// as it is ambuiguous if weights need upconversion or src need downconversion
+auto pd = matmul::primitive_desc(eng, src_md, wei_md, dst_md, attr);
+
+// this will upconvert/downconvert weights/src to bf16 and compute in bf16
+attr.set_intmath_mode(fpmath_mode::bf16);
+auto pd = matmul::primitive_desc(eng, src_md, wei_md, dst_md, attr);
+```
 
 # 4. Summary
 We would recommend to go with option 3.c, as it allows to preserve
