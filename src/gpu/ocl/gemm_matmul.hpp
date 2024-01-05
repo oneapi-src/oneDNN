@@ -239,6 +239,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
             };
 
             CHECK(gemm_attr.set_fpmath_mode(attr()->fpmath_mode_));
+            gemm_attr.deterministic_ = attr()->deterministic_;
 
             dims_t orig_a_dims, orig_b_dims, orig_c_dims, orig_bias_dims;
             bool reshape = maybe_reshape(orig_a_dims, orig_b_dims, orig_c_dims,

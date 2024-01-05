@@ -350,6 +350,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     eval_params.cConvert = (acc_type != c_type);
     eval_params.euCount = eu_count;
     eval_params.batch = (batch_dims > 0);
+    eval_params.deterministic = (mode & mode_deterministic);
 
     entry_ = select(
             gemm_catalog, npatterns, match_params, eval_params, aux_params_);

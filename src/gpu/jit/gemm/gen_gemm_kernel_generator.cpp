@@ -20370,6 +20370,7 @@ CommonDriverInfo gemm_kernel_generator_t<hw>::driverInfo(
         info.flags |= FlagFixedWGK;
     if (problem.alpha.pointer()) info.flags |= FlagAlphaPtr;
     if (problem.beta.pointer()) info.flags |= FlagBetaPtr;
+    if (strategy.nondeterministic(problem)) info.flags |= FlagNondeterministic;
     info.flags |= (strategy.fillGoal << FlagShiftFillGoal) & FlagMaskFillGoal;
     info.slm = int(gemmSLMSize(problem, strategy));
     info.perKSLM = int(gemmPerKSLMSize(problem, strategy));
@@ -20856,6 +20857,16 @@ bool GEMMStrategy::needsTempC(const GEMMProblem &problem) const {
     if (!problem.beta0() && !problem.beta1() && altFusedBeta) return true;
     for (int i = 1; i < problem.postOps.len(); i++)
         if (problem.postOps.entry_[i].kind == primitive_kind::sum) return true;
+    return false;
+}
+
+// Check if this strategy is guaranteed to be nondeterministic.
+bool GEMMStrategy::nondeterministic(const GEMMProblem &problem) const {
+    if (kParallel) return true;
+    if (problem.sumA && slmA && coopA == CoopSplit::K && wg[LoopN] > 2)
+        return true;
+    if (problem.sumB && slmB && coopB == CoopSplit::K && wg[LoopM] > 2)
+        return true;
     return false;
 }
 

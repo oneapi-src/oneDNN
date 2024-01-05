@@ -199,12 +199,11 @@ struct gen_gemm_t : public gpu_gemm_t {
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
 
             if (attr()->mayidownconvert(f32, tf32))
-                mode = static_cast<decltype(mode)>(
-                        mode | kernel_desc_t::mode_tf32);
-
+                set_mode(mode, kernel_desc_t::mode_tf32);
             if (attr()->mayidownconvert(f32, bf16))
-                mode = static_cast<decltype(mode)>(
-                        mode | kernel_desc_t::mode_bf16x1);
+                set_mode(mode, kernel_desc_t::mode_bf16x1);
+            if (attr()->deterministic_)
+                set_mode(mode, kernel_desc_t::mode_deterministic);
 
             status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
@@ -227,6 +226,10 @@ struct gen_gemm_t : public gpu_gemm_t {
                 ok &= !with_eltwise && !with_binary
                         && utils::one_of(d->c_type(), f32, s32);
             }
+
+            // Ensure kernel can be run deterministically if required.
+            if (attr()->deterministic_)
+                ok &= !kernel_desc_.driver_info()->nondeterministic();
 
             if (!ok) return status::unimplemented;
 

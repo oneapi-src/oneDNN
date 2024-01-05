@@ -1240,6 +1240,7 @@ struct GEMMStrategy : public GEMMStrategyPOD {
         return 64 * (int(fuseBeta) + int(fusePostOps));
     }
     bool needsTempC(const GEMMProblem &problem) const;
+    bool nondeterministic(const GEMMProblem &problem) const;
 
     bool checkAdd32Rem() const { return checkAdd32 && emulate.emulate64; }
 
