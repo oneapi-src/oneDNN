@@ -17,6 +17,8 @@
 #ifndef CPU_X64_JIT_BRGEMM_1X1_CONV_HPP
 #define CPU_X64_JIT_BRGEMM_1X1_CONV_HPP
 
+#include <forward_list>
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
@@ -53,7 +55,15 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine);
 
+        struct brgemm_init_params_t {
+            brgemm_init_params_t(int k_accum_idx, int m, int n, int k)
+                : k_accum_idx_(k_accum_idx), M_(m), N_(n), K_(k) {}
+            const int k_accum_idx_; // controls brgemm:beta param
+            const int M_, N_, K_;
+        };
+
         std::shared_ptr<brgemm_containers::brgemm_desc_container_t> brgs_;
+        std::forward_list<brgemm_init_params_t> brgemm_init_params_;
 
         bool need_postwork_;
         int ic_chunks_;
@@ -74,6 +84,9 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
             return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
                     && mask_src == 0 && mask_dst == 0;
         }
+
+    private:
+        status_t init_brgemm_desc();
     };
 
     brgemm_1x1_convolution_fwd_t(const pd_t *apd)
@@ -136,6 +149,15 @@ private:
 
     status_t execute_forward_all(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    static int get_brg_idx(const jit_brgemm_conv_conf_t &jcp,
+            const typename pd_t::brgemm_init_params_t &bparams) {
+        const int k_accum_idx = bparams.k_accum_idx_;
+        const int is_M_tail = bparams.M_ == jcp.M_tail;
+        const int is_N_tail = bparams.N_ == jcp.N_tail;
+        const int is_K_tail = bparams.K_ == jcp.K_tail;
+        return get_brg_idx(k_accum_idx, is_M_tail, is_N_tail, is_K_tail);
+    }
 
     static int get_brg_idx(bool do_initialization, int is_M_tail,
             bool is_N_tail, bool is_K_tail) {

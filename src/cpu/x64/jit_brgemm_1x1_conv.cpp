@@ -84,11 +84,6 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
     brgs_ = std::make_shared<brgemm_containers::brgemm_desc_container_t>(16);
 
-    const float alpha = 1.0;
-    const float beta = 1.0;
-    const auto &p = attr()->post_ops_;
-    const bool with_sum = p.find(primitive_kind::sum) != -1;
-
     ic_chunks_ = div_up(jcp_.nb_ic, jcp_.nb_ic_blocking);
     need_postwork_ = jcp_.with_bias || jcp_.with_eltwise || jcp_.with_binary
             || (one_of(src_type, u8, s8) && wei_type == s8) // oscales needed
@@ -96,17 +91,45 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
     int i_init_begin = (ic_chunks_ == 1) ? 1 : 0;
     int i_init_end = 2;
-
-    for_(int i_M = 0; i_M < 2; i_M++)
-    for_(int i_N = 0; i_N < 2; i_N++)
-    for_(int i_K = 0; i_K < 2; i_K++)
+    for_(int vM : {jcp_.M, jcp_.M_tail})
+    for_(int vN : {jcp_.N, jcp_.N_tail})
+    for_(int vK : {jcp_.K, jcp_.K_tail})
     for (int i_init = i_init_begin; i_init < i_init_end; i_init++) {
-        auto vbeta = (i_init) ? 0 : beta;
-        auto vM = (i_M) ? jcp_.M_tail : jcp_.M;
-        auto vN = (i_N) ? jcp_.N_tail : jcp_.N;
-        auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
-        const auto brg_idx = get_brg_idx(i_init, i_M, i_N, i_K);
         if (vM == 0 || vN == 0 || vK == 0) continue;
+        brgemm_init_params_.emplace_front(i_init, vM, vN, vK);
+    }
+
+    CHECK(init_brgemm_desc());
+
+    brgemm_convolution_utils::set_amx_wsp_per_thread(jcp_);
+    auto scratchpad = scratchpad_registry().registrar();
+    brgemm_convolution_utils::init_scratchpad(scratchpad, jcp_);
+    if (jcp_.with_scales)
+        book_precomputed_scales(scratchpad, attr()->scales_, OC(),
+                jcp_.scale_adjust_factor != 1.0f);
+
+    return status::success;
+}
+
+template <cpu_isa_t isa>
+status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init_brgemm_desc() {
+
+    const auto src_type = src_md(0)->data_type;
+    const auto wei_type = weights_md(0)->data_type;
+    const float alpha = 1.0;
+    const float beta = 1.0;
+
+    for (auto params : brgemm_init_params_) {
+        const auto vM = params.M_;
+        const auto vN = params.N_;
+        const auto vK = params.K_;
+
+        const int k_accum_idx = params.k_accum_idx_;
+        const bool req_k_accum = k_accum_idx != 1;
+        const auto vbeta = req_k_accum ? beta : 0;
+
+        const auto brg_idx = get_brg_idx(jcp_, params);
+
         brgemm_t brg;
         brgemm_strides_t brg_strides;
         brg_strides.stride_a = jcp_.brg_stride_a;
@@ -144,7 +167,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
         auto LDD = jcp_.oc_without_padding;
-        brg.with_sum = with_sum;
+        const auto &p = attr()->post_ops_;
+        brg.with_sum = p.find(primitive_kind::sum) != -1;
         brg.with_weights_scale_adjust = jcp_.scale_adjust_factor != 1.0f;
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
@@ -152,14 +176,6 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                 brg.get_wsp_buffer_size(), jcp_.amx_buf_size_per_thread);
         brgs_->insert(brg_idx, brg);
     }
-
-    brgemm_convolution_utils::set_amx_wsp_per_thread(jcp_);
-    auto scratchpad = scratchpad_registry().registrar();
-    brgemm_convolution_utils::init_scratchpad(scratchpad, jcp_);
-    if (jcp_.with_scales)
-        book_precomputed_scales(scratchpad, attr()->scales_, OC(),
-                jcp_.scale_adjust_factor != 1.0f);
-
     return status::success;
 }
 
@@ -228,21 +244,14 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
         }
     }
 
-    int i_init_begin = (pd()->ic_chunks == 1) ? 1 : 0;
-    int i_init_end = 2;
-
-    const auto &brgs = *(pd()->brgs_);
-
-    const bool is_amx = brgemm_convolution_utils::is_amx(isa);
-    for_(int i_M = 0; i_M < 2; i_M++)
-    for_(int i_N = 0; i_N < 2; i_N++)
-    for_(int i_K = 0; i_K < 2; i_K++)
-    for (int i_init = i_init_begin; i_init < i_init_end; i_init++) {
-        auto brg_idx = get_brg_idx(i_init, i_M, i_N, i_K);
+    for (auto params : pd()->brgemm_init_params_) {
+        const auto brg_idx = get_brg_idx(jcp, params);
+        const auto &brgs = *(pd()->brgs_);
         auto brg = brgs[brg_idx];
         if (brg != nullptr && brg->bcast_dim > 0 && brg->load_dim > 0
                 && brg->reduce_dim > 0 && !brg_kernels_[brg_idx]) {
             CHECK(brg_kernels_.insert(brg_idx, brg));
+            const bool is_amx = brgemm_convolution_utils::is_amx(isa);
             if (is_amx) brgemm_palettes_.insert(brg_idx, brg);
         }
     }
