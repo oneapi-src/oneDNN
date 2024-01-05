@@ -764,10 +764,17 @@ public:
         mov(1, _x, x);
 
         // qot = (x * m) >> p
-        auto acc = acc0.retype(div_type);
-        mul(1, acc[0], _x, m & 0xFFFF);
-        mach(1, _qot, _x, m);
-        shr<uint32_t>(1, _qot, _qot, p - 32);
+        bool use_mach = true;
+        if (use_mach) {
+            auto acc = acc0.retype(div_type);
+            mul(1, acc[0], _x, m & 0xFFFF);
+            mach(1, _qot, _x, m);
+            shr<uint32_t>(1, _qot, _qot, p - 32);
+        } else {
+            auto q_tmp = qot_tmp.retype(ngen::DataType::q);
+            emul(1, q_tmp[0], _x, m);
+            eshr(1, q_tmp.uq(0), q_tmp.uq(0), p);
+        }
         if (!qot.isInvalid()) mov(mod, qot, _qot);
 
         if (!rem.isInvalid()) {
