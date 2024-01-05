@@ -33,6 +33,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_GPU_VENDOR               | **INTEL**, NVIDIA, AMD                     | Defines GPU vendor for GPU engines                                                              |
 | ONEDNN_DPCPP_HOST_COMPILER      | **DEFAULT**, *GNU C++ compiler executable* | Specifies host compiler executable for SYCL runtime                                             |
 | ONEDNN_LIBRARY_NAME             | **dnnl**, *library name*                   | Specifies name of the library                                                                   |
+| ONEDNN_TEST_SET                 | SMOKE, **CI**, NIGHTLY, MODIFIER_NAME      | Specifies the testing coverage enabled through the generated testing targets                    |
 
 All building options listed support their counterparts with `DNNL` prefix
 instead of `ONEDNN`. `DNNL` options would take precedence over `ONEDNN`
@@ -121,6 +122,32 @@ AVX2 sets, but removes AVX512 and AMX kernels:
 ```
 -DONEDNN_ENABLE_GEMM_KERNELS_ISA=AVX2
 ```
+
+### Configuring testing
+
+#### ONEDNN_TEST_SET
+This option specifies testing coverage enabled through testing targets generated
+by the build system. The variable consists of two parts: the set value which
+defines the number of test cases, and the modifiers for testing commands. The
+final string must contain a single value for a set and as many compatible values
+for modifiers.
+
+The set value is defined by one of: `SMOKE`, `CI`, or `NIGHTLY`.
+The modifier values (referred as `MODIFIER_NAME`) are one of: `NO_CORR`.
+The input is expected in the CMake list style - a semicolon separated string -
+e.g., `ONEDNN_TEST_SET=CI;NO_CORR`.
+
+When `SMOKE` value is specified, it enables a short set of test cases which
+verifies that basic library functionality works as expected.
+When `CI` value is specified, it enables a regular set of test cases which
+verifies that all library supported functionality works as expected.
+When `NIGHTLY` value is specified, it enables the largest set of test cases
+which verifies that all library supported functionality and all kernel
+optimizations work as expected.
+
+When `NO_CORR` modifier value is specified, it removes correctness validation,
+which is set by default, from benchdnn testing targets. It helps to save time
+when correctness validation is not necessary.
 
 ## CPU Options
 Intel Architecture Processors and compatible devices are supported by

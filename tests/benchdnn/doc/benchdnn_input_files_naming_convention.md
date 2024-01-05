@@ -46,9 +46,8 @@ file to avoid option collision.
 * **test_\<driver\>_ci**: These files are used in the CI testing cycle. CI is
   a thin layer targeting to cover most features available in the library for a
   single driver. To deploy benchdnn testing targets with CI inputs,
-  DNNL_TEST_SET=CI or DNNL_TEST_SET=CI_NO_CORR should be specified. If no
-  additional `_ci` files are present, an input file will be shared between CPU
-  and GPU backend.
+  DNNL_TEST_SET=CI should be specified. If no additional `_ci` files are
+  present, an input file will be shared between CPU and GPU backend.
     * **test_\<driver\>_gpu_ci**: These files are used in CI testing for GPU
       when differentiation on input files are needed. `_ci` file in this case
       will not be used for GPU backend.

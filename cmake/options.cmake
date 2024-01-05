@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2023 Intel Corporation
+# Copyright 2018-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,16 +70,10 @@ option(DNNL_DEV_MODE "Enables internal tracing capabilities" OFF)
 option(DNNL_WERROR "treat warnings as errors" OFF)
 
 set(DNNL_TEST_SET "CI" CACHE STRING
-    "specifies testing targets coverage. Supports SMOKE, CI, CI_NO_CORR,
-    NIGHTLY.
-
-    When SMOKE option is set, it enables a subset of test targets which verify
-        that basic library functionality works as expected.
-    When CI option is set, it enables a subset of test targets to run.
-    When CI_NO_CORR option is set, it enables same coverage as for CI option,
-        but switches off correctness validation for benchdnn targets.
-    When NIGHTLY option is set, it enables a broader set of test targets to
-        run.")
+    "specifies the testing coverage. The variable consists of two parts:
+    the set value defining the number of test cases, and the modifiers for
+    testing commands. The input is expected in the CMake list style - a
+    semicolon separated string, e.g., DNNL_TEST_SET=CI;NO_CORR.")
 
 set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
     "specifies installation mode; supports DEFAULT, BUNDLE and BUNDLE_V2.

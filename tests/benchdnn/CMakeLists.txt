@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2023 Intel Corporation
+# Copyright 2017-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ function(register_benchdnn_test engine driver test_file)
     endif()
 
     set(test_mode "C")
-    if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI_NO_CORR)
+    if(DNNL_TEST_SET_HAS_NO_CORR EQUAL 1)
         set(test_mode "R")
     endif()
 
@@ -150,15 +150,14 @@ foreach(driver ${all_drivers})
     file(GLOB test_files_smoke RELATIVE ${driver_dir} inputs/${driver}/test_*_smoke)
     file(GLOB test_files_cpu RELATIVE ${driver_dir} inputs/${driver}/test_*)
 
-    if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_SMOKE)
+    if(DNNL_TEST_SET_COVERAGE EQUAL DNNL_TEST_SET_SMOKE)
         if(has_gpu)
             register_all_tests(gpu "${driver}" "${test_files_smoke}")
         endif()
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_smoke}")
         endif()
-    elseif((DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI_NO_CORR)
-        OR (DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI))
+    elseif(DNNL_TEST_SET_COVERAGE EQUAL DNNL_TEST_SET_CI)
         if(NOT DNNL_EXPERIMENTAL_SPARSE)
             list(REMOVE_ITEM test_files_ci "test_matmul_sparse_ci")
         endif()
@@ -180,7 +179,7 @@ foreach(driver ${all_drivers})
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_ci}")
         endif()
-    elseif(DNNL_TEST_SET EQUAL DNNL_TEST_SET_NIGHTLY)
+    elseif(DNNL_TEST_SET_COVERAGE EQUAL DNNL_TEST_SET_NIGHTLY)
         if(NOT DNNL_EXPERIMENTAL_SPARSE)
             list(REMOVE_ITEM test_files_cpu "test_matmul_sparse")
         endif()
@@ -201,7 +200,5 @@ foreach(driver ${all_drivers})
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_cpu}")
         endif()
-    else()
-        message(FATAL_ERROR "DNNL_TEST_SET doesn't support ${DNNL_TEST_SET} value.")
     endif()
 endforeach()
