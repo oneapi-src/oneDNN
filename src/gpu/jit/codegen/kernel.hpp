@@ -360,8 +360,8 @@ public:
             emu_state.temp[0] = ra_.alloc();
             emu_state.temp[1] = ra_.alloc();
         }
-        // Enable IEEE f32 -> s32 rounding and f32/f16 denormals.
-        or_(1, cr0, cr0, uint16_t(0x1480));
+        // Enable IEEE f32 -> s32 rounding and f64/f32/f16 denormals.
+        or_(1, cr0, cr0, uint16_t(0x14C0));
 
         // Allocate and initialize signal header for future use.
         if (require_signal_header_) {
