@@ -67,6 +67,9 @@ function(register_benchdnn_test engine driver test_file)
     set(test_mode "C")
     if(DNNL_TEST_SET_HAS_NO_CORR EQUAL 1)
         set(test_mode "R")
+    elseif(DNNL_TEST_SET_HAS_ADD_BITWISE EQUAL 1)
+        # Form a list to iterate over when registring tests
+        set(test_mode "${test_mode};B")
     endif()
 
     set(mode_modifier "")
@@ -74,37 +77,39 @@ function(register_benchdnn_test engine driver test_file)
         set(mode_modifier "--mode-modifier=P")
     endif()
 
-    string(REPLACE "test_" "test_benchdnn_" target_name ${test_file})
-    set(cmd "--mode=${test_mode} ${mode_modifier} -v1 --engine=${engine} --${driver} --batch=${test_file}")
-    set(benchdnn_target ${target_name}_${engine})
+    foreach(tm ${test_mode})
+        string(REPLACE "test_" "test_benchdnn_mode${tm}_" target_name ${test_file})
+        set(cmd "--mode=${tm} ${mode_modifier} -v1 --engine=${engine} --${driver} --batch=${test_file}")
+        set(benchdnn_target ${target_name}_${engine})
 
-    if(DNNL_BUILD_FOR_CI)
-        string(REPLACE " " ";" cmd "benchdnn ${cmd}")
-        add_dnnl_test(${benchdnn_target} ${cmd})
-    else()
-        string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
+        if(DNNL_BUILD_FOR_CI)
+            string(REPLACE " " ";" cmd "benchdnn ${cmd}")
+            add_dnnl_test(${benchdnn_target} ${cmd})
+        else()
+            string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
 
-        if(WIN32)
-            set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
-            set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
+            if(WIN32)
+                set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
+                set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
+            endif()
+
+            add_custom_target(${benchdnn_target}
+                COMMAND ${cmd}
+                DEPENDS benchdnn
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            )
+
+            set_target_properties(${benchdnn_target} PROPERTIES
+                EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+            maybe_configure_windows_test(${benchdnn_target} TARGET)
+
+            # Create non-suffixed target for compatibility
+            if (engine STREQUAL "cpu")
+                add_custom_target(${target_name} DEPENDS ${benchdnn_target})
+                maybe_configure_windows_test(${target_name} TARGET)
+            endif()
         endif()
-
-        add_custom_target(${benchdnn_target}
-            COMMAND ${cmd}
-            DEPENDS benchdnn
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        )
-
-        set_target_properties(${benchdnn_target} PROPERTIES
-            EXCLUDE_FROM_DEFAULT_BUILD TRUE)
-        maybe_configure_windows_test(${benchdnn_target} TARGET)
-
-        # Create non-suffixed target for compatibility
-        if (engine STREQUAL "cpu")
-            add_custom_target(${target_name} DEPENDS ${benchdnn_target})
-            maybe_configure_windows_test(${target_name} TARGET)
-        endif()
-    endif()
+    endforeach()
 endfunction()
 
 

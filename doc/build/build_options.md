@@ -133,7 +133,8 @@ final string must contain a single value for a set and as many compatible values
 for modifiers.
 
 The set value is defined by one of: `SMOKE`, `CI`, or `NIGHTLY`.
-The modifier values (referred as `MODIFIER_NAME`) are one of: `NO_CORR`.
+The modifier values (referred as `MODIFIER_NAME`) are one of: `NO_CORR`,
+`ADD_BITWISE`.
 The input is expected in the CMake list style - a semicolon separated string -
 e.g., `ONEDNN_TEST_SET=CI;NO_CORR`.
 
@@ -148,6 +149,9 @@ optimizations work as expected.
 When `NO_CORR` modifier value is specified, it removes correctness validation,
 which is set by default, from benchdnn testing targets. It helps to save time
 when correctness validation is not necessary.
+When `ADD_BITWISE` modifier value is specified, the build system will add an
+additional set of tests with a bitwise validation mode for benchdnn. The
+correctness set remains unmodified.
 
 ## CPU Options
 Intel Architecture Processors and compatible devices are supported by
