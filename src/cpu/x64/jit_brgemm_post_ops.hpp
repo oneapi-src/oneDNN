@@ -264,8 +264,8 @@ private:
             mov(reg_mask, half_mask);
             kmovq(k_f16_perm_mask, reg_mask);
 
-            mov(reg_mask, f16_perm_table_);
-            vmovups(vreg_perm | k_f16_perm_mask | T_z, ptr[reg_mask]);
+            vmovups(vreg_perm | k_f16_perm_mask | T_z,
+                    ptr[rip + f16_perm_table_]);
         }
 
         if (tail_length == 0) return;
@@ -278,8 +278,7 @@ private:
             kmovq(k_tail_mask, reg_mask);
 
         } else {
-            mov(reg_mask, mask_label_);
-            vmovups(vmm_tail_mask, ptr[reg_mask]);
+            vmovups(vmm_tail_mask, ptr[rip + mask_label_]);
         }
     }
 
