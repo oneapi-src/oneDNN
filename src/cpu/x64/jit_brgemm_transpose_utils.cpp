@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -362,7 +362,7 @@ void jit_brgemm_trans_m_k_f32_t::init_masks(int tail_length) {
         kmovw(k0F0F, 0x0f0f); // 0000111100001111
         kmovw(kF0F0, 0xf0f0); // 1111000011110000
     } else if (tail_length) {
-        mov(reg_tmp, mask_label_);
+        lea(reg_tmp, ptr[rip + mask_label_]);
         vmovups(ymm_tail_mask, ptr[reg_tmp]);
         vmovups(xmm_upper_tail_mask, ptr[reg_tmp + vreg_traits<Xmm>::vlen]);
     }
@@ -1728,12 +1728,10 @@ void jit_copy_f32_t::init_masks(int tail_length) {
         jit_generator::kmovd(k, regw_tmp);
     };
 
-    if (isa_has_masks(conf_->isa)) {
+    if (isa_has_masks(conf_->isa))
         kmovd(mask_tail, (1 << tail_length) - 1);
-    } else {
-        mov(reg_tmp, mask_label_);
-        vmovups(ymm_tail_mask, ptr[reg_tmp]);
-    }
+    else
+        vmovups(ymm_tail_mask, ptr[rip + mask_label_]);
 }
 
 void jit_copy_f32_t::generate() {
@@ -2073,11 +2071,10 @@ void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
     // load permute indices from data section
     Label full_ocb_label, finish_label, permute_index_table;
     if (!is_f32) {
-        mov(reg_tmp, permute_index_table);
         if (is_xf16)
-            vmovdqu16(zmm_idx, ptr[reg_tmp]);
+            vmovdqu16(zmm_idx, ptr[rip + permute_index_table]);
         else
-            vmovdqu8(zmm_idx, ptr[reg_tmp]);
+            vmovdqu8(zmm_idx, ptr[rip + permute_index_table]);
     }
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
@@ -2963,7 +2960,6 @@ void jit_amx_ip_trans_diff_wei_to_vnni_t::generate() {
 
     const reg64_t &reg_output = r15;
     const reg64_t &reg_input = r14;
-    const reg64_t &reg_prm_table = r13;
     const reg64_t &reg_last_ic_block = r12;
     const reg64_t &reg_last_oc_block = r11;
     const reg32_t &regw_tmp = r10d;
@@ -3138,8 +3134,7 @@ void jit_amx_ip_trans_diff_wei_to_vnni_t::generate() {
     mov(reg_last_ic_block, ptr[abi_param1 + GET_OFF(last_ic_block)]);
     mov(reg_last_oc_block, ptr[abi_param1 + GET_OFF(last_oc_block)]);
 
-    mov(reg_prm_table, prm_table);
-    vmovups(zmm_idx, ptr[reg_prm_table]);
+    vmovups(zmm_idx, ptr[rip + prm_table]);
 
     cmp(reg_last_oc_block, 0);
     je(skip_oc_tail, T_NEAR);
