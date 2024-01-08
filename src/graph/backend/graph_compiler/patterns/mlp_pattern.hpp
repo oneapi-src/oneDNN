@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -259,6 +259,8 @@ pm::pb_node_t *append_rms_norm_option1(
     auto pow = pgraph->append_op(graph::op_kind::Pow, {in_edge(0, input, 0)});
     auto mean = pgraph->append_op(
             graph::op_kind::ReduceMean, {in_edge(0, pow, 0)});
+    mean->append_decision_function(check_input_num<1>);
+    mean->append_decision_function(check_reduce_attrs);
     auto add = pgraph->append_op(graph::op_kind::Add, {in_edge(0, mean, 0)});
     auto rsqrt = pgraph->append_op(graph::op_kind::Pow, {in_edge(0, add, 0)});
     auto mul1 = pgraph->append_op(graph::op_kind::Multiply,
@@ -291,6 +293,8 @@ pm::pb_node_t *append_rms_norm_option2(
     auto pow = pgraph->append_op(graph::op_kind::Pow, {in_edge(0, pow_in, 0)});
     auto mean = pgraph->append_op(
             graph::op_kind::ReduceMean, {in_edge(0, pow, 0)});
+    mean->append_decision_function(check_input_num<1>);
+    mean->append_decision_function(check_reduce_attrs);
     auto add = pgraph->append_op(graph::op_kind::Add, {in_edge(0, mean, 0)});
     auto rsqrt = pgraph->append_op(graph::op_kind::Pow, {in_edge(0, add, 0)});
     auto mul1 = pgraph->append_op(graph::op_kind::Multiply,
@@ -512,6 +516,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto reduce_bias = bwd_mlp_layer->append_op(
                             graph::op_kind::ReduceSum,
                             {in_edge(0, activation_bwd, 0)});
+                    reduce_bias->append_decision_function(check_input_num<1>);
                     reduce_bias->append_decision_function(check_reduce_attrs);
 
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
@@ -537,6 +542,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto reduce_bias_last
                             = last_layer->append_op(graph::op_kind::ReduceSum,
                                     {in_edge(0, activation_bwd_last, 0)});
+                    reduce_bias_last->append_decision_function(
+                            check_input_num<1>);
                     reduce_bias_last->append_decision_function(
                             check_reduce_attrs);
                     last_layer->create_input_port(0, activation_bwd_last, 1);
@@ -1208,6 +1215,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto reduce_bias = bwd_mlp_layer->append_op(
                             graph::op_kind::ReduceSum,
                             {in_edge(0, activation_bwd, 0)});
+                    reduce_bias->append_decision_function(check_input_num<1>);
                     reduce_bias->append_decision_function(check_reduce_attrs);
 
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
@@ -1233,6 +1241,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto reduce_bias_last
                             = last_layer->append_op(graph::op_kind::ReduceSum,
                                     {in_edge(0, activation_bwd_last, 0)});
+                    reduce_bias_last->append_decision_function(
+                            check_input_num<1>);
                     reduce_bias_last->append_decision_function(
                             check_reduce_attrs);
                     last_layer->create_input_port(0, activation_bwd_last, 1);

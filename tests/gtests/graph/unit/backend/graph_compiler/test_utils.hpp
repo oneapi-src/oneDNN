@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,6 +81,13 @@ namespace utils {
 
 #define REQUIRE_SINGLE_OP_PATTERN() \
     if (!graph::utils::getenv_int_internal( \
+                "ENABLE_GRAPH_COMPILER_SINGLE_OP_PATTERN", 0)) { \
+        GTEST_SKIP(); \
+        return; \
+    }
+
+#define SKIP_WHEN_SINGLE_OP_PATTERN_ON() \
+    if (graph::utils::getenv_int_internal( \
                 "ENABLE_GRAPH_COMPILER_SINGLE_OP_PATTERN", 0)) { \
         GTEST_SKIP(); \
         return; \

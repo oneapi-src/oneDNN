@@ -547,6 +547,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto softmax_sum
                             = pgraph->append_op(graph::op_kind::ReduceSum,
                                     {in_edge(0, softmax_mul, 0)});
+                    softmax_sum->append_decision_function(check_input_num<1>);
                     softmax_sum->append_decision_function(check_reduce_attrs);
                     auto softmax_sub
                             = pgraph->append_op(graph::op_kind::Subtract,
@@ -1228,6 +1229,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto softmax_sum
                             = pgraph->append_op(graph::op_kind::ReduceSum,
                                     {in_edge(0, softmax_mul, 0)});
+                    softmax_sum->append_decision_function(check_input_num<1>);
                     softmax_sum->append_decision_function(check_reduce_attrs);
                     auto softmax_sub
                             = pgraph->append_op(graph::op_kind::Subtract,

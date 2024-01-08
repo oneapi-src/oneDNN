@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -535,6 +535,7 @@ pm::pb_op_t *conv_bn_relu(const std::shared_ptr<pb_graph_t> &pgraph,
             = pgraph->append_op(graph::op_kind::BatchNormForwardTraining,
                     in_edges_t {in_edge(0, conv, 0)});
     bn->allow_external_outputs();
+    bn->append_decision_function(check_input_num<5>);
     pm::pb_op_t *output = bn;
     if (has_relu) {
         output = pgraph->append_op(graph::op_kind::ReLU, {in_edge(0, bn, 0)});
@@ -560,6 +561,8 @@ pm::pb_op_t *conv_bn_relu_bwd(const std::shared_ptr<pb_graph_t> &pgraph,
     pm::pb_op_t *bn_bwd = pgraph->append_op(
             graph::op_kind::BatchNormTrainingBackward, in_edges);
     bn_bwd->allow_external_outputs();
+    bn_bwd->append_decision_function(check_input_num<5>);
+    bn_bwd->append_decision_function(check_output_num<3>);
     pm::pb_op_t *conv_bwd_data
             = pgraph->append_op(graph::op_kind::ConvolutionBackwardData,
                     in_edges_t {in_edge(0, bn_bwd, 0)});
