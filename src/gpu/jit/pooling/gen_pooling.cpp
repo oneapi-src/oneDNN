@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,8 +67,8 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp16)
                             && compute_engine->mayiuse(compute::device_ext_t::
                                             intel_subgroups_short))
-            && IMPLICATION(src_data_t == bf16, // easier to refuse BF16 on XeHPG
-                    arch != compute::gpu_arch_t::xe_hpg);
+            && IMPLICATION(
+                    src_data_t == bf16, arch >= compute::gpu_arch_t::xe_hpc);
     if (!ok) return status::unimplemented;
 
     src = std::make_shared<layout_t>(invariant_src_md());
