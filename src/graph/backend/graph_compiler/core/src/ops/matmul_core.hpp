@@ -65,8 +65,8 @@ public:
     infer_status_code infer_slice_ranges(
             const context_ptr &ctx, fslice_map &fsmap) override;
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
+    void infer_binding_axis(binding_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
     void set_config_by_key(
             const op_dispatch_key_t &key, const context_ptr &ctx) override;
@@ -82,8 +82,8 @@ public:
 blocking_axis_t get_mm_blocking_axis(const logical_tensor_t &inp,
         const logical_tensor_t &wei, const logical_tensor_t &out);
 
-void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map);
-void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map);
+void infer_matmul_binding_axis(tunable_op_t *cur, binding_axis_map &bdax_map);
+void pre_matmul_binding_axis(tunable_op_t *cur, binding_axis_map &bdax_map);
 
 } // namespace ops
 } // namespace gc

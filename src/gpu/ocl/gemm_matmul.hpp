@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,6 +190,8 @@ struct gemm_matmul_t : public gpu_primitive_t {
                             auto mask = po.prelu.mask;
                             int new_mask = 0;
                             int batch_idx = reshape_size - 1;
+                            int batch_dim = 1;
+                            int mask_dim = 1;
                             //get mask for batch dim
                             for (int i = 0; i < c_md->ndims - batch_idx; i++) {
                                 if (mask >> i & 1) {
@@ -197,8 +199,13 @@ struct gemm_matmul_t : public gpu_primitive_t {
                                     if (new_mask != 0)
                                         return status::unimplemented;
                                     new_mask |= c_md->dims[i] == 1 ? 0 : 1;
+                                    mask_dim *= c_md->dims[i];
                                 }
+                                batch_dim *= c_md->dims[i];
                             }
+                            //post ops cannot be applied if applied on only on a subset of batch dims
+                            if (batch_dim != mask_dim)
+                                return status::unimplemented;
                             //get non-batch part of mask
                             auto shift = c_md->ndims - batch_idx;
                             auto non_batch_mask = mask >> shift;
@@ -243,13 +250,15 @@ struct gemm_matmul_t : public gpu_primitive_t {
             }
 
             // We create a gemm_pd and resolve 'any' desc by querying gemm_pd
-            bool ok = is_dense_format_kind()
-                    && status::success
-                            == create_gemm_pd(gemm_pd_, engine, a_md, b_md,
-                                    c_md, bias_md, acc_dt, &gemm_attr)
-                    && status::success == set_default_params()
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_MATMUL(
+                    is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
+            VDISPATCH_MATMUL_SC(create_gemm_pd(gemm_pd_, engine, a_md, b_md,
+                                        c_md, bias_md, acc_dt, &gemm_attr),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "gemm");
+            VDISPATCH_MATMUL_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_MATMUL_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
             if (reshape) {
                 CHECK(memory_desc_reshape(
                         src_md_, src_md_, orig_dims, orig_a_dims));

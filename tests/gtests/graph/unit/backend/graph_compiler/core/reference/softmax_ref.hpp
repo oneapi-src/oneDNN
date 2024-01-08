@@ -26,6 +26,14 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
+
+enum class test_op_type {
+    SOFTMAX = 0,
+    SOFTMAX_BWD,
+    LOG_SOFTMAX,
+    LOG_SOFTMAX_BWD
+};
+
 inline sc_dim product(const sc_dims &vec) {
     sc_dim res = 1;
     for (auto e : vec) {
@@ -49,8 +57,8 @@ inline sc_dim flatten_index(const sc_dims &index, const sc_dims &range) {
     return result;
 }
 
-inline std::vector<float> ref_softmax(const std::vector<float> &data,
-        const sc_dims &input_dims, std::vector<int> keep_axis) {
+inline static sc_dims find_rd_axis(
+        const sc_dims &input_dims, std::vector<int> &keep_axis) {
     sc_dims axis;
     if (keep_axis.size() == 1 && keep_axis[0] == -1) {
         for (size_t i = 0; i < input_dims.size() - 1; i++) {
@@ -64,18 +72,11 @@ inline std::vector<float> ref_softmax(const std::vector<float> &data,
             }
         }
     }
-    std::sort(axis.begin(), axis.end());
-    const int num_of_loops = input_dims.size();
-    sc_dims lp_vars(num_of_loops, 0);
-    std::vector<float> ret(data.size());
+    return axis;
+}
 
-    // exp
-    for (unsigned i = 0; i < data.size(); i++) {
-        ret[i] = exp(data[i]);
-    }
-
-    // reduce
-    sc_dims reduced_dims;
+inline static void get_rd_dims(
+        sc_dims &axis, const sc_dims &input_dims, sc_dims &reduced_dims) {
     if (axis.size() == input_dims.size()) {
         reduced_dims.push_back(1);
     } else {
@@ -87,6 +88,37 @@ inline std::vector<float> ref_softmax(const std::vector<float> &data,
             }
         }
     }
+}
+
+inline std::vector<float> ref_softmax(const std::vector<float> &data,
+        const sc_dims &input_dims, std::vector<int> keep_axis,
+        test_op_type test_type = test_op_type::SOFTMAX,
+        const std::vector<float> &inp2 = {}) {
+    sc_dims axis = find_rd_axis(input_dims, keep_axis);
+    std::sort(axis.begin(), axis.end());
+    const int num_of_loops = input_dims.size();
+    sc_dims lp_vars(num_of_loops, 0);
+    std::vector<float> ret(data.size());
+
+    // exp or mul
+    for (unsigned i = 0; i < data.size(); i++) {
+        switch (test_type) {
+            case test_op_type::SOFTMAX:
+            case test_op_type::LOG_SOFTMAX: {
+                ret[i] = exp(data[i]);
+            } break;
+            case test_op_type::SOFTMAX_BWD: {
+                ret[i] = data[i] * inp2[i];
+            } break;
+            case test_op_type::LOG_SOFTMAX_BWD: {
+                ret[i] = data[i];
+            } break;
+        }
+    }
+
+    // reduce
+    sc_dims reduced_dims;
+    get_rd_dims(axis, input_dims, reduced_dims);
 
     std::vector<float> reduce_result;
     reduce_result.resize(product(reduced_dims));
@@ -121,9 +153,9 @@ inline std::vector<float> ref_softmax(const std::vector<float> &data,
     reduce(0);
     std::fill(lp_vars.begin(), lp_vars.end(), 0);
 
-    // division
-    std::function<void(int)> divide;
-    divide = [&](int lp_index) {
+    // division or mul(data - rd_val)
+    std::function<void(int)> divide_or_mul;
+    divide_or_mul = [&](int lp_index) {
         for (; lp_vars[lp_index] < input_dims[lp_index]; lp_vars[lp_index]++) {
             if (lp_index == num_of_loops - 1) {
                 sc_dims reduce_vars;
@@ -142,14 +174,31 @@ inline std::vector<float> ref_softmax(const std::vector<float> &data,
                     }
                 }
                 auto index = flatten_index(lp_vars, input_dims);
-                ret[index] /= reduce_result[reduced_index];
+                switch (test_type) {
+                    case test_op_type::SOFTMAX: {
+                        ret[index] /= reduce_result[reduced_index];
+                    } break;
+                    case test_op_type::LOG_SOFTMAX: {
+                        ret[index] /= reduce_result[reduced_index];
+                        ret[index] = std::log(ret[index]);
+                    } break;
+                    case test_op_type::SOFTMAX_BWD: {
+                        ret[index] = inp2[index]
+                                * (data[index] - reduce_result[reduced_index]);
+                    } break;
+                    case test_op_type::LOG_SOFTMAX_BWD: {
+                        ret[index] = data[index]
+                                - (std::exp(inp2[index])
+                                        * reduce_result[reduced_index]);
+                    } break;
+                }
             } else {
-                divide(lp_index + 1);
+                divide_or_mul(lp_index + 1);
             }
         }
         lp_vars[lp_index] = 0;
     };
-    divide(0);
+    divide_or_mul(0);
 
     return ret;
 }

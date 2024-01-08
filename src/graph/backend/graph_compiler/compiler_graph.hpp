@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,6 +64,13 @@ public:
 
     // return whether an op is supported by compiler backend or not
     static bool is_supported_op(op_kind_t name);
+
+    // returns all supported op kinds
+    static std::vector<op_kind_t> get_supported_op_kinds();
+
+    // returns all supported op kinds
+    static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
+    compiler_backend_supported_ops();
 };
 
 } // namespace compiler_impl

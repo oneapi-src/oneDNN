@@ -64,6 +64,7 @@ public:
 };
 
 func_t get_parallel_call_with_env_func(bool managed);
+func_c remove_parallel_on_func(const func_c &f);
 } // namespace gc
 } // namespace graph
 } // namespace impl

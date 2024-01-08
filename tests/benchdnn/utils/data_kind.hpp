@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #ifndef UTILS_DATA_KIND_HPP
 #define UTILS_DATA_KIND_HPP
+
+#define BENCHDNN_DNNL_ARG_UNDEF 0
 
 enum data_kind_t {
     SRC = 0,
@@ -44,7 +46,10 @@ enum data_kind_t {
 };
 const char *data_kind2str(data_kind_t kind);
 
-// Returns correspondent `data_kind_t` value to a given `arg` value.
+// Returns correspondent `data_kind_t` value to a given execution `arg` value.
 data_kind_t exec_arg2data_kind(int arg);
+
+// Returns correspondent execution `arg` value to a given `data_kind_t` value.
+int data_kind2exec_arg(data_kind_t dk);
 
 #endif

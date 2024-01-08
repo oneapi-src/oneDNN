@@ -168,3 +168,32 @@ TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, AddInputShapeZero) {
     test_utils::compare_data(
             graph_output0_data, ref_output0_data, 1e-4f, 1e-5f);
 }
+
+TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, SingleOpShapeZero) {
+    // 64x128x28x0
+    // graph with zero shaped input tensor
+    {
+        sc_graph_t graph0;
+        auto in0 = graph0.make_input({graph_tensor::make(
+                {64, 128, 28, 0}, sc_data_format_t(), datatypes::f32)});
+        auto in1 = graph0.make_input({graph_tensor::make(
+                {64, 128, 28, 0}, sc_data_format_t(), datatypes::f32)});
+        auto add = graph0.make(
+                "add", {in0->get_outputs()[0], in1->get_outputs()[0]}, {}, {});
+        auto out = graph0.make_output(add->get_outputs());
+
+        graph_driver(graph0, get_test_ctx());
+        auto ir_mod = lower_graph(get_test_ctx(), graph0, {in0, in1, out});
+    }
+    {
+        sc_graph_t graph0;
+        auto in = graph0.make_input({graph_tensor::make(
+                {64, 128, 28, 0}, sc_data_format_t(), datatypes::f32)});
+        auto reorder = graph0.make("reorder", in->get_outputs(), {},
+                {{"internal", true}, {"out_format", sc_data_format_t::NHWC()}});
+        auto out = graph0.make_output(reorder->get_outputs());
+
+        graph_driver(graph0, get_test_ctx());
+        auto ir_mod = lower_graph(get_test_ctx(), graph0, {in, out});
+    }
+}

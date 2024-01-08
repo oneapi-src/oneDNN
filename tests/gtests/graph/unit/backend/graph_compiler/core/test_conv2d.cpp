@@ -83,11 +83,13 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int G,
             "C and K should be dividable by G, but got C("
                     << C << "), K(" << K << "), G(" << G << ").");
 
-    bool is_dw = (G > 1) && (G == C);
+    bool is_dw = (G > 1) && (G == C) && (G == K);
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
-    sc_dims data_dims = {N, C, H, W};
-    sc_dims weight_dims = {K, C / G, R, S};
+    sc_dims data_dims
+            = G > 1 ? sc_dims {N, G, C / G, H, W} : sc_dims {N, C, H, W};
+    sc_dims weight_dims
+            = G > 1 ? sc_dims {G, K / G, C / G, R, S} : sc_dims {K, C, R, S};
     auto in_a = mgr.make_input({graph_tensor::make(data_dims)});
     auto in_weight = mgr.make_input({graph_tensor::make(weight_dims)});
     auto conv_out = mgr.make("conv_fwd_core",
@@ -98,9 +100,11 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int G,
     COMPILE_ASSERT(!force_blocking || !force_channel_last,
             "only one of force_blocking and force_channel_last allowed");
     if (force_blocking) {
-        conv_out->attrs_.set<std::string>("temp.test_format", "NCHWc");
+        conv_out->attrs_.set<std::string>(
+                "temp.test_format", G > 1 ? "NGCHWc" : "NCHWc");
     } else if (force_channel_last) {
-        conv_out->attrs_.set<std::string>("temp.test_format", "NHWC");
+        conv_out->attrs_.set<std::string>(
+                "temp.test_format", G > 1 ? "NGHWC" : "NHWC");
     }
 
     auto tunop = conv_out->dyn_cast<tunable_op_t>();
@@ -121,12 +125,15 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int G,
         }
         tunop->set_config(cfgptr);
         auto pcfg = (conv_fwd_config_t *)cfgptr.get();
-        tunop->get_inputs()[0]->details_.set_format(
-                sc_data_format_t::NCHWc(pcfg->C_block));
+        tunop->get_inputs()[0]->details_.set_format(G > 1
+                        ? sc_data_format_t::NGCHWc(pcfg->C_block)
+                        : sc_data_format_t::NCHWc(pcfg->C_block));
         tunop->get_inputs()[1]->details_.set_format(
-                sc_data_format_t::KCRSck(pcfg->C_block, pcfg->K_block));
-        tunop->get_outputs()[0]->details_.set_format(
-                sc_data_format_t::NCHWc(pcfg->K_block));
+                G > 1 ? sc_data_format_t::GKCRSck(pcfg->C_block, pcfg->K_block)
+                      : sc_data_format_t::KCRSck(pcfg->C_block, pcfg->K_block));
+        tunop->get_outputs()[0]->details_.set_format(G > 1
+                        ? sc_data_format_t::NGCHWc(pcfg->K_block)
+                        : sc_data_format_t::NCHWc(pcfg->K_block));
     }
     fuse_arg_ops = {in_a, in_weight};
     sc_op_ptr final_out = conv_out;
@@ -1149,6 +1156,8 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dw) {
             // N, G, K, C, H, W, R, S, stride, padding, dilation
             {1, 8, 8, 8, 12, 12, 3, 3, 1, 0, 1},
             {14, 48, 48, 48, 114, 114, 3, 3, 2, 0, 1},
+            {14, 48, 48, 48, 114, 114, 3, 3, 2, 1, 1},
+            {14, 48, 48, 48, 114, 114, 5, 5, 2, 2, 1},
     };
     for (auto &wl : workload_list) {
         int idx = 0;

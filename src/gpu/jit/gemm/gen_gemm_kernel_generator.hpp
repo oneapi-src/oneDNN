@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -842,7 +842,7 @@ enum class COffset {
 enum class BatchMode { None, Strided, Nonstrided, Variable };
 
 // Binary operations.
-enum class BinaryOp { Add, Sub, Mul, Div, Min, Max };
+enum class BinaryOp { Add, Sub, Mul, Div, Min, Max, Prelu };
 
 // GEMM kernel problem description.
 struct GEMMProblem : public CommonProblem {
@@ -866,7 +866,7 @@ struct GEMMProblem : public CommonProblem {
     bool postOpTranspose = false; // If true, binary srcs have been transposed
 
     post_ops_t postOps; // Fused post operations to apply
-
+    memory_desc_t preluMd = glob_zero_md; // Md for prelu post op
     // The following data is derived from the postOps and does not need
     // considered for equality/hashing purposes
     std::vector<MatrixAddressing> binary; // Binary postop data
@@ -884,7 +884,9 @@ struct GEMMProblem : public CommonProblem {
     }
     bool hasBinaryPostOp() const {
         for (int idx = 0; idx < postOps.len(); idx++)
-            if (postOps.entry_[idx].is_binary()) return true;
+            if (postOps.entry_[idx].is_binary()
+                    || postOps.entry_[idx].is_prelu())
+                return true;
         return false;
     }
     bool hasSum1PostOpAtEnd() const {
@@ -936,6 +938,7 @@ struct GEMMProblem : public CommonProblem {
         s.append(postOpFwd);
         s.append(postOpTranspose);
         s.append(postOps);
+        s.append(preluMd);
     }
 };
 
@@ -2338,7 +2341,8 @@ protected:
     void gemmBetaScale(const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
     void binaryOp(BinaryOp op, int simd, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::RegData &src1);
+            const ngen::RegData &src0, const ngen::RegData &src1,
+            GEMMState &state);
     void gemmScalarBinaryOpC(BinaryOp op, const ngen::Subregister &offset,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);

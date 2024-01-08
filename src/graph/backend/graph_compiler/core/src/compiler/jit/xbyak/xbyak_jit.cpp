@@ -49,6 +49,7 @@
 #include <compiler/jit/xbyak/ir/transform/avx2_mask_indexing_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
+#include <compiler/jit/xbyak/ir/transform/fp16_legalizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/indexing_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/intrinsics_combine.hpp>
 #include <compiler/jit/xbyak/ir/transform/low_level_legalizer.hpp>
@@ -72,6 +73,8 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
 
     ret.emplace_back(module_function_pass_t::make<module_var_resolver_t>());
     ret.emplace_back(module_function_pass_t::make<indexing_transform_t>());
+    ret.emplace_back(
+            module_function_pass_t::make<fp16_legalizer_t>(ctx->machine_));
     ret.emplace_back(utils::make_unique<constant_folder_t>(false));
     ret.emplace_back(utils::make_unique<auto_caster_t>());
     ret.emplace_back(
@@ -181,7 +184,7 @@ std::shared_ptr<jit_module> xbyak_jit::make_jit_module(
     //========================================================================
     // Make xbyak_jit_module
     //========================================================================
-    bool use_managed_tp = ir_mod2->attr_.get<bool>(
+    thread_pool_mode_t use_managed_tp = ir_mod2->attr_.get<thread_pool_mode_t>(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
     auto ret = std::shared_ptr<xbyak_jit_module_code>(
             new xbyak_jit_module_code(std::move(jit_output_), use_managed_tp));
@@ -195,7 +198,7 @@ std::shared_ptr<jit_module> xbyak_jit::make_jit_module(
 
 xbyak_jit_module_code::xbyak_jit_module_code(
         std::shared_ptr<xbyak_jit_generator> jit_output,
-        bool managed_thread_pool)
+        thread_pool_mode_t managed_thread_pool)
     : jit_module_code(managed_thread_pool)
     , jit_output_(std::move(jit_output)) {}
 

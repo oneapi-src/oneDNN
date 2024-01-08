@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -172,7 +172,6 @@ std::string ocl_gpu_device_info_t::get_cl_ext_options() const {
                     device_ext_t::intel_dot_accumulate))
             opts += std::string("-D") + ext2cl_str(ext) + " ";
     }
-    if (!opts.empty()) { opts[opts.size() - 1] = '\0'; }
     return opts;
 }
 

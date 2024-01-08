@@ -21,6 +21,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <compiler/ir/graph/graph.hpp>
 #include <ops/body_generator.hpp>
 #include <util/any_map.hpp>
 
@@ -87,6 +88,8 @@ public:
     const context_ptr &ctx, conv_fwd_config_t &cfg) const;
   void adjust_config_for_cache_efficiency(
     const context_ptr &ctx, conv_fwd_config_t &cfg) const;
+  void adjust_config_for_brgemm_efficiency(
+    const context_ptr &ctx, conv_fwd_config_t &cfg) const;
 
   float get_gflop() const override;
 
@@ -112,6 +115,20 @@ public:
   sc_data_type_t get_input_dtype() const { return in_tensors_[0].dtype_; }
   sc_data_type_t get_weight_dtype() const { return in_tensors_[1].dtype_; }
   sc_data_type_t get_output_dtype() const { return out_tensors_[0].dtype_; }
+
+  std::vector<expr> data_offset(const expr &N, const expr &G, const expr &C,
+    const expr &D, const expr &H, const expr &W, const expr &C_block,
+    const expr &c_idx = expr(0)) const;
+  std::vector<expr> output_offset(const expr &N, const expr &G, const expr &C,
+    const expr &D, const expr &H, const expr &W, const expr &C_block,
+    const expr &c_idx = expr(0)) const;
+  std::vector<expr> weight_offset(const expr &G, const expr &K, const expr &C,
+    const expr &D, const expr &R, const expr &S) const;
+  void create_anchor(fusion_anchor_mgr_t *fusion,
+    const graph_tensor_ptr &output_gt, const expr &n, const int n_len,
+    const expr &g, const expr &g_len, const expr &k, const int k_len,
+    const expr &d, const int d_len, const expr &p, const expr &p_len,
+    const expr &q, const int q_len, const int K_block) const;
 
   bool generate(context_ptr ctx, const conv_fwd_config_t &config,
     fusion_anchor_mgr_t *fusion, const std::vector<expr> &inputs,
@@ -156,6 +173,7 @@ public:
   bool try_os_blocking_ = false;
   bool is_1x1_conv_ = false;
   bool is_3d_ = false;
+  bool is_group_conv_ = false;
   bool blocking_input_ = false;
   bool blocking_output_ = false;
   any_map_t attrs_;

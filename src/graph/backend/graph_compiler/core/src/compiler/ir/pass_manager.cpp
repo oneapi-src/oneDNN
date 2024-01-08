@@ -22,6 +22,7 @@
 #include "pass_id.hpp"
 #include "pass_manager.hpp"
 #include "util_module_passes.hpp"
+#include <runtime/config.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -85,6 +86,17 @@ void validate_pass_order(const context_ptr &ctx,
                 continue;
             }
             if (prev == tir_pass::index2var && !ctx->flags_.index2var_) {
+                continue;
+            }
+            if (runtime_config_t::get().managed_thread_pool_
+                            == thread_pool_mode_t::DYNAMIC
+                    && (prev == tir_pass::buffer_rescheduling_tensor_hoisting
+                            || prev == tir_pass::nested_parallel_flattener)) {
+                continue;
+            }
+            if (runtime_config_t::get().managed_thread_pool_
+                            != thread_pool_mode_t::DYNAMIC
+                    && prev == tir_pass::dynamic_parallel_transform) {
                 continue;
             }
             if (prev == tir_pass::dead_write_eliminator

@@ -25,6 +25,8 @@
 #include <runtime/context.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/generic_val.hpp>
+#include <runtime/threadpool_mode.hpp>
+
 struct brg_range_handle_t;
 
 namespace dnnl {
@@ -117,9 +119,9 @@ public:
     // the unique id for a JIT module in a process scope
     size_t module_id_;
     // whether to use managed thread pool
-    bool managed_thread_pool_;
+    thread_pool_mode_t managed_thread_pool_;
     std::string entry_func_name_;
-    jit_module_code(bool managed_thread_pool);
+    jit_module_code(thread_pool_mode_t managed_thread_pool);
     virtual void *get_address_of_symbol(const std::string &name) = 0;
     virtual void *get_function(const std::string &name, void *&wrapperfunc) = 0;
     /// This method only exists to help with debugging.
@@ -184,7 +186,8 @@ public:
 
     static std::shared_ptr<jit_function_t> make(
             const std::shared_ptr<jit_module> &module, void *funcptr,
-            void *wrapper, const std::string &name, bool managed_thread_pool);
+            void *wrapper, const std::string &name,
+            thread_pool_mode_t managed_thread_pool);
     void *get_module_data() const override {
         return module_->globals_.data_.data_;
     }

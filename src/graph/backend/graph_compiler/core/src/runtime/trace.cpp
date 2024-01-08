@@ -29,10 +29,12 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #endif
+#include <functional>
 #include <runtime/env_vars.hpp>
 #include <runtime/microkernel/cpu/kernel_timer.hpp>
 #include <runtime/runtime.hpp>
 #include <runtime/thread_locals.hpp>
+#include <runtime/thread_locals_registry.hpp>
 #include <util/string_utils.hpp>
 
 namespace dnnl {
@@ -42,42 +44,39 @@ namespace gc {
 
 SC_MODULE(runtime.trace);
 
-static struct trace_env_t {
-    std::mutex name_lock_;
-    std::vector<std::string> names_ {
-            "brgemm", "list_brgemm", "barrier", "barrier_internal", "prefetch"};
-} env;
-
 namespace runtime {
 
-static void write_json_traces(FILE *outf,
-        const std::list<thread_local_buffer_t *> &tls_buffers, int64_t min_val,
-        size_t trace_size, bool main_thread_found) {
+trace_env_t::trace_env_t()
+    : names_ {"brgemm", "list_brgemm", "barrier", "barrier_internal",
+            "prefetch"} {}
+
+static void write_json_traces(FILE *outf, thread_local_registry_t *r,
+        int64_t min_val, size_t trace_size, bool main_thread_found) {
     fputs(R"({
 "traceEvents": [
 )",
             outf);
     size_t i = 0;
-    for (auto *tlb : tls_buffers) {
+    r->for_each_tls_additional([&](thread_local_buffer_t::additional_t *tlb) {
         if (runtime_config_t::get().trace_mode_
                 < runtime_config_t::trace_mode_t::MULTI_THREAD) {
-            if (!tlb->additional_->is_main_thread_ && main_thread_found) {
-                tlb->additional_->trace_.trace_logs_.clear();
-                continue;
+            if (!tlb->is_main_thread_ && main_thread_found) {
+                tlb->trace_.trace_logs_.clear();
+                return;
             }
         }
-        for (auto &v : tlb->additional_->trace_.trace_logs_) {
+        for (auto &v : tlb->trace_.trace_logs_) {
             fprintf(outf,
                     R"({"pid":1, "tid":%zu, "ts":%lf, "ph":"%c", "name":"%s@%d", "args":{"flop":%d}, "cat":"call" }%c
 )",
-                    (size_t)tlb->additional_->linear_thread_id_,
+                    (size_t)tlb->linear_thread_id_,
                     (v.tick_ - min_val) / 1000.0, v.in_or_out_ ? 'E' : 'B',
-                    env.names_[v.func_id_].c_str(), v.func_id_, v.arg_,
-                    i == trace_size - 1 ? ' ' : ',');
+                    r->trace_env_.names_[v.func_id_].c_str(), v.func_id_,
+                    v.arg_, i == trace_size - 1 ? ' ' : ',');
             i++;
         }
-        tlb->additional_->trace_.trace_logs_.clear();
-    }
+        tlb->trace_.trace_logs_.clear();
+    });
     fputs(R"(],
 "sc_version": "0.0.0"
 }
@@ -85,27 +84,26 @@ static void write_json_traces(FILE *outf,
             outf);
 }
 
-static void write_compact_traces(FILE *outf,
-        const std::list<thread_local_buffer_t *> &tls_buffers, int64_t min_val,
-        size_t trace_size, bool main_thread_found) {
+static void write_compact_traces(FILE *outf, thread_local_registry_t *r,
+        int64_t min_val, size_t trace_size, bool main_thread_found) {
     fprintf(outf, "symbols:");
-    for (size_t i = 0; i < env.names_.size(); i++) {
-        fprintf(outf, "%zu-%s,", i, env.names_[i].c_str());
+    for (size_t i = 0; i < r->trace_env_.names_.size(); i++) {
+        fprintf(outf, "%zu-%s,", i, r->trace_env_.names_[i].c_str());
     }
     fprintf(outf, "\n");
-    for (auto *tlb : tls_buffers) {
-        fprintf(outf, "trace:%d,%d:", tlb->additional_->linear_thread_id_,
-                tlb->additional_->instance_id_);
-        for (auto &v : tlb->additional_->trace_.trace_logs_) {
+    r->for_each_tls_additional([&](thread_local_buffer_t::additional_t *tlb) {
+        fprintf(outf, "trace:%d,%d:", tlb->linear_thread_id_,
+                tlb->instance_id_);
+        for (auto &v : tlb->trace_.trace_logs_) {
             fprintf(outf, "%ld-%d-%d-%d,", (long)(v.tick_ - min_val), // NOLINT
                     v.in_or_out_, (int)v.func_id_, (int)v.arg_); // NOLINT
         }
         fprintf(outf, "\n");
-        tlb->additional_->trace_.trace_logs_.clear();
-    }
+        tlb->trace_.trace_logs_.clear();
+    });
 }
 
-void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
+void write_traces(thread_local_registry_t *r) {
     std::string &tracep = runtime_config_t::get().trace_out_path_;
     size_t trace_cap = runtime_config_t::get().trace_initial_cap_;
     if (tracep.empty()) { return; }
@@ -113,8 +111,8 @@ void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
     int64_t min_val = std::numeric_limits<uint64_t>::max();
     bool main_thread_found = false;
     bool already_warned = false;
-    for (auto v : tls_buffers) {
-        auto cur_trace_size = v->additional_->trace_.trace_logs_.size();
+    r->for_each_tls_additional([&](thread_local_buffer_t::additional_t *v) {
+        auto cur_trace_size = v->trace_.trace_logs_.size();
         trace_size += cur_trace_size;
         if (!already_warned && cur_trace_size > trace_cap) {
             already_warned = true;
@@ -124,11 +122,11 @@ void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
                               "consider enlarge "
                            << env_names[env_key::SC_TRACE_INIT_CAP];
         }
-        if (v->additional_->is_main_thread_) { main_thread_found = true; }
-        for (auto &log : v->additional_->trace_.trace_logs_) {
+        if (v->is_main_thread_) { main_thread_found = true; }
+        for (auto &log : v->trace_.trace_logs_) {
             min_val = std::min(log.tick_, min_val);
         }
-    }
+    });
     if (trace_size == 0UL) { return; }
     FILE *outf;
     const char *filename;
@@ -143,11 +141,9 @@ void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
     }
     SC_WARN << "Generating traces to " << filename << " ...";
     if (compact) {
-        write_compact_traces(
-                outf, tls_buffers, min_val, trace_size, main_thread_found);
+        write_compact_traces(outf, r, min_val, trace_size, main_thread_found);
     } else {
-        write_json_traces(
-                outf, tls_buffers, min_val, trace_size, main_thread_found);
+        write_json_traces(outf, r, min_val, trace_size, main_thread_found);
     }
     if (outf != stderr) { fclose(outf); }
 }
@@ -158,14 +154,18 @@ SC_INTERNAL_API void generate_trace_file() {
 }
 
 int register_traced_func(const std::string &name) {
-    std::lock_guard<std::mutex> guard(env.name_lock_);
-    env.names_.emplace_back(name);
-    return env.names_.size() - 1;
+    const auto &reg
+            = dnnl::impl::graph::gc::runtime::get_thread_locals_registry();
+    std::lock_guard<std::mutex> guard(reg->trace_env_.name_lock_);
+    reg->trace_env_.names_.emplace_back(name);
+    return reg->trace_env_.names_.size() - 1;
 }
 
 int get_last_trace_func_id() {
-    std::lock_guard<std::mutex> guard(env.name_lock_);
-    return env.names_.size() - 1;
+    const auto &reg
+            = dnnl::impl::graph::gc::runtime::get_thread_locals_registry();
+    std::lock_guard<std::mutex> guard(reg->trace_env_.name_lock_);
+    return reg->trace_env_.names_.size() - 1;
 }
 
 } // namespace gc

@@ -64,15 +64,13 @@ using slice_range = std::vector<std::pair<expr, expr>>;
 using slice_range_list = std::vector<slice_range>;
 using fslice_map = gt_map_t<slice_range_list>;
 
-using bound_axis = std::vector<std::vector<int>>;
-using bound_axis_map = gt_map_t<bound_axis>;
-
 using format_stride_pair = std::pair<sc_data_format_t, sc_dims>;
 using shape_rl_vec = std::vector<std::pair<sc_dim, sc_dim>>;
 
 struct dispatch_key_set_base_t;
 using dispatch_set_ptr = std::shared_ptr<dispatch_key_set_base_t>;
 struct dyn_internal_info_t;
+
 /** VConst struct record possible varible in constant value, e.g.
  *
  *   const int a = k * b;
@@ -180,9 +178,6 @@ struct sc_op_info_t {
 struct op_base_trait_t {};
 
 namespace op_attr_key {
-// const char, represents the mode of fusion, including total three modes as
-// below
-constexpr const char *fused_mode_hint = "fused_mode_hint";
 // Boolean. If true, don't fuse this Op. Default = false
 constexpr const char *no_fuse = "no_fuse";
 // Boolean. If true, don't break the fusion partition after this Op
@@ -206,6 +201,12 @@ constexpr const char *layout_input_index = "layout_input_index";
 // Could use mask select to process output for reduce, matmul or other memory
 // movement op.
 constexpr const char *use_padded_mask = "use_padded_mask";
+// Boolean. If true, it will skip graph pass div_bcast_transform. The precision
+// requirements are high, and division must be used in the calculation of op.
+constexpr const char *must_div = "must_div";
+// Boolean. If true, the optimized formula will be used when norm calculates
+// mean and var.
+constexpr const char *use_norm_opt = "use_norm_opt";
 }; // namespace op_attr_key
 
 class sc_graph_t;

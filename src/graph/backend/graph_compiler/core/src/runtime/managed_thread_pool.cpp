@@ -28,6 +28,7 @@
 #include "thread_locals.hpp"
 #include "thread_pool_flags.hpp"
 #include <cpu/x64/amx_tile_configure.hpp>
+#include <runtime/low_level_threadpool_wrapper.hpp>
 #include <runtime/microkernel/cpu/kernel_timer.hpp>
 #include <util/compiler_macros.hpp>
 #include <util/simple_math.hpp>
@@ -93,7 +94,7 @@ thread_manager::thread_manager() {
 #endif
 }
 
-static void do_cleanup() {
+void cleanup_worker_thread_state() {
     auto &tls = thread_local_buffer_t::tls_buffer();
     tls.in_managed_thread_pool_ = false;
     auto &need_release_amx = tls.amx_buffer_.need_release_tile_;
@@ -122,7 +123,7 @@ static void worker_func(thread_manager *ths, int tid) {
         while ((st = ths->state.trigger.load(std::memory_order_relaxed))
                 != current_job_id) {
             if (st == -1) {
-                do_cleanup();
+                cleanup_worker_thread_state();
                 make_trace(1, count);
                 return;
             }
@@ -136,7 +137,7 @@ static void worker_func(thread_manager *ths, int tid) {
         make_trace(0, 0);
         // check for last parallel-for fast exit
         if (exec_flags & thread_pool_flags::THREAD_POOL_EXIT) {
-            do_cleanup();
+            cleanup_worker_thread_state();
             make_trace(1, count);
             return;
         }
@@ -149,86 +150,85 @@ static void worker_func(thread_manager *ths, int tid) {
 static thread_local thread_manager *current_active_thr_mgr = nullptr;
 #endif
 
-static thread_local_buffer_t &get_tls_helper() {
-    return thread_local_buffer_t::tls_buffer();
-}
+struct mtp_threadpool_adapter_t {
+    static constexpr bool can_optimize_single_thread = true;
+    using TyState = int;
 
-void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
-        void *mod_data, generic_val *args) {
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
-    int threads = dnnl::impl::threadpool_utils::get_active_threadpool()
-                          ->get_num_threads();
-    int runtime_threads = runtime_config_t::get().get_num_threads();
-    threads = (threads < runtime_threads) ? threads : runtime_threads;
-#else
-    int threads = runtime_config_t::get().get_num_threads();
-#endif
-    state.num_threads = threads;
-    if (threads > 1) {
-        state.trigger = 1;
-        state.execution_flags
+    static thread_manager *all_thread_prepare(
+            thread_manager *ths, runtime::stream_t *stream, int threads) {
+        ths->state.num_threads = threads;
+        return ths;
+    }
+
+    static TyState before_parallel(thread_manager *ths) {
+        ths->state.trigger = 1;
+        ths->state.execution_flags
                 = gc::runtime::thread_pool_flags::THREAD_POOL_DEFAULT;
+        return 0;
+    }
 
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
-        SC_NO_OP();
-#pragma omp parallel for
-        for (int i = 0; i < threads; i++) {
-            SC_NO_OP();
-#elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
-        oneapi::tbb::task_arena arena(threads);
-        arena.execute([&] {
-            tbb::parallel_for(0, threads, 1, [&](int64_t i) {
-#elif SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
-        dnnl::impl::parallel(threads, [&](int64_t i, int64_t dummy) {
-            current_active_thr_mgr = this;
+    static void main_thread(thread_manager *ths, thread_manager::main_func_t f,
+            runtime::stream_t *stream, void *mod_data, generic_val *args) {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+        current_active_thr_mgr = ths;
 #endif
-            // use helper func to workaround a icx compiler bug
-            auto &tls = get_tls_helper();
-            tls.in_managed_thread_pool_ = true;
-            tls.additional_->linear_thread_id_ = i;
+        f(stream, mod_data, args);
+        if (!(ths->state.execution_flags
+                    & thread_pool_flags::THREAD_POOL_EXIT)) {
+            // send the exit signal. If it has EXIT flag, don't send,
+            // and let the thread exit by itself. If we send the signal
+            // in this case, it may result in some threads skipping
+            // the last job
+            ths->state.trigger = -1;
+        }
+        cleanup_worker_thread_state();
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+        current_active_thr_mgr = nullptr;
+#endif
+    }
+
+    static void worker_thread(thread_manager *ths, int tid) {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+        current_active_thr_mgr = ths;
+#endif
+        worker_func(ths, tid);
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+        current_active_thr_mgr = nullptr;
+#endif
+    }
+
+    static void after_parallel(thread_manager *ths) {
+        if (ths->state.execution_flags & thread_pool_flags::THREAD_POOL_EXIT) {
+            ths->state.trigger = -1;
+            ths->state.execution_flags = 0;
+        }
+    }
+
+    static int64_t parse_tid(TyState, thread_manager *ths,
+            thread_local_buffer_t &tls, int64_t i) {
 #ifdef SC_KERNEL_PROFILE
-            tls.additional_->instance_id_ = instance_id_;
+        tls.additional_->instance_id_ = ths->instance_id_;
 #endif
-            if (i == 0) {
-                f(stream, mod_data, args);
-                if (!(state.execution_flags
-                            & thread_pool_flags::THREAD_POOL_EXIT)) {
-                    // send the exit signal. If it has EXIT flag, don't send,
-                    // and let the thread exit by itself. If we send the signal
-                    // in this case, it may result in some threads skipping
-                    // the last job
-                    state.trigger = -1;
-                }
-                do_cleanup();
-            } else {
-                worker_func(this, i);
-            }
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
-        }
-#elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
-            });
-        });
-#elif SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
-            current_active_thr_mgr = nullptr;
-        });
-#endif
-        if (state.execution_flags & thread_pool_flags::THREAD_POOL_EXIT) {
-            state.trigger = -1;
-            state.execution_flags = 0;
-        }
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_SEQ
-        throw std::runtime_error("Running SEQ in thread pool");
-#endif
-    } else {
+        return i;
+    }
+
+    static void single_thread(thread_manager *ths,
+            thread_manager::main_func_t f, runtime::stream_t *stream,
+            void *mod_data, generic_val *args) {
         auto &tls = thread_local_buffer_t::tls_buffer();
         tls.in_managed_thread_pool_ = true;
         tls.additional_->linear_thread_id_ = 0;
 #ifdef SC_KERNEL_PROFILE
-        tls.additional_->instance_id_ = instance_id_;
+        tls.additional_->instance_id_ = ths->instance_id_;
 #endif
         f(stream, mod_data, args);
-        do_cleanup();
+        cleanup_worker_thread_state();
     }
+};
+
+void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
+        void *mod_data, generic_val *args) {
+    call_threadpool<mtp_threadpool_adapter_t>(this, f, stream, mod_data, args);
 }
 
 alignas(64) thread_local thread_manager thread_manager::cur_mgr;

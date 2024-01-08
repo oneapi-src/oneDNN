@@ -61,5 +61,5 @@ include_directories_with_host_compiler(${OBJ_LIB}
 set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
 
-register_graph_test_suite("test_graph_unit_graph_compiler" 
+register_graph_test_suite("test_graph_unit_graph_compiler_cpu" 
     "GCPatternTests.*:GCBackendApi.*:GCGraphTest.*:GCCore_*")

@@ -89,7 +89,10 @@ struct filo_memory_pool_t {
     void dealloc(void *ptr);
     filo_memory_pool_t(size_t block_size) : block_size_(block_size) {}
     ~filo_memory_pool_t();
+    // release the memory to os/underlying memory allocator
     void release();
+    // reset the memory pool, but keep the allocated memory in the pool
+    void clear();
 };
 void dealloc_by_mmap(runtime::engine_t *eng, void *b);
 void *alloc_by_mmap(runtime::engine_t *eng, size_t sz);

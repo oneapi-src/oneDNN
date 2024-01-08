@@ -633,8 +633,9 @@ public:
                     || (v->type_ == intrin_type::list_brgemm
                             && v->check_brgemm_arg_size(
                                     brgemm_args::NUM_FULL_ARGS_LIST)));
-            for (int i = 0; i < brgemm_args::C + 1; i++) {
+            for (auto i = 0UL; i < v->args_.size(); i++) {
                 auto &p = v->args_[i];
+                if (!p.defined()) continue;
                 tensor_c tsr = get_base_tensor_of(p);
                 if (tsr.defined()) {
                     switch (i) {
@@ -654,7 +655,7 @@ public:
                             }
                             break;
                         case brgemm_args::C: set_write_tick(tsr, tick_); break;
-                        default: break;
+                        default: set_read_tick(tsr, tick_); break;
                     }
                 }
             }

@@ -34,6 +34,7 @@ namespace runtime {
 
 struct engine_t;
 struct const_cache_proxy;
+struct thread_local_registry_t;
 
 struct engine_vtable_t {
     using alloc_t = void *(*)(engine_t *, size_t);
@@ -67,7 +68,8 @@ struct stream_vtable_t {
 
 struct engine_t {
     engine_vtable_t *vtable_;
-    engine_t(engine_vtable_t *vtable) : vtable_(vtable) {}
+    std::shared_ptr<thread_local_registry_t> registry_;
+    engine_t(engine_vtable_t *vtable);
 };
 
 struct stream_t {

@@ -57,6 +57,7 @@ struct thread_local_buffer_t {
         int linear_thread_id_ = 0;
         int instance_id_ = 0;
         bool is_main_thread_ = false;
+        memory_pool::filo_memory_pool_t dyn_threadpool_mem_pool_ {4096 * 16};
         trace_manager_t trace_;
         // the pointer to keep registry alive
         std::shared_ptr<thread_local_registry_t> registry_;
@@ -110,6 +111,7 @@ inline thread_local_buffer_t &get_tls(runtime::stream_t *stream) {
     return ret;
 }
 
+const std::shared_ptr<thread_local_registry_t> &get_thread_locals_registry();
 } // namespace runtime
 } // namespace gc
 } // namespace graph

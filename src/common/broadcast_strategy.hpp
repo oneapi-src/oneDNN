@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,10 +33,12 @@ enum class broadcasting_strategy_t {
     scalar, // [1, 1, 1, 1, 1] // Channel_shared
     per_oc, // [1, c, 1, 1, 1] // Channel-wise
     per_oc_spatial, // [1, c, 1, 1, 1] specific case for binary kernel nchw format
+    per_mb, // [n, 1, 1, 1, 1] // broadcast per batch
     per_mb_spatial, // [n, 1, d, h, w] // Broadcast only channel
     per_mb_w, // [n, 1, 1, 1, w] // Broadcast per batch and width
     per_w, // [1, 1, 1, 1, w] // Broadcast per width
     shared_axes, // [n, 1, d, h, 1] // General case broadcast (any combination)
+    batch, // [1, c, d, h, w] // Broadcast only batch
     no_broadcast, // [n, c, d, h, w]
     unsupported
 };

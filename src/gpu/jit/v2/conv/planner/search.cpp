@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -359,10 +359,11 @@ private:
         return ret;
     }
 
-    bool is_supported(const kernel_desc_t &desc) const {
+    bool is_supported(kernel_desc_t &desc) const {
         if (!desc.is_supported()) return false;
         auto plan = create_conv_plan(desc);
         if (!plan) return false;
+        desc.finalize(plan);
         return true;
     }
 

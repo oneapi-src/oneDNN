@@ -35,6 +35,7 @@
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/dessa_transform.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
+#include <compiler/ir/transform/dynamic_parallel_transform.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
 #include <compiler/ir/transform/index2var.hpp>
 #include <compiler/ir/transform/index_flatten.hpp>
@@ -42,6 +43,7 @@
 #include <compiler/ir/transform/interface_generalize.hpp>
 #include <compiler/ir/transform/loop_invariant_code_motion.hpp>
 #include <compiler/ir/transform/loop_merge.hpp>
+#include <compiler/ir/transform/loop_split.hpp>
 #include <compiler/ir/transform/loop_unroll.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/nested_parallel_flatten.hpp>
@@ -57,6 +59,7 @@
 #include <compiler/ir/transform/value_numbering.hpp>
 #include <compiler/ir/util_module_passes.hpp>
 #include <runtime/config.hpp>
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -94,14 +97,13 @@ sequential_module_pass_t get_default_precodegen_passes(
 
     ret.emplace_back(utils::make_unique<func_inliner_t>());
     ret.emplace_back(utils::make_unique<constant_folder_t>());
-    ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true, true));
-    ret.emplace_back(module_function_pass_t::make<loop_merger_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true));
 
     if (ctx->flags_.buffer_schedule_ > 0 && ctx->flags_.tensor_inplace_) {
         ret.emplace_back(utils::make_unique<tensor_inplace_t>(ctx));
     }
     ret.emplace_back(module_function_pass_t::make<tensor_init_t>(ctx));
+    ret.emplace_back(module_function_pass_t::make<loop_merger_t>());
 
     ret.emplace_back(
             module_function_pass_t::make<parallel_workload_dispatcher_t>());
@@ -117,13 +119,20 @@ sequential_module_pass_t get_default_precodegen_passes(
     }
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true));
 
-    ret.emplace_back(
-            module_function_pass_t::make<buffer_rescheduling_tensor_hoisting_t>(
-                    ctx, true, ctx->flags_.tensor_inplace_));
-    ret.emplace_back(
-            module_function_pass_t::make<nested_parallel_flattener_t>());
+    if (runtime_config_t::get().managed_thread_pool_
+            == thread_pool_mode_t::DYNAMIC) {
+        ret.emplace_back(
+                utils::make_unique<dynamic_parallel_transform_t>(true));
+    } else {
+        ret.emplace_back(module_function_pass_t::make<
+                buffer_rescheduling_tensor_hoisting_t>(
+                ctx, true, ctx->flags_.tensor_inplace_));
+        ret.emplace_back(
+                module_function_pass_t::make<nested_parallel_flattener_t>());
+    }
     ret.emplace_back(utils::make_unique<constant_folder_t>(false));
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true));
+    ret.emplace_back(module_function_pass_t::make<loop_splitter_t>());
 
     ret.emplace_back(utils::make_unique<parallel_merge_t>());
     ret.emplace_back(utils::make_unique<dead_func_eliminate_t>());

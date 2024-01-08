@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,8 +28,9 @@
 #if VECTORIZE_CALC_STATS == 1
 KERNEL_ATTR
 __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *dst, __global float *scale,
-        __global float *shift, float eps) {
+        __global float *variance, __global DATA_T *dst,
+        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps,
+        __global float *src_scale, __global float *dst_scale) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -100,14 +101,22 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 
     int local_id = get_sub_group_local_id();
     for (int c = 0; c < C; c += SUB_GROUP_SIZE) {
-        float sm = (scale ? scale[c + local_id] : 1.0f) * rsqrt_variance;
-        float sv = shift ? shift[c + local_id] : 0.0f;
+        float sm = (scale ? CONVERT_WEI_FLOAT_T(scale[c + local_id]) : 1.0f)
+                * rsqrt_variance;
+        float sv = shift ? CONVERT_WEI_FLOAT_T(shift[c + local_id]) : 0.0f;
 
         x[NDIMS - 1] = c + local_id;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
 
-        dst[dst_off] = TO_DST(sm * (SRC_TO_REF(src[src_off]) - v_mean) + sv);
+        float d = (sm * (SRC_TO_REF(src[src_off]) - v_mean) + sv);
+#if WITH_SRC_SCALES
+        d *= src_scale[0];
+#endif
+#if WITH_DST_SCALES
+        d /= dst_scale[0];
+#endif
+        dst[dst_off] = TO_DST(d);
     }
 
     if (CALCULATE_STATS) {
@@ -127,8 +136,9 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 
 KERNEL_ATTR
 __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *dst, __global float *scale,
-        __global float *shift, float eps) {
+        __global float *variance, __global DATA_T *dst,
+        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps,
+        __global float *src_scale, __global float *dst_scale) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -170,16 +180,27 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
     }
     ACC_DATA_T rsqrt_variance = rsqrt(v_variance + eps);
     for (int c = 0; c < C; ++c) {
-        ACC_DATA_T sm = (scale ? scale[c] : 1.0f) * rsqrt_variance;
-        ACC_DATA_T sv = shift ? shift[c] : 0.0f;
+        ACC_DATA_T sm = (scale ? CONVERT_WEI_FLOAT_T(scale[c]) : 1.0f)
+                * rsqrt_variance;
+        ACC_DATA_T sv = shift ? CONVERT_WEI_FLOAT_T(shift[c]) : 0.0f;
 
         x[NDIMS - 1] = c;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+
 #if SRC_DT_F64 && DST_DT_F64
         dst[dst_off] = sm * (src[src_off] - v_mean) + sv;
 #else
-        dst[dst_off] = TO_DST(sm * (SRC_TO_REF(src[src_off]) - v_mean) + sv);
+
+        ACC_DATA_T d = (sm * (SRC_TO_REF(src[src_off]) - v_mean) + sv);
+
+#if WITH_SRC_SCALES
+        d *= src_scale[0];
+#endif
+#if WITH_DST_SCALES
+        d /= dst_scale[0];
+#endif
+        dst[dst_off] = TO_DST(d);
 #endif
     }
 
@@ -199,6 +220,7 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif
 
 #if IS_BWD
+
 #if USE_SCALE || USE_SHIFT
 #if VECTORIZE_BWD_SCALESHIFT
 
@@ -282,7 +304,7 @@ __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
 
 NAMED_KERNEL_ATTR(SCALESHIFT_FINALIZE)
 __kernel void ref_lnorm_bwd_scaleshift_final(__global float *tmp_reduce_mem,
-        __global float *diff_scale, __global float *diff_shift) {
+        __global WEI_DATA_T *diff_scale, __global WEI_DATA_T *diff_shift) {
     const int c = GWS_GET_C_finalize();
     const int diff_shift_off = N_CHUNKS * C;
     __global float *tmp_diff_scale = tmp_reduce_mem;
@@ -298,8 +320,8 @@ __kernel void ref_lnorm_bwd_scaleshift_final(__global float *tmp_reduce_mem,
         diff_beta += tmp_diff_shift[result_off];
     }
 
-    if (diff_scale) diff_scale[c] = diff_gamma;
-    if (diff_shift) diff_shift[c] = diff_beta;
+    if (diff_scale) diff_scale[c] = CONVERT_WEI_DATA_T(diff_gamma);
+    if (diff_shift) diff_shift[c] = CONVERT_WEI_DATA_T(diff_beta);
 }
 
 #else // VECTORIZE_BWD_SCALESHIFT
@@ -307,8 +329,8 @@ __kernel void ref_lnorm_bwd_scaleshift_final(__global float *tmp_reduce_mem,
 NAMED_KERNEL_ATTR(SCALESHIFT)
 __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
         __global float *mean, __global float *variance,
-        __global DATA_T *diff_dst, __global float *diff_scale,
-        __global float *diff_shift, float eps) {
+        __global DATA_T *diff_dst, __global WEI_DATA_T *diff_scale,
+        __global WEI_DATA_T *diff_shift, float eps) {
 
     const int c = GWS_GET_C();
     int x[6] = {0};
@@ -341,8 +363,8 @@ __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
             }
         }
     }
-    if (diff_scale) diff_scale[c] = diff_gamma;
-    if (diff_shift) diff_shift[c] = diff_beta;
+    if (diff_scale) diff_scale[c] = CONVERT_WEI_DATA_T(diff_gamma);
+    if (diff_shift) diff_shift[c] = CONVERT_WEI_DATA_T(diff_beta);
 }
 #endif // VECTORIZE_BWD_SCALESHIFT
 #endif // USE_SCALE || USE_SHIFT
@@ -352,7 +374,7 @@ __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
 KERNEL_ATTR
 __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
-        __global float *scale, __global DATA_T *diff_src, float eps) {
+        __global WEI_DATA_T *scale, __global DATA_T *diff_src, float eps) {
     int x[6] = {0};
     x[0] = GWS_GET_X0();
     x[1] = GWS_GET_X1();
@@ -369,10 +391,7 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
     if (CALCULATE_STATS) {
         for (int c = 0; c < C; c += VECT_DT_N * SUB_GROUP_SIZE) {
             VECT_FLOAT_T gamma = 1.0f;
-            if (scale) {
-                gamma = AS_VECT_FLOAT_T(
-                        VECT_UINT_READ((const __global uint *)&scale[c]));
-            }
+            if (scale) { gamma = LOAD_VECT_WEI(&scale[c]); }
             x[NDIMS - 1] = c;
             const int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
             const int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -403,10 +422,7 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
 
     for (int c = 0; c < C; c += VECT_DT_N * SUB_GROUP_SIZE) {
         VECT_FLOAT_T gamma = 1.0f;
-        if (scale) {
-            gamma = AS_VECT_FLOAT_T(
-                    VECT_UINT_READ((const __global uint *)&scale[c]));
-        }
+        if (scale) { gamma = LOAD_VECT_WEI(&scale[c]); }
         x[NDIMS - 1] = c;
         const int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         const int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -438,7 +454,7 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
 KERNEL_ATTR
 __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
-        __global float *scale, __global DATA_T *diff_src, float eps) {
+        __global WEI_DATA_T *scale, __global DATA_T *diff_src, float eps) {
     int x[6] = {0};
     x[0] = GWS_GET_X0();
     x[1] = GWS_GET_X1();
@@ -454,7 +470,8 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
 
     if (CALCULATE_STATS) {
         for (int c = 0; c < C; ++c) {
-            const ACC_DATA_T gamma = scale ? scale[c] : 1.0f;
+            const ACC_DATA_T gamma
+                    = scale ? CONVERT_WEI_FLOAT_T(scale[c]) : 1.0f;
 
             x[NDIMS - 1] = c;
             const int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -468,7 +485,7 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
     }
 
     for (int c = 0; c < C; ++c) {
-        const ACC_DATA_T gamma = scale ? scale[c] : 1.0f;
+        const ACC_DATA_T gamma = scale ? CONVERT_WEI_FLOAT_T(scale[c]) : 1.0f;
 
         x[NDIMS - 1] = c;
         const int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);

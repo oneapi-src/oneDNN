@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <memory>
 #include <utility>
 
+#include "graph/backend/graph_compiler/compiler_graph.hpp"
 #include "graph/backend/graph_compiler/patterns/fusions.hpp"
 
 namespace dnnl {
@@ -33,55 +34,103 @@ using pb_graph_t = graph::utils::pm::pb_graph_t;
 using FCreatePattern = graph::pass::FCreatePattern;
 
 #define DEFAULT_PRIORITY 1.f
-#define COMPILER_BACKEND_SINGLE_OP_PATTERN(pname, op) \
-    COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_##pname) \
-            .set_priority(DEFAULT_PRIORITY) \
-            .set_kind(partition_kind_t::misc_post_ops) \
-            .set_attr<FCreatePattern>("FCreatePattern", \
-                    [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
-                        pgraph->append_op(graph::op_kind::op); \
-                    });
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pattern)
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_gc)
+        .set_priority(DEFAULT_PRIORITY)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *single_op
+                            = pgraph->append_alternation(
+                                    get_no_constraint_ops());
+                    single_op->append_decision_function(reject_fp16);
+                });
 
-COMPILER_BACKEND_SINGLE_OP_PATTERN(add, Add);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(subtract, Subtract);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(multiply, Multiply);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(divide, Divide);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(pow, Pow);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(matmul, MatMul);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(quantize, Quantize);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(dequantize, Dequantize);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(dynamic_quantize, DynamicQuantize);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(dynamic_dequantize, DynamicDequantize);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(static_reshape, StaticReshape);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(static_transpose, StaticTranspose);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(softmax, SoftMax);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(reorder, Reorder);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(typecast, TypeCast);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(relu, ReLU);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(sigmoid, Sigmoid);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(gelu, GELU);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(relu_backward, ReLUBackward);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(sidmoid_backward, SigmoidBackward);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(gelu_backward, GELUBackward);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(reduce_sum, ReduceSum);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(bias_add, BiasAdd);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(convolution, Convolution);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(
-        convolution_backward_data, ConvolutionBackwardData);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(
-        convolution_backward_weights, ConvolutionBackwardWeights);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(
-        batchnorm_forward_inference, BatchNormForwardTraining);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(
-        batchnorm_training_backward, BatchNormTrainingBackward);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(maxinum, Maximum);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(layernorm, LayerNorm);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(select, Select);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(tanh, Tanh);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(reduce_mean, ReduceMean);
-COMPILER_BACKEND_SINGLE_OP_PATTERN(concat, Concat);
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_reduce_gc)
+        .set_priority(DEFAULT_PRIORITY)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *reduction
+                            = pgraph->append_alternation(get_reduction_ops());
+                    reduction->append_decision_function(reject_fp16);
+                    reduction->append_decision_function(check_input_num<1>);
+                    reduction->append_decision_function(check_reduce_attrs);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_conv_gc)
+        .set_priority(DEFAULT_PRIORITY)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *conv
+                            = pgraph->append_alternation(
+                                    get_conv_forward_ops());
+                    conv->append_decision_function(reject_fp16);
+                    conv->append_decision_function(check_conv_attrs);
+                    conv->append_decision_function(check_isa_compatibility);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *conv_backward
+                            = pgraph->append_alternation(
+                                    get_conv_backward_ops());
+                    conv_backward->append_decision_function(reject_fp16);
+                    conv_backward->append_decision_function(check_input_num<2>);
+                    conv_backward->append_decision_function(check_conv_attrs);
+                    conv_backward->append_decision_function(
+                            check_isa_compatibility);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, single_op_batchnorm_training_gc)
+        .set_priority(DEFAULT_PRIORITY)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *bn_fwd = pgraph->append_op(
+                            graph::op_kind::BatchNormForwardTraining);
+                    bn_fwd->append_decision_function(reject_fp16);
+                    bn_fwd->append_decision_function(check_input_num<5>);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *bn_bwd = pgraph->append_op(
+                            graph::op_kind::BatchNormForwardTraining);
+                    bn_bwd->append_decision_function(reject_fp16);
+                    bn_bwd->append_decision_function(check_input_num<5>);
+                    bn_bwd->append_decision_function(check_output_num<3>);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_pooling_gc)
+        .set_priority(DEFAULT_PRIORITY)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *pooling
+                            = pgraph->append_alternation(get_pooling_ops());
+                    pooling->append_decision_function(reject_fp16);
+                    pooling->append_decision_function(check_pooling_input_num);
+                    pooling->append_decision_function(check_conv_attrs);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, single_op_matmul_gc)
+        .set_priority(DEFAULT_PRIORITY)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *matmul
+                            = pgraph->append_alternation(get_matmul_op());
+                    matmul->append_decision_function(reject_fp16);
+                    matmul->append_decision_function(check_isa_compatibility);
+                });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass

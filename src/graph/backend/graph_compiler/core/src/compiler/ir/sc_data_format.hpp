@@ -158,12 +158,18 @@ SC_DEF_FMT(BA, 1, 0)
 SC_DEF_FMT(ABC, 0, 1, 2)
 SC_DEF_FMT(ABCD, 0, 1, 2, 3)
 SC_DEF_FMT(ABCDE, 0, 1, 2, 3, 4)
+SC_DEF_FMT(ABCDEF, 0, 1, 2, 3, 4, 5)
 SC_DEF_FMT(CDBA, 2, 3, 1, 0)
+SC_DEF_FMT(DCBA, 3, 2, 1, 0)
+SC_DEF_FMT(EDCAB, 4, 3, 2, 0, 1)
+SC_DEF_FMT(DECAB, 3, 4, 2, 0, 1)
 
 // channel last format
 SC_DEF_FMT(ACB, 0, 2, 1)
 SC_DEF_FMT(ACDB, 0, 2, 3, 1)
 SC_DEF_FMT(ACDEB, 0, 2, 3, 4, 1)
+SC_DEF_FMT(ADEBC, 0, 3, 4, 1, 2)
+SC_DEF_FMT(ADEFBC, 0, 3, 4, 5, 1, 2)
 
 // blocked format start
 SC_DEF_FMT(Aa, 0, 0)
@@ -181,6 +187,10 @@ SC_DEF_FMT(ACDBa, 0, 2, 3, 1, 0)
 SC_DEF_FMT(ACDEBa, 0, 2, 3, 4, 1, 0)
 SC_DEF_FMT(BACDba, 1, 0, 2, 3, 1, 0)
 SC_DEF_FMT(BACDEba, 1, 0, 2, 3, 4, 1, 0)
+SC_DEF_FMT(ABCDEc, 0, 1, 2, 3, 4, 2)
+SC_DEF_FMT(ABCDEFc, 0, 1, 2, 3, 4, 5, 2)
+SC_DEF_FMT(ABCDEcb, 0, 1, 2, 3, 4, 2, 1)
+SC_DEF_FMT(ABCDEFcb, 0, 1, 2, 3, 4, 5, 2, 1)
 
 // for bert
 SC_DEF_FMT(ABDCcd, 0, 1, 3, 2, 2, 3)
@@ -194,6 +204,8 @@ SC_DEF_FMT(BACDEab, 1, 0, 2, 3, 4, 0, 1)
 SC_DEF_FMT(KCSckc, 0, 1, 2, 1, 0, 1)
 SC_DEF_FMT(KCRSckc, 0, 1, 2, 3, 1, 0, 1)
 SC_DEF_FMT(KCDRSckc, 0, 1, 2, 3, 4, 1, 0, 1)
+SC_DEF_FMT(GKCRSckc, 0, 1, 2, 3, 4, 2, 1, 2)
+SC_DEF_FMT(GKCDRSckc, 0, 1, 2, 3, 4, 5, 2, 1, 2)
 SC_DEF_FMT(CKRSkck, 1, 0, 2, 3, 0, 1, 0)
 SC_DEF_FMT(CKDRSkck, 1, 0, 2, 3, 4, 0, 1, 0)
 SC_DEF_FMT(NKknk, 1, 0, 0, 1, 0)
@@ -216,7 +228,10 @@ constexpr auto NCHW = ABCD, NHWC = ACDB, KCRS = ABCD, NKHW = ABCD, MK = AB,
                KCDRSck = ABCDEba, CKRSkc = BACDab, CKDRSkc = BACDEab,
                NHWCn = ACDBa, NDHWCn = ACDEBa, CKRSck = BACDba,
                CKDRSck = BACDEba, NSC = ACB, NCS = ABC, NCSc = ABCb, KCS = ABC,
-               KCSck = ABCba;
+               KCSck = ABCba, NGCHWc = ABCDEc, NGCHW = ABCDE, NHWGC = ADEBC,
+               GKCRS = ABCDE, GKCRSck = ABCDEcb, NGCDHWc = ABCDEFc,
+               NGCDHW = ABCDEF, NDHWGC = ADEFBC, GKCDRS = ABCDEF,
+               GKCDRSck = ABCDEFcb;
 
 #undef SC_DEF_FMT
 }; // namespace format_kinds
@@ -262,6 +277,24 @@ struct SC_API sc_data_format_t {
     constexpr static inline sc_data_format_t NCHWc(int c) {
         return sc_data_format_t(format_kinds::NCHWc, {c});
     }
+    constexpr static inline sc_data_format_t NGCHW() {
+        return sc_data_format_t(format_kinds::NGCHW);
+    }
+    constexpr static inline sc_data_format_t NHWGC() {
+        return sc_data_format_t(format_kinds::NHWGC);
+    }
+    constexpr static inline sc_data_format_t NGCHWc(int c) {
+        return sc_data_format_t(format_kinds::NGCHWc, {c});
+    }
+    constexpr static inline sc_data_format_t NGCDHW() {
+        return sc_data_format_t(format_kinds::NGCDHW);
+    }
+    constexpr static inline sc_data_format_t NDHWGC() {
+        return sc_data_format_t(format_kinds::NDHWGC);
+    }
+    constexpr static inline sc_data_format_t NGCDHWc(int c) {
+        return sc_data_format_t(format_kinds::NGCDHWc, {c});
+    }
     constexpr static inline sc_data_format_t KCRS() {
         return sc_data_format_t(format_kinds::KCRS);
     }
@@ -273,6 +306,30 @@ struct SC_API sc_data_format_t {
     }
     constexpr static inline sc_data_format_t KCRSck4c(int c, int k) {
         return sc_data_format_t(format_kinds::KCRSckc, {c, k, 4});
+    }
+    constexpr static inline sc_data_format_t GKCRS() {
+        return sc_data_format_t(format_kinds::GKCRS);
+    }
+    constexpr static inline sc_data_format_t GKCRSck(int c, int k) {
+        return sc_data_format_t(format_kinds::GKCRSck, {c, k, 0, 0});
+    }
+    constexpr static inline sc_data_format_t GKCRSck2c(int c, int k) {
+        return sc_data_format_t(format_kinds::GKCRSckc, {c, k, 2});
+    }
+    constexpr static inline sc_data_format_t GKCRSck4c(int c, int k) {
+        return sc_data_format_t(format_kinds::GKCRSckc, {c, k, 4});
+    }
+    constexpr static inline sc_data_format_t GKCDRS() {
+        return sc_data_format_t(format_kinds::GKCDRS);
+    }
+    constexpr static inline sc_data_format_t GKCDRSck(int c, int k) {
+        return sc_data_format_t(format_kinds::GKCDRSck, {c, k, 0, 0});
+    }
+    constexpr static inline sc_data_format_t GKCDRSck2c(int c, int k) {
+        return sc_data_format_t(format_kinds::GKCDRSckc, {c, k, 2});
+    }
+    constexpr static inline sc_data_format_t GKCDRSck4c(int c, int k) {
+        return sc_data_format_t(format_kinds::GKCDRSckc, {c, k, 4});
     }
     constexpr static inline sc_data_format_t NCS() {
         return sc_data_format_t(format_kinds::NCS);

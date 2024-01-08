@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,39 +56,48 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = utils::one_of(this->desc()->prop_kind, forward_training,
-                              forward_inference)
-                    && (this->desc()->alg_kind == alg_kind::convolution_winograd
+            VDISPATCH_CONV(utils::one_of(this->desc()->prop_kind,
+                                   forward_training, forward_inference),
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(
+                    (this->desc()->alg_kind == alg_kind::convolution_winograd
                             || this->desc()->alg_kind
-                                    == alg_kind::convolution_auto)
-                    && utils::one_of(true,
-                            expect_data_types(f32, f32, f32, f32, f32),
-                            expect_data_types(f16, f16, f16, f16, f32))
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(src_data_t == f16,
+                                    == alg_kind::convolution_auto),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(utils::one_of(true,
+                                   expect_data_types(f32, f32, f32, f32, f32),
+                                   expect_data_types(f16, f16, f16, f16, f32)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(compute_engine->mayiuse(
+                                   compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup");
+            VDISPATCH_CONV(
+                    IMPLICATION(src_data_t == f16,
                             true
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short))
-                    && !has_zero_dim_memory()
-                    && attr()->has_default_values(attr_skip_mask, dst_data_t)
-                    && post_ops_with_binary_ok(attr(), dst_data_t);
-            if (!ok) return status::unimplemented;
+                                                    intel_subgroups_short)),
+                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup");
+            VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_CONV(
+                    attr()->has_default_values(attr_skip_mask, dst_data_t),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(post_ops_with_binary_ok(attr(), dst_data_t),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             CHECK(init_conf(compute_engine));
 
             int sub_group_size = conf.wino_ic_block / 2; // LWX
-            if (!compute_engine->mayiuse_sub_group(sub_group_size))
-                return status::unimplemented;
+            VDISPATCH_CONV(compute_engine->mayiuse_sub_group(sub_group_size),
+                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup");
 
             init_scratchpad();
 
-            ok = set_default_formats_common(
+            bool ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(ok, VERBOSE_UNSUPPORTED_TAG);
 
             CHECK(attr_.set_default_formats(dst_md(0)));
 

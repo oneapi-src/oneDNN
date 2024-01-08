@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/cold_cache.hpp"
 #include "utils/dnnl_query.hpp"
 #include "utils/parallel.hpp"
 
@@ -676,7 +677,11 @@ int dnn_mem_t::initialize(
             // Do not fill a memory if its size is zero. Moreover, memset
             // expects defined pointer, nullptr is not allowed.
             if (sz != 0) {
-                if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) {
+                // Avoid costy data reorders for cold cache mode when
+                // initializing cold cache buffers.
+                // TODO: consider enabling broadly for perf mode.
+                if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)
+                        || cold_cache_mode != default_cold_cache_mode) {
                     // Fill memory directly with 0x3F3F3F3F (0.747059f) number.
                     this->memset(dnnl_mem_default_perf_test_value, sz);
                 } else {

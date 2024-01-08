@@ -160,16 +160,21 @@ using namespace env_key;
 runtime_config_t::runtime_config_t() {
     thread_pool_table_ = &sc_pool_table;
     constexpr int default_MTP =
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
-            1;
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+            (int)thread_pool_mode_t::DYNAMIC;
 #else
-            0;
+            (int)thread_pool_mode_t::MANAGED;
 #endif
-    managed_thread_pool_
-            = (utils::getenv_int(env_names[SC_MANAGED_THREAD_POOL], default_MTP)
-                    != 0);
+    auto mtp_val
+            = utils::getenv_int(env_names[SC_MANAGED_THREAD_POOL], default_MTP);
+    if (mtp_val < (int)thread_pool_mode_t::DIRECT
+            || mtp_val > (int)thread_pool_mode_t::DYNAMIC) {
+        mtp_val = default_MTP;
+        SC_WARN << "Bad SC_MANAGED_THREAD_POOL value";
+    }
+    managed_thread_pool_ = static_cast<thread_pool_mode_t>(mtp_val);
 
-    if (managed_thread_pool_) {
+    if (managed_thread_pool_ == thread_pool_mode_t::MANAGED) {
         thread_pool_table_->parallel_call_managed = &sc_parallel_call_managed;
     }
     trace_initial_cap_ = utils::getenv_int(env_names[SC_TRACE_INIT_CAP], 4096);

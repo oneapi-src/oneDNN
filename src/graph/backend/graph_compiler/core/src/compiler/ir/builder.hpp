@@ -177,7 +177,8 @@ public:
             const expr_c &K, const expr_c &lda, const expr_c &ldb,
             const expr_c &ldc, const expr_c &a_stride, const expr_c &b_stride,
             const std::vector<expr> &postops_data, const expr_c &c_buf,
-            const expr_c &bd_mask_idx, const brgemm_args::extra_args_t &extras);
+            const expr_c &bd_mask_idx, const expr_c &top_pad,
+            const expr_c &bottom_pad, const brgemm_args::extra_args_t &extras);
 
     /**
      * Makes a brgemm-call node and evaluates it
@@ -188,6 +189,7 @@ public:
             const expr_c &ldc, const expr_c &a_stride, const expr_c &b_stride,
             const expr_c &len, const std::vector<expr> &postops_data,
             const expr_c &c_buf, const expr_c &bd_mask_idx,
+            const expr_c &top_pad, const expr_c &bottom_pad,
             const brgemm_args::extra_args_t &extras);
 
     /**
@@ -625,6 +627,28 @@ expr make_insert(const expr_c &v_a, const expr_c &v_b, const int imm);
  * @return the created node
  * */
 expr make_extract(const expr_c &v_a, const int imm, const int lanes = 1);
+
+/**
+ * Update the 2d value into v_a at the location specified by row and col.
+ * @param v_a the larger 2D tile
+ * @param v_b the smaller 2D tile to be inserted to v_a
+ * @param row the row location for v_b to be inserted to v_a
+ * @param col the col location for v_b to be inserted to v_a
+ * @return the created node as the updated value
+ * */
+expr make_insert(const expr_c &v_a, const expr_c &v_b, const expr_c &row,
+        const expr_c &col);
+/**
+ * Extract the 2d region from v_a at the location specified by row and col.
+ * @param v_a the 2D tile value
+ * @param row the row location for v_b to be inserted to v_a
+ * @param col the col location for v_b to be inserted to v_a
+ * @param rows_count the number of rows to be extracted
+ * @param cols_count the number of cols to be extracted
+ * @return the created node as the extracted SIMD value of shape [rows x cols]
+ * */
+expr make_extract(const expr_c &v_a, const expr_c &row, const expr_c &col,
+        uint32_t rows_count, uint32_t cols_count);
 
 /**
  * Makes an gather node

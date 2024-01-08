@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,6 +118,7 @@ struct prb_t : public desc_t {
     dnnl_data_type_t sdt, ddt;
     std::string tag;
     alg_t alg;
+    bool inplace = false; // Lacks placement, always considered `false`.
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
     int64_t user_mb;

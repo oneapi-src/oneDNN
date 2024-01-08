@@ -21,6 +21,7 @@
 #include <runtime/const_cache_wrapper.hpp>
 #include <runtime/dynamic_dispatch/op_func_decl.hpp>
 #include <runtime/dynamic_dispatch/ops/config.hpp>
+#include <runtime/dynamic_threadpool_c.hpp>
 #include <runtime/generic_val.hpp>
 #include <runtime/managed_thread_pool_exports.hpp>
 #include <runtime/memorypool.hpp>
@@ -85,6 +86,16 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"sc_set_idle_func_managed", (void *)sc_set_idle_func_managed},
             {"sc_arrive_at_barrier", (void *)sc_arrive_at_barrier},
             {"sc_init_barrier", (void *)sc_init_barrier},
+            {"sc_dyn_threadpool_create_work_items",
+                    (void *)sc_dyn_threadpool_create_work_items},
+            {"sc_dyn_threadpool_run", (void *)sc_dyn_threadpool_run},
+            {"sc_dyn_threadpool_sched_destroy",
+                    (void *)sc_dyn_threadpool_sched_destroy},
+            {"sc_dyn_threadpool_sched_init",
+                    (void *)sc_dyn_threadpool_sched_init},
+            {"sc_dyn_threadpool_shared_buffer",
+                    (void *)sc_dyn_threadpool_shared_buffer},
+            {"sc_dyn_threadpool_loop_end", (void *)sc_dyn_threadpool_loop_end},
             // dynamic query function
             {"query_format_matmul_core_op",
                     (void *)query_format_matmul_core_op},

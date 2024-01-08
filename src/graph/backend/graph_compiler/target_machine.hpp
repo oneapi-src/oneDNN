@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,4 +43,18 @@
 #define REQUIRE_BF16_AMXBF16_END }
 #define REQUIRE_AMX_END }
 #define REQUIRE_AMXBF16_END }
+
+inline bool support_vnni() {
+    REQUIRE_VNNI_AMXINT8_BEGIN
+    return true;
+    REQUIRE_VNNI_AMXINT8_END
+    return false;
+}
+
+inline bool support_bf16() {
+    REQUIRE_BF16_AMXBF16_BEGIN
+    return true;
+    REQUIRE_BF16_AMXBF16_END
+    return false;
+}
 #endif

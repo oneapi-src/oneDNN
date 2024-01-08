@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -136,6 +136,8 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
 
 void compute_ref(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    // Running fwd ref on bwd to collect src_hat (used instead of src + mean)
+    // and ws, if fuse_relu flag is requested.
     compute_ref_fwd(prb, args);
     if (prb->dir & FLAG_BWD) compute_ref_bwd(prb, args);
 }

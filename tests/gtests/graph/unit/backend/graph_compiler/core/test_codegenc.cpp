@@ -37,6 +37,10 @@ static context_ptr get_ctx() {
 
 TEST(GCCore_CPU_codegenc_cpp, TestCodegenC) {
     REQUIRE_PARALLEL();
+    if (runtime_config_t::get().managed_thread_pool_
+            == thread_pool_mode_t::DYNAMIC) {
+        GTEST_SKIP();
+    }
     builder::ir_builder_t builder;
     const int shape1 = 128;
     for_loop li, lj, lk, lp;
@@ -315,6 +319,10 @@ alignas(64) uint8_t aaa_data[40512] = {)";
 
 TEST(GCCore_CPU_codegenc_cpp, TestCodegenCParallelFor) {
     REQUIRE_PARALLEL();
+    if (runtime_config_t::get().managed_thread_pool_
+            == thread_pool_mode_t::DYNAMIC) {
+        GTEST_SKIP();
+    }
     builder::ir_builder_t builder;
     const int shape1 = 128;
     for_loop li, lj, lk, lp;

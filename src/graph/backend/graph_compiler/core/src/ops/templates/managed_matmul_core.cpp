@@ -232,7 +232,7 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   get_managed_matmul_config(ctx->machine_, cfg.M_split_num, cfg.N_split_num,
     cfg.M_sub_block, cfg.N_sub_block, cfg.K_sub_block, cfg.im_loop_order, M, N,
     K, iim_block, iin_block, iik_block, sizeofdtypeA, sizeofdtypeC, is_int8,
-    is_f32 || no_vnni_low_fp, owner_->is_dynamic());
+    is_f32 || no_vnni_low_fp, owner_->is_dynamic(), dispatch_avx_);
   return std::move(ret);
 }
 
@@ -319,6 +319,11 @@ config_ptr gen_managed_matmul_core_t::get_default_post_rd_config(
     cfg.K_sub_block = 1;
   }
   return std::move(ret);
+}
+
+static bool is_dyn_threadpool() {
+  return runtime_config_t::get().managed_thread_pool_
+    == thread_pool_mode_t::DYNAMIC;
 }
 
 config_ptr gen_managed_matmul_core_t::get_default_transposed_a_config(
@@ -543,6 +548,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     in_tensors_.size() == 2, "input logical tensor size should be two.");
   COMPILE_ASSERT(
     out_tensors_.size() == 1, "output logical tensor size should be one.");
+  if (owner->attrs_.get_or_else("dispatch_avx", false)) { dispatch_avx_ = 1; }
   const int64_t plain_M = get_mma_plain_dims()[0];
   const int64_t plain_K = get_mma_plain_dims()[1];
   const int64_t plain_N = get_mmb_plain_dims()[1];
@@ -564,11 +570,19 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     || is_dynamic_dim(plain_K);
   if (is_f32 || no_vnni_low_fp) {
     if (is_spr_like) {
-      // prefer small blocks
-      if (plain_M <= 4096) {
+      // prefer small blocks: someone is small but none is too great
+      bool case_great_K = (std::min(plain_M, plain_N) > 512)
+        && (plain_K / std::min(plain_M, plain_N) > 16);
+      bool case_small_MNK = (plain_M < 1024 || plain_N < 1024 || plain_K < 512)
+        && !(plain_M >= 7168 || plain_N >= 7168);
+      if (case_great_K || case_small_MNK) {
         M_block_default = 16;
         N_block_default = 16;
         K_block_default = 16;
+      } else if (plain_M <= 4096 && plain_N <= 4096 && plain_K <= 8192) {
+        M_block_default = 32;
+        N_block_default = 32;
+        K_block_default = 32;
       }
     } else {
       if (plain_M <= 256) { M_block_default = 32; }
@@ -584,7 +598,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
       K_block_default = 32;
     }
   } else {
-    bool is_amx = get_default_context()->use_amx();
+    bool is_amx = get_default_context()->use_amx() && !dispatch_avx_;
     assert(utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8));
     if (plain_M <= 1024 || (plain_M / num_threads / 64 < 8 && is_amx)) {
       M_block_default = 32;
@@ -627,7 +641,8 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
       }
     } else if (is_int8) {
       // vnni-int8 perfers padding iik_block_ to algin 16 when M <=2048
-      if (plain_M < 2048 && !get_default_context()->use_amx()) {
+      bool is_amx = get_default_context()->use_amx() && !dispatch_avx_;
+      if (plain_M < 2048 && !is_amx) {
         iik_block_ = 16;
       } else {
         iik_block_ = suggest_aligned_block(plain_K, K_block_default, 4, 16);
@@ -655,6 +670,10 @@ void gen_managed_matmul_core_t::generate_prefetcher_body_for_tensor(
   auto lookup = func_args[0];
   auto expected = func_args[1];
   auto tid = func_args[2];
+  auto doroll = [&tid](const expr &v, const expr &bound) {
+    if (is_dyn_threadpool()) { return v; }
+    return (v + tid) % bound;
+  };
   bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
   uint64_t sizeof_dtype = utils::get_sizeof_type(get_A_dtype());
   bool is_vnni_low_fp = ops::is_vnni_low_fp(ctx, get_A_dtype());
@@ -691,7 +710,7 @@ void gen_managed_matmul_core_t::generate_prefetcher_body_for_tensor(
           _for_(n_o, 0, n_o_end) {
             _var_init_(n_start_idx, datatypes::index,
               n_idx + n_b_idx * iin_block_
-                + ((n_o + tid) % n_o_end) * iin_block_);
+                + (doroll(n_o, n_o_end)) * iin_block_);
             _var_init_(bs, datatypes::index,
               builder::make_cast(datatypes::index,
                 get_balance211_length(K / iik_block_, config.K_sub_block, k_b,
@@ -749,7 +768,7 @@ void gen_managed_matmul_core_t::generate_prefetcher_body_for_tensor(
             _for_(n_o, 0, n_o_end) {
               _var_init_(n_start_idx, datatypes::index,
                 n_idx + n_b_idx * iin_block_
-                  + ((n_o + tid) % n_o_end) * iin_block_);
+                  + (doroll(n_o, n_o_end)) * iin_block_);
               _var_init_(bs, datatypes::index,
                 builder::make_cast(datatypes::index,
                   get_balance211_length(K_single_thr_size / iik_block_,
@@ -830,6 +849,10 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
       ori_K = static_cast<int>(ta.get_plain_dims()[1]),
       ori_N = static_cast<int>(tb.get_plain_dims()[1]);
   expr tid = builder::make_get_group_thread_id(-1);
+  auto doroll = [&tid](const expr &v, const expr &bound) {
+    if (is_dyn_threadpool()) { return v; }
+    return (v + tid) % bound;
+  };
   expr B_vnni_tensor;
   _tensor_(B_vnni, get_B_dtype(),
     {utils::divide_and_ceil(ori_N, iin_block_),
@@ -857,8 +880,7 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
         _named_for_(im_n, n_o, 0, n_o_end) {
           // rolling N
           _var_init_(n_start_idx, datatypes::index,
-            n_idx + n_b_idx * iin_block_
-              + ((n_o + tid) % n_o_end) * iin_block_);
+            n_idx + n_b_idx * iin_block_ + (doroll(n_o, n_o_end)) * iin_block_);
           // do reorder here
           {
             trace_guard_t tg(ctx, "vnni_reorder_B");
@@ -950,7 +972,7 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
             // rolling M
             _var_init_(m_start_idx, datatypes::index,
               m_idx + m_b_idx * iim_block_
-                + ((m_o + tid) % m_o_end) * iim_block_);
+                + (doroll(m_o, m_o_end)) * iim_block_);
             std::vector<expr> aidx = ta.get_format() == sc_data_format_t::MK()
               ? std::vector<expr> {m_start_idx, k_start_idx}
               : std::vector<expr> {
@@ -961,10 +983,10 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
             if (is_partial) {
               cidx = !tc.get_format().is_blocking()
                 ? std::vector<expr> {m_b_idx * iim_block_
-                    + ((m_o + tid) % m_o_end) * iim_block_,
-                  n_b_idx * iin_block_ + ((n_o + tid) % n_o_end) * iin_block_}
-                : std::vector<expr> {m_b_idx + (m_o + tid) % m_o_end,
-                  n_b_idx + (n_o + tid) % n_o_end, 0, 0};
+                    + (doroll(m_o, m_o_end)) * iim_block_,
+                  n_b_idx * iin_block_ + (doroll(n_o, n_o_end)) * iin_block_}
+                : std::vector<expr> {m_b_idx + doroll(m_o, m_o_end),
+                  n_b_idx + doroll(n_o, n_o_end), 0, 0};
               cidx.insert(cidx.begin(), k_s);
             } else {
               cidx = !tc.get_format().is_blocking()
@@ -1183,12 +1205,18 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
   const expr &N_block_size_expr) const {
   expr M_sub_block = config.M_sub_block, N_sub_block = config.N_sub_block,
        K_sub_block = config.K_sub_block;
-  for_loop im_k, im_m, im_n, o_im_n;
+  for_loop im_k, im_m, im_n, o_im_m, o_im_n;
   int ori_M = static_cast<int>(ta.get_plain_dims()[0]),
       ori_K = static_cast<int>(ta.get_plain_dims()[1]),
       ori_N = static_cast<int>(tb.get_plain_dims()[1]);
   expr tid = builder::make_get_group_thread_id(-1);
-  _for_(m_b, 0, M_sub_block) {
+  sc_brgemm_attrs_t brg_attrs;
+  brg_attrs[brgemm::attr_key::dispatch_avx] = dispatch_avx_;
+  auto doroll = [&tid](const expr &v, const expr &bound) {
+    if (is_dyn_threadpool()) { return v; }
+    return (v + tid) % bound;
+  };
+  _named_for_(o_im_m, m_b, 0, M_sub_block) {
     _named_for_(o_im_n, n_b, 0, N_sub_block) {
       expr m_b_idx, n_b_idx, k_b_idx, m_b_bigger_num, n_b_bigger_num,
         k_b_bigger_num;
@@ -1205,10 +1233,10 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
             // rolling M and N
             _var_init_(m_start_idx, datatypes::index,
               m_idx + m_b_idx * iim_block_
-                + ((m_o + tid) % m_o_end) * iim_block_);
+                + (doroll(m_o, m_o_end)) * iim_block_);
             _var_init_(n_start_idx, datatypes::index,
               n_idx + n_b_idx * iin_block_
-                + ((n_o + tid) % n_o_end) * iin_block_);
+                + (doroll(n_o, n_o_end)) * iin_block_);
             _var_init_(bs, datatypes::index,
               builder::make_cast(datatypes::index,
                 get_balance211_length(
@@ -1244,10 +1272,10 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
             if (is_partial) {
               cidx = !tc.get_format().is_blocking()
                 ? std::vector<expr> {m_b_idx * iim_block_
-                    + ((m_o + tid) % m_o_end) * iim_block_,
-                  n_b_idx * iin_block_ + ((n_o + tid) % n_o_end) * iin_block_}
-                : std::vector<expr> {m_b_idx + (m_o + tid) % m_o_end,
-                  n_b_idx + (n_o + tid) % n_o_end, 0, 0};
+                    + (doroll(m_o, m_o_end)) * iim_block_,
+                  n_b_idx * iin_block_ + (doroll(n_o, n_o_end)) * iin_block_}
+                : std::vector<expr> {m_b_idx + doroll(m_o, m_o_end),
+                  n_b_idx + doroll(n_o, n_o_end), 0, 0};
               cidx.insert(cidx.begin(), k_s);
             } else {
               cidx = !tc.get_format().is_blocking()
@@ -1276,12 +1304,13 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
               auto eval = builtin::brgemm_init_update(tensor_ptr(A, aidx),
                 tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
                 iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
-                ta.dtype_, tb.dtype_);
+                ta.dtype_, tb.dtype_, brg_attrs);
             }
             _else_ {
               builtin::brgemm_update(tensor_ptr(A, aidx), tensor_ptr(B, bidx),
                 tensor_ptr(C, cidx), bs, iim_block_, iin_block_, iik_block_,
-                LDA, LDB, LDC, stride_a, stride_b, ta.dtype_, tb.dtype_);
+                LDA, LDB, LDC, stride_a, stride_b, ta.dtype_, tb.dtype_,
+                brg_attrs);
             }
             if (fusion && !is_partial) {
               _if_(k_b == K_sub_block - 1) {
@@ -1305,14 +1334,14 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
                   ? std::vector<std::pair<expr, expr>> {{m_idx
                                                             + m_b_idx
                                                               * iim_block_
-                                                            + ((m_o + tid)
-                                                                % m_o_end)
+                                                            + doroll(
+                                                                m_o, m_o_end)
                                                               * iim_block_,
                                                           expr(iim_block_)},
                     {0, utils::rnd_up(ori_N, iin_block_)}}
                   : std::vector<std::pair<expr, expr>> {
                     {(m_idx + m_b_idx * iim_block_
-                       + ((m_o + tid) % m_o_end) * iim_block_)
+                       + (doroll(m_o, m_o_end)) * iim_block_)
                         / iim_block_,
                       1},
                     {0, utils::divide_and_ceil(ori_N, iin_block_)},
@@ -1464,6 +1493,9 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
     im_m->attr()[stmt_attr_key::reduce_root_loop]
       = std::weak_ptr<stmt_base_t>(o_im_n.impl);
   }
+  // bind outer loops with axis hint
+  bind_loop_axis(owner_->get_outputs()[0], o_im_m, 0);
+  bind_loop_axis(owner_->get_outputs()[0], o_im_n, 1);
 }
 
 std::vector<expr> gen_managed_matmul_core_t::get_extra_args_from_func(
@@ -1496,6 +1528,7 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
   static std::atomic<int> func_idx = {0};
   expr partial_C;
   sc_brgemm_attrs_t brg_attrs;
+  brg_attrs[brgemm::attr_key::dispatch_avx] = dispatch_avx_;
   _function_(datatypes::boolean, managed_matmul_single_core, {outputs[0]},
     {inputs[0]}, {inputs[1]}, _arg_("M_split_num", datatypes::index),
     _arg_("N_split_num", datatypes::index),
@@ -1522,6 +1555,10 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
     iin_block[0] = iin_block_;
     iik_block[0] = iik_block_;
     expr tid = builtin::get_thread_id_func()();
+    auto doroll = [&tid](const expr &v, const expr &bound) {
+      if (is_dyn_threadpool()) { return v; }
+      return (v + tid) % bound;
+    };
     k_idx_ = 0;
     K_single_thr_size_ = get_balance211_length(
       K / iik_block_, K_split_num, k_s, k_idx_, X_bigger_num);
@@ -1531,7 +1568,7 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
       = divide_and_ceil(M / iim_block_, M_split_num) * iim_block_;
     expr N_block_size_expr
       = divide_and_ceil(N / iin_block_, N_split_num) * iin_block_;
-    for_loop o_im_n, im_k, im_m, im_n;
+    for_loop o_im_m, o_im_n, im_k, im_m, im_n;
     auto K_real_split = builder::make_min(divide_and_ceil(K, iik_block_),
       runtime_config_t::get().get_num_threads() / M_split_num / N_split_num);
     auto N_real_split
@@ -1555,7 +1592,7 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
         !is_partial_
           ? do_cast_and_fold(divide_and_ceil(K, iik_block_) * iik_block_)
           : K_single_thr_size_);
-      _for_(m_b, 0, M_sub_block) {
+      _named_for_(o_im_m, m_b, 0, M_sub_block) {
         _named_for_(o_im_n, n_b, 0, N_sub_block) {
           expr m_b_idx, n_b_idx, k_b_idx, m_b_bigger_num, n_b_bigger_num,
             k_b_bigger_num;
@@ -1603,10 +1640,10 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
                 // rolling M and N
                 _var_init_(m_start_idx, datatypes::index,
                   m_idx + m_b_idx * iim_block_
-                    + ((m_o + tid) % m_o_end) * iim_block_);
+                    + (doroll(m_o, m_o_end)) * iim_block_);
                 _var_init_(n_start_idx, datatypes::index,
                   n_idx + n_b_idx * iin_block_
-                    + ((n_o + tid) % n_o_end) * iin_block_);
+                    + (doroll(n_o, n_o_end)) * iin_block_);
                 std::vector<expr> aidx = input_plain
                   ? std::vector<expr> {m_start_idx, k_start_idx}
                   : std::vector<expr> {
@@ -1621,10 +1658,10 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
                 std::vector<expr> partial_cidx, full_cidx;
                 partial_cidx = !tc.get_format().is_blocking()
                   ? std::vector<expr> {m_b_idx * iim_block_
-                      + ((m_o + tid) % m_o_end) * iim_block_,
-                    n_b_idx * iin_block_ + ((n_o + tid) % n_o_end) * iin_block_}
-                  : std::vector<expr> {m_b_idx + (m_o + tid) % m_o_end,
-                    n_b_idx + (n_o + tid) % n_o_end, 0, 0};
+                      + (doroll(m_o, m_o_end)) * iim_block_,
+                    n_b_idx * iin_block_ + (doroll(n_o, n_o_end)) * iin_block_}
+                  : std::vector<expr> {m_b_idx + doroll(m_o, m_o_end),
+                    n_b_idx + doroll(n_o, n_o_end), 0, 0};
                 partial_cidx.insert(partial_cidx.begin(), k_s);
                 full_cidx = !tc.get_format().is_blocking()
                   ? std::vector<expr> {m_start_idx, n_start_idx}
@@ -1752,6 +1789,9 @@ func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
         }
       }
     }
+    // bind outer loops with axis hint
+    bind_loop_axis(owner_->get_outputs()[0], o_im_m, 0);
+    bind_loop_axis(owner_->get_outputs()[0], o_im_n, 1);
     // todo: K_sub_block partial or not may need combinated with format
     // dispatch(outer dispatch key) to dispatch.(inner impl in format dispatch
     // key not impl internal dispatch key.); Find the fusion strategy with
@@ -1868,7 +1908,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   std::vector<int> M_anchor_info = {M_blk_num, M_block_size, M_ib_block_size},
                    N_anchor_info = {N_blk_num, N_block_size, N_ib_block_size},
                    K_anchor_info = {K_blk_num, K_block_size, K_ib_block_size};
-  for_loop mloop;
+  for_loop mloop, nloop, kloop;
   expr M_real_split = is_dynamic
     ? M_split_num
     : do_cast_and_fold(
@@ -1887,7 +1927,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     expr iim_block_tsr, iin_block_tsr, iik_block_tsr;
     _named_for_(
       mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
-      _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
+      _named_for_(
+        nloop, n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
         M_single_thr_size = get_balance211_length(
           M_expr / iim_block_, M_split_num, m_s, m_idx, X_bigger_num);
         M_single_thr_size = M_single_thr_size * iim_block_;
@@ -1897,7 +1938,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           N_expr / iin_block_, N_split_num, n_s, n_idx, X_bigger_num);
         N_single_thr_size = N_single_thr_size * iin_block_;
         n_idx = n_idx * iin_block_;
-        _for_(k_s, 0, K_split_num, 1,
+        _named_for_(kloop, k_s, 0, K_split_num, 1,
           M_split_num * N_split_num == num_threads ? for_type::NORMAL
                                                    : for_type::PARALLEL,
           M_split_num * N_split_num == num_threads ? 0 : K_split_num) {
@@ -2166,7 +2207,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     expr iim_block = iim_block_, iin_block = iin_block_, iik_block = iik_block_;
     _named_for_(
       mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
-      _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
+      _named_for_(
+        nloop, n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
         _tensor_(out_tmp_buf, out_dtype, out_tmp_buf_shape_expr);
         // fake plain dims to pass down.
         out_tmp_buf->attr().set(attr_keys::plain_dims,
@@ -2197,7 +2239,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           iin_block->attr().set(attr_keys::no_index2var, true);
           iik_block->attr().set(attr_keys::no_index2var, true);
         }
-        _for_(k_s, 0, K_real_split, 1, for_type::PARALLEL, K_split_num) {
+        _named_for_(
+          kloop, k_s, 0, K_real_split, 1, for_type::PARALLEL, K_split_num) {
           expr K_single_thr_size;
           if (!is_dynamic && K_block_size == K_ib_block_size) {
             K_single_thr_size = K_block_size;
@@ -2658,14 +2701,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   mloop->attr()[stmt_attr_key::parallel_loop_balanced]
     = M_block_size == M_ib_block_size;
 
-  if (!owner_->need_dynamic_internal_query() && fusion) {
-    // get binded mxp
-    auto mxp = fusion->get_binded_mxp();
-    COMPILE_ASSERT(mxp, "No binded partition found")
-    // bind loop with axis
-    mxp->init_axis_binder(
-      owner_->get_outputs()[0], bound_axis {{0}, {1}, {}, {0}, {1}});
-  }
+  // bind outer loops with axis hint
+  bind_loop_axis(owner_->get_outputs()[0], mloop, 0);
+  bind_loop_axis(owner_->get_outputs()[0], nloop, 1);
+  bind_loop_axis(owner_->get_outputs()[0], kloop, std::vector<int> {});
 
   return true;
 }

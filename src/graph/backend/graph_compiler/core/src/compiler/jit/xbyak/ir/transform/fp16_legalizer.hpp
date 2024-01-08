@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,30 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_FUSION_MGR_UTILS_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_FUSION_MGR_UTILS_HPP
-#include <functional>
-#include <vector>
-#include "fusion_anchor.hpp"
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_TRANSFORM_FP16_LEGALIZER_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_TRANSFORM_FP16_LEGALIZER_HPP
+
+#include <compiler/config/context.hpp>
+#include <compiler/ir/function_pass.hpp>
+
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-// generates element-wise op in loops
-void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, sc_op_info_t &info,
-        const vectorized_info_t &vx_info,
-        std::function<stmt(
-                const std::vector<expr> &, std::vector<expr::lvalue_proxy_t> &)>
-                compute_lanes,
-        std::function<stmt(
-                const std::vector<expr> &, std::vector<expr::lvalue_proxy_t> &)>
-                compute_scalar);
+
+/* *
+ * When fp16 must be used on a machine without avx512fp16, the IR must be
+ * legalized through this pass.
+ * */
+class fp16_legalizer_t : public function_pass_t {
+public:
+    fp16_legalizer_t(const runtime::target_machine_t &target_machine)
+        : target_machine_(target_machine) {}
+    func_c operator()(func_c v) override;
+
+private:
+    const runtime::target_machine_t &target_machine_;
+};
 
 } // namespace gc
 } // namespace graph

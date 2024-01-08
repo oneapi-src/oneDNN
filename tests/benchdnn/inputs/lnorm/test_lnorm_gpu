@@ -17,6 +17,21 @@
 --flags=GCH,CH
 --batch=option_set_all
 
+# Different scale and shift data types
+--reset
+
+--dt=f32:bf16,bf16
+--dir=FWD_D,BWD_DW
+--ss_dt=bf16
+--flags=C,H,CH
+--batch=option_set_all
+
+--dt=f32:f16,f16
+--dir=FWD_D,BWD_DW
+--ss_dt=f16
+--flags=C,H,CH
+--batch=option_set_all
+
 # blocked cases
 --reset
 

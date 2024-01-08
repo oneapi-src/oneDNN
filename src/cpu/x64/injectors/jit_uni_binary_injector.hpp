@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -431,6 +431,52 @@ private:
     void calculate_w_cspn_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
     void calculate_w_cspn_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+
+    void append_mb_offset(
+            const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
+            const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
+            const std::map<int, size_t> &vmm_idx_to_out_elem_off_val,
+            int vmm_idx, const Xbyak::Reg64 &addr_reg,
+            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes,
+            bool is_first) const;
+    void calculate_mb_ncsp_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_mb_ncsp_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_nspc_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_mb_nspc_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_cspn_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_mb_cspn_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+
+    void append_oc_spatial_offset(
+            const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
+            const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
+            const std::map<int, size_t> &vmm_idx_to_out_elem_off_val,
+            int vmm_idx, const Xbyak::Reg64 &addr_reg,
+            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes,
+            bool is_first) const;
+    void calculate_oc_spatial_ncsp_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_oc_spatial_ncsp_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_oc_spatial_nspc_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_oc_spatial_nspc_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_oc_spatial_cspn_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_oc_spatial_cspn_partial(const dim_t *strides,
             const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
             std::size_t elem_size_bytes) const;
 

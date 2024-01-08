@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#include <algorithm>
 #include <cfloat>
 #include <cmath>
 #include <memory>
@@ -1034,6 +1035,8 @@ location_manager::encode_simd_constant() {
         auto lanes = v->dtype_.lanes_;
         auto type_code = v->dtype_.type_code_;
         auto size = get_data_type_size(get_cpu_data_type(v->dtype_));
+        // padding for all constant data to be 32bit+
+        size = std::max(size, (size_t)4);
         assert(size <= 64);
         switch (type_code) {
             case sc_data_etype::BF16: {

@@ -39,7 +39,7 @@ public:
     bf16_fp16_promote_impl_t(context_ptr ctx = get_default_context())
         : ctx_(std::move(ctx)) {}
     std::tuple<expr_c, expr_c> docast(
-            const expr &orig_a, const expr &orig_b, bool *is_bfloat16);
+            const expr &orig_a, const expr &orig_b, bool *is_low_precision_fp);
     expr_c visit(binary_c v) final;
     expr_c visit(cmp_c v) final;
     expr_c visit(select_c v) final;

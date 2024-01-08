@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1011,6 +1011,7 @@ bool repetition_matcher_t::match_current_op(const binding_t &bind_arg) {
         if (cons) {
             binding_t con_bind = bind_arg;
             con_bind.bind_node = (*cons)[0]->first;
+            con_bind.bind_port = (*cons)[0]->second;
             if (!match_graph_helper(con_bind, parent_ctx_, updated_op_map_))
                 return false;
         }
@@ -1026,6 +1027,7 @@ bool repetition_matcher_t::match_current_op(const binding_t &bind_arg) {
         if (prod) {
             binding_t prod_bind = bind_arg;
             prod_bind.bind_node = prod->first;
+            prod_bind.bind_port = prod->second;
             if (!match_graph_helper(prod_bind, parent_ctx_, updated_op_map_))
                 return false;
         }

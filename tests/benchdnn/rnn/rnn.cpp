@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1127,14 +1127,14 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     return OK;
 }
 
-std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
+std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb, dir_t dir) {
     std::vector<data_kind_t> check_kinds;
-    if (prb->dir & FLAG_FWD) {
+    if ((prb->dir & FLAG_FWD) && (dir & FLAG_FWD)) {
         check_kinds = {data_kind_t::DST, data_kind_t::DST_ITER};
         if (prb->alg == VANILLA_LSTM) {
             check_kinds.push_back(data_kind_t::DST_ITER_C);
         }
-    } else if (prb->dir & FLAG_BWD) {
+    } else if ((prb->dir & FLAG_BWD) && (dir & FLAG_BWD)) {
         check_kinds = {data_kind_t::DST, data_kind_t::DST_ITER,
                 data_kind_t::SRC, data_kind_t::SRC_ITER, data_kind_t::WEI,
                 data_kind_t::WEI_ITER, data_kind_t::BIA};
@@ -1148,11 +1148,8 @@ std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
             check_kinds.push_back(data_kind_t::WEI_PEEPHOLE);
         if (prb->is_lstm_projection())
             check_kinds.push_back(data_kind_t::WEI_PROJECTION);
-    } else {
-        assert(!"unexpected!");
-        SAFE_V(FAIL);
     }
-    assert(!check_kinds.empty());
+    // `check_kinds` is empty for `(prb->dir & FLAG_BWD) && (dir & FLAG_FWD)`.
     return check_kinds;
 }
 
@@ -1193,12 +1190,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     SAFE(execute_and_wait(v_prim[0], args, res), WARN);
 
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
-        if (prb.prop != dnnl_backward) {
-            check_correctness(&prb, get_kinds_to_check(&prb), args, ref_args,
-                    setup_cmp, res);
-        }
-    }
+    check_correctness(&prb, get_kinds_to_check(&prb, FLAG_FWD), args, ref_args,
+            setup_cmp, res);
 
     if (prb.prop == dnnl_backward) {
         // Pass same memory map as we need data from forward on backward.
@@ -1213,10 +1206,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
         SAFE(execute_and_wait(v_prim[1], args, res), WARN);
 
-        if (has_bench_mode_bit(mode_bit_t::corr)) {
-            check_correctness(&prb, get_kinds_to_check(&prb), args, ref_args,
-                    setup_cmp, res);
-        }
+        check_correctness(&prb, get_kinds_to_check(&prb, FLAG_BWD), args,
+                ref_args, setup_cmp, res);
     }
 
     return measure_perf(prb.ctx_exe, res, prim, args);

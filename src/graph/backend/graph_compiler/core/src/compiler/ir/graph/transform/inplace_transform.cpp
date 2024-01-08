@@ -23,12 +23,12 @@ namespace impl {
 namespace graph {
 namespace gc {
 enum inplace_status : int { no_linked, linked_output, directly_linked_output };
-bool is_copy_reorder(const sc_op_ptr &node) {
+static bool is_copy_reorder(const sc_op_ptr &node) {
     return node->isa<reorder_op_t>()
             && node->attrs_.get_or_else("actually_copy", false);
 }
 
-sc_op_ptr skip_tensor_view(const sc_op_ptr &node, int &index) {
+static sc_op_ptr skip_tensor_view(const sc_op_ptr &node, int &index) {
     auto cur_node = node;
     while (cur_node->isa<tensor_view_op_t>()
             && cur_node->is_single_output_single_use()) {
@@ -37,7 +37,7 @@ sc_op_ptr skip_tensor_view(const sc_op_ptr &node, int &index) {
     }
     return cur_node;
 }
-bool has_linked_input(const sc_op_ptr &node) {
+static bool has_linked_input(const sc_op_ptr &node) {
     if (node->isa<input_op>()) { return true; }
     auto cur_node = node.get();
     while (cur_node->isa<tensor_view_op_t>()) {
@@ -46,25 +46,35 @@ bool has_linked_input(const sc_op_ptr &node) {
     return cur_node->isa<input_op>();
 }
 
+static bool has_linked_output(const sc_op_ptr &node) {
+    if (node->isa<output_op>()) { return true; }
+    if (node->isa<tensor_view_op_t>()) {
+        for (auto &use : node->get_outputs()[0]->uses_) {
+            if (has_linked_output(use.second)) { return true; }
+        }
+    }
+    return false;
+}
+
 // return if the copy_reorder is linked to output.
 inplace_status has_linked_output_and_modify_copy(int out_idx,
         const sc_op_ptr &node, bool is_del = true, bool force_insert = false,
         bool force_delete = false) {
     auto cur_node = skip_tensor_view(node, out_idx);
+    auto has_linked_out = has_linked_output(cur_node);
     if (is_del && is_copy_reorder(cur_node)) {
         assert(cur_node->get_outputs()[0]->uses_.size() == 1);
         auto next_node = cur_node->get_outputs()[0]->uses_[0].second.lock();
         // skip tensor view
         auto nnext_node = skip_tensor_view(next_node, out_idx);
-        if (nnext_node->isa<output_op>() && !force_delete) {
-            return linked_output;
-        }
+        auto nnext_linked_out = has_linked_output(nnext_node);
+        if (nnext_linked_out && !force_delete) { return linked_output; }
         // delete copy.
         next_node->replace_input(cur_node->get_outputs()[0]->uses_[0].first,
                 cur_node->get_inputs()[0]);
         cur_node->remove();
-        return nnext_node->isa<output_op>() ? linked_output : no_linked;
-    } else if (!is_del && force_insert && cur_node->isa<output_op>()) {
+        return nnext_linked_out ? linked_output : no_linked;
+    } else if (!is_del && force_insert && has_linked_out) {
         // insert copy
         sc_graph_t &graph = node->get_owner_graph();
         auto old_ltsr = cur_node->get_inputs()[out_idx];
@@ -75,7 +85,7 @@ inplace_status has_linked_output_and_modify_copy(int out_idx,
         return linked_output;
     }
     // judge cur node is a output op.
-    return cur_node->isa<output_op>() ? directly_linked_output : no_linked;
+    return has_linked_out ? directly_linked_output : no_linked;
 }
 
 // This function aims to automatically detect wrong inplacement of external
@@ -91,10 +101,7 @@ void invalid_inplacement_detection(sc_graph_t &graph) {
         if (has_linked_input(cur_node)) { inp_count++; }
         for (auto &customer_use : cur_node->get_outputs()[0]->uses_) {
             auto customer = customer_use.second.lock();
-            int out_idx = customer_use.first;
-            auto status = has_linked_output_and_modify_copy(
-                    out_idx, customer, /*is_del*/ false);
-            if (status == directly_linked_output) { out_count++; }
+            if (has_linked_output(customer)) { out_count++; }
         }
         // If the buffer is linked to 2 or more inputs/outputs, need to
         // insert copy.

@@ -27,7 +27,7 @@
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
-#include <ops/reduce_mean.hpp>
+#include <ops/reduce_graph_op.hpp>
 #include <ops/reshape.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/op_func_decl.hpp>

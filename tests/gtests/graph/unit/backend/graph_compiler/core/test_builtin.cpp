@@ -46,7 +46,8 @@ TEST(GCCore_CPU_builtin_cpp, TestBrgemmOnednn) {
                 builder::tensor_ptr(C, {0, 0}), blocks, M, N, K, K, N, N, M * K,
                 K * N, datatypes::f32.as_etype_int(),
                 datatypes::f32.as_etype_int(), ir_nullptr, ir_nullptr,
-                ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr);
+                ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr, ir_nullptr,
+                ir_nullptr);
         _return_(true);
     }
     // auto c = create_c_generator(std::cout);

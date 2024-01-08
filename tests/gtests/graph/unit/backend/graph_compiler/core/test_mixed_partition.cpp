@@ -97,7 +97,9 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseOpPass) {
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
-    auto get_test_graph = [](const char *fuse_type = nullptr) {
+    auto ctx = get_test_ctx();
+
+    auto get_test_graph = [&ctx](const char *fuse_type = nullptr) {
         int M = 32, K = 64, N = 32;
         sc_graph_t mgr;
         auto in_a = mgr.make_input(
@@ -127,19 +129,19 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
                         {"channel_axis", 0}});
 
         mgr.make_output(quan->get_outputs());
+
+        graph_inline(mgr);
+        quantize::quantize_inline(mgr);
+        elemwise_dimension_alignment(mgr);
+        layout_propagation(mgr);
+        mixed_partition(mgr, ctx);
         return mgr;
     };
-
-    auto ctx = get_test_ctx();
 
     // full fusion version
     {
         sc_graph_t graph = get_test_graph();
-        graph_inline(graph);
-        quantize::quantize_inline(graph);
-        elemwise_dimension_alignment(graph);
-        layout_propagation(graph);
-        mixed_partition(graph, ctx);
+
         std::stringstream ss;
         print_graph(graph, ss, true);
         std::string expected_str
@@ -156,11 +158,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
     // break pre fusion version
     {
         sc_graph_t graph = get_test_graph(op_attr_key::break_pre_fuse);
-        graph_inline(graph);
-        quantize::quantize_inline(graph);
-        elemwise_dimension_alignment(graph);
-        layout_propagation(graph);
-        mixed_partition(graph, ctx);
+
         std::stringstream ss;
         print_graph(graph, ss, true);
         std::string expected_str
@@ -178,11 +176,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
     // break post fusion version
     {
         sc_graph_t graph = get_test_graph(op_attr_key::break_post_fuse);
-        graph_inline(graph);
-        quantize::quantize_inline(graph);
-        elemwise_dimension_alignment(graph);
-        layout_propagation(graph);
-        mixed_partition(graph, ctx);
 
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -201,11 +194,6 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
     // no fuse fusion version
     {
         sc_graph_t graph = get_test_graph(op_attr_key::no_fuse);
-        graph_inline(graph);
-        quantize::quantize_inline(graph);
-        elemwise_dimension_alignment(graph);
-        layout_propagation(graph);
-        mixed_partition(graph, ctx);
 
         std::stringstream ss;
         print_graph(graph, ss, true);
@@ -1116,6 +1104,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
     auto out0 = graph.make_output(mmm1->get_outputs());
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    graph_driver_before_fusion(graph, ctx);
     // split outmost and merge inners
     mixed_partition(graph, ctx);
     auto mixed_op = get_mixed_op_from_graph(graph);
@@ -1246,8 +1235,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SyncTensorViewShrinkInfo) {
     EXPECT_TRUE(matmul_out.isa<tensor>()
             && utils::string_startswith(matmul_out.static_as<tensor>()->name_,
                     "managed_matmul_core"));
-    // No tensor shrink attr is expected
-    EXPECT_FALSE(
+    EXPECT_TRUE(
             matmul_out->attr().has_key(tensor_shrinker_attrs::should_shrink));
 }
 
@@ -1711,7 +1699,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically2) {
             {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
     auto sig = graph.make("sigmoid", {gemm0->get_outputs()[0]}, {}, {});
     auto reo0 = graph.make("reorder", {sig->get_outputs()[0]}, {},
-            {{"out_format", sc_data_format_t::MKmk(4, 16)},
+            {{"out_format", sc_data_format_t::MKmk(4, 64)},
                     {"internal", true}});
     auto gemm1 = graph.make("managed_matmul_core",
             {input1->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
@@ -1855,7 +1843,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
     auto mmm0 = graph.make("managed_matmul_core",
             {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
     {
-        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 16, 4, 0};
+        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 8, 4, 0};
         mmm0->dyn_cast<op_traits::configurable_t>()->set_config(
                 reflection::general_object_t::make(cfg));
     }
@@ -1864,7 +1852,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
     auto mmm1 = graph.make("managed_matmul_core",
             {input0->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
     {
-        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 16, 4, 0};
+        ops::managed_matmul_core_config_t cfg = {1, 16, 1, 8, 4, 0};
         mmm1->dyn_cast<op_traits::configurable_t>()->set_config(
                 reflection::general_object_t::make(cfg));
     }
@@ -1883,8 +1871,8 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically5) {
     print_graph(graph, ss, true);
     std::string expected_str
             = R"(graph(v0: f32[4, 4096], v1: f32[4096, 11008], v2: f32[4096, 11008]) -> [v3: f32[4, 11008]] {
-  [v4: f32[4, 11008]] = outerloop_1X16X1X1X16_partition_managed_matmul_core_relu(v0, v2)
-  [v3: f32[4, 11008]] = outerloop_1X16X1X1X16_partition_managed_matmul_core_relu_add(v0, v1, v4)
+  [v4: f32[4, 11008]] = outerloop_1X16X1X1X8_partition_managed_matmul_core_relu(v0, v2)
+  [v3: f32[4, 11008]] = outerloop_1X16X1X1X8_partition_managed_matmul_core_relu_add(v0, v1, v4)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);
@@ -2335,7 +2323,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, CleanFusibleInnerLoop1) {
     auto func = mixed_op->parti_list_[0]->func_;
     ASSERT_TRUE(func && func->body_.isa<stmts>());
     auto body = func->body_.static_as<stmts>();
-    ASSERT_TRUE(body->seq_.size() == 1 && body->seq_[0].isa<for_loop>());
+    ASSERT_TRUE(body->seq_.size() == 2 && body->seq_[0].isa<for_loop>());
     auto outer_loop = body->seq_[0].static_as<for_loop>();
     ASSERT_TRUE(outer_loop->body_.isa<stmts>());
     auto loop_body = outer_loop->body_.static_as<stmts>();
@@ -2678,6 +2666,40 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, InferSliceForBMMWithBroadcast) {
             = R"(graph(v0: u8[8, 16, 64, 128], v1: s8[8, 1, 128, 64]) -> [v2: s32[8, 16, 64, 64]] {
   [v3: s8[8, 1, 2, 4, 8, 32, 4]] = reorder(v1)
   [v2: s32[8, 16, 64, 64]] = matmul_core(v0, v3)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+}
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFilterInputPartition) {
+    sc_graph_t graph;
+
+    SET_THREADS_OR_SKIP(10);
+    /** Build following graph
+     *      relu0
+     *      /   \
+     *     |    relu1 ("break_post_fues":true)
+     *      \   /
+     *      add0
+     */
+    auto input = graph.make_input({graph_tensor::make({10, 20, 30})});
+    auto relu0 = graph.make("relu", input->get_outputs(), {}, {});
+    // relu1 is marked as `break_post_fuse`
+    auto relu1 = graph.make(
+            "relu", relu0->get_outputs(), {}, {{"break_post_fuse", true}});
+    // Although `add0` can still be fused with `relu0`, it could not be fused
+    // with input partition including `relu1`
+    auto add0 = graph.make(
+            "add", {relu0->get_outputs()[0], relu1->get_outputs()[0]}, {}, {});
+    graph.make_output(add0->get_outputs());
+
+    mixed_partition(graph, get_test_ctx());
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    std::string expected_str
+            = R"(graph(v0: f32[10, 20, 30]) -> [v1: f32[10, 20, 30]] {
+  [v2: f32[10, 20, 30], v3: f32[10, 20, 30]] = outerloop_10X20_partition_relu_relu(v0)
+  [v1: f32[10, 20, 30]] = add(v2, v3)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);

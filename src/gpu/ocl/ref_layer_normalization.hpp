@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,8 +49,11 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
             auto src_data_t = src_md()->data_type;
             auto dst_data_t = dst_md()->data_type;
 
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
             bool ok = is_fwd()
-                    && (utils::everyone_is(f16, src_data_t, dst_data_t)
+                    && (utils::everyone_is(u8, src_data_t, dst_data_t)
+                            || utils::everyone_is(s8, src_data_t, dst_data_t)
+                            || utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(f32, src_data_t, dst_data_t)
                             || (utils::everyone_is(f64, src_data_t, dst_data_t)
@@ -59,9 +62,9 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
                                     && attr()->post_ops_.has_default_values()))
                     && !memory_desc_ndims_ok(src_md(), dst_md(), stat_md())
                     && stat_md()->data_type == f32
-                    && check_scale_shift_data_type()
-                    && attr()->has_default_values()
-                    && set_default_formats_common();
+                    && check_scale_shift_data_type({f32, bf16, f16})
+                    && attr()->has_default_values(skip_mask_t::scales_runtime)
+                    && attr_scales_ok() && set_default_formats_common();
             if (!ok) return status::unimplemented;
 
             return init_conf(engine);
@@ -80,6 +83,11 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
+
+        kernel_ctx.define_int("WITH_SRC_SCALES",
+                !pd()->attr()->scales_.get(DNNL_ARG_SRC).has_default_values());
+        kernel_ctx.define_int("WITH_DST_SCALES",
+                !pd()->attr()->scales_.get(DNNL_ARG_DST).has_default_values());
 
         CHECK(create_kernel(engine, &kernel_, "ref_lnorm_fwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
@@ -129,7 +137,7 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
                                             compute::device_ext_t::khr_fp64)
                                     && attr()->post_ops_.has_default_values()))
                     && stat_md()->data_type == f32
-                    && check_scale_shift_data_type()
+                    && check_scale_shift_data_type({f32, bf16, f16})
                     && attr()->has_default_values()
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;

@@ -417,19 +417,31 @@ void validate_impl_t::view(intrin_call_c v) {
             break;
         case intrin_type::insert:
             validate_type(v);
-            COMPILE_ASSERT_POS(v->args_.size() == 2,
-                    "The intrinsics take two parameters. Got " << v);
-            COMPILE_ASSERT_POS(
-                    v->intrin_attrs_->get_or_null<int>("insert_imm") != nullptr,
-                    "Must specify intrin_attrs_.");
+            if (v->args_.size() == 2) {
+                COMPILE_ASSERT_POS(
+                        v->intrin_attrs_->get_or_null<int>("insert_imm")
+                                != nullptr,
+                        "Must specify intrin_attrs_.");
+            } else {
+                COMPILE_ASSERT_POS(v->args_.size() == 3,
+                        "The intrinsics take 2 or 3 parameters. Got " << v);
+                COMPILE_ASSERT_POS(v->args_[2]->dtype_ == datatypes::u16,
+                        "The args row and col should be type u32. Got " << v);
+            }
             break;
         case intrin_type::extract:
             validate_type(v);
-            COMPILE_ASSERT_POS(v->args_.size() == 1,
-                    "The intrinsics take one parameter. Got " << v);
-            COMPILE_ASSERT_POS(v->intrin_attrs_->get_or_null<int>("extract_imm")
-                            != nullptr,
-                    "Must specify intrin_attrs_.");
+            if (v->args_.size() == 1) {
+                COMPILE_ASSERT_POS(
+                        v->intrin_attrs_->get_or_null<int>("extract_imm")
+                                != nullptr,
+                        "Must specify intrin_attrs_.");
+            } else {
+                COMPILE_ASSERT_POS(v->args_.size() == 2,
+                        "The intrinsics take 1 or 2 parameters. Got " << v);
+                COMPILE_ASSERT_POS(v->args_[1]->dtype_ == datatypes::u16,
+                        "The args row and col should be type u32. Got " << v);
+            }
             break;
         case intrin_type::gather:
             validate_type(v);

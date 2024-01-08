@@ -47,22 +47,66 @@ static constexpr int cache_line_size = 64;
 config_ptr gen_conv_fwd_rl_t::get_default_config(context_ptr ctx) const {
   auto ret = reflection::general_object_t::make<conv_fwd_rl_config_t>();
   conv_fwd_rl_config_t &cfg = *ret.unchecked_get_as<conv_fwd_rl_config_t>();
-  cfg.brgemm_m = oh_;
+  cfg.brgemm_m = ow_;
   std::vector<int> brgemm_m_candidates = {32, 16};
   bool has_proper_brgemm_m = false;
   for (auto &c : brgemm_m_candidates) {
-    if (oh_ % c == 0) {
+    if (ow_ % c == 0) {
       cfg.brgemm_m = c;
       has_proper_brgemm_m = true;
       break;
     }
   }
   if (!has_proper_brgemm_m) {
-    cfg.brgemm_m = utils::get_blocks(oh_, 16, 64).back();
+    cfg.brgemm_m = utils::get_blocks(ow_, 16, 64).back();
   }
   cfg.brgemm_n = utils::get_blocks(oc_, 16).back();
 
   return std::move(ret);
+}
+
+std::vector<expr> gen_conv_fwd_rl_t::data_offset(const expr &N, const expr &G,
+  const expr &C, const expr &D, const expr &H, const expr &W,
+  const expr &C_block, const expr &c_idx) const {
+  return is_group_conv_
+    ? (!blocking_input_ ? std::vector<expr> {N, H, W, G, C * C_block + c_idx}
+                        : std::vector<expr> {N, G, C, H, W, c_idx})
+    : (!blocking_input_ ? std::vector<expr> {N, H, W, C * C_block + c_idx}
+                        : std::vector<expr> {N, C, H, W, c_idx});
+}
+
+std::vector<expr> gen_conv_fwd_rl_t::output_offset(const expr &N, const expr &G,
+  const expr &C, const expr &D, const expr &H, const expr &W,
+  const expr &C_block, const expr &c_idx) const {
+  return is_group_conv_
+    ? (!blocking_output_ ? std::vector<expr> {N, H, W, G, C * C_block + c_idx}
+                         : std::vector<expr> {N, G, C, H, W, c_idx})
+    : (!blocking_output_ ? std::vector<expr> {N, H, W, C * C_block + c_idx}
+                         : std::vector<expr> {N, C, H, W, c_idx});
+}
+
+void gen_conv_fwd_rl_t::create_anchor(fusion_anchor_mgr_t *fusion,
+  const graph_tensor_ptr &output_gt, const expr &n, const int n_len,
+  const expr &g, const expr &g_len, const expr &k, const int k_len,
+  const expr &d, const int d_len, const expr &p, const expr &p_len,
+  const expr &q, const int q_len, const int K_block) const {
+  if (fusion) {
+    if (is_group_conv_) {
+      fusion->create_fusion_anchor(slice_map {{output_gt.get(),
+        blocking_output_
+          ? slice_range_list {{{n, n_len}, {g, g_len}, {k, k_len}, {p, p_len},
+            {q, q_len}, {0, K_block}}}
+          : slice_range_list {{{n, n_len}, {p, p_len}, {q, q_len}, {g, g_len},
+            {k * K_block, k_len * K_block}}}}});
+
+    } else {
+      fusion->create_fusion_anchor(slice_map {{output_gt.get(),
+        blocking_output_ ? slice_range_list {{{n, n_len}, {k, k_len},
+          {p, p_len}, {q, q_len}, {0, K_block}}}
+                         : slice_range_list {{{n, n_len}, {p, p_len},
+                           {q, q_len}, {k * K_block, k_len * K_block}}}}});
+    }
+  }
 }
 
 void gen_conv_fwd_rl_t::validate_default_config(
@@ -95,77 +139,73 @@ gen_conv_fwd_rl_t::gen_conv_fwd_rl_t(sc_op *owner, const sc_dims &stride,
   auto out_plain_dims = get_output_plain_dims();
 
   ndims_ = input_plain_dims.size();
-  COMPILE_ASSERT(
-    ndims_ == 4, "reduce lowering currently only support 4D input!")
+  groups_ = static_cast<int>(attrs_.get_or_else("groups", 1));
+  is_group_conv_ = groups_ > 1;
+  COMPILE_ASSERT(ndims_ == 4UL + is_group_conv_,
+    "reduce lowering currently only support 4D input!")
   COMPILE_ASSERT(weight_plain_dims.size() == ndims_,
     "Wrong weight dims, only support 4D weights, but got "
       << weight_plain_dims.size() << "D.");
 
-  groups_ = static_cast<int>(attrs_.get_or_else("groups", 1));
-  COMPILE_ASSERT(input_plain_dims[1] / groups_ == weight_plain_dims[1],
-    "expect input_plain_dims[1] / groups == weight_plain_dims[1], but got "
-      << input_plain_dims[1] / groups_ << " vs " << weight_plain_dims[1]
-      << ".");
+  COMPILE_ASSERT(input_plain_dims[1 + is_group_conv_]
+      == weight_plain_dims[1 + is_group_conv_],
+    "expect ic == kic, but got "
+      << input_plain_dims[1 + is_group_conv_] << " vs "
+      << weight_plain_dims[1 + is_group_conv_] << ".");
 
   mb_ = input_plain_dims[0];
-  ic_ = input_plain_dims[1] / groups_;
-  ih_ = input_plain_dims[2];
-  iw_ = input_plain_dims[3];
+  ic_ = input_plain_dims[1 + is_group_conv_];
+  ih_ = input_plain_dims[2 + is_group_conv_];
+  iw_ = input_plain_dims[3 + is_group_conv_];
 
-  oc_ = weight_plain_dims[0] / groups_;
-  kh_ = weight_plain_dims[2];
-  kw_ = weight_plain_dims[3];
-  oh_ = out_plain_dims[2];
-  ow_ = out_plain_dims[3];
+  oc_ = weight_plain_dims[is_group_conv_];
+  kh_ = weight_plain_dims[2 + is_group_conv_];
+  kw_ = weight_plain_dims[3 + is_group_conv_];
+  oh_ = out_plain_dims[2 + is_group_conv_];
+  ow_ = out_plain_dims[3 + is_group_conv_];
   pt_ = pads_begin[0], pb_ = pads_begin[0];
   pl_ = pads_end[0], pr_ = pads_end[0];
   if (pads_begin.size() > 1) {
-    pt_ = pads_begin[ndims_ - 4];
-    pl_ = pads_begin[ndims_ - 3];
+    pt_ = pads_begin[ndims_ - 4 - is_group_conv_];
+    pl_ = pads_begin[ndims_ - 3 - is_group_conv_];
   }
   if (pads_end.size() > 1) {
-    pb_ = pads_end[ndims_ - 4];
-    pr_ = pads_end[ndims_ - 3];
+    pb_ = pads_end[ndims_ - 4 - is_group_conv_];
+    pr_ = pads_end[ndims_ - 3 - is_group_conv_];
   }
 
   sh_ = stride[0], sw_ = stride[0];
   if (stride.size() > 1) {
-    sh_ = stride[ndims_ - 4];
-    sw_ = stride[ndims_ - 3];
+    sh_ = stride[ndims_ - 4 - is_group_conv_];
+    sw_ = stride[ndims_ - 3 - is_group_conv_];
   }
 
-  LDA_ = kw_ * ic_ * sw_;
+  LDA_ = kh_ * ic_ * sw_;
   actual_iw_ = (ow_ - 1) * sw_ + kw_;
   actual_ih_ = (oh_ - 1) * sh_ + kh_;
 
   COMPILE_ASSERT(pt_ <= kh_ && pb_ <= kh_ && pl_ <= kw_ && pr_ <= kw_,
     "Not support the case of padding > filter_size!");
-  int width_threshold = kw_;
   int num_threads = runtime_config_t::get().get_num_threads();
-  parallel_axis_ = (mb_ * groups_ >= num_threads)
+  int height_threshold = kh_;
+  parallel_axis_ = (mb_ >= num_threads)
     ? parallel_kind::BATCH
-    : ((int)utils::divide_and_ceil(ow_, num_threads) > width_threshold
-        ? parallel_kind::WIDTH
+    : ((int)utils::divide_and_ceil(oh_, num_threads) > height_threshold
+        ? parallel_kind::HEIGHT
         : parallel_kind::BATCH);
 
   num_brgemm_k_ = attrs_.get<int>("num_brgemm_k");
   brgemm_k_ = attrs_.get<int>("brgemm_k");
   extra_padding_ = attrs_.get<int>("extra_padding");
-  int last_row_size
-    = ((parallel_axis_ == parallel_kind::BATCH)
-          ? (actual_iw_ * ic_)
-          : ((utils::divide_and_ceil(ow_, num_threads) - 1) * sw_ + kw_) * ic_)
-    + extra_padding_;
-  aux_buf_size_ = (actual_ih_ - 1) * kw_ * ic_ + last_row_size;
-
-  init_lanes_ = (kw_ - pl_) * ic_;
-  update_lanes_ = sw_ * ic_;
-  assert(
-    init_lanes_ * utils::get_sizeof_type(get_input_dtype()) <= cache_line_size
-    && update_lanes_ * utils::get_sizeof_type(get_input_dtype())
-      <= cache_line_size);
-  init_mask_ = convert_int_to_mask(init_lanes_);
-  update_mask_ = convert_int_to_mask(update_lanes_);
+  int last_row_size = actual_ih_ * ic_ + extra_padding_;
+  if (parallel_kind::HEIGHT == parallel_axis_) {
+    last_row_size
+      = ((utils::divide_and_ceil(oh_, num_threads) - 1) * sh_ + kh_) * ic_
+      + extra_padding_;
+  }
+  aux_buf_size_ = (actual_iw_ - 1) * kh_ * ic_ + last_row_size;
+  blocking_input_ = get_input_blocking_dims().size() > ndims_;
+  blocking_output_ = get_output_blocking_dims().size() > ndims_;
 }
 
 bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
@@ -183,8 +223,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
   COMPILE_ASSERT(brgemm_n && (oc_ % brgemm_n == 0),
     "oc should be dividable by brgemm_n, but got oc=" << oc_ << " brgemm_n="
                                                       << brgemm_n << ".");
-  COMPILE_ASSERT((brgemm_m > 0) && (oh_ % brgemm_m == 0),
-    "oh should be dividable by brgemm_m, but got oh=" << oh_ << " brgemm_m="
+  COMPILE_ASSERT((brgemm_m > 0) && (ow_ % brgemm_m == 0),
+    "oh should be dividable by brgemm_m, but got oh=" << ow_ << " brgemm_m="
                                                       << brgemm_m << ".");
 
   auto input_dtype = get_input_dtype();
@@ -241,237 +281,140 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
   int real_pr = std::max(actual_iw_ - pl_ - iw_, 0);
   COMPILE_ASSERT(real_pr <= pr_,
     "expect real_pr <= pr_, but got " << real_pr << ", vs " << pr_ << ".");
-  int iw_remaining = (pl_ + iw_ + pr_ - kw_) % sw_;
-  int ow_num_pr = (iw_remaining == 0)
-    ? utils::divide_and_ceil(pr_, sw_)
-    : ((pr_ > iw_remaining) ? utils::divide_and_ceil(pr_ - iw_remaining, sw_)
+  int ih_remaining = (pt_ + ih_ + pb_ - kh_) % sh_;
+  int oh_num_pb = (ih_remaining == 0)
+    ? utils::divide_and_ceil(pb_, sh_)
+    : ((pb_ > ih_remaining) ? utils::divide_and_ceil(pb_ - ih_remaining, sh_)
                             : 0);
-  int ow_pr_idx = ow_num_pr > 0 ? (ow_ - ow_num_pr) : -1;
+  int oh_pr_idx = oh_num_pb > 0 ? (oh_ - oh_num_pb) : -1;
   auto padding_value = attrs_.get_or_else("padding_value", 0);
-
-  _tensor_(pr_pad_lanes_tsr, datatypes::s32, {ow_num_pr});
-  _tensor_(pr_copy_mask_tsr, datatypes::index, {ow_num_pr});
-  _tensor_(pr_copy_lanes_tsr, datatypes::s32, {ow_num_pr});
-  if (ow_num_pr > 0) {
-    assert(ow_num_pr == ow_ - ow_pr_idx);
-    for (int i = ow_pr_idx; i < ow_; ++i) {
-      int pr_pad_lanes = std::min(i * sw_ + kw_ - (pl_ + iw_), sw_) * ic_;
-      int pr_copy_lanes = std::max(0, sw_ * ic_ - pr_pad_lanes);
-      pr_pad_lanes_tsr[i - ow_pr_idx] = pr_pad_lanes;
-      pr_copy_mask_tsr[i - ow_pr_idx] = convert_int_to_mask(pr_copy_lanes);
-      pr_copy_lanes_tsr[i - ow_pr_idx] = pr_copy_lanes;
-    }
-  }
-
-  _tensor_(init_mask_tsr, datatypes::index, {num_threads});
-  _tensor_(init_lanes_tsr, datatypes::index, {num_threads});
-  if (parallel_axis_ == parallel_kind::WIDTH) {
-    auto get_start_pos = [](int tid, int groups, int size) {
-      int job1 = utils::divide_and_ceil(size, groups);
-      int job2 = job1 - 1;
-      int pos = size - job2 * groups;
-      int job = tid < pos ? job1 : job2;
-      int start_pos
-        = tid <= pos ? (tid * job1) : pos * job1 + (tid - pos) * job2;
-      return start_pos;
-    };
-
-    for (int i = 0; i < num_threads; ++i) {
-      int start_iw = get_start_pos(i, num_threads, ow_) * sw_;
-      int cur_pl = std::min(kw_, std::max(0, pl_ - start_iw));
-      int init_lanes = (kw_ - cur_pl) * ic_;
-      init_mask_tsr[i] = convert_int_to_mask(init_lanes);
-      init_lanes_tsr[i] = init_lanes;
-    }
-  }
+  auto ic_lanes
+    = ic_ * utils::get_sizeof_type(get_input_dtype()) / 8 > cache_line_size
+    ? 1
+    : ic_;
+  auto ic_real_lane
+    = ic_lanes == 1 ? 1 : std::min(lanes, get_minimal_lanes(ic_lanes));
+  expr ic_mask = ic_lanes == 1
+    ? expr()
+    : builder::make_cast(get_dtype(ic_real_lane), convert_int_to_mask(ic_));
 
   auto init_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &g,
-                        const expr &q, const expr &init_idx, const expr &tid) {
+                        const expr &p, const expr &init_idx, const expr &tid) {
     // only need to copy the valid area as all the remaining padding
     // areas are already zero-out
-    int max_lanes = kw_ * ic_;
-    max_lanes = std::min(lanes, get_minimal_lanes(max_lanes));
-    expr init_mask_expr = builder::make_cast(get_dtype(max_lanes), init_mask_);
-    expr cur_pl = pl_;
-    expr q_offset = 0;
-    if (parallel_axis_ == parallel_kind::WIDTH) {
-      init_mask_expr
-        = builder::make_cast(get_dtype(max_lanes), init_mask_tsr[tid]);
-      cur_pl = builder::make_min(kw_,
+    expr cur_pt = pt_;
+    expr p_offset = 0;
+    if (parallel_axis_ == parallel_kind::HEIGHT) {
+      cur_pt = builder::make_min(kh_,
         builder::make_max(
-          0, pl_ - builder::make_cast(datatypes::s32, init_idx * sw_)));
-      q_offset = builder::make_select(q > 0, pl_, 0);
+          0, pt_ - builder::make_cast(datatypes::s32, init_idx * sh_)));
+      p_offset = builder::make_select(p > 0, pt_, 0);
+    }
+    _for_(iw, pl_, real_pr > 0 ? (pl_ + iw_) : actual_iw_) {
+      _for_(kh, 0, kh_ - cur_pt, 1) {
+        _for_(c_i, 0, ic_, ic_lanes) {
+          aux_buf[span_t({iw * kh_ * ic_ + cur_pt * ic_ + kh * ic_ + c_i},
+            ic_real_lane, ic_mask)]
+            = input[span_t(data_offset(n_o, g, 0, 0, p * sh_ + kh - p_offset,
+                             iw - pl_, 1, c_i),
+              ic_real_lane, ic_mask)];
+        }
+      }
     }
 
-    _for_(ih, pt_, real_pb > 0 ? (pt_ + ih_) : actual_ih_) {
-      aux_buf[span_t(
-        {ih * kw_ * ic_ + cur_pl * ic_}, max_lanes, init_mask_expr)]
-        = input[span_t(groups_ > 1
-            ? std::vector<expr> {n_o, g, ih - pt_, q * sw_ - q_offset, 0}
-            : std::vector<expr> {n_o, ih - pt_, q * sw_ - q_offset, 0},
-          max_lanes, init_mask_expr)];
-    }
-
-    if (real_pb == 0) {
+    if (real_pr == 0) {
       // last row handling, requires special handling for the case of
-      // parallel on width axis
-      auto copy_last_row
-        = [&](const int last_row, const int lanes, const int q_offset,
-            const int pl = 0, const int pr = 0) {
-            auto copy_with_simd = utils::rnd_dn(last_row, lanes);
-            auto remainder = last_row % lanes;
-            if (copy_with_simd > 0) {
-              _for_(wi, 0, copy_with_simd, lanes) {
-                aux_buf[span_t(
-                  {(actual_ih_ - 1) * kw_ * ic_ + wi + pl * ic_}, lanes)]
-                  = input[span_t(groups_ > 1
-                      ? std::vector<expr> {n_o, g, actual_ih_ - pt_ - 1,
-                        wi / ic_ + init_idx * sw_ - q_offset, wi % ic_}
-                      : std::vector<expr> {n_o, actual_ih_ - pt_ - 1,
-                        wi / ic_ + init_idx * sw_ - q_offset, wi % ic_},
-                    lanes)];
-              }
-            }
-            if (remainder > 0) {
-              auto remainder_mask = builder::make_cast(
-                get_dtype(lanes), convert_int_to_mask(remainder));
-              aux_buf[span_t(
-                {(actual_ih_ - 1) * kw_ * ic_ + copy_with_simd + pl * ic_},
-                lanes, remainder_mask)]
-                = input[span_t(groups_ > 1
-                    ? std::vector<expr> {n_o, g, actual_ih_ - pt_ - 1,
-                      copy_with_simd / ic_ + init_idx * sw_ - q_offset,
-                      copy_with_simd % ic_}
-                    : std::vector<expr> {n_o, actual_ih_ - pt_ - 1,
-                      copy_with_simd / ic_ + init_idx * sw_ - q_offset,
-                      copy_with_simd % ic_},
-                  lanes, remainder_mask)];
-            }
-          };
-
-      if (parallel_axis_ == parallel_kind::WIDTH) {
-        int job1 = utils::divide_and_ceil(ow_, num_threads);
-        int job2 = ow_ / num_threads;
-        int threshold = (ow_ % num_threads) * job1;
-
-        _if_(q == 0) {
+      // parallel on height axis
+      _var_init_(last_row, datatypes::s32, (actual_ih_ - pt_ - real_pb));
+      _var_init_(cur_pt, datatypes::s32, builder::make_select(p == 0, pt_, 0));
+      _var_init_(
+        p_offset, datatypes::s32, builder::make_select(p == 0, 0, pt_));
+      if (parallel_axis_ == parallel_kind::HEIGHT) {
+        int job1 = utils::divide_and_ceil(oh_, num_threads);
+        int job2 = oh_ / num_threads;
+        int threshold = (oh_ % num_threads) * job1;
+        _if_(p == 0) {
           // left-most region
-          auto last_row = ((job1 - 1) * sw_ + kw_ - pl_) * ic_;
-          copy_last_row(last_row, lanes, 0, pl_, 0);
+          last_row = ((job1 - 1) * sh_ + kh_ - pt_);
         }
         _else_ {
-          _if_(q == ow_ - job2) {
+          _if_(p == oh_ - job2) {
             // right-most region
-            auto last_row = ((job2 - 1) * sw_ + kw_ - real_pr) * ic_;
-            copy_last_row(last_row, lanes, pl_, 0, real_pr);
+            last_row = ((job2 - 1) * sh_ + kh_ - real_pb);
           }
           _else_ {
-            _if_(q >= threshold) {
-              auto last_row = ((job2 - 1) * sw_ + kw_) * ic_;
-              copy_last_row(last_row, lanes, pl_, 0, real_pr);
-            }
-            _else_ {
-              auto last_row = ((job1 - 1) * sw_ + kw_) * ic_;
-              copy_last_row(last_row, lanes, pl_, 0, 0);
-            }
+            _if_(p >= threshold) { last_row = ((job2 - 1) * sh_ + kh_); }
+            _else_ { last_row = ((job1 - 1) * sh_ + kh_); }
           }
         }
-      } else {
-        auto last_row = (actual_iw_ - pl_ - real_pr) * ic_;
-        copy_last_row(last_row, lanes, 0, pl_, real_pr);
+      }
+      _for_(hi, 0, last_row, 1) {
+        _for_(ci, 0, ic_, ic_lanes) {
+          aux_buf[span_t(
+            {(actual_iw_ - 1) * kh_ * ic_ + hi * ic_ + ci + cur_pt * ic_},
+            ic_real_lane, ic_mask)]
+            = input[span_t(
+              data_offset(n_o, g, 0, 0, hi + init_idx * sh_ - p_offset,
+                actual_iw_ - pl_ - 1, 1, ci),
+              ic_real_lane, ic_mask)];
+        }
       }
     }
   };
 
   auto update_aux_buf = [&](const expr &aux_buf, const expr &n_o, const expr &g,
-                          const expr &q, const expr &init_idx) {
-    auto update_lanes = std::min(lanes, get_minimal_lanes(update_lanes_));
-    expr update_mask_var
-      = builder::make_cast(get_dtype(update_lanes), update_mask_);
-    if (ow_num_pr > 0) {
-      // need special copy for the right-end
-      _if_(q >= ow_pr_idx) {
-        // for right-end with padding, resue update_lanes, but
-        // different update mask according to the current positions.
-        expr mask_idx = q - ow_pr_idx;
-        expr update_pad_lanes = pr_pad_lanes_tsr[mask_idx];
-        expr update_copy_mask = builder::make_cast(
-          get_dtype(update_lanes), pr_copy_mask_tsr[mask_idx]);
-        expr update_copy_lanes = pr_copy_lanes_tsr[mask_idx];
-
-        for (int ih = 1; ih < pt_ + 1; ++ih) {
-          builtin::brgemm_init(
-            tensor_ptr(
-              aux_buf, {((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
-            1, update_lanes_, update_lanes_, get_input_dtype(), padding_value);
-        }
-
-        _for_(ih, pt_ + 1, real_pb > 0 ? (pt_ + ih_ + 1) : actual_ih_) {
-          // copy input
-          _if_(update_copy_mask > 0) {
-            aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
-              update_lanes, update_copy_mask)]
-              = input[span_t(groups_ > 1 ? std::vector<expr> {n_o, g,
-                               ih - 1 - pt_, (q - 1) * sw_ + kw_ - pl_, 0}
-                                         : std::vector<expr> {n_o, ih - 1 - pt_,
-                                           (q - 1) * sw_ + kw_ - pl_, 0},
-                update_lanes, update_copy_mask)];
-          }
-          // zero-out
-          _if_(update_pad_lanes > 0) {
-            builtin::brgemm_init(tensor_ptr(aux_buf,
-                                   {((q - init_idx) - 1) * sw_ * ic_
-                                     + ih * kw_ * ic_ + update_copy_lanes}),
-              1, update_pad_lanes, update_pad_lanes, get_input_dtype(),
-              padding_value);
-          }
+                          const expr &p, const expr &init_idx) {
+    for (int iw = 1; iw < pl_ + 1; ++iw) {
+      builtin::brgemm_init(
+        tensor_ptr(
+          aux_buf, {((p - init_idx) - 1) * sh_ * ic_ + iw * kh_ * ic_}),
+        1, sh_ * ic_, sh_ * ic_, get_input_dtype(), padding_value);
+    }
+    // need special copy for the right-end
+    // for right-end with padding, but
+    // different update mask according to the current positions.
+    _var_init_(update_pad_lanes, datatypes::s32,
+      builder::make_select(p >= oh_pr_idx && oh_num_pb > 0,
+        builder::make_cast(
+          datatypes::s32, builder::make_min(p * sh_ + kh_ - (pt_ + ih_), sh_)),
+        0));
+    _var_init_(update_copy_lanes, datatypes::s32,
+      builder::make_cast(datatypes::s32,
+        builder::make_max(0, sh_ - builder::make_max(0, update_pad_lanes))));
+    _for_(iw, pl_ + 1,
+      real_pr > 0 && oh_num_pb > 0 ? (pl_ + iw_ + 1) : actual_iw_) {
+      // copy input
+      _for_(h, 0, update_copy_lanes, 1) {
+        _for_(c_i, 0, ic_, ic_lanes) {
+          aux_buf[span_t(
+            {((p - init_idx) - 1) * sh_ * ic_ + iw * kh_ * ic_ + h * ic_ + c_i},
+            ic_real_lane, ic_mask)]
+            = input[span_t(
+              data_offset(n_o, g, 0, 0, (p - 1) * sh_ + kh_ - pt_ + h,
+                iw - 1 - pl_, 1, c_i),
+              ic_real_lane, ic_mask)];
         }
       }
-      _else_ {
-        for (int ih = 1; ih < pt_ + 1; ++ih) {
-          builtin::brgemm_init(
-            tensor_ptr(
-              aux_buf, {((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
-            1, update_lanes_, update_lanes_, get_input_dtype(), padding_value);
-        }
-        _for_(ih, pt_ + 1, real_pb > 0 ? (pt_ + ih_ + 1) : actual_ih_) {
-          aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
-            update_lanes, update_mask_var)]
-            = input[span_t(groups_ > 1 ? std::vector<expr> {n_o, g,
-                             ih - pt_ - 1, (q - 1) * sw_ + kw_ - pl_, 0}
-                                       : std::vector<expr> {n_o, ih - pt_ - 1,
-                                         (q - 1) * sw_ + kw_ - pl_, 0},
-              update_lanes, update_mask_var)];
-        }
-      }
-    } else {
-      for (int ih = 1; ih < pt_ + 1; ++ih) {
-        builtin::brgemm_init(
-          tensor_ptr(
-            aux_buf, {((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_}),
-          1, update_lanes_, update_lanes_, get_input_dtype(), padding_value);
-      }
-      _for_(ih, pt_ + 1, actual_ih_) {
-        aux_buf[span_t({((q - init_idx) - 1) * sw_ * ic_ + ih * kw_ * ic_},
-          update_lanes, update_mask_var)]
-          = input[span_t(groups_ > 1 ? std::vector<expr> {n_o, g, ih - pt_ - 1,
-                           (q - 1) * sw_ + kw_ - pl_, 0}
-                                     : std::vector<expr> {n_o, ih - pt_ - 1,
-                                       (q - 1) * sw_ + kw_ - pl_, 0},
-            update_lanes, update_mask_var)];
+      // zero-out
+      _if_(update_pad_lanes > 0) {
+        builtin::brgemm_init(tensor_ptr(aux_buf,
+                               {((p - init_idx) - 1) * sh_ * ic_
+                                 + iw * kh_ * ic_ + update_copy_lanes * ic_}),
+          1, update_pad_lanes * ic_, update_pad_lanes * ic_, get_input_dtype(),
+          padding_value);
       }
     }
   };
 
   auto do_compute = [&](const expr &aux_buf, const expr &n_o, const expr &g,
-                      const expr &q, const expr &init_idx) {
-    _for_(p, 0, oh_ / config.brgemm_m) {
+                      const expr &p, const expr &init_idx) {
+    _for_(q, 0, ow_ / config.brgemm_m) {
       _tensor_(A_list, datatypes::pointer, {num_brgemm_k_});
       _tensor_(B_list, datatypes::pointer, {num_brgemm_k_});
-      auto offset = (q - init_idx) * sw_ * ic_;
+      auto offset = (p - init_idx) * sw_ * ic_;
       for (int i = 0; i < num_brgemm_k_; ++i) {
         A_list[i] = tensor_ptr(aux_buf,
-          {offset + p * config.brgemm_m * sh_ * kw_ * ic_ + i * brgemm_k_});
+          {offset + q * config.brgemm_m * sw_ * kw_ * ic_ + i * brgemm_k_});
       }
 
       _for_(k_o, 0, K_num_block) {
@@ -480,10 +423,8 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           B_list[i] = tensor_ptr(weight, {i, g * K_num_block + k_o, 0, 0, 0});
         }
         auto out_tsr = tensor_ptr(output,
-          groups_ > 1 ? std::vector<expr> {n_o, g, p * config.brgemm_m, q,
-            k_o * config.brgemm_n}
-                      : std::vector<expr> {n_o, p * config.brgemm_m, q,
-                        (g * K_num_block + k_o) * config.brgemm_n});
+          output_offset(n_o, g, 0, 0, p, q * config.brgemm_m,
+            K_num_block * config.brgemm_n, k_o * config.brgemm_n));
 
         const auto hint_A_size = config.brgemm_m * brgemm_k_ * num_brgemm_k_;
         const auto hint_B_size = num_brgemm_k_ * brgemm_k_ * config.brgemm_n;
@@ -494,12 +435,13 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
           {brgemm::attr_key::hint_expected_C_size, hint_C_size},
           {brgemm::attr_key::use_interleave_stores, true},
           {brgemm::attr_key::use_uker, true}};
-
         {
           trace_guard_t trg(ctx, "brgemm");
           builtin::brgemm_init_list_update(A_list, B_list, out_tsr, 1,
             config.brgemm_m, config.brgemm_n, brgemm_k_, LDA_, config.brgemm_n,
-            ow_ * oc_ /* channel last for g=1, blocking for g>1 */,
+            blocking_output_
+              ? oc_
+              : groups_ * oc_ /* channel last for g=1, blocking for g>1 */,
             1 /*useless*/, 1 /*useless*/, num_brgemm_k_, get_input_dtype(),
             get_weight_dtype(),
             ctx->flags_.kernel_optim_ == 1 ? brg_attrs : sc_brgemm_attrs_t());
@@ -508,26 +450,30 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         // brgemm_m * brgemm_n
         trace_guard_t trg(ctx, "post-op fusion");
         create_fusion_anchor(fusion, owner_->get_outputs()[0],
-          groups_ > 1
-            ? slice_range {{n_o, 1}, {g, 1},
-              {p * config.brgemm_m, config.brgemm_m}, {q, 1},
-              {k_o * config.brgemm_n, config.brgemm_n}}
-            : slice_range {{n_o, 1}, {p * config.brgemm_m, config.brgemm_m},
-              {q, 1},
-              {(g * K_num_block + k_o) * config.brgemm_n, config.brgemm_n}});
+          is_group_conv_
+            ? (blocking_output_
+                ? slice_range {{n_o, 1}, {g, 1}, {0, 1}, {p, 1},
+                  {q * config.brgemm_m, config.brgemm_m},
+                  {k_o * config.brgemm_n, config.brgemm_n}}
+                : slice_range {{n_o, 1}, {p, 1},
+                  {q * config.brgemm_m, config.brgemm_m}, {g, 1},
+                  {k_o * config.brgemm_n, config.brgemm_n}})
+            : (blocking_output_ ? slice_range {{n_o, 1}, {g, 1}, {p, 1},
+                 {q * config.brgemm_m, config.brgemm_m},
+                 {k_o * config.brgemm_n, config.brgemm_n}}
+                                : slice_range {{n_o, 1}, {p, 1},
+                                  {q * config.brgemm_m, config.brgemm_m},
+                                  {(g * K_num_block + k_o) * config.brgemm_n,
+                                    config.brgemm_n}}));
       }
       // brgemm_m * oc_
-      create_fusion_anchor(fusion, owner_->get_outputs()[0],
-        groups_ > 1
-          ? slice_range {{n_o, 1}, {g, 1},
-            {p * config.brgemm_m, config.brgemm_m}, {q, 1}, {0, oc_}}
-          : slice_range {{n_o, 1}, {p * config.brgemm_m, config.brgemm_m},
-            {q, 1}, {g * oc_, oc_}});
+      create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, g, 1, 0, 1, 0, 1,
+        p, 1, q * config.brgemm_m, config.brgemm_m, oc_);
     }
   };
 
   if (parallel_kind::BATCH == parallel_axis_) {
-    for_loop ln, lg, lq;
+    for_loop ln, lg, lp;
     auto input_expr_dims = input.checked_as<tensor>()->dims_;
     auto mb_expr = input_expr_dims[0];
     _named_for_(ln, n_o, 0, mb_expr, 1, for_type::PARALLEL) {
@@ -536,83 +482,64 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         builtin::brgemm_init(
           aux_buf, 1, aux_buf_size_, aux_buf_size_, input_dtype, padding_value);
 
-        _named_for_(lq, q, 0, ow_, 1) {
-          _if_(q == 0) {
+        _named_for_(lp, p, 0, oh_, 1) {
+          _if_(p == 0) {
             trace_guard_t trg(ctx, "init_aux");
-            init_aux_buf(aux_buf, n_o, g, q, 0, 0 /*useless*/);
+            init_aux_buf(aux_buf, n_o, g, p, 0, 0 /*useless*/);
           }
           _else_ {
             trace_guard_t trg(ctx, "update_aux");
-            update_aux_buf(aux_buf, n_o, g, q, 0);
+            update_aux_buf(aux_buf, n_o, g, p, 0);
           }
-          do_compute(aux_buf, n_o, g, q, 0);
-          // oh_ * oc_
-          create_fusion_anchor(fusion, owner_->get_outputs()[0],
-            groups_ > 1
-              ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {q, 1}, {0, oc_}}
-              : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}});
+          do_compute(aux_buf, n_o, g, p, 0);
+          // ow_ * oc_
+          create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, g, 1, 0, 1, 0,
+            1, p, 1, 0, ow_, oc_);
         }
         if (mb_ * groups_ >= num_threads) {
           // oh_ * ow_ * oc_
-          create_fusion_anchor(fusion, owner_->get_outputs()[0],
-            groups_ > 1
-              ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {0, ow_}, {0, oc_}}
-              : slice_range {{n_o, 1}, {0, oh_}, {0, ow_}, {g * oc_, oc_}});
+          create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, g, 1, 0, 1, 0,
+            1, 0, oh_, 0, ow_, oc_);
         }
       }
       // oh_ * ow_ * oc_
-      create_fusion_anchor(fusion, owner_->get_outputs()[0],
-        {{n_o, 1}, {0, oh_}, {0, ow_}, {0, oc_}});
+      create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, 0, groups_, 0, 1,
+        0, 1, 0, oh_, 0, ow_, oc_);
     }
-    lq->attr().set(stmt_attr_key::no_loop_fuse, true);
+    lp->attr().set(stmt_attr_key::no_loop_fuse, true);
   } else {
-    expr ow_b, ow_e;
+    expr oh_b, oh_e;
     for_loop lt;
     expr start_idx, large_group, init_idx;
     _named_for_(lt, t, 0, num_threads, 1, for_type::PARALLEL) {
       _tensor_(aux_buf, input_dtype, {aux_buf_size_});
       _var_init_(group_size, datatypes::s32,
-        get_balance211_length(ow_, num_threads, t, start_idx, large_group));
-      ow_b = start_idx;
-      ow_e = start_idx + group_size;
+        get_balance211_length(oh_, num_threads, t, start_idx, large_group));
+      oh_b = start_idx;
+      oh_e = start_idx + group_size;
       init_idx = start_idx;
       _for_(n_o, 0, mb_, 1) {
         _for_(g, 0, groups_, 1) {
           builtin::brgemm_init(aux_buf, 1, aux_buf_size_, aux_buf_size_,
             input_dtype, padding_value);
-          _for_(q, ow_b, ow_e, 1) {
-            _if_(q == init_idx) {
+          _for_(p, oh_b, oh_e, 1) {
+            _if_(p == init_idx) {
               trace_guard_t trg(ctx, "init_aux");
-              init_aux_buf(aux_buf, n_o, g, q, init_idx, t);
+              init_aux_buf(aux_buf, n_o, g, p, init_idx, t);
             }
             _else_ {
               trace_guard_t trg(ctx, "update_aux");
-              update_aux_buf(aux_buf, n_o, g, q, init_idx);
+              update_aux_buf(aux_buf, n_o, g, p, init_idx);
             }
-            do_compute(aux_buf, n_o, g, q, init_idx);
-            // oh_ * oc_
-            create_fusion_anchor(fusion, owner_->get_outputs()[0],
-              groups_ > 1
-                ? slice_range {{n_o, 1}, {g, 1}, {0, oh_}, {q, 1}, {0, oc_}}
-                : slice_range {{n_o, 1}, {0, oh_}, {q, 1}, {g * oc_, oc_}});
-          }
-          if (mb_ * groups_ >= num_threads) {
-            create_fusion_anchor(fusion, owner_->get_outputs()[0],
-              groups_ > 1 ? slice_range {{n_o, 1}, {g, 1}, {0, oh_},
-                {ow_b, ow_e - ow_b}, {0, oc_}}
-                          : slice_range {{n_o, 1}, {0, oh_},
-                            {ow_b, ow_e - ow_b}, {g * oc_, oc_}});
+            do_compute(aux_buf, n_o, g, p, init_idx);
+            // ow_ * oc_
+            create_anchor(fusion, owner_->get_outputs()[0], n_o, 1, g, 1, 0, 1,
+              0, 1, p, 1, 0, ow_, oc_);
           }
         }
-        create_fusion_anchor(fusion, owner_->get_outputs()[0],
-          groups_ > 1
-            ? slice_range {{n_o, 1}, {0, groups_}, {0, oh_},
-              {ow_b, ow_e - ow_b}, {0, oc_}}
-            : slice_range {{n_o, 1}, {0, oh_}, {ow_b, ow_e - ow_b}, {0, oc_}});
       }
     }
   }
-
   return true;
 }
 

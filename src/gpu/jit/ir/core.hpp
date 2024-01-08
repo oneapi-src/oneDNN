@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1335,7 +1335,13 @@ public:
         std::vector<expr_t> ones(v_vec.size(), expr_t(1));
         return make(c, ones, v_vec);
     }
+    static expr_t to_expr(const expr_t &c, const std::vector<expr_t> &u_vec,
+            const std::vector<expr_t> &v_vec) {
+        auto e = linear_t::make(c, u_vec, v_vec);
+        return e.as<linear_t>().to_expr();
+    }
     int nargs() const { return int(v_vec.size()); }
+    expr_t to_expr() const;
 
     bool is_equal(const object_impl_t &obj) const override {
         if (!obj.is<self_type>()) return false;

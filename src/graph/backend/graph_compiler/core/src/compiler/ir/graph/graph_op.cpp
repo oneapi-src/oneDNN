@@ -49,6 +49,33 @@ std::shared_ptr<sc_graph_t> graph_op_t::get_graph() {
     return g;
 }
 
+graph_tensor_ptr graph_op_t::cast_input_dtype(graph_tensor_ptr &inp,
+        std::shared_ptr<sc_graph_t> &graph, const any_map_t &attrs) {
+    graph_tensor_ptr input = inp;
+    if (inp->details_.dtype_.is_etype(sc_data_etype::BF16)
+            || inp->details_.dtype_.is_etype(sc_data_etype::F16)) {
+        auto cast_input = graph->make("cast", {inp}, {},
+                attrs.as_map().empty() ? any_map_t {{"dtype", datatypes::f32}}
+                                       : attrs);
+        input = cast_input->get_outputs()[0];
+    }
+    return input;
+}
+
+std::shared_ptr<sc_op> graph_op_t::cast_output_dtype(graph_tensor_ptr &inp,
+        std::shared_ptr<sc_graph_t> &graph, std::shared_ptr<sc_op> &last_op,
+        const any_map_t &attrs) {
+    std::shared_ptr<sc_op> &cast_output = last_op;
+    if (inp->details_.dtype_.is_etype(sc_data_etype::BF16)
+            || inp->details_.dtype_.is_etype(sc_data_etype::F16)) {
+        auto target_dtype = inp->details_.dtype_;
+        cast_output = graph->make("cast", last_op->get_outputs(), {},
+                attrs.as_map().empty() ? any_map_t {{"dtype", target_dtype}}
+                                       : attrs);
+    }
+    return cast_output;
+}
+
 std::shared_ptr<sc_graph_t> configurable_graph_op_t::get_graph() {
     auto g = std::make_shared<sc_graph_t>();
     g->sync_dynamic_info_with_graph(get_owner_graph());

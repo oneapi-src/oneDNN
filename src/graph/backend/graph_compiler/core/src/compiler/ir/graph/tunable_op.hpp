@@ -99,8 +99,8 @@ public:
             const context_ptr &ctx, fslice_map &fsmap)
             = 0;
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override {}
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override {}
+    void infer_binding_axis(binding_axis_map &bdax_map) override {}
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override {}
 
 protected:
     config_ptr config_data_;

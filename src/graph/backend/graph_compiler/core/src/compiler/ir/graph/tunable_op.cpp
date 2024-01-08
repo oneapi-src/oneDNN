@@ -63,6 +63,8 @@ bool tunable_op_t::is_valid(const context_ptr &ctx) {
 }
 
 ir_module_ptr tunable_op_t::get_func(context_ptr ctx) {
+    // query binding axis
+    query_binding_axis(get_owner_graph());
     auto ret = std::make_shared<ir_module_t>(ctx);
     auto gen_ptr = create_generator();
     bool need_inner_query = need_dynamic_internal_query();
@@ -123,6 +125,8 @@ ir_module_ptr tunable_op_t::get_func(context_ptr ctx) {
 
 func_t tunable_op_t::get_func(mixed_parti_t *parti,
         const std::vector<expr> &ins, const std::vector<expr> &outs) {
+    // query binding axis
+    query_binding_axis(get_owner_graph());
     bool need_inner_query = need_dynamic_internal_query();
 
     auto gen_body = [&](const body_generator_ptr &gen_ptr) {

@@ -429,11 +429,11 @@ public:
                         transform_intrin(xbyak_intrin_type::round_and_cast),
                         transform_intrin(xbyak_intrin_type::round_and_cast));
             } break;
-            case intrin_type::load_const_mem: {
+            case intrin_type::constant_load:
+            case intrin_type::volatile_load: {
                 transform(dst, {intrin->args_[0]},
                         dst->dtype_, //
-                        transform_disabled("load_const_mem"),
-                        transform_assign());
+                        transform_assign(), transform_assign());
             } break;
             default: add_assignment(dst, intrin); break;
         }

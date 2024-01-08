@@ -52,35 +52,57 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                     | primitive_attr_t::skip_mask_t::sum_dt;
 
             const bool is_int8 = utils::one_of(src_md_.data_type, s8, u8);
-            bool ok = set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(desc()->prop_kind,
-                            prop_kind::forward_training,
-                            prop_kind::forward_inference)
-                    && desc()->alg_kind == alg_kind::convolution_direct
-                    && IMPLICATION(
-                            utils::one_of(f16, src_md_.data_type,
-                                    weights_md_.data_type, dst_md_.data_type),
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && IMPLICATION(
+
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(desc()->alg_kind == alg_kind::convolution_direct,
+                    VERBOSE_BAD_ALGORITHM);
+
+            VDISPATCH_CONV(utils::one_of(desc()->prop_kind,
+                                   prop_kind::forward_training,
+                                   prop_kind::forward_inference),
+                    VERBOSE_BAD_PROPKIND);
+
+            VDISPATCH_CONV(IMPLICATION(utils::one_of(f16, src_md_.data_type,
+                                               weights_md_.data_type,
+                                               dst_md_.data_type),
+                                   compute_engine->mayiuse(
+                                           compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(
+                    IMPLICATION(
                             utils::one_of(f64, src_md_.data_type,
                                     weights_md_.data_type, dst_md_.data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values())
-                    && !memory_desc_ndims_ok(src_md(), weights_md(), dst_md())
-                    && this->set_default_formats()
-                    && attr()->has_default_values(
-                            attr_skip_mask, dst_md_.data_type)
-                    && attr()->post_ops_.check_sum_consistency(
-                            dst_md_.data_type, is_int8, true)
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && post_ops_with_binary_ok(
-                            attr(), dst_md()->data_type, 5, 0xffff)
-                    && attr_scales_ok() && zero_points_ok(attr())
-                    && IMPLICATION(
-                            !attr()->scales_.has_default_values(), is_int8);
-            if (!ok) return status::unimplemented;
+                                    && attr()->post_ops_.has_default_values()),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
+            VDISPATCH_CONV(
+                    !memory_desc_ndims_ok(src_md(), weights_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src, wei", "dst");
+            VDISPATCH_CONV(
+                    this->set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(attr()->has_default_values(
+                                   attr_skip_mask, dst_md_.data_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+
+            VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(
+                                   dst_md_.data_type, is_int8, true),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(post_ops_with_binary_ok(
+                                   attr(), dst_md()->data_type, 5, 0xffff),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_CONV(
+                    IMPLICATION(!attr()->scales_.has_default_values(), is_int8),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+            VDISPATCH_CONV(zero_points_ok(attr()), VERBOSE_UNSUPPORTED_ZP_CFG);
 
             return init_conf(engine);
         }
@@ -138,23 +160,41 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
             using namespace data_type;
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            bool ok = set_default_alg_kind(alg_kind::convolution_direct)
-                    && desc()->prop_kind == prop_kind::backward_data
-                    && desc()->alg_kind == alg_kind::convolution_direct
-                    && !memory_desc_ndims_ok(diff_src_md(), diff_dst_md())
-                    && this->set_default_formats()
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(
-                            attr(), dst_md()->data_type, ndims())
-                    && attr_scales_ok() && zero_points_ok(attr())
-                    && IMPLICATION(utils::one_of(f64, diff_src_md()->data_type,
-                                           dst_md()->data_type),
+
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(desc()->alg_kind == alg_kind::convolution_direct,
+                    VERBOSE_BAD_PROPKIND);
+
+            VDISPATCH_CONV(
+                    IMPLICATION(utils::one_of(f64, diff_src_md()->data_type,
+                                        dst_md()->data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values())
-                    && attr_.set_default_formats(diff_src_md(0))
-                            == status::success;
-            if (!ok) return status::unimplemented;
+                                    && attr()->post_ops_.has_default_values()),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
+            VDISPATCH_CONV(!memory_desc_ndims_ok(diff_src_md(), diff_dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "diff_dst");
+
+            VDISPATCH_CONV(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+            VDISPATCH_CONV(
+                    this->set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+
+            VDISPATCH_CONV(post_ops_with_binary_ok(
+                                   attr(), dst_md()->data_type, ndims()),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(attr_.set_default_formats(diff_src_md(0))
+                            == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            VDISPATCH_CONV(zero_points_ok(attr()), VERBOSE_UNSUPPORTED_ZP_CFG);
 
             return init_conf(engine);
         }
@@ -211,31 +251,45 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            bool ok = set_default_alg_kind(alg_kind::convolution_direct)
-                    && desc()->prop_kind == prop_kind::backward_weights
-                    && desc()->alg_kind == alg_kind::convolution_direct
-                    && !memory_desc_ndims_ok(src_md(), diff_dst_md())
-                    && utils::one_of(desc()->diff_weights_desc.data_type, f32,
-                            bf16, f16, f64, f8_e5m2, f8_e4m3)
-                    && utils::one_of(desc()->src_desc.data_type, f32, bf16, f16,
-                            f64, f8_e5m2, f8_e4m3)
-                    && utils::one_of(desc()->diff_dst_desc.data_type, f32, bf16,
-                            f16, f64, f8_e5m2, f8_e4m3)
-                    && this->set_default_formats()
-                    && attr()->has_default_values()
-                    && IMPLICATION(
-                            utils::one_of(f16, desc()->src_desc.data_type,
-                                    desc()->diff_weights_desc.data_type,
-                                    desc()->diff_dst_desc.data_type),
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(desc()->alg_kind == alg_kind::convolution_direct,
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+
+            VDISPATCH_CONV(
+                    IMPLICATION(utils::one_of(f16, desc()->src_desc.data_type,
+                                        desc()->diff_weights_desc.data_type,
+                                        desc()->diff_dst_desc.data_type),
                             compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && IMPLICATION(
-                            utils::one_of(f64, desc()->src_desc.data_type,
-                                    desc()->diff_dst_desc.data_type),
+                                    compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(
+                    IMPLICATION(utils::one_of(f64, desc()->src_desc.data_type,
+                                        desc()->diff_dst_desc.data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values());
-            if (!ok) return status::unimplemented;
+                                    && attr()->post_ops_.has_default_values()),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
+            VDISPATCH_CONV(!memory_desc_ndims_ok(src_md(), diff_dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "diff_dst");
+
+            VDISPATCH_CONV(utils::one_of(desc()->diff_weights_desc.data_type,
+                                   f32, bf16, f16, f64, f8_e5m2, f8_e4m3),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(utils::one_of(desc()->src_desc.data_type, f32, bf16,
+                                   f16, f64, f8_e5m2, f8_e4m3),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(utils::one_of(desc()->diff_dst_desc.data_type, f32,
+                                   bf16, f16, f64, f8_e5m2, f8_e4m3),
+                    VERBOSE_UNSUPPORTED_DT);
+
+            VDISPATCH_CONV(
+                    this->set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             return init_conf(engine);
         }

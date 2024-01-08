@@ -19,6 +19,7 @@
 #include "compiler/ir/graph/fusible_op_utils.hpp"
 #include "context.hpp"
 #include "util/bf16.hpp"
+#include "util/fp16.hpp"
 #include "gtest/gtest.h"
 #include <compiler/codegen/codegen_c.hpp>
 #include <compiler/ir/graph/driver.hpp>
@@ -148,9 +149,7 @@ static void test_single_mul(int lastdim) {
             });
 }
 TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp4) {
-    // the below case may fail when llvm backend used, which needs further
-    // more investigation
-    // test_single_mul(3);
+    test_single_mul(3);
     SET_THREADS_OR_SKIP(1);
     test_single_mul(256);
 }
@@ -341,6 +340,107 @@ TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp14) {
                 ref_out[0] = 0;
                 for (size_t i = 0; i < input.size(); ++i)
                     ref_out[0] += input[i];
+                return ref_out;
+            });
+}
+
+// test all reduce + partial reduce + last reduce
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp15) {
+    const int out_size = 1;
+    // set num threads to trigger corner condition
+    SET_THREADS_OR_SKIP(4);
+    do_test_reduce_op<float>(sc_dims({3, 3, 3, 3}),
+            std::vector<int>({0, 1, 2, 3}), "reduce_l1", out_size,
+            datatypes::f32, [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += std::abs(input[i]);
+                return ref_out;
+            });
+}
+
+// test all reduce + partial reduce + last reduce
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp16) {
+    const int out_size = 1;
+    // set num threads to trigger corner condition
+    SET_THREADS_OR_SKIP(4);
+    do_test_reduce_op<float>(sc_dims({3, 3, 3, 3}),
+            std::vector<int>({0, 1, 2, 3}), "reduce_l2", out_size,
+            datatypes::f32, [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += input[i] * input[i];
+                ref_out[0] = std::sqrt(ref_out[0]);
+                return ref_out;
+            });
+}
+
+// test reduce on all axis with predefined output tensor
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp17) {
+    const int out_size = 1;
+    do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({0, 1, 2}),
+            "reduce_l1", out_size, datatypes::f32,
+            [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += std::abs(input[i]);
+                return ref_out;
+            });
+}
+
+// test reduce on all axis with predefined output tensor
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp18) {
+    const int out_size = 1;
+    do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({0, 1, 2}),
+            "reduce_l2", out_size, datatypes::f32,
+            [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += input[i] * input[i];
+                ref_out[0] = std::sqrt(ref_out[0]);
+                return ref_out;
+            });
+}
+
+// test fp16 reduce max
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp19) {
+    REQUIRE_AVX512FP16();
+    const int out_size = 3;
+    do_test_reduce_op<fp16_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
+            "reduce_max", out_size, datatypes::f16,
+            [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                for (size_t i = 0; i < ref_out.size(); ++i) {
+                    ref_out[i] = -std::numeric_limits<float>::infinity();
+                }
+                for (size_t i = 0; i < 3; ++i)
+                    for (size_t j = 0; j < 3; ++j)
+                        for (size_t k = 0; k < 3; ++k)
+                            ref_out[i] = std::max(
+                                    ref_out[i], input[i * 3 * 3 + j * 3 + k]);
+                return ref_out;
+            });
+}
+
+// test fp16 reduce min
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp20) {
+    REQUIRE_AVX512FP16();
+    const int out_size = 3;
+    do_test_reduce_op<fp16_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
+            "reduce_min", out_size, datatypes::f16,
+            [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                for (size_t i = 0; i < ref_out.size(); ++i)
+                    ref_out[i] = std::numeric_limits<float>::infinity();
+                for (size_t i = 0; i < 3; ++i)
+                    for (size_t j = 0; j < 3; ++j)
+                        for (size_t k = 0; k < 3; ++k)
+                            ref_out[i] = std::min(
+                                    ref_out[i], input[i * 3 * 3 + j * 3 + k]);
                 return ref_out;
             });
 }
@@ -925,8 +1025,9 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNoMainOp) {
     test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
-static void do_test_bf16(
-        test_buffer<bf16_t> &out, test_buffer<bf16_t> &refout, bool &done) {
+template <typename T>
+static void do_test_low_precsion_float(test_buffer<T> &out,
+        test_buffer<T> &refout, bool &done, const bool &is_bf16) {
     thread_num_reset reseter;
     sc_graph_t graph;
     const int shape = 1024;
@@ -934,8 +1035,8 @@ static void do_test_bf16(
     if (!runtime_config_t::get().set_num_threads(16)) { GTEST_SKIP(); }
     // make sure matmul has last level fusion anchor
     sc_data_format_t fmt1 = sc_data_format_t::MK();
-    auto input_a = graph.make_input(
-            {graph_tensor::make({shape, shape}, fmt1, datatypes::bf16)});
+    auto input_a = graph.make_input({graph_tensor::make(
+            {shape, shape}, fmt1, is_bf16 ? datatypes::bf16 : datatypes::f16)});
     std::vector<int> rdax {0};
 
     auto reduce = graph.make("reduce", {input_a->get_outputs()[0]}, {},
@@ -961,10 +1062,10 @@ static void do_test_bf16(
         GTEST_SKIP();
     }
 
-    auto in_a = alloc_array<bf16_t>(shape * shape);
-    out = alloc_array<bf16_t>(shape, INIT_NOOP);
+    auto in_a = alloc_array<T>(shape * shape);
+    out = alloc_array<T>(shape, INIT_NOOP);
     auto ref_outf32 = alloc_array<float>(shape, INIT_ZERO);
-    refout = alloc_array<bf16_t>(shape, INIT_NOOP);
+    refout = alloc_array<T>(shape, INIT_NOOP);
 
     utils::parallel_for(0, shape, 1, [&](int64_t j) {
         for (int i = 0; i < shape; i++) {
@@ -972,7 +1073,7 @@ static void do_test_bf16(
         }
     });
     utils::parallel_for(
-            0, shape, 1, [&](int64_t j) { refout[j] = bf16_t(ref_outf32[j]); });
+            0, shape, 1, [&](int64_t j) { refout[j] = T(ref_outf32[j]); });
     if (!runtime_config_t::get().set_num_threads(16)) { GTEST_SKIP(); }
     fptr->call_default(out.data(), in_a.data());
     done = true;
@@ -983,7 +1084,16 @@ TEST(GCCore_CPU_reduce_op_cpp, TestPartialBf16) {
     test_buffer<bf16_t> out;
     test_buffer<bf16_t> refout;
     bool done = false;
-    do_test_bf16(out, refout, done);
+    do_test_low_precsion_float(out, refout, done, true);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
+}
+
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialfp16) {
+    REQUIRE_FP16();
+    test_buffer<fp16_t> out;
+    test_buffer<fp16_t> refout;
+    bool done = false;
+    do_test_low_precsion_float(out, refout, done, false);
     if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 

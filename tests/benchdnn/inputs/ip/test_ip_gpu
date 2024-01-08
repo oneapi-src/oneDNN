@@ -4,13 +4,13 @@
 --dt=s8:s8:s32,s8:s8:s8,s8:s8:u8,u8:s8:s32,u8:s8:s8,u8:s8:u8
 --attr-scales=src:common:0.25+wei:per_oc+dst:common:2.25
 --attr-post-ops=sum:0.5,add:s8:per_tensor,linear:0.5:1.5:2, \
-                add:f32:per_oc+sum:0.25+relu:0.5
+                add:f32:per_oc+sum:0.25+relu:0.5+prelu
 --mb=2 --batch=set_gpu
 --mb=0 --batch=shapes_0d_gpu
 
 --attr-scales=src:common:0.25+wei:common:0.5+dst:common:2.25
 --attr-post-ops=sum:0.5,add:u8:per_tensor,linear:-0.5:0.5:0.5, \
-                add:f32:per_oc+abs+sum:0.5
+                add:f32:per_oc+abs+sum:0.5+prelu
 --batch=shapes_1d
 
 # f32
@@ -28,7 +28,7 @@
 --mb=2 --batch=set_gpu
 --mb=0 --batch=shapes_0d_gpu
 
---attr-post-ops=sum:2,linear:3:2,add:f32, \
+--attr-post-ops=sum:2,linear:3:2,add:f32,prelu:per_oc, \
                 sum+add:s8:per_tensor+linear:0.5:1.5:2
 --batch=shapes_1d
 
@@ -50,7 +50,7 @@
 --mb=0,2
 --dt=f16,f16:f16:s8,f16:f16:u8
 --dir=FWD_B,FWD_D
---attr-post-ops=linear:1:2,add:f16,add:s8:per_tensor+linear:2:3:0.5
+--attr-post-ops=linear:1:2,add:f16,add:s8:per_tensor+linear:2:3:0.5,prelu:per_oc
 --batch=shapes_1d
 
 # bf16 + f32
@@ -87,7 +87,7 @@
 --mb=0
 --dir=FWD_B
 --dt=bf16,bf16:bf16:f32
---attr-post-ops=sum:0.5,tanh,add:bf16,add:f32:per_tensor+relu:0.5
+--attr-post-ops=sum:0.5,tanh,add:bf16,add:f32:per_tensor+relu:0.5+prelu
 --batch=shapes_1d
 
 # diff mem tags

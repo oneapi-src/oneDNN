@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,8 +66,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             arch_ = dev_info_->gpu_arch();
             int stepping = dev_info_->stepping_id();
 
-            ok = set_default_formats();
-            if (!ok) return status::unimplemented;
+            auto status = set_default_formats();
+            if (status != status::success) return status;
 
             const auto d = desc();
 
@@ -150,10 +150,11 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && attr()->post_ops_.check_sum_consistency(
                             d->c_type(), utils::one_of(d->a_type(), s8, u8));
 
-            auto status = init_post_ops();
+            status = init_post_ops();
             if (status != status::success) return status;
 
-            bool with_binary = (post_ops_.find(binary) != -1);
+            bool with_binary = (post_ops_.find(binary) != -1)
+                    || (post_ops_.find(prelu) != -1);
 
             // check GPU architecture
             bool arch_ok = utils::one_of(arch_, arch_t::gen9, arch_t::gen11,
@@ -213,7 +214,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     beta(), post_ops_, eff_a_type(), eff_b_type(),
                     desc()->c_type(), co_type, acc_type, eff_align_a(),
                     eff_align_b(), align_c(), eff_m(), eff_n(), d->k(),
-                    eff_lda(), eff_ldb(), d->ldc(), d->batch());
+                    eff_lda(), eff_ldb(), d->ldc(), d->batch(), prelu_wei_md);
 
             if (status != status::success) return status;
 
@@ -246,7 +247,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             return status::success;
         }
 
-        bool set_default_formats() {
+        status_t set_default_formats() {
             using namespace data_type;
             using namespace format_tag;
             using arch_t = compute::gpu_arch_t;
@@ -279,11 +280,11 @@ struct gen_gemm_t : public gpu_gemm_t {
             bool c_any = c_mdw.format_any();
 
             if (!a_any && !is_md_gemm_compatible_plain_format(&a_desc))
-                return false;
+                return status::unimplemented;
             if (!b_any && !is_md_gemm_compatible_plain_format(&b_desc))
-                return false;
+                return status::unimplemented;
             if (!c_any && !is_md_gemm_compatible_plain_format(&c_desc, true))
-                return false;
+                return status::unimplemented;
 
             bool is_a_trans = (desc()->transa() == dnnl_trans);
             bool is_b_trans = (desc()->transb() == dnnl_trans);
@@ -322,7 +323,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                 }
             }
 
-            return gpu_gemm_pd_t::set_default_formats();
+            return gpu_gemm_pd_t::set_default_formats() ? status::success
+                                                        : status::unimplemented;
         }
 
         void init_scratchpad() {

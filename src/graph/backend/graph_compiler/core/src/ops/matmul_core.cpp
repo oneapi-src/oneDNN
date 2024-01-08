@@ -1100,12 +1100,12 @@ infer_status_code matmul_core_op_t::infer_slice_ranges(
     return infer_status_code::OK;
 }
 
-void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
+void infer_matmul_binding_axis(tunable_op_t *cur, binding_axis_map &bdax_map) {
     // search known axis from any input of cur fusbile op
     auto known_axis_map = search_known_input_axis(cur, bdax_map);
 
-    bound_axis &inp_axis = known_axis_map[0], &wei_axis = known_axis_map[1],
-               &out_axis = bdax_map.get(cur->get_outputs()[0]);
+    binding_axis &inp_axis = known_axis_map[0], &wei_axis = known_axis_map[1],
+                 &out_axis = bdax_map.get(cur->get_outputs()[0]);
     if (!out_axis.empty()) return;
     auto inp_plain_dims = cur->get_inputs()[0]->details_.get_plain_dims(),
          wei_plain_dims = cur->get_inputs()[1]->details_.get_plain_dims(),
@@ -1177,10 +1177,10 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
     set_unknown_binding_axis(cur, known_axis_map, bdax_map);
 }
 
-void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
+void pre_matmul_binding_axis(tunable_op_t *cur, binding_axis_map &bdax_map) {
     auto &outaxis = bdax_map.get(cur->get_outputs()[0]);
     COMPILE_ASSERT(!outaxis.empty(),
-            "Unknown output axis found, could not pre bind axis")
+            "Unknown output axis found, could not pre infer binding axis")
 
     auto inp_plain_dims = cur->get_inputs()[0]->details_.get_plain_dims(),
          wei_plain_dims = cur->get_inputs()[1]->details_.get_plain_dims(),
@@ -1191,7 +1191,7 @@ void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
         auto &inpaxis = bdax_map.get(input);
         auto in_plain_dims = (i == 0) ? inp_plain_dims : wei_plain_dims;
         if (inpaxis.empty()) {
-            bound_axis in_axis;
+            binding_axis in_axis;
             for (auto &bd_axis : outaxis) {
                 std::vector<int> ret;
                 for (auto &ax : bd_axis) {
@@ -1226,11 +1226,11 @@ void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
     }
 }
 
-void matmul_core_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+void matmul_core_op_t::infer_binding_axis(binding_axis_map &bdax_map) {
     infer_matmul_binding_axis(this, bdax_map);
 }
 
-void matmul_core_op_t::pre_infer_binding_axis(bound_axis_map &bdax_map) {
+void matmul_core_op_t::pre_infer_binding_axis(binding_axis_map &bdax_map) {
     pre_matmul_binding_axis(this, bdax_map);
 }
 

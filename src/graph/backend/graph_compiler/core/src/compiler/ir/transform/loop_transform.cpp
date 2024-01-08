@@ -26,6 +26,7 @@
 #include "auto_cast.hpp"
 #include "constant_fold.hpp"
 #include "tensor_shrink.hpp"
+#include <compiler/ir/graph/binding_axis.hpp>
 #include <util/utils.hpp>
 
 SC_MODULE(ir.loop_transform)
@@ -316,6 +317,9 @@ for_loop for_loop_node_t::split(int64_t block, node_ptr_map *node_remap) {
     auto inner_for = build_inner_for(this, min, block, node_remap);
 
     body_ = make_stmt<stmts_node_t>(std::vector<stmt>({inner_for}));
+
+    // copy loop binding axis hint
+    copy_binding_axis_hint(this, inner_for.get());
     return inner_for;
 }
 
@@ -343,6 +347,9 @@ for_loop for_loop_node_t::split_on_num_threads(
                 = attr()[stmt_attr_key::parallel_loop_balanced];
     }
     body_ = make_stmt<stmts_node_t>(std::vector<stmt>({inner_for}));
+
+    // copy loop binding axis hint
+    copy_binding_axis_hint(this, inner_for.get());
     return inner_for;
 }
 
@@ -445,6 +452,9 @@ for_loop for_loop_node_t::fuse(const for_loop &ax, node_ptr_map *node_remap) {
     body_ = std::move(newbody);
 
     ax->var_ = expr(); // invalidate ax
+
+    // fuse loop binding axis hint
+    fuse_binding_axis_hint(this, ax.get());
     return for_loop(shared_from_this());
 }
 
@@ -642,6 +652,9 @@ int for_loop_node_t::merge_all(stmt parent, for_loop ax) {
     for_loop_node_t *ths = this;
     for_loop axis = std::move(ax);
     int num_loops = 0;
+    // skip axis binding check attr, usually marked in UT.
+    bool skip_ab_check = any_map_t::fetch_or_else(
+            ths->attr_.get(), stmt_attr_key::skip_axis_binding_check, false);
     for (;;) {
         // if there is no inner loops, break
         if (!ths || !axis.defined()) { break; }
@@ -652,6 +665,10 @@ int for_loop_node_t::merge_all(stmt parent, for_loop ax) {
         check_loop_for_merge(ths, axis.get());
         // if the loops are not mergable, break
         if (!is_loop_range_same(ths, axis.get())) { break; }
+        // check binding axis
+        if (!skip_ab_check && !check_loop_binding_axis(ths, axis.get())) {
+            break;
+        }
         do_merge(ths, parent, axis);
         num_loops++;
         parent = ths->body_;
@@ -775,6 +792,68 @@ std::vector<for_loop> collect_all_loops(const stmt &body) {
     std::vector<for_loop> ret;
     collect_all_loops_helper(ret, body);
     return ret;
+}
+
+expr divide_and_ceil(const expr &, const expr &);
+struct loop_normalize_visitor_t : public ir_consistent_visitor_t {
+    using ir_consistent_visitor_t::dispatch;
+
+    expr_c dispatch(expr_c v) override {
+        // if nothing to replace, skip dispatching
+        if (replace_map_.empty()) { return v; }
+        return ir_consistent_visitor_t::dispatch(std::move(v));
+    }
+
+    stmt_c visit(for_loop_c v) override {
+        auto var = dispatch(v->var_);
+        auto begin = dispatch(v->iter_begin_);
+        auto end = dispatch(v->iter_end_);
+        auto step = dispatch(v->step_);
+        bool changed = !(var.ptr_same(v->var_) && begin.ptr_same(v->iter_begin_)
+                && end.ptr_same(v->iter_end_) && step.ptr_same(v->step_));
+        bool is_normalized = v->kind_ != for_type::PARALLEL
+                || (begin.cast<constant_c>()
+                                .filter([](const constant_c &v) {
+                                    return get_const_as_int(v) == 0;
+                                })
+                                .has_value()
+                        && step.cast<constant_c>()
+                                   .filter([](const constant_c &v) {
+                                       return get_const_as_int(v) == 1;
+                                   })
+                                   .has_value());
+        if (!is_normalized) {
+            auto new_beg = builder::make_constant({UINT64_C(0)}, begin->dtype_);
+            auto new_end = divide_and_ceil(
+                    (end - begin).remove_const(), step.remove_const());
+            auto new_step = builder::make_constant({UINT64_C(1)}, step->dtype_);
+            auto new_itr = copy_attr(*var,
+                    builder::make_var(
+                            var->dtype_, var.static_as<var_c>()->name_));
+            auto replace_itr = begin + new_itr * step;
+            replace_map_[var] = replace_itr;
+            auto body = dispatch(v->body_);
+            return copy_attr(*v,
+                    builder::make_for_loop_unattached(new_itr, new_beg, new_end,
+                            new_step, body, v->incremental_, v->kind_,
+                            v->num_threads_));
+        }
+
+        auto body = dispatch(v->body_);
+        changed |= !body.ptr_same(v->body_);
+        if (changed) {
+            stmt_c newv = copy_attr(*v,
+                    builder::make_for_loop_unattached(var, begin, end, step,
+                            body, v->incremental_, v->kind_, v->num_threads_));
+            return newv;
+        }
+        return v;
+    }
+};
+
+for_loop_c normalize_parallel_for_loop(const for_loop_c &loop) {
+    loop_normalize_visitor_t v;
+    return v.visit(loop).static_as<for_loop_c>();
 }
 
 } // namespace gc

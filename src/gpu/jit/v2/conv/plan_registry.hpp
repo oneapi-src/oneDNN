@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ private:
 
 const plan_registry_t &const_plan_registry();
 plan_registry_t &plan_registry();
+void dump_plan_registry();
 
 } // namespace conv
 } // namespace v2

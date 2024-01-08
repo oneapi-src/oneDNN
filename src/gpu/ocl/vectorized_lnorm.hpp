@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,13 +42,16 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
             auto src_data_t = src_md()->data_type;
             auto dst_data_t = dst_md()->data_type;
 
             bool ok = is_fwd() && !has_zero_dim_memory()
-                    && (utils::everyone_is(f16, src_data_t, dst_data_t)
+                    && (utils::everyone_is(u8, src_data_t, dst_data_t)
+                            || utils::everyone_is(s8, src_data_t, dst_data_t)
+                            || utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(f32, src_data_t, dst_data_t))
                     && IMPLICATION(f16 == src_data_t,
@@ -56,8 +59,9 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
                                     compute::device_ext_t::khr_fp16))
                     && !memory_desc_ndims_ok(src_md(), dst_md(), stat_md())
                     && stat_md()->data_type == f32
+                    && check_scale_shift_data_type({f32, bf16, f16})
                     && check_scale_shift_data_type()
-                    && attr()->has_default_values()
+                    && attr()->has_default_values(skip_mask_t::scales_runtime)
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;
 
@@ -75,6 +79,11 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
+
+        kernel_ctx.define_int("WITH_SRC_SCALES",
+                !pd()->attr()->scales_.get(DNNL_ARG_SRC).has_default_values());
+        kernel_ctx.define_int("WITH_DST_SCALES",
+                !pd()->attr()->scales_.get(DNNL_ARG_DST).has_default_values());
 
         CHECK(create_kernel(
                 engine, &kernel_, "vectorized_lnorm_fwd", kernel_ctx));
@@ -122,7 +131,7 @@ struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
                     && stat_md()->data_type == f32
-                    && check_scale_shift_data_type()
+                    && check_scale_shift_data_type({f32, bf16, f16})
                     && attr()->has_default_values()
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;

@@ -50,25 +50,28 @@ struct ref_matmul_t : public gpu_primitive_t {
             wei_dt_ = weights_md(0)->data_type;
             bia_dt_ = with_bias() ? weights_md(1)->data_type : data_type::f32;
 
-            bool ok = is_dense_format_kind()
-                    && IMPLICATION(desc()->accum_data_type == s32,
-                            attr()->zero_points_.common())
-                    && IMPLICATION(desc()->accum_data_type != s32,
-                            attr()->zero_points_.has_default_values())
-                    && attr()->has_default_values(smask_t::scales_runtime
-                            | smask_t::zero_points_runtime | smask_t::post_ops)
-                    && attr_scales_ok() && set_default_formats()
-                    && IMPLICATION(has_blocks(), dst_md()->ndims < 6)
-                    && ((utils::one_of(src_dt_, u8, s8)
-                                && utils::one_of(wei_dt_, u8, s8)
-                                && utils::one_of(dst_dt_, f32, s8, u8, s32, f16)
-                                && IMPLICATION(with_bias(),
-                                        utils::one_of(
-                                                bia_dt_, f32, u8, s8, s32)))
-                            || ((utils::everyone_is(f8_e5m2, src_dt_, wei_dt_)
-                                        || utils::everyone_is(
-                                                f8_e4m3, src_dt_, wei_dt_))
-                                    && utils::one_of(dst_dt_, src_dt_, f32))
+            VDISPATCH_MATMUL(
+                    is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
+            VDISPATCH_MATMUL(IMPLICATION(desc()->accum_data_type == s32,
+                                     attr()->zero_points_.common()),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_MATMUL(IMPLICATION(desc()->accum_data_type != s32,
+                                     attr()->zero_points_.has_default_values()),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_MATMUL(
+                    attr()->has_default_values(smask_t::scales_runtime
+                            | smask_t::zero_points_runtime | smask_t::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_MATMUL(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_MATMUL(IMPLICATION(has_blocks(), dst_md()->ndims < 6),
+                    VERBOSE_BAD_NDIMS, "dst", dst_md()->ndims);
+            VDISPATCH_MATMUL(
+                    ((utils::one_of(src_dt_, u8, s8)
+                             && utils::one_of(wei_dt_, u8, s8)
+                             && utils::one_of(dst_dt_, f32, s8, u8, s32, f16)
+                             && IMPLICATION(with_bias(),
+                                     utils::one_of(bia_dt_, f32, u8, s8, s32)))
                             || ((utils::everyone_is(
                                          f32, src_dt_, wei_dt_, dst_dt_)
                                         || (utils::everyone_is(
@@ -80,11 +83,12 @@ struct ref_matmul_t : public gpu_primitive_t {
                                                 && utils::one_of(
                                                         dst_dt_, bf16, f32)))
                                     && IMPLICATION(with_bias(),
-                                            utils::one_of(bia_dt_, f32))))
-                    && post_ops_with_binary_ok(attr(), dst_dt_, 6)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-
-            if (!ok) return status::unimplemented;
+                                            utils::one_of(bia_dt_, f32)))),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_MATMUL(post_ops_with_binary_ok(attr(), dst_dt_, 6),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_MATMUL_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             non_default_attrs_ = !attr()->has_default_values();
             attr_info_ = attr_info_t::create(attr());

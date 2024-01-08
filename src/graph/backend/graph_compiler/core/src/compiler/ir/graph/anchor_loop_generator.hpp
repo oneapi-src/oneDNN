@@ -59,9 +59,6 @@ public:
 
 for_loop get_next_inner_loop(const for_loop &cur_loop);
 
-// if the reorder is tensor view in dynamic, does not need fusion manager,
-// but do inplace itself.
-ir_module_ptr inplaced_reorder_get_func(sc_op *op, const context_ptr &ctx);
 } // namespace gc
 } // namespace graph
 } // namespace impl

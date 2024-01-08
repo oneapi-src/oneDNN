@@ -719,7 +719,7 @@ TEST(GCCore_CPU_fusible_pooling,
                     {pooling_attr_key::paddings,
                             sc_dims {padding_h, padding_w}},
                     {pooling_attr_key::kernel, sc_dims {R, S}},
-                    {pooling_attr_key::input_shape, input_tensor_shape},
+                    {pooling_attr_key::src_shape, input_tensor_shape},
                     {pooling_attr_key::exclude_pad, true},
                     {pooling_attr_key::data_format, "NCX"}});
     pooling_out = mgr.make("pooling_avg", pooling_out->get_outputs(), {},
@@ -727,7 +727,7 @@ TEST(GCCore_CPU_fusible_pooling,
                     {pooling_attr_key::paddings,
                             sc_dims {padding_h, padding_w}},
                     {pooling_attr_key::kernel, sc_dims {R, S}},
-                    {pooling_attr_key::input_shape, input_tensor_shape},
+                    {pooling_attr_key::src_shape, input_tensor_shape},
                     {pooling_attr_key::exclude_pad, true},
                     {pooling_attr_key::data_format, "NCX"}});
 

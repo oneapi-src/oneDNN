@@ -44,6 +44,9 @@ namespace gc {
 
 sc_op_ptr insert_rcp(sc_graph_t &graph, div_op_t *node) {
     auto dtype = node->get_inputs()[1]->details_.dtype_;
+    if (node->attrs_.get_or_else(op_attr_key::must_div, false)) {
+        return nullptr;
+    }
     if (dtype.type_code_ == sc_data_etype::F32
             || dtype.type_code_ == sc_data_etype::BF16) {
         // next node uses div result
@@ -61,6 +64,9 @@ void div_bcast_transform(sc_graph_t &graph, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::bfs();
     vis.visit_graph(graph, [&graph](op_visitor_t *vis, const sc_op_ptr &node) {
         if (auto div_node = node->dyn_cast<div_op_t>()) {
+            if (div_node->attrs_.get_or_else(op_attr_key::must_div, false)) {
+                return;
+            }
             auto bcast_idx = div_node->get_broadcast_input();
             if (bcast_idx == 1) {
                 assert(div_node->get_inputs().size() == 2);

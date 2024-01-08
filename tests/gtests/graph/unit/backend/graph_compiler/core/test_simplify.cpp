@@ -389,3 +389,48 @@ TEST(GCCore_CPU_ir_simplify, TestSimplifyIfAndElseEliminate) {
     ir_comparer cmper;
     EXPECT_TRUE(cmper.compare(out, expected));
 }
+
+TEST(GCCore_CPU_ir_simplify, TestVarRenameDynTensor) {
+    builder::ir_builder_t builder;
+    expr dyn_var0 = builder::make_var(datatypes::index, "dyn_var0");
+    _function_(datatypes::void_t, ccc,
+            _arg_("A", datatypes::f32, {dyn_var0, 100})) {
+        _bind_(A);
+
+        _var_init_(dyn_var1, datatypes::index, 1);
+        _tensor_(B, datatypes::f32, {dyn_var1, 100});
+
+        builder.push_scope();
+        {
+            _var_(dyn_var1, datatypes::index);
+            dyn_var1 = dyn_var0 + 1;
+            _tensor_(C, datatypes::f32, {100, dyn_var1});
+        }
+        builder.emit(builder.pop_scope());
+
+        dyn_var1 = 2;
+        _tensor_(D, datatypes::f32, {dyn_var0, dyn_var1});
+        _tensor_(E, datatypes::f32, {dyn_var1, 100});
+    }
+
+    ir_simplifier_t s {false};
+    auto out = s(ccc);
+
+    _function_(datatypes::void_t, expected,
+            _arg_("A", datatypes::f32, {dyn_var0, 100})) {
+        _bind_(A);
+
+        _var_init_(dyn_var1, datatypes::index, 1);
+        _tensor_(B, datatypes::f32, {dyn_var1, 100});
+
+        _var_(dyn_var1_1, datatypes::index);
+        dyn_var1_1 = dyn_var0 + 1;
+        _tensor_(C, datatypes::f32, {100, dyn_var1_1});
+
+        dyn_var1 = 2;
+        _tensor_(D, datatypes::f32, {dyn_var0, dyn_var1});
+        _tensor_(E, datatypes::f32, {dyn_var1, 100});
+    }
+    ir_comparer cmper;
+    EXPECT_TRUE(cmper.compare(out, expected));
+}

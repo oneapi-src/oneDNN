@@ -74,6 +74,10 @@ TEST(GCCore_CPU_thread_pool, TestBarrier) {
 }
 
 TEST(GCCore_CPU_thread_pool, TestThreadPool) {
+    if (runtime_config_t::get().managed_thread_pool_
+            == thread_pool_mode_t::DYNAMIC) {
+        GTEST_SKIP();
+    }
     dnnl_thread_env();
     auto &cfg = runtime_config_t::get();
     std::vector<std::atomic<int>> v(100000);
@@ -87,7 +91,8 @@ TEST(GCCore_CPU_thread_pool, TestThreadPool) {
                          generic_val *args) noexcept {
         env_t *penv = (env_t *)mod_data;
         auto pcall = runtime_config_t::get().thread_pool_table_->parallel_call;
-        if (runtime_config_t::get().managed_thread_pool_) {
+        if (runtime_config_t::get().managed_thread_pool_
+                == thread_pool_mode_t::MANAGED) {
             pcall = runtime_config_t::get()
                             .thread_pool_table_->parallel_call_managed;
         }
@@ -107,7 +112,7 @@ TEST(GCCore_CPU_thread_pool, TestThreadPool) {
                 nullptr);
     };
 
-    if (cfg.managed_thread_pool_) {
+    if (cfg.managed_thread_pool_ == thread_pool_mode_t::MANAGED) {
         runtime::thread_manager::cur_mgr.run_main_function(
                 funct, nullptr, &env, nullptr);
     } else {
@@ -136,6 +141,10 @@ TEST(GCCore_CPU_thread_pool, TestThreadPool) {
 
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 TEST(GCCore_CPU_thread_pool, TestThreadNum) {
+    if (runtime_config_t::get().managed_thread_pool_
+            == thread_pool_mode_t::DYNAMIC) {
+        GTEST_SKIP();
+    }
     dnnl_thread_env();
     auto &cfg = runtime_config_t::get();
     int nthreads
@@ -148,7 +157,8 @@ TEST(GCCore_CPU_thread_pool, TestThreadNum) {
         int nthreads
                 = runtime_config_t::get().thread_pool_table_->get_num_threads();
         auto pcall = runtime_config_t::get().thread_pool_table_->parallel_call;
-        if (runtime_config_t::get().managed_thread_pool_) {
+        if (runtime_config_t::get().managed_thread_pool_
+                == thread_pool_mode_t::MANAGED) {
             pcall = runtime_config_t::get()
                             .thread_pool_table_->parallel_call_managed;
         }
@@ -163,7 +173,7 @@ TEST(GCCore_CPU_thread_pool, TestThreadNum) {
                 0, nullptr, (void *)penv, 0, nthreads * 2, 1, nullptr);
     };
 
-    if (cfg.managed_thread_pool_) {
+    if (cfg.managed_thread_pool_ == thread_pool_mode_t::MANAGED) {
         runtime::thread_manager::cur_mgr.run_main_function(
                 funct, nullptr, &counts, nullptr);
     } else {

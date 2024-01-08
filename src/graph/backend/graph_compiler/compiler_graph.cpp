@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,46 +22,85 @@
 #include <unordered_set>
 
 #include "compiler_graph.hpp"
+#include "patterns/fusions.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace compiler_impl {
 
-static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
-        compiler_backend_op {{op_kind::Add, "add"}, {op_kind::Subtract, "sub"},
-                {op_kind::Multiply, "mul"}, {op_kind::Divide, "div"},
-                {op_kind::Pow, "pow"}, {op_kind::MatMul, "matmul"},
-                {op_kind::Quantize, "quantize"},
-                {op_kind::Dequantize, "dequantize"},
-                {op_kind::DynamicDequantize, "dynamic_dequantize"},
-                {op_kind::DynamicQuantize, "dynamic_quantize"},
-                {op_kind::StaticReshape, "static_reshape"},
-                {op_kind::StaticTranspose, "transpose"},
-                {op_kind::SoftMax, "softmax"}, {op_kind::Reorder, "reorder"},
-                {op_kind::TypeCast, "cast"}, {op_kind::ReLU, "relu"},
-                {op_kind::Sigmoid, "sigmoid"}, {op_kind::GELU, "gelu"},
-                {op_kind::ReLUBackward, "relu_backprop"},
-                {op_kind::SigmoidBackward, "sigmoid_backprop"},
-                {op_kind::GELUBackward, "gelu_backprop"},
-                {op_kind::ReduceSum, "reduce_sum"}, {op_kind::BiasAdd, "add"},
-                {op_kind::Convolution, "conv_fwd"},
-                {op_kind::ConvolutionBackwardData, "conv_bwd_data"},
-                {op_kind::ConvolutionBackwardWeights, "conv_bwd_weight"},
-                {op_kind::BatchNormForwardTraining,
-                        "batchnorm_forward_training"},
-                {op_kind::BatchNormTrainingBackward,
-                        "batchnorm_training_backprop"},
-                {op_kind::Maximum, "max"}, {op_kind::LayerNorm, "layernorm"},
-                {op_kind::Select, "select"}, {op_kind::Tanh, "tanh"},
-                {op_kind::ReduceMean, "reduce_mean"},
-                {op_kind::Concat, "concat"}};
+const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
+compiler_graph_impl_t::compiler_backend_supported_ops() {
+    static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
+            compiler_backend_op = {{op_kind::Add, "add"}, {op_kind::Abs, "abs"},
+                    {op_kind::AbsBackward, "abs_bwd"},
+                    {op_kind::Subtract, "sub"}, {op_kind::Multiply, "mul"},
+                    {op_kind::Divide, "div"}, {op_kind::Pow, "pow"},
+                    {op_kind::MatMul, "matmul"},
+                    {op_kind::Quantize, "quantize"},
+                    {op_kind::Dequantize, "dequantize"},
+                    {op_kind::DynamicDequantize, "dynamic_dequantize"},
+                    {op_kind::DynamicQuantize, "dynamic_quantize"},
+                    {op_kind::StaticReshape, "static_reshape"},
+                    {op_kind::StaticTranspose, "transpose"},
+                    {op_kind::LogSoftmax, "log_softmax"},
+                    {op_kind::LogSoftmaxBackward, "log_softmax_bwd"},
+                    {op_kind::SoftMax, "softmax"},
+                    {op_kind::SoftMaxBackward, "softmax_bwd"},
+                    {op_kind::Reorder, "reorder"},
+                    {op_kind::SoftPlus, "soft_plus"},
+                    {op_kind::SoftPlusBackward, "soft_plus_bwd"},
+                    {op_kind::TypeCast, "cast"}, {op_kind::ReLU, "relu"},
+                    {op_kind::Sigmoid, "sigmoid"}, {op_kind::GELU, "gelu"},
+                    {op_kind::ReLUBackward, "relu_backprop"},
+                    {op_kind::Reciprocal, "reciprocal"},
+                    {op_kind::SigmoidBackward, "sigmoid_backprop"},
+                    {op_kind::GELUBackward, "gelu_backprop"},
+                    {op_kind::ReduceSum, "reduce_sum"},
+                    {op_kind::BiasAdd, "add"},
+                    {op_kind::Convolution, "conv_fwd"},
+                    {op_kind::ConvolutionBackwardData, "conv_bwd_data"},
+                    {op_kind::ConvolutionBackwardWeights, "conv_bwd_weight"},
+                    {op_kind::BatchNormForwardTraining,
+                            "batchnorm_forward_training"},
+                    {op_kind::BatchNormTrainingBackward,
+                            "batchnorm_training_backprop"},
+                    {op_kind::Maximum, "max"}, {op_kind::Minimum, "min"},
+                    {op_kind::LayerNorm, "layernorm"},
+                    {op_kind::Select, "select"}, {op_kind::Square, "square"},
+                    {op_kind::Tanh, "tanh"},
+                    {op_kind::TanhBackward, "tanh_bwd"}, {op_kind::Exp, "exp"},
+                    {op_kind::ReduceL2, "reduce_l2"},
+                    {op_kind::ReduceL1, "reduce_l1"},
+                    {op_kind::ReduceMax, "reduce_max"},
+                    {op_kind::ReduceMean, "reduce_mean"},
+                    {op_kind::ReduceProd, "reduce_prod"},
+                    {op_kind::ReduceMin, "reduce_min"},
+                    {op_kind::Concat, "concat"}, {op_kind::Clamp, "clamp"},
+                    {op_kind::ClampBackward, "clamp_bwd"},
+                    {op_kind::HardSigmoid, "hardsigmoid"},
+                    {op_kind::HardSigmoidBackward, "hardsigmoid_bwd"},
+                    {op_kind::LeakyReLU, "leaky_relu"}, {op_kind::Log, "log"},
+                    {op_kind::Elu, "elu"}, {op_kind::EluBackward, "elu_bwd"},
+                    {op_kind::MaxPool, "pooling_max"},
+                    {op_kind::MaxPoolBackward, "pooling_max_backprop"},
+                    {op_kind::AvgPoolBackward, "pooling_avg_backprop"},
+                    {op_kind::Mish, "mish"},
+                    {op_kind::MishBackward, "mish_bwd"},
+                    {op_kind::AvgPool, "pooling_avg"},
+                    {op_kind::SqrtBackward, "sqrt_bwd"},
+                    {op_kind::HardSwish, "hardswish"},
+                    {op_kind::HardSwishBackward, "hardswish_bwd"},
+                    {op_kind::BatchNormInference, "batchnorm_inference"}};
+    return compiler_backend_op;
+}
 
 // we convert all int64[] to int32[] except for allowlist
 static std::unordered_set<graph::op_attr_t> type_conversion_allowlist {
         graph::op_attr::strides, graph::op_attr::pads_begin,
         graph::op_attr::pads_end, graph::op_attr::weights_shape,
-        graph::op_attr::dst_shape, graph::op_attr::dilations};
+        graph::op_attr::dst_shape, graph::op_attr::src_shape,
+        graph::op_attr::dilations, graph::op_attr::kernel};
 
 gc::any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<graph::op_attr_t,
@@ -133,7 +172,8 @@ gc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         int64_t axis = attrs.find(graph::op_attr::axis) != attrs.end()
                 ? attrs[graph::op_attr::axis].get<int64_t>()
                 : 1;
-        backend_attrs.set("channel_axis", convert_axis(axis, input_dim));
+        if (attrs[graph::op_attr::qtype].get<std::string>() == "per_channel")
+            backend_attrs.set("channel_axis", convert_axis(axis, input_dim));
         if (aop->get_kind() == op_kind::Quantize
                 || aop->get_kind() == op_kind::Dequantize) {
             std::vector<float> scales
@@ -148,7 +188,10 @@ gc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
                 convert_data_type(aop->get_output_value(0)
                                           ->get_logical_tensor()
                                           .data_type));
-    } else if (aop->get_kind() == op_kind::SoftMax) {
+    } else if (aop->get_kind() == op_kind::SoftMax
+            || aop->get_kind() == op_kind::SoftMaxBackward
+            || aop->get_kind() == op_kind::LogSoftmax
+            || aop->get_kind() == op_kind::LogSoftmaxBackward) {
         backend_attrs.set("axis",
                 std::vector<int>(1,
                         convert_axis(attrs[graph::op_attr::axis].get<int64_t>(),
@@ -172,8 +215,9 @@ gc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
                 convert_data_type(aop->get_output_value(0)
                                           ->get_logical_tensor()
                                           .data_type));
-    } else if (aop->get_kind() == op_kind::ReduceSum
-            || aop->get_kind() == op_kind::ReduceMean) {
+    } else if (std::find(pass::get_reduction_ops().begin(),
+                       pass::get_reduction_ops().end(), aop->get_kind())
+            != pass::get_reduction_ops().end()) {
         assert(attrs.find(graph::op_attr::axes) != attrs.end());
         std::vector<int64_t> axes
                 = attrs[graph::op_attr::axes].get<std::vector<int64_t>>();
@@ -203,8 +247,8 @@ gc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
     } else {
         backend_attrs = convert_op_attrs(aop->get_attributes());
     }
-    return make(compiler_backend_op.find(aop->get_kind())->second, producer_lt,
-            consumer_lt, backend_attrs);
+    return make(compiler_backend_supported_ops().find(aop->get_kind())->second,
+            producer_lt, consumer_lt, backend_attrs);
 }
 
 gc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
@@ -270,7 +314,16 @@ gc::sc_op_ptr compiler_graph_impl_t::make_compiler_backend_input(
 }
 
 bool compiler_graph_impl_t::is_supported_op(op_kind_t name) {
-    return compiler_backend_op.find(name) != compiler_backend_op.end();
+    return compiler_backend_supported_ops().find(name)
+            != compiler_backend_supported_ops().end();
+}
+
+std::vector<op_kind_t> compiler_graph_impl_t::get_supported_op_kinds() {
+    std::vector<op_kind_t> ret;
+    for (const auto &pair : compiler_backend_supported_ops()) {
+        ret.emplace_back(pair.first);
+    }
+    return ret;
 }
 
 } // namespace compiler_impl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,9 +65,9 @@ layout_t make_conv_layout(
     dim_map_t<prb_dim_t, int> blocks;
     auto rem_size = [](const prb_dim_t &dim,
                             const dim_map_t<prb_dim_t, int> &blocks) {
-        auto dim_size = linear_expr_ctx_t::expand(size_var(dim));
+        auto dim_size = size_var(dim);
         if (!blocks.has(dim)) return dim_size;
-        return linear_op(op_kind_t::_div_up, dim_size, blocks[dim]);
+        return binary_op_t::make(op_kind_t::_div_up, dim_size, blocks[dim]);
     };
     auto &entries = tag.raw_tag().entries();
     for (auto it = entries.rbegin(); it != entries.rend(); it++) {
@@ -131,15 +131,15 @@ private:
     expr_t kw_bwd_d_idx = var_t::make(type_t::s32(), "kw_bwd_d_idx");
 
     dim_mapper_t init_src_mapper() const {
-        auto pd = linear_expr_ctx_t::expand(size_var(prb_dims::pd));
-        auto ph = linear_expr_ctx_t::expand(size_var(prb_dims::ph));
-        auto pw = linear_expr_ctx_t::expand(size_var(prb_dims::pw));
-        auto sd = linear_expr_ctx_t::expand(size_var(prb_dims::sd));
-        auto sh = linear_expr_ctx_t::expand(size_var(prb_dims::sh));
-        auto sw = linear_expr_ctx_t::expand(size_var(prb_dims::sw));
-        auto dd = linear_expr_ctx_t::expand(size_var(prb_dims::dd));
-        auto dh = linear_expr_ctx_t::expand(size_var(prb_dims::dh));
-        auto dw = linear_expr_ctx_t::expand(size_var(prb_dims::dw));
+        auto pd = size_var(prb_dims::pd);
+        auto ph = size_var(prb_dims::ph);
+        auto pw = size_var(prb_dims::pw);
+        auto sd = size_var(prb_dims::sd);
+        auto sh = size_var(prb_dims::sh);
+        auto sw = size_var(prb_dims::sw);
+        auto dd = size_var(prb_dims::dd);
+        auto dh = size_var(prb_dims::dh);
+        auto dw = size_var(prb_dims::dw);
         dim_mapper_t mapper;
         mapper.set_dim(prb_dims::mb);
         mapper.set_dim(prb_dims::g);
@@ -207,7 +207,8 @@ public:
     multiply_info_t(fma_kind_t fma, int simd) : fma_(fma), simd_(simd) {}
 
     multiply_hint_t hint(tensor_kind_t abc) const {
-        ir_assert(utils::one_of(abc, tensor_kind_t::a, tensor_kind_t::b));
+        if (!utils::one_of(abc, tensor_kind_t::a, tensor_kind_t::b))
+            return multiply_hint_t();
         bool src1 = (abc == tensor_kind_t::b);
         bool src2 = (abc == tensor_kind_t::a);
         multiply_hint_t hint;
@@ -313,9 +314,6 @@ public:
     plan_builder_t(const kernel_desc_t &desc) : desc_(desc), plan_(desc_.hw) {}
 
     plan_status_t build() {
-        build_enter();
-
-        init_constraints();
         init_dim_mapper_manager();
         init_tiles();
         init_layouts();
@@ -323,23 +321,12 @@ public:
         init_info();
         auto status = init_plan();
 
-        build_exit();
         return status;
     }
 
     const plan_t &plan() const { return plan_; }
 
 private:
-    void build_enter() { linear_expr_ctx_t::set(&plan_.expr_ctx); }
-    void build_exit() { linear_expr_ctx_t::set(nullptr); }
-
-    void init_constraints() {
-        auto &cc = desc_.spec.constraints();
-        for (auto &d : cc) {
-            plan_.expr_ctx.add_constraint(size_var(d), cc[d]);
-        }
-    }
-
     void init_dim_mapper_manager() {
         dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop);
     }
@@ -355,7 +342,8 @@ private:
             auto thr_idx = thr_grid_.index_var(d);
             coord_info_.add_dim(
                     d, is_loop, is_global_loop, tg_tile, thr_idx, iter_tile);
-            iter_coord_[d] = iter_tile * coord_info_.iter_index(d);
+            iter_coord_[d]
+                    = simplify_rewrite(iter_tile * coord_info_.iter_index(d));
         }
     }
 
@@ -404,7 +392,7 @@ private:
 
     plan_status_t init_x_g2r_plan(tensor_kind_t abc, const view_t &view,
             layout_t &reg_layout, send_plan_t &load) const {
-        auto params = get_x2r_send_params(view, abc);
+        auto params = get_send_params(abc, send_op_t::load, view);
         load = create_send_plan(params, view);
         bool ok = layout_info_.is_compatible(abc, load.reg_layout());
         if (params.hint_2d && !ok) {
@@ -505,7 +493,8 @@ private:
         for (auto &d : full_tile) {
             if (mul_info_.is_k(d)) full_tile.unset(d);
         }
-        auto params = get_send_params(send_op_t::store, c_iter_view);
+        auto params = get_send_params(
+                tensor_kind_t::c, send_op_t::store, c_iter_view);
         auto c_store = create_send_plan(params, c_iter_view);
         auto tile = c_store.entry_tile();
         params.hint_2d = send_2d_hint_t();
@@ -530,23 +519,14 @@ private:
         return plan_status_t::ok;
     }
 
-    send_params_t get_send_params(send_op_t op, const view_t &view) const {
+    send_params_t get_send_params(
+            tensor_kind_t abc, send_op_t op, const view_t &view) const {
         send_params_t params;
         params.hw = desc_.hw;
+        params.kind = desc_.access_kind(abc);
         params.op = op;
-        params.hint_2d = send_2d_hint_t(view, op);
-        params.skip_mask = skip_mask(view);
-        params.init_max_entry_reg_size();
-        return params;
-    }
-
-    send_params_t get_x2r_send_params(
-            const view_t &view, tensor_kind_t abc) const {
-        auto send_op = send_op_t::load;
-        send_params_t params;
-        params.hw = desc_.hw;
-        params.op = send_op;
-        params.hint_2d = send_2d_hint_t(view, send_op, mul_info_.hint(abc));
+        if (params.kind == send_kind_t::_2d)
+            params.hint_2d = send_2d_hint_t(view, op, mul_info_.hint(abc));
         params.skip_mask = skip_mask(view);
         params.init_max_entry_reg_size();
         return params;
@@ -559,7 +539,7 @@ private:
             prb_dim_t d = mask_desc[i].dim;
             if (!view.dim_mapper().has(d)) continue;
             if (!view.dim_mapper().expr(d).is_same(index_var(d))) continue;
-            if (coord_info_.is_padded(d)) continue;
+            if (coord_info_.needs_mask(d)) continue;
             ret.push_back(d);
         }
         return ret;
@@ -582,6 +562,14 @@ private:
 
     plan_t plan_;
 };
+
+prb_reqs_t plan_t::reqs() const {
+    prb_reqs_t ret;
+    ret.add(x2r.a_load.reqs());
+    ret.add(x2r.b_load.reqs());
+    ret.add(epilogue.c_store.reqs());
+    return ret;
+}
 
 plan_t create_conv_plan(const kernel_desc_t &desc) {
     plan_builder_t builder(desc);

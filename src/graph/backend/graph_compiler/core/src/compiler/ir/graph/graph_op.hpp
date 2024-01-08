@@ -61,6 +61,13 @@ public:
             const std::vector<graph_tensor_ptr> &flts);
 
     float get_gflop() override { return get_graph()->get_gflop(); }
+
+    static graph_tensor_ptr cast_input_dtype(graph_tensor_ptr &inp,
+            std::shared_ptr<sc_graph_t> &graph, const any_map_t &attrs = {});
+
+    static std::shared_ptr<sc_op> cast_output_dtype(graph_tensor_ptr &inp,
+            std::shared_ptr<sc_graph_t> &graph, std::shared_ptr<sc_op> &last_op,
+            const any_map_t &attrs = {});
 };
 
 class configurable_graph_op_t : public graph_op_t,

@@ -122,10 +122,10 @@ public:
   const context_ptr &ctx, const conv_dw_fwd_config_t &config, \
     fusion_anchor_mgr_t *fusion, expr &output, const expr &input, \
     const expr &weight, std::vector<for_loop> &loops
-  void compute_conv_no_padding(CONV_ARG_LIST) const;
-  void compute_conv_padding(CONV_ARG_LIST) const;
-  void dynamic_compute_conv_no_padding(CONV_ARG_LIST) const;
-  void dynamic_compute_conv_padding(CONV_ARG_LIST) const;
+  void compute_conv_logical_padding(CONV_ARG_LIST) const;
+  void compute_conv_physical_padding(CONV_ARG_LIST) const;
+  void dynamic_conv_logical_padding(CONV_ARG_LIST) const;
+  void dynamic_conv_physical_padding(CONV_ARG_LIST) const;
 #undef CONV_ARG_LIST
 
   size_t ndims_ = 0;

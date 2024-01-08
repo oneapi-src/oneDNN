@@ -1119,7 +1119,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     int tensor_counter = 0;
     int global_tensor_counter = 0;
     auto ret_mod = ir_module_t::from_entry_func(ctx, func);
-    auto use_managed_tp = std::make_shared<bool>(false);
+    auto use_managed_tp
+            = std::make_shared<thread_pool_mode_t>(thread_pool_mode_t::DIRECT);
 
     expr dump_out_path;
     if (graph.attrs_.get_or_else("folded_input", false)) {
@@ -1467,14 +1468,16 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     // 24-core cascade lake, 1.6Gflop is turning point of choosing
     // managed/native thread pool
     auto &rtl_cfg = runtime_config_t::get();
-    bool use_managed_thread_pool = false;
-    if (rtl_cfg.managed_thread_pool_) {
+    thread_pool_mode_t use_managed_thread_pool = thread_pool_mode_t::DIRECT;
+    if (rtl_cfg.managed_thread_pool_ == thread_pool_mode_t::MANAGED) {
         if (num_ops > 2 || rtl_cfg.get_num_threads() == 1
                 || gflop / rtl_cfg.get_num_threads() > 0.0666f) {
-            use_managed_thread_pool = true;
+            use_managed_thread_pool = thread_pool_mode_t::MANAGED;
         } else if (ctx->use_amx()) {
-            use_managed_thread_pool = true;
+            use_managed_thread_pool = thread_pool_mode_t::MANAGED;
         }
+    } else if (rtl_cfg.managed_thread_pool_ == thread_pool_mode_t::DYNAMIC) {
+        use_managed_thread_pool = thread_pool_mode_t::DYNAMIC;
     }
     ret_mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
             = use_managed_thread_pool;

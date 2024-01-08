@@ -1187,6 +1187,17 @@ public:
     bool try_rotate_const(expr_c &parent, expr_c &l, expr_c &r) {
         if (!is_op_commutative_and_associative(parent)) return false;
         if (l.isa<constant>() && !r.isa<constant>()) {
+            if (parent.cast<intrin_call_c>()
+                            .filter([&l](const intrin_call_c &v) {
+                                return (v->type_ == intrin_type::min
+                                               || v->type_ == intrin_type::max)
+                                        && get_etype_category_nothrow(l->dtype_)
+                                        == type_category::CATE_FLOAT;
+                            })
+                            .has_value()) {
+                // skip for min/max cases with float dtype
+                return false;
+            }
             // c + x => x + c
             std::swap(l, r);
             return true;

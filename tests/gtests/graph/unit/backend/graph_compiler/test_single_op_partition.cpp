@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -271,8 +271,8 @@ TEST(GCSingleOpTest, SelectOpCompileExecution_CPU) {
     std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
     p.compile(&cp, inputs, outputs, eng);
 
-    std::vector<float> cond(2 * 5), then(2 * 3 * 4 * 5), els(1),
-            dst(2 * 3 * 4 * 5);
+    std::vector<float> then(2 * 3 * 4 * 5), els(1), dst(2 * 3 * 4 * 5);
+    std::vector<char> cond(2 * 5);
 
     test_tensor cond_ts(cond_lt, eng, cond);
     test_tensor then_ts(then_lt, eng, then);

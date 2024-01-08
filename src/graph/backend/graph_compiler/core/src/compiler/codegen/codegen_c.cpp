@@ -31,6 +31,7 @@
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/jit/symbol_resolver.hpp>
+#include <runtime/threadpool_mode.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
@@ -1159,8 +1160,11 @@ const_ir_module_ptr preprocess_module_and_make_decl(
     source << '\n';
 
     if (optout) {
-        bool managed_thread_pool = mod_cpy->attr_.get<bool>(
+        auto mode = mod_cpy->attr_.get<thread_pool_mode_t>(
                 ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
+        COMPILE_ASSERT(mode != thread_pool_mode_t::DYNAMIC,
+                "Dynamic threadpool offline mode is not yet supported.");
+        bool managed_thread_pool = mode == thread_pool_mode_t::MANAGED;
         if (managed_thread_pool) {
             (*optout->offline_source_)
                     << R"(#include <runtime/managed_thread_pool.hpp>
@@ -1192,8 +1196,11 @@ static void generate_dumped_source(const const_ir_module_ptr &mod,
         }
     }
 
-    bool managed_thread_pool = mod->attr_.get<bool>(
+    thread_pool_mode_t mode = mod->attr_.get<thread_pool_mode_t>(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
+    COMPILE_ASSERT(mode != thread_pool_mode_t::DYNAMIC,
+            "Dynamic threadpool offline mode is not yet supported.");
+    bool managed_thread_pool = mode == thread_pool_mode_t::MANAGED;
     for (auto &f : mod->get_contents()) {
         if (f->name_ == "__sc_init__") {
             f->attr()["temp.replace_func_name"] = "sc_init_" + module_name;

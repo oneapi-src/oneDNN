@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -260,6 +260,14 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                                   .exec_args
                                   .at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(src.index)
                                           | DNNL_ARG_SRC_1)
+                                  .mem->memory_storage();
+                break;
+            case pd_t::binary_src_t::prelu:
+                po_srcs[i]
+                        = ctx.args()
+                                  .exec_args
+                                  .at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(src.index)
+                                          | DNNL_ARG_WEIGHTS)
                                   .mem->memory_storage();
                 break;
             case pd_t::binary_src_t::bias: po_srcs[i] = &bias; break;

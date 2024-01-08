@@ -41,7 +41,7 @@ static inline any_map_t add_pl_type_and_in_shape(
         const any_map_t &attrs, int pl_type, const sc_dims &input_shape) {
     auto ret = attrs;
     ret[pooling_attr_key::pooling_type] = pl_type;
-    ret[pooling_attr_key::input_shape] = input_shape;
+    ret[pooling_attr_key::src_shape] = input_shape;
     return ret;
 }
 
@@ -337,7 +337,7 @@ static void compute_block_pooling(
         sc_dims stride, sc_dims pads_begin,
         const std::vector<int> &in_fmt_vector, const vectorized_info_t &vx_info,
         sc_data_type_t in_dtype, sc_data_type_t out_dtype, any_map_t &attrs,
-        const graph_tensor_ptr &output_tensor = nullptr, size_t wkld = 0UL) {
+        const graph_tensor_ptr &expand_gt, size_t wkld = 0UL) {
     /*** The final IR may look like below:
      * _for_(_fuseiter_i, 0, I, 1)
      *   _for_(_fuseiter_j, 0, J, 1)
@@ -573,33 +573,27 @@ static void compute_block_pooling(
                 : make_stmt<stmts_node_t>(std::vector<stmt> {cur});
         if (!body.ptr_same(cur)) add_parent_node(cur, body);
 
-        if (output_tensor != nullptr) {
-            // create output inner anchors for postop fusion
-            auto anchor_stmt = make_stmt<stmts_node_t>(std::vector<stmt> {});
-            body.static_as<stmts>()->seq_.emplace_back(anchor_stmt);
-            add_parent_node(anchor_stmt, body);
-            slice_range inner_slice = dst.get_ranges();
-            for (int j = i; j >= 0; j--) {
-                inner_slice[j].first = dst.get_offset()[j] + iter_vars[j];
-                inner_slice[j].second = ((static_cast<int>(j) == vx_info.axis)
-                                ? expr(int(vx_info.lanes))
-                                : expr(1));
-            }
-            fslice_map fsmap;
-            fsmap.get(output_tensor) = slice_range_list {inner_slice};
-            inner_anchors.emplace_back(
-                    std::make_shared<fusion_anchor_t>(anchor_stmt, fsmap));
+        // create output inner anchors for postop fusion
+        auto anchor_stmt = make_stmt<stmts_node_t>(std::vector<stmt> {});
+        body.static_as<stmts>()->seq_.emplace_back(anchor_stmt);
+        add_parent_node(anchor_stmt, body);
+        slice_range inner_slice = dst.get_ranges();
+        for (int j = i; j >= 0; j--) {
+            inner_slice[j].first = dst.get_offset()[j] + iter_vars[j];
+            inner_slice[j].second = ((static_cast<int>(j) == vx_info.axis)
+                            ? expr(int(vx_info.lanes))
+                            : expr(1));
         }
+        fslice_map fsmap;
+        fsmap.get(expand_gt) = slice_range_list {inner_slice};
+        inner_anchors.emplace_back(
+                std::make_shared<fusion_anchor_t>(anchor_stmt, fsmap));
 
         cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), 0,
                 dst.get_shape()[i],
                 (i == int(iter_vars.size() - 1)) ? int(vx_info.lanes) : 1, body,
                 true, i == 0 ? for_type::PARALLEL : for_type::NORMAL);
-        if (output_tensor && output_tensor->producer_owner_
-                && dynamic_cast<pooling_op_t *>(output_tensor->producer_owner_)
-                        == nullptr) {
-            cur->attr()[stmt_attr_key::merge_loop] = true;
-        }
+        bind_loop_axis(expand_gt, cur, i, true);
         add_parent_node(body, cur);
     }
 
@@ -735,12 +729,23 @@ pooling_backprop_op_t::pooling_backprop_op_t(
     check_and_set_kernel_strides_and_pooling_type(
             attrs_, n_kernel_dims, kernel_, stride_, pooling_type_);
 
+    sc_dims input_plain_shape;
     // set pads_begin_ and pads_begin_
-    COMPILE_ASSERT(attrs.has_key(pooling_attr_key::input_shape),
-            "the pooling_backprop_op_t op should have input_shape "
-            "attribute");
-    sc_dims input_plain_shape
-            = attrs.get<sc_dims>(pooling_attr_key::input_shape);
+    if (pooling_type_ == pooling_type_t::avg) {
+        COMPILE_ASSERT(
+                attrs.has_key(pooling_attr_key::src_shape) || ins.size() == 2,
+                "the pooling_backprop_op_t op should have input_shape.");
+        bool ins_has_src_shape = ins.size() == 2;
+        input_plain_shape = ins_has_src_shape
+                ? ins[1]->details_.get_plain_dims()
+                : attrs.get<sc_dims>(pooling_attr_key::src_shape);
+    } else {
+        COMPILE_ASSERT(attrs.has_key(pooling_attr_key::src_shape),
+                "the pooling_backprop_op_t op should have input_shape "
+                "attribute");
+        input_plain_shape = attrs.get<sc_dims>(pooling_attr_key::src_shape);
+    }
+
     check_and_set_pads_begin_and_pads_end(
             attrs_, input_plain_shape, pads_begin_, pads_end_, channel_last_);
 
@@ -892,7 +897,6 @@ static void pooling_backward_fill_zero_dst(const tensor_slice &dst,
                 (i == int(dst_idx.size() - 1)) ? int(vx_info.lanes) : 1,
                 std::move(body), true, for_type::NORMAL);
     }
-    cur->attr()[stmt_attr_key::merge_loop] = false;
     bld->emit(cur);
 }
 
@@ -901,7 +905,8 @@ static void compute_block_pooling_backward_avg(
         const tensor_slice &dst, sc_dims kernel, sc_dims stride,
         sc_dims pads_begin, const std::vector<int> &dst_fmt_vector,
         const vectorized_info_t &vx_info, sc_data_type_t in_dtype,
-        any_map_t &attrs, size_t wkld = 0UL) {
+        any_map_t &attrs, const graph_tensor_ptr &expand_gt,
+        size_t wkld = 0UL) {
     /***The final IR may look like below:
      * _for_(_fuseiter_i, 0, I, 1)
      *   _for_(_fuseiter_j, 0, J, 1)
@@ -926,8 +931,6 @@ static void compute_block_pooling_backward_avg(
     // fill dst delta with 0
     pooling_backward_fill_zero_dst(dst, in_dtype, vx_info);
 
-    auto in_vectorized_dtype
-            = sc_data_type_t(in_dtype.type_code_, vx_info.lanes);
     // builder
     auto bld = builder::get_current_builder();
 
@@ -951,16 +954,13 @@ static void compute_block_pooling_backward_avg(
                 std::string("_fuseiter") + fusion_create_idx()));
     }
 
-    auto kernel_size_var
-            = builder::make_var(in_vectorized_dtype, "kernel_size");
+    auto kernel_size_var = builder::make_var(in_dtype, "kernel_size");
     auto define_kernel_size_var
             = make_stmt<define_node_t>(kernel_size_var, linkage::local, expr());
 
     // the indices of output delta
     std::vector<expr> dst_delta_idx;
     std::vector<expr> conds(kernel.size());
-    auto vectorized_int
-            = sc_data_type_t(datatypes::s32.type_code_, vx_info.lanes);
 
     expr kernel_size_multi_expr = kernel_size_var;
     bool multi_first = true;
@@ -981,19 +981,19 @@ static void compute_block_pooling_backward_avg(
             dst_delta_idx.emplace_back(idx);
             auto window_start = make_expr<intrin_call_node>(intrin_type::max,
                     std::vector<expr> {make_expr<constant_node>(
-                                               int64_t(0), vectorized_int),
+                                               int64_t(0), datatypes::s32),
                             int(stride[pads_stride_index])
                                             * make_expr<cast_node>(
-                                                    vectorized_int,
+                                                    datatypes::s32,
                                                     iter_vars[i])
                                     - int(pads_begin[pads_stride_index])},
                     any_map_t());
             auto window_end = make_expr<intrin_call_node>(intrin_type::min,
-                    std::vector<expr> {make_expr<cast_node>(vectorized_int,
+                    std::vector<expr> {make_expr<cast_node>(datatypes::s32,
                                                dst.get_shape()[i]),
                             int(stride[pads_stride_index])
                                             * make_expr<cast_node>(
-                                                    vectorized_int,
+                                                    datatypes::s32,
                                                     iter_vars[i])
                                     - int(pads_begin[pads_stride_index])
                                     + int(kernel[pads_stride_index])},
@@ -1025,10 +1025,8 @@ static void compute_block_pooling_backward_avg(
                     kernel_size_var, kernel_size_multi_expr);
         } else {
             kernel_size_asnode = make_stmt<assign_node_t>(kernel_size_var,
-                    make_expr<constant_node>(
-                            float(kernel_size), in_vectorized_dtype));
+                    make_expr<constant_node>(float(kernel_size), in_dtype));
         }
-
     } else {
         COMPILE_ASSERT(0, "unsupported in_dtype.");
     }
@@ -1038,10 +1036,15 @@ static void compute_block_pooling_backward_avg(
     for (int i = kernel_iter_vars.size() - 1; i >= 0; i--) {
         stmt else_stmt, then_stmt;
         if (i == int(kernel_iter_vars.size() - 1)) {
+            expr kernel_size = kernel_size_var;
+            if (vx_info.lanes > 1) {
+                kernel_size = builder::make_broadcast(
+                        kernel_size_var, vx_info.lanes);
+            }
+
             then_stmt = make_stmt<assign_node_t>(indexed_dst_delta,
                     builder::make_add(indexed_dst_delta,
-                            builder::make_div(
-                                    indexed_src_delta, kernel_size_var)));
+                            builder::make_div(indexed_src_delta, kernel_size)));
         } else {
             then_stmt = cur;
         }
@@ -1076,9 +1079,9 @@ static void compute_block_pooling_backward_avg(
                 std::move(body), true, for_type::NORMAL);
 
         cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
+        bind_loop_axis(expand_gt, cur, i, true);
     }
 
-    if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = false;
     cur = make_stmt<stmts_node_t>(
             std::vector<stmt> {define_kernel_size_var, std::move(cur)});
 
@@ -1090,7 +1093,8 @@ static void compute_block_pooling_backward_max(
         const tensor_slice &dst, sc_dims kernel, sc_dims stride,
         sc_dims pads_begin, const std::vector<int> &dst_fmt_vector,
         const vectorized_info_t &vx_info, sc_data_type_t in_dtype,
-        any_map_t &attrs, size_t wkld = 0UL) {
+        any_map_t &attrs, const graph_tensor_ptr &expand_gt,
+        size_t wkld = 0UL) {
     /***The final IR may look like below:
      * _for_(_fuseiter_i, 0, I, 1)
      *   _for_(_fuseiter_j, 0, J, 1)
@@ -1276,9 +1280,9 @@ static void compute_block_pooling_backward_max(
                 for_type::NORMAL);
 
         cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
+        bind_loop_axis(expand_gt, cur, i, true);
     }
 
-    if (cur.isa<for_loop>()) cur->attr()[stmt_attr_key::merge_loop] = false;
     std::vector<stmt> func_body = defines_of_max;
     func_body.emplace_back(std::move(cur));
     cur = make_stmt<stmts_node_t>(std::move(func_body));
@@ -1322,13 +1326,13 @@ void pooling_backprop_op_t::compute_block(context_ptr ctx,
                 pads_begin_,
                 get_ncx_formatcode_vector_form_tensor(
                         info_.inputs_[0], channel_last_),
-                vx_info_, in_dtype, attrs_);
+                vx_info_, in_dtype, attrs_, get_inputs()[0]);
     } else {
         compute_block_pooling_backward_max(inputs, *dst[0], kernel_, stride_,
                 pads_begin_,
                 get_ncx_formatcode_vector_form_tensor(
                         info_.inputs_[1], channel_last_),
-                vx_info_, in_dtype, attrs_);
+                vx_info_, in_dtype, attrs_, get_inputs()[1]);
     }
 }
 

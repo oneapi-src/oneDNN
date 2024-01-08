@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <algorithm>
 
 #include "gpu/jit/ir/linear_expr.hpp"
+#include "gpu/jit/pass/simplify.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -318,6 +319,14 @@ void normalize_ptr(const type_t &type, expr_t &base_expr, expr_t &off) {
             << "Incompatible offset: " << off;
 }
 
+expr_t linear_t::to_expr() const {
+    auto ret = c;
+    for (int i = 0; i < nargs(); i++) {
+        ret += u_vec[i] * v_vec[i];
+    }
+    return simplify_rewrite(ret);
+}
+
 expr_t expr_t::operator[](const expr_t &off) const {
     if (is<shuffle_t>()) {
         ir_assert(is_const(off)) << "Offset is not constant.";
@@ -340,13 +349,11 @@ expr_t::expr_t(uint32_t value) : object_t(new int_imm_t(value)) {}
 expr_t::expr_t(uint64_t value) : object_t(new int_imm_t(value)) {}
 
 expr_t operator-(const expr_t &a) {
-    if (should_use_linear_op(a)) return linear_op(op_kind_t::_minus, a);
     return const_fold_non_recursive(unary_op_t::make(op_kind_t::_minus, a));
 }
 
 #define DEFINE_BINARY_OPERATOR(op, op_kind) \
     expr_t operator op(const expr_t &a, const expr_t &b) { \
-        if (should_use_linear_op(a, b)) return linear_op(op_kind, a, b); \
         if (a.type().is_ptr()) return shift_ptr(op_kind, a, b); \
         return const_fold_non_recursive(binary_op_t::make(op_kind, a, b)); \
     }

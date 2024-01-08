@@ -106,9 +106,9 @@ public:
 
     void commit_into_anchor(fusion_anchor_t *committed_anchor) override;
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override {}
+    void infer_binding_axis(binding_axis_map &bdax_map) override {}
 
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override {}
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override {}
 
     ~fusible_op_t() override = default;
 
@@ -263,13 +263,9 @@ public:
     int get_broadcast_input() const;
 };
 
-inline bool is_broadcast_op(const sc_op *op) {
-    return (op->isa<op_traits::may_broadcast_t>()
-            && op->dyn_cast<const op_traits::may_broadcast_t>()
-                            ->get_non_broadcast_input_index(true)
-                            .size()
-                    != op->get_inputs().size());
-}
+class binary_backward_op_t : public fusible_op_t,
+                             public op_traits::may_inplace_t,
+                             public op_traits::auto_copyable_t {};
 
 class unary_elementwise_op_t : public fusible_op_t,
                                public op_traits::may_inplace_t,

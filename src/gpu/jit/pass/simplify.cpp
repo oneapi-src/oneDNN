@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include "common/cpp_compat.hpp"
 #include "common/math_utils.hpp"
 #include "gpu/jit/ir/ir.hpp"
+#include "gpu/jit/ir/linear_expr.hpp"
 #include "gpu/jit/utils/trace.hpp"
 #include "gpu/jit/utils/utils.hpp"
 

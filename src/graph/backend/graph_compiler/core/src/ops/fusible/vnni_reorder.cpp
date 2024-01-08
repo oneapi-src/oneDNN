@@ -347,7 +347,8 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
         std::vector<int> &inp_n_axis, std::vector<int> &inp_k_axis,
-        std::vector<int> &out_n_axis, std::vector<int> &out_k_axis, size_t wkld,
+        std::vector<int> &out_n_axis, std::vector<int> &out_k_axis,
+        const graph_tensor_ptr &expand_gt, size_t wkld,
         const bool &is_vnni_reorder, bool is_dynamic, bool dynamic_no_padding,
         const sc_vnni_kernel vnni_kernel_used) {
     bool is_bf16 = dtype.as_etype() == sc_data_etype::BF16;
@@ -537,6 +538,7 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                     expr(0), iter_end.remove_const(), cur_step, std::move(body),
                     true, for_type::NORMAL);
+            bind_loop_axis(expand_gt, cur, i, true);
         }
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);
@@ -682,6 +684,7 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                     expr(0), iter_end.remove_const(), cur_step, std::move(body),
                     true, for_type::NORMAL);
+            bind_loop_axis(expand_gt, cur, i, true);
         }
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);

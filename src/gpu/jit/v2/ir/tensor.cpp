@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,16 +37,6 @@ static bool is_abx_tag(const std::string &s) {
         }
     }
     return true;
-}
-
-static std::string linear_to_multiline_str(const linear_t &linear) {
-    std::ostringstream oss;
-    oss << "  " << linear.c;
-    for (int i = 0; i < linear.nargs(); i++) {
-        oss << std::endl;
-        oss << "    + " << linear.v_vec[i] << " x " << linear.u_vec[i];
-    }
-    return oss.str();
 }
 
 std::string block_t::brief_str() const {
@@ -568,7 +558,7 @@ void layout_t::normalize() {
     bool changed = false;
     for (int i = 0; i < nblocks(); i++) {
         auto &cur = blocks_[i];
-        if (prev && cur.dim == prev->dim && cur.stride.is_same(stride)) {
+        if (prev && cur.dim == prev->dim && cur.stride.is_equal(stride)) {
             prev->size *= cur.size;
             cur.dim = prb_dim_t();
             changed = true;
@@ -604,6 +594,16 @@ layout_t layout_t::split_block(
 }
 
 template <typename T>
+struct div_helper_t {
+    static T call(const T &a, int b) { return a / b; }
+};
+
+template <>
+struct div_helper_t<expr_t> {
+    static expr_t call(const expr_t &a, int b) { return linear_div(a, b); }
+};
+
+template <typename T>
 layout_t layout_t::map(const dim_mapper_t &dim_mapper,
         const prb_coord_t<T> &coord, const prb_tile_t &tile) const {
     auto idxs = coord;
@@ -620,7 +620,7 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
         auto &linear = _linear.as<linear_t>();
         expr_t off = linear.c;
         for (int i = 0; i < linear.nargs(); i++) {
-            auto dim = to_prb_dim(linear.v_vec[i]);
+            auto dim = index_to_prb_dim(linear.v_vec[i]);
             int &cur_size = rem_sizes[dim];
             int mapped_size = cur_size;
             if (b.has_const_size() && cur_size != 1) {
@@ -645,9 +645,9 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
             bool is_outer = true;
             if (b.has_const_size()) {
                 ir_assert(!seen_outer.has(dim));
-                int factor = max_pow2_divisor(idxs[dim]);
+                int factor = linear_max_pow2_divisor(idxs[dim]);
                 if (factor % b.int_size() == 0) {
-                    idxs[dim] /= b.int_size();
+                    idxs[dim] = div_helper_t<T>::call(idxs[dim], b.int_size());
                     is_outer = false;
                 }
             }
@@ -739,10 +739,8 @@ std::string layout_t::str() const {
     oss << blocks_str();
     oss << ":" + type().str();
     if (!is_zero(base_)) {
-        auto _base_linear = linear_expr_ctx_t::expand(to_linear(base_));
-        auto &base_linear = _base_linear.as<linear_t>();
         oss << std::endl;
-        oss << ir_utils::add_tag("base", linear_to_multiline_str(base_linear));
+        oss << ir_utils::add_tag("base", base_.str());
     }
     return oss.str();
 }
@@ -813,15 +811,15 @@ block_t block_iterator_t::remaining_block() const {
     return block_t(b.dim, size, stride);
 }
 
-bool block_iterator_t::is_dense() const {
+bool block_iterator_t::is_dense(const prover_t &prover) const {
     if (is_end()) return false;
     expr_t stride = 1;
     for (int i = 0; i < block_idx_; i++) {
         auto &b = parent_->blocks()[i];
-        if (!b.has_same_stride(stride)) return false;
+        if (!prover.prove(b.stride == stride)) return false;
         stride = b.int_size() * b.stride;
     }
-    return block_.has_same_stride(stride);
+    return prover.prove(block_.stride == stride);
 }
 
 int block_iterator_t::elems(const prb_dim_t &dim) const {
@@ -954,11 +952,8 @@ template expr_t dim_mask_desc_t::to_expr(
 dim_mask_desc_t dim_mask_desc_t::map(const prb_coord_t<expr_t> &coord) const {
     auto ret = *this;
     ret.base = to_expr(coord);
-    if (!is_identity()) {
-        ir_assert(block == 1);
-        return ret;
-    }
-    int x_div = max_pow2_divisor(coord[x_dim]);
+    if (!is_identity()) return ret;
+    int x_div = linear_max_pow2_divisor(coord[x_dim]);
     ret.block = math::gcd(block, x_div);
     return ret;
 }
@@ -992,19 +987,20 @@ void dim_mask_desc_t::init_abc_xy(const expr_t &expr) {
         b = linear.u_vec[1];
         y = linear.v_vec[1];
     }
-    x_dim = to_prb_dim(x);
-    y_dim = to_prb_dim(y);
+    x_dim = index_to_prb_dim(x);
+    y_dim = index_to_prb_dim(y);
 }
 
 mask_desc_t::mask_desc_t(
         const dim_mapper_t &dim_mapper, const layout_t &layout) {
-    auto &expr_ctx = linear_expr_ctx_t::get();
     auto dim_sizes = layout.dim_sizes();
     for (auto &d : dim_sizes) {
         auto &expr = dim_mapper.expr(d);
         int block = layout.inner_block(d);
-        int div = expr_ctx.max_pow2_divisor(dim_sizes[d]);
-        block = (block == 1 ? div : math::gcd(block, div));
+        if (block == 1) {
+            const int large_pow2 = (1 << 10);
+            block = large_pow2;
+        }
         bool do_zero_cmp
                 = utils::one_of(d, prb_dims::id, prb_dims::ih, prb_dims::iw);
         dim_masks_.emplace_back(d, expr, dim_sizes[d], block, do_zero_cmp);
@@ -1023,12 +1019,15 @@ mask_desc_t mask_desc_t::map(const prb_coord_t<expr_t> &coord) const {
     return ret;
 }
 
-bool mask_desc_t::is_uniform(const block_iterator_t &it) const {
+bool mask_desc_t::is_uniform(
+        const block_iterator_t &it, const prover_t &prover) const {
     for (auto &dm : dim_masks_) {
         if (!dm.has((*it).dim)) continue;
         if (!dm.is_identity()) return false;
         int dim_size = it.elems((*it).dim);
+        int dim_size_pow2 = utils::rnd_up_pow2(dim_size);
         if (dim_size > dm.block) return false;
+        if (!prover.prove(dm.bound % dim_size_pow2 == 0)) return false;
     }
     return true;
 }

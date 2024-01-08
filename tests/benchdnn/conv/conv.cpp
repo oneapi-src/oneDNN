@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 * Copyright 2021 Arm Ltd. and affiliates
 *
@@ -564,10 +564,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
-        check_correctness(prb, get_kinds_to_check(prb), args, ref_args,
-                setup_cmp, res, prim_ref);
-    }
+    check_correctness(prb, get_kinds_to_check(prb), args, ref_args, setup_cmp,
+            res, prim_ref);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

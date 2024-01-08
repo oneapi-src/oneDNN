@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "gpu/jit/codegen/kernel.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
 #include "gpu/jit/v2/conv/kernel.hpp"
+#include "gpu/jit/v2/conv/plan.hpp"
 #include "gpu/jit/v2/conv/problem.hpp"
 
 namespace dnnl {
@@ -183,10 +184,20 @@ bool is_grf_usage_ok(const kernel_desc_t &desc) {
 }
 
 bool kernel_desc_t::is_supported() const {
-    if (!is_valid()) return false;
+    if (prop == prop_kind::undef) return false;
+    if (hw.is_undef()) return false;
+    if (fma == fma_kind_t::undef) return false;
+    if (simd == 0) return false;
+    if (regs == 0) return false;
     if (!is_tg_size_ok(*this)) return false;
     if (!is_grf_usage_ok(*this)) return false;
     return true;
+}
+
+void kernel_desc_t::finalize(const plan_t &plan) {
+    is_finalized = true;
+    reqs = plan.reqs();
+    reqs.simplify();
 }
 
 void init_kernel_info_div_magic(

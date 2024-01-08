@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,29 +90,38 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
 
     bool is_binary_po_per_oc_sp_bcast {};
     bool is_binary_po_channel_bcast {};
+    bool is_binary_po_per_mb_bcast {};
     bool is_binary_po_per_mb_w_bcast {};
     bool is_binary_po_per_w_bcast {};
+    bool is_binary_po_batch_bcast {};
     std::tie(is_binary_po_per_oc_sp_bcast, is_binary_po_channel_bcast,
-            is_binary_po_per_mb_w_bcast, is_binary_po_per_w_bcast)
+            is_binary_po_per_mb_bcast, is_binary_po_per_mb_w_bcast,
+            is_binary_po_per_w_bcast, is_binary_po_batch_bcast)
             = binary_injector_utils::bcast_strategies_present_tup(
                     post_ops.entry_, dst_d,
                     broadcasting_strategy_t::per_oc_spatial,
+                    broadcasting_strategy_t::per_mb,
                     broadcasting_strategy_t::per_mb_spatial,
                     broadcasting_strategy_t::per_mb_w,
-                    broadcasting_strategy_t::per_w);
+                    broadcasting_strategy_t::per_w,
+                    broadcasting_strategy_t::batch);
     const bool supported_binary_bcast
             = IMPLICATION(is_binary_po_per_oc_sp_bcast, ndims < 4)
             && IMPLICATION(
                     is_binary_po_channel_bcast, utils::one_of(ndims, 3, 4))
             && IMPLICATION(
                     is_binary_po_per_mb_w_bcast, utils::one_of(ndims, 3, 4))
+            && IMPLICATION(is_binary_po_per_w_bcast, utils::one_of(ndims, 3, 4))
             && IMPLICATION(
-                    is_binary_po_per_w_bcast, utils::one_of(ndims, 3, 4));
+                    is_binary_po_per_mb_bcast, utils::one_of(ndims, 3, 4))
+            && IMPLICATION(
+                    is_binary_po_batch_bcast, utils::one_of(ndims, 3, 4));
     const bcast_set_t default_bcast_set = {broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
-            broadcasting_strategy_t::scalar,
+            broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_mb,
             broadcasting_strategy_t::per_mb_spatial,
             broadcasting_strategy_t::per_mb_w, broadcasting_strategy_t::per_w,
+            broadcasting_strategy_t::batch,
             broadcasting_strategy_t::no_broadcast};
     const bcast_set_t limited_bcast_set = {broadcasting_strategy_t::scalar,
             broadcasting_strategy_t::no_broadcast};
@@ -700,6 +709,7 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
     int default_k_blk = use_extended_k_blk ? 1024 : 512;
     int k_blk = nstl::min(matmul.K, default_k_blk);
     int start_nthr_k = 1;
+    int last_nthr_k = 1;
 
     // for cases with low parallel work, reduce 'min_m_blk' to
     // increase potential parallelization balance.
@@ -741,11 +751,51 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
             start_nthr_k = nstl::min(nthr, 4);
             assert(k_blk == nstl::min(matmul.K, 512));
         }
+
+        // Enable k-partitioning for huge k and small m/n dimensions.
+        bool is_huge_k = matmul.K >= 20000;
+        bool is_small_mn = matmul.M <= 512 && matmul.N <= 512;
+        bool use_k_partitioning = is_huge_k && is_small_mn;
+
+        // TODO: expand to other data types.
+        use_k_partitioning = use_k_partitioning && bm_conf_utils.is_f32();
+
+        if (use_k_partitioning) {
+            auto least_prime_factor = [](int n) {
+                assert(n > 0);
+                if (n == 1) return 1;
+                for (int factor = 2; factor < n; factor++)
+                    if (n % factor == 0) return factor;
+                return n;
+            };
+
+            dim_t min_m_chunks = div_up(matmul.M, max_m_blk);
+            int nthr_bmn = max_div(max_parallel * min_m_chunks, nthr);
+            int nthr_k = nstl::max(nthr / nthr_bmn, 1);
+            int nthr_remainder = nthr % nthr_bmn;
+
+            // Choose number of threads in k-dim to allow a larger block size
+            // for m-dim.
+            while (nthr_k <= nthr_remainder) {
+                nthr_bmn /= least_prime_factor(nthr_bmn);
+                nthr_k = nstl::max(nthr / nthr_bmn, 1);
+                nthr_remainder = nthr % nthr_bmn;
+            }
+
+            // Reduce number of threads in k-dim to balanced work.
+            dim_t k_chunks = div_up(matmul.K, k_blk);
+            while (k_chunks <= 5 * nthr_k && nthr_k > 1)
+                nthr_k /= least_prime_factor(nthr_k);
+
+            // Fix number of threads for k-dim.
+            start_nthr_k = nthr_k;
+            last_nthr_k = nthr_k;
+        }
     }
 
     matmul_avx512_blocking_params_t cur_params(matmul, nthr);
     float best_imbalance = 1.f; // reduce
-    for (int nthr_k = start_nthr_k; nthr_k >= 1; --nthr_k) {
+    for (int nthr_k = start_nthr_k; nthr_k >= last_nthr_k; --nthr_k) {
         bool found_best_blocking = false;
         for_(int n_chunk_size = n_chunks_start; n_chunk_size >= 1;
                 --n_chunk_size)

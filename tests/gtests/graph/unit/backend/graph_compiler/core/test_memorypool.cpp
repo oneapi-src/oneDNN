@@ -23,6 +23,7 @@
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
 #include <runtime/thread_locals.hpp>
+#include <runtime/thread_locals_registry.hpp>
 #include <util/utils.hpp>
 
 #include "gtest/gtest.h"
@@ -141,4 +142,33 @@ TEST(GCCore_CPU_test_memorypool, TestMemoryPoolRelease) {
         std::thread th {thread_workload, nullptr, nullptr, 0, nullptr};
         th.join();
     }
+}
+
+TEST(GCCore_CPU_test_memorypool, TestTraceRelease) {
+    std::shared_ptr<runtime::thread_local_registry_t> reg;
+    runtime::thread_local_buffer_t::additional_t *the_additional = nullptr;
+    {
+        // make sure when a thread is destroyed before exit(), the trace is
+        // preserved before release_runtime_memory is called.
+        std::thread th {[&]() {
+            runtime::thread_local_buffer_t::tls_buffer()
+                    .additional_->trace_.trace_logs_.emplace_back();
+            reg = runtime::thread_local_buffer_t::tls_buffer()
+                          .additional_->registry_;
+            the_additional = runtime::thread_local_buffer_t::tls_buffer()
+                                     .additional_.get();
+        }};
+        th.join();
+    }
+    ASSERT_TRUE(reg && the_additional);
+    bool found = false;
+    reg->for_each_tls_additional(
+            [&](runtime::thread_local_buffer_t::additional_t *v) {
+                if (v == the_additional) {
+                    ASSERT_FALSE(v->registry_);
+                    found = true;
+                    v->trace_.trace_logs_.clear();
+                }
+            });
+    ASSERT_TRUE(found);
 }

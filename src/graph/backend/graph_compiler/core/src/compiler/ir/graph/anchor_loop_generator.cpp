@@ -248,6 +248,8 @@ bool anchor_loop_generator_t::create_outer_loop_anchor(
         fusion_anchor_mgr_t *fmgr, const context_ptr &ctx) const {
     COMPILE_ASSERT(fmgr, "fusion anchor mgr should not be null")
     auto &g = get_owner_graph_from_gt(base_gt_);
+    // query binding axis
+    query_binding_axis(g);
     auto base_dims = base_gt_->details_.get_blocking_dims_expr(g);
     auto numdims = base_dims.size();
     assert(numdims > 0);
@@ -273,8 +275,7 @@ bool anchor_loop_generator_t::create_outer_loop_anchor(
     for (auto &sort_rule : loop_sort_rules) {
         loop_axis = sort_rule(ctx, loop_axis, g, base_gt_);
     }
-    // outer loop size
-    size_t outer_loop_sz = 0;
+
     // generate anchors from inner to outer
     if (numdims > 1) {
         // get ax for last dim
@@ -304,7 +305,8 @@ bool anchor_loop_generator_t::create_outer_loop_anchor(
                             ? do_cast_and_fold(base_dims[max_ax] / lanes)
                             : base_dims[upper_loop_num],
                     1, body, true, for_type::NORMAL);
-            outer_loop_sz++;
+            // bind outer loops with axis hint
+            bind_loop_axis(base_gt_, loop, upper_loop_num, true);
         }
     } else {
         COMPILE_ASSERT(numdims == 1, "only 1 dims is expected")
@@ -320,26 +322,14 @@ bool anchor_loop_generator_t::create_outer_loop_anchor(
                 auto body = bld->pop_scope();
                 auto loop = bld->push_for_loop(loop_vars[0], 0, base_dims[0],
                         expr((int)lanes), body, true, for_type::NORMAL);
-                outer_loop_sz++;
+                // bind outer loops with axis hint
+                bind_loop_axis(base_gt_, loop, 0, true);
             }
         }
     }
     // create outer-most anchor
     cur_tsr_slice[loop_axis[0]] = std::make_pair(0, base_dims[loop_axis[0]]);
     fmgr->create_fusion_anchor(slice_map {{base_gt_.get(), {cur_tsr_slice}}});
-
-    // bind outer loops with axis hint
-    if (outer_loop_sz) {
-        // get binded mxp
-        auto mxp = fmgr->get_binded_mxp();
-        COMPILE_ASSERT(mxp, "No binded partition found")
-        // init axis binder
-        mxp->init_axis_binder(base_gt_,
-                std::vector<int> {
-                        loop_axis.begin(), loop_axis.begin() + outer_loop_sz},
-                true);
-    }
-
     return true;
 }
 
@@ -389,31 +379,14 @@ bool anchor_loop_generator_t::create_inner_loop_anchor(
         auto body = bld->pop_scope();
         auto loop = bld->push_for_loop(loop_vars[i], 0, range[loop_num].second,
                 1, body, true, for_type::NORMAL);
-        if (i == 0) loop->attr()[stmt_attr_key::merge_loop] = true;
+        if (i == 0) {
+            loop->attr()[stmt_attr_key::merge_loop] = true;
+            // bind outer loops with axis hint
+            bind_loop_axis(base_gt_, loop, loop_num, true);
+        }
         inner_slice[loop_num] = range[loop_num];
     }
     return true;
-}
-
-ir_module_ptr inplaced_reorder_get_func(sc_op *op, const context_ptr &ctx) {
-    auto modu = std::make_shared<ir_module_t>(ctx);
-
-    std::vector<expr> ins;
-    // real_outs are the output tensors in the function arguments
-    std::vector<expr> real_outs;
-    auto func = graph::create_func_decl_for_op(op, ins, real_outs);
-    builder::ir_builder_t bld;
-    bld.push_scope();
-    bld.push_evaluate(builder::make_write_struct(real_outs[0],
-            builder::make_read_struct(ins[0], dyn_tsr_struct_t::name,
-                    dyn_tsr_struct_t::fields::data_ptr),
-            dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::data_ptr));
-    bld.push_returns(true);
-    auto body = bld.pop_scope();
-    func->body_ = std::move(body);
-    modu->add_func({func});
-    modu->set_entry_func_idx(0);
-    return modu;
 }
 
 } // namespace gc

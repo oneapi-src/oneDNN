@@ -19,12 +19,14 @@
 
 #include <vector>
 #include "passlet.hpp"
+#include <compiler/ir/attr_keys.hpp>
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
 namespace passlet {
+
 struct volatility_result_t {
     enum state_t {
         UNDEF,
@@ -33,6 +35,12 @@ struct volatility_result_t {
     };
     state_t is_volatile_ = UNDEF;
 };
+
+inline bool is_tensor_read_only(const expr_base *s) {
+    return (s->node_type_ == sc_expr_type::tensor)
+            && any_map_t::fetch_or_else(
+                    s->attr_.get(), attr_keys::read_only_tensor, false);
+}
 
 inline bool non_volatile_expr(const expr_base *s) {
     switch (s->node_type_) {
@@ -79,7 +87,7 @@ inline bool non_volatile_expr(const expr_base *s) {
                 case intrin_type::round_and_cast:
                 case intrin_type::shl:
                 case intrin_type::shr:
-                case intrin_type::load_const_mem: return true; break;
+                case intrin_type::constant_load: return true; break;
                 default: break;
             }
             return false;
@@ -90,7 +98,9 @@ inline bool non_volatile_expr(const expr_base *s) {
             switch (intrin->kind_) {
                 case low_level_intrin_kind::x86_general:
                     switch (intrin->type_) {
-                        case x86_intrin_type::avx_broadcast_idx:
+                        case x86_intrin_type::avx_broadcast_idx: {
+                            return is_tensor_read_only(intrin->args_[0].get());
+                        } break;
                         case x86_intrin_type::avx_mask_cast:
                         case x86_intrin_type::avx_compare: return true; break;
                         default: break;

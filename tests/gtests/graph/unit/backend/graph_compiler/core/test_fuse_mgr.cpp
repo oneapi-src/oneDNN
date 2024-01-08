@@ -42,7 +42,7 @@
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/matmul_core.hpp>
-#include <ops/reduce_mean.hpp>
+#include <ops/reduce_graph_op.hpp>
 #include <ops/templates/matmul_core.hpp>
 #include <reference/act_ref.hpp>
 #include <test_utils.hpp>
@@ -60,16 +60,11 @@ using namespace std::chrono;
     auto B = simp(lm(BBB)); \
     EXPECT_TRUE(cmper.compare(A, B, false));
 
-static std::vector<graph_tensor_ptr> make_tsr(
-        const sc_dims &dims, sc_data_type_t dtype = datatypes::s32) {
-    return {graph_tensor::make(dims, sc_data_format_t(), dtype)};
-}
-
 TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerElemBlock) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({100}, datatypes::s32));
+    auto finput = g.make_input(test_utils::make_tsr({100}, datatypes::s32));
     auto frelu = g.make("relu", finput->get_outputs(), {}, {});
     auto fmul = g.make(
             "mul", {frelu->get_outputs()[0], finput->get_outputs()[0]}, {}, {});
@@ -92,9 +87,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerElemBlock) {
         auto tb = tensor_ptr(tbuf, {0}, {}, true);
         auto b = tensor_ptr(buf, {0}, {}, true);
         _for_(i, 0, 32, lanes) {
-            tb[span_t({i}, lanes)] = builder::make_max(b[span_t({i}, lanes)],
+            tb[span_t({i}, lanes)] = builder::make_max(
                     builder::make_constant(
-                            {0UL}, sc_data_type_t(sc_data_etype::S32, lanes)));
+                            {0UL}, sc_data_type_t(sc_data_etype::S32, lanes)),
+                    b[span_t({i}, lanes)]);
             auto o = tensor_ptr(out, {0}, {}, true);
             tb = tensor_ptr(tbuf, {0}, {}, true);
             b = tensor_ptr(buf, {0}, {}, true);
@@ -112,9 +108,9 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestConcatOP) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput0 = g.make_input(make_tsr({100, 200, 10}));
-    auto finput1 = g.make_input(make_tsr({100, 300, 10}));
-    auto finput2 = g.make_input(make_tsr({100, 400, 10}));
+    auto finput0 = g.make_input(test_utils::make_tsr({100, 200, 10}));
+    auto finput1 = g.make_input(test_utils::make_tsr({100, 300, 10}));
+    auto finput2 = g.make_input(test_utils::make_tsr({100, 400, 10}));
     auto fconcat = g.make("concat",
             {finput0->get_outputs()[0], finput1->get_outputs()[0],
                     finput2->get_outputs()[0]},
@@ -191,7 +187,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestLeakyReluOP) {
         builder::ir_builder_t builder;
         fusion_anchor_mgr_t fusion;
         sc_graph_t g;
-        auto fin = g.make_input(make_tsr({M, K}, type));
+        auto fin = g.make_input(test_utils::make_tsr({M, K}, type));
         auto flkrelu = g.make(
                 "leaky_relu", fin->get_outputs(), {}, {{"alpha", alpha}});
         auto fout = g.make_output(flkrelu->get_outputs());
@@ -254,7 +250,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestTanhOP) {
         builder::ir_builder_t builder;
         fusion_anchor_mgr_t fusion;
         sc_graph_t g;
-        auto fin = g.make_input(make_tsr({M, K}, datatypes::f32));
+        auto fin = g.make_input(test_utils::make_tsr({M, K}, datatypes::f32));
         auto ftanh = g.make("tanh", fin->get_outputs(), {}, {});
         auto fout = g.make_output(ftanh->get_outputs());
 
@@ -298,7 +294,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestErfOP) {
         builder::ir_builder_t builder;
         fusion_anchor_mgr_t fusion;
         sc_graph_t g;
-        auto fin = g.make_input(make_tsr({M, K}, datatypes::f32));
+        auto fin = g.make_input(test_utils::make_tsr({M, K}, datatypes::f32));
         auto ffwd = g.make("erf", fin->get_outputs(), {}, {});
         auto fout = g.make_output(ffwd->get_outputs());
 
@@ -344,8 +340,9 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast1) {
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
     int bc_block = 64;
-    auto finput = g.make_input(make_tsr({50, 100, 200}));
-    auto finput_add = g.make_input(make_tsr({1, 100, 200}, datatypes::s32));
+    auto finput = g.make_input(test_utils::make_tsr({50, 100, 200}));
+    auto finput_add
+            = g.make_input(test_utils::make_tsr({1, 100, 200}, datatypes::s32));
     auto fadd = g.make("add",
             {finput->get_outputs()[0], finput_add->get_outputs()[0]}, {}, {});
     auto foutput = g.make_output(fadd->get_outputs());
@@ -390,8 +387,9 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast2) {
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
     int bc_block = 64;
-    auto finput = g.make_input(make_tsr({50, 100, 200}));
-    auto finput_add = g.make_input(make_tsr({1, 100, 1}, datatypes::s32));
+    auto finput = g.make_input(test_utils::make_tsr({50, 100, 200}));
+    auto finput_add
+            = g.make_input(test_utils::make_tsr({1, 100, 1}, datatypes::s32));
     auto fadd = g.make("add",
             {finput->get_outputs()[0], finput_add->get_outputs()[0]}, {}, {});
     auto foutput = g.make_output(fadd->get_outputs());
@@ -454,8 +452,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast3) {
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
     int bc_block = 64;
-    auto finput = g.make_input(make_tsr({50, 100, 200}));
-    auto finput_add = g.make_input(make_tsr({100}, datatypes::s32));
+    auto finput = g.make_input(test_utils::make_tsr({50, 100, 200}));
+    auto finput_add = g.make_input(test_utils::make_tsr({100}, datatypes::s32));
     auto fadd = g.make("add",
             {finput->get_outputs()[0], finput_add->get_outputs()[0]}, {},
             any_map_t {{"bc_axis", std::vector<int> {1}}});
@@ -500,8 +498,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast4) {
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
     int bc_block = 64;
-    auto finput = g.make_input(make_tsr({100}));
-    auto finput_add = g.make_input(make_tsr({50, 100, 200}));
+    auto finput = g.make_input(test_utils::make_tsr({100}));
+    auto finput_add = g.make_input(test_utils::make_tsr({50, 100, 200}));
     auto fadd = g.make("sub",
             {finput->get_outputs()[0], finput_add->get_outputs()[0]}, {},
             any_map_t {{"bc_axis", std::vector<int> {1}}});
@@ -547,7 +545,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerVectorizedReLU) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({100, 256}));
+    auto finput = g.make_input(test_utils::make_tsr({100, 256}));
     auto frelu = g.make("relu", finput->get_outputs(), {}, {});
     auto foutput = g.make_output(frelu->get_outputs());
     EXPECT_EQ(frelu->get_outputs()[0], foutput->get_inputs()[0]);
@@ -571,9 +569,9 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerVectorizedReLU) {
         _for_(i, 0, 100, 1) {
             _for_(j, 0, 256, int(lanes)) {
                 out_tptr[span_t({i, j}, lanes)]
-                        = builder::make_max(buf_tptr[span_t({i, j}, lanes)],
-                                make_expr<constant_node>((int64_t)0,
-                                        sc_data_type_t::s32(lanes)));
+                        = builder::make_max(make_expr<constant_node>((int64_t)0,
+                                                    sc_data_type_t::s32(lanes)),
+                                buf_tptr[span_t({i, j}, lanes)]);
             }
         }
         _return_(123);
@@ -586,7 +584,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerExp) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({100, 256}));
+    auto finput = g.make_input(test_utils::make_tsr({100, 256}));
     auto fexp = g.make<exp_op_t>(finput->get_outputs()[0]);
     auto foutput = g.make_output(fexp->get_outputs());
     EXPECT_EQ(fexp->get_outputs()[0], foutput->get_inputs()[0]);
@@ -624,7 +622,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestSigmoidOP) {
         builder::ir_builder_t builder;
         fusion_anchor_mgr_t fusion;
         sc_graph_t g;
-        auto fin = g.make_input(make_tsr({M, K}, datatypes::f32));
+        auto fin = g.make_input(test_utils::make_tsr({M, K}, datatypes::f32));
         auto fsig = g.make("sigmoid", fin->get_outputs(), {}, {});
         auto fout = g.make_output(fsig->get_outputs());
 
@@ -788,7 +786,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerReduceSum1) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({20, 100, 256}, datatypes::f32));
+    auto finput = g.make_input(
+            test_utils::make_tsr({20, 100, 256}, datatypes::f32));
     auto fsum = g.make("reduce", finput->get_outputs(), {},
             {{"rd_axis", std::vector<int> {2}},
                     {"rd_op", static_cast<int>(reduce_operator::add)},
@@ -831,7 +830,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerReduceSum2) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({20, 100, 256}, datatypes::f32));
+    auto finput = g.make_input(
+            test_utils::make_tsr({20, 100, 256}, datatypes::f32));
     auto fsum = g.make("reduce", finput->get_outputs(), {},
             {{"rd_axis", std::vector<int> {1}},
                     {"rd_op", static_cast<int>(reduce_operator::add)},
@@ -873,7 +873,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerReduceProd) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({20, 100, 256}, datatypes::f32));
+    auto finput = g.make_input(
+            test_utils::make_tsr({20, 100, 256}, datatypes::f32));
     auto fprod = g.make("reduce", finput->get_outputs(), {},
             {{"rd_axis", std::vector<int> {2}},
                     {"rd_op", static_cast<int>(reduce_operator::mul)},
@@ -916,7 +917,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerSquaredDiff1) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({20, 100, 256}, datatypes::f32));
+    auto finput = g.make_input(
+            test_utils::make_tsr({20, 100, 256}, datatypes::f32));
     auto fsum = g.make("reduce", finput->get_outputs(), {},
             {{"rd_axis", std::vector<int> {2}},
                     {"rd_op", static_cast<int>(reduce_operator::add)},
@@ -991,8 +993,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerSquaredDiff2) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({20, 100, 256}));
-    auto fmean = g.make_input(make_tsr({20, 100, 256}));
+    auto finput = g.make_input(test_utils::make_tsr({20, 100, 256}));
+    auto fmean = g.make_input(test_utils::make_tsr({20, 100, 256}));
     auto fsquare_diff = g.make("squared_diff",
             {finput->get_outputs()[0], fmean->get_outputs()[0]}, {}, {});
     auto foutput = g.make_output(fsquare_diff->get_outputs());
@@ -1041,7 +1043,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerSquaredRoot1) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({20, 100, 256}));
+    auto finput = g.make_input(test_utils::make_tsr({20, 100, 256}));
     auto fsquare_root = g.make("squared_root", finput->get_outputs(), {}, {});
     auto foutput = g.make_output(fsquare_root->get_outputs());
     EXPECT_EQ(fsquare_root->get_outputs()[0], foutput->get_inputs()[0]);
@@ -1081,8 +1083,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerCastBF16) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finputf32 = g.make_input(make_tsr({20, 259}, datatypes::f32));
-    auto finputbf16 = g.make_input(make_tsr({20, 259}, datatypes::bf16));
+    auto finputf32
+            = g.make_input(test_utils::make_tsr({20, 259}, datatypes::f32));
+    auto finputbf16
+            = g.make_input(test_utils::make_tsr({20, 259}, datatypes::bf16));
 
     auto fcastf32tobf16 = g.make(
             "cast", finputf32->get_outputs(), {}, {{"dtype", datatypes::bf16}});
@@ -1130,12 +1134,16 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerCastU8S8) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finputf32tou8 = g.make_input(make_tsr({20, 259}, datatypes::f32));
-    auto finputf32tos8 = g.make_input(make_tsr({20, 259}, datatypes::f32));
-    auto finputs32tou8 = g.make_input(make_tsr({20, 259}));
-    auto finputs32tos8 = g.make_input(make_tsr({20, 259}));
-    auto finputu8 = g.make_input(make_tsr({20, 259}, datatypes::u8));
-    auto finputs8 = g.make_input(make_tsr({20, 259}, datatypes::s8));
+    auto finputf32tou8
+            = g.make_input(test_utils::make_tsr({20, 259}, datatypes::f32));
+    auto finputf32tos8
+            = g.make_input(test_utils::make_tsr({20, 259}, datatypes::f32));
+    auto finputs32tou8 = g.make_input(test_utils::make_tsr({20, 259}));
+    auto finputs32tos8 = g.make_input(test_utils::make_tsr({20, 259}));
+    auto finputu8
+            = g.make_input(test_utils::make_tsr({20, 259}, datatypes::u8));
+    auto finputs8
+            = g.make_input(test_utils::make_tsr({20, 259}, datatypes::s8));
 
     auto fcastf32tos32 = g.make("cast", finputf32tos8->get_outputs(), {},
             {{"dtype", datatypes::s32}});
@@ -1233,7 +1241,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerMultiAnchor) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput = g.make_input(make_tsr({20, 30, 40, 64}, datatypes::f32));
+    auto finput = g.make_input(
+            test_utils::make_tsr({20, 30, 40, 64}, datatypes::f32));
     auto fexp = g.make("exp", finput->get_outputs(), {}, {});
     auto fsum = g.make("reduce", {fexp->get_outputs()[0]}, {},
             {{"rd_axis", std::vector<int> {1, 3}}, {"rd_op", 0},
@@ -1387,8 +1396,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestBinaryElementwiseOp) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput0 = g.make_input(make_tsr({100, 200}));
-    auto finput1 = g.make_input(make_tsr({100, 200}));
+    auto finput0 = g.make_input(test_utils::make_tsr({100, 200}));
+    auto finput1 = g.make_input(test_utils::make_tsr({100, 200}));
     auto fmin = g.make("min",
             {finput0->get_outputs()[0], finput1->get_outputs()[0]}, {}, {});
     auto fmax = g.make(
@@ -1442,7 +1451,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestReshapeCopyOp) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput0 = g.make_input(make_tsr({100, 200}));
+    auto finput0 = g.make_input(test_utils::make_tsr({100, 200}));
     auto freshape = g.make("reshape", finput0->get_outputs(), {},
             {{"shape", sc_dims {10, 10, 20, 10}}});
     auto fout = g.make_output(freshape->get_outputs());
@@ -1480,7 +1489,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestVecterizedClampOP) {
         builder::ir_builder_t builder;
         fusion_anchor_mgr_t fusion;
         sc_graph_t g;
-        auto fin = g.make_input(make_tsr({M, K}, datatypes::f32));
+        auto fin = g.make_input(test_utils::make_tsr({M, K}, datatypes::f32));
         auto fclamp = g.make("clamp", fin->get_outputs(), {},
                 {{"min", clamp_min}, {"max", clamp_max}});
         auto fout = g.make_output(fclamp->get_outputs());
@@ -1593,8 +1602,8 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionUnaryOp) {
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
     sc_dims arg_dims = {100, 256};
-    auto finput0 = g.make_input(make_tsr(arg_dims, datatypes::s32));
-    auto finput1 = g.make_input(make_tsr(arg_dims, datatypes::s32));
+    auto finput0 = g.make_input(test_utils::make_tsr(arg_dims, datatypes::s32));
+    auto finput1 = g.make_input(test_utils::make_tsr(arg_dims, datatypes::s32));
     auto frelu = g.make("relu", finput1->get_outputs(), {}, {});
     auto fadd = g.make("add",
             {finput0->get_outputs()[0], frelu->get_outputs()[0]}, {}, {});
@@ -1626,10 +1635,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionUnaryOp) {
         auto fuse_tptr = builder::tensor_ptr(_fuse_buf, {0, 0}, {}, true);
         _for_(ii, 0, 10) {
             _for_(jj, 0, 256, static_cast<int>(lanes)) {
-                fuse_tptr[span_t({ii, jj}, lanes)]
-                        = builder::make_max(inp0_tptr[span_t({ii, jj}, lanes)],
-                                make_expr<constant_node>((uint64_t)0,
-                                        sc_data_type_t::s32(lanes)));
+                fuse_tptr[span_t({ii, jj}, lanes)] = builder::make_max(
+                        make_expr<constant_node>(
+                                (uint64_t)0, sc_data_type_t::s32(lanes)),
+                        inp0_tptr[span_t({ii, jj}, lanes)]);
                 auto out0_tptr = builder::tensor_ptr(out0, {ii, 0}, {}, true);
                 auto inp1_tptr = builder::tensor_ptr(inp1, {ii, 0}, {}, true);
                 fuse_tptr = builder::tensor_ptr(_fuse_buf, {ii, 0}, {}, true);
@@ -1649,9 +1658,12 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionBinaryOp) {
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
     sc_dims arg_dims_1 = {100, 256};
-    auto finput0 = g.make_input(make_tsr(arg_dims_1, datatypes::s32));
-    auto finput1 = g.make_input(make_tsr(arg_dims_1, datatypes::s32));
-    auto finput2 = g.make_input(make_tsr(arg_dims_1, datatypes::s32));
+    auto finput0
+            = g.make_input(test_utils::make_tsr(arg_dims_1, datatypes::s32));
+    auto finput1
+            = g.make_input(test_utils::make_tsr(arg_dims_1, datatypes::s32));
+    auto finput2
+            = g.make_input(test_utils::make_tsr(arg_dims_1, datatypes::s32));
     auto fsub = g.make("sub",
             {finput1->get_outputs()[0], finput2->get_outputs()[0]}, {}, {});
     auto fadd = g.make(
@@ -1708,9 +1720,12 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionBinaryOpWithBroadCast) {
     sc_graph_t g;
     sc_dims arg_dims_1 = {100, 256};
     sc_dims arg_dims_2 = {1, 256};
-    auto finput0 = g.make_input(make_tsr(arg_dims_1, datatypes::s32));
-    auto finput1 = g.make_input(make_tsr(arg_dims_1, datatypes::s32));
-    auto finput2 = g.make_input(make_tsr(arg_dims_2, datatypes::s32));
+    auto finput0
+            = g.make_input(test_utils::make_tsr(arg_dims_1, datatypes::s32));
+    auto finput1
+            = g.make_input(test_utils::make_tsr(arg_dims_1, datatypes::s32));
+    auto finput2
+            = g.make_input(test_utils::make_tsr(arg_dims_2, datatypes::s32));
     auto fmul = g.make("mul",
             {finput1->get_outputs()[0], finput2->get_outputs()[0]}, {}, {});
     auto fadd = g.make(
@@ -1765,9 +1780,10 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionReduceOp) {
     builder::ir_builder_t builder;
     fusion_anchor_mgr_t fusion;
     sc_graph_t g;
-    auto finput0 = g.make_input(make_tsr({16, 16}, datatypes::f32));
+    auto finput0 = g.make_input(test_utils::make_tsr({16, 16}, datatypes::f32));
     sc_dims arg_dims_1 = {10, 16, 10, 16};
-    auto finput1 = g.make_input(make_tsr(arg_dims_1, datatypes::f32));
+    auto finput1
+            = g.make_input(test_utils::make_tsr(arg_dims_1, datatypes::f32));
     auto freduce = g.make("reduce", finput1->get_outputs(), {},
             {{"rd_axis", std::vector<int> {0, 2}},
                     {"rd_op", static_cast<int>(reduce_operator::add)},
@@ -1811,10 +1827,6 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionReduceOp) {
                     }
                 }
                 fuse_buf_tptr[span_t({j, jj}, rd_lanes)] = reduce_value;
-            }
-        }
-        _for_(j, 0, 16) {
-            _for_(jj, 0, 16, static_cast<int>(rd_lanes)) {
                 auto inp1_tptr = builder::tensor_ptr(inp1, {j, 0}, {}, true);
                 auto out0_tptr = builder::tensor_ptr(out0, {j, 0}, {}, true);
                 fuse_buf_tptr

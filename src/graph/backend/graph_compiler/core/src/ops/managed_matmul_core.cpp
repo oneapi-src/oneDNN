@@ -79,6 +79,12 @@ managed_matmul_core_op_t::managed_matmul_core_op_t(
     }
     // record padded_K of input A for matmul_core
     attrs_["temp.padded_A_K"] = std::make_shared<VConst>();
+
+    auto num_threads = runtime_config_t::get().get_num_threads();
+    sc_dim M = A_dims[A_dims.size() - 2]; // A is always 2D
+    if (!is_dynamic() && M <= 2 && num_threads <= 32) {
+        attrs_["dispatch_avx"] = true;
+    }
 }
 
 std::vector<int> managed_matmul_core_op_t::query_prefetch(
@@ -445,6 +451,8 @@ ir_module_ptr managed_matmul_core_op_t::get_internal_func(
         const context_ptr &ctx) {
     assert(is_dynamic());
     if (!need_dynamic_internal_query()) { return nullptr; }
+    // query binding axis
+    query_binding_axis(get_owner_graph());
     auto ret = std::make_shared<ir_module_t>(ctx);
     auto gen_ptr = create_generator();
     std::vector<expr> ins;
@@ -513,8 +521,8 @@ sc_op_ptr managed_matmul_core_op_t::do_compensations(
             && info_.inputs_[0]->details_.dtype_ == datatypes::s8
             && (!ctx->machine_.brgemm_use_amx_
                     || (ctx->machine_.brgemm_use_amx_
-                            && !ctx->machine_.cpu_flags_.fAVX512AMXINT8));
-
+                            && !ctx->machine_.cpu_flags_.fAVX512AMXINT8)
+                    || attrs_.get_or_else("dispatch_avx", false));
     auto cur_node = shared_from_this();
 
     auto data_com = get_data_compensation(mgr);
@@ -826,11 +834,11 @@ bool managed_matmul_core_op_t::need_dynamic_internal_query_impl() const {
     return is_dynamic();
 }
 
-void managed_matmul_core_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+void managed_matmul_core_op_t::infer_binding_axis(binding_axis_map &bdax_map) {
     infer_matmul_binding_axis(this, bdax_map);
 }
 void managed_matmul_core_op_t::pre_infer_binding_axis(
-        bound_axis_map &bdax_map) {
+        binding_axis_map &bdax_map) {
     pre_matmul_binding_axis(this, bdax_map);
 }
 

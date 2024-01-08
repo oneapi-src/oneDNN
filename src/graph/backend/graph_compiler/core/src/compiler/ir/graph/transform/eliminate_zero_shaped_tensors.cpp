@@ -66,6 +66,7 @@ SC_INTERNAL_API void eliminate_zero_shaped_tensors(
                 }
                 in_tsr_itr = op->info_.inputs_.erase(in_tsr_itr);
             } else if (op->get_inputs().size() == 1) {
+                vis->update_state_for_visited(op);
                 SC_MODULE_INFO
                         << "Disconnect this input tensor from op; Delete this "
                            "op; The children ops directly use this tensor.";
@@ -79,27 +80,27 @@ SC_INTERNAL_API void eliminate_zero_shaped_tensors(
                 // TODO(niuxiaoguang): Add test to cover this case: only one
                 // input tensor is left. Currently in UT, both of inputs to Add
                 // op are zero-shaped and are deleted.
+                COMPILE_ASSERT(op->isa<binary_elementwise_op_t>(),
+                        "Only binary ops are allowed to have zero tensor "
+                        "inputs.");
+                vis->update_state_for_visited(op);
                 SC_MODULE_INFO << "Disconnect this input tensor from op; "
                                   "Delete this op; The children ops directly "
                                   "use another input tensor.";
                 in_tsr->detach_use(op);
                 in_tsr_itr = op->info_.inputs_.erase(in_tsr_itr);
-                if (!op->info_.inputs_.empty()) { // only one input left
-                    auto &input_left = op->info_.inputs_.front();
-                    for (auto &out_tsr : op->get_outputs()) {
-                        // replace_input may change the uses, we need to copy it
-                        auto uses = out_tsr->uses_;
-                        for (auto &idx_op : uses) {
-                            idx_op.second->replace_input(
-                                    idx_op.first, input_left);
-                        }
-                    }
+                COMPILE_ASSERT(op->info_.inputs_.size() == 1,
+                        "Binary op at this stage shall only have 1 input");
+                auto &input_left = op->info_.inputs_[0];
+                // replace_input may change the uses, we need to copy it
+                auto uses = op->info_.outputs_[0]->uses_;
+                for (auto &idx_op : uses) {
+                    idx_op.second->replace_input(idx_op.first, input_left);
                 }
                 op->remove();
                 break; // do not check another input tensor
             }
         }
-        vis->update_state_for_visited(op);
     });
     graph.reset_op_ids();
 }

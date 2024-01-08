@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -345,6 +345,7 @@ graph::status_t compiler_partition_impl_t::compile(
                             &outputs[i]);
                     assertm(out_lt->ndims > -1,
                             "Partition output shape shall be specified.");
+                    if (out_lt->ndims == 0) continue;
                     graph::dims out_shape(
                             out_lt->dims, out_lt->dims + out_lt->ndims);
                     graph::dims strides = utils::get_dense_strides(out_shape);

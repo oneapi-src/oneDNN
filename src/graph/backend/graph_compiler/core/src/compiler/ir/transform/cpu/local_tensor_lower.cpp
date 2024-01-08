@@ -134,6 +134,7 @@ class tensor_lower_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
     size_t threshold_;
+    bool is_in_parallel_;
     expr cur_rtl_ctx_;
     // the defined tensor stack. The first dimension is for nested stmts. The
     // second is for ordering the tensors defined in the same scope
@@ -258,8 +259,9 @@ public:
                         datatypes::pointer);
             }
         } else {
-            bool thread_loca = tsr->attr_
-                    && tsr->attr_->get_or_else("is_thread_buffer", false);
+            bool thread_loca = is_in_parallel_
+                    || any_map_t::fetch_or_else(
+                            tsr->attr_.get(), "is_thread_buffer", false);
             // a large local tensor/dynamic tensor
             initv = builder::make_call(get_cpu_temp_malloc_func(thread_loca),
                     {cur_rtl_ctx_, alloc_size});
@@ -305,8 +307,8 @@ public:
                         continue;
                     }
                 } else {
-                    bool thread_loca = (*itr)->attr_
-                            && (*itr)->attr_->get_or_else(
+                    bool thread_loca = is_in_parallel_
+                            || any_map_t::fetch_or_else((*itr)->attr_.get(),
                                     "is_thread_buffer", false);
                     the_call = builder::make_evaluate_unattached(
                             builder::make_call(
@@ -474,6 +476,8 @@ func_c local_tensor_lowering_cpu_t::operator()(func_c m) {
                     << m);
     impl.cur_rtl_ctx_ = m->params_.front();
     impl.threshold_ = size_threshold_;
+    impl.is_in_parallel_ = any_map_t::fetch_or_else(
+            m->attr_.get(), function_attrs::no_parallel, false);
     auto ret = impl.dispatch(m);
     if (!impl.scheduled_tensor_position_.empty()) {
         auto alias_ids = mark_alias_for_scheduled_tensors(

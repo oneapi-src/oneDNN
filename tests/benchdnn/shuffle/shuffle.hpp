@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -92,6 +92,7 @@ struct prb_t : public prb_dims_t {
     std::string tag;
     int axis;
     int64_t group;
+    bool inplace = false; // Lacks placement, always considered `false`.
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
 

@@ -72,7 +72,7 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         int &K_sub_block, int &im_loop_order, const int M, const int N,
         const int K, const int iim_block, const int iin_block,
         const int iik_block, const int sizeofdtypeA, const int sizeofdtypeC,
-        bool is_int8, bool is_f32, bool is_dynamic) {
+        bool is_int8, bool is_f32, bool is_dynamic, int64_t dispatch_avx) {
     im_loop_order = 0;
     bool is_bf16 = !is_int8 && !is_f32;
     const int num_threads = runtime_config_t::get().get_num_threads();
@@ -80,7 +80,7 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
     float cost = std::numeric_limits<float>::max();
     int split_n = 1;
     // spr, emr, gnr
-    bool is_seg = tm.cpu_flags_.is_spr_like();
+    bool is_seg = tm.cpu_flags_.is_spr_like() && !dispatch_avx;
     // skx, clx, cpx, icx
     bool is_scpi = tm.cpu_flags_.is_skx_like();
     auto cal_cost = [&](int i) {
@@ -98,7 +98,8 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         // reduce the shape weight on small shape.
         float new_cost;
         float sew = 1024 + M * i / num_threads + N / i;
-        if ((K >= 1024 && is_int8 && !tm.use_amx())
+        bool is_amx = tm.use_amx() && !dispatch_avx;
+        if ((K >= 1024 && is_int8 && !is_amx)
                 || (K >= 512 && is_f32 && is_scpi)) {
             // Cost += empty_cores, making M_split_num * N_split_num closer to
             // num_threads
@@ -289,7 +290,8 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         }
     } else if (M / iim_block < 2 && (N >= 16 * M || K >= 16 * M)) {
         // int8 special case
-        if (is_int8 && !tm.use_amx()) {
+        bool is_amx = tm.use_amx() && !dispatch_avx;
+        if (is_int8 && !is_amx) {
             M_split_num = 1;
             int K_split_num = 1;
             if (K >= 16 * M) {

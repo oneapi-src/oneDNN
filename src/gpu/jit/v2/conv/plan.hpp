@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "gpu/jit/v2/conv/kernel_desc.hpp"
 #include "gpu/jit/v2/conv/problem.hpp"
 #include "gpu/jit/v2/ir/plan_utils.hpp"
+#include "gpu/jit/v2/ir/reqs.hpp"
 #include "gpu/jit/v2/ir/send.hpp"
 #include "gpu/jit/v2/ir/tensor.hpp"
 
@@ -48,18 +49,12 @@ public:
                         type_t::s32(), e.dim.str() + "_loop_size");
                 e.is_global_loop = true;
             } else {
-                e.loop_size = linear_op(op_kind_t::_div_up, size_var(e.dim),
-                        tg_tile * iter_tile);
+                e.loop_size = binary_op_t::make(op_kind_t::_div_up,
+                        size_var(e.dim), tg_tile * iter_tile);
             }
         }
         if (!is_loop || is_global_loop) {
             bool is_tg_grid_size1 = false;
-            auto c = linear_expr_ctx_t::get().constraint(size_var(dim));
-            if (!is_global_loop && c.has_value()) {
-                int tg_grid_size
-                        = utils::div_up(c.value(), tg_tile * iter_tile);
-                is_tg_grid_size1 = (tg_grid_size == 1);
-            }
             e.tg_idx = is_tg_grid_size1
                     ? expr_t(0)
                     : var_t::make(type_t::s32(), dim.str() + "_tg_idx");
@@ -74,6 +69,11 @@ public:
         } else {
             e.iter_idx = e.thr_idx;
         }
+        e.tg_idx = simplify_rewrite(e.tg_idx);
+        e.thr_idx = simplify_rewrite(e.thr_idx);
+        e.iter_idx = simplify_rewrite(e.iter_idx);
+        e.loop_idx = simplify_rewrite(e.loop_idx);
+        e.loop_size = simplify_rewrite(e.loop_size);
     }
 
     std::vector<prb_dim_t> dims() const { return entries_.keys(); }
@@ -100,13 +100,11 @@ public:
         return entries_.at(dim).loop_idx;
     }
 
-    bool is_padded(const prb_dim_t &dim) const {
+    bool needs_mask(const prb_dim_t &dim) const {
         auto &e = entries_.at(dim);
         if (e.is_global_loop) return true;
         int block = e.tg_size * e.iter_size;
-        if (block == 1) return false;
-        if (max_pow2_divisor(size_var(dim)) % block == 0) return false;
-        return true;
+        return block > 1;
     }
 
     std::string str() const {
@@ -251,7 +249,6 @@ struct epilogue_plan_t : public base_plan_t {
 
 struct plan_t : public base_plan_t {
     kernel_desc_t desc;
-    linear_expr_ctx_t expr_ctx;
     coord_info_t coord_info;
     grid_t tg_grid;
     grid_t thr_grid;
@@ -271,13 +268,14 @@ struct plan_t : public base_plan_t {
         return ret;
     }
 
+    prb_reqs_t reqs() const;
+
     std::string str() const {
         if (!*this) return "(empty)";
         std::ostringstream oss;
         oss << ir_utils::add_tag("x2r", x2r.str()) << std::endl;
         oss << ir_utils::add_tag("fma", fma.str()) << std::endl;
         oss << ir_utils::add_tag("epilogue", epilogue.str());
-        oss << ir_utils::add_tag("expr_ctx", expr_ctx.str());
         return ir_utils::add_tag("Plan", oss.str());
     }
 

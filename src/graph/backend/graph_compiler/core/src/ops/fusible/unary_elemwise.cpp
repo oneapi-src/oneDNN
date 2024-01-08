@@ -103,7 +103,7 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     }
     compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
             vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
-            attrs_, wkld, use_mask);
+            attrs_, get_outputs()[0], wkld, use_mask);
 }
 
 static infer_status_code infer_unary_slice_ranges(
@@ -137,22 +137,24 @@ infer_status_code unary_elementwise_op_impl_t::pre_infer_slice_ranges(
     return pre_infer_unary_slice_ranges(this, fsmap);
 }
 
-void infer_identical_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
+void infer_identical_binding_axis(
+        fusible_op_t *cur, binding_axis_map &bdax_map) {
     auto known_axis_map = search_known_input_axis(cur, bdax_map);
     if (!bdax_map.get(cur->get_outputs()[0]).empty()) return;
     bdax_map.get(cur->get_outputs()[0]) = known_axis_map[0];
     set_unknown_binding_axis(cur, known_axis_map, bdax_map);
 }
 
-void unary_elementwise_op_impl_t::infer_binding_axis(bound_axis_map &bdax_map) {
+void unary_elementwise_op_impl_t::infer_binding_axis(
+        binding_axis_map &bdax_map) {
     infer_identical_binding_axis(this, bdax_map);
 }
 
 void pre_infer_identical_binding_axis(
-        fusible_op_t *cur, bound_axis_map &bdax_map) {
+        fusible_op_t *cur, binding_axis_map &bdax_map) {
     auto &outaxis = bdax_map.get(cur->get_outputs()[0]);
     COMPILE_ASSERT(!outaxis.empty(),
-            "Unknown output axis found, could not pre bind axis")
+            "Unknown output axis found, could not pre infer binding axis")
     auto &input = cur->get_inputs()[0];
     auto &inpaxis = bdax_map.get(input);
     if (inpaxis.empty()) {
@@ -166,7 +168,7 @@ void pre_infer_identical_binding_axis(
 }
 
 void unary_elementwise_op_impl_t::pre_infer_binding_axis(
-        bound_axis_map &bdax_map) {
+        binding_axis_map &bdax_map) {
     pre_infer_identical_binding_axis(this, bdax_map);
 }
 
@@ -193,7 +195,7 @@ bool unary_elementwise_op_impl_t::register_brgemm_fusion(const context_ptr &ctx,
 
 expr relu_op_t::compute_element(expr in) {
     return builder::make_max(
-            in, make_expr<constant_node>((int64_t)0, in->dtype_));
+            make_expr<constant_node>((int64_t)0, in->dtype_), in);
 }
 
 expr leaky_relu_op_t::compute_element(expr in) {
@@ -406,9 +408,8 @@ expr clamp_op_t::compute_element(expr in) {
     auto dtype = in->dtype_;
     float clamp_min = attrs_.get<float>("min");
     float clamp_max = attrs_.get<float>("max");
-    return builder::make_max(
-            builder::make_min(in, make_expr<constant_node>(clamp_max, dtype)),
-            make_expr<constant_node>(clamp_min, dtype));
+    return builder::make_max(make_expr<constant_node>(clamp_min, dtype),
+            builder::make_min(make_expr<constant_node>(clamp_max, dtype), in));
 }
 
 #define DEFINE_AND_ASSERT_DTYPE(op) \
@@ -463,7 +464,7 @@ expr log_op_t::compute_element(expr in) {
 expr mish_op_t::compute_element(expr in) {
     DEFINE_AND_ASSERT_DTYPE("mish");
     auto tmp = builder::make_min(
-            in, make_expr<constant_node>(44.361415f, dtype));
+            make_expr<constant_node>(44.361415f, dtype), in);
     auto f_one = make_expr<constant_node>(1.f, dtype);
     auto f_temp = builder::make_exp(tmp) + f_one;
     f_temp = f_temp * f_temp;
@@ -521,7 +522,6 @@ OP_REGISTER(soft_plus_op_t, soft_plus)
 OP_REGISTER(square_op_t, square)
 OP_REGISTER(swish_op_t, swish)
 OP_REGISTER(hardsigmoid_op_t, hardsigmoid)
-
 } // namespace gc
 } // namespace graph
 } // namespace impl

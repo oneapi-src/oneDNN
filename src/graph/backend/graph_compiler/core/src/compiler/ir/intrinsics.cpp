@@ -240,7 +240,7 @@ struct permutexvar_handler_t : public binary_intrinsic_handler_t {
 
 struct insert_handler_t : public trinary_intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
-        assert(node.args_.size() == 2);
+        assert(node.args_.size() == 2 || node.args_.size() == 3);
         node.dtype_ = node.args_[0]->dtype_;
     }
     insert_handler_t() : trinary_intrinsic_handler_t("insert") {}
@@ -248,10 +248,17 @@ struct insert_handler_t : public trinary_intrinsic_handler_t {
 
 struct extract_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
-        assert(node.args_.size() == 1);
-        node.dtype_ = sc_data_type_t(node.args_[0]->dtype_.type_code_);
-        if (node.intrin_attrs_->get<int>("lanes") > 1) {
-            node.dtype_.lanes_ = node.intrin_attrs_->get<int>("lanes");
+        assert(node.args_.size() == 1 || node.args_.size() == 2);
+        if (node.args_.size() == 1) {
+            node.dtype_ = sc_data_type_t(node.args_[0]->dtype_.type_code_);
+            auto lanes = node.intrin_attrs_->get<int>("lanes");
+            if (lanes > 1) { node.dtype_.lanes_ = lanes; }
+        } else {
+            auto rows = node.intrin_attrs_->get<uint32_t>("rows");
+            auto cols = node.intrin_attrs_->get<uint32_t>("cols");
+            auto lanes = rows > 0 ? (rows * cols) : cols;
+            node.dtype_ = sc_data_type_t(
+                    node.args_[0]->dtype_.type_code_, lanes, rows);
         }
     }
     extract_handler_t() : intrinsic_handler_t("extract") {}
@@ -391,12 +398,20 @@ struct prefetch_handler_t : public intrinsic_handler_t {
     prefetch_handler_t() : intrinsic_handler_t("prefetch") {}
 };
 
-struct load_const_mem_handler_t : public intrinsic_handler_t {
+struct constant_load_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
         assert(node.args_.size() == 1);
         node.dtype_ = node.args_[0]->dtype_;
     }
-    load_const_mem_handler_t() : intrinsic_handler_t("load_const_mem") {}
+    constant_load_handler_t() : intrinsic_handler_t("constant_load") {}
+};
+
+struct volatile_load_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    volatile_load_handler_t() : intrinsic_handler_t("volatile_load") {}
 };
 
 struct get_group_id_handler_t : public intrinsic_handler_t {
@@ -476,7 +491,9 @@ sc_data_type_t arg_types[NUM_FULL_ARGS_STRIDE] = {
         datatypes::boolean, // do_only_comp
         datatypes::boolean, // do_only_zp_a_val
         datatypes::pointer, // c_buf
-        datatypes::index // bdmask_idx
+        datatypes::index, // bdmask_idx
+        datatypes::pointer, // top_pad
+        datatypes::pointer // bottom_pad
 };
 
 sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST] = {
@@ -508,7 +525,9 @@ sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST] = {
         datatypes::boolean, // do_only_comp
         datatypes::boolean, // do_only_zp_a_val
         datatypes::pointer, // c_buf
-        datatypes::index // bdmask_idx
+        datatypes::index, // bdmask_idx
+        datatypes::pointer, // top_pad
+        datatypes::pointer // bottom_pad
 };
 } // namespace brgemm_args
 
@@ -552,7 +571,8 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<write_struct_handler_t>(),
         utils::make_unique<set_thread_idle_func_handler_t>(),
         utils::make_unique<prefetch_handler_t>(),
-        utils::make_unique<load_const_mem_handler_t>(),
+        utils::make_unique<constant_load_handler_t>(),
+        utils::make_unique<volatile_load_handler_t>(),
         utils::make_unique<get_group_id_handler_t>(),
         utils::make_unique<get_group_thread_id_handler_t>(),
         utils::make_unique<brgemm_handler_t>(

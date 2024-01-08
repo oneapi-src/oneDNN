@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 * Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -271,6 +271,17 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     return OK;
 }
 
+std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb, dir_t dir) {
+    std::vector<data_kind_t> check_kinds;
+    if ((prb->dir & FLAG_FWD) && (dir & FLAG_FWD)) {
+        check_kinds = {DST};
+    } else if ((prb->dir & FLAG_BWD) && (dir & FLAG_BWD)) {
+        check_kinds = {SRC};
+    }
+    // `check_kinds` is empty for `(prb->dir & FLAG_BWD) && (dir & FLAG_FWD)`.
+    return check_kinds;
+}
+
 int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
     v_prim.resize(2); // just fwd or fwd + bwd.
@@ -309,11 +320,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     if (bench_mode != bench_mode_t::init)
         SAFE(execute_and_wait(v_prim[0], args, res), WARN);
 
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
-        if (prb->dir & FLAG_FWD) {
-            check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
-        }
-    }
+    check_correctness(prb, get_kinds_to_check(prb, FLAG_FWD), args, ref_args,
+            setup_cmp, res);
 
     if (prb->dir & FLAG_BWD) {
         // Pass same memory map as we need data from forward on backward.
@@ -328,9 +336,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
         SAFE(execute_and_wait(v_prim[1], args, res), WARN);
 
-        if (has_bench_mode_bit(mode_bit_t::corr)) {
-            check_correctness(prb, {SRC}, args, ref_args, setup_cmp, res);
-        }
+        check_correctness(prb, get_kinds_to_check(prb, FLAG_BWD), args,
+                ref_args, setup_cmp, res);
     }
 
     return measure_perf(prb->ctx_exe, res, prim, args);

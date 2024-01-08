@@ -9,7 +9,8 @@
                 add:f32:13+sub:s8:15,\
                 add:f32:2,\
                 add:f32:9+sub:s8:15,\
-                add:f32:8
+                add:f32:8,add:f32:1,\
+                add:f32:14
 --batch=shapes_4d
 
 --reset

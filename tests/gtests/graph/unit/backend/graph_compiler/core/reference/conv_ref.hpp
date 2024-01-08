@@ -403,10 +403,12 @@ T NHWC2NCHWcn(T &input, int N, int C, int H, int W, int c, int n,
 template <typename T>
 T any2NCHW(sc::sc_data_format_t input_format, T &input, int N, int C, int H,
         int W, int c) {
-    if (input_format == sc::sc_data_format_t::NCHWc(c)) {
+    if (input_format == sc::sc_data_format_t::NCHWc(c)
+            || input_format == sc::sc_data_format_t::NGCHWc(c)) {
         if (c <= 0) { COMPILE_ASSERT(0, "Invalid blocking dim NCHWc: c <= 0"); }
         return NCHWc2NCHW(input, N, C / c, H, W, c);
-    } else if (input_format == sc::sc_data_format_t::NHWC()) {
+    } else if (input_format == sc::sc_data_format_t::NHWC()
+            || input_format == sc::sc_data_format_t::NHWGC()) {
         return NHWC2NCHW(input, N, H, W, C);
     } else {
         COMPILE_ASSERT(0,

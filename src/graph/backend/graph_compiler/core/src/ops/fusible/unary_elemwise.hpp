@@ -39,8 +39,8 @@ public:
     infer_status_code pre_infer_slice_ranges(
             const context_ptr &ctx, fslice_map &fsmap) override;
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
+    void infer_binding_axis(binding_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;
@@ -246,11 +246,11 @@ public:
     clamp_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : unary_elementwise_op_impl_t("clamp", ins, outs, attrs) {
-        alg_kind_ = brgemm::eltwise_clip;
+        alg_kind_ = brgemm::eltwise_clip_v2;
     }
     clamp_op_t(graph_tensor_ptr v, float clamp_min = 0.0, float clamp_max = 1.0)
         : unary_elementwise_op_impl_t(std::move(v), "clamp") {
-        alg_kind_ = brgemm::eltwise_clip;
+        alg_kind_ = brgemm::eltwise_clip_v2;
         attrs_.set("min", clamp_min);
         attrs_.set("max", clamp_max);
     };
@@ -316,7 +316,8 @@ public:
         alpha_ = attrs.get_or_else<float>("alpha", 1.f / 6.f);
         beta_ = attrs.get_or_else<float>("beta", 0.5f);
     }
-    hardswish_op_t(graph_tensor_ptr v, float alpha = 1.f, float beta = 0.f)
+    hardswish_op_t(
+            graph_tensor_ptr v, float alpha = 1.f / 6.f, float beta = 0.5f)
         : unary_elementwise_op_impl_t(std::move(v), "hardswish")
         , alpha_(alpha)
         , beta_(beta) {

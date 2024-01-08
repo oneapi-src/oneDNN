@@ -710,9 +710,6 @@ ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
                 "partition size is expected for 1, but got "
                         << parti_list_.size())
         func = parti_list_[0]->func_;
-        // push return to the end of body
-        auto ret = builder::make_returns_unattached(true);
-        func->body_.checked_as<stmts>()->seq_.emplace_back(ret);
         func->name_ = op_name_;
         func->decl_->name_ = op_name_;
         func->name_ += "_" + std::to_string(logical_op_id_);
@@ -981,7 +978,8 @@ ir_module_ptr mixed_fuse_op_t::get_dynamic_query_func(const context_ptr &ctx) {
 }
 
 void mixed_fuse_op_t::create_internal_dispatch_funcs(const context_ptr &ctx,
-        ir_module_ptr &mod, const std::shared_ptr<const bool> &use_mtp) {
+        ir_module_ptr &mod,
+        const std::shared_ptr<const thread_pool_mode_t> &use_mtp) {
     // todo: currently we only support one op with internal func query.
     for (auto &op : sub_graph_.ops_) {
         if (op->need_dynamic_internal_query()) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1035,6 +1035,72 @@ TEST(test_utils_pattern_matcher, Optional) {
     ASSERT_EQ(agraph2.add_op(&matmul2), status::success);
     ASSERT_EQ(agraph2.add_op(&add2), status::success);
     ASSERT_EQ(agraph2.add_op(&relu2), status::success);
+    agraph2.finalize();
+
+    fusion_ops.clear();
+    EXPECT_TRUE(match_pattern(agraph2.get_ops()[0].get(), graphp, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 3U);
+}
+
+TEST(test_utils_pattern_matcher, OptionalWithLargerPort) {
+    auto graphp = std::make_shared<pb_graph_t>();
+    // Pattern that captures
+    // MatMul -> (Divide)? -> Select
+    auto pmatmul = graphp->append_op(MatMul);
+    auto optbody = std::make_shared<pb_graph_t>();
+    auto pdiv = optbody->append_op(Divide);
+    optbody->create_input_port(0, pdiv, 0);
+    optbody->create_output_port(0, pdiv, 0);
+    auto popt_div = graphp->append_optional(optbody, {in_edge(0, pmatmul, 0)});
+    // optional divide is connected to 2nd input of select
+    // which means when divide does not exist, matmul should connected to
+    // 2nd input of select
+    auto pselect = graphp->append_op(Select, {in_edge(2, popt_div, 0)});
+    UNUSED(pselect);
+
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t select {1, Select, "select"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    lt_vec[5].data_type = data_type::boolean;
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    select.add_input(lt_vec[5]);
+    select.add_input(lt_vec[3]);
+    select.add_input(lt_vec[2]);
+    select.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&select), status::success);
+    agraph.finalize();
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 2U);
+
+    graph_t agraph2;
+    op_t matmul2 {0, MatMul, "matmul"};
+    op_t divide2 {1, Divide, "div"};
+    op_t select2 {2, Select, "select"};
+
+    std::vector<logical_tensor_t> lt_vec2 = create_logical_tensors(8);
+    lt_vec2[7].data_type = data_type::boolean;
+    matmul2.add_input(lt_vec2[0]);
+    matmul2.add_input(lt_vec2[1]);
+    matmul2.add_output(lt_vec2[2]);
+    divide2.add_input(lt_vec2[2]);
+    divide2.add_input(lt_vec2[3]);
+    divide2.add_output(lt_vec2[4]);
+    select2.add_input(lt_vec2[7]);
+    select2.add_input(lt_vec2[5]);
+    select2.add_input(lt_vec2[4]);
+    select2.add_output(lt_vec2[6]);
+
+    ASSERT_EQ(agraph2.add_op(&matmul2), status::success);
+    ASSERT_EQ(agraph2.add_op(&divide2), status::success);
+    ASSERT_EQ(agraph2.add_op(&select2), status::success);
     agraph2.finalize();
 
     fusion_ops.clear();

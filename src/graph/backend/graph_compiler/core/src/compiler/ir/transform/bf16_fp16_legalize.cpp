@@ -55,18 +55,20 @@ static bool define_can_promote(const context_ptr &ctx, const define_c &v) {
                     && any_map_t::fetch_or_else(
                             v->var_->attr_.get(), "can_promote_to_f32", true);
         } else if (v->var_->dtype_.is_etype(sc_data_etype::F16)) {
-            COMPILE_ASSERT(ctx->machine_.cpu_flags_.fAVX512FP16
-                            || ctx->machine_.cpu_flags_.fAVX512AMXFP16,
-                    "current cpu does not support fp16 data type.");
-            // Only amxfp16 needs to do legalization.
-            return ctx->machine_.cpu_flags_.fAVX512AMXFP16
-                    && v->var_->dtype_.lanes_
+            return v->var_->dtype_.lanes_
                     <= ctx->get_max_vector_lanes(sc_data_etype::F32)
                     && any_map_t::fetch_or_else(
                             v->var_->attr_.get(), "can_promote_to_f32", true);
         }
     }
     return false;
+}
+
+bool can_binary_handled_by_hw(
+        const expr &L, const expr &R, const context_ptr &ctx) {
+    return L->dtype_.type_code_ == sc_data_etype::F16
+            && R->dtype_.type_code_ == sc_data_etype::F16
+            && ctx->machine_.cpu_flags_.fAVX512FP16;
 }
 
 std::tuple<expr_c, expr_c> bf16_fp16_promote_impl_t::docast(
@@ -106,6 +108,7 @@ std::tuple<expr_c, expr_c> bf16_fp16_promote_impl_t::docast(
 expr_c bf16_fp16_promote_impl_t::visit(binary_c v) {
     expr_c a, b;
     bool is_low_precision_fp = false;
+    if (can_binary_handled_by_hw(v->l_, v->r_, ctx_)) return v;
     std::tie(a, b) = docast(v->l_, v->r_, &is_low_precision_fp);
     bool changed
             = !a.ptr_same(v->l_) || !b.ptr_same(v->r_) || is_low_precision_fp;
@@ -125,6 +128,7 @@ expr_c bf16_fp16_promote_impl_t::visit(binary_c v) {
 expr_c bf16_fp16_promote_impl_t::visit(cmp_c v) {
     expr_c a, b;
     bool is_low_precision_fp = false;
+    if (can_binary_handled_by_hw(v->l_, v->r_, ctx_)) return v;
     std::tie(a, b) = docast(v->l_, v->r_, &is_low_precision_fp);
     bool changed
             = !a.ptr_same(v->l_) || !b.ptr_same(v->r_) || is_low_precision_fp;
@@ -136,6 +140,7 @@ expr_c bf16_fp16_promote_impl_t::visit(cmp_c v) {
 }
 
 expr_c bf16_fp16_promote_impl_t::visit(select_c v) {
+    if (can_binary_handled_by_hw(v->l_, v->r_, ctx_)) return v;
     if (utils::is_one_of(v->l_->dtype_.type_code_, sc_data_etype::BF16,
                 sc_data_etype::F16)
             && v->l_->dtype_.lanes_
@@ -162,25 +167,18 @@ expr_c bf16_fp16_promote_impl_t::visit(intrin_call_c v) {
     std::vector<expr> args;
     bool is_low_precision_fp = false;
     bool changed = false;
+    bool can_disable_promote = ctx_->machine_.cpu_flags_.fAVX512FP16;
     assert(v->args_.size() > 0);
     auto raw_dtype = v->args_[0]->dtype_;
     switch (v->type_) {
-        case intrin_type::min:
-        case intrin_type::max:
-        case intrin_type::abs:
-        case intrin_type::round:
-        case intrin_type::floor:
-        case intrin_type::ceil:
-        case intrin_type::exp:
-        case intrin_type::log:
-        case intrin_type::erf:
-        case intrin_type::sqrt:
-        case intrin_type::rsqrt:
         case intrin_type::reduce_add:
         case intrin_type::reduce_mul:
         case intrin_type::reduce_max:
         case intrin_type::reduce_min:
         case intrin_type::fmadd:
+        case intrin_type::exp:
+        case intrin_type::log:
+        case intrin_type::erf:
         case intrin_type::isnan:
             for (size_t i = 0; i < v->args_.size(); i++) {
                 auto in = dispatch(v->args_[i]);
@@ -199,6 +197,53 @@ expr_c bf16_fp16_promote_impl_t::visit(intrin_call_c v) {
                             !utils::is_one_of(args[i]->dtype_.type_code_,
                                     sc_data_etype::BF16, sc_data_etype::F16),
                             "All input args should be f32 from bf16 / f16.");
+                }
+            }
+            break;
+        case intrin_type::min:
+        case intrin_type::max:
+        case intrin_type::abs:
+        case intrin_type::round:
+        case intrin_type::floor:
+        case intrin_type::ceil:
+        case intrin_type::sqrt:
+        case intrin_type::rsqrt:
+            if (can_disable_promote) {
+                for (size_t i = 0; i < v->args_.size(); i++) {
+                    auto in = dispatch(v->args_[i]);
+                    if (in->dtype_.type_code_ != sc_data_etype::F16) {
+                        can_disable_promote = false;
+                        break;
+                    }
+                }
+            }
+            if (!can_disable_promote) {
+                for (size_t i = 0; i < v->args_.size(); i++) {
+                    auto in = dispatch(v->args_[i]);
+                    changed = changed || !in.ptr_same(v->args_[i]);
+                    if (utils::is_one_of(in->dtype_.type_code_,
+                                sc_data_etype::BF16, sc_data_etype::F16)) {
+                        in = builder::make_cast(
+                                sc_data_type_t::f32(in->dtype_.lanes_), in);
+                        is_low_precision_fp = true;
+                    }
+                    args.emplace_back(in.remove_const());
+                }
+                if (is_low_precision_fp) {
+                    for (size_t i = 0; i < args.size(); i++) {
+                        COMPILE_ASSERT(
+                                !utils::is_one_of(args[i]->dtype_.type_code_,
+                                        sc_data_etype::BF16,
+                                        sc_data_etype::F16),
+                                "All input args should be f32 from bf16 / "
+                                "f16.");
+                    }
+                }
+            } else {
+                for (size_t i = 0; i < v->args_.size(); i++) {
+                    auto in = dispatch(v->args_[i]);
+                    changed = changed || !in.ptr_same(v->args_[i]);
+                    args.emplace_back(in.remove_const());
                 }
             }
             break;

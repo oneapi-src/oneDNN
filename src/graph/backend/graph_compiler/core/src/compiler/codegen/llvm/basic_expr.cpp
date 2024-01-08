@@ -223,6 +223,7 @@ void codegen_llvm_vis_t::view(cast_c v) {
         COMPILE_ASSERT(
                 v->dtype_ == datatypes::generic, "Unexpected outtype " << v);
     };
+
     if (v->in_->dtype_.is_etype(sc_data_etype::F32)
             && v->dtype_.is_etype(sc_data_etype::BF16)) {
 #if SC_LLVM_BACKEND > 10
@@ -324,9 +325,13 @@ void codegen_llvm_vis_t::view(cast_c v) {
                     current_val_ = builder_.CreateZExtOrTrunc(in_v, outtype);
                     break;
                 case CATE_OTHER: {
-                    check_cate();
-                    current_val_ = builder_.CreateZExtOrBitCast(
-                            in_v, builder_.getInt64Ty());
+                    if (v->dtype_.is_pointer()) {
+                        current_val_ = builder_.CreateIntToPtr(in_v, outtype);
+                    } else {
+                        check_cate();
+                        current_val_ = builder_.CreateZExtOrBitCast(
+                                in_v, builder_.getInt64Ty());
+                    }
                 } break;
             }
         } break;
@@ -355,8 +360,8 @@ void codegen_llvm_vis_t::view(cast_c v) {
                     // pointer to pointer
                     current_val_ = builder_.CreatePointerCast(in_v, outtype);
                 } else {
-                    // pointer to generic val
-                    check_cate();
+                    // pointer to generic val or uint64
+                    if (v->dtype_ != datatypes::index) { check_cate(); }
                     current_val_ = builder_.CreatePtrToInt(
                             in_v, builder_.getInt64Ty());
                 }

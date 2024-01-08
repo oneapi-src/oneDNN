@@ -92,22 +92,30 @@ public:
                     defs.insert(name);
                 } else {
                     new_var = var0->remake();
-                    new_var.static_as<var>()->name_
-                            = name + "_" + std::to_string(var_index++);
+                    auto new_name = name + "_" + std::to_string(var_index++);
+                    new_var.static_as<var>()->name_ = new_name;
+                    defs.insert(new_name);
                     rmap[var0] = new_var;
                     changed = true;
                 }
             } else {
                 assert(var0.isa<tensor>());
                 auto &name = var0.static_as<tensor>()->name_;
-                if (defs.find(name) == defs.end()) {
-                    defs.insert(name);
-                } else {
-                    new_var = var0->remake();
-                    new_var.static_as<tensor>()->name_
-                            = name + "_" + std::to_string(var_index++);
+                new_var = ir_visitor_t::visit(var0.static_as<tensor>())
+                                  .remove_const();
+                bool remade = !new_var.ptr_same(var0);
+                bool duplicated_name = defs.find(name) != defs.end();
+                if (remade || duplicated_name) {
+                    new_var = remade ? new_var : new_var->remake();
                     rmap[var0] = new_var;
                     changed = true;
+                }
+                if (!duplicated_name) {
+                    defs.insert(name);
+                } else {
+                    auto new_name = name + "_" + std::to_string(var_index++);
+                    new_var.static_as<tensor>()->name_ = new_name;
+                    defs.insert(new_name);
                 }
             }
         }
@@ -141,8 +149,9 @@ public:
                 defs.insert(name);
             } else {
                 new_var = v->var_->remake();
-                new_var.static_as<var>()->name_
-                        = name + "_" + std::to_string(var_index++);
+                auto new_name = name + "_" + std::to_string(var_index++);
+                new_var.static_as<var>()->name_ = new_name;
+                defs.insert(new_name);
                 rmap[v->var_] = new_var;
                 changed = true;
             }
@@ -405,21 +414,13 @@ public:
 
 func_c ir_simplifier_t::operator()(func_c f) {
     simplify_impl_t simpl {skip_rename_};
-    auto ret = simpl.dispatch(f);
-    if (!skip_if_loop_) {
-        if_loop_simplify_impl_t ilimpl;
-        ret = simpl.dispatch(ilimpl.dispatch(ret));
-    }
-    return ret;
+    if_loop_simplify_impl_t ilimpl;
+    return simpl.dispatch(ilimpl.dispatch(simpl.dispatch(f)));
 }
 stmt_c ir_simplifier_t::operator()(stmt_c f) const {
     simplify_impl_t simpl {skip_rename_};
-    auto ret = simpl.dispatch(std::move(f));
-    if (!skip_if_loop_) {
-        if_loop_simplify_impl_t ilimpl;
-        ret = simpl.dispatch(ilimpl.dispatch(ret));
-    }
-    return ret;
+    if_loop_simplify_impl_t ilimpl;
+    return simpl.dispatch(ilimpl.dispatch(simpl.dispatch(std::move(f))));
 }
 
 } // namespace gc

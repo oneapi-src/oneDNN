@@ -92,7 +92,6 @@ private:
     }
 
     void finalize() {
-        if (failed_) return;
         close_file();
         delete_marker();
     }
@@ -174,13 +173,17 @@ private:
         long page_size = sysconf(_SC_PAGESIZE);
         if (page_size == -1) return false;
         marker_size_ = (size_t)page_size;
-        marker_addr_ = mmap(nullptr, marker_size_, PROT_READ | PROT_EXEC,
+        void *addr = mmap(nullptr, marker_size_, PROT_READ | PROT_EXEC,
                 MAP_PRIVATE, fd_, 0);
-        return marker_addr_ != MAP_FAILED;
+        if (addr == MAP_FAILED) return false;
+        marker_addr_ = addr;
+        return true;
     }
 
     void delete_marker() {
-        if (marker_addr_) munmap(marker_addr_, marker_size_);
+        if (!marker_addr_) return;
+        munmap(marker_addr_, marker_size_);
+        marker_addr_ = nullptr;
     }
 
     static uint64_t get_timestamp(bool use_tsc) {

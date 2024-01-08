@@ -36,10 +36,12 @@ namespace gc {
 namespace quantize {
 bool reschedule_forbid_op(const sc_op_ptr &node) {
     // transpose could be processed as it only changes the order of dim.
-    return (node->isa<ops::dynamic_reshape_op>()
-                   || node->isa<tensor_view_op_t>() || node->isa<reshape_op_t>()
-                   || node->isa<concat_op_t>() || node->isa<split_op_t>())
-            && node->attrs_.get_or_else(attr_keys::per_channel, false);
+    return ((node->isa<ops::dynamic_reshape_op>()
+                    || node->isa<tensor_view_op_t>()
+                    || node->isa<reshape_op_t>() || node->isa<concat_op_t>()
+                    || node->isa<split_op_t>())
+                   && node->attrs_.get_or_else(attr_keys::per_channel, false))
+            || node->isa<concat_op_t>();
 }
 void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::bfs();

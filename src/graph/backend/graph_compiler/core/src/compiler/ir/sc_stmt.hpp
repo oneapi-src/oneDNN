@@ -54,6 +54,8 @@ namespace stmt_attr_key {
 // Boolean. If true, for_loop_node_t will be merged as possible
 constexpr const char *merge_loop = "merge_loop";
 
+constexpr const char *skip_axis_binding_check = "skip_axis_binding_check";
+
 // for_loop_node_t. It represents the root loop invloving reduce computation
 constexpr const char *reduce_root_loop = "reduce_root_loop";
 

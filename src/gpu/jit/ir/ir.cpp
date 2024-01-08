@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -146,6 +146,10 @@ public:
     }
 
     void _visit(const linear_t &obj) override {
+        if (obj.nargs() == 0 && is_zero(obj.c)) {
+            out_ << "0";
+            return;
+        }
         out_ << "(";
         for (int i = 0; i < obj.nargs(); i++) {
             if (i > 0) out_ << " + ";
@@ -155,7 +159,10 @@ public:
                 out_ << obj.u_vec[i] << " * " << obj.v_vec[i];
             }
         }
-        if (!is_zero(obj.c)) out_ << " + " << obj.c;
+        if (!is_zero(obj.c)) {
+            if (obj.nargs() != 0) out_ << " + ";
+            out_ << obj.c;
+        }
         out_ << ")";
     }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -261,6 +261,10 @@ std::shared_ptr<graph_code_cache_handle> register_code_in_graph_cache(
 
 SC_INTERNAL_API void graph_code_cache(sc_graph_t &mgr, const context_ptr &ctx) {
     if (!ctx->flags_.const_share_) { return; }
+    if (ctx->engine_->vtable_->get_tensor_cache_cap(ctx->engine_) == 0) {
+        // if constant cache is off
+        return;
+    }
     // collect the base tensors and offsets
     std::vector<std::shared_ptr<runtime::const_cache_proxy>> bases;
     std::vector<size_t> base_ids;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1467,8 +1467,7 @@ private:
             case tiler_mode_t::lookup: {
                 const bool transposed = cfg.prb().ab_swap_transpose;
                 const auto params = const_conv_lookup_table().find(cfg.key());
-                if (!params.is_empty()
-                        && (!transposed || chk.is_ok(params.blocking()))) {
+                if (!params.is_empty() && chk.is_ok(params.blocking())) {
                     if (transposed) {
                         params_gen_ = params_generator_t(tune_level, simd_size,
                                 chk, level_tile_sets, params);

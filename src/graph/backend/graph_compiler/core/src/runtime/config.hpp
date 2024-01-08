@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <string>
 #include <runtime/generic_val.hpp>
+#include <runtime/threadpool_mode.hpp>
 #include <util/def.hpp>
 
 namespace dnnl {
@@ -56,7 +57,7 @@ struct SC_API runtime_config_t {
     int trace_initial_cap_ = 4096;
     trace_mode_t trace_mode_ = OFF;
     bool execution_verbose_ = false;
-    bool managed_thread_pool_ = true;
+    thread_pool_mode_t managed_thread_pool_ = thread_pool_mode_t::DIRECT;
     int verbose_level_ = 0;
     static runtime_config_t &get() noexcept;
 

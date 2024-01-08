@@ -211,50 +211,6 @@ public:
     void copy_concat_memory_attrs_tsr2buf();
 };
 
-struct outerloop_axis_binder {
-    bound_axis_map bd_ax_map_;
-    graph_tensor_ptr base_gt_ = nullptr;
-    bound_axis init_axis_;
-
-    // init ax_binder
-    void init(const graph_tensor_ptr &base_gt, const bound_axis &axis) {
-        if (base_gt_) return;
-        base_gt_ = base_gt;
-        init_axis_ = axis;
-    }
-
-    // clear
-    void clear() {
-        bd_ax_map_.clear();
-        base_gt_ = nullptr;
-        init_axis_.clear();
-    }
-
-    // only clear bd_ax_map
-    void reset() { bd_ax_map_.clear(); }
-
-    // auto infer axis binding information for the whole graph
-    void run(int real_axis_size);
-
-    /** algin with another axis binder according the given checking range.
-     * @param other: another axis binder, alignment object
-     * @param check_axis_size: checking range for outer loop, from left to right
-     * @return int: the aligned loop size
-     **/
-    int align_with(outerloop_axis_binder &other, int check_axis_size);
-
-    // split init axis, usually called when outer loops are split
-    void split_init_axis(size_t loop_idx) {
-        COMPILE_ASSERT(loop_idx < init_axis_.size(),
-                "loop idx: " << loop_idx << " is larger than init axis size: "
-                             << init_axis_.size())
-        // copy original axis from the loop_idx init_axis
-        auto orig_axis = init_axis_[loop_idx];
-        // insert to init_axis
-        init_axis_.emplace(init_axis_.begin() + loop_idx + 1, orig_axis);
-    }
-};
-
 struct mixed_dyn_internal_info_t {
     // The module records internal functions usually contains repeat
     // calculations which could be reused like single core brgemm. One partition
@@ -285,8 +241,6 @@ struct mixed_parti_t : fusion_partition_t {
     // different from ops_ in base class, it records the sequence of committed
     // ops in current partition
     std::vector<sc_op_ptr> committed_ops_;
-    // binding axis information from GIR with outer loops in TIR
-    outerloop_axis_binder ax_binder_;
     // dep matrix
     dep_mat_ptr dep_m_;
 
@@ -373,7 +327,7 @@ struct mixed_parti_t : fusion_partition_t {
     std::vector<for_loop> get_outer_loops(
             fusion_anchor_ptr fanchor = nullptr) const;
 
-    void try_split_outermost_loop(int64_t block);
+    void try_split_outermost_loop(int64_t block) const;
     void try_split_outermost_loop_on_num_threads(int64_t num_groups);
 
     // query if partition can optimize its loop order
@@ -501,12 +455,6 @@ struct mixed_parti_t : fusion_partition_t {
 
     // transform partition to mixed fuse op
     std::shared_ptr<mixed_fuse_op_t> transform_to_mixed_op();
-
-    // init axis binder
-    void init_axis_binder(const graph_tensor_ptr &base_gt,
-            const std::vector<int> &init_axis, bool using_block = false);
-    void init_axis_binder(const graph_tensor_ptr &base_gt,
-            const bound_axis &init_axis, bool using_block = false);
 };
 
 enum class parti_merge_kind : int {
@@ -569,8 +517,8 @@ mixed_fuse_op_t *get_mixed_op_from_graph(sc_graph_t &graph);
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
 
 // commit graph to TIR, usually used in UT
-void commit_graph_to_func(const sc_graph_t &g, const func_t &func,
-        const fusion_anchor_mgr_t &fmgr);
+void commit_graph_to_func(
+        sc_graph_t &g, const func_t &func, const fusion_anchor_mgr_t &fmgr);
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -14,15 +14,19 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "thread_locals.hpp"
+#include <functional>
 #include <list>
 #include <mutex>
+#include <utility>
+#include <vector>
 #include "config.hpp"
 #include <runtime/context.hpp>
 #ifdef SC_KERNEL_PROFILE
 #include <sstream>
 #include <stdio.h>
 #endif
+#include "thread_locals.hpp"
+#include "thread_locals_registry.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,41 +38,55 @@ namespace runtime {
 // if registry is destoryed, it will be set to true
 static bool registry_destroyed = false;
 
-// the registry of all TLS resources.
-struct thread_local_registry_t {
-    std::mutex lock_;
-    std::list<thread_local_buffer_t *> tls_buffers_;
-    // release all registered TLS resources. The registry still keeps track of
-    // the TLS objects
-    void release(engine_t *engine) {
-        std::lock_guard<std::mutex> guard(lock_);
-        write_traces(tls_buffers_);
-        for (auto node : tls_buffers_) {
-            if (engine == nullptr || node->engine_ == engine) {
-                node->main_memory_pool_.release();
-                node->thread_memory_pool_.release();
-                node->amx_buffer_.release(node->engine_);
-                node->engine_ = nullptr;
-            }
+thread_local_registry_t::thread_local_registry_t() = default;
+
+// release all registered TLS resources. The registry still keeps track of
+// the TLS objects
+void thread_local_registry_t::release(engine_t *engine) {
+    std::lock_guard<std::mutex> guard(lock_);
+    write_traces(this);
+    dead_threads_.clear();
+    for (auto node : tls_buffers_) {
+        if (engine == nullptr || node->engine_ == engine) {
+            node->main_memory_pool_.release();
+            node->thread_memory_pool_.release();
+            node->additional_->dyn_threadpool_mem_pool_.release();
+            node->amx_buffer_.release(node->engine_);
+            node->engine_ = nullptr;
         }
     }
-    ~thread_local_registry_t() { release(nullptr); }
-};
+}
+thread_local_registry_t::~thread_local_registry_t() {
+    release(nullptr);
+}
+
+void thread_local_registry_t::for_each_tls_additional(
+        const std::function<void(thread_local_buffer_t::additional_t *)> &f) {
+    for (auto &v : tls_buffers_) {
+        f(v->additional_.get());
+    }
+    for (auto &v : dead_threads_) {
+        f(v.get());
+    }
+}
 
 struct registry_guard_t {
     std::shared_ptr<thread_local_registry_t> ptr_
             = std::make_shared<thread_local_registry_t>();
-    ~registry_guard_t() { registry_destroyed = true; }
+    ~registry_guard_t() {
+        ptr_->release(nullptr);
+        registry_destroyed = true;
+    }
 };
 
-static const std::shared_ptr<thread_local_registry_t> &get_registry() {
+const std::shared_ptr<thread_local_registry_t> &get_thread_locals_registry() {
     static registry_guard_t registry;
     return registry.ptr_;
 }
 
 thread_local_buffer_t::additional_t::additional_t() {
     assert(!registry_destroyed);
-    registry_ = get_registry();
+    registry_ = get_thread_locals_registry();
 }
 
 // register itself into registry
@@ -97,20 +115,30 @@ thread_local_buffer_t::~thread_local_buffer_t() {
     // pointer from the registry and the registry has no chance to call
     // release() on `this` any more. So there will be only one thread calling
     // dtor/release() on the members at the same time
-    auto &registry = *additional_->registry_;
-    std::lock_guard<std::mutex> guard(registry.lock_);
+
+    // move out the ownership of the registry_ to avoid self-referencing
+    auto p_registry = std::move(additional_->registry_);
+    std::lock_guard<std::mutex> guard(p_registry->lock_);
     assert(*cur_pos_ = this);
-    registry.tls_buffers_.erase(cur_pos_);
+    // remove from the tls_buffers_ in registry
+    p_registry->tls_buffers_.erase(cur_pos_);
+    if (!additional_->trace_.trace_logs_.empty()) {
+        // let registry remember the trace logs (we have already moved the
+        // registry_ inside additional_)
+        p_registry->dead_threads_.emplace_back(std::move(additional_));
+    }
 }
 
 } // namespace runtime
 
 SC_API void release_runtime_memory(runtime::engine_t *engine) {
-    // in case that someone calls release_runtime_memory() after registry is
-    // destroyed
-    if (runtime::registry_destroyed) { return; }
-    auto &registry = runtime::get_registry();
-    registry->release(engine);
+    if (!engine) {
+        // in case registry_guard already destroyed
+        if (runtime::registry_destroyed) { return; }
+        runtime::get_thread_locals_registry()->release(engine);
+    } else {
+        engine->registry_->release(engine);
+    }
 }
 
 } // namespace gc

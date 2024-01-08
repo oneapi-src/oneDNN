@@ -16,7 +16,6 @@
 
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_TRACE_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_TRACE_HPP
-#include <list>
 #include <stdint.h>
 #include <string>
 #include <vector>
@@ -28,6 +27,7 @@ namespace gc {
 namespace runtime {
 
 struct thread_local_buffer_t;
+struct thread_local_registry_t;
 struct trace_manager_t {
     struct trace_log_t {
         uint16_t func_id_;
@@ -38,7 +38,7 @@ struct trace_manager_t {
     std::vector<trace_log_t> trace_logs_;
 };
 
-void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers);
+void write_traces(thread_local_registry_t *r);
 
 } // namespace runtime
 int register_traced_func(const std::string &name);

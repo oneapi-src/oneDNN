@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -125,7 +125,12 @@ tensor_c get_base_tensor_of(const expr &p) {
     if (p.isa<tensor>()) {
         return p.static_as<tensor_c>();
     } else if (p.isa<tensorptr>()) {
-        return p.static_as<tensorptr_c>()->base_->ptr_.checked_as<tensor_c>();
+        auto base = p.static_as<tensorptr_c>()->base_->ptr_;
+        if (base.isa<tensor>()) {
+            return base.checked_as<tensor_c>();
+        } else {
+            return get_base_tensor_of(base);
+        }
     } else if (p.isa<cast>()) {
         return get_base_tensor_of(p.static_as<cast>()->in_);
     }

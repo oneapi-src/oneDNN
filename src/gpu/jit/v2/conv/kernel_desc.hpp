@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@
 
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/kernel_desc.hpp"
+#include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/v2/conv/problem.hpp"
+#include "gpu/jit/v2/ir/reqs.hpp"
 #include "gpu/jit/v2/ir/tensor.hpp"
 
 namespace dnnl {
@@ -168,103 +170,14 @@ inline loop_nest_t str_to_loop_nest(const std::string &s) {
     return ret;
 }
 
-// Dimension specialization.
-class spec_t {
-public:
-    void set_value(const prb_dim_t &dim, int value) {
-        constraints_[dim].set_value(value);
-    }
-    bool has_value(const prb_dim_t &dim) const {
-        return constraints_.has(dim) && constraints_.at(dim).has_value();
-    }
-    int value(const prb_dim_t &dim) const {
-        return constraints_.at(dim).value();
-    }
-
-    void set_divisor(const prb_dim_t &dim, int div) {
-        if (div == 1) return;
-        constraints_[dim].set_divisor(div);
-    }
-    int divisor(const prb_dim_t &dim) const {
-        if (!constraints_.has(dim)) return 1;
-        return constraints_.at(dim).divisor();
-    }
-
-    void add(const std::string &s) {
-        if (s.empty()) return;
-        for (size_t i = 0; i < s.length(); i++) {
-            if (std::isdigit(s[i])) {
-                auto dim = prb_dim_t::from_name(s.substr(0, i));
-                if (s.back() == 'x') {
-                    auto end = s.length() - 1;
-                    set_divisor(dim, std::stoi(s.substr(i, end - i)));
-                } else {
-                    set_value(dim, std::stoi(s.substr(i)));
-                }
-                break;
-            }
-        }
-    }
-
-    const dim_map_t<prb_dim_t, linear_constraint_t> &constraints() const {
-        return constraints_;
-    }
-
-    std::string str() const {
-        std::ostringstream oss;
-        bool is_first = true;
-        for (auto &d : constraints_) {
-            if (!has_value(d)) continue;
-            if (!is_first) oss << ",";
-            oss << d << value(d);
-            is_first = false;
-        }
-        for (auto &d : constraints_) {
-            if (divisor(d) == 1) continue;
-            if (!is_first) oss << ",";
-            oss << d << divisor(d) << "x";
-            is_first = false;
-        }
-        return oss.str();
-    }
-
-    IR_DEFINE_DUMP()
-
-    bool operator==(const spec_t &other) const {
-        return constraints_ == other.constraints_;
-    }
-
-    bool operator!=(const spec_t &other) const { return !operator==(other); }
-
-    size_t get_hash() const { return ir_utils::get_hash(constraints_); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(constraints_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(constraints_, in);
-    }
-
-private:
-    dim_map_t<prb_dim_t, linear_constraint_t> constraints_;
-};
-
-inline spec_t str_to_spec(const std::string &s) {
-    auto parts = gpu_utils::split(s, ",");
-    spec_t ret;
-    for (auto &p : parts) {
-        ret.add(p);
-    }
-    return ret;
-}
-
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group = false);
 layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, const std::string &s);
 layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, int conv_ndims, const memory_desc_t &md);
+
+struct plan_t;
 
 class kernel_desc_t : public kernel_desc_base_t {
 public:
@@ -280,18 +193,13 @@ public:
     prb_tile_t iter_tile;
     prb_tile_t thread_group_tile;
     loop_nest_t loop_nest;
-    spec_t spec;
+    send_kind_t a_access_kind = send_kind_t::undef;
+    send_kind_t b_access_kind = send_kind_t::undef;
+    send_kind_t c_access_kind = send_kind_t::undef;
+    prb_reqs_t reqs;
+    bool is_finalized = false;
 
     bool is_empty() const { return prop == prop_kind::undef; }
-
-    bool is_valid() const {
-        if (prop == prop_kind::undef) return false;
-        if (hw.is_undef()) return false;
-        if (fma == fma_kind_t::undef) return false;
-        if (simd == 0) return false;
-        if (regs == 0) return false;
-        return true;
-    }
 
     bool is_supported() const;
 
@@ -323,8 +231,12 @@ public:
                 thread_group_tile = str_to_prb_tile(value);
             } else if (key == "--loop-nest") {
                 loop_nest = str_to_loop_nest(value);
-            } else if (key == "--spec") {
-                spec = str_to_spec(value);
+            } else if (key == "--a-access") {
+                a_access_kind = str_to_send_kind(value);
+            } else if (key == "--b-access") {
+                b_access_kind = str_to_send_kind(value);
+            } else if (key == "--c-access") {
+                c_access_kind = str_to_send_kind(value);
             } else {
                 std::cout << "Unknown argument: " << key << std::endl;
                 ir_error_not_expected();
@@ -334,20 +246,9 @@ public:
         for (int i = 0; i < (int)parts.size(); i += 2) {
             parse(parts[i], parts[i + 1]);
         }
-        normalize();
     }
 
-    void normalize() {
-        std::vector<prb_dim_t> to_remove;
-        auto &cc = spec.constraints();
-        for (auto &e : loop_nest.entries()) {
-            if (cc.has(e.dim) && cc[e.dim].has_value()
-                    && cc[e.dim].value() == 1)
-                to_remove.push_back(e.dim);
-        }
-        for (auto &d : to_remove)
-            loop_nest.remove(d);
-    }
+    void finalize(const plan_t &plan);
 
     bool fits(const problem_t &prb, bool check_tags = true) const {
         if (prb.prop() != prop) return false;
@@ -357,14 +258,7 @@ public:
             if (!prb.dst_tag().matches(dst_tag, prb.shape())) return false;
         }
         if (prb.is_depthwise() != is_dw) return false;
-        // Check constraints.
-        auto &constraints = spec.constraints();
-        for (auto &d : constraints) {
-            auto &c = constraints[d];
-            int size = prb.shape().at(d);
-            if (c.has_value() && size != c.value()) return false;
-            if (size % c.divisor() != 0) return false;
-        }
+        if (!reqs.fits(prb.shape())) return false;
         return true;
     }
 
@@ -388,7 +282,9 @@ public:
         add("--iter", iter_tile.str());
         add("--tg", thread_group_tile.str());
         add("--loop-nest", loop_nest.str());
-        add("--spec", spec.str());
+        add("--a-access", to_string(a_access_kind));
+        add("--b-access", to_string(b_access_kind));
+        add("--c-access", to_string(c_access_kind));
 
         std::ostringstream oss;
         bool is_first = true;
@@ -414,7 +310,9 @@ public:
         oss << "Iteration tile:     " << iter_tile << std::endl;
         oss << "Thread group tile:  " << thread_group_tile << std::endl;
         oss << "Loop nest:          " << loop_nest << std::endl;
-        oss << "Specialization:     " << spec << std::endl;
+        oss << "A access kind:      " << to_string(a_access_kind) << std::endl;
+        oss << "B access kind:      " << to_string(b_access_kind) << std::endl;
+        oss << "C access kind:      " << to_string(c_access_kind) << std::endl;
         oss << "Command:            " << cmd_str();
         return ir_utils::add_tag("Desc", oss.str());
     }
@@ -428,7 +326,11 @@ public:
                 && (fma == other.fma) && (simd == other.simd)
                 && (regs == other.regs) && (iter_tile == other.iter_tile)
                 && (thread_group_tile == other.thread_group_tile)
-                && (loop_nest == other.loop_nest) && (spec == other.spec);
+                && (loop_nest == other.loop_nest)
+                && (a_access_kind == other.a_access_kind)
+                && (b_access_kind == other.b_access_kind)
+                && (c_access_kind == other.c_access_kind)
+                && (is_finalized == other.is_finalized);
     }
 
     bool operator!=(const kernel_desc_t &other) const {
@@ -437,10 +339,12 @@ public:
 
     size_t get_hash() const {
         return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag, hw,
-                fma, simd, regs, iter_tile, thread_group_tile, loop_nest, spec);
+                fma, simd, regs, iter_tile, thread_group_tile, loop_nest,
+                a_access_kind, b_access_kind, c_access_kind, is_finalized);
     }
 
     void serialize(std::ostream &out) const {
+        ir_assert(is_finalized);
         ir_utils::serialize(prop, out);
         ir_utils::serialize(is_dw, out);
         ir_utils::serialize(src_tag, out);
@@ -453,7 +357,10 @@ public:
         ir_utils::serialize(iter_tile, out);
         ir_utils::serialize(thread_group_tile, out);
         ir_utils::serialize(loop_nest, out);
-        ir_utils::serialize(spec, out);
+        ir_utils::serialize(a_access_kind, out);
+        ir_utils::serialize(b_access_kind, out);
+        ir_utils::serialize(c_access_kind, out);
+        ir_utils::serialize(reqs, out);
     }
 
     void deserialize(std::istream &in) {
@@ -469,7 +376,11 @@ public:
         ir_utils::deserialize(iter_tile, in);
         ir_utils::deserialize(thread_group_tile, in);
         ir_utils::deserialize(loop_nest, in);
-        ir_utils::deserialize(spec, in);
+        ir_utils::deserialize(a_access_kind, in);
+        ir_utils::deserialize(b_access_kind, in);
+        ir_utils::deserialize(c_access_kind, in);
+        ir_utils::deserialize(reqs, in);
+        is_finalized = true;
     }
 
     // Helper methods.
@@ -481,6 +392,14 @@ public:
     }
     const type_t &c_type() const {
         return pick_c(prop, src_tag.type(), wei_tag.type(), dst_tag.type());
+    }
+
+    send_kind_t access_kind(tensor_kind_t tensor) const {
+        if (tensor == tensor_kind_t::a) return a_access_kind;
+        if (tensor == tensor_kind_t::b) return b_access_kind;
+        if (tensor == tensor_kind_t::c) return c_access_kind;
+        ir_error_not_expected();
+        return send_kind_t::undef;
     }
 
     std::string kernel_name() const override { return "gen_conv_v2"; }

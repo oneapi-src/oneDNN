@@ -47,7 +47,9 @@ using namespace dnnl::impl::graph::gc;
 
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
 
+static int num_threads_override = 0;
 static int get_num_threads() {
+    if (num_threads_override > 0) { return num_threads_override; }
     int ret = 0;
     dnnl_threadpool_interop_get_max_concurrency(&ret);
     return ret;
@@ -95,6 +97,7 @@ int get_max_threadpool_concurrency() {
 
 static void set_num_threads(int num) {
     (void)get_max_threadpool_concurrency();
+    num_threads_override = num;
     dnnl_threadpool_interop_set_max_concurrency(num);
 }
 

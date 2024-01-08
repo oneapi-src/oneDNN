@@ -1378,7 +1378,10 @@ enum class intrin_type {
     // very local to cache (0, or _MM_HINT_T0) to not local (3)
     prefetch,
     // explicitly load from const memory location
-    load_const_mem,
+    constant_load,
+    // explicitly load from const memory location with volatility, prevent to be
+    // hoisted
+    volatile_load,
     // gets the group id in nested-parallel-for. It should be in 0 to (max
     // number of groups)-1. Takes one parameter of u32 for the level of group.
     get_group_id,

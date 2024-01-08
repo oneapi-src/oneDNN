@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -390,6 +390,8 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
         case broadcasting_strategy_t::per_mb_spatial:
         case broadcasting_strategy_t::per_mb_w:
         case broadcasting_strategy_t::per_w:
+        case broadcasting_strategy_t::per_mb:
+        case broadcasting_strategy_t::batch:
         case broadcasting_strategy_t::shared_axes:
             calculate_shared_axes(src, weights, diff_weights, diff_dst,
                     diff_src, scratchpad_buf);

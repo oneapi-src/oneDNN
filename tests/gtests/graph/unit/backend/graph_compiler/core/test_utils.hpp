@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <cassert>
 #include <iostream>
 #include <memory>
+#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -34,6 +35,8 @@
 #include "util/bf16.hpp"
 #include "gtest/gtest.h"
 #include <compiler/dimensions.hpp>
+#include <compiler/ir/graph/graph.hpp>
+#include <compiler/ir/sc_data_format.hpp>
 #include <util/parallel.hpp>
 #include <util/utils.hpp>
 
@@ -160,6 +163,13 @@
 
 #define SKIP_AMX() \
     if (IS_AMX_AVAILABLE()) { GTEST_SKIP(); }
+
+#define SKIP_ON_INSUFFICIENT_LANES(lanes, etype) \
+    if (::dnnl::impl::graph::gc::get_default_context()->get_max_vector_lanes( \
+                etype) \
+            < lanes) { \
+        GTEST_SKIP(); \
+    }
 
 #define SKIP_BOUNDARY_CHECK()
 
@@ -679,6 +689,18 @@ inline uint8_t get_dyn_mask(const sc_dims &in) {
         ret |= (is_dynamic_dim(in[i]) << i);
     }
     return ret;
+}
+
+inline std::vector<graph_tensor_ptr> make_tsr(const sc_dims &dims,
+        sc_data_type_t dtype = datatypes::s32,
+        sc_data_format_t format = sc_data_format_t()) {
+    if (format.is_any()) {
+        // auto reset format
+        std::vector<int> storage_args(dims.size());
+        std::iota(storage_args.begin(), storage_args.end(), 0);
+        format = sc_data_format_t(sc_data_format_kind_t(storage_args));
+    }
+    return {graph_tensor::make(dims, format, dtype)};
 }
 } // namespace test_utils
 

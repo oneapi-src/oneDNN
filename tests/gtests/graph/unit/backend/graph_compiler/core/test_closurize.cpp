@@ -64,8 +64,10 @@ TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPU) {
         }
     }
     m->add_func({tester});
-    bool use_managed = runtime_config_t::get().managed_thread_pool_;
-    m->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = use_managed;
+    bool use_managed = runtime_config_t::get().managed_thread_pool_
+            == thread_pool_mode_t::MANAGED;
+    m->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
+            = runtime_config_t::get().managed_thread_pool_;
 
     auto testerout = closurizer_cpu_t(false)(m);
 
@@ -143,7 +145,10 @@ static optional<uint64_t> get_parallel_call_flag(const func_t f, int idx = 0) {
 
 TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrier) {
     builder::ir_builder_t builder;
-    if (!runtime_config_t::get().managed_thread_pool_) { GTEST_SKIP(); }
+    if (runtime_config_t::get().managed_thread_pool_
+            != thread_pool_mode_t::MANAGED) {
+        GTEST_SKIP();
+    }
     _function_(datatypes::boolean, aaa) {
         _for_(i, 0, 10, 2, for_type::PARALLEL) {}
         _return_(true);
@@ -156,7 +161,8 @@ TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrier) {
         }
         tester1->attr()[function_attrs::is_main] = true;
         auto m1 = ir_module_t::from_entry_func(get_test_ctx(), tester1);
-        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = true;
+        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
+                = thread_pool_mode_t::MANAGED;
         auto testerout1 = closurizer_cpu_t(false)(m1);
         auto f = testerout1->get_func("aaa");
         ASSERT_TRUE(f);
@@ -169,7 +175,8 @@ TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrier) {
         _function_(datatypes::void_t, tester1) { _evaluate_call_(aaa); }
         tester1->attr()[function_attrs::is_main] = true;
         auto m1 = ir_module_t::from_entry_func(get_test_ctx(), tester1);
-        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = true;
+        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
+                = thread_pool_mode_t::MANAGED;
         auto testerout1 = closurizer_cpu_t(false)(m1);
         auto f = testerout1->get_func("aaa");
         ASSERT_TRUE(f);
@@ -186,7 +193,8 @@ TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrier) {
         _function_(datatypes::void_t, tester1) { _evaluate_call_(bbb); }
         tester1->attr()[function_attrs::is_main] = true;
         auto m1 = ir_module_t::from_entry_func(get_test_ctx(), tester1);
-        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = true;
+        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
+                = thread_pool_mode_t::MANAGED;
         auto testerout1 = closurizer_cpu_t(false)(m1);
         auto f = testerout1->get_func("bbb");
         ASSERT_TRUE(f);
@@ -198,7 +206,10 @@ TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrier) {
 
 TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrierPinMemory) {
     builder::ir_builder_t builder;
-    if (!runtime_config_t::get().managed_thread_pool_) { GTEST_SKIP(); }
+    if (runtime_config_t::get().managed_thread_pool_
+            != thread_pool_mode_t::MANAGED) {
+        GTEST_SKIP();
+    }
     {
         expr bbb_A, aaa_A, tester_A, tester_B, tester_T;
         _function_(datatypes::boolean, aaa, _arg_("t", datatypes::f32, {100})) {
@@ -244,7 +255,8 @@ TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrierPinMemory) {
         }
         tester1->attr()[function_attrs::is_main] = true;
         auto m1 = ir_module_t::from_entry_func(get_test_ctx(), tester1);
-        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = true;
+        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
+                = thread_pool_mode_t::MANAGED;
         auto testerout1 = closurizer_cpu_t(false)(m1);
         ASSERT_TRUE(bbb_A->attr().get<bool>(attr_keys::runtime_stack_alloc));
         ASSERT_TRUE(tester_B->attr().get<bool>(attr_keys::runtime_stack_alloc));
@@ -275,7 +287,8 @@ TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrierPinMemory) {
         }
         tester1->attr()[function_attrs::is_main] = true;
         auto m1 = ir_module_t::from_entry_func(get_test_ctx(), tester1);
-        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = true;
+        m1->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
+                = thread_pool_mode_t::MANAGED;
         auto testerout1 = closurizer_cpu_t(false)(m1);
         auto f = testerout1->get_func("aaa");
         ASSERT_TRUE(f);

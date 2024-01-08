@@ -1242,7 +1242,6 @@ status_t infer_elemwise_arithmetic_output_shape(op_t *n,
     auto in1 = logical_tensor_wrapper_t(inputs[1]);
     // check if output shape is already known
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
 
     const bool shapes_should_match = n->has_attr(op_attr::auto_broadcast)
             ? "none" == n->get_attr<std::string>(op_attr::auto_broadcast)

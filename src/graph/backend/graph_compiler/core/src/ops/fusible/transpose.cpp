@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -275,6 +275,7 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
     // directly in u8s8 and div 3 in bf16.
     int bit16_threshold = trans_lanesx8 * trans_lanes_16bitx8 / 3;
     int s8u8_threshold = trans_lanesx16 * trans_lanesx16 / 6;
+    int f32_threshold = 1;
     auto cur_run_thread = runtime_config_t::get().get_num_threads();
     // Single threashold is 128.
     if (cur_run_thread == 1) {
@@ -291,6 +292,10 @@ bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
     } else if (is_s8u8
             && (dynamic_no_padding
                     || (!is_dynamic && !meet_kernel_require(s8u8_threshold)))) {
+        trans_kernel_used = sc_trans_kernel::NO_TRANS;
+        return false;
+    } else if (is_float
+            && (!is_dynamic && !meet_kernel_require(f32_threshold))) {
         trans_kernel_used = sc_trans_kernel::NO_TRANS;
         return false;
     }
@@ -473,7 +478,8 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         const std::vector<int> &vec_inp_a_axis,
         const std::vector<int> &vec_inp_b_axis,
         const std::vector<int> &vec_out_a_axis,
-        const std::vector<int> &vec_out_b_axis, size_t wkld, bool is_dynamic,
+        const std::vector<int> &vec_out_b_axis,
+        const graph_tensor_ptr &expand_gt, size_t wkld, bool is_dynamic,
         bool dynamic_no_padding, const sc_trans_kernel trans_kernel_used) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
@@ -562,8 +568,9 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                                       expr &cur_step, expr &sup_condition,
                                       int in_axis, int in_baxis,
                                       bool use_output_loop, int step,
-                                      sc_data_format_kind_t format_code) {
-        if (!use_output_loop) {
+                                      sc_data_format_kind_t &format_code,
+                                      bool dst_condition = false) {
+        auto slice_condition = [&]() {
             cur_step = builder::make_min(
                     builder::make_max(cast_to_s32(blocking_dims_expr[in_baxis])
                                     - cast_to_s32(tmp_in_indexes[in_baxis]),
@@ -571,10 +578,11 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                     step);
             sup_condition
                     = tmp_in_indexes[in_axis] < blocking_dims_expr[in_axis];
-        } else {
+        };
+        auto plain_condition = [&]() {
             auto tmp_plain = graph.dims_to_expr(plain_dims);
-            auto input_last_dim = input_format_code.get(inp_b_axis);
-            auto input_other_dim = input_format_code.get(in_axis);
+            auto input_last_dim = format_code.get(in_baxis);
+            auto input_other_dim = format_code.get(in_axis);
             cur_step = builder::make_min(
                     builder::make_max(cast_to_s32(tmp_plain[input_last_dim])
                                     - cast_to_s32(
@@ -583,13 +591,19 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                     step);
             sup_condition = plain_indexes[input_other_dim]
                     < tmp_plain[input_other_dim];
+        };
+        if (!use_output_loop || dst_condition) {
+            slice_condition();
+        } else {
+            plain_condition();
         }
     };
 
     auto compute_transpose_f32_s8u8_bit16direct =
             [&](const std::vector<expr> &in_indexes,
                     const std::vector<expr> &out_indexes,
-                    const std::vector<expr> &plain_indexes) {
+                    const std::vector<expr> &plain_indexes,
+                    const std::vector<expr> &out_indexes_slice) {
                 expr mask;
                 for (int i = 0; i < (direct_use_bit16x16 ? lanesx16 : step);
                         i++) {
@@ -605,7 +619,9 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                     if (output_loop) { tmp_in = input; }
                     if (is_padding) {
                         expr cur_step, sup_condition;
-                        determine_cur_step(input_blocking_dims_expr,
+                        determine_cur_step(output_loop
+                                        ? input_blocking_dims_expr
+                                        : src.get_shape(),
                                 tmp_in_indexes, tmp_plain_indexes, cur_step,
                                 sup_condition, in_axis, inp_b_axis, output_loop,
                                 step, input_format_code);
@@ -642,23 +658,27 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                     auto out_axis = out_b_axis;
                     tmp_out_indexes[out_axis] = tmp_out_indexes[out_axis]
                             + static_cast<uint64_t>(i);
+                    auto tmp_out_indexes_slice
+                            = output_loop ? out_indexes_slice : out_indexes;
+                    tmp_out_indexes_slice[out_axis]
+                            = tmp_out_indexes_slice[out_axis]
+                            + static_cast<uint64_t>(i);
                     if (is_padding) {
-                        auto cur_step = builder::make_min(
-                                builder::make_max(
-                                        cast_to_s32(output_blocking_dims_expr
-                                                        [out_a_axis])
-                                                - cast_to_s32(tmp_out_indexes
-                                                                [out_a_axis]),
-                                        0),
-                                step);
-                        auto sup_condition = tmp_out_indexes[out_axis]
-                                < output_blocking_dims_expr[out_axis];
+                        expr cur_step, sup_condition;
+                        determine_cur_step(output_loop
+                                        ? dst.get_shape()
+                                        : output_blocking_dims_expr,
+                                tmp_out_indexes_slice, plain_indexes, cur_step,
+                                sup_condition, out_axis, out_a_axis,
+                                output_loop, step, input_format_code, true);
                         // ABba(4, 4, 16, 4) => AB(16,64)
-                        if (input_format.is_blocking()) {
+                        if (input_format.is_blocking() || !output_loop) {
+                            auto src_condition_shape = output_loop
+                                    ? input_blocking_dims_expr[inp_b_axis]
+                                    : src.get_shape()[inp_b_axis];
                             sup_condition = sup_condition
                                     && in_indexes[inp_b_axis] + i
-                                            < input_blocking_dims_expr
-                                                    [inp_b_axis];
+                                            < src_condition_shape;
                         }
                         stmt mask_def;
                         mask = generate_mask_var_by_step(
@@ -676,7 +696,9 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
     auto compute_transpose_bit16 = [&](const std::vector<expr> &in_indexes,
                                            const std::vector<expr> &out_indexes,
                                            const std::vector<expr>
-                                                   &plain_indexes) {
+                                                   &plain_indexes,
+                                           const std::vector<expr>
+                                                   &out_indexes_slice) {
         expr mask;
         for (int i = 0; i < step; i++) {
             for (int p = 0; p < 4; p++) {
@@ -692,10 +714,11 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                 if (output_loop) { tmp_in = input; }
                 if (is_padding) {
                     expr cur_step, sup_condition;
-                    determine_cur_step(input_blocking_dims_expr, tmp_in_indexes,
-                            tmp_plain_indexes, cur_step, sup_condition, in_axis,
-                            inp_b_axis, output_loop, trans_lanesx8,
-                            input_format_code);
+                    determine_cur_step(output_loop ? input_blocking_dims_expr
+                                                   : src.get_shape(),
+                            tmp_in_indexes, tmp_plain_indexes, cur_step,
+                            sup_condition, in_axis, inp_b_axis, output_loop,
+                            trans_lanesx8, input_format_code);
                     stmt mask_def;
                     mask = generate_mask_var_by_step(
                             mask_def, cur_step, trans_lanesx8, sup_condition);
@@ -726,22 +749,23 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
             auto out_axis = out_b_axis;
             tmp_out_indexes[out_axis]
                     = tmp_out_indexes[out_axis] + static_cast<uint64_t>(i);
+            auto tmp_out_indexes_slice
+                    = output_loop ? out_indexes_slice : out_indexes;
+            tmp_out_indexes_slice[out_axis] = tmp_out_indexes_slice[out_axis]
+                    + static_cast<uint64_t>(i);
             if (is_padding) {
-                auto cur_step = builder::make_min(
-                        builder::make_max(
-                                cast_to_s32(
-                                        output_blocking_dims_expr[out_a_axis])
-                                        - cast_to_s32(
-                                                tmp_out_indexes[out_a_axis]),
-                                0),
-                        trans_lanes_16bitx8);
-                auto sup_condition = tmp_out_indexes[out_axis]
-                        < output_blocking_dims_expr[out_axis];
-                // ABba(4, 4, 16, 4) => AB(16,64)
-                if (input_format.is_blocking()) {
+                expr cur_step, sup_condition;
+                determine_cur_step(output_loop ? dst.get_shape()
+                                               : output_blocking_dims_expr,
+                        tmp_out_indexes_slice, plain_indexes, cur_step,
+                        sup_condition, out_axis, out_a_axis, output_loop,
+                        trans_lanes_16bitx8, input_format_code, true);
+                if (input_format.is_blocking() || !output_loop) {
                     sup_condition = sup_condition
-                            && in_indexes[inp_b_axis] + i
-                                    < input_blocking_dims_expr[inp_b_axis];
+                            && in_indexes[inp_b_axis] + i < (output_loop
+                                               ? input_blocking_dims_expr
+                                                       [inp_b_axis]
+                                               : src.get_shape()[inp_b_axis]);
                 }
                 stmt mask_def;
                 mask = generate_mask_var_by_step(
@@ -770,6 +794,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                 cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                         expr(0), tsr.get_shape()[i], expr(cur_step),
                         std::move(body), true, for_type::NORMAL);
+                bind_loop_axis(expand_gt, cur, i, true);
             }
         }
         for (int i = static_cast<int>(blocking_dims.size()) - 1; i >= 0; i--) {
@@ -782,6 +807,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                 cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                         expr(0), tsr.get_shape()[i], expr(1), std::move(body),
                         true, for_type::NORMAL);
+                bind_loop_axis(expand_gt, cur, i, true);
             }
         }
     };
@@ -808,16 +834,17 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                 = get_reorder_plain2block_indexes(tmp_indexes, output_format);
         if (dtype == datatypes::f32 || is_s8u8 || direct_use_bit16x16) {
             compute_transpose_f32_s8u8_bit16direct(
-                    loop_indexes, out_indexes, tmp_indexes);
+                    loop_indexes, out_indexes, tmp_indexes, out_indexes);
         } else {
-            compute_transpose_bit16(loop_indexes, out_indexes, tmp_indexes);
+            compute_transpose_bit16(
+                    loop_indexes, out_indexes, tmp_indexes, out_indexes);
         }
         cur = builder::make_stmts_unattached(cur_list);
         compute_loops(input_blocking_dims_expr, inp_a_axis, inp_b_axis, src);
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);
     } else {
-        std::vector<expr> out_indexes;
+        std::vector<expr> out_indexes, out_indexes_slice;
         for (size_t i = 0; i < output_blocking_dims_expr.size(); i++) {
             iter_vars.emplace_back(range_from_outer_loop(dst.get_ranges()[i])
                             ? expr(0)
@@ -825,6 +852,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                                     std::string("_fuseiter")
                                             + fusion_create_idx()));
             out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
+            out_indexes_slice.emplace_back(iter_vars[i]);
         }
         expr condition;
         expr last_axis_offset, other_axis_condition;
@@ -835,9 +863,10 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                 = get_reorder_plain2block_indexes(tmp_indexes, input_format);
         if (dtype == datatypes::f32 || is_s8u8 || direct_use_bit16x16) {
             compute_transpose_f32_s8u8_bit16direct(
-                    in_indexes, out_indexes, tmp_indexes);
+                    in_indexes, out_indexes, tmp_indexes, out_indexes_slice);
         } else {
-            compute_transpose_bit16(in_indexes, out_indexes, tmp_indexes);
+            compute_transpose_bit16(
+                    in_indexes, out_indexes, tmp_indexes, out_indexes_slice);
         }
         cur = builder::make_stmts_unattached(cur_list);
         compute_loops(output_blocking_dims_expr, out_a_axis, out_b_axis, dst);

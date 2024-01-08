@@ -39,6 +39,9 @@ struct managed_matmul_core_config_t {
 class gen_managed_matmul_core_t
   : public body_generator_t<managed_matmul_core_config_t> {
 public:
+  // for shapes with M <= 2 and num_threads <= 32, we use avx instead of amx.
+  int64_t dispatch_avx_ = false;
+
   // inner most block
   int iim_block_;
   int iin_block_;

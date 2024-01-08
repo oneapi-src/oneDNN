@@ -536,7 +536,8 @@ expr call_op_dynamic_query_function(
 
 void create_internal_dispatch_funcs_by_node(const context_ptr &ctx,
         ir_module_ptr &ret_mod, const std::string &table_name,
-        const sc_op_ptr &node, const std::shared_ptr<const bool> &use_mtp) {
+        const sc_op_ptr &node,
+        const std::shared_ptr<const thread_pool_mode_t> &use_mtp) {
     if (node->isa<mixed_fuse_op_t>()) {
         node->stc_cast<mixed_fuse_op_t>()->create_internal_dispatch_funcs(
                 ctx, ret_mod, use_mtp);
@@ -557,7 +558,8 @@ void create_dispatch_funcs_by_keys(const context_ptr &ctx,
         ir_module_ptr &ret_mod, const std::string &table_name,
         const sc_op_ptr &node, const op_dispatch_key_base_t *key,
         expr &op_dispatch_kernel, int &dyn_idx,
-        const std::shared_ptr<const bool> &use_mtp, bool internal) {
+        const std::shared_ptr<const thread_pool_mode_t> &use_mtp,
+        bool internal) {
     auto cur_table = ret_mod->get_op_table_map()[table_name];
     assert(cur_table);
     bool should_compile_later = false;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -228,6 +228,12 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.use_scale = pd->use_scale();
     conf.use_shift = pd->use_shift();
 
+    if (conf.use_scale || conf.use_shift) {
+        memory_desc_wrapper weights_mdw(
+                pd->is_fwd() ? pd->weights_md() : pd->diff_weights_md());
+        conf.weights_data_type = weights_mdw.data_type();
+    }
+
     conf.calculate_stats = !pd->stats_are_src();
     conf.save_stats = pd->is_training();
     conf.eps = pd->desc()->layer_norm_epsilon;
@@ -238,6 +244,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 static status_t init_kernel_ctx_common(
         compute::kernel_ctx_t &kernel_ctx, const lnorm_conf_t &conf) {
     kernel_ctx.set_data_type(conf.data_type);
+    def_data_type(kernel_ctx, conf.weights_data_type, "WEI");
 
     kernel_ctx.define_int("C", conf.norm_axis);
     kernel_ctx.define_int("NDIMS", conf.ndims);
@@ -298,6 +305,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     auto &scale = CTX_IN_STORAGE(DNNL_ARG_SCALE);
     auto &shift = CTX_IN_STORAGE(DNNL_ARG_SHIFT);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &src_scale = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    auto &dst_scale = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -307,6 +316,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     arg_list.set(4, scale);
     arg_list.set(5, shift);
     arg_list.set(6, conf.eps);
+    arg_list.set(7, src_scale);
+    arg_list.set(8, dst_scale);
 
     auto nd_range_kernel = conf.dispatch.nd_range();
 

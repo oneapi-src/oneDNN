@@ -128,8 +128,8 @@ public:
     bool try_penetrate(sc_data_format_t &new_output_format) const;
     shape_rl_vec get_dynamic_shape_relations() const override;
 
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
+    void infer_binding_axis(binding_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
 private:
     sc_dims shapes_;
@@ -211,8 +211,8 @@ public:
     bool support_output_loop() const;
     bool support_optimized_kernel(const context_ptr &ctx) const;
     bool meet_vnni_reorder_require(const context_ptr &ctx) const;
-    void infer_binding_axis(bound_axis_map &bdax_map) override;
-    void pre_infer_binding_axis(bound_axis_map &bdax_map) override;
+    void infer_binding_axis(binding_axis_map &bdax_map) override;
+    void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
 private:
     sc_dims plain_dims_;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,8 +79,8 @@
 NAMED_KERNEL_ATTR(FUSED)
 __kernel void vectorized_lnorm_bwd_fused(__global DATA_T *src,
         __global float *mean, __global float *variance,
-        __global DATA_T *diff_dst, __global float *diff_scale,
-        __global float *diff_shift, __global float *scale,
+        __global DATA_T *diff_dst, __global WEI_DATA_T *diff_scale,
+        __global WEI_DATA_T *diff_shift, __global WEI_DATA_T *scale,
         __global DATA_T *diff_src, float eps) {
 
     // Dispatching
@@ -172,9 +172,9 @@ __kernel void vectorized_lnorm_bwd_fused(__global DATA_T *src,
                 }
 
                 if (USE_SCALE)
-                    STORE_VECT_FLOAT(&diff_scale[c_idx], diff_gamma_vect);
+                    SAVE_VECT_WEI(&diff_scale[c_idx], diff_gamma_vect);
                 if (USE_SHIFT)
-                    STORE_VECT_FLOAT(&diff_shift[c_idx], diff_beta_vect);
+                    SAVE_VECT_WEI(&diff_shift[c_idx], diff_beta_vect);
             }
         }
     } else if (n_uid < MAX_CHUNKS) {
@@ -235,10 +235,7 @@ __kernel void vectorized_lnorm_bwd_fused(__global DATA_T *src,
     for (int c = 0; c < SRC_BUF_SIZE; c++) {
         const int c_idx = c * SUB_GROUP_SIZE * VECT_DT_N + c_block_off;
         VECT_FLOAT_T gamma = 1.0f;
-        if (scale) {
-            gamma = AS_VECT_FLOAT_T(
-                    VECT_UINT_READ((const __global uint *)&scale[c_idx]));
-        }
+        if (scale) { gamma = LOAD_VECT_WEI(&scale[c_idx]); }
         const VECT_FLOAT_T src_vect = v_src[c];
         const VECT_FLOAT_T dst_vect = v_diff_dst[c];
         dd_gamma_vect += dst_vect * gamma;
@@ -270,9 +267,8 @@ __kernel void vectorized_lnorm_bwd_fused(__global DATA_T *src,
     for (int c = 0; c < SRC_BUF_SIZE; c++) {
         VECT_FLOAT_T gamma = 1.0f;
         if (scale) {
-            gamma = AS_VECT_FLOAT_T(VECT_UINT_READ(
-                    (const __global uint *)&scale[c * SUB_GROUP_SIZE * VECT_DT_N
-                            + c_block_off]));
+            gamma = LOAD_VECT_WEI(
+                    &scale[c * SUB_GROUP_SIZE * VECT_DT_N + c_block_off]);
         }
         const VECT_FLOAT_T src_vect = v_src[c];
         VECT_FLOAT_T v_diff_src_vect = v_diff_dst[c];

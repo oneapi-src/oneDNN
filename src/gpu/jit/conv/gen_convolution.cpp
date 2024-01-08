@@ -53,10 +53,11 @@ public:
             using compute::compute_engine_t;
             auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
 
-            if (!compute_engine->mayiuse_ngen_kernels())
-                return status::unimplemented;
-            if (!pd->set_default_alg_kind(alg_kind::convolution_direct))
-                return status::unimplemented;
+            VDISPATCH_CONV_IC(compute_engine->mayiuse_ngen_kernels(),
+                    VERBOSE_BAD_ENGINE_KIND);
+            VDISPATCH_CONV_IC(
+                    pd->set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
 
             conv_problem_t prb;
             CHECK(prb.init(engine, pd));
@@ -375,7 +376,7 @@ private:
 };
 
 status_t gen_convolution_fwd_t::pd_t::init(engine_t *engine) {
-    if (!is_fwd()) return status::unimplemented;
+    VDISPATCH_CONV_IC(is_fwd(), VERBOSE_BAD_PROPKIND);
     CHECK(gen_convolution_t::init_pd(this, engine));
     return status::success;
 }
@@ -395,7 +396,7 @@ status_t gen_convolution_fwd_t::init_res_storage(
 }
 
 status_t gen_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
-    if (!is_bwd_d()) return status::unimplemented;
+    VDISPATCH_CONV_IC(is_bwd_d(), VERBOSE_BAD_PROPKIND);
     CHECK(gen_convolution_t::init_pd(this, engine));
     return status::success;
 }
@@ -406,7 +407,7 @@ status_t gen_convolution_bwd_data_t::init_res_storage(
 }
 
 status_t gen_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
-    if (!is_bwd_w()) return status::unimplemented;
+    VDISPATCH_CONV_IC(is_bwd_w(), VERBOSE_BAD_PROPKIND);
     CHECK(gen_convolution_t::init_pd(this, engine));
     return status::success;
 }

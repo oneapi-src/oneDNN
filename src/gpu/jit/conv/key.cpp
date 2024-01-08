@@ -149,15 +149,15 @@ enum class key_type_kind_t {
     bf16,
     f16,
     x16, // f16 or bf16
-    bf8 = 8,
-    f8_e5m2 = 8,
-    hf8 = 9,
-    f8_e4m3 = 9,
-    xf8, // bf8 or hf8
     f32,
     s32,
     tf32,
     f64,
+    bf8,
+    f8_e5m2 = bf8,
+    hf8,
+    f8_e4m3 = hf8,
+    xf8, // bf8 or hf8
 };
 
 std::string to_string(key_type_kind_t kind) {

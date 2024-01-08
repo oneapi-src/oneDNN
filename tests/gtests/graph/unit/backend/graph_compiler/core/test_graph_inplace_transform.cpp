@@ -86,16 +86,16 @@ TEST(GCCore_CPU_graph_inplace_transform_cpp, TestInputOutputInplacement3) {
     print_graph(graph, ss, true);
     const char *expected
             = R"(graph(v0: f32[2, 64, 128]) -> [v1: f32[128, 4, 32], v2: f32[128, 128], v3: f32[4, 16, 8, 32], v4: f32[256, 4, 16], v5: f32[512, 32]] {
-  [v6: f32[4, 16, 8, 32]] = tensor_view(v0)
-  [v3: f32[4, 16, 8, 32]] = reorder(v6)
-  [v7: f32[4, 16, 8, 32]] = relu(v6)
+  [v6: f32[2, 64, 128]] = reorder(v0)
+  [v3: f32[4, 16, 8, 32]] = tensor_view(v6)
+  [v7: f32[4, 16, 8, 32]] = relu(v3)
   [v5: f32[512, 32]] = tensor_view(v7)
-  [v8: f32[256, 4, 16]] = tensor_view(v6)
+  [v8: f32[256, 4, 16]] = tensor_view(v3)
   [v4: f32[256, 4, 16]] = reorder(v8)
-  [v9: f32[2, 64, 32, 4]] = tensor_view(v0)
-  [v10: f32[128, 128]] = tensor_view(v9)
-  [v2: f32[128, 128]] = reorder(v10)
-  [v11: f32[128, 4, 32]] = tensor_view(v9)
+  [v9: f32[2, 64, 128]] = reorder(v0)
+  [v10: f32[2, 64, 32, 4]] = tensor_view(v9)
+  [v2: f32[128, 128]] = tensor_view(v10)
+  [v11: f32[128, 4, 32]] = tensor_view(v10)
   [v1: f32[128, 4, 32]] = reorder(v11)
 }
 )";
