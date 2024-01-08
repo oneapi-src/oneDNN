@@ -275,7 +275,8 @@ public:
             kg[2] = 1;
 
             if (ow_pow2 && (mb >= 512)) { // lower TGs preferable at higher MBs
-                const int low_tg = max_tg / (2 * utils::div_up(mb, 512));
+                const int low_tg
+                        = std::max(1, max_tg / (2 * utils::div_up(mb, 512)));
                 if (tg[2] / low_tg > 1) {
                     kg[is_blocked_by_mb() ? 2 : 1] *= tg[2] / low_tg;
                     tg[2] = low_tg;
