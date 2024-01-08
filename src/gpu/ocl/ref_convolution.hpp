@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,8 +90,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
             VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(
                                    dst_md_.data_type, is_int8, true),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_CONV(
-                    attr_.set_default_formats(dst_md(0)) == status::success,
+            VDISPATCH_CONV_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_CONV(post_ops_with_binary_ok(
                                    attr(), dst_md()->data_type, 5, 0xffff),
@@ -190,8 +189,7 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
             VDISPATCH_CONV(post_ops_with_binary_ok(
                                    attr(), dst_md()->data_type, ndims()),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_CONV(attr_.set_default_formats(diff_src_md(0))
-                            == status::success,
+            VDISPATCH_CONV_SC(attr_.set_default_formats(diff_src_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
             VDISPATCH_CONV(zero_points_ok(attr()), VERBOSE_UNSUPPORTED_ZP_CFG);

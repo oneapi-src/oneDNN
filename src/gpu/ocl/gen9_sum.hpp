@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ struct gen9_sum_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             const int n = n_inputs();
 
-            if (n > max_num_arrs) return status::unimplemented;
+            VDISPATCH_SUM(n <= max_num_arrs, "too many inputs for primitive");
 
             const memory_desc_wrapper o_d(dst_md());
 
@@ -52,14 +52,15 @@ struct gen9_sum_t : public gpu_primitive_t {
             size_t io_bytes = (n + 1) * o_d.data_type_size() * o_d.nelems(true);
             if (io_bytes < 1024 * 1024) return status::unimplemented;
 
-            bool ok = gpu_sum_pd_t::init(engine) == status::success
-                    && !memory_desc_ndims_ok(dst_md());
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM_SC(
+                    gpu_sum_pd_t::init(engine), VERBOSE_BAD_ENGINE_KIND);
+            VDISPATCH_SUM(!memory_desc_ndims_ok(dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "dst_md", "");
 
             for (int i = 0; i < n; ++i) {
                 const memory_desc_wrapper i_d(src_md(i));
-                if (i_d != o_d) return status::unimplemented;
+                VDISPATCH_SUM(i_d == o_d, VERBOSE_INCONSISTENT_DIM, "i_d", i,
+                        "o_d", i);
             }
 
             return status::success;

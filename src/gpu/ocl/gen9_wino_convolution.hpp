@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
             VDISPATCH_CONV(post_ops_with_binary_ok(attr(), dst_data_t),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
-            CHECK(init_conf(compute_engine));
+            VDISPATCH_CONV_SC(init_conf(compute_engine), "init_conf()");
 
             int sub_group_size = conf.wino_ic_block / 2; // LWX
             VDISPATCH_CONV(compute_engine->mayiuse_sub_group(sub_group_size),
@@ -99,7 +99,8 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
             VDISPATCH_CONV(ok, VERBOSE_UNSUPPORTED_TAG);
 
-            CHECK(attr_.set_default_formats(dst_md(0)));
+            VDISPATCH_CONV_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             return status::success;
         }

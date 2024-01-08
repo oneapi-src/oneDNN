@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,34 +75,54 @@ status_t gen_reorder_t::pd_t::init(
             | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
             | dnnl_primitive_attr::skip_mask_t::scales_runtime;
     using namespace data_type;
-    bool ok = src_engine == dst_engine && src_engine->kind() == engine_kind::gpu
-            && utils::one_of(src_dt, f32, f16, bf16, f8_e5m2, s32, s8, u8, f64)
-            && utils::one_of(dst_dt, f32, f16, bf16, f8_e5m2, s32, s8, u8, f64)
-            && IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
-                    device_info->has_native(data_type::f16))
-            && IMPLICATION(src_dt == data_type::bf16,
-                    has_native_bf16 && is_bf16_or_f32_or_bf8(dst_dt))
-            && IMPLICATION(dst_dt == data_type::bf16,
-                    has_native_bf16 && is_bf16_or_f32_or_bf8(src_dt))
-            && IMPLICATION(utils::one_of(data_type::f8_e5m2, src_dt, dst_dt),
-                    device_info->has_native(data_type::f8_e5m2))
-            && IMPLICATION(src_dt == data_type::f64 || dst_dt == data_type::f64,
-                    device_info->has_native(data_type::f64))
-            && attr()->has_default_values(skip_mask) && extra_ok()
-            && post_ops_ok() && scales_ok() && zps_ok() && !any_hf8;
-    if (!ok) return status::unimplemented;
+    VDISPATCH_REORDER(
+            src_engine == dst_engine && src_engine->kind() == engine_kind::gpu,
+            VERBOSE_BAD_ENGINE_KIND);
+    VDISPATCH_REORDER(
+            utils::one_of(src_dt, f32, f16, bf16, f8_e5m2, s32, s8, u8, f64),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_REORDER(
+            utils::one_of(dst_dt, f32, f16, bf16, f8_e5m2, s32, s8, u8, f64),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_REORDER(
+            IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
+                    device_info->has_native(data_type::f16)),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_REORDER(IMPLICATION(src_dt == data_type::bf16,
+                              has_native_bf16 && is_bf16_or_f32_or_bf8(dst_dt)),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_REORDER(IMPLICATION(dst_dt == data_type::bf16,
+                              has_native_bf16 && is_bf16_or_f32_or_bf8(src_dt)),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_REORDER(
+            IMPLICATION(utils::one_of(data_type::f8_e5m2, src_dt, dst_dt),
+                    device_info->has_native(data_type::f8_e5m2)),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_REORDER(
+            IMPLICATION(src_dt == data_type::f64 || dst_dt == data_type::f64,
+                    device_info->has_native(data_type::f64)),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_REORDER(
+            attr()->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_REORDER(extra_ok(), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");
+    VDISPATCH_REORDER(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_REORDER(scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VDISPATCH_REORDER(zps_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
+    VDISPATCH_REORDER(!any_hf8, VERBOSE_UNSUPPORTED_DT);
 
     memory_desc_wrapper src_mdw {src_md()};
     memory_desc_wrapper dst_mdw {dst_md()};
-    if (src_mdw.has_runtime_dims_or_strides()) return status::unimplemented;
-    if (src_mdw.ndims() != dst_mdw.ndims()) return status::unimplemented;
+    VDISPATCH_REORDER(!src_mdw.has_runtime_dims_or_strides(),
+            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VDISPATCH_REORDER(!(src_mdw.ndims() != dst_mdw.ndims()),
+            VERBOSE_INCONSISTENT_MDS, "src_mdw", "dst_mdw");
     int ndims = src_mdw.ndims();
 
     layout_t src_layout {src_mdw, /*do_normalize=*/false};
     layout_t dst_layout {dst_mdw, /*do_normalize=*/false};
 
-    if (src_layout.elems() == 0 || dst_layout.elems() == 0)
-        return status::unimplemented;
+    VDISPATCH_REORDER(!(src_layout.elems() == 0 || dst_layout.elems() == 0),
+            VERBOSE_EMPTY_TENSOR, "src_layout || dst_layout");
 
     std::vector<dim_t> dims(ndims);
     for (int i = 0; i < ndims; ++i)
@@ -119,9 +139,10 @@ status_t gen_reorder_t::pd_t::init(
         return true;
     };
 
-    if (!check_layout(src_layout)) return status::unimplemented;
-    if (!check_layout(dst_layout)) return status::unimplemented;
-    if (!compute_engine->mayiuse_ngen_kernels()) return status::unimplemented;
+    VDISPATCH_REORDER(check_layout(src_layout), "check_layout()");
+    VDISPATCH_REORDER(check_layout(dst_layout), "check_layout()");
+    VDISPATCH_REORDER(compute_engine->mayiuse_ngen_kernels(),
+            VERBOSE_UNSUPPORTED_FEATURE, "ngen_kernels");
     auto *gpu_attr
             = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
     hw_t hw(engine);
@@ -130,7 +151,7 @@ status_t gen_reorder_t::pd_t::init(
     exec_cfg.set_simd(16);
     cfg = std::make_shared<reorder_config_t>(exec_cfg, src_layout, dst_layout);
     cfg->set_zp_cfg(zp_cfg);
-    CHECK(init_kernel_info());
+    VDISPATCH_REORDER_SC(init_kernel_info(), "init_kernel_info()");
 
     return status::success;
 }

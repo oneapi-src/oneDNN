@@ -48,32 +48,47 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
     auto acc_data_t = desc()->accum_data_type;
 
     // TODO: add training(?), add bwd
-    bool ok = set_default_params() == status::success
-            && utils::one_of(
-                    desc()->prop_kind, /*forward_training,*/ forward_inference)
-            && utils::one_of(desc()->alg_kind, pooling_max,
-                    pooling_avg_include_padding, pooling_avg_exclude_padding)
-            && (utils::everyone_is(f32, src_data_t, dst_data_t, acc_data_t)
+    VDISPATCH_POOLING_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_POOLING(utils::one_of(desc()->prop_kind,
+                              /*forward_training,*/ forward_inference),
+            VERBOSE_BAD_PROPKIND);
+    VDISPATCH_POOLING(
+            utils::one_of(desc()->alg_kind, pooling_max,
+                    pooling_avg_include_padding, pooling_avg_exclude_padding),
+            VERBOSE_BAD_ALGORITHM);
+    VDISPATCH_POOLING(
+            (utils::everyone_is(f32, src_data_t, dst_data_t, acc_data_t)
                     || utils::everyone_is(f16, src_data_t, dst_data_t)
                     || utils::everyone_is(bf16, src_data_t, dst_data_t)
                     || utils::everyone_is(u8, src_data_t, dst_data_t)
-                    || utils::everyone_is(s8, src_data_t, dst_data_t))
-            && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8),
-                    desc()->prop_kind == forward_inference)
-            && attr_.set_default_formats(dst_md(0)) == status::success
-            && !is_dilated() && !utils::one_of(f64, src_data_t, dst_data_t)
-            && compute_engine->mayiuse(compute::device_ext_t::intel_subgroups)
-            && IMPLICATION(src_data_t == f16,
+                    || utils::everyone_is(s8, src_data_t, dst_data_t)),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_POOLING(IMPLICATION(utils::one_of(src_data_t, f16, s8, u8),
+                              desc()->prop_kind == forward_inference),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_POOLING_SC(
+            attr_.set_default_formats(dst_md(0)), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_POOLING(
+            !is_dilated(), VERBOSE_UNSUPPORTED_FEATURE, "is_dilated()");
+    VDISPATCH_POOLING(!utils::one_of(f64, src_data_t, dst_data_t),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_POOLING(
+            compute_engine->mayiuse(compute::device_ext_t::intel_subgroups),
+            VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
+    VDISPATCH_POOLING(
+            IMPLICATION(src_data_t == f16,
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp16)
                             && compute_engine->mayiuse(compute::device_ext_t::
-                                            intel_subgroups_short))
-            && IMPLICATION(
-                    src_data_t == bf16, arch >= compute::gpu_arch_t::xe_hpc);
-    if (!ok) return status::unimplemented;
+                                            intel_subgroups_short)),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_POOLING(IMPLICATION(src_data_t == bf16,
+                              arch >= compute::gpu_arch_t::xe_hpc),
+            VERBOSE_UNSUPPORTED_DT_CFG);
 
     src = std::make_shared<layout_t>(invariant_src_md());
     dst = std::make_shared<layout_t>(invariant_dst_md());
-    if (src->ndims() != dst->ndims()) return status::unimplemented;
+    VDISPATCH_POOLING(src->ndims() == dst->ndims(), VERBOSE_INCONSISTENT_NDIMS,
+            "src->ndims()", "dst_ndims()");
 
     pool_conf = std::make_shared<pool_conf_t>();
     set_default_pool_conf(*pool_conf, *desc(), *invariant_src_md(),
@@ -86,10 +101,10 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
     exec_cfg->set_regs(hw.prefer_large_grf(gpu_attr) ? 256 : 128);
     exec_cfg->set_simd(16);
 
-    return (pooling_config_t::check_compatibility(
-                   *pool_conf, *exec_cfg, *src, attr()->post_ops_, dst->type()))
-            ? status::success
-            : status::unimplemented;
+    VDISPATCH_POOLING(pooling_config_t::check_compatibility(*pool_conf,
+                              *exec_cfg, *src, attr()->post_ops_, dst->type()),
+            "pooling_config_t incompatible");
+    return status::success;
 }
 
 status_t gen_pooling_fwd_t::init(engine_t *engine) {

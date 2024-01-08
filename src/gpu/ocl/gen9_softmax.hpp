@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,31 +58,43 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             is_blocked = (src_d.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c)
                     != format_tag::undef);
 
-            bool ok = is_fwd()
-                    && IMPLICATION(is_blocked, axis_size() % buffer_size == 0)
-                    && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && axis() == src_d.ndims() - 1
-                    && (src_d.is_plain() || is_blocked || is_nhwc)
-                    && utils::one_of(src_dt, f64, f32, f16, bf16, u8, s8)
-                    && utils::one_of(dst_dt, f64, f32, f16, bf16, u8, s8)
-                    && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && IMPLICATION(
-                            utils::one_of(data_type::f64, dst_md()->data_type,
-                                    src_md()->data_type),
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp64))
-                    && attr()->has_default_values(skip_mask_t::scales_runtime)
-                    && attr_scales_ok()
-                    && set_default_formats() == status::success
-                    && compute_engine->mayiuse_sub_group(subgroup_size);
+            VDISPATCH_SOFTMAX(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_SOFTMAX(
+                    IMPLICATION(is_blocked, axis_size() % buffer_size == 0),
+                    VERBOSE_BAD_AXIS);
+            VDISPATCH_SOFTMAX(!memory_desc_ndims_ok(src_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
+            VDISPATCH_SOFTMAX(axis() == src_d.ndims() - 1, VERBOSE_BAD_AXIS);
+            VDISPATCH_SOFTMAX((src_d.is_plain() || is_blocked || is_nhwc),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(src_dt, f64, f32, f16, bf16, u8, s8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(dst_dt, f64, f32, f16, bf16, u8, s8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
+                                      compute_engine->mayiuse(
+                                              compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_SOFTMAX(IMPLICATION(utils::one_of(data_type::f64,
+                                                  dst_md()->data_type,
+                                                  src_md()->data_type),
+                                      compute_engine->mayiuse(
+                                              compute::device_ext_t::khr_fp64)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_SOFTMAX(
+                    attr()->has_default_values(skip_mask_t::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_SOFTMAX_SC(
+                    set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SOFTMAX(compute_engine->mayiuse_sub_group(subgroup_size),
+                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup_size");
 
-            if (!ok) return status::unimplemented;
-
-            if (is_blocked && src_md()->dims[1] % subgroup_size != 0) {
-                return status::unimplemented;
-            }
+            VDISPATCH_SOFTMAX(
+                    !(is_blocked && src_md()->dims[1] % subgroup_size != 0),
+                    VERBOSE_UNSUPPORTED_MEM_STRIDE);
             // max lws size on Xe-HP* series is 1024 x 1024 x 1024
             // max lws size on Xe-LP is 512 x 512 x 512
 
@@ -139,7 +151,9 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     group_size = subgroup_size
                             * utils::div_up(axis_size(), buffer_size);
                 }
-                if (group_size > (size_t)max_lws) return status::unimplemented;
+                VDISPATCH_SOFTMAX(group_size <= (size_t)max_lws,
+                        "unsupported group_size, %d <= %d", (int)group_size,
+                        max_lws);
             }
 
             lws[0] = group_size;
@@ -257,29 +271,40 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
             const memory_desc_wrapper dst_d(dst_md());
 
             using namespace data_type;
-            bool ok = !is_fwd() && axis_size() % buffer_size == 0
-                    && !memory_desc_ndims_ok(
-                            dst_md(), diff_src_md(), diff_dst_md())
-                    && axis() == diff_src_d.ndims() - 1
-                    && utils::one_of(
-                            diff_src_d.data_type(), f64, f32, bf16, f16)
-                    && utils::one_of(
-                            diff_dst_d.data_type(), f64, f32, bf16, f16)
-                    && compute_engine->mayiuse_sub_group(subgroup_size)
-                    && IMPLICATION(utils::one_of(data_type::f64,
-                                           diff_dst_md()->data_type,
-                                           diff_src_md()->data_type),
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp64))
-                    && IMPLICATION(utils::one_of(data_type::f16,
-                                           diff_dst_md()->data_type,
-                                           diff_src_md()->data_type),
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && attr()->has_default_values()
-                    && set_default_formats() == status::success
-                    && diff_dst_d.data_type() == dst_d.data_type();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SOFTMAX(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_SOFTMAX(axis_size() % buffer_size == 0, VERBOSE_BAD_AXIS);
+            VDISPATCH_SOFTMAX(!memory_desc_ndims_ok(
+                                      dst_md(), diff_src_md(), diff_dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "dst_md, dst_src_md",
+                    "diff_dst_md");
+            VDISPATCH_SOFTMAX(
+                    axis() == diff_src_d.ndims() - 1, VERBOSE_BAD_AXIS);
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(diff_src_d.data_type(), f64, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(diff_dst_d.data_type(), f64, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(compute_engine->mayiuse_sub_group(subgroup_size),
+                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup_size");
+            VDISPATCH_SOFTMAX(IMPLICATION(utils::one_of(data_type::f64,
+                                                  diff_dst_md()->data_type,
+                                                  diff_src_md()->data_type),
+                                      compute_engine->mayiuse(
+                                              compute::device_ext_t::khr_fp64)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_SOFTMAX(IMPLICATION(utils::one_of(data_type::f16,
+                                                  diff_dst_md()->data_type,
+                                                  diff_src_md()->data_type),
+                                      compute_engine->mayiuse(
+                                              compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_SOFTMAX(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_SOFTMAX(set_default_formats() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SOFTMAX(diff_dst_d.data_type() == dst_d.data_type(),
+                    VERBOSE_INCONSISTENT_DT, "diff_dst_d", "dst_d");
 
             is_nhwc = (diff_src_d.matches_one_of_tag(nwc, nhwc, ndhwc)
                     != format_tag::undef);

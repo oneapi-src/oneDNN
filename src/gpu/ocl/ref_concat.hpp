@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,8 +46,10 @@ struct ref_concat_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
-            if (!attr()->has_default_values(sm::scales_runtime))
-                return status::unimplemented;
+
+            VDISPATCH_CONCAT(attr()->has_default_values(sm::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+
             status_t status = gpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);

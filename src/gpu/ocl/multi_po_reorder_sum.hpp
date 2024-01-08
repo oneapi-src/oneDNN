@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,8 +43,8 @@ struct multi_po_reorder_sum : public gpu_primitive_t {
         DECLARE_SUM_PD_T("multi_po_reorder_sum", multi_po_reorder_sum);
 
         status_t init(engine_t *engine) {
-            bool ok = gpu_sum_pd_t::init(engine) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM_SC(
+                    gpu_sum_pd_t::init(engine), VERBOSE_BAD_ENGINE_KIND);
 
             if (has_zero_dim_memory()) return status::success;
 
@@ -106,11 +106,13 @@ struct multi_po_reorder_sum : public gpu_primitive_t {
                 if (!dnnl_memory_desc_equal(&dst_md_type, src_md(i))
                         || (s[i] != s[bgn])
                         || (i - bgn > post_ops_t::post_ops_limit)) {
-                    CHECK(new_reorder(bgn, i, scalar_scales));
+                    VDISPATCH_SUM_SC(new_reorder(bgn, i, scalar_scales),
+                            "new_reorder()");
                     bgn = i;
                 }
             }
-            CHECK(new_reorder(bgn, n_inputs(), scalar_scales));
+            VDISPATCH_SUM_SC(new_reorder(bgn, n_inputs(), scalar_scales),
+                    "new_reorder()");
 
             init_scratchpad();
             return status::success;

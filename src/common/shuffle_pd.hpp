@@ -1,5 +1,9 @@
 /*******************************************************************************
+<<<<<<< HEAD
 * Copyright 2018-2024 Intel Corporation
+=======
+*) Copyright 2018-2024 Intel Corporation
+>>>>>>> 581ec39941 (gpu: add dispatch macros for ref layers)
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +30,10 @@
     VCONDCHECK(primitive, create, dispatch, shuffle, (cond), \
             status::unimplemented, "%s," msg, this->info(engine), \
             ##__VA_ARGS__)
+
+#define VDISPATCH_SHUFFLE_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, shuffle, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

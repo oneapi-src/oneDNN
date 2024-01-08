@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,11 +39,15 @@ struct vectorized_resampling_bwd_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
-            bool ok = !is_fwd() && set_default_params() == status::success
-                    && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
 
-            return init_conf(engine);
+            VDISPATCH_RESAMPLING(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_RESAMPLING_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_RESAMPLING(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+
+            VDISPATCH_RESAMPLING_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
         resampling_conf_t conf;
 

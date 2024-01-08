@@ -28,6 +28,10 @@
             status::unimplemented, "%s," msg, this->info(engine), \
             ##__VA_ARGS__)
 
+#define VDISPATCH_INNER_PRODUCT_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, inner_product, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 

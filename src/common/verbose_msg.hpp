@@ -110,5 +110,8 @@
 #define VERBOSE_SCRATCHPAD_LIMIT "scratchpad memory limit exceeded"
 #define VERBOSE_PRIMITIVE_CREATION_FAIL "failed to create nested primitive %s"
 #define VERBOSE_INCOMPATIBLE_GEMM_FMT "incompatible gemm format"
+#define VERBOSE_UNSUPPORTED_FEATURE "unsupported feature for implementation: %s"
+#define VERBOSE_PADDING_ERROR "padding error for implementation: %s"
+#define VERBOSE_WS_MISMATCH "pd workspace mismatch"
 
 #endif

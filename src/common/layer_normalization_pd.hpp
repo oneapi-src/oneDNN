@@ -24,11 +24,12 @@
 #include "utils.hpp"
 
 #define VDISPATCH_LNORM(cond, msg, ...) \
-    VCONDCHECK(primitive, create, dispatch, lnorm, (cond), \
+    VCONDCHECK(primitive, create, dispatch, layer_normalization, (cond), \
             status::unimplemented, "%s," msg, this->info(engine), \
             ##__VA_ARGS__)
-#define VDISPATCH_LNORM_SC(status, msg, ...) \
-    VCHECK(primitive, create, dispatch, lnorm, status, "%s," msg, \
+
+#define VDISPATCH_LNORM_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, layer_normalization, (f), "%s," msg, \
             this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
