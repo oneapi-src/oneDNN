@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ static slice_range_list infer_broadcast_slice(slice_range_list known_range_list,
         COMPILE_ASSERT(known_range.size() == bc_dim.size()
                         || bc_axis == std::vector<int> {-1},
                 "Unexpected cases found")
-        for (size_t j = 0; j < known_range.size(); j++) {
+        for (size_t j = 0; j < bc_dim.size(); j++) {
             if (bc_axis.end() != std::find(bc_axis.begin(), bc_axis.end(), j)) {
                 bc_range_list[i].emplace_back(known_range.at(j));
             } else if (bc_dim.size() != 1) {
