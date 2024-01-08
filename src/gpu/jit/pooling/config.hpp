@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -319,7 +319,7 @@ public:
                     lg[1] = utils::max_div(oc_blk / simd, simds_per_line);
                 }
                 if ((lg[1] < optimal_oc)
-                        || (lg[1] != utils::rnd_up_pow2(lg[1]))) {
+                        && (lg[1] == utils::rnd_up_pow2(lg[1]))) {
                     const int oc_simds_per_line = simds_per_line / lg[1];
                     lg[0] = (mb <= oc_simds_per_line)
                             ? mb
