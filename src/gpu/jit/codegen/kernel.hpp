@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -652,9 +652,12 @@ public:
             bool force_spill = overlaps(div_esize, d, s0)
                     || overlaps(div_esize, d, s1)
                     || overlaps(div_esize, s0, s1);
-            auto dst_rd = w_spill(d, div_esize, force_spill);
-            auto src0_rd = r_spill(s0, div_esize, force_spill);
-            auto src1_rd = r_spill(s1, div_esize, force_spill);
+            bool d_spill = force_spill || (d.getHS() != 1);
+            bool s0_spill = force_spill || (s0.getHS() != 1);
+            bool s1_spill = force_spill || (s1.getHS() != 1);
+            auto dst_rd = w_spill(d, div_esize, d_spill);
+            auto src0_rd = r_spill(s0, div_esize, s0_spill);
+            auto src1_rd = r_spill(s1, div_esize, s1_spill);
             // Enable mask as fdiv_ieee relies on masked if/endif flow.
             setDefaultNoMask(false);
             fdiv_ieee(div_mod, f0[0], dst_rd(), src0_rd(), src1_rd(), zero, one,
