@@ -541,7 +541,7 @@ public:
         else if (lg[0] > 1)
             cut_dim(lg[0], kg[1], 1); // mb
         else if (lg[1] / simd > 1)
-            cut_dim(lg[1], kg[0], simd); // oc
+            cut_dim(lg[1], kg[0], 2 * simd); // oc
         else if (lg[7] > 1)
             cut_dim(lg[7], null, 1); // kw
         else
