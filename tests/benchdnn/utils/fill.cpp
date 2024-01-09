@@ -147,8 +147,8 @@ int fill_zero_points(
     return OK;
 }
 
-int fill_random_real_dense(
-        dnn_mem_t &mem, dnn_mem_t &mem_ref, const fill_cfg_t &fill_cfg) {
+int fill_random_real_dense(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
+        const fill_cfg_t &fill_cfg) {
     auto nelems = mem_ref.nelems();
     if (nelems == 0) return OK;
 
@@ -231,14 +231,21 @@ int fill_random_real_dense(
                 0, round_to_nearest_representable(round_dt, elem_first_val));
     }
 
-    if (mem) SAFE(mem.reorder(mem_ref), WARN);
+    if (mem) {
+        // TODO: move `res` inside reorder.
+        auto status = mem.reorder(mem_ref);
+        if (status != OK) {
+            if (res) res->state = FAILED;
+            return status;
+        }
+    }
 
     return OK;
 }
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 int fill_random_real_sparse(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem,
-        dnn_mem_t &mem_ref, const fill_cfg_t &fill_cfg) {
+        dnn_mem_t &mem_ref, res_t *res, const fill_cfg_t &fill_cfg) {
     auto orig_cc_mem_md = query_md(dnnl_memory);
     const int nhandles = query_md_num_handles(orig_cc_mem_md);
     assert(nhandles == 3);
@@ -255,23 +262,24 @@ int fill_random_real_sparse(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem,
         std::memcpy(dst_ptr, src_ptr, size);
     }
 
-    return fill_random_real_dense(mem, mem_ref, fill_cfg);
+    return fill_random_real_dense(mem, mem_ref, res, fill_cfg);
 }
 #endif
 
-int fill_random_real(dnn_mem_t &mem, dnn_mem_t &mem_ref,
+int fill_random_real(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
         const fill_cfg_t &fill_cfg, const_dnnl_memory_t dnnl_memory) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     if (mem_ref.format_kind() == dnnl_format_kind_sparse) {
         assert(dnnl_memory != nullptr);
-        return fill_random_real_sparse(dnnl_memory, mem, mem_ref, fill_cfg);
+        return fill_random_real_sparse(
+                dnnl_memory, mem, mem_ref, res, fill_cfg);
     }
 #endif
-    return fill_random_real_dense(mem, mem_ref, fill_cfg);
+    return fill_random_real_dense(mem, mem_ref, res, fill_cfg);
 }
 
 int fill_random_real(dnn_mem_t &mem_ref, const fill_cfg_t &fill_cfg,
         const_dnnl_memory_t dnnl_memory) {
     dnn_mem_t dummy;
-    return fill_random_real(dummy, mem_ref, fill_cfg, dnnl_memory);
+    return fill_random_real(dummy, mem_ref, nullptr, fill_cfg, dnnl_memory);
 }

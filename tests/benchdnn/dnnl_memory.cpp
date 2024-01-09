@@ -94,7 +94,8 @@ dnn_mem_t::dnn_mem_t(const dnn_mem_t &rhs, dnnl_data_type_t dt,
     if (active_) {
         int status = reorder(rhs);
         if (status != OK) {
-            BENCHDNN_PRINT(0, "%s\n", "Reorder in memory constructor failed.");
+            BENCHDNN_PRINT(
+                    0, "%s\n", "Error: reorder in memory constructor failed.");
         }
     }
 }

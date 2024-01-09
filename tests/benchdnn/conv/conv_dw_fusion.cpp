@@ -200,7 +200,8 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
                             /* int = */ true, attr_t::post_ops_t::kind_t::ADD,
                             "binary post-op");
                     if (exec_arg & DNNL_ARG_SRC_1) {
-                        SAFE(fill_random_real(mem, ref_mem, binary_fill_cfg),
+                        SAFE(fill_random_real(
+                                     mem, ref_mem, res, binary_fill_cfg),
                                 WARN);
                         SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                     }
@@ -232,7 +233,7 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
             // Binary post-op filling config.
             fill_cfg_t binary_fill_cfg(mem.dt(), -16.f, 16.f, /* int = */ true,
                     attr_t::post_ops_t::kind_t::ADD, "binary post-op");
-            SAFE(fill_random_real(mem, ref_mem, binary_fill_cfg), WARN);
+            SAFE(fill_random_real(mem, ref_mem, res, binary_fill_cfg), WARN);
         }
     }
 
