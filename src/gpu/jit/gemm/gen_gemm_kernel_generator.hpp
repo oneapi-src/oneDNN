@@ -21,6 +21,8 @@
 
 #define STANDALONE 0
 
+#include <bitset>
+
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
@@ -863,18 +865,20 @@ struct GEMMProblem : public CommonProblem {
          sumB
             = false; // If true, calculate A row sums/B column sums and store in CO.
     bool postOpFwd = true; // Eltwise parameters
-    bool postOpTranspose = false; // If true, binary srcs have been transposed
 
     post_ops_t postOps; // Fused post operations to apply
-    memory_desc_t preluMd = glob_zero_md; // Md for prelu post op
+    std::bitset<post_ops_t::post_ops_limit>
+            binaryRow; // Binary-op broadcasts row data on false
+    std::bitset<post_ops_t::post_ops_limit>
+            binaryCol; // Binary-op broadcasts column data on false;
+    std::bitset<post_ops_t::post_ops_limit> binaryBatch;
+    std::bitset<post_ops_t::post_ops_limit>
+            binaryTrans; // Used to compute GEMMProblem::binary
+
     // The following data is derived from the postOps and does not need
     // considered for equality/hashing purposes
     std::vector<MatrixAddressing> binary; // Binary postop data
     std::vector<Type> Tbinary; // Binary types
-    std::vector<bool> binaryRow; // Dimensionality of binary data
-    std::vector<bool>
-            binaryCol; //    (false means broadcast in the given dimension)
-    std::vector<bool> binaryBatch;
 
     bool hasPostOp() const { return postOps.len() > 0; }
     bool hasNonSum1PostOp() const {
@@ -936,19 +940,11 @@ struct GEMMProblem : public CommonProblem {
         s.append(batchDims);
         s.append(sumA, sumB);
         s.append(postOpFwd);
-        s.append(postOpTranspose);
         s.append(postOps);
-        // Remove this lambda and preluMd from serialized_data_t
-        // when mds are removed from postop serialization
-        auto append_md = [&](const memory_desc_t &md) {
-            serialization_stream_t sstream {};
-            serialization::serialize_md(sstream, md);
-            auto md_data = sstream.get_data();
-            std::vector<uint8_t> data = s.get_data();
-            data.insert(data.end(), md_data.begin(), md_data.end());
-            s.set_data(data);
-        };
-        append_md(preluMd);
+        s.append(binaryRow);
+        s.append(binaryCol);
+        s.append(binaryBatch);
+        s.append(binaryTrans);
     }
 };
 
