@@ -24,7 +24,6 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "binary/binary.hpp"
 #include "reduction/reduction.hpp"
 
 namespace reduction {
@@ -256,21 +255,17 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                         >= 0)
                     SAFE(fill_dst(prb, mem, ref_mem), WARN);
                 break;
-            default: { // Process all attributes here
-                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
-                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
-                bool is_post_ops_arg = (exec_arg & post_ops_range);
-                if (is_post_ops_arg) {
-                    if (exec_arg & DNNL_ARG_SRC_1) {
-                        const bool is_signed
-                                = prb->sdt != dnnl_u8 && prb->ddt != dnnl_u8;
-                        const bool use_positive
-                                = is_norm_alg(prb->alg) || !is_signed;
-                        SAFE(binary::fill_mem(
-                                     exec_arg, mem, ref_mem, use_positive),
-                                WARN);
-                    }
-                }
+            default: {
+                // Config secures only positive values since reduction output
+                // is positive in several scenarios, and using negative values
+                // leads to the cancellation effect.
+                fill_cfg_t binary_fill_cfg(mem.dt(), 0.f, 16.f,
+                        /* int = */ true, "reduction_binary_post_op");
+                std::unordered_map<int, fill_cfg_t> fill_cfg_map {
+                        {DNNL_ARG_SRC_1, binary_fill_cfg}};
+                SAFE(init_ref_memory_args_default_case(exec_arg, mem, ref_mem,
+                             prb->attr, res, fill_cfg_map),
+                        WARN);
             } break;
         }
         // Don't keep reference memory if it is not used further.

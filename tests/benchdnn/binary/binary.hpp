@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -149,9 +149,6 @@ private:
     std::vector<std::string> stag_;
     std::string dtag_;
 };
-
-int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        bool only_positive_values = false, bool only_integer_values = false);
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,

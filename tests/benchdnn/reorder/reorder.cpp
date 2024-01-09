@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -424,21 +424,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     SAFE(fill_mem(prb, DST, mem, ref_mem), WARN);
                 }
             } break;
-            default: { // Process all attributes here
-                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-                bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
-
-                if (is_scales_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
-                } else if (is_zero_point_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
-                    SAFE(fill_zero_points(
-                                 prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
-                }
-            } break;
+            default:
+                SAFE(init_ref_memory_args_default_case(
+                             exec_arg, mem, ref_mem, prb->attr, res),
+                        WARN);
+                break;
         }
         // Don't keep reference memory if it is not used further.
         if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();

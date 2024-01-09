@@ -21,6 +21,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <vector>
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -31,6 +32,7 @@
 #include "utils/compare.hpp"
 #include "utils/dims.hpp"
 #include "utils/dnnl_query.hpp"
+#include "utils/fill.hpp"
 #include "utils/numeric.hpp"
 #include "utils/parallel.hpp"
 
@@ -860,5 +862,9 @@ void update_inplace_memory_args(
 int update_ref_mem_map_from_prim(dnnl_primitive_t prim_ref,
         const dnn_mem_t &library_mem, dnn_mem_map_t &ref_mem_map, int exec_arg,
         dnnl_data_type_t swapped_dt);
+
+int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
+        dnn_mem_t &ref_mem, const attr_t &attr, res_t *res,
+        const std::unordered_map<int, fill_cfg_t> &fill_cfg_map = {});
 
 #endif

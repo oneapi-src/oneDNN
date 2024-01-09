@@ -201,6 +201,36 @@ int fill_random_real_dense(
         }
     });
 
+    // Note: `only_integer_` option is tricky. While it allows to avoid
+    // cancellation effect triggering, it doesn't allow to validate loads
+    // properly due to the values used. To ensure the library works properly,
+    // basically, add fractional part of 0.5f for all floating types regardless
+    // the setting, and for all integral types use values not available in other
+    // data types to trigger potential overflow.
+    if (fill_cfg.only_integer_) {
+        const auto adjust_val = [&](float orig_val) {
+            if (!is_integral_dt(round_dt)) {
+                // Catch faulty integer loads instead fp type.
+                return orig_val + 0.5f >= fill_cfg.range_max_val_
+                        ? orig_val - 0.5f
+                        : orig_val + 0.5f;
+            } else if (round_dt == dnnl_s8) {
+                ; // s8 is fine.
+            } else if (round_dt == dnnl_u8) {
+                return 128.f; // catch faulty s8 loads instead of u8.
+            } else if (round_dt == dnnl_s32) {
+                return 256.f; // catch faulty int8 loads instead of s32.
+            } else {
+                assert(!"unexpected data type");
+            }
+            return orig_val;
+        };
+
+        const float elem_first_val = adjust_val(mem_ref.get_elem(0));
+        mem_ref.set_elem(
+                0, round_to_nearest_representable(round_dt, elem_first_val));
+    }
+
     if (mem) SAFE(mem.reorder(mem_ref), WARN);
 
     return OK;

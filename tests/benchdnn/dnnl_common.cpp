@@ -46,6 +46,7 @@
 #include "dnnl_memory.hpp"
 
 #include "utils/cold_cache.hpp"
+#include "utils/fill.hpp"
 #include "utils/stream_kind.hpp"
 
 extern "C" dnnl_status_t dnnl_impl_notify_profiling_complete(
@@ -1479,6 +1480,59 @@ int update_ref_mem_map_from_prim(dnnl_primitive_t prim_ref,
 
     if (!is_scratchpad) SAFE(prim_ref_mem.reorder(ref_mem, swapped_dt), WARN);
     ref_mem_map[exec_arg] = std::move(prim_ref_mem);
+
+    return OK;
+}
+
+// This function provides a general filling for atributes across all drivers.
+//
+// It provides a default filling config for both binary and prelu post-op.
+// The user has an option to override it by passing `fill_cfg_map` with
+// correspondent argument and attached `fill_cfg_t` object to it.
+// Default filling configs are simple to avoid floating-point rounding effects,
+// but not cancellation effects. For latter ones, it's the user's responsibility
+// to avoid them by supplying a proper fill_cfg for a given driver/problem.
+int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
+        dnn_mem_t &ref_mem, const attr_t &attr, res_t *res,
+        const std::unordered_map<int, fill_cfg_t> &fill_cfg_map) {
+    assert(exec_arg > 0); // Negative values will produce false-positive `true`.
+
+    const int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+            - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+    const bool is_post_ops_arg = (exec_arg & post_ops_range);
+    const bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
+    const bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
+
+    if (is_post_ops_arg) {
+        if (exec_arg & DNNL_ARG_SRC_1) {
+            // Binary post-op filling.
+            fill_cfg_t def_binary_cfg(mem.dt(), -16.f, 16.f, /* int = */ true,
+                    "def_binary_post_op");
+            const auto it = fill_cfg_map.find(DNNL_ARG_SRC_1);
+            const bool has_external_cfg = it != fill_cfg_map.end();
+            const fill_cfg_t &binary_fill_cfg
+                    = has_external_cfg ? (*it).second : def_binary_cfg;
+            TIME_FILL(SAFE(
+                    fill_random_real(mem, ref_mem, binary_fill_cfg), WARN));
+        } else if (exec_arg & DNNL_ARG_WEIGHTS) {
+            // Prelu post-op filling.
+            fill_cfg_t def_prelu_fill_cfg(
+                    mem.dt(), -2.f, 2.f, /* int = */ true, "def_prelu_post_op");
+            const auto it = fill_cfg_map.find(DNNL_ARG_WEIGHTS);
+            const bool has_external_cfg = it != fill_cfg_map.end();
+            const fill_cfg_t &prelu_fill_cfg
+                    = has_external_cfg ? (*it).second : def_prelu_fill_cfg;
+            TIME_FILL(
+                    SAFE(fill_random_real(mem, ref_mem, prelu_fill_cfg), WARN));
+        }
+    } else if (is_scales_arg) {
+        int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
+        TIME_FILL(SAFE(fill_scales(attr, local_exec_arg, mem, ref_mem), WARN));
+    } else if (is_zero_point_arg) {
+        int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
+        TIME_FILL(SAFE(
+                fill_zero_points(attr, local_exec_arg, mem, ref_mem), WARN));
+    }
 
     return OK;
 }

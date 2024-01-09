@@ -30,7 +30,6 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "binary/binary.hpp"
 #include "softmax/softmax.hpp"
 
 namespace softmax {
@@ -294,21 +293,17 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 SAFE(fill_data_bwd(DIFF_DST, prb, mem, ref_mem, !neg_sign),
                         WARN);
             } break;
-            default: { // Process all attributes here
-                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-                if (is_scales_arg) {
-                    int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    SAFE(fill_scales(prb->attr, exec_src_arg, mem, ref_mem),
-                            WARN);
-                }
-                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
-                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
-                bool is_post_ops_arg = (exec_arg & post_ops_range);
-                if (is_post_ops_arg) {
-                    SAFE(binary::fill_mem(exec_arg, mem, ref_mem,
-                                 /* only_positive = */ true),
-                            WARN);
-                }
+            default: {
+                // Config secures only positive values since softmax output is
+                // positive, and using negative values leads to the cancellation
+                // effect.
+                fill_cfg_t binary_fill_cfg(mem.dt(), 0.f, 16.f,
+                        /* int = */ true, "softmax_binary_post_op");
+                std::unordered_map<int, fill_cfg_t> fill_cfg_map {
+                        {DNNL_ARG_SRC_1, binary_fill_cfg}};
+                SAFE(init_ref_memory_args_default_case(exec_arg, mem, ref_mem,
+                             prb->attr, res, fill_cfg_map),
+                        WARN);
             } break;
         }
         // Don't keep reference memory if it is not used further.

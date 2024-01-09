@@ -29,9 +29,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "binary/binary.hpp"
 #include "matmul/matmul.hpp"
-#include "prelu/prelu.hpp"
 
 namespace matmul {
 
@@ -650,32 +648,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
                 }
             } break;
-            default: { // Process all attributes here
-                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
-                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
-                bool is_post_ops_arg = (exec_arg & post_ops_range);
-                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-                bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
-
-                if (is_post_ops_arg) {
-                    if (exec_arg & DNNL_ARG_SRC_1)
-                        SAFE(binary::fill_mem(exec_arg, mem, ref_mem,
-                                     /* only_positive = */ false,
-                                     /* only_integer = */ true),
-                                WARN);
-                    else if (exec_arg & DNNL_ARG_WEIGHTS)
-                        SAFE(prelu::fill_data(WEI, mem, ref_mem), WARN);
-                } else if (is_scales_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
-                } else if (is_zero_point_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
-                    SAFE(fill_zero_points(
-                                 prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
-                }
-            } break;
+            default:
+                SAFE(init_ref_memory_args_default_case(
+                             exec_arg, mem, ref_mem, prb->attr, res),
+                        WARN);
+                break;
         }
 
         update_ref_mem_map_from_prim(prim_ref, mem, ref_mem_map, exec_arg,
