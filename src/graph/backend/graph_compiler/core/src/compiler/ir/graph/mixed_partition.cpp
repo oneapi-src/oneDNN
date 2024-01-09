@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -932,7 +932,8 @@ void mxp_buffer_allocator::calibrate_info() {
 
 inline bool check_tsr_len_under_resigter_size(
         size_t tsr_len, uint16_t simd_len, uint16_t max_register_tol = 16) {
-    return (tsr_len % simd_len == 0 && (tsr_len / simd_len) < max_register_tol);
+    return (tsr_len % simd_len == 0
+            && (tsr_len / simd_len) <= max_register_tol);
 }
 
 bool mxp_buffer_allocator::validate_tsr2var() const {

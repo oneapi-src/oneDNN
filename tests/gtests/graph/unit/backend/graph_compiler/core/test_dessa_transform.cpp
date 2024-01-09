@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -219,6 +219,65 @@ TEST(GCCore_CPU_dessa_transform, TestDeSSATransformForSwapProblem) {
         }
         _var_init_(t40, s32, c5 + d6);
         _return_(t40);
+    }
+
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
+
+TEST(GCCore_CPU_dessa_transform, TestDeSSATransformCoalesce) {
+    builder::ir_builder_t builder;
+    _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
+        _bind_(A, a);
+        _var_init_(d, s32, 1);
+
+        _for_(i, 0, 10, 1) {
+            i->dtype_ = s32;
+            _var_init_(f, s32, d);
+            a = a + A[i];
+            _for_(j, 0, 10, 1) {
+                f = f + a;
+                f = f + A[i];
+            }
+            d = f;
+        }
+
+        _return_(a + d);
+    }
+
+    ssa_transform_t s;
+    auto out = s(ccc);
+
+    dessa_transform_t de;
+    out = de(out);
+
+    _function_(s32, expected, _arg_("A", s32, {10000}), _arg_("a", s32)) {
+        _bind_(A, a);
+        _var_init_(d, s32, 1);
+        _var_init_(t0, s32, 0);
+        _var_init_(t1, s32, 10);
+        _var_init_(t2, s32, 1);
+        _for_(i, t0, t1, t2) {
+            i->dtype_ = s32;
+            _var_init_(f, s32, d);
+            _var_init_(t5, s32, A[i]);
+            a = a + t5;
+            _var_init_(t7, s32, 0);
+            _var_init_(t8, s32, 10);
+            _var_init_(t9, s32, 1);
+            _for_(j, t7, t8, t9) {
+                _var_init_(a4, s32, a);
+                _var_init_(f1, s32, f + a4);
+                _var_init_(i_6, s32, i);
+                _var_init_(t14, s32, A[i_6]);
+                f = f1 + t14;
+            }
+            d = f;
+        }
+        _var_init_(a1, s32, a);
+        _var_init_(d1, s32, d);
+        _var_init_(t19, s32, a1 + d1);
+        _return_(t19);
     }
 
     ir_comparer cmper {true};
