@@ -198,7 +198,8 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(const post_ops_t &post_ops,
                 if (src_md.format_kind != format_kind::blocked
                         || !is_md_gemm_compatible_plain_format(&src_md, false))
                     return status::unimplemented;
-                trans = (src_md.format_desc.blocking.strides[ndims - 1] > 1);
+                trans = (src_mdw.dims()[ndims - 1] > 1)
+                        && (src_mdw.blocking_desc().strides[ndims - 1] > 1);
             }
 
             if (swap_ab) {
