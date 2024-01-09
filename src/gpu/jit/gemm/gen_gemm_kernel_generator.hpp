@@ -938,7 +938,17 @@ struct GEMMProblem : public CommonProblem {
         s.append(postOpFwd);
         s.append(postOpTranspose);
         s.append(postOps);
-        s.append(preluMd);
+        // Remove this lambda and preluMd from serialized_data_t
+        // when mds are removed from postop serialization
+        auto append_md = [&](const memory_desc_t &md) {
+            serialization_stream_t sstream {};
+            serialization::serialize_md(sstream, md);
+            auto md_data = sstream.get_data();
+            std::vector<uint8_t> data = s.get_data();
+            data.insert(data.end(), md_data.begin(), md_data.end());
+            s.set_data(data);
+        };
+        append_md(preluMd);
     }
 };
 
