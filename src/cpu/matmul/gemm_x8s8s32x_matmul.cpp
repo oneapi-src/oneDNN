@@ -293,7 +293,7 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
 
 #ifdef GCC_WA_LAMBDA_C_CAST
-        parallel(nthr, [=, this, &st](int ithr, int nthr) {
+        parallel(nthr, [= WA_THIS_COPY_CAPTURE, &st](int ithr, int nthr) {
 #else
         parallel(nthr, [&](int ithr, int nthr) {
 #endif

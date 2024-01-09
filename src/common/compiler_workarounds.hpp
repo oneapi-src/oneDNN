@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,6 +79,24 @@
 // (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=83204).
 #if (defined NEED_GCC_WA_CHECK) && (__GNUC__ <= 7)
 #define GCC_WA_LAMBDA_C_CAST
+#endif
+
+// Workaround 05: c++17 vs c++20
+//
+// C++17/20 are contradictory wrt capturing this and using default '=' capture.
+// - C++17 and before have to return a warning for the [=, this] capture as
+//   this capture is redundant (so [=] should be used)
+// - C++20 does not capture this with default '=' capture and mandates
+// - using [=, this].
+// As a workaround, newer versions of GCC and clang emit the warning
+// in first case only under -pedantic and/or -Wc++20-extensions
+//
+// (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100493)
+#if (defined(_MSVC_LANG) && (_MSVC_LANG >= 202002L)) \
+        || (defined(__cplusplus) && (__cplusplus >= 202002L))
+#define WA_THIS_COPY_CAPTURE , this
+#else
+#define WA_THIS_COPY_CAPTURE
 #endif
 
 #endif // COMPILER_WORKAROUNDS_HPP

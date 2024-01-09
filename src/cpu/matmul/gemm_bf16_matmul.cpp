@@ -267,7 +267,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                 batch, M, N, use_single_gemm_call, nthr);
 
 #ifdef GCC_WA_LAMBDA_C_CAST
-        parallel(nthr, [=, this, &st](int ithr, int nthr) {
+        parallel(nthr, [= WA_THIS_COPY_CAPTURE, &st](int ithr, int nthr) {
 #else
         parallel(nthr, [&](int ithr, int nthr) {
 #endif
