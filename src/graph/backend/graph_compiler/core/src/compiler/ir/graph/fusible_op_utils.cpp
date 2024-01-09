@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -659,9 +659,9 @@ size_t get_dims_product(const sc_dims &dims) {
     sc_dim ret = 1;
     // todo: find out how to use this function in dynamic cases.
     for (unsigned i = 0; i < dims.size(); ++i) {
-        if (!is_dynamic_dim(dims[i]) && dims[i]) { ret *= dims[i]; }
+        if (!is_dynamic_dim(dims[i])) { ret *= dims[i]; }
     }
-    assert(ret > 0 && "Overflow or non-constant shape detected");
+    assert(ret >= 0 && "Overflow or non-constant shape detected");
     return ret;
 }
 

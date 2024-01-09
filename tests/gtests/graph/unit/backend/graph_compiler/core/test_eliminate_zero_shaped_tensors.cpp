@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,6 +106,26 @@ TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, ConcatInputShapeZero2) {
     auto fptr = jit_engine_t::make(ctx)->get_entry_func(ir_mod);
 }
 
+TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, ConcatInputShapeAllZero) {
+    REQUIRE_AVX2();
+    SET_THREADS_OR_SKIP(16);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+
+    sc_graph_t graph0;
+    auto in0 = graph0.make_input({graph_tensor::make({4, 0, 1, 2},
+            sc_data_format_t(format_kinds::ABCD), datatypes::f32)});
+    auto in1 = graph0.make_input({graph_tensor::make({4, 0, 1, 2},
+            sc_data_format_t(format_kinds::ABCD), datatypes::f32)});
+    auto concat = graph0.make("concat",
+            {in0->get_outputs()[0], in1->get_outputs()[0]}, {},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
+                    {op_attr_key::break_post_fuse, true}});
+    auto out = graph0.make_output(concat->get_outputs());
+    graph_driver(graph0, ctx);
+    auto ir_mod = lower_graph(ctx, graph0, {in0, in1, out});
+    auto fptr = jit_engine_t::make(ctx)->get_entry_func(ir_mod);
+}
+
 TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, AddInputShapeZero) {
     REQUIRE_AVX2();
     SET_THREADS_OR_SKIP(16);
@@ -195,5 +215,67 @@ TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, SingleOpShapeZero) {
 
         graph_driver(graph0, get_test_ctx());
         auto ir_mod = lower_graph(get_test_ctx(), graph0, {in, out});
+    }
+}
+
+TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, TunableOpShapeZero) {
+    {
+        sc_graph_t graph;
+        auto in0 = graph.make_input({graph_tensor::make(
+                {0, 64, 56, 56}, sc_data_format_t(), datatypes::f32)});
+        auto in1 = graph.make_input({graph_tensor::make(
+                {128, 64, 3, 3}, sc_data_format_t(), datatypes::f32)});
+        auto conv = graph.make("conv_fwd",
+                {in0->get_outputs()[0], in1->get_outputs()[0]}, {},
+                {{"data_format", "NCX"}, {"weights_format", "OIX"},
+                        {"strides", sc_dims {1, 1}},
+                        {"pads_begin", sc_dims {0, 0}},
+                        {"pads_end", sc_dims {0, 0}}});
+        auto out = graph.make_output(conv->get_outputs());
+        graph_driver(graph, get_test_ctx());
+        auto ir_mod = lower_graph(get_test_ctx(), graph, {in0, in1, out});
+    }
+    {
+        sc_graph_t graph;
+        auto in0 = graph.make_input({graph_tensor::make(
+                {64, 64}, sc_data_format_t(), datatypes::f32)});
+        auto in1 = graph.make_input({graph_tensor::make(
+                {64, 0}, sc_data_format_t(), datatypes::f32)});
+        auto matmul = graph.make("matmul",
+                {in0->get_outputs()[0], in1->get_outputs()[0]}, {}, {});
+        auto out = graph.make_output(matmul->get_outputs());
+
+        graph_driver(graph, get_test_ctx());
+        auto ir_mod = lower_graph(get_test_ctx(), graph, {in0, in1, out});
+    }
+}
+
+TEST(GCCore_CPU_test_eliminate_zero_shaped_tensors, NormOpShapeZero) {
+    {
+        sc_graph_t graph;
+        auto in = graph.make_input({graph_tensor::make(
+                {0, 56, 56, 64}, sc_data_format_t(), datatypes::f32)});
+        auto layernorm = graph.make("layernorm", {in->get_outputs()[0]}, {},
+                {{"use_affine", false}});
+        auto out = graph.make_output(layernorm->get_outputs());
+        graph_driver(graph, get_test_ctx());
+        auto ir_mod = lower_graph(get_test_ctx(), graph, {in, out});
+    }
+    {
+        sc_graph_t graph;
+        auto in0 = graph.make_input({graph_tensor::make(
+                {0, 56, 56, 64}, sc_data_format_t(), datatypes::f32)});
+        auto in1 = graph.make_input(
+                {graph_tensor::make({64}, sc_data_format_t(), datatypes::f32)});
+        auto in2 = graph.make_input(
+                {graph_tensor::make({64}, sc_data_format_t(), datatypes::f32)});
+        auto layernorm = graph.make("layernorm",
+                {in0->get_outputs()[0], in1->get_outputs()[0],
+                        in2->get_outputs()[0]},
+                {}, {{"use_affine", true}});
+        auto out = graph.make_output(layernorm->get_outputs());
+
+        graph_driver(graph, get_test_ctx());
+        auto ir_mod = lower_graph(get_test_ctx(), graph, {in0, in1, in2, out});
     }
 }
