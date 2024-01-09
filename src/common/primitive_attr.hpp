@@ -505,6 +505,12 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         }
         entry_t &operator=(entry_t &&other) = default;
 
+        struct sum_t {
+            float scale;
+            int32_t zero_point;
+            dnnl::impl::data_type_t dt;
+        };
+
         struct eltwise_t {
             dnnl::impl::alg_kind_t alg;
             float scale, alpha, beta;
@@ -537,11 +543,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         dnnl::impl::primitive_kind_t kind
                 = dnnl::impl::primitive_kind::undefined;
         union {
-            struct {
-                float scale;
-                int32_t zero_point;
-                dnnl::impl::data_type_t dt;
-            } sum;
+            sum_t sum;
             eltwise_t eltwise;
             depthwise_conv_t depthwise_conv;
             binary_t binary;
