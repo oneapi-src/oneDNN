@@ -168,7 +168,9 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
                             data_type::s32);
         if (is_int8)
             fwd_attr_mask
-                    |= smask_t::scales_runtime | smask_t::zero_points_runtime;
+                    |= smask_t::scales_runtime | smask_t::zero_points_runtime |
+                        smask_t::input_zero_points | smask_t::output_compensations |
+                        smask_t::weights_zero_points;
 
         VCHECK_CONV_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
                 VERBOSE_UNSUPPORTED_ATTR);
@@ -204,16 +206,17 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
             const auto &po = attr->post_ops_;
             using namespace primitive_kind;
             VCHECK_CONV_UNIMPL(po.has_default_values({binary, eltwise, prelu,
-                                       sum, convolution}),
+                                       sum, convolution, depthwise, quantization}),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
             // Check sum
             VCHECK_CONV_UNIMPL(po.check_sum_consistency(dst_dt, is_int8, true),
                     VERBOSE_UNSUPPORTED_POSTOP);
         }
-    } else {
-        VCHECK_CONV_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
     }
+    // } else {
+    //     VCHECK_CONV_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+    // }
 
     return status::success;
 }
