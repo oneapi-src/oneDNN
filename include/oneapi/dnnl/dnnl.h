@@ -294,6 +294,32 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_fpmath_mode(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_fpmath_mode(
         dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t mode);
 
+/// Returns the floating-point math mode primitive attribute.
+///
+/// @param attr Primitive attributes.
+/// @param mode Output FP math mode.
+/// @param mode Output force.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_fpmath_mode_v2(
+        const_dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t *mode, int *force);
+
+/// Sets the floating-point math mode primitive attributes.
+///
+/// @param attr Primitive attributes.
+/// @param mode FP math mode. The possible values are:
+///     #dnnl_fpmath_mode_strict (default),
+///     #dnnl_fpmath_mode_bf16,
+///     #dnnl_fpmath_mode_f16,
+///     #dnnl_fpmath_mode_tf32,
+///     #dnnl_fpmath_mode_any.
+/// @param force Boolean. Forces the use of floating-point arithmetic
+///     for integer primitives.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_fpmath_mode_v2(
+        dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t mode, int force);
+
 /// Returns the deterministic primitive attribute value.
 ///
 /// @param attr Primitive attributes.
@@ -335,22 +361,6 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_accumulation_mode(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_accumulation_mode(
         dnnl_primitive_attr_t attr, dnnl_accumulation_mode_t mode);
-
-/// Sets the floating-point math mode primitive attributes.
-///
-/// @param attr Primitive attributes.
-/// @param mode FP math mode. The possible values are:
-///     #dnnl_fpmath_mode_strict (default),
-///     #dnnl_fpmath_mode_bf16,
-///     #dnnl_fpmath_mode_f16,
-///     #dnnl_fpmath_mode_tf32,
-///     #dnnl_fpmath_mode_any.
-/// @param force Boolean. Forces the use of floating-point arithmetic
-///     for integer primitives
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_attr_set_fpmath_mode_v2(
-        dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t mode, int force);
 
 /// Returns the primitive attributes scratchpad mode.
 ///

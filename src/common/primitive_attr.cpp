@@ -444,6 +444,14 @@ status_t dnnl_primitive_attr_set_fpmath_mode(
     return attr->set_fpmath_mode(mode, false);
 }
 
+status_t dnnl_primitive_attr_get_fpmath_mode_v2(
+        const primitive_attr_t *attr, fpmath_mode_t *mode, int *force) {
+    if (!attr) return invalid_arguments;
+    if (mode) *mode = attr->fpmath_mode_;
+    if (force) *force = attr->force_fpmath_;
+    return success;
+}
+
 status_t dnnl_primitive_attr_set_fpmath_mode_v2(
         primitive_attr_t *attr, fpmath_mode_t mode, int force_fpmath) {
     if (any_null(attr)) return invalid_arguments;

@@ -3864,6 +3864,20 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         return fpmath_mode(result);
     }
 
+    /// Returns the fpmath mode
+    ///
+    /// @param mode Specified fpmath mode.
+    /// @param force Boolean to force floating point math for integer primitives.
+    void get_fpmath_mode(fpmath_mode &mode, bool &force) const {
+        dnnl_fpmath_mode_t c_mode;
+        int c_force;
+        error::wrap_c_api(dnnl_primitive_attr_get_fpmath_mode_v2(
+                                  get(), &c_mode, &c_force),
+                "could not get fpmath mode primitive attribute");
+        mode = fpmath_mode(c_mode);
+        force = static_cast<bool>(c_force);
+    }
+
     /// Sets fpmath mode.
     ///
     /// @param mode Specified fpmath mode.
