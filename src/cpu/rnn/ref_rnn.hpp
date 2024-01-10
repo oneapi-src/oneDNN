@@ -409,7 +409,8 @@ struct _ref_rnn_common_t : public primitive_t {
                         | primitive_attr_t::skip_mask_t::rnn_data_qparams
                         | primitive_attr_t::skip_mask_t::rnn_weights_qparams
                         | primitive_attr_t::skip_mask_t::
-                                rnn_weights_projection_qparams;
+                                rnn_weights_projection_qparams
+                        | primitive_attr_t::skip_mask_t::fpmath_mode;
             ok = ok && this->attr()->has_default_values(attr_mask);
             if (!ok) return status::unimplemented;
 

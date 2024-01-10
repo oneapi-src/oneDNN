@@ -82,8 +82,8 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
         return status::unimplemented;
 
     using skip_mask_t = primitive_attr_t::skip_mask_t;
-    auto skip_mask = is_deconv ? (skip_mask_t::post_ops | skip_mask_t::sum_dt)
-                               : skip_mask_t::none;
+    auto skip_mask = skip_mask_t::fpmath_mode;
+    if (is_deconv) skip_mask |= skip_mask_t::post_ops | skip_mask_t::sum_dt;
     if (is_int8 && is_deconv)
         skip_mask |= skip_mask_t::scales_runtime
                 | skip_mask_t::zero_points_runtime;

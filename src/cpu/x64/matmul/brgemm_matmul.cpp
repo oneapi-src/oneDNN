@@ -103,7 +103,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                     primitive_attr_t::skip_mask_t::scales_runtime
                             | primitive_attr_t::skip_mask_t::zero_points_runtime
                             | primitive_attr_t::skip_mask_t::post_ops
-                            | primitive_attr_t::skip_mask_t::sum_dt,
+                            | primitive_attr_t::skip_mask_t::sum_dt
+                            | primitive_attr_t::skip_mask_t::fpmath_mode,
                     dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_MATMUL(attr()->post_ops_.check_sum_consistency(dst_dt, is_int8),

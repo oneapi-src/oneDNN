@@ -418,7 +418,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
 
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
-            | skip_mask_t::zero_points_runtime;
+            | skip_mask_t::zero_points_runtime | skip_mask_t::fpmath_mode;
     if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
     VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
