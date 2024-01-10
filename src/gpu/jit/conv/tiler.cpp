@@ -1465,15 +1465,10 @@ private:
                 break;
                 break;
             case tiler_mode_t::lookup: {
-                const bool transposed = cfg.prb().ab_swap_transpose;
                 const auto params = const_conv_lookup_table().find(cfg.key());
                 if (!params.is_empty() && chk.is_ok(params.blocking())) {
-                    if (transposed) {
-                        params_gen_ = params_generator_t(tune_level, simd_size,
-                                chk, level_tile_sets, params);
-                    } else {
-                        params_gen_ = params_generator_t(params);
-                    }
+                    params_gen_ = params_generator_t(tune_level, simd_size, chk,
+                            level_tile_sets, params);
                 } else {
                     mode_ = tiler_mode_t::model;
                     params_gen_ = params_generator_t(
