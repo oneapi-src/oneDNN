@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,6 +57,8 @@ const data_type_t s32 = dnnl_s32;
 const data_type_t s8 = dnnl_s8;
 const data_type_t u8 = dnnl_u8;
 const data_type_t boolean = dnnl_boolean;
+const data_type_t f8_e5m2 = dnnl_f8_e5m2;
+const data_type_t f8_e4m3 = dnnl_f8_e4m3;
 } // namespace data_type
 
 using partition_policy_t = dnnl_graph_partition_policy_t;

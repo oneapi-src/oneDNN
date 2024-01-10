@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -289,8 +289,11 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         const dim_t acc_stride = gemm_based::get_scratchpad_block_elements(
                 batch, M, N, use_single_gemm_call, nthr);
 
+        bool postops_in_matmul = need_post_processing(pd(), dst_zero_point_f32);
+        assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
+
 #ifdef GCC_WA_LAMBDA_C_CAST
-        parallel(nthr, [=, &st](int ithr, int nthr) {
+        parallel(nthr, [= WA_THIS_COPY_CAPTURE, &st](int ithr, int nthr) {
 #else
         parallel(nthr, [&](int ithr, int nthr) {
 #endif
@@ -412,10 +415,6 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                     } break;
                     default: assert(!"unsupported data type"); break;
                 }
-
-                bool postops_in_matmul
-                        = need_post_processing(pd(), dst_zero_point_f32);
-                assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
 
                 if (postops_in_matmul) {
                     const size_t dst_logical_off = i_work;

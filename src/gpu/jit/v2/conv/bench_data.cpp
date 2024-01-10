@@ -14,12 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_CONV_BENCH_DATA_HPP
-#define GPU_JIT_V2_CONV_BENCH_DATA_HPP
+#include "gpu/jit/v2/conv/bench_data.hpp"
 
-#include "gpu/jit/v2/conv/kernel_desc.hpp"
-
-#include <vector>
+#include <sstream>
 
 namespace dnnl {
 namespace impl {
@@ -28,26 +25,14 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-class bench_data_t {
-public:
-    kernel_desc_t kernel_desc;
-    std::vector<problem_t> prbs;
-    std::vector<uint64_t> times;
-
-    bench_data_t() = default;
-    explicit bench_data_t(const kernel_desc_t &kernel_desc)
-        : kernel_desc(kernel_desc) {}
-
-    int size() const { return (int)prbs.size(); }
-    explicit operator bool() const { return size() > 0; }
-
-    void add(const problem_t &prb, uint64_t time) {
-        prbs.push_back(prb);
-        times.push_back(time);
+std::string bench_data_t::str() const {
+    std::ostringstream oss;
+    for (int i = 0; i < size(); i++) {
+        if (i > 0) oss << std::endl;
+        oss << "bench," << prbs[i].csv_str() << "," << times[i];
     }
-
-    std::string str() const;
-};
+    return oss.str();
+}
 
 } // namespace conv
 } // namespace v2
@@ -55,5 +40,3 @@ public:
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
-#endif

@@ -135,16 +135,21 @@ expr_t let_ctx_t::get(const expr_t &expr) {
 }
 
 struct offset_params_t {
-    // Type of offset elements.
+    // Type of the offset.
     type_t type;
-    // Execution size of the offset.
+    // Execution size:
+    // - esize = 1: used as a scalar
+    // - esize > 1: used as a vector
+    // Note that esize > 1 may be used with scalar offsets, in this case the
+    // offset is broadcasted when used.
     int esize = 0;
-    // Buffer size alignment.
+    // Offset buffer size alignment (e.g. used for header allocations, aligned
+    // at a GRF boundary).
     int buf_align = 0;
     // Whether the offset can be used with broadcasting (e.g. scalar mask with
     // multiple slots).
     bool allow_bcast = false;
-    // Wether the offset can be used directly from the base (if the offset is
+    // Whether the offset can be used directly from the base (if the offset is
     // equal to the base).
     bool allow_reuse = false;
     // Optional pre-allocated buffer for the offset.
@@ -165,22 +170,48 @@ struct offset_params_t {
     }
 };
 
+// Offset is represented as the sum of three terms:
+//     base + shift + shift_vec
+// where:
+// - (base + shift) is a scalar portion
+// - shift_vec is a vector portion
+//
+// base/shift split is relative which is determined during load/store planning
+// to group instructions performing access to a shifted tiles of the same
+// sub-layout. In general "shift" portion consists of simpler expressions
+// comparing with "base".
+// shift_vec is a vector of offsets (e.g. for per slot in a message or per lane
+// in a mask comparison).
 struct offset_t {
+    // Unique ID for the offset.
+    int id = -1;
+    // GRF buffer for the offset. If empty, the base storage is used for the
+    // offset.
     expr_t buf;
+    // Offset type (scalar or vector).
     type_t type;
+    // Scalar base.
     expr_t base;
-    expr_t base_vec;
+    // Scalar shift.
+    expr_t shift;
+    // Vector shift.
+    expr_t shift_vec;
+    // Loop increments, used to implement strength reduction.
     std::vector<expr_t> loop_incs;
+    // Execution size.
     int esize;
 
-    bool operator==(const offset_t &other) const {
+    bool is_equal(const offset_t &other, bool compare_shift = true) const {
         if (type != other.type) return false;
         if (!base.is_equal(other.base)) return false;
-        if (!base_vec.is_equal(other.base_vec)) return false;
+        if (compare_shift && !shift.is_equal(other.shift)) return false;
+        if (!shift_vec.is_equal(other.shift_vec)) return false;
         if (!ir_utils::is_equal(loop_incs, other.loop_incs)) return false;
         if (esize != other.esize) return false;
         return true;
     }
+
+    bool operator==(const offset_t &other) const { return is_equal(other); }
 
     expr_t load() const {
         if (buf.is_empty()) return make_broadcast(base);
@@ -195,8 +226,8 @@ struct offset_t {
 
     stmt_t init_stmt() const {
         if (buf.is_empty()) return stmt_t();
-        auto base_bcast = shuffle_t::make_broadcast(base, type.elems());
-        return store(base_bcast + base_vec);
+        auto base_bcast = shuffle_t::make_broadcast(base + shift, type.elems());
+        return store(base_bcast + shift_vec);
     }
 
     stmt_t inc_stmt(int loop_idx) const {
@@ -215,9 +246,10 @@ struct offset_t {
 
     std::string str() const {
         std::ostringstream oss;
-        oss << "buf:      " << buf << std::endl;
-        oss << "base:     " << base << std::endl;
-        oss << "base_vec: " << base_vec << std::endl;
+        oss << "buf:       " << buf << std::endl;
+        oss << "base:      " << base << std::endl;
+        oss << "shift:     " << shift << std::endl;
+        oss << "shift_vec: " << shift_vec << std::endl;
         oss << "loop_incs:";
         for (int i = 0; i < (int)loop_incs.size(); i++) {
             oss << std::endl;
@@ -229,10 +261,12 @@ struct offset_t {
     IR_DEFINE_DUMP()
 
     static bool can_reuse_base(const type_t &type, const expr_t &base,
-            const expr_t &base_vec, const std::vector<expr_t> &loop_incs) {
+            const expr_t &shift, const expr_t &shift_vec,
+            const std::vector<expr_t> &loop_incs) {
         if (!type.is_scalar()) return false;
+        if (!is_zero(shift)) return false;
         if (!is_var(base) && !is_const(base)) return false;
-        if (!all_of(base_vec, 0)) return false;
+        if (!all_of(shift_vec, 0)) return false;
         for (auto &e : loop_incs)
             if (!is_zero(e)) return false;
         return true;
@@ -242,13 +276,16 @@ struct offset_t {
 class send_header_t {
 public:
     send_header_t() = default;
-    send_header_t(const offset_t &off) : off_(off) {}
+    send_header_t(const offset_t &off, const stmt_t &local_init = stmt_t())
+        : off_(off), local_init_(local_init) {}
 
     const offset_t &off() const { return off_; }
     const expr_t &to_expr() const { return off_.buf; }
+    const stmt_t &local_init() const { return local_init_; }
 
 private:
     offset_t off_;
+    stmt_t local_init_;
 };
 
 class send_mask_t {
@@ -293,13 +330,25 @@ public:
         , coord_info_(coord_info) {}
 
     send_header_t add_header(const send_1d_desc_t &desc, const expr_t &mem_buf,
-            const addr_t &addr, const expr_t &inc) {
+            const addr_t &addr, const expr_t &addr_inc) {
         auto base0 = cast(mem_buf, type_t::u64());
         auto params = offset_params_t(type_t::u64(), desc.slots, "h");
         params.buf_align = buf_mgr_.ir_ctx().grf_size();
-        params.allow_bcast = false;
-        auto off = get_offset(base0, addr.base, addr.slot_incs, inc, params);
-        return send_header_t(off);
+        auto off = get_offset(
+                base0, addr.base, addr.slot_incs, addr_inc, params);
+        stmt_t local_init;
+        if (!is_zero(off.shift) && off.type.is_scalar()) {
+            for (auto &o : offsets_) {
+                if (o.is_equal(off, /*compare_shift=*/false)) {
+                    ir_assert(o.type.is_scalar());
+                    local_init = off.store(o.load() + off.shift);
+                    off.loop_incs.clear();
+                    set_offset(off);
+                    break;
+                }
+            }
+        }
+        return send_header_t(off, local_init);
     }
 
     send_header_t add_header(const send_2d_desc_t &desc, const expr_t &mem_buf,
@@ -308,7 +357,6 @@ public:
         auto base0 = cast(mem_buf, type_t::u64());
         auto params = offset_params_t(type_t::u64(), /*esize=*/1, "h");
         params.buf_align = desc.hw.grf_size();
-        params.allow_bcast = false;
         auto off = get_offset(base0, base, expr_t(0), params);
         auto x_params = offset_params_t(type_t::s32());
         auto y_params = offset_params_t(type_t::s32());
@@ -343,11 +391,12 @@ public:
         for (int i = 0; i < mask.nmasks(); i++) {
             auto &dm = mask.dim_masks[i];
             if (dm.is_empty()) continue;
-            auto inc = mask_incs.empty() ? expr_t(0) : mask_incs[i];
+            auto shift = mask_incs.empty() ? expr_t(0) : mask_incs[i];
             auto params = offset_params_t(type_t::s32(), dm.slots(), "m");
+            params.allow_bcast = true;
             params.allow_reuse = true;
-            auto off
-                    = get_offset(expr_t(0), dm.base, dm.slot_incs, inc, params);
+            auto off = get_offset(
+                    expr_t(0), dm.base, dm.slot_incs, shift, params);
             ret.add_mask(off, let_ctx_.get(dm.bound), dm.do_zero_cmp);
         }
         return ret;
@@ -372,8 +421,10 @@ public:
     }
 
 private:
+    // base0 - memory buffer base address
+    // base, shift_vec, shift - offset parts (see offset_t description)
     offset_t get_offset(const expr_t &base0, const expr_t &base,
-            const std::vector<expr_t> &_base_vec, const expr_t &inc,
+            const std::vector<expr_t> &_shift_vec, const expr_t &_shift,
             const offset_params_t &_params) {
         auto params = _params;
         std::vector<expr_t> loop_idxs;
@@ -385,20 +436,21 @@ private:
         split_to_linear(base, loop_idxs, _base_init, _loop_incs);
 
         auto type = params.type.with_elems(params.esize);
-        auto base_vec = _base_vec.empty() ? expr_t(0)
-                                          : let_ctx_.get_shuffle(_base_vec);
+        auto shift_vec = _shift_vec.empty() ? expr_t(0)
+                                            : let_ctx_.get_shuffle(_shift_vec);
         if (params.allow_bcast) {
-            if (auto *shuffle = base_vec.as_ptr<shuffle_t>()) {
+            if (auto *shuffle = shift_vec.as_ptr<shuffle_t>()) {
                 if (shuffle->is_broadcast()) {
-                    base_vec = shuffle->vec[0];
+                    shift_vec = shuffle->vec[0];
                     type = type.scalar();
                 }
             }
         }
         offset_t ret;
         ret.type = type;
-        ret.base = base0 + let_ctx_.get(_base_init) + let_ctx_.get(inc);
-        ret.base_vec = base_vec;
+        ret.base = base0 + let_ctx_.get(_base_init);
+        ret.shift = let_ctx_.get(_shift);
+        ret.shift_vec = shift_vec;
         ret.esize = params.esize;
 
         auto loop_incs = let_ctx_.get(_loop_incs);
@@ -418,7 +470,7 @@ private:
         }
 
         bool can_reuse_base = offset_t::can_reuse_base(
-                ret.type, ret.base, ret.base_vec, ret.loop_incs);
+                ret.type, ret.base, ret.shift, ret.shift_vec, ret.loop_incs);
         if (!params.allow_reuse || !can_reuse_base) {
             int size = type.size();
             if (params.buf_align != 0)
@@ -426,13 +478,12 @@ private:
             ret.buf = params.get_buffer(buf_mgr_, size);
         }
 
-        offsets_.push_back(ret);
-        return ret;
+        return add_offset(ret);
     }
 
     offset_t get_offset(const expr_t &base0, const expr_t &base,
-            const expr_t &inc, const offset_params_t &_params) {
-        return get_offset(base0, base, std::vector<expr_t>(), inc, _params);
+            const expr_t &shift, const offset_params_t &_params) {
+        return get_offset(base0, base, std::vector<expr_t>(), shift, _params);
     }
 
     offset_t get_offset(const expr_t &base, const expr_t &buf) {
@@ -440,19 +491,35 @@ private:
         ret.buf = buf;
         ret.type = base.type();
         ret.base = base;
-        ret.base_vec = expr_t(0);
+        ret.shift = expr_t(0);
+        ret.shift_vec = expr_t(0);
         ret.esize = 1;
-        offsets_.push_back(ret);
+        return add_offset(ret);
+    }
+
+    offset_t add_offset(const offset_t &off) {
+        offsets_.push_back(off);
+        auto &ret = offsets_.back();
+        ret.id = offset_id_++;
         return ret;
     }
 
+    void set_offset(const offset_t &off) {
+        for (auto &o : offsets_) {
+            if (o.id == off.id) {
+                o = off;
+                return;
+            }
+        }
+        ir_error_not_expected();
+    }
     let_ctx_t &let_ctx_;
     buffer_manager_t &buf_mgr_;
     loop_nest_t loop_nest_;
     coord_info_t coord_info_;
 
+    int offset_id_ = 0;
     std::vector<offset_t> offsets_;
-    std::vector<stmt_t> let_stmts_;
 };
 
 type_t to_send_type(const send_1d_desc_t &desc) {
@@ -497,6 +564,7 @@ stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
                 + payload_layout.offset_in_bytes(payload_coord + sub_coord);
         auto call
                 = send(mem_buf, header.to_expr(), call_reg_buf, mask.to_expr());
+        ret = ret.append(header.local_init());
         ret = ret.append(call);
     });
     return ret;
@@ -525,6 +593,7 @@ stmt_t create_stmt(const send_2d_plan_t &plan, const expr_t &mem_buf,
                 + payload_layout.offset_in_bytes(payload_coord + sub_coord);
         auto call
                 = send(mem_buf, header.to_expr(), call_reg_buf, mask.to_expr());
+        ret = ret.append(header.local_init());
         ret = ret.append(call);
     });
     return ret;

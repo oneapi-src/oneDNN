@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
-#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/jit_avx512_core_amx_conv_utils.hpp"
 #include "cpu/x64/jit_avx512_core_amx_convolution.hpp"
@@ -100,8 +99,9 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, pd()->OC(), pd()->attr());
+    const float *oscales = scale_utils::precompute_scales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->OC(),
+            pd()->attr(), jit_scale_precompute_.get());
 
     auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_inp_buffer); // fix the template
@@ -454,8 +454,9 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, pd()->OC(), pd()->attr());
+    const float *oscales = scale_utils::precompute_scales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->OC(),
+            pd()->attr(), jit_scale_precompute_.get());
 
     // TODO: use block offset instead of hand-calculated one
     //size_t wei_oc_shift = wht_blk_off(weights_d, 0, 1);
@@ -824,8 +825,9 @@ status_t jit_avx512_core_amx_convolution_bwd_data_t::execute_backward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, pd()->OC(), pd()->attr());
+    const float *oscales = scale_utils::precompute_scales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->OC(),
+            pd()->attr(), jit_scale_precompute_.get());
 
     amx_utils::execute_backward_convolution_body(ctx, pd()->jcp_, kernel_,
             diff_dst, weights, nullptr /* no bias */, oscales, dst_scales,

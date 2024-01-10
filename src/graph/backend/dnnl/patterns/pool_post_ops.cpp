@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,6 +99,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_reshape_transpose)
                     auto pdequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
                     pdequant_data->append_decision_function(
+                            is_int8_quantization);
+                    pdequant_data->append_decision_function(
                             check_qtype_equal_to_per_tensor);
 
                     auto ppool = pgraph->append_alternation(
@@ -119,6 +121,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_reshape_transpose)
                     // quantize
                     auto qout = pgraph->append_op(
                             graph::op_kind::Quantize, {in_edge(0, pop, 0)});
+                    qout->append_decision_function(is_int8_quantization);
                     qout->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                 })
@@ -143,6 +146,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_post_ops)
                     auto pdequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
                     pdequant_data->append_decision_function(
+                            is_int8_quantization);
+                    pdequant_data->append_decision_function(
                             check_qtype_equal_to_per_tensor);
 
                     auto ppool = pgraph->append_alternation(
@@ -165,6 +170,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_post_ops)
                     // quantize
                     auto qout = pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, prep, 0)});
+                    qout->append_decision_function(is_int8_quantization);
                     qout->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                 })
@@ -195,6 +201,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_add_post_ops_cpu)
                     auto pdequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
                     pdequant_data->append_decision_function(
+                            is_int8_quantization);
+                    pdequant_data->append_decision_function(
                             check_qtype_equal_to_per_tensor);
 
                     auto ppool = pgraph->append_alternation(
@@ -208,6 +216,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_add_post_ops_cpu)
                     // quantize
                     auto qout = pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, postops, 0)});
+                    qout->append_decision_function(is_int8_quantization);
                     qout->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                 })
@@ -237,7 +246,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_add_post_ops_gpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto pdequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
-
+                    pdequant_data->append_decision_function(
+                            is_int8_quantization);
                     auto ppool = pgraph->append_alternation(
                             {graph::op_kind::AvgPool, graph::op_kind::MaxPool},
                             {in_edge(0, pdequant_data, 0)});
@@ -248,8 +258,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_add_post_ops_gpu)
                             pgraph, ppool, /*check_zps*/ true);
 
                     // quantize
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    auto qout = pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, prep, 0)});
+                    qout->append_decision_function(is_int8_quantization);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_pooling>();

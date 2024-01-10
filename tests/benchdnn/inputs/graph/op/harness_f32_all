@@ -77,6 +77,8 @@
 --reset --in-shapes=0:1x28x28x32+1:1x16x16x128 --op-attrs=0:data_format:NXC --case=op/f32/deconv_bwd_w.json
 --reset --case=op/f32/dequantize_s8.json
 --reset --case=op/f32/dequantize_u8.json
+--reset --case=op/f32/dequantize_f8_e4m3.json
+--reset --case=op/f32/dequantize_f8_e5m2.json
 --reset --case=op/f32/div.json
 --reset --op-attrs=0:auto_broadcast:numpy --case=op/f32/div.json
 --reset --case=op/f32/elu.json
@@ -134,6 +136,8 @@
 --reset --case=op/f32/prelu_bwd.json
 --reset --op-attrs=0:data_format:NXC --case=op/f32/prelu_bwd.json
 --reset --case=op/f32/quantize.json
+--reset --case=op/f32/quantize_f8_e4m3.json
+--reset --case=op/f32/quantize_f8_e5m2.json
 --reset --case=op/f32/reducel1.json
 --reset --case=op/f32/reducel2.json
 --reset --case=op/f32/reducemax.json

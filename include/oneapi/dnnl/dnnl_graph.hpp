@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -257,6 +257,14 @@ public:
         u8 = dnnl_u8,
         /// Boolean data type. Size is C++ implementation defined.
         boolean = dnnl_boolean,
+        /// [OFP8 standard 8-bit
+        /// floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf)
+        /// with a 5-bit exponent and a 2-bit mantissa.
+        f8_e5m2 = dnnl_f8_e5m2,
+        /// [OFP8 standard 8-bit
+        /// floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf)
+        /// with a 4-bit exponent and a 3-bit mantissa.
+        f8_e4m3 = dnnl_f8_e4m3,
     };
 
     /// Layout type

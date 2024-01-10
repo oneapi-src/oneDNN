@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
                     auto pdequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
                     pdequant_data->append_decision_function(
+                            is_int8_quantization);
+                    pdequant_data->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                     pdequant_data->append_decision_function(
                             check_zps_values<0>);
@@ -85,6 +87,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
 
                     auto pquant_data = pgraph->append_op(
                             graph::op_kind::Quantize, {in_edge(0, bn_relu, 0)});
+                    pquant_data->append_decision_function(is_int8_quantization);
                     pquant_data->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                     pquant_data->append_decision_function(check_zps_values<0>);

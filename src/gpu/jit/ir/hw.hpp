@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,6 +137,8 @@ public:
         oss << ", EUs: " << eu_count();
         return oss.str();
     }
+
+    std::string brief_str() const { return ir_utils::to_lower(to_string(hw_)); }
 
     IR_DEFINE_DUMP()
 

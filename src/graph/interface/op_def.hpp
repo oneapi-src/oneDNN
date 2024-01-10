@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1120,9 +1120,12 @@ DNNL_GRAPH_OP_SCHEMA(Quantize, 1,
                         op_attr::qtype, false, attribute_kind::s, "per_tensor")
                 .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(1))
                 .set_attr(op_attr::scales, true, attribute_kind::fs)
-                .set_attr(op_attr::zps, true, attribute_kind::is)
+                // for symmetric quantization or fp8 quantization, zps is not required.
+                .set_attr(op_attr::zps, false, attribute_kind::is)
                 .set_type_constraints("T1", {data_type::f32})
-                .set_type_constraints("T2", {data_type::u8, data_type::s8})
+                .set_type_constraints("T2",
+                        {data_type::u8, data_type::s8, data_type::f8_e5m2,
+                                data_type::f8_e4m3})
                 .set_shape_inference_function(infer_identity_output_shape)
                 .set_op_def_constraint_function(check_quant_dequant_scales_zps))
 
@@ -1136,8 +1139,11 @@ DNNL_GRAPH_OP_SCHEMA(Dequantize, 1,
                         op_attr::qtype, false, attribute_kind::s, "per_tensor")
                 .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(1))
                 .set_attr(op_attr::scales, true, attribute_kind::fs)
-                .set_attr(op_attr::zps, true, attribute_kind::is)
-                .set_type_constraints("T1", {data_type::u8, data_type::s8})
+                // for symmetric quantization or fp8 quantization, zps is not required.
+                .set_attr(op_attr::zps, false, attribute_kind::is)
+                .set_type_constraints("T1",
+                        {data_type::u8, data_type::s8, data_type::f8_e5m2,
+                                data_type::f8_e4m3})
                 .set_type_constraints("T2", {data_type::f32})
                 .set_shape_inference_function(infer_identity_output_shape)
                 .set_op_def_constraint_function(check_quant_dequant_scales_zps))

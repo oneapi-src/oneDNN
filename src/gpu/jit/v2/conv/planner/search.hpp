@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ class kernel_desc_t;
 namespace planner {
 
 void search(const kernel_desc_t &desc);
+void auto_search();
 
 } // namespace planner
 } // namespace conv

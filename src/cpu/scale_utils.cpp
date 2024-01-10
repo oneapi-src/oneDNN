@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "common/nstl.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,8 +31,7 @@ constexpr size_t scales_simd_w = 16;
 }
 
 void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
-        const arg_scales_t &attr_scales, size_t oc,
-        bool force_scales_book = false) {
+        const arg_scales_t &attr_scales, size_t oc, bool force_scales_book) {
     using namespace dnnl::impl::memory_tracking::names;
 
     const bool with_src_scales
@@ -49,20 +49,28 @@ void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
     }
 }
 
+bool req_copy_scales(
+        const primitive_attr_t *attr, const float scale_adjust_factor) {
+    const auto &attr_scales = attr->scales_;
+    const bool with_src_scales
+            = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
+    const bool with_wei_scales
+            = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
+    return (with_src_scales && with_wei_scales) || scale_adjust_factor != 1.0f;
+}
+
 const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
         const float *src_scales, const float *wei_scales, dim_t oc,
-        const primitive_attr_t *attr, float scale_adjust_factor = 1.0f) {
+        const primitive_attr_t *attr, float scale_adjust_factor) {
     using namespace dnnl::impl::memory_tracking::names;
 
     const auto &attr_scales = attr->scales_;
-    bool with_src_scales = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
-    bool with_wei_scales
-            = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
-    int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-    dim_t wei_scale_count = wei_scale_mask == 0 ? 1 : oc;
+    const bool with_src_scales
+            = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
 
     const float *scales = nullptr;
-    if ((with_src_scales && with_wei_scales) || scale_adjust_factor != 1.0f) {
+    if (req_copy_scales(attr, scale_adjust_factor)) {
+        const int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
         size_t size = 0;
         auto loc_scales
                 = scratchpad.template get<float>(key_precomputed_scales, &size);
@@ -71,6 +79,7 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
             utils::array_set(loc_scales,
                     src_scales[0] * wei_scales[0] * scale_adjust_factor, count);
         } else {
+            dim_t wei_scale_count = wei_scale_mask == 0 ? 1 : oc;
             const dim_t count = nstl::min(
                     static_cast<dim_t>(size / sizeof(float)), wei_scale_count);
             PRAGMA_OMP_SIMD()

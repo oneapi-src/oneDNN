@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -322,4 +322,57 @@ TEST(APIPartitionCache, GetSetCapacity) {
     ASSERT_EQ(
             dnnl_graph_get_compiled_partition_cache_capacity(&c), dnnl_success);
 #endif
+}
+
+// Test the f8f8f32 partition as below;
+//
+//      deq0_src     deq1_src
+//         |            |
+//      deq0         deq1
+//         |            |
+//          \          /
+//             matmul
+//                |
+//             mm_dst
+TEST(APIPartition, F8MatmulPartition) {
+    using namespace dnnl::graph;
+
+    SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx512_core_fp16,
+            "skip on machine without AVX512_CORE_FP16");
+
+    logical_tensor deq0_src {0, logical_tensor::data_type::f8_e4m3, {10, 10},
+            logical_tensor::layout_type::strided};
+    logical_tensor deq0_dst {1, logical_tensor::data_type::f32, {10, 10},
+            logical_tensor::layout_type::strided};
+
+    op deq0 {2, op::kind::Dequantize, "dequant0"};
+    deq0.set_attr<std::vector<float>>(op::attr::scales, {0.5f});
+    deq0.add_inputs({deq0_src});
+    deq0.add_outputs({deq0_dst});
+
+    logical_tensor deq1_src {3, logical_tensor::data_type::f8_e4m3, {10, 10},
+            logical_tensor::layout_type::strided};
+    logical_tensor deq1_dst {4, logical_tensor::data_type::f32, {10, 10},
+            logical_tensor::layout_type::strided};
+
+    op deq1 {5, op::kind::Dequantize, "dequant1"};
+    deq1.set_attr<std::vector<float>>(op::attr::scales, {0.5f});
+    deq1.add_inputs({deq1_src});
+    deq1.add_outputs({deq1_dst});
+
+    logical_tensor mm_dst {6, logical_tensor::data_type::f32, {10, 10},
+            logical_tensor::layout_type::strided};
+    op mm {7, op::kind::MatMul, "matmul"};
+    mm.add_inputs({deq0_dst, deq1_dst});
+    mm.add_outputs({mm_dst});
+
+    graph g(engine::kind::cpu);
+    g.add_op(deq0);
+    g.add_op(deq1);
+    g.add_op(mm);
+    g.finalize();
+    auto parts = g.get_partitions();
+    ASSERT_EQ(parts.size(), 1UL);
+    engine eng(engine::kind::cpu, 0);
+    parts[0].compile({deq0_src, deq1_src}, {mm_dst}, eng);
 }

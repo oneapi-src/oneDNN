@@ -572,6 +572,7 @@ prb_reqs_t plan_t::reqs() const {
 }
 
 plan_t create_conv_plan(const kernel_desc_t &desc) {
+    if (!desc.is_supported()) return plan_t();
     plan_builder_t builder(desc);
     if (builder.build() != plan_status_t::ok) return plan_t();
     return builder.plan();

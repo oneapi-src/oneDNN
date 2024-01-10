@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,12 +24,14 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_inner_product_pd.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/x64/jit_avx512_core_scale_precompute.hpp"
 #include "cpu/x64/jit_brgemm_inner_product_utils.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
 #include "cpu/x64/jit_brgemm_transpose_utils.hpp"
@@ -199,6 +201,20 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
             CHECK(acc_ker_->create_kernel());
         }
+
+        // JIT to precompute scales
+        const bool is_jit_supported = mayiuse(avx512_core);
+        const auto attr = pd()->attr();
+        if (is_jit_supported && req_copy_scales(attr)) {
+            const auto &attr_scales = attr->scales_;
+            int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+            if (wei_scale_mask != 0) {
+                CHECK(safe_ptr_assign(jit_scale_precompute_,
+                        new jit_avx512_core_scale_precompute_t()));
+                CHECK(jit_scale_precompute_->create_kernel());
+            }
+        }
+
         return status::success;
     }
 
@@ -214,6 +230,7 @@ private:
             brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_src_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
+    std::unique_ptr<jit_avx512_core_scale_precompute_t> jit_scale_precompute_;
     brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {
             brgemm_inner_product_utils::max_num_brg_kernels_ip};
 };

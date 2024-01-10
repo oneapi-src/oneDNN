@@ -87,6 +87,7 @@ public:
     void add(const prb_reqs_t &other);
     prover_t prover(bool enable = true);
 
+    explicit operator bool() const { return !reqs_.empty(); }
     bool fits(const prb_tile_t &sizes) const;
     void simplify();
     void serialize(std::ostream &out) const;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -275,7 +275,8 @@ public:
             kg[2] = 1;
 
             if (ow_pow2 && (mb >= 512)) { // lower TGs preferable at higher MBs
-                const int low_tg = max_tg / (2 * utils::div_up(mb, 512));
+                const int low_tg
+                        = std::max(1, max_tg / (2 * utils::div_up(mb, 512)));
                 if (tg[2] / low_tg > 1) {
                     kg[is_blocked_by_mb() ? 2 : 1] *= tg[2] / low_tg;
                     tg[2] = low_tg;
@@ -319,7 +320,7 @@ public:
                     lg[1] = utils::max_div(oc_blk / simd, simds_per_line);
                 }
                 if ((lg[1] < optimal_oc)
-                        || (lg[1] != utils::rnd_up_pow2(lg[1]))) {
+                        && (lg[1] == utils::rnd_up_pow2(lg[1]))) {
                     const int oc_simds_per_line = simds_per_line / lg[1];
                     lg[0] = (mb <= oc_simds_per_line)
                             ? mb
@@ -541,7 +542,7 @@ public:
         else if (lg[0] > 1)
             cut_dim(lg[0], kg[1], 1); // mb
         else if (lg[1] / simd > 1)
-            cut_dim(lg[1], kg[0], simd); // oc
+            cut_dim(lg[1], kg[0], 2 * simd); // oc
         else if (lg[7] > 1)
             cut_dim(lg[7], null, 1); // kw
         else

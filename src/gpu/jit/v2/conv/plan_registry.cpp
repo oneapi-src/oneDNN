@@ -73,6 +73,15 @@ struct plan_registry_instance_t {
     void dump() const {
         if (registry_path.empty()) return;
         ir_utils::serialize(registry, registry_path);
+        std::vector<std::string> nses;
+        nses.emplace_back("dnnl");
+        nses.emplace_back("impl");
+        nses.emplace_back("gpu");
+        nses.emplace_back("jit");
+        nses.emplace_back("v2");
+        nses.emplace_back("conv");
+        ir_utils::serialize_to_file(
+                registry, registry_path + ".cpp", "plan_registry_data", nses);
     }
 
     static const char *env_registry_path_name;

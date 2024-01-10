@@ -60,7 +60,6 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
                     && !memory_desc_ndims_ok(src_md(), dst_md(), stat_md())
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type({f32, bf16, f16})
-                    && check_scale_shift_data_type()
                     && attr()->has_default_values(skip_mask_t::scales_runtime)
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;

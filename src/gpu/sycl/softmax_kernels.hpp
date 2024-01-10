@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ struct softmax_fwd_kernel_vec_t {
         size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
         size_t base_idx = offset_t * conf_.block_size;
 
-        auto operation = [=](dim_t &ou, dim_t &in) {
+        auto operation = [=, this](dim_t &ou, dim_t &in) {
             float space_denom = 0;
             float space_max = -FLT_MAX;
             dim_t ou_in_offset = ou * conf_.channels * conf_.inner_size + in;
@@ -138,7 +138,7 @@ struct softmax_bwd_kernel_vec_t {
         size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
         size_t base_idx = offset_t * conf_.block_size;
 
-        auto operation = [=](dim_t &ou, dim_t &in) {
+        auto operation = [=, this](dim_t &ou, dim_t &in) {
             dim_t ou_in_offset = ou * conf_.channels * conf_.inner_size + in;
             float sbr = 0;
             for (dim_t c = 0; c < conf_.channels; ++c) {

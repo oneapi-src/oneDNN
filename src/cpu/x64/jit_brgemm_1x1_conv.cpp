@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -215,6 +215,21 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
                         jit_avx512_core_brgemm_conv_rtus_kernel_t(jcp)));
         CHECK(rtus_kernel_->create_kernel());
     }
+
+    // JIT to precompute scales
+    const bool is_jit_supported = mayiuse(avx512_core);
+    const auto attr = pd()->attr();
+    if (is_jit_supported && req_copy_scales(attr, jcp.scale_adjust_factor)) {
+        const auto &attr_scales = attr->scales_;
+        int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+        if (wei_scale_mask != 0) {
+            CHECK(safe_ptr_assign(jit_scale_precompute_,
+                    new jit_avx512_core_scale_precompute_t(
+                            jcp.scale_adjust_factor)));
+            CHECK(jit_scale_precompute_->create_kernel());
+        }
+    }
+
     int i_init_begin = (pd()->ic_chunks == 1) ? 1 : 0;
     int i_init_end = 2;
 
@@ -447,6 +462,143 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
 }
 
 template <cpu_isa_t isa>
+void brgemm_1x1_convolution_fwd_t<isa>::execute_os_blocking(
+        const brgemm_exec_ctx_t &brgemm_ctx,
+        brgemm_batch_element_t *const brg_batch_global, const float *dst_scales,
+        const float *oscales, int32_t src_zp_vals, int32_t *src_zp_comp,
+        int32_t *dst_zp_vals, int32_t *s8s8_compensation,
+        char *const c_buffer_global, char *inp_buffer_base,
+        uint8_t *inp_buffer_mask_base) const {
+
+    const auto &jcp = pd()->jcp_;
+    const bool is_amx = brgemm_convolution_utils::is_amx(isa);
+
+    const int os_chunks = div_up(jcp.nb_os, jcp.nb_os_blocking);
+    const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_oc * os_chunks;
+
+    parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) {
+        if (ithr >= work_amount) return;
+        brgemm_batch_element_t *const brg_batch
+                = brg_batch_global + (size_t)ithr * jcp.adjusted_batch_size;
+        char *const c_buffer = (jcp.use_buffer)
+                ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M
+                : nullptr;
+        char *inp_buffer = (jcp.is_rtus)
+                ? inp_buffer_base + ithr * src_dsz * jcp.inp_buffer_size
+                : nullptr;
+        uint8_t *__restrict inp_buffer_mask = (jcp.is_rtus)
+                ? inp_buffer_mask_base + ithr * jcp.inp_buffer_mask_size
+                : nullptr;
+        int last_n = -1;
+        int last_g = -1;
+        int last_brg_idx = -1;
+        int start {0}, end {0};
+        balance211(work_amount, nthr, ithr, start, end);
+        int n {0}, g {0}, ocb {0}, oss {0};
+
+        if (jcp.loop_order == loop_ndhwgc)
+            nd_iterator_init(start, n, jcp.mb, oss, os_chunks, g, jcp.ngroups,
+                    ocb, jcp.nb_oc);
+        else if (jcp.loop_order == loop_ngcdhw)
+            nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, ocb, jcp.nb_oc,
+                    oss, os_chunks);
+        else
+            assert(!"Unknown loop order");
+
+        for (auto work = start; work < end; work++) {
+            if (jcp.is_rtus && (last_n != n || last_g != g))
+                std::memset(inp_buffer_mask, 0, jcp.inp_buffer_mask_size);
+            const auto osb_start = oss * jcp.nb_os_blocking;
+            const auto osb_range
+                    = nstl::min(jcp.nb_os - osb_start, jcp.nb_os_blocking);
+            for (int osb = 0; osb < osb_range; osb++) {
+                const int os = (osb_start + osb) * jcp.os_block;
+                const int od = os / (OH * OW);
+                const int oh = (os % (OH * OW)) / OW;
+                const int ow = os % OW;
+                char *inp_buffer_sp = (jcp.is_rtus)
+                        ? inp_buffer + src_dsz * os * jcp.LDA
+                        : nullptr;
+                for (int icc = 0; icc < pd()->ic_chunks; icc++) {
+                    if (jcp.is_rtus)
+                        maybe_rtus(ithr, brgemm_ctx.src, inp_buffer_sp,
+                                inp_buffer_mask, g, n, icc, od, oh, ow);
+                    exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer,
+                            inp_buffer_sp, g, n, ocb, od, oh, ow, icc,
+                            &last_brg_idx, oscales, src_zp_vals, src_zp_comp,
+                            dst_zp_vals, s8s8_compensation, dst_scales);
+                }
+            }
+            last_n = n;
+            last_g = g;
+            if (jcp.loop_order == loop_ndhwgc)
+                nd_iterator_step(n, jcp.mb, oss, os_chunks, g, jcp.ngroups, ocb,
+                        jcp.nb_oc);
+            else if (jcp.loop_order == loop_ngcdhw)
+                nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ocb, jcp.nb_oc, oss,
+                        os_chunks);
+            else
+                assert(!"Unknown loop order");
+        }
+        if (is_amx) amx_tile_release();
+    });
+}
+
+template <cpu_isa_t isa>
+void brgemm_1x1_convolution_fwd_t<isa>::execute_full_spatial(
+        const brgemm_exec_ctx_t &brgemm_ctx,
+        brgemm_batch_element_t *const brg_batch_global, const float *dst_scales,
+        const float *oscales, int32_t src_zp_vals, int32_t *src_zp_comp,
+        int32_t *dst_zp_vals, int32_t *s8s8_compensation,
+        char *const c_buffer_global) const {
+
+    const auto &jcp = pd()->jcp_;
+    const bool is_amx = brgemm_convolution_utils::is_amx(isa);
+    const int work_amount
+            = jcp.mb * jcp.ngroups * jcp.nb_oc * OD * OH * jcp.nb_ow;
+    parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) {
+        if (ithr >= work_amount) return;
+        brgemm_batch_element_t *const brg_batch
+                = brg_batch_global + (size_t)ithr * jcp.adjusted_batch_size;
+        char *const c_buffer = (jcp.use_buffer)
+                ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M
+                : nullptr;
+        int last_brg_idx = -1;
+        int start {0}, end {0};
+        balance211(work_amount, nthr, ithr, start, end);
+        int n {0}, g {0}, ocb {0}, od {0}, oh {0}, owb {0};
+
+        if (jcp.loop_order == loop_ndhwgc)
+            nd_iterator_init(start, n, jcp.mb, od, OD, oh, OH, owb, jcp.nb_ow,
+                    g, jcp.ngroups, ocb, jcp.nb_oc);
+        else if (jcp.loop_order == loop_ngcdhw)
+            nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, ocb, jcp.nb_oc,
+                    od, OD, oh, OH, owb, jcp.nb_ow);
+        else
+            assert(!"Unknown loop order");
+
+        for (auto work = start; work < end; work++) {
+            for (int icc = 0; icc < pd()->ic_chunks; icc++) {
+                const int ow = owb * jcp.ow_block;
+                exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, nullptr, g, n,
+                        ocb, od, oh, ow, icc, &last_brg_idx, oscales,
+                        src_zp_vals, src_zp_comp, dst_zp_vals,
+                        s8s8_compensation, dst_scales);
+            }
+            if (jcp.loop_order == loop_ndhwgc)
+                nd_iterator_step(n, jcp.mb, od, OD, oh, OH, owb, jcp.nb_ow, g,
+                        jcp.ngroups, ocb, jcp.nb_oc);
+            else if (jcp.loop_order == loop_ngcdhw)
+                nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ocb, jcp.nb_oc, od,
+                        OD, oh, OH, owb, jcp.nb_ow);
+            else
+                assert(!"Unknown loop order");
+        }
+        if (is_amx) amx_tile_release();
+    });
+}
+
+template <cpu_isa_t isa>
 status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
         const exec_ctx_t &ctx) const {
 
@@ -455,16 +607,15 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
 
     const auto &jcp = pd()->jcp_;
-    const bool is_amx = brgemm_convolution_utils::is_amx(isa);
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+    const float *oscales = scale_utils::precompute_scales(scratchpad,
             src_scales, wei_scales, pd()->OC(), pd()->attr(),
-            jcp.scale_adjust_factor);
+            jit_scale_precompute_.get(), jcp.scale_adjust_factor);
 
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
@@ -499,111 +650,13 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
             : nullptr;
 
     if (jcp.is_os_blocking) {
-        const int os_chunks = div_up(jcp.nb_os, jcp.nb_os_blocking);
-        const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_oc * os_chunks;
-
-#define BRGC_WO(...) \
-    parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) { \
-        if (ithr >= work_amount) return; \
-        brgemm_batch_element_t *const brg_batch \
-                = brg_batch_global + (size_t)ithr * jcp.adjusted_batch_size; \
-        char *const c_buffer = (jcp.use_buffer) \
-                ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M \
-                : nullptr; \
-        char *inp_buffer = (jcp.is_rtus) \
-                ? inp_buffer_base + ithr * src_dsz * jcp.inp_buffer_size \
-                : nullptr; \
-        uint8_t *__restrict inp_buffer_mask = (jcp.is_rtus) \
-                ? inp_buffer_mask_base + ithr * jcp.inp_buffer_mask_size \
-                : nullptr; \
-        int last_n = -1; \
-        int last_g = -1; \
-        int last_brg_idx = -1; \
-        int start {0}, end {0}; \
-        balance211(work_amount, nthr, ithr, start, end); \
-        int n {0}, g {0}, ocb {0}, oss {0}; \
-        nd_iterator_init(start, __VA_ARGS__); \
-        for (auto work = start; work < end; work++) { \
-            if (jcp.is_rtus && (last_n != n || last_g != g)) \
-                std::memset(inp_buffer_mask, 0, jcp.inp_buffer_mask_size); \
-            const auto osb_start = oss * jcp.nb_os_blocking; \
-            const auto osb_range \
-                    = nstl::min(jcp.nb_os - osb_start, jcp.nb_os_blocking); \
-            for (int osb = 0; osb < osb_range; osb++) { \
-                const int os = (osb_start + osb) * jcp.os_block; \
-                const int od = os / (OH * OW); \
-                const int oh = (os % (OH * OW)) / OW; \
-                const int ow = os % OW; \
-                char *inp_buffer_sp = (jcp.is_rtus) \
-                        ? inp_buffer + src_dsz * os * jcp.LDA \
-                        : nullptr; \
-                for (int icc = 0; icc < pd()->ic_chunks; icc++) { \
-                    if (jcp.is_rtus) \
-                        maybe_rtus(ithr, brgemm_ctx.src, inp_buffer_sp, \
-                                inp_buffer_mask, g, n, icc, od, oh, ow); \
-                    exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, \
-                            inp_buffer_sp, g, n, ocb, od, oh, ow, icc, \
-                            &last_brg_idx, oscales, src_zero_point, \
-                            zp_compensation, dst_zp_vals, s8s8_compensation, \
-                            dst_scales); \
-                } \
-            } \
-            last_n = n; \
-            last_g = g; \
-            nd_iterator_step(__VA_ARGS__); \
-        } \
-        if (is_amx) amx_tile_release(); \
-    });
-
-        if (jcp.loop_order == loop_ndhwgc)
-            BRGC_WO(n, jcp.mb, oss, os_chunks, g, jcp.ngroups, ocb, jcp.nb_oc)
-        else if (jcp.loop_order == loop_ngcdhw)
-            BRGC_WO(n, jcp.mb, g, jcp.ngroups, ocb, jcp.nb_oc, oss, os_chunks)
-        else
-            assert(!"Unknown loop order");
-
-#undef BRGC_WO
-
+        execute_os_blocking(brgemm_ctx, brg_batch_global, dst_scales, oscales,
+                src_zero_point, zp_compensation, dst_zp_vals, s8s8_compensation,
+                c_buffer_global, inp_buffer_base, inp_buffer_mask_base);
     } else {
-        const int work_amount
-                = jcp.mb * jcp.ngroups * jcp.nb_oc * OD * OH * jcp.nb_ow;
-
-#define BRGC_WO(...) \
-    parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) { \
-        if (ithr >= work_amount) return; \
-        brgemm_batch_element_t *const brg_batch \
-                = brg_batch_global + (size_t)ithr * jcp.adjusted_batch_size; \
-        char *const c_buffer = (jcp.use_buffer) \
-                ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M \
-                : nullptr; \
-        int last_brg_idx = -1; \
-        int start {0}, end {0}; \
-        balance211(work_amount, nthr, ithr, start, end); \
-        int n {0}, g {0}, ocb {0}, od {0}, oh {0}, owb {0}; \
-        nd_iterator_init(start, __VA_ARGS__); \
-        for (auto work = start; work < end; work++) { \
-            for (int icc = 0; icc < pd()->ic_chunks; icc++) { \
-                const int ow = owb * jcp.ow_block; \
-                exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, nullptr, g, n, \
-                        ocb, od, oh, ow, icc, &last_brg_idx, oscales, \
-                        src_zero_point, zp_compensation, dst_zp_vals, \
-                        s8s8_compensation, dst_scales); \
-            } \
-            nd_iterator_step(__VA_ARGS__); \
-        } \
-        if (is_amx) amx_tile_release(); \
-    });
-
-        if (jcp.loop_order == loop_ndhwgc)
-            BRGC_WO(n, jcp.mb, od, OD, oh, OH, owb, jcp.nb_ow, g, jcp.ngroups,
-                    ocb, jcp.nb_oc)
-        else if (jcp.loop_order == loop_ngcdhw)
-            BRGC_WO(n, jcp.mb, g, jcp.ngroups, ocb, jcp.nb_oc, od, OD, oh, OH,
-                    owb, jcp.nb_ow)
-        else
-            assert(!"Unknown loop order");
-
-#undef BRGC_WO
+        execute_full_spatial(brgemm_ctx, brg_batch_global, dst_scales, oscales,
+                src_zero_point, zp_compensation, dst_zp_vals, s8s8_compensation,
+                c_buffer_global);
     }
 
     return status::success;

@@ -162,14 +162,14 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(const post_ops_t &post_ops,
         bool swap_ab, const memory_desc_t &prelu_wei_md) {
     if (post_ops.len() > 0) {
         problem_.postOps = post_ops;
-        problem_.postOpTranspose = swap_ab;
 
         int po_count = post_ops.len();
         problem_.Tbinary.reserve(po_count);
         problem_.binary.reserve(po_count);
-        problem_.binaryRow.reserve(po_count);
-        problem_.binaryCol.reserve(po_count);
-        problem_.binaryBatch.reserve(po_count);
+        problem_.binaryRow = {};
+        problem_.binaryCol = {};
+        problem_.binaryBatch = {};
+        problem_.binaryTrans = {};
 
         if (problem_.Ta == Type::f16) problem_.Ts = Type::f32;
         if (problem_.Ta == Type::bf8 || problem_.Tb == Type::bf8)
@@ -180,9 +180,6 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(const post_ops_t &post_ops,
             if (entry.kind != primitive_kind::binary
                     && entry.kind != primitive_kind::prelu) {
                 problem_.Tbinary.push_back(Type::invalid);
-                problem_.binaryRow.push_back(false);
-                problem_.binaryCol.push_back(false);
-                problem_.binaryBatch.push_back(false);
                 problem_.binary.push_back(MatrixAddressing {});
                 continue;
             }
@@ -190,29 +187,31 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(const post_ops_t &post_ops,
             const auto &src_md
                     = entry.is_binary() ? entry.binary.src1_desc : prelu_wei_md;
             memory_desc_wrapper src_mdw(src_md);
-            if (entry.is_prelu()) problem_.preluMd = prelu_wei_md;
             int ndims = src_mdw.ndims();
             auto T = convert_dnnl_to_kernel_type(src_mdw.data_type());
-            int nr = (ndims >= 1) ? src_mdw.dims()[ndims - 1] : 1;
-            int nc = (ndims >= 2) ? src_mdw.dims()[ndims - 2] : 1;
+
+            bool is_multi_row = (ndims >= 1) && (src_mdw.dims()[ndims - 1] > 1);
+            bool is_multi_col = (ndims >= 2) && (src_mdw.dims()[ndims - 2] > 1);
             bool trans = false;
 
             if (src_mdw.ndims() >= 2) {
                 if (src_md.format_kind != format_kind::blocked
                         || !is_md_gemm_compatible_plain_format(&src_md, false))
                     return status::unimplemented;
-                trans = (src_md.format_desc.blocking.strides[ndims - 1] > 1);
+                trans = (src_mdw.dims()[ndims - 1] > 1)
+                        && (src_mdw.blocking_desc().strides[ndims - 1] > 1);
             }
 
             if (swap_ab) {
                 trans = !trans;
-                std::swap(nr, nc);
+                std::swap(is_multi_row, is_multi_col);
             }
 
             problem_.Tbinary.push_back(T);
-            problem_.binaryRow.push_back(nr > 1);
-            problem_.binaryCol.push_back(nc > 1);
-            problem_.binaryBatch.push_back(ndims >= 3);
+            problem_.binaryRow[i] = is_multi_row;
+            problem_.binaryCol[i] = is_multi_col;
+            problem_.binaryBatch[i] = ndims >= 3;
+            problem_.binaryTrans[i] = trans;
 
             MatrixAddressing atype;
             atype.layout = trans ? MatrixLayout::T : MatrixLayout::N;

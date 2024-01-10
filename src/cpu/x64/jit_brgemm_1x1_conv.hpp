@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@
 #include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/x64/jit_avx512_core_scale_precompute.hpp"
 #include "cpu/x64/jit_brgemm_conv_trans_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
@@ -125,6 +126,18 @@ private:
             const float *oscales, int32_t src_zp_vals, int32_t *src_zp_comp,
             int32_t *dst_zp_vals, int32_t *s8s8_compensation,
             const float *dst_scales) const;
+    void execute_os_blocking(const brgemm_exec_ctx_t &brgemm_ctx,
+            brgemm_batch_element_t *const brg_batch_global,
+            const float *dst_scales, const float *oscales, int32_t src_zp_vals,
+            int32_t *src_zp_comp, int32_t *dst_zp_vals,
+            int32_t *s8s8_compensation, char *const c_buffer_global,
+            char *inp_buffer_base, uint8_t *inp_buffer_mask_base) const;
+    void execute_full_spatial(const brgemm_exec_ctx_t &brgemm_ctx,
+            brgemm_batch_element_t *const brg_batch_global,
+            const float *dst_scales, const float *oscales, int32_t src_zp_vals,
+            int32_t *src_zp_comp, int32_t *dst_zp_vals,
+            int32_t *s8s8_compensation, char *const c_buffer_global) const;
+
     status_t execute_forward_all(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
@@ -146,6 +159,7 @@ private:
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_rtus_kernel_t>
             rtus_kernel_;
+    std::unique_ptr<jit_avx512_core_scale_precompute_t> jit_scale_precompute_;
 
     const memory_desc_wrapper bias_d;
 

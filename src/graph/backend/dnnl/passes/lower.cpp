@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -356,10 +356,14 @@ static status_t squared_difference_handler(
 
 static status_t static_quant_handler(
         const std::shared_ptr<op_t> &op, subgraph_rewriter_t &rewriter) {
-    const auto &zps = op->get_attr<std::vector<int64_t>>(op_attr::zps);
     const auto &scales = op->get_attr<std::vector<float>>(op_attr::scales);
     const auto &qtype = op->get_attr<std::string>(op_attr::qtype);
     const auto &axis = op->get_attr<int64_t>(op_attr::axis);
+
+    std::vector<int64_t> zps(scales.size(), 0);
+    if (op->has_attr(op_attr::zps)) {
+        zps = op->get_attr<std::vector<int64_t>>(op_attr::zps);
+    }
 
     auto in_vals = op->get_input_values();
     auto out_vals = op->get_output_values();
@@ -410,10 +414,14 @@ static status_t static_quant_handler(
 
 static status_t static_dequant_handler(
         const std::shared_ptr<op_t> &cur_op, subgraph_rewriter_t &rewriter) {
-    const auto &zps = cur_op->get_attr<std::vector<int64_t>>(op_attr::zps);
     const auto &scales = cur_op->get_attr<std::vector<float>>(op_attr::scales);
     const auto &qtype = cur_op->get_attr<std::string>(op_attr::qtype);
     const auto &axis = cur_op->get_attr<int64_t>(op_attr::axis);
+
+    std::vector<int64_t> zps(scales.size(), 0);
+    if (cur_op->has_attr(op_attr::zps)) {
+        zps = cur_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+    }
 
     auto in_vals = cur_op->get_input_values();
     auto out_vals = cur_op->get_output_values();

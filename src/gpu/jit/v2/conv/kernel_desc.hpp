@@ -200,54 +200,9 @@ public:
     bool is_finalized = false;
 
     bool is_empty() const { return prop == prop_kind::undef; }
-
     bool is_supported() const;
-
-    void set(const std::string &s) {
-        if (s.empty()) return;
-        auto parse = [&](const std::string &key, const std::string &value) {
-            if (value.empty()) return;
-            if (key == "--prop") {
-                prop = ir_utils::str_to_prop_kind(value);
-            } else if (key == "--dw") {
-                is_dw = ir_utils::str_to_bool(value);
-            } else if (key == "--src") {
-                src_tag = make_conv_layout_tag(tensor_kind_t::src, value);
-            } else if (key == "--wei") {
-                wei_tag = make_conv_layout_tag(tensor_kind_t::wei, value);
-            } else if (key == "--dst") {
-                dst_tag = make_conv_layout_tag(tensor_kind_t::dst, value);
-            } else if (key == "--hw") {
-                hw = str_to_hw(value);
-            } else if (key == "--fma") {
-                fma = str_to_fma_kind(value);
-            } else if (key == "--simd") {
-                simd = std::stoi(value);
-            } else if (key == "--regs") {
-                regs = std::stoi(value);
-            } else if (key == "--iter") {
-                iter_tile = str_to_prb_tile(value);
-            } else if (key == "--tg") {
-                thread_group_tile = str_to_prb_tile(value);
-            } else if (key == "--loop-nest") {
-                loop_nest = str_to_loop_nest(value);
-            } else if (key == "--a-access") {
-                a_access_kind = str_to_send_kind(value);
-            } else if (key == "--b-access") {
-                b_access_kind = str_to_send_kind(value);
-            } else if (key == "--c-access") {
-                c_access_kind = str_to_send_kind(value);
-            } else {
-                std::cout << "Unknown argument: " << key << std::endl;
-                ir_error_not_expected();
-            }
-        };
-        auto parts = gpu_utils::split(s, " ");
-        for (int i = 0; i < (int)parts.size(); i += 2) {
-            parse(parts[i], parts[i + 1]);
-        }
-    }
-
+    void set(const std::string &s);
+    void set_defaults();
     void finalize(const plan_t &plan);
 
     bool fits(const problem_t &prb, bool check_tags = true) const {
@@ -262,60 +217,8 @@ public:
         return true;
     }
 
-    std::string cmd_str() const {
-        std::vector<std::string> parts;
-        auto add = [&](const std::string &key, const std::string &value) {
-            if (value.empty()) return;
-            parts.push_back(key);
-            parts.push_back(value);
-        };
-
-        add("--prop", ir_utils::to_string(prop));
-        add("--dw", is_dw ? "1" : "0");
-        add("--src", src_tag.str());
-        add("--wei", wei_tag.str());
-        add("--dst", dst_tag.str());
-        add("--hw", ir_utils::to_lower(to_string(hw.to_ngen())));
-        add("--fma", to_string(fma));
-        add("--simd", std::to_string(simd));
-        add("--regs", std::to_string(regs));
-        add("--iter", iter_tile.str());
-        add("--tg", thread_group_tile.str());
-        add("--loop-nest", loop_nest.str());
-        add("--a-access", to_string(a_access_kind));
-        add("--b-access", to_string(b_access_kind));
-        add("--c-access", to_string(c_access_kind));
-
-        std::ostringstream oss;
-        bool is_first = true;
-        for (auto &p : parts) {
-            if (!is_first) oss << " ";
-            oss << p;
-            is_first = false;
-        }
-        return oss.str();
-    }
-
-    std::string str() const {
-        std::ostringstream oss;
-        oss << "Propagation:        " << ir_utils::to_string(prop) << std::endl;
-        oss << "Source tag:         " << src_tag << std::endl;
-        oss << "Weights tag:        " << wei_tag << std::endl;
-        oss << "Destination tag:    " << dst_tag << std::endl;
-        oss << "HW:                 " << ir_utils::to_lower(hw.str())
-            << std::endl;
-        oss << "FMA kind:           " << to_string(fma) << std::endl;
-        oss << "SIMD:               " << simd << std::endl;
-        oss << "Registers:          " << regs << std::endl;
-        oss << "Iteration tile:     " << iter_tile << std::endl;
-        oss << "Thread group tile:  " << thread_group_tile << std::endl;
-        oss << "Loop nest:          " << loop_nest << std::endl;
-        oss << "A access kind:      " << to_string(a_access_kind) << std::endl;
-        oss << "B access kind:      " << to_string(b_access_kind) << std::endl;
-        oss << "C access kind:      " << to_string(c_access_kind) << std::endl;
-        oss << "Command:            " << cmd_str();
-        return ir_utils::add_tag("Desc", oss.str());
-    }
+    std::string cmd_str() const;
+    std::string str() const;
 
     IR_DEFINE_DUMP()
 
@@ -423,6 +326,8 @@ public:
             compute::kernel_t &kernel) const;
     serialized_t serialize() const override;
     static kernel_desc_t deserialize(const serialized_t &s);
+    static ir_utils::cli_iface_t<kernel_desc_t> cli_iface();
+    static void show_help();
 };
 
 class grid_t {

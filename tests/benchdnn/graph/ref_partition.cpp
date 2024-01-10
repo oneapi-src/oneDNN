@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ ref_partition_t::ref_partition_t(const deserialized_graph &dg,
 void ref_partition_t::init_ref(const bench_mode_t mode,
         const std::vector<size_t> &graph_in_ports,
         partition_mem_map_t &partition_mem_map, res_t *res) {
-
+    handle_typecast_x16();
     handle_special_case_bf16(res);
     for (const auto &par_op_ref : partition_ops_ref_) {
         // res should be independent from op to op
@@ -207,6 +207,7 @@ void ref_partition_t::check_partition_correctness(
 
     for (auto op : partition_ops_ref_) {
         size_t op_id = op.get().id_;
+        const auto op_kind = op.get().kind_;
         const auto ref_prim = ref_prims_.at(op_id);
 
         // if there is eltwise post-ops or binary div post-ops (GPU test), need
@@ -217,21 +218,24 @@ void ref_partition_t::check_partition_correctness(
         const auto op_driver = opkind2driver(ref_prim->get_kind());
         has_eltwise = has_eltwise
                 || ((op_driver == dnnl_driver_t::eltwise
-                        || (opstr2kind(op.get().kind_)
-                                        == dnnl::graph::op::kind::Divide
+                        || (opstr2kind(op_kind) == dnnl::graph::op::kind::Divide
                                 && engine_tgt_kind == dnnl_gpu)));
         output_has_nans = output_has_nans
-                || ((map_kind_to_alg.find(op.get().kind_)
-                            != map_kind_to_alg.end())
+                || ((map_kind_to_alg.find(op_kind) != map_kind_to_alg.end())
                         && ::eltwise::eltwise_alg_returns_nan_or_inf(
-                                map_kind_to_alg.at(op.get().kind_)));
+                                map_kind_to_alg.at(op_kind)))
+                // `f8_e4m3` range is very short which makes inputs convert
+                // into NaNs.
+                || (op_driver == dnnl_driver_t::reorder
+                        && op.get().in_lts_.front().get_data_type()
+                                == logical_tensor::data_type::f8_e4m3);
 
         // get the args that need comparing
         args_t output_args;
         for (size_t out_idx = 0; out_idx < op.get().out_lts_.size();
                 ++out_idx) {
             int out_arg = get_prim_arg_name_from_graph_op_output_offset(
-                    opstr2kind(op.get().kind_), out_idx);
+                    opstr2kind(op_kind), out_idx);
             if (out_arg == 0) continue; // unsupported case
             size_t out_lt_id = op.get().out_lts_[out_idx].id_;
             for (size_t i = 0; i < partition_out_ids_.size(); i++) {
@@ -344,6 +348,42 @@ bool ref_partition_t::is_bf16_partition_support_f32_intermediate_result()
     }
 
     return true;
+}
+
+//     TypeCast (f32->x16)
+//        |    ->
+//       OPs*  ->  change all tensors to f32
+//        |    ->
+//     TypeCast (x16->f32) Stop if find x16->f32 Typecast
+void ref_partition_t::handle_typecast_x16() {
+
+    // depth first search to change all tensor to f32
+    // unless we meet x16->f32 TypeCast
+    std::function<void(size_t)> dfs = [&](size_t lt_id) {
+        bf16_to_f32_rewrite_lt_id_.insert(lt_id);
+        if (in_lt_2_ops_.find(lt_id) == in_lt_2_ops_.end()) return;
+        for (const auto &op : in_lt_2_ops_.at(lt_id)) {
+            // find a x16 -> f32 typecast, skip this path
+            if (op.get().kind_ == "TypeCast"
+                    && (op.get().in_lts_[0].data_type_ == "bf16"
+                            || op.get().in_lts_[0].data_type_ == "f16")
+                    && op.get().out_lts_[0].data_type_ == "f32")
+                continue;
+            for (const auto &lt : op.get().out_lts_) {
+                dfs(lt.id_);
+            }
+        }
+    };
+    for (const auto &par_op_ref : partition_ops_ref_) {
+        const auto &op = par_op_ref.get();
+        // find a f32 -> x16 typecast
+        if (op.kind_ == "TypeCast"
+                && (op.out_lts_[0].data_type_ == "bf16"
+                        || op.out_lts_[0].data_type_ == "f16")
+                && op.in_lts_[0].data_type_ == "f32") {
+            dfs(op.out_lts_[0].id_);
+        }
+    }
 }
 
 void ref_partition_t::handle_special_case_bf16(res_t *res) {

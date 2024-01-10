@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,14 +125,18 @@ pm::pb_op_t *int8_conv_bias(const std::shared_ptr<pb_graph_t> &pgraph,
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     pm::pb_op_t *dequant_src
             = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
+    dequant_src->append_decision_function(is_int8_quantization);
+
     auto popt_graph = std::make_shared<pb_graph_t>();
     pm::pb_op_t *pquant = popt_graph->append_op(graph::op_kind::Quantize);
+    pquant->append_decision_function(is_int8_quantization);
     popt_graph->create_input_port(0, pquant, 0);
     popt_graph->create_output_port(0, pquant, 0);
     auto quant_wei = pgraph->append_optional(popt_graph);
 
     pm::pb_op_t *dequant_wei = pgraph->append_op(
             graph::op_kind::Dequantize, in_edges_t {in_edge(0, quant_wei, 0)});
+    dequant_wei->append_decision_function(is_int8_quantization);
 
     pm::pb_op_t *conv = pgraph->append_op(graph::op_kind::Convolution,
             in_edges_t {
@@ -151,6 +155,8 @@ pm::pb_op_t *int8_conv_bias(const std::shared_ptr<pb_graph_t> &pgraph,
             grouped ? check_grouped<true> : check_grouped<false>);
     pm::pb_op_t *quant_dst = pgraph->append_op(graph::op_kind::Quantize,
             in_edges_t {in_edge(0, conv_bias_dst, 0)});
+    quant_dst->append_decision_function(is_int8_quantization);
+
     return quant_dst;
 };
 
@@ -160,15 +166,19 @@ pm::pb_op_t *int8_conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     pm::pb_op_t *dequant_src
             = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
+    dequant_src->append_decision_function(is_int8_quantization);
 
     auto popt_graph = std::make_shared<pb_graph_t>();
     pm::pb_op_t *pquant = popt_graph->append_op(graph::op_kind::Quantize);
+    pquant->append_decision_function(is_int8_quantization);
+
     popt_graph->create_input_port(0, pquant, 0);
     popt_graph->create_output_port(0, pquant, 0);
     auto quant_wei = pgraph->append_optional(popt_graph);
 
     pm::pb_op_t *dequant_wei = pgraph->append_op(
             graph::op_kind::Dequantize, in_edges_t {in_edge(0, quant_wei, 0)});
+    dequant_wei->append_decision_function(is_int8_quantization);
 
     pm::pb_op_t *conv = pgraph->append_op(graph::op_kind::Convolution,
             in_edges_t {
@@ -189,6 +199,8 @@ pm::pb_op_t *int8_conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
             graph::op_kind::ReLU, in_edges_t {in_edge(0, conv_bias_dst, 0)});
     pm::pb_op_t *quant_dst = pgraph->append_op(
             graph::op_kind::Quantize, in_edges_t {in_edge(0, relu, 0)});
+    quant_dst->append_decision_function(is_int8_quantization);
+
     return quant_dst;
 };
 
@@ -200,18 +212,24 @@ pm::pb_op_t *int8_conv_bias_add_relu(const std::shared_ptr<pb_graph_t> &pgraph,
     if (post_src) { post_src_edges = in_edges_t {in_edge(0, post_src, 0)}; }
     pm::pb_op_t *dequant_src
             = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
+    dequant_src->append_decision_function(is_int8_quantization);
 
     auto popt_graph = std::make_shared<pb_graph_t>();
     pm::pb_op_t *pquant = popt_graph->append_op(graph::op_kind::Quantize);
+    pquant->append_decision_function(is_int8_quantization);
+
     popt_graph->create_input_port(0, pquant, 0);
     popt_graph->create_output_port(0, pquant, 0);
     auto quant_wei = pgraph->append_optional(popt_graph);
 
     pm::pb_op_t *dequant_wei = pgraph->append_op(
             graph::op_kind::Dequantize, in_edges_t {in_edge(0, quant_wei, 0)});
+    dequant_wei->append_decision_function(is_int8_quantization);
 
     pm::pb_op_t *dequant_other
             = pgraph->append_op(graph::op_kind::Dequantize, post_src_edges);
+    dequant_other->append_decision_function(is_int8_quantization);
+
     pm::pb_op_t *conv = pgraph->append_op(graph::op_kind::Convolution,
             in_edges_t {
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
@@ -237,6 +255,8 @@ pm::pb_op_t *int8_conv_bias_add_relu(const std::shared_ptr<pb_graph_t> &pgraph,
     } else {
         pm::pb_op_t *quant_dst = pgraph->append_op(
                 graph::op_kind::Quantize, in_edges_t {in_edge(0, relu, 0)});
+        quant_dst->append_decision_function(is_int8_quantization);
+
         return quant_dst;
     }
 };

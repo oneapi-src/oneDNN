@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,10 +60,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_fusion)
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
                     pm::pb_op_t *dequant
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant->append_decision_function(is_int8_quantization);
                     pm::pb_op_t *reorder = pgraph->append_op(
                             graph::op_kind::Reorder, {in_edge(0, dequant, 0)});
-                    pgraph->append_op(
+                    auto quant = pgraph->append_op(
                             graph::op_kind::Quantize, {in_edge(0, reorder, 0)});
+                    quant->append_decision_function(is_int8_quantization);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_reorder>();
@@ -81,8 +83,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_cpu)
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
                     pm::pb_op_t *dequant
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant->append_decision_function(is_int8_quantization);
                     pm::pb_op_t *dequant_other
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_other->append_decision_function(
+                            is_int8_quantization);
+
                     pm::pb_op_t *reorder = pgraph->append_op(
                             graph::op_kind::Reorder, {in_edge(0, dequant, 0)});
                     pm::pb_op_t *add = pgraph->append_op(graph::op_kind::Add,
@@ -94,8 +100,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_cpu)
                                            op_attr::auto_broadcast)
                                 == "none";
                     });
-                    pgraph->append_op(
+
+                    auto quant = pgraph->append_op(
                             graph::op_kind::Quantize, {in_edge(0, add, 0)});
+                    quant->append_decision_function(is_int8_quantization);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_reorder>();
@@ -113,10 +121,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_gpu)
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
                     pm::pb_op_t *dequant
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant->append_decision_function(is_int8_quantization);
                     pm::pb_op_t *dequant_other
                             = pgraph->append_op(graph::op_kind::Dequantize);
                     dequant_other->append_decision_function(
+                            is_int8_quantization);
+                    dequant_other->append_decision_function(
                             check_zps_values<0>);
+
                     pm::pb_op_t *reorder = pgraph->append_op(
                             graph::op_kind::Reorder, {in_edge(0, dequant, 0)});
                     pm::pb_op_t *add = pgraph->append_op(graph::op_kind::Add,
@@ -128,8 +140,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_gpu)
                                            op_attr::auto_broadcast)
                                 == "none";
                     });
-                    pgraph->append_op(
+
+                    auto quant = pgraph->append_op(
                             graph::op_kind::Quantize, {in_edge(0, add, 0)});
+                    quant->append_decision_function(is_int8_quantization);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_reorder>();

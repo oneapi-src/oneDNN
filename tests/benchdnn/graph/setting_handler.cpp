@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,8 @@ dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt) {
         // use u8 instead of boolean in the reference path
         // dnn_graph_mem_t will use the data type from the logical tensor and the u8 data handle
         case graph_dt::boolean: return dnnl_u8;
+        case graph_dt::f8_e5m2: return dnnl_f8_e5m2;
+        case graph_dt::f8_e4m3: return dnnl_f8_e4m3;
         case graph_dt::undef:
         default: return dnnl_data_type_undef;
     }
@@ -56,6 +58,10 @@ logical_tensor::data_type get_data_type(const std::string &data_type) {
         return logical_tensor::data_type::bf16;
     } else if (data_type == "s32") {
         return logical_tensor::data_type::s32;
+    } else if (data_type == "f8_e5m2") {
+        return logical_tensor::data_type::f8_e5m2;
+    } else if (data_type == "f8_e4m3") {
+        return logical_tensor::data_type::f8_e4m3;
     } else {
         return logical_tensor::data_type::undef;
     }
@@ -1693,12 +1699,15 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
 
     if (op_kind == "Dequantize" || op_kind == "Quantize") {
         std::vector<float> scales {};
-        base_op_ref.get_attr_f32_vector(scales, "scales");
-        arg_scales.set(arg, {scale_policy, scales.front()});
+        const auto has_scales
+                = base_op_ref.get_attr_f32_vector(scales, "scales");
+        if (has_scales) arg_scales.set(arg, {scale_policy, scales.front()});
+
         std::vector<int64_t> zps;
-        base_op_ref.get_attr_s64_vector(zps, "zps");
+        const auto has_zps = base_op_ref.get_attr_s64_vector(zps, "zps");
         // currently, zps only support per_tensor quantization in primitive
-        zp.set(arg, attr_t::policy_t::COMMON, zps.front());
+        if (has_zps && !zps.empty())
+            zp.set(arg, attr_t::policy_t::COMMON, zps.front());
     } else if (op_kind == "DynamicDequantize" || op_kind == "DynamicQuantize") {
         //  TODO: benchdnn needs to alloc memory based on is_def() function.
         //  so add tmp value for per_tensor scales && zps to make is_def()

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -135,11 +135,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
 
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant
                             = popt_graph->append_op(graph::op_kind::Quantize);
+                    pquant->append_decision_function(is_int8_quantization);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
                     auto popt = pgraph->append_optional(popt_graph);
@@ -163,8 +166,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
                     auto prep = post_quantized_add(pgraph, popt_bias);
 
                     // quantize
-                    pgraph->append_op(graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, prep, 0)});
+                    auto pquant_out
+                            = pgraph->append_op(graph::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, prep, 0)});
+                    pquant_out->append_decision_function(is_int8_quantization);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
@@ -178,11 +183,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
 
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant
                             = popt_graph->append_op(graph::op_kind::Quantize);
+                    pquant->append_decision_function(is_int8_quantization);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
                     auto popt = pgraph->append_optional(popt_graph);
@@ -207,8 +215,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
                             pgraph, popt_bias, /*check_zps*/ true);
 
                     // quantize
-                    pgraph->append_op(graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, prep, 0)});
+                    auto pquant_out
+                            = pgraph->append_op(graph::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, prep, 0)});
+                    pquant_out->append_decision_function(is_int8_quantization);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
@@ -235,11 +245,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_post_ops)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
 
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant
                             = popt_graph->append_op(graph::op_kind::Quantize);
+                    pquant->append_decision_function(is_int8_quantization);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
                     auto popt = pgraph->append_optional(popt_graph);
@@ -313,6 +326,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_reshape_post_ops)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
 
                     pm::pb_op_t *weight_reshape1
                             = pgraph->append_op(graph::op_kind::StaticReshape);
@@ -397,6 +412,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -440,6 +457,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
                     // post add with dequant->typecast
                     pm::pb_op_t *pdequant_add
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    pdequant_add->append_decision_function(
+                            is_int8_quantization);
                     pm::pb_op_t *typecast_add
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, pdequant_add, 0)});
@@ -507,6 +526,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -551,6 +572,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                     pm::pb_op_t *pdequant_add
                             = pgraph->append_op(graph::op_kind::Dequantize);
                     pdequant_add->append_decision_function(check_zps_values<0>);
+                    pdequant_add->append_decision_function(
+                            is_int8_quantization);
                     pm::pb_op_t *typecast_add
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, pdequant_add, 0)});
@@ -638,11 +661,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_post_ops)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    dequant_data->append_decision_function(
+                            is_int8_quantization);
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant
                             = popt_graph->append_op(graph::op_kind::Quantize);
                     pquant->append_decision_function(check_if_constant_weight);
+                    pquant->append_decision_function(is_int8_quantization);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
                     auto popt = pgraph->append_optional(popt_graph);

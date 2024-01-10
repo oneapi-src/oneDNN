@@ -359,8 +359,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_layer_normalization);
 
     if (is_gpu()) {
-        const bool dt_ok = prb->dt[0] == prb->dt[1]
-                && !is_integral_dt(prb->dt[0]) && !is_integral_dt(prb->dt[1]);
+        const bool dt_ok = prb->dt[0] == prb->dt[1];
         if (!dt_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;

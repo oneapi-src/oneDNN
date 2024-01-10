@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include "graph/backend/dnnl/kernels/concat.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
+#include "graph/backend/dnnl/patterns/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -72,6 +73,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_concat_fusion)
                     for (size_t i = 0; i < VARIADIC_INPUT_NUM; ++i) {
                         pm::pb_op_t *dequant
                                 = pgraph->append_op(graph::op_kind::Dequantize);
+                        dequant->append_decision_function(is_int8_quantization);
                         input_edges.emplace_back(in_edge(i, dequant, 0));
                     }
                     pm::pb_op_t *concat = pgraph->append_op(
@@ -79,8 +81,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_concat_fusion)
                     concat->append_decision_function(
                             check_scales_zps_all_equal);
 
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    auto quant = pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, concat, 0)});
+                    quant->append_decision_function(is_int8_quantization);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_concat>();

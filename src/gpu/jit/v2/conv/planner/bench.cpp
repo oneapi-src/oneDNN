@@ -213,6 +213,11 @@ public:
                     algorithm::convolution_direct, src_md, wei_md,
                     memory::desc(), dst_md, strides, padding_l, padding_r,
                     attr);
+            auto *impl_name = pd.impl_info_str();
+            if (strcmp(impl_name, "jit:ir_v2") != 0) {
+                std::cout << "Error: expected conv_v2." << std::endl;
+                exit(1);
+            }
             auto prim = convolution_forward(pd);
             set_primitive(prim);
             return true;
@@ -264,6 +269,7 @@ std::vector<problem_t> generate_problems(const kernel_desc_t &kd) {
     const int max_iters = (1 << 20);
     for (int iter = 0; iter < max_iters; iter++) {
         problem_t prb;
+        prb.set_hw(kd.hw);
         prb.set_prop(kd.prop);
         prb.set_shape(random_shape());
         prb.set_src_tag(kd.src_tag);
@@ -333,6 +339,8 @@ bench_data_t bench(const kernel_desc_t &_kernel_desc) {
         tasks[i].bench(strm, mem_pool);
         bd.add(prbs[i], tasks[i].time());
     }
+
+    std::cout << bd << std::endl;
 
     return bd;
 }

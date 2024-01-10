@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,10 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_math_utils.h"
+
+// The attribute intel_reqd_workgroup_walk_order does not exist on all GPU
+// runtimes. Disabling warnings to enable -Werror in CI testing.
+#pragma clang diagnostic ignored "-Wunknown-attributes"
 
 #if ELEMENT_SIZE == 2
 #pragma OPENCL EXTENSION cl_intel_subgroups_short : enable

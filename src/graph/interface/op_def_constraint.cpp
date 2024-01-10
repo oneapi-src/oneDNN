@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -224,28 +224,48 @@ bool check_reduce_axes(const op_t *n) {
     return true;
 }
 
-// check function for scales and zps of Quantize/Dequantize.
-// the number of scales and zps should keep same.
-// especially, when qtype == "per-tensor", sz_scales/zps should be 1.
+// Check function for scales and zps of Quantize/Dequantize. The sizes of scales
+// and zps (if presented) should be same. Especially when qtype == "per-tensor",
+// size of scales/zps should be 1. For f8 quantization, zps is not required.
 bool check_quant_dequant_scales_zps(const op_t *n) {
+    const logical_tensor_t &src_lt
+            = n->get_input_value(0)->get_logical_tensor();
+    const logical_tensor_t &dst_lt
+            = n->get_input_value(0)->get_logical_tensor();
     const int64_t sz_scales
             = n->get_attr<std::vector<float>>(op_attr::scales).size();
-    const int64_t sz_zps
-            = n->get_attr<std::vector<int64_t>>(op_attr::zps).size();
-    VCHECK_SHAPE_INFER((sz_zps == sz_scales),
-            "%s, the number of scales and zps should keep same. given scale "
-            "size: %d, given zp size: %d.",
-            op_t::kind2str(n->get_kind()).c_str(), static_cast<int>(sz_scales),
-            static_cast<int>(sz_zps));
 
     // qtype is not a required attribute.
     const auto qtype = n->has_attr(op_attr::qtype)
             ? n->get_attr<std::string>(op_attr::qtype)
             : "per_tensor";
     if (qtype == "per_tensor") {
-        VCHECK_SHAPE_INFER((sz_scales == 1 && sz_zps == 1),
+        VCHECK_SHAPE_INFER((sz_scales == 1),
                 "%s, the number of scales and zps should be 1 for per-tensor "
-                "policy. given scale size: %d, given zp size: %d.",
+                "policy. given scale size: %d.",
+                op_t::kind2str(n->get_kind()).c_str(),
+                static_cast<int>(sz_scales));
+    }
+
+    if (n->has_attr(op_attr::zps)) {
+        // f8 quantization or dequantization does not support zps.
+        const bool f8_src = utils::one_of(
+                src_lt.data_type, data_type::f8_e5m2, data_type::f8_e4m3);
+        const bool f8_dst = utils::one_of(
+                dst_lt.data_type, data_type::f8_e5m2, data_type::f8_e4m3);
+        if (f8_src || f8_dst) {
+            VCHECK_SHAPE_INFER(false,
+                    "%s, f8 quantization or dequantization does not support "
+                    "zps.",
+                    op_t::kind2str(n->get_kind()).c_str());
+        }
+
+        const int64_t sz_zps
+                = n->get_attr<std::vector<int64_t>>(op_attr::zps).size();
+
+        VCHECK_SHAPE_INFER((sz_zps == sz_scales),
+                "%s, the number of scales and zps should keep same. given "
+                "scale size: %d, given zp size: %d.",
                 op_t::kind2str(n->get_kind()).c_str(),
                 static_cast<int>(sz_scales), static_cast<int>(sz_zps));
     }

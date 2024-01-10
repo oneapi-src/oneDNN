@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -365,19 +365,11 @@ TEST_F(attr_quantization_test_t, TestLNorm) {
     memory::desc stat_md {{1, 16}, data_type::f32, tag::ab};
     normalization_flags flags = normalization_flags::use_global_stats;
 
-    if (get_test_engine_kind() == engine::kind::gpu) {
-        CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
-                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags));
-        CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
-                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
-                gen_attr_with_scales()));
-    } else {
-        CHECK_OK(layer_normalization_forward::primitive_desc(eng,
-                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags));
-        CHECK_OK(layer_normalization_forward::primitive_desc(eng,
-                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
-                gen_attr_with_scales()));
-    }
+    CHECK_OK(layer_normalization_forward::primitive_desc(
+            eng, prop_kind::forward_inference, md, md, stat_md, 0.1f, flags));
+    CHECK_OK(layer_normalization_forward::primitive_desc(eng,
+            prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
+            gen_attr_with_scales()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE,
                  DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {

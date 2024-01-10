@@ -1,3 +1,4 @@
+--reset --case=pattern/int8/int8_bf16_matmul.json
 --reset --case=pattern/int8/int8_bf16_matmul_mul_add_fusion.json
 --reset --case=pattern/int8/int8_bf16_matmul_post_ops_fusion.json
 --reset --case=pattern/int8/int8_concat_fusion.json

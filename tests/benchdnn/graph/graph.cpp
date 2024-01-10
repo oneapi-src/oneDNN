@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -435,17 +435,23 @@ int doit(const prb_t *prb, res_t *res) {
                 case logical_tensor::data_type::f16:
                     in_out_dt.emplace_back(dnnl_f16);
                     break;
+                case logical_tensor::data_type::f8_e5m2:
+                    in_out_dt.emplace_back(dnnl_f8_e5m2);
+                    break;
+                case logical_tensor::data_type::f8_e4m3:
+                    in_out_dt.emplace_back(dnnl_f8_e4m3);
+                    break;
                 default: break;
             }
         }
         // Get partition direction from op's kind which used for skipping
         // unsupported cases.
-        dir_t dir = FLAG_FWD;
+        dir_t dir = FWD_I;
         const auto &op_ids = partitions[i].get_ops();
         for (const auto &aop : dg.ops_) {
             if (std::count(op_ids.begin(), op_ids.end(), aop.id_)) {
                 if (aop.kind_.find("Backward") != std::string::npos) {
-                    dir = FLAG_BWD;
+                    dir = BWD_DW;
                     break;
                 }
             }
