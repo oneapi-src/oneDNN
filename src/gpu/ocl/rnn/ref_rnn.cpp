@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -542,7 +542,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             = primitive_attr_t::skip_mask_t::rnn_tparams;
     if (weights_layer_dt == data_type::s8)
         attr_mask = attr_mask | primitive_attr_t::skip_mask_t::rnn_data_qparams
-                | primitive_attr_t::skip_mask_t::rnn_weights_qparams;
+                | primitive_attr_t::skip_mask_t::rnn_weights_qparams
+                | primitive_attr_t::skip_mask_t::fpmath_mode;
     ok = ok && this->attr()->has_default_values(attr_mask);
 
     // TODO: implement something like check layout consistency

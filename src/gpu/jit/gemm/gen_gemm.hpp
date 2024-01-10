@@ -60,7 +60,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             // - runtime dims are not supported
             bool ok = true;
 
-            auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops;
+            auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops
+                    | smask_t::fpmath_mode;
 
             dev_info_ = compute_engine->device_info();
             arch_ = dev_info_->gpu_arch();

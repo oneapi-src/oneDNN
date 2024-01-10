@@ -888,13 +888,14 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     // No post-ops are supported for f64
     if (prb.is_f64_conv() && !attr->has_default_values()) return false;
 
+    using sm = primitive_attr_t::skip_mask_t;
+    auto attr_skip_mask = sm::fpmath_mode;
     if (prb.is_fwd || prb.is_bwd_d) {
-        using sm = primitive_attr_t::skip_mask_t;
-        auto attr_skip_mask = sm::post_ops | sm::sum_dt
-                | sm::zero_points_runtime | sm::scales_runtime;
+        attr_skip_mask |= sm::post_ops | sm::sum_dt | sm::zero_points_runtime
+                | sm::scales_runtime;
         if (!attr->has_default_values(attr_skip_mask)) return false;
     } else {
-        if (!attr->has_default_values()) return false;
+        if (!attr->has_default_values(attr_skip_mask)) return false;
     }
 
     using namespace data_type;
