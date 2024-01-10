@@ -49,6 +49,9 @@ native_object_t get_native(const sycl_object_t &sycl_object) {
     return reinterpret_cast<native_object_t>(handle);
 }
 
+template <>
+CUcontext get_native(const ::sycl::device &device);
+
 } // namespace compat
 } // namespace nvidia
 } // namespace gpu

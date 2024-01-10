@@ -31,6 +31,7 @@ namespace amd {
 
 class hip_sycl_scoped_context_handler_t {
     hipCtx_t original_;
+    hipDevice_t currentDevice_;
     bool need_to_recover_;
 
 public:

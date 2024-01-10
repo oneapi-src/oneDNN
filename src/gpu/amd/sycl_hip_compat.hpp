@@ -54,6 +54,9 @@ native_object_t get_native(const sycl_object_t &sycl_object) {
     return reinterpret_cast<native_object_t>(handle);
 }
 
+template <>
+HIPcontext get_native(const ::sycl::device &device);
+
 } // namespace compat
 } // namespace amd
 } // namespace gpu
