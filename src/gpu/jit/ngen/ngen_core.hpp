@@ -1043,6 +1043,8 @@ public:
     static constexpr int log2Bytes(HW hw)                  { return (hw >= HW::XeHPC) ? 6 : 5;  }
     static constexpr int bytes(HW hw)                      { return (1 << log2Bytes(hw)); }
     static constexpr int bytesToGRFs(HW hw, unsigned x)    { return (x + bytes(hw) - 1) >> log2Bytes(hw); }
+
+    static constexpr int maxRegs()                         { return 256; }
 };
 
 class ARF : public Register
