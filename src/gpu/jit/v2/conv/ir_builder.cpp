@@ -867,20 +867,23 @@ private:
     }
 
     expr_t mem_buf(tensor_kind_t abc) const {
-        const char *name = nullptr;
+        std::string name;
+        std::string src("src");
+        std::string wei("wei");
+        std::string dst("dst");
         switch (abc) {
             case tensor_kind_t::a:
-                name = pick_a(desc_.prop, "src", "wei", "dst");
+                name = pick_a(desc_.prop, src, wei, dst);
                 break;
             case tensor_kind_t::b:
-                name = pick_b(desc_.prop, "src", "wei", "dst");
+                name = pick_b(desc_.prop, src, wei, dst);
                 break;
             case tensor_kind_t::c:
-                name = pick_c(desc_.prop, "src", "wei", "dst");
+                name = pick_c(desc_.prop, src, wei, dst);
                 break;
             default: ir_error_not_expected();
         }
-        return kernel_info_.find_arg(name);
+        return kernel_info_.find_arg(name.c_str());
     }
 
     expr_t a_mem_buf() const { return mem_buf(tensor_kind_t::a); }
