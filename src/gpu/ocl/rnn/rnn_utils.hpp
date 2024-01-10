@@ -191,11 +191,7 @@ struct ocl_conf_t {
 #endif
     serialized_t serialize() const {
         assert_trivially_serializable(ocl_conf_t);
-        serialized_t s {};
-        // Explicitly maintain zero padding to keep the implementation simple and
-        // robust
-        s.append(*this);
-        return s;
+        return serialized_t(*this);
     }
 
     static ocl_conf_t deserialize(const serialized_t &s) {

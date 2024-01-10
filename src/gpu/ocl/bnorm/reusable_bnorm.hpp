@@ -58,10 +58,7 @@ struct reusable_bnorm_params_t {
 #endif
     serialized_t serialize() const {
         assert_trivially_serializable(reusable_bnorm_params_t);
-
-        serialized_t s {};
-        s.append(*this);
-        return s;
+        return serialized_t(*this);
     }
 
     static reusable_bnorm_params_t deserialize(const serialized_t &s) {

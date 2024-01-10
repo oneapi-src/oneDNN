@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,11 +50,9 @@ struct gen9_eltwise_jit_params_t {
     bool operator==(const gen9_eltwise_jit_params_t &) const = default;
 #endif
     serialized_t serialize() const {
-        serialized_t s {};
         // Explicitly maintain zero padding to keep the implementation simple and
         // robust
-        s.append(*this);
-        return s;
+        return serialized_t(*this);
     }
 
     static gen9_eltwise_jit_params_t deserialize(const serialized_t &s) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ public:
 
     bool operator!=(const stride_t &other) const { return !operator==(other); }
 
-    size_t get_hash() const { return dnnl::impl::gpu::get_hash(this); }
+    size_t get_hash() const { return serialized_t::get_hash(*this); }
 
     operator dim_t() const {
         assert(is_fixed());
@@ -134,7 +134,7 @@ struct block_t {
 #endif
     bool operator!=(const block_t &other) const { return !(*this == other); }
 
-    size_t get_hash() const { return dnnl::impl::gpu::get_hash(this); }
+    size_t get_hash() const { return serialized_t::get_hash(*this); }
 
     std::string str() const {
         std::ostringstream oss;
@@ -220,7 +220,7 @@ struct block_layout_t {
     const block_t &operator[](size_t idx) const { return blocks[idx]; }
 
     void append(const block_t &block) { blocks[num_blocks++] = block; }
-    size_t get_hash() const { return dnnl::impl::gpu::get_hash(this); }
+    size_t get_hash() const { return serialized_t::get_hash(*this); }
 
     block_t &operator[](size_t idx) {
         assert(idx < num_blocks);

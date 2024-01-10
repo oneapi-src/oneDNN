@@ -971,11 +971,6 @@ enum class WalkOrder : uint8_t {
 
 // Strategy parameters for GEMM kernels.
 struct GEMMStrategyPOD : public CommonStrategy {
-    void serialize(serialized_data_t &s) const {
-        // Explicitly maintain zero padding to keep the implementation simple and
-        // robust
-        s.append(*this);
-    }
     int blocking[3] = {
             0}; // Recommended block size in each dimension (m/n/k) -- for driver.
     int blockingAlt[3] = {
@@ -1248,7 +1243,8 @@ struct GEMMStrategy : public GEMMStrategyPOD {
     bool checkAdd32Rem() const { return checkAdd32 && emulate.emulate64; }
 
     void serialize(serialized_data_t &s) const {
-        GEMMStrategyPOD::serialize(s);
+        const GEMMStrategyPOD &pod = *this;
+        s.append(pod);
         for (const auto &astrategy : binary)
             s.append(astrategy);
     }

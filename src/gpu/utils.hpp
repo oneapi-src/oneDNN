@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,13 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace gpu_utils {
+
+// Replacement implementation of std::enable_if_t from C++14, included here for
+// interoperability with C++11
+template <bool B, class T = void>
+using enable_if_t = typename std::enable_if<B, T>::type;
+template <typename T>
+using is_vector = std::is_same<T, typename std::vector<typename T::value_type>>;
 
 class error_stream_t {
 public:
