@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 * Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -611,6 +611,8 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         ss << "attr-acc:" << dnnl_accumulation_mode2str(am) << " ";
     }
 
+    const bool deterministic = attr->deterministic_;
+    if (deterministic) { ss << "attr-deterministic:" << deterministic << " "; }
     if (attr->has_default_values()) return ss;
 
     const runtime_scales_t &os = attr->output_scales_;

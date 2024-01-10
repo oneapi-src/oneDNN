@@ -76,6 +76,8 @@ The detailed explanation is provided in the corresponding sections.
   allow implicit down-conversions of f32 values during computation;
 - [Accumulation mode](@ref dev_guide_attributes_acc_mode) to
   allow the usage of lower precision datatypes for accumulation;
+- [Deterministic mode](@ref dev_guide_attributes_deterministic) to enforce
+  run-to-run deterministic primitive execution.
 - [Quantization](@ref dev_guide_attributes_quantization) settings used in INT8
   inference;
 - [Post-ops](@ref dev_guide_attributes_post_ops) to fuse a primitive with

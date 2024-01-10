@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -293,6 +293,24 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_fpmath_mode(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_fpmath_mode(
         dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t mode);
+
+/// Returns the deterministic primitive attribute value.
+///
+/// @param attr Primitive attributes.
+/// @param value Output deterministic attribute value
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_deterministic(
+        const_dnnl_primitive_attr_t attr, int *value);
+
+/// Sets the deterministic primitive attribute value.
+///
+/// @param attr Primitive attributes.
+/// @param value Boolean value to set deterministic attribute
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_deterministic(
+        dnnl_primitive_attr_t attr, int value);
 
 /// Returns the accumulation mode primitive attribute.
 ///

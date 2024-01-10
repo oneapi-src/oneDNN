@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 * Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -97,6 +97,17 @@ TEST_F(attr_test_t, TestScratchpadModeEx) {
         } else {
             ASSERT_EQ(mem_consumption, 0L);
         }
+    }
+}
+
+TEST_F(attr_test_t, TestDeterministic) {
+    dnnl::primitive_attr attr;
+    // Check the default value
+    ASSERT_EQ(false, attr.get_deterministic());
+
+    for (auto b : {true, false}) {
+        attr.set_deterministic(b);
+        ASSERT_EQ(b, attr.get_deterministic());
     }
 }
 

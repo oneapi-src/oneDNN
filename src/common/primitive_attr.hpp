@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -618,7 +618,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl_primitive_attr()
         : scratchpad_mode_(dnnl::impl::scratchpad_mode::library)
         , fpmath_mode_(dnnl::impl::get_fpmath_mode())
-        , acc_mode_(dnnl::impl::accumulation_mode::strict) {}
+        , acc_mode_(dnnl::impl::accumulation_mode::strict)
+        , deterministic_(false) {}
     ~dnnl_primitive_attr() = default;
 
     dnnl_primitive_attr *clone() const {
@@ -639,6 +640,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         scratchpad_mode_ = other.scratchpad_mode_;
         fpmath_mode_ = other.fpmath_mode_;
         acc_mode_ = other.acc_mode_;
+        deterministic_ = other.deterministic_;
         post_ops_ = other.post_ops_;
         rnn_data_qparams_ = other.rnn_data_qparams_;
         CHECK(rnn_weights_qparams_.copy_from(other.rnn_weights_qparams_));
@@ -683,6 +685,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         bool ret = scratchpad_mode_ == rhs.scratchpad_mode_
                 && fpmath_mode_ == rhs.fpmath_mode_
                 && acc_mode_ == rhs.acc_mode_
+                && deterministic_ == rhs.deterministic_
                 && output_scales_ == rhs.output_scales_
                 && scales_ == rhs.scales_ && zero_points_ == rhs.zero_points_
                 && post_ops_ == rhs.post_ops_
@@ -737,6 +740,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::scratchpad_mode_t scratchpad_mode_;
     dnnl::impl::fpmath_mode_t fpmath_mode_;
     dnnl::impl::accumulation_mode_t acc_mode_;
+    bool deterministic_;
     dnnl::impl::post_ops_t post_ops_;
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
     dnnl::impl::scales_t rnn_weights_qparams_;

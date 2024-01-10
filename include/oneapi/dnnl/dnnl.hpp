@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -3889,6 +3889,23 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(dnnl_primitive_attr_set_accumulation_mode(
                                   get(), dnnl::convert_to_c(mode)),
                 "could not set accumulation mode primitive attribute");
+    }
+
+    /// Returns the deterministic attribute value
+    bool get_deterministic() const {
+        int result;
+        error::wrap_c_api(dnnl_primitive_attr_get_deterministic(get(), &result),
+                "could not get deterministic primitive attribute");
+        return static_cast<bool>(result);
+    }
+
+    /// Sets deterministic attribute value
+    ///
+    /// @param value Specified deterministic mode.
+    void set_deterministic(bool value) {
+        error::wrap_c_api(dnnl_primitive_attr_set_deterministic(
+                                  get(), static_cast<int>(value)),
+                "could not set deterministic primitive attribute");
     }
 
     /// Returns the scratchpad mode.

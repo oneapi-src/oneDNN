@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -447,6 +447,19 @@ status_t dnnl_primitive_attr_set_accumulation_mode(
         primitive_attr_t *attr, accumulation_mode_t am) {
     if (any_null(attr)) return invalid_arguments;
     return attr->set_accumulation_mode(am);
+}
+
+status_t dnnl_primitive_attr_get_deterministic(
+        const primitive_attr_t *attr, int *d) {
+    if (any_null(attr, d)) return invalid_arguments;
+    *d = attr->deterministic_;
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_deterministic(primitive_attr_t *attr, int d) {
+    if (any_null(attr)) return invalid_arguments;
+    attr->deterministic_ = d;
+    return success;
 }
 
 status_t dnnl_primitive_attr_get_scratchpad_mode(
