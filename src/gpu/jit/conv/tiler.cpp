@@ -2369,14 +2369,9 @@ private:
             case tiler_mode_t::lookup: {
                 auto params = const_conv_lookup_table().find(cfg.key());
                 blocking_checker_t blocking_checker(cfg);
-                bool transposed = cfg.prb().ab_swap_transpose;
                 if (!params.is_empty()
                         && (blocking_checker.is_ok(params.blocking()))) {
-                    if (transposed) {
                         params_gen_ = params_generator_t(cfg, params);
-                    } else {
-                        params_gen_ = params_generator_t(params);
-                    }
                 } else {
                     mode_ = tiler_mode_t::model;
                     params_gen_ = params_generator_t(cfg);
