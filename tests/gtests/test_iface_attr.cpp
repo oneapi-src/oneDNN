@@ -42,6 +42,22 @@ TEST_F(attr_test_t, TestFPMathMode) {
     }
 }
 
+TEST_F(attr_test_t, TestFPMathModeV2) {
+    dnnl::primitive_attr attr;
+    ASSERT_EQ(attr.get_fpmath_mode(), fpmath_mode::strict);
+
+    for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
+                 fpmath_mode::tf32, fpmath_mode::any})
+        for (auto f : {true, false}) {
+            attr.set_fpmath_mode(m, f);
+            fpmath_mode ret_mode;
+            bool ret_f;
+            attr.get_fpmath_mode(ret_mode, ret_f);
+            ASSERT_EQ(m, ret_mode);
+            ASSERT_EQ(f, ret_f);
+        }
+}
+
 TEST_F(attr_test_t, TestFPMathModeDefault) {
     ASSERT_EQ(fpmath_mode::strict, get_default_fpmath_mode());
 
