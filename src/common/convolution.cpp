@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -158,7 +158,8 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
         const data_type_t src_dt = desc.src_desc.data_type;
         const data_type_t dst_dt = desc.dst_desc.data_type;
 
-        auto fwd_attr_mask = smask_t::post_ops | smask_t::sum_dt;
+        auto fwd_attr_mask
+                = smask_t::post_ops | smask_t::sum_dt | smask_t::fpmath_mode;
 
         bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8);
         if (engine->kind() == engine_kind::gpu)
@@ -211,7 +212,9 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
                     VERBOSE_UNSUPPORTED_POSTOP);
         }
     } else {
-        VCHECK_CONV_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+        auto bwd_attr_mask = smask_t::fpmath_mode;
+        VCHECK_CONV_UNIMPL(attr->has_default_values(bwd_attr_mask),
+                VERBOSE_UNSUPPORTED_ATTR);
     }
 
     return status::success;
