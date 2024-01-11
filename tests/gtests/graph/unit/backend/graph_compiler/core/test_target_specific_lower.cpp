@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <compiler/ir/transform/cpu/target_specific_lower.hpp>
 #include <util/any_map.hpp>
 
-#include <iostream>
 #include "gtest/gtest.h"
 
 using namespace dnnl::impl::graph::gc;
@@ -84,8 +83,12 @@ TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerIntrinsics2) {
     check(aaa, 5, 8, 7, "_should_inline_isnan_bool");
 }
 
-static expr make_const(int64_t v, uint32_t lanes) {
-    return make_expr<constant_node>(v, sc_data_type_t::s32(lanes));
+static expr make_const(int32_t v, uint32_t lanes) {
+    return make_expr<constant_node>((int64_t)v, sc_data_type_t::s32(lanes));
+}
+
+static expr make_const(float v, uint32_t lanes) {
+    return make_expr<constant_node>(v, sc_data_type_t::f32(lanes));
 }
 
 TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerSaturatedCast) {
@@ -132,31 +135,33 @@ TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerSaturatedCast) {
         _var_(h, sc_data_type_t::u8(16));
 
         e = make_cast(datatypes::s8,
-                make_max(make_min(make_round_and_cast(a, datatypes::s32),
-                                 make_const(127, 1)),
-                        make_const(-128, 1)));
+                make_round_and_cast(
+                        builder::make_min(make_const(127.f, 1),
+                                builder::make_max(make_const(-128.f, 1), a)),
+                        datatypes::s32));
         e = make_cast(datatypes::s8,
                 make_max(make_min(b, make_const(127, 1)), make_const(-128, 1)));
 
         f = make_cast(datatypes::u8,
-                make_max(make_min(make_round_and_cast(a, datatypes::s32),
-                                 make_const(255, 1)),
-                        make_const(0, 1)));
+                make_round_and_cast(
+                        builder::make_min(make_const(255.f, 1),
+                                builder::make_max(make_const(0.f, 1), a)),
+                        datatypes::s32));
         f = make_cast(datatypes::u8,
                 make_max(make_min(b, make_const(255, 1)), make_const(0, 1)));
 
         g = builder::make_saturated_cast(c, sc_data_type_t::s8(16));
         g = builder::make_saturated_cast(
-                make_round_and_cast(d, sc_data_type_t::s32(16)),
+                make_round_and_cast(builder::make_min(make_const(127.f, 16), d),
+                        sc_data_type_t::s32(16)),
                 sc_data_type_t::s8(16));
         h = builder::make_saturated_cast(
                 make_max(c, make_const(0, 16)), sc_data_type_t::u8(16));
-        h = builder::make_saturated_cast(
-                make_round_and_cast(make_max(make_expr<constant_node>(0.0f,
-                                                     sc_data_type_t::f32(16)),
-                                            d),
-                        sc_data_type_t::s32(16)),
-                sc_data_type_t::u8(16));
+        h = builder::make_cast(sc_data_type_t::u8(16),
+                make_round_and_cast(
+                        builder::make_min(make_const(255.f, 16),
+                                builder::make_max(make_const(0.f, 16), d)),
+                        sc_data_type_t::s32(16)));
     }
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(ret, expected, false));

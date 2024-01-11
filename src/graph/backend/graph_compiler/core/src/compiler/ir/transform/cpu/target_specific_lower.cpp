@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -540,15 +540,39 @@ public:
         auto intype = v->args_[0]->dtype_;
         auto outtype = v->dtype_;
         auto ths = this;
+        float s8_min = outtype.type_code_ == sc_data_etype::S8
+                ? (float)std::numeric_limits<int8_t>::min()
+                : (float)std::numeric_limits<uint8_t>::min();
+        float s8_max = outtype.type_code_ == sc_data_etype::S8
+                ? (float)std::numeric_limits<int8_t>::max()
+                : (float)std::numeric_limits<uint8_t>::max();
+        auto s8_min_constant = gen_vec_const(intype.lanes_, s8_min);
+        auto s8_max_constant = gen_vec_const(intype.lanes_, s8_max);
+        bool use_fast_path = true;
+        auto u8s8_valid_val = [&]() {
+            if (outtype.type_code_ == sc_data_etype::S8 && use_fast_path) {
+                return builder::make_min(s8_max_constant, inval1);
+            }
+            return builder::make_min(s8_max_constant,
+                    builder::make_max(s8_min_constant, inval1));
+        };
+        auto u8s8_saturate_cast = [&]() {
+            auto real_in = u8s8_valid_val();
+            real_in = builder::make_round_and_cast(
+                    real_in, sc_data_type_t::s32(intype.lanes_));
+            if (outtype.type_code_ == sc_data_etype::S8 && use_fast_path) {
+                return builder::make_saturated_cast(real_in, v->dtype_);
+            } else {
+                return builder::make_cast(v->dtype_, real_in);
+            }
+        };
         if (mod_->ctx_->machine_.cpu_flags_.fAVX512F) {
             // the fast path for AVX512
             if (v->dtype_ == sc_data_type_t::s8(16)) {
                 if (intype == sc_data_type_t::s32(16)) {
                     return v;
                 } else if (intype == sc_data_type_t::f32(16)) {
-                    auto real_in = builder::make_round_and_cast(
-                            inval1, sc_data_type_t::s32(16));
-                    return builder::make_saturated_cast(real_in, v->dtype_);
+                    return u8s8_saturate_cast();
                 }
             } else if (v->dtype_ == sc_data_type_t::u8(16)) {
                 if (intype == sc_data_type_t::s32(16)) {
@@ -557,11 +581,7 @@ public:
                     return builder::make_saturated_cast(
                             builder::make_max(inval1, zero), v->dtype_);
                 } else if (intype == sc_data_type_t::f32(16)) {
-                    auto zero = gen_vec_const(16, 0.0f);
-                    auto real_in = builder::make_max(zero, inval1);
-                    real_in = builder::make_round_and_cast(
-                            real_in, sc_data_type_t::s32(16));
-                    return builder::make_saturated_cast(real_in, v->dtype_);
+                    return u8s8_saturate_cast();
                 }
             } else if (v->dtype_ == sc_data_type_t::s32(16)) {
                 assert(intype == sc_data_type_t::f32(16));
@@ -593,8 +613,8 @@ public:
                                                  << v->dtype_ << ')');
         expr_c real_in = inval1;
         if (intype.type_code_ == sc_data_etype::F32) {
-            real_in = builder::make_round_and_cast(
-                    inval1, sc_data_type_t::s32(intype.lanes_));
+            use_fast_path = false;
+            return u8s8_saturate_cast();
         }
         return cast_s32_u8s8(real_in);
     }
