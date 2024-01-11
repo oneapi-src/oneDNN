@@ -199,9 +199,9 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
 
-            if (attr()->mayidownconvert(f32, tf32))
+            if (attr()->mayiconvert(f32, tf32))
                 set_mode(mode, kernel_desc_t::mode_tf32);
-            if (attr()->mayidownconvert(f32, bf16))
+            if (attr()->mayiconvert(f32, bf16))
                 set_mode(mode, kernel_desc_t::mode_bf16x1);
             if (attr()->deterministic_)
                 set_mode(mode, kernel_desc_t::mode_deterministic);

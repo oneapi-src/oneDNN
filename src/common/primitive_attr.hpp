@@ -717,41 +717,46 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
             const dnnl::impl::memory_desc_t *dst_md);
 
     /* Auxiliary functions */
-    bool mayidownconvert(dnnl::impl::data_type_t dt_from,
+
+    bool mayiconvert(dnnl::impl::data_type_t dt_from,
             dnnl::impl::data_type_t dt_to) const {
-        using namespace dnnl::impl;
 
-        bool is_compat = is_fpsubtype(dt_to, dt_from);
-        auto can_downconvert = [&]() {
-            switch (fpmath_mode_) {
-                case fpmath_mode::strict: return dt_from == dt_to;
-                case fpmath_mode::any: return true;
-                case fpmath_mode::bf16:
-                    return is_fpsubtype(data_type::bf16, dt_to);
-                case fpmath_mode::f16:
-                    return is_fpsubtype(data_type::f16, dt_to);
-                case fpmath_mode::tf32:
-                    return is_fpsubtype(data_type::tf32, dt_to);
-                default: return false;
-            }
+        auto mayidownconvert = [](dnnl::impl::fpmath_mode_t fpmath_mode,
+                                       dnnl::impl::data_type_t dt_from,
+                                       dnnl::impl::data_type_t dt_to) -> bool {
+            using namespace dnnl::impl;
+
+            bool is_compat = is_fpsubtype(dt_to, dt_from);
+            auto can_downconvert = [&]() {
+                switch (fpmath_mode) {
+                    case fpmath_mode::strict: return dt_from == dt_to;
+                    case fpmath_mode::any: return true;
+                    case fpmath_mode::bf16:
+                        return is_fpsubtype(data_type::bf16, dt_to);
+                    case fpmath_mode::f16:
+                        return is_fpsubtype(data_type::f16, dt_to);
+                    case fpmath_mode::tf32:
+                        return is_fpsubtype(data_type::tf32, dt_to);
+                    default: return false;
+                }
+            };
+            return is_compat && can_downconvert();
         };
-        return is_compat && can_downconvert();
-    }
 
-    bool mayiconvert(
-            dnnl::impl::data_type_t dt_from, dnnl::impl::data_type_t dt_to) {
         if (dnnl::impl::types::is_integral_dt(dt_from)) {
             // integer inputs can be converted only:
             // - if force_fpmath_ is enabled, and
             // - to an fp type compatible with fpmath mode
+            // `dt_from` = `f32` to override `is_compat` check.
             return force_fpmath_
-                    && mayidownconvert(dnnl::impl::data_type::f32, dt_to);
+                    && mayidownconvert(
+                            fpmath_mode_, dnnl::impl::data_type::f32, dt_to);
         } else {
             // fp inputs can be converted only:
             // - if target datatype is bigger
             // - or if fpmath mode allows the conversion
             return dnnl::impl::is_fpsubtype(dt_from, dt_to)
-                    || mayidownconvert(dt_from, dt_to);
+                    || mayidownconvert(fpmath_mode_, dt_from, dt_to);
         }
     }
 
