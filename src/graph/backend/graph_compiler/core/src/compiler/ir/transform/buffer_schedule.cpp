@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1017,7 +1017,12 @@ static const tensor_node *get_inplace_target_if_single_inplace(
                 return utils::find_map_value(
                         identity_to_tensor, (*v)[0].to_reuse_.get());
             })
-            .map([](const expr_c *v) { return v->as<tensor_c>().get(); })
+            .map([](const expr_c *v) {
+                // identity_to_tensor might map to empty pointer if the identity
+                // is mapped to multiple buffers. Let's filter that out.
+                return *v;
+            })
+            .map([](const expr_c &v) { return v.as<tensor_c>().get(); })
             .filter([base](const tensor_node *v) {
                 return base->elem_dtype_ == v->elem_dtype_
                         && get_const_as_int(

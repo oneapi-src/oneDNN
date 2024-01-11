@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,7 +77,10 @@ public:
 
 static stmt split_parallel_loop(
         const for_loop &v, size_t wkld, int runtime_num_threads) {
-    if (v->kind_ != for_type::PARALLEL || runtime_num_threads == 1) {
+    if (v->kind_ != for_type::PARALLEL) { return v; }
+    if (runtime_num_threads == 1) {
+        // remove parallel in single thread env
+        v->kind_ = for_type::NORMAL;
         return v;
     }
     bool need_split_parallel = wkld != 0;
@@ -204,7 +207,7 @@ public:
                     = memory_access_threshold_per_thread * runtime_num_threads;
         }
         cur_workload = total_wkld;
-        changed |= (body_wkld > 0UL);
+        changed |= (body_wkld > 0UL) || (runtime_num_threads == 1);
         if (changed) {
             stmt_c newv = copy_attr(*v,
                     builder::make_for_loop_unattached(var, begin, end, step,
