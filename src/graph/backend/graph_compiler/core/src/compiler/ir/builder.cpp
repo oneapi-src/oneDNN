@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -605,25 +605,26 @@ expr make_clip(
 }
 
 expr make_indexing(const expr &ptr, const std::vector<expr> &idx,
-        uint16_t length, const expr &mask) {
-    return make_expr<indexing_node>(ptr, idx, length, mask);
+        uint16_t length, const expr &mask, uint16_t rows) {
+    return make_expr<indexing_node>(ptr, idx, length, rows, mask);
 }
 
 expr make_indexing(const expr_c &ptr, const std::vector<expr_c> &idx,
-        uint16_t length, const expr_c &mask) {
+        uint16_t length, const expr_c &mask, uint16_t rows) {
     return make_expr<indexing_node>(ptr.remove_const(),
-            vector_remove_const(idx), length, mask.remove_const());
+            vector_remove_const(idx), length, rows, mask.remove_const());
 }
 
 expr make_indexing(const expr &ptr, std::initializer_list<expr> idx,
-        uint16_t length, const expr &mask) {
-    return make_expr<indexing_node>(ptr, std::vector<expr>(idx), length, mask);
+        uint16_t length, const expr &mask, uint16_t rows) {
+    return make_expr<indexing_node>(
+            ptr, std::vector<expr>(idx), length, rows, mask);
 }
 
 expr make_indexing(const expr_c &ptr, const expr_c &idx, uint16_t length,
-        const expr_c &mask) {
+        const expr_c &mask, uint16_t rows) {
     return make_expr<indexing_node>(ptr.remove_const(),
-            std::vector<expr> {idx.remove_const()}, length,
+            std::vector<expr> {idx.remove_const()}, length, rows,
             mask.remove_const());
 }
 
@@ -862,6 +863,7 @@ stmt builder_impl_t::list_brgemm(const expr_c &x, const expr_c &w,
     return push_evaluate(make_expr<intrin_call_node>(intrin_type::list_brgemm,
             args, any_map_t {{intrin_attr::brgemm_extras, extras}}));
 }
+
 } // namespace builder
 } // namespace gc
 } // namespace graph

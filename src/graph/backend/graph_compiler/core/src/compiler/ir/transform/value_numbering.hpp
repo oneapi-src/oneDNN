@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,9 @@ namespace gc {
  * */
 class value_numbering_t : public function_pass_t {
 public:
+    bool fold_const_vec_;
+    value_numbering_t(bool fold_const_vec = true)
+        : fold_const_vec_ {fold_const_vec} {}
     func_c operator()(func_c f) override;
     SC_DECL_PASS_INFO_FUNC();
 };

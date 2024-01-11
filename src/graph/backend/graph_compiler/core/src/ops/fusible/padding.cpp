@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -420,7 +420,7 @@ stmt padding_op_t::get_zero_out_stmt(
                                                     {pad_n, pad_k, ph1_ + ih,
                                                             0}))
                                       : builder::tensor_ptr(out_tptr,
-                                              {pad_n, pad_k, ph1_ + ih, 0}),
+                                              {pad_n, pad_k, ph1_ + ih, 0, 0}),
                             ph2_ * ow, c, c, out_dtype, padding_value);
                 }
             }

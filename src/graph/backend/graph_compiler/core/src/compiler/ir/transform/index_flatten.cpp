@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ SC_DECL_PASS_INFO(index_flattener,
 
 static bool process_indexing(ir_visitor_t *ths,
         const std::vector<expr> &old_dims, const std::vector<expr> &old_strides,
-        const std::vector<expr> &idx, std::vector<expr_c> &newidx) {
+        const std::vector<expr> &idx, std::vector<expr_c> &newidx, bool is_2d) {
     bool changed = ths->dispatch_expr_vector(idx, newidx);
     assert(!idx.empty());
     if (idx.size() == 1) {
@@ -45,18 +45,37 @@ static bool process_indexing(ir_visitor_t *ths,
     } else {
         COMPILE_ASSERT(old_strides.size() == old_dims.size(),
                 "Dims and strides shall have same length.");
-        expr_c flattened = builder::make_mul(newidx.back(), old_strides.back());
-        for (int64_t i = newidx.size() - 2; i >= 0; i--) {
+        if (newidx.size() == 2 && is_2d) {
+            newidx = std::vector<expr_c> {
+                    builder::make_constant({UINT64_C(0)}, datatypes::s32),
+                    newidx[0], newidx[1]};
+            return true;
+        }
+        size_t start_idx = newidx.size() - 1;
+        if (is_2d) {
+            start_idx -= 2;
+            assert(newidx.size() > 2);
+        }
+        expr_c flattened
+                = builder::make_mul(newidx[start_idx], old_strides[start_idx]);
+        for (int64_t i = (int64_t)start_idx - 1; i >= 0; i--) {
             flattened = builder::make_add(
                     builder::make_mul(newidx[i], old_strides[i]), flattened);
         }
-        newidx = std::vector<expr_c> {std::move(flattened)};
+        if (is_2d) {
+            auto idx0 = newidx[newidx.size() - 1];
+            auto idx1 = newidx[newidx.size() - 2];
+            newidx = std::vector<expr_c> {
+                    std::move(flattened), std::move(idx0), std::move(idx1)};
+        } else {
+            newidx = std::vector<expr_c> {std::move(flattened)};
+        }
         return true;
     }
 }
 
 static bool process_indexing(ir_visitor_t *ths, tensor_c &tsr,
-        const std::vector<expr> &idx, std::vector<expr_c> &newidx) {
+        const std::vector<expr> &idx, std::vector<expr_c> &newidx, bool is_2d) {
     tensor_c old = tsr;
     tsr = ths->dispatch(tsr).checked_as<tensor_c>();
     bool changed = !tsr.ptr_same(old);
@@ -64,7 +83,8 @@ static bool process_indexing(ir_visitor_t *ths, tensor_c &tsr,
             "Unmatched dimensions of indexing: tsr= "
                     << tsr << utils::print_vector(old->dims_) << ", indexing on"
                     << utils::print_vector(idx));
-    changed |= process_indexing(ths, old->dims_, old->strides_, idx, newidx);
+    changed |= process_indexing(
+            ths, old->dims_, old->strides_, idx, newidx, is_2d);
     return changed;
 }
 
@@ -171,8 +191,8 @@ static void process_slice_reshape_indexing(ir_visitor_t *ths,
         newidx = std::vector<expr_c> {std::move(flattened)};
     } else {
         std::vector<expr_c> flatten_idx;
-        process_indexing(
-                ths, old_dims, get_dense_stride(old_dims), idx, flatten_idx);
+        process_indexing(ths, old_dims, get_dense_stride(old_dims), idx,
+                flatten_idx, false);
         auto flatten_remain = flatten_idx.back();
         expr flattened = 0UL;
         for (auto i = (int)slice_shape.size() - 1; i >= 0; i--) {
@@ -188,24 +208,37 @@ class index_flatten_t : public ir_consistent_visitor_t {
 public:
     using ir_consistent_visitor_t::dispatch;
     using ir_consistent_visitor_t::visit;
+
     expr_c visit(indexing_c v) override {
         std::vector<expr_c> newidx;
         bool changed;
+        bool is_2d = v->dtype_.rows_ != 0;
+        COMPILE_ASSERT(!is_2d || v->idx_.size() >= 2UL,
+                "2D load/store should have at least 2D index");
         if (v->ptr_.isa<tensor>()) {
             auto ptr = v->ptr_.static_as<tensor_c>();
-            changed = process_indexing(this, ptr, v->idx_, newidx);
-            if (changed) {
-                return copy_attr(*v,
-                        builder::make_indexing(
-                                ptr, newidx, v->dtype_.lanes_, v->mask_));
+            auto old_ptr = ptr;
+            changed = process_indexing(this, ptr, v->idx_, newidx, is_2d);
+            if (is_2d) {
+                throw std::runtime_error("2D memory is not supported");
             } else {
-                return std::move(v);
+                if (changed) {
+                    return copy_attr(*v,
+                            builder::make_indexing(ptr, newidx,
+                                    v->dtype_.lanes_, v->mask_,
+                                    v->dtype_.rows_));
+                } else {
+                    return std::move(v);
+                }
             }
         } else {
             // indexing on a tensor_ptr
             tensorptr_c oldptr = v->ptr_.checked_as<tensorptr_c>();
+            auto ptr = dispatch(v->ptr_).checked_as<tensorptr_c>();
             if (!oldptr->is_slice_ && oldptr->base_->ptr_.isa<tensorptr>()
                     && oldptr->base_->ptr_.static_as<tensorptr>()->is_slice_) {
+                COMPILE_ASSERT(!is_2d,
+                        "2D indexing not yet supported on reshaped tensorptr");
                 auto old_parent_ptr
                         = oldptr->base_->ptr_.static_as<tensorptr_c>();
                 auto base_shape = oldptr->shape_;
@@ -219,17 +252,23 @@ public:
                 // 1D input might not have shape info
                 assert(oldptr->base_->idx_.size() == 1 || !shape->empty());
                 // flatten the indices using the reshaped dimensions
-                process_indexing(this, *shape, stride, v->idx_, newidx);
+                COMPILE_ASSERT(shape->size() == v->idx_.size(),
+                        "Unmatched dimensions of indexing: "
+                                << v
+                                << ", shape:" << utils::print_vector(*shape));
+                process_indexing(this, *shape, stride, v->idx_, newidx, is_2d);
+                if (is_2d) {
+                    throw std::runtime_error("2D memory is not supported");
+                }
             }
             // flatten the indices using tensor_ptr's dimensions
             // then, add the flattened 1D index with the flattened 1D offset
             // of the base tensor_ptr
-            auto ptr = dispatch(v->ptr_).checked_as<tensorptr_c>();
             assert(ptr->base_->idx_.size() == 1);
             return copy_attr(*v,
                     builder::make_indexing(ptr->base_->ptr_,
                             builder::make_add(ptr->base_->idx_[0], newidx[0]),
-                            v->dtype_.lanes_, v->mask_));
+                            v->dtype_.lanes_, v->mask_, v->dtype_.rows_));
         }
     }
 

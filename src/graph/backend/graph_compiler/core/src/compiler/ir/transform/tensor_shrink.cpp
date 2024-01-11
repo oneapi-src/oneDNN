@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -276,8 +276,8 @@ public:
             for (size_t i = 0; i < new_idx.size(); i++) {
                 new_idx[i] = new_idx[i] - shrink_info.base_[i];
             }
-            return builder::make_indexing(
-                    itr->second, new_idx, v->dtype_.lanes_, v->mask_);
+            return builder::make_indexing(itr->second, new_idx,
+                    v->dtype_.lanes_, v->mask_, v->dtype_.rows_);
         } else if (v->ptr_.isa<tensorptr>()) {
             // transform &A[0 - a, 0 - b][a, b] to &A[0, 0][0, 0] to make index
             // calculation simpler. Todo: currently we don't support expression
@@ -316,7 +316,8 @@ public:
             if (changed) {
                 return copy_attr(*v,
                         builder::make_indexing(new_ptr.remove_const(),
-                                new_cur_idx, v->dtype_.lanes_, v->mask_));
+                                new_cur_idx, v->dtype_.lanes_, v->mask_,
+                                v->dtype_.rows_));
             }
             return v;
         }

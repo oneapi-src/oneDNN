@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <compiler/ir/pass/printer.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <util/any_map.hpp>
 
@@ -25,6 +26,18 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
+void intrinsic_handler_t::to_string(
+        const intrin_call_c &v, ir_printer_t *printer) const {
+    printer->os_ << name_ << '(';
+    if (!v->args_.empty()) {
+        for (unsigned i = 0; i < v->args_.size() - 1; i++) {
+            printer->do_dispatch(v->args_.at(i)) << ", ";
+        }
+        printer->do_dispatch(v->args_.back());
+    }
+    printer->os_ << ')';
+}
+
 intrinsic_handler_t::intrinsic_handler_t(const std::string &name)
     : name_(name) {}
 

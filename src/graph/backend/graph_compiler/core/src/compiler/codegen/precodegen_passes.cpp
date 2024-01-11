@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ namespace gc {
 sequential_module_pass_t get_ssa_passes(const context_ptr &ctx) {
     std::vector<module_pass_ptr> ret;
     ret.emplace_back(module_function_pass_t::make<ssa_transform_t>());
-    ret.emplace_back(module_function_pass_t::make<value_numbering_t>());
+    ret.emplace_back(module_function_pass_t::make<value_numbering_t>(false));
     ret.emplace_back(
             module_function_pass_t::make<loop_invariant_code_motion_t>());
     ret.emplace_back(module_function_pass_t::make<value_numbering_t>());

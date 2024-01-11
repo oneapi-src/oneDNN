@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -137,7 +137,8 @@ void ir_copier_impl_t::view(indexing_c v) {
     }
     expr mask;
     if (v->mask_.defined()) { mask = copy(v->mask_); }
-    returned_expr_ = builder::make_indexing(ptr, idx, v->dtype_.lanes_, mask);
+    returned_expr_ = builder::make_indexing(
+            ptr, idx, v->dtype_.lanes_, mask, v->dtype_.rows_);
 }
 
 void ir_copier_impl_t::view(tensorptr_c v) {
