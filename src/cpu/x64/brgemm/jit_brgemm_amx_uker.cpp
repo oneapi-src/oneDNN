@@ -51,7 +51,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
             // so we don't need to preserve vmm
             static constexpr bool preserve_vmm = false;
             static constexpr bool use_exact_tail_scalar_bcast = false;
-            const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md);
+            const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md());
 
             static const bcast_set_t enabled_bcast_strategy
                     = {broadcasting_strategy_t::scalar,
@@ -77,14 +77,14 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
             esp.preserve_p_table = false;
 
             postops_injector_ = utils::make_unique<po_injector_t>(
-                    this, brg.attr->post_ops_, bsp, esp);
+                    this, brg.attr()->post_ops_, bsp, esp);
 
             using namespace dnnl::impl::cpu::binary_injector_utils;
             std::tie(with_binary_per_oc_bcast_, with_binary_per_oc_sp_bcast_,
                     with_binary_per_mb_bcast_, with_binary_channel_bcast_,
                     with_binary_per_mb_w_bcast_, with_binary_per_w_bcast_,
                     with_binary_batch_bcast_, with_binary_no_bcast_)
-                    = bcast_strategies_present_tup(brg.attr->post_ops_.entry_,
+                    = bcast_strategies_present_tup(brg.attr()->post_ops_.entry_,
                             dst_md_wrapper, broadcasting_strategy_t::per_oc,
                             broadcasting_strategy_t::per_oc_spatial,
                             broadcasting_strategy_t::per_mb,

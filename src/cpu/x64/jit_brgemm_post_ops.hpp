@@ -374,8 +374,8 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
         , with_binary_non_scalar_bcast_(brg.with_binary
                   && binary_injector::
                           any_binary_postop_rhs_non_scalar_broadcast(
-                                  brg.attr->post_ops_,
-                                  memory_desc_wrapper(brg.dst_md))) {
+                                  brg.attr()->post_ops_,
+                                  memory_desc_wrapper(brg.dst_md()))) {
 
         if (brg.beta != 0) {
             static constexpr bool preserve_gpr = true;
@@ -386,7 +386,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     static_cast<size_t>(vmm_tmp(4).getIdx()), this->r14,
                     this->r15, this->r13, preserve_gpr, preserve_vmm,
                     GET_OFF(ptr_binary_post_ops_rhs), GET_OFF(dst_orig),
-                    memory_desc_wrapper(brg.dst_md),
+                    memory_desc_wrapper(brg.dst_md()),
                     static_cast<size_t>(brg.load_dim % brg.ld_block),
                     k_tail_mask, use_exact_tail_scalar_bcast};
             const binary_injector::static_params_t bsp {this->param1, rhs_sp};

@@ -59,7 +59,7 @@ struct jit_brgemm_kernel_t : public jit_generator {
             static constexpr bool preserve_gpr = true;
             static constexpr bool preserve_vmm = true;
             static constexpr bool use_exact_tail_scalar_bcast = false;
-            const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md);
+            const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md());
 
             static const bcast_set_t enabled_bcast_strategy
                     = {broadcasting_strategy_t::scalar,
@@ -81,11 +81,11 @@ struct jit_brgemm_kernel_t : public jit_generator {
                     this->param1, enabled_bcast_strategy, rhs_sp};
 
             postops_injector_ = utils::make_unique<po_injector_t>(
-                    this, brg.attr->post_ops_, bsp);
+                    this, brg.attr()->post_ops_, bsp);
 
             with_binary_non_scalar_bcast_ = binary_injector::
                     any_binary_postop_rhs_non_scalar_broadcast(
-                            brg.attr->post_ops_, dst_md_wrapper);
+                            brg.attr()->post_ops_, dst_md_wrapper);
         }
         if (brg.is_bf16_emu)
             bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
