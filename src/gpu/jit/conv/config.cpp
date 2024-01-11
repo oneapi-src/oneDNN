@@ -1303,6 +1303,11 @@ void init_slm(conv_config_t &cfg) {
             bufs = slm_bufs_hint(prb, tg.dim(1), tg.dim(0),
                     cfg.zp_cfg().do_src_compensation, enable_a, enable_b,
                     cfg.pipeline().do_unroll());
+        } else if (cfg.zp_cfg().do_src_compensation) {
+            // Multiple SLM buffering is not supported with zero-points. This
+            // is because compensation masks are calculated based on loop
+            // indices which must be aligned with the compute iteration.
+            bufs = std::min(bufs, 1);
         }
         ir_assert(bufs > 0);
         gmem_bufs = (cfg.is_dp_fma() && cfg.pipeline().do_unroll()) ? 2 : 1;
