@@ -1826,7 +1826,10 @@ private:
         int tmp_regs = 5;
         int bound = cfg_.regs() - tmp_regs;
         if (plan.grf_usage().total() < bound) return plan_status_t::success;
-
+        // Do not downsize grf mode at the cost of disabling below optimizations.
+        if (cfg_.exec_cfg().hw().large_grf_support() && cfg_.regs() <= 128
+                && default_regs(cfg_) != 128)
+            return plan_status_t::out_of_registers;
         plan_status_t status;
 
         status = try_apply_ab_split(plan, bound);

@@ -1431,18 +1431,20 @@ public:
         return params_gen_.can_move_next();
     }
 
-    void set_params(prim_config_t &cfg) {
+    void set_params(conv_config_t &cfg) {
+        init_regs(cfg);
         if (is_tuning_mode()) {
             tuner_->move_next();
             tuner_->set_params(cfg);
         } else {
-            params_gen_.move_next();
+            if (!try_small_grf_) params_gen_.move_next();
             params_gen_.set_params(cfg);
+            maybe_try_small_grf(cfg);
         }
     }
 
     void notify_out_of_registers(const conv_config_t &cfg) {
-        if (is_tuning_mode()) return;
+        if (is_tuning_mode() || cfg.regs() != default_regs(cfg)) return;
         grf_usage_limit_ = estimate_register_count(cfg) * cfg.grf_size();
     }
 
@@ -1474,7 +1476,9 @@ private:
         std::vector<level_tile_set_t> level_tile_sets;
         for (auto &s : get_blocking_schemes(cfg))
             level_tile_sets.emplace_back(s.make_level_tile_set(padded_shape));
-        conv_blocking_checker_t chk(cfg);
+        auto try_cfg = cfg;
+        init_regs(try_cfg);
+        conv_blocking_checker_t chk(try_cfg);
         const int simd_size = cfg.vec_size();
         const int tune_level = conv_tune_level();
 
@@ -1521,6 +1525,27 @@ private:
         if (tiler_params().do_list) print_all();
     }
 
+    void maybe_try_small_grf(conv_config_t &cfg) {
+        auto try_cfg = cfg;
+        init_kernel_grid(try_cfg);
+        init_thread_group_grid(try_cfg);
+        int kg_elems = try_cfg.kernel_grid().elems(),
+            tg_elems = try_cfg.thread_group_grid().elems();
+        try_cfg.set_regs(128);
+        int new_wave_util = conv_config_t::get_wave_utilization(
+                try_cfg.exec_cfg(), kg_elems, tg_elems);
+        int wave_util = conv_config_t::get_wave_utilization(
+                cfg.exec_cfg(), kg_elems, tg_elems);
+        if (wave_util > 90 && new_wave_util >= wave_util && !try_small_grf_
+                && cfg.regs() > 128
+                && !cfg.exec_cfg_param().is_overridden("regs")) {
+            cfg.set_regs(128);
+            try_small_grf_ = true;
+        } else {
+            try_small_grf_ = false;
+        }
+    }
+
     void print_info(double init_time_ms) {
         ir_info() << "Convolution tiler:" << std::endl;
         ir_info() << "  Mode:              " << to_string(mode_) << std::endl;
@@ -1532,6 +1557,7 @@ private:
     params_generator_t params_gen_;
     conv_tuner_t *tuner_ = nullptr;
     int grf_usage_limit_ = 0;
+    bool try_small_grf_ = false;
 };
 
 conv_tiler_t::conv_tiler_t(const conv_config_t &cfg)
@@ -1549,7 +1575,7 @@ bool conv_tiler_t::can_move_next() const {
     return impl_->can_move_next();
 }
 
-void conv_tiler_t::set_params(prim_config_t &cfg) {
+void conv_tiler_t::set_params(conv_config_t &cfg) {
     impl_->set_params(cfg);
 }
 

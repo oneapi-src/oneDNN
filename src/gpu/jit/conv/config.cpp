@@ -1074,7 +1074,6 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
     CHECK(init_fma_kind(cfg));
     CHECK(init_simd(cfg));
     CHECK(init_vec_size(cfg));
-    CHECK(init_regs(cfg));
     CHECK(init_tensor_layouts(cfg, pd));
 
     CHECK(attr->set_default_formats(&prb.c_md()));

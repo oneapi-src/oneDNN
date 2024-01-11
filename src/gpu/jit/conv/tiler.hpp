@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ public:
     int configs() const;
     bool is_tuning_mode() const;
     bool can_move_next() const;
-    void set_params(prim_config_t &cfg);
+    void set_params(conv_config_t &cfg);
     void notify_out_of_registers(const conv_config_t &cfg);
     bool is_grf_limit_ok(const conv_config_t &cfg) const;
     static void after_create_hook(
