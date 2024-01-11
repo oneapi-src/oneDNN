@@ -62,7 +62,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             const bool is_int8 = one_of(src_dt, u8, s8);
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
-            auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt;
+            auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
+                    | skip_mask_t::fpmath_mode;
             if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
             bool ok = is_fwd() && mayiuse(isa)
@@ -246,6 +247,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                 brgemm_inner_product_bwd_data_t);
 
         status_t init(engine_t *engine) {
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
 
             auto diff_src_dt = invariant_src_md()->data_type;
             auto diff_dst_dt = invariant_dst_md()->data_type;
@@ -257,7 +259,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                             data_type::bf16, data_type::f16)
                     && wei_dt == diff_dst_dt
                     && utils::one_of(diff_src_dt, data_type::f32, diff_dst_dt)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(skip_mask_t::fpmath_mode);
             if (!ok) return status::unimplemented;
 
             memory_desc_t dummy_bias_md;
@@ -411,6 +413,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 brgemm_inner_product_bwd_weights_t);
 
         status_t init(engine_t *engine) {
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
 
             auto src_dt = invariant_src_md()->data_type;
             auto diff_wei_type = invariant_wei_md()->data_type;
@@ -422,7 +425,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                             data_type::f16)
                     && diff_dst_type == src_dt
                     && utils::one_of(diff_wei_type, data_type::f32, src_dt)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(skip_mask_t::fpmath_mode);
             if (!ok) return status::unimplemented;
 
             CHECK(jbgp_.init_conf(isa, *desc(), src_md_, diff_weights_md_,
