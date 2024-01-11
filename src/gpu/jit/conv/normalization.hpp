@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,7 +64,8 @@ private:
 
 void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
         layout_t &dst_layout, layout_t &bia_layout, bool with_groups, int g,
-        int ic, int oc, bool is_dw, int reduced_dim, bool add_groups);
+        int ic, int oc, bool is_dw, const std::array<int, 3> &dhw_map,
+        bool add_groups);
 
 } // namespace jit
 } // namespace gpu

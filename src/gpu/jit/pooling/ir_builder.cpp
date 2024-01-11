@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ public:
         std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
         std::vector<dim_t> pad_dims(md.padded_dims, md.padded_dims + md.ndims);
         maybe_reshape_dims(ndims_, layout, dims, pad_dims);
-        layout = spatials_to_3d(layout, false, 0);
+        layout = spatials_to_3d(layout, false, {0, 1, 2});
         dims = dims_to_3d(dims);
         pad_dims = dims_to_3d(pad_dims);
         ir_assert(layout.ndims() == cp_ndims) << "Incompatible dimensions.";
@@ -93,7 +93,7 @@ private:
 
     static std::vector<dim_t> dims_to_3d(const std::vector<dim_t> &dims) {
         layout_t dummy_layout(type_t::u8(), 0, dims);
-        return spatials_to_3d(dummy_layout, false, 0).dims();
+        return spatials_to_3d(dummy_layout, false, {0, 1, 2}).dims();
     }
 
     uint32_t normalize_mask(uint32_t orig_mask) const {

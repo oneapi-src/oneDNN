@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -594,8 +594,8 @@ layout_t dim_assignment_t::map(const layout_t &layout) const {
     return ret;
 }
 
-layout_t spatials_to_3d(
-        const layout_t &layout, bool with_groups, int reduced_dim) {
+layout_t spatials_to_3d(const layout_t &layout, bool with_groups,
+        const std::array<int, 3> &dhw_map) {
     const int old_ndims = layout.ndims();
     const int old_sp_ndims = old_ndims - (with_groups ? 3 : 2);
     const int new_ndims = old_ndims - old_sp_ndims + 3;
@@ -607,13 +607,9 @@ layout_t spatials_to_3d(
             to_3d.assign(i, i);
         } else {
             // Spatial dimensions.
-            int sp_idx = 3 - (old_ndims - i);
-            if (reduced_dim == 3) {
-                sp_idx = 2;
-            } else if (sp_idx < reduced_dim) {
-                sp_idx += 1;
-            }
-            to_3d.assign(i, new_ndims - (3 - sp_idx));
+            int old_sp_idx = 3 - (old_ndims - i);
+            int new_sp_idx = dhw_map[old_sp_idx];
+            to_3d.assign(i, new_ndims - (3 - new_sp_idx));
         }
     }
     return to_3d.map(layout);

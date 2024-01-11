@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,8 +72,9 @@ public:
 
     bool is_stride1() const { return sd == 1 && sh == 1 && sw == 1; }
 
-    // Reduces dimensions for 1x1 kernel.
-    void try_reduce_to_1d();
+    // If possible, reduces dimensions for 1x1 kernel and shifts spatial
+    // dimensions.
+    void normalize_shape();
 
     // Number of operations (including virtual padding operations).
     double ops() const {
@@ -166,7 +167,8 @@ public:
     int sd = 0, sh = 0, sw = 0; // Strides.
     int pd = 0, ph = 0, pw = 0; // Padding in the beginning.
     int dd = 0, dh = 0, dw = 0; // Dilation.
-    int reduced_dim = 0; // Indicates which dims were shifted over or reduced.
+    // Mapping for spatial dimensions (e.g. when 3D convolution is reduced to 1D).
+    std::array<int, 3> dhw_map = {-1, -1, -1};
     int isp = 0, osp = 0, ksp = 0; // Combined input/output/kernel spatial size.
 
     data_type_t a_data_type = data_type::undef;
