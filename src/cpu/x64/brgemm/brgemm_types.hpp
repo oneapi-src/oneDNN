@@ -445,7 +445,7 @@ struct brgemm_kernel_t {
 
 template <cpu_isa_t isa, typename Vmm>
 struct brgemm_kernel_common_t : public brgemm_kernel_t {
-    brgemm_kernel_common_t(const brgemm_t abrd);
+    brgemm_kernel_common_t(const brgemm_t &abrd);
     ~brgemm_kernel_common_t();
 
     status_t create_kernel();
@@ -459,7 +459,7 @@ private:
 };
 
 struct brgemm_amx_uker_t : public brgemm_kernel_t {
-    brgemm_amx_uker_t(const brgemm_t abrd);
+    brgemm_amx_uker_t(const brgemm_t &abrd);
     ~brgemm_amx_uker_t();
 
     status_t create_kernel();
@@ -474,7 +474,7 @@ private:
 
 template <cpu_isa_t isa, typename Vmm>
 struct brdgmm_kernel_t : public brgemm_kernel_t {
-    brdgmm_kernel_t(const brgemm_t abrd);
+    brdgmm_kernel_t(const brgemm_t &abrd);
     ~brdgmm_kernel_t();
 
     status_t create_kernel();

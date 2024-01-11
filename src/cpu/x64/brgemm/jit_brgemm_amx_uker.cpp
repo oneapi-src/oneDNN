@@ -2485,7 +2485,7 @@ void jit_brgemm_amx_uker_base_t::generate() {
     }
 }
 
-brgemm_amx_uker_t::brgemm_amx_uker_t(const brgemm_t abrd)
+brgemm_amx_uker_t::brgemm_amx_uker_t(const brgemm_t &abrd)
     : brgemm_kernel_(new jit_brgemm_amx_uker_base_t(abrd)) {}
 
 status_t brgemm_amx_uker_t::create_kernel() {

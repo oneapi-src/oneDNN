@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1370,7 +1370,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::generate() {
 }
 
 template <cpu_isa_t isa, typename Wmm>
-brdgmm_kernel_t<isa, Wmm>::brdgmm_kernel_t(const brgemm_t abrd)
+brdgmm_kernel_t<isa, Wmm>::brdgmm_kernel_t(const brgemm_t &abrd)
     : brgemm_kernel_(new jit_brdgmm_kernel_base_t<isa, Wmm>(abrd)) {}
 
 template <cpu_isa_t isa, typename Wmm>
