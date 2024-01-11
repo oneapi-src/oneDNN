@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ void run_single_bmm(const sc_dims &A_dims, const sc_dims &B_dims,
     auto ins1 = make_tensor(B_dims);
     auto outs0 = make_tensor(out_dims);
     any_map_t attrs({{"transpose_a", false}, {"transpose_b", false},
-            {"output2d", false}, {"use_mmm", false}});
+            {"use_mmm", false}});
     auto in = graph.make_input({ins0, ins1});
     auto matmul = graph.make("matmul_core", in->get_outputs(), {outs0}, attrs);
     auto output = graph.make_output(matmul->get_outputs());

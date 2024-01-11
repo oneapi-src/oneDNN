@@ -182,10 +182,12 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             auto reshape_node = graph->make("tensor_view", {trans0},
                     {graph_tensor::make(reshape_dest, sc_data_format_t(),
                             trans0->details_.dtype_)},
-                    {{"shape", reshape_dest}, {"format", sc_data_format_t()},
+                    {{"shape", reshape_dest},
+                            {"format", sc_data_format_t::MK()},
                             {"forbid_penetrate", true},
                             {"cache_input_format",
-                                    trans0->details_.get_format().to_plain()}});
+                                    sc_data_format_t::get_plain_by_dims(
+                                            trans0_plain_dims.size())}});
             trans0 = reshape_node->get_outputs()[0];
             if (post_rd_axis.size() == 1
                     && post_rd_axis.at(0)

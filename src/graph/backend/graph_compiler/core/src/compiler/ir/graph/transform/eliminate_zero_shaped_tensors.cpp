@@ -134,7 +134,7 @@ SC_INTERNAL_API void eliminate_zero_shaped_tensors(
                     "The zero-input op must have only 1 input left.");
             auto &input_left = op->info_.inputs_[0];
             // replace_input may change the uses, we need to copy it
-            for (auto output : op->info_.outputs_) {
+            for (const auto &output : op->info_.outputs_) {
                 auto uses = output->uses_;
                 for (auto &cld : uses) {
                     cld.second->replace_input(cld.first, input_left);
