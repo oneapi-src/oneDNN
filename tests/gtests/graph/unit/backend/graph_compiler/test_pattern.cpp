@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1070,6 +1070,8 @@ TEST(GCPatternTests, INT8MHAPatternAlternative4_CPU) {
             std::vector<partition_info_t> {{13, 5, 1}});
 }
 
+// shall be re-enabled after fp32/bf16 concat patterns are re-enabled
+#if 0
 TEST(GCPatternTests, add_to_concat_permute_concat_to_CPU) {
     REQUIRE_AVX512();
     REQUIRE_CPU_ENGINE();
@@ -1102,6 +1104,7 @@ TEST(GCPatternTests, permute_concat_to_CPU) {
     test_pattern_matched(agraph, {"permute_concat_to"}, 1,
             std::vector<partition_info_t> {{3, 2, 1}});
 }
+#endif
 
 TEST(GCPatternTests, mul_mul_add_concat_permute_concat_quant_CPU) {
     REQUIRE_AVX512();

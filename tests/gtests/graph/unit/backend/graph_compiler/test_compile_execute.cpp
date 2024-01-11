@@ -1144,6 +1144,8 @@ TEST(GCGraphTest, INT8BF16LLAMAMLPCompileExecution_CPU) {
     compile_execution_pipeline(agraph, 1);
 }
 
+// shall be re-enabled after fp32/bf16 concat patterns are re-enabled
+#if 0
 TEST(GCGraphTest, GptjBf16Concat_CPU) {
     REQUIRE_AVX512();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
@@ -1155,6 +1157,7 @@ TEST(GCGraphTest, GptjBf16Concat_CPU) {
     // should hit add_to_concat_permute_concat_to pattern
     compile_execution_pipeline(agraph, 1);
 }
+#endif
 
 TEST(GCGraphTest, GptjInt8Bf16Concat_CPU) {
     REQUIRE_AVX512();
