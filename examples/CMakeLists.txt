@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2023 Intel Corporation
+# Copyright 2016-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -67,7 +67,9 @@ if(NOT ONEDNN_BUILD_GRAPH)
     list(REMOVE_ITEM sources
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_getting_started.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/sycl_getting_started.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_inference_int8.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_inference_int8.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_single_op_partition.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/gpu_single_op_partition.cpp)
 endif()
 
 if(DNNL_SYCL_HIP)
