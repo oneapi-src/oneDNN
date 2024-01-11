@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,7 +128,7 @@ struct convolution_pd_t : public primitive_desc_t {
     dim_t KSW() const { return desc_.strides[ndims() - 3]; }
 
     dim_t KDD() const { return ndims() >= 5 ? desc_.dilates[ndims() - 5] : 0; }
-    dim_t KDH() const { return ndims() >= 4 ? desc_.dilates[ndims() - 4] : 1; }
+    dim_t KDH() const { return ndims() >= 4 ? desc_.dilates[ndims() - 4] : 0; }
     dim_t KDW() const { return desc_.dilates[ndims() - 3]; }
 
     dim_t padFront() const {
