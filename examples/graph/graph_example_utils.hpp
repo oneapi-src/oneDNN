@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -139,6 +139,23 @@ void sycl_free_wrapper(
 void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
         const std::vector<dnnl::graph::logical_tensor> &lts,
         std::vector<std::shared_ptr<void>> &data_buffer,
+        const dnnl::engine &eng) {
+    tensors.reserve(lts.size());
+    for (const auto &lt : lts) {
+        const auto mem_size = lt.get_mem_size();
+
+        // memory allocation
+        data_buffer.push_back({});
+        data_buffer.back().reset(malloc(mem_size), cpu_deletor {});
+
+        dnnl::graph::tensor new_ts {lt, eng, data_buffer.back().get()};
+        tensors.push_back(new_ts);
+    }
+}
+
+void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
+        const std::vector<dnnl::graph::logical_tensor> &lts,
+        std::vector<std::shared_ptr<void>> &data_buffer,
         std::unordered_map<size_t, dnnl::graph::tensor> &global_outputs_ts_map,
         const dnnl::engine &eng, bool is_input) {
     tensors.reserve(lts.size());
@@ -168,6 +185,25 @@ void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
 }
 
 #ifdef DNNL_WITH_SYCL
+void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
+        const std::vector<dnnl::graph::logical_tensor> &lts,
+        std::vector<std::shared_ptr<void>> &data_buffer, sycl::queue &q,
+        const dnnl::engine &eng) {
+    tensors.reserve(lts.size());
+    for (const auto &lt : lts) {
+        const auto mem_size = lt.get_mem_size();
+
+        // memory allocation
+        data_buffer.push_back({});
+        data_buffer.back().reset(::sycl::malloc_shared(mem_size, q.get_device(),
+                                         q.get_context()),
+                sycl_deletor {q.get_context()});
+
+        dnnl::graph::tensor new_ts {lt, eng, data_buffer.back().get()};
+        tensors.push_back(new_ts);
+    }
+}
+
 void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
         const std::vector<dnnl::graph::logical_tensor> &lts,
         std::vector<std::shared_ptr<void>> &data_buffer,
