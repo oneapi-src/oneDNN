@@ -16,6 +16,7 @@
 
 #include "common/compiler_workarounds.hpp"
 
+#include <limits>
 #include "common/eltwise_pd.hpp"
 #include "common/utils.hpp"
 #include "gpu/block_structure.hpp"
@@ -155,6 +156,29 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
         conf.vect_size = vec;
         wg_per_inner /= vec;
         break;
+    }
+
+    // Compute the unroll factor to minimize read-accumulate iters
+    const int loop_size = into<int>(utils::div_up(
+            reduction_block.block, conf.global_acc * conf.local_acc));
+    const int max_unroll = 128;
+    if (max_unroll > loop_size) {
+        // XXX: This encodes the reduction loop size directly into the kernel,
+        // which limits reusability for these cases (small reduction sizes) in
+        // exchange for fast execution time.
+        conf.unroll_factor = loop_size;
+    } else {
+        int min_iters = std::numeric_limits<int>::max();
+        for (int unroll = max_unroll; unroll > 0; unroll--) {
+            const int unroll_iters = loop_size / unroll;
+            const int extra_iters = loop_size % unroll;
+            const int total_iters = unroll_iters + extra_iters;
+
+            if (total_iters < min_iters) {
+                conf.unroll_factor = unroll;
+                min_iters = total_iters;
+            }
+        }
     }
 }
 
@@ -405,6 +429,8 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("LOCAL_SIZE", conf.local_acc);
     kernel_ctx.define_int("ATOMIC_REDUCTION_SIZE", conf.global_acc);
     // End stride vars
+
+    kernel_ctx.define_int("UNROLL_FACTOR", conf.unroll_factor);
 
     // To use atomic_global_add
     kernel_ctx.add_option("-cl-std=CL2.0");

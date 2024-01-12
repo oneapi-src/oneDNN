@@ -137,7 +137,7 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
     const int beg = (local_idx + atomic_idx * LOCAL_SIZE) * iters_per_wi;
     const int end = min(beg + iters_per_wi, num_reductions);
     VECT_DEF_ACC_DATA_T acc = INIT_ACC;
-    unroll_4_for(int i = beg; i < end; i++) {
+    unroll_for_by(UNROLL_FACTOR)(int i = beg; i < end; i++) {
         const int src_off = i * inner_size;
         const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
         acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
