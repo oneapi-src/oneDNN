@@ -37,7 +37,7 @@ using namespace bnorm;
 
 namespace lnorm {
 
-static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
+static int prepare_fwd(const prb_t *prb, const cfg_t &cfg, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &sc,
         const dnn_mem_t &sh, res_t *res) {
     // Fast exit for zero channels as logic relies on it to be non-zero.
@@ -49,85 +49,37 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
         return OK;
     }
 
-    /** Idea: choose src[] values so that both mean and variance are computed
-     * exactly (independently of the order of the computations).
-     *
-     * The `exactness` is achieved via [a1]: src[i] + src[i+1] = 2 * mean.
-     *
-     * The variation in src is allowed in the last flex_bits bits.
-     * If the sequence (L) is too big (flex_bits <= min_flex_bits), the mean
-     * value is set to 0 and src is partially filled with zeros (according to
-     * density so that at least want_flex_bits is reserved for src variation.
-     * Once src is set, variance is computed.
-     *
-     * ALG_0: mean is set to 0
-     * ALG_1: mean is set to 2^prb, where prb \in {-2, -1, ..., 4}
-     * ALG_AUTO: choose between ALG_0 and ALG_1 automatically
-     * ALG_2: if fall back to ALG_0 gives only one non-zero element, use the
-     *        filling which doesn't use strict approach.
-     */
-    const int64_t exact_bits = digits_dt(prb->dt[0]);
-    const int64_t L = prb->c;
-    const int64_t logL = (int64_t)ceilf(log2f(L));
-
-    assert(logL <= 0 || (1LL << (logL - 1)) < L);
-    assert(L <= (1LL << logL));
-
-    const int64_t min_flex_bits = 3;
-    const int64_t want_flex_bits = MIN2(6, exact_bits / 2);
-
-    check_alg_t alg = prb->check_alg;
-    if (alg == ALG_AUTO) /* choose appropriate checking algorithm */
-        alg = (exact_bits - logL) / 2 - 1 >= min_flex_bits ? ALG_1 : ALG_0;
-
-    const int64_t flex_bits = alg == ALG_0
-            ? want_flex_bits
-            : MIN2(exact_bits, (exact_bits - logL) / 2 - 1);
-    if (flex_bits < min_flex_bits) {
-        res->state = UNTESTED;
-        return FAIL;
-    }
-
-    if (exact_bits / 2 == flex_bits) alg = ALG_2;
-
-    if ((alg == ALG_0 || alg == ALG_1) && !is_integral_dt(prb->dt[0])) {
-        const int64_t flex_mask = (static_cast<int64_t>(1) << flex_bits) - 1;
-
-        /* density: (exact_bits - log_2(L * density)) / 2 >= flex_bits */
-        const float density = alg == ALG_0
-                ? 1.f * (1 << (exact_bits - 2 * flex_bits)) / L
-                : 1.f;
-        assert((exact_bits - ceilf(log2f(L * density))) / 2 >= flex_bits);
-
-        BENCHDNN_PRINT(99, "check_alg: %s, density = %g, flex_bits = %ld\n",
-                check_alg2str(alg), density, (long)flex_bits);
-
+    if ((cfg.check_alg_ == ALG_0 || cfg.check_alg_ == ALG_1)
+            && !is_integral_dt(prb->dt[0])) {
         benchdnn_parallel_nd(prb->n, [&](int64_t n) {
-            const float m = alg == ALG_0 ? 0.f : 0.25f * (1 << (n % 7));
+            const float m
+                    = cfg.check_alg_ == ALG_0 ? 0.f : 0.25f * (1 << (n % 7));
             float v = 0; /* current variance */
 
             float *s = (float *)src + n * prb->c;
             for (int64_t c = 0; c < prb->c; ++c) {
                 const int64_t l = c + n * 239 * 2; // l[0] must be even
 
-                if (alg == ALG_0 && !flip_coin(l / 2 * 257ULL, density)) {
+                if (cfg.check_alg_ == ALG_0
+                        && !flip_coin(l / 2 * 257ULL, cfg.density_)) {
                     s[c] = 0;
                     continue;
                 }
 
-                const int64_t gen = (l / 2 * 1637) & flex_mask;
+                const int64_t gen = (l / 2 * 1637) & cfg.flex_mask_;
                 const int sgn = l % 2 == 0 ? 1 : -1; /* [a1] */
-                const float f = 1.f * sgn * gen / (1 << flex_bits);
+                const float f = 1.f * sgn * gen / (1 << cfg.flex_bits_);
 
-                src.set_elem(n * prb->c + c, alg == ALG_0 ? f : m * (1.f + f));
-                if (L % 2 && (c == L - 1)) { s[c] = m; }
+                src.set_elem(n * prb->c + c,
+                        cfg.check_alg_ == ALG_0 ? f : m * (1.f + f));
+                if (cfg.L_ % 2 && (c == cfg.L_ - 1)) { s[c] = m; }
                 v += (s[c] - m) * (s[c] - m);
             }
             mean.set_elem(n, m);
             var.set_elem(n, v / prb->c);
         });
     } else {
-        assert(alg == ALG_2);
+        assert(cfg.check_alg_ == ALG_2);
 
         benchdnn_parallel_nd(prb->n, [&](int64_t n) {
             // Note: we use a different seed for each chunk to avoid
@@ -198,7 +150,9 @@ int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
     const auto &ref_sc = ref_mem_map[DNNL_ARG_SCALE];
     const auto &ref_sh = ref_mem_map[DNNL_ARG_SHIFT];
 
-    SAFE(prepare_fwd(prb, ref_src, ref_mean, ref_var, ref_sc, ref_sh, res),
+    cfg_t cfg(prb);
+
+    SAFE(prepare_fwd(prb, cfg, ref_src, ref_mean, ref_var, ref_sc, ref_sh, res),
             WARN);
 
     auto &src = mem_map[DNNL_ARG_SRC];
