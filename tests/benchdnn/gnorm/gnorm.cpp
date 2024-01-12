@@ -32,253 +32,293 @@ using namespace bnorm;
 
 namespace gnorm {
 
-static int prepare_fwd(const prb_t *prb, const cfg_t &cfg, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &sc,
-        const dnn_mem_t &sh, res_t *res) {
+int fill_mean(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
+        dnn_mem_t &mem_dt) {
+    benchdnn_parallel_nd(prb->mb, prb->g, [&](int64_t mb, int64_t g) {
+        const int64_t idx = mb * prb->g + g;
+        const float val_coeff = is_integral_dt(prb->dt[0]) ? 1.f : 0.25f;
+        float val = 0.f;
+        if (cfg.check_alg_ != ALG_0 || (prb->flags & GLOB_STATS)) {
+            int64_t mean_val_shift = idx % 7;
+            // Bump mean for u8 to keep src values in non-negative range
+            if (prb->dt[0] == dnnl_u8 && mean_val_shift < 2) mean_val_shift = 2;
+            val = val_coeff * (1LL << mean_val_shift);
+        }
+        mem_fp.set_elem(idx, val);
+    });
 
-    const bool use_sc = prb->use_sc();
-    const bool use_sh = prb->use_sh();
+    if (mem_dt && IMPLICATION(prb->dir & FLAG_FWD, prb->use_stats()))
+        SAFE(mem_dt.reorder(mem_fp), WARN);
 
-    if ((cfg.check_alg_ == ALG_0 || cfg.check_alg_ == ALG_1)
-            && !is_integral_dt(prb->dt[0])) {
-        benchdnn_parallel_nd(prb->mb, prb->g, [&](int64_t mb, int64_t g) {
-            const float m = ((float *)mean)[mb * prb->g + g]
-                    = cfg.check_alg_ == ALG_0
-                    ? 0.f
-                    : 0.25f * (1 << ((mb * prb->g + g) % 7));
-            float v = 0; /* current variance */
+    return OK;
+}
 
-            for (int c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
-                    ++c) {
-                int64_t l_base = (mb * prb->g + g) * prb->ic / prb->g * prb->id
-                                * prb->ih * prb->iw
-                        + c * prb->id * prb->ih * prb->iw * 239
-                                * 2; // l[0] must be even
-                int64_t off = data_off(prb, mb, c, 0, 0, 0);
-                float *s = (float *)src + off;
+int fill_src(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
+        dnn_mem_t &mem_dt, const dnn_mem_t &ref_mean, res_t *res) {
+    const auto spatial = prb->id * prb->ih * prb->iw;
+    const float val_coeff = is_integral_dt(prb->dt[0]) ? 1.f : 0.25f;
 
-                for_(int64_t d = 0; d < prb->id; ++d)
-                for_(int64_t h = 0; h < prb->ih; ++h)
-                for (int64_t w = 0; w < prb->iw; ++w) {
+    benchdnn_parallel_nd(prb->mb, prb->g, [&](int64_t mb, int64_t g) {
+        const int64_t idx = mb * prb->g + g;
+        const float m = ref_mean.get_elem(idx);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand b_seed(idx + 1);
+        b_seed.discard(2);
+        std::bernoulli_distribution b_dist(0.5f);
 
-                    const int64_t sp = d * prb->ih * prb->iw + h * prb->iw + w;
+        for (int64_t c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
+                ++c) {
+            // l[0] must be even
+            int64_t l_base = spatial * (idx * prb->ic / prb->g + c * 239 * 2);
+            int64_t off = data_off(prb, mb, c, 0, 0, 0);
+            bool bigger_val = false; // Out of spatial loop.
+
+            for_(int64_t d = 0; d < prb->id; ++d)
+            for_(int64_t h = 0; h < prb->ih; ++h)
+            for (int64_t w = 0; w < prb->iw; ++w) {
+                const int64_t sp = d * prb->ih * prb->iw + h * prb->iw + w;
+                float val = 0.f;
+                if (cfg.check_alg_ == ALG_2) {
+                    const bool is_even = sp % 2 == 0;
+                    const float sign = is_even ? 1.f : -1.f;
+                    // Update the value for even cases.
+                    bigger_val = is_even ? b_dist(b_seed) : bigger_val;
+                    const float val_shift = sign * val_coeff;
+                    // Shift left and right from mean val, shift bigger with
+                    // probability.
+                    val = m + val_shift + 3.f * bigger_val * val_shift;
+                } else {
                     const int64_t l = l_base + sp;
 
+                    // Shortcut for zero values.
                     if (cfg.check_alg_ == ALG_0
                             && !flip_coin(l / 2 * 257ULL, cfg.density_)) {
-                        s[sp] = 0;
+                        mem_fp.set_elem(off + sp, 0);
                         continue;
                     }
 
                     const int64_t gen = (l / 2 * 1637) & cfg.flex_mask_;
-                    const int sgn = l % 2 == 0 ? 1 : -1; /* [a1] */
-                    const float f = 1.f * sgn * gen / (1 << cfg.flex_bits_);
+                    // s_{i} + s_{i+1} = 2 * m
+                    const float sign = l % 2 == 0 ? 1.f : -1.f;
+                    const float f = sign * gen / (1 << cfg.flex_bits_);
 
-                    s[sp] = cfg.check_alg_ == ALG_0 ? f : m * (1.f + f);
-                    if (cfg.L_ % 2
-                            && (c * prb->id * prb->ih * prb->iw + sp
-                                    == cfg.L_ - 1)) {
-                        s[sp] = m;
+                    val = cfg.check_alg_ == ALG_0 ? f : m * (1.f + f);
+                    if (prb->flags & GLOB_STATS) {
+                        val = (l % 65) - 32;
+                    } else if (cfg.L_ % 2 && (c * spatial + sp == cfg.L_ - 1)) {
+                        val = m;
                     }
-                    v += (s[sp] - m) * (s[sp] - m);
                 }
+                mem_fp.set_elem(off + sp,
+                        round_to_nearest_representable(prb->dt[0], val));
             }
+        }
+    });
 
-            ((float *)var)[mb * prb->g + g]
-                    = v / (prb->ic / prb->g * prb->id * prb->ih * prb->iw);
-        });
-    } else {
-        assert(cfg.check_alg_ == ALG_2);
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
 
-        benchdnn_parallel_nd(prb->mb, prb->g, [&](int64_t mb, int64_t g) {
-            // Note: we use a different seed for each chunk to avoid
-            // repeating patterns. We could use discard(idx_start) too but
-            // it has a complexity in O(idx_start). We also add 1 to avoid
-            // seeding with 0.
-            std::minstd_rand int_seed(mb * prb->g + g + 1);
-            int_seed.discard(1);
-            std::minstd_rand b_seed(mb * prb->g + g + 1);
-            b_seed.discard(2);
+    return OK;
+}
 
-            const float val_coeff = is_integral_dt(prb->dt[0]) ? 4.f : 1.f;
-            const int distr_shift = prb->dt[0] == dnnl_u8 ? 2 : 0;
-            std::uniform_int_distribution<> int_dist(0 + distr_shift, 6);
-            std::bernoulli_distribution b_dist(0.5f);
-            const float m = ((float *)mean)[mb * prb->g + g]
-                    = val_coeff * 0.25f * (1 << int_dist(int_seed));
-            float v = 0; /* current variance */
+int fill_variance_fwd(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
+        dnn_mem_t &mem_dt, const dnn_mem_t &ref_src,
+        const dnn_mem_t &ref_mean) {
+    benchdnn_parallel_nd(prb->mb, prb->g, [&](int64_t mb, int64_t g) {
+        const int64_t idx = mb * prb->g + g;
 
-            for (int c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
+        float val = 0.f;
+        if (prb->flags & GLOB_STATS) {
+            val = ((idx % 7) << 1);
+        } else {
+            const float m = ref_mean.get_elem(idx);
+            for (int64_t c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
                     ++c) {
                 int64_t off = data_off(prb, mb, c, 0, 0, 0);
-                float *s = (float *)src + off;
-
-                bool bigger_val = false;
-                float val = 0.f;
 
                 for_(int64_t d = 0; d < prb->id; ++d)
                 for_(int64_t h = 0; h < prb->ih; ++h)
                 for (int64_t w = 0; w < prb->iw; ++w) {
-
                     const int64_t sp = d * prb->ih * prb->iw + h * prb->iw + w;
-
-                    if (sp % 2 == 0) {
-                        bigger_val = b_dist(b_seed);
-                        val = bigger_val ? (m + val_coeff * 1.f)
-                                         : (m + val_coeff * 0.25f);
-                    } else {
-                        val = bigger_val ? (m - val_coeff * 1.f)
-                                         : (m - val_coeff * 0.25f);
-                    }
-
-                    s[sp] = val;
-                    v += (s[sp] - m) * (s[sp] - m);
+                    const float s = ref_src.get_elem(sp + off);
+                    val += (s - m) * (s - m);
                 }
-
-                ((float *)var)[mb * prb->g + g]
-                        = v / (prb->ic / prb->g * prb->id * prb->ih * prb->iw);
             }
-        });
-    }
+            val /= cfg.L_;
+        }
+        mem_fp.set_elem(idx, val);
+    });
+
+    if (mem_dt && prb->use_stats()) SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int fill_scale(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
+    const bool use_sc = prb->use_sc();
+    if (!use_sc) return OK;
 
     benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
-        const float sc_value = 1.f / 8 * (1 << (c % 7));
-        const float sh_value = ((c % 3) - 1) * sc_value / 64;
-        if (use_sc) sc.set_elem(c, sc_value);
-        if (use_sh) sh.set_elem(c, sh_value);
+        float val = (1.f / 8) * (1 << (c % 7));
+        if (prb->flags & GLOB_STATS) val *= 8.f;
+        mem_fp.set_elem(c, val);
     });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int fill_shift(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
+    const bool use_sh = prb->use_sh();
+    if (!use_sh) return OK;
+
+    benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
+        float val = ((c % 3) - 1) * (1.f / 512 * (1 << (c % 7)));
+        if (prb->flags & GLOB_STATS) val *= 512.f;
+        mem_fp.set_elem(c, val);
+    });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
 
 int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
         dnn_mem_map_t &ref_mem_map, res_t *res) {
-    const auto &ref_src = ref_mem_map[DNNL_ARG_SRC];
-    const auto &ref_mean = ref_mem_map[DNNL_ARG_MEAN];
-    const auto &ref_var = ref_mem_map[DNNL_ARG_VARIANCE];
-    const auto &ref_sc = ref_mem_map[DNNL_ARG_SCALE];
-    const auto &ref_sh = ref_mem_map[DNNL_ARG_SHIFT];
-
     cfg_t cfg(prb);
 
-    SAFE(prepare_fwd(prb, cfg, ref_src, ref_mean, ref_var, ref_sc, ref_sh, res),
-            WARN);
+    auto &mean = mem_map.at(DNNL_ARG_MEAN);
+    auto &ref_mean = ref_mem_map.at(DNNL_ARG_MEAN);
+    SAFE(fill_mean(prb, cfg, ref_mean, mean), WARN);
 
-    auto &src = mem_map[DNNL_ARG_SRC];
-    SAFE(src.reorder(ref_src), WARN);
+    auto &src = mem_map.at(DNNL_ARG_SRC);
+    auto &ref_src = ref_mem_map.at(DNNL_ARG_SRC);
+    SAFE(fill_src(prb, cfg, ref_src, src, ref_mean, res), WARN);
 
-    auto &mean = mem_map[DNNL_ARG_MEAN];
-    if (mean && prb->use_stats()) SAFE(mean.reorder(ref_mean), WARN);
+    auto &var = mem_map.at(DNNL_ARG_VARIANCE);
+    auto &ref_var = ref_mem_map.at(DNNL_ARG_VARIANCE);
+    SAFE(fill_variance_fwd(prb, cfg, ref_var, var, ref_src, ref_mean), WARN);
 
-    auto &var = mem_map[DNNL_ARG_VARIANCE];
-    if (var && prb->use_stats()) SAFE(var.reorder(ref_var), WARN);
+    auto &scale = mem_map.at(DNNL_ARG_SCALE);
+    auto &ref_scale = ref_mem_map.at(DNNL_ARG_SCALE);
+    SAFE(fill_scale(prb, ref_scale, scale), WARN);
 
-    auto &sc = mem_map[DNNL_ARG_SCALE];
-    if (sc) SAFE(sc.reorder(ref_sc), WARN);
-
-    auto &sh = mem_map[DNNL_ARG_SHIFT];
-    if (sh) SAFE(sh.reorder(ref_sh), WARN);
+    auto &shift = mem_map.at(DNNL_ARG_SHIFT);
+    auto &ref_shift = ref_mem_map.at(DNNL_ARG_SHIFT);
+    SAFE(fill_shift(prb, ref_shift, shift), WARN);
 
     return OK;
 }
 
-static int prepare_bwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &d_dst, const dnn_mem_t &mean, const dnn_mem_t &var,
-        const dnn_mem_t &sc, res_t *res) {
-    if (src.nelems() == 0) return OK;
+int fill_variance_bwd(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
-    const bool use_sc = prb->use_sc();
+    benchdnn_parallel_nd(prb->mb, prb->g, [&](int64_t mb, int64_t g) {
+        const int64_t idx = mb * prb->g + g;
+        // final variance = {0.25f, 1.f, 4.f}
+        const float val = 0.25f * (1 << ((idx % 3) * 2));
+        mem_fp.set_elem(idx, val - prb->eps);
+    });
 
-    // fill gamma
-    if (use_sc) {
-        for (int64_t c = 0; c < prb->ic; ++c) {
-            const float sc_value = 0.125f * (1 << (c % 7));
-            ((float *)sc)[c] = sc_value;
-        }
-    }
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int fill_src_bwd(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt,
+        const dnn_mem_t &ref_mean, res_t *res) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
     const auto SP = prb->id * prb->ih * prb->iw;
-    const auto CSP = prb->ic * SP;
 
-    benchdnn_parallel_nd(prb->mb, prb->g, [&](int64_t n, int64_t g) {
-        // Note: we use a different seed for each chunk to avoid
-        // repeating patterns. We could use discard(idx_start) too but
-        // it has a complexity in O(idx_start). We also add 1 to avoid
-        // seeding with 0.
-        std::minstd_rand int_seed(n + 1);
-        int_seed.discard(1);
-        std::minstd_rand b_seed(n + 1);
-        b_seed.discard(2);
-
+    benchdnn_parallel_nd(prb->mb, prb->g, [&](int64_t mb, int64_t g) {
         // Idea behind the filling is to reduce a possibility of cancellation
         // when subtracting a part accumulated over N. For that, we simplify
         // src data to (m+1) and (m-1) points, d_dst data is more or less
         // random but we keep all values as pow2 values to have almost exact
         // summation result.
-        std::uniform_int_distribution<> stat_dist(0, 2);
+        int64_t idx = mb * prb->g + g;
+        const float m = ref_mean.get_elem(idx);
+
+        for_(int64_t c = prb->get_c_start(g); c < prb->get_c_start(g + 1); ++c)
+        for (int64_t sp = 0; sp < SP; ++sp) {
+            const int64_t off = data_off(prb, mb, c, 0, 0, sp);
+            const float val = sp % 2 == 0 ? (m - 1.f) : (m + 1.f);
+            mem_fp.set_elem(
+                    off, round_to_nearest_representable(prb->dt[0], val));
+        }
+    });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int fill_diff_dst_bwd(
+        const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt, res_t *res) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    const auto SP = prb->id * prb->ih * prb->iw;
+
+    benchdnn_parallel_nd(prb->mb, prb->g, [&](int64_t mb, int64_t g) {
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(mb + 1);
+        int_seed.discard(1);
+        std::minstd_rand b_seed(mb + 1);
+        b_seed.discard(2);
+
+        // See `fill_src_bwd` comment.
         std::uniform_int_distribution<> data_dist(0, 6);
         std::bernoulli_distribution half_dist(0.5f);
 
-        int64_t stat_off = n * prb->g + g;
-
-        // mean = {-0.5f, 0.f, 0.5f}
-        const float m = 0.5f * (stat_dist(int_seed) - 1);
-        mean.set_elem(stat_off, m);
-
-        // final variance = {0.25f, 1.f, 4.f}
-        const float v = 0.25f * (1 << (stat_dist(int_seed) * 2));
-        var.set_elem(stat_off, v - prb->eps);
-
-        for (int64_t c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
-                ++c) {
-            for (int64_t sp = 0; sp < SP; ++sp) {
-
-                int64_t data_off = n * CSP + c * SP + sp;
-                int sign = half_dist(b_seed) ? 1.f : -1.f;
-                // d_dst = powf(2, {-4, ... , 2})
-                float dd = sign * 0.0625f * (1LL << data_dist(int_seed));
-                d_dst.set_elem(data_off,
-                        round_to_nearest_representable(prb->dt[1], dd));
-
-                float s = c % 2 == 0 ? (m - 1.f) : (m + 1.f);
-                src.set_elem(data_off,
-                        round_to_nearest_representable(prb->dt[0], s));
-            }
+        for_(int64_t c = prb->get_c_start(g); c < prb->get_c_start(g + 1); ++c)
+        for (int64_t sp = 0; sp < SP; ++sp) {
+            const int64_t off = data_off(prb, mb, c, 0, 0, sp);
+            const float sign = half_dist(b_seed) ? 1.f : -1.f;
+            // d_dst = powf(2, {-4, ... , 2})
+            const float val = sign * 0.0625f * (1LL << data_dist(int_seed));
+            mem_fp.set_elem(
+                    off, round_to_nearest_representable(prb->dt[0], val));
         }
     });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
 
 int prepare_bwd(const prb_t *prb, dnn_mem_map_t &mem_map,
         dnn_mem_map_t &ref_mem_map, res_t *res) {
-    const auto &ref_src = ref_mem_map[DNNL_ARG_SRC];
-    const auto &ref_d_dst = ref_mem_map[DNNL_ARG_DIFF_DST];
-    const auto &ref_mean = ref_mem_map[DNNL_ARG_MEAN];
-    const auto &ref_var = ref_mem_map[DNNL_ARG_VARIANCE];
-    const auto &ref_sc = ref_mem_map[DNNL_ARG_SCALE];
-    const auto &ref_sh = ref_mem_map[DNNL_ARG_SHIFT];
+    cfg_t cfg(prb);
 
-    SAFE(prepare_bwd(prb, ref_src, ref_d_dst, ref_mean, ref_var, ref_sc, res),
-            WARN);
+    auto &mean = mem_map.at(DNNL_ARG_MEAN);
+    auto &ref_mean = ref_mem_map.at(DNNL_ARG_MEAN);
+    SAFE(fill_mean(prb, cfg, ref_mean, mean), WARN);
 
-    auto &src = mem_map[DNNL_ARG_SRC];
-    SAFE(src.reorder(ref_src), WARN);
+    auto &var = mem_map.at(DNNL_ARG_VARIANCE);
+    auto &ref_var = ref_mem_map.at(DNNL_ARG_VARIANCE);
+    SAFE(fill_variance_bwd(prb, ref_var, var), WARN);
 
-    auto &d_dst = mem_map[DNNL_ARG_DIFF_DST];
-    SAFE(d_dst.reorder(ref_d_dst), WARN);
+    auto &src = mem_map.at(DNNL_ARG_SRC);
+    auto &ref_src = ref_mem_map.at(DNNL_ARG_SRC);
+    SAFE(fill_src_bwd(prb, ref_src, src, ref_mean, res), WARN);
 
-    auto &mean = mem_map[DNNL_ARG_MEAN];
-    if (mean) SAFE(mean.reorder(ref_mean), WARN);
+    auto &d_dst = mem_map.at(DNNL_ARG_DIFF_DST);
+    auto &ref_d_dst = ref_mem_map.at(DNNL_ARG_DIFF_DST);
+    SAFE(fill_diff_dst_bwd(prb, ref_d_dst, d_dst, res), WARN);
 
-    auto &var = mem_map[DNNL_ARG_VARIANCE];
-    if (var) SAFE(var.reorder(ref_var), WARN);
-
-    auto &sc = mem_map[DNNL_ARG_SCALE];
-    if (sc) SAFE(sc.reorder(ref_sc), WARN);
-
-    auto &sh = mem_map[DNNL_ARG_SHIFT];
-    if (sh) SAFE(sh.reorder(ref_sh), WARN);
+    auto &scale = mem_map.at(DNNL_ARG_SCALE);
+    auto &ref_scale = ref_mem_map.at(DNNL_ARG_SCALE);
+    SAFE(fill_scale(prb, ref_scale, scale), WARN);
 
     return OK;
 }
