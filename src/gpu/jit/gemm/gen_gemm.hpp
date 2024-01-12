@@ -67,23 +67,26 @@ struct gen_gemm_t : public gpu_gemm_t {
             arch_ = dev_info_->gpu_arch();
             int stepping = dev_info_->stepping_id();
 
+            const auto d = desc();
+            wei_decomp_ = (utils::one_of(d->c_type(), f32, f16, bf16)
+                                  && utils::one_of(d->a_type(), u8, s8, s4, u4)
+                                  && utils::one_of(d->b_type(), f16, f32, bf16))
+                    && attr()->mayiconvert(d->a_type(), f32);
             auto status = set_default_formats();
+
             if (status != status::success) return status;
 
-            const auto d = desc();
-
             // If m = 1, swap A/B to use more efficient n = 1 kernels if possible.
-            eff_lda_ = desc()->lda();
-            eff_ldb_ = desc()->ldb();
+            eff_lda_ = d->lda();
+            eff_ldb_ = d->ldb();
 
-            bool check_lda
-                    = ((desc()->transa() == dnnl_notrans && desc()->lda() == 1)
-                            || (desc()->transa() == dnnl_trans));
-            swap_ab_ = (desc()->m() == 1 && desc()->ldc() == 1 && check_lda);
+            bool check_lda = ((d->transa() == dnnl_notrans && d->lda() == 1)
+                    || (d->transa() == dnnl_trans));
+            swap_ab_ = (d->m() == 1 && d->ldc() == 1 && check_lda);
 
             if (swap_ab_) {
                 std::swap(eff_lda_, eff_ldb_);
-                if (desc()->transa() == dnnl_notrans) eff_ldb_ = desc()->k();
+                if (d->transa() == dnnl_notrans) eff_ldb_ = d->k();
             }
 
             // Pad leading dimensions in case of a single row/column.
@@ -97,12 +100,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 eff_ldb_ = utils::rnd_up(eff_ldb_, 16);
             }
 
-            bool wei_decomp
-                    = (utils::one_of(d->c_type(), f32, f16, bf16)
-                              && utils::one_of(d->a_type(), u8, s8)
-                              && utils::one_of(d->b_type(), f16, f32, bf16))
-                    && attr()->mayiconvert(d->a_type(), f32);
-            if (wei_decomp) {
+            if (wei_decomp_) {
                 attr_skip_mask |= smask_t::fpmath_mode;
                 attr_skip_mask |= smask_t::scales_runtime_data_type;
                 attr_skip_mask |= smask_t::zero_points_runtime_data_type;
@@ -110,8 +108,9 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
-                    && utils::one_of(d->a_type(), u8, s8)) {
-                ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp);
+                    && utils::one_of(d->a_type(), u8, s8, u4, s4)) {
+                ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp_);
+
                 bool a_zp
                         = !attr()->zero_points_.has_default_values(DNNL_ARG_A);
                 bool b_zp
@@ -139,7 +138,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 ok = ok && d->b_type() == bf16
                         && utils::one_of(d->c_type(), bf16, f32)
                         && utils::one_of(d->acc_type, bf16, f32);
-            } else if (!wei_decomp) {
+            } else if (!wei_decomp_) {
                 ok = ok && utils::one_of(d->a_type(), f32, f16, f8_e5m2)
                         && d->b_type() == d->a_type()
                         && utils::one_of(d->acc_type, d->a_type(), f32)
@@ -231,7 +230,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             if (attr()->deterministic_)
                 set_mode(mode, kernel_desc_t::mode_deterministic);
 
-            if (wei_decomp) {
+            if (wei_decomp_) {
                 acc_type = data_type::f32;
                 mode = static_cast<decltype(mode)>(
                         mode | kernel_desc_t::mode_w_decomp);
@@ -292,8 +291,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto m = d->m();
             auto n = d->n();
             auto k = d->k();
-            auto a_t = d->a_type();
-            auto b_t = d->b_type();
+            auto a_t = (utils::one_of(d->a_type(), s4, u4)) ? s8 : d->a_type();
+            auto b_t = (utils::one_of(d->b_type(), s4, u4)) ? s8 : d->b_type();
             auto c_t = d->c_type();
             auto a_t_sz = types::data_type_size(a_t);
             auto b_t_sz = types::data_type_size(b_t);
@@ -500,6 +499,8 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         bool swap_ab_ = false;
         int ao_dims_ = -1, bo_dims_ = -1;
+        bool a_zp_ = false, b_zp_ = false;
+        bool wei_decomp_ = false;
         dim_t eff_lda_ = 0, eff_ldb_ = 0;
 
         const compute::device_info_t *dev_info_ = nullptr;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,10 +49,12 @@ enum class scalar_type_t {
     _float,
     _half,
     _int,
+    _int4,
     _long,
     _short,
     _uchar,
     _uint,
+    _uint4,
     _ulong,
     _ushort,
     _zero_pad_mask_t,

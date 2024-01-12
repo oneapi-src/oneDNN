@@ -80,6 +80,8 @@ bool device_info_t::has_native(data_type_t type) const {
         case data_type::f64: return has(device_ext_t::khr_fp64);
         case data_type::bf16: return has(device_ext_t::future_bf16_cvt);
         case data_type::f8_e5m2: return gpu_arch_ >= gpu_arch_t::xe_hpc;
+        case data_type::u4:
+        case data_type::s4:
         case data_type::f8_e4m3: return false;
         default: return false;
     }

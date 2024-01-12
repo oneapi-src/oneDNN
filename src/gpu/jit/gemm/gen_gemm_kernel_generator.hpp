@@ -64,6 +64,8 @@ public:
         f32 = 0x01010402,
         u8 = 0x01840100,
         s8 = 0x01850100,
+        u4 = 0x11840100,
+        s4 = 0x11850100,
         u16 = 0x01860201,
         s16 = 0x01870201,
         u32 = 0x01880402,
@@ -89,11 +91,20 @@ public:
     constexpr int components() const { return 1; }
     constexpr bool isInteger() const { return uint32_t(val) & 0x800000; }
     constexpr bool isFP() const { return !isInteger(); }
+    constexpr bool isInt4() const {
+        return utils::one_of(val, Type::u4, Type::s4);
+    }
+    constexpr bool isInt8() const {
+        return utils::one_of(val, Type::u8, Type::s8);
+    }
     constexpr bool isSigned() const {
         return (uint32_t(val) & 0x810000) != 0x800000;
     }
     constexpr int log2Size() const { return uint32_t(val) & 0xFF; }
-    constexpr int size() const { return (uint32_t(val) >> 8) & 0xFF; }
+    int size() const {
+        assert(!isInt4());
+        return (uint32_t(val) >> 8) & 0xFF;
+    }
 
     constexpr Type arithmetic() const {
         return (val == tf32) ? Type(f32) : real();
@@ -105,18 +116,20 @@ public:
             case Type::s32: return data_type::s32;
             case Type::u8: return data_type::u8;
             case Type::s8: return data_type::s8;
+            case Type::u4: return data_type::u4;
+            case Type::s4: return data_type::s4;
             default: assert(!"Unsupported type"); return data_type::undef;
         }
     }
     constexpr Type baseType() const { return *this; }
 
     template <typename U>
-    constexpr friend int operator*(U a, Type t) {
-        return int(a << t.log2Size());
+    friend int operator*(U a, Type t) {
+        return (t.isInt4()) ? std::max(int(a >> 1), 1) : int(a << t.log2Size());
     }
     template <typename U>
     constexpr friend int operator/(U a, Type t) {
-        return int(a >> t.log2Size());
+        return (t.isInt4()) ? int(a << 1) : int(a >> t.log2Size());
     }
 
     ngen::DataType ngen() const {
@@ -153,7 +166,7 @@ static inline bool isColMajor(MatrixLayout l) {
 }
 
 static inline bool isLargeCrosspack(Type T, int crosspack) {
-    return (crosspack * T > 4) && (crosspack > 1);
+    return ((crosspack > 1) && crosspack * T > 4);
 }
 
 static inline MatrixLayout transposeLayout(MatrixLayout l) {
@@ -1169,13 +1182,15 @@ struct GEMMStrategy : public GEMMStrategyPOD {
 
     int slmABufBlockSize(const GEMMProblem &problem) const {
         return fixedSystolic ? 1152
-                             : int(slmA) * problem.Ta * problem.Ta.components()
-                        * unroll[LoopM] * unrollKSLM;
+                             : (int(slmA) * problem.Ta.components()
+                                       * unroll[LoopM] * unrollKSLM)
+                        * problem.Ta;
     }
     int slmBBufBlockSize(const GEMMProblem &problem) const {
         return fixedSystolic ? 1536
-                             : int(slmB) * problem.Tb * problem.Tb.components()
-                        * unroll[LoopN] * unrollKSLM;
+                             : (int(slmB) * problem.Tb.components()
+                                       * unroll[LoopN] * unrollKSLM)
+                        * problem.Tb;
     }
     int slmGEMMABufSize(const GEMMProblem &problem) const {
         return slmABufBlockSize(problem) * wg[LoopM] * wg[LoopK] * slmBuffers;
@@ -2799,6 +2814,8 @@ inline char precisionChar(Type T) {
         case Type::f16: return 'H';
         case Type::bf8: return 'Q';
         case Type::f32: return 'S';
+        case Type::u4: return 'o';
+        case Type::s4: return 'O';
         case Type::u8: return 'o';
         case Type::s8: return 'O';
         case Type::u16: return 'w';
