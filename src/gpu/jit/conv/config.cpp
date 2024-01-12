@@ -1106,6 +1106,10 @@ bool pipeline_unroll_hint(const conv_problem_t &prb, fma_kind_t fma_kind,
                 && bwd_d_optimize_kind
                         != bwd_d_optimize_kind_t::skip_strided_dhw)
             do_unroll = false;
+    } else if (prb.is_bwd_w) {
+        // Deterministic mode requires to have full reduction in one thread which may result in multiple nested loops
+        // with large bounds so disable unrolling to avoid code size blow-up.
+        if (prb.attr->deterministic_) do_unroll = false;
     }
     // Unrolling with mad or dp4a results in too large kernels.
     if (utils::one_of(fma_kind, fma_kind_t::mad, fma_kind_t::dp4a)
