@@ -217,7 +217,7 @@ struct acl_deconvolution_fwd_t : public primitive_t {
                     1, acl_bia_data_t, acl_layout);
 
             acl_pd_conf.fast_math = utils::one_of(
-                    attr()->fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
+                    attr()->fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
 
             ACL_CHECK_VALID(arm_compute::NEDeconvolutionLayer::validate(
                     &acl_pd_conf.src_info, &acl_pd_conf.wei_info,

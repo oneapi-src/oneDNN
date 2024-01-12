@@ -204,7 +204,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init_brgemm_desc() {
         brgattr.use_uker = jcp_.use_uker;
         brgattr.use_interleave_stores = jcp_.use_interleave_stores;
         brgattr.hint_prefetching = jcp_.hint_prefetching;
-        brgattr.fpmath_mode = attr()->fpmath_mode_;
+        brgattr.fpmath_mode = attr()->fpmath_.mode_;
         // if post-ops are required and there are no intermediate calculations
         // (like ic_chunks > 1) then we don't need code without post-ops in
         // brgemm kernel

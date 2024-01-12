@@ -170,7 +170,7 @@ struct acl_inner_product_fwd_t : public primitive_t {
             aip.fc_info.transpose_weights = false;
 
             aip.fc_info.enable_fast_math = utils::one_of(
-                    attr()->fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
+                    attr()->fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
 
             CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_,
                     aip.fc_info.activation_info));

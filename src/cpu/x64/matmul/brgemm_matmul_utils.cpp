@@ -175,7 +175,7 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , int8_dt(utils::one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
               && one_of(bgmmc.dst_dt, u8, s8, s32, f32, bf16))
     , bf32_dt(f32_dt
-              && one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any)
+              && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
               && isa == avx512_core_amx)
     , A_any_layout(A_any_layout)
     , B_any_layout(B_any_layout)

@@ -367,6 +367,18 @@ struct primitive_attr_item_t {
     virtual ~primitive_attr_item_t() = default;
 };
 
+struct fpmath_t : public c_compatible {
+    fpmath_t(dnnl_fpmath_mode_t mode = fpmath_mode::strict, bool force = false)
+        : mode_(mode), force_(force) {}
+
+    bool operator==(const fpmath_t &rhs) const {
+        return mode_ == rhs.mode_ && force_ == rhs.force_;
+    }
+
+    dnnl::impl::fpmath_mode_t mode_;
+    bool force_;
+};
+
 } // namespace impl
 } // namespace dnnl
 
@@ -617,10 +629,10 @@ private:
 struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl_primitive_attr()
         : scratchpad_mode_(dnnl::impl::scratchpad_mode::library)
-        , fpmath_mode_(dnnl::impl::get_fpmath_mode())
+        , fpmath_(dnnl::impl::get_fpmath_mode(), false)
         , acc_mode_(dnnl::impl::accumulation_mode::strict)
-        , deterministic_(false)
-        , force_fpmath_(false) {}
+        , deterministic_(false) {}
+
     ~dnnl_primitive_attr() = default;
 
     dnnl_primitive_attr *clone() const {
@@ -639,10 +651,9 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         scales_ = other.scales_;
         zero_points_ = other.zero_points_;
         scratchpad_mode_ = other.scratchpad_mode_;
-        fpmath_mode_ = other.fpmath_mode_;
+        fpmath_ = other.fpmath_;
         acc_mode_ = other.acc_mode_;
         deterministic_ = other.deterministic_;
-        force_fpmath_ = other.force_fpmath_;
         post_ops_ = other.post_ops_;
         rnn_data_qparams_ = other.rnn_data_qparams_;
         CHECK(rnn_weights_qparams_.copy_from(other.rnn_weights_qparams_));
@@ -686,10 +697,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
 
     bool operator==(const dnnl_primitive_attr &rhs) const {
         bool ret = scratchpad_mode_ == rhs.scratchpad_mode_
-                && fpmath_mode_ == rhs.fpmath_mode_
-                && acc_mode_ == rhs.acc_mode_
+                && fpmath_ == rhs.fpmath_ && acc_mode_ == rhs.acc_mode_
                 && deterministic_ == rhs.deterministic_
-                && force_fpmath_ == rhs.force_fpmath_
                 && output_scales_ == rhs.output_scales_
                 && scales_ == rhs.scales_ && zero_points_ == rhs.zero_points_
                 && post_ops_ == rhs.post_ops_
@@ -748,15 +757,15 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
             // - if force_fpmath_ is enabled, and
             // - to an fp type compatible with fpmath mode
             // `dt_from` = `f32` to override `is_compat` check.
-            return force_fpmath_
+            return fpmath_.force_
                     && mayidownconvert(
-                            fpmath_mode_, dnnl::impl::data_type::f32, dt_to);
+                            fpmath_.mode_, dnnl::impl::data_type::f32, dt_to);
         } else {
             // fp inputs can be converted only:
             // - if target datatype is bigger
             // - or if fpmath mode allows the conversion
             return dnnl::impl::is_fpsubtype(dt_from, dt_to)
-                    || mayidownconvert(fpmath_mode_, dt_from, dt_to);
+                    || mayidownconvert(fpmath_.mode_, dt_from, dt_to);
         }
     }
 
@@ -765,10 +774,9 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::arg_scales_t scales_;
     dnnl::impl::zero_points_t zero_points_;
     dnnl::impl::scratchpad_mode_t scratchpad_mode_;
-    dnnl::impl::fpmath_mode_t fpmath_mode_;
+    dnnl::impl::fpmath_t fpmath_;
     dnnl::impl::accumulation_mode_t acc_mode_;
     bool deterministic_;
-    bool force_fpmath_;
     dnnl::impl::post_ops_t post_ops_;
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
     dnnl::impl::scales_t rnn_weights_qparams_;

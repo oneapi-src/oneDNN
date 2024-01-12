@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1327,7 +1327,7 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
                             && jbgp.wei_dt == f32);
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     jbgp.is_bf32 = is_f32
-            && one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any)
+            && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
             && jbgp.is_amx;
 
     if (!IMPLICATION(is_int8,

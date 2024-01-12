@@ -293,7 +293,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     weights_iter_dt, weights_layer_dt);
             bool is_impl_bf16
                     = everyone_is(data_type::bf16, src_type, weights_type);
-            bool is_fpmath_bf16 = one_of(this->attr()->fpmath_mode_,
+            bool is_fpmath_bf16 = one_of(this->attr()->fpmath_.mode_,
                     fpmath_mode::bf16, fpmath_mode::any);
             bool allow_down_conversion_to_bf16
                     = is_f32 && is_fpmath_bf16 && is_impl_bf16;

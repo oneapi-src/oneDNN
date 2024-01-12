@@ -136,9 +136,9 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
                     dnnl::impl::accumulation_mode::relaxed,
                     dnnl::impl::accumulation_mode::any)));
     CHECK_ARG(this->defined(defined_mask));
-    bool fpmath_mode_ok
-            = IMPLICATION((bool)(~mask & smask_t::fpmath_mode) && force_fpmath_,
-                    fpmath_mode_ == fpmath_mode::strict);
+    bool fpmath_mode_ok = IMPLICATION(
+            (bool)(~mask & smask_t::fpmath_mode) && fpmath_.force_,
+            fpmath_.mode_ == fpmath_mode::strict);
     CHECK_ARG(fpmath_mode_ok);
     return ok;
 #undef CHECK_MASK
@@ -365,8 +365,8 @@ status_t primitive_attr_t::set_fpmath_mode(
         fpmath_mode_t fpmath_mode, bool force) {
     auto st = check_fpmath_mode(fpmath_mode);
     if (st == success) {
-        fpmath_mode_ = fpmath_mode;
-        force_fpmath_ = force;
+        fpmath_.mode_ = fpmath_mode;
+        fpmath_.force_ = force;
     }
     return st;
 }
@@ -434,7 +434,7 @@ status_t dnnl_primitive_attr_destroy(primitive_attr_t *attr) {
 status_t dnnl_primitive_attr_get_fpmath_mode(
         const primitive_attr_t *attr, fpmath_mode_t *mode) {
     if (any_null(attr, mode)) return invalid_arguments;
-    *mode = attr->fpmath_mode_;
+    *mode = attr->fpmath_.mode_;
     return success;
 }
 
@@ -447,8 +447,8 @@ status_t dnnl_primitive_attr_set_fpmath_mode(
 status_t dnnl_primitive_attr_get_fpmath_mode_v2(
         const primitive_attr_t *attr, fpmath_mode_t *mode, int *force) {
     if (!attr) return invalid_arguments;
-    if (mode) *mode = attr->fpmath_mode_;
-    if (force) *force = attr->force_fpmath_;
+    if (mode) *mode = attr->fpmath_.mode_;
+    if (force) *force = attr->fpmath_.force_;
     return success;
 }
 

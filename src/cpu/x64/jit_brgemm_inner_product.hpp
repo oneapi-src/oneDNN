@@ -121,7 +121,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     brgattr.use_uker = jbgp_.use_uker;
                     brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
-                    brgattr.fpmath_mode = attr()->fpmath_mode_;
+                    brgattr.fpmath_mode = attr()->fpmath_.mode_;
                 }
                 if (are_post_ops_applicable && jbgp_.nthr_ic_b > 1) {
                     brgattr.generate_skip_accumulation = true;
@@ -305,7 +305,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                     brgattr.use_uker = jbgp_.use_uker;
                     brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
-                    brgattr.fpmath_mode = attr()->fpmath_mode_;
+                    brgattr.fpmath_mode = attr()->fpmath_.mode_;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
                     jbgp_.amx_buf_size_per_thread
@@ -469,7 +469,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                     brgattr.use_uker = jbgp_.use_uker;
                     brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
-                    brgattr.fpmath_mode = attr()->fpmath_mode_;
+                    brgattr.fpmath_mode = attr()->fpmath_.mode_;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
                     jbgp_.amx_buf_size_per_thread

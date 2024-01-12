@@ -601,9 +601,11 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
         ss << "attr-scratchpad:" << dnnl_scratchpad_mode2str(spm) << " ";
     }
-    const fpmath_mode_t &fpm = attr->fpmath_mode_;
-    if (fpm != fpmath_mode_t::dnnl_fpmath_mode_strict) {
-        ss << "attr-fpmath:" << dnnl_fpmath_mode2str(fpm) << " ";
+    const fpmath_t &fpm = attr->fpmath_;
+    if (fpm.mode_ != fpmath_mode_t::dnnl_fpmath_mode_strict || fpm.force_) {
+        ss << "attr-fpmath:" << dnnl_fpmath_mode2str(fpm.mode_);
+        if (fpm.force_) ss << ":true";
+        ss << " ";
     }
 
     const accumulation_mode_t &am = attr->acc_mode_;

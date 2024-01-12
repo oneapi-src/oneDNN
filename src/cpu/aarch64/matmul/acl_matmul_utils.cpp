@@ -88,7 +88,7 @@ status_t init_conf_matmul_fixed_format(acl_matmul_conf_t &amp,
                 &amp.src_acc_info, &amp.src_tensor_info));
 
     bool is_fastmath_enabled = utils::one_of(
-            attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
+            attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
     amp.gemm_info.set_fast_math(is_fastmath_enabled);
 
     amp.gemm_info.set_fixed_format(true);
@@ -189,7 +189,7 @@ status_t init_conf_matmul_non_fixed_format(acl_matmul_conf_t &amp,
             arm_compute::TensorShape(N, M, 1, dst_batch), 1, acl_dst_data_t);
 
     bool is_fastmath_enabled = utils::one_of(
-            attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
+            attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
     amp.gemm_info.set_fast_math(is_fastmath_enabled);
 
     // Validate ACL transpose

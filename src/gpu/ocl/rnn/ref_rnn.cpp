@@ -612,7 +612,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     dim_t sic = rnn_conf.sic;
     dim_t dhc = rnn_conf.dhc;
 
-    auto fpmath_mode = this->attr()->fpmath_mode_;
+    auto fpmath_mode = this->attr()->fpmath_.mode_;
 
     // The inputs of create_gemm_pd describe a gemm in column major.
     // Below, we have to transpose the a and b descriptor to describe

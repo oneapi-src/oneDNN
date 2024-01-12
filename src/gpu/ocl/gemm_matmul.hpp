@@ -238,7 +238,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
                                                     : status::success;
             };
 
-            CHECK(gemm_attr.set_fpmath_mode(attr()->fpmath_mode_));
+            CHECK(gemm_attr.set_fpmath_mode(attr()->fpmath_.mode_));
             gemm_attr.deterministic_ = attr()->deterministic_;
 
             dims_t orig_a_dims, orig_b_dims, orig_c_dims, orig_bias_dims;
