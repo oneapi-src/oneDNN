@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -608,6 +608,7 @@ inline std::vector<std::string> str_split(const std::string &str, char delim) {
 
 int32_t fetch_and_add(int32_t *dst, int32_t val);
 inline void yield_thread() {}
+bool is_destroying_cache_safe();
 
 // Reads an environment variable 'name' and stores its string value in the
 // 'buffer' of 'buffer_size' bytes (including the terminating zero) on

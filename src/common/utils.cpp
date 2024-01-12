@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -244,6 +244,53 @@ std::string get_jit_profiling_jitdumpdir() {
     jitdumpdir = jit_profiling_jitdumpdir.get();
 #endif
     return jitdumpdir;
+}
+
+bool is_destroying_cache_safe() {
+#if defined(_WIN32) \
+        && (defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL)
+    // The ntdll.dll library is located in system32, therefore setting
+    // additional environment is not required.
+    HMODULE handle = LoadLibraryExA(
+            "ntdll.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (!handle) { return false; }
+
+    // RtlDllShutdownInProgress returns TRUE if the whole process terminates
+    // and FALSE if DLL is being unloaded dynamically or if it’s called from
+    // an executable.
+    auto f = reinterpret_cast<BOOLEAN (*)(void)>(
+            GetProcAddress(handle, "RtlDllShutdownInProgress"));
+    if (!f) {
+        auto ret = FreeLibrary(handle);
+        assert(ret);
+        MAYBE_UNUSED(ret);
+        return false;
+    }
+
+    bool is_process_termination_in_progress = f();
+
+    auto ret = FreeLibrary(handle);
+    assert(ret);
+    MAYBE_UNUSED(ret);
+
+    if (is_process_termination_in_progress) {
+        return false;
+    } else {
+        // Three scenarios possible:
+        //    1. oneDNN is being dynamically unloaded
+        //    2. Another dynamic library that contains statically linked
+        //       oneDNN is dynamically unloaded
+        //    3. oneDNN is statically linked in an executable which is done
+        //       and now the process terminates In all these scenarios
+        //       content of the cache can be safely destroyed.
+        return true;
+    }
+#else
+    // Always destroy the content of the cache for non-Windows OSes, and
+    // non-sycl and non-ocl runtimes because there is no a problem with
+    // library unloading order in such cases.
+    return true;
+#endif
 }
 
 } // namespace impl
