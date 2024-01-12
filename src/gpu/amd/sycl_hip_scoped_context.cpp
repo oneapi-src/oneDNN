@@ -33,11 +33,13 @@ hip_sycl_scoped_context_handler_t::hip_sycl_scoped_context_handler_t(
     : need_to_recover_(false) {
     try {
         HIP_EXECUTE_FUNC(hipCtxGetCurrent, &original_);
-        auto desired
-                = engine.get_underlying_context(); // Getting the context also makes it active
+        auto desired = engine.get_underlying_context();
         currentDevice = engine.get_underlying_device();
 
         if (original_ != desired) {
+
+            HIP_EXECUTE_FUNC(hipCtxSetCurrent, desired);
+
             need_to_recover_
                     = !(original_ == nullptr && engine.has_primary_context());
         }

@@ -27,11 +27,18 @@ cuda_sycl_scoped_context_handler_t::cuda_sycl_scoped_context_handler_t(
     : need_to_recover_(false) {
     try {
         CUDA_EXECUTE_FUNC(cuCtxGetCurrent, &original_);
-        auto desired
-                = engine.get_underlying_context(); // Getting the context also makes it active
+        auto desired = engine.get_underlying_context();
         currentDevice = engine.get_underlying_device();
 
         if (original_ != desired) {
+            // Sets the desired context as the active one for the thread
+            CUDA_EXECUTE_FUNC(cuCtxSetCurrent, desired);
+            // No context is installed and the suggested context is primary
+            // This is the most common case. We can activate the context in the
+            // thread and leave it there until all the PI context referring to
+            // the same underlying CUDA primary context are destroyed. This
+            // emulates the behaviour of the CUDA runtime api, and avoids costly
+            // context switches. No action is required on this side of the if.
             need_to_recover_
                     = !(original_ == nullptr && engine.has_primary_context());
         }
