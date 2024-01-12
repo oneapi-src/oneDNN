@@ -87,15 +87,14 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         zp.get(DNNL_ARG_WEIGHTS, &mask_wei);
         zp.get(DNNL_ARG_DST, &mask_dst);
 
-        VCHECK_MATMUL_UNIMPL(
-                (mask_wei == 0
-                        || (mask_wei == 1 << (desc.weights_desc.ndims - 1)))
-                        && (mask_src == 0
-                                || (desc.src_desc.ndims == 2
-                                        && mask_src == 1 << 1))
-                        && (mask_dst == 0
-                                || (desc.dst_desc.ndims == 2
-                                        && mask_dst == 1 << 1)),
+        VCHECK_MATMUL_UNIMPL(mask_src == 0
+                        || (desc.src_desc.ndims == 2 && mask_src == 1 << 1),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+        VCHECK_MATMUL_UNIMPL(mask_wei == 0
+                        || (mask_wei == 1 << (desc.weights_desc.ndims - 1)),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+        VCHECK_MATMUL_UNIMPL(mask_dst == 0
+                        || (desc.dst_desc.ndims == 2 && mask_dst == 1 << 1),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
     }
 
