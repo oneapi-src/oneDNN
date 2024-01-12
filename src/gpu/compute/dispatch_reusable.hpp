@@ -395,7 +395,7 @@ struct named_buffer_t : public memory_desc_t {
     const std::string &get_name() const { return name; }
     const std::vector<dim_id_t> &get_dim_ids() const { return dim_ids; }
 
-    void remove_dim(dim_id_t dim) {
+    void remove_dim(dim_id_t dim, bool update_strides = true) {
         size_t dim_idx = get_dim_idx(dim);
         if (dim_idx == dim_not_found) return;
 
@@ -406,7 +406,9 @@ struct named_buffer_t : public memory_desc_t {
         dim_t dim_size = padded_dims[dim_idx];
 
         for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
-            if (blk.strides[i] > dim_stride) blk.strides[i] /= dim_size;
+            if (update_strides && blk.strides[i] > dim_stride) {
+                blk.strides[i] /= dim_size;
+            }
 
             // Shift dims down
             if (i > dim_idx) {
