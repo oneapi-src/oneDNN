@@ -42,6 +42,8 @@ struct gen_gemm_kernel_desc_t {
 
     compute::scalar_type_t scalar_type() const {
         switch (problem_.Ts) {
+            case Type::s4: return compute::scalar_type_t::_int4;
+            case Type::u4: return compute::scalar_type_t::_uint4;
             case Type::s8: return compute::scalar_type_t::_char;
             case Type::u8: return compute::scalar_type_t::_uchar;
             case Type::s16: return compute::scalar_type_t::_short;
@@ -80,6 +82,8 @@ protected:
             case data_type::s32: return Type::s32;
             case data_type::u8: return Type::u8;
             case data_type::s8: return Type::s8;
+            case data_type::u4: return Type::u4;
+            case data_type::s4: return Type::s4;
         }
     }
 
