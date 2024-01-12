@@ -17,6 +17,7 @@
 #include "common/compiler_workarounds.hpp"
 
 #include "common/eltwise_pd.hpp"
+#include "common/utils.hpp"
 #include "gpu/block_structure.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/device_info.hpp"
@@ -178,10 +179,10 @@ status_t atomic_reduction_conf_t::init_dispatcher(
     compute::named_buffer_t src("SRC");
     std::array<dim_t, 6> sizes = {
             outer_block.block,
-            reduction_block.block / conf.global_acc
-                    / conf.local_acc, // not dispatched
-            conf.local_acc,
             conf.global_acc,
+            conf.local_acc,
+            utils::div_up(reduction_block.block,
+                    conf.global_acc * conf.local_acc), // not dispatched
             inner_block.block / conf.vect_size / conf.subgroup_size,
             conf.subgroup_size,
     };
@@ -198,23 +199,23 @@ status_t atomic_reduction_conf_t::init_dispatcher(
     dst.remove_dim(reduction_dims::local); // broadcasted
     dst.remove_dim(reduction_dims::global); // broadcasted
 
+    // Broadcast src's global/local dims, since we index the reduction dims manually
+    src.remove_dim(reduction_dims::global, false);
+    src.remove_dim(reduction_dims::local, false);
+
     // Once again, loop dim padding causes issues
     size_t dst_outer_idx = dst.get_dim_idx(reduction_dims::outer);
     dst.format_desc.blocking.strides[dst_outer_idx]
             = inner_block.block / conf.vect_size;
 
-    // Create a term corresponding to local+global reductions
-    compute::named_buffer_t reduction("REDUCE", src);
-    reduction.remove_dim(reduction_dims_t::outer);
-    reduction.remove_dim(reduction_dims_t::loop);
-    reduction.remove_dim(reduction_dims_t::inner_group);
-    reduction.remove_dim(reduction_dims_t::subgroup);
-
     // Create the dispatcher
     compute::reusable_dispatch_config_t config(engine, dispatch_dims);
     CHECK(config.register_buffer(src));
     CHECK(config.register_buffer(dst));
-    CHECK(config.register_buffer(reduction));
+    CHECK(config.define_dim_index(
+            "ATOMIC", reduction_dims::global, conf.global_acc));
+    CHECK(config.define_dim_index(
+            "LOCAL", reduction_dims::local, conf.local_acc));
     CHECK(config.use_subgroup(
             src.get_name(), into<size_t>(conf.subgroup_size)));
 
