@@ -20,11 +20,3 @@
 # test for K parallel_reduction with batched case
 --reset
 --stag=acb --wtag=abc --dtag=abc 2x16x2048:2x2048x16_n"large_K_with_batch"
-
-# test for dynamic N with prelu
---reset
---dt=f32
---stag=ab --wtag=ab --dtag=ab
---runtime_dims_masks=0:2
---attr-post-ops=prelu:per_oc
-3x20:20x4

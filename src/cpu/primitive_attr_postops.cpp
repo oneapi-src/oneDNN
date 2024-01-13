@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -307,11 +307,20 @@ void ref_post_ops_t::execute(float &res, const args_t &args) const {
 
                 const exec_ctx_t &ctx = *args.ctx;
                 const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, args.dst_md);
+                auto prelu_weights_md = *it_prelu_md;
+
+                // Handle for runtime dimensions.
+                const bool has_runtime_dims
+                        = memory_desc_wrapper(args.dst_md).has_runtime_dims();
+                if (has_runtime_dims)
+                    get_prelu_memory_desc(prelu_weights_md, dst_d.dims(),
+                            dst_d.ndims(), e.prelu.mask);
+
                 const auto prelu_weights = CTX_IN_MEM(const float *,
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
                                 | DNNL_ARG_WEIGHTS));
                 const auto off
-                        = get_prelu_weights_off(*it_prelu_md, args.l_offset,
+                        = get_prelu_weights_off(prelu_weights_md, args.l_offset,
                                 dst_d.dims(), dst_d.ndims(), e.prelu.mask);
                 const auto &weights_value = prelu_weights[off];
                 res = weights_value * res;

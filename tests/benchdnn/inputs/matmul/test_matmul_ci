@@ -1,6 +1,5 @@
---reset
-
 # Plain cases
+--reset
 --dt=f32,bf16,f16,f8_e5m2,f8_e4m3,u8:s8:s8,s8:s8:f32
 --bia_dt=f32
 --bia_mask=2
@@ -152,3 +151,27 @@
 --bia_mask=2,3  77x133:133x117
 --bia_mask=4,6  15x24x16:15x16x32
 --bia_mask=8,12 7x16x24x8:7x16x8x24
+
+# Basic post-ops with runtime dims 2D.
+--reset
+--dt=f32,s8:s8:s32,bf16
+--stag=ab --wtag=ab --dtag=ab
+--runtime_dims_masks=,1:0,0:2,2:1,1:2,3:1,2:3,3:3
+--attr-post-ops=mul:f32,relu,sum,prelu,prelu:per_oc
+3x20:20x4n"postops+runtime_dims_2d"
+
+# Basic post-ops with runtime dims 3D.
+--reset
+--dt=f32,s8:s8:s32,bf16
+--stag=abc --wtag=abc --dtag=abc
+--runtime_dims_masks=,2:0,0:4,4:2,2:4,6:2,4:6,6:6
+--attr-post-ops=mul:f32,relu,sum,prelu,prelu:per_oc
+10x3x20:10x20x4n"postops+runtime_dims_3d"
+
+# Basic post-ops with runtime dims 4D.
+--reset
+--dt=f32,s8:s8:s32,bf16
+--stag=abcd --wtag=abcd --dtag=abcd
+--runtime_dims_masks=,4:0,0:8,8:4,4:8,12:4,8:12,12:12
+--attr-post-ops=mul:f32,relu,sum,prelu,prelu:per_oc
+2x10x3x20:2x10x20x4n"postops+runtime_dims_4d"
