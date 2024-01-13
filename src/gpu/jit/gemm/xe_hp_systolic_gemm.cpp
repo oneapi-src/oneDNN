@@ -527,9 +527,12 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
             = (d->k() > kd_t::min_block_k(a_type)) && pd()->allow_k_blocking();
     bool got_info = false;
 
-    auto post_ops = pd()->post_ops();
-    bool with_post_ops = (post_ops->find(primitive_kind::eltwise) != -1)
-            || (post_ops->find(primitive_kind::binary) != -1);
+    auto post_ops_ = pd()->post_ops();
+    bool with_post_ops = (post_ops_->find(primitive_kind::eltwise) != -1)
+            || (post_ops_->find(primitive_kind::binary) != -1);
+    gpu_post_ops_t gpu_post_ops;
+    CHECK(gpu_post_ops_t::make(gpu_post_ops, *post_ops_, pd()->dst_md(),
+            pd()->get_post_op_specializations()));
 
     kd_t kd_full;
 
@@ -537,9 +540,9 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
             pd()->with_batch(), pd()->packed_c(), trans_co,
             pd()->with_a_zero_points(), pd()->with_b_zero_points(),
             pd()->with_c_zero_points(), pd()->with_bias(), pd()->alpha(),
-            pd()->beta(), *post_ops, a_type, b_type, c_type, co_type, acc_type,
-            d->m(), d->n(), d->k(), d->batch(), pd()->unroll_m(),
-            pd()->unroll_n(), pd()->alt(), pd()->prelu_wei_md);
+            pd()->beta(), a_type, b_type, c_type, co_type, acc_type, d->m(),
+            d->n(), d->k(), d->batch(), pd()->unroll_m(), pd()->unroll_n(),
+            pd()->alt(), std::move(gpu_post_ops));
 
     if (status != status::success) return status;
 
@@ -566,6 +569,8 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
                     this_c_offset = false;
                     this_post_ops = &no_post_ops;
                 }
+                CHECK(gpu_post_ops_t::make(gpu_post_ops, *this_post_ops,
+                        pd()->dst_md(), pd()->get_post_op_specializations()));
 
                 kd_t kd;
 
@@ -573,10 +578,9 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
                         pd()->with_batch(), pd()->packed_c(), trans_co,
                         pd()->with_a_zero_points(), pd()->with_b_zero_points(),
                         this_c_offset, pd()->with_bias(), pd()->alpha(),
-                        this_beta, *this_post_ops, a_type, b_type, c_type,
-                        co_type, acc_type, d->m(), d->n(), d->k(), d->batch(),
-                        pd()->unroll_m(), pd()->unroll_n(), pd()->alt(),
-                        pd()->prelu_wei_md);
+                        this_beta, a_type, b_type, c_type, co_type, acc_type,
+                        d->m(), d->n(), d->k(), d->batch(), pd()->unroll_m(),
+                        pd()->unroll_n(), pd()->alt(), std::move(gpu_post_ops));
 
                 if (status != status::success) return status;
 

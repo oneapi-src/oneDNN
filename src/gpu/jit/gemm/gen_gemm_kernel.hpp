@@ -114,8 +114,7 @@ protected:
     int eu_count_ = -1;
     bool disable_systolic_ = false;
 
-    status_t transfer_post_ops(const post_ops_t &post_ops, bool swap_ab,
-            const memory_desc_t &prelu_wei_md);
+    status_t transfer_post_ops(gpu_post_ops_t &&post_ops, bool swap_ab);
 
     status_t finalize();
     void update_driver_info();
@@ -138,21 +137,21 @@ struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
             bool has_systolic, compute_mode mode, int batch_dims, bool trans_a,
             bool trans_b, bool trans_co, bool swap_ab, bool a_offset,
             bool b_offset, bool c_offset, bool bias, sum_ab_t reduce_ab,
-            float alpha, float beta, const post_ops_t &post_ops,
-            data_type_t a_type, data_type_t b_type, data_type_t c_type,
-            data_type_t co_type, data_type_t acc_type, int align_a, int align_b,
-            int align_c, dim_t m, dim_t n, dim_t k, dim_t lda, dim_t ldb,
-            dim_t ldc, dim_t batch, const memory_desc_t &prelu_wei_md);
+            float alpha, float beta, data_type_t a_type, data_type_t b_type,
+            data_type_t c_type, data_type_t co_type, data_type_t acc_type,
+            int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
+            dim_t lda, dim_t ldb, dim_t ldc, dim_t batch,
+            gpu_post_ops_t &&post_ops);
 };
 
 struct gen_gemm_xe_systolic_kernel_desc_t : public gen_gemm_kernel_desc_t {
     status_t select_kernel(compute::gpu_arch_t arch, int stepping, int eu_count,
             int batch_dims, bool packed_c, bool trans_co, bool a_offset,
             bool b_offset, bool c_offset, bool bias, float alpha, float beta,
-            const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
-            data_type_t c_type, data_type_t co_type, data_type_t acc_type,
-            dim_t m, dim_t n, dim_t k, dim_t batch, int unroll_m, int unroll_n,
-            bool alt, const memory_desc_t &prelu_wei_md);
+            data_type_t a_type, data_type_t b_type, data_type_t c_type,
+            data_type_t co_type, data_type_t acc_type, dim_t m, dim_t n,
+            dim_t k, dim_t batch, int unroll_m, int unroll_n, bool alt,
+            gpu_post_ops_t &&post_ops);
 
     static void choose_unrolls(compute::gpu_arch_t arch, int eu_count,
             data_type_t a_type, data_type_t b_type, data_type_t c_type, dim_t m,

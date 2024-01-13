@@ -216,15 +216,19 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
             if (wei_decomp) acc_type = data_type::f32;
 
+            gpu_post_ops_t gpu_post_ops;
+            CHECK(gpu_post_ops_t::make(gpu_post_ops, post_ops_, dst_md(),
+                    get_post_op_specializations()));
+
             status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
                     eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
                     with_a_zero_points(), with_b_zero_points(),
                     with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
-                    beta(), post_ops_, eff_a_type(), eff_b_type(),
-                    desc()->c_type(), co_type, acc_type, eff_align_a(),
-                    eff_align_b(), align_c(), eff_m(), eff_n(), d->k(),
-                    eff_lda(), eff_ldb(), d->ldc(), d->batch(), prelu_wei_md);
+                    beta(), eff_a_type(), eff_b_type(), desc()->c_type(),
+                    co_type, acc_type, eff_align_a(), eff_align_b(), align_c(),
+                    eff_m(), eff_n(), d->k(), eff_lda(), eff_ldb(), d->ldc(),
+                    d->batch(), std::move(gpu_post_ops));
 
             if (status != status::success) return status;
 

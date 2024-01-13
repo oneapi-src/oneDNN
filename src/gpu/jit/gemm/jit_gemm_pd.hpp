@@ -40,6 +40,13 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
         binary_src_t(type_t type_, int index_) : type(type_), index(index_) {}
     };
 
+    static constexpr post_op::specializations_t get_post_op_specializations() {
+        using mode_t = post_op::specializations_t::inline_mode_t;
+        using sum_t = post_op::specializations_t::sum_t;
+        // The sum scale is handled as GEMM beta argument
+        return {{}, sum_t(mode_t::impl_managed(), {}), {}};
+    }
+
     status_t init_post_ops() {
         using namespace primitive_kind;
         using namespace alg_kind;

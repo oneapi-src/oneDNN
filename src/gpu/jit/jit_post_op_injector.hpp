@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define GPU_JIT_JIT_POST_OP_INJECTOR_HPP
 
 #include "common/primitive_attr.hpp"
+#include "gpu/gpu_post_ops.hpp"
 #include "gpu/jit/jit_eltwise_injector.hpp"
 #include "gpu/jit/jit_generator.hpp"
 
@@ -50,7 +51,7 @@ struct jit_post_op_injector {
             const post_ops_t &post_ops, int eu_count,
             const ngen::GRFRange &scratch = ngen::GRFRange(),
             bool is_fwd = true)
-        : post_ops_(post_ops), is_fwd_(is_fwd), scratch_(scratch) {
+        : is_fwd_(is_fwd), scratch_(scratch) {
         assert(accumulator_type == data_type_t::dnnl_f32);
         workers_.reserve(post_ops.len());
         for (int idx = 0; idx < post_ops.len(); ++idx) {
@@ -62,6 +63,22 @@ struct jit_post_op_injector {
         }
     }
 
+    jit_post_op_injector(jit_generator<hw> *host, data_type_t accumulator_type,
+            const gpu_post_ops_t &post_ops, int eu_count,
+            const ngen::GRFRange &scratch = ngen::GRFRange(),
+            bool is_fwd = true)
+        : is_fwd_(is_fwd), scratch_(scratch) {
+        assert(accumulator_type == data_type_t::dnnl_f32);
+        workers_.reserve(post_ops.len());
+        for (auto &po : post_ops) {
+            if (po.is_eltwise()) {
+                auto &e = po.as_eltwise();
+                workers_.emplace_back(host, e.alg, e.alpha, e.beta, e.scale,
+                        eu_count, scratch, is_fwd);
+            }
+        }
+    }
+
     int min_scratch_regs();
     int preferred_scratch_regs();
     void set_scratch(const ngen::GRFRange &scratch);
@@ -70,7 +87,6 @@ struct jit_post_op_injector {
     void compute(const ngen::GRFRange &regs);
 
 private:
-    post_ops_t post_ops_;
     std::vector<jit_eltwise_injector_f32<hw>> workers_;
     bool is_fwd_;
     ngen::GRFRange scratch_;

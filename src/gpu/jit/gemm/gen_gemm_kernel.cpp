@@ -158,12 +158,14 @@ void gen_gemm_kernel_desc_t::update_driver_info() {
 #undef ARCH_DISPATCH
 }
 
-status_t gen_gemm_kernel_desc_t::transfer_post_ops(const post_ops_t &post_ops,
-        bool swap_ab, const memory_desc_t &prelu_wei_md) {
-    if (post_ops.len() > 0) {
-        problem_.postOps = post_ops;
+status_t gen_gemm_kernel_desc_t::transfer_post_ops(
+        gpu_post_ops_t &&post_ops_, bool swap_ab) {
+    problem_.postOps = std::move(post_ops_);
+    const auto &post_ops = problem_.postOps;
 
-        int po_count = post_ops.len();
+    if (post_ops.len() > 0) {
+
+        size_t po_count = post_ops.len();
         problem_.Tbinary.reserve(po_count);
         problem_.binary.reserve(po_count);
         problem_.binaryRow = {};
@@ -175,32 +177,24 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(const post_ops_t &post_ops,
         if (problem_.Ta == Type::bf8 || problem_.Tb == Type::bf8)
             problem_.Ts = Type::f32;
 
-        for (int i = 0; i < po_count; i++) {
-            const auto &entry = post_ops.entry_[i];
-            if (entry.kind != primitive_kind::binary
-                    && entry.kind != primitive_kind::prelu) {
+        for (size_t i = 0; i < po_count; i++) {
+            const auto &entry = post_ops[i];
+            if (!entry.is_binary()) {
                 problem_.Tbinary.push_back(Type::invalid);
                 problem_.binary.push_back(MatrixAddressing {});
                 continue;
             }
 
-            const auto &src_md
-                    = entry.is_binary() ? entry.binary.src1_desc : prelu_wei_md;
-            memory_desc_wrapper src_mdw(src_md);
-            int ndims = src_mdw.ndims();
-            auto T = convert_dnnl_to_kernel_type(src_mdw.data_type());
+            auto &src_rmd = entry.as_binary().src1_desc;
 
-            bool is_multi_row = (ndims >= 1) && (src_mdw.dims()[ndims - 1] > 1);
-            bool is_multi_col = (ndims >= 2) && (src_mdw.dims()[ndims - 2] > 1);
-            bool trans = false;
+            auto T = convert_dnnl_to_kernel_type(src_rmd.dt);
+            bool is_multi_row = (src_rmd.broadcast_mask & 1) == 0;
+            bool is_multi_col = (src_rmd.broadcast_mask & 2) == 0;
 
-            if (src_mdw.ndims() >= 2) {
-                if (src_md.format_kind != format_kind::blocked
-                        || !is_md_gemm_compatible_plain_format(&src_md, false))
-                    return status::unimplemented;
-                trans = (src_mdw.dims()[ndims - 1] > 1)
-                        && (src_mdw.blocking_desc().strides[ndims - 1] > 1);
-            }
+            bool is_compatible = src_rmd.inner_layout.empty();
+            if (!is_compatible) return status::unimplemented;
+
+            bool trans = is_multi_row && !src_rmd.inner_dim.is_innermost();
 
             if (swap_ab) {
                 trans = !trans;
@@ -210,7 +204,7 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(const post_ops_t &post_ops,
             problem_.Tbinary.push_back(T);
             problem_.binaryRow[i] = is_multi_row;
             problem_.binaryCol[i] = is_multi_col;
-            problem_.binaryBatch[i] = ndims >= 3;
+            problem_.binaryBatch[i] = src_rmd.ndims() >= 3;
             problem_.binaryTrans[i] = trans;
 
             MatrixAddressing atype;
@@ -230,11 +224,11 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         int stepping, int eu_count, bool has_systolic, compute_mode mode,
         int batch_dims, bool trans_a, bool trans_b, bool trans_co, bool swap_ab,
         bool a_offset, bool b_offset, bool c_offset, bool bias,
-        sum_ab_t reduce_ab, float alpha, float beta, const post_ops_t &post_ops,
-        data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t co_type, data_type_t acc_type, int align_a, int align_b,
-        int align_c, dim_t m, dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc,
-        dim_t batch, const memory_desc_t &prelu_wei_md) {
+        sum_ab_t reduce_ab, float alpha, float beta, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t co_type,
+        data_type_t acc_type, int align_a, int align_b, int align_c, dim_t m,
+        dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc, dim_t batch,
+        gpu_post_ops_t &&post_ops) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -290,7 +284,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     if (alpha == 1.0f) problem_.alpha = alpha;
     if (beta == 0.0f || beta == 1.0f) problem_.beta = beta;
 
-    auto status = transfer_post_ops(post_ops, swap_ab, prelu_wei_md);
+    auto status = transfer_post_ops(std::move(post_ops), swap_ab);
     if (status != status::success) return status;
 
     if (c_offset || bias || reduce_ab != sum_ab::sum_none) {
@@ -346,7 +340,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     eval_params.sizes = match_params[0].sizes;
     eval_params.alpha = alpha;
     eval_params.beta = beta;
-    eval_params.postOps = (post_ops.len() > 0);
+    eval_params.postOps = !problem_.postOps.empty();
     eval_params.cConvert = (acc_type != c_type);
     eval_params.euCount = eu_count;
     eval_params.batch = (batch_dims > 0);
@@ -378,11 +372,10 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
         compute::gpu_arch_t arch, int stepping, int eu_count, int batch_dims,
         bool packed_c, bool trans_co, bool a_offset, bool b_offset,
-        bool c_offset, bool bias, float alpha, float beta,
-        const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
-        data_type_t c_type, data_type_t co_type, data_type_t acc_type, dim_t m,
-        dim_t n, dim_t k, dim_t batch, int unroll_m, int unroll_n, bool alt,
-        const memory_desc_t &prelu_wei_md) {
+        bool c_offset, bool bias, float alpha, float beta, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t co_type,
+        data_type_t acc_type, dim_t m, dim_t n, dim_t k, dim_t batch,
+        int unroll_m, int unroll_n, bool alt, gpu_post_ops_t &&post_ops) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -437,7 +430,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     if (alpha == 1.0f) problem_.alpha = alpha;
     if (beta == 0.0f || beta == 1.0f) problem_.beta = beta;
 
-    auto status = transfer_post_ops(post_ops, false, prelu_wei_md);
+    auto status = transfer_post_ops(std::move(post_ops), false);
     if (status != status::success) return status;
 
     if (c_offset) problem_.cOffset = COffset::Post;
@@ -476,7 +469,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     eval_params.alpha = alpha;
     eval_params.beta = beta;
     eval_params.euCount = eu_count;
-    eval_params.postOps = (post_ops.len() > 0);
+    eval_params.postOps = !problem_.postOps.empty();
     eval_params.cConvert = (acc_type != c_type);
     eval_params.batch = (batch_dims > 0);
 
@@ -570,10 +563,8 @@ void gen_gemm_kernel_t::init_interface() {
 
     if (strategy.needsTempC(problem))
         interface_.newArgument("temp_C", ExternalArgumentType::GlobalPtr);
-    for (int i = 0; i < problem.postOps.len(); i++) {
-        if (problem.postOps.entry_[i].kind != primitive_kind::binary
-                && problem.postOps.entry_[i].kind != primitive_kind::prelu)
-            continue;
+    for (size_t i = 0; i < problem.postOps.len(); i++) {
+        if (!problem.postOps[i].is_binary()) continue;
         auto bname = "binary" + std::to_string(i);
         interface_.newArgument(bname, ExternalArgumentType::GlobalPtr);
         interface_.newArgument("offset_" + bname, DataType::d);
@@ -589,22 +580,16 @@ void gen_gemm_kernel_t::init_interface() {
             interface_.newArgument("stride_A1", DataType::d);
             interface_.newArgument("stride_B1", DataType::d);
             interface_.newArgument("stride_C1", DataType::d);
-            for (int i = 0; i < problem.postOps.len(); i++)
-                if ((problem.postOps.entry_[i].kind == primitive_kind::binary
-                            || problem.postOps.entry_[i].kind
-                                    == primitive_kind::prelu)
-                        && problem.binaryBatch[i])
+            for (size_t i = 0; i < problem.postOps.len(); i++)
+                if (problem.postOps[i].is_binary() && problem.binaryBatch[i])
                     interface_.newArgument(
                             "stride1_binary" + std::to_string(i), DataType::d);
         }
         interface_.newArgument("stride_A", DataType::d);
         interface_.newArgument("stride_B", DataType::d);
         interface_.newArgument("stride_C", DataType::d);
-        for (int i = 0; i < problem.postOps.len(); i++)
-            if ((problem.postOps.entry_[i].kind == primitive_kind::binary
-                        || problem.postOps.entry_[i].kind
-                                == primitive_kind::prelu)
-                    && problem.binaryBatch[i])
+        for (size_t i = 0; i < problem.postOps.len(); i++)
+            if (problem.postOps[i].is_binary() && problem.binaryBatch[i])
                 interface_.newArgument(
                         "stride_binary" + std::to_string(i), DataType::d);
         if (problem.batchDims > 1) {

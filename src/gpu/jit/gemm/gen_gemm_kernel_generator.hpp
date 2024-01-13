@@ -25,6 +25,7 @@
 
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
+#include "gpu/gpu_post_ops.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 #include "gpu/jit/gemm/utils.hpp"
 #include "gpu/jit/jit_generator.hpp"
@@ -869,7 +870,7 @@ struct GEMMProblem : public CommonProblem {
             = false; // If true, calculate A row sums/B column sums and store in CO.
     bool postOpFwd = true; // Eltwise parameters
 
-    post_ops_t postOps; // Fused post operations to apply
+    gpu_post_ops_t postOps; // Fused post operations to apply
     std::bitset<post_ops_t::post_ops_limit>
             binaryRow; // Binary-op broadcasts row data on false
     std::bitset<post_ops_t::post_ops_limit>
@@ -883,28 +884,22 @@ struct GEMMProblem : public CommonProblem {
     std::vector<MatrixAddressing> binary; // Binary postop data
     std::vector<Type> Tbinary; // Binary types
 
-    bool hasPostOp() const { return postOps.len() > 0; }
+    bool hasPostOp() const { return !postOps.empty(); }
     bool hasNonSum1PostOp() const {
-        for (const auto &e : postOps.entry_)
+        for (const auto &e : postOps)
             if (!e.is_sum()) return true;
         return false;
     }
     bool hasBinaryPostOp() const {
-        for (int idx = 0; idx < postOps.len(); idx++)
-            if (postOps.entry_[idx].is_binary()
-                    || postOps.entry_[idx].is_prelu())
-                return true;
+        for (auto &e : postOps)
+            if (e.is_binary()) return true;
         return false;
     }
     bool hasSum1PostOpAtEnd() const {
-        return postOps.len() > 0 && postOps.entry_[postOps.len() - 1].is_sum();
+        return !postOps.empty() && postOps.back().is_sum();
     }
     void removeFinalSumPostOp() {
-        if (postOps.len() > 0) {
-            auto &lastPO = postOps.entry_[postOps.len() - 1];
-            if (lastPO.kind == primitive_kind::sum)
-                postOps.entry_.resize(postOps.len() - 1);
-        }
+        if (hasSum1PostOpAtEnd()) { postOps.pop_back(); }
     }
 
     bool beta0() const { return (beta == 0); }
@@ -2378,8 +2373,9 @@ protected:
     void gemmPrefetchC(const GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state);
 
-    void gemmApplyPostOps(int poMin, int poMax, const GEMMProblem &problem,
-            const GEMMStrategy &strategy, GEMMState &state);
+    void gemmApplyPostOps(size_t poMin, size_t poMax,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
     void gemmLoadBinaryOpArgs(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
 
