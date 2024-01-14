@@ -15,6 +15,7 @@
  *******************************************************************************/
 #include <algorithm>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,6 +29,7 @@
 #include "compiler_partition_impl.hpp"
 
 #include "common/rw_mutex.hpp"
+#include "common/verbose.hpp"
 #include "graph/interface/graph.hpp"
 #include "graph/utils/debug.hpp"
 #include "graph/utils/utils.hpp"
@@ -219,8 +221,14 @@ graph::status_t compiler_partition_impl_t::compile(
             }
             // translate op
             gc::sc_op_ptr ret;
-            ret = sub_graph.make_backend_op(cur_op, producer_lt, consumer_lt);
-            if (!ret) { return impl::status::unimplemented; }
+            try {
+                ret = sub_graph.make_backend_op(
+                        cur_op, producer_lt, consumer_lt);
+            } catch (const std::exception &e) {
+                VERROR(graph, graph_compiler, "%s", e.what());
+                ret = nullptr;
+            }
+            if (!ret) { return graph::status::invalid_graph_op; }
             // translate output value
             for (size_t i = 0; i < cur_op->get_output_values().size(); i++) {
                 auto &out_value = cur_op->get_output_values()[i];
@@ -376,7 +384,10 @@ graph::status_t compiler_partition_impl_t::compile(
                 std::move(dyn_inputs), std::move(dyn_outputs));
         compiled_partition->init(pimpl);
         return res;
-    } catch (...) { return graph::status::unimplemented; }
+    } catch (const std::exception &e) {
+        VERROR(graph, graph_compiler, "%s", e.what());
+        return graph::status::unimplemented;
+    }
 }
 
 std::shared_ptr<graph::partition_impl_t>
