@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -290,7 +290,8 @@ struct mixed_parti_t : fusion_partition_t {
      * void merge(const ptr &other);
      * */
 
-    mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op);
+    mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op,
+            const dep_mat_ptr &dep_m = nullptr);
 
     mixed_parti_t(const context_ptr &ctx, const func_t &func,
             const fusion_anchor_mgr_t &fmgr, const sc_graph_t &graph);
@@ -492,7 +493,8 @@ std::vector<mixed_parti_t::ptr> collect_parti_set(
 
 // do mixed partition
 bool do_partition(const context_ptr &ctx, sc_graph_t &g,
-        std::vector<mixed_parti_t::ptr> &op_2_partition);
+        std::vector<mixed_parti_t::ptr> &op_2_partition,
+        const dep_mat_ptr &dep_m);
 
 // judge the given graph whether is second time retried graph
 inline bool is_optimized_sub_graph(sc_graph_t &g) {

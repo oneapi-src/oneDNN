@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -239,7 +239,8 @@ expr ir_visitor_base_impl_t<is_inplace>::visit_impl(indexing v) {
         if (changed) {
             return copy_attr(*v,
                     builder::make_indexing(std::move(ptr), std::move(new_arr),
-                            v->dtype_.lanes_, std::move(mask)));
+                            v->dtype_.lanes_, std::move(mask),
+                            v->dtype_.rows_));
         } else {
             return std::move(v);
         }

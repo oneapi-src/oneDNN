@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -247,6 +247,15 @@ void fusible_op_t::commit_into_anchor(fusion_anchor_t *committed_anchor) {
                             << ths->op_name_)
             if (is_output) {
                 ths->attrs_.set(op_attr_key::break_post_fuse, true);
+            } else if (committed_anchor->isa<grouped_fusion_anchor_t>()) {
+                // pre-fuse reorder, align input size with output
+                auto output_size
+                        = committed_anchor->fsmap_.get(ths->get_outputs()[0])
+                                  .size();
+                for (size_t i = 0; i < output_size; i++) {
+                    multi_tsl.emplace_back(tensor_slice(tsr));
+                }
+                return multi_tsl;
             }
             multi_tsl.emplace_back(tensor_slice(tsr));
         }

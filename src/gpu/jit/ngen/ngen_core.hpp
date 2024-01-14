@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1043,6 +1043,8 @@ public:
     static constexpr int log2Bytes(HW hw)                  { return (hw >= HW::XeHPC) ? 6 : 5;  }
     static constexpr int bytes(HW hw)                      { return (1 << log2Bytes(hw)); }
     static constexpr int bytesToGRFs(HW hw, unsigned x)    { return (x + bytes(hw) - 1) >> log2Bytes(hw); }
+
+    static constexpr int maxRegs()                         { return 256; }
 };
 
 class ARF : public Register

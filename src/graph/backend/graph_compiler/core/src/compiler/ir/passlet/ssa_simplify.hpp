@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,10 @@ namespace passlet {
 // dispatching down ssa_phi. And call visit() for var node to get simplified
 // result
 struct ssa_simplify_t {
+    const bool simplify_const_vec_;
     bool is_in_phi_ = false;
+    ssa_simplify_t(bool simplify_const_vec)
+        : simplify_const_vec_ {simplify_const_vec} {}
     void enter_phi() { is_in_phi_ = true; }
     void leave_phi() { is_in_phi_ = false; }
 

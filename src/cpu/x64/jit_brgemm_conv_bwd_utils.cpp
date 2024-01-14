@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1445,11 +1445,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const bool has_uneven_spatial = jcp.id % jcp.stride_d != 0
             || jcp.ih % jcp.stride_h != 0 || jcp.has_uneven_iw;
 
-    VDISPATCH_CONV_IC(!is_deconv,
-            "skipping implementation as it is a deconvolution call");
-    VDISPATCH_CONV_IC(!has_uneven_spatial,
-            "skipping since the stride values divide the spatial dimensions "
-            "unevenly");
+    if (is_deconv && has_uneven_spatial) return status::unimplemented;
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];

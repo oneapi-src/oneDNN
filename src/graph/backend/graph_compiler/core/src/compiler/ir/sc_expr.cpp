@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -246,7 +246,8 @@ expr::lvalue_proxy_t expr::operator[](const span_t &index) const {
     }
 
     return expr::lvalue_proxy_t(
-            builder::make_indexing(*this, idx, index.length_, index.mask_),
+            builder::make_indexing(
+                    *this, idx, index.length_, index.mask_, index.rows_),
             true);
 }
 
@@ -455,8 +456,9 @@ expr select_node::remake() const {
 }
 
 expr indexing_node::remake() const {
-    return copy_attr(
-            *this, builder::make_indexing(ptr_, idx_, dtype_.lanes_, mask_));
+    return copy_attr(*this,
+            builder::make_indexing(
+                    ptr_, idx_, dtype_.lanes_, mask_, dtype_.rows_));
 }
 
 bool indexing_node::equals(expr_c v, ir_comparer &ctx) const {

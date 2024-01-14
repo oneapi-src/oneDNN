@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,8 @@ block_layout_t block_layout_t::normalized(bool remove_size_1_blocks) const {
     std::vector<block_t> block_vec(num_blocks);
     memcpy(&block_vec[0], &blocks[0], num_blocks * sizeof(block_t));
 
-    std::vector<block_t> new_blocks = normalize_blocks(block_vec);
+    std::vector<block_t> new_blocks
+            = normalize_blocks(block_vec, remove_size_1_blocks);
     for (const block_t &block : new_blocks) {
         res.append(block);
     }

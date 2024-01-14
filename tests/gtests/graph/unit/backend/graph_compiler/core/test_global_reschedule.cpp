@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,8 +140,7 @@ static void add_single_matmul_to_graph(sc_graph_t &graph, const sc_dims &A_dims,
                     {"per_channel", true}, {"dtype", datatypes::f32}});
     auto cast1 = graph.make(
             "cast", dequant1->get_outputs(), {}, {{"dtype", datatypes::bf16}});
-    any_map_t attrs({{"transpose_a", false}, {"transpose_b", false},
-            {"output2d", true}});
+    any_map_t attrs({{"transpose_a", false}, {"transpose_b", false}});
     auto matmul = graph.make("matmul",
             {cast0->get_outputs()[0], cast1->get_outputs()[0],
                     ins2->get_outputs()[0]},

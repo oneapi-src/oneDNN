@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -317,7 +317,9 @@ for_loop for_loop_node_t::split(int64_t block, node_ptr_map *node_remap) {
     auto inner_for = build_inner_for(this, min, block, node_remap);
 
     body_ = make_stmt<stmts_node_t>(std::vector<stmt>({inner_for}));
-
+    // set parent node
+    add_parent_node(inner_for, body_);
+    add_parent_node(body_, node_ptr_from_this());
     // copy loop binding axis hint
     copy_binding_axis_hint(this, inner_for.get());
     return inner_for;
@@ -347,7 +349,9 @@ for_loop for_loop_node_t::split_on_num_threads(
                 = attr()[stmt_attr_key::parallel_loop_balanced];
     }
     body_ = make_stmt<stmts_node_t>(std::vector<stmt>({inner_for}));
-
+    // set parent node
+    add_parent_node(inner_for, body_);
+    add_parent_node(body_, node_ptr_from_this());
     // copy loop binding axis hint
     copy_binding_axis_hint(this, inner_for.get());
     return inner_for;

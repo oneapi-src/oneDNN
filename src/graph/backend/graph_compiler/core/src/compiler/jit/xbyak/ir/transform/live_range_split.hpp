@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2024 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_VALUE_NUMBERING_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_VALUE_NUMBERING_HPP
+
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_TRANSFORM_LIVE_RANGE_SPLIT_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_TRANSFORM_LIVE_RANGE_SPLIT_HPP
 
 #include <compiler/ir/function_pass.hpp>
 
@@ -22,22 +23,20 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
+namespace xbyak {
 
-/**
- * Value numbering for SSA form IR. It will fold SSA values into one if the
- * expressions looks the same and are not related to side-effects. It will also
- * do copy propagation and constant propagation of SSA. The pass also oberserves
- * commutative law and considers (a+b) and (b+a) as same expr.
+/* *
+ * Spilt live range of vars to smaller live ranges according to calls and loops
  * */
-class value_numbering_t : public function_pass_t {
+class live_range_splitter_t : public function_pass_t {
 public:
-    bool fold_const_vec_;
-    value_numbering_t(bool fold_const_vec = true)
-        : fold_const_vec_ {fold_const_vec} {}
-    func_c operator()(func_c f) override;
-    SC_DECL_PASS_INFO_FUNC();
+    live_range_splitter_t() = default;
+    func_c operator()(func_c v) override;
+
+private:
 };
 
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

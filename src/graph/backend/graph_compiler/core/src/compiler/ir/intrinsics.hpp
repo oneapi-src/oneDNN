@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,10 +28,12 @@ namespace impl {
 namespace graph {
 namespace gc {
 class ir_visitor_t;
+class ir_printer_t;
 struct intrinsic_handler_t {
     std::string name_;
     virtual void on_initialize(intrin_call_node &node) = 0;
     intrinsic_handler_t(const std::string &name);
+    virtual void to_string(const intrin_call_c &v, ir_printer_t *printer) const;
     virtual ~intrinsic_handler_t() = default;
 };
 

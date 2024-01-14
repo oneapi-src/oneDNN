@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
         static constexpr bool use_exact_tail_scalar_bcast = false;
-        const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md);
+        const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md());
         const size_t tail = tail_length();
 
         static const bcast_set_t enabled_bcast_strategy
@@ -71,11 +71,11 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
                 this->param1, enabled_bcast_strategy, rhs_sp};
 
         postops_injector_ = utils::make_unique<po_injector_t>(
-                this, brg.attr->post_ops_, bsp);
+                this, brg.attr()->post_ops_, bsp);
 
         with_binary_non_scalar_bcast_
                 = binary_injector::any_binary_postop_rhs_non_scalar_broadcast(
-                        brg.attr->post_ops_, dst_md_wrapper);
+                        brg.attr()->post_ops_, dst_md_wrapper);
     }
     if (brg.is_bf16_emu)
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
@@ -1370,7 +1370,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::generate() {
 }
 
 template <cpu_isa_t isa, typename Wmm>
-brdgmm_kernel_t<isa, Wmm>::brdgmm_kernel_t(const brgemm_t abrd)
+brdgmm_kernel_t<isa, Wmm>::brdgmm_kernel_t(const brgemm_t &abrd)
     : brgemm_kernel_(new jit_brdgmm_kernel_base_t<isa, Wmm>(abrd)) {}
 
 template <cpu_isa_t isa, typename Wmm>

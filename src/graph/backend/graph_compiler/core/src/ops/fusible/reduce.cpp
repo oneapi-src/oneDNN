@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1067,6 +1067,10 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
                 // for partial reduce, the first axis should be thread id
                 new_idx.emplace_back(builtin::get_thread_id_func()());
             }
+            if (indexing_nd->idx_.size() == real_rd_axis.size()) {
+                // all-reduce to scalar, we need to keep an dummy axis
+                new_idx.emplace_back(0);
+            }
             for (auto itr = indexing_nd->idx_.begin();
                     itr != indexing_nd->idx_.end(); ++itr) {
                 bool remove = false;
@@ -1173,8 +1177,11 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             //  add the axis to indexing node
             out_nd->idx_.front()
                     = out_nd->idx_.front() + builtin::get_thread_id_func()();
+            auto new_in = in[0]->remake().as<indexing>();
+            // remove the addition thread-id dimension
+            new_in->idx_.erase(new_in->idx_.begin());
             return builder::make_assign_unattached(
-                    out[0], get_binary_by_reduce_op(rd_op_)(out[0], in[0]));
+                    out[0], get_binary_by_reduce_op(rd_op_)(out[0], new_in));
         };
         compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
                 vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),

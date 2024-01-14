@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1928,8 +1928,8 @@ private:
 
 // Adds size one spatial dimensions according to input parameters. Spatial
 // dimensions are assumed to be the last dimensions.
-layout_t spatials_to_3d(
-        const layout_t &layout, bool with_groups, int reduced_dim);
+layout_t spatials_to_3d(const layout_t &layout, bool with_groups,
+        const std::array<int, 3> &dhw_map);
 
 } // namespace jit
 } // namespace gpu

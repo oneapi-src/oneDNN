@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -153,6 +153,10 @@ class value_numbering_mutator_t : public ssa_visitor_t {
     bool should_update_scopes_ = false;
     using ssa_visitor_t::dispatch;
     using ssa_visitor_t::visit;
+
+public:
+    value_numbering_mutator_t(bool fold_const_vec)
+        : simplifier_ {fold_const_vec} {}
 
     structural_result_t::typed_addresser_t addresser_
             = sc_make_temp_data_addresser(&vn_result_t::parent_info_);
@@ -336,7 +340,7 @@ class value_numbering_mutator_t : public ssa_visitor_t {
 
 func_c value_numbering_t::operator()(func_c f) {
     value_numbering_analysis_t().dispatch(f);
-    return value_numbering_mutator_t().top_level_dispatch(f);
+    return value_numbering_mutator_t(fold_const_vec_).top_level_dispatch(f);
 }
 
 } // namespace gc

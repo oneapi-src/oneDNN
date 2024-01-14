@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -182,8 +182,12 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             auto reshape_node = graph->make("tensor_view", {trans0},
                     {graph_tensor::make(reshape_dest, sc_data_format_t(),
                             trans0->details_.dtype_)},
-                    {{"shape", reshape_dest}, {"format", sc_data_format_t()},
-                            {"forbid_penetrate", true}});
+                    {{"shape", reshape_dest},
+                            {"format", sc_data_format_t::MK()},
+                            {"forbid_penetrate", true},
+                            {"cache_input_format",
+                                    sc_data_format_t::get_plain_by_dims(
+                                            trans0_plain_dims.size())}});
             trans0 = reshape_node->get_outputs()[0];
             if (post_rd_axis.size() == 1
                     && post_rd_axis.at(0)

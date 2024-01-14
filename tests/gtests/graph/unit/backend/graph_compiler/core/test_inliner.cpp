@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ TEST(GCCore_CPU_func_inline_cpp, TestInlineTensor) {
         _bind_(A);
         A[0] = 1;
         builder.push_evaluate(
-                with_attr(aaa(tensor_ptr(A, {100})), "inline_level", 2));
+                with_attr(aaa(tensor_ptr(A, {100}, {100})), "inline_level", 2));
     }
     func_inliner_t inl;
 

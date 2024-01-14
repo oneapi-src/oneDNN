@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
             && try_optimize_parti(parti.get(), g, graph2orig_ops)) {
         // redo partition
         std::vector<mixed_parti_t::ptr> op2parti(g.ops_.size());
-        do_partition(ctx, g, op2parti);
+        do_partition(ctx, g, op2parti, std::make_shared<op_dep_matrix_t>(g));
         // collect legal partition
         auto res = collect_parti_set(op2parti, false);
         // Expect only one partition found
@@ -659,9 +659,9 @@ size_t get_dims_product(const sc_dims &dims) {
     sc_dim ret = 1;
     // todo: find out how to use this function in dynamic cases.
     for (unsigned i = 0; i < dims.size(); ++i) {
-        if (!is_dynamic_dim(dims[i]) && dims[i]) { ret *= dims[i]; }
+        if (!is_dynamic_dim(dims[i])) { ret *= dims[i]; }
     }
-    assert(ret > 0 && "Overflow or non-constant shape detected");
+    assert(ret >= 0 && "Overflow or non-constant shape detected");
     return ret;
 }
 

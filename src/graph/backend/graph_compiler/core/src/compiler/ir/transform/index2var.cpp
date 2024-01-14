@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -264,23 +264,26 @@ class indexing2var_impl_t : public ir_visitor_t {
         var_c var_;
         // the vector size
         unsigned lanes_;
+        // the vector rows
+        unsigned rows_;
         expr_c mask_;
         // the tensor cache var definition may be lifted to a parent for-loop
         scope_info_t *may_lift_to_ = nullptr;
         utils::weakptr_hashset_t<expr_base> dependencies_;
         tensor_cache_t(tensor_c tsr, std::vector<expr_c> &&idx, var_c var,
-                int lanes, expr_c mask = expr())
+                int lanes, int rows, expr_c mask = expr())
             : tsr_(std::move(tsr))
             , idx_(std::move(idx))
             , var_(std::move(var))
             , lanes_(lanes)
+            , rows_(rows)
             , mask_(std::move(mask)) {}
         // returns true if `v` is exactly the same of the cached indexing
         bool is_match(const indexing_c &v) const {
             if (!v->ptr_.ptr_same(tsr_.static_as<expr>())) return false;
             assert(idx_.size() == v->idx_.size());
             ir_comparer cmp(false, false, true);
-            if (v->dtype_.lanes_ == lanes_) {
+            if (v->dtype_.lanes_ == lanes_ && v->dtype_.rows_ == rows_) {
                 for (unsigned i = 0; i < v->idx_.size(); i++) {
                     if (!cmp.compare(v->idx_[i], idx_[i])) { return false; }
                 }
@@ -350,8 +353,8 @@ class indexing2var_impl_t : public ir_visitor_t {
                     writeback_point = &c->last_write_->seq_;
                 }
                 writeback_point->emplace_back(builder::make_assign_unattached(
-                        builder::make_indexing(
-                                c->tsr_, c->idx_, c->lanes_, c->mask_),
+                        builder::make_indexing(c->tsr_, c->idx_, c->lanes_,
+                                c->mask_, c->rows_),
                         c->var_));
             }
             // mark the cache invalid
@@ -464,7 +467,7 @@ class indexing2var_impl_t : public ir_visitor_t {
                 vcache, linkage::local, is_read ? v.remove_const() : expr()));
         out_cache = std::make_shared<tensor_cache_t>(tsr,
                 std::vector<expr_c>(v->idx_.begin(), v->idx_.end()), vcache,
-                v->dtype_.lanes_, v->mask_);
+                v->dtype_.lanes_, v->dtype_.rows_, v->mask_);
         scope_info_.back().outstanding_cache_.insert(out_cache);
         // remember the dependency
         // and check if the index only depends on loop vars

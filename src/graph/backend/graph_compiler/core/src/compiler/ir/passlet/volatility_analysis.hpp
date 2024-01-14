@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ inline bool non_volatile_expr(const expr_base *s) {
         case sc_expr_type::cast:
         case sc_expr_type::select:
         case sc_expr_type::constant:
+        case sc_expr_type::tensorptr:
         case sc_expr_type::ssa_phi: return true; break;
         case sc_expr_type::intrin_call: {
             switch (static_cast<const intrin_call_node *>(s)->type_) {

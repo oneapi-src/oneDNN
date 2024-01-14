@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,6 +137,42 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, permute_concat_to)
                             graph::op_kind::TypeCast, concat_layer, 0, 3);
                 });
 
+/* from Llama int8_bf16
+typecast -> concat
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, typecast_concat)
+        .set_priority(5.0f)
+        .set_engine_kind(engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::concat_fusion_memory_optim)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto to_layer1
+                            = pgraph->append_op(graph::op_kind::TypeCast);
+                    to_layer1->allow_external_outputs();
+                    pgraph->append_op(
+                            graph::op_kind::Concat, {in_edge(1, to_layer1, 0)});
+                });
+
+/* from Llama int8_bf16
+concat -> mul
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, concat_mul)
+        .set_priority(5.0f)
+        .set_engine_kind(engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::concat_fusion_memory_optim)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto concat_layer
+                            = pgraph->append_op(graph::op_kind::Concat);
+                    concat_layer->allow_external_outputs();
+                    pgraph->append_op(graph::op_kind::Multiply,
+                            {in_edge(0, concat_layer, 0)});
+                });
+
+COMPILER_BACKEND_REGISTER_PASSES_DEF_END
+
+COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_concat_patterns)
+
 /* from GPT-J int8-bf16
 [IN0](dtype) [IN1](dtype)
     |             |
@@ -257,22 +293,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, concat_quant)
                 });
 
 /* from Llama int8_bf16
-typecast -> concat
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, typecast_concat)
-        .set_priority(5.0f)
-        .set_engine_kind(engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::concat_fusion_memory_optim)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto to_layer1
-                            = pgraph->append_op(graph::op_kind::TypeCast);
-                    to_layer1->allow_external_outputs();
-                    pgraph->append_op(
-                            graph::op_kind::Concat, {in_edge(1, to_layer1, 0)});
-                });
-
-/* from Llama int8_bf16
 add -> typecast -> concat -> typecasts -> quant
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
@@ -295,23 +315,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pgraph->append_op(graph::op_kind::Quantize,
                             {in_edge(0, typecast_rep, 0)});
                 });
-
-/* from Llama int8_bf16
-concat -> mul
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, concat_mul)
-        .set_priority(5.0f)
-        .set_engine_kind(engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::concat_fusion_memory_optim)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto concat_layer
-                            = pgraph->append_op(graph::op_kind::Concat);
-                    concat_layer->allow_external_outputs();
-                    pgraph->append_op(graph::op_kind::Multiply,
-                            {in_edge(0, concat_layer, 0)});
-                });
-
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass

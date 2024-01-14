@@ -38,6 +38,45 @@ using namespace prop_kind;
 using namespace data_type;
 using namespace brgemm_utils;
 
+brgemm_t::brgemm_t(const brgemm_t &other) {
+    *this = other;
+    // Since copy above will make `attr_` and `dst_md_` point to `other`,
+    // nulling them in `this` to avoid cleaning `other` object members.
+    attr_ = nullptr;
+    dst_md_ = nullptr;
+    set_attr(other.attr());
+    set_dst_md(other.dst_md());
+}
+
+brgemm_t::~brgemm_t() {
+    cleanup_attr();
+    cleanup_dst_md();
+}
+
+void brgemm_t::set_attr(const primitive_attr_t *ppdattr) {
+    if (ppdattr == attr_) return;
+    cleanup_attr();
+    if (ppdattr) attr_ = new primitive_attr_t(*ppdattr);
+}
+
+void brgemm_t::set_dst_md(const memory_desc_t *pdst_md) {
+    if (pdst_md == dst_md_) return;
+    cleanup_dst_md();
+    if (pdst_md) dst_md_ = new memory_desc_t(*pdst_md);
+}
+
+void brgemm_t::cleanup_attr() {
+    if (attr_ == nullptr) return;
+    delete attr_;
+    attr_ = nullptr;
+}
+
+void brgemm_t::cleanup_dst_md() {
+    if (dst_md_ == nullptr) return;
+    delete dst_md_;
+    dst_md_ = nullptr;
+}
+
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C, void *scratch,
         const brgemm_dynamic_values_t *dynamic_values) {
@@ -255,8 +294,8 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         const memory_desc_t *dst_md, dim_t LDD, impl::data_type_t dt_bias) {
     if (!brg || !dst_md) return status::invalid_arguments;
 
-    brg->attr = attr;
-    brg->dst_md = dst_md;
+    brg->set_attr(attr);
+    brg->set_dst_md(dst_md);
 
     brg->with_bias = (dt_bias == data_type::undef) ? false : true;
     brg->dt_bias = dt_bias;
@@ -314,11 +353,11 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     // Rerun blocking heuristic due to reduced zmm register count
     if (brg->is_bf16_emu && brg->is_dgmm) CHECK(brdgmm_blocking(brg));
 
-    if (!brg->attr) return status::success;
+    if (!brg->attr()) return status::success;
 
     using namespace injector;
 
-    const auto &post_ops = brg->attr->post_ops_;
+    const auto &post_ops = brg->attr()->post_ops_;
     const memory_desc_wrapper dst_d(dst_md);
 
     const auto binary_ind = post_ops.find(primitive_kind::binary);

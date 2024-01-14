@@ -119,8 +119,8 @@ public:
     pooling_config_t(const exec_config_t &ec, const pool_conf_t &prb,
             const layout_t &src, const layout_t &dst) {
         set_pooling_problem(prb);
-        src_layout().set_user(spatials_to_3d(src, false, 0));
-        dst_layout().set_user(spatials_to_3d(dst, false, 0));
+        src_layout().set_user(spatials_to_3d(src, false, {0, 1, 2}));
+        dst_layout().set_user(spatials_to_3d(dst, false, {0, 1, 2}));
         set_exec_cfg(ec);
     }
 

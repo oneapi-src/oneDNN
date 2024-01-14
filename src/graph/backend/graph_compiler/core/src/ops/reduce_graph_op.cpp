@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ void reduce_mean_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     auto reduce_num = graph->make<constant_op_t>(
             std::make_shared<static_data_t>(std::vector<float> {item_cnt}),
             datatypes::f32, sc_dims {1});
-    auto reduce_sum = graph->make("reduce_sum", inputs, {}, attrs_);
+    auto reduce_sum = graph->make("reduce_sum", {inputs0}, {}, attrs_);
     auto reduce_sum_div = graph->make("div",
             {reduce_sum->get_outputs()[0], reduce_num->get_outputs()[0]}, {},
             {});
@@ -110,7 +110,7 @@ void reduce_l2_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     graph_tensor_ptr inputs0 = inputs[0];
     // cast input
     inputs0 = cast_input_dtype(inputs[0], graph);
-    auto square_val = graph->make("square", inputs, {}, {});
+    auto square_val = graph->make("square", {inputs0}, {}, {});
     auto reduce_val
             = graph->make("reduce_sum", square_val->get_outputs(), {}, attrs_);
     auto l2_res
@@ -132,7 +132,7 @@ void reduce_l1_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     graph_tensor_ptr inputs0 = inputs[0];
     // cast input
     inputs0 = cast_input_dtype(inputs[0], graph);
-    auto abs_val = graph->make("abs", inputs, {}, {});
+    auto abs_val = graph->make("abs", {inputs0}, {}, {});
     auto reduce_l1
             = graph->make("reduce_sum", abs_val->get_outputs(), {}, attrs_);
     // cast output

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -932,7 +932,8 @@ void mxp_buffer_allocator::calibrate_info() {
 
 inline bool check_tsr_len_under_resigter_size(
         size_t tsr_len, uint16_t simd_len, uint16_t max_register_tol = 16) {
-    return (tsr_len % simd_len == 0 && (tsr_len / simd_len) < max_register_tol);
+    return (tsr_len % simd_len == 0
+            && (tsr_len / simd_len) <= max_register_tol);
 }
 
 bool mxp_buffer_allocator::validate_tsr2var() const {
@@ -2353,10 +2354,10 @@ static bool try_merge_mixed_parti_with_joint_op(const mixed_parti_t::ptr &A,
                     default_lhs, default_rhs, joint_op);
 }
 
-mixed_parti_t::mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op)
-    : ctx_(ctx) {
+mixed_parti_t::mixed_parti_t(
+        const context_ptr &ctx, const sc_op_ptr &op, const dep_mat_ptr &dep_m)
+    : dep_m_(dep_m), ctx_(ctx) {
     auto &graph = op->get_owner_graph();
-    dep_m_ = std::make_shared<op_dep_matrix_t>(graph);
     if (graph.is_dynamic()) {
         cost_ = std::make_shared<dynamic_fusion_cost_model_t>(this,
                 graph.attrs_.get_or_else("temp.dynamic_fusion_policy",
@@ -2882,6 +2883,7 @@ void mixed_parti_t::clear() {
     // Graph-related
     ops.clear();
     committed_ops_.clear();
+    dep_m_ = nullptr;
 
     // IR-related
     func_ = func_t();
@@ -3011,7 +3013,8 @@ static mixed_parti_t::ptr try_execute_pre_op_fusion(const context_ptr &ctx,
     }
     if (reo_parti.empty()) return parent_partition;
     // create tunable partition for possible input fusion anchor
-    parent_partition = std::make_shared<mixed_parti_t>(reo_parti[0]->ctx_, op);
+    parent_partition = std::make_shared<mixed_parti_t>(
+            reo_parti[0]->ctx_, op, reo_parti[0]->dep_m_);
     if (!parent_partition->contain_input_anchor()) {
         parent_partition->clear();
         return nullptr;
@@ -3116,7 +3119,8 @@ static mixed_parti_t::ptr try_execute_post_op_fusion(const context_ptr &ctx,
 }
 
 bool do_partition(const context_ptr &ctx, sc_graph_t &g,
-        std::vector<mixed_parti_t::ptr> &op_2_partition) {
+        std::vector<mixed_parti_t::ptr> &op_2_partition,
+        const dep_mat_ptr &dep_m) {
     // validate partition
     bool repartition = false;
     // a speculative DFS visitor
@@ -3215,7 +3219,7 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
             if (parent_partition && !parent_partition->contains(op.get())) {
                 repartition = true;
             }
-            parent_partition = std::make_shared<mixed_parti_t>(ctx, op);
+            parent_partition = std::make_shared<mixed_parti_t>(ctx, op, dep_m);
         }
         op_2_partition[op->logical_op_id_] = parent_partition;
     });
@@ -3931,10 +3935,13 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
     constexpr int maxiter = 3;
     // dynamic policy condition
     expr fusion_policy_condition = false;
+    // make dependency matrix from graph here in avoid of repeated construction
+    // later when graph is extremely large
+    auto dep_m = std::make_shared<op_dep_matrix_t>(graph);
     for (int i = 0; i < maxiter; i++) {
         op_2_partition.clear();
         op_2_partition.resize(op_size);
-        bool ret = do_partition(ctx, graph, op_2_partition);
+        bool ret = do_partition(ctx, graph, op_2_partition, dep_m);
         auto cur_cond = merge_fusion_condition_by_parti_list(op_2_partition);
         fusion_policy_condition = fusion_policy_condition || cur_cond;
         if (ret)

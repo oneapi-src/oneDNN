@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -137,7 +137,14 @@ void ir_printer_t::view(indexing_c v) {
         do_dispatch(v->idx_.at(i)) << ", ";
     }
     do_dispatch(v->idx_.back());
-    if (v->dtype_.lanes_ > 1) { os_ << " @ " << v->dtype_.lanes_; }
+    if (v->dtype_.lanes_ > 1) {
+        if (v->dtype_.rows_ == 0) {
+            os_ << " @ " << v->dtype_.lanes_;
+        } else {
+            os_ << " @ " << v->dtype_.rows_ << 'x'
+                << v->dtype_.lanes_ / v->dtype_.rows_;
+        }
+    }
     if (v->mask_.defined()) {
         os_ << " M= ";
         do_dispatch(v->mask_);
@@ -187,14 +194,7 @@ void ir_printer_t::view(tensorptr_c v) {
 
 void ir_printer_t::view(intrin_call_c v) {
     auto &h = get_intrinsic_handler(v->type_);
-    os_ << h.name_ << '(';
-    if (!v->args_.empty()) {
-        for (unsigned i = 0; i < v->args_.size() - 1; i++) {
-            do_dispatch(v->args_.at(i)) << ", ";
-        }
-        do_dispatch(v->args_.back());
-    }
-    os_ << ')';
+    h.to_string(v, this);
 }
 
 void ir_printer_t::view(func_addr_c v) {

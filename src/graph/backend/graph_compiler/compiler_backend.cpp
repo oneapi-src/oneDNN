@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,10 @@ graph::pass::pass_registry_t compiler_backend_t::register_passes() {
             = graph::utils::getenv_int_internal(
                       "ENABLE_GRAPH_COMPILER_SINGLE_OP_PATTERN", 0)
             > 0;
+    const bool enable_fp32_bf16_concat_patterns
+            = graph::utils::getenv_int_internal(
+                      "ENABLE_GRAPH_COMPILER_FP_CONCAT_PATTERN", 0)
+            > 0;
     graph::pass::pass_registry_t pass_registry;
     REQUIRE_AVX512_BEGIN
     if (enable_single_op_pattern)
@@ -79,7 +83,10 @@ graph::pass::pass_registry_t compiler_backend_t::register_passes() {
     REQUIRE_AMX_END
     REQUIRE_VNNI_AMXINT8_END
     COMPILER_BACKEND_REGISTER_PASSES_CALL(misc_pattern, pass_registry);
-    COMPILER_BACKEND_REGISTER_PASSES_CALL(concat_patterns, pass_registry);
+    if (enable_fp32_bf16_concat_patterns) {
+        COMPILER_BACKEND_REGISTER_PASSES_CALL(concat_patterns, pass_registry);
+    }
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_concat_patterns, pass_registry);
     REQUIRE_AVX512_END
     pass_registry.sort_passes();
     return pass_registry;

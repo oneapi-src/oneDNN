@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -162,7 +162,7 @@ int jit_eltwise_injector_f32<hw>::phase_count(alg_kind_t alg) {
             case eltwise_tanh:
             case eltwise_tanh_use_dst_for_bwd:
                 return (use_tanh_compat()) ? 9 : 6;
-            case eltwise_linear: return 2;
+            case eltwise_linear: return (beta_ == 0) ? 1 : 2;
             case eltwise_clip:
             case eltwise_clip_v2:
             case eltwise_clip_v2_use_dst_for_bwd: return 2;
@@ -316,7 +316,7 @@ void jit_eltwise_injector_f32<hw>::linear_compute_fwd(
         int simd, const ngen::GRF &r, int phase) {
     switch (phase) {
         case 0: h->mul(simd, r, r, alpha_); break;
-        case 1: h->add(simd, r, r, beta_); break;
+        case 1: h->add(simd, r, r, beta_); break; /* skipped if beta_ = 0 */
         default: assert(!"invalid phase");
     }
 }
@@ -652,20 +652,25 @@ void jit_eltwise_injector_f32<hw>::pow_compute_fwd(
 }
 
 template <gpu_gen_t hw>
-void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
+void jit_eltwise_injector_f32<hw>::compute(const int *grfs, int ngrf) {
     using namespace alg_kind;
 
     auto bmax = max_batch_size();
     auto phases = phase_count(alg_);
 
-    for (int idx0 = 0; idx0 < regs.getLen(); idx0 += bmax) {
-        auto batch = nstl::min(regs.getLen() - idx0, bmax);
+    for (int idx0 = 0; idx0 < ngrf; idx0 += bmax) {
+        auto batch = nstl::min(ngrf - idx0, bmax);
 
         for (int phase = 0; phase < phases; phase++) {
-            for (int ii = 0; ii < batch; ii += 2) {
-                int nreg = nstl::min(2, batch - ii);
+            for (int ii = 0, nreg = 0; ii < batch; ii += nreg) {
+                auto grf0 = grfs[idx0 + ii];
+                auto base = GRF(grf0).f();
+
+                nreg = 1;
+                if (ii + 1 < batch)
+                    if (grf0 + 1 == grfs[idx0 + ii + 1]) nreg = 2;
+
                 int simd = nreg * GRF::bytes(hw) / sizeof(float);
-                auto base = regs[idx0 + ii].f();
 
                 if (is_fwd_) {
                     switch (alg_) {
@@ -772,6 +777,16 @@ void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
             }
         }
     }
+}
+
+template <gpu_gen_t hw>
+void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
+    int grfs[ngen::GRF::maxRegs()];
+
+    for (int i = 0; i < regs.getLen(); i++)
+        grfs[i] = regs.getBase() + i;
+
+    compute(grfs, regs.getLen());
 }
 
 template <gpu_gen_t hw>

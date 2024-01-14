@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,9 @@ expr_c ssa_simplify_t::visit(const var_c &v) {
     if (v->ssa_data_->is_global_) { return v; }
     auto val = v->ssa_data_->get_value_of_var_nothrow();
     if (!val.defined()) { return v; }
-    if (val.isa<constant>()) { return val; }
+    if (val.isa<constant>()) {
+        if (simplify_const_vec_ || val->dtype_.lanes_ == 1) return val;
+    }
     if (val.isa<var>()) {
         if (val->ssa_data_->is_global_) { return v; }
         assert(v.get() != val.get());

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -847,12 +847,12 @@ expr make_clip(
  * @return the created node
  * */
 expr make_indexing(const expr &ptr, const std::vector<expr> &idx,
-        uint16_t length = 1, const expr &mask = expr());
+        uint16_t length = 1, const expr &mask = expr(), uint16_t rows = 0);
 expr make_indexing(const expr &ptr, std::initializer_list<expr> idx,
-        uint16_t length = 1, const expr &mask = expr());
+        uint16_t length = 1, const expr &mask = expr(), uint16_t rows = 0);
 
 expr make_indexing(const expr_c &ptr, const std::vector<expr_c> &idx,
-        uint16_t length = 1, const expr_c &mask = expr_c());
+        uint16_t length = 1, const expr_c &mask = expr_c(), uint16_t rows = 0);
 
 /**
  * Makes a indexing node of single dimemsion
@@ -863,7 +863,7 @@ expr make_indexing(const expr_c &ptr, const std::vector<expr_c> &idx,
  * @return the created node
  * */
 expr make_indexing(const expr_c &ptr, const expr_c &idx, uint16_t length = 1,
-        const expr_c &mask = expr_c());
+        const expr_c &mask = expr_c(), uint16_t rows = 0);
 
 /**
  * Makes a call node

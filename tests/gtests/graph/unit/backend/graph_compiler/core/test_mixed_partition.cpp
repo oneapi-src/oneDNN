@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1193,8 +1193,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SyncTensorViewShrinkInfo) {
     auto ins1 = graph_tensor::make(B_dims);
     auto ins2 = graph_tensor::make(bias);
     auto outs0 = graph_tensor::make(out, sc_data_format_t(format_kinds::ABC));
-    any_map_t attrs({{"transpose_a", false}, {"transpose_b", false},
-            {"output2d", true}});
+    any_map_t attrs({{"transpose_a", false}, {"transpose_b", false}});
     sc_graph_t graph;
     auto in = graph.make_input({ins0, ins1, ins2});
     auto matmul = graph.make("matmul", in->get_outputs(), {outs0}, attrs);
@@ -2646,7 +2645,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, InferSliceForBMMWithBroadcast) {
             {8, 1, 128, 64}, sc_data_format_t(), sc_data_type_t::s8())});
 
     any_map_t attrs({{"transpose_a", false}, {"transpose_b", false},
-            {"output2d", false}, {"use_mmm", false}});
+            {"use_mmm", false}});
     // bmm
     auto bmm = graph.make("matmul_core",
             {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, attrs);

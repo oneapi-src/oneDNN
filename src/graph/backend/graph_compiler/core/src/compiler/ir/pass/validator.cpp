@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -247,7 +247,8 @@ void validate_impl_t::check_indexing(const std::vector<expr> &idxvec,
         cnt += 1;
         auto cate = get_type_category_nothrow(idx->dtype_);
         COMPILE_ASSERT_POS(idx->dtype_ != datatypes::boolean
-                        && (cate == CATE_INT || cate == CATE_UINT),
+                        && (cate == CATE_INT || cate == CATE_UINT
+                                || idx->dtype_ == sc_data_type_t::u32(16)),
                 "The " << cnt << "-th index of the indexing expr has type "
                        << idx->dtype_ << ". Expecting an integer: " << v);
         COMPILE_ASSERT_POS(idx->dtype_ == idxtype,
