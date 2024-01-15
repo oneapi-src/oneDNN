@@ -1,6 +1,6 @@
 
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -526,4 +526,62 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionBwdWeight) {
             break;
         }
     }
+}
+
+TEST(GCCore_CPU_graph_conv_test, TestQuantizedGraphGroupedConvolution) {
+    REQUIRE_AVX2();
+    int N = 64, IC = 16, OC = 32, H = 32, W = 32, R = 1, S = 1, G = 4;
+    sc_dims input_dims {N, IC, H, W};
+    sc_dims filter_dims {OC, IC / G, R, S};
+    sc_dims output_dims {N, OC, H, W};
+    auto ins0
+            = graph_tensor::make(input_dims, sc_data_format_t(), datatypes::u8);
+    auto ins1 = graph_tensor::make(
+            filter_dims, sc_data_format_t(), datatypes::s8);
+    auto ins2 = graph_tensor::make({OC});
+    auto out0 = graph_tensor::make(output_dims);
+
+    std::unordered_map<std::string, any_t> attrs = {{"data_format", "NCX"},
+            {"weights_format", "OIX"}, {"strides", sc_dims {1, 1}},
+            {"groups", G}, {"pads_begin", sc_dims {0, 0}},
+            {"pads_end", sc_dims {0, 0}}};
+
+    sc_graph_t graph;
+    auto in = graph.make_input({ins0, ins1, ins2});
+    auto dequantize_input = graph.make("dequantize", {in->get_outputs()[0]}, {},
+            {{"channel_axis", 1}, {"scales", std::vector<float> {0.1f}},
+                    {"zero_points", std::vector<int> {126}},
+                    {"per_channel", false}, {"dtype", datatypes::f32}});
+    auto dequantize_weight = graph.make("dequantize", {in->get_outputs()[1]},
+            {},
+            {{"channel_axis", 0}, {"scales", std::vector<float>(OC, 0.1f)},
+                    {"zero_points", std::vector<int>(OC, 0)},
+                    {"per_channel", true}, {"dtype", datatypes::f32}});
+    auto conv = graph.make("conv_fwd",
+            {dequantize_input->get_outputs()[0],
+                    dequantize_weight->get_outputs()[0], in->get_outputs()[2]},
+            {}, any_map_t(attrs));
+    auto out = graph.make_output(conv->get_outputs());
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    // The conv1d graph is different from the reference
+    graph.attrs_["no_conv1d"] = true;
+    graph_driver(graph, ctx);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    const char *expected_graph
+            = R"(graph(v0: u8[64, 16, 32, 32], v1: s8[32, 4, 1, 1], v2: f32[32]) -> [v3: f32[64, 32, 32, 32]] {
+  [v4: s32[1]] = constant([1])
+  [v5: f32[1, 32, 1, 1]] = constant([1, 32, 1, 1])
+  [v6: f32[1, 1, 1, 4, 8]] = tensor_view(v5)
+  [v7: f32[1, 1, 1, 4, 8]] = tensor_view(v2)
+  [v8: s8[4, 8, 4, 1, 1]] = tensor_view(v1)
+  [v9: s32[4, 8]] = outerloop_4X8_partition_cast_reduce_compute_reduce_collect_mul(v8, v4)
+  [v10: s32[1, 1, 1, 4, 8]] = tensor_view(v9)
+  [v11: s8[4, 1, 1, 1, 1, 1, 8, 4]] = tensor_view(v8)
+  [v12: u8[64, 32, 32, 16]] = reorder(v0)
+  [v13: u8[64, 32, 32, 4, 4]] = tensor_view(v12)
+  [v3: f32[64, 32, 32, 32]] = outerloop_64_partition_quantized_conv_fwd_core_sub_tensor_view_cast_mul_add_reorder(v13, v11, v10, v6, v7)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_graph);
 }

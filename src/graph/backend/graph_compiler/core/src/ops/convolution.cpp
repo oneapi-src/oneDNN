@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1165,8 +1165,10 @@ shape_rl_vec conv_fwd_core_op_t::get_shape_relations_impl(
 
 static graph_tensor_ptr get_conv_rl_real_weight(const graph_tensor_ptr &wei) {
     auto current = wei;
-    while (current->producer_owner_->isa<padding_op_t>()
-            || current->producer_owner_->isa<tensor_view_op_t>()) {
+    while ((current->producer_owner_->isa<padding_op_t>()
+                   || current->producer_owner_->isa<tensor_view_op_t>())
+            && !current->producer_owner_->attrs_.get_or_else(
+                    "produce_real_weight", false)) {
         current = current->producer_owner_->get_inputs()[0];
     }
     return current;
@@ -1200,13 +1202,19 @@ sc_op_ptr conv_fwd_core_op_t::do_compensations(
         cur_node = mgr.make("sub",
                 {cur_node->get_outputs()[0],
                         s8s8_weight_com[0]->get_outputs()[0]},
-                {}, {{"bc_axis", std::vector<int> {1 + is_group_conv}}});
+                {},
+                {{"bc_axis",
+                        is_group_conv ? std::vector<int> {1, 2}
+                                      : std::vector<int> {1}}});
     }
     if (s8s8_weight_com[1]) {
         cur_node = mgr.make("sub",
                 {cur_node->get_outputs()[0],
                         s8s8_weight_com[1]->get_outputs()[0]},
-                {}, {{"bc_axis", std::vector<int> {1 + is_group_conv}}});
+                {},
+                {{"bc_axis",
+                        is_group_conv ? std::vector<int> {1, 2}
+                                      : std::vector<int> {1}}});
     }
     if (const_com) {
         cur_node = mgr.make("add",

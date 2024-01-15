@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -302,7 +302,9 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                                   {"format",
                                           is_3D ? sc_data_format_t::GKCDRS()
                                                 : sc_data_format_t::GKCRS()},
-                                  {"expand_dim", std::vector<int> {}}}))
+                                  {"expand_dim", std::vector<int> {}},
+                                  {"allow_quantize_reschedule", true},
+                                  {"produce_real_weight", true}}))
                          ->get_outputs()[0];
     }
     conv = graph->make("conv_fwd_core", {input, filter}, {}, attrs);
