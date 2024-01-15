@@ -44,18 +44,54 @@ arithmetic for primitive computation. We hence cannot change that
 behavior to enable weights up-conversion, since it breaks the current
 semantic of the library.
 
-# 3.b. `force_fpmath` knob
+# 3.b. `force_int_conversion` knob
 
-This option just adds a boolean `force_fpmath` knob to the
+This option just adds a boolean `force_int_conversion` knob to the
 primitive descriptor constructor. When set to false (default), the
-behavior is the same as today (weights type and `fpmath_mode` dictate
-compute type).  When set to `true`, int8 inputs are up-converted based
-on `fpmath_mode` attribute (so `f32` by default). This option has the
-benefit to be very simple and apply only to primitives that will
-support up-conversion.
+behavior is the same as today:
+- if weights type is integral, compute type is integral
+- if weights type is floating point, `fpmath_mode` dictate compute type.
 
+When set to `force_int_conversion` is set to `true`, integral inputs are 
+converted to a floating-point datatype  based on `fpmath_mode` attribute
+(so `f32` by default). As part of this conversion, the corresponding 
+zero-point/scales will be applied to properly dequantize the values.
+
+Here is the proposed new C API
+
+```c++
+/// Sets the floating-point math mode primitive attributes.
+///
+/// @param attr Primitive attributes.
+/// @param mode FP math mode. The possible values are:
+///     #dnnl_fpmath_mode_strict (default),
+///     #dnnl_fpmath_mode_bf16,
+///     #dnnl_fpmath_mode_f16,
+///     #dnnl_fpmath_mode_tf32,
+///     #dnnl_fpmath_mode_any.
+/// @param force Boolean. Forces the use of floating-point arithmetic
+///     for integer primitives
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_fpmath_mode_v2(
+        dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t mode, int force);
+```
+
+And the proposed C++ API 
+```c++
+    /// Sets fpmath mode.
+    ///
+    /// @param mode Specified fpmath mode.
+    /// @param force Boolean to force floating point math for integer primitives
+    void set_fpmath_mode(fpmath_mode mode, bool force_int_conversion = false)
+```
+
+
+This option has the benefit to be very simple and
+apply only to primitives that will support up-conversion.
 The downside of this approach though is that it cannot be extended to
-support down-conversion to int8 data-type.
+support down-conversion to int8 data-type 
+(floating-point datatype -> integral datatype).
 
 # 3.c Extend `fpmath_mode` with a more general `math_mode` (recommended)
 Currently, `fpmath_mode` attribute allows the user to specify
