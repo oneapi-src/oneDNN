@@ -96,9 +96,13 @@ inline bool check_if_null_producer(op_t *op) {
     return null_producer;
 }
 
-inline bool reject_fp16(op_t *op) {
+inline bool reject_unsupported_dtype(op_t *op) {
     for (const auto &in_value : op->get_input_values()) {
-        if (in_value->get_logical_tensor().data_type == data_type::f16) {
+        if (in_value->get_logical_tensor().data_type == data_type::f16
+                || in_value->get_logical_tensor().data_type
+                        == data_type::f8_e4m3
+                || in_value->get_logical_tensor().data_type
+                        == data_type::f8_e5m2) {
             return false;
         }
     }
