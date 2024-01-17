@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -317,6 +317,14 @@ struct attr_t {
         std::vector<entry_t> entry;
     };
 
+    struct deterministic_t {
+        deterministic_t() : enabled(false) {}
+
+        bool is_def() const { return enabled == false; }
+
+        bool enabled;
+    };
+
     attr_t()
         : scratchpad_mode(get_default_scratchpad_mode())
         , fpmath_mode(dnnl_fpmath_mode_strict)
@@ -334,6 +342,7 @@ struct attr_t {
     void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
     void insert(dnnl_fpmath_mode_t fpm) { this->fpmath_mode = fpm; }
     void insert(dnnl_accumulation_mode_t am) { this->acc_mode = am; }
+    void insert(const deterministic_t &d) { this->deterministic = d; }
 
     // When parallel creation modifier is enabled, the library scratchpad mode
     // can't be used unless "-DDNNL_ENABLE_CONCURRENT_EXEC=ON" is enabled at the
@@ -352,6 +361,7 @@ struct attr_t {
     dnnl_scratchpad_mode_t scratchpad_mode;
     dnnl_fpmath_mode_t fpmath_mode;
     dnnl_accumulation_mode_t acc_mode;
+    deterministic_t deterministic;
 
     bool is_def(bool skip_fpmath = false) const;
 };

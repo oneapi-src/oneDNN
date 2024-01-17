@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2020-2023 Intel Corporation
+# Copyright 2020-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -315,6 +315,9 @@ class LogParser:
                 def convert_acc_mode(value):
                     return value
 
+                def convert_deterministic(value):
+                    return value
+
                 converters = {
                     "attr-post-ops": convert_post_ops,
                     "attr-scales": convert_scales,
@@ -322,6 +325,7 @@ class LogParser:
                     "attr-scratchpad": convert_scratchpad_mode,
                     "attr-fpmath": convert_fpmath_mode,
                     "attr-acc": convert_acc_mode,
+                    "attr-deterministic": convert_deterministic,
                 }
                 attrs = {}
                 for e in converters.keys():

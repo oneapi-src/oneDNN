@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,9 +44,11 @@ void check_correctness(
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_acc_mode : s.acc_mode)
+    for_(const auto &i_deterministic : s.deterministic)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        auto attr = settings_t::get_attr(i_scratchpad_mode, i_acc_mode);
+        auto attr = settings_t::get_attr(
+                i_scratchpad_mode, i_acc_mode, i_deterministic);
 
         const prb_t prb(
                 s.prb_vdims, i_dir, i_sdt, i_stag, attr, i_ctx_init, i_ctx_exe);
@@ -103,6 +105,8 @@ int bench(int argc, char **argv) {
                 || parse_multi_tag(s.stag, def.stag, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
+                || parse_attr_deterministic(
+                        s.deterministic, def.deterministic, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -279,6 +279,15 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
 
     return v;
 }
+
+attr_t::deterministic_t parse_attr_deterministic_func(const std::string &s) {
+    attr_t::deterministic_t v;
+    if (s.empty()) return v;
+
+    v.enabled = str2bool(s.c_str());
+    return v;
+}
+
 } // namespace parser_utils
 
 // vector types
@@ -467,6 +476,19 @@ bool parse_attr_acc_mode(std::vector<dnnl_accumulation_mode_t> &acc_mode,
               "`f32`, `f16` or `s32`.\n";
     return parse_vector_option(acc_mode, def_acc_mode, str2accumulation_mode,
             str, option_name, help);
+}
+
+bool parse_attr_deterministic(
+        std::vector<attr_t::deterministic_t> &deterministic,
+        const std::vector<attr_t::deterministic_t> &def_deterministic,
+        const char *str,
+        const std::string &option_name /* = "attr-deterministic"*/) {
+    static const std::string help
+            = "MODE    (Default: `false`)\n    Specifies deterministic mode "
+              "attribute. `MODE` values can be `true`, or `false`.\n";
+    return parse_vector_option(deterministic, def_deterministic,
+            parser_utils::parse_attr_deterministic_func, str, option_name,
+            help);
 }
 
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,

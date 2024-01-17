@@ -4,6 +4,8 @@
 ```
     --attr-scratchpad=MODE
     --attr-fpmath=MATHMODE
+    --attr-acc-mode=ACCMODE
+    --attr-deterministic=BOOL
     --attr-scales=ARG:POLICY[:SCALE][+...]
     --attr-zero-points=ARG:POLICY[:ZEROPOINT][+...]
     --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
@@ -27,10 +29,17 @@ or `any`. Refer to
 for details.
 
 ## --attr-acc-mode
-`--attr-acc-mode` specifies the accumulation mode to be used for
-benchmarking.  `ACCMODE` values can be any of `strict` (the default),
-`relaxed`, `any`, `f32` , `s32` or `f16`. Refer to
-[accumulation mode primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_accumulation_mode.html)
+`--attr-acc-mode` specifies the accumulation mode to be used for benchmarking.
+`ACCMODE` values can be any of `strict` (the default), `relaxed`, `any`, `f32`,
+`s32` or `f16`. Refer to
+[accumulation mode primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_accumulation_mode.html)
+for details.
+
+## --attr-deterministic
+`--attr-deterministic` specifies the deterministic mode to be used for
+benchmarking. `BOOL` values can be `true`, which enables the deterministic
+mode and `false` (the default), which disables it. Refer to
+[deterministic primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_deterministic.html)
 for details.
 
 ## --attr-scales

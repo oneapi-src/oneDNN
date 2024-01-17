@@ -504,7 +504,8 @@ bool attr_t::is_def(bool skip_fpmath) const {
     return scales.is_def() && zero_points.is_def() && post_ops.is_def()
             && scratchpad_mode == get_default_scratchpad_mode()
             && IMPLICATION(!skip_fpmath, fpmath_mode == dnnl_fpmath_mode_strict)
-            && acc_mode == dnnl_accumulation_mode_strict;
+            && acc_mode == dnnl_accumulation_mode_strict
+            && deterministic.is_def();
 }
 
 int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
@@ -668,6 +669,11 @@ std::ostream &operator<<(std::ostream &s, dnnl_accumulation_mode_t am) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, const attr_t::deterministic_t &d) {
+    s << bool2str(d.enabled);
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     if (!attr.is_def()) {
         if (!attr.scales.is_def()) s << "--attr-scales=" << attr.scales << " ";
@@ -681,6 +687,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
             s << "--attr-fpmath=" << attr.fpmath_mode << " ";
         if (attr.acc_mode != dnnl_accumulation_mode_strict)
             s << "--attr-acc-mode=" << attr.acc_mode << " ";
+        if (!attr.deterministic.is_def())
+            s << "--attr-deterministic=" << attr.deterministic << " ";
     }
     return s;
 }
@@ -1013,6 +1021,9 @@ dnnl_primitive_attr_t create_dnnl_attr(
 
     DNN_SAFE_V(dnnl_primitive_attr_set_accumulation_mode(
             dnnl_attr, attr.acc_mode));
+
+    DNN_SAFE_V(dnnl_primitive_attr_set_deterministic(
+            dnnl_attr, attr.deterministic.enabled));
 
     return dnnl_attr;
 }

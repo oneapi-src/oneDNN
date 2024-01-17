@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,10 +65,11 @@ void check_correctness(
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_fpmath_mode : s.fpmath_mode)
     for_(const auto &i_acc_mode : s.acc_mode)
+    for_(const auto &i_deterministic : s.deterministic)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
         auto attr = settings_t::get_attr(
-                i_scratchpad_mode, i_fpmath_mode, i_acc_mode);
+                i_scratchpad_mode, i_fpmath_mode, i_acc_mode, i_deterministic);
 
         auto prb = std::make_shared<prb_t>(s.desc,
                 dt_conf_t::create(i_cfg, attr), i_prop, i_alg, i_with_peephole,
@@ -175,6 +176,8 @@ int bench(int argc, char **argv) {
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_attr_fpmath_mode(
                         s.fpmath_mode, def.fpmath_mode, argv[0])
+                || parse_attr_deterministic(
+                        s.deterministic, def.deterministic, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
