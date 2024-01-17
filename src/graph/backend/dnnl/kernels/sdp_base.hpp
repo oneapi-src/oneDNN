@@ -96,8 +96,7 @@ public:
 #endif
         bool enable_sdp_decomp
                 = graph::utils::getenv_int_internal("ENABLE_SDP_DECOMP", 1) > 0;
-        static auto isa = dnnl_get_effective_cpu_isa();
-        return isa == dnnl_cpu_isa_avx512_core_amx && enable_sdp_decomp;
+        return enable_sdp_decomp;
     }
 
     status_t execute_impl(const stream_t *g_stream,

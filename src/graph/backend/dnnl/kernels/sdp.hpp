@@ -55,6 +55,29 @@ using ltw = logical_tensor_wrapper_t;
 using op_ptr = std::shared_ptr<op_t>;
 using registry_key = size_t;
 
+class sdp_reorder {
+public:
+    status_t init(const dnnl::reorder::primitive_desc &pd) {
+        auto src_desc = pd.src_desc();
+        auto dst_desc = pd.dst_desc();
+        if (src_desc == dst_desc) is_inplace_ = true;
+        reorder_prim_ = reorder(pd);
+        return status::success;
+    }
+    status_t execute(const stream &astream,
+            const std::unordered_map<int, memory> &args) const {
+        if (is_inplace_)
+            args.at(DNNL_ARG_DST)
+                    .set_data_handle(args.at(DNNL_ARG_SRC).get_data_handle());
+        else
+            reorder_prim_.execute(astream, args);
+        return status::success;
+    }
+
+private:
+    primitive reorder_prim_;
+    bool is_inplace_ = false;
+};
 struct sdp_decomp_config_t {
 public:
     sdp_decomp_config_t() = default;
@@ -62,17 +85,20 @@ public:
     // SDP input dimension
     memory::dim batch_size, num_head, seq_len, size_per_head;
 
+    // SDP input and output strides
+    memory::dims src1_strides, wei1_strides, wei2_strides, dst_strides,
+            post_add_strides;
+
     // Thread nums during the workflow
     int nthr;
 
-    // Used to record the exact input offset of mm1_src,mm1_wei,mm1_div,mm1_add,
+    // Used to record the exact input offset of mm1_src,mm1_wei,mm1_scale,mm1_add,
     // mm2_wei in subgraph
     std::vector<int> input_id;
 
     // Primitives that actually perform calculations
-    primitive sub_reorder0_prim, sub_reorder1_prim, sub_mm1_prim,
-            sub_softmax_prim, sub_reorder2_prim, sub_mm2_prim,
-            sub_reorder3_prim;
+    primitive sub_mm1_prim, sub_softmax_prim, sub_mm2_prim;
+    sdp_reorder sub_reorder0, sub_reorder1, sub_reorder2, sub_reorder3;
 
     // Args used in the execution of primitives
     std::unordered_map<int, memory> sub_reorder0_args, sub_reorder1_args,
@@ -89,7 +115,7 @@ public:
     // reorder1
     memory sub_wei1_user, sub_wei1_zp;
     //mm1
-    memory sub_mm1_src, sub_mm1_wei, sub_mm1_dst, sub_mm1_post_div,
+    memory sub_mm1_src, sub_mm1_wei, sub_mm1_dst, sub_mm1_post_scale,
             sub_mm1_post_add;
     //softmax
     memory sub_softmax_dst;
@@ -107,9 +133,6 @@ public:
 private:
     // Used to record the ops contained in SDP
     std::vector<std::shared_ptr<op_t>> sdp_op;
-
-    // Zero point values used to do shift from u8 to s8
-    int32_t reorder1_zp = -128, reorder2_zp = -128;
 
 public:
     // The function is used to check if the configuration of SDP is supported by
@@ -140,17 +163,7 @@ public:
         seq_len = src1_user_dims[2];
         size_per_head = src1_user_dims[3];
 
-        bool mm1_src_format
-                = is_format(make_dnnl_memory_desc(inputs[input_id[0]]),
-                        memory::format_tag::acbd);
-        bool mm1_wei_format
-                = is_format(make_dnnl_memory_desc(inputs[input_id[1]]),
-                        memory::format_tag::adbc);
-        bool mm2_wei_format
-                = is_format(make_dnnl_memory_desc(inputs[input_id[4]]),
-                        memory::format_tag::acbd);
-        return (batch_size * num_head) % nthr == 0 && mm1_src_format
-                && mm1_wei_format && mm2_wei_format;
+        return true;
     }
 
     // Used to construct all params that SDP need
@@ -165,12 +178,13 @@ public:
 
         // Acquire the data type from input param for later primitive creation.
         // The src and wei dt of both quantized sdp and float sdp are the same.
-        memory::data_type dt_in_user = static_cast<memory::data_type>(
+        memory::data_type dt_src_user = static_cast<memory::data_type>(
                 ltw(inputs[input_id[0]]).data_type());
+        memory::data_type dt_wei_user = static_cast<memory::data_type>(
+                ltw(inputs[input_id[1]]).data_type());
         memory::data_type dt_wei
-                = quantized ? memory::data_type::s8 : dt_in_user;
-        memory::data_type dt_inter = quantized ? dt : dt_in_user;
-        memory::data_type dt_zp = memory::data_type::s32;
+                = quantized ? memory::data_type::s8 : dt_src_user;
+        memory::data_type dt_inter = quantized ? dt : dt_src_user;
 
         ////////////////////////////////////////////////////////////////////////
         ////////////// Start Creating primitives ///////////////////////////////
@@ -181,11 +195,10 @@ public:
         omp_set_num_threads(1);
 #endif
         // intermediate md used to create primitives
-        memory::desc sub_src1_md, sub_wei1_user_md, sub_wei1_md, sub_wei1_zp_md,
-                sub_mm1_src_md, sub_mm1_wei_md, sub_mm1_dst_md,
-                sub_mm1_post_div_md, sub_mm1_post_add_md, sub_softmax_dst_md,
-                sub_wei2_user_md, sub_wei2_zp_md, sub_mm2_wei_md,
-                sub_mm2_dst_md, sub_dst_md, sub_dst_user_md;
+        memory::desc sub_src1_md, sub_wei1_user_md, sub_wei1_md, sub_mm1_src_md,
+                sub_mm1_wei_md, sub_mm1_dst_md, sub_mm1_post_scale_md,
+                sub_mm1_post_add_md, sub_softmax_dst_md, sub_wei2_user_md,
+                sub_mm2_wei_md, sub_mm2_dst_md, sub_dst_md, sub_dst_user_md;
 
         // must use user mode to support concurrent execution
         primitive_attr sub_reorder0_attr;
@@ -193,12 +206,14 @@ public:
 
         // per-head: reorder src1 to dense, for first matmul
         memory::dims sub_src1_dims = {1, 1, seq_len, size_per_head};
-        sub_src1_md = memory::desc(
-                sub_src1_dims, dt_in_user, {1, 1, num_head * size_per_head, 1});
-        auto sub_src1_d_md = memory::desc(sub_src1_dims, dt_in_user, tag::abcd);
+        src1_strides = ltw(inputs[input_id[0]]).vstrides();
+        sub_src1_md = memory::desc(sub_src1_dims, dt_src_user,
+                {1, 1, src1_strides[2], src1_strides[3]});
+        auto sub_src1_d_md
+                = memory::desc(sub_src1_dims, dt_src_user, tag::abcd);
         auto sub_reorder0_pd = reorder::primitive_desc(p_engine, sub_src1_md,
                 p_engine, sub_src1_d_md, sub_reorder0_attr);
-        sub_reorder0_prim = reorder(sub_reorder0_pd);
+        sub_reorder0.init(sub_reorder0_pd);
 
         auto &mgr = sg->fusion_info_mgr_;
 
@@ -207,14 +222,16 @@ public:
         dnnl::primitive_attr sub_reorder1_attr
                 = make_primitive_attr(sdp_op[0], mgr);
         memory::dims sub_wei1_dims = {1, 1, size_per_head, seq_len};
-        sub_wei1_user_md = memory::desc(sub_wei1_dims, dt_in_user,
-                {1, size_per_head, 1, num_head * size_per_head});
+        auto wei_md = make_dnnl_memory_desc(
+                sdp_op[1]->get_input_value(1)->get_logical_tensor());
+        wei1_strides = wei_md.get_strides();
+        sub_wei1_user_md = memory::desc(sub_wei1_dims, dt_wei_user,
+                {1, 1, wei1_strides[2], wei1_strides[3]});
         // Flip the format to have `ba` weights MBI item in per thread loop.
         sub_wei1_md = memory::desc(sub_wei1_dims, dt_wei, tag::abdc);
         auto sub_reorder1_pd = reorder::primitive_desc(p_engine,
                 sub_wei1_user_md, p_engine, sub_wei1_md, sub_reorder1_attr);
-        sub_reorder1_prim = reorder(sub_reorder1_pd);
-        sub_wei1_zp_md = memory::desc({1}, dt_zp, tag::x);
+        sub_reorder1.init(sub_reorder1_pd);
 
         // first matmul
         // create first matmul primitive attr
@@ -224,18 +241,24 @@ public:
         memory::dims sub_mm1_wei_dims = {1, 1, size_per_head, seq_len};
         memory::dims sub_mm1_dst_dims = {1, 1, seq_len, seq_len};
 
-        sub_mm1_src_md = memory::desc(sub_mm1_src_dims, dt_in_user, tag::abcd);
+        sub_mm1_src_md = memory::desc(sub_mm1_src_dims, dt_src_user, tag::abcd);
         sub_mm1_wei_md = memory::desc(sub_mm1_wei_dims, dt_wei, tag::abdc);
         sub_mm1_dst_md = memory::desc(sub_mm1_dst_dims, dt_inter, tag::abcd);
         dnnl::post_ops dnnl_pops;
-        auto div_dt = static_cast<dnnl::memory::data_type>(
-                ltw(inputs[input_id[3]]).data_type());
-        // TODO: It is presupposed that the dims of div and add's src are certain,
+        auto scale_dt = static_cast<dnnl::memory::data_type>(
+                ltw(inputs[input_id[2]]).data_type());
+        // TODO: It is presupposed that the dims of scale and add's src are certain,
         // which may not always be true.
-        sub_mm1_post_div_md = memory::desc({1, 1, 1, 1}, div_dt, tag::abcd);
+        sub_mm1_post_scale_md = memory::desc({1, 1, 1, 1}, scale_dt, tag::abcd);
+        auto post_add_shape = ltw(inputs[input_id[3]]).vdims();
+        post_add_strides = ltw(inputs[input_id[3]]).vstrides();
         sub_mm1_post_add_md
-                = memory::desc({1, 1, 1, seq_len}, dt_inter, tag::abcd);
-        dnnl_pops.append_binary(algorithm::binary_div, sub_mm1_post_div_md);
+                = memory::desc({1, 1, post_add_shape[2], post_add_shape[3]},
+                        dt_inter, tag::abcd);
+        auto ori_dnnl_pops = sub_matmul1_attr.get_post_ops();
+        auto alg = static_cast<algorithm>(
+                ori_dnnl_pops.get()->entry_[0].binary.alg);
+        dnnl_pops.append_binary(alg, sub_mm1_post_scale_md);
         dnnl_pops.append_binary(algorithm::binary_add, sub_mm1_post_add_md);
         sub_matmul1_attr.set_post_ops(std::move(dnnl_pops));
         auto sub_mm1_pd = matmul::primitive_desc(p_engine, sub_mm1_src_md,
@@ -247,7 +270,7 @@ public:
         dnnl::primitive_attr sub_softmax_attr
                 = make_primitive_attr(sdp_op[2], mgr);
         sub_softmax_dst_md
-                = memory::desc(sub_mm1_dst_dims, dt_in_user, tag::abcd);
+                = memory::desc(sub_mm1_dst_dims, dt_src_user, tag::abcd);
         auto sub_softmax_pd = softmax_forward::primitive_desc(p_engine,
                 prop_kind::forward_inference, algorithm::softmax_accurate,
                 sub_mm1_dst_md, sub_softmax_dst_md,
@@ -259,14 +282,14 @@ public:
         dnnl::primitive_attr sub_reorder2_attr
                 = make_primitive_attr(sdp_op[3], mgr);
         memory::dims sub_wei2_dims = {1, 1, seq_len, size_per_head};
-        sub_wei2_user_md = memory::desc(
-                sub_wei2_dims, dt_in_user, {1, 1, num_head * size_per_head, 1});
+        wei2_strides = ltw(inputs[input_id[4]]).vstrides();
+        sub_wei2_user_md = memory::desc(sub_wei2_dims, dt_wei_user,
+                {1, 1, wei2_strides[2], wei2_strides[3]});
         // The format is `abcd` due to performance of reorder to `abdc` is low.
         auto sub_wei2_md = memory::desc(sub_wei2_dims, dt_wei, tag::abcd);
         auto sub_reorder2_pd = reorder::primitive_desc(p_engine,
                 sub_wei2_user_md, p_engine, sub_wei2_md, sub_reorder2_attr);
-        sub_reorder2_prim = reorder(sub_reorder2_pd);
-        sub_wei2_zp_md = memory::desc({1}, dt_zp, tag::x);
+        sub_reorder2.init(sub_reorder2_pd);
 
         // second matmul
         // create second matmul primitive attr
@@ -276,9 +299,9 @@ public:
         memory::dims sub_mm2_wei_dims = {1, 1, seq_len, size_per_head};
         memory::dims sub_mm2_dst_dims = {1, 1, seq_len, size_per_head};
         auto sub_mm2_src_md
-                = memory::desc(sub_mm2_src_dims, dt_in_user, tag::abcd);
+                = memory::desc(sub_mm2_src_dims, dt_src_user, tag::abcd);
         sub_mm2_wei_md = memory::desc(sub_mm2_wei_dims, dt_wei, tag::abcd);
-        sub_mm2_dst_md = memory::desc(sub_mm2_dst_dims, dt_in_user, tag::abcd);
+        sub_mm2_dst_md = memory::desc(sub_mm2_dst_dims, dt_src_user, tag::abcd);
         auto sub_mm2_pd = matmul::primitive_desc(p_engine, sub_mm2_src_md,
                 sub_mm2_wei_md, sub_mm2_dst_md, sub_matmul2_attr);
         sub_mm2_prim = matmul(sub_mm2_pd);
@@ -287,12 +310,14 @@ public:
         primitive_attr sub_reorder3_attr;
         sub_reorder3_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
         memory::dims sub_dst_dims = {1, 1, seq_len, size_per_head};
-        sub_dst_md = memory::desc(sub_dst_dims, dt_in_user, tag::abcd);
-        sub_dst_user_md = memory::desc(
-                sub_dst_dims, dt_in_user, {1, 1, num_head * size_per_head, 1});
+        auto out_lt = sdp_op[4]->get_output_value(0)->get_logical_tensor();
+        dst_strides = ltw(out_lt).vstrides();
+        sub_dst_md = memory::desc(sub_dst_dims, dt_src_user, tag::abcd);
+        sub_dst_user_md = memory::desc(sub_dst_dims, dt_src_user,
+                {1, 1, dst_strides[2], dst_strides[3]});
         auto sub_reorder3_pd = reorder::primitive_desc(p_engine, sub_dst_md,
                 p_engine, sub_dst_user_md, sub_reorder3_attr);
-        sub_reorder3_prim = reorder(sub_reorder3_pd);
+        sub_reorder3.init(sub_reorder3_pd);
         ////////////////////////////////////////////////////////////////////////
         /////////////// End Creating primitives ////////////////////////////////
         ////////////////////////////////////////////////////////////////////////
@@ -337,18 +362,16 @@ public:
         sub_src1 = memory(sub_src1_md, p_engine, nullptr);
         // reorder1: 2d strided u8 -> 2d ba s8
         sub_wei1_user = memory(sub_wei1_user_md, p_engine, nullptr);
-        sub_wei1_zp = memory(sub_wei1_zp_md, p_engine, &reorder1_zp);
         // mm1
         sub_mm1_src = memory(sub_mm1_src_md, p_engine, nullptr);
         sub_mm1_wei = memory(sub_mm1_wei_md, p_engine, nullptr);
         sub_mm1_dst = memory(sub_mm1_dst_md, p_engine, nullptr);
-        sub_mm1_post_div = memory(sub_mm1_post_div_md, p_engine, nullptr);
+        sub_mm1_post_scale = memory(sub_mm1_post_scale_md, p_engine, nullptr);
         sub_mm1_post_add = memory(sub_mm1_post_add_md, p_engine, nullptr);
         // softmax
         sub_softmax_dst = memory(sub_softmax_dst_md, p_engine, nullptr);
         // reorder2
         sub_wei2_user = memory(sub_wei2_user_md, p_engine, nullptr);
-        sub_wei2_zp = memory(sub_wei2_zp_md, p_engine, &reorder2_zp);
         // mm2
         sub_mm2_wei = memory(sub_mm2_wei_md, p_engine, nullptr);
         sub_mm2_dst = memory(sub_mm2_dst_md, p_engine, nullptr);
@@ -364,13 +387,12 @@ public:
 
         sub_reorder1_args
                 = {{DNNL_ARG_SRC, sub_wei1_user}, {DNNL_ARG_DST, sub_mm1_wei},
-                        {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, sub_wei1_zp},
                         {DNNL_ARG_SCRATCHPAD, sub_scratchpad}};
 
         sub_mm1_args = {{DNNL_ARG_SRC, sub_mm1_src},
                 {DNNL_ARG_WEIGHTS, sub_mm1_wei}, {DNNL_ARG_DST, sub_mm1_dst},
                 {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
-                        sub_mm1_post_div},
+                        sub_mm1_post_scale},
                 {DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1,
                         sub_mm1_post_add},
                 {DNNL_ARG_SCRATCHPAD, sub_scratchpad}};
@@ -381,7 +403,6 @@ public:
 
         sub_reorder2_args
                 = {{DNNL_ARG_SRC, sub_wei2_user}, {DNNL_ARG_DST, sub_mm2_wei},
-                        {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, sub_wei2_zp},
                         {DNNL_ARG_SCRATCHPAD, sub_scratchpad}};
 
         sub_mm2_args = {{DNNL_ARG_SRC, sub_softmax_dst},
@@ -393,8 +414,10 @@ public:
                         {DNNL_ARG_SCRATCHPAD, sub_scratchpad}};
 
         // add scales and zps for mm1, softmax, mm2
+        prepare_sdp_scales_zps(mgr, sdp_op[0], 1, sub_reorder1_args, p_engine);
         prepare_sdp_scales_zps(mgr, sdp_op[1], 2, sub_mm1_args, p_engine);
         prepare_sdp_scales_zps(mgr, sdp_op[2], 1, sub_softmax_args, p_engine);
+        prepare_sdp_scales_zps(mgr, sdp_op[3], 1, sub_reorder2_args, p_engine);
         prepare_sdp_scales_zps(mgr, sdp_op[4], 2, sub_mm2_args, p_engine);
         ////////////////////////////////////////////////////////////////////////
         /////////////// End Constructing exec args /////////////////////////////
@@ -416,15 +439,20 @@ private:
     impl::status_t record_input_offset(const std::shared_ptr<subgraph_t> &sg,
             const std::vector<logical_tensor_t> &inputs) {
         auto find_input_id = [&](std::shared_ptr<value_t> val) {
-            while (val->has_producer()) {
-                val = val->get_producer().get_input_value(0);
+            // for quantized mamtul, it has producer such as add_zp,sub_zp,mul_scale.
+            if (val->get_consumers()[0].get_op().get_kind()
+                    == graph::op_kind::MatMul) {
+                while (val->has_producer()) {
+                    val = val->get_producer().get_input_value(0);
+                }
             }
             for (int i = 0; i < (int)inputs.size(); i++) {
                 if (val->get_logical_tensor().id == inputs[i].id) { return i; }
             }
-            return 0;
+            // If the corresponding input is not found, return an invalid value
+            return -1;
         };
-        op_ptr mm1, mm2, div, add;
+        op_ptr mm1, mm2, scale, add;
         for (const auto &cur_op : sg->get_ops()) {
             if (mm1 != nullptr && mm2 != nullptr) break;
             if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
@@ -432,7 +460,7 @@ private:
             if (post_op->get_kind() == graph::op_kind::Divide
                     || post_op->get_kind() == graph::op_kind::Multiply) {
                 mm1 = cur_op;
-                div = post_op;
+                scale = post_op;
                 add = get_post_op(post_op);
             } else
                 mm2 = cur_op;
@@ -441,9 +469,12 @@ private:
         input_id.emplace_back(src1_id);
         int wei1_id = find_input_id(mm1->get_input_value(1));
         input_id.emplace_back(wei1_id);
-        int div_id = find_input_id(div->get_input_value(1));
-        input_id.emplace_back(div_id);
+        // for scale and add op. The input order is uncertain.
+        int scale_id = find_input_id(scale->get_input_value(1));
+        if (scale_id == -1) scale_id = find_input_id(scale->get_input_value(0));
+        input_id.emplace_back(scale_id);
         int add_id = find_input_id(add->get_input_value(1));
+        if (add_id == -1) add_id = find_input_id(add->get_input_value(0));
         input_id.emplace_back(add_id);
         int wei2_id = find_input_id(mm2->get_input_value(1));
         input_id.emplace_back(wei2_id);
@@ -454,8 +485,13 @@ private:
             std::shared_ptr<subgraph_t> &sg, bool is_quantize) {
         const auto get_wei_pre_op = [](const op_ptr &op) -> op_ptr {
             const auto out_val = op->get_input_value(1);
-            auto &producer = out_val->get_producer();
-            return producer.shared_from_this();
+            if (out_val->has_producer()) {
+                auto &producer = out_val->get_producer();
+                if (producer.get_kind() != op_kind::dnnl_reorder)
+                    return nullptr;
+                return producer.shared_from_this();
+            } else
+                return nullptr;
         };
 
         subgraph_rewriter_t rewriter(sg);
@@ -517,7 +553,7 @@ private:
         // 1. src scale, wei scale
         // 2. src zp, wei zp
         // 3. dst scale, dst zp
-        if (op->has_attr(op_attr::fusion_info_key)
+        if (op && op->has_attr(op_attr::fusion_info_key)
                 && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
             int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
             fusion_info_t fusion_info = mgr.get_info(key);
@@ -590,6 +626,19 @@ private:
                         {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, sub_dst_zp});
             }
         }
+        if (op && op->get_kind() == op_kind::dnnl_reorder) {
+            if (op->has_attr(op_attr::with_runtime_dst_zps)
+                    && op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
+                memory::desc sub_dst_zp_md = memory::desc({1}, dt_zp, tag::x);
+                memory sub_dst_zp = memory(sub_dst_zp_md, p_engine);
+                int *dst_zp_val_ptr
+                        = reinterpret_cast<int *>(sub_dst_zp.get_data_handle());
+                dst_zp_val_ptr[0] = get_attr_value<int64_t, int32_t>(
+                        op, index++, op_attr::zps);
+                args.insert(
+                        {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, sub_dst_zp});
+            }
+        }
         return status::success;
     }
 
@@ -606,13 +655,13 @@ private:
             std::shared_ptr<op_t> &op, fusion_info_mgr_t &mgr) {
         fusion_info_t fusion_info;
         dnnl::primitive_attr attr;
-        if (op != nullptr && op->has_attr(op_attr::fusion_info_key)
+        if (op && op->has_attr(op_attr::fusion_info_key)
                 && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
             int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
             fusion_info = mgr.get_info(key);
             attr = make_dnnl_primitive_attr(op, fusion_info);
         }
-        if (op != nullptr && op->get_kind() == op_kind::dnnl_reorder) {
+        if (op && op->get_kind() == op_kind::dnnl_reorder) {
             // generate mask
             int mask = 0;
             if (op->has_attr(op_attr::axis) && op->has_attr(op_attr::qtype)) {
@@ -699,6 +748,7 @@ public:
         }
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_matmul);
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
@@ -706,6 +756,9 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_zero_points);
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         }
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_transpose_to_matmul);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         // Run the added passes
         BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
@@ -777,10 +830,7 @@ public:
         sdp_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
-        int MBO = sdp_cfg_.batch_size, MBI = sdp_cfg_.num_head,
-            M1 = sdp_cfg_.seq_len, K1 = sdp_cfg_.size_per_head,
-            N1 = sdp_cfg_.seq_len, M2 = sdp_cfg_.seq_len, K2 = sdp_cfg_.seq_len,
-            N2 = sdp_cfg_.size_per_head;
+        int MBO = sdp_cfg_.batch_size, MBI = sdp_cfg_.num_head;
 
         char *src1_user_pointer = static_cast<char *>(
                 inputs[sdp_cfg_.input_id[0]].get_data_handle());
@@ -813,16 +863,16 @@ public:
                     = res->mem_map[sdp_cfg_.sub_wei1_user.get()][tid];
 
             // matmul1
-            auto &sub_mm1_post_div_tid
-                    = res->mem_map[sdp_cfg_.sub_mm1_post_div.get()][tid];
+            auto &sub_mm1_post_scale_tid
+                    = res->mem_map[sdp_cfg_.sub_mm1_post_scale.get()][tid];
             auto &sub_mm1_post_add_tid
                     = res->mem_map[sdp_cfg_.sub_mm1_post_add.get()][tid];
-            sub_mm1_post_div_tid.set_data_handle(
+            sub_mm1_post_scale_tid.set_data_handle(
                     inputs[sdp_cfg_.input_id[2]].get_data_handle());
             sub_mm1_post_add_tid.set_data_handle(
                     static_cast<char *>(
                             inputs[sdp_cfg_.input_id[3]].get_data_handle())
-                    + bo * sdp_cfg_.seq_len
+                    + bo * sdp_cfg_.post_add_strides[1]
                             * get_mem_dt_size(sdp_cfg_.sub_mm1_post_add));
 
             // reorder2:
@@ -833,13 +883,21 @@ public:
             auto &sub_dst_user_tid
                     = res->mem_map[sdp_cfg_.sub_dst_user.get()][tid];
 
-            const size_t sub_src1_offset = (bo * MBI * M1 * K1 + bi * K1)
+            const size_t sub_src1_offset
+                    = (bo * sdp_cfg_.src1_strides[0]
+                              + bi * sdp_cfg_.src1_strides[1])
                     * get_mem_dt_size(sub_src1_tid);
-            const size_t sub_wei1_offset = (bo * MBI * K1 * N1 + bi * K1)
+            const size_t sub_wei1_offset
+                    = (bo * sdp_cfg_.wei1_strides[0]
+                              + bi * sdp_cfg_.wei1_strides[1])
                     * get_mem_dt_size(sub_wei1_user_tid);
-            const size_t sub_wei2_offset = (bo * MBI * K2 * N2 + bi * N2)
+            const size_t sub_wei2_offset
+                    = (bo * sdp_cfg_.wei2_strides[0]
+                              + bi * sdp_cfg_.wei2_strides[1])
                     * get_mem_dt_size(sub_wei2_user_tid);
-            const size_t sub_dst_user_offset = (bo * MBI * M2 * N2 + bi * N2)
+            const size_t sub_dst_user_offset
+                    = (bo * sdp_cfg_.dst_strides[0]
+                              + bi * sdp_cfg_.dst_strides[1])
                     * get_mem_dt_size(sub_dst_user_tid);
 
             sub_wei1_user_tid.set_data_handle(
@@ -851,20 +909,16 @@ public:
                     dst2_user_pointer + sub_dst_user_offset);
 
             // in parallel region - these primitives should use single thread.
-            sdp_cfg_.sub_reorder0_prim.execute(
-                    strm, res->sub_reorder0_args[tid]);
-            sdp_cfg_.sub_reorder1_prim.execute(
-                    strm, res->sub_reorder1_args[tid]);
+            sdp_cfg_.sub_reorder0.execute(strm, res->sub_reorder0_args[tid]);
+            sdp_cfg_.sub_reorder1.execute(strm, res->sub_reorder1_args[tid]);
             sdp_cfg_.sub_mm1_prim.execute(strm, res->sub_mm1_args[tid]);
 
             sdp_cfg_.sub_softmax_prim.execute(strm, res->sub_softmax_args[tid]);
 
-            sdp_cfg_.sub_reorder2_prim.execute(
-                    strm, res->sub_reorder2_args[tid]);
+            sdp_cfg_.sub_reorder2.execute(strm, res->sub_reorder2_args[tid]);
 
             sdp_cfg_.sub_mm2_prim.execute(strm, res->sub_mm2_args[tid]);
-            sdp_cfg_.sub_reorder3_prim.execute(
-                    strm, res->sub_reorder3_args[tid]);
+            sdp_cfg_.sub_reorder3.execute(strm, res->sub_reorder3_args[tid]);
         };
         // TODO: remove this when primitive new API ready
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
