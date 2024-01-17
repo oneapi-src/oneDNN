@@ -106,6 +106,15 @@ inline bool reject_unsupported_dtype(op_t *op) {
             return false;
         }
     }
+    for (const auto &out_value : op->get_output_values()) {
+        if (out_value->get_logical_tensor().data_type == data_type::f16
+                || out_value->get_logical_tensor().data_type
+                        == data_type::f8_e4m3
+                || out_value->get_logical_tensor().data_type
+                        == data_type::f8_e5m2) {
+            return false;
+        }
+    }
     return true;
 }
 
