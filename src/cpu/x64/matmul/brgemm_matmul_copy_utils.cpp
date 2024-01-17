@@ -517,6 +517,7 @@ void jit_brgemm_matmul_copy_a_impl_t<Vmm>::generate() {
 template struct jit_brgemm_matmul_copy_a_impl_t<Zmm>;
 template struct jit_brgemm_matmul_copy_a_impl_t<Ymm>;
 
+template <typename Vmm>
 struct jit_brgemm_matmul_copy_a_transposed_impl_t
     : public jit_brgemm_matmul_copy_a_t,
       public jit_generator {
@@ -602,13 +603,30 @@ private:
     constexpr static int dynamic_src_ld_x_kstep_offt_ = 48;
     constexpr static int stack_space_needed_ = 56;
 
+    void vmovdqa64(Vmm v, const int64_t *addr) {
+        mov(imm_addr64, reinterpret_cast<size_t>(addr));
+        jit_generator::vmovdqa64(v, ptr[imm_addr64]);
+    }
+
+    void vmovdqa32(Vmm v, const int32_t *addr) {
+        mov(imm_addr64, reinterpret_cast<size_t>(addr));
+        jit_generator::vmovdqa32(v, ptr[imm_addr64]);
+    }
+
+    void kmovw(Opmask mask_reg, size_t mask) {
+        mov(regw_tmp, mask);
+        jit_generator::kmovw(mask_reg, regw_tmp);
+    }
+
     void transpose_f32(reg64_t dst, reg64_t src, int nrows, int ncolumns);
     void transpose_bf16(reg64_t dst, reg64_t src, int nrows, int ncolumns);
     void deploy_transpose(reg64_t dst, reg64_t src, int nrows, int ncolumns);
+    void init_masks();
     void generate() override;
 };
 
-void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_bf16(
+template <>
+void jit_brgemm_matmul_copy_a_transposed_impl_t<Xbyak::Zmm>::transpose_bf16(
         reg64_t dst, reg64_t src, int nrows, int ncolumns) {
     assert(nrows >= 0 && nrows <= rows_step && ncolumns >= 0
             && ncolumns <= columns_step);
@@ -802,7 +820,20 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_bf16(
     L(transpose_bf16_done);
 }
 
-void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_f32(
+template <typename Vmm>
+void jit_brgemm_matmul_copy_a_transposed_impl_t<Vmm>::transpose_bf16(
+        reg64_t dst, reg64_t src, int nrows, int ncolumns) {
+    assert(!"unsupported transpose_bf16 copy_a_transposed_impl");
+}
+
+template <typename Vmm>
+void jit_brgemm_matmul_copy_a_transposed_impl_t<Vmm>::transpose_f32(
+        reg64_t dst, reg64_t src, int nrows, int ncolumns) {
+    assert(!"unsupported transpose_f32 copy_a_transposed_impl");
+}
+
+template <>
+void jit_brgemm_matmul_copy_a_transposed_impl_t<Xbyak::Zmm>::transpose_f32(
         reg64_t dst, reg64_t src, int nrows, int ncolumns) {
     assert(nrows >= 0 && nrows <= rows_step && ncolumns >= 0
             && ncolumns <= columns_step);
@@ -969,7 +1000,8 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_f32(
     L(transpose_f32_done);
 }
 
-void jit_brgemm_matmul_copy_a_transposed_impl_t::deploy_transpose(
+template <typename Vmm>
+void jit_brgemm_matmul_copy_a_transposed_impl_t<Vmm>::deploy_transpose(
         reg64_t dst, reg64_t src, int nrows, int ncolumns) {
     if (is_f32 || conf_->isa == avx512_core_fp16)
         transpose_f32(dst, src, nrows, ncolumns);
@@ -977,7 +1009,48 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::deploy_transpose(
         transpose_bf16(dst, src, nrows, ncolumns);
 }
 
-void jit_brgemm_matmul_copy_a_transposed_impl_t::generate() {
+template <typename Vmm>
+void jit_brgemm_matmul_copy_a_transposed_impl_t<Vmm>::init_masks() {
+    alignas(64) static constexpr const int64_t idx1[8]
+            = {2, 3, 0, 1, 6, 7, 4, 5};
+    alignas(64) static constexpr const int64_t idx2[8]
+            = {1, 0, 3, 2, 5, 4, 7, 6};
+    alignas(64) static constexpr const int32_t idx3[16]
+            = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14};
+    alignas(64) static constexpr const int32_t idx4[16]
+            = {8, 10, 12, 14, 0, 2, 4, 6, 9, 11, 13, 15, 1, 3, 5, 7};
+    alignas(64) static constexpr const uint16_t idx5[32]
+            = {0, 16, 2, 18, 8, 24, 10, 26, 4, 20, 6, 22, 12, 28, 14, 30, 1, 17,
+                    3, 19, 9, 25, 11, 27, 5, 21, 7, 23, 13, 29, 15, 31};
+    if (is_superset(conf_->isa, avx512_core)) {
+        if (is_f32) {
+            kmovw(k3333, 0x3333); // 0011001100110011
+            kmovw(k5555, 0x5555); // 0101010101010101
+            kmovw(kAAAA, 0xaaaa); // 1010101010101010
+            kmovw(kCCCC, 0xcccc); // 1100110011001100
+            kmovw(k0F0F, 0x0f0f); // 0000111100001111
+            kmovw(kF0F0, 0xf0f0); // 1111000011110000
+        } else {
+            kmovw(kFFFF, 0xffff);
+            kmovw(k5555, 0x5555);
+            kmovw(kAAAA, 0xaaaa);
+            kmovw(kAA, 0xaa);
+            kmovw(k55, 0x55);
+            kmovw(kCC, 0xcc);
+            kmovw(k33, 0x33);
+        }
+        if (!is_f32) {
+            vmovdqa64(vidx1, idx1);
+            vmovdqa64(vidx2, idx2);
+            vmovdqa32(vidx3, idx3);
+            vmovdqa32(vidx4, idx4);
+            vmovdqa32(vidx5, (const int32_t *)idx5);
+        }
+    }
+}
+
+template <typename Vmm>
+void jit_brgemm_matmul_copy_a_transposed_impl_t<Vmm>::generate() {
 
     // only bf16, f16 and f32 supported for now
     if (!one_of(conf_->src_dt, data_type::bf16, data_type::f32, data_type::f16))
@@ -1007,62 +1080,12 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::generate() {
         mov(ptr[rsp + dynamic_src_ld_x_kstep_offt_], regq_tmp);
     }
 
-    alignas(64) static constexpr const int64_t idx1[8]
-            = {2, 3, 0, 1, 6, 7, 4, 5};
-    alignas(64) static constexpr const int64_t idx2[8]
-            = {1, 0, 3, 2, 5, 4, 7, 6};
-    alignas(64) static constexpr const int32_t idx3[16]
-            = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14};
-    alignas(64) static constexpr const int32_t idx4[16]
-            = {8, 10, 12, 14, 0, 2, 4, 6, 9, 11, 13, 15, 1, 3, 5, 7};
-    alignas(64) static constexpr const uint16_t idx5[32]
-            = {0, 16, 2, 18, 8, 24, 10, 26, 4, 20, 6, 22, 12, 28, 14, 30, 1, 17,
-                    3, 19, 9, 25, 11, 27, 5, 21, 7, 23, 13, 29, 15, 31};
+    init_masks();
 
     const int k_block_tail = conf_->K_blk % rows_step;
     const int last_k_block_tail = (conf_->K % conf_->K_blk) % rows_step;
     const int m_block_tail = conf_->M_blk % columns_step;
     const int last_m_block_tail = conf_->M_tail % columns_step;
-
-    auto kmovw = [this](Opmask k, unsigned w) {
-        mov(regw_tmp, w);
-        jit_generator::kmovw(k, regw_tmp);
-    };
-
-    if (is_f32) {
-        kmovw(k3333, 0x3333); // 0011001100110011
-        kmovw(k5555, 0x5555); // 0101010101010101
-        kmovw(kAAAA, 0xaaaa); // 1010101010101010
-        kmovw(kCCCC, 0xcccc); // 1100110011001100
-        kmovw(k0F0F, 0x0f0f); // 0000111100001111
-        kmovw(kF0F0, 0xf0f0); // 1111000011110000
-    } else {
-        kmovw(kFFFF, 0xffff);
-        kmovw(k5555, 0x5555);
-        kmovw(kAAAA, 0xaaaa);
-        kmovw(kAA, 0xaa);
-        kmovw(k55, 0x55);
-        kmovw(kCC, 0xcc);
-        kmovw(k33, 0x33);
-    }
-
-    auto vmovdqa64 = [this](Zmm z, const int64_t *addr) {
-        mov(imm_addr64, reinterpret_cast<size_t>(addr));
-        jit_generator::vmovdqa64(z, ptr[imm_addr64]);
-    };
-
-    auto vmovdqa32 = [this](Zmm z, const int32_t *addr) {
-        mov(imm_addr64, reinterpret_cast<size_t>(addr));
-        jit_generator::vmovdqa32(z, ptr[imm_addr64]);
-    };
-
-    if (!is_f32) {
-        vmovdqa64(vidx1, idx1);
-        vmovdqa64(vidx2, idx2);
-        vmovdqa32(vidx3, idx3);
-        vmovdqa32(vidx4, idx4);
-        vmovdqa32(vidx5, (const int32_t *)idx5);
-    }
 
     auto compute_m_loop = [&](reg64_t &reg_base, reg64_t &reg_tr_base,
                                   int nrows) {
@@ -1948,6 +1971,7 @@ void jit_brgemm_matmul_copy_a_transposed_int8_impl_t::generate() {
     add(rsp, stack_space_needed_);
     postamble();
 }
+template struct jit_brgemm_matmul_copy_a_transposed_impl_t<Zmm>;
 
 template <typename Vmm>
 struct jit_brgemm_matmul_copy_b_int8_t : public jit_brgemm_matmul_copy_b_t,
@@ -4173,9 +4197,9 @@ status_t create_brgemm_matmul_copy_a(
         if (utils::one_of(conf->src_dt, data_type::s8, data_type::u8))
             CHECK(safe_ptr_assign(copy_ker,
                     new jit_brgemm_matmul_copy_a_transposed_int8_impl_t(conf)));
-        else
+        if (is_superset(conf->isa, avx512_core))
             CHECK(safe_ptr_assign(copy_ker,
-                    new jit_brgemm_matmul_copy_a_transposed_impl_t(conf)));
+                    new jit_brgemm_matmul_copy_a_transposed_impl_t<Zmm>(conf)));
     } else {
         if (is_superset(conf->isa, avx512_core))
             CHECK(safe_ptr_assign(
