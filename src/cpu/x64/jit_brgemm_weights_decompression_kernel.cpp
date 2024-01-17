@@ -33,13 +33,40 @@ using namespace Xbyak;
 using namespace std::placeholders;
 
 template <cpu_isa_t isa>
-void jit_brgemm_weights_decompression_kernel_t<isa>::init_decomp_params(std::function<Vmm(int)> vmm_params, Xbyak::Reg64 reg_params, bool broadcast_values) {
+void jit_brgemm_weights_decompression_kernel_t<isa>::init_decomp_params(std::function<Vmm(int)> vmm_params, Xbyak::Reg64 reg_params, bool broadcast_values, data_type_t element_type) {
     size_t oc_blocks_num = div_up(jcp_.oc_size, vec_size);
     for (size_t ocb = 0; ocb < oc_blocks_num; ocb++) {
         if (broadcast_values) {
-            uni_vbroadcastss(vmm_params(ocb), ptr[reg_params]);
+            switch (element_type) {
+                case data_type::f32: {
+                    uni_vbroadcastss(vmm_params(ocb), ptr[reg_params]);
+                    break;
+                }
+                case data_type::u8: {
+                    auto xmm_params = Xmm(vmm_params(ocb).getIdx());
+                    auto reg_tmp_32 = Reg32(reg_tmp.getIdx());
+                    movzx(reg_tmp_32, ptr[reg_params]);
+                    uni_vmovq(xmm_params, reg_tmp);
+                    uni_vcvtdq2ps(xmm_params, xmm_params);
+                    uni_vbroadcastss(vmm_params(ocb), xmm_params);
+                    break;
+                }
+                default: assert(!"unsupported data type");
+            }
         } else {
-            uni_vmovups(vmm_params(ocb), ptr[reg_params + ocb * vec_size * sizeof(float)]);
+            const auto load_addr = ptr[reg_params + ocb * vec_size * types::data_type_size(element_type)];
+            switch (element_type) {
+                case data_type::f32: {
+                    uni_vmovups(vmm_params(ocb), load_addr);
+                    break;
+                }
+                case data_type::u8: {
+                    uni_vpmovzxbd(vmm_params(ocb), load_addr);
+                    uni_vcvtdq2ps(vmm_params(ocb), vmm_params(ocb));
+                    break;
+                }
+                default: assert(!"unsupported data type");
+            }
         }
     }
 }
@@ -173,10 +200,10 @@ void jit_brgemm_weights_decompression_kernel_t<isa>::generate() {
     }
 
     if (jcp_.with_scales)
-        init_decomp_params(std::bind(&jit_brgemm_weights_decompression_kernel_t::vmm_scales, this, _1), reg_scales, jcp_.broadcast_scales);
+        init_decomp_params(std::bind(&jit_brgemm_weights_decompression_kernel_t::vmm_scales, this, _1), reg_scales, jcp_.broadcast_scales, data_type::f32);
 
     if (jcp_.with_zero_points)
-        init_decomp_params(std::bind(&jit_brgemm_weights_decompression_kernel_t::vmm_zero_points, this, _1), reg_zero_points, jcp_.broadcast_zero_points);
+        init_decomp_params(std::bind(&jit_brgemm_weights_decompression_kernel_t::vmm_zero_points, this, _1), reg_zero_points, jcp_.broadcast_zero_points, jcp_.zero_points_dt);
 
     size_t oc_blocks_num = div_up(jcp_.oc_size, vec_size);
 

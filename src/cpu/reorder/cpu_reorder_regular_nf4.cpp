@@ -35,6 +35,7 @@ const impl_list_map_t &regular_nf4_impl_list_map() {
             REG_SR(nf4, any, nf4, OI16i32o2i, fmt_order_keep)
             REG_SR(nf4, any, nf4, OI16i48o2i, fmt_order_keep)
             REG_SR(nf4, any, nf4, OI16i64o2i, fmt_order_keep)
+            REG_SR(nf4, any, f32, any, fmt_order_keep, spec::reference)
             nullptr,
         }},
     });

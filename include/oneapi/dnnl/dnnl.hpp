@@ -3924,9 +3924,9 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 dnnl_primitive_attr_set_zero_points_mask(get(), arg, mask),
                 "could not set zero points primitive attribute");
     }
-    void set_zero_points_dims(int arg, const memory::dims& dims) {
+    void set_zero_points_dims(int arg, const memory::dims& dims, memory::data_type dt) {
         error::wrap_c_api(
-                dnnl_primitive_attr_set_zero_points_dims(get(), arg, dims.data(), dims.size()),
+                dnnl_primitive_attr_set_zero_points_dims(get(), arg, dims.data(), dims.size(), memory::convert_to_c(dt)),
                 "could not set zero points primitive attribute");
     }
 
@@ -4170,6 +4170,11 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         mask = c_mask;
         for (dnnl_dim_t c = 0; c < count; c++)
             scales[c] = c_scales[c];
+    }
+
+    void set_src_dyn_quant_params(uint64_t group_size) {
+        error::wrap_c_api(dnnl_primitive_attr_set_src_dyn_quant_params(get(), group_size),
+                "could not set src dynamic quantization parameters primitive attribute");
     }
 };
 

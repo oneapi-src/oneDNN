@@ -39,6 +39,7 @@ struct weights_decompression_compile_params_t {
     size_t ic_internal_size;
     data_type_t weights_dt;
     data_type_t decomp_buffer_dt;
+    data_type_t zero_points_dt;
 };
 
 struct weights_decompression_runtime_params_t {
@@ -80,7 +81,7 @@ private:
     static constexpr int n_vregs = cpu_isa_traits<isa>::n_vregs;
 
     void generate() override;
-    void init_decomp_params(std::function<Vmm(int)> vmm_params, Xbyak::Reg64 reg_params, bool broadcast_values);
+    void init_decomp_params(std::function<Vmm(int)> vmm_params, Xbyak::Reg64 reg_params, bool broadcast_values, data_type_t element_type);
     void load_weights(Vmm vmm_load, const Xbyak::Address& addr, int ic);
     void store_weights(const Xbyak::Address& addr, Vmm vmm_store);
 

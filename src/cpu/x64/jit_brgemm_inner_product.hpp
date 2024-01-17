@@ -32,6 +32,7 @@
 #include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/jit_brgemm_decompress_kernel.hpp"
 #include "cpu/x64/jit_brgemm_weights_decompression_kernel.hpp"
+#include "cpu/x64/jit_brgemm_src_quantization_kernel.hpp"
 #include "cpu/x64/jit_brgemm_inner_product_utils.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
 #include "cpu/x64/jit_brgemm_transpose_utils.hpp"
@@ -69,6 +70,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             if (is_wei_decomp) {
                 skip_mask |= skip_mask_t::scales_runtime;
                 skip_mask |= skip_mask_t::zero_points_runtime;
+                skip_mask |= skip_mask_t::src_dyn_quant_params;
             }
 
             bool ok = is_fwd() && mayiuse(isa)
@@ -112,6 +114,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                         jbgp_.wei_dt, false, false, brgemm_row_major, alpha,
                         vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK,
                         nullptr, is_wei_decomp && jbgp_.wei_decomp_algo == weights_decomp_kind_t::immediate,
+                        jbgp_.with_src_dynamic_quant,
                         &weights_md_, attr()));
 
                 auto LDD = jbgp_.oc_without_padding;
@@ -220,6 +223,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             jcp.broadcast_zero_points = pd()->attr()->zero_points_.get_dims(DNNL_ARG_WEIGHTS)[0] == 1;
             jcp.weights_dt = pd()->jbgp_.orig_wei_dt;
             jcp.decomp_buffer_dt = pd()->jbgp_.wei_dt;
+            jcp.zero_points_dt = pd()->jbgp_.wei_decomp_zero_points_dt;
 
             if (is_superset(pd()->jbgp_.isa, avx512_core)) {
                 CHECK(safe_ptr_assign(brg_weights_decomp_kernel_,
@@ -227,6 +231,23 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             } else if (is_superset(pd()->jbgp_.isa, avx2)) {
                 CHECK(safe_ptr_assign(brg_weights_decomp_kernel_,
                         new jit_brgemm_weights_decompression_kernel_t<avx2>(jcp)));
+            } else {
+                return status::unimplemented;
+            }
+        }
+
+        if (pd()->jbgp_.with_src_dynamic_quant) {
+            src_quantization_compile_params_t jcp = {};
+            jcp.ic_quant_block = pd()->jbgp_.src_quant_group_size;
+            jcp.src_dt = pd()->jbgp_.orig_src_dt;
+            jcp.qsrc_dt = data_type::s8;
+
+            if (is_superset(pd()->jbgp_.isa, avx512_core)) {
+                CHECK(safe_ptr_assign(brg_src_quant_kernel_,
+                        new jit_brgemm_src_quantization_kernel_t<avx512_core>(jcp)));
+            } else if (is_superset(pd()->jbgp_.isa, avx2)) {
+                CHECK(safe_ptr_assign(brg_src_quant_kernel_,
+                        new jit_brgemm_src_quantization_kernel_t<avx2>(jcp)));
             } else {
                 return status::unimplemented;
             }
@@ -258,6 +279,7 @@ private:
             brgemm_inner_product_utils::max_num_brg_kernels_ip};
     std::unique_ptr<jit_brgemm_decompress_kernel_t> brg_decomp_kernel_;
     std::unique_ptr<jit_weights_decompression_kernel_t> brg_weights_decomp_kernel_;
+    std::unique_ptr<jit_src_quantization_kernel_t> brg_src_quant_kernel_;
 };
 
 template <cpu_isa_t isa>

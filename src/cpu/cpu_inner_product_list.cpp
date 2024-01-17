@@ -53,7 +53,9 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             nullptr,
         }},
         {{forward, f32, u8, f32}, {
+            CPU_INSTANCE_AVX512(brgemm_inner_product_fwd_t, avx512_core_vnni)
             CPU_INSTANCE_AVX512(brgemm_inner_product_fwd_t, avx512_core)
+            CPU_INSTANCE_AVX2(brgemm_inner_product_fwd_t, avx2_vnni)
             CPU_INSTANCE_AVX2(brgemm_inner_product_fwd_t, avx2)
             nullptr,
         }},
@@ -68,7 +70,9 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             nullptr,
         }},
         {{forward, f32, u4, f32}, {
+            CPU_INSTANCE_AVX512(brgemm_inner_product_fwd_t, avx512_core_vnni)
             CPU_INSTANCE_AVX512(brgemm_inner_product_fwd_t, avx512_core)
+            CPU_INSTANCE_AVX2(brgemm_inner_product_fwd_t, avx2_vnni)
             CPU_INSTANCE_AVX2(brgemm_inner_product_fwd_t, avx2)
             nullptr,
         }},

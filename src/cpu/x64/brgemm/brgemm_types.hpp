@@ -291,6 +291,10 @@ struct brgemm_t {
     int wei_decomp_zero_points_stride = 0;
     int wei_decomp_scales_group_size = 0;
     int wei_decomp_zero_points_group_size = 0;
+    impl::data_type_t wei_decomp_zero_points_dt = data_type::undef;
+    bool with_src_dyn_quant = false;
+    int src_scales_group_size = 0;
+    int src_scales_stride = 0;
 
     bool is_row_major() const {
         assert(layout != brgemm_layout_undef);
@@ -424,6 +428,7 @@ struct brgemm_kernel_params_t {
 
     const void *ptr_wei_scales = nullptr;
     const void *ptr_wei_zero_points = nullptr;
+    const void *ptr_src_scales = nullptr;
     size_t ic;
 };
 

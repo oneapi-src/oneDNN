@@ -167,6 +167,7 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
     if (attr.gpu_attr_) {
         seed = hash_combine(seed, attr.gpu_attr_->get_hash());
     }
+    seed = hash_combine(seed, attr.src_dyn_quant_params_.group_size_);
     // Combined hash for attributes
     return seed;
 }

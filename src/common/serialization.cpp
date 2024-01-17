@@ -213,6 +213,7 @@ void serialize_attr(
         int zero = 0;
         sstream.write(&zero);
     }
+    sstream.write(&attr.src_dyn_quant_params_.group_size_);
 }
 
 void serialize_desc(

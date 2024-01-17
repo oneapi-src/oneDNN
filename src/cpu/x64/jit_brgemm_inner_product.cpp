@@ -81,13 +81,13 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    DEFINE_ZERO_POINTS_BUFFER_TYPED(wei_zero_points, DNNL_ARG_WEIGHTS, float);
+    DEFINE_ZERO_POINTS_BUFFER_TYPED(wei_zero_points, DNNL_ARG_WEIGHTS, uint8_t);
 
     const auto wei_scales_d = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
     const auto wei_zero_points_d = ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
     int wei_scales_oc_stride = wei_scales_d.dims()[0] > 1 ? 1 : 0;
     int wei_zero_points_oc_stride = wei_zero_points_d.dims()[0] > 1 ? 1 : 0;
-
+    size_t wei_zero_points_dt_size = jbgp.wei_decomp_zero_points_dt == data_type::undef ? 0 : types::data_type_size(jbgp.wei_decomp_zero_points_dt);
     const float *oscales = nullptr;
     if (jbgp.weights_decompression) {
         // weights decompression algorithm requires weights scales to be
@@ -104,9 +104,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             }
 
             if (!pd()->attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)) {
-                auto decomp_zp_buf = scratchpad.template get<float>(key_decompression_zero_points);
+                auto decomp_zp_buf = scratchpad.template get<uint8_t>(key_decompression_zero_points);
                 auto dims = pd()->attr()->zero_points_.get_dims(DNNL_ARG_WEIGHTS);
-                std::memcpy(decomp_zp_buf, wei_zero_points, dims[0] * dims[1] * sizeof(float));
+                std::memcpy(decomp_zp_buf, wei_zero_points, dims[0] * dims[1] * wei_zero_points_dt_size);
                 wei_zero_points = decomp_zp_buf;
             }
         }
@@ -120,6 +120,45 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             = jbgp.with_bias ? types::data_type_size(jbgp.bia_dt) : 0;
     const size_t acc_dt_size = types::data_type_size(jbgp.acc_dt);
     const size_t dst_dt_size = types::data_type_size(jbgp.dst_dt);
+
+    int8_t* qsrc = nullptr;
+    float* src_dscales = nullptr;
+    if (jbgp.with_src_dynamic_quant) {
+        qsrc = scratchpad.template get<int8_t>(key_src_quantized);
+        src_dscales = scratchpad.template get<float>(key_src_dequantized_scales);
+
+        int ic_groups = div_up(jbgp.ic, jbgp.src_quant_group_size);
+        auto src_ptr = reinterpret_cast<const float*>(src);
+        auto qsrc_ptr = qsrc;
+        auto src_dscales_ptr = src_dscales;
+        int vec_loop_end = (ic_groups - 1) * jbgp.src_quant_group_size;
+
+        parallel_nd(jbgp.mb, [&](int mb) {
+            src_quantization_runtime_params_t rt_params = {};
+            rt_params.src_ptr = src_ptr + mb * jbgp.ic;
+            rt_params.qsrc_ptr = qsrc_ptr + mb * jbgp.ic;
+            rt_params.src_scales_ptr = src_dscales_ptr + mb * ic_groups;
+            rt_params.ic_size = vec_loop_end;
+            (*brg_src_quant_kernel_)(&rt_params);
+
+            if (vec_loop_end != jbgp.ic) {
+                float amax = 0;
+                for (int ic = vec_loop_end; ic < jbgp.ic; ic++) {
+                    amax = std::max(amax, std::abs(src_ptr[mb * jbgp.ic + ic]));
+                }
+
+                const float dscale = amax / 127;
+                const float qscale  = (dscale != 0) ? (1.0f / dscale) : 0;
+
+                src_dscales_ptr[mb * ic_groups + ic_groups - 1] = dscale;
+                for (int ic = vec_loop_end; ic < jbgp.ic; ic++) {
+                    qsrc_ptr[mb * jbgp.ic + ic] = std::round(src_ptr[mb * jbgp.ic + ic] * qscale);
+                }
+            }
+        });
+
+        src = reinterpret_cast<const char *>(qsrc);
+    }
 
     auto addr_batch_global = scratchpad.template get<brgemm_batch_element_t>(
             key_brgemm_primitive_batch);
@@ -313,7 +352,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
                     const int ic_internal_block = pd()->jbgp_.wei_dt == data_type::bf16 ||
                                                   one_of(pd()->jbgp_.orig_wei_dt, data_type::nf4, data_type::s4, data_type::u4) ? 2 : 1;
-                    auto wei_zero_points_ptr = wei_zero_points + wei_zero_points_oc_stride * oc;
+                    auto wei_zero_points_ptr = wei_zero_points + wei_zero_points_oc_stride * oc * wei_zero_points_dt_size;
                     auto wei_scales_ptr = wei_scales + wei_scales_oc_stride * oc;
 
                     if (jbgp.with_grouped_weights_decompression) {
@@ -333,7 +372,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                             rt_params.weights_ptr = weights_ptr + ic_idx * ic_internal_block * jbgp.oc_block * types::data_type_size(jbgp.orig_wei_dt) / typesize_scale;
                             rt_params.decomp_buffer_ptr = decomp_buf + ic_idx * ic_internal_block *jbgp.oc_block * types::data_type_size(jbgp.wei_dt);
                             rt_params.scales_ptr = wei_scales_ptr + scales_idx * wei_scales_d.dims()[0];
-                            rt_params.zero_points_ptr = wei_zero_points_ptr + zero_points_idx * wei_zero_points_d.dims()[0];
+                            rt_params.zero_points_ptr = wei_zero_points_ptr + zero_points_idx * wei_zero_points_d.dims()[0] * wei_zero_points_dt_size;
                             rt_params.ic_size = nstl::min(group_size, ic_size - icb_idx * group_size);
                             (*brg_weights_decomp_kernel_)(&rt_params);
                         }
@@ -356,9 +395,11 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
             int wei_scales_offset = 0;
             int wei_zero_points_offset = 0;
+            int src_scales_offset = 0;
             if (jbgp.weights_decompression) {
                 wei_scales_offset = (ic / jbgp.wei_scales_ic_group_size) * wei_scales_d.dims()[0] + wei_scales_oc_stride * oc;
-                wei_zero_points_offset = (ic / jbgp.wei_zero_points_ic_group_size) * wei_zero_points_d.dims()[0] + wei_zero_points_oc_stride * oc;
+                wei_zero_points_offset = ((ic / jbgp.wei_zero_points_ic_group_size) * wei_zero_points_d.dims()[0] + wei_zero_points_oc_stride * oc) * wei_zero_points_dt_size;
+                src_scales_offset = n * div_up(jbgp.ic, jbgp.src_quant_group_size) + (ic / jbgp.src_quant_group_size);
             }
 
             auto ptr_D = dst + dst_off;
@@ -382,10 +423,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
                 brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
                         addr_batch, (void *)ptr_C, (void *)ptr_D, post_ops_data,
-                        scratch, &wei_scales[wei_scales_offset], &wei_zero_points[wei_zero_points_offset], 0);
+                        scratch, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, 0);
             } else {
                 brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
-                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr, &wei_scales[wei_scales_offset], &wei_zero_points[wei_zero_points_offset], 0);
+                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, 0);
             }
         }
 
@@ -415,7 +456,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
                 const int ic_internal_block = pd()->jbgp_.wei_dt == data_type::bf16 ||
                                               one_of(pd()->jbgp_.orig_wei_dt, data_type::nf4, data_type::s4, data_type::u4) ? 2 : 1;
-                auto wei_zero_points_ptr = wei_zero_points + wei_zero_points_oc_stride * oc;
+                auto wei_zero_points_ptr = wei_zero_points + wei_zero_points_oc_stride * oc * wei_zero_points_dt_size;
                 auto wei_scales_ptr = wei_scales + wei_scales_oc_stride * oc;
 
                 if (jbgp.with_grouped_weights_decompression) {
@@ -435,7 +476,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                         rt_params.weights_ptr = weights_ptr + ic_idx * ic_internal_block * jbgp.oc_block * types::data_type_size(jbgp.orig_wei_dt) / typesize_scale;
                         rt_params.decomp_buffer_ptr = decomp_buf + ic_idx * ic_internal_block * jbgp.oc_block * types::data_type_size(jbgp.wei_dt);
                         rt_params.scales_ptr = wei_scales_ptr + scales_idx * wei_scales_d.dims()[0];
-                        rt_params.zero_points_ptr = wei_zero_points_ptr + zero_points_idx * wei_zero_points_d.dims()[0];
+                        rt_params.zero_points_ptr = wei_zero_points_ptr + zero_points_idx * wei_zero_points_d.dims()[0] * wei_zero_points_dt_size;
                         rt_params.ic_size = nstl::min(group_size, ic_size - icb_idx * group_size);
                         (*brg_weights_decomp_kernel_)(&rt_params);
                     }
@@ -457,9 +498,11 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
             int wei_scales_offset = 0;
             int wei_zero_points_offset = 0;
+            int src_scales_offset = 0;
             if (jbgp.weights_decompression) {
                 wei_scales_offset = (ic / jbgp.wei_scales_ic_group_size) * wei_scales_d.dims()[0] + wei_scales_oc_stride * oc;
-                wei_zero_points_offset = (ic / jbgp.wei_zero_points_ic_group_size) * wei_zero_points_d.dims()[0] + wei_zero_points_oc_stride * oc;
+                wei_zero_points_offset = ((ic / jbgp.wei_zero_points_ic_group_size) * wei_zero_points_d.dims()[0] + wei_zero_points_oc_stride * oc) * wei_zero_points_dt_size;
+                src_scales_offset = n * div_up(jbgp.ic, jbgp.src_quant_group_size) + (ic / jbgp.src_quant_group_size);
             }
 
             auto brg_kernel_ic_tail = brg_kernels_[brg_ker_ic_tail_idx].get();
@@ -481,10 +524,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                         nullptr, false, 1, false, false, dst_scales};
 
                 brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1, addr_batch,
-                        (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch, &wei_scales[wei_scales_offset], &wei_zero_points[wei_zero_points_offset], 0);
+                        (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, 0);
             } else {
                 brgemm_kernel_execute(brg_kernel_ic_tail, 1, addr_batch,
-                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr, &wei_scales[wei_scales_offset], &wei_zero_points[wei_zero_points_offset], 0);
+                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, 0);
             }
         }
     };

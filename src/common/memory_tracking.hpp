@@ -289,6 +289,8 @@ enum {
     key_wino_M,
     key_decompression_scales,
     key_decompression_zero_points,
+    key_src_quantized,
+    key_src_dequantized_scales,
     // These two keys should always be the last ones,
     // even though they are not in alphabetical order
     key_nested,

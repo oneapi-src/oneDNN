@@ -727,7 +727,12 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     const rnn_data_qparams_t &rnn_qp = attr->rnn_data_qparams_;
     if (!rnn_qp.has_default_values()) {
         ss << "rnn_data_qparams:" << rnn_qp.scale_ << ":" << rnn_qp.shift_
-           << ";";
+           << " ";
+    }
+
+    const src_dyn_quant_params_t &dyn_qp = attr->src_dyn_quant_params_;
+    if (!dyn_qp.has_default_values()) {
+        ss << "src_dyn_quant_group_size:" << dyn_qp.group_size_ << ";";
     }
 
     return ss;

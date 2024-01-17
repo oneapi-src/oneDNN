@@ -50,7 +50,7 @@ void init_kernel_datatype(
         brgemm_t *brg, impl::data_type_t dt_a, impl::data_type_t dt_b) {
     assert(dt_a != data_type::undef && dt_b != data_type::undef);
     brg->is_int8 = utils::one_of(dt_a, data_type::u8, data_type::s8)
-            && utils::one_of(dt_b, data_type::u8, data_type::s8);
+            && utils::one_of(dt_b, data_type::u8, data_type::s8, data_type::u4);
     brg->is_bf16 = one_of(dt_a, data_type::bf16) &&
                    one_of(dt_b, data_type::bf16, data_type::u8, data_type::nf4, data_type::s4, data_type::u4);
     brg->is_f32 = one_of(dt_a, data_type::f32) &&
@@ -208,8 +208,13 @@ int calculate_max_bcast_block(brgemm_t *brg, const int adj_ld_block2) {
     if (one_of(brg->dt_b, data_type::nf4) && brg->isa_impl == avx2) max_bcast_block -= 5;
     if (one_of(brg->dt_b, data_type::nf4) && brg->isa_impl != avx2) max_bcast_block -= 1;
     if (brg->with_wei_decomp_zero_points && brg->wei_decomp_zero_points_stride == 0) max_bcast_block -= 1;
+    if (brg->with_src_dyn_quant) max_bcast_block -= 2;
+    if (brg->with_src_dyn_quant && brg->with_wei_decomp_zero_points && brg->wei_decomp_zero_points_stride != 0) max_bcast_block -= adj_ld_block2;
 
     max_bcast_block /= adj_ld_block2;
+    if (brg->with_src_dyn_quant) {
+        max_bcast_block /= 2;
+    }
 
     return max_bcast_block;
 }
@@ -236,7 +241,8 @@ status_t brgemm_blocking(brgemm_t *brg) {
         // reduce 'ld_block2' to allow a larger 'bd_block'
         const int max_vpad = nstl::max(
                 brg->brgattr.max_top_vpad, brg->brgattr.max_bottom_vpad);
-        if (is_superset(brg->isa_impl, avx2) && max_bcast_block < max_vpad) {
+        if ((is_superset(brg->isa_impl, avx2) && max_bcast_block < max_vpad) ||
+            (brg->with_src_dyn_quant && max_bcast_block == 0)) {
             adj_ld_block2 = calculate_ldb_params(brg, 2);
             max_bcast_block = calculate_max_bcast_block(brg, adj_ld_block2);
         }
@@ -271,8 +277,10 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 : data_type_vnni_granularity(brg->dt_a);
         int rd_unroll = one_of(brg->dt_b, data_type::nf4, data_type::u4, data_type::s4) ? 32 : 4;
         if (brg->with_grouped_wei_decomp) {
-            rd_unroll = nstl::min(rd_unroll, brg->wei_decomp_scales_group_size / vnni_granularity);
-            rd_unroll = nstl::min(rd_unroll, brg->wei_decomp_scales_group_size / vnni_granularity);
+            auto min_group_size = nstl::min(brg->wei_decomp_scales_group_size, brg->wei_decomp_zero_points_group_size);
+            min_group_size = nstl::min(min_group_size, brg->src_scales_group_size);
+            rd_unroll = nstl::min(rd_unroll, min_group_size / vnni_granularity);
+            rd_unroll = nstl::min(rd_unroll, min_group_size / vnni_granularity);
         }
 
         brg->rd_block = rd_unroll * vnni_granularity;
@@ -829,7 +837,8 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
 
     set_brg_vmm(brg); // TODO: Investigate if it is really needed here.
     brg->req_s8s8_compensation = brg->is_int8 && !brg->is_int8_tmm
-            && (brg->isa_impl != avx2_vnni_2) && brg->dt_a == data_type::s8;
+            && (brg->isa_impl != avx2_vnni_2) && brg->dt_a == data_type::s8
+            && !brg->with_src_dyn_quant;
 
     brg->LDA = (brg->is_row_major()) ? static_cast<int>(LDA)
                                      : static_cast<int>(LDB);
@@ -862,6 +871,11 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->rd_step = has_no_vnni_compute_instruction
             ? 1
             : data_type_vnni_granularity(brg->dt_b);
+
+    if (brg->with_src_dyn_quant && one_of(brg->dt_b, data_type::u4)) {
+        brg->ld_step = 8;
+        brg->rd_step = 4;
+    }
 }
 
 void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
