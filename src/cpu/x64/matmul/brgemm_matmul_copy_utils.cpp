@@ -211,7 +211,7 @@ template <>
 void jit_brgemm_matmul_copy_a_impl_t<Ymm>::load_tail(
         int k_tail, size_t offset) {
     const auto vmm_tail = get_vmm_copy(0);
-    load_bytes(vmm_tail, reg_src, offset * typesize_, k_tail);
+    load_bytes(vmm_tail, reg_src, offset * typesize_, k_tail * typesize_);
 }
 
 template <>
@@ -233,7 +233,8 @@ void jit_brgemm_matmul_copy_a_impl_t<Ymm>::store_tail(
         int k_tail, size_t offset) {
     const int k_tail_st = rnd_up(k_tail, vnni_granularity_);
     const auto vmm_tail = get_vmm_copy(0);
-    store_bytes(vmm_tail, reg_tr_src, offset * tr_typesize_, k_tail_st);
+    store_bytes(
+            vmm_tail, reg_tr_src, offset * tr_typesize_, k_tail_st * typesize_);
 }
 
 template <typename Vmm>
@@ -528,6 +529,8 @@ struct jit_brgemm_matmul_copy_a_transposed_impl_t
         , jit_generator(jit_name())
         , typesize(conf_->a_dt_sz)
         , tr_typesize(conf_->tr_a_dt_sz)
+        , rows_step(16)
+        , columns_step(rows_step)
         , src_stride(conf_->copy_A_src_stride)
         , dst_stride(conf_->LDA * tr_typesize)
         , m_loop_src_shift(columns_step * typesize)
@@ -548,8 +551,8 @@ private:
 
     const size_t typesize;
     const size_t tr_typesize;
-    static constexpr int rows_step = 16;
-    static constexpr int columns_step = rows_step;
+    const int rows_step;
+    const int columns_step;
     const dim_t src_stride, dst_stride;
     const dim_t m_loop_src_shift;
     const dim_t m_loop_dst_shift;
@@ -790,7 +793,8 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t<Xbyak::Zmm>::transpose_bf16(
     for (int i = 0; i < 8; i++)
         vextracti64x4(src_ymm(2 * i), src_zmm(2 * i + 1), 1);
 
-    auto get_vec_idx = [](int col_idx) {
+    auto get_vec_idx = [this](int col_idx) {
+        MAYBE_UNUSED(this);
         assert(col_idx < columns_step && col_idx >= 0);
         const int blk_sz = 4;
         const int blk_idx = col_idx / blk_sz;
@@ -862,25 +866,26 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t<Xbyak::Ymm>::transpose_f32(
     jit_generator::transpose(reg_src, reg_dst, src_stride, dst_stride, A_rows,
             A_columns, data_type::f32, ymm_tmp, ymm_tail_mask,
             xmm_upper_tail_mask);
-
-    const dim_t src_C_offset = src_stride * avx2_transpose_size;
-    const dim_t dst_C_offset = sizeof(float) * avx2_transpose_size;
-    const int C_rows = nstl::max(nrows - avx2_transpose_size, 0);
-    const int C_columns = nstl::min(avx2_transpose_size, ncolumns);
-    add(reg_src, src_C_offset);
-    add(reg_dst, dst_C_offset);
-    jit_generator::transpose(reg_src, reg_dst, src_stride, dst_stride, C_rows,
-            C_columns, data_type::f32, ymm_tmp, ymm_tail_mask,
-            xmm_upper_tail_mask);
+    if (rows_step <= 8) return;
 
     const dim_t src_B_offset = sizeof(float) * avx2_transpose_size;
     const dim_t dst_B_offset = dst_stride * avx2_transpose_size;
     const int B_rows = nstl::min(avx2_transpose_size, nrows);
     const int B_columns = nstl::max(ncolumns - avx2_transpose_size, 0);
-    add(reg_src, -src_C_offset + src_B_offset);
-    add(reg_dst, -dst_C_offset + dst_B_offset);
+    add(reg_src, src_B_offset);
+    add(reg_dst, dst_B_offset);
     jit_generator::transpose(reg_src, reg_dst, src_stride, dst_stride, B_rows,
             B_columns, data_type::f32, ymm_tmp, ymm_tail_mask,
+            xmm_upper_tail_mask);
+
+    const dim_t src_C_offset = src_stride * avx2_transpose_size;
+    const dim_t dst_C_offset = sizeof(float) * avx2_transpose_size;
+    const int C_rows = nstl::max(nrows - avx2_transpose_size, 0);
+    const int C_columns = nstl::min(avx2_transpose_size, ncolumns);
+    add(reg_src, -src_B_offset + src_C_offset);
+    add(reg_dst, -dst_B_offset + dst_C_offset);
+    jit_generator::transpose(reg_src, reg_dst, src_stride, dst_stride, C_rows,
+            C_columns, data_type::f32, ymm_tmp, ymm_tail_mask,
             xmm_upper_tail_mask);
 
     const dim_t src_D_offset = src_stride * avx2_transpose_size
@@ -889,8 +894,8 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t<Xbyak::Ymm>::transpose_f32(
             + sizeof(float) * avx2_transpose_size;
     const int D_rows = nstl::max(nrows - avx2_transpose_size, 0);
     const int D_columns = nstl::max(ncolumns - avx2_transpose_size, 0);
-    add(reg_src, -src_B_offset + src_D_offset);
-    add(reg_dst, -dst_B_offset + dst_D_offset);
+    add(reg_src, -src_C_offset + src_D_offset);
+    add(reg_dst, -dst_C_offset + dst_D_offset);
     jit_generator::transpose(reg_src, reg_dst, src_stride, dst_stride, D_rows,
             D_columns, data_type::f32, ymm_tmp, ymm_tail_mask,
             xmm_upper_tail_mask);
@@ -3176,6 +3181,7 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
 template struct jit_brgemm_matmul_copy_b_bf16_t<Zmm>;
 template struct jit_brgemm_matmul_copy_b_bf16_t<Ymm>;
 
+template <typename Vmm>
 struct jit_brgemm_matmul_copy_b_f32_t : public jit_brgemm_matmul_copy_b_t,
                                         public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_b_f32_t)
@@ -3185,6 +3191,7 @@ struct jit_brgemm_matmul_copy_b_f32_t : public jit_brgemm_matmul_copy_b_t,
         , jit_generator(jit_name())
         , dt_in_(conf->isa == avx512_core_fp16 ? data_type::f16
                                                : data_type::f32)
+        , simd_w_(vreg_traits<Vmm>::vlen / sizeof(float))
         , typesize_in_(types::data_type_size(dt_in_))
         , src_stride_(conf_->copy_B_wei_stride)
         , tr_src_stride_(conf_->LDB * typesize_out_) {}
@@ -3196,10 +3203,9 @@ private:
     using reg64_t = const Xbyak::Reg64;
     using reg32_t = const Xbyak::Reg32;
     using opmask_t = const Xbyak::Opmask;
-    using zmm = const Xbyak::Zmm;
 
-    enum { n_blk_step = 16, max_regs_available = 30 };
     const data_type_t dt_in_;
+    const int simd_w_;
     const size_t typesize_in_;
     const size_t typesize_out_ = sizeof(float);
     dim_t src_stride_, tr_src_stride_;
@@ -3213,12 +3219,15 @@ private:
     reg64_t reg_K_iters = r8;
     reg64_t reg_N_blk = r9;
     reg64_t reg_K_start = r10;
+    reg64_t reg_tmp = r15;
     reg32_t regw_tmp = r15d;
 
-    zmm zmm_permw = zmm30;
-    zmm zmm_zero = zmm31;
+    Vmm vmm_zero = Vmm(0);
+    Vmm vmm_permw = Vmm(1);
+    Ymm ymm_tail_mask = ymm1;
 
     inline void kmovw(Opmask k, unsigned w) {
+        if (!isa_has_masks(conf_->isa)) return;
         mov(regw_tmp, w);
         jit_generator::kmovd(k, regw_tmp);
     }
@@ -3227,52 +3236,70 @@ private:
     void generate() override;
 };
 
-void jit_brgemm_matmul_copy_b_f32_t::copy_16_x_n_block(
+template <typename Vmm>
+void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
         int nrows, int ncolumns) {
+    const int max_isa_regs = isa_num_vregs(conf_->isa);
+    constexpr int reserved_regs = 2;
+    const int max_regs_available = max_isa_regs - reserved_regs;
 
-    auto get_zmm = [](int reg_idx) {
+    auto get_vmm = [max_regs_available](int reg_idx) {
+        MAYBE_UNUSED(max_regs_available);
         assert(reg_idx >= 0 && reg_idx < max_regs_available);
-        return zmm(reg_idx);
+        return Vmm(reg_idx + reserved_regs);
     };
 
-    auto load = [this, get_zmm](int blk, int k, int n, opmask_t current_mask) {
-        auto src_zmm = get_zmm(blk);
-        auto src_zmm_m = src_zmm | current_mask | T_z;
-        auto addr = EVEX_compress_addr(
+    auto load = [this, get_vmm, ncolumns](int blk, int k, int n) {
+        auto src_vmm = get_vmm(blk);
+        const bool is_tail = ncolumns - n < simd_w_;
+        const opmask_t current_mask = is_tail ? kTail : kFFFF;
+        auto src_vmm_m = isa_has_masks(conf_->isa)
+                ? src_vmm | current_mask | T_z
+                : src_vmm;
+        auto addr = maybe_EVEX_compress_addr(
                 reg_src, k * src_stride_ + n * typesize_in_);
-        if (dt_in_ == data_type::f16)
-            vcvtph2psx(src_zmm_m, addr);
+        if (is_tail && !isa_has_masks(conf_->isa))
+            vmaskmovps(src_vmm, ymm_tail_mask, addr);
+        else if (dt_in_ == data_type::f16)
+            vcvtph2psx(src_vmm_m, addr);
         else
-            vmovups(src_zmm_m, addr);
+            uni_vmovups(src_vmm_m, addr);
     };
 
-    const int columns_tail = ncolumns % n_blk_step;
-    const auto tail_mask = (1 << columns_tail) - 1;
-    if (columns_tail < n_blk_step) kmovw(kTail, tail_mask);
+    const int columns_tail = ncolumns % simd_w_;
+    if (columns_tail < simd_w_) {
+        if (isa_has_masks(conf_->isa)) {
+            const auto tail_mask = (1 << columns_tail) - 1;
+            kmovw(kTail, tail_mask);
+        } else {
+            init_f32_avx2_mask_ymm(ymm_tail_mask, reg_tmp, columns_tail);
+        }
+    }
 
     int iter = 0;
     for_(int k = 0; k < nrows; k++)
-    for (int n = 0; n < conf_->wei_n_blk; n += n_blk_step) {
+    for (int n = 0; n < conf_->wei_n_blk; n += simd_w_) {
         const dim_t tr_src_off = k * tr_src_stride_ + n * typesize_out_;
-        const auto store_addr = EVEX_compress_addr(reg_tr_src, tr_src_off);
+        const auto store_addr
+                = maybe_EVEX_compress_addr(reg_tr_src, tr_src_off);
 
         const int zero_padding = ncolumns - n;
         if (zero_padding <= 0) {
-            vmovups(store_addr, zmm_zero);
+            uni_vmovups(store_addr, vmm_zero);
             continue;
         }
 
-        const opmask_t curr_msk = zero_padding < n_blk_step ? kTail : kFFFF;
         const int blk_idx = iter % max_regs_available;
-        load(blk_idx, k, n, curr_msk);
+        load(blk_idx, k, n);
 
-        const auto src_zmm0 = get_zmm(blk_idx);
-        vmovups(store_addr, src_zmm0);
+        const auto src_vmm0 = get_vmm(blk_idx);
+        uni_vmovups(store_addr, src_vmm0);
         iter++;
     }
 }
 
-void jit_brgemm_matmul_copy_b_f32_t::compute_k_loop(int ncolumns) {
+template <typename Vmm>
+void jit_brgemm_matmul_copy_b_f32_t<Vmm>::compute_k_loop(int ncolumns) {
 
     auto compute_uni_k_loop = [&](int unroll) {
         Label K_start_label, K_end_label;
@@ -3296,9 +3323,10 @@ void jit_brgemm_matmul_copy_b_f32_t::compute_k_loop(int ncolumns) {
     compute_uni_k_loop(1);
 }
 
-void jit_brgemm_matmul_copy_b_f32_t::generate() {
+template <typename Vmm>
+void jit_brgemm_matmul_copy_b_f32_t<Vmm>::generate() {
     preamble();
-    vpxord(zmm_zero, zmm_zero, zmm_zero);
+    uni_vxorps(vmm_zero, vmm_zero, vmm_zero);
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
@@ -3322,6 +3350,9 @@ void jit_brgemm_matmul_copy_b_f32_t::generate() {
 
     postamble();
 }
+
+template struct jit_brgemm_matmul_copy_b_f32_t<Zmm>;
+template struct jit_brgemm_matmul_copy_b_f32_t<Ymm>;
 
 template <typename Vmm>
 struct jit_brgemm_matmul_copy_b_transposed_t
@@ -4218,7 +4249,7 @@ status_t create_brgemm_matmul_copy_b(
             CHECK(safe_ptr_assign(copy_ker,
                     new jit_brgemm_matmul_copy_b_transposed_t<Zmm>(conf)));
         else {
-            assert(one_of(conf->isa, avx2_vnni, avx2_vnni_2));
+            assert(one_of(conf->isa, avx2));
             CHECK(safe_ptr_assign(copy_ker,
                     new jit_brgemm_matmul_copy_b_transposed_t<Ymm>(conf)));
         }
@@ -4237,8 +4268,12 @@ status_t create_brgemm_matmul_copy_b(
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_brgemm_matmul_copy_b_bf16_t<Ymm>(conf)));
         } else if (is_f32 || conf->isa == avx512_core_fp16) {
-            CHECK(safe_ptr_assign(
-                    copy_ker, new jit_brgemm_matmul_copy_b_f32_t(conf)));
+            if (is_superset(conf->isa, avx512_core))
+                CHECK(safe_ptr_assign(copy_ker,
+                        new jit_brgemm_matmul_copy_b_f32_t<Zmm>(conf)));
+            else
+                CHECK(safe_ptr_assign(copy_ker,
+                        new jit_brgemm_matmul_copy_b_f32_t<Ymm>(conf)));
         } else {
             if (mayiuse(avx512_core_amx))
                 CHECK(safe_ptr_assign(copy_ker,
@@ -4275,9 +4310,12 @@ status_t create_brgemm_matmul_copy_a(
             CHECK(safe_ptr_assign(
                     copy_ker, new jit_brgemm_matmul_copy_a_impl_t<Zmm>(conf)));
         else {
-            assert(one_of(conf->isa, avx2_vnni, avx2_vnni_2));
-            CHECK(safe_ptr_assign(
-                    copy_ker, new jit_brgemm_matmul_copy_a_impl_t<Ymm>(conf)));
+            if (is_superset(conf->isa, avx2)) {
+                CHECK(safe_ptr_assign(copy_ker,
+                        new jit_brgemm_matmul_copy_a_impl_t<Ymm>(conf)));
+            } else {
+                assert("Unsoported isa for jit_brgemm_matmul_copy_a_impl_t");
+            }
         }
     }
 

@@ -2293,50 +2293,11 @@ void jit_brgemm_trans_wei_f32_t::transpose_16x16(int nrows, int ncolumns) {
 
 void jit_brgemm_trans_wei_f32_t::transpose_8x8() {
     mov(reg_tr_src_tmp, reg_tr_src);
-
-    // Intel(R) Software Optimization manual
-    // Example 15-20. 8x8 Matrix Transpose Using VINSERTPS
-    vmovups(xmm0, ptr[reg_src]);
-    vinsertf128(ymm0, ymm0, ptr[reg_src + 4 * src_stride], 1);
-    vmovups(xmm1, ptr[reg_src + 1 * src_stride]);
-    vinsertf128(ymm1, ymm1, ptr[reg_src + 5 * src_stride], 1);
-
-    vunpcklpd(ymm8, ymm0, ymm1);
-    vunpckhpd(ymm9, ymm0, ymm1);
-    vmovups(xmm2, ptr[reg_src + 2 * src_stride]);
-    vinsertf128(ymm2, ymm2, ptr[reg_src + 6 * src_stride], 1);
-    vmovups(xmm3, ptr[reg_src + 3 * src_stride]);
-    vinsertf128(ymm3, ymm3, ptr[reg_src + 7 * src_stride], 1);
-    vunpcklpd(ymm10, ymm2, ymm3);
-    vunpckhpd(ymm11, ymm2, ymm3);
-    vshufps(ymm4, ymm8, ymm10, 0x88);
-    vmovups(ptr[reg_tr_src_tmp], ymm4);
-    vshufps(ymm5, ymm8, ymm10, 0xDD);
-    vmovups(ptr[reg_tr_src_tmp + tr_src_stride], ymm5);
-    vshufps(ymm6, ymm9, ymm11, 0x88);
-    vmovups(ptr[reg_tr_src_tmp + 2 * tr_src_stride], ymm6);
-    vshufps(ymm7, ymm9, ymm11, 0xDD);
-    vmovups(ptr[reg_tr_src_tmp + 3 * tr_src_stride], ymm7);
-    vmovups(xmm0, ptr[reg_src + 16]);
-    vinsertf128(ymm0, ymm0, ptr[reg_src + 4 * src_stride + 16], 1);
-    vmovups(xmm1, ptr[reg_src + src_stride + 16]);
-    vinsertf128(ymm1, ymm1, ptr[reg_src + 5 * src_stride + 16], 1);
-    vunpcklpd(ymm8, ymm0, ymm1);
-    vunpckhpd(ymm9, ymm0, ymm1);
-    vmovups(xmm2, ptr[reg_src + 2 * src_stride + 16]);
-    vinsertf128(ymm2, ymm2, ptr[reg_src + 6 * src_stride + 16], 1);
-    vmovups(xmm3, ptr[reg_src + 3 * src_stride + 16]);
-    vinsertf128(ymm3, ymm3, ptr[reg_src + 7 * src_stride + 16], 1);
-    vunpcklpd(ymm10, ymm2, ymm3);
-    vunpckhpd(ymm11, ymm2, ymm3);
-    vshufps(ymm4, ymm8, ymm10, 0x88);
-    vmovups(ptr[reg_tr_src_tmp + 4 * tr_src_stride], ymm4);
-    vshufps(ymm5, ymm8, ymm10, 0xDD);
-    vmovups(ptr[reg_tr_src_tmp + 5 * tr_src_stride], ymm5);
-    vshufps(ymm6, ymm9, ymm11, 0x88);
-    vmovups(ptr[reg_tr_src_tmp + 6 * tr_src_stride], ymm6);
-    vshufps(ymm7, ymm9, ymm11, 0xDD);
-    vmovups(ptr[reg_tr_src_tmp + 7 * tr_src_stride], ymm7);
+    Xbyak::Ymm ymm_dummy = Ymm(0);
+    Xbyak::Xmm xmm_dummy = Xmm(0);
+    jit_generator::transpose(reg_src, reg_tr_src_tmp, src_stride, tr_src_stride,
+            8, 8, data_type::f32,
+            /*unused*/ ymm_dummy, ymm_dummy, xmm_dummy);
 }
 
 void jit_brgemm_trans_wei_f32_t::init_masks() {

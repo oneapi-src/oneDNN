@@ -1759,6 +1759,7 @@ template struct brgemm_matmul_t<avx512_core_bf16>;
 template struct brgemm_matmul_t<avx512_core_vnni>;
 template struct brgemm_matmul_t<avx2_vnni_2>;
 template struct brgemm_matmul_t<avx2_vnni>;
+template struct brgemm_matmul_t<avx2>;
 template struct brgemm_matmul_t<avx512_core>;
 
 } // namespace matmul
