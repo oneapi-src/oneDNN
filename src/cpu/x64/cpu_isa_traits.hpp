@@ -507,11 +507,10 @@ inline size_t data_type_vnni_granularity(const data_type_t data_type) {
     return size_t(0); /* should not be reachable */
 }
 
-template <cpu_isa_t isa>
-inline size_t data_type_vnni_simd_elems(data_type_t data_type) {
+inline size_t data_type_vnni_simd_elems(data_type_t data_type, cpu_isa_t isa) {
     const size_t dt_size = types::data_type_size(data_type);
     assert(dt_size > 0);
-    return cpu_isa_traits<isa>::vlen / dt_size;
+    return isa_max_vlen(isa) / dt_size;
 }
 
 } // namespace x64
