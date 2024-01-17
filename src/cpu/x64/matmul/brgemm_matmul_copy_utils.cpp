@@ -828,8 +828,74 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t<Vmm>::transpose_bf16(
 
 template <typename Vmm>
 void jit_brgemm_matmul_copy_a_transposed_impl_t<Vmm>::transpose_f32(
-        reg64_t dst, reg64_t src, int nrows, int ncolumns) {
+        reg64_t reg_dst, reg64_t reg_src, int nrows, int ncolumns) {
     assert(!"unsupported transpose_f32 copy_a_transposed_impl");
+}
+
+template <>
+void jit_brgemm_matmul_copy_a_transposed_impl_t<Xbyak::Ymm>::transpose_f32(
+        reg64_t reg_dst, reg64_t reg_src, int nrows, int ncolumns) {
+    Ymm ymm_tail_mask = ymm15;
+    Ymm ymm_upper_tail_mask = ymm14;
+    Xmm xmm_upper_tail_mask = xmm14;
+    Ymm ymm_tmp = ymm13;
+
+    // avx2 transpose is 8x8, but we need 16x16 transpose. We use four 8x8
+    // transposes as below.
+    // _    _T       _      _
+    // |A, B|   =>   |At, Ct|
+    // |C, D|        |Bt, Dt|
+
+    constexpr int avx2_transpose_size = 8;
+    const int tail_size = ncolumns % avx2_transpose_size;
+    if (tail_size > 0) {
+        Xbyak::Reg64 reg_tmp = regq_tmp;
+        init_f32_avx2_mask_ymm(ymm_tail_mask, reg_tmp, tail_size);
+        const int upper_xmm_tail_size = tail_size - 4;
+        if (upper_xmm_tail_size > 0)
+            init_f32_avx2_mask_ymm(
+                    ymm_upper_tail_mask, reg_tmp, upper_xmm_tail_size);
+    }
+
+    const int A_rows = nstl::min(avx2_transpose_size, nrows);
+    const int A_columns = nstl::min(avx2_transpose_size, ncolumns);
+    jit_generator::transpose(reg_src, reg_dst, src_stride, dst_stride, A_rows,
+            A_columns, data_type::f32, ymm_tmp, ymm_tail_mask,
+            xmm_upper_tail_mask);
+
+    const dim_t src_C_offset = src_stride * avx2_transpose_size;
+    const dim_t dst_C_offset = sizeof(float) * avx2_transpose_size;
+    const int C_rows = nstl::max(nrows - avx2_transpose_size, 0);
+    const int C_columns = nstl::min(avx2_transpose_size, ncolumns);
+    add(reg_src, src_C_offset);
+    add(reg_dst, dst_C_offset);
+    jit_generator::transpose(reg_src, reg_dst, src_stride, dst_stride, C_rows,
+            C_columns, data_type::f32, ymm_tmp, ymm_tail_mask,
+            xmm_upper_tail_mask);
+
+    const dim_t src_B_offset = sizeof(float) * avx2_transpose_size;
+    const dim_t dst_B_offset = dst_stride * avx2_transpose_size;
+    const int B_rows = nstl::min(avx2_transpose_size, nrows);
+    const int B_columns = nstl::max(ncolumns - avx2_transpose_size, 0);
+    add(reg_src, -src_C_offset + src_B_offset);
+    add(reg_dst, -dst_C_offset + dst_B_offset);
+    jit_generator::transpose(reg_src, reg_dst, src_stride, dst_stride, B_rows,
+            B_columns, data_type::f32, ymm_tmp, ymm_tail_mask,
+            xmm_upper_tail_mask);
+
+    const dim_t src_D_offset = src_stride * avx2_transpose_size
+            + sizeof(float) * avx2_transpose_size;
+    const dim_t dst_D_offset = dst_stride * avx2_transpose_size
+            + sizeof(float) * avx2_transpose_size;
+    const int D_rows = nstl::max(nrows - avx2_transpose_size, 0);
+    const int D_columns = nstl::max(ncolumns - avx2_transpose_size, 0);
+    add(reg_src, -src_B_offset + src_D_offset);
+    add(reg_dst, -dst_B_offset + dst_D_offset);
+    jit_generator::transpose(reg_src, reg_dst, src_stride, dst_stride, D_rows,
+            D_columns, data_type::f32, ymm_tmp, ymm_tail_mask,
+            xmm_upper_tail_mask);
+    sub(reg_src, src_D_offset);
+    sub(reg_dst, dst_D_offset);
 }
 
 template <>
@@ -1972,6 +2038,7 @@ void jit_brgemm_matmul_copy_a_transposed_int8_impl_t::generate() {
     postamble();
 }
 template struct jit_brgemm_matmul_copy_a_transposed_impl_t<Zmm>;
+template struct jit_brgemm_matmul_copy_a_transposed_impl_t<Ymm>;
 
 template <typename Vmm>
 struct jit_brgemm_matmul_copy_b_int8_t : public jit_brgemm_matmul_copy_b_t,
@@ -4200,6 +4267,9 @@ status_t create_brgemm_matmul_copy_a(
         if (is_superset(conf->isa, avx512_core))
             CHECK(safe_ptr_assign(copy_ker,
                     new jit_brgemm_matmul_copy_a_transposed_impl_t<Zmm>(conf)));
+        else
+            CHECK(safe_ptr_assign(copy_ker,
+                    new jit_brgemm_matmul_copy_a_transposed_impl_t<Ymm>(conf)));
     } else {
         if (is_superset(conf->isa, avx512_core))
             CHECK(safe_ptr_assign(

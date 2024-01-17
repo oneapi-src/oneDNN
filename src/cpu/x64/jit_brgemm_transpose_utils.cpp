@@ -86,7 +86,7 @@ private:
         jit_generator::kmovw(k, regw_tmp);
     };
     void transpose_16x16(int nrows, int ncolumns);
-    void transpose_8x8(int nrows, int ncolumns);
+    void transpose_16x16_avx2(int nrows, int ncolumns);
     void transpose_ker(int nrows, int ncolumns);
     void transpose(int nrows, int ncolumns);
     void init_masks(int tail_length);
@@ -232,7 +232,7 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
     fixup16x16();
 }
 
-void jit_brgemm_trans_m_k_f32_t::transpose_8x8(int nrows, int ncolumns) {
+void jit_brgemm_trans_m_k_f32_t::transpose_16x16_avx2(int nrows, int ncolumns) {
     assert(transpose_size == 8 && "Unsupported transpose size");
     auto xmm_tmp = xmm13;
 
@@ -319,7 +319,7 @@ void jit_brgemm_trans_m_k_f32_t::transpose_ker(int nrows, int ncolumns) {
     if (is_superset(conf_->isa, avx512_core)) {
         transpose_16x16(nrows, ncolumns);
     } else {
-        transpose_8x8(nrows, ncolumns);
+        transpose_16x16_avx2(nrows, ncolumns);
     }
 }
 
