@@ -1117,11 +1117,6 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         VCONDCHECK_BG(is_superset(bm_conf_utils.get_isa(), avx2),
                 VERBOSE_UNSUPPORTED_ISA)
         const bool is_f32 = bm_conf_utils.is_f32() && bgmmc.isa == avx2;
-        if (is_f32
-                && (bgmmc.N <= 128 || bgmmc.K <= 512
-                        || (bm_conf_utils.check_is_transposed(bgmmc.src_tag))))
-            return status::unimplemented;
-        if (bgmmc.N == 1) return status::unimplemented;
 
         const matmul_avx512_blocking_params_t::matmul_params_t matmul(
                 bgmmc.M, bgmmc.N, bgmmc.K, bgmmc.batch);
