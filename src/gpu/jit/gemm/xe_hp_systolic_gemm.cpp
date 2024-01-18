@@ -529,7 +529,8 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
 
     auto post_ops = pd()->post_ops();
     bool with_post_ops = (post_ops->find(primitive_kind::eltwise) != -1)
-            || (post_ops->find(primitive_kind::binary) != -1);
+            || (post_ops->find(primitive_kind::binary) != -1)
+            || (post_ops->find(primitive_kind::prelu) != -1);
 
     kd_t kd_full;
 
