@@ -17,7 +17,9 @@
 #ifndef GPU_atomic_REDUCTION_HPP
 #define GPU_atomic_REDUCTION_HPP
 
+#include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "gpu/compute/dispatch_reusable.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
 #include "gpu/ocl/reduction_utils.h"
@@ -33,12 +35,17 @@ struct atomic_reduction_conf_t : public reduction_subproblem_t {
             data_type_t src_type, data_type_t dst_type, bool is_first,
             bool is_final, const compute::device_info_t &device_info,
             bool large_grf_mode);
+    status_t init_dispatcher(const compute::compute_engine_t *engine,
+            const gpu_primitive_attr_t *gpu_attr);
     data_type_t src_type, dst_type;
-    compute::nd_range_t nd_range;
+
+    compute::dispatch_compile_params_t conf;
+    compute::dispatch_runtime_params_t rt_conf;
 
     bool is_first, is_final;
     int subgroup_size;
     int global_acc;
+    dim_t local_acc;
     int vect_size;
 };
 
@@ -80,15 +87,11 @@ struct atomic_reduction_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         auto &phases = pd()->phases;
 
-        status_t status;
         for (auto &phase : phases) {
             compute::kernel_ctx_t kernel_ctx(pd()->attr());
-            status = pd()->init_kernel_ctx(kernel_ctx, phase);
-            CHECK(status);
+            CHECK(pd()->init_kernel_ctx(kernel_ctx, phase));
             compute::kernel_t kernel;
-            status = create_kernel(
-                    engine, &kernel, "atomic_reduce", kernel_ctx);
-            CHECK(status);
+            CHECK(create_kernel(engine, &kernel, "atomic_reduce", kernel_ctx));
             kernels_.push_back(kernel);
         }
 

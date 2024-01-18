@@ -314,13 +314,16 @@ public:
 
 using work_size = std::array<size_t, GWS_MAX_NDIMS>;
 
+class gws_bin_mapping_t;
+
 struct lws_strategy_t {
     lws_strategy_t(const compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr)
         : engine(engine), gpu_attr(gpu_attr) {};
     virtual ~lws_strategy_t() = default;
 
-    virtual work_size create_lws(const work_size &gws) const = 0;
+    virtual work_size create_lws(
+            const work_size &gws, const gws_bin_mapping_t &mapper) const = 0;
 
     // Determine if a given block (mapped to each buffer) should be in the lws.
     // Gets called for each block dispatched to the GWS.
@@ -343,7 +346,8 @@ struct default_lws_strategy_t : public lws_strategy_t {
     default_lws_strategy_t(const compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr)
         : lws_strategy_t(engine, gpu_attr) {};
-    work_size create_lws(const work_size &gws) const override {
+    work_size create_lws(const work_size &gws,
+            const gws_bin_mapping_t &mapper) const override {
         work_size lws;
         get_optimal_lws(gws.data(), lws.data(), gws.size(), -1,
                 engine->device_info()->gpu_arch());
@@ -379,6 +383,9 @@ struct named_buffer_t : public memory_desc_t {
         gpu_assert(this->name.size() <= MAX_BUFFER_NAME_LENGTH);
         gpu_assert(format_kind == format_kind::blocked);
         gpu_assert(static_cast<size_t>(md.ndims) <= dim_ids.size());
+    };
+    named_buffer_t(const char *name) : name(name) {
+        format_kind = format_kind::blocked;
     };
 
     // Copy the named_buffer_t, while changing the name
@@ -618,7 +625,7 @@ public:
     }
 
     nd_range_t nd_range(const lws_strategy_t &lws_strategy) const {
-        work_size lws = lws_strategy.create_lws(gws_);
+        work_size lws = lws_strategy.create_lws(gws_, *this);
         return compute::nd_range_t(gws_.data(), lws.data());
     }
 
@@ -647,7 +654,7 @@ private:
 class reusable_dispatch_config_t {
 public:
     reusable_dispatch_config_t(
-            compute_engine_t *engine, std::vector<dim_id_t> dims)
+            const compute_engine_t *engine, std::vector<dim_id_t> dims)
         : dispatched_dims(std::move(dims)), engine(engine) {};
     status_t generate(
             reusable_dispatch_t &dispatch, const lws_strategy_t &lws_strategy);
@@ -666,7 +673,7 @@ private:
 
     subgroup_data_t subgroup;
     gws_term_list_t term_list;
-    compute_engine_t *engine;
+    const compute_engine_t *engine;
 };
 
 } // namespace compute

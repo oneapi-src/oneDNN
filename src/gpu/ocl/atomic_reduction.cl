@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_post_ops.h"
+#include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/ocl_types.h"
+#include "gpu/ocl/types_interop.h"
 
 // Initialize for different algorithms
 #if defined(IS_MAX)
@@ -104,46 +105,44 @@
 #define GET_ELEM(x, idx) x[idx]
 #endif
 
-#define WG_PER_INNER (INNER_DIM_SIZE / VECT_DT_N / SUBGROUP_SIZE)
+#define REDUCTION_WI_COUNT (ATOMIC_REDUCTION_SIZE * LOCAL_SIZE)
+#define SRC_SIMD_STRIDE (INNER_DIM_SIZE * REDUCTION_WI_COUNT)
 
-#define SRC_ATOMIC_STRIDE INNER_DIM_SIZE
-#define SRC_LOCAL_STRIDE (SRC_ATOMIC_STRIDE * ATOMIC_REDUCTION_SIZE)
-#define SRC_SIMD_STRIDE (SRC_LOCAL_STRIDE * LOCAL_SIZE)
-#define SRC_INNER_STRIDE (SUBGROUP_SIZE * VECT_DT_N)
-#define SRC_OUTER_STRIDE (REDUCTION_SIZE * INNER_DIM_SIZE)
+KERNEL_ATTR
+__kernel void atomic_reduce(__global SRC_DATA_T *src,
+        __global ATOMIC(DST_DATA_T) * dst,
+        dispatch_gws_rt_params_t gws_params) {
+    const uint local_idx = get_sub_group_id();
+    const uint sglid = get_sub_group_local_id();
 
-#define DST_INNER_STRIDE (SUBGROUP_SIZE * VECT_DT_N)
-#define DST_OUTER_STRIDE INNER_DIM_SIZE
+    // src inner dim is split into the subgroup, vectorization, and inner_group blocks
+    // subgroup and inner_group blocks are dispatched, and the vectorization block
+    // is handled by a single work item. Since the vectorization size is compiled in,
+    // update offsets using it: the inner_group stride is subgroup_size * vec_size
+    off_t SRC_OFF = GWS_GET_OFF(SRC, gws_params) - sglid;
+    off_t src_ig_idx = SRC_OFF / SUBGROUP_SIZE;
+    SRC_OFF += src_ig_idx * (VECT_DT_N - 1) * SUBGROUP_SIZE;
+    src += SRC_OFF;
 
-__attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) // attr:no-format
-__kernel void
-atomic_reduce(__global SRC_DATA_T *src, __global ATOMIC(DST_DATA_T) * dst) {
-    // GWS dim 0 is just subgroup local ID
-    const int sglid = get_global_id(0);
+    // Do the same for dst
+    off_t DST_OFF = GWS_GET_OFF(DST, gws_params);
+    off_t dst_ig_idx = DST_OFF / SUBGROUP_SIZE;
+    DST_OFF += dst_ig_idx * (VECT_DT_N - 1) * SUBGROUP_SIZE;
+    dst += DST_OFF;
 
-    // GWS dim 1 is combined wg_inner and wg_outer indices
-    const int inner_idx = get_global_id(1) % WG_PER_INNER;
-    const int outer_idx = get_global_id(1) / WG_PER_INNER;
+    off_t red_idx = SRC_OFF / INNER_DIM_SIZE % REDUCTION_SIZE;
 
-    // GWS dim 2 is combined atomic/local reduction indices
-    const int local_idx = get_global_id(2) % LOCAL_SIZE;
-    const int atomic_idx
-            = (get_global_id(2) / LOCAL_SIZE) % ATOMIC_REDUCTION_SIZE;
-
-    const int src_off_start = atomic_idx * SRC_ATOMIC_STRIDE
-            + local_idx * SRC_LOCAL_STRIDE + inner_idx * SRC_INNER_STRIDE
-            + outer_idx * SRC_OUTER_STRIDE;
     VECT_DEF_ACC_DATA_T acc = INIT_ACC;
     int i = 0;
-    for (; i < REDUCTION_SIZE / ATOMIC_REDUCTION_SIZE / LOCAL_SIZE; i++) {
-        const int src_off = src_off_start + i * SRC_SIMD_STRIDE;
+    for (; i < num_reductions / REDUCTION_WI_COUNT; i++) {
+        const int src_off = i * SRC_SIMD_STRIDE;
         const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
         acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
     }
 
     // Check the final iteration, some SIMD reductions may still be needed
-    const int src_off = src_off_start + i * SRC_SIMD_STRIDE;
-    if (src_off < (outer_idx + 1) * SRC_OUTER_STRIDE) {
+    if (i * REDUCTION_WI_COUNT + red_idx < REDUCTION_SIZE) {
+        const int src_off = i * SRC_SIMD_STRIDE;
         const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
         acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
     }
@@ -177,17 +176,15 @@ atomic_reduce(__global SRC_DATA_T *src, __global ATOMIC(DST_DATA_T) * dst) {
 #endif
 
         // Finalize data, then (atomically) accumulate into to dst
-        const int dst_off = outer_idx * DST_OUTER_STRIDE
-                + inner_idx * DST_INNER_STRIDE + sglid;
         for (int v = 0; v < VECT_DT_N; v++) {
 #if ATOMIC_REDUCTION_SIZE > 1
             DST_DATA_T dst_data = TO_DST(GET_ELEM(local_acc, v));
-            DST_DATA_T old_val = ATOMIC_ACCUMULATE(
-                    &dst[dst_off + v * SUBGROUP_SIZE], dst_data);
+            DST_DATA_T old_val
+                    = ATOMIC_ACCUMULATE(&dst[v * SUBGROUP_SIZE], dst_data);
 #else
             DST_DATA_T dst_data
                     = TO_DST(FINALIZE(convert_float(GET_ELEM(local_acc, v))));
-            dst[dst_off + v * SUBGROUP_SIZE] = dst_data;
+            dst[v * SUBGROUP_SIZE] = dst_data;
 #endif
         }
     }

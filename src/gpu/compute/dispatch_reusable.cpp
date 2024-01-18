@@ -103,6 +103,7 @@ status_t reusable_dispatch_config_t::register_buffer(named_buffer_t &buffer) {
     // All validation complete - start updating this object
     for (const auto &dim : dispatched_dims) {
         size_t canonical_idx = buffer.get_dim_idx(dim);
+        if (canonical_idx == dim_not_found) continue;
 
         // Save the dimension size if it hasn't been saved yet
         if (!dim_seen[dim]) { dim_sizes[dim] = buffer.dims[canonical_idx]; }
