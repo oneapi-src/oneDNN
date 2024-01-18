@@ -25,10 +25,10 @@
 #define CONCAT2(a, b) CONCAt2(a, b)
 #define CONCAT3(a, b, c) CONCAT2(CONCAT2(a, b), c)
 
-int div_up(int a, int b) {
+int div_up(int a, unsigned int b) {
     return (a + b - 1) / b;
 }
-int rnd_up(int a, int b) {
+int rnd_up(int a, unsigned int b) {
     return div_up(a, b) * b;
 }
 
