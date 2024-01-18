@@ -138,8 +138,8 @@ void gpu_single_op_partition_tutorial() {
     dnnl::stream strm = dnnl::sycl_interop::make_stream(eng, q);
     //[Create stream]
 
-    // Memory buffers binded to the partition input/output tensors
-    // that helpe manage the lifetime of these tensors
+    // Memory buffers bound to the partition input/output tensors
+    // that helps manage the lifetime of these tensors
     std::vector<std::shared_ptr<void>> data_buffer;
 
     // Mapping from logical tensor id to the concrete shapes.
@@ -156,7 +156,7 @@ void gpu_single_op_partition_tutorial() {
     // 4. Allocate memory and bind the data buffer for the partition
     // 5. Execute the partition
     //
-    // Although they are not part of the APIs, these steps are esstential for
+    // Although they are not part of the APIs, these steps are essential for
     // the integration of Graph API., hence users need to implement similar
     // logic.
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -348,7 +348,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// ~~~
     /// This inference implementation is closer to best practices than
     /// *naive implementation* because it uses oneDNN recommended memory
-    /// format. *fused implementation* will futher optimize the performance by
+    /// format. *fused implementation* will further optimize the performance by
     /// fusing convolution with ReLU using oneDNN
     /// [post-ops](@ref dev_guide_attributes_post_ops).
     // reorder data to the user's format if needed.
@@ -379,7 +379,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     auto conv_dst_md = memory::desc(user_dst.get_desc().get_dims(),
             user_dst.get_desc().get_data_type(), memory::format_tag::any);
 
-    /// Then in preparation for the convolution prim desctiptor, a ReLU post-op
+    /// Then in preparation for the convolution prim descriptor, a ReLU post-op
     /// is built and added to the primitive attribute `attr`:
     /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Create post_op attr with relu

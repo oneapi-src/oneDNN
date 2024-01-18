@@ -60,7 +60,7 @@ void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
                 //        \           |
                 //      tensor1    tensor2
                 //           \     /     |
-                //         partition_C  unsuppported partition
+                //         partition_C  unsupported partition
                 //              |
                 //           tensor3
                 //              |
