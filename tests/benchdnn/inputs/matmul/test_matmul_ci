@@ -96,6 +96,17 @@
 --dtag=ab
 --batch=shapes_2d_ci
 
+### wei decomp
+--dt=bf16:u8:bf16,f16:u8:f16 
+--attr-scales=wei:common:2 
+--attr-fpmath=strict:true 
+--batch=shapes_2d_ci
+
+--dt=bf16:u8:bf16,f16:u8:f16 
+--attr-scales=wei:common:2 
+--attr-fpmath=strict:true 
+--batch=shapes_2d_ci
+
 # Test bf32, tf32 data type configuration
 --reset
 --skip-impl=ref,x64:gemm
