@@ -34,7 +34,7 @@ hip_sycl_scoped_context_handler_t::hip_sycl_scoped_context_handler_t(
     try {
         HIP_EXECUTE_FUNC(hipCtxGetCurrent, &original_);
         auto desired = engine.get_underlying_context();
-        currentDevice = engine.get_underlying_device();
+        currentDevice_ = engine.get_underlying_device();
 
         if (original_ != desired) {
 
@@ -53,7 +53,7 @@ hip_sycl_scoped_context_handler_t::
 
     try {
         if (need_to_recover_) {
-            HIP_EXECUTE_FUNC(hipDevicePrimaryCtxRelease, currentDevice);
+            HIP_EXECUTE_FUNC(hipDevicePrimaryCtxRelease, currentDevice_);
             HIP_EXECUTE_FUNC(hipCtxSetCurrent, original_);
         }
     } catch (const std::runtime_error &e) {
