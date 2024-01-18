@@ -519,6 +519,19 @@ static int suggest_aligned_block(const size_t plain_X,
   return utils::rnd_up(utils::divide_and_ceil(plain_X, num_X_block), align);
 }
 
+int gen_managed_matmul_core_t::suggest_aligned_iim_block(
+  const size_t plain_M, const size_t default_block, bool is_f32) {
+  auto iim = suggest_aligned_block(plain_M, default_block);
+  const int num_threads = runtime_config_t::get().get_num_threads();
+  if (!is_f32 && num_threads <= 16
+    && iim % 2 != 0 // Even numbers are good choices
+    && plain_M <= 256) {
+    split_iim_ = default_block;
+    iim = plain_M;
+  }
+  return iim;
+}
+
 static int64_t get_bf16_M_block_default(
   const int64_t plain_M, const int num_threads) {
   int64_t M_block_default = 64;
@@ -621,7 +634,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
         std::min(M_block_default,
           static_cast<int64_t>(utils::divide_and_ceil(plain_M, num_threads))));
     } else {
-      iim_block_ = suggest_aligned_block(plain_M, M_block_default);
+      iim_block_ = suggest_aligned_iim_block(plain_M, M_block_default, is_f32);
     }
   } else if (!is_dynamic_dim(plain_M)) {
     iim_block_ = get_matmul_dyn_cfg_single(plain_M, true);
@@ -849,6 +862,29 @@ void gen_managed_matmul_core_t::dynamic_single_thread_matmul_call(
   bld->push_evaluate(single_core_call);
 }
 
+static void get_index_with_offset(const logical_tensor_t &ta,
+  std::vector<expr> &new_aidx, const logical_tensor_t &tc,
+  std::vector<expr> &new_cidx, int iim_idx, int split_iim, bool is_partial) {
+  if (ta.get_format() == sc_data_format_t::MK()) {
+    new_aidx[0] = new_aidx[0] + iim_idx * split_iim;
+  } else { // A is MKmk blocking
+    new_aidx[2] = new_aidx[2] + iim_idx * split_iim;
+  }
+  if (is_partial) {
+    if (tc.get_format().is_blocking()) {
+      new_cidx[3] = new_cidx[3] + iim_idx * split_iim;
+    } else {
+      new_cidx[1] = new_cidx[1] + iim_idx * split_iim;
+    }
+  } else {
+    if (tc.get_format().is_blocking()) {
+      new_cidx[2] = new_cidx[2] + iim_idx * split_iim;
+    } else {
+      new_cidx[0] = new_cidx[0] + iim_idx * split_iim;
+    }
+  }
+}
+
 void gen_managed_matmul_core_t::single_thread_matmul_call(
   const context_ptr &ctx, sc_graph_t &graph, const logical_tensor_t &ta,
   const logical_tensor_t &tb, const logical_tensor_t &tc,
@@ -872,6 +908,8 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
     if (is_dyn_threadpool()) { return v; }
     return (v + tid) % bound;
   };
+  int num_main_iim_block = iim_block_ / split_iim_;
+  int tail_iim_block = iim_block_ % split_iim_;
   _named_for_(o_im_m, m_b, 0, M_sub_block) {
     _named_for_(o_im_n, n_b, 0, N_sub_block) {
       expr m_b_idx, n_b_idx, k_b_idx, m_b_bigger_num, n_b_bigger_num,
@@ -957,16 +995,50 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
               tensor_ptr(B, bidx), bs, iin_block_, iik_block_);
 
             _if_(k_b == 0) {
-              auto eval = builtin::brgemm_init_update(tensor_ptr(A, aidx),
-                tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
-                iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
-                ta.dtype_, tb.dtype_, brg_attrs);
+              if (split_iim_ == -1) { // normal case, use iim_block_
+                auto eval = builtin::brgemm_init_update(tensor_ptr(A, aidx),
+                  tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
+                  iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
+                  ta.dtype_, tb.dtype_, brg_attrs);
+              } else {
+                for (int iim_idx = 0; iim_idx < num_main_iim_block + 1;
+                     ++iim_idx) {
+                  auto new_aidx = aidx;
+                  auto new_cidx = cidx;
+                  get_index_with_offset(ta, new_aidx, tc, new_cidx, iim_idx,
+                    split_iim_, is_partial);
+                  auto real_iim = (iim_idx == num_main_iim_block)
+                    ? tail_iim_block
+                    : split_iim_;
+                  builtin::brgemm_init_update(tensor_ptr(A, new_aidx),
+                    tensor_ptr(B, bidx), tensor_ptr(C, new_cidx), bs, real_iim,
+                    iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
+                    ta.dtype_, tb.dtype_, brg_attrs);
+                }
+              }
             }
             _else_ {
-              builtin::brgemm_update(tensor_ptr(A, aidx), tensor_ptr(B, bidx),
-                tensor_ptr(C, cidx), bs, iim_block_, iin_block_, iik_block_,
-                LDA, LDB, LDC, stride_a, stride_b, ta.dtype_, tb.dtype_,
-                brg_attrs);
+              if (split_iim_ == -1) { // normal case, use iim_block_
+                builtin::brgemm_update(tensor_ptr(A, aidx), tensor_ptr(B, bidx),
+                  tensor_ptr(C, cidx), bs, iim_block_, iin_block_, iik_block_,
+                  LDA, LDB, LDC, stride_a, stride_b, ta.dtype_, tb.dtype_,
+                  brg_attrs);
+              } else {
+                for (int iim_idx = 0; iim_idx < num_main_iim_block + 1;
+                     ++iim_idx) {
+                  auto new_aidx = aidx;
+                  auto new_cidx = cidx;
+                  get_index_with_offset(ta, new_aidx, tc, new_cidx, iim_idx,
+                    split_iim_, is_partial);
+                  auto real_iim = (iim_idx == num_main_iim_block)
+                    ? tail_iim_block
+                    : split_iim_;
+                  auto eval = builtin::brgemm_update(tensor_ptr(A, new_aidx),
+                    tensor_ptr(B, bidx), tensor_ptr(C, new_cidx), bs, real_iim,
+                    iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
+                    ta.dtype_, tb.dtype_, brg_attrs);
+                }
+              }
             }
             if (fusion && !is_partial) {
               _if_(k_b == K_sub_block - 1) {
