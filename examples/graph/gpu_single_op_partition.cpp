@@ -240,6 +240,6 @@ void gpu_single_op_partition_tutorial() {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(
-            {engine::kind::gpu}, gpu_single_op_partition_tutorial);
+    return handle_example_errors({validate_engine_kind(engine::kind::gpu)},
+            gpu_single_op_partition_tutorial);
 }
