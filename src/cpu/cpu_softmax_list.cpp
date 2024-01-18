@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2023 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 * Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,6 +45,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
         {{forward}, {
             CPU_INSTANCE_X64(jit_uni_softmax_fwd_t)
             CPU_INSTANCE_AARCH64(jit_uni_softmax_fwd_t<sve_512>)
+            CPU_INSTANCE_AARCH64(jit_uni_softmax_fwd_t<sve_256>)
             CPU_INSTANCE_AARCH64_ACL(acl_softmax_fwd_t)
             CPU_INSTANCE(ref_softmax_fwd_t)
             nullptr,
@@ -52,6 +53,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
         {{backward}, REG_BWD_PK({
             CPU_INSTANCE_X64(jit_uni_softmax_bwd_t)
             CPU_INSTANCE_AARCH64(jit_uni_softmax_bwd_t<sve_512>)
+            CPU_INSTANCE_AARCH64(jit_uni_softmax_bwd_t<sve_256>)
             CPU_INSTANCE(ref_softmax_bwd_t)
             nullptr,
         })},

@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,7 +75,8 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             const auto dst_dt = dst_md()->data_type;
             bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(src_dt, f32, s8, u8)
-                    && utils::one_of(dst_dt, f32, s8, u8) && mayiuse(sve_512)
+                    && utils::one_of(dst_dt, f32, s8, u8)
+                    && (mayiuse(sve_512) || mayiuse(sve_256))
                     && attr()->has_default_values(skip_mask_t::scales_runtime)
                     && attr_scales_ok()
                     && set_default_formats() == status::success;
@@ -154,7 +155,8 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                     && utils::one_of(dst_md()->data_type, f32)
                     && utils::one_of(diff_dst_md()->data_type, f32)
                     && utils::one_of(diff_src_md()->data_type, f32)
-                    && mayiuse(sve_512) && attr()->has_default_values()
+                    && (mayiuse(sve_512) || mayiuse(sve_256))
+                    && attr()->has_default_values()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
 
