@@ -292,7 +292,9 @@ struct round_and_cast_handler_t : public intrinsic_handler_t {
         node.dtype_ = node.intrin_attrs_->get<sc_data_type_t>(
                 intrin_attr::out_dtype);
         COMPILE_ASSERT(node.dtype_.lanes_ == node.args_[0]->dtype_.lanes_
-                        && node.dtype_.type_code_ == sc_data_etype::S32
+                        && (node.dtype_.type_code_ == sc_data_etype::S32
+                                || (node.dtype_.type_code_ == sc_data_etype::U32
+                                        && node.dtype_.lanes_ > 1))
                         && node.args_[0]->dtype_.type_code_
                                 == sc_data_etype::F32,
                 "round_and_cast cannot handle " << node.args_[0]->dtype_ << "->"

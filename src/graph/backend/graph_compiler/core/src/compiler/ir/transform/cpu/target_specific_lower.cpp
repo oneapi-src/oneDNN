@@ -540,27 +540,33 @@ public:
         auto intype = v->args_[0]->dtype_;
         auto outtype = v->dtype_;
         auto ths = this;
-        float s8_min = outtype.type_code_ == sc_data_etype::S8
-                ? (float)std::numeric_limits<int8_t>::min()
-                : (float)std::numeric_limits<uint8_t>::min();
-        float s8_max = outtype.type_code_ == sc_data_etype::S8
-                ? (float)std::numeric_limits<int8_t>::max()
-                : (float)std::numeric_limits<uint8_t>::max();
-        auto s8_min_constant = gen_vec_const(intype.lanes_, s8_min);
-        auto s8_max_constant = gen_vec_const(intype.lanes_, s8_max);
-        bool use_fast_path = true;
+        bool is_s8 = outtype.type_code_ == sc_data_etype::S8;
+        float i8_min = is_s8 ? (float)std::numeric_limits<int8_t>::min()
+                             : (float)std::numeric_limits<uint8_t>::min();
+        float i8_max = is_s8 ? (float)std::numeric_limits<int8_t>::max()
+                             : (float)std::numeric_limits<uint8_t>::max();
+        auto i8_min_constant = gen_vec_const(intype.lanes_, i8_min);
+        auto i8_max_constant = gen_vec_const(intype.lanes_, i8_max);
+        bool use_avx512_path = true;
         auto u8s8_valid_val = [&]() {
-            if (outtype.type_code_ == sc_data_etype::S8 && use_fast_path) {
-                return builder::make_min(s8_max_constant, inval1);
+            if (use_avx512_path) {
+                if (is_s8) {
+                    return builder::make_min(i8_max_constant, inval1);
+                } else {
+                    // u8
+                    return builder::make_max(i8_min_constant, inval1);
+                }
             }
-            return builder::make_min(s8_max_constant,
-                    builder::make_max(s8_min_constant, inval1));
+            return builder::make_min(i8_max_constant,
+                    builder::make_max(i8_min_constant, inval1));
         };
         auto u8s8_saturate_cast = [&]() {
             auto real_in = u8s8_valid_val();
-            real_in = builder::make_round_and_cast(
-                    real_in, sc_data_type_t::s32(intype.lanes_));
-            if (outtype.type_code_ == sc_data_etype::S8 && use_fast_path) {
+            auto cast_target_type = (is_s8 || !use_avx512_path)
+                    ? sc_data_type_t::s32(intype.lanes_)
+                    : sc_data_type_t::u32(intype.lanes_);
+            real_in = builder::make_round_and_cast(real_in, cast_target_type);
+            if (use_avx512_path) {
                 return builder::make_saturated_cast(real_in, v->dtype_);
             } else {
                 return builder::make_cast(v->dtype_, real_in);
@@ -613,7 +619,7 @@ public:
                                                  << v->dtype_ << ')');
         expr_c real_in = inval1;
         if (intype.type_code_ == sc_data_etype::F32) {
-            use_fast_path = false;
+            use_avx512_path = false;
             return u8s8_saturate_cast();
         }
         return cast_s32_u8s8(real_in);

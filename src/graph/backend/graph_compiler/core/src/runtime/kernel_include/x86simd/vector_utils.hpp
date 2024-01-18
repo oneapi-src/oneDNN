@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,6 +119,9 @@ INLINE vec_s8x16::operator vec_s32x16() const {
 INLINE vec_s32x16::operator vec_s8x16() const {
     return _mm512_cvtepi32_epi8(v);
 }
+INLINE vec_u32x16::operator vec_u8x16() const {
+    return _mm512_cvtusepi32_epi8(v);
+}
 INLINE vec_f32x16::operator vec_s32x16() const {
     return _mm512_cvttps_epi32(v);
 }
@@ -224,6 +227,10 @@ INLINE vec_u16x32 sc_permutexvar(vec_u16x32 const &a, vec_u16x32 const &b) {
 template <>
 INLINE vec_s32x16 sc_round_and_cast(const vec_f32x16 &x) {
     return _mm512_cvtps_epi32(x.v);
+}
+template <>
+INLINE vec_u32x16 sc_round_and_cast(const vec_f32x16 &x) {
+    return _mm512_cvtps_epu32(x.v);
 }
 
 // saturated cast

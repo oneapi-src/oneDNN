@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1286,7 +1286,8 @@ void xbyak_lowering_viewer::handle_saturated_cast(
         assert(cpu_flags_.fAVX512F);
         XBYAK_GEN(vpmovsdb, AVX_XM_X, op_dst, op_src);
     } else if (dst_dtype == sc_data_type_t::u8(16)
-            && src_dtype == sc_data_type_t::s32(16)) {
+            && (src_dtype == sc_data_type_t::s32(16)
+                    || src_dtype == sc_data_type_t::u32(16))) {
         assert(cpu_flags_.fAVX512F);
         XBYAK_GEN(vpmovusdb, AVX_XM_X, op_dst, op_src);
     } else {
@@ -1311,6 +1312,8 @@ void xbyak_lowering_viewer::handle_round_and_cast(
 
     if (elem_cast_simd(sc_data_etype::S32, sc_data_etype::F32)) {
         XBYAK_GEN(vcvtps2dq, AVX_X_XM, op_dst, op_src);
+    } else if (elem_cast_simd(sc_data_etype::U32, sc_data_etype::F32)) {
+        XBYAK_GEN(vcvtps2udq, AVX_X_XM, op_dst, op_src);
     } else if (dst_dtype == sc_data_type_t::s32(1)
             && src_dtype == sc_data_type_t::f32(1)) {
         XBYAK_GEN(vcvtss2si, AVX_R32_XM, op_dst, op_src);

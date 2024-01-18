@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,7 +109,8 @@ Value *codegen_llvm_vis_t::do_lower_saturated_cast(const intrin_call_c &v) {
             return pmovus_db_512(inval1, true);
         }
     } else if (v->dtype_ == sc_data_type_t::u8(16)) {
-        if (intype == sc_data_type_t::s32(16)) {
+        if (intype == sc_data_type_t::s32(16)
+                || intype == sc_data_type_t::u32(16)) {
             return pmovus_db_512(inval1, false);
         }
     }
