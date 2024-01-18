@@ -28,7 +28,7 @@ cuda_sycl_scoped_context_handler_t::cuda_sycl_scoped_context_handler_t(
     try {
         CUDA_EXECUTE_FUNC(cuCtxGetCurrent, &original_);
         auto desired = engine.get_underlying_context();
-        currentDevice = engine.get_underlying_device();
+        currentDevice_ = engine.get_underlying_device();
 
         if (original_ != desired) {
             // Sets the desired context as the active one for the thread
@@ -39,8 +39,7 @@ cuda_sycl_scoped_context_handler_t::cuda_sycl_scoped_context_handler_t(
             // the same underlying CUDA primary context are destroyed. This
             // emulates the behaviour of the CUDA runtime api, and avoids costly
             // context switches. No action is required on this side of the if.
-            need_to_recover_
-                    = !(original_ == nullptr && engine.has_primary_context());
+            need_to_recover_ = original_ != nullptr;
         }
     } catch (const std::runtime_error &e) {
         error::wrap_c_api(status::runtime_error, e.what());
@@ -53,7 +52,7 @@ cuda_sycl_scoped_context_handler_t::
     // ctx.get() retains the underlying context so we need to remove it
     try {
         if (need_to_recover_) {
-            CUDA_EXECUTE_FUNC(cuDevicePrimaryCtxRelease, currentDevice);
+            CUDA_EXECUTE_FUNC(cuDevicePrimaryCtxRelease, currentDevice_);
             CUDA_EXECUTE_FUNC(cuCtxSetCurrent, original_);
         }
     } catch (const std::runtime_error &e) {

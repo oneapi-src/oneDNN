@@ -18,7 +18,8 @@
 
 namespace dnnl {
 namespace impl {
-namespace sycl {
+namespace gpu {
+namespace nvidia {
 namespace compat {
 
 template <>
@@ -34,6 +35,7 @@ CUcontext get_native(const ::sycl::device &device) {
 }
 
 } // namespace compat
-} // namespace sycl
+} // namespace nvidia
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl

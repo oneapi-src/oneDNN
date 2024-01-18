@@ -18,7 +18,8 @@
 
 namespace dnnl {
 namespace impl {
-namespace sycl {
+namespace gpu {
+namespace amd {
 namespace compat {
 
 template <>
@@ -31,6 +32,7 @@ HIPcontext get_native(const ::sycl::device &device) {
     return nativeContext;
 }
 } // namespace compat
-} // namespace sycl
+} // namespace amd
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
