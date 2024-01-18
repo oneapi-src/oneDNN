@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -173,6 +173,11 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 rnn.ws_states_iter_c_nld, src_iter_c_ld);
         const rnn_utils::ws_gates_aoc<scratch_t> scratch_cell(
                 rnn, scratch_cell_);
+        // TODO: There is some inconsistency with the strides used in brgemm vs
+        // ref implementation. Fix this to have a consistent post-gemm else
+        // document the differences.
+        const rnn_utils::scratch_gates_aoc<scratch_t> scratch_cell_brgemm(
+                rnn, scratch_cell_);
         const utils::array_offset_calculator<gates_t, 2> ws_Wh_b(
                 ws_grid_, rnn.mb, rnn.dhc);
 
@@ -199,7 +204,10 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 break;
             case alg_kind::lbr_gru:
                 param6_ = SAFE_PTR(src_iter, m, 0);
-                param7_ = SAFE_PTR(scratch_cell, m, 0, 0);
+                param7_ = rnn.is_brgemm
+                        ? (scratch_cell_ ? &(scratch_cell_brgemm(m, 0, 0))
+                                         : nullptr)
+                        : SAFE_PTR(scratch_cell, m, 0, 0);
                 param8_ = ws_grid_ ? &ws_Wh_b(m, 0) : nullptr;
                 break;
             case alg_kind::vanilla_gru:
@@ -209,7 +217,10 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 break;
             case alg_kind::lbr_augru:
                 param6_ = SAFE_PTR(src_iter, m, 0);
-                param7_ = SAFE_PTR(scratch_cell, m, 0, 0);
+                param7_ = rnn.is_brgemm
+                        ? (scratch_cell_ ? &(scratch_cell_brgemm(m, 0, 0))
+                                         : nullptr)
+                        : SAFE_PTR(scratch_cell, m, 0, 0);
                 param8_ = ws_grid_ ? &ws_Wh_b(m, 0) : nullptr;
                 param11_ = SAFE_PTR(augru_attention, m);
                 break;

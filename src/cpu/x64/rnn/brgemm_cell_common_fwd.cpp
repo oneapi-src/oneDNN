@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
         const rnn_utils::rnn_conf_t &rnn,
         rnn_utils::cell_position_t cell_position, const src_t *src_iter,
         const src_t *src_layer, weights_t *w_iter, weights_t *w_layer,
-        scratch_t *scratch_gates, gemm_acc_t *amx_scratchpad,
+        scratch_t *scratch_gates, scratch_t *scratch_cell,
+        gemm_acc_t *amx_scratchpad,
         x64::brgemm_batch_element_t *addr_batch_global,
         const postgemm_fused_t &fused_postgemm)
     : rnn_brgemm_(rnn_brgemm)
@@ -46,7 +47,8 @@ brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
     , Ai_(src_iter)
     , Bl_(w_layer)
     , Bi_(w_iter)
-    , C_(scratch_gates)
+    , C_gates_(scratch_gates)
+    , C_cell_(scratch_cell)
     , LDAl_(rnn_.src_layer_ld(cell_position))
     , LDAi_(rnn_.src_iter_ld(cell_position))
     , max_nthr_(rnn_.nthr)
@@ -100,8 +102,8 @@ brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
     , amx_scratchpad_(amx_scratchpad)
     , addr_batch_global_(addr_batch_global)
     , fused_postgemm_(fused_postgemm)
-    , is_fused_layer_iter_brgemm_(
-              rnn_.sic == rnn_.slc && LDAi_ == LDAl_ && need_gemm_layer_) {}
+    , is_fused_layer_iter_brgemm_(!rnn_.is_lbr && rnn_.sic == rnn_.slc
+              && LDAi_ == LDAl_ && need_gemm_layer_) {}
 
 template <typename src_t, typename weights_t, typename scratch_t,
         typename gemm_acc_t>
@@ -165,7 +167,10 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
         const auto *const Ai_m = Ai_ + m * LDAi_;
         const auto *const Bl_n = Bl_ + nb * Bl_n_offset_;
         const auto *const Bi_n = Bi_ + nb * Bi_n_offset_;
-        auto *const C_n = C_ + m * rnn_.LDC + n;
+        auto *const C_n = C_gates_ + m * rnn_.LDC + n;
+        const auto cell_stride = rnn_.LDC;
+        auto *const C_cell_i = C_cell_ + m * cell_stride + n;
+        assert(rnn_.LDC == rnn_.scratch_gates_ld);
 
         const brgemm_kernel_t *brgemm_kernel_layer_b0
                 = brgemm_kernel_layer_main_;
@@ -197,11 +202,20 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
             }
         }
 
+        if (rnn_.is_lbr) {
+            for (dim_t i = 0; i < rnn_.m_block; ++i) {
+                auto *C_o = C_cell_i + i * cell_stride;
+                PRAGMA_OMP_SIMD()
+                for (dim_t j = 0; j < rnn_.n_block; ++j)
+                    C_o[j] = 0;
+            }
+        }
+
         for (int g = 0; g < n_gates_; g++) {
             const int lg = g + g_unfused;
             const auto *const Bl_g = Bl_n + lg * Bl_g_offset_;
             const auto *const Bi_g = Bi_n + lg * Bi_g_offset_;
-            auto *const C_g = C_n + lg * rnn_.N;
+            auto *C_g = C_n + lg * rnn_.N;
 
             if (need_gemm_layer_) {
                 if (is_amx) load_cfg_if_needed(pallete_buff_layer);
@@ -213,6 +227,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
                         addr_batch, reinterpret_cast<void *>(C_g), amx_buffer);
             }
 
+            if (rnn_.is_lbr && g == n_gates_ - 1) C_g = C_cell_i;
             for (int i = 0; i < rnn_.KB2_blocks; i++) {
                 addr_batch[i].ptr.A = Ai_m + i * rnn_.k2_block;
                 addr_batch[i].ptr.B = Bi_g + i * Bi_kb_offset_;
@@ -243,8 +258,8 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
             for (int g = 0; g < n_gates_; g++) {
                 const int lg = g + g_unfused;
                 const auto *const Bi_g = Bi_n + lg * Bi_g_offset_;
-                auto *const C_g = C_n + lg * rnn_.N;
-
+                auto *C_g = C_n + lg * rnn_.N;
+                if (rnn_.is_lbr && g == n_gates_ - 1) C_g = C_cell_i;
                 addr_batch[0].ptr.A = Ai_m + Ai_k_tail_offset_;
                 addr_batch[0].ptr.B = Bi_g + Bi_k_tail_offset_;
                 brgemm_kernel_execute(brgemm_kernel_iter_k_tail, 1, addr_batch,
@@ -253,9 +268,9 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
         }
 
         if (!rnn_.unfused_post_gemm) {
-            const auto block_step = (do_n_tail ? rnn_.n_tail : rnn_.n_block)
-                    * sizeof(scratch_t);
-            fused_postgemm_(m, n, nb_i, Ai_m, C_n, block_step);
+            auto block_step = (do_n_tail ? rnn_.n_tail : rnn_.n_block);
+            if (!rnn_.is_lbr) block_step *= sizeof(scratch_t);
+            fused_postgemm_(m, n, nb_i, Ai_m + n, C_n, C_cell_i, block_step);
         }
 
         ++start;
@@ -327,7 +342,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
         const auto *const Ai_m = Ai_ + m * LDA;
         const auto *const Bl_n = Bl_ + nb * B_n_offset;
         const auto *const Bi_n = Bi_ + nb * B_n_offset;
-        auto *const C_n = C_ + m * rnn_.LDC + n;
+        auto *const C_n = C_gates_ + m * rnn_.LDC + n;
 
         const brgemm_kernel_t *brgemm_kernel = brgemm_kernel_layer_main_;
         const brgemm_kernel_t *brgemm_kernel_k_tail
@@ -402,7 +417,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
         if (!rnn_.unfused_post_gemm) {
             const auto block_step = (do_n_tail ? rnn_.n_tail : rnn_.n_block)
                     * sizeof(scratch_t);
-            fused_postgemm_(m, n, nb_i, Ai_m, C_n, block_step);
+            fused_postgemm_(m, n, nb_i, Ai_m, C_n, C_cell_, block_step);
         }
 
         ++start;

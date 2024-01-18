@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
         scratch_data_t *scratch_gates_, const src_data_t *augru_attention_,
         src_data_t *dst_layer_, src_data_t *dst_iter_,
         const src_data_t *src_iter_, const void *bias_, src_data_t *ws_grid_,
-        scratch_data_t *scratch_cell_) {
+        scratch_data_t *scratch_cell_, int block_step) {
 
     const auto src_iter_ld = rnn.src_iter_ld(cell_position);
     const auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
@@ -62,6 +62,10 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
         return to_float(bias_aoc(gate_id, dhc_id), rnn.bias_dt);
     };
     const ws_gates_aoc<scratch_data_t> scratch_cell(rnn, scratch_cell_);
+    // TODO: There is some inconsistency with the strides used in brgemm vs ref
+    // implementation. Fix this to have a consistent post-gemm else document.
+    const scratch_gates_aoc<scratch_data_t> scratch_cell_brgemm(
+            rnn, scratch_cell_);
     const AOC<src_data_t, 2> ws_Wh_b(ws_grid_, rnn.mb, rnn.dhc);
 
     const auto get_scales = [](const float *scales, int idx) {
@@ -70,7 +74,7 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
     const float *scales_G1 = get_scales(scales, 1);
     const float *scales_G2 = get_scales(scales, 2);
 
-    parallel_nd(rnn.mb, [&](dim_t i) {
+    const auto postgemm = [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
             const float Wh_b = scratch_cell(i, 2, j) + bias(3, j);
@@ -96,7 +100,41 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
             if (dst_layer_ != nullptr) dst_layer(i, j) = tmp;
             if (dst_iter_ != nullptr) dst_iter(i, j) = tmp;
         }
-    });
+    };
+
+    const auto postgemm_brgemm = [&](dim_t i) {
+        const int n_elem = block_step;
+        PRAGMA_OMP_SIMD()
+        for (int j = 0; j < n_elem; j++) {
+            const float Wh_b = scratch_cell_brgemm(i, 0, j) + bias(3, j);
+            auto G0 = func1(scales, // default func1 is sigmoid
+                    scratch_gates(i, 0, j) + bias(0, j));
+            const auto G1 = func1(scales_G1, // default func1 is sigmoid
+                    scratch_gates(i, 1, j) + bias(1, j));
+            const auto G2 = func2(scales_G2, // default func2 is tanh
+                    scratch_gates(i, 2, j) + G1 * Wh_b + bias(2, j));
+            if (rnn.is_training) {
+                ws_gates(i, 0, j) = to_src(G0);
+                ws_gates(i, 1, j) = to_src(G1);
+                ws_gates(i, 2, j) = to_src(G2);
+                ws_Wh_b(i, j) = to_src(Wh_b);
+            }
+            if (rnn.is_augru) {
+                const auto a = to_src(augru_attention(i));
+                G0 = (1.0f - a) * G0;
+            }
+            const auto tmp = to_src(src_iter(i, j) * G0 + (1.0f - G0) * G2);
+            if (dst_layer_ != nullptr) dst_layer(i, j) = tmp;
+            if (dst_iter_ != nullptr) dst_iter(i, j) = tmp;
+        }
+    };
+
+    if (rnn.is_brgemm && !rnn.unfused_post_gemm) {
+        for (dim_t i = 0; i < rnn.m_block; i++)
+            postgemm_brgemm(i);
+    } else {
+        parallel_nd(rnn.mb, [&](dim_t i) { postgemm(i); });
+    }
 }
 
 template <data_type_t src_type, data_type_t scratch_type, data_type_t acc_type>
@@ -117,12 +155,12 @@ rnn_postgemm_sig((rnn_postgemm_fwd_t<src_type, scratch_type,
         gru_lbr_fwd_postgemm_template(logistic_f, tanh_f, to_src, scales, rnn,
                 cell_position, ws_gates_, scratch_gates_, augru_attention_,
                 dst_layer_, dst_iter_, src_iter_, bias_, ws_grid_,
-                scratch_cell_);
+                scratch_cell_, block_step);
     else
         gru_lbr_fwd_postgemm_template(linear_f, linear_f, to_src, scales, rnn,
                 cell_position, ws_gates_, scratch_gates_, augru_attention_,
                 dst_layer_, dst_iter_, src_iter_, bias_, ws_grid_,
-                scratch_cell_);
+                scratch_cell_, block_step);
 }
 
 template <>

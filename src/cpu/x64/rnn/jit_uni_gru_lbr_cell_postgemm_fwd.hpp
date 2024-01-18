@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,8 +63,9 @@ protected:
     const size_t hstate_dt_size = types::data_type_size(src_data_t);
     const size_t scratch_dt_size = types::data_type_size(scratch_data_t);
     const size_t gate_dt_size = types::data_type_size(src_data_t);
-    const size_t loop_len_bytes = rnn_.dhc * scratch_dt_size;
-    const size_t loop_tail_bytes = loop_len_bytes % vlen;
+    const size_t vlen_elems = vlen / scratch_dt_size;
+    const size_t loop_len = rnn_.dhc;
+    const size_t loop_tail = loop_len % vlen_elems;
 
     void generate() override {
         using namespace Xbyak;
@@ -135,15 +136,18 @@ protected:
             return ptr[addr_scratch_cell_reg + i * rnn_.dhc * scratch_dt_size];
         };
 
-        auto compute_loop = [&](size_t current_vlen) {
+        auto compute_loop = [&](size_t current_vlen_elems) {
+            const auto current_vlen = current_vlen_elems * scratch_dt_size;
             Label loop_start_label, loop_inc_regs_or_finish;
             L(loop_start_label);
             {
                 load(G0, sg_addr(0), scratch_data_t, current_vlen);
                 to_float(tmp1_vmm, B_addr(0), rnn_.bias_dt, current_vlen);
                 compute_vaddps(G0, G0, tmp1_vmm, current_vlen);
-                load(tmp1_vmm, sc_addr(0), scratch_data_t, current_vlen);
-                compute_vaddps(G0, G0, tmp1_vmm, current_vlen);
+                if (!rnn_.is_brgemm) {
+                    load(tmp1_vmm, sc_addr(0), scratch_data_t, current_vlen);
+                    compute_vaddps(G0, G0, tmp1_vmm, current_vlen);
+                }
                 sigmoid_injector_->load_table_addr();
                 sigmoid_injector_->compute_vector(G0.getIdx());
                 // if training we write back the gates
@@ -154,8 +158,10 @@ protected:
                 load(G1, sg_addr(1), scratch_data_t, current_vlen);
                 to_float(tmp1_vmm, B_addr(1), rnn_.bias_dt, current_vlen);
                 compute_vaddps(G1, G1, tmp1_vmm, current_vlen);
-                load(tmp1_vmm, sc_addr(1), scratch_data_t, current_vlen);
-                compute_vaddps(G1, G1, tmp1_vmm, current_vlen);
+                if (!rnn_.is_brgemm) {
+                    load(tmp1_vmm, sc_addr(1), scratch_data_t, current_vlen);
+                    compute_vaddps(G1, G1, tmp1_vmm, current_vlen);
+                }
                 sigmoid_injector_->load_table_addr();
                 sigmoid_injector_->compute_vector(G1.getIdx());
                 // if training we write back the gates
@@ -163,7 +169,7 @@ protected:
                     to_src(wg_addr(1), G1, src_data_t, current_vlen);
 
                 // compute last gate
-                const auto wh_b_addr = sc_addr(2);
+                const auto wh_b_addr = sc_addr(rnn_.is_brgemm ? 0 : 2);
                 const auto ws_h_addr = ptr[addr_ws_h_reg];
                 load(tmp1_vmm, wh_b_addr, scratch_data_t, current_vlen);
                 to_float(tmp2_vmm, B_addr(3), rnn_.bias_dt, current_vlen);
@@ -224,7 +230,7 @@ protected:
                         current_vlen, true);
                 // increment address pointers
                 L(loop_inc_regs_or_finish);
-                if (current_vlen != loop_tail_bytes) {
+                if (current_vlen_elems != loop_tail) {
                     const auto current_gate_size
                             = current_vlen == vlen ? vlen_dst : gate_dt_size;
                     const auto current_states_size
@@ -240,8 +246,8 @@ protected:
                     if (is_training) add(addr_ws_gates_reg, current_gate_size);
 
                     // increment loop counter
-                    sub(loop_cnt, current_vlen);
-                    cmp(loop_cnt, current_vlen);
+                    sub(loop_cnt, current_vlen_elems);
+                    cmp(loop_cnt, current_vlen_elems);
                     jge(loop_start_label);
                 }
             }
@@ -249,21 +255,34 @@ protected:
 
         // initialize registers with addresses and constants
         mov(table_reg, table_label);
-        init_regs(vlen, loop_tail_bytes / scratch_dt_size);
-        mov(loop_cnt, loop_len_bytes);
-        if (loop_tail_bytes > 0) {
-            cmp(loop_cnt, vlen);
+        init_regs(vlen, loop_tail);
+        if (rnn_.is_brgemm) {
+#ifdef _WIN32
+            mov(loop_cnt, ptr[base_args + 40]);
+#else
+            // Here we cannot use rbp to have initial stack pointer so we
+            // use rsp and offset it with the size of pushed registers in
+            // preamble
+            const auto base_args = get_stack_params_address();
+            mov(loop_cnt, ptr[base_args + 24]);
+#endif
+        } else {
+            mov(loop_cnt, loop_len);
+        }
+
+        if (loop_tail > 0) {
+            cmp(loop_cnt, vlen_elems);
             jl(tail_processing_or_exit_label, T_NEAR);
         }
 
-        compute_loop(vlen);
+        compute_loop(vlen_elems);
 
         L(tail_processing_or_exit_label);
-        if (loop_tail_bytes > 0) {
+        if (loop_tail > 0) {
             Label exit_label;
             cmp(loop_cnt, 0);
             jle(exit_label, T_NEAR);
-            compute_loop(is_avx512 ? loop_tail_bytes : scratch_dt_size);
+            compute_loop(is_avx512 ? loop_tail : 1);
             L(exit_label);
         }
 

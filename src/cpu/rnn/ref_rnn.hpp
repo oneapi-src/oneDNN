@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -300,10 +300,15 @@ struct _ref_rnn_common_t : public primitive_t {
 
             bool ok = one_of(cell_kind, alg_kind::vanilla_rnn,
                               alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
-                              alg_kind::vanilla_augru)
+                              alg_kind::lbr_gru, alg_kind::vanilla_augru,
+                              alg_kind::lbr_augru)
                     && IMPLICATION(aprop == prop_kind::forward,
                             one_of(this->desc()->prop_kind, forward_training,
                                     forward_inference))
+                    // LBR is not supported for training in brgemm
+                    && IMPLICATION(one_of(cell_kind, alg_kind::lbr_gru,
+                                           alg_kind::lbr_augru),
+                            this->desc()->prop_kind == forward_inference)
                     && IMPLICATION(aprop == backward,
                             one_of(this->desc()->prop_kind, backward))
                     // TODO: Enable diff_weights_overwrite support
@@ -629,24 +634,24 @@ struct _ref_rnn_common_t : public primitive_t {
         rnn_postgemm_ = new postgemm_t(pd()->rnn_, pd());
         assert(rnn_postgemm_ != nullptr);
         CHECK(rnn_postgemm_->init(pd()->rnn_));
-        switch (pd()->cell_kind()) {
-            case alg_kind::vanilla_rnn:
-            case alg_kind::vanilla_lstm:
-                cell_func = (pd()->rnn_.is_brgemm)
-                        ? &class_name::cell_execution_brgemm
-                        : &class_name::cell_execution_ref;
-                break;
-            case alg_kind::vanilla_gru:
-            case alg_kind::vanilla_augru:
-                cell_func = (pd()->rnn_.is_brgemm)
-                        ? &class_name::cell_execution_brgemm
-                        : &class_name::cell_execution_gru;
-                break;
-            case alg_kind::lbr_augru:
-            case alg_kind::lbr_gru:
-                cell_func = &class_name::cell_execution_gru_lbr;
-                break;
-            default: break;
+        if (pd()->rnn_.is_brgemm)
+            cell_func = &class_name::cell_execution_brgemm;
+        else {
+            switch (pd()->cell_kind()) {
+                case alg_kind::vanilla_rnn:
+                case alg_kind::vanilla_lstm:
+                    cell_func = &class_name::cell_execution_ref;
+                    break;
+                case alg_kind::vanilla_gru:
+                case alg_kind::vanilla_augru:
+                    cell_func = &class_name::cell_execution_gru;
+                    break;
+                case alg_kind::lbr_augru:
+                case alg_kind::lbr_gru:
+                    cell_func = &class_name::cell_execution_gru_lbr;
+                    break;
+                default: break;
+            }
         }
 
         merged_layer_func = pd()->rnn_.is_brgemm && pd()->rnn_.merge_gemm_layer
