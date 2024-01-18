@@ -12469,10 +12469,12 @@ void gemm_kernel_generator_t<hw>::gemmSLMRemask(bool remaskA, bool remaskB,
     bool oremaskB = remaskB
             && (state.effCoopB == CoopSplit::K
                     || state.effCoopB == CoopSplit::FullK);
-    bool noshareRemask = (oremaskA || oremaskB)
-            || (remaskA && remaskB && Ta.size() != Tb.size());
+    bool shareRemask = remaskA && remaskB && !oremaskA && !oremaskB
+            && (Ta.size() == Tb.size());
     int aRemaskLen = state.ka_slm;
     int bRemaskLen = state.kb_slm;
+    int iremaskA = 0, iremaskB = 1;
+    if (shareRemask) iremaskB = iremaskA;
 
     Subregister offK_A, offK_B;
     if (oremaskA) {
@@ -12485,25 +12487,26 @@ void gemm_kernel_generator_t<hw>::gemmSLMRemask(bool remaskA, bool remaskB,
         mulConstant(1, offK_B, state.lidM, state.kb_slm);
     }
 
-    if (!noshareRemask && remaskA && remaskB)
-        aRemaskLen = bRemaskLen = std::max(aRemaskLen, bRemaskLen);
+    if (shareRemask) aRemaskLen = bRemaskLen = std::max(aRemaskLen, bRemaskLen);
 
     if (remaskA) {
-        setupTeardownRemask(Ta, 1, true, aRemaskLen, state.K, strategy, state,
-                kOffset, offK_A);
-        remaskLayout(Ta, 1, true, state.Ao_layout, Ao_regs, strategy, state);
-        if (noshareRemask || !remaskB)
-            setupTeardownRemask(Ta, 1, false, aRemaskLen, state.K, strategy,
-                    state, kOffset, offK_A);
+        setupTeardownRemask(Ta, iremaskA, true, aRemaskLen, state.K, strategy,
+                state, kOffset, offK_A);
+        remaskLayout(
+                Ta, iremaskA, true, state.Ao_layout, Ao_regs, strategy, state);
+        if (!shareRemask)
+            setupTeardownRemask(Ta, iremaskA, false, aRemaskLen, state.K,
+                    strategy, state, kOffset, offK_A);
     }
 
     if (remaskB) {
-        if (noshareRemask || !remaskA)
-            setupTeardownRemask(Tb, 1, true, bRemaskLen, state.K, strategy,
-                    state, kOffset, offK_B);
-        remaskLayout(Tb, 1, false, state.Bo_layout, Bo_regs, strategy, state);
-        setupTeardownRemask(Tb, 1, false, bRemaskLen, state.K, strategy, state,
-                kOffset, offK_B);
+        if (!shareRemask)
+            setupTeardownRemask(Tb, iremaskB, true, bRemaskLen, state.K,
+                    strategy, state, kOffset, offK_B);
+        remaskLayout(
+                Tb, iremaskB, false, state.Bo_layout, Bo_regs, strategy, state);
+        setupTeardownRemask(Tb, iremaskB, false, bRemaskLen, state.K, strategy,
+                state, kOffset, offK_B);
     }
 }
 
@@ -14135,14 +14138,19 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
             remaskA = remaskB = false;
     }
 
-    auto Tremask = remaskA ? Ta_load : Tb_load;
+    int iremaskA = 0, iremaskB = 1;
+    auto Ta_remask = Ta_load, Tb_remask = Tb_load;
+
+    if (remaskA && remaskB && Ta_remask.size() == Tb_remask.size())
+        iremaskB = iremaskA; /* A, B can share remasking masks */
+
     if (remaskA && remaskB && Ta_load.size() != Tb_load.size()
             && !(utils::one_of(Type::f16, Ta_load, Tb_load)
                     || utils::one_of(Type::bf16, Ta_load, Tb_load)))
         stub();
     if ((remaskA || remaskB) && problem.backward()) stub();
 
-    int remaskPeriod = lcm(ka_loadRem, kb_loadRem);
+    int remaskPeriod = lcm(remaskA ? ka_loadRem : 1, remaskB ? kb_loadRem : 1);
     auto reqRemaskSetup = every(remaskPeriod);
     auto reqRemaskA = every(ka_loadRem) | variants(A_copies);
     auto reqRemaskB = every(kb_loadRem) | variants(B_copies);
@@ -14150,23 +14158,42 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     if (remaskA || remaskB)
         ls.schedule({{reqRemaskSetup | duration(remaskPeriod), nothing},
                 {reqRemaskSetup, [&](Iteration h) {
-                     setupTeardownRemask(Tremask, 0, false, remaskPeriod,
-                             state.K, strategy, state);
-                     setupTeardownRemask(Tremask, 0, true, remaskPeriod,
-                             state.K, strategy, state, -h.counterOffset());
+                     if (remaskA) {
+                         setupTeardownRemask(Ta_remask, iremaskA, false,
+                                 remaskPeriod, state.K, strategy, state);
+                         setupTeardownRemask(Ta_remask, iremaskA, true,
+                                 remaskPeriod, state.K, strategy, state,
+                                 -h.counterOffset());
+                     }
+                     if (remaskB && iremaskB != iremaskA) {
+                         setupTeardownRemask(Tb_remask, iremaskB, false,
+                                 remaskPeriod, state.K, strategy, state);
+                         setupTeardownRemask(Tb_remask, iremaskB, true,
+                                 remaskPeriod, state.K, strategy, state,
+                                 -h.counterOffset());
+                     }
                  }}});
+
+    auto teardownRemasks = [&] {
+        if (remaskA)
+            setupTeardownRemask(Ta_remask, iremaskA, false, remaskPeriod,
+                    state.K, strategy, state);
+        if (remaskB && iremaskB != iremaskA)
+            setupTeardownRemask(Tb_remask, iremaskB, false, remaskPeriod,
+                    state.K, strategy, state);
+    };
 
     if (remaskA)
         ls.schedule({{reqLoadA, nothing},
                 {reqRemaskA, [&](Iteration h) {
-                     remaskLayout(Ta_load, 0, true, state.A_layoutRem,
+                     remaskLayout(Ta_load, iremaskA, true, state.A_layoutRem,
                              A_regs(h), strategy, state, h % remaskPeriod);
                  }}});
 
     if (remaskB)
         ls.schedule({{reqLoadB, nothing},
                 {reqRemaskB, [&](Iteration h) {
-                     remaskLayout(Tb_load, 0, false, state.B_layoutRem,
+                     remaskLayout(Tb_load, iremaskB, false, state.B_layoutRem,
                              B_regs(h), strategy, state, h % remaskPeriod);
                  }}});
 
@@ -14507,8 +14534,7 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         lastThresh = 0;
         haveA_lastRSWA = false;
         state.ra.safeRelease(barrierHeader);
-        setupTeardownRemask(
-                Tremask, 0, false, remaskPeriod, state.K, strategy, state);
+        teardownRemasks();
         didForceActivateRemA = didForceActivateRemB = false;
     };
 
@@ -14685,8 +14711,7 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     // Free resources that are no longer needed.
     state.ra.safeRelease(outerK);
     state.ra.safeRelease(pfCPeelK);
-    setupTeardownRemask(
-            Tremask, 0, false, remaskPeriod, state.K, strategy, state);
+    teardownRemasks();
     resetKSLM();
 
     state.firstKLoopSegment = false;
