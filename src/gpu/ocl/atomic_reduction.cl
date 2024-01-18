@@ -112,6 +112,7 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
         __global ATOMIC(DST_DATA_T) * dst, int inner_size, off_t div,
         float power, float eps, off_t num_reductions,
         dispatch_gws_rt_params_t gws_params) {
+    ASSUME(num_reductions > 0);
     const int local_idx = get_sub_group_id();
     const int sglid = get_sub_group_local_id();
     const int subgroup_size = get_max_sub_group_size();

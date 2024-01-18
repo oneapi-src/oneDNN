@@ -424,7 +424,7 @@ void debugdump_processed_source(const std::string &source,
         // Due to the use of a different C preprocessor, warnings should not be
         // ignored, as they may correspond to a different behavior in the OpenCL
         // C preprocessor
-        auto o = get_defines(options);
+        auto o = get_defines(options) + get_defines(cl_options);
         std::string preprocess_cmd
                 = std::string() + "cpp -P " + o + " | clang-format";
         execute_command(preprocess_cmd, source);

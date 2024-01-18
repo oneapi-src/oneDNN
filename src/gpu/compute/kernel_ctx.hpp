@@ -28,6 +28,7 @@
 #include "common/primitive_attr.hpp"
 #include "common/verbose.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -132,6 +133,11 @@ private:
             if (gpu_attr->threads_per_eu() == 4) {
                 add_option("-cl-intel-256-GRF-per-thread");
             }
+        }
+
+        // Set override flag for checking compiler assumptions
+        if (gpu_utils::dev_getenv("enable_check_assumptions", 0)) {
+            add_option("-DENABLE_CHECK_ASSUMPTIONS");
         }
     }
     void set_default_macros(const primitive_attr_t *attr) {
