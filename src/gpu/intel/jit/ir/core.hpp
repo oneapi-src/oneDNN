@@ -2321,6 +2321,10 @@ public:
         return index_ == other.index_;
     }
 
+    bool operator!=(const stmt_label_t &other) const {
+        return !operator==(other);
+    }
+
     size_t get_hash() const { return ir_utils::get_hash(kind_, index_); }
 
     std::string str() const {
