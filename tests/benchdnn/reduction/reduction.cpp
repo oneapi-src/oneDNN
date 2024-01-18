@@ -229,6 +229,26 @@ std::vector<int> supported_exec_args(dir_t dir) {
     return exec_args;
 };
 
+fill_cfg_t binary_po_fill_cfg(
+        int exec_arg, const dnn_mem_t &mem, const attr_t &attr) {
+    fill_cfg_t cfg;
+    const int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+            - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+    const bool is_post_ops_arg = (exec_arg & post_ops_range);
+    if (is_post_ops_arg) {
+        // Config secures only positive values since reduction output is
+        // positive in several scenarios, and using negative values leads to the
+        // cancellation effect.
+        const int bin_po_idx
+                = exec_arg / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
+        assert(bin_po_idx < attr.post_ops.len());
+        const auto alg = attr.post_ops.entry[bin_po_idx].kind;
+        cfg = fill_cfg_t(mem.dt(), 0.f, 16.f, /* int = */ true, alg,
+                "reduction_binary_post_op");
+    }
+    return cfg;
+}
+
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
         dnnl_primitive_t prim_ref) {
@@ -256,11 +276,8 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     SAFE(fill_dst(prb, mem, ref_mem), WARN);
                 break;
             default: {
-                // Config secures only positive values since reduction output
-                // is positive in several scenarios, and using negative values
-                // leads to the cancellation effect.
-                fill_cfg_t binary_fill_cfg(mem.dt(), 0.f, 16.f,
-                        /* int = */ true, "reduction_binary_post_op");
+                const auto &binary_fill_cfg
+                        = binary_po_fill_cfg(exec_arg, mem, prb->attr);
                 std::unordered_map<int, fill_cfg_t> fill_cfg_map {
                         {DNNL_ARG_SRC_1, binary_fill_cfg}};
                 SAFE(init_ref_memory_args_default_case(exec_arg, mem, ref_mem,

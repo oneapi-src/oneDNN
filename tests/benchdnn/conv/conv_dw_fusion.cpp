@@ -28,7 +28,6 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "binary/binary.hpp"
 #include "conv/conv_dw_fusion.hpp"
 
 namespace conv_dw_fusion {
@@ -198,7 +197,8 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
                 if (is_pre_dw_post_ops_arg && !is_post_dw_post_ops_arg) {
                     // Binary post-op filling config.
                     fill_cfg_t binary_fill_cfg(mem.dt(), -16.f, 16.f,
-                            /* int = */ true, "binary post-op");
+                            /* int = */ true, attr_t::post_ops_t::kind_t::ADD,
+                            "binary post-op");
                     if (exec_arg & DNNL_ARG_SRC_1) {
                         SAFE(fill_random_real(mem, ref_mem, binary_fill_cfg),
                                 WARN);
@@ -230,8 +230,8 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
             auto &ref_mem = mem_map1.at(arg);
 
             // Binary post-op filling config.
-            fill_cfg_t binary_fill_cfg(
-                    mem.dt(), -16.f, 16.f, /* int = */ true, "binary post-op");
+            fill_cfg_t binary_fill_cfg(mem.dt(), -16.f, 16.f, /* int = */ true,
+                    attr_t::post_ops_t::kind_t::ADD, "binary post-op");
             SAFE(fill_random_real(mem, ref_mem, binary_fill_cfg), WARN);
         }
     }
