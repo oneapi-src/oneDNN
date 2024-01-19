@@ -316,7 +316,8 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                     "managed_matmul_core only supports 2d "
                                     "yet");
                         }
-                        if (M == iim_block && M >= 32) {
+                        if (M == iim_block && M >= 32 && N % iin_block == 0
+                                && !dynamic) {
                             out_formats.push_back(
                                     {sc_data_format_t::get_plain_by_dims(
                                             C_dims.size())});
