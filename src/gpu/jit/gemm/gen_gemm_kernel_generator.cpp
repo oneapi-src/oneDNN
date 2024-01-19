@@ -2168,6 +2168,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
         int &cblock, RegisterBlock &block) {
     bool avoidFragment = (remOpts & AllowFragment) == 0;
     bool allowDesc = remOpts & AllowDescriptors;
+    bool allowFixedMasks = (remOpts & NoFixedMasks) == 0;
     bool prefetch = astrategy.prefetch;
     bool atomic = astrategy.atomic;
     if (hw >= HW::Xe2) allowDesc = false;
@@ -2251,7 +2252,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             auto smode = astrategy.smode;
 
             if (block.colMajor) {
-                Y = r;
+                Y = allowFixedMasks ? r : R;
                 X = C;
                 yblock = &rblock;
                 xblock = &cblock;
@@ -2263,7 +2264,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 tileX = atype.tileC;
             } else {
                 X = R;
-                Y = c;
+                Y = allowFixedMasks ? c : C;
                 xblock = &rblock;
                 yblock = &cblock;
                 maxXBlock = maxRBlock;
@@ -2523,8 +2524,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 if (atomic && !nativeAtomic) simdCap = 16;
                 maxElements = simdCap * maxNPack;
                 if (T.size() > stride) maxElements = maxElements * stride / T;
-                R = r;
-                C = c;
+                if (allowFixedMasks) R = r, C = c;
             }
 
             auto maxABlock = maxElements / (byte1PerSlot ? 1 : atype.crosspack);
@@ -15409,12 +15409,12 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                     cColMajor, 1, strategy.C.tileR, strategy.C.tileC, true);
         }
         if (!getRegLayout(Tc_ext, state.C_layoutExt, unrollM, unrollN, remM_Ce,
-                    remN_Ce, true, AllowFragDesc, 0, 0, problem.C,
+                    remN_Ce, true, AllowFragDescNFM, 0, 0, problem.C,
                     state.Cext_strategy))
             return false;
     } else {
         if (!getRegLayout(Tc, state.C_layout, unrollM, unrollN, remM_C, remN_C,
-                    true, AllowFragDesc, 0, 0, problem.C, strategy.C))
+                    true, AllowFragDescNFM, 0, 0, problem.C, strategy.C))
             return false;
     }
 
@@ -15423,7 +15423,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
         // Try preparing C layout without masking (may reduce memory accesses).
         // Only use it if compatible with the masked layout, and saves on send instructions (or avoids pseudoblock/slow scattered byte accesses).
         (void)getRegLayout(Tc_ext, state.C_layoutExtUnmasked, unrollM, unrollN,
-                false, false, true, AllowFragDesc, 0, 0, problem.C,
+                false, false, true, AllowFragDescNFM, 0, 0, problem.C,
                 state.Cext_strategy);
 
         bool useUnmasked = true;
@@ -15444,7 +15444,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
         auto nonatomicCExt = state.Cext_strategy;
         nonatomicCExt.atomic = false;
         (void)getRegLayout(Tc_ext, state.C_layoutExtNonatomicUnmasked, unrollM,
-                unrollN, false, false, true, AllowFragDesc, 0, 0, problem.C,
+                unrollN, false, false, true, AllowFragDescNFM, 0, 0, problem.C,
                 nonatomicCExt);
         bool ok = true;
         if (!state.C_layoutExtUnmasked.empty()) {

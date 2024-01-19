@@ -247,6 +247,9 @@ enum RemainderOptions : uint8_t {
     AllowDescriptors
     = 2, // Allow indirect send descriptor-based remainder handling.
     AllowFragDesc = 3, // Allow fragmentation and descriptors.
+    NoFixedMasks = 4, // Do not allow fixed masks.
+    AllowFragDescNFM
+    = 7, // Allow fragmentation and descriptors, but no fixed masks
 };
 
 // Preferences for using scattered accesses.
