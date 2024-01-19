@@ -1273,19 +1273,29 @@ void init_thread_group_grid(conv_config_t &cfg) {
     cfg.init_thread_group_grid(get_thread_group_grid_conv_dims(cfg.prb()));
 }
 
+int fixup_slm_bufs(const conv_problem_t &prb, int slm_bufs,
+        bool zp_do_src_compensation, bool enable_a, bool enable_b,
+        bool do_unroll) {
+    if (do_unroll) return slm_bufs;
+    // Multiple SLM buffering without unrolling has some limitations as compute
+    // indices are not tracked: A/B buffers are directly loaded from SLM and
+    // multiplied so some scenarios are not supported:
+    // - Mixing SLM and direct memory load for A/B as memory load requires
+    //   masking which relies on problem indices
+    // - Source zero-points as compensation masks require problem indices
+    if (enable_a != enable_b || zp_do_src_compensation)
+        return std::min(slm_bufs, 1);
+    return slm_bufs;
+}
+
 int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
         bool zp_do_src_compensation, bool enable_a, bool enable_b,
         bool do_unroll) {
-    if (enable_a || enable_b) {
-        bool is_small_tg = (m_tg * n_tg <= 8);
-        int pref_bufs
-                = ((is_small_tg || prb.is_f32_conv()) && prb.mb > 1 ? 2 : 3);
-        if (do_unroll) return pref_bufs;
-        const bool use_pref_bufs
-                = (enable_a == enable_b) && !zp_do_src_compensation;
-        return use_pref_bufs ? pref_bufs : 1;
-    }
-    return 0;
+    if (!enable_a && !enable_b) return 0;
+    bool is_small_tg = (m_tg * n_tg <= 8);
+    int pref_bufs = ((is_small_tg || prb.is_f32_conv()) && prb.mb > 1 ? 2 : 3);
+    return fixup_slm_bufs(prb, pref_bufs, zp_do_src_compensation, enable_a,
+            enable_b, do_unroll);
 }
 
 void init_slm(conv_config_t &cfg) {
@@ -1305,11 +1315,10 @@ void init_slm(conv_config_t &cfg) {
                     cfg.zp_cfg().do_src_compensation, enable_a, enable_b,
                     cfg.pipeline().do_unroll());
         } else if (cfg.zp_cfg().do_src_compensation) {
-            // Multiple SLM buffering is not supported with zero-points. This
-            // is because compensation masks are calculated based on loop
-            // indices which must be aligned with the compute iteration.
             bufs = std::min(bufs, 1);
         }
+        bufs = fixup_slm_bufs(prb, bufs, cfg.zp_cfg().do_src_compensation,
+                enable_a, enable_b, cfg.pipeline().do_unroll());
         ir_assert(bufs > 0);
         gmem_bufs = (cfg.is_dp_fma() && cfg.pipeline().do_unroll()) ? 2 : 1;
     }
