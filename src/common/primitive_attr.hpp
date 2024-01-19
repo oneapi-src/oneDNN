@@ -260,51 +260,24 @@ struct arg_scales_t : public c_compatible {
     }
 
     bool has_default_values(const std::vector<int> &skip_args = {}) const {
-        for (const auto &s : scales_) {
-            if (!s.second.has_default_values()) {
-                bool skip = false;
-                for (const auto &skip_a : skip_args)
-                    if (s.first == skip_a) {
-                        skip = true;
-                        break;
-                    }
-                if (skip) continue;
-                return false;
-            }
-        }
-        return true;
+        auto predicate = [](const runtime_scales_t &s) {
+            return s.has_default_values();
+        };
+        return has_default_property(skip_args, predicate);
     }
 
     bool has_default_data_type(const std::vector<int> &skip_args = {}) const {
-        for (const auto &s : scales_) {
-            if (!s.second.has_default_data_type()) {
-                bool skip = false;
-                for (const auto &skip_a : skip_args)
-                    if (s.first == skip_a) {
-                        skip = true;
-                        break;
-                    }
-                if (skip) continue;
-                return false;
-            }
-        }
-        return true;
+        auto predicate = [](const runtime_scales_t &s) {
+            return s.has_default_data_type();
+        };
+        return has_default_property(skip_args, predicate);
     }
 
     bool has_default_groups(const std::vector<int> &skip_args = {}) const {
-        for (const auto &s : scales_) {
-            if (!s.second.has_default_groups()) {
-                bool skip = false;
-                for (const auto &skip_a : skip_args)
-                    if (s.first == skip_a) {
-                        skip = true;
-                        break;
-                    }
-                if (skip) continue;
-                return false;
-            }
-        }
-        return true;
+        auto predicate = [](const runtime_scales_t &s) {
+            return s.has_default_groups();
+        };
+        return has_default_property(skip_args, predicate);
     }
 
     status_t set(int arg, int mask) {
@@ -372,6 +345,23 @@ private:
             if (arg == (DNNL_ARG_ATTR_POST_OP_DW | sa)) return true;
         }
         return false;
+    }
+
+    bool has_default_property(const std::vector<int> &skip_args,
+            bool (*predicate)(const runtime_scales_t &)) const {
+        for (const auto &s : scales_) {
+            if (!predicate(s.second)) {
+                bool skip = false;
+                for (const auto &skip_a : skip_args)
+                    if (s.first == skip_a) {
+                        skip = true;
+                        break;
+                    }
+                if (skip) continue;
+                return false;
+            }
+        }
+        return true;
     }
 };
 
