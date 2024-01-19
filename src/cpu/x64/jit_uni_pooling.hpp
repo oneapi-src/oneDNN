@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,6 +125,11 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
                     && !is_fwd() && !has_zero_dim_memory()
                     && everyone_is(d_type, diff_src_md()->data_type,
                             diff_dst_md()->data_type)
+                    // TODO: Current implementation uses diff_src_dt as
+                    // accumulation, which can cause accuracy issues due to
+                    // overflow or loss of precision for smaller data type.
+                    // Hence, disabling reduced precision for now.
+                    && diff_src_md()->data_type == data_type::f32
                     && attr()->has_default_values() && !is_dilated();
             if (!ok) return status::unimplemented;
 
