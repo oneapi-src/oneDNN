@@ -7638,6 +7638,9 @@ void gemm_kernel_generator_t<hw>::updateCLayout(
             return range;
         };
 
+        // Save a little bit of space for temporary allocations inside C update.
+        auto save = state.ra.alloc_sub<uint64_t>();
+
         vector<RegisterBlock> sublayoutExt, sublayoutCopy, sublayoutAcc;
         size_t sublayoutCopySize = 0;
         int bytes = 0, bytesConvert = 0;
@@ -7708,6 +7711,8 @@ void gemm_kernel_generator_t<hw>::updateCLayout(
         sublayoutAcc.reserve(liend - listart);
         for (int l = listart; l < liend; l++)
             sublayoutAcc.push_back(layout[l]);
+
+        state.ra.safeRelease(save);
 
         // Set up C addresses relative to prior blocks.
         // TODO: use inline address offsets instead of setupAddrRel for constant offsets.
