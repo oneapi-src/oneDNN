@@ -411,14 +411,13 @@ struct user_data_t {
         // The packed restriction could be removed by using batched GEMM with
         // appropriate strides.
         gpu_assert(IMPLICATION(conf_.merge_gemm_layer && !conf_.copy_src_layer
-                        && offsets_.src_layer[0] != 0
-                        && offsets_.src_layer[1] != 0,
+                        && conf.n_iter > 1 && conf.mb > 1,
                 offsets_.src_layer[0] == offsets_.src_layer[1] * conf_.mb
                         && conf_.exec_dir == l2r))
                 << "[ERROR]: GEMM dimensions must be packed in order to "
                    "perform merge_gemm_layer";
 
-        gpu_assert(IMPLICATION(!conf.copy_src_layer,
+        gpu_assert(IMPLICATION(!conf.copy_src_layer && conf.n_iter > 1,
                 (offsets_.src_layer[0]
                         * types::data_type_size(conf_.input_data_type))
                                 % 8
@@ -432,7 +431,7 @@ struct user_data_t {
                    "currently supported in ref_rnn.cl";
 
         if (!conf.is_fwd) {
-            gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer,
+            gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer && conf.n_iter > 1,
                     (offsets_.diff_dst_layer[0]
                             * types::data_type_size(conf_.diff_data_type))
                                     % 8

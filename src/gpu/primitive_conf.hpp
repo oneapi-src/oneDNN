@@ -1007,9 +1007,19 @@ inline void set_offsets(
 
 inline strides_t get_outer_strides(const memory_desc_wrapper &md) {
     strides_t ret;
-    for (int d = 0; d < MAX_NDIMS; ++d) {
-        ret[d] = (d < md.ndims() && md.padded_dims()[d] > 1) ? md.strides()[d]
-                                                             : 0;
+    for (int d = MAX_NDIMS - 1; d >= 0; d--) {
+        // Assumes size 1 dimensions are dense with respect to the neighboring
+        // dimension so they can be used for size calculations in some layouts
+        ret[d] = [&]() {
+            if (d >= md.ndims())
+                return static_cast<dim_t>(0);
+            else if (md.padded_dims()[d] > 1)
+                return md.strides()[d];
+            else if (d == md.ndims() - 1)
+                return static_cast<dim_t>(1);
+            else
+                return ret[d + 1] * md.padded_dims()[d + 1];
+        }();
     }
     return ret;
 }

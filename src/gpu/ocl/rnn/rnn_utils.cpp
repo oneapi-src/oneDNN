@@ -136,9 +136,10 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
 
     // Decide if to merge gemm across iterations or layers
-    auto dst_layer_ld = dst_layer_d.blocking_desc().strides[1];
-    auto dst_layer_is_trivial_stride
-            = dst_layer_d.blocking_desc().strides[0] == (dst_layer_ld * rnn.mb);
+    auto dst_layer_is_trivial_stride = dst_layer_d.dims()[0] <= 1
+            || dst_layer_d.dims()[1] <= 1
+            || (dst_layer_d.blocking_desc().strides[0]
+                    == (dst_layer_d.blocking_desc().strides[1] * rnn.mb));
 
     // Does not account for alignment striding
     dim_t merge_scratch_size_estimate = rnn.gates_ld * rnn.mb * rnn.n_iter;
