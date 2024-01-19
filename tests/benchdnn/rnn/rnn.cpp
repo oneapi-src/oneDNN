@@ -566,14 +566,26 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     dnnl_dims_t src_layer_dims = {prb.n_iter, prb.mb, prb.slc};
     auto src_layer_d = dnn_mem_t::init_md(
-            3, src_layer_dims, prb.cfg[SRC_LAYER].dt, tag::abx /* dnnl_tnc */);
-    dims_t src_layer_strides(query_md_ndims(src_layer_d));
-    std::memcpy(src_layer_strides.data(), query_md_strides(src_layer_d),
-            src_layer_strides.size() * sizeof(dnnl_dim_t));
-    src_layer_strides[0] += the_stride;
-    src_layer_d = dnn_mem_t::init_md(query_md_ndims(src_layer_d),
-            query_md_dims(src_layer_d), query_md_data_type(src_layer_d), "",
-            src_layer_strides);
+            3, src_layer_dims, prb.cfg[SRC_LAYER].dt, prb.tag[0]);
+    if (prb.tag[0] != tag::any) {
+        dims_t src_layer_strides(query_md_ndims(src_layer_d));
+        std::memcpy(src_layer_strides.data(), query_md_strides(src_layer_d),
+                src_layer_strides.size() * sizeof(dnnl_dim_t));
+        int biggest_stride_idx = 0;
+        int64_t biggest_stride = src_layer_strides[biggest_stride_idx];
+        for (int i = 1; i < query_md_ndims(src_layer_d); i++) {
+            if (src_layer_strides[i] > biggest_stride) {
+                biggest_stride = src_layer_strides[i];
+                biggest_stride_idx = i;
+            }
+        }
+        // Apply the extra +1 to the biggest stride to avoid modifying all of
+        // them.
+        src_layer_strides[biggest_stride_idx] += the_stride;
+        src_layer_d = dnn_mem_t::init_md(query_md_ndims(src_layer_d),
+                query_md_dims(src_layer_d), query_md_data_type(src_layer_d), "",
+                src_layer_strides);
+    }
 
     dnnl_dims_t src_iter_dims = {prb.n_layer, prb.n_dir(), prb.mb, prb.sic};
     auto src_iter_d = dnn_mem_t::init_md(
@@ -606,9 +618,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             src_iter_c_strides);
 
     auto weights_layer_d = dnn_mem_t::init_md(
-            5, weights_layer_dims, prb.cfg[WEIGHTS_LAYER].dt, tag::any);
+            5, weights_layer_dims, prb.cfg[WEIGHTS_LAYER].dt, prb.tag[1]);
     auto weights_iter_d = dnn_mem_t::init_md(
-            5, weights_iter_dims, prb.cfg[WEIGHTS_ITER].dt, tag::any);
+            5, weights_iter_dims, prb.cfg[WEIGHTS_ITER].dt, prb.tag[1]);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> attention_d {};
     if (prb.is_augru())
@@ -628,14 +640,26 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto bias_d = dnn_mem_t::init_md(4, bias_dims, prb.cfg[BIAS].dt, tag::any);
 
     auto dst_layer_d = dnn_mem_t::init_md(
-            3, dst_layer_dims, prb.cfg[DST_LAYER].dt, tag::abx /* dnnl_tnc */);
-    dims_t dst_layer_strides(query_md_ndims(dst_layer_d));
-    std::memcpy(dst_layer_strides.data(), query_md_strides(dst_layer_d),
-            dst_layer_strides.size() * sizeof(dnnl_dim_t));
-    dst_layer_strides[0] += the_stride;
-    dst_layer_d = dnn_mem_t::init_md(query_md_ndims(dst_layer_d),
-            query_md_dims(dst_layer_d), query_md_data_type(dst_layer_d), "",
-            dst_layer_strides);
+            3, dst_layer_dims, prb.cfg[DST_LAYER].dt, prb.tag[2]);
+    if (prb.tag[2] != tag::any) {
+        dims_t dst_layer_strides(query_md_ndims(dst_layer_d));
+        std::memcpy(dst_layer_strides.data(), query_md_strides(dst_layer_d),
+                dst_layer_strides.size() * sizeof(dnnl_dim_t));
+        int biggest_stride_idx = 0;
+        int64_t biggest_stride = dst_layer_strides[biggest_stride_idx];
+        for (int i = 1; i < query_md_ndims(dst_layer_d); i++) {
+            if (dst_layer_strides[i] > biggest_stride) {
+                biggest_stride = dst_layer_strides[i];
+                biggest_stride_idx = i;
+            }
+        }
+        // Apply the extra +1 to the biggest stride to avoid modifying all of
+        // them.
+        dst_layer_strides[biggest_stride_idx] += the_stride;
+        dst_layer_d = dnn_mem_t::init_md(query_md_ndims(dst_layer_d),
+                query_md_dims(dst_layer_d), query_md_data_type(dst_layer_d), "",
+                dst_layer_strides);
+    }
 
     dnnl_dims_t dst_iter_dims = {prb.n_layer, prb.n_dir(), prb.mb, prb.dic};
     auto dst_iter_d = dnn_mem_t::init_md(
@@ -681,15 +705,15 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     } else {
         // TODO: add stride support for diff_* tensors
         auto diff_src_layer_d = dnn_mem_t::init_md(
-                3, src_layer_dims, prb.cfg[DIFF_SRC_LAYER].dt, tag::any);
+                3, src_layer_dims, prb.cfg[DIFF_SRC_LAYER].dt, prb.tag[0]);
         auto diff_src_iter_d = dnn_mem_t::init_md(
                 4, src_iter_dims, prb.cfg[DIFF_SRC_ITER].dt, tag::any);
         auto diff_src_iter_c_d = dnn_mem_t::init_md(
                 4, src_iter_c_dims, prb.cfg[DIFF_SRC_ITER_C].dt, tag::any);
         auto diff_weights_layer_d = dnn_mem_t::init_md(5, weights_layer_dims,
-                prb.cfg[DIFF_WEIGHTS_LAYER].dt, tag::any);
-        auto diff_weights_iter_d = dnn_mem_t::init_md(
-                5, weights_iter_dims, prb.cfg[DIFF_WEIGHTS_ITER].dt, tag::any);
+                prb.cfg[DIFF_WEIGHTS_LAYER].dt, prb.tag[1]);
+        auto diff_weights_iter_d = dnn_mem_t::init_md(5, weights_iter_dims,
+                prb.cfg[DIFF_WEIGHTS_ITER].dt, prb.tag[1]);
 
         benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> diff_attention_d {};
         if (prb.is_augru())
@@ -712,7 +736,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto diff_bias_d = dnn_mem_t::init_md(
                 4, bias_dims, prb.cfg[DIFF_BIAS].dt, tag::any);
         auto diff_dst_layer_d = dnn_mem_t::init_md(
-                3, dst_layer_dims, prb.cfg[DIFF_DST_LAYER].dt, tag::any);
+                3, dst_layer_dims, prb.cfg[DIFF_DST_LAYER].dt, prb.tag[2]);
         auto diff_dst_iter_d = dnn_mem_t::init_md(
                 4, dst_iter_dims, prb.cfg[DIFF_DST_ITER].dt, tag::any);
         auto diff_dst_iter_c_d = dnn_mem_t::init_md(
@@ -785,6 +809,12 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
             return;
         }
         if (prb.prop != dnnl_forward_inference) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+        if (is_cpu()
+                && (prb.tag[0] != tag::abx || prb.tag[1] != tag::any
+                        || prb.tag[2] != tag::abx)) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -862,6 +892,14 @@ void skip_invalid_prb(const prb_t *prb_, res_t *res) {
     // the output, which doesn't allow to validate numerical stability.
     if (has_bench_mode_bit(mode_bit_t::bitwise) && (prb.prop == dnnl_backward)
             && prb.flags != DIFF_WEIGHTS_OVERWRITE) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
+
+    // Non-trivial strides modify existing strides, when the tag is defined.
+    // With tag::any, strides are not defined.
+    if (!prb.trivial_strides
+            && (prb.tag[0] == tag::any || prb.tag[2] == tag::any)) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }

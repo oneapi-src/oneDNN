@@ -49,6 +49,7 @@ void check_correctness(
         const settings_t &s, driver_task_executor_t &task_executor) {
     for_(const auto &i_prop : s.prop)
     for_(const auto &i_cfg : s.cfg)
+    for_(const auto &i_tag : s.tag)
     for_(const auto &i_alg : s.alg)
     for_(auto i_with_peephole : s.with_peephole)
     for_(auto i_with_projection : s.with_projection)
@@ -72,8 +73,8 @@ void check_correctness(
                 i_scratchpad_mode, i_fpmath_mode, i_acc_mode, i_deterministic);
 
         auto prb = std::make_shared<prb_t>(s.desc,
-                dt_conf_t::create(i_cfg, attr), i_prop, i_alg, i_with_peephole,
-                i_with_projection, i_direction, i_scale_policy,
+                dt_conf_t::create(i_cfg, attr), i_tag, i_prop, i_alg,
+                i_with_peephole, i_with_projection, i_direction, i_scale_policy,
                 i_scale_proj_policy, i_flags, i_activation, attr, i_ctx_init,
                 i_ctx_exe, s.alpha, s.beta, i_skip_nonlinear, i_trivial_strides,
                 i_n_layer, i_n_iter, i_mb);
@@ -97,6 +98,18 @@ int verify_input(const settings_t &s) {
                     "values are `common` and `per_oc`.\n",
                     policy_s),
                     fflush(stderr);
+            SAFE_V(FAIL);
+        }
+    }
+
+    static constexpr int tag_inputs = 3;
+    for (const auto &i_tag : s.tag) {
+        if (i_tag.size() != 1 && i_tag.size() != tag_inputs) {
+            BENCHDNN_PRINT(0,
+                    "Error: `tag` option expects either a single input or "
+                    "three inputs in SRC:WEI:DST format. Current size is: "
+                    "\"%ld\"\n",
+                    (long)i_tag.size());
             SAFE_V(FAIL);
         }
     }
@@ -148,6 +161,7 @@ int bench(int argc, char **argv) {
                 || parse_batch(bench, argv[0])
                 || parse_dir(s.prop, def.prop, argv[0], "prop")
                 || parse_cfg(s.cfg, def.cfg, cstr2str, argv[0])
+                || parse_multi_tag(s.tag, def.tag, argv[0], "tag")
                 || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_vector_option(s.direction, def.direction,
                         str2direction, argv[0], "direction", help_direction)

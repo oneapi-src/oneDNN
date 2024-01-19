@@ -237,6 +237,7 @@ struct settings_t : public base_settings_t {
 
     std::vector<dir_t> prop {FWD_I};
     std::vector<std::string> cfg {"f32"};
+    std::vector<std::vector<std::string>> tag {{tag::any}};
     std::vector<alg_t> alg {VANILLA_RNN};
     std::vector<dnnl_rnn_direction_t> direction {
             dnnl_unidirectional_left2right};
@@ -261,19 +262,20 @@ struct settings_t : public base_settings_t {
 
     const char *perf_template_csv() const {
         static const std::string args
-                = "%prop%,%cfg%,%alg%,%activation%,%direction%";
+                = "%prop%,%cfg%,%stag%,%alg%,%activation%,%direction%";
         return perf_template_csv_base(args);
     }
 
     void reset() { *this = settings_t(perf_template); }
 
     bool has_single_setup() const override {
-        return prop.size() == 1 && cfg.size() == 1 && alg.size() == 1
-                && direction.size() == 1 && activation.size() == 1
-                && skip_nonlinear.size() == 1 && trivial_strides.size() == 1
-                && with_peephole.size() == 1 && with_projection.size() == 1
-                && n_layer.size() == 1 && n_iter.size() == 1
-                && scale_policy.size() == 1 && scale_proj_policy.size() == 1
+        return prop.size() == 1 && cfg.size() == 1 && tag.size() == 1
+                && alg.size() == 1 && direction.size() == 1
+                && activation.size() == 1 && skip_nonlinear.size() == 1
+                && trivial_strides.size() == 1 && with_peephole.size() == 1
+                && with_projection.size() == 1 && n_layer.size() == 1
+                && n_iter.size() == 1 && scale_policy.size() == 1
+                && scale_proj_policy.size() == 1
                 && base_settings_t::has_single_setup();
     }
 };
@@ -286,9 +288,9 @@ struct prb_t : public desc_t {
                         settings_t::get_attr(s.scales[0], s.zero_points[0],
                                 s.post_ops[0], s.scratchpad_mode[0],
                                 s.fpmath_mode[0], s.acc_mode[0])),
-                s.prop[0], s.alg[0], s.with_peephole[0], s.with_projection[0],
-                s.direction[0], s.scale_policy[0], s.scale_proj_policy[0],
-                s.flags[0], s.activation[0],
+                s.tag[0], s.prop[0], s.alg[0], s.with_peephole[0],
+                s.with_projection[0], s.direction[0], s.scale_policy[0],
+                s.scale_proj_policy[0], s.flags[0], s.activation[0],
                 settings_t::get_attr(s.scales[0], s.zero_points[0],
                         s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
                 s.ctx_init[0], s.ctx_exe[0], s.alpha, s.beta,
@@ -300,7 +302,8 @@ struct prb_t : public desc_t {
                 s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]);
     }
 
-    prb_t(const desc_t &desc, const dt_conf_t &cfg, dir_t prop, alg_t alg,
+    prb_t(const desc_t &desc, const dt_conf_t &cfg,
+            const std::vector<std::string> &tag, dir_t prop, alg_t alg,
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, policy_t scale_policy,
             policy_t scale_proj_policy, unsigned int flags,
@@ -310,6 +313,7 @@ struct prb_t : public desc_t {
             int64_t n_layer, int64_t n_iter, int64_t mb = 0)
         : desc_t(desc)
         , cfg(cfg)
+        , tag(tag)
         , prop(prop2prop_kind(prop))
         , dir(prop)
         , alg(alg)
@@ -335,6 +339,12 @@ struct prb_t : public desc_t {
         if (n_iter) this->n_iter = n_iter;
         if (mb) this->mb = mb;
         count_ops();
+
+        // Broadcast data types if needed
+        if (tag.size() == 1) {
+            const auto val = tag[0]; // Need a copy here.
+            this->tag.assign(3, val);
+        }
 
         wei_scales = nullptr;
         wei_proj_scales = nullptr;
@@ -448,6 +458,7 @@ struct prb_t : public desc_t {
     const char *str() const { return repro.c_str(); }
 
     const dt_conf_t &cfg;
+    std::vector<std::string> tag;
     dnnl_prop_kind_t prop;
     dir_t dir; // Same as `prop`, for compatibility. TODO: remove me;
     alg_t alg;
@@ -524,6 +535,7 @@ struct perf_report_t : public base_perf_report_t {
     const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const dnnl_prop_kind_t *prop() const override { return &p_->prop; }
+    const std::vector<std::string> *stag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_;
