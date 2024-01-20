@@ -80,7 +80,10 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
                             src_type, wei_type, bia_type, dst_type, undef)
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(smask_t::post_ops, dst_type)
-                    && output_scales_mask_ok() && zero_points_ok();
+                    && output_scales_mask_ok() && zero_points_ok()
+                    && !(attr_.post_ops_.len() > 1
+                            && dst_md_.data_type == data_type::f16);
+
             if (!ok) return status::unimplemented;
 
             CHECK(acl_convolution_utils::init_conf_gemm(acp_, src_md_,
