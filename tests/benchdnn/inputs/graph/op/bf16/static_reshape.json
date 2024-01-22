@@ -1,0 +1,69 @@
+{
+  "version": "3.3.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "input_ports": [
+    0
+  ],
+  "output_ports": [
+    1
+  ],
+  "graph": [
+    {
+      "id": 0,
+      "name": "Reshape_0",
+      "kind": "StaticReshape",
+      "attrs": {
+        "special_zero": {
+          "type": "bool",
+          "value": 0
+        },
+        "shape": {
+          "type": "s64[]",
+          "value": [
+            128, 
+            512, 
+            16, 
+            64
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "bf16",
+          "shape": [
+            65536, 
+            1024
+          ],
+          "stride": [
+            1024, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 1,
+          "dtype": "bf16",
+          "shape": [
+            128, 
+            512, 
+            16, 
+            64
+          ],
+          "stride": [
+            524288, 
+            1024, 
+            64, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}
