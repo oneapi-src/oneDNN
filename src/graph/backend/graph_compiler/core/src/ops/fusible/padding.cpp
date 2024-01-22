@@ -22,6 +22,7 @@
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <runtime/dynamic_dispatch/ops/runtime_op_info.hpp>
 
 namespace dnnl {
@@ -447,6 +448,24 @@ std::vector<expr> padding_op_t::get_padding_offsets_exprs() {
         offsets[real_padding_axis[i]] = (int)pads_begin[i];
     }
     return offsets;
+}
+
+void padding_op_t::calculate_dynamic_shape_expression() {
+    auto &g = get_owner_graph();
+    auto padding_axis = get_real_padding_axis();
+    auto data_dims = info_.inputs_[0]->details_.get_plain_dims();
+    auto out_dims = get_outputs()[0]->details_.get_plain_dims();
+    auto expr_pads_begin = g.dims_to_expr(attrs_.get<sc_dims>("pads_begin"));
+    auto expr_pads_end = g.dims_to_expr(attrs_.get<sc_dims>("pads_end"));
+    for (size_t i = 0; i < padding_axis.size(); i++) {
+        if (is_dynamic_dim(data_dims[padding_axis[i]])) {
+            auto var_in = g.dim_to_expr(data_dims[padding_axis[i]]);
+            auto var_out = g.dim_to_expr(out_dims[padding_axis[i]]);
+            expr_c cal_expr = do_cast_and_fold(
+                    var_in + expr_pads_begin[i] + expr_pads_end[i]);
+            var_out->attr_->set(attr_keys::cal_expression, cal_expr);
+        }
+    }
 }
 
 OP_REGISTER(padding_op_t, padding)

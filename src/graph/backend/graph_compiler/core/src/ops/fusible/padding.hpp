@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,6 +54,8 @@ public:
     shape_rl_vec get_dynamic_shape_relations() const override;
 
     reflection::shared_general_object_t get_dynamic_runtime_info() override;
+
+    void calculate_dynamic_shape_expression() override;
 
     stmt get_zero_out_stmt(
             const tensor &out, const slice_range_list &range_list);

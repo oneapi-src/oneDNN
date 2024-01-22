@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ SC_API void infer_shape_conv_fwd_op(void *out, void *data, void *weight,
         dyn_conv_fwd_runtime_info_t &op_info);
 SC_API void infer_shape_unary_fusible_op(void *out, void *in);
 SC_API void infer_shape_binary_fusible_op(void *out, void *in0, void *in1);
+SC_API void infer_shape_pooling_fusible_op(
+        void *out, void *in, dyn_pooling_runtime_info_t &op_info);
 SC_API void infer_shape_reduce_op(
         void *out, void *in, int *rd_axis, int num_axis);
 SC_API void infer_shape_transpose_op(
@@ -56,6 +58,9 @@ SC_API void query_format_reorder_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel,
         int *impl_alg);
 SC_API void query_format_padding_op(void *table, void *out, void *in,
+        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel,
+        int *impl_alg);
+SC_API void query_format_pooling_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel,
         int *impl_alg);
 SC_API void query_format_reduce_op(void *table, void *out, void *in,

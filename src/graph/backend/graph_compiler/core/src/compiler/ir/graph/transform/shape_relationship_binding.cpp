@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -204,6 +204,11 @@ SC_INTERNAL_API void shape_relationship_binding(
     for (sc_dim old_plhd = cur_new_plhd; old_plhd > cur_old_plhd; old_plhd--) {
         graph.dyn_info_->dim2expr_map_.erase(old_plhd);
     }
+    // stage 6: set calculation relationship between output and input
+    op_visitor_t vis3 = op_visitor_t::dfs_topology_sort(graph.ops_.size());
+    vis3.visit_graph(graph, [&](op_visitor_t *vis3, const sc_op_ptr &node) {
+        node->calculate_dynamic_shape_expression();
+    });
     graph.reset_op_ids();
 }
 } // namespace gc

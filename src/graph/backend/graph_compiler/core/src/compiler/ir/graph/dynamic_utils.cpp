@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
+#include <compiler/ir/pass/ir_copy.hpp>
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
@@ -33,6 +34,7 @@
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/padding.hpp>
+#include <ops/fusible/pooling.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
@@ -526,6 +528,9 @@ expr call_op_dynamic_query_function(
                 args[10]);
     } else if (op->isa<padding_op_t>()) {
         return builtin::call_padding_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    } else if (op->isa<pooling_op_t>()) {
+        return builtin::call_pooling_op_query_format(
                 args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
     } else {
         COMPILE_ASSERT(

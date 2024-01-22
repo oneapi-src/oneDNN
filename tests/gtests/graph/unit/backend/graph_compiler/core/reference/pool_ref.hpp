@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -289,7 +289,7 @@ void compute_conv_pooling_postops_ref(const int64_t MB, const int64_t OC,
             nullptr, conv_ouput, dir_t::FWD_I, mul_m, add_m, false);
     compute_pooling_ref_fwd<src_type, src_type>(pooling_type, MB, OC, OH, OW,
             p_OH, p_OW, p_KH, p_KW, p_SH, p_SW, p_PH, p_PW, conv_ouput,
-            final_output, mul_m, add_m, true, exclude_pad);
+            final_output, mul_m, add_m, bn_relu, exclude_pad);
 }
 
 template <typename src_type, typename wei_type, typename dst_type>

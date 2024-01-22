@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,10 @@
 #include "compiler/ir/sc_data_format.hpp"
 #include "pooling.hpp"
 #include "util/bf16.hpp"
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
+#include <runtime/dynamic_dispatch/ops/runtime_op_info.hpp>
 #include <unordered_map>
+#include <util/reflection.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -118,13 +121,19 @@ slice_range_list infer_pool_slice_ranges(const graph_tensor_ptr &infered_tensor,
             = get_real_pooling_axis_form_tensor(infered_tensor, channel_last);
     auto &o_blocked_dims = infered_tensor->details_.get_blocking_dims();
     slice_range_list o_ranges_list;
+    auto blocking_dims_expr = infered_tensor->details_.get_blocking_dims_expr(
+            infered_tensor->producer_owner_->get_owner_graph());
     for (auto &range_list : in_range_list) {
         slice_range out_range;
         for (unsigned i = 0; i < range_list.size(); i++) {
             if (!(std::find(
                           real_pooling_axis.begin(), real_pooling_axis.end(), i)
                         == real_pooling_axis.end())) {
-                out_range.emplace_back(0, uint64_t(o_blocked_dims[i]));
+                if (is_dynamic_dim(o_blocked_dims[i])) {
+                    out_range.emplace_back(0, blocking_dims_expr[i]);
+                } else {
+                    out_range.emplace_back(0, uint64_t(o_blocked_dims[i]));
+                }
                 continue;
             }
             out_range.emplace_back(range_list[i]);
@@ -334,7 +343,7 @@ infer_status_code pooling_op_t::pre_infer_slice_ranges(
 static void compute_block_pooling(
         const std::vector<const tensor_slice *> &inputs,
         const tensor_slice &dst, pooling_type_t pooling_typ, sc_dims kernel,
-        sc_dims stride, sc_dims pads_begin,
+        sc_dims stride, const std::vector<expr> &pads_begin,
         const std::vector<int> &in_fmt_vector, const vectorized_info_t &vx_info,
         sc_data_type_t in_dtype, sc_data_type_t out_dtype, any_map_t &attrs,
         const graph_tensor_ptr &expand_gt, size_t wkld = 0UL) {
@@ -399,7 +408,7 @@ static void compute_block_pooling(
             expr out_h_idx = dst.get_offset()[i];
             if (out_h_idx.isa<constant>()) out_h_idx = iter_vars[i];
             auto idx = int(stride[pads_stride_index]) * out_h_idx
-                    - int(pads_begin[pads_stride_index])
+                    - pads_begin[pads_stride_index]
                     + kernel_iter_vars[pads_stride_index];
             expr tmp_cond = builder::make_logic_and(
                     builder::make_cmp_ge(idx, 0),
@@ -628,12 +637,43 @@ void pooling_op_t::compute_block(context_ptr ctx,
     auto in_dtype = info_.inputs_[0]->details_.dtype_;
     auto out_dtype = info_.outputs_[0]->details_.dtype_;
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
-
+    auto in_fmt_vector = get_ncx_formatcode_vector_form_tensor(
+            info_.inputs_[0], channel_last_);
+    std::string auto_pad = attrs_.get_or_else<std::string>(
+            pooling_attr_key::auto_pad, auto_pad_options::none);
+    auto pads_begin_expr = get_owner_graph().dims_to_expr(pads_begin_);
+    if ((is_dynamic()
+                && (auto_pad == auto_pad_options::same_upper
+                        || auto_pad == auto_pad_options::same_lower))) {
+        auto src_shapes = inputs[0]->get_shape();
+        auto dst_shapes = (*dst[0]).get_shape();
+        for (unsigned i = 0; i < inputs[0]->nslice_dims(); i++) {
+            if (in_fmt_vector[i] < 2) { continue; }
+            int plan_axis = in_fmt_vector[i];
+            if (!is_dynamic_dim(
+                        info_.inputs_[0]
+                                ->details_.get_plain_dims()[plan_axis])) {
+                continue;
+            }
+            int pads_stride_index = plan_axis - 2;
+            auto total_pad
+                    = builder::make_max((dst_shapes[i] - 1)
+                                              * int(stride_[pads_stride_index])
+                                      + int(kernel_[pads_stride_index]),
+                              src_shapes[i])
+                    - src_shapes[i];
+            if (auto_pad == auto_pad_options::same_upper) {
+                pads_begin_expr[pads_stride_index]
+                        = do_cast_and_fold(total_pad / 2);
+            } else {
+                pads_begin_expr[pads_stride_index]
+                        = do_cast_and_fold((total_pad + 1) / 2);
+            }
+        }
+    }
     compute_block_pooling(inputs, *dst[0], pooling_type_, kernel_, stride_,
-            pads_begin_,
-            get_ncx_formatcode_vector_form_tensor(
-                    info_.inputs_[0], channel_last_),
-            vx_info_, in_dtype, out_dtype, attrs_, info_.outputs_[0], wkld);
+            pads_begin_expr, in_fmt_vector, vx_info_, in_dtype, out_dtype,
+            attrs_, info_.outputs_[0], wkld);
 }
 
 void pooling_op_t::query_format(context_ptr ctx,
@@ -668,6 +708,94 @@ size_t pooling_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
     return wkld;
 }
 
+shape_rl_vec pooling_op_t::get_dynamic_shape_relations() const {
+    shape_rl_vec ret;
+    auto &in_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto &out_dims = get_outputs()[0]->details_.get_plain_dims();
+    if (is_dynamic_dim(in_dims[0])) {
+        ret.emplace_back(in_dims[0], out_dims[0]);
+    }
+    const int shape_begin_axis = channel_last_ ? 1 : 2;
+    auto n_pad_dims = in_dims.size() - 2;
+    std::string auto_pad = attrs_.get_or_else<std::string>(
+            pooling_attr_key::auto_pad, auto_pad_options::none);
+    for (unsigned i = 0; i < n_pad_dims; i++) {
+        if (is_dynamic_dim(in_dims[shape_begin_axis + i])) {
+            if (auto_pad == auto_pad_options::same_upper
+                    || auto_pad == auto_pad_options::same_lower) {
+                if (stride_[i] == 1) {
+                    ret.emplace_back(in_dims[shape_begin_axis + i],
+                            out_dims[shape_begin_axis + i]);
+                }
+            } else {
+                if (stride_[i] == 1
+                        && (kernel_[i] - (pads_begin_[i] + pads_end_[i])
+                                == 1)) {
+                    ret.emplace_back(in_dims[shape_begin_axis + i],
+                            out_dims[shape_begin_axis + i]);
+                }
+            }
+        }
+    }
+    return ret;
+}
+
+reflection::shared_general_object_t pooling_op_t::get_dynamic_runtime_info() {
+    auto ndims = info_.inputs_[0]->details_.get_plain_dims().size();
+    std::string auto_pad = attrs_.get_or_else<std::string>(
+            pooling_attr_key::auto_pad, auto_pad_options::none);
+    auto auto_pads_same = auto_pad == auto_pad_options::same_upper
+            || auto_pad == auto_pad_options::same_lower;
+    auto rounding_type_floor
+            = attrs_.get_or_else<std::string>(pooling_attr_key::rounding_type,
+                      rounding_type_options::floor)
+            == rounding_type_options::floor;
+    auto dyn_info = ndims == 5
+            ? dyn_pooling_runtime_info_t(stride_[0], stride_[1], stride_[2],
+                    pads_begin_[0], pads_begin_[1], pads_begin_[2],
+                    pads_end_[0], pads_end_[1], pads_end_[2], kernel_[0],
+                    kernel_[1], kernel_[2], rounding_type_floor, auto_pads_same)
+            : dyn_pooling_runtime_info_t(stride_[0], stride_[1], pads_begin_[0],
+                    pads_begin_[1], pads_end_[0], pads_end_[1], kernel_[0],
+                    kernel_[1], rounding_type_floor, auto_pads_same);
+    reflection::shared_general_object_t info
+            = reflection::general_object_t::make(dyn_info);
+    return info;
+}
+
+void pooling_op_t::calculate_dynamic_shape_expression() {
+    auto &g = get_owner_graph();
+    auto expr_pads_begin = g.dims_to_expr(pads_begin_);
+    auto expr_pads_end = g.dims_to_expr(pads_end_);
+    auto expr_strides = g.dims_to_expr(stride_);
+    auto expr_kernels = g.dims_to_expr(kernel_);
+    auto &data_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto &out_dims = get_outputs()[0]->details_.get_plain_dims();
+    const int shape_begin_axis = channel_last_ ? 1 : 2;
+    auto n_pad_dims = data_dims.size() - 2;
+    std::string auto_pad = attrs_.get_or_else<std::string>(
+            pooling_attr_key::auto_pad, auto_pad_options::none);
+    for (unsigned i = 0; i < n_pad_dims; i++) {
+        if (is_dynamic_dim(data_dims[shape_begin_axis + i])) {
+            auto var_in = g.dim_to_expr(data_dims[shape_begin_axis + i]);
+            auto var_out = g.dim_to_expr(out_dims[shape_begin_axis + i]);
+            expr_c cal_expr;
+            if (auto_pad == auto_pad_options::same_upper
+                    || auto_pad == auto_pad_options::same_lower) {
+                cal_expr = do_cast_and_fold(
+                        (var_in + expr_strides[i] - 1) / expr_strides[i]);
+            } else {
+                cal_expr = do_cast_and_fold(
+                        (var_in + expr_pads_begin[i] + expr_pads_end[i]
+                                - expr_kernels[i])
+                                / expr_strides[i]
+                        + 1);
+            }
+            var_out->attr_->set(attr_keys::cal_expression, cal_expr);
+        }
+    }
+}
+
 sc_dims pooling_op_t::_calculate_output_dims(
         bool rounding_floor, bool channel_last) {
     auto &input_dims = info_.inputs_[0]->details_.get_plain_dims();
@@ -682,17 +810,23 @@ sc_dims pooling_op_t::_calculate_output_dims(
 
     for (unsigned i = 0; i < n_pads_dims; i++) {
         int padding = pads_begin_[i] + pads_end_[i];
-        if (rounding_floor) {
-            output_dims[shape_begin_axis + i]
-                    = (input_dims[shape_begin_axis + i] + padding - kernel_[i])
-                            / stride_[i]
-                    + 1;
+        if (is_dynamic_dim(input_dims[shape_begin_axis + i])) {
+            output_dims[shape_begin_axis + i] = dimensions::dynamic_any;
         } else {
-            output_dims[shape_begin_axis + i]
-                    = utils::divide_and_ceil(input_dims[shape_begin_axis + i]
-                                      + padding - kernel_[i],
-                              stride_[i])
-                    + 1;
+            if (rounding_floor) {
+                output_dims[shape_begin_axis + i]
+                        = (input_dims[shape_begin_axis + i] + padding
+                                  - kernel_[i])
+                                / stride_[i]
+                        + 1;
+            } else {
+                output_dims[shape_begin_axis + i]
+                        = utils::divide_and_ceil(
+                                  input_dims[shape_begin_axis + i] + padding
+                                          - kernel_[i],
+                                  stride_[i])
+                        + 1;
+            }
         }
     }
     return output_dims;

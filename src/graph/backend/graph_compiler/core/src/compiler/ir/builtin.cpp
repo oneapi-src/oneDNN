@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -641,6 +641,22 @@ expr call_padding_op_query_format(const expr &tb, const expr &out0,
                     make_var(datatypes::pointer, "kernel")},
             stmt(), datatypes::void_t);
     return padding_query_f(
+            tb, out0, in0, out_format0, in_format0, out_size, kernel);
+}
+
+expr call_pooling_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &out_format0, const expr &in_format0,
+        const expr &out_size, const expr &kernel) {
+    static func_t pooling_query_f = make_func("query_format_pooling_op",
+            {make_var(datatypes::pointer, "op_table"),
+                    make_var(datatypes::pointer, "out"),
+                    make_var(datatypes::pointer, "inp"),
+                    make_var(datatypes::pointer, "out_fmt"),
+                    make_var(datatypes::pointer, "inp_fmt"),
+                    make_var(datatypes::pointer, "out_size"),
+                    make_var(datatypes::pointer, "kernel")},
+            stmt(), datatypes::void_t);
+    return pooling_query_f(
             tb, out0, in0, out_format0, in_format0, out_size, kernel);
 }
 

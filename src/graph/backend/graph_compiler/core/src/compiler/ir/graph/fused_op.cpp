@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/padding.hpp>
+#include <ops/fusible/pooling.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/shape_of_tensor.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
@@ -489,6 +490,13 @@ void create_query_function_by_graph(general_fused_params_t &gp,
                 gp.ltsr_rtsr[out] = op_ins[main_idx];
             }
         } else if (op->isa<padding_op_t>()) {
+            add_global_table_var(gp, table_name, table_ptr, table_var);
+            initialize_dispatch_table_with_op(ctx, op, table_ptr);
+            std::vector<expr> args = {table_var, op_outs[0].tensor_,
+                    op_ins[0].tensor_, op_outs[0].format_, op_ins[0].format_,
+                    op_outs[0].size_, dummy_kernel};
+            bld.push_evaluate(call_op_dynamic_query_function(op, args));
+        } else if (op->isa<pooling_op_t>()) {
             add_global_table_var(gp, table_name, table_ptr, table_var);
             initialize_dispatch_table_with_op(ctx, op, table_ptr);
             std::vector<expr> args = {table_var, op_outs[0].tensor_,
