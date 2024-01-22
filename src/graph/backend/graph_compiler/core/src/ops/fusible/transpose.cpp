@@ -536,22 +536,27 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                                           const int64_t inp_b_size,
                                           const int64_t out_a_size,
                                           const int64_t out_b_size) {
+        assert(!is_dynamic);
         if ((!is_dynamic
                     && (inp_a_size % inp_a_step || inp_b_size % inp_b_step
                             || out_a_size % inp_a_step
-                            || out_b_size % inp_b_step))
-                || (is_dynamic && !dynamic_no_padding)) {
+                            || out_b_size % inp_b_step))) {
             need_mask = true;
         }
     };
-    is_shapesize_need_mask(input_blocking_dims[inp_a_axis],
-            input_blocking_dims[inp_b_axis], output_blocking_dims[out_a_axis],
-            output_blocking_dims[out_b_axis]);
-    // tensor slice check
-    is_shapesize_need_mask(get_expr_as_int(src.get_shape()[inp_a_axis]),
-            get_expr_as_int(src.get_shape()[inp_b_axis]),
-            get_expr_as_int(dst.get_shape()[out_a_axis]),
-            get_expr_as_int(dst.get_shape()[out_b_axis]));
+    if (is_dynamic && !dynamic_no_padding) { need_mask = true; }
+    if (!is_dynamic) {
+        is_shapesize_need_mask(input_blocking_dims[inp_a_axis],
+                input_blocking_dims[inp_b_axis],
+                output_blocking_dims[out_a_axis],
+                output_blocking_dims[out_b_axis]);
+        // tensor slice check
+        is_shapesize_need_mask(get_expr_as_int(src.get_shape()[inp_a_axis]),
+                get_expr_as_int(src.get_shape()[inp_b_axis]),
+                get_expr_as_int(dst.get_shape()[out_a_axis]),
+                get_expr_as_int(dst.get_shape()[out_b_axis]));
+    }
+
     if (!is_dynamic
             && math_utils::get_dims_product(input_blocking_dims)
                     != math_utils::get_dims_product(output_blocking_dims)) {
@@ -632,6 +637,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         auto src_mask_can_empty = [&](const int src_mask_axis,
                                           const int dst_mask_axis,
                                           const int mask_step) {
+            if (is_dynamic) return false;
             bool is_srcshape_multiple_step
                     = (get_expr_as_int(src_shape[src_mask_axis]) % mask_step)
                     == 0;
@@ -661,6 +667,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         auto dst_mask_can_empty = [&](const int dst_mask_axis,
                                           const int src_mask_axis,
                                           const int mask_step) {
+            if (is_dynamic) return false;
             bool is_dstshape_multiple_step
                     = (get_expr_as_int(dst_shape[dst_mask_axis]) % mask_step)
                     == 0;
@@ -826,7 +833,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
 
                 if (inputloop_otheraxis_condition.defined()) {
                     mask_floor = generate_mask_var_by_step(mask_def_floor,
-                            expr(step), step, sup_condition, true);
+                            cur_step, step, sup_condition, true);
                     cur_list_floor.emplace_back(mask_def_floor);
                 }
                 if (inputloop_lastdim_condition.defined()) {
@@ -896,7 +903,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                         mask_def, cur_step, step, sup_condition, true);
                 cur_list.emplace_back(mask_def);
                 mask_floor = generate_mask_var_by_step(
-                        mask_def_floor, step, step, sup_condition, true);
+                        mask_def_floor, cur_step, step, sup_condition, true);
                 cur_list_floor.emplace_back(mask_def_floor);
             }
 
@@ -1076,8 +1083,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                 cur_list.emplace_back(mask_def);
                 if (inputloop_otheraxis_condition.defined()) {
                     mask_floor = generate_mask_var_by_step(mask_def_floor,
-                            expr(trans_lanes_16bitx8), trans_lanes_16bitx8,
-                            sup_condition, true);
+                            cur_step, trans_lanes_16bitx8, sup_condition, true);
                     cur_list_floor.emplace_back(mask_def_floor);
                 }
             }
